@@ -114,6 +114,9 @@ interface EndpointHitTargetProps {
   ) => void;
   onNetPointerEnter?: (netId: string) => void;
   onNetPointerLeave?: () => void;
+  terminalPickState?: (
+    endpoint: Extract<WireSource["endpoint"], { kind: "terminal" }>,
+  ) => "candidate" | "origin" | "partner";
 }
 
 export function EditorCanvasHitLayer({
@@ -311,6 +314,7 @@ function EndpointHitTargets({
   onWireEndpoint,
   onNetPointerEnter,
   onNetPointerLeave,
+  terminalPickState,
 }: EndpointHitTargetProps) {
   const selectedRouteEnd = selectedRoute ? routeEnd(selectedRoute) : null;
   // Which end of the selected wire an endpoint IS, by identity rather than by
@@ -334,7 +338,18 @@ function EndpointHitTargets({
           )
           .sort((left, right) => left.position.x - right.position.x) ?? [])
       : [];
-  return endpoints.map((candidate) => {
+  const pickEntries = endpoints.flatMap((candidate) => {
+    if (candidate.endpoint.kind !== "terminal" || !terminalPickState) return [];
+    return [
+      {
+        candidate,
+        state: terminalPickState(candidate.endpoint),
+      },
+    ];
+  });
+  const pickOrigin = pickEntries.find(({ state }) => state === "origin");
+  const pickPartners = pickEntries.filter(({ state }) => state === "partner");
+  const hitTargets = endpoints.map((candidate) => {
     const candidateJunctionId =
       candidate.endpoint.kind === "junction"
         ? candidate.endpoint.junctionId
@@ -357,6 +372,7 @@ function EndpointHitTargets({
       <circle
         key={`${candidate.netId}:${label}`}
         data-testid={label}
+        data-endpoint-kind={candidate.endpoint.kind}
         data-canvas-hit-kind={
           candidate.endpoint.kind === "junction" ? "junction" : undefined
         }
@@ -424,4 +440,65 @@ function EndpointHitTargets({
       />
     );
   });
+  return (
+    <>
+      {pickOrigin
+        ? pickPartners.map(({ candidate }) => (
+            <TerminalCurrentDirectionPreview
+              key={`current-direction-${endpointKey(candidate.endpoint)}`}
+              from={pickOrigin.candidate.connection.contactPoint}
+              to={candidate.connection.contactPoint}
+              arrowSize={endpointHitRadius * 1.6}
+            />
+          ))
+        : null}
+      {pickEntries.map(({ candidate, state }) => {
+        const label = endpointLabel(candidate.endpoint);
+        return (
+          <circle
+            key={`${label}-current-pick-marker`}
+            data-testid={`${label}-current-pick-marker`}
+            className={`simulation-terminal-pick-marker ${state}`}
+            cx={candidate.connection.contactPoint.x}
+            cy={candidate.connection.contactPoint.y}
+            r={endpointHitRadius}
+          />
+        );
+      })}
+      {hitTargets}
+    </>
+  );
+}
+
+function TerminalCurrentDirectionPreview({
+  from,
+  to,
+  arrowSize,
+}: {
+  from: { x: number; y: number };
+  to: { x: number; y: number };
+  arrowSize: number;
+}) {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const length = Math.hypot(dx, dy);
+  if (length === 0) return null;
+  const ux = dx / length;
+  const uy = dy / length;
+  const tip = { x: from.x + dx * 0.62, y: from.y + dy * 0.62 };
+  const base = { x: tip.x - ux * arrowSize, y: tip.y - uy * arrowSize };
+  const halfWidth = arrowSize * 0.56;
+  const left = { x: base.x - uy * halfWidth, y: base.y + ux * halfWidth };
+  const right = { x: base.x + uy * halfWidth, y: base.y - ux * halfWidth };
+  return (
+    <g
+      className="simulation-terminal-direction-preview"
+      data-testid="simulation-terminal-direction-preview"
+    >
+      <line x1={from.x} y1={from.y} x2={to.x} y2={to.y} />
+      <polygon
+        points={`${tip.x},${tip.y} ${left.x},${left.y} ${right.x},${right.y}`}
+      />
+    </g>
+  );
 }

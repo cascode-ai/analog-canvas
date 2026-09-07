@@ -1581,7 +1581,8 @@
 .schematic-canvas.simulation-net-pick-active .route-hit,
 .schematic-canvas.simulation-net-pick-active .endpoint-hit,
 .schematic-canvas.simulation-net-pick-active .annotation-text-hit,
-.schematic-canvas.simulation-terminal-pick-active .endpoint-hit {
+.schematic-canvas.simulation-terminal-pick-active
+  .endpoint-hit[data-endpoint-kind="terminal"] {
   cursor: crosshair;
 }
 
@@ -1590,10 +1591,55 @@
 }
 
 .schematic-canvas.simulation-net-pick-active .endpoint-hit,
-.schematic-canvas.simulation-terminal-pick-active .endpoint-hit {
+.schematic-canvas.simulation-terminal-pick-active
+  .endpoint-hit[data-endpoint-kind="terminal"] {
   r: 9px;
   fill: rgb(0 0 0 / 0.1%);
   pointer-events: all;
+}
+
+.simulation-terminal-pick-marker {
+  fill: var(--icm-surface);
+  stroke: var(--icm-accent);
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+  opacity: 0.72;
+}
+
+.simulation-terminal-pick-marker.origin {
+  fill: var(--icm-accent);
+  stroke: var(--icm-accent);
+  opacity: 1;
+}
+
+.simulation-terminal-pick-marker.partner {
+  stroke-width: 2;
+  opacity: 1;
+}
+
+.simulation-terminal-direction-preview {
+  color: var(--icm-accent);
+  pointer-events: none;
+}
+
+.simulation-terminal-direction-preview line {
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-dasharray: 4 3;
+  vector-effect: non-scaling-stroke;
+  opacity: 0.78;
+}
+
+.simulation-terminal-direction-preview polygon {
+  fill: currentColor;
+  opacity: 0.92;
+}
+
+.simulation-terminal-pick-marker.candidate {
+  transition:
+    opacity 100ms ease,
+    stroke-width 100ms ease;
 }
 
 .schematic-canvas.waveform-placement-active {

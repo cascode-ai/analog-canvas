@@ -144,12 +144,19 @@ test("the qualified OTA setup opens unchanged and preserves all root and hierarc
   await panel
     .getByLabel("Add voltage probe")
     .selectOption({ label: "XDUT · ota_5t · vinp" });
-  await panel.getByRole("button", { name: "Pick terminal" }).click();
+  await panel.getByRole("button", { name: "Pick current" }).click();
   await expect(page.locator(".schematic-canvas")).toHaveClass(
     /simulation-terminal-pick-active/u,
   );
-  await page.getByTestId("terminal-VINP-+").click({ force: true });
-  await panel.getByRole("button", { name: "Picking Terminals…" }).click();
+  await page.getByTestId("terminal-VINP-+").click();
+  await expect(
+    page.getByTestId("terminal-VINP-+-current-pick-marker"),
+  ).toHaveClass(/origin/u);
+  await expect(
+    page.getByTestId("terminal-VINP---current-pick-marker"),
+  ).toHaveClass(/partner/u);
+  await page.getByTestId("terminal-VINP--").click();
+  await panel.getByRole("button", { name: "Picking current…" }).click();
   await panel
     .getByLabel("Add current output")
     .selectOption({ label: "XDUT · ota_5t · I1.+ current" });

@@ -127,6 +127,66 @@ describe("editor canvas hit layer", () => {
     expect(markup).toContain('class="endpoint-hit active"');
   });
 
+  it("renders explicit current-pick feedback independently of the hit circle", () => {
+    const document = createEmptyDocument("cell", "Cell");
+    const endpoint = {
+      kind: "terminal" as const,
+      instanceId: "M1",
+      pinName: "D",
+    };
+    const source = {
+      endpoint,
+      netId: "net",
+      connection: { contactPoint: { x: 10, y: 20 } },
+      preludeEdits: [],
+    } as unknown as WireSource;
+    const markup = renderToStaticMarkup(
+      <EditorCanvasHitLayer
+        selection={emptySelectionProps(document)}
+        endpoints={{
+          ...emptyEndpointProps(document),
+          endpoints: [source],
+          endpointLabel: () => "terminal-M1-D",
+          terminalPickState: () => "origin",
+        }}
+      />,
+    );
+    expect(markup).toContain('data-testid="terminal-M1-D-current-pick-marker"');
+    expect(markup).toContain('class="simulation-terminal-pick-marker origin"');
+    expect(markup).toContain('data-endpoint-kind="terminal"');
+  });
+
+  it("previews the direction from the first terminal to its partner", () => {
+    const document = createEmptyDocument("cell", "Cell");
+    const source = (pinName: string, x: number): WireSource =>
+      ({
+        endpoint: { kind: "terminal", instanceId: "M1", pinName },
+        netId: `net-${pinName}`,
+        connection: { contactPoint: { x, y: 20 } },
+        preludeEdits: [],
+      }) as unknown as WireSource;
+    const markup = renderToStaticMarkup(
+      <EditorCanvasHitLayer
+        selection={emptySelectionProps(document)}
+        endpoints={{
+          ...emptyEndpointProps(document),
+          endpoints: [source("D", 10), source("S", 50)],
+          endpointLabel: (endpoint) =>
+            endpoint.kind === "terminal"
+              ? `terminal-${endpoint.instanceId}-${endpoint.pinName}`
+              : "junction",
+          terminalPickState: (endpoint) =>
+            endpoint.pinName === "D" ? "origin" : "partner",
+        }}
+      />,
+    );
+    expect(markup).toContain(
+      'data-testid="simulation-terminal-direction-preview"',
+    );
+    expect(markup).toContain("<line");
+    expect(markup).toContain("<polygon");
+  });
+
   it("keeps endpoints between routes and annotations in hit order", () => {
     const document = createEmptyDocument("cell", "Cell");
     document.nets.push({ id: "net", terminals: [] });

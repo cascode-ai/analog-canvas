@@ -109,6 +109,8 @@ export interface SpiceSimulationSurfaceProps {
     readonly documentId: string;
     readonly instanceId: string;
     readonly pinName: string;
+    /** Optional second click used only to present the authored direction. */
+    readonly directionPinName?: string;
     /** Instance ids from the selected Testbench root to this Cell. */
     readonly occurrence?: readonly string[];
   } | null;
@@ -1415,12 +1417,23 @@ function SetupEditor({
       probeOptions.terminalCurrent,
       pickedTerminal,
     );
-    if (candidates.length > 1) {
-      setPickCandidates(candidates);
+    const presentedCandidates = candidates.map((candidate) =>
+      pickedTerminal.directionPinName
+        ? {
+            ...candidate,
+            label: candidate.label.replace(
+              `${pickedTerminal.pinName} current`,
+              `${pickedTerminal.pinName}→${pickedTerminal.directionPinName} current`,
+            ),
+          }
+        : candidate,
+    );
+    if (presentedCandidates.length > 1) {
+      setPickCandidates(presentedCandidates);
       onProblem(undefined);
       return;
     }
-    const option = candidates[0];
+    const option = presentedCandidates[0];
     if (!option) {
       onProblem(
         uiProblem(
@@ -1438,8 +1451,15 @@ function SetupEditor({
             output.expression.kind === "current") &&
           simulationProbeSelectionKey(project, output.expression) === key,
       )
-    )
+    ) {
+      onProblem(
+        uiProblem(
+          "PROBE_TARGET_ALREADY_SELECTED",
+          "That terminal current is already present in this Setup.",
+        ),
+      );
       return;
+    }
     setOutputs((current) => [...current, outputFromOption(option, current)]);
     onDirty(true);
     setPickCandidates([]);
@@ -1953,11 +1973,11 @@ function SetupEditor({
                 aria-pressed={pickTerminalsActive}
                 onClick={() => onPickTerminalsChange?.(!pickTerminalsActive)}
               >
-                {pickTerminalsActive ? "Picking Terminals…" : "Pick terminal"}
+                {pickTerminalsActive ? "Picking current…" : "Pick current"}
               </button>
             }
           />
-          <small>Positive current enters the selected terminal.</small>
+          <small>First terminal sets the positive current direction.</small>
         </SimulationSettingsSection>
         <SimulationSettingsSection
           title="Output signals"
