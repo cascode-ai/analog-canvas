@@ -42,7 +42,18 @@ describe("SpiceSimulationSurface workspace", () => {
       markup.indexOf('aria-label="Exit simulation"'),
     );
     expect(markup).toContain('class="simulation-minimize-glyph"');
-    expect(markup).toContain('class="simulation-environment-summary"');
+    expect(markup).toContain('aria-label="Setup settings" open=""');
+    expect(markup).not.toContain('aria-label="Environment settings"');
+    expect(markup).toContain('aria-label="Analyses settings"');
+    expect(markup).toContain('aria-label="Output probes settings"');
+    expect(markup).toContain('aria-label="Output signals settings"');
+    expect(markup).not.toContain('aria-label="Analyses settings" open=""');
+    expect(markup).not.toContain('aria-label="Output probes settings" open=""');
+    expect(markup).not.toContain(
+      'aria-label="Output signals settings" open=""',
+    );
+    expect(markup).toContain('class="simulation-environment-grid"');
+    expect(markup).toContain('value="27"');
     expect(markup).toContain('<input type="hidden" name="profileId"');
     expect(markup).not.toContain("<datalist");
     expect(markup).toContain("sky130-core-continuous-ngspice46-v1");
@@ -57,13 +68,8 @@ describe("SpiceSimulationSurface workspace", () => {
     expect(markup).toContain("Pick on canvas");
     expect(markup).toContain("Pick terminal");
     expect(markup).toContain("Add current output");
-    expect(markup).toContain(
-      'class="simulation-setup-group simulation-analysis-row"',
-    );
+    expect(markup).toContain('class="simulation-analysis-row"');
     expect(markup).toContain('class="simulation-analysis-options"');
-    expect(markup).toContain(
-      'class="simulation-setup-group simulation-inline-fields columns-2"',
-    );
     expect(markup).toContain("TRAN");
     expect(markup).toContain("DC");
     expect(markup).not.toContain("Voltage Outputs target Nets");

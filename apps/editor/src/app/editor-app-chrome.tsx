@@ -318,6 +318,16 @@ export function EditorAppChrome({
                 </button>
               </div>
             </details>
+            {agentAction ? (
+              <details className="command-menu" name="editor-command-menu">
+                <summary>Agent</summary>
+                <div className="command-popover">
+                  <button type="button" onClick={agentAction.execute}>
+                    {agentAction.label}
+                  </button>
+                </div>
+              </details>
+            ) : null}
             {simulationAction ? (
               <button
                 type="button"
@@ -332,16 +342,6 @@ export function EditorAppChrome({
                   ? "Simulation · Minimized"
                   : "Simulation"}
               </button>
-            ) : null}
-            {agentAction ? (
-              <details className="command-menu" name="editor-command-menu">
-                <summary>Agent</summary>
-                <div className="command-popover">
-                  <button type="button" onClick={agentAction.execute}>
-                    {agentAction.label}
-                  </button>
-                </div>
-              </details>
             ) : null}
             <button
               type="button"

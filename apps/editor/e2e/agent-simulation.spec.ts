@@ -108,6 +108,15 @@ test("the qualified OTA setup opens unchanged and preserves all root and hierarc
     .click();
   const panel = page.getByRole("region", { name: "Analog simulation" });
   await panel.getByRole("button", { name: "Settings" }).click();
+  await panel
+    .locator('details[aria-label="Analyses settings"] > summary')
+    .click();
+  await panel
+    .locator('details[aria-label="Output probes settings"] > summary')
+    .click();
+  await panel
+    .locator('details[aria-label="Output signals settings"] > summary')
+    .click();
   await expect(panel.getByLabel("Testbench Cell")).toHaveCount(0);
   await expect(panel.getByLabel("Stop (Hz)")).toHaveValue("1000000000");
   await expect(panel.getByLabel("DC sweep source")).toHaveValue("VINP");
@@ -226,6 +235,12 @@ test("the qualified OTA setup opens unchanged and preserves all root and hierarc
     .getByRole("button", { name: "Analog simulation", exact: true })
     .click();
   await panel.getByRole("button", { name: "Settings" }).click();
+  await panel
+    .locator('details[aria-label="Analyses settings"] > summary')
+    .click();
+  await panel
+    .locator('details[aria-label="Output signals settings"] > summary')
+    .click();
   await expect(
     panel.getByRole("button", { name: "Remove output" }),
   ).toHaveCount(7);
@@ -486,6 +501,15 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
   await expect(panel.getByRole("alert")).toContainText(/PROBE|probe/);
   expect(executions).toBe(0);
   await panel.getByRole("button", { name: "Settings" }).click();
+  await panel
+    .locator('details[aria-label="Analyses settings"] > summary')
+    .click();
+  await panel
+    .locator('details[aria-label="Output probes settings"] > summary')
+    .click();
+  await panel
+    .locator('details[aria-label="Output signals settings"] > summary')
+    .click();
   await panel.getByRole("button", { name: "Remove output" }).click();
   await panel
     .getByLabel("Add voltage probe")
@@ -802,6 +826,9 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
   );
   expect(executions).toBe(1);
   await panel.getByRole("button", { name: "Settings" }).click();
+  await panel
+    .locator('details[aria-label="Output signals settings"] > summary')
+    .click();
   await panel.getByLabel(/Output name for/).fill("new-output");
   await panel.getByLabel("Temperature (°C)").fill("30");
   await panel.getByRole("button", { name: "Apply setup" }).click();
