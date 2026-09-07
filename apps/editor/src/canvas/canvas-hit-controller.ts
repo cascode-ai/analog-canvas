@@ -178,7 +178,7 @@ export function createCanvasHitController({
           event.currentTarget.ownerDocument,
           { x: event.clientX, y: event.clientY },
           event.altKey ? 1 : 0,
-          simulationPickMode === null
+          !simulationPickNetsActive
             ? (candidate) =>
                 selectionPolicy.allowsCanvasHit(candidate, "select")
             : undefined,

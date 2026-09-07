@@ -5363,7 +5363,7 @@ export function App({
               selectedRouteSegmentIndex,
               selectedEndpoint,
               supplementalJunctionIds: supplementalSelection.junctionIds,
-              selectionPolicy: simulationPickActive
+              selectionPolicy: simulationPickNetsActive
                 ? unfilteredSelectionPolicy
                 : selectionPolicy,
               endpointLabel: endpointTestId,

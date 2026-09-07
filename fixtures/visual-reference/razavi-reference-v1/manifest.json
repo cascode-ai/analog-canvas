@@ -448,7 +448,7 @@
         "figure": "19(a)"
       },
       "extractPath": "xfmr-vector-source.json",
-      "extractSha256": "c5031902684968c25adf15fc1c8199551dc87d945889b47028be31ff15f5ffcd",
+      "extractSha256": "0f7ad43142e0cacc03f3d099f13a9e7a1cb50d7fae0ed0d43e2ef9a78a7bca53",
       "rasterPath": "xfmr-reference.png",
       "rasterSha256": "590a8a622514b117db6f9580952605d717e24654f972278d095eebaf404537dd",
       "scope": [
@@ -467,7 +467,7 @@
         "figure": "2"
       },
       "extractPath": "tcoil-vector-source.json",
-      "extractSha256": "31fdf78732bebd61e893e275bc943ddecc17c5effb51bb57f2c5f62bd875fcd2",
+      "extractSha256": "16f0c2832a1c3183f93f9371085665c16ade8ac7eb64fb4eb08774ac49a4f27d",
       "rasterPath": "tcoil-reference.png",
       "rasterSha256": "5bf1ef2f5055e659365b2f447765d33a11aeaac8a96339157bef66a03fca146d",
       "scope": [
