@@ -3119,6 +3119,375 @@
           "temperatureC": 27
         }
       }
+    },
+    {
+      "id": "simulation-setup-ota-bias-tt",
+      "name": "Bias point (TT)",
+      "version": 2,
+      "input": {
+        "kind": "structured",
+        "rootDocumentId": "document-ota-5t-testbench",
+        "analyses": [
+          {
+            "kind": "op"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "probe-vout",
+            "label": "vout",
+            "expression": {
+              "kind": "voltage",
+              "documentId": "document-ota-5t-testbench",
+              "anchor": {
+                "kind": "terminal",
+                "instanceId": "XDUT",
+                "pinName": "vout"
+              },
+              "occurrence": []
+            }
+          },
+          {
+            "id": "probe-ibias",
+            "label": "ibias",
+            "expression": {
+              "kind": "voltage",
+              "documentId": "document-ota-5t-testbench",
+              "anchor": {
+                "kind": "terminal",
+                "instanceId": "IBIAS",
+                "pinName": "-"
+              },
+              "occurrence": []
+            }
+          },
+          {
+            "id": "probe-tail",
+            "label": "tail",
+            "expression": {
+              "kind": "voltage",
+              "documentId": "document-ota-5t",
+              "anchor": {
+                "kind": "terminal",
+                "instanceId": "M5",
+                "pinName": "D"
+              },
+              "occurrence": ["XDUT"]
+            }
+          },
+          {
+            "id": "probe-nleft",
+            "label": "nleft",
+            "expression": {
+              "kind": "voltage",
+              "documentId": "document-ota-5t",
+              "anchor": {
+                "kind": "terminal",
+                "instanceId": "M3",
+                "pinName": "D"
+              },
+              "occurrence": ["XDUT"]
+            }
+          },
+          {
+            "id": "probe-supply-current",
+            "label": "I_supply",
+            "expression": {
+              "kind": "negate",
+              "operand": {
+                "kind": "current",
+                "documentId": "document-ota-5t-testbench",
+                "instanceId": "VDD",
+                "pinName": "+",
+                "occurrence": []
+              }
+            }
+          }
+        ],
+        "environment": {
+          "profileId": "sky130-core-continuous-ngspice46-v1",
+          "corner": "tt",
+          "temperatureC": 27
+        }
+      }
+    },
+    {
+      "id": "simulation-setup-ota-dc-transfer-tt",
+      "name": "DC transfer (TT)",
+      "version": 2,
+      "input": {
+        "kind": "structured",
+        "rootDocumentId": "document-ota-5t-testbench",
+        "analyses": [
+          {
+            "kind": "dc",
+            "sourceInstanceId": "VINP",
+            "startValue": 0.86,
+            "stopValue": 0.94,
+            "stepValue": 0.001
+          }
+        ],
+        "outputs": [
+          {
+            "id": "probe-vout",
+            "label": "vout",
+            "expression": {
+              "kind": "voltage",
+              "documentId": "document-ota-5t-testbench",
+              "anchor": {
+                "kind": "terminal",
+                "instanceId": "XDUT",
+                "pinName": "vout"
+              },
+              "occurrence": []
+            }
+          },
+          {
+            "id": "probe-vinp",
+            "label": "vinp",
+            "expression": {
+              "kind": "voltage",
+              "documentId": "document-ota-5t-testbench",
+              "anchor": {
+                "kind": "terminal",
+                "instanceId": "VINP",
+                "pinName": "+"
+              },
+              "occurrence": []
+            }
+          },
+          {
+            "id": "probe-tail",
+            "label": "tail",
+            "expression": {
+              "kind": "voltage",
+              "documentId": "document-ota-5t",
+              "anchor": {
+                "kind": "terminal",
+                "instanceId": "M5",
+                "pinName": "D"
+              },
+              "occurrence": ["XDUT"]
+            }
+          }
+        ],
+        "environment": {
+          "profileId": "sky130-core-continuous-ngspice46-v1",
+          "corner": "tt",
+          "temperatureC": 27
+        }
+      }
+    },
+    {
+      "id": "simulation-setup-ota-ac-tt",
+      "name": "AC response (TT)",
+      "version": 2,
+      "input": {
+        "kind": "structured",
+        "rootDocumentId": "document-ota-5t-testbench",
+        "analyses": [
+          {
+            "kind": "ac",
+            "sweep": "dec",
+            "points": 40,
+            "startHz": 1,
+            "stopHz": 1000000000
+          }
+        ],
+        "outputs": [
+          {
+            "id": "probe-vout",
+            "label": "vout (A_v for AC=1 V)",
+            "expression": {
+              "kind": "voltage",
+              "documentId": "document-ota-5t-testbench",
+              "anchor": {
+                "kind": "terminal",
+                "instanceId": "XDUT",
+                "pinName": "vout"
+              },
+              "occurrence": []
+            }
+          },
+          {
+            "id": "probe-tail",
+            "label": "tail",
+            "expression": {
+              "kind": "voltage",
+              "documentId": "document-ota-5t",
+              "anchor": {
+                "kind": "terminal",
+                "instanceId": "M5",
+                "pinName": "D"
+              },
+              "occurrence": ["XDUT"]
+            }
+          }
+        ],
+        "environment": {
+          "profileId": "sky130-core-continuous-ngspice46-v1",
+          "corner": "tt",
+          "temperatureC": 27
+        }
+      }
+    },
+    {
+      "id": "simulation-setup-ota-ac-ff",
+      "name": "AC response (FF)",
+      "version": 2,
+      "input": {
+        "kind": "structured",
+        "rootDocumentId": "document-ota-5t-testbench",
+        "analyses": [
+          {
+            "kind": "ac",
+            "sweep": "dec",
+            "points": 40,
+            "startHz": 1,
+            "stopHz": 1000000000
+          }
+        ],
+        "outputs": [
+          {
+            "id": "probe-vout",
+            "label": "vout (A_v for AC=1 V)",
+            "expression": {
+              "kind": "voltage",
+              "documentId": "document-ota-5t-testbench",
+              "anchor": {
+                "kind": "terminal",
+                "instanceId": "XDUT",
+                "pinName": "vout"
+              },
+              "occurrence": []
+            }
+          },
+          {
+            "id": "probe-tail",
+            "label": "tail",
+            "expression": {
+              "kind": "voltage",
+              "documentId": "document-ota-5t",
+              "anchor": {
+                "kind": "terminal",
+                "instanceId": "M5",
+                "pinName": "D"
+              },
+              "occurrence": ["XDUT"]
+            }
+          }
+        ],
+        "environment": {
+          "profileId": "sky130-core-continuous-ngspice46-v1",
+          "corner": "ff",
+          "temperatureC": 27
+        }
+      }
+    },
+    {
+      "id": "simulation-setup-ota-ac-ss",
+      "name": "AC response (SS)",
+      "version": 2,
+      "input": {
+        "kind": "structured",
+        "rootDocumentId": "document-ota-5t-testbench",
+        "analyses": [
+          {
+            "kind": "ac",
+            "sweep": "dec",
+            "points": 40,
+            "startHz": 1,
+            "stopHz": 1000000000
+          }
+        ],
+        "outputs": [
+          {
+            "id": "probe-vout",
+            "label": "vout (A_v for AC=1 V)",
+            "expression": {
+              "kind": "voltage",
+              "documentId": "document-ota-5t-testbench",
+              "anchor": {
+                "kind": "terminal",
+                "instanceId": "XDUT",
+                "pinName": "vout"
+              },
+              "occurrence": []
+            }
+          },
+          {
+            "id": "probe-tail",
+            "label": "tail",
+            "expression": {
+              "kind": "voltage",
+              "documentId": "document-ota-5t",
+              "anchor": {
+                "kind": "terminal",
+                "instanceId": "M5",
+                "pinName": "D"
+              },
+              "occurrence": ["XDUT"]
+            }
+          }
+        ],
+        "environment": {
+          "profileId": "sky130-core-continuous-ngspice46-v1",
+          "corner": "ss",
+          "temperatureC": 27
+        }
+      }
+    },
+    {
+      "id": "simulation-setup-ota-tran-tt",
+      "name": "Transient step (TT)",
+      "version": 2,
+      "input": {
+        "kind": "structured",
+        "rootDocumentId": "document-ota-5t-testbench",
+        "analyses": [
+          {
+            "kind": "tran",
+            "stepSeconds": 1e-8,
+            "stopSeconds": 0.000006,
+            "maxStepSeconds": 1e-8
+          }
+        ],
+        "outputs": [
+          {
+            "id": "probe-vinp",
+            "label": "vinp",
+            "expression": {
+              "kind": "voltage",
+              "documentId": "document-ota-5t-testbench",
+              "anchor": {
+                "kind": "terminal",
+                "instanceId": "VINP",
+                "pinName": "+"
+              },
+              "occurrence": []
+            }
+          },
+          {
+            "id": "probe-vout",
+            "label": "vout",
+            "expression": {
+              "kind": "voltage",
+              "documentId": "document-ota-5t-testbench",
+              "anchor": {
+                "kind": "terminal",
+                "instanceId": "XDUT",
+                "pinName": "vout"
+              },
+              "occurrence": []
+            }
+          }
+        ],
+        "environment": {
+          "profileId": "sky130-core-continuous-ngspice46-v1",
+          "corner": "tt",
+          "temperatureC": 27
+        }
+      }
     }
   ],
   "source": {
@@ -3127,7 +3496,7 @@
     "files": [],
     "sourcePolicy": "copy"
   },
-  "structureRevision": 76,
+  "structureRevision": 82,
   "symbolLibrary": {
     "hash": "razavi-reference-v1",
     "id": "razavi-symbols",

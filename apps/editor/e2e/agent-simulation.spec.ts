@@ -262,6 +262,9 @@ test("one Testbench persists several independently named setups", async ({
   page,
 }) => {
   const project = parseProject(JSON.stringify(ota));
+  const existingSetupNames = project.simulationSetups.map(
+    (setup) => setup.name,
+  );
   await page.route("**/api/simulate", async (route) =>
     route.fulfill({
       json: {
@@ -290,7 +293,9 @@ test("one Testbench persists several independently named setups", async ({
   await expect(selector).toContainText("OTA OP, DC, AC, and TRAN");
   await selector.click();
   await panel.getByRole("button", { name: "New setup", exact: true }).click();
-  await expect(selector).toContainText("Setup 2");
+  await expect(selector).toContainText(
+    `Setup ${existingSetupNames.length + 1}`,
+  );
   await panel.getByLabel("Setup name").fill("OTA OP, DC, AC, and TRAN");
   await panel.getByLabel("Setup name").press("Tab");
   await expect(panel.getByRole("alert")).toContainText(
@@ -305,10 +310,10 @@ test("one Testbench persists several independently named setups", async ({
   const saved = JSON.parse(
     (await downloadBytes(page, "File", "Export Project File…")).toString(),
   );
-  expect(saved.simulationSetups).toHaveLength(2);
+  expect(saved.simulationSetups).toHaveLength(existingSetupNames.length + 1);
   expect(
     saved.simulationSetups.map((setup: { name: string }) => setup.name),
-  ).toEqual(["OTA OP, DC, AC, and TRAN", "Bias sweep"]);
+  ).toEqual([...existingSetupNames, "Bias sweep"]);
   expect(
     new Set(
       saved.simulationSetups.map(
@@ -334,8 +339,10 @@ test("one Testbench persists several independently named setups", async ({
   const afterDelete = JSON.parse(
     (await downloadBytes(page, "File", "Export Project File…")).toString(),
   );
-  expect(afterDelete.simulationSetups).toHaveLength(1);
-  expect(afterDelete.simulationSetups[0].name).toBe("OTA OP, DC, AC, and TRAN");
+  expect(afterDelete.simulationSetups).toHaveLength(existingSetupNames.length);
+  expect(
+    afterDelete.simulationSetups.map((setup: { name: string }) => setup.name),
+  ).toEqual(existingSetupNames);
 });
 
 test("human simulation uses saved setup, survives minimizing, recovers a bad input and exports results", async ({

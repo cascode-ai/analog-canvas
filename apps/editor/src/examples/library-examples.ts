@@ -51,7 +51,7 @@ export const libraryProjectExamples: readonly LibraryProjectExample[] = [
   {
     id: "five-transistor-ota-sky130",
     name: "Five-Transistor OTA (Sky130)",
-    description: "Textbook 5T OTA as a Cell, with its testbench",
+    description: "5T core, bias replica, complete testbench, and saved setups",
     project: bundledProject(fiveTransistorOtaSky130),
   },
 ];
