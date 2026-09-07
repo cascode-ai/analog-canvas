@@ -112,9 +112,14 @@ import {
   type OperatingPointDisplay,
 } from "../features/simulation/operating-point-labels";
 import {
+  deriveSimulationProbeOptions,
   resolveSimulationVoltageProbeNetId,
   simulationProbeHierarchyPath,
 } from "../features/simulation/simulation-probe-options";
+import {
+  sameSimulationOccurrence,
+  terminalCurrentDirectionPartners,
+} from "../features/simulation/terminal-current-pick";
 import { TimingSimulationPanel } from "../features/simulation/timing-simulation-panel";
 import { TIMING_UI_ENABLED } from "../features/simulation/timing-ui";
 import { updateComponentParameterValues } from "../features/component-insert/component-parameters";
@@ -1072,8 +1077,17 @@ export function App({
     documentId: string;
     instanceId: string;
     pinName: string;
+    directionPinName?: string;
     occurrence?: readonly string[];
   } | null>(null);
+  const [simulationTerminalPickStart, setSimulationTerminalPickStart] =
+    useState<{
+      documentId: string;
+      instanceId: string;
+      pinName: string;
+      partnerPinNames: readonly string[];
+      occurrence?: readonly string[];
+    } | null>(null);
   const [pendingWaveformPlacement, setPendingWaveformPlacement] =
     useState<PendingWaveformPlacement | null>(null);
   const [waveformPlacementPoint, setWaveformPlacementPoint] =
@@ -1083,6 +1097,7 @@ export function App({
     // enters a DUT Cell, so an internal Net can be picked with its occurrence
     // path intact. Closing/minimising Simulation still cancels it explicitly.
     if (!analogSimulationOpen) setSimulationPickModeState(null);
+    setSimulationTerminalPickStart(null);
     setSimulationHoverNetId(null);
     setSimulationSavedNetIds(new Set());
     setPendingWaveformPlacement(null);
@@ -1092,7 +1107,11 @@ export function App({
     setSimulationPickModeState(null);
     setAnalogPickedNet(null);
     setAnalogPickedTerminal(null);
+    setSimulationTerminalPickStart(null);
   }, [projectSessionId]);
+  useEffect(() => {
+    setSimulationTerminalPickStart(null);
+  }, [activeSimulationSetupId]);
   const routeCounter = useRef(0);
   const canvasDragSessionRef = useRef<CanvasDragSession | null>(null);
   /**
@@ -1590,17 +1609,59 @@ export function App({
       logicalNets.groups.find((candidate) => candidate.id === netId);
     return group?.baseNetIds[0] ?? null;
   };
-  const activeSimulationPickOccurrence = (): readonly string[] | undefined => {
-    const setupRootId =
-      activeSimulationSetup?.input.kind === "structured"
-        ? activeSimulationSetup.input.rootDocumentId
+  const simulationPickRootDocumentId =
+    activeSimulationSetup?.input.kind === "structured"
+      ? activeSimulationSetup.input.rootDocumentId
+      : simulationDraftContext?.setupId === activeSimulationSetupId
+        ? simulationDraftContext.rootDocumentId
         : undefined;
-    return documentStack.length > 0
+  const simulationPickOccurrence: readonly string[] | undefined =
+    documentStack.length > 0
       ? documentStack.map((frame) => frame.instanceId)
-      : setupRootId === document.id
+      : simulationPickRootDocumentId === document.id
         ? []
         : undefined;
-  };
+  const activeSimulationPickOccurrence = (): readonly string[] | undefined =>
+    simulationPickOccurrence;
+  const simulationCurrentProbeOptions = useMemo(
+    () =>
+      simulationPickRootDocumentId
+        ? deriveSimulationProbeOptions(project, simulationPickRootDocumentId)
+            .terminalCurrent
+        : [],
+    [project, simulationPickRootDocumentId],
+  );
+  const simulationCurrentTargetsInView = useMemo(
+    () =>
+      simulationCurrentProbeOptions.filter(
+        ({ target }) =>
+          target.documentId === document.id &&
+          (simulationPickOccurrence === undefined ||
+            sameSimulationOccurrence(
+              target.occurrence,
+              simulationPickOccurrence,
+            )),
+      ),
+    [document.id, simulationCurrentProbeOptions, simulationPickOccurrence],
+  );
+  const simulationCurrentPinNamesByInstance = useMemo(() => {
+    const result = new Map<string, string[]>();
+    for (const { target } of simulationCurrentTargetsInView) {
+      const pins = result.get(target.instanceId) ?? [];
+      if (!pins.includes(target.pinName)) pins.push(target.pinName);
+      result.set(target.instanceId, pins);
+    }
+    return result;
+  }, [simulationCurrentTargetsInView]);
+  const simulationCurrentEndpointKeys = useMemo(
+    () =>
+      new Set(
+        simulationCurrentTargetsInView.map(
+          ({ target }) => `${target.instanceId}\u0000${target.pinName}`,
+        ),
+      ),
+    [simulationCurrentTargetsInView],
+  );
   const toggleSimulationSavedNet = (netId: string): void => {
     const baseNetId = canonicalSimulationNetId(netId);
     if (!baseNetId) {
@@ -1631,27 +1692,97 @@ export function App({
     if (endpoint.endpoint.kind !== "terminal" || !analogSimulationOpen) return;
     const terminal = endpoint.endpoint;
     const occurrence = activeSimulationPickOccurrence();
-    setAnalogPickedTerminal((current) => ({
-      sequence: (current?.sequence ?? 0) + 1,
+    const referenceFor = (instanceId: string): string =>
+      document.instances.find((instance) => instance.id === instanceId)
+        ?.reference ?? instanceId;
+    const clickedKey = `${terminal.instanceId}\u0000${terminal.pinName}`;
+    if (!simulationCurrentEndpointKeys.has(clickedKey)) {
+      setStatus(
+        `${referenceFor(terminal.instanceId)}.${terminal.pinName} is not a measurable current terminal in this Testbench occurrence`,
+      );
+      return;
+    }
+    const commitPick = (
+      picked: {
+        documentId: string;
+        instanceId: string;
+        pinName: string;
+        occurrence?: readonly string[];
+      },
+      directionPinName?: string,
+    ): void => {
+      setAnalogPickedTerminal((current) => ({
+        sequence: (current?.sequence ?? 0) + 1,
+        ...picked,
+        ...(directionPinName ? { directionPinName } : {}),
+      }));
+      setSimulationTerminalPickStart(null);
+      const reference = referenceFor(picked.instanceId);
+      setStatus(
+        directionPinName
+          ? `Added current ${reference}.${picked.pinName} → ${reference}.${directionPinName} · positive current enters ${picked.pinName}`
+          : `Added terminal current ${reference}.${picked.pinName} · positive current enters the terminal`,
+      );
+    };
+    if (
+      simulationTerminalPickStart &&
+      simulationTerminalPickStart.documentId === document.id &&
+      simulationTerminalPickStart.instanceId === terminal.instanceId &&
+      sameSimulationOccurrence(
+        simulationTerminalPickStart.occurrence,
+        occurrence,
+      )
+    ) {
+      if (simulationTerminalPickStart.pinName === terminal.pinName) {
+        setSimulationTerminalPickStart(null);
+        setStatus("Current direction cancelled · choose the first terminal");
+        return;
+      }
+      if (
+        simulationTerminalPickStart.partnerPinNames.includes(terminal.pinName)
+      ) {
+        commitPick(simulationTerminalPickStart, terminal.pinName);
+        return;
+      }
+    }
+
+    const instance = document.instances.find(
+      (candidate) => candidate.id === terminal.instanceId,
+    );
+    const measurablePins =
+      simulationCurrentPinNamesByInstance.get(terminal.instanceId) ?? [];
+    const partnerPinNames = instance
+      ? terminalCurrentDirectionPartners(
+          instance,
+          terminal.pinName,
+          measurablePins,
+        )
+      : [];
+    const picked = {
       documentId: document.id,
       instanceId: terminal.instanceId,
       pinName: terminal.pinName,
       ...(occurrence === undefined ? {} : { occurrence }),
-    }));
-    const reference =
-      document.instances.find((instance) => instance.id === terminal.instanceId)
-        ?.reference ?? terminal.instanceId;
-    setStatus(`Added terminal-current Output ${reference}.${terminal.pinName}`);
+    };
+    if (partnerPinNames.length === 0) {
+      commitPick(picked);
+      return;
+    }
+    setSimulationTerminalPickStart({ ...picked, partnerPinNames });
+    setStatus(
+      `Current starts at ${referenceFor(terminal.instanceId)}.${terminal.pinName} · choose ${partnerPinNames.join(" or ")} to confirm direction`,
+    );
   };
   const setSimulationPickMode = (mode: "net" | "terminal" | null): void => {
     if (mode) activateTool("pointer");
     setSimulationPickModeState(mode);
+    if (mode !== "terminal") setSimulationTerminalPickStart(null);
     if (mode !== "net") setSimulationHoverNetId(null);
     setStatus(
       mode === "net"
         ? "Pick Nets: click a wire, label, junction, or connected pin · Esc exits"
         : mode === "terminal"
-          ? "Pick terminal current: click a connected device terminal · Esc exits"
+          ? "Pick current: choose a device terminal, then its direction · Esc exits"
           : "Finished picking simulation Outputs",
     );
   };
@@ -5800,13 +5931,41 @@ export function App({
             },
             endpoints: {
               document,
-              endpoints: wiringEndpoints,
+              endpoints: simulationPickTerminalsActive
+                ? wiringEndpoints.filter(
+                    (candidate) =>
+                      candidate.endpoint.kind === "terminal" &&
+                      simulationCurrentEndpointKeys.has(
+                        `${candidate.endpoint.instanceId}\u0000${candidate.endpoint.pinName}`,
+                      ),
+                  )
+                : wiringEndpoints,
               tool,
               selectedRoute: simulationPickActive ? undefined : selectedRoute,
               selectedRouteSegmentIndex,
               selectedEndpoint,
               supplementalJunctionIds: supplementalSelection.junctionIds,
               endpointLabel: endpointTestId,
+              ...(simulationPickTerminalsActive
+                ? {
+                    terminalPickState: (terminal: {
+                      kind: "terminal";
+                      instanceId: string;
+                      pinName: string;
+                    }) =>
+                      simulationTerminalPickStart?.instanceId ===
+                        terminal.instanceId &&
+                      simulationTerminalPickStart.pinName === terminal.pinName
+                        ? ("origin" as const)
+                        : simulationTerminalPickStart?.instanceId ===
+                              terminal.instanceId &&
+                            simulationTerminalPickStart.partnerPinNames.includes(
+                              terminal.pinName,
+                            )
+                          ? ("partner" as const)
+                          : ("candidate" as const),
+                  }
+                : {}),
               onEndpointActions: (candidate, clientX, clientY) => {
                 if (
                   candidate.endpoint.kind === "junction" &&
