@@ -33,6 +33,32 @@ function run(
         value,
       },
       {
+        id: `0:out:minimum:${id}`,
+        analysisIndex: 0,
+        analysis: "tran",
+        plotName: "Transient",
+        outputId: "out",
+        outputLabel: "Vout",
+        metric: "minimum",
+        label: "Minimum",
+        unit: "V",
+        status: "available",
+        value: value / 2,
+      },
+      {
+        id: `0:out:peak-to-peak:${id}`,
+        analysisIndex: 0,
+        analysis: "tran",
+        plotName: "Transient",
+        outputId: "out",
+        outputLabel: "Vout",
+        metric: "peak-to-peak",
+        label: "Peak to peak",
+        unit: "V",
+        status: "available",
+        value: value / 2,
+      },
+      {
         id: `1:out:maximum:${id}`,
         analysisIndex: 1,
         analysis: "ac",
@@ -50,7 +76,7 @@ function run(
 }
 
 describe("SimulationRunComparison", () => {
-  it("aligns measurements by stable output identity, analysis, metric and unit", () => {
+  it("pivots each run into signal rows and metric columns", () => {
     const markup = renderToStaticMarkup(
       <SimulationRunComparison
         runs={[
@@ -60,20 +86,25 @@ describe("SimulationRunComparison", () => {
         onRemove={() => undefined}
       />,
     );
-    expect(markup).toContain("Before");
-    expect(markup).toContain("After");
-    expect(markup).toContain("Transient Analysis");
-    expect(markup).toContain("AC Analysis");
-    expect(markup).toContain('aria-label="Transient analysis"');
-    expect(markup).toContain('aria-label="AC analysis"');
-    expect(markup).toContain("<small>Maximum</small>");
+    expect(markup).toContain("Previous 1");
+    expect(markup).toContain("Current");
+    expect(markup).toContain(
+      "<th>Signal</th><th>Maximum</th><th>Minimum</th><th>Peak to peak</th>",
+    );
+    expect(markup).toContain(">Transient<");
+    expect(markup).toContain(">AC<");
+    expect(markup).toContain(
+      'aria-label="Transient comparison for previous run 1"',
+    );
+    expect(markup).toContain('aria-label="AC comparison for current run"');
+    expect(markup).toContain("<th>Vout</th>");
     expect(markup).toContain("1 V");
     expect(markup).toContain("1.2 V");
     expect(markup).toContain("Remove Before from comparison");
     expect(markup).not.toContain("Remove After from comparison");
   });
 
-  it("keeps distinct saved rules even when they use the same output and metric", () => {
+  it("keeps distinct saved rules as additional signal-table columns", () => {
     const base = run("current", "Current", 1.2, true);
     const current: SimulationComparisonRun = {
       ...base,
@@ -97,7 +128,8 @@ describe("SimulationRunComparison", () => {
     const markup = renderToStaticMarkup(
       <SimulationRunComparison runs={[current]} />,
     );
-    expect(markup).toContain("Early peak");
-    expect(markup).toContain("Late peak");
+    expect(markup).toContain("<th>Early peak</th>");
+    expect(markup).toContain("<th>Late peak</th>");
+    expect(markup.match(/<th>Vout<\/th>/g)).toHaveLength(1);
   });
 });

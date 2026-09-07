@@ -678,7 +678,9 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
   await expect(panel.locator('svg[aria-label="AC magnitude"]')).toBeVisible();
   await expect(panel.locator('svg[aria-label="AC phase"]')).toHaveCount(0);
   await panel.getByRole("tab", { name: "Compare" }).click();
-  await expect(panel.getByText("Session only", { exact: false })).toBeVisible();
+  await expect(
+    panel.getByRole("columnheader", { name: "Maximum" }).first(),
+  ).toBeVisible();
   await panel.getByRole("button", { name: "Keep current" }).click();
   await expect(
     panel.getByRole("button", { name: "Current kept" }),
@@ -1049,16 +1051,52 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
     panel.getByRole("button", { name: "Hide new-output" }),
   ).toHaveCount(2);
   await panel.getByRole("tab", { name: "Compare" }).click();
-  const comparisonTable = panel.locator(".simulation-run-comparison-table");
-  await expect(comparisonTable.locator("thead th")).toHaveCount(3);
-  await expect(comparisonTable).toContainText("Current");
-  await expect(comparisonTable).toContainText("Transient Analysis");
-  await expect(comparisonTable).toContainText("Time-weighted RMS");
+  const comparisonRuns = panel.locator(".simulation-comparison-run");
+  await expect(comparisonRuns).toHaveCount(2);
+  await expect(comparisonRuns.first()).toContainText("Previous 1");
+  await expect(comparisonRuns.last()).toContainText("Current");
   await expect(
-    comparisonTable.getByRole("button", {
+    comparisonRuns
+      .last()
+      .getByRole("columnheader", { name: "Maximum" })
+      .first(),
+  ).toBeVisible();
+  await expect(
+    comparisonRuns
+      .last()
+      .getByRole("columnheader", { name: "Minimum" })
+      .first(),
+  ).toBeVisible();
+  await expect(
+    comparisonRuns
+      .last()
+      .getByRole("columnheader", { name: "Peak to peak" })
+      .first(),
+  ).toBeVisible();
+  await expect(comparisonRuns.last()).toContainText(
+    "Transient · Transient response",
+  );
+  await expect(comparisonRuns.last()).not.toContainText("Time-weighted RMS");
+  await expect(
+    comparisonRuns.getByRole("button", {
       name: "Remove E2E setup from comparison",
     }),
   ).toBeVisible();
+  await panel.getByRole("button", { name: "Maximize simulation" }).click();
+  const maximizedResultHeader = await panel
+    .locator(".simulation-results-header")
+    .boundingBox();
+  const maximizedComparison = await panel
+    .locator(".simulation-comparison-view")
+    .boundingBox();
+  expect(maximizedResultHeader).not.toBeNull();
+  expect(maximizedComparison).not.toBeNull();
+  expect(maximizedResultHeader!.x).toBeCloseTo(maximizedComparison!.x, 0);
+  expect(maximizedResultHeader!.width).toBeCloseTo(
+    maximizedComparison!.width,
+    0,
+  );
+  await panel.getByRole("button", { name: "Restore simulation panel" }).click();
   pending = new Promise<void>((r) => {
     release = r;
   });
