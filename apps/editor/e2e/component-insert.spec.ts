@@ -305,6 +305,7 @@ test("keeps quick-start shortcuts in the upper-right corner until the first comp
   await expect(quickStart).toContainText("Quick start");
   await expect(quickStart).toContainText("Cadence keys");
   await expect(quickStart.locator("li")).toHaveText([
+    "CtrlFSelection filter",
     "FFit view",
     "IInsert component",
     "RRotate",

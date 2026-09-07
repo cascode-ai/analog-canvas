@@ -262,6 +262,7 @@ describe("editor shell", () => {
     expect(markup).toContain(">Library</span>");
     expect(markup).toContain('class="app-statusbar"');
     expect(markup).toContain("Insert component (I)");
+    expect(markup).toContain("Selection filter");
     expect(markup).not.toContain("Symbols &amp; Tools");
     expect(markup).not.toContain("Search components");
     expect(markup).not.toContain("Browse all");

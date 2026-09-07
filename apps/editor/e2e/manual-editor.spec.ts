@@ -5432,12 +5432,12 @@ test("selecting an object does not change canvas width", async ({ page }) => {
   expect(widthAfter).toBe(widthBefore);
 });
 
-test("opens project search with Ctrl+F and selects a matching component", async ({
+test("opens project search with Ctrl+Shift+F and selects a matching component", async ({
   page,
 }) => {
   await page.goto("/editor");
   await placeComponent(page, "resistor", { x: 420, y: 260 });
-  await page.keyboard.press("Control+f");
+  await page.keyboard.press("Control+Shift+f");
   const input = page.getByTestId("project-search-input");
   await expect(input).toBeFocused();
   await input.fill("R1");
@@ -5446,6 +5446,47 @@ test("opens project search with Ctrl+F and selects a matching component", async 
     "Selected instance R1",
   );
   await expect(page.getByTestId("project-search-input")).toHaveCount(0);
+});
+
+test("opens Selection Filter with Ctrl+F and filters Select All", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await placeComponent(page, "resistor", { x: 380, y: 260 });
+  await placeComponent(page, "resistor", { x: 600, y: 260 });
+  await clickDrawTool(page, "wire");
+  await page.getByTestId("terminal-R1-2").click();
+  await page.getByTestId("terminal-R2-1").click();
+  await page.keyboard.press("Escape");
+
+  await page.keyboard.press("Control+f");
+  const filter = page.getByTestId("selection-filter-popover");
+  await expect(filter).toBeVisible();
+  await filter.getByRole("button", { name: "None" }).click();
+  await filter.getByLabel("Wires").check();
+  await filter.getByRole("button", { name: "Close" }).click();
+  await expect(page.getByTestId("selection-filter-status")).toContainText(
+    "Filter: Wires",
+  );
+
+  await page.keyboard.press("Control+a");
+  await expect(page.getByTestId("route-hit-route-ui-1")).toHaveClass(
+    /selected/,
+  );
+  await expect(page.getByTestId("hit-R1")).not.toHaveClass(/selected/);
+  await expect(page.getByTestId("hit-R2")).not.toHaveClass(/selected/);
+  await page.getByTestId("hit-R1").click();
+  await expect(page.getByTestId("hit-R1")).not.toHaveClass(/selected/);
+
+  await page.getByTestId("selection-filter-status").click();
+  await filter.getByRole("button", { name: "None" }).click();
+  await filter.getByLabel("Instances").check();
+  await filter.getByRole("button", { name: "Close" }).click();
+  await page.keyboard.press("Control+d");
+  await page.getByTestId("route-hit-route-ui-1").click({ force: true });
+  await expect(page.getByTestId("route-hit-route-ui-1")).not.toHaveClass(
+    /selected/,
+  );
 });
 
 test("highlights the complete current-document Net from a selected route", async ({

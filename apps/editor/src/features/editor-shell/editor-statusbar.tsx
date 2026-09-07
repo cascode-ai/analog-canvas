@@ -80,6 +80,8 @@ export function EditorStatusbar({
   wheelBehavior,
   zoomPercent,
   issues,
+  selectionFilterSummary,
+  onOpenSelectionFilter,
   onToggleWireOptions,
   onWireRoutingModeChange,
   onWireCornerOrderChange,
@@ -106,6 +108,7 @@ export function EditorStatusbar({
   drawAngleMode: "free" | "45" | "orthogonal";
   wheelBehavior: "auto" | "zoom" | "pan";
   zoomPercent: number;
+  selectionFilterSummary: string | null;
   issues?: {
     errorCount: number;
     warningCount: number;
@@ -123,6 +126,7 @@ export function EditorStatusbar({
   onZoomOut: () => void;
   onZoomIn: () => void;
   onFitView: () => void;
+  onOpenSelectionFilter: () => void;
 }) {
   return (
     <footer className="app-statusbar">
@@ -133,6 +137,17 @@ export function EditorStatusbar({
         <span className="statusbar-tool" data-testid="statusbar-tool">
           {toolLabel(tool, vddRailMode, pendingSymbolId)}
         </span>
+        {selectionFilterSummary ? (
+          <button
+            type="button"
+            className="statusbar-tool"
+            data-testid="selection-filter-status"
+            onClick={onOpenSelectionFilter}
+            title="Open Selection Filter (Ctrl+F)"
+          >
+            {selectionFilterSummary}
+          </button>
+        ) : null}
         {tool === "wire" ? (
           <button
             type="button"

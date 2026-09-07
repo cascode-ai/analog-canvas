@@ -15,6 +15,10 @@ import {
   marqueeSelection,
 } from "../features/selection/marquee-selection";
 import {
+  DEFAULT_SELECTION_FILTER,
+  type SelectionFilter,
+} from "../features/selection/selection-filter";
+import {
   EMPTY_VISUAL_SELECTION,
   type VisualSelection,
 } from "../features/selection/visual-selection";
@@ -60,6 +64,7 @@ export interface CanvasGestureControllerDependencies {
     resolver: SymbolResolver;
     routeGeometryRecords: readonly RouteGeometryRecord[];
     styleProfile: SchematicStyleProfile;
+    selectionFilter?: SelectionFilter;
   };
   viewport: {
     defaultViewBox: GridRect;
@@ -213,7 +218,13 @@ let lastTrackpadWheelAt = Number.NEGATIVE_INFINITY;
 
 /** Own viewport gestures and canvas-background pointer progression. */
 export function createCanvasGestureController({
-  model: { document, resolver, routeGeometryRecords, styleProfile },
+  model: {
+    document,
+    resolver,
+    routeGeometryRecords,
+    styleProfile,
+    selectionFilter = DEFAULT_SELECTION_FILTER,
+  },
   viewport: {
     defaultViewBox,
     contentBounds,
@@ -631,6 +642,7 @@ export function createCanvasGestureController({
           styleProfile,
           rect,
           marqueeMode(boxPreview.start, boxPreview.end),
+          selectionFilter,
         );
     replaceSelection(selection);
     clearSelectedEndpoint();

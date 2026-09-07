@@ -16,6 +16,7 @@ import {
   type RouteGeometryRecord,
 } from "../wiring/route-interaction-geometry";
 import { marqueeMode, marqueeSelection } from "./marquee-selection";
+import { NO_SELECTION_FILTER } from "./selection-filter";
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);
 const styleProfile = resolveSchematicStyleProfile("razavi-textbook-v1");
@@ -250,5 +251,23 @@ describe("marquee crossing selection (right-to-left)", () => {
       expect(selection.annotationIds).toEqual([]);
       expect(selection.draftingIds).toEqual([]);
     }
+  });
+
+  it("applies the filter without changing marquee geometry", () => {
+    const { document, records } = fixtureCache;
+    const selection = marqueeSelection(
+      document,
+      resolver,
+      records,
+      styleProfile,
+      { x: -100, y: -100, width: 1000, height: 500 },
+      "crossing",
+      { ...NO_SELECTION_FILTER, route: true },
+    );
+    expect(selection.routeIds).toEqual(["route-1"]);
+    expect(selection.instanceIds).toEqual([]);
+    expect(selection.junctionIds).toEqual([]);
+    expect(selection.annotationIds).toEqual([]);
+    expect(selection.draftingIds).toEqual([]);
   });
 });

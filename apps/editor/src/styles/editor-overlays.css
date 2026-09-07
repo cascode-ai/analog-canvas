@@ -562,3 +562,90 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+.selection-filter-popover {
+  position: fixed;
+  z-index: 12;
+  top: 7.25rem;
+  right: var(--icm-space-4);
+  display: grid;
+  width: min(300px, calc(100vw - var(--icm-space-6)));
+  max-height: calc(100vh - 9rem);
+  gap: var(--icm-space-3);
+  padding: var(--icm-space-4);
+  overflow: auto;
+  border: 1px solid var(--icm-border-strong);
+  border-radius: var(--icm-radius-md);
+  background: rgb(255 255 255 / 97%);
+  box-shadow: var(--icm-shadow-md);
+  color: var(--icm-text);
+  backdrop-filter: blur(10px);
+}
+
+.selection-filter-popover > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--icm-space-3);
+}
+
+.selection-filter-popover h2,
+.selection-filter-popover p {
+  margin: 0;
+}
+
+.selection-filter-popover h2 {
+  font-size: var(--icm-font-lg);
+}
+
+.selection-filter-kicker,
+.selection-filter-popover legend,
+.selection-filter-popover small {
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
+}
+
+.selection-filter-popover button {
+  min-height: 28px;
+  padding: 3px 8px;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-sm);
+  background: var(--icm-surface);
+  color: inherit;
+}
+
+.selection-filter-popover button:hover {
+  background: var(--icm-surface-hover);
+}
+
+.selection-filter-presets {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--icm-space-2);
+}
+
+.selection-filter-popover fieldset {
+  display: grid;
+  gap: var(--icm-space-2);
+  margin: 0;
+  padding: var(--icm-space-2) 0 0;
+  border: 0;
+  border-top: 1px solid var(--icm-border);
+}
+
+.selection-filter-popover legend {
+  padding: 0 var(--icm-space-2) 0 0;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.selection-filter-popover fieldset label {
+  display: flex;
+  align-items: center;
+  gap: var(--icm-space-2);
+  font-size: var(--icm-font-sm);
+}
+
+.selection-filter-popover input {
+  margin: 0;
+}

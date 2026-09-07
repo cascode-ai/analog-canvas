@@ -72,6 +72,7 @@ export interface EditorCanvasSurfaceProps {
 }
 
 const CADENCE_QUICK_SHORTCUTS = [
+  { keys: ["Ctrl", "F"], action: "Selection filter" },
   { keys: ["F"], action: "Fit view" },
   { keys: ["I"], action: "Insert component" },
   { keys: ["R"], action: "Rotate" },
