@@ -159,6 +159,22 @@ function startRequest() {
 }
 
 describe("managed simulation operations", () => {
+  it("keeps anonymous preview runs usable with an opaque session cookie", async () => {
+    const { env } = harness();
+    const started = await routeManagedSimulationRequest(startRequest(), env);
+    expect(started?.status).toBe(202);
+    const cookie = started?.headers.get("set-cookie");
+    expect(cookie).toContain("icm_simulation_session=");
+    const runId = ((await started!.json()) as { run: { id: string } }).run.id;
+    const read = await routeManagedSimulationRequest(
+      new Request(`https://canvas.test/api/simulation/runs/${runId}`, {
+        headers: { cookie: cookie!.split(";")[0]! },
+      }),
+      env,
+    );
+    expect(read?.status).toBe(200);
+  });
+
   it("requires a principal before accepting computation", async () => {
     const { env } = harness();
     const response = await routeManagedSimulationRequest(startRequest(), env, {

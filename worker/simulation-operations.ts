@@ -67,12 +67,36 @@ export interface SimulationOperationsRuntime {
     request: Request,
     env: SimulationOperationsEnv,
   ): Promise<SessionUser | null>;
+  anonymousPrincipalOf?(
+    request: Request,
+    env: SimulationOperationsEnv,
+    create: boolean,
+  ): Promise<{ principal: SessionUser | null; cookie?: string }>;
   now(): number;
   uuid(): string;
 }
 
 const defaultRuntime: SimulationOperationsRuntime = {
   principalOf: (request, env) => sessionUserOf(request, env),
+  anonymousPrincipalOf: async (request, env, create) => {
+    const stub = control(env);
+    if (!stub) return { principal: null };
+    const response = await stub.fetch(
+      "https://simulation-control/anonymous-session",
+      {
+        method: create ? "POST" : "GET",
+        headers: { cookie: request.headers.get("cookie") ?? "" },
+      },
+    );
+    if (!response.ok) return { principal: null };
+    const body = (await response.json()) as { principal?: SessionUser };
+    return {
+      principal: body.principal ?? null,
+      ...(response.headers.get("set-cookie")
+        ? { cookie: response.headers.get("set-cookie")! }
+        : {}),
+    };
+  },
   now: Date.now,
   uuid: () => crypto.randomUUID(),
 };
@@ -178,16 +202,33 @@ export async function routeManagedSimulationRequest(
       },
       { status: 503 },
     );
-  const principal = await runtime.principalOf(request, env);
+  let principal = await runtime.principalOf(request, env);
+  let ownerCookie: string | undefined;
+  if (!principal && runtime.anonymousPrincipalOf) {
+    const anonymous = await runtime.anonymousPrincipalOf(
+      request,
+      env,
+      url.pathname === "/api/simulation/runs" && request.method === "POST",
+    );
+    principal = anonymous.principal;
+    ownerCookie = anonymous.cookie;
+  }
   if (!principal)
     return Response.json(
       { error: "simulation-authentication-required" },
       { status: 401 },
     );
+  const ownedResponse = (response: Response): Response => {
+    response.headers.set("cache-control", "private, no-store");
+    if (ownerCookie) response.headers.append("set-cookie", ownerCookie);
+    return response;
+  };
 
   if (url.pathname === "/api/simulation/runs") {
     if (request.method !== "POST")
-      return Response.json({ error: "method-not-allowed" }, { status: 405 });
+      return ownedResponse(
+        Response.json({ error: "method-not-allowed" }, { status: 405 }),
+      );
     const body = (await request.json().catch(() => null)) as StartBody | null;
     const input = asInput(body?.input);
     if (
@@ -200,12 +241,16 @@ export async function routeManagedSimulationRequest(
       !Digest.safeParse(body.preparedDigest).success ||
       !input
     )
-      return Response.json({ error: "invalid-managed-run" }, { status: 400 });
+      return ownedResponse(
+        Response.json({ error: "invalid-managed-run" }, { status: 400 }),
+      );
     const canonicalInput = JSON.stringify(input);
     if (
       new TextEncoder().encode(canonicalInput).length > MAX_MANAGED_INPUT_BYTES
     )
-      return Response.json({ error: "deck-too-large" }, { status: 413 });
+      return ownedResponse(
+        Response.json({ error: "deck-too-large" }, { status: 413 }),
+      );
     const requestFingerprint = await sha256(
       JSON.stringify({
         preparedId: body.preparedId,
@@ -256,35 +301,40 @@ export async function routeManagedSimulationRequest(
       retryAfterMs?: number;
     };
     if (!response.ok || !result.run)
-      return Response.json(result, {
-        status: response.status,
-        ...(result.retryAfterMs === undefined
-          ? {}
-          : {
-              headers: {
-                "retry-after": String(Math.ceil(result.retryAfterMs / 1_000)),
-              },
-            }),
-      });
+      return ownedResponse(
+        Response.json(result, {
+          status: response.status,
+          ...(result.retryAfterMs === undefined
+            ? {}
+            : {
+                headers: {
+                  "retry-after": String(Math.ceil(result.retryAfterMs / 1_000)),
+                },
+              }),
+        }),
+      );
     try {
       await env.SIMULATION_JOBS!.send({
         schemaVersion: 1,
         runId: result.run.id,
       });
     } catch {
-      return Response.json(
-        {
-          error: "simulation-queue-unavailable",
-          run: result.run,
-          recovery: "retry-same-request",
-        },
-        { status: 503 },
+      return ownedResponse(
+        Response.json(
+          {
+            error: "simulation-queue-unavailable",
+            run: result.run,
+            recovery: "retry-same-request",
+          },
+          { status: 503 },
+        ),
       );
     }
-    return Response.json(
+    const startResponse = Response.json(
       { run: result.run, accepted: result.accepted === true },
       { status: result.accepted === true ? 202 : 200 },
     );
+    return ownedResponse(startResponse);
   }
 
   const match = url.pathname.match(
@@ -298,7 +348,7 @@ export async function routeManagedSimulationRequest(
   if (!match[2]) {
     if (request.method !== "GET")
       return Response.json({ error: "method-not-allowed" }, { status: 405 });
-    return Response.json({ run });
+    return ownedResponse(Response.json({ run }));
   }
   if (match[2] === "/result") {
     if (request.method !== "GET")

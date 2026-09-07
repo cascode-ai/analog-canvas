@@ -1,7 +1,10 @@
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
 
-import { SimulationControlDO } from "./simulation-control-do";
+import {
+  SIMULATION_SESSION_COOKIE,
+  SimulationControlDO,
+} from "./simulation-control-do";
 
 function sqliteState() {
   const db = new DatabaseSync(":memory:");
@@ -57,6 +60,32 @@ async function body<T>(response: Response): Promise<T> {
 }
 
 describe("simulation control durable object", () => {
+  it("issues an opaque anonymous owner capability and resolves it later", async () => {
+    const control = new SimulationControlDO(
+      sqliteState(),
+      undefined,
+      () => 100,
+    );
+    const issued = await control.fetch(
+      new Request("https://control/anonymous-session", { method: "POST" }),
+    );
+    expect(issued.status).toBe(201);
+    const cookie = issued.headers.get("set-cookie");
+    expect(cookie).toContain(`${SIMULATION_SESSION_COOKIE}=`);
+    expect(cookie).toContain("HttpOnly");
+    expect(cookie).toContain("Secure");
+    const principal = await body<{ principal: { id: string } }>(issued);
+    expect(principal.principal.id).toMatch(/^anonymous-/u);
+
+    const resolved = await control.fetch(
+      new Request("https://control/anonymous-session", {
+        headers: { cookie: cookie!.split(";")[0]! },
+      }),
+    );
+    expect(resolved.status).toBe(200);
+    expect(await body(resolved)).toEqual(principal);
+  });
+
   it("persists idempotent admission and lifecycle transitions", async () => {
     const state = sqliteState();
     const firstInstance = new SimulationControlDO(state);
