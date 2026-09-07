@@ -14,13 +14,14 @@ import type { SymbolResolver } from "@icm/symbols";
 
 import type { SchematicEdit } from "./edit-schema.js";
 import {
-  bridgeStretchedSegment,
   normalizeRouteGeometry,
   usablePinAxis,
+  type PinAxis,
 } from "./route-geometry-edit.js";
 import { rebuildRoutePath } from "./route-leg-mutation.js";
 import { resolveRouteEditPath } from "./route-operations.js";
 import { pointOnSegment } from "./transaction-routing.js";
+import { stretchRouteEndpoint } from "./route-endpoint-stretch.js";
 
 export function splitRoute(
   document: SchematicDocument,
@@ -184,50 +185,18 @@ export function followRouteEndpoint(
   oldPoint: Point,
   newPoint: Point,
   outward: Point | null,
+  leads?: { from: PinAxis; to: PinAxis; grid: number },
 ): void {
-  if (samePoint(oldPoint, newPoint)) return;
-  const mode = side === "from" ? modes[0] : modes.at(-1);
-  if (mode === "locked" || mode === "trunk") {
-    throw new Error(`Route ${routeId} has a protected adjacent segment`);
-  }
-  const endpointIndex = side === "from" ? 0 : points.length - 1;
-  points[endpointIndex] = { ...newPoint };
-  if (points.length === 2) return;
-
-  const neighborIndex = side === "from" ? 1 : points.length - 2;
-  const neighbor = points[neighborIndex]!;
-  const oldNeighbor = { ...neighbor };
-  if (mode === "escape" && outward) {
-    const escapeLength =
-      Math.abs(oldNeighbor.x - oldPoint.x) +
-      Math.abs(oldNeighbor.y - oldPoint.y);
-    neighbor.x = newPoint.x + outward.x * escapeLength;
-    neighbor.y = newPoint.y + outward.y * escapeLength;
-
-    const nextIndex = side === "from" ? neighborIndex + 1 : neighborIndex - 1;
-    const next = points[nextIndex]!;
-    if (neighbor.x !== next.x && neighbor.y !== next.y) {
-      // Turn away from the rotated/mirrored escape before reconnecting to the
-      // unchanged body. Choosing the perpendicular axis avoids a collinear
-      // U-turn that normalization would collapse back toward the pin.
-      const bridge =
-        outward.x !== 0
-          ? { x: neighbor.x, y: next.y }
-          : { x: next.x, y: neighbor.y };
-      const bridgeModeIndex = side === "from" ? 1 : modes.length - 2;
-      const bridgeMode = modes[bridgeModeIndex] ?? "auto";
-      points.splice(side === "from" ? nextIndex : neighborIndex, 0, bridge);
-      modes.splice(bridgeModeIndex, 1, bridgeMode, bridgeMode);
-    }
-    return;
-  }
-  if (oldPoint.x === neighbor.x && oldPoint.y !== neighbor.y) {
-    neighbor.x = newPoint.x;
-  } else if (oldPoint.y === neighbor.y && oldPoint.x !== neighbor.x) {
-    neighbor.y = newPoint.y;
-  } else {
-    throw new Error(`Route ${routeId} has invalid endpoint geometry`);
-  }
+  stretchRouteEndpoint(
+    routeId,
+    points,
+    modes,
+    side,
+    oldPoint,
+    newPoint,
+    leads,
+    outward,
+  );
 }
 
 /**
@@ -297,6 +266,19 @@ export function applyInstancesRouteFollow(
 
     const points = original.points.map((point) => ({ ...point }));
     const modes = [...original.segmentModes];
+    const leads = {
+      from: usablePinAxis(
+        newFrom.outward,
+        newFrom.contactPoint,
+        newTo.contactPoint,
+      ),
+      to: usablePinAxis(
+        newTo.outward,
+        newTo.contactPoint,
+        newFrom.contactPoint,
+      ),
+      grid: draft.presentation.grid,
+    };
     try {
       if (movesFrom) {
         followRouteEndpoint(
@@ -307,6 +289,7 @@ export function applyInstancesRouteFollow(
           original.points[0]!,
           newFrom.contactPoint,
           newFrom.outward,
+          leads,
         );
       }
       if (movesTo) {
@@ -318,6 +301,7 @@ export function applyInstancesRouteFollow(
           original.points.at(-1)!,
           newTo.contactPoint,
           newTo.outward,
+          leads,
         );
       }
     } catch {
@@ -326,32 +310,6 @@ export function applyInstancesRouteFollow(
       // Routes explicitly authored anywhere in this transaction were skipped
       // above, so their edit is the sole geometry authority.
       continue;
-    }
-
-    if (
-      points.length === 2 &&
-      newFrom.contactPoint.x !== newTo.contactPoint.x &&
-      newFrom.contactPoint.y !== newTo.contactPoint.y
-    ) {
-      const bends = bridgeStretchedSegment(
-        newFrom.contactPoint,
-        newTo.contactPoint,
-        usablePinAxis(
-          newFrom.outward,
-          newFrom.contactPoint,
-          newTo.contactPoint,
-        ),
-        usablePinAxis(newTo.outward, newTo.contactPoint, newFrom.contactPoint),
-        original.points[0]!.x === original.points[1]!.x,
-        draft.presentation.grid,
-      );
-      const mode = modes[0] ?? "manual";
-      points.splice(1, 0, ...bends);
-      modes.splice(
-        0,
-        1,
-        ...new Array<SegmentMode>(bends.length + 1).fill(mode),
-      );
     }
 
     const normalized = normalizeRouteGeometry(points, modes);

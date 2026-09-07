@@ -97,7 +97,7 @@ describe("selection move plan", () => {
     );
   });
 
-  it("does not treat a selected boundary Junction as independently movable", () => {
+  it("carries an explicitly selected Junction using the same closure as the engine", () => {
     const document = createEmptyDocument("doc", "Doc");
     document.junctions.push({
       id: "J1",
@@ -112,7 +112,7 @@ describe("selection move plan", () => {
       draftingIds: [],
     });
     expect(plan.intent).toBe("move-selection");
-    expect(plan.translatedJunctionIds).toEqual([]);
-    expect(plan.fixedObjectIds).toEqual(["J1"]);
+    expect(plan.translatedJunctionIds).toEqual(["J1"]);
+    expect(plan.fixedObjectIds).toEqual([]);
   });
 });

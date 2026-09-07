@@ -18,6 +18,67 @@ import {
   recoveryProjectTexts,
 } from "./editor-fixtures.js";
 
+test("a directly connected device can move away and return with its wire, undo and redo", async ({
+  page,
+}) => {
+  const project = createEmptyProject(
+    "contact-round-trip",
+    "Contact round trip",
+  );
+  const document = project.documents[0]!;
+  document.instances = [250, 290].map((y, index) => ({
+    id: "R" + (index + 1),
+    reference: "R" + (index + 1),
+    symbolId: "resistor",
+    netlist: { parameters: {} },
+    placement: {
+      position: { x: 300, y },
+      rotation: 0 as const,
+      mirror: "none" as const,
+    },
+  }));
+  document.nets = [
+    {
+      id: "bond",
+      terminals: [
+        { instanceId: "R1", pinName: "2" },
+        { instanceId: "R2", pinName: "1" },
+      ],
+    },
+  ];
+  await page.goto("/editor");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "contact.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  const hit = page.getByTestId("hit-R1");
+  await expect(hit).toBeVisible();
+  const before = (await hit.boundingBox())!;
+  const origin = {
+    x: before.x + before.width / 2,
+    y: before.y + before.height / 2,
+  };
+  await page.mouse.move(origin.x, origin.y);
+  await page.mouse.down();
+  await page.mouse.move(origin.x + 120, origin.y, { steps: 8 });
+  await page.mouse.up();
+  await expect(page.locator('[data-canvas-hit-kind="route"]')).toHaveCount(1);
+  const away = (await hit.boundingBox())!;
+  expect(away.x).toBeGreaterThan(before.x + 40);
+  await page.mouse.move(away.x + away.width / 2, away.y + away.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(origin.x, origin.y, { steps: 8 });
+  await page.mouse.up();
+  await expect(page.locator('[data-canvas-hit-kind="route"]')).toHaveCount(0);
+  expect((await hit.boundingBox())!.x).toBeCloseTo(before.x, 0);
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect(page.locator('[data-canvas-hit-kind="route"]')).toHaveCount(1);
+  await page.keyboard.press("ControlOrMeta+Shift+z");
+  await expect(page.locator('[data-canvas-hit-kind="route"]')).toHaveCount(0);
+  expect((await hit.boundingBox())!.x).toBeCloseTo(before.x, 0);
+});
+
 interface PdfTextRun {
   fontSize: number;
   text: string;
@@ -5871,7 +5932,7 @@ test("turns a marquee selection as one body, not three parts in place", async ({
   expect(afterSpreadY).toBeGreaterThan(100);
 });
 
-test("keeps the junction dot while a wire at a tap is dragged", async ({
+test("normalizes overlapping branches without freezing the dragged wire", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -5909,34 +5970,63 @@ test("keeps the junction dot while a wire at a tap is dragged", async ({
   const tapBefore = (await allRoutePoints()).find(
     (points) => points.length === 2 && points[0]!.x === points[1]!.x,
   )!;
+  const dotBefore = Number(await dots.first().getAttribute("cy"));
+  const fixedTapEnd = tapBefore.reduce((a, b) => (a.y < b.y ? a : b));
+  const expectNoDuplicateCoverage = (routes: { x: number; y: number }[][]) => {
+    const spans = routes.flatMap((points) =>
+      points.slice(1).map((to, index) => {
+        const from = points[index]!;
+        const vertical = from.x === to.x;
+        return {
+          vertical,
+          axis: vertical ? from.x : from.y,
+          min: vertical ? Math.min(from.y, to.y) : Math.min(from.x, to.x),
+          max: vertical ? Math.max(from.y, to.y) : Math.max(from.x, to.x),
+        };
+      }),
+    );
+    for (let i = 0; i < spans.length; i++)
+      for (let j = i + 1; j < spans.length; j++) {
+        const a = spans[i]!,
+          b = spans[j]!;
+        if (a.vertical === b.vertical && a.axis === b.axis)
+          expect(
+            Math.min(a.max, b.max) - Math.max(a.min, b.min),
+          ).toBeLessThanOrEqual(0);
+      }
+  };
 
-  // Down: the tap cannot follow, so the junction stays put and the dragged run
-  // doglegs to reach it. The wire still follows the pointer.
+  // The left run moves down and its shared vertical coverage is unioned.
+  // The untouched right arm still branches at the original height: THAT
+  // geometric T keeps a dot, not an immutable role on the old tap Route.
   await dragSegment(300, 380);
   await expect(dots).toHaveCount(1);
   const lowered = await allRoutePoints();
   expect(lowered.some((points) => points.some((point) => point.y > 380))).toBe(
     true,
   );
-  // The tap is untouched, so the contact it makes is still the same contact.
+  expectNoDuplicateCoverage(lowered);
   expect(
-    lowered.some(
-      (points) =>
-        points.length === 2 &&
-        points[0]!.x === tapBefore[0]!.x &&
-        points[0]!.y === tapBefore[0]!.y &&
-        points[1]!.y === tapBefore[1]!.y,
+    lowered.some((points) =>
+      points.some((p) => p.x === fixedTapEnd.x && p.y === fixedTapEnd.y),
     ),
   ).toBe(true);
 
   await clickCommand(page, "Edit", "Undo");
   await expect(dots).toHaveCount(1);
 
-  // Up past the tap's far end: carrying the junction there would turn the tap
-  // around and bury it inside the wire, so the drag holds at the last
-  // position where every branch is still its own line.
+  // Moving beyond the old tip is legal too. Coverage is unioned instead of
+  // freezing the pointer just to keep a formerly visible Junction dot.
   await dragSegment(300, 160);
+  const raised = await allRoutePoints();
+  expectNoDuplicateCoverage(raised);
+  expect(
+    Math.min(...raised.flatMap((points) => points.map((p) => p.y))),
+  ).toBeLessThan(fixedTapEnd.y);
+  await expect(page.getByTestId("status")).not.toContainText("would overlap");
+  await clickCommand(page, "Edit", "Undo");
   await expect(dots).toHaveCount(1);
+  expect(Number(await dots.first().getAttribute("cy"))).toBe(dotBefore);
 });
 
 test("swaps a comparator's + and - without turning the body over", async ({

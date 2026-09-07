@@ -1,4 +1,5 @@
 import { cancelDoubledBackLegs } from "./routing-planner.js";
+import { stretchRouteEndpoint } from "./route-endpoint-stretch.js";
 import {
   reflectOrientation,
   routeBends,
@@ -16,7 +17,6 @@ import type { SymbolResolver } from "@icm/symbols";
 
 import {
   deriveInternalGroupSelection as deriveRoutingInternalGroupSelection,
-  isSegmentAllowed,
   polylineSatisfiesConstraint,
   resolveDocumentRoutingGeometry,
   resolveEndpointConnection,
@@ -26,7 +26,6 @@ import {
   type ResolvedDocumentRoutingGeometry,
 } from "@icm/derived";
 import {
-  bridgeStretchedSegment,
   moveRouteSegment,
   normalizeRouteGeometry,
   usablePinAxis,
@@ -39,6 +38,8 @@ export interface RouteStretchProposal {
   routeId: string;
   waypoints: Point[];
   segmentModes: SegmentMode[];
+  /** The endpoints now coincide: retain membership, remove redundant geometry. */
+  collapsedToContact?: true;
 }
 
 export function resolveRouteEditPath(
@@ -119,18 +120,10 @@ function routeSideEndpoint(
 }
 
 /**
- * Reject a Junction move that would leave two of its branches overlapping.
- *
- * A dragged segment carries its Junction anchor along, and the branches that
- * stay behind stretch to follow. Carried far enough, one of those branches
- * comes to leave the Junction in the direction another one already leaves in:
- * the two draw on top of each other, the shorter disappears inside the
- * longer, and the contact stops reading as a branch at all — which is exactly
- * when the junction dot goes out.
- *
- * Throwing is the drag's stop. Both the preview and the commit already keep
- * the last geometry that planned, so the wire simply stops following the
- * pointer at the last position where every branch is still its own line.
+ * Protect branches whose presentation/ownership prevents coverage union.
+ * Ordinary same-Net branches may overlap: the transaction normalizes their
+ * coverage and the shared contact classifier re-derives any Junction dot.
+ * A dot's previous visibility is not a constraint on conductor movement.
  */
 function assertJunctionBranchesStayVisible(
   document: SchematicDocument,
@@ -193,6 +186,18 @@ function assertJunctionBranchesStayVisible(
         if (!key) continue;
         const existing = headings.get(key);
         if (existing && existing !== route.id) {
+          const other = document.routes.find(
+            (candidate) => candidate.id === existing,
+          )!;
+          // Ordinary same-Net coverage is normalized at the transaction
+          // boundary. Its former branch role must not pin the drag in place.
+          if (
+            (route.presentation ?? "wire") === "wire" &&
+            (other.presentation ?? "wire") === "wire" &&
+            route.netId === other.netId &&
+            ![...route.legs, ...other.legs].some((leg) => leg.mode === "locked")
+          )
+            continue;
           throw new Error(
             `Routes ${existing} and ${route.id} would overlap leaving junction ${junctionId}`,
           );
@@ -249,6 +254,19 @@ function normalizeProposal(
   // Any heading is legal geometry (ADR 0039); only a degenerate segment is
   // not, and normalizeRouteGeometry already removes zero-length steps.
   if (!isSegmentGeometryUsable(normalized.points)) {
+    if (
+      normalized.points.length === 1 &&
+      points.length >= 2 &&
+      points[0]!.x === points.at(-1)!.x &&
+      points[0]!.y === points.at(-1)!.y
+    ) {
+      return {
+        routeId,
+        waypoints: [],
+        segmentModes: [],
+        collapsedToContact: true,
+      };
+    }
     throw new Error(
       `Wire segment drag would leave route ${routeId} degenerate`,
     );
@@ -279,125 +297,6 @@ function assertPowerRailStaysStraight(
       `Power rail ${route.id} would bend; move the whole rail or detach the tap first`,
     );
   }
-}
-
-function stretchRouteEndpoint(
-  routeId: string,
-  points: Point[],
-  modes: SegmentMode[],
-  side: "from" | "to",
-  originalPoint: Point,
-  movedPoint: Point,
-  /**
-   * The leads of the Route's two endpoints, in Route order. Supplied where the
-   * caller knows them so a stretched single segment can meet both pins along
-   * their own leads instead of arriving across one of them.
-   */
-  leads?: { from: PinAxis; to: PinAxis; grid: number },
-): void {
-  const segmentMode = side === "from" ? modes[0] : modes.at(-1);
-  if (protectedMode(segmentMode)) {
-    throw new Error(`Route ${routeId} has a protected adjacent segment`);
-  }
-  const endpointIndex = side === "from" ? 0 : points.length - 1;
-  const neighborIndex = side === "from" ? 1 : points.length - 2;
-  const neighbor = points[neighborIndex]!;
-  points[endpointIndex] = { ...movedPoint };
-
-  const originallyVertical =
-    originalPoint.x === neighbor.x && originalPoint.y !== neighbor.y;
-  const originallyHorizontal =
-    originalPoint.y === neighbor.y && originalPoint.x !== neighbor.x;
-  // Preserve established orthogonal stretch geometry byte-for-byte. The
-  // generic branch below only handles an existing diagonal or future heading.
-  if (originallyVertical || originallyHorizontal) {
-    if (points.length > 2) {
-      const alignedMove = originallyVertical
-        ? movedPoint.x === neighbor.x
-        : movedPoint.y === neighbor.y;
-      const secondModeIndex = side === "from" ? 1 : modes.length - 2;
-      // Sliding the neighbor rewrites the SECOND leg. When that leg is
-      // locked or trunk it must survive byte-for-byte, so the moved
-      // endpoint elbows back through the original endpoint instead and
-      // the whole established path stays untouched.
-      if (!alignedMove && protectedMode(modes[secondModeIndex])) {
-        const corner = originallyVertical
-          ? { x: movedPoint.x, y: originalPoint.y }
-          : { x: originalPoint.x, y: movedPoint.y };
-        const inserted =
-          side === "from"
-            ? [corner, { ...originalPoint }]
-            : [{ ...originalPoint }, corner];
-        const insertIndex = side === "from" ? 1 : points.length - 1;
-        points.splice(insertIndex, 0, ...inserted);
-        const modeIndex = side === "from" ? 0 : modes.length - 1;
-        const mode = modes[modeIndex]!;
-        modes.splice(modeIndex, 1, mode, mode, mode);
-        return;
-      }
-      if (originallyVertical) neighbor.x = movedPoint.x;
-      else neighbor.y = movedPoint.y;
-      return;
-    }
-    const stillAligned = originallyVertical
-      ? movedPoint.x === neighbor.x
-      : movedPoint.y === neighbor.y;
-    if (stillAligned) return;
-    const modeIndex = side === "from" ? 0 : modes.length - 1;
-    const mode = modes[modeIndex]!;
-    if (leads) {
-      const bends = bridgeStretchedSegment(
-        points[0]!,
-        points[1]!,
-        leads.from,
-        leads.to,
-        originallyVertical,
-        leads.grid,
-      );
-      points.splice(1, 0, ...bends);
-      modes.splice(
-        0,
-        1,
-        ...new Array<SegmentMode>(bends.length + 1).fill(mode),
-      );
-      return;
-    }
-    const insertIndex = side === "from" ? 1 : points.length - 1;
-    points.splice(
-      insertIndex,
-      0,
-      originallyVertical
-        ? { x: neighbor.x, y: movedPoint.y }
-        : { x: movedPoint.x, y: neighbor.y },
-    );
-    modes.splice(modeIndex, 1, mode, mode);
-    return;
-  }
-
-  // A leg that was already free-angle keeps its heading; the tidying elbow is
-  // for orthogonal drawings and would otherwise put a corner into a diagonal.
-  if (isSegmentAllowed(movedPoint, neighbor, "octilinear")) return;
-
-  const dx = neighbor.x - movedPoint.x;
-  const dy = neighbor.y - movedPoint.y;
-  const diagonalDistance = Math.min(Math.abs(dx), Math.abs(dy));
-  const elbow =
-    Math.abs(dx) > Math.abs(dy)
-      ? {
-          x: movedPoint.x + Math.sign(dx) * diagonalDistance,
-          y: neighbor.y,
-        }
-      : {
-          x: neighbor.x,
-          y: movedPoint.y + Math.sign(dy) * diagonalDistance,
-        };
-  const insertIndex = side === "from" ? 1 : points.length - 1;
-  // The local stretch uses exactly the same octilinear leg constraint as Wire
-  // authoring. Existing points are never rerouted or reclassified.
-  points.splice(insertIndex, 0, elbow);
-  const modeIndex = side === "from" ? 0 : modes.length - 1;
-  const mode = modes[modeIndex]!;
-  modes.splice(modeIndex, 1, mode, mode);
 }
 
 /**
@@ -509,7 +408,7 @@ function smoothedBoundaryProposal(
    */
   stretchedRawBendCount: number = stretched.waypoints.length,
 ): RouteStretchProposal {
-  if (route.presentation === "power-rail") {
+  if (route.presentation === "power-rail" || stretched.collapsedToContact) {
     return stretched;
   }
   if (stretched.segmentModes.some((mode) => protectedMode(mode))) {
