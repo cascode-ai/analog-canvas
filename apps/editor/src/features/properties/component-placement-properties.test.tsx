@@ -33,6 +33,9 @@ describe("component placement properties", () => {
         onDiscard={vi.fn()}
       />,
     );
+    expect(markup).toMatch(
+      /<details[^>]*aria-label="Component placement"[^>]*open=""/u,
+    );
     expect(markup).toContain('aria-label="Component geometry"');
     expect(markup).toContain("Swap + / − outputs");
     expect(markup).toContain("Discard changes");

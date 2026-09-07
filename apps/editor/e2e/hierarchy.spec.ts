@@ -550,6 +550,10 @@ test("returns a formal Cell Pin to the Tray without deleting its interface", asy
   await expect(page.getByTestId("hit-P1")).toHaveCount(0);
   await page
     .getByRole("region", { name: "Placement Tray" })
+    .locator(":scope > summary")
+    .click();
+  await page
+    .getByRole("region", { name: "Placement Tray" })
     .getByRole("button", { name: "Place all" })
     .click();
   await expect(page.getByTestId("hit-P1")).toBeVisible();

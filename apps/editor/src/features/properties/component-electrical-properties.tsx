@@ -7,6 +7,7 @@ import { DisplayToggle } from "../component-insert/display-toggle";
 import type { ComponentParameter } from "../component-insert/component-parameters";
 import type { AdditionalParameterDraft } from "./additional-parameters";
 import { derivedFingerWidth } from "./finger-width";
+import { PropertyDisclosure } from "./property-disclosure";
 
 type Instance = SchematicDocument["instances"][number];
 const COMPACT_PARAMETER_LABELS = new Set(["W", "L", "NF"]);
@@ -147,11 +148,12 @@ export function ComponentElectricalProperties({
     return null;
   }
   return (
-    <div
-      className="property-card property-electrical-section"
-      aria-label="Component parameters and display"
+    <PropertyDisclosure
+      title="Parameters"
+      className="property-electrical-section"
+      ariaLabel="Component parameters and display"
+      defaultOpen
     >
-      <div className="property-section-heading">Parameters</div>
       <div className="component-parameter-grid">
         {primaryParameterRows.map((row) => (
           <div
@@ -319,6 +321,6 @@ export function ComponentElectricalProperties({
           </div>
         </details>
       ) : null}
-    </div>
+    </PropertyDisclosure>
   );
 }

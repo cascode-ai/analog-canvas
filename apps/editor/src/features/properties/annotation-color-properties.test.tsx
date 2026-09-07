@@ -30,6 +30,11 @@ describe("annotation color properties", () => {
     );
 
     expect(markup).toContain('aria-label="Text properties"');
+    const appearance = markup.match(
+      /<details[^>]*aria-label="Text appearance"[^>]*>/u,
+    )?.[0];
+    expect(appearance).toBeDefined();
+    expect(appearance).not.toContain('open=""');
     expect(markup).toContain('aria-label="Text color hex value">Automatic');
     expect(markup).toContain(
       'aria-label="Text color picker" type="color" value="#dc2626"',
