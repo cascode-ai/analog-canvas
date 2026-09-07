@@ -66,8 +66,13 @@ exact authored Net and hierarchy occurrence; choose named/focused Nets or all
 collected Nets. Derived expressions and raw node-name text are never guessed
 back onto canvas objects. Editing the Project pauses these labels until a new
 matching run completes. Console, diagnostics, input identity and downloadable
-deck/raw/CSV artifacts are available alongside the result. Bounded result
-previews are labelled; export the complete artifacts when needed.
+deck/raw/CSV artifacts are available alongside the result. The compact
+**Export** menu in Results downloads the visible Plot as standalone SVG or
+2× PNG (multiple visible charts are bundled), the complete authored-output
+CSV files, or the complete run ZIP. Image export follows the current viewport,
+trace visibility and markers; CSV remains the full numerical artifact.
+Bounded result previews are labelled; export the complete artifacts when
+needed.
 
 Closing the drawer keeps a run alive. **Cancel run** asks the execution
 service to cancel; it is not simulated by hiding a spinner. Replacing the

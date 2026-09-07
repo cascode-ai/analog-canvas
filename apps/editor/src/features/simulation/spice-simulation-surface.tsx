@@ -45,6 +45,11 @@ import {
   simulationArtifactCategory,
   type SimulationArtifactContent,
 } from "./simulation-artifact-files";
+import {
+  buildVisibleSimulationPlotDownload,
+  downloadSimulationPlot,
+  type SimulationPlotExportFormat,
+} from "./simulation-plot-export";
 
 const RESULT_TABS = [
   ["plot", "Plot"],
@@ -212,6 +217,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
   const [canvasOpEnabled, setCanvasOpEnabled] = useState(false);
   const [canvasOpDisplay, setCanvasOpDisplay] =
     useState<OperatingPointDisplay>("named");
+  const resultsBodyRef = useRef<HTMLDivElement>(null);
   const setupMenuRef = useRef<HTMLDetailsElement>(null);
   useEffect(() => {
     const closeSetupMenu = (event: PointerEvent): void => {
@@ -432,6 +438,37 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
     anchor.click();
     setTimeout(() => URL.revokeObjectURL(url), 0);
   };
+  const exportVisiblePlots = async (format: SimulationPlotExportFormat) => {
+    if (!resultsBodyRef.current) return;
+    setArtifactBusy(`plots:${format}`);
+    try {
+      const result = await buildVisibleSimulationPlotDownload(
+        resultsBodyRef.current,
+        format,
+      );
+      if (!result) {
+        setProblem(
+          uiProblem(
+            "PLOT_EXPORT_UNAVAILABLE",
+            "Open Plot with at least one visible chart before exporting an image",
+          ),
+        );
+        return;
+      }
+      downloadSimulationPlot(result);
+    } catch (error) {
+      setProblem(
+        uiProblem(
+          "PLOT_EXPORT_FAILED",
+          error instanceof Error
+            ? error.message
+            : "The visible plot could not be exported",
+        ),
+      );
+    } finally {
+      setArtifactBusy(undefined);
+    }
+  };
   const running = run && ["running", "cancelling"].includes(run.state);
   const activeCell = project.documents.find(
     (candidate) => candidate.id === props.activeDocumentId,
@@ -515,6 +552,17 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
         ]
       : []),
   ].filter((group) => group.artifacts.length > 0);
+  const resultCsvArtifacts = run
+    ? (() => {
+        const csv = run.artifacts.filter((artifact) =>
+          artifact.name.toLowerCase().endsWith(".csv"),
+        );
+        const evaluated = csv.filter((artifact) =>
+          artifact.name.startsWith("outputs-"),
+        );
+        return evaluated.length ? evaluated : csv;
+      })()
+    : [];
   const analysisLabel = runPresentation?.analysisLabel;
   const presentationProbes =
     runPresentation?.outputs.flatMap((output) => {
@@ -826,8 +874,61 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
                 </button>
               ))}
             </div>
+            {run ? (
+              <details className="simulation-result-export">
+                <summary>Export</summary>
+                <div>
+                  {resultTab === "plot" ? (
+                    <>
+                      <button
+                        type="button"
+                        disabled={artifactBusy !== undefined}
+                        onClick={() => void exportVisiblePlots("svg")}
+                      >
+                        {artifactBusy === "plots:svg"
+                          ? "Preparing SVG…"
+                          : "Visible plots · SVG"}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={artifactBusy !== undefined}
+                        onClick={() => void exportVisiblePlots("png")}
+                      >
+                        {artifactBusy === "plots:png"
+                          ? "Preparing PNG…"
+                          : "Visible plots · PNG"}
+                      </button>
+                    </>
+                  ) : null}
+                  {resultCsvArtifacts.length ? (
+                    <section>
+                      <small>Complete result data</small>
+                      {resultCsvArtifacts.map((artifact) => (
+                        <button
+                          key={artifact.id}
+                          type="button"
+                          disabled={artifactBusy !== undefined}
+                          onClick={() => void download(artifact)}
+                        >
+                          {artifact.name}
+                        </button>
+                      ))}
+                    </section>
+                  ) : null}
+                  <button
+                    type="button"
+                    disabled={
+                      artifactBusy !== undefined || run.artifacts.length === 0
+                    }
+                    onClick={() => void downloadBundle("run", run.artifacts)}
+                  >
+                    Complete run · ZIP
+                  </button>
+                </div>
+              </details>
+            ) : null}
           </header>
-          <div className="simulation-results-body">
+          <div ref={resultsBodyRef} className="simulation-results-body">
             {resultTab === "plot" ? (
               <div className="simulation-analysis-view">
                 {run?.outputData ? (

@@ -1,5 +1,6 @@
 import { test, expect, type WebSocketRoute } from "@playwright/test";
 import { readFileSync } from "node:fs";
+import { strFromU8, unzipSync } from "fflate";
 import {
   createSimulationEnvironmentMetadata,
   createSimulationInputMetadata,
@@ -562,6 +563,37 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
           ?.height ?? 0,
     )
     .toBeGreaterThan(300);
+  const resultExport = panel.locator("details.simulation-result-export");
+  await resultExport.locator("summary").click();
+  const svgBundlePromise = page.waitForEvent("download");
+  await resultExport
+    .getByRole("button", { name: "Visible plots · SVG" })
+    .click();
+  const svgBundle = await svgBundlePromise;
+  expect(svgBundle.suggestedFilename()).toBe("simulation-plots-svg.zip");
+  const svgEntries = unzipSync(readFileSync((await svgBundle.path())!));
+  expect(Object.keys(svgEntries)).toHaveLength(3);
+  const exportedSvg = strFromU8(Object.values(svgEntries)[0]!);
+  expect(exportedSvg).toContain('<?xml version="1.0"');
+  expect(exportedSvg).toContain('fill="white"');
+  expect(exportedSvg).not.toContain("ac-trace-hit");
+  const pngBundlePromise = page.waitForEvent("download");
+  await resultExport
+    .getByRole("button", { name: "Visible plots · PNG" })
+    .click();
+  const pngBundle = await pngBundlePromise;
+  expect(pngBundle.suggestedFilename()).toBe("simulation-plots-png.zip");
+  const pngEntries = unzipSync(readFileSync((await pngBundle.path())!));
+  expect(Object.keys(pngEntries)).toHaveLength(3);
+  expect([...Object.values(pngEntries)[0]!.slice(0, 8)]).toEqual([
+    137, 80, 78, 71, 13, 10, 26, 10,
+  ]);
+  const csvDownloadPromise = page.waitForEvent("download");
+  await resultExport.getByRole("button", { name: "outputs-op-0.csv" }).click();
+  expect((await csvDownloadPromise).suggestedFilename()).toBe(
+    "outputs-op-0.csv",
+  );
+  resultExport.evaluate((element) => element.removeAttribute("open"));
   expect(
     await panel
       .locator(".ac-response .ac-trace")
