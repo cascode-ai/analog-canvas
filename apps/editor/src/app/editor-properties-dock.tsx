@@ -152,11 +152,11 @@ export function EditorPropertiesDock({
                 <ComponentSignalFlowProperties {...component.signalFlow} />
               ) : null}
               <ComponentElectricalProperties {...component.electrical} />
+              <ComponentPlacementProperties {...component.placement} />
               <ComponentStyleProperties
                 key={component.style.instance.id}
                 {...component.style}
               />
-              <ComponentPlacementProperties {...component.placement} />
             </section>
           ) : null}
           {annotationText ? (

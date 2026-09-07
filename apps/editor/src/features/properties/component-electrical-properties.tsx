@@ -257,7 +257,7 @@ export function ComponentElectricalProperties({
       {instance.netlist ? (
         <details className="property-details property-details-inline">
           <summary>
-            <span>Advanced parameters</span>
+            <span>Netlist overrides</span>
             <small>{additionalParameters.length}</small>
           </summary>
           <div
