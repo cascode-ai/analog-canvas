@@ -1062,19 +1062,14 @@
 }
 
 .placement-tray {
-  display: grid;
-  gap: 0.5rem;
+  display: block;
+  padding-top: 0;
+  border-top: 0;
 }
 
-.placement-tray h2 {
-  margin: 0;
-}
-
-.placement-tray-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--icm-space-2);
+.placement-tray > summary small {
+  padding: 0;
+  background: transparent;
 }
 
 .placement-tray-count {

@@ -49,6 +49,7 @@
 }
 
 .property-card > small,
+.property-disclosure-body > small,
 .property-target-card label > small,
 .additional-parameters > small {
   color: var(--icm-text-muted);
@@ -152,6 +153,31 @@
 
 .property-details[open] summary {
   border-bottom: 1px solid var(--icm-border);
+}
+
+.property-disclosure > summary::before {
+  width: 0;
+  height: 0;
+  margin-right: var(--icm-space-2);
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-left: 6px solid var(--icm-text-muted);
+  content: "";
+  transition: transform 120ms ease;
+}
+
+.property-disclosure[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.property-disclosure > summary > span {
+  margin-right: auto;
+}
+
+.property-disclosure-body {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.65rem;
 }
 
 .additional-parameters {
@@ -456,7 +482,7 @@
   box-shadow: none;
 }
 
-.component-appearance-card > small {
+.component-appearance-card .property-disclosure-body > small {
   line-height: var(--icm-line);
 }
 

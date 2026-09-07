@@ -3243,6 +3243,12 @@ test("Properties offers no dead Reference controls for a schematic-only block", 
   await expect(properties.getByText("Symbol")).toBeVisible();
   await expect(referenceField).toHaveCount(0);
   await expect(parametersCard).toHaveCount(0);
+  await expect(
+    properties.locator('details[aria-label="Component appearance"]'),
+  ).not.toHaveAttribute("open", "");
+  await properties
+    .locator('details[aria-label="Component appearance"] > summary')
+    .click();
   await expect(properties.getByText("Line", { exact: true })).toBeVisible();
 
   // An ordinary device keeps both.
@@ -3279,8 +3285,13 @@ test("Properties toggles reference label visibility for one or many components",
     name: "Component properties",
   });
   await expect(
-    componentProperties.locator(":scope > .property-card"),
-  ).toHaveCount(5);
+    componentProperties.locator(":scope > .property-disclosure"),
+  ).toHaveCount(4);
+  await expect(
+    componentProperties.locator(
+      ':scope > details[aria-label="Component appearance"]',
+    ),
+  ).not.toHaveAttribute("open", "");
   await expect(
     componentProperties.getByText("Appearance", { exact: true }),
   ).toBeVisible();
@@ -3364,6 +3375,9 @@ test("Properties keeps component and Annotation text colors independent", async 
   const label = page.locator('[data-object-id="instance-label-R1"]');
   const secondLabel = page.locator('[data-object-id="instance-label-R2"]');
 
+  await properties
+    .locator('details[aria-label="Component appearance"] > summary')
+    .click();
   await properties.getByRole("button", { name: "Use Red for line" }).click();
   await properties
     .getByRole("button", { name: "Use Blue for background" })
@@ -3381,6 +3395,9 @@ test("Properties keeps component and Annotation text colors independent", async 
   await expect(
     properties.getByRole("region", { name: "Text properties" }),
   ).toBeVisible();
+  await properties
+    .locator('details[aria-label="Text appearance"] > summary')
+    .click();
   await expect(properties.getByLabel("Text color hex value")).toHaveText(
     "Automatic",
   );
@@ -3406,6 +3423,9 @@ test("Properties keeps component and Annotation text colors independent", async 
   await page
     .getByTestId("annotation-hit-instance-label-R2")
     .click({ force: true });
+  await properties
+    .locator('details[aria-label="Text appearance"] > summary')
+    .click();
   await page.clock.runFor(300);
   await page.clock.resume();
   await expect(label).toHaveAttribute("fill", "#2563eb");
@@ -3417,6 +3437,9 @@ test("Properties keeps component and Annotation text colors independent", async 
   await page
     .getByTestId("annotation-hit-instance-label-R1")
     .click({ force: true });
+  await properties
+    .locator('details[aria-label="Text appearance"] > summary')
+    .click();
   await properties.locator("summary", { hasText: /^RGB$/u }).click();
   await properties.getByLabel("Text color red").fill("12");
   const resetTextColor = properties.getByRole("button", {
@@ -4527,6 +4550,10 @@ R7 IN OUT 10k
   await expect(page.getByTestId("status")).toContainText(
     "Imported 1 Documents",
   );
+  await page
+    .getByRole("region", { name: "Placement Tray" })
+    .locator(":scope > summary")
+    .click();
   await page
     .getByRole("region", { name: "Placement Tray" })
     .getByRole("button", { name: "Place all" })
