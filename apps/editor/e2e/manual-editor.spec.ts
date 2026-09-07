@@ -5932,7 +5932,7 @@ test("turns a marquee selection as one body, not three parts in place", async ({
   expect(afterSpreadY).toBeGreaterThan(100);
 });
 
-test("lets a tap follow a dragged wire and normalizes ordinary overlapping branches", async ({
+test("normalizes overlapping branches without freezing the dragged wire", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -5972,18 +5972,40 @@ test("lets a tap follow a dragged wire and normalizes ordinary overlapping branc
   )!;
   const dotBefore = Number(await dots.first().getAttribute("cy"));
   const fixedTapEnd = tapBefore.reduce((a, b) => (a.y < b.y ? a : b));
+  const expectNoDuplicateCoverage = (routes: { x: number; y: number }[][]) => {
+    const spans = routes.flatMap((points) =>
+      points.slice(1).map((to, index) => {
+        const from = points[index]!;
+        const vertical = from.x === to.x;
+        return {
+          vertical,
+          axis: vertical ? from.x : from.y,
+          min: vertical ? Math.min(from.y, to.y) : Math.min(from.x, to.x),
+          max: vertical ? Math.max(from.y, to.y) : Math.max(from.x, to.x),
+        };
+      }),
+    );
+    for (let i = 0; i < spans.length; i++)
+      for (let j = i + 1; j < spans.length; j++) {
+        const a = spans[i]!,
+          b = spans[j]!;
+        if (a.vertical === b.vertical && a.axis === b.axis)
+          expect(
+            Math.min(a.max, b.max) - Math.max(a.min, b.min),
+          ).toBeLessThanOrEqual(0);
+      }
+  };
 
-  // The ordinary branch stretches with its moving contact; the far endpoint
-  // stays fixed. A previous dot location is not a drag constraint.
+  // The left run moves down and its shared vertical coverage is unioned.
+  // The untouched right arm still branches at the original height: THAT
+  // geometric T keeps a dot, not an immutable role on the old tap Route.
   await dragSegment(300, 380);
   await expect(dots).toHaveCount(1);
   const lowered = await allRoutePoints();
   expect(lowered.some((points) => points.some((point) => point.y > 380))).toBe(
     true,
   );
-  expect(Number(await dots.first().getAttribute("cy"))).toBeGreaterThan(
-    dotBefore,
-  );
+  expectNoDuplicateCoverage(lowered);
   expect(
     lowered.some((points) =>
       points.some((p) => p.x === fixedTapEnd.x && p.y === fixedTapEnd.y),
@@ -5997,6 +6019,7 @@ test("lets a tap follow a dragged wire and normalizes ordinary overlapping branc
   // freezing the pointer just to keep a formerly visible Junction dot.
   await dragSegment(300, 160);
   const raised = await allRoutePoints();
+  expectNoDuplicateCoverage(raised);
   expect(
     Math.min(...raised.flatMap((points) => points.map((p) => p.y))),
   ).toBeLessThan(fixedTapEnd.y);
