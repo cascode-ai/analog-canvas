@@ -580,9 +580,18 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
     "details.simulation-measurement-results",
   );
   await expect(plotMeasurements.locator("summary")).toContainText("8 values");
-  await expect(panel.locator(".spice-ac-plot svg")).toHaveCount(3);
+  await expect(panel.locator(".spice-ac-plot svg")).toHaveCount(2);
   await expect(panel.locator('svg[aria-label="AC magnitude"]')).toBeVisible();
+  await expect(panel.locator('svg[aria-label="AC phase"]')).toHaveCount(0);
+  const acDisplay = panel.getByRole("group", { name: "Voltage display" });
+  await acDisplay.getByRole("button", { name: "Bode" }).click();
+  await expect(panel.locator('svg[aria-label="AC db20"]')).toBeVisible();
   await expect(panel.locator('svg[aria-label="AC phase"]')).toBeVisible();
+  await expect(panel.getByLabel("Voltage reference")).toHaveValue("");
+  await expect(panel.getByText("ref 1 V", { exact: false })).toHaveCount(2);
+  await acDisplay.getByRole("button", { name: "Magnitude" }).click();
+  await expect(panel.locator('svg[aria-label="AC magnitude"]')).toBeVisible();
+  await expect(panel.locator('svg[aria-label="AC phase"]')).toHaveCount(0);
   await expect
     .poll(
       async () =>
@@ -599,7 +608,7 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
   const svgBundle = await svgBundlePromise;
   expect(svgBundle.suggestedFilename()).toBe("simulation-plots-svg.zip");
   const svgEntries = unzipSync(readFileSync((await svgBundle.path())!));
-  expect(Object.keys(svgEntries)).toHaveLength(3);
+  expect(Object.keys(svgEntries)).toHaveLength(2);
   const exportedSvg = strFromU8(Object.values(svgEntries)[0]!);
   expect(exportedSvg).toContain('<?xml version="1.0"');
   expect(exportedSvg).toContain('fill="white"');
@@ -611,7 +620,7 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
   const pngBundle = await pngBundlePromise;
   expect(pngBundle.suggestedFilename()).toBe("simulation-plots-png.zip");
   const pngEntries = unzipSync(readFileSync((await pngBundle.path())!));
-  expect(Object.keys(pngEntries)).toHaveLength(3);
+  expect(Object.keys(pngEntries)).toHaveLength(2);
   expect([...Object.values(pngEntries)[0]!.slice(0, 8)]).toEqual([
     137, 80, 78, 71, 13, 10, 26, 10,
   ]);

@@ -1,6 +1,6 @@
 import { waveformTicks } from "./waveform-interaction";
 /**
- * A Bode plot for AC analysis results.
+ * A projected waveform plot for complex AC analysis results.
  *
  * Why this draws its own SVG rather than reusing either of the two obvious
  * options:
@@ -23,7 +23,12 @@ import { waveformTicks } from "./waveform-interaction";
 export interface AcPoint {
   /** Hertz. Must be positive: the frequency axis is logarithmic. */
   frequency: number;
-  /** Magnitude in decibels. */
+  /** Original complex result, retained for every presentation projection. */
+  real: number;
+  imaginary: number;
+  /** Linear magnitude in the trace's physical unit. */
+  magnitude: number;
+  /** Magnitude relative to one trace unit, in decibels. */
   magnitudeDb: number;
   /** Phase in degrees. */
   phaseDeg: number;
@@ -34,6 +39,8 @@ export interface AcTrace {
   id?: string;
   /** The expression the author asked for, printed verbatim as the legend. */
   label: string;
+  /** Physical result unit before a presentation-only projection. */
+  unit: string;
   /** Stable Results Browser colour slot, independent of hide/show filtering. */
   colorIndex?: number;
   points: readonly AcPoint[];
@@ -56,13 +63,12 @@ export interface AcPlotLayout {
   /** Drawing area inside the axes, in SVG units. */
   frame: { x: number; y: number; width: number; height: number };
   frequency: AcPlotAxis;
-  magnitude: AcPlotAxis;
-  phase: AcPlotAxis;
+  value: AcPlotAxis;
   /** Frequency in Hz for an x in SVG units, for crosshair readout. */
   frequencyAt: (x: number) => number;
 }
 
-export type AcPlotKind = "magnitude" | "phase";
+export type AcPlotKind = "magnitude" | "db20" | "phase" | "real" | "imaginary";
 
 export interface AcResponseSvgOptions {
   /** One physical quantity per plot. Bode magnitude and phase never share an axis. */
@@ -77,6 +83,8 @@ export interface AcResponseSvgOptions {
   /** Explicit axes-toolbar range; traces are clipped to this interval. */
   frequencyRange?: readonly [number, number];
   valueRange?: readonly [number, number];
+  /** Presentation unit printed on the value axis. */
+  valueUnit?: string;
 }
 
 const MARGIN = { left: 56, right: 56, top: 16, bottom: 32 };
@@ -111,11 +119,15 @@ function adaptiveAxis(
 export function layoutAcPlot(
   traces: readonly AcTrace[],
   size: AcPlotSize,
+  kind: AcPlotKind = "magnitude",
   frequencyRange?: readonly [number, number],
-  valueOverride?: { kind: AcPlotKind; range: readonly [number, number] },
+  valueRange?: readonly [number, number],
 ): AcPlotLayout | null {
   const points = traces.flatMap((trace) => trace.points);
-  const usable = points.filter((point) => point.frequency > 0);
+  const usable = points.filter(
+    (point) =>
+      point.frequency > 0 && Number.isFinite(acPointValue(point, kind)),
+  );
   if (usable.length === 0) return null;
 
   const frequencies = usable.map((point) => point.frequency);
@@ -126,8 +138,7 @@ export function layoutAcPlot(
         point.frequency <= frequencyRange[1]),
   );
   const visible = inView.length ? inView : usable;
-  const magnitudes = visible.map((point) => point.magnitudeDb);
-  const phases = visible.map((point) => point.phaseDeg);
+  const values = visible.map((point) => acPointValue(point, kind));
   const frame = {
     x: MARGIN.left,
     y: MARGIN.top,
@@ -168,19 +179,10 @@ export function layoutAcPlot(
     size,
     frame,
     frequency,
-    magnitude: adaptiveAxis(
-      valueOverride?.kind === "magnitude"
-        ? valueOverride.range
-        : [Math.min(...magnitudes), Math.max(...magnitudes)],
+    value: adaptiveAxis(
+      valueRange ?? [Math.min(...values), Math.max(...values)],
       size.height,
-      valueOverride?.kind !== "magnitude",
-    ),
-    phase: adaptiveAxis(
-      valueOverride?.kind === "phase"
-        ? valueOverride.range
-        : [Math.min(...phases), Math.max(...phases)],
-      size.height,
-      valueOverride?.kind !== "phase",
+      valueRange === undefined,
     ),
     frequencyAt: (x: number) =>
       10 ** (logMin + ((x - frame.x) / frame.width) * logSpan),
@@ -205,40 +207,45 @@ export function formatFrequency(hertz: number): string {
 
 interface Projection {
   x: (frequency: number) => number;
-  magnitudeY: (db: number) => number;
-  phaseY: (deg: number) => number;
+  valueY: (value: number) => number;
 }
 
 function projection(layout: AcPlotLayout): Projection {
-  const { frame, frequency, magnitude, phase } = layout;
+  const { frame, frequency, value } = layout;
   const logMin = Math.log10(frequency.min);
   const logSpan = Math.log10(frequency.max) - logMin || 1;
   const span = (axis: AcPlotAxis) => axis.max - axis.min || 1;
   return {
     x: (hz) => frame.x + ((Math.log10(hz) - logMin) / logSpan) * frame.width,
-    magnitudeY: (db) =>
+    valueY: (pointValue) =>
       frame.y +
       frame.height -
-      ((db - magnitude.min) / span(magnitude)) * frame.height,
-    phaseY: (deg) =>
-      frame.y + frame.height - ((deg - phase.min) / span(phase)) * frame.height,
+      ((pointValue - value.min) / span(value)) * frame.height,
   };
+}
+
+export function acPointValue(point: AcPoint, kind: AcPlotKind): number {
+  if (kind === "magnitude") return point.magnitude;
+  if (kind === "db20") return point.magnitudeDb;
+  if (kind === "phase") return point.phaseDeg;
+  if (kind === "real") return point.real;
+  return point.imaginary;
 }
 
 function polyline(
   trace: AcTrace,
   project: Projection,
-  axis: "magnitude" | "phase",
+  kind: AcPlotKind,
 ): string {
   return trace.points
-    .filter((point) => point.frequency > 0)
-    .map((point) => {
-      const y =
-        axis === "magnitude"
-          ? project.magnitudeY(point.magnitudeDb)
-          : project.phaseY(point.phaseDeg);
-      return `${project.x(point.frequency).toFixed(2)},${y.toFixed(2)}`;
-    })
+    .filter(
+      (point) =>
+        point.frequency > 0 && Number.isFinite(acPointValue(point, kind)),
+    )
+    .map(
+      (point) =>
+        `${project.x(point.frequency).toFixed(2)},${project.valueY(acPointValue(point, kind)).toFixed(2)}`,
+    )
     .join(" ");
 }
 
@@ -264,18 +271,16 @@ export function acResponseSvg(
   const layout = layoutAcPlot(
     traces,
     size,
+    options.kind,
     options.frequencyRange,
-    options.valueRange
-      ? { kind: options.kind, range: options.valueRange }
-      : undefined,
+    options.valueRange,
   );
   if (!layout) return null;
   const project = projection(layout);
   const { frame } = layout;
-  const axis = options.kind === "magnitude" ? layout.magnitude : layout.phase;
-  const axisY =
-    options.kind === "magnitude" ? project.magnitudeY : project.phaseY;
-  const unit = options.kind === "magnitude" ? "dB" : "°";
+  const axis = layout.value;
+  const axisY = project.valueY;
+  const unit = options.valueUnit ?? (options.kind === "phase" ? "°" : "");
 
   const gridLines = [
     ...layout.frequency.ticks.map((hz) => {
@@ -339,9 +344,7 @@ export function acResponseSvg(
       const point = cursorTrace
         ? closestPoint(cursorTrace.points, frequency)
         : undefined;
-      const value =
-        point &&
-        (options.kind === "magnitude" ? point.magnitudeDb : point.phaseDeg);
+      const value = point && acPointValue(point, options.kind);
       const y = value === undefined ? undefined : axisY(value).toFixed(2);
       const horizontal =
         y === undefined

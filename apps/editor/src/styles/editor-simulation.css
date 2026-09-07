@@ -1220,6 +1220,53 @@
 .ac-results-explorer > header button {
   margin-left: auto;
 }
+.ac-view-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin-bottom: 5px;
+}
+.ac-view-toolbar > strong {
+  min-width: 72px;
+}
+.ac-view-toolbar > [role="group"] {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--icm-border);
+  border-radius: 7px;
+  background: var(--icm-surface-muted);
+}
+.ac-view-toolbar button {
+  min-height: 26px;
+  padding: 3px 8px;
+  border: 0;
+  background: transparent;
+}
+.ac-view-toolbar button[aria-pressed="true"] {
+  background: var(--icm-surface);
+  color: var(--icm-accent);
+  box-shadow: 0 1px 2px rgb(16 24 40 / 12%);
+}
+.ac-view-toolbar > label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: auto;
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
+}
+.ac-view-toolbar select {
+  min-height: 28px;
+  max-width: 180px;
+}
+.ac-plot-row > strong small {
+  color: var(--icm-text-muted);
+  font-weight: 500;
+}
 .simulation-plot-layout {
   display: grid;
   grid-template-columns: minmax(74px, 108px) minmax(0, 1fr);

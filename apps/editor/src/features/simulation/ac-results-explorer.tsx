@@ -12,6 +12,7 @@ import type { AcResult } from "@icm/spice-run";
 import type { Prepared } from "@icm/simulation-service/contract";
 
 import {
+  acPointValue,
   acResponseSvg,
   layoutAcPlot,
   type AcPlotKind,
@@ -28,7 +29,19 @@ export interface OutputTrace extends AcTrace {
 interface ExpandedPlot {
   quantity: OutputTrace["quantity"];
   kind: AcPlotKind;
+  referenced: boolean;
 }
+
+type AcViewMode = AcPlotKind | "bode";
+
+const VIEW_MODES: readonly { mode: AcViewMode; label: string }[] = [
+  { mode: "magnitude", label: "Magnitude" },
+  { mode: "db20", label: "dB" },
+  { mode: "phase", label: "Phase" },
+  { mode: "real", label: "Real" },
+  { mode: "imaginary", label: "Imag" },
+  { mode: "bode", label: "Bode" },
+];
 
 export interface AcResultsExplorerProps {
   resultKey?: string;
@@ -69,6 +82,55 @@ function closestPoint(points: readonly AcPoint[], frequency: number): AcPoint {
   );
 }
 
+export function complexAcPoint(
+  frequency: number,
+  real: number,
+  imaginary: number,
+): AcPoint {
+  const magnitude = Math.hypot(real, imaginary);
+  return {
+    frequency,
+    real,
+    imaginary,
+    magnitude,
+    magnitudeDb: 20 * Math.log10(Math.max(magnitude, 1e-30)),
+    phaseDeg: (Math.atan2(imaginary, real) * 180) / Math.PI,
+  };
+}
+
+/** Divide one complex trace by another without changing authored result data. */
+export function referenceAcTrace(
+  trace: OutputTrace,
+  reference: OutputTrace,
+): OutputTrace {
+  const points = trace.points.map((point, index) => {
+    const divisor = reference.points[index];
+    if (!divisor || divisor.frequency !== point.frequency)
+      return complexAcPoint(point.frequency, Number.NaN, Number.NaN);
+    const denominator =
+      divisor.real * divisor.real + divisor.imaginary * divisor.imaginary;
+    if (!Number.isFinite(denominator) || denominator === 0)
+      return complexAcPoint(point.frequency, Number.NaN, Number.NaN);
+    return complexAcPoint(
+      point.frequency,
+      (point.real * divisor.real + point.imaginary * divisor.imaginary) /
+        denominator,
+      (point.imaginary * divisor.real - point.real * divisor.imaginary) /
+        denominator,
+    );
+  });
+  const phases = unwrapPhaseDegrees(points.map((point) => point.phaseDeg));
+  return {
+    ...trace,
+    unit:
+      trace.unit === reference.unit ? "1" : `${trace.unit}/${reference.unit}`,
+    points: points.map((point, index) => ({
+      ...point,
+      phaseDeg: phases[index] ?? point.phaseDeg,
+    })),
+  };
+}
+
 function outputTraces(
   analysis: AcResult,
   vectors: Prepared["vectors"],
@@ -93,24 +155,19 @@ function outputTraces(
       id: binding?.probeId ?? resultProbe.name,
       label: (binding && labels[binding.probeId]) || resultProbe.name,
       colorIndex: index,
+      unit:
+        resultProbe.unit ?? (resultProbe.quantity === "current" ? "A" : "V"),
       quantity:
         (binding && groups[binding.probeId]) ??
         binding?.quantity ??
         (resultProbe.quantity === "current" ? "current" : "voltage"),
       ...(authored ? { probe: authored } : {}),
       points: analysis.frequencyHz.map((frequency, pointIndex) => ({
-        frequency,
-        magnitudeDb:
-          20 *
-          Math.log10(
-            Math.max(
-              Math.hypot(
-                resultProbe.real[pointIndex] ?? 0,
-                resultProbe.imag[pointIndex] ?? 0,
-              ),
-              1e-30,
-            ),
-          ),
+        ...complexAcPoint(
+          frequency,
+          resultProbe.real[pointIndex] ?? 0,
+          resultProbe.imag[pointIndex] ?? 0,
+        ),
         phaseDeg: phases[pointIndex] ?? 0,
       })),
     };
@@ -122,6 +179,35 @@ function groupLabel(quantity: string): string {
   if (quantity === "current") return "Current";
   if (quantity === "ratio") return "Ratio";
   return quantity;
+}
+
+function displayKinds(mode: AcViewMode): readonly AcPlotKind[] {
+  return mode === "bode" ? ["db20", "phase"] : [mode];
+}
+
+function plotKindLabel(kind: AcPlotKind): string {
+  if (kind === "db20") return "dB";
+  if (kind === "imaginary") return "Imaginary";
+  return kind[0]!.toUpperCase() + kind.slice(1);
+}
+
+function unityReferenceLabel(unit: string): string {
+  return unit === "1" ? "1" : `1 ${unit}`;
+}
+
+function plotUnit(
+  kind: AcPlotKind,
+  sourceUnit: string,
+  referencedToTrace: boolean,
+): string {
+  if (kind === "phase") return "°";
+  if (kind === "db20") {
+    if (referencedToTrace || sourceUnit === "1") return "dB";
+    if (sourceUnit === "V") return "dBV";
+    if (sourceUnit === "A") return "dBA";
+    return `dB ref 1 ${sourceUnit}`;
+  }
+  return sourceUnit === "1" ? "" : sourceUnit;
 }
 
 export function AcResultsExplorer({
@@ -161,6 +247,12 @@ export function ComplexResultsExplorer({
   const frequencyRange = controller.view.x;
   const valueRanges = controller.view.y;
   const [expandedPlot, setExpandedPlot] = useState<ExpandedPlot | null>(null);
+  const [viewModes, setViewModes] = useState<
+    Readonly<Record<string, AcViewMode>>
+  >({});
+  const [references, setReferences] = useState<
+    Readonly<Record<string, string>>
+  >({});
   const visible = traces.filter((trace) => !hidden.has(trace.id));
   useEffect(() => {
     if (!expandedPlot) return;
@@ -189,6 +281,21 @@ export function ComplexResultsExplorer({
     if (showing) focusTrace(traceId);
   };
 
+  const presentedTraces = (
+    quantity: string,
+    source: readonly OutputTrace[],
+  ): readonly OutputTrace[] => {
+    const referenceId = references[quantity];
+    if (!referenceId) return source;
+    const reference = traces.find(
+      (candidate) =>
+        candidate.quantity === quantity && candidate.id === referenceId,
+    );
+    return reference
+      ? source.map((trace) => referenceAcTrace(trace, reference))
+      : source;
+  };
+
   const renderPlot = (
     plot: ExpandedPlot,
     plotTraces: readonly OutputTrace[],
@@ -205,11 +312,19 @@ export function ComplexResultsExplorer({
     const layout = layoutAcPlot(
       plotTraces,
       size,
+      plot.kind,
       frequencyRange,
-      valueRange ? { kind: plot.kind, range: valueRange } : undefined,
+      valueRange,
     );
     if (!layout) return null;
-    const axis = layout[plot.kind];
+    const axis = layout.value;
+    const sourceUnit =
+      traces.find((trace) => trace.quantity === plot.quantity)?.unit ?? "1";
+    const valueUnit = plotUnit(
+      plot.kind,
+      sourceUnit,
+      plot.referenced && references[plot.quantity] !== undefined,
+    );
     const frequencyAt = (x: number) =>
       layout.frequencyAt(layout.frame.x + x * layout.frame.width);
     const svg = acResponseSvg(plotTraces, size, {
@@ -220,6 +335,7 @@ export function ComplexResultsExplorer({
       ...(markers.A === undefined ? {} : { cursorFrequency: markers.A }),
       ...(markers.B === undefined ? {} : { cursorFrequencyB: markers.B }),
       ...(selected === null ? {} : { selectedTraceId: selected }),
+      valueUnit,
     });
     return (
       <div
@@ -306,21 +422,24 @@ export function ComplexResultsExplorer({
           x={[layout.frequency.min, layout.frequency.max]}
           y={[axis.min, axis.max]}
           xUnit="Hz"
-          yUnit={plot.kind === "phase" ? "°" : "dB"}
+          yUnit={valueUnit}
           logarithmicX
           {...(!expanded ? { onOpen: () => setExpandedPlot(plot) } : {})}
         />
-        {!expanded && measurement(plot)}
+        {!expanded && measurement(plot, plotTraces)}
       </div>
     );
   };
 
-  const measurement = (plot?: ExpandedPlot) => (
+  const measurement = (
+    plot: ExpandedPlot | undefined,
+    measurementTraces: readonly OutputTrace[] = visible,
+  ) => (
     <WaveformMeasurements
       a={markers.A}
       b={markers.B}
       unit="Hz"
-      rows={visible
+      rows={measurementTraces
         .filter((trace) => !plot || trace.quantity === plot.quantity)
         .flatMap((trace) => {
           const a =
@@ -333,13 +452,18 @@ export function ComplexResultsExplorer({
               : closestPoint(trace.points, markers.B);
           return (plot ? [plot.kind] : (["magnitude", "phase"] as const)).map(
             (kind) => {
-              const property =
-                kind === "magnitude" ? "magnitudeDb" : "phaseDeg";
+              const sourceUnit = trace.unit;
+              const unit = plotUnit(
+                kind,
+                sourceUnit,
+                plot?.referenced === true &&
+                  references[plot.quantity] !== undefined,
+              );
               return {
                 label: trace.label + " " + kind,
-                unit: kind === "magnitude" ? "dB" : "°",
-                ...(a ? { a: a[property] } : {}),
-                ...(b ? { b: b[property] } : {}),
+                unit,
+                ...(a ? { a: acPointValue(a, kind) } : {}),
+                ...(b ? { b: acPointValue(b, kind) } : {}),
               };
             },
           );
@@ -356,11 +480,66 @@ export function ComplexResultsExplorer({
         const quantityTraces = traces.filter(
           (trace) => trace.quantity === quantity,
         );
-        const visibleQuantityTraces = quantityTraces.filter(
+        const mode = viewModes[quantity] ?? "magnitude";
+        const kinds = displayKinds(mode);
+        const referenceActive = mode === "db20" || mode === "bode";
+        const rawVisibleQuantityTraces = quantityTraces.filter(
           (trace) => !hidden.has(trace.id),
         );
+        const visibleQuantityTraces = referenceActive
+          ? presentedTraces(quantity, rawVisibleQuantityTraces)
+          : rawVisibleQuantityTraces;
+        const sourceUnit = quantityTraces[0]?.unit ?? "1";
+        const referenceId = references[quantity] ?? "";
         return (
           <section key={quantity} className="ac-quantity-group">
+            <div className="ac-view-toolbar">
+              <strong>{groupLabel(quantity)}</strong>
+              <div role="group" aria-label={`${groupLabel(quantity)} display`}>
+                {VIEW_MODES.map(({ mode: candidate, label }) => (
+                  <button
+                    key={candidate}
+                    type="button"
+                    aria-pressed={mode === candidate}
+                    onClick={() =>
+                      setViewModes((current) => ({
+                        ...current,
+                        [quantity]: candidate,
+                      }))
+                    }
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {(mode === "db20" || mode === "bode") && (
+                <label>
+                  Reference
+                  <select
+                    aria-label={`${groupLabel(quantity)} reference`}
+                    value={referenceId}
+                    onChange={(event) =>
+                      setReferences((current) => {
+                        const next = { ...current };
+                        if (event.target.value)
+                          next[quantity] = event.target.value;
+                        else delete next[quantity];
+                        return next;
+                      })
+                    }
+                  >
+                    <option value="">{unityReferenceLabel(sourceUnit)}</option>
+                    {quantityTraces
+                      .filter((trace) => trace.unit === sourceUnit)
+                      .map((trace) => (
+                        <option key={trace.id} value={trace.id}>
+                          {trace.label}
+                        </option>
+                      ))}
+                  </select>
+                </label>
+              )}
+            </div>
             <div className="simulation-plot-layout">
               <WaveformTraceList
                 label={`${groupLabel(quantity)} outputs`}
@@ -374,12 +553,26 @@ export function ComplexResultsExplorer({
               />
               <div className="simulation-plot-stack">
                 {visibleQuantityTraces.length ? (
-                  (["magnitude", "phase"] as const).map((kind) => (
+                  kinds.map((kind) => (
                     <div key={kind} className="ac-plot-row">
                       <strong>
-                        {groupLabel(quantity)} {kind}
+                        {groupLabel(quantity)} {plotKindLabel(kind)}
+                        {(kind === "db20" || mode === "bode") && (
+                          <small>
+                            {" "}
+                            · ref{" "}
+                            {referenceId
+                              ? quantityTraces.find(
+                                  (trace) => trace.id === referenceId,
+                                )?.label
+                              : unityReferenceLabel(sourceUnit)}
+                          </small>
+                        )}
                       </strong>
-                      {renderPlot({ quantity, kind }, visibleQuantityTraces)}
+                      {renderPlot(
+                        { quantity, kind, referenced: referenceActive },
+                        visibleQuantityTraces,
+                      )}
                     </div>
                   ))
                 ) : (
@@ -408,7 +601,7 @@ export function ComplexResultsExplorer({
                 <strong>{plotName}</strong>
                 <span>
                   {groupLabel(expandedPlot.quantity)} ·{" "}
-                  {expandedPlot.kind === "magnitude" ? "Magnitude" : "Phase"}
+                  {plotKindLabel(expandedPlot.kind)}
                 </span>
               </div>
               <button
@@ -438,9 +631,16 @@ export function ComplexResultsExplorer({
                 ) ? (
                   renderPlot(
                     expandedPlot,
-                    visible.filter(
-                      (trace) => trace.quantity === expandedPlot.quantity,
-                    ),
+                    expandedPlot.referenced
+                      ? presentedTraces(
+                          expandedPlot.quantity,
+                          visible.filter(
+                            (trace) => trace.quantity === expandedPlot.quantity,
+                          ),
+                        )
+                      : visible.filter(
+                          (trace) => trace.quantity === expandedPlot.quantity,
+                        ),
                     true,
                   )
                 ) : (
@@ -448,7 +648,19 @@ export function ComplexResultsExplorer({
                 )}
               </div>
             </div>
-            {measurement(expandedPlot)}
+            {measurement(
+              expandedPlot,
+              expandedPlot.referenced
+                ? presentedTraces(
+                    expandedPlot.quantity,
+                    visible.filter(
+                      (trace) => trace.quantity === expandedPlot.quantity,
+                    ),
+                  )
+                : visible.filter(
+                    (trace) => trace.quantity === expandedPlot.quantity,
+                  ),
+            )}
           </section>
         </div>
       ) : null}
