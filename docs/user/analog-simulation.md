@@ -74,6 +74,15 @@ trace visibility and markers; CSV remains the full numerical artifact.
 Bounded result previews are labelled; export the complete artifacts when
 needed.
 
+Each structured run also derives conservative automatic summaries from the
+complete evaluated outputs: OP value; DC/AC/TRAN minimum, maximum and span;
+and time-weighted TRAN mean/RMS. **Measurements** stays as one compact folded
+summary during normal review. If any metric lacks enough finite samples it
+opens automatically and shows the reason; that local metric remains
+unavailable without turning a successful simulator Run into a failure. The
+same typed rows are returned to Agent clients and exported as
+`measurements.csv`.
+
 Closing the drawer keeps a run alive. **Cancel run** asks the execution
 service to cancel; it is not simulated by hiding a spinner. Replacing the
 Project or closing its editor ends that browser-owned scope. Revoking an

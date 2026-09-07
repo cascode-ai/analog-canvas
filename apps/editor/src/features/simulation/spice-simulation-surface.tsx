@@ -557,8 +557,10 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
         const csv = run.artifacts.filter((artifact) =>
           artifact.name.toLowerCase().endsWith(".csv"),
         );
-        const evaluated = csv.filter((artifact) =>
-          artifact.name.startsWith("outputs-"),
+        const evaluated = csv.filter(
+          (artifact) =>
+            artifact.name.startsWith("outputs-") ||
+            artifact.name === "measurements.csv",
         );
         return evaluated.length ? evaluated : csv;
       })()

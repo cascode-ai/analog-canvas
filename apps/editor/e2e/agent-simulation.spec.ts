@@ -341,6 +341,7 @@ test("one Testbench persists several independently named setups", async ({
 test("human simulation uses saved setup, survives minimizing, recovers a bad input and exports results", async ({
   page,
 }) => {
+  test.setTimeout(90_000);
   const project = parseProject(JSON.stringify(ota));
   project.simulationSetups = [
     {
@@ -546,6 +547,11 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
     "0.500000",
   );
   await expect(panel.getByText("1 direct Net voltage")).toBeVisible();
+  const opMeasurements = panel.locator(
+    "details.simulation-measurement-results",
+  );
+  await expect(opMeasurements.locator("summary")).toContainText("1 value");
+  await expect(opMeasurements).not.toHaveAttribute("open", "");
   await panel.getByRole("button", { name: "Show on canvas" }).click();
   await expect(page.getByTestId("operating-point-badges")).toContainText(
     "500 mV",
@@ -553,6 +559,10 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
   await panel.getByRole("button", { name: "Hide canvas values" }).click();
   await expect(page.getByTestId("operating-point-badges")).toHaveCount(0);
   await panel.getByRole("tab", { name: "Plot" }).click();
+  const plotMeasurements = panel.locator(
+    "details.simulation-measurement-results",
+  );
+  await expect(plotMeasurements.locator("summary")).toContainText("8 values");
   await expect(panel.locator(".spice-ac-plot svg")).toHaveCount(3);
   await expect(panel.locator('svg[aria-label="AC magnitude"]')).toBeVisible();
   await expect(panel.locator('svg[aria-label="AC phase"]')).toBeVisible();
@@ -593,6 +603,13 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
   expect((await csvDownloadPromise).suggestedFilename()).toBe(
     "outputs-op-0.csv",
   );
+  const measurementDownloadPromise = page.waitForEvent("download");
+  await resultExport.getByRole("button", { name: "measurements.csv" }).click();
+  const measurementDownload = await measurementDownloadPromise;
+  expect(measurementDownload.suggestedFilename()).toBe("measurements.csv");
+  expect(readFileSync((await measurementDownload.path())!, "utf8")).toContain(
+    '"TRAN","Transient response","first-output","Time-weighted RMS"',
+  );
   resultExport.evaluate((element) => element.removeAttribute("open"));
   expect(
     await panel
@@ -606,7 +623,9 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
       .first()
       .evaluate((label) => getComputedStyle(label).fill),
   ).toBe("rgb(52, 64, 84)");
-  await expect(panel.getByText("first-output", { exact: true })).toHaveCount(2);
+  await expect(
+    panel.getByRole("button", { name: "Hide first-output" }),
+  ).toHaveCount(2);
   const magnitudePlot = panel
     .locator(".ac-plot-row")
     .filter({ hasText: "Magnitude" })
@@ -883,8 +902,12 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
   );
   await panel.getByRole("button", { name: "Results" }).click();
   await panel.getByRole("tab", { name: "Plot" }).click();
-  await expect(panel.getByText("first-output", { exact: true })).toHaveCount(2);
-  await expect(panel.getByText("new-output", { exact: true })).toHaveCount(0);
+  await expect(
+    panel.getByRole("button", { name: "Hide first-output" }),
+  ).toHaveCount(2);
+  await expect(
+    panel.getByRole("button", { name: "Hide new-output" }),
+  ).toHaveCount(0);
   await panel.getByRole("button", { name: "Run", exact: true }).click();
   await expect.poll(() => executions).toBe(2);
   await expect(panel.getByRole("status")).toHaveText("finished · completed");
@@ -893,7 +916,9 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
   await expect(
     transientShell.getByRole("button", { name: "Previous view" }),
   ).toBeDisabled();
-  await expect(panel.getByText("new-output", { exact: true })).toHaveCount(2);
+  await expect(
+    panel.getByRole("button", { name: "Hide new-output" }),
+  ).toHaveCount(2);
   pending = new Promise<void>((r) => {
     release = r;
   });

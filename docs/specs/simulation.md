@@ -929,6 +929,15 @@ shape follows the analysis rather than one universal table:
 Values are written as the shortest decimal that reads back as the same double,
 so a round trip through the CSV loses nothing the rawfile carried.
 
+Structured evaluated outputs also carry conservative automatic measurements.
+OP contributes its scalar value; DC, AC, and TRAN contribute minimum, maximum,
+and span (complex AC outputs use magnitude); TRAN additionally contributes
+time-weighted mean and RMS over its actual, possibly nonuniform time samples.
+Each row is independently `available` or `unavailable` with a reason. A missing
+crossing or insufficient sample window must not become zero and must not change
+an otherwise completed Run into a failed Run. The service is the sole numerical
+owner: GUI, Agent responses, and `measurements.csv` consume the same rows.
+
 ## Rollout
 
 ### Agent resource implementation
@@ -985,9 +994,15 @@ second result store and does not claim an external model tree is embedded.
 The human Results view binds mappings and authored probe labels by the Run's
 own `preparedId`, never by the latest Setup or most recent Prepare. Historical
 numeric data remains viewable after the Project changes, while stale object
-locations are refused by normal locator resolution. AC and TRAN share the same
-output browser, explicit plot tools, marker, expanded view, and back-annotation
-boundary; TRAN uses a linear time axis and does not revive Digital Simulation.
+locations are refused by normal locator resolution. Direct OP Net-voltage
+outputs may be painted on the exact authored anchor and concrete hierarchy
+occurrence only while that input revision is current; raw node strings and
+derived expressions are not guessed back to Canvas objects. AC and TRAN share
+the same output browser, explicit plot tools, marker, expanded view, and
+back-annotation boundary; TRAN uses a linear time axis and does not revive
+Digital Simulation. The compact result export action produces standalone SVG
+or PNG from the visible plot state and downloads complete numeric CSV from File
+Resource artifacts, so displayed decimation is never presented as full data.
 
 Recoverable problems use `{code,message,stage,recovery,diagnostics?}`. Ordinary
 compile errors, unavailable Profiles, simulator failures and busy responses do

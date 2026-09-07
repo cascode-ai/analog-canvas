@@ -25,6 +25,7 @@ import {
   evaluateSimulationOutputs,
   simulationOutputAnalysisToCsv,
 } from "./output-evaluation.js";
+import { automaticMeasurementsToCsv } from "./automatic-measurements.js";
 
 export interface ExecutionInput {
   mode: "structured" | "raw";
@@ -677,6 +678,12 @@ export class SimulationService {
           `outputs-${analysis.analysis}-${i}.csv`,
           "text/csv",
           simulationOutputAnalysisToCsv(analysis),
+        );
+      if (run.view.outputData?.measurements?.length)
+        await artifact(
+          "measurements.csv",
+          "text/csv",
+          automaticMeasurementsToCsv(run.view.outputData.measurements),
         );
       const evidenceArtifacts = run.view.artifacts.map((item) => ({ ...item }));
       await artifact(
