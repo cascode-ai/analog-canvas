@@ -1083,7 +1083,7 @@ test("carries a manual Value through placement and Q property editing", async ({
   const displayCard = page.locator(".property-display-card");
   await expect(
     displayCard.getByLabel("Component display toggles"),
-  ).toContainText("ReferenceValue");
+  ).toContainText("Visual annotationValue");
   expect(
     await displayCard.evaluate((element) => ({
       columns: getComputedStyle(element).gridTemplateColumns.split(" ").length,
@@ -1133,10 +1133,10 @@ test("carries a manual Value through placement and Q property editing", async ({
   await expect(
     page.getByRole("button", { name: "Discard changes" }),
   ).toHaveCount(0);
-  // Reference, then the free Label, then Symbol: the Label row is the
-  // attached text a Reference cannot be, and it sits next to the Reference.
+  // Electrical renaming and the shared visual editor are distinct actions;
+  // there is no second, plain-text Label field.
   await expect(page.getByLabel("Component identity")).toContainText(
-    "ReferenceLabelSymbolresistorCell",
+    "Netlist ReferenceVisual annotationEdit annotationSymbolresistorCell",
   );
   await expect(page.getByLabel("Component identity")).not.toContainText(
     "Device class",
@@ -1363,7 +1363,7 @@ test("sets MOS parameters and orientation through the ghost and Properties", asy
   await page.getByLabel("Component m", { exact: true }).fill("4");
   await page.getByLabel("Component m", { exact: true }).press("Tab");
   await page
-    .getByRole("checkbox", { name: "Reference", exact: true })
+    .getByRole("checkbox", { name: "Visual annotation", exact: true })
     .uncheck();
   await expect(
     page.locator('[data-object-id="instance-label-M1"]'),
