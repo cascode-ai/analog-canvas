@@ -7,23 +7,34 @@ canvas available; it is separate from the development-only Digital tool.
 ## Try it: the bundled five-transistor OTA
 
 The editor ships a Sky130 five-transistor OTA core, its diode-connected bias
-replica, and a complete ordinary Testbench Cell. Its saved setup collection
-contains the qualified combined OP + DC + AC + TRAN run, a focused bias-point
-run with supply current, a denser DC transfer sweep, matching TT/FF/SS AC
-setups for comparison, and a two-cycle transient step run. On the preview
+replica, and two ordinary Testbench Cells sharing the same clean schematic
+layout. The PULSE Testbench is the default; the second changes only VINP to a
+SIN source so both structured waveform forms remain directly runnable. Its
+saved setup collection retains the stable OP + DC + AC + TRAN numerical
+acceptance run and adds a separate complete OP + DC + AC + TRAN + Noise run, a
+focused bias-point run with NMOS/PMOS operating-point details and supply
+current, a dense DC transfer sweep, TT/FF/SS/FS/SF AC setups, focused PULSE and
+SIN transient runs, and a focused Noise run. Saved scalar measurements cover
+Value, Value at, Minimum, Maximum, Peak to peak, Mean, and RMS. On the preview
 channel open
 `https://analog-canvas-preview.tokenzhang.com/editor?example=five-transistor-ota-sky130`,
 press **Simulation**, then **Run** to execute the default qualified setup. The
 operating point returns
 v(vout) ≈ 0.75898 V, v(ibias) ≈ 0.60440 V, v(xdut.tail) ≈ 0.28487 V and
-v(xdut.nleft) ≈ 0.75898 V. The DC sweep covers VINP from 0.88 V to 0.92 V,
-the AC sweep plots 1 Hz–1 GHz, and the transient source pulses VINP from
-0.90 V to 0.91 V. The preview
+v(xdut.nleft) ≈ 0.75898 V. The DC sweep covers VINP from 0.86 V to 0.94 V,
+the AC and Noise sweeps cover 1 Hz–1 GHz, and the PULSE transient source moves
+VINP from 0.90 V to 0.91 V. The SIN Testbench applies a 10 mV, 1 MHz signal
+around 0.90 V. The preview
 deploy runs this same journey against the live simulator before it goes
 green, so those numbers are also its acceptance evidence. The Gallery panel
 lists published circuits, not bundled examples; the `?example=` link and
 **File → Open** on `apps/editor/src/examples/five-transistor-ota-sky130.icproj.json`
 are the two ways to reach it.
+
+The five AC corner setups are independent saved runs rather than a hidden
+batch protocol. Run and retain the desired results to exercise the current
+comparison view. A future batch executor can consume this same setup
+collection without changing the Project format.
 
 ## DUT and testbench
 
