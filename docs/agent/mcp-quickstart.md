@@ -11,11 +11,11 @@ Use `inspect` and `search` for IDs and pins, not screenshot coordinates.
 Production hides the Agent UI intentionally. Development/staging enables it
 with `VITE_ICM_AGENT_UI=enabled`.
 
-MCP 0.3.1 is a development release for the matching API 2.0 branch. Releasing
+MCP 0.4.0 is a development release for the matching API 2.0 branch. Releasing
 the adapter does not deploy editor/API fixes or enable the production Agent UI.
 Set `ANALOG_CANVAS_API_URL` to your development endpoint before starting it.
 
-## Create and edit (MCP 0.3 / Kit 4)
+## Create and edit (MCP 0.4 / Kit 4)
 
 Use `apply_actions` for one atomic edit batch, wire, planned command or focus
 operation per call. Split create and wire phases so new pin geometry comes
@@ -123,8 +123,11 @@ same contract as `/api/agent/sessions/{sessionId}/simulation`:
 
 1. `capabilities`: discover the selected deployment Profile and limits without
    starting the simulator.
-2. Configure the Project through `advanced_transact` with
-   `upsert_simulation_setup`; remove one by `remove_simulation_setup`. Sources,
+2. Use `simulation_setup` to list/get/create/update/clone/remove named setups.
+   Its bounded updates preserve existing outputs, measurements, and MOS
+   operating-point selections. Full typed replacement remains available through
+   `advanced_transact` with `upsert_simulation_setup`; removal compiles to the
+   same `remove_simulation_setup` structure edit. Sources,
    DUT instances, formal ports, and wiring remain ordinary Project edits.
    The structured contract supports OP, one-source linear DC sweep, AC, TRAN,
    and Noise; discover the deployment Profile before selecting an analysis,

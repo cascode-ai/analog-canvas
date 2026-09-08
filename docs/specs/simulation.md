@@ -235,6 +235,12 @@ AC, TRAN, plots, CSV, and MCP all expose the same persisted `output.label`.
 Raw simulator vector names remain technical evidence and may be shown only as
 secondary detail.
 
+The Agent helper `simulation_setup` lists and inspects saved setups, creates a
+structured setup, updates its name/root/analyses/environment without replacing
+nested authored state, clones any setup, and removes a setup. It compiles to
+the same Project structure edits as the GUI; full typed replacement remains
+available through `advanced_transact`.
+
 The Agent helper `simulation_output` lists, upserts, and removes structured
 outputs. Its bounded text grammar supports output references, constants,
 `+`, `-`, `*`, `/`, `mag`, `db20`, `phase`, `real`, `imag`, and `abs`; it

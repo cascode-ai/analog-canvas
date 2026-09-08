@@ -36,6 +36,7 @@ describe("mcp tool surface", () => {
       "disconnect",
       "connection_status",
       "simulation",
+      "simulation_setup",
       "simulation_output",
       "simulation_measurement",
       "simulation_device_operating_point",
@@ -98,6 +99,182 @@ describe("mcp tool surface", () => {
       errors: 0,
       warnings: 1,
       connection: "online",
+    });
+  });
+
+  it("manages named Simulation setups without replacing nested authored state", async () => {
+    const http = new FakeAgentHttp();
+    const { session } = await toolSession(http);
+    await callTool("connect", { claimCode: "session-1.code" }, session);
+    const snapshot = testSnapshot();
+    snapshot.project.simulationSetups = [
+      {
+        id: "setup-op",
+        name: "Operating point",
+        version: 2,
+        input: {
+          kind: "structured",
+          rootDocumentId: "main",
+          analyses: [{ kind: "op" }],
+          outputs: [
+            {
+              id: "vout",
+              label: "Vout",
+              expression: {
+                kind: "voltage",
+                documentId: "main",
+                anchor: { kind: "base-net", netId: "net-vout" },
+                occurrence: [],
+              },
+            },
+          ],
+          measurements: [
+            {
+              id: "measure-vout",
+              label: "Vout bias",
+              analysis: "op",
+              outputId: "vout",
+              method: { kind: "value" },
+            },
+          ],
+          environment: { profileId: "test", corner: "tt" },
+        },
+      },
+    ];
+    const transacts: Extract<
+      (typeof http.circuitCalls)[number]["request"],
+      { operation: "transact" }
+    >[] = [];
+    http.circuitHandler = async ({ request }) => {
+      if (request.operation === "snapshot")
+        return snapshotResponse(request.requestId, snapshot);
+      if (request.operation === "transact") {
+        transacts.push(request);
+        return transactSuccessResponse(
+          request.requestId,
+          request.expectedRevision,
+        );
+      }
+      return capabilitiesResponse(request.requestId);
+    };
+
+    expect(
+      parseText(
+        await callTool(
+          "simulation_setup",
+          { action: "list", rootDocumentId: "main" },
+          session,
+        ),
+      ),
+    ).toMatchObject({
+      ok: true,
+      setups: [
+        {
+          id: "setup-op",
+          kind: "structured",
+          outputCount: 1,
+          measurementCount: 1,
+        },
+      ],
+    });
+    expect(
+      parseText(
+        await callTool(
+          "simulation_setup",
+          { action: "get", setupId: "setup-op" },
+          session,
+        ),
+      ),
+    ).toMatchObject({ ok: true, setup: { id: "setup-op" } });
+
+    await callTool(
+      "simulation_setup",
+      {
+        action: "update",
+        setupId: "setup-op",
+        name: "OP and AC",
+        analyses: [
+          { kind: "op" },
+          {
+            kind: "ac",
+            sweep: "dec",
+            points: 20,
+            startHz: 1,
+            stopHz: 1e9,
+          },
+        ],
+      },
+      session,
+    );
+    await callTool(
+      "simulation_setup",
+      {
+        action: "clone",
+        setupId: "setup-op",
+        newSetupId: "setup-copy",
+        name: "Operating point copy",
+      },
+      session,
+    );
+    await callTool(
+      "simulation_setup",
+      {
+        action: "create",
+        setupId: "setup-new",
+        name: "Transient",
+        rootDocumentId: "main",
+        analyses: [{ kind: "tran", stepSeconds: 1e-9, stopSeconds: 1e-6 }],
+        environment: { profileId: "test", corner: "ff" },
+      },
+      session,
+    );
+    await callTool(
+      "simulation_setup",
+      { action: "remove", setupId: "setup-op" },
+      session,
+    );
+
+    expect(transacts).toHaveLength(4);
+    expect(transacts[0]?.structureEdits?.[0]).toMatchObject({
+      kind: "upsert_simulation_setup",
+      setup: {
+        id: "setup-op",
+        name: "OP and AC",
+        input: {
+          outputs: [{ id: "vout" }],
+          measurements: [{ id: "measure-vout" }],
+          analyses: [{ kind: "op" }, { kind: "ac" }],
+        },
+      },
+    });
+    expect(transacts[1]?.structureEdits?.[0]).toMatchObject({
+      kind: "upsert_simulation_setup",
+      setup: { id: "setup-copy", name: "Operating point copy" },
+    });
+    expect(transacts[2]?.structureEdits?.[0]).toMatchObject({
+      kind: "upsert_simulation_setup",
+      setup: {
+        id: "setup-new",
+        name: "Transient",
+        input: { outputs: [], analyses: [{ kind: "tran" }] },
+      },
+    });
+    expect(transacts[3]?.structureEdits?.[0]).toEqual({
+      kind: "remove_simulation_setup",
+      setupId: "setup-op",
+    });
+
+    expect(
+      parseText(
+        await callTool(
+          "simulation_setup",
+          { action: "update", setupId: "setup-op" },
+          session,
+        ),
+      ),
+    ).toMatchObject({
+      ok: false,
+      error: { code: "SIMULATION_SETUP_UPDATE_EMPTY", recovery: "fix-input" },
     });
   });
 

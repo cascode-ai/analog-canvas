@@ -1,6 +1,8 @@
 import { z } from "zod";
 import {
   parseSimulationExpression,
+  SimulationAnalysisSpecSchema,
+  SimulationEnvironmentSelectionSchema,
   SIMULATION_NOISE_INPUT_DENSITY_ID,
   SIMULATION_NOISE_OUTPUT_DENSITY_ID,
   SimulationMeasurementMethodSchema,
@@ -36,7 +38,7 @@ import {
 } from "./file-operations.js";
 
 /**
- * The default MCP tool surface (ADR 0020): 15 compact tools. The full
+ * The default MCP tool surface (ADR 0020) stays compact. The full
  * typed edit union is deliberately NOT injected into tool descriptions; it is
  * available through `advanced_transact`; its full contract is an on-demand
  * resource, not a session permission gate.
@@ -58,6 +60,48 @@ const SimulationArgs = z.strictObject({
   request: SimulationOperationSchema,
   requestId: z.string().min(1).optional(),
 });
+const SimulationSetupArgs = z.discriminatedUnion("action", [
+  z.strictObject({
+    action: z.literal("list"),
+    documentId: z.string().min(1).optional(),
+    rootDocumentId: z.string().min(1).optional(),
+  }),
+  z.strictObject({
+    action: z.literal("get"),
+    documentId: z.string().min(1).optional(),
+    setupId: z.string().min(1),
+  }),
+  z.strictObject({
+    action: z.literal("create"),
+    documentId: z.string().min(1).optional(),
+    setupId: z.string().min(1).optional(),
+    name: z.string().trim().min(1).max(128),
+    rootDocumentId: z.string().min(1),
+    analyses: z.array(SimulationAnalysisSpecSchema).min(1),
+    environment: SimulationEnvironmentSelectionSchema,
+  }),
+  z.strictObject({
+    action: z.literal("update"),
+    documentId: z.string().min(1).optional(),
+    setupId: z.string().min(1),
+    name: z.string().trim().min(1).max(128).optional(),
+    rootDocumentId: z.string().min(1).optional(),
+    analyses: z.array(SimulationAnalysisSpecSchema).min(1).optional(),
+    environment: SimulationEnvironmentSelectionSchema.optional(),
+  }),
+  z.strictObject({
+    action: z.literal("clone"),
+    documentId: z.string().min(1).optional(),
+    setupId: z.string().min(1),
+    newSetupId: z.string().min(1).optional(),
+    name: z.string().trim().min(1).max(128),
+  }),
+  z.strictObject({
+    action: z.literal("remove"),
+    documentId: z.string().min(1).optional(),
+    setupId: z.string().min(1),
+  }),
+]);
 const SimulationFilesArgs = z.strictObject({
   request: SimulationFileOperationSchema,
   requestId: z.string().min(1).optional(),
@@ -360,7 +404,7 @@ const TOOLS: readonly ToolEntry[] = [
     definition: {
       name: "simulation",
       description:
-        "Prepare one explicitly selected persisted Project setup or a session File Resource workspace, start once, poll/read, cancel, and list export artifacts. Supply the SAME requestId for a start retry. Ordinary failures are recoverable result objects, not session failures. Configure named settings through advanced_transact upsert_simulation_setup/remove_simulation_setup; use ordinary Cell/source edits for DUT/testbench.",
+        "Prepare one explicitly selected persisted Project setup or a session File Resource workspace, start once, poll/read, cancel, and list export artifacts. Supply the SAME requestId for a start retry. Ordinary failures are recoverable result objects, not session failures. Configure named settings through simulation_setup or full typed replacement through advanced_transact; use ordinary Cell/source edits for DUT/testbench.",
       inputSchema: jsonSchemaOf(SimulationArgs),
     },
     handle: async (args, session) => {
@@ -391,6 +435,146 @@ const TOOLS: readonly ToolEntry[] = [
           },
         };
       }
+    },
+  },
+  {
+    definition: {
+      name: "simulation_setup",
+      description:
+        "List or inspect saved Simulation setups; create a structured setup; update its name, Testbench root, analyses, or environment; clone any setup; or remove one. Existing outputs, measurements, and MOS operating-point selections survive updates. Ordinary validation failures return recoverable results and do not end the Agent session. Full typed setup replacement remains available through advanced_transact.",
+      inputSchema: { ...jsonSchemaOf(SimulationSetupArgs), type: "object" },
+    },
+    handle: async (args, session) => {
+      const parsed = SimulationSetupArgs.parse(args);
+      const snapshot = await session.client.snapshot(parsed.documentId, {
+        refresh: true,
+      });
+      const setups = snapshot.snapshot.project.simulationSetups;
+      if (parsed.action === "list") {
+        return {
+          ok: true,
+          setups: setups
+            .filter(
+              (setup) =>
+                !parsed.rootDocumentId ||
+                (setup.input.kind === "structured" &&
+                  setup.input.rootDocumentId === parsed.rootDocumentId),
+            )
+            .map((setup) => ({
+              id: setup.id,
+              name: setup.name,
+              kind: setup.input.kind,
+              environment: setup.input.environment,
+              ...(setup.input.kind === "structured"
+                ? {
+                    rootDocumentId: setup.input.rootDocumentId,
+                    analyses: setup.input.analyses,
+                    outputCount: setup.input.outputs.length,
+                    measurementCount: setup.input.measurements?.length ?? 0,
+                    deviceOperatingPointCount:
+                      setup.input.deviceOperatingPoints?.length ?? 0,
+                  }
+                : { entry: setup.input.entry }),
+            })),
+        };
+      }
+      const current = setups.find((setup) => setup.id === parsed.setupId);
+      if (parsed.action === "get") {
+        return current
+          ? { ok: true, setup: current }
+          : {
+              ok: false,
+              error: {
+                code: "SIMULATION_SETUP_NOT_FOUND",
+                message: `Setup ${parsed.setupId} does not exist; no Project state was changed.`,
+                recovery: "fix-input",
+              },
+            };
+      }
+      if (parsed.action !== "create" && !current)
+        return {
+          ok: false,
+          error: {
+            code: "SIMULATION_SETUP_NOT_FOUND",
+            message: `Setup ${parsed.setupId} does not exist; no Project state was changed.`,
+            recovery: "fix-input",
+          },
+        };
+      if (parsed.action === "remove") {
+        return session.client.advancedTransact(
+          {
+            structureEdits: [
+              { kind: "remove_simulation_setup", setupId: parsed.setupId },
+            ],
+          },
+          { ...(parsed.documentId ? { documentId: parsed.documentId } : {}) },
+        );
+      }
+      let next: (typeof setups)[number];
+      if (parsed.action === "create") {
+        next = {
+          id: parsed.setupId ?? crypto.randomUUID(),
+          name: parsed.name,
+          version: 2 as const,
+          input: {
+            kind: "structured" as const,
+            rootDocumentId: parsed.rootDocumentId,
+            analyses: parsed.analyses,
+            outputs: [],
+            environment: parsed.environment,
+          },
+        };
+      } else if (parsed.action === "clone") {
+        next = structuredClone(current!);
+        next.id = parsed.newSetupId ?? crypto.randomUUID();
+        next.name = parsed.name;
+      } else {
+        if (
+          parsed.name === undefined &&
+          parsed.rootDocumentId === undefined &&
+          parsed.analyses === undefined &&
+          parsed.environment === undefined
+        )
+          return {
+            ok: false,
+            error: {
+              code: "SIMULATION_SETUP_UPDATE_EMPTY",
+              message:
+                "No Setup fields were supplied; no Project state was changed.",
+              recovery: "fix-input",
+            },
+          };
+        next = structuredClone(current!);
+        if (parsed.name !== undefined) next.name = parsed.name;
+        if (
+          parsed.rootDocumentId !== undefined ||
+          parsed.analyses !== undefined ||
+          parsed.environment !== undefined
+        ) {
+          if (next.input.kind !== "structured")
+            return {
+              ok: false,
+              error: {
+                code: "SIMULATION_STRUCTURED_SETUP_REQUIRED",
+                message:
+                  "Root, analyses, and environment updates require a structured Setup; no Project state was changed.",
+                recovery: "fix-input",
+              },
+            };
+          if (parsed.rootDocumentId !== undefined)
+            next.input.rootDocumentId = parsed.rootDocumentId;
+          if (parsed.analyses !== undefined)
+            next.input.analyses = parsed.analyses;
+          if (parsed.environment !== undefined)
+            next.input.environment = parsed.environment;
+        }
+      }
+      return session.client.advancedTransact(
+        {
+          structureEdits: [{ kind: "upsert_simulation_setup", setup: next }],
+        },
+        { ...(parsed.documentId ? { documentId: parsed.documentId } : {}) },
+      );
     },
   },
   {
