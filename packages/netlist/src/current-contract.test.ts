@@ -1238,6 +1238,15 @@ describe("voltage-controlled switch", () => {
         pinNames: ["1", "2"],
         parameters: { w: "5u", l: "5u", mf: "4" },
       },
+      {
+        id: "sky-pnp",
+        name: "sky130_fd_pr__pnp_05v5_W0p68L0p68",
+        symbolId: "pnp",
+        reference: "XQ1",
+        terminalNames: ["C", "B", "E"],
+        pinNames: ["C", "B", "E"],
+        parameters: {},
+      },
     ] as const;
     for (const item of definitions) {
       project.externalSubcircuitDefinitions.push({
@@ -1283,8 +1292,11 @@ describe("voltage-controlled switch", () => {
     expect(text).toContain(
       "XC1 XC1_0 XC1_1 sky130_fd_pr__cap_mim_m3_1 w=5 l=5 mf=4",
     );
+    expect(text).toContain(
+      "XQ1 XQ1_0 XQ1_1 XQ1_2 sky130_fd_pr__pnp_05v5_W0p68L0p68",
+    );
     expect(
       analysis.ir?.cells[0]?.instances.map((instance) => instance.reference),
-    ).toEqual(["XC1", "XM1", "XR1"]);
+    ).toEqual(["XC1", "XM1", "XQ1", "XR1"]);
   });
 });

@@ -3,8 +3,11 @@ import type { DeviceParameterDefinition } from "./contract.js";
 export type ReviewedExternalBindingId =
   | "sky130-nfet-01v8"
   | "sky130-pfet-01v8"
+  | "sky130-nfet-01v8-lvt"
+  | "sky130-pfet-01v8-lvt"
   | "sky130-res-high-po"
-  | "sky130-cap-mim-m3-1";
+  | "sky130-cap-mim-m3-1"
+  | "sky130-pnp-05v5-w0p68l0p68";
 
 export interface ReviewedExternalTerminalBinding {
   /** Public target terminal spelling and order from the external wrapper. */
@@ -27,8 +30,8 @@ export interface ReviewedExternalDeviceBinding {
   readonly libraryId: "sky130_fd_pr";
   readonly masterName: string;
   readonly invocationKind: "external-subcircuit";
-  readonly symbolId: "nmos" | "pmos" | "resistor" | "capacitor";
-  readonly deviceClass: "mos" | "resistor" | "capacitor";
+  readonly symbolId: "nmos" | "pmos" | "resistor" | "capacitor" | "pnp";
+  readonly deviceClass: "mos" | "resistor" | "capacitor" | "bjt";
   readonly terminals: readonly ReviewedExternalTerminalBinding[];
   readonly parameters: readonly ReviewedExternalParameterBinding[];
 }
@@ -113,6 +116,44 @@ export const reviewedExternalDeviceBindings: readonly ReviewedExternalDeviceBind
       ],
     },
     {
+      id: "sky130-nfet-01v8-lvt",
+      libraryId: "sky130_fd_pr",
+      masterName: "sky130_fd_pr__nfet_01v8_lvt",
+      invocationKind: "external-subcircuit",
+      symbolId: "nmos",
+      deviceClass: "mos",
+      terminals: ["D", "G", "S", "B"].map((name) => ({
+        targetName: name,
+        pinName: name,
+        interaction: "canvas" as const,
+      })),
+      parameters: [
+        geometry("w", "W", "1.65u", "1.65", 1),
+        geometry("l", "L", "150n", "0.15", 0),
+        count("nf", "NF", "Finger count", 2),
+        count("m", "M", "ngspice X-line parallel multiplier", 3),
+      ],
+    },
+    {
+      id: "sky130-pfet-01v8-lvt",
+      libraryId: "sky130_fd_pr",
+      masterName: "sky130_fd_pr__pfet_01v8_lvt",
+      invocationKind: "external-subcircuit",
+      symbolId: "pmos",
+      deviceClass: "mos",
+      terminals: ["D", "G", "S", "B"].map((name) => ({
+        targetName: name,
+        pinName: name,
+        interaction: "canvas" as const,
+      })),
+      parameters: [
+        geometry("w", "W", "3u", "3", 1),
+        geometry("l", "L", "350n", "0.35", 0),
+        count("nf", "NF", "Finger count", 2),
+        count("m", "M", "ngspice X-line parallel multiplier", 3),
+      ],
+    },
+    {
       id: "sky130-res-high-po",
       libraryId: "sky130_fd_pr",
       masterName: "sky130_fd_pr__res_high_po",
@@ -151,6 +192,20 @@ export const reviewedExternalDeviceBindings: readonly ReviewedExternalDeviceBind
         geometry("l", "L", "5u", "5", 1),
         count("mf", "MF", "SKY130 MIM wrapper multiplicity", 2),
       ],
+    },
+    {
+      id: "sky130-pnp-05v5-w0p68l0p68",
+      libraryId: "sky130_fd_pr",
+      masterName: "sky130_fd_pr__pnp_05v5_W0p68L0p68",
+      invocationKind: "external-subcircuit",
+      symbolId: "pnp",
+      deviceClass: "bjt",
+      terminals: ["C", "B", "E"].map((name) => ({
+        targetName: name,
+        pinName: name,
+        interaction: "canvas" as const,
+      })),
+      parameters: [],
     },
   ];
 

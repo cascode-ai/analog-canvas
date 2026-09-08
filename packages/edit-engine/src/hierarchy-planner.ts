@@ -8,6 +8,7 @@ import type {
 } from "@icm/model";
 import { deriveStableId, projectCellInterface, routeEnd } from "@icm/model";
 import {
+  deviceDescriptor,
   resolveReviewedExternalBinding,
   reviewedExternalBindingForMaster,
 } from "@icm/devices";
@@ -349,9 +350,13 @@ export function planSetDeviceModelTarget(
         )
       : undefined;
   const sourceSymbolId = currentExternal?.binding.symbolId ?? instance.symbolId;
-  if (!["nmos", "pmos", "resistor", "capacitor"].includes(sourceSymbolId)) {
+  const sourceDescriptor = deviceDescriptor(sourceSymbolId);
+  if (
+    !sourceDescriptor ||
+    (!targetBinding && sourceDescriptor.targetPolicy !== "required-model")
+  ) {
     throw new Error(
-      "Only reviewed MOS, resistor, and capacitor targets use this Model field",
+      "The selected device does not accept an explicit model target",
     );
   }
 
@@ -469,12 +474,10 @@ export function planSetDeviceModelTarget(
   }
 
   const symbolId = sourceSymbolId;
-  const nativePrefix =
-    sourceSymbolId === "nmos" || sourceSymbolId === "pmos"
-      ? "M"
-      : sourceSymbolId === "resistor"
-        ? "R"
-        : "C";
+  const nativePrefix = sourceDescriptor.referencePrefix;
+  if (!nativePrefix) {
+    throw new Error(`The selected ${sourceSymbolId} has no netlist Reference`);
+  }
   const externalBody = currentExternal
     ? instance.reference!.replace(/^x/iu, "")
     : instance.reference!;
@@ -491,25 +494,28 @@ export function planSetDeviceModelTarget(
       `Cannot clear external target because Reference ${reference} is already used`,
     );
   }
-  if (normalizedName && symbolId !== "nmos" && symbolId !== "pmos") {
+  if (normalizedName && sourceDescriptor.targetPolicy !== "required-model") {
     throw new Error(
       `${symbolId} supports only the reviewed model suggestion in this release`,
     );
   }
   const binding =
-    symbolId === "nmos" || symbolId === "pmos"
+    sourceDescriptor.targetPolicy === "required-model"
       ? normalizedName
-        ? ({ kind: "model", deviceClass: "mos", name: normalizedName } as const)
+        ? ({
+            kind: "model",
+            deviceClass: sourceDescriptor.deviceClass,
+            name: normalizedName,
+          } as const)
         : undefined
       : ({
           kind: "primitive",
-          deviceClass: symbolId === "resistor" ? "resistor" : "capacitor",
+          deviceClass: sourceDescriptor.deviceClass,
         } as const);
   const ordinaryParameterNames = new Set(
-    (symbolId === "nmos" || symbolId === "pmos"
-      ? ["w", "l", "nf", "m"]
-      : ["value"]
-    ).map((name) => name.toLowerCase()),
+    sourceDescriptor.parameters.map((parameter) =>
+      parameter.name.toLowerCase(),
+    ),
   );
   const unset = Object.keys(instance.netlist.parameters).filter(
     (name) => !ordinaryParameterNames.has(name.toLowerCase()),

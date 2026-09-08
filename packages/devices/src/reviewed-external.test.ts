@@ -34,6 +34,17 @@ describe("reviewed external device bindings", () => {
     expect(
       reviewedExternalBindingForMaster("sky130_fd_pr__nfet_g5v0d10v5"),
     ).toBeUndefined();
+    expect(
+      resolveReviewedExternalBinding("sky130_fd_pr__pnp_05v5_W0p68L0p68", [
+        "C",
+        "B",
+        "E",
+      ]),
+    ).toMatchObject({
+      id: "sky130-pnp-05v5-w0p68l0p68",
+      symbolId: "pnp",
+      deviceClass: "bjt",
+    });
   });
 
   it("converts reviewed geometry in both directions without aliasing counts", () => {
@@ -61,6 +72,20 @@ describe("reviewed external device bindings", () => {
       ["l", "0.15"],
       ["nf", "1"],
       ["m", "1"],
+    ]);
+    expect(
+      reviewedExternalBindingForMaster(
+        "sky130_fd_pr__pfet_01v8_lvt",
+      )?.parameters.map((parameter) => [
+        parameter.name,
+        parameter.defaultValue,
+        parameter.targetDefaultValue,
+      ]),
+    ).toEqual([
+      ["w", "3u", "3"],
+      ["l", "350n", "0.35"],
+      ["nf", "1", "1"],
+      ["m", "1", "1"],
     ]);
   });
 });
