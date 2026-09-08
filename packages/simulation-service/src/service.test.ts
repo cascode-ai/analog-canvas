@@ -132,6 +132,181 @@ async function prepareRaw(f: ReturnType<typeof fixture>) {
   return { prepared, workspaceId: created.workspace.id };
 }
 describe("shared simulation lifecycle", () => {
+  it("prepares every saved setup before running a batch sequentially", async () => {
+    const files = new SimulationFiles();
+    const project = createEmptyProject("batch-project", "Batch", "doc");
+    project.simulationSetups = ["A", "B"].map((name) => ({
+      id: `setup-${name.toLowerCase()}`,
+      name,
+      version: 2,
+      input: {
+        kind: "raw" as const,
+        entry: "tb.cir",
+        files: [{ path: "tb.cir", text: `${name} deck\n.end\n` }],
+        dependencies: [],
+        environment: { profileId: "test" },
+      },
+    }));
+    const releases: Array<() => void> = [];
+    let active = 0;
+    let maxActive = 0;
+    const executor: Executor = {
+      capabilities: async () => caps,
+      execute: vi.fn(
+        (input) =>
+          new Promise<Awaited<ReturnType<Executor["execute"]>>>((resolve) => {
+            active++;
+            maxActive = Math.max(maxActive, active);
+            releases.push(() => {
+              active--;
+              void result(input).then((simulationResult) =>
+                resolve({
+                  result: simulationResult,
+                  rawfile: "raw numbers",
+                  executedDeck: input.preparedDeck!,
+                }),
+              );
+            });
+          }),
+      ),
+      cancel: vi.fn(async () => releases.at(-1)?.()),
+    };
+    const service = new SimulationService(files, executor, () => project);
+    const preparedReply = await service.handle(
+      {
+        operation: "prepare-batch",
+        expectedStructureRevision: project.structureRevision,
+        items: [
+          { id: "tt", setupId: "setup-a" },
+          { id: "ff", setupId: "setup-b" },
+        ],
+      },
+      "prepare-batch",
+    );
+    expect(preparedReply).toMatchObject({
+      ok: true,
+      batch: {
+        state: "prepared",
+        items: [
+          { id: "tt", state: "prepared" },
+          { id: "ff", state: "prepared" },
+        ],
+      },
+    });
+    if (!preparedReply.ok || !("batch" in preparedReply)) return;
+    expect(executor.execute).not.toHaveBeenCalled();
+
+    const startRequest = {
+      operation: "start-batch" as const,
+      batchId: preparedReply.batch.id,
+    };
+    const started = await service.handle(startRequest, "start-batch-once");
+    expect(started).toMatchObject({ ok: true, batch: { state: "running" } });
+    expect(
+      await service.handle(startRequest, "start-batch-once"),
+    ).toMatchObject({
+      ok: true,
+      batch: { id: preparedReply.batch.id, state: "running" },
+    });
+    await vi.waitFor(() => expect(executor.execute).toHaveBeenCalledTimes(1));
+    releases[0]!();
+    await vi.waitFor(() => expect(executor.execute).toHaveBeenCalledTimes(2));
+    releases[1]!();
+    await vi.waitFor(async () =>
+      expect(
+        await service.handle(
+          { operation: "read-batch", batchId: preparedReply.batch.id },
+          "read-batch",
+        ),
+      ).toMatchObject({
+        ok: true,
+        batch: {
+          state: "finished",
+          items: [
+            { state: "finished", runId: expect.any(String) },
+            { state: "finished", runId: expect.any(String) },
+          ],
+        },
+      }),
+    );
+    expect(maxActive).toBe(1);
+  });
+
+  it("does not start a partially invalid batch and cancels queued members", async () => {
+    const f = fixture();
+    saveSetup(f.project, {
+      version: 2,
+      input: {
+        kind: "raw",
+        entry: "tb.cir",
+        files: [{ path: "tb.cir", text: deck }],
+        dependencies: [],
+        environment: { profileId: "test" },
+      },
+    });
+    expect(
+      await f.service.handle(
+        {
+          operation: "prepare-batch",
+          expectedStructureRevision: f.project.structureRevision,
+          items: [
+            { id: "valid", setupId: SETUP_ID },
+            { id: "missing", setupId: "setup-missing" },
+          ],
+        },
+        "invalid-batch",
+      ),
+    ).toMatchObject({
+      ok: false,
+      error: { code: "SIMULATION_SETUP_MISSING" },
+    });
+    expect(f.executor.execute).not.toHaveBeenCalled();
+
+    const prepared = await f.service.handle(
+      {
+        operation: "prepare-batch",
+        expectedStructureRevision: f.project.structureRevision,
+        items: [
+          { id: "one", setupId: SETUP_ID },
+          { id: "two", setupId: SETUP_ID },
+        ],
+      },
+      "cancel-prepare",
+    );
+    if (!prepared.ok || !("batch" in prepared)) return;
+    await f.service.handle(
+      { operation: "start-batch", batchId: prepared.batch.id },
+      "cancel-start",
+    );
+    await vi.waitFor(() => expect(f.executor.execute).toHaveBeenCalledTimes(1));
+    const cancelled = await f.service.handle(
+      { operation: "cancel-batch", batchId: prepared.batch.id },
+      "cancel-batch",
+    );
+    expect(cancelled).toMatchObject({
+      ok: true,
+      batch: {
+        state: "cancelling",
+        items: [{ state: "running" }, { state: "cancelled" }],
+      },
+    });
+    await vi.waitFor(async () =>
+      expect(
+        await f.service.handle(
+          { operation: "read-batch", batchId: prepared.batch.id },
+          "cancel-read",
+        ),
+      ).toMatchObject({
+        ok: true,
+        batch: {
+          state: "cancelled",
+          items: [{ state: "finished" }, { state: "cancelled" }],
+        },
+      }),
+    );
+    expect(f.executor.execute).toHaveBeenCalledTimes(1);
+  });
+
   it("prepares the corner selected by a structured setup", async () => {
     const project = CircuitProjectSchema.parse(ota);
     const setup = project.simulationSetups[0];

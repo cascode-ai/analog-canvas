@@ -437,6 +437,119 @@ test("one Testbench persists several independently named setups", async ({
   ).toEqual(existingSetupNames);
 });
 
+test("a saved-setup batch prepares first and exposes each ordinary run", async ({
+  page,
+}) => {
+  const project = parseProject(JSON.stringify(ota));
+  const deck = readFileSync(
+    new URL(
+      "../../../fixtures/ngspice-rawfile/divider-op.deck.spi",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const rawfile = readFileSync(
+    new URL(
+      "../../../fixtures/ngspice-rawfile/divider-op.raw",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  project.simulationSetups = ["TT", "FF"].map((name) => ({
+    id: `setup-${name.toLowerCase()}`,
+    name,
+    version: 2,
+    input: {
+      kind: "raw",
+      entry: "main.cir",
+      files: [{ path: "main.cir", text: deck }],
+      dependencies: [],
+      environment: { profileId: profile.id },
+    },
+  }));
+  let executions = 0;
+  await page.route("**/api/simulate", async (route) => {
+    const body = route.request().postDataJSON();
+    if (body.operation === "capabilities")
+      return route.fulfill({
+        json: {
+          configured: true,
+          inputs: ["structured", "raw"],
+          analyses: ["op", "dc", "ac", "tran", "noise"],
+          parsedAnalyses: ["op", "dc", "ac", "tran", "noise"],
+          profiles: [{ id: profile.id, corners: ["tt"] }],
+          maxTimeoutMs: 120000,
+          maxInputBytes: 1048576,
+          cancel: true,
+        },
+      });
+    executions++;
+    return route.fulfill({
+      json: {
+        outcome: { status: "completed" },
+        diagnostics: [],
+        log: "ngspice OP",
+        durationMs: 1,
+        rawfile,
+        executedDeck: body.preparedDeck,
+        metadata: {
+          schemaVersion: 1,
+          input: await createSimulationInputMetadata({
+            inputRevision: body.inputRevision,
+            netlist: body.netlist,
+            testbench: body.testbench,
+            deck: body.preparedDeck,
+          }),
+          configuration: { modelLibrary: null },
+          environment: await createSimulationEnvironmentMetadata({
+            executor: "local-host",
+            reproducibility: "observed",
+            profileId: profile.id,
+            platform: "linux/x64",
+            simulator: {
+              name: "ngspice",
+              version: profile.simulator.version,
+              binarySha256: null,
+            },
+            models: null,
+            startupSha256: null,
+          }),
+        },
+      },
+    });
+  });
+  await page.goto("/editor");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "batch.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  await page
+    .getByRole("button", { name: "Analog simulation", exact: true })
+    .click();
+  const panel = page.getByRole("region", { name: "Analog simulation" });
+  await panel.getByTitle("Simulation setup", { exact: true }).click();
+  await panel.getByLabel("Include TT in batch").check();
+  await panel.getByLabel("Include FF in batch").check();
+  await panel.getByRole("button", { name: "Run selected (2)" }).click();
+  const batch = panel.locator(".simulation-batch-strip");
+  await expect(batch).toContainText("Batch · finished");
+  await expect(
+    batch.getByRole("button", { name: /TT · finished/ }),
+  ).toBeEnabled();
+  await expect(
+    batch.getByRole("button", { name: /FF · finished/ }),
+  ).toBeEnabled();
+  expect(executions).toBe(2);
+  await batch.getByRole("button", { name: /FF · finished/ }).click();
+  await expect(
+    panel.getByTitle("Simulation setup", { exact: true }),
+  ).toContainText("FF");
+  await expect(panel.getByRole("status").first()).toContainText(
+    "Batch finished",
+  );
+});
+
 test("human simulation uses saved setup, survives minimizing, recovers a bad input and exports results", async ({
   page,
 }) => {

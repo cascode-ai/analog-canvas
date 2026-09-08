@@ -48,6 +48,142 @@ describe("MCP / browser Simulation Resource parity", () => {
     expect(send.mock.calls[1]![0]).toEqual(send.mock.calls[0]![0]);
     expect(http.claims).toHaveLength(1);
   });
+  it("prepares and runs saved setups as ordinary sequential runs", async () => {
+    const files = new SimulationFiles();
+    const project = createEmptyProject("batch-project", "Batch", "doc");
+    project.simulationSetups = ["TT", "FF"].map((name) => ({
+      id: `setup-${name.toLowerCase()}`,
+      name,
+      version: 2 as const,
+      input: {
+        kind: "raw" as const,
+        entry: "main.cir",
+        files: [
+          {
+            path: "main.cir",
+            text: readFileSync(
+              new URL(
+                "../../../fixtures/ngspice-rawfile/divider-op.deck.spi",
+                import.meta.url,
+              ),
+              "utf8",
+            ),
+          },
+        ],
+        dependencies: [],
+        environment: { profileId: profile.id },
+      },
+    }));
+    let executions = 0;
+    let active = 0;
+    let maxActive = 0;
+    const environment = await createSimulationEnvironmentMetadata({
+      executor: "hosted-container",
+      reproducibility: "observed",
+      profileId: profile.id,
+      platform: "linux/x64",
+      simulator: { name: "ngspice", version: "47", binarySha256: null },
+      models: null,
+      startupSha256: null,
+    });
+    const rawfile = readFileSync(
+      new URL(
+        "../../../fixtures/ngspice-rawfile/divider-op.raw",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+    const host = new BrowserAgentSimulationHost({
+      getProjectSessionId: () => "batch-project:1",
+      getProject: () => project,
+      files,
+      fetch: async (url, init) =>
+        (await routeSimulationRequest(
+          new Request(new URL(String(url), "http://localhost"), init),
+          {
+            NGSPICE: {
+              getByName: () => ({
+                fetch: async () => {
+                  executions++;
+                  active++;
+                  maxActive = Math.max(maxActive, active);
+                  await Promise.resolve();
+                  active--;
+                  return Response.json({
+                    environment,
+                    rawfile,
+                    log: "ngspice OP",
+                    durationMs: 1,
+                    exitCode: 0,
+                  });
+                },
+              }),
+            },
+          },
+        ))!,
+    });
+    class Relay extends FakeAgentHttp {
+      override async simulation(
+        _session: string,
+        _token: string,
+        request: AgentSimulationResourceRequest,
+      ) {
+        return AgentSimulationResourceResponseSchema.parse(
+          await host.handle(request),
+        );
+      }
+    }
+    const client = new AgentSessionClient({ http: new Relay() });
+    await client.connect("session-1.code");
+    const invoke = async (request: unknown, requestId?: string) =>
+      JSON.parse(
+        (
+          await callTool(
+            "simulation",
+            { request, ...(requestId ? { requestId } : {}) },
+            { client },
+          )
+        ).content[0]!.text!,
+      );
+    try {
+      const prepared = await invoke({
+        operation: "prepare-batch",
+        expectedStructureRevision: project.structureRevision,
+        items: [
+          { id: "tt", setupId: "setup-tt" },
+          { id: "ff", setupId: "setup-ff" },
+        ],
+      });
+      expect(executions).toBe(0);
+      const started = await invoke(
+        { operation: "start-batch", batchId: prepared.batch.id },
+        "batch-start-once",
+      );
+      expect(started.batch.state).toBe("running");
+      let finished: any;
+      await vi.waitFor(async () => {
+        finished = await invoke({
+          operation: "read-batch",
+          batchId: prepared.batch.id,
+        });
+        expect(finished.batch.state).toBe("finished");
+      });
+      expect(finished.batch.items).toEqual([
+        expect.objectContaining({
+          state: "finished",
+          runId: expect.any(String),
+        }),
+        expect.objectContaining({
+          state: "finished",
+          runId: expect.any(String),
+        }),
+      ]);
+      expect(executions).toBe(2);
+      expect(maxActive).toBe(1);
+    } finally {
+      await host.clear();
+    }
+  });
   it("authors a raw workspace, recovers an input error, runs, reads numbers and exports verified CSV using the same session", async () => {
     const directory = await mkdtemp(join(tmpdir(), "icm-agent-simulation-"));
     const files = new SimulationFiles(),

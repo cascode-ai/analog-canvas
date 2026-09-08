@@ -11,6 +11,7 @@ import type {
   Prepared,
   Problem,
   Run,
+  SimulationBatch,
   SimulationReply,
 } from "@icm/simulation-service/contract";
 import { downloadTextArtifact } from "../../document/project-file-service";
@@ -112,6 +113,9 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
   const [capabilities, setCapabilities] = useState<Capabilities>();
   const [prepared, setPrepared] = useState<Prepared>();
   const [run, setRun] = useState<Run>();
+  const [batch, setBatch] = useState<SimulationBatch>();
+  const [batchSelection, setBatchSelection] = useState<readonly string[]>([]);
+  const hydratedBatchRuns = useRef(new Set<string>());
   const runDetails = useRef(new SimulationRunDetails());
   const [problem, setProblem] = useState<Problem>();
   const [busy, setBusy] = useState(false);
@@ -178,7 +182,11 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
   }, []);
   const receive = (reply: SimulationReply) => {
     if (!alive.current) return;
-    if ((selectedSetup?.id ?? null) !== activeSetupId.current) return;
+    if (
+      !(reply.ok && "batch" in reply) &&
+      (selectedSetup?.id ?? null) !== activeSetupId.current
+    )
+      return;
     if (reply.ok && "run" in reply) {
       const owner = preparedPresentations.current.get(
         reply.run.preparedId,
@@ -195,6 +203,9 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
         setSetupOpen(true);
         setResultsOpen(false);
       }
+    } else if ("batch" in reply) {
+      setBatch(reply.batch);
+      setProblem(undefined);
     } else if ("run" in reply) {
       if (selectedSetup)
         setupResults.current.set(selectedSetup.id, {
@@ -288,6 +299,56 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
       clearTimeout(timer);
     };
   }, [run?.id, session, project]);
+  useEffect(() => {
+    setBatchSelection((current) =>
+      current.filter((id) =>
+        project.simulationSetups.some((setup) => setup.id === id),
+      ),
+    );
+  }, [project.simulationSetups]);
+  useEffect(() => {
+    if (!batch || !["running", "cancelling"].includes(batch.state)) return;
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout>;
+    const poll = async () => {
+      const reply = await session.handle({
+        operation: "read-batch",
+        batchId: batch.id,
+      });
+      if (stopped) return;
+      receive(reply);
+      if (!reply.ok || !("batch" in reply)) return;
+      for (const item of reply.batch.items) {
+        if (!item.runId || hydratedBatchRuns.current.has(item.runId)) continue;
+        if (!["finished", "failed", "cancelled", "lost"].includes(item.state))
+          continue;
+        const runReply = await session.handle({
+          operation: "read",
+          runId: item.runId,
+        });
+        if (!runReply.ok || !("run" in runReply)) continue;
+        hydratedBatchRuns.current.add(item.runId);
+        setupResults.current.set(item.setupId, {
+          prepared: item.prepared,
+          run: runReply.run,
+        });
+        if (item.setupId === activeSetupId.current) {
+          setPrepared(item.prepared);
+          setRun(runReply.run);
+          setResultsOpen(true);
+          setSetupOpen(false);
+          setResultTab(preferredResultTab(runReply.run));
+        }
+      }
+      if (["running", "cancelling"].includes(reply.batch.state))
+        timer = setTimeout(poll, 500);
+    };
+    void poll();
+    return () => {
+      stopped = true;
+      clearTimeout(timer);
+    };
+  }, [batch?.id, batch?.state, session, project]);
   const execute = async (start: boolean) => {
     if (lock.current) return;
     lock.current = true;
@@ -333,6 +394,66 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
             digest: reply.prepared.digest,
           }),
         );
+    } finally {
+      lock.current = false;
+      if (alive.current) setBusy(false);
+    }
+  };
+  const executeBatch = async () => {
+    if (lock.current) return;
+    const setups = project.simulationSetups.filter((setup) =>
+      batchSelection.includes(setup.id),
+    );
+    if (setups.length < 2) {
+      setProblem(
+        uiProblem(
+          "SIMULATION_BATCH_SELECTION_REQUIRED",
+          "Select at least two saved setups to run as a batch",
+        ),
+      );
+      return;
+    }
+    lock.current = true;
+    setBusy(true);
+    setProblem(undefined);
+    hydratedBatchRuns.current.clear();
+    try {
+      const preparedReply = await session.handle({
+        operation: "prepare-batch",
+        expectedStructureRevision: project.structureRevision,
+        items: setups.map((setup) => ({ id: setup.id, setupId: setup.id })),
+      });
+      receive(preparedReply);
+      if (!preparedReply.ok || !("batch" in preparedReply)) return;
+      for (const item of preparedReply.batch.items) {
+        const setup = setups.find((candidate) => candidate.id === item.setupId);
+        if (!setup) continue;
+        const input = setup.input;
+        preparedPresentations.current.set(item.prepared.id, {
+          setupId: setup.id,
+          prepared: structuredClone(item.prepared),
+          outputs:
+            input.kind === "structured" ? structuredClone(input.outputs) : [],
+          analysisLabel:
+            input.kind === "structured"
+              ? input.analyses
+                  .map((analysis) => analysis.kind.toUpperCase())
+                  .join(" + ")
+              : "RAW",
+          setupName: setup.name,
+          ...(input.kind === "structured"
+            ? { rootDocumentId: input.rootDocumentId }
+            : {}),
+        });
+        setupResults.current.set(setup.id, { prepared: item.prepared });
+      }
+      receive(
+        await session.handle({
+          operation: "start-batch",
+          batchId: preparedReply.batch.id,
+        }),
+      );
+      setupMenuRef.current?.removeAttribute("open");
     } finally {
       lock.current = false;
       if (alive.current) setBusy(false);
@@ -420,7 +541,9 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
       setArtifactBusy(undefined);
     }
   };
-  const running = run && ["running", "cancelling"].includes(run.state);
+  const batchRunning = batch && ["running", "cancelling"].includes(batch.state);
+  const running =
+    (run && ["running", "cancelling"].includes(run.state)) || batchRunning;
   const activeCell = project.documents.find(
     (candidate) => candidate.id === props.activeDocumentId,
   );
@@ -429,13 +552,19 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
       (instance) => instance.netlist?.binding?.kind === "subcircuit",
     ),
   );
+  const finishedBatchItems =
+    batch?.items.filter((item) =>
+      ["finished", "failed", "cancelled", "lost"].includes(item.state),
+    ).length ?? 0;
   const statusLabel = busy
     ? "Preparing…"
-    : run
-      ? `${run.state}${run.result ? ` · ${run.result.outcome.status}` : ""}`
-      : prepared
-        ? "Deck prepared"
-        : "No run yet";
+    : batch
+      ? `Batch ${batch.state} · ${finishedBatchItems}/${batch.items.length}`
+      : run
+        ? `${run.state}${run.result ? ` · ${run.result.outcome.status}` : ""}`
+        : prepared
+          ? "Deck prepared"
+          : "No run yet";
   const staleMessage =
     run?.inputStatus === "changed"
       ? "Result belongs to an earlier Project revision. Run again to use the current circuit."
@@ -605,7 +734,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
         <div className="simulation-brand">
           <strong>Simulation</strong>
           <span
-            className={`simulation-status-chip simulation-status-${run?.state ?? (prepared ? "prepared" : "idle")}`}
+            className={`simulation-status-chip simulation-status-${batch?.state ?? run?.state ?? (prepared ? "prepared" : "idle")}`}
             role="status"
           >
             {dirty ? "Setup changed" : statusLabel}
@@ -631,12 +760,40 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
               >
                 New setup
               </button>
+              {project.simulationSetups.length > 1 && capabilities?.batch ? (
+                <button
+                  type="button"
+                  className="simulation-setup-menu-batch"
+                  disabled={
+                    dirty || busy || !!running || batchSelection.length < 2
+                  }
+                  onClick={() => void executeBatch()}
+                >
+                  Run selected ({batchSelection.length})
+                </button>
+              ) : null}
               {project.simulationSetups.map((setup) => (
                 <div
                   key={setup.id}
                   className="simulation-setup-menu-row"
                   data-selected={setup.id === selectedSetup?.id}
                 >
+                  {capabilities?.batch ? (
+                    <input
+                      type="checkbox"
+                      aria-label={`Include ${setup.name} in batch`}
+                      checked={batchSelection.includes(setup.id)}
+                      disabled={dirty || busy || !!running}
+                      onChange={(event) => {
+                        const checked = event.currentTarget.checked;
+                        setBatchSelection((current) =>
+                          checked
+                            ? [...current, setup.id]
+                            : current.filter((id) => id !== setup.id),
+                        );
+                      }}
+                    />
+                  ) : null}
                   <button
                     type="button"
                     className="simulation-setup-menu-select"
@@ -716,14 +873,21 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
           {running ? (
             <button
               className="simulation-stop-button"
-              disabled={run.state === "cancelling"}
-              onClick={() =>
-                void session
-                  .handle({ operation: "cancel", runId: run.id })
-                  .then(receive)
+              disabled={
+                batch?.state === "cancelling" || run?.state === "cancelling"
               }
+              onClick={() => {
+                if (batchRunning)
+                  void session
+                    .handle({ operation: "cancel-batch", batchId: batch.id })
+                    .then(receive);
+                else if (run)
+                  void session
+                    .handle({ operation: "cancel", runId: run.id })
+                    .then(receive);
+              }}
             >
-              Cancel run
+              {batchRunning ? "Cancel batch" : "Cancel run"}
             </button>
           ) : selectedSetup ? (
             <button
@@ -781,6 +945,35 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
           </button>
         </div>
       </header>
+
+      {batch ? (
+        <div className="simulation-batch-strip" role="status">
+          <strong>Batch · {batch.state}</strong>
+          <div>
+            {batch.items.map((item) => {
+              const setup = project.simulationSetups.find(
+                (candidate) => candidate.id === item.setupId,
+              );
+              return (
+                <button
+                  type="button"
+                  key={item.id}
+                  data-state={item.state}
+                  disabled={!item.runId}
+                  onClick={() => props.onSelectSetupId(item.setupId)}
+                >
+                  {setup?.name ?? item.setupId} · {item.state}
+                </button>
+              );
+            })}
+          </div>
+          {!batchRunning ? (
+            <button type="button" onClick={() => setBatch(undefined)}>
+              Dismiss
+            </button>
+          ) : null}
+        </div>
+      ) : null}
 
       {!selectedSetup && !hasDutInstance ? (
         <p className="simulation-context-hint">

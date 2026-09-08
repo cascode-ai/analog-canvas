@@ -6,6 +6,7 @@ import {
   problem,
   type ArtifactRef,
   type Prepared,
+  type SimulationBatch,
   type SimulationOperation,
 } from "./contract.js";
 import { SimulationFiles } from "./files.js";
@@ -41,12 +42,19 @@ type StoredPrepared = {
   input: ExecutionInput;
   source: PrepareSource;
 };
+type InternalBatch = {
+  view: SimulationBatch;
+  cancelled: boolean;
+  done: Promise<void>;
+};
 const TTL = 15 * 60_000;
 /** One live session owns this service. UI visibility has no effect on execution. */
 export class SimulationService {
   private prepared = new Map<string, StoredPrepared>();
   private runs = new Map<string, InternalRun>();
   private starts = new Map<string, { key: string; runId: string }>();
+  private batches = new Map<string, InternalBatch>();
+  private batchStarts = new Map<string, { key: string; batchId: string }>();
   private epoch = 0;
   private inputIdentity = new ProjectInputIdentity();
   constructor(
@@ -64,6 +72,8 @@ export class SimulationService {
     this.prepared.clear();
     this.runs.clear();
     this.starts.clear();
+    this.batches.clear();
+    this.batchStarts.clear();
     // Draft/artifact teardown belongs to the File Resource owner.
     await Promise.allSettled(active.map((r) => this.executor.cancel(r.token)));
   }
@@ -79,9 +89,19 @@ export class SimulationService {
     try {
       this.prune();
       if (op.operation === "capabilities")
-        return { ok: true, capabilities: await this.executor.capabilities() };
+        return {
+          ok: true,
+          capabilities: {
+            ...(await this.executor.capabilities()),
+            batch: { maxItems: 16, execution: "sequential" },
+          },
+        };
       if (op.operation === "prepare") return await this.prepare(op);
       if (op.operation === "start") return this.start(op, requestId);
+      if (op.operation === "prepare-batch") return await this.prepareBatch(op);
+      if (op.operation === "start-batch") return this.startBatch(op, requestId);
+      if (op.operation === "read-batch" || op.operation === "cancel-batch")
+        return await this.accessBatch(op);
       if (op.operation === "read" || op.operation === "cancel") {
         const run = this.runs.get(op.runId);
         if (!run)
@@ -151,7 +171,18 @@ export class SimulationService {
           code: "INTERNAL_ERROR",
           message:
             "This operation failed; the session and authored input remain available.",
-          stage: op.operation === "capabilities" ? "read" : op.operation,
+          stage:
+            op.operation === "capabilities"
+              ? "read"
+              : op.operation === "prepare-batch"
+                ? "prepare"
+                : op.operation === "start-batch"
+                  ? "start"
+                  : op.operation === "read-batch"
+                    ? "read"
+                    : op.operation === "cancel-batch"
+                      ? "cancel"
+                      : op.operation,
           recovery: "not-retryable",
           correlationId: crypto.randomUUID(),
         },
@@ -168,7 +199,238 @@ export class SimulationService {
         !["running", "cancelling"].includes(r.view.state)
       )
         this.runs.delete(id);
+    for (const [id, batch] of this.batches)
+      if (
+        batch.view.expiresAt <= now &&
+        !["running", "cancelling"].includes(batch.view.state)
+      )
+        this.batches.delete(id);
     // Keep request tombstones for this session: an expired run must not be executed again.
+  }
+  private async prepareBatch(
+    op: Extract<SimulationOperation, { operation: "prepare-batch" }>,
+  ): Promise<SimulationReply> {
+    if (
+      [...this.runs.values()].some((run) =>
+        ["running", "cancelling"].includes(run.view.state),
+      ) ||
+      [...this.batches.values()].some((batch) =>
+        ["running", "cancelling"].includes(batch.view.state),
+      )
+    ) {
+      return {
+        ok: false,
+        error: {
+          code: "SIMULATOR_BUSY",
+          message: "This session already has an active run or batch",
+          stage: "prepare",
+          recovery: "retry-after",
+          retryAfterMs: 1000,
+        },
+      };
+    }
+    const preparedIds: string[] = [];
+    const items: SimulationBatch["items"] = [];
+    for (const item of op.items) {
+      const reply = await this.prepare({
+        operation: "prepare",
+        source: {
+          kind: "project-setup",
+          setupId: item.setupId,
+          expectedStructureRevision: op.expectedStructureRevision,
+        },
+      });
+      if (!reply.ok || !("prepared" in reply)) {
+        for (const preparedId of preparedIds) this.prepared.delete(preparedId);
+        return reply;
+      }
+      preparedIds.push(reply.prepared.id);
+      items.push({
+        id: item.id,
+        setupId: item.setupId,
+        prepared: structuredClone(reply.prepared),
+        state: "prepared",
+      });
+    }
+    const createdAt = this.now();
+    const view: SimulationBatch = {
+      id: crypto.randomUUID(),
+      state: "prepared",
+      createdAt,
+      expiresAt: createdAt + TTL,
+      items,
+    };
+    this.batches.set(view.id, {
+      view,
+      cancelled: false,
+      done: Promise.resolve(),
+    });
+    return { ok: true, batch: structuredClone(view) };
+  }
+  private startBatch(
+    op: Extract<SimulationOperation, { operation: "start-batch" }>,
+    requestId: string,
+  ): SimulationReply {
+    const key = JSON.stringify([op.batchId, op.timeoutMs ?? null]);
+    const old = this.batchStarts.get(requestId);
+    if (old) {
+      if (old.key !== key)
+        return problem(
+          "REQUEST_ID_REUSED",
+          "This request ID already identifies a different batch start",
+          "start",
+        );
+      const existing = this.batches.get(old.batchId);
+      return existing
+        ? { ok: true, batch: structuredClone(existing.view) }
+        : problem(
+            "BATCH_STATE_LOST",
+            "The earlier batch is unavailable and was not restarted",
+            "start",
+            "not-retryable",
+          );
+    }
+    const batch = this.batches.get(op.batchId);
+    if (!batch)
+      return problem(
+        "BATCH_STATE_LOST",
+        "Prepare the batch again; it is unavailable in this session",
+        "start",
+        "reprepare",
+      );
+    if (batch.view.state !== "prepared")
+      return problem(
+        "BATCH_ALREADY_STARTED",
+        "This batch has already started; read it using its existing id",
+        "start",
+        "not-retryable",
+      );
+    if (
+      [...this.runs.values()].some((run) =>
+        ["running", "cancelling"].includes(run.view.state),
+      ) ||
+      [...this.batches.values()].some(
+        (candidate) =>
+          candidate !== batch &&
+          ["running", "cancelling"].includes(candidate.view.state),
+      )
+    ) {
+      return {
+        ok: false,
+        error: {
+          code: "SIMULATOR_BUSY",
+          message: "This session already has an active run",
+          stage: "start",
+          recovery: "retry-after",
+          retryAfterMs: 1000,
+        },
+      };
+    }
+    this.batchStarts.set(requestId, { key, batchId: batch.view.id });
+    batch.view.state = "running";
+    for (const item of batch.view.items) item.state = "queued";
+    const epoch = this.epoch;
+    batch.done = this.executeBatch(batch, op.timeoutMs, requestId, epoch);
+    return { ok: true, batch: structuredClone(batch.view) };
+  }
+  private async executeBatch(
+    batch: InternalBatch,
+    timeoutMs: number | undefined,
+    requestId: string,
+    epoch: number,
+  ): Promise<void> {
+    for (const item of batch.view.items) {
+      if (epoch !== this.epoch) return;
+      if (batch.cancelled) {
+        item.state = "cancelled";
+        continue;
+      }
+      const reply = this.start(
+        {
+          operation: "start",
+          preparedId: item.prepared.id,
+          digest: item.prepared.digest,
+          ...(timeoutMs === undefined ? {} : { timeoutMs }),
+        },
+        `${requestId}:${batch.view.id}:${item.id}`,
+        batch.view.id,
+      );
+      if (!reply.ok || !("run" in reply)) {
+        item.state = "failed";
+        item.error = reply.ok
+          ? {
+              code: "BATCH_RUN_UNAVAILABLE",
+              message: "Batch member did not create a run",
+              stage: "start",
+              recovery: "not-retryable",
+            }
+          : reply.error;
+        continue;
+      }
+      item.runId = reply.run.id;
+      item.state = "running";
+      const run = this.runs.get(reply.run.id);
+      await run?.done;
+      if (!run) {
+        item.state = "lost";
+        continue;
+      }
+      item.error = run.view.error;
+      item.state =
+        run.view.state === "cancelled"
+          ? "cancelled"
+          : run.view.state === "lost"
+            ? "lost"
+            : run.view.error
+              ? "failed"
+              : "finished";
+    }
+    if (epoch !== this.epoch) return;
+    batch.view.state = batch.cancelled
+      ? "cancelled"
+      : batch.view.items.some((item) => ["failed", "lost"].includes(item.state))
+        ? "failed"
+        : "finished";
+    batch.view.expiresAt = this.now() + TTL;
+  }
+  private async accessBatch(
+    op: Extract<
+      SimulationOperation,
+      { operation: "read-batch" | "cancel-batch" }
+    >,
+  ): Promise<SimulationReply> {
+    const batch = this.batches.get(op.batchId);
+    if (!batch)
+      return problem(
+        "BATCH_STATE_LOST",
+        "No batch with this ID remains in this session",
+        "read",
+        "not-retryable",
+      );
+    if (
+      op.operation === "cancel-batch" &&
+      ["prepared", "running", "cancelling"].includes(batch.view.state)
+    ) {
+      batch.cancelled = true;
+      batch.view.state = "cancelling";
+      for (const item of batch.view.items) {
+        if (item.state === "prepared" || item.state === "queued")
+          item.state = "cancelled";
+      }
+      const running = batch.view.items.find(
+        (item) => item.state === "running" && item.runId,
+      );
+      if (running?.runId) {
+        const run = this.runs.get(running.runId);
+        if (run && ["running", "cancelling", "lost"].includes(run.view.state)) {
+          if (run.view.state !== "lost") run.view.state = "cancelling";
+          await this.executor.cancel(run.token);
+        }
+      } else {
+        batch.view.state = "cancelled";
+      }
+    }
+    return { ok: true, batch: structuredClone(batch.view) };
   }
   private async prepare(
     op: Extract<SimulationOperation, { operation: "prepare" }>,
@@ -282,6 +544,7 @@ export class SimulationService {
   private start(
     op: Extract<SimulationOperation, { operation: "start" }>,
     requestId: string,
+    owningBatchId?: string,
   ): SimulationReply {
     const key = JSON.stringify([
       op.preparedId,
@@ -324,6 +587,11 @@ export class SimulationService {
     if (
       [...this.runs.values()].some((r) =>
         ["running", "cancelling"].includes(r.view.state),
+      ) ||
+      [...this.batches.values()].some(
+        (batch) =>
+          batch.view.id !== owningBatchId &&
+          ["running", "cancelling"].includes(batch.view.state),
       )
     )
       return {

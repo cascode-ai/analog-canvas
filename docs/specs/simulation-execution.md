@@ -359,6 +359,16 @@ server records and artifacts for the bounded period below; direct/local receipts
 depend on their session service and resource lifetime. Once that evidence is
 unavailable, a receipt reads as lost. A lost run is never silently rerun.
 
+The same session resource exposes bounded saved-setup batches through
+`prepare-batch`, `start-batch`, `read-batch`, and `cancel-batch`. Preparation
+freezes all 1–16 members at one Project structure revision before any member
+runs. Execution is sequential and each member is an ordinary Run with its own
+prepared identity, run ID, result, and artifacts; the batch is coordination,
+not a second result protocol. A failed member is recorded and later members
+continue. Cancellation terminates the active member and marks queued members
+cancelled. Batch start follows the same request-ID idempotency rule as a normal
+start.
+
 ## Resources and presentation
 
 ### Agent resource implementation

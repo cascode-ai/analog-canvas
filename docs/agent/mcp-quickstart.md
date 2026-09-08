@@ -165,6 +165,15 @@ same contract as `/api/agent/sessions/{sessionId}/simulation`:
    Large run reads set `resultPreview`; use artifact `offset`/`nextOffset` to
    page through full evidence. Local `outputPath` exports assemble all slices.
 
+For a saved-setup batch, call `prepare-batch` once with one Project structure
+revision and 1–16 uniquely identified setup items. Every member is prepared
+before execution starts; one invalid member rejects the batch without running
+the valid members. Then use `start-batch`, `read-batch`, and `cancel-batch`.
+Members run sequentially through the same ordinary Run lifecycle and expose
+their normal `runId`, so `read` and `export` remain the only result and artifact
+interfaces. Reuse the same outer request ID when retrying `start-batch` after an
+uncertain transport response.
+
 For **graphless/raw** authoring, call `simulation_files` to `create`, then
 use `list` if a lost response left the workspace ID unknown. Continue with
 `update` with `workspaceId`, `expectedRevision`, `entry`, and `writes` of

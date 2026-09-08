@@ -497,6 +497,10 @@ export function simulationOperationScopes(
     case "start":
     case "read":
     case "cancel":
+    case "prepare-batch":
+    case "start-batch":
+    case "read-batch":
+    case "cancel-batch":
     case "export":
       return ["simulation.run"];
   }

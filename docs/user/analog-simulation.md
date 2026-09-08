@@ -31,10 +31,12 @@ lists published circuits, not bundled examples; the `?example=` link and
 **File → Open** on `apps/editor/src/examples/five-transistor-ota-sky130.icproj.json`
 are the two ways to reach it.
 
-The five AC corner setups are independent saved runs rather than a hidden
-batch protocol. Run and retain the desired results to exercise the current
-comparison view. A future batch executor can consume this same setup
-collection without changing the Project format.
+The five AC corner setups remain independent Project records. Select two or
+more setups in the Setup menu and choose **Run selected** to prepare all of
+them at the current Project revision and run them sequentially. The compact
+batch strip shows queued, running, completed, failed, and cancelled members;
+selecting a completed member opens its ordinary Run result. Batch coordination
+is session-only and does not change the Project format.
 
 ## DUT and testbench
 
