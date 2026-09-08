@@ -296,6 +296,41 @@
   background: var(--icm-surface);
 }
 
+@media (min-width: 1100px) {
+  .spice-simulation-surface.maximized .simulation-plot-view,
+  .spice-simulation-surface.maximized
+    .simulation-plot-view
+    > .simulation-output-results {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+
+  .spice-simulation-surface.maximized
+    .simulation-plot-view
+    > .simulation-output-results,
+  .spice-simulation-surface.maximized
+    .simulation-plot-view
+    > .simulation-empty-result,
+  .spice-simulation-surface.maximized
+    .simulation-plot-view
+    > .simulation-output-results
+    > .simulation-output-diagnostics,
+  .spice-simulation-surface.maximized
+    .simulation-plot-view
+    > .simulation-output-results
+    > .simulation-measurement-results {
+    grid-column: 1 / -1;
+  }
+
+  .spice-simulation-surface.maximized
+    .simulation-plot-view
+    .simulation-analysis-card
+    + .simulation-analysis-card {
+    padding-top: 0;
+    border-top: 0;
+  }
+}
+
 .spice-simulation-surface.maximized
   .simulation-analysis-card:has(.simulation-plot-layout)
   > .simulation-analysis-card-header {
@@ -385,6 +420,10 @@
   padding: 8px 10px;
   border-bottom: 1px solid var(--icm-border);
   background: var(--icm-surface-muted);
+}
+.simulation-results-header {
+  /* Keep the open Export menu above per-plot toolbars. */
+  z-index: 3;
 }
 .simulation-setup-panel > header > div {
   display: grid;

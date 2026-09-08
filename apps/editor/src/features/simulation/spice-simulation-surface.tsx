@@ -922,7 +922,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
           </header>
           <div ref={resultsBodyRef} className="simulation-results-body">
             {resultTab === "plot" ? (
-              <div className="simulation-analysis-view">
+              <div className="simulation-analysis-view simulation-plot-view">
                 {run?.outputData ? (
                   <SimulationOutputResults
                     resultKey={run.id}
