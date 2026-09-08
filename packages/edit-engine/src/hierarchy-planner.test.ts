@@ -635,6 +635,29 @@ describe("reviewed external MOS model targets", () => {
           (terminal) => terminal.name,
         ),
       ).toEqual(fixture.terminalNames);
+
+      const cleared = executeProjectTransaction(result.project, {
+        transactionId: `clear-${fixture.symbolId}-target`,
+        projectId: result.project.id,
+        expectedStructureRevision: result.project.structureRevision,
+        actor: { kind: "human", id: "test" },
+        edits: planSetDeviceModelTarget(
+          result.project,
+          result.project.topDocumentId,
+          fixture.reference,
+          "",
+        ),
+      });
+      expect(cleared.ok).toBe(true);
+      if (!cleared.ok) continue;
+      expect(cleared.project.documents[0]!.instances[0]).toMatchObject({
+        symbolId: fixture.symbolId,
+        reference: fixture.reference,
+        netlist: {
+          binding: { kind: "primitive", deviceClass: fixture.symbolId },
+          parameters: {},
+        },
+      });
     }
   });
 
