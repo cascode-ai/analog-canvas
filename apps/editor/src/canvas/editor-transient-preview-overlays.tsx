@@ -94,11 +94,8 @@ export function EditorInteractionPreviews({
   onTextCommit,
   onTextCancel,
   onTextDelete,
-  onConvertFormulaToLiteral,
-  referenceLabelOffer,
-  onAcceptReferenceLabelOffer,
-  onDeclineReferenceLabelOffer,
   onReverseCurrentArrow,
+  onRestoreReference,
 }: {
   boxPreview: BoxPreview | null;
   draftingSource: Point | null;
@@ -117,11 +114,8 @@ export function EditorInteractionPreviews({
   onTextCommit: () => void;
   onTextCancel: () => void;
   onTextDelete: () => void;
-  onConvertFormulaToLiteral?: CanvasTextEditorOverlayProps["onConvertFormulaToLiteral"];
-  referenceLabelOffer?: CanvasTextEditorOverlayProps["referenceLabelOffer"];
-  onAcceptReferenceLabelOffer?: () => void;
-  onDeclineReferenceLabelOffer?: () => void;
   onReverseCurrentArrow?: () => void;
+  onRestoreReference?: CanvasTextEditorOverlayProps["onRestoreReference"];
 }) {
   return (
     <>
@@ -172,15 +166,8 @@ export function EditorInteractionPreviews({
           onCommit={onTextCommit}
           onCancel={onTextCancel}
           onDelete={onTextDelete}
-          {...(onConvertFormulaToLiteral ? { onConvertFormulaToLiteral } : {})}
-          {...(referenceLabelOffer ? { referenceLabelOffer } : {})}
-          {...(onAcceptReferenceLabelOffer
-            ? { onAcceptReferenceLabelOffer }
-            : {})}
-          {...(onDeclineReferenceLabelOffer
-            ? { onDeclineReferenceLabelOffer }
-            : {})}
           {...(onReverseCurrentArrow ? { onReverseCurrentArrow } : {})}
+          {...(onRestoreReference ? { onRestoreReference } : {})}
         />
       ) : null}
     </>

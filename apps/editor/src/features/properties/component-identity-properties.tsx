@@ -182,10 +182,9 @@ export function ComponentIdentityProperties({
   capacitorPlateRows,
   propertyTerminal,
   modelTarget,
-  label,
+  onEditAnnotation,
   onMarkerNameChange,
   onReferenceChange,
-  onLabelChange,
   onModelTargetChange,
 }: {
   instance: Instance;
@@ -203,15 +202,9 @@ export function ComponentIdentityProperties({
     onChange: (netId: string | null) => void;
   } | null;
   modelTarget: ComponentModelTargetView | null;
-  /**
-   * Free text attached to the component, or `null` when it has nowhere to
-   * stand yet (a retained Instance). It is not the Reference and never
-   * reaches the netlist, so it may read anything — `gm` on a resistor.
-   */
-  label: string | null;
+  onEditAnnotation?: () => void;
   onMarkerNameChange: (value: string) => void;
   onReferenceChange: (value: string) => boolean | void;
-  onLabelChange: (value: string) => boolean | void;
   onModelTargetChange: (value: string) => void;
 }) {
   const reference = instance.reference ?? "";
@@ -244,12 +237,12 @@ export function ComponentIdentityProperties({
           ) : null}
           {instance.reference ? (
             <div>
-              <dt>Reference</dt>
+              <dt>Netlist Reference</dt>
               <dd>
                 <input
                   dir="auto"
                   key={`${instance.id}-${revision}-reference`}
-                  aria-label="Component reference"
+                  aria-label="Netlist Reference"
                   defaultValue={reference}
                   onBlur={(event) =>
                     commitIdentityInput(event, reference, onReferenceChange)
@@ -261,24 +254,13 @@ export function ComponentIdentityProperties({
               </dd>
             </div>
           ) : null}
-          {label !== null ? (
+          {onEditAnnotation ? (
             <div>
-              <dt>Label</dt>
+              <dt>Visual annotation</dt>
               <dd>
-                <input
-                  dir="auto"
-                  key={`${instance.id}-${revision}-label`}
-                  aria-label="Component label"
-                  aria-description="Free text shown with the component; the Reference stays as it is"
-                  defaultValue={label}
-                  placeholder="Optional text"
-                  onBlur={(event) =>
-                    commitIdentityInput(event, label, onLabelChange)
-                  }
-                  onKeyDown={(event) =>
-                    handleIdentityInputKeyDown(event, label)
-                  }
-                />
+                <button type="button" onClick={onEditAnnotation}>
+                  Edit annotation
+                </button>
               </dd>
             </div>
           ) : null}

@@ -3,6 +3,8 @@ import { createEmptyDocument } from "@icm/model";
 import { executeTransaction, proposeRouteEndpointMove } from "@icm/edit-engine";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
+import { resolveDocumentStyleProfile } from "@icm/derived";
+import { defaultInstanceDisplayAnnotations } from "../features/instance-display/default-instance-display";
 
 import {
   endpointTestId,
@@ -47,20 +49,29 @@ describe("editor document helpers", () => {
 
   it("does not confuse a literal master label with a live Reference label", () => {
     const document = createEmptyDocument("doc", "Doc");
-    document.annotations.push({
-      id: "master-R1",
-      kind: "instance-label",
-      content: { runs: [{ kind: "text", value: "master" }] },
-      anchor: {
-        kind: "object",
-        objectId: "R1",
-        localOffset: { x: 0, y: 0 },
-        fallbackPosition: { x: 0, y: 0 },
+    // Exercise the production master factory, not a synthetic instance-label:
+    // a custom visual annotation now deliberately belongs to that latter kind.
+    const instance = {
+      id: "R1",
+      reference: "R1",
+      symbolId: "resistor",
+      placement: {
+        position: { x: 100, y: 100 },
+        rotation: 0 as const,
+        mirror: "none" as const,
       },
-      rotation: 0,
-      alignment: "start",
-      locked: false,
-    });
+    };
+    document.annotations.push(
+      ...defaultInstanceDisplayAnnotations(
+        document,
+        instance,
+        new InMemorySymbolResolver(builtInSymbols),
+        resolveDocumentStyleProfile(document.presentation),
+        { showDesignator: false, masterName: "master" },
+      ),
+    );
+    expect(document.annotations).toHaveLength(1);
+    expect(document.annotations[0]).toMatchObject({ kind: "instance-value" });
     expect(instanceLabelAnnotationFor(document, "R1")).toBeUndefined();
   });
 

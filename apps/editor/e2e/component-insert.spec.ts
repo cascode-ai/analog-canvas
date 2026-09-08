@@ -156,7 +156,7 @@ test("writes an Instance Reference through post-placement Properties", async ({
   // The quick pick carries no reference field; naming happens in Properties.
   await page.getByTestId("hit-R1").click();
   await page.getByTestId("selection-shelf").click();
-  const instanceReference = page.getByLabel("Component reference");
+  const instanceReference = page.getByLabel("Netlist Reference");
   await instanceReference.fill("R7");
   await instanceReference.press("Tab");
 
@@ -1141,7 +1141,7 @@ test("carries a manual Value through placement and Q property editing", async ({
   await expect(page.getByLabel("Component identity")).not.toContainText(
     "Device class",
   );
-  const instanceReference = page.getByLabel("Component reference");
+  const instanceReference = page.getByLabel("Netlist Reference");
   await expect(instanceReference).toHaveValue("R1");
   await instanceReference.fill("R7");
   await instanceReference.press("Tab");

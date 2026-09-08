@@ -10,7 +10,7 @@ import type { DerivedRect, GridRect } from "@icm/model";
 import { flattenRichText } from "@icm/model";
 
 import { RichTextEditor } from "./rich-text-editor";
-import type { ReferenceLabelOffer, TextEditingSession } from "./text-editing";
+import type { TextEditingSession } from "./text-editing";
 
 type TextEditingUpdate = Partial<
   Pick<TextEditingSession, "content" | "sizeScale" | "alignment">
@@ -26,10 +26,7 @@ export interface CanvasTextEditorOverlayProps {
   onCancel(): void;
   onDelete(): void;
   onReverseCurrentArrow?(): void;
-  onConvertFormulaToLiteral?(formula: TextEditingSession["content"]): boolean;
-  referenceLabelOffer?: ReferenceLabelOffer | null;
-  onAcceptReferenceLabelOffer?(): void;
-  onDeclineReferenceLabelOffer?(): void;
+  onRestoreReference?(): TextEditingSession["content"] | undefined;
 }
 
 /**
@@ -128,10 +125,7 @@ export function CanvasTextEditorOverlay({
   onCancel,
   onDelete,
   onReverseCurrentArrow,
-  onConvertFormulaToLiteral,
-  referenceLabelOffer,
-  onAcceptReferenceLabelOffer,
-  onDeclineReferenceLabelOffer,
+  onRestoreReference,
 }: CanvasTextEditorOverlayProps) {
   const anchorRef = useRef<SVGGElement | null>(null);
   const [canvasSize, setCanvasSize] = useState<{
@@ -189,7 +183,6 @@ export function CanvasTextEditorOverlay({
     // cannot store any of them would promise formatting the commit drops.
     session.owner === "instance-formula" ||
     (session.bound &&
-      session.bindingKind !== "instance-reference" &&
       session.bindingKind !== "net-name" &&
       session.bindingKind !== "cell-terminal-name");
 
@@ -231,22 +224,8 @@ export function CanvasTextEditorOverlay({
           {...(session.bound && !sourceOnly
             ? { formulaSemanticText: flattenRichText(session.content) }
             : {})}
-          {...(session.bindingKind === "instance-reference" &&
-          onConvertFormulaToLiteral
-            ? { onConvertFormulaToLiteral }
-            : {})}
-          {...(session.bindingKind === "instance-reference" &&
-          referenceLabelOffer &&
-          referenceLabelOffer.annotationId === session.id
-            ? {
-                referenceLabelOffer,
-                ...(onAcceptReferenceLabelOffer
-                  ? { onAcceptReferenceLabelOffer }
-                  : {}),
-                ...(onDeclineReferenceLabelOffer
-                  ? { onDeclineReferenceLabelOffer }
-                  : {}),
-              }
+          {...(session.visualInstanceId && onRestoreReference
+            ? { onRestoreReference }
             : {})}
           onLayoutHeightChange={handleLayoutHeightChange}
           {...(onReverseCurrentArrow ? { onReverseCurrentArrow } : {})}

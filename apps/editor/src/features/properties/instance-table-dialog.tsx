@@ -194,7 +194,7 @@ export function InstanceTableDialog({
               <tr>
                 <th aria-label="Selection" />
                 <th>ID</th>
-                <th>Reference</th>
+                <th>Netlist Reference</th>
                 <th>Master</th>
                 <th>Symbol</th>
                 <th>Cell</th>

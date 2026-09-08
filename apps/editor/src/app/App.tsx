@@ -143,7 +143,6 @@ import { useVisualClipboard } from "../features/clipboard/visual-clipboard";
 import { deriveWireUnderSymbolWarnings } from "../canvas/wire-under-symbol";
 import { createPlacementTrayCommands } from "../features/component-insert/placement-tray-commands";
 import { componentTargetDescription } from "../features/properties/component-identity-properties";
-import { literalInstanceLabelText } from "../features/instance-display/literal-instance-label";
 import {
   endpointTestId,
   instanceLabelAnnotationFor,
@@ -1853,7 +1852,6 @@ export function App({
     valueVisibilityEdits,
     updateSelectedModelTarget,
     updateSelectedReference,
-    updateSelectedLabel,
     deleteSelectedAnnotation,
     reverseSelectedCurrentArrow,
   } = createSelectionPropertyCommands({
@@ -1875,7 +1873,7 @@ export function App({
     },
   });
   const {
-    acceptReferenceLabelOffer,
+    restoreTextReference,
     addAdditionalParameter,
     additionalParameterDraft,
     additionalParameterDraftChanges,
@@ -1891,9 +1889,6 @@ export function App({
     commitNetLabelEditing,
     commitPendingNetLabelDraft,
     commitTextEditing,
-    convertFormulaToAttachedLiteral,
-    declineReferenceLabelOffer,
-    referenceLabelOffer,
     clearTextEditing,
     cancelAdditionalParameters,
     deleteSelectedRouteNetLabel,
@@ -5378,10 +5373,12 @@ export function App({
                     onMarkerNameChange: (value) =>
                       commitElectricalMarkerName(selectedInstance.id, value),
                     onReferenceChange: updateSelectedReference,
-                    label: selectedInstance.placement
-                      ? literalInstanceLabelText(document, selectedInstance.id)
-                      : null,
-                    onLabelChange: updateSelectedLabel,
+                    ...(selectedInstanceLabel && selectedInstance.placement
+                      ? {
+                          onEditAnnotation: () =>
+                            beginAnnotationTextEditing(selectedInstanceLabel),
+                        }
+                      : {}),
                     onModelTargetChange: updateSelectedModelTarget,
                   },
                   signalFlow: selectedSignalFlowPresentation
@@ -6197,10 +6194,7 @@ export function App({
               setStatus("Cancelled text changes");
             },
             onTextDelete: deleteTextEditing,
-            onConvertFormulaToLiteral: convertFormulaToAttachedLiteral,
-            referenceLabelOffer,
-            onAcceptReferenceLabelOffer: acceptReferenceLabelOffer,
-            onDeclineReferenceLabelOffer: declineReferenceLabelOffer,
+            onRestoreReference: restoreTextReference,
             ...(editingAnnotation &&
             isRoutedMarker(editingAnnotation) &&
             effectiveRouteAttachment(editingAnnotation)

@@ -97,7 +97,7 @@ export function GroupDisplayToggles({
       <div className="property-section-heading">Canvas labels</div>
       <div className="display-toggle-row">
         <DisplayToggle
-          label="Reference"
+          label="Visual annotation"
           checked={referencesVisible}
           onChange={onReferencesVisibleChange}
         />

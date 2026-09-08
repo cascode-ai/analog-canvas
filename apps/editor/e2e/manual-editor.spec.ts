@@ -800,9 +800,9 @@ test("a part with no designator offers no Reference toggle", async ({
   await openSelectionShelf(page);
   const toggles = properties.getByLabel("Component display toggles");
   await expect(toggles).toBeVisible();
-  await expect(toggles).toContainText("Reference");
+  await expect(toggles).toContainText("Visual annotation");
   await expect(toggles).toContainText("Value");
-  const reference = toggles.getByLabel("Reference");
+  const reference = toggles.getByLabel("Visual annotation");
   await expect(reference).toBeChecked();
   const drawnLabel = page.locator(
     '[data-layer="annotations"] [data-object-id="instance-label-R1"]',
@@ -3292,7 +3292,7 @@ test("Properties offers no dead Reference controls for a schematic-only block", 
   await placeComponent(page, "resistor", { x: 520, y: 200 });
   await openSelectionShelf(page);
   const properties = page.getByRole("complementary", { name: "Properties" });
-  const referenceField = properties.getByLabel("Component reference");
+  const referenceField = properties.getByLabel("Netlist Reference");
   const parametersCard = properties.getByLabel(
     "Component parameters and display",
   );
@@ -3373,7 +3373,7 @@ test("Properties toggles reference label visibility for one or many components",
     componentProperties.getByLabel("Component model target"),
   ).toBeVisible();
   const singleToggle = page.getByRole("checkbox", {
-    name: "Reference",
+    name: "Visual annotation",
     exact: true,
   });
   await expect(singleToggle).toBeChecked();
@@ -3403,7 +3403,7 @@ test("Properties toggles reference label visibility for one or many components",
   await page.mouse.move(box.x + 700, box.y + 340, { steps: 6 });
   await page.mouse.up();
   const groupToggle = page.getByRole("checkbox", {
-    name: "Reference",
+    name: "Visual annotation",
     exact: true,
   });
   await expect(groupToggle).toBeVisible();
@@ -4812,7 +4812,7 @@ test("exports structural SPICE and Spectre netlists while exposing instance auth
   const properties = page.getByRole("complementary", { name: "Properties" });
   await expect(properties.getByLabel("Cell netlist name")).toHaveCount(0);
   await expect(properties.getByLabel("Cell netlist port order")).toHaveCount(0);
-  await expect(properties.getByLabel("Component reference")).toBeVisible();
+  await expect(properties.getByLabel("Netlist Reference")).toBeVisible();
   await expect(properties.getByLabel("Component model target")).toBeVisible();
   await expect(properties.getByText(/^Model:/u)).toHaveCount(0);
 });
@@ -4955,7 +4955,7 @@ test("selects a reviewed SKY130 MOS through the existing Model field", async ({
   await expect(properties).toContainText(
     "External subcircuit · SPICE emits an X card",
   );
-  await expect(properties.getByLabel("Component reference")).toHaveValue("XM1");
+  await expect(properties.getByLabel("Netlist Reference")).toHaveValue("XM1");
   await expect(properties.getByLabel("Component nf")).toBeVisible();
   await expect(
     properties.getByLabel("Component m", { exact: true }),
@@ -4963,7 +4963,7 @@ test("selects a reviewed SKY130 MOS through the existing Model field", async ({
 
   await model.selectOption("");
   await expect(model).toHaveValue("");
-  await expect(properties.getByLabel("Component reference")).toHaveValue("M1");
+  await expect(properties.getByLabel("Netlist Reference")).toHaveValue("M1");
   await expect(properties).not.toContainText(
     "External subcircuit · SPICE emits an X card",
   );
@@ -4973,13 +4973,13 @@ test("selects a reviewed SKY130 MOS through the existing Model field", async ({
   await customModel.fill("generic_nmos");
   await customModel.press("Enter");
   await expect(customModel).toHaveValue("generic_nmos");
-  await expect(properties.getByLabel("Component reference")).toHaveValue("M1");
+  await expect(properties.getByLabel("Netlist Reference")).toHaveValue("M1");
 
   await model.selectOption("sky130_fd_pr__nfet_01v8");
   await expect(properties).toContainText(
     "External subcircuit · SPICE emits an X card",
   );
-  await expect(properties.getByLabel("Component reference")).toHaveValue("XM1");
+  await expect(properties.getByLabel("Netlist Reference")).toHaveValue("XM1");
 
   const saved = JSON.parse(
     (await downloadBytes(page, "File", "Export Project File…")).toString(
@@ -5040,7 +5040,7 @@ for (const fixture of [
     });
 
     await model.selectOption(fixture.model);
-    await expect(properties.getByLabel("Component reference")).toHaveValue(
+    await expect(properties.getByLabel("Netlist Reference")).toHaveValue(
       fixture.externalReference,
     );
     await expect(
@@ -5052,7 +5052,7 @@ for (const fixture of [
 
     await model.selectOption("");
     await expect(model).toHaveValue("");
-    await expect(properties.getByLabel("Component reference")).toHaveValue(
+    await expect(properties.getByLabel("Netlist Reference")).toHaveValue(
       fixture.nativeReference,
     );
     await expect(

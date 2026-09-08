@@ -15,27 +15,34 @@ import {
 type Instance = SchematicDocument["instances"][number];
 
 export interface DefaultInstanceDisplayOptions {
-  /** Show the live user-facing Instance Reference projection. */
+  /** Show the visual annotation (initially a live Netlist Reference projection). */
   readonly showDesignator?: boolean;
   readonly showValue?: boolean;
   readonly masterName?: string;
   readonly formalTerminalId?: string;
 }
 
-/** Find the authored reference/name projection owned by one Instance. */
+/** Find the visual annotation, without mistaking older hidden defaults for it. */
 export function instanceLabelAnnotationFor(
   document: SchematicDocument,
   instanceId: string,
 ): Annotation | undefined {
-  return document.annotations.find(
+  const candidates = document.annotations.filter(
     (annotation) =>
       (annotation.kind === "instance-label" ||
         annotation.kind === "net-label") &&
-      (annotation.binding?.kind === "instance-reference" ||
+      ((!annotation.binding && annotation.kind === "instance-label") ||
+        annotation.binding?.kind === "instance-reference" ||
         annotation.binding?.kind === "cell-terminal-name" ||
         annotation.binding?.kind === "net-name") &&
       annotation.anchor.kind === "object" &&
       annotation.anchor.objectId === instanceId,
+  );
+  // Existing files may contain an additional authored label. Preserve it; do
+  // not silently delete user content to migrate the former optional-Label UI.
+  return (
+    candidates.find((annotation) => annotation.visible !== false) ??
+    candidates[0]
   );
 }
 
@@ -141,6 +148,14 @@ function isSameDefaultProjection(
   candidate: Annotation,
 ): boolean {
   if (existing.id === candidate.id) return true;
+  if (
+    existing.kind === "instance-label" &&
+    existing.content &&
+    candidate.binding?.kind === "instance-reference" &&
+    existing.anchor.kind === "object" &&
+    existing.anchor.objectId === candidate.binding.instanceId
+  )
+    return true;
   const existingBinding = existing.binding;
   const candidateBinding = candidate.binding;
   if (!existingBinding || !candidateBinding) return false;

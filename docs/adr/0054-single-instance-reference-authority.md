@@ -4,6 +4,8 @@ Status: `accepted`
 
 Date: `2026-08-31`
 
+Canvas authoring decision revised: `2026-09-08`.
+
 Owners: `packages/model`, `packages/project-protocol`, `packages/devices`,
 `packages/edit-engine`, `packages/netlist`, `packages/agent-adapter`,
 `apps/editor`
@@ -24,7 +26,7 @@ Reference—multiple persisted authorities.
 ## Decision
 
 An ordinary referenced Instance has exactly one authored `Instance.reference`.
-It is the Reference shown by an `instance-reference` annotation and the token
+It is the Netlist Reference shown by a following `instance-reference` annotation and the token
 emitted for an Instance that has netlist facts. The Reference is unique within
 one Document under case folding and follows the device or hierarchy prefix
 policy. `Instance.id` remains stable object identity and never participates in
@@ -47,11 +49,28 @@ The remaining visible text categories are explicit:
 Cell Pins and power markers have no fabricated Instance Reference. A Cell Pin
 projects `CellTerminal.name`; power presentation projects its owned Net name.
 
-Reference creation, Properties editing, canvas editing, Agent renaming,
+Reference creation, explicit Properties Netlist Reference editing, Agent renaming,
 renumbering, clipboard cloning, cross-Document composition, and SPICE import
 all write the same field. Object-ID allocation is independent. A multi-field
 target transition that changes both binding class and required Reference
 prefix is one atomic edit plan.
+
+The canvas edits presentation, not electrical identity. An ordinary device has
+one visual `instance-label` Annotation, initially bound to its Netlist Reference.
+Changing its characters or inserting a formula replaces the binding with literal
+RichText `content` on that same object. No hidden default plus optional Label is
+created, and no formula/reference-equivalence prompt is needed. Formatting-only
+edits may retain the binding through a same-text `formatOverride`. An explicit
+**Use netlist name** action restores following and default content styling;
+typing the same name into a custom annotation never implicitly rebinds it.
+Anchor, visibility, alignment, color, and scale survive these state changes.
+
+This replaces the earlier canvas-rename and optional-Label interaction, not the
+single electrical authority. `Instance.reference` remains unchanged as a public
+protocol field; no `visualName` field, new edit kind, or schema version is added.
+The existing Annotation `binding`/`content` exclusive choice expresses both
+states. Existing additional literal annotations are retained as authored text,
+not deleted or reconciled by spelling. New authoring never creates such a pair.
 
 Schema 35 removes `schematicReference`, `schematicName`, and
 `netlist.reference`. The 34→35 adapter prefers the former emitted Reference for
@@ -80,7 +99,9 @@ parameters, connectivity, or attached annotations.
 
 ## Consequences
 
-- A Reference rename changes canvas and export together by definition.
+- A Netlist Reference rename updates export and following annotations; custom
+  visual annotations remain unchanged. Copy allocates a new Netlist Reference,
+  rewrites following projections, and preserves custom text/formula content.
 - Copy and composition need one collision policy, not reconciliation between
   canvas and netlist names.
 - Agent Snapshot exposes `id`, `reference`, and `masterName` explicitly; it no
