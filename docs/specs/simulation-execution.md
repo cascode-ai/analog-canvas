@@ -96,10 +96,12 @@ mismatched Profile leaves `/health` and `/run` not ready; it is never silently
 downgraded to an observed hosted run. Local deployment is an optional adapter,
 not an implicit fallback to a program found on the user's machine.
 
-The first qualified scope is deliberately narrow and factual: the continuous
-`sky130_fd_pr__nfet_01v8` and `sky130_fd_pr__pfet_01v8` wrappers, the
-Profile's qualified sections (`tt/ff/ss/fs/sf`), and
-OP/DC/AC/TRAN/Noise covered by the hosted model acceptance fixture. A separate
+The qualified scope is deliberately exact and factual: core and LVT 1.8 V
+NFET/PFET wrappers, `res_high_po`, `cap_mim_m3_1`, and the fixed
+`pnp_05v5_W0p68L0p68` wrapper, over the Profile's qualified sections
+(`tt/ff/ss/fs/sf`). OP/DC/AC/TRAN/Noise remain covered by the hosted core-model
+acceptance fixture; a second OP/AC fixture verifies every added device at every
+advertised corner. A separate
 independent-source divider smoke gives DC parsing and numerical sweep behavior
 an exact closed-form check on the same pinned runtime. TRAN qualification includes an ideal RC
 step and a structured SKY130 OTA pulse response on the pinned ngspice 46
@@ -108,6 +110,11 @@ and the structured OTA's input/output spectral densities and integrated totals.
 Adding another corner or device family extends this same Profile
 contract only after a model-backed fixture passes the hosted
 gate; a locally available PDK is not evidence by itself.
+
+The Profile deliberately excludes a SKY130 diode because the selected
+continuous library does not resolve the candidate model. It also excludes the
+available four-terminal NPN because ngspice 46 reports discarded model
+parameters. These are model-environment limits, not missing symbol artwork.
 
 It must not include that top-level sectioned library with `.include`, because
 doing so expands multiple corner sections into the same deck and redefines

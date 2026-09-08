@@ -5,8 +5,10 @@ import {
   compileHostedSky130NoiseProject,
   compileHostedSky130TransientProject,
   hostedSky130CornerRequest,
+  hostedSky130ExtendedDeviceRequest,
   runHostedSky130Acceptance,
   runHostedSky130CornerAcceptance,
+  runHostedSky130ExtendedDeviceAcceptance,
   runHostedSky130NoiseAcceptance,
   runHostedSky130TransientAcceptance,
   runPreviewSimulationSmoke,
@@ -17,6 +19,7 @@ import {
   validateExecutorParity,
   validateHostedSky130Result,
   validateHostedSky130CornerResult,
+  validateHostedSky130ExtendedDeviceResult,
   validatePreviewSimulationResult,
 } from "./preview-simulation-smoke.mjs";
 
@@ -195,6 +198,60 @@ function cornerResult(target, corner = "ff") {
           probes: [
             { name: "i(vdn)", value: -0.0002526337154561964 },
             { name: "i(vsp)", value: -9.451994627332483e-7 },
+          ],
+        },
+      ],
+    },
+  };
+}
+
+function extendedDeviceResult(target, corner = "ff") {
+  const base = result(target);
+  const expected = {
+    lvtNfetCurrentA: -0.0001329127936535723,
+    lvtPfetSourceCurrentA: -0.00006968745845296193,
+    resistorOutputV: 0.313487576360055,
+    resistorSupplyCurrentA: -0.000313487576360055,
+    pnpEmitterCurrentA: -2.149132309996193e-7,
+    pnpCollectorCurrentA: 1.983406510684755e-7,
+    mimOutputReal: 9.002255934489363e-12,
+    mimOutputImag: -0.00000300037596550971,
+  };
+  return {
+    ...base,
+    metadata: {
+      ...base.metadata,
+      input: { inputRevision: `preview-sky130-extended-${corner}` },
+      configuration: {
+        modelLibrary: { directive: "lib", section: corner },
+      },
+      environment: {
+        ...base.metadata.environment,
+        fingerprint: CORNER_ENVIRONMENT_SHA,
+      },
+    },
+    data: {
+      analyses: [
+        {
+          analysis: "op",
+          probes: [
+            { name: "i(vdnl)", value: expected.lvtNfetCurrentA },
+            { name: "i(vspl)", value: expected.lvtPfetSourceCurrentA },
+            { name: "v(rout)", value: expected.resistorOutputV },
+            { name: "i(vrin)", value: expected.resistorSupplyCurrentA },
+            { name: "i(vpe)", value: expected.pnpEmitterCurrentA },
+            { name: "i(vpc)", value: expected.pnpCollectorCurrentA },
+          ],
+        },
+        {
+          analysis: "ac",
+          frequencyHz: [1e9],
+          probes: [
+            {
+              name: "v(capout)",
+              real: [expected.mimOutputReal],
+              imag: [expected.mimOutputImag],
+            },
           ],
         },
       ],
@@ -471,6 +528,52 @@ describe("the hosted SKY130 qualification", () => {
     expect(() =>
       validateHostedSky130CornerResult(candidate, "operator-host", "ff"),
     ).toThrow(/unexpected ff currents/u);
+  });
+
+  it("qualifies every newly exposed wrapper from one OP/AC deck", async () => {
+    const request = hostedSky130ExtendedDeviceRequest("ff");
+    expect(request.netlist).toContain("sky130_fd_pr__nfet_01v8_lvt");
+    expect(request.netlist).toContain("sky130_fd_pr__pfet_01v8_lvt");
+    expect(request.netlist).toContain("sky130_fd_pr__res_high_po");
+    expect(request.netlist).toContain("sky130_fd_pr__cap_mim_m3_1");
+    expect(request.netlist).toContain("sky130_fd_pr__pnp_05v5_W0p68L0p68");
+    expect(
+      validateHostedSky130ExtendedDeviceResult(
+        extendedDeviceResult("operator-host"),
+        "operator-host",
+        "ff",
+      ),
+    ).toMatchObject({
+      corner: "ff",
+      resistorOutputV: 0.313487576360055,
+    });
+
+    let submitted;
+    await runHostedSky130ExtendedDeviceAcceptance({
+      baseUrl: "https://preview.example",
+      target: "operator-host",
+      corner: "ff",
+      fetchImpl: async (_url, init) => {
+        submitted = JSON.parse(init.body);
+        return Response.json(extendedDeviceResult("operator-host"));
+      },
+    });
+    expect(submitted.environment).toEqual({
+      profileId: PROFILE_ID,
+      corner: "ff",
+    });
+  });
+
+  it("refuses extended-device numerical drift", () => {
+    const candidate = extendedDeviceResult("operator-host");
+    candidate.data.analyses[0].probes[0].value = -0.001;
+    expect(() =>
+      validateHostedSky130ExtendedDeviceResult(
+        candidate,
+        "operator-host",
+        "ff",
+      ),
+    ).toThrow(/lvtNfetCurrentA/u);
   });
 
   it("accepts the model-backed OTA operating point", () => {

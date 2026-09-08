@@ -2,6 +2,7 @@
   "schemaVersion": 4,
   "fixtureId": "ota-5t-structured-op-dc-ac-tran-noise-v3",
   "profileId": "sky130-core-continuous-ngspice46-v1",
+  "devices": ["sky130_fd_pr__nfet_01v8", "sky130_fd_pr__pfet_01v8"],
   "analyses": ["op", "dc", "ac", "tran", "noise"],
   "inputs": {
     "project": "apps/editor/src/examples/five-transistor-ota-sky130.icproj.json",
