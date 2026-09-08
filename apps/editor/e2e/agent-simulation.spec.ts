@@ -46,6 +46,69 @@ const ota = JSON.parse(
   ),
 );
 
+test("plot PNG export retains every curve when the source charts rerender", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await expect(page.getByTestId("schematic-canvas")).toBeVisible();
+  const bytes = await page.evaluate(async () => {
+    const plotModule = "/src/features/simulation/ac-response-plot.ts";
+    const exportModule = "/src/features/simulation/simulation-plot-export.ts";
+    const { acResponseSvg } = await import(plotModule);
+    const { buildVisibleSimulationPlotDownload } = await import(exportModule);
+    const root = document.createElement("div");
+    document.body.append(root);
+    const points = [1, 10, 100, 1000, 10000].map((frequency, index) => ({
+      frequency,
+      real: 1,
+      imaginary: 0,
+      magnitude: [0, 1, 0.2, 0.8, 0][index],
+      magnitudeDb: [0, 20, 4, 16, 0][index],
+      phaseDeg: [0, -90, -20, -70, 0][index],
+    }));
+    root.innerHTML = ["db20", "phase"]
+      .map((kind) =>
+        acResponseSvg(
+          [{ label: "v(out)", unit: "V", points }],
+          { width: 600, height: 340 },
+          { kind },
+        ),
+      )
+      .join("");
+    try {
+      const pending = buildVisibleSimulationPlotDownload(root, "png");
+      // Busy-state/plot updates replace innerHTML while the first image decodes.
+      // The second chart must not read styles from its now-detached SVG.
+      root.replaceChildren();
+      return Array.from((await pending).bytes as Uint8Array);
+    } finally {
+      root.remove();
+    }
+  });
+  const entries = unzipSync(Uint8Array.from(bytes));
+  expect(Object.keys(entries)).toHaveLength(2);
+  for (const [name, bytes] of Object.entries(entries)) {
+    await test
+      .info()
+      .attach(name, { body: Buffer.from(bytes), contentType: "image/png" });
+    const png = PNG.sync.read(Buffer.from(bytes));
+    let blue = 0;
+    let dark = 0;
+    for (let index = 0; index < png.data.length; index += 4) {
+      const r = png.data[index]!;
+      const g = png.data[index + 1]!;
+      const b = png.data[index + 2]!;
+      if (b > 140 && r < 60 && g > 60 && g < 140) blue++;
+      if (r < 32 && g < 32 && b < 32) dark++;
+    }
+    expect(blue, `${name}: curve remains visible`).toBeGreaterThan(500);
+    expect(
+      dark / (png.width * png.height),
+      `${name}: no filled black region`,
+    ).toBeLessThan(0.03);
+  }
+});
+
 test("the qualified OTA setup opens unchanged and preserves all root and hierarchical outputs", async ({
   page,
 }) => {
@@ -573,6 +636,50 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
   await panel.getByLabel("Start (Hz)").last().fill("1");
   await panel.getByLabel("Stop (Hz)").last().fill("1000000");
   await panel.getByLabel(/Output name for/).fill("first-output");
+  const analysisBoxes = await panel
+    .locator(".simulation-analysis-options > label")
+    .all();
+  const firstAnalysisBox = (await analysisBoxes[0]!.boundingBox())!;
+  expect(analysisBoxes).toHaveLength(5);
+  for (const option of analysisBoxes) {
+    expect((await option.boundingBox())!.y).toBeCloseTo(firstAnalysisBox.y, 0);
+  }
+  await panel
+    .locator('details[aria-label="Measurements settings"] > summary')
+    .click();
+  const measurementEditor = panel.locator(".simulation-measurement-editor");
+  await measurementEditor
+    .getByRole("button", { name: "Add measurement" })
+    .click();
+  await measurementEditor
+    .getByLabel("Name", { exact: true })
+    .fill("Peak output");
+  await measurementEditor
+    .getByRole("combobox", { name: "Analysis", exact: true })
+    .selectOption("tran");
+  await measurementEditor
+    .getByRole("combobox", { name: "Measure", exact: true })
+    .selectOption("rms");
+  await measurementEditor.getByLabel("Window stop / SI").fill("1e-6");
+  const addBox = (await measurementEditor
+    .getByRole("button", { name: "Add measurement" })
+    .boundingBox())!;
+  const removeBox = (await measurementEditor
+    .getByRole("button", { name: "Remove measurement" })
+    .boundingBox())!;
+  expect(addBox.y).toBeCloseTo(removeBox.y, 0);
+  expect(
+    await measurementEditor.evaluate(
+      (element) => element.scrollWidth <= element.clientWidth,
+    ),
+  ).toBe(true);
+  await measurementEditor.screenshot({
+    path: test.info().outputPath("measurement-settings.png"),
+  });
+  await measurementEditor
+    .getByRole("button", { name: "Remove measurement" })
+    .click();
+  await expect(measurementEditor.locator("fieldset")).toHaveCount(0);
   await panel.getByRole("button", { name: "Apply setup" }).click();
   await panel.getByRole("button", { name: "Run", exact: true }).click();
   await expect.poll(() => executions).toBe(1);

@@ -412,14 +412,34 @@
 }
 .simulation-measurement-rule {
   margin: 0;
+  min-width: 0;
   padding: 8px;
   border: 1px solid var(--icm-border);
   border-radius: var(--icm-radius-sm);
 }
-.simulation-measurement-rule > legend {
-  padding: 0 4px;
+.simulation-measurement-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.simulation-setup-panel .simulation-measurement-fields > label {
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  gap: 4px;
+  min-width: 0;
+  margin: 0;
   color: var(--icm-text-muted);
   font-size: var(--icm-font-xs);
+}
+.simulation-measurement-fields > .simulation-inline-fields {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+.simulation-measurement-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
 }
 .simulation-setup-panel label {
   display: grid;
@@ -567,18 +587,18 @@
 }
 .simulation-analysis-options {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 6px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 4px;
   min-width: 0;
 }
 .simulation-analysis-options > label {
   display: flex;
-  gap: 5px;
+  gap: 3px;
   justify-content: center;
   min-width: 0;
   min-height: 30px;
   margin: 0;
-  padding: 4px 6px;
+  padding: 4px 2px;
   border: 1px solid var(--icm-border);
   border-radius: var(--icm-radius-sm);
   background: var(--icm-surface-muted);

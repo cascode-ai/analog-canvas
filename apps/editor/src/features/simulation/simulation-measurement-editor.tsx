@@ -75,13 +75,36 @@ export function SimulationMeasurementEditor({
       ),
     );
   const canAdd = analyses.length > 0 && outputs.length > 0;
+  const addButton = (
+    <button
+      type="button"
+      aria-label="Add measurement"
+      disabled={!canAdd}
+      onClick={() => {
+        const analysis = analyses[0]!;
+        const output = outputs[0]!;
+        onChange([
+          ...measurements,
+          {
+            id: `measurement-${crypto.randomUUID()}`,
+            label: `Measurement ${measurements.length + 1}`,
+            analysis,
+            outputId: output.id,
+            method: defaultMethod(analysis),
+          },
+        ]);
+      }}
+    >
+      Add
+    </button>
+  );
 
   return (
     <div className="simulation-measurement-editor">
       {!outputs.length ? (
         <small>Add an Output signal before defining a measurement.</small>
       ) : null}
-      {measurements.map((measurement) => {
+      {measurements.map((measurement, index) => {
         const method = measurement.method;
         const window = methodWindow(method);
         const supportsOptionalWindow =
@@ -94,20 +117,22 @@ export function SimulationMeasurementEditor({
             key={measurement.id}
             className="simulation-measurement-rule"
           >
-            <legend>{measurement.label || "Measurement"}</legend>
-            <label>
-              Name
-              <input
-                value={measurement.label}
-                onChange={(event) =>
-                  update(measurement.id, (current) => ({
-                    ...current,
-                    label: event.currentTarget.value,
-                  }))
-                }
-              />
-            </label>
-            <div className="simulation-inline-fields columns-2">
+            <legend className="simulation-visually-hidden">
+              {measurement.label || "Measurement"}
+            </legend>
+            <div className="simulation-measurement-fields">
+              <label>
+                Name
+                <input
+                  value={measurement.label}
+                  onChange={(event) =>
+                    update(measurement.id, (current) => ({
+                      ...current,
+                      label: event.currentTarget.value,
+                    }))
+                  }
+                />
+              </label>
               <label>
                 Analysis
                 <select
@@ -146,155 +171,141 @@ export function SimulationMeasurementEditor({
                   ))}
                 </select>
               </label>
-            </div>
-            <label>
-              Measure
-              <select
-                value={method.kind}
-                onChange={(event) => {
-                  const kind = event.currentTarget
-                    .value as keyof typeof METHOD_LABELS;
-                  const nextMethod: SimulationMeasurementMethod =
-                    kind === "sample-at"
-                      ? { kind, coordinate: 0 }
-                      : kind === "mean" || kind === "rms"
-                        ? { kind, window: { start: 0, stop: 1 } }
-                        : kind === "value"
-                          ? { kind }
-                          : { kind };
-                  update(measurement.id, (current) => ({
-                    ...current,
-                    method: nextMethod,
-                  }));
-                }}
-              >
-                {methodsFor(measurement.analysis).map((kind) => (
-                  <option key={kind} value={kind}>
-                    {METHOD_LABELS[kind]}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {method.kind === "sample-at" ? (
               <label>
-                {coordinateLabel(measurement.analysis)}
-                <input
-                  type="number"
-                  step="any"
-                  value={method.coordinate}
-                  onChange={(event) =>
-                    update(measurement.id, (current) => ({
-                      ...current,
-                      method: {
-                        kind: "sample-at",
-                        coordinate: Number(event.currentTarget.value),
-                      },
-                    }))
-                  }
-                />
-              </label>
-            ) : null}
-            {supportsOptionalWindow ? (
-              <label>
-                Range
+                Measure
                 <select
-                  value={showWindow ? "window" : "all"}
+                  value={method.kind}
                   onChange={(event) => {
-                    const useWindow = event.currentTarget.value === "window";
+                    const kind = event.currentTarget
+                      .value as keyof typeof METHOD_LABELS;
+                    const nextMethod: SimulationMeasurementMethod =
+                      kind === "sample-at"
+                        ? { kind, coordinate: 0 }
+                        : kind === "mean" || kind === "rms"
+                          ? { kind, window: { start: 0, stop: 1 } }
+                          : kind === "value"
+                            ? { kind }
+                            : { kind };
                     update(measurement.id, (current) => ({
                       ...current,
-                      method: {
-                        kind: method.kind,
-                        ...(useWindow ? { window: { start: 0, stop: 1 } } : {}),
-                      },
+                      method: nextMethod,
                     }));
                   }}
                 >
-                  <option value="all">Entire analysis</option>
-                  <option value="window">Window</option>
+                  {methodsFor(measurement.analysis).map((kind) => (
+                    <option key={kind} value={kind}>
+                      {METHOD_LABELS[kind]}
+                    </option>
+                  ))}
                 </select>
               </label>
-            ) : null}
-            {showWindow ? (
-              <div className="simulation-inline-fields columns-2">
+              {method.kind === "sample-at" ? (
                 <label>
-                  Window start / SI
+                  {coordinateLabel(measurement.analysis)}
                   <input
                     type="number"
                     step="any"
-                    value={window?.start ?? 0}
+                    value={method.coordinate}
                     onChange={(event) =>
                       update(measurement.id, (current) => ({
                         ...current,
                         method: {
-                          ...current.method,
-                          window: {
-                            start: Number(event.currentTarget.value),
-                            stop: methodWindow(current.method)?.stop ?? 1,
-                          },
-                        } as SimulationMeasurementMethod,
+                          kind: "sample-at",
+                          coordinate: Number(event.currentTarget.value),
+                        },
                       }))
                     }
                   />
                 </label>
+              ) : null}
+              {supportsOptionalWindow ? (
                 <label>
-                  Window stop / SI
-                  <input
-                    type="number"
-                    step="any"
-                    value={window?.stop ?? 1}
-                    onChange={(event) =>
+                  Range
+                  <select
+                    value={showWindow ? "window" : "all"}
+                    onChange={(event) => {
+                      const useWindow = event.currentTarget.value === "window";
                       update(measurement.id, (current) => ({
                         ...current,
                         method: {
-                          ...current.method,
-                          window: {
-                            start: methodWindow(current.method)?.start ?? 0,
-                            stop: Number(event.currentTarget.value),
-                          },
-                        } as SimulationMeasurementMethod,
-                      }))
-                    }
-                  />
+                          kind: method.kind,
+                          ...(useWindow
+                            ? { window: { start: 0, stop: 1 } }
+                            : {}),
+                        },
+                      }));
+                    }}
+                  >
+                    <option value="all">Entire analysis</option>
+                    <option value="window">Window</option>
+                  </select>
                 </label>
-              </div>
-            ) : null}
-            <button
-              type="button"
-              onClick={() =>
-                onChange(
-                  measurements.filter(
-                    (candidate) => candidate.id !== measurement.id,
-                  ),
-                )
-              }
-            >
-              Remove measurement
-            </button>
+              ) : null}
+              {showWindow ? (
+                <div className="simulation-inline-fields columns-2">
+                  <label>
+                    Window start / SI
+                    <input
+                      type="number"
+                      step="any"
+                      value={window?.start ?? 0}
+                      onChange={(event) =>
+                        update(measurement.id, (current) => ({
+                          ...current,
+                          method: {
+                            ...current.method,
+                            window: {
+                              start: Number(event.currentTarget.value),
+                              stop: methodWindow(current.method)?.stop ?? 1,
+                            },
+                          } as SimulationMeasurementMethod,
+                        }))
+                      }
+                    />
+                  </label>
+                  <label>
+                    Window stop / SI
+                    <input
+                      type="number"
+                      step="any"
+                      value={window?.stop ?? 1}
+                      onChange={(event) =>
+                        update(measurement.id, (current) => ({
+                          ...current,
+                          method: {
+                            ...current.method,
+                            window: {
+                              start: methodWindow(current.method)?.start ?? 0,
+                              stop: Number(event.currentTarget.value),
+                            },
+                          } as SimulationMeasurementMethod,
+                        }))
+                      }
+                    />
+                  </label>
+                </div>
+              ) : null}
+            </div>
+            <div className="simulation-measurement-actions">
+              <button
+                type="button"
+                aria-label="Remove measurement"
+                onClick={() =>
+                  onChange(
+                    measurements.filter(
+                      (candidate) => candidate.id !== measurement.id,
+                    ),
+                  )
+                }
+              >
+                Remove
+              </button>
+              {index === measurements.length - 1 ? addButton : null}
+            </div>
           </fieldset>
         );
       })}
-      <button
-        type="button"
-        disabled={!canAdd}
-        onClick={() => {
-          const analysis = analyses[0]!;
-          const output = outputs[0]!;
-          const ordinal = measurements.length + 1;
-          onChange([
-            ...measurements,
-            {
-              id: `measurement-${crypto.randomUUID()}`,
-              label: `Measurement ${ordinal}`,
-              analysis,
-              outputId: output.id,
-              method: defaultMethod(analysis),
-            },
-          ]);
-        }}
-      >
-        Add measurement
-      </button>
+      {!measurements.length ? addButton : null}
     </div>
   );
 }
