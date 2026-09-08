@@ -353,7 +353,9 @@ export function planSetDeviceModelTarget(
   const sourceDescriptor = deviceDescriptor(sourceSymbolId);
   if (
     !sourceDescriptor ||
-    (!targetBinding && sourceDescriptor.targetPolicy !== "required-model")
+    (!targetBinding &&
+      !currentExternal &&
+      sourceDescriptor.targetPolicy !== "required-model")
   ) {
     throw new Error(
       "The selected device does not accept an explicit model target",
