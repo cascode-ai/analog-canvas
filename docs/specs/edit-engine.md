@@ -199,6 +199,14 @@ own UI state, or define another hierarchy representation. Canvas-dependent
 contact detection and placement previews remain consumer concerns; read-only
 Cell/caller summaries are derived data owned by `@icm/derived`.
 
+`project-cell-import.ts` is the corresponding cross-Project composition
+planner. It reads two already-authorized Projects and emits only ordinary
+Project structure edits: source-file records, compatible external interfaces,
+and copied Documents. The destination transaction validates the complete
+closure once. Deterministic remapping makes re-import idempotent without a
+persistent cross-Project pointer; no import lifecycle manager or live Library
+link exists.
+
 ## Invariants
 
 - A Schematic transaction targets exactly one Document. A Project structural

@@ -1,6 +1,7 @@
 import {
   CircuitProjectSchema,
   ExternalSubcircuitDefinitionSchema,
+  SourceFileRecordSchema,
   SchematicDocumentSchema,
   ProjectSimulationSetupSchema,
   type CircuitProject,
@@ -30,6 +31,10 @@ import type {
 } from "./transaction-result.js";
 
 export const ProjectStructureEditSchema = z.discriminatedUnion("kind", [
+  z.strictObject({
+    kind: z.literal("add_source_file"),
+    sourceFile: SourceFileRecordSchema,
+  }),
   z.strictObject({
     kind: z.literal("add_document"),
     document: SchematicDocumentSchema,
@@ -297,6 +302,22 @@ export function executeProjectTransaction(
   let structuralChange = false;
 
   for (const [editIndex, edit] of transaction.edits.entries()) {
+    if (edit.kind === "add_source_file") {
+      const existing = candidate.source.files.find(
+        (sourceFile) => sourceFile.id === edit.sourceFile.id,
+      );
+      if (existing) {
+        return rejectProjectTransaction(
+          project,
+          "EDIT_PRECONDITION",
+          `Source file already exists: ${edit.sourceFile.id}`,
+        );
+      }
+      candidate.source.files.push(structuredClone(edit.sourceFile));
+      structuralChange = true;
+      continue;
+    }
+
     if (edit.kind === "add_document") {
       if (
         candidate.documents.some((document) => document.id === edit.document.id)

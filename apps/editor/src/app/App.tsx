@@ -19,6 +19,7 @@ import type {
 import {
   planCellReset,
   planCreateCell,
+  planProjectCellImport,
   planSetCellSymbolPresentation,
   type CellResetPlan,
   type WireSource,
@@ -188,6 +189,7 @@ import { ExamplesPanel } from "../features/editor-shell/examples-panel";
 import { createGalleryExampleCommands } from "../features/editor-shell/gallery-example-commands";
 import { createEditorNavigationController } from "../features/hierarchy/editor-navigation-controller";
 import { createProjectStructureCommands } from "../features/hierarchy/project-structure-commands";
+import { loadCloudProjectForCellImport } from "../features/hierarchy/cloud-cell-import";
 import type { PublishGalleryDraft } from "../features/editor-shell/publish-gallery-dialog";
 import {
   publishProjectToGallery,
@@ -4762,6 +4764,49 @@ export function App({
                       presentation,
                     ),
                   );
+                },
+                cloudProjects,
+                activeCloudProjectId: cloudBinding?.id ?? null,
+                onLoadCloudProject: loadCloudProjectForCellImport,
+                onImportCloudCell: async (source, sourceDocumentId) => {
+                  const plan = planProjectCellImport(
+                    project,
+                    source,
+                    sourceDocumentId,
+                  );
+                  if (!plan.ok) {
+                    return { ok: false, message: plan.message };
+                  }
+                  if (plan.status === "already-imported") {
+                    setStatus(
+                      "Cell is already imported; opened the existing copy",
+                    );
+                    return {
+                      ok: true,
+                      message: "Cell already imported",
+                      documentId: plan.rootDocumentId,
+                    };
+                  }
+                  const committed = commitStructure(
+                    "import-cloud-cell",
+                    [...plan.edits],
+                    plan.rootDocumentId,
+                  );
+                  if (!committed) {
+                    return {
+                      ok: false,
+                      message:
+                        "Cell import was rejected; refresh and try again",
+                    };
+                  }
+                  setStatus(
+                    `Imported ${plan.importedDocumentIds.length} Cell${plan.importedDocumentIds.length === 1 ? "" : "s"} from ${source.name}`,
+                  );
+                  return {
+                    ok: true,
+                    message: "Cell imported",
+                    documentId: plan.rootDocumentId,
+                  };
                 },
               }
             : null
