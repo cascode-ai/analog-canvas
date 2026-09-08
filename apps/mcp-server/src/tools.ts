@@ -60,6 +60,19 @@ const SimulationArgs = z.strictObject({
   request: SimulationOperationSchema,
   requestId: z.string().min(1).optional(),
 });
+const ProjectCellsArgs = z.discriminatedUnion("action", [
+  z.strictObject({ action: z.literal("list-projects") }),
+  z.strictObject({
+    action: z.literal("list-cells"),
+    cloudProjectId: z.string().min(1),
+  }),
+  z.strictObject({
+    action: z.literal("import-cell"),
+    cloudProjectId: z.string().min(1),
+    sourceDocumentId: z.string().min(1),
+    expectedStructureRevision: z.number().int().nonnegative().optional(),
+  }),
+]);
 const SimulationSetupArgs = z.discriminatedUnion("action", [
   z.strictObject({
     action: z.literal("list"),
@@ -399,6 +412,44 @@ const TOOLS: readonly ToolEntry[] = [
       inputSchema: jsonSchemaOf(z.strictObject({})),
     },
     handle: async (_args, session) => session.client.status({ refresh: true }),
+  },
+  {
+    definition: {
+      name: "project_cells",
+      description:
+        "List the signed-in user's Cloud Projects, inspect their reusable Cells and formal ports, or copy one Cell with its dependency closure into the open Project. Import uses the canonical GUI planner and one atomic Project transaction; it creates no live cross-Project reference. Ordinary sign-in, stale-revision, or compatibility failures are recoverable and do not end the Agent session.",
+      inputSchema: { ...jsonSchemaOf(ProjectCellsArgs), type: "object" },
+    },
+    handle: async (args, session) => {
+      const parsed = ProjectCellsArgs.parse(args);
+      if (parsed.action === "list-projects") {
+        return session.client.projectResource({
+          apiVersion: AGENT_API_VERSION,
+          requestId: crypto.randomUUID(),
+          operation: parsed.action,
+        });
+      }
+      if (parsed.action === "list-cells") {
+        return session.client.projectResource({
+          apiVersion: AGENT_API_VERSION,
+          requestId: crypto.randomUUID(),
+          operation: parsed.action,
+          cloudProjectId: parsed.cloudProjectId,
+        });
+      }
+      const expectedStructureRevision =
+        parsed.expectedStructureRevision ??
+        (await session.client.snapshot(undefined, { refresh: true })).snapshot
+          .project.structureRevision;
+      return session.client.projectResource({
+        apiVersion: AGENT_API_VERSION,
+        requestId: crypto.randomUUID(),
+        operation: parsed.action,
+        cloudProjectId: parsed.cloudProjectId,
+        sourceDocumentId: parsed.sourceDocumentId,
+        expectedStructureRevision,
+      });
+    },
   },
   {
     definition: {

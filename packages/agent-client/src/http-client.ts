@@ -9,6 +9,9 @@ import {
   type AgentFileResourceResponse,
   type AgentSimulationResourceRequest,
   type AgentSimulationResourceResponse,
+  type AgentProjectResourceRequest,
+  type AgentProjectResourceResponse,
+  AgentProjectResourceResponseSchema,
 } from "@icm/agent-adapter";
 import {
   invalidResponseFailure,
@@ -201,6 +204,31 @@ export class AgentHttpClient {
       throw invalidResponseFailure(
         "Simulation response failed schema validation",
       );
+    }
+    return parsed.data;
+  }
+
+  async projects(
+    sessionId: string,
+    agentToken: string,
+    request: AgentProjectResourceRequest,
+  ): Promise<AgentProjectResourceResponse> {
+    const response = await this.send(
+      `/api/agent/sessions/${encodeURIComponent(sessionId)}/projects`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${agentToken}`,
+        },
+        body: JSON.stringify(request),
+      },
+    );
+    const body: unknown = await response.json().catch(() => null);
+    if (!response.ok) throw this.transportError(response.status, body);
+    const parsed = AgentProjectResourceResponseSchema.safeParse(body);
+    if (!parsed.success) {
+      throw invalidResponseFailure("Project response failed schema validation");
     }
     return parsed.data;
   }

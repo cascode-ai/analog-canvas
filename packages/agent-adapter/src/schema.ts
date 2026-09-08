@@ -88,11 +88,32 @@ export const AgentFileResourceCapabilitySchema = z.strictObject({
 export const AgentSimulationResourceCapabilitySchema = z.strictObject({
   path: z.literal("/api/agent/sessions/{sessionId}/simulation"),
   operations: z.array(
-    z.enum(["prepare", "start", "read", "cancel", "export", "capabilities"]),
+    z.enum([
+      "prepare",
+      "start",
+      "read",
+      "cancel",
+      "export",
+      "capabilities",
+      "prepare-batch",
+      "start-batch",
+      "read-batch",
+      "cancel-batch",
+    ]),
   ),
   analyses: z.array(z.enum(["op", "dc", "ac", "tran", "noise"])),
   maxTimeoutMs: z.number().int().positive(),
   synchronous: z.literal(false),
+});
+/** Signed-in Cloud Project Cell discovery and project-local import. */
+export const AgentProjectResourceCapabilitySchema = z.strictObject({
+  path: z.literal("/api/agent/sessions/{sessionId}/projects"),
+  operations: z.tuple([
+    z.literal("list-projects"),
+    z.literal("list-cells"),
+    z.literal("import-cell"),
+  ]),
+  importMode: z.literal("project-local-copy"),
 });
 export const AgentSnapshotRequestSchema = RequestBaseSchema.extend({
   operation: z.literal("snapshot"),
@@ -578,6 +599,7 @@ export const AgentCapabilitiesResponseSchema = ResponseBaseSchema.extend({
       .strictObject({
         file: AgentFileResourceCapabilitySchema,
         simulation: AgentSimulationResourceCapabilitySchema.optional(),
+        project: AgentProjectResourceCapabilitySchema.optional(),
       })
       .optional(),
   }),
@@ -747,4 +769,7 @@ export type AgentFileResourceCapability = z.infer<
 >;
 export type AgentSimulationResourceCapability = z.infer<
   typeof AgentSimulationResourceCapabilitySchema
+>;
+export type AgentProjectResourceCapability = z.infer<
+  typeof AgentProjectResourceCapabilitySchema
 >;

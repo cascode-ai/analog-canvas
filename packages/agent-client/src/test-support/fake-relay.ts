@@ -3,6 +3,8 @@ import type {
   AgentCircuitResponse,
   AgentFileResourceRequest,
   AgentFileResourceResponse,
+  AgentProjectResourceRequest,
+  AgentProjectResourceResponse,
 } from "@icm/agent-adapter";
 import { AgentHttpClient, type ClaimSuccess } from "../http-client.js";
 import { testSnapshot } from "./snapshot-fixture.js";
@@ -133,6 +135,9 @@ export interface FakeRelayOptions {
   files?: (
     request: AgentFileResourceRequest,
   ) => Promise<AgentFileResourceResponse> | AgentFileResourceResponse;
+  projects?: (
+    request: AgentProjectResourceRequest,
+  ) => Promise<AgentProjectResourceResponse> | AgentProjectResourceResponse;
   baseUrl?: string;
 }
 
@@ -141,12 +146,14 @@ export class FakeAgentHttp extends AgentHttpClient {
   readonly claims: string[] = [];
   readonly resumes: Array<{ sessionId: string; connectorToken: string }> = [];
   readonly fileCalls: AgentFileResourceRequest[] = [];
+  readonly projectCalls: AgentProjectResourceRequest[] = [];
   readonly disconnects: string[] = [];
   /** Replaceable per-test dispatch over recorded circuit calls. */
   circuitHandler: (call: RecordedCircuitCall) => Promise<AgentCircuitResponse>;
   private readonly claimHandler: NonNullable<FakeRelayOptions["claim"]>;
   private readonly resumeHandler: NonNullable<FakeRelayOptions["resume"]>;
   private readonly fileHandler: NonNullable<FakeRelayOptions["files"]>;
+  private readonly projectHandler: NonNullable<FakeRelayOptions["projects"]>;
 
   constructor(options: FakeRelayOptions = {}) {
     super({ baseUrl: options.baseUrl ?? "https://relay.test" });
@@ -171,6 +178,15 @@ export class FakeAgentHttp extends AgentHttpClient {
         operation: "discard",
         ok: true,
         discarded: true,
+      }));
+    this.projectHandler =
+      options.projects ??
+      ((request) => ({
+        apiVersion: "2.0",
+        requestId: request.requestId,
+        operation: "list-projects",
+        ok: true,
+        projects: [],
       }));
     this.circuitHandler =
       options.circuit ??
@@ -228,6 +244,15 @@ export class FakeAgentHttp extends AgentHttpClient {
   ): Promise<AgentFileResourceResponse> {
     this.fileCalls.push(request);
     return this.fileHandler(request);
+  }
+
+  override async projects(
+    _sessionId: string,
+    _agentToken: string,
+    request: AgentProjectResourceRequest,
+  ): Promise<AgentProjectResourceResponse> {
+    this.projectCalls.push(request);
+    return this.projectHandler(request);
   }
 
   override async disconnect(sessionId: string): Promise<void> {

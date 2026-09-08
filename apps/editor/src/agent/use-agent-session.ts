@@ -10,6 +10,7 @@ import {
   AgentSessionMessageSchema,
   parseAgentFileResourceRequest,
   parseAgentSimulationResourceRequest,
+  parseAgentProjectResourceRequest,
   createAgentCircuitService,
   parseAgentCircuitRequest,
   type AgentOperationHost,
@@ -19,6 +20,8 @@ import {
   type AgentSessionScope,
   type AgentSimulationResourceRequest,
   type AgentSimulationResourceResponse,
+  type AgentProjectResourceRequest,
+  type AgentProjectResourceResponse,
 } from "@icm/agent-adapter";
 import { sha256Hex } from "@icm/derived";
 import type { CircuitProject } from "@icm/model";
@@ -165,6 +168,11 @@ export interface UseAgentSessionOptions {
     handle: (
       request: AgentSimulationResourceRequest,
     ) => Promise<AgentSimulationResourceResponse>;
+  };
+  projectHost?: {
+    handle: (
+      request: AgentProjectResourceRequest,
+    ) => Promise<AgentProjectResourceResponse>;
   };
 }
 
@@ -381,10 +389,27 @@ export function useAgentSession(
                           "read",
                           "cancel",
                           "export",
+                          "prepare-batch",
+                          "start-batch",
+                          "read-batch",
+                          "cancel-batch",
                         ] as const,
                         analyses: ["op", "dc", "ac", "tran", "noise"] as const,
                         maxTimeoutMs: AGENT_SIMULATION_MAX_TIMEOUT_MS,
                         synchronous: false as const,
+                      },
+                    }
+                  : {}),
+                ...(options.projectHost
+                  ? {
+                      projectResource: {
+                        path: "/api/agent/sessions/{sessionId}/projects" as const,
+                        operations: [
+                          "list-projects",
+                          "list-cells",
+                          "import-cell",
+                        ] as const,
+                        importMode: "project-local-copy" as const,
                       },
                     }
                   : {}),
@@ -609,6 +634,72 @@ export function useAgentSession(
                         "The operation failed without revoking the session",
                       stage: "read",
                       recovery: "retry-after",
+                    },
+                  }),
+                )
+                .finally(() => update({ status: "connected" }));
+              return;
+            }
+            if (parsed.data.kind === "project-request") {
+              const projectRequest = parseAgentProjectResourceRequest(
+                parsed.data.payload,
+              );
+              if (!projectRequest.success || !options.projectHost) return;
+              const payloadHash = sha256Hex(
+                JSON.stringify(parsed.data.payload),
+              );
+              const knownHash = live.requestHashes.get(parsed.data.requestId);
+              const sendProjectResponse = (payload: unknown) => {
+                if (socket.readyState !== WebSocket.OPEN) return;
+                socket.send(
+                  JSON.stringify({
+                    protocolVersion: AGENT_SESSION_PROTOCOL_VERSION,
+                    sessionId: live.sessionId,
+                    messageId: crypto.randomUUID(),
+                    requestId: parsed.data.requestId,
+                    sentAt: new Date().toISOString(),
+                    kind: "project-response",
+                    payload,
+                  }),
+                );
+              };
+              if (knownHash) {
+                sendProjectResponse({
+                  apiVersion: AGENT_API_VERSION,
+                  requestId: parsed.data.requestId,
+                  operation: projectRequest.data.operation,
+                  ok: false,
+                  error: {
+                    code:
+                      knownHash === payloadHash
+                        ? "REQUEST_RESULT_UNAVAILABLE"
+                        : "REQUEST_ID_REUSED",
+                    message:
+                      knownHash === payloadHash
+                        ? "The request already completed without a browser replay cache"
+                        : "requestId was reused with a different payload",
+                    recovery:
+                      knownHash === payloadHash ? "refresh" : "fix-input",
+                  },
+                });
+                return;
+              }
+              live.requestHashes.set(parsed.data.requestId, payloadHash);
+              update({ status: "working" });
+              void options.projectHost
+                .handle(projectRequest.data)
+                .then(sendProjectResponse)
+                .catch(() =>
+                  sendProjectResponse({
+                    apiVersion: AGENT_API_VERSION,
+                    requestId: parsed.data.requestId,
+                    operation: projectRequest.data.operation,
+                    ok: false,
+                    error: {
+                      code: "PROJECT_HOST_ERROR",
+                      message:
+                        "The operation failed without revoking the Agent session",
+                      recovery: "retry",
                     },
                   }),
                 )

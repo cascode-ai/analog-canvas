@@ -54,6 +54,13 @@ large `analog-canvas://contract/advanced-edits` resource meant for offline tooli
 Reading is advisory, not a permission gate.
 Nested `transact_document` entries use their target Document revisions.
 
+Use `project_cells` to list the signed-in user's Cloud Projects, inspect their
+Cell interfaces, and import one Cell into the open Project. Import copies the
+complete local dependency closure through the same atomic planner as the GUI;
+it does not create a live cross-Project link. The helper refreshes the Project
+structure revision when the caller omits it. Sign-in, stale-revision, and
+library-compatibility failures are recoverable and do not revoke the session.
+
 Colors use existing `set_instance_style_override`, `set_route_style_override`,
 `set_presentation_style` and annotation `textColor` edits. Full inspection
 returns these fields, `signalFlowParameters`, Cell interfaces, and external

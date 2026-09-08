@@ -12,6 +12,10 @@ import {
   AgentSimulationResourceResponseJsonSchema,
 } from "./simulation-resource.js";
 import {
+  AgentProjectResourceRequestJsonSchema,
+  AgentProjectResourceResponseJsonSchema,
+} from "./project-resource.js";
+import {
   AgentClaimRequestJsonSchema,
   AgentConnectionCredentialResponseJsonSchema,
   AgentConnectorResumeRequestJsonSchema,
@@ -73,6 +77,14 @@ const agentSimulationResourceResponseSchema = componentSchema(
   AgentSimulationResourceResponseJsonSchema as Record<string, unknown>,
   "agentSimulationResourceResponse",
 );
+const agentProjectResourceRequestSchema = componentSchema(
+  AgentProjectResourceRequestJsonSchema as Record<string, unknown>,
+  "agentProjectResourceRequest",
+);
+const agentProjectResourceResponseSchema = componentSchema(
+  AgentProjectResourceResponseJsonSchema as Record<string, unknown>,
+  "agentProjectResourceResponse",
+);
 const agentClaimRequestSchema = componentSchema(
   AgentClaimRequestJsonSchema as Record<string, unknown>,
   "agentClaimRequest",
@@ -106,6 +118,12 @@ const agentSimulationResourceRequestRef = {
 } as const;
 const agentSimulationResourceResponseRef = {
   $ref: "#/components/schemas/agentSimulationResourceResponse",
+} as const;
+const agentProjectResourceRequestRef = {
+  $ref: "#/components/schemas/agentProjectResourceRequest",
+} as const;
+const agentProjectResourceResponseRef = {
+  $ref: "#/components/schemas/agentProjectResourceResponse",
 } as const;
 
 export const agentCircuitRequestExamples = {
@@ -313,6 +331,24 @@ const simulationSessionResponses = {
   "503": transportErrorResponse(agentTransportErrorExamples["503"]),
   "504": transportErrorResponse(agentTransportErrorExamples["504"]),
 } as const;
+const projectSessionResponses = {
+  "200": {
+    description:
+      "Cloud Project discovery or an atomic project-local Cell import result.",
+    content: {
+      "application/json": { schema: agentProjectResourceResponseRef },
+    },
+  },
+  "400": transportErrorResponse(agentTransportErrorExamples["413"]),
+  "401": transportErrorResponse(agentTransportErrorExamples["401"]),
+  "403": transportErrorResponse(agentTransportErrorExamples["403"]),
+  "404": transportErrorResponse(agentTransportErrorExamples["404"]),
+  "409": transportErrorResponse(agentTransportErrorExamples["409"]),
+  "413": transportErrorResponse(agentTransportErrorExamples["413"]),
+  "429": transportErrorResponse(agentTransportErrorExamples["429"]),
+  "503": transportErrorResponse(agentTransportErrorExamples["503"]),
+  "504": transportErrorResponse(agentTransportErrorExamples["504"]),
+} as const;
 
 const claimResponses = {
   "200": {
@@ -443,6 +479,29 @@ export const agentCircuitOpenApi = {
         responses: simulationSessionResponses,
       },
     },
+    "/api/agent/sessions/{sessionId}/projects": {
+      post: {
+        operationId: "agentSessionProjectResource",
+        description:
+          "Discover Cells in the signed-in user's Cloud Projects and import one dependency closure as an independent project-local copy through the live editor transaction boundary.",
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: "sessionId",
+            in: "path",
+            required: true,
+            schema: { type: "string", minLength: 1 },
+          },
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": { schema: agentProjectResourceRequestRef },
+          },
+        },
+        responses: projectSessionResponses,
+      },
+    },
   },
   components: {
     securitySchemes: {
@@ -458,6 +517,8 @@ export const agentCircuitOpenApi = {
       agentFileResourceResponse: agentFileResourceResponseSchema,
       agentSimulationResourceRequest: agentSimulationResourceRequestSchema,
       agentSimulationResourceResponse: agentSimulationResourceResponseSchema,
+      agentProjectResourceRequest: agentProjectResourceRequestSchema,
+      agentProjectResourceResponse: agentProjectResourceResponseSchema,
       agentClaimResponse: agentConnectionCredentialResponseSchema,
     },
   },

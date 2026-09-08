@@ -11,6 +11,8 @@ import {
   type AgentFileResourceResponse,
   type AgentSimulationResourceRequest,
   type AgentSimulationResourceResponse,
+  type AgentProjectResourceRequest,
+  type AgentProjectResourceResponse,
 } from "@icm/agent-adapter";
 import { z } from "zod";
 import {
@@ -290,6 +292,15 @@ export class AgentSessionClient {
   ): Promise<AgentSimulationResourceResponse> {
     return this.withAuthorization((session) =>
       this.http.simulation(session.sessionId, session.agentToken, request),
+    );
+  }
+
+  /** Discover and import reusable Cells through the browser's Cloud authority. */
+  async projectResource(
+    request: AgentProjectResourceRequest,
+  ): Promise<AgentProjectResourceResponse> {
+    return this.withAuthorization((session) =>
+      this.http.projects(session.sessionId, session.agentToken, request),
     );
   }
 

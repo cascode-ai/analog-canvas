@@ -35,6 +35,7 @@ describe("mcp tool surface", () => {
       "connect",
       "disconnect",
       "connection_status",
+      "project_cells",
       "simulation",
       "simulation_setup",
       "simulation_output",
@@ -81,6 +82,22 @@ describe("mcp tool surface", () => {
       "capabilities",
       "snapshot",
     ]);
+  });
+
+  it("exposes Cloud Cell discovery through the Project Resource", async () => {
+    const { session, http } = await toolSession();
+    await callTool("connect", { claimCode: "session-1.code" }, session);
+    const value = parseText(
+      await callTool("project_cells", { action: "list-projects" }, session),
+    ) as { ok: boolean; projects: unknown[] };
+    expect(value).toEqual({
+      apiVersion: "2.0",
+      requestId: expect.any(String),
+      operation: "list-projects",
+      ok: true,
+      projects: [],
+    });
+    expect(http.projectCalls).toHaveLength(1);
   });
 
   it("get_context returns the compact context document", async () => {
