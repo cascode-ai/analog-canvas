@@ -4,7 +4,8 @@ Status: `accepted`
 
 Primary owners: `packages/model`, `packages/edit-engine`, `packages/derived`
 
-`Net.terminals` is logical connectivity. A terminal is an Instance pin; both
+`Net.terminals` records Base-Net physical membership. Logical connectivity is
+resolved from that membership, owner-addressed naming, scope, and interfaces. A terminal is an Instance pin; both
 `port` and `port-filled` participate through their ordinary pin `P`. Routes use
 the same terminal endpoint for those Instances and every other component.
 
@@ -41,12 +42,12 @@ group, or constraint owns the Route. The Net membership survives unchanged;
 owned geometry is retained for an explicit diagnostic instead of being
 silently discarded.
 
-Route centerlines are one geometry protocol. Normal interactive Routes may use
-horizontal, vertical, or ±45-degree segments; orthogonal is the default
-authoring constraint, not a second persisted Route shape. `power-rail` is the
-single exception: it is one straight, non-zero horizontal or vertical segment.
-A future arbitrary-angle policy must use the same segment-geometry kernel and
-Route transaction.
+Route centerlines use one geometry protocol for every non-zero heading.
+Interactive `orthogonal` (default), `octilinear` (horizontal, vertical, ±45°),
+and `free` modes constrain only the unresolved authored leg. They do not
+reformat committed Routes. `power-rail` is the single exception: one straight,
+non-zero horizontal or vertical segment. All modes use the shared segment
+kernel, stable leg identity, and Route transaction.
 
 ## Authoring rules
 
@@ -62,7 +63,8 @@ Route transaction.
   an explicit Junction, a drawn power rail, or a typed attach reaches its
   final coordinates, the Edit Engine deterministically creates or merges the
   participating Base Net; incompatible power domains or Net-name contracts
-  reject the whole transaction. Transforming EXISTING geometry never bonds:
+  reject the whole transaction. Passive transformation of existing geometry does not acquire contacts; an
+  explicitly snapped instance move uses the contact planner described below:
   a move, rotation, mirror, or align that parks endpoints on foreign
   conductors leaves them visually coincident but electrically separate,
   exactly like a Crossing — rearranging a schematic can neither silently

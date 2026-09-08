@@ -46,4 +46,4 @@ diagnostic when the selected dialect cannot represent them uniquely.
 - [`0052-owner-explainable-net-authority.md`](0052-owner-explainable-net-authority.md)
 - [`../specs/schematic-model.md`](../specs/schematic-model.md)
 - [`../specs/netlist-export.md`](../specs/netlist-export.md)
-- [`../roadmap/net-naming-resolution-export-p0.md`](../roadmap/net-naming-resolution-export-p0.md)
+- [Netlist export](../specs/netlist-export.md)

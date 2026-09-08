@@ -1,208 +1,135 @@
 # Deployment
 
-How a release becomes the live site, what a merge to `main` becomes instead
-(the preview), what protects production, and — the part worth reading twice —
-what those protections do **not** cover.
+## Channels and data isolation
 
-## Today: deploy, verify, roll back
+| Channel    | Trigger and configuration                                                         | Data boundary                                                                                           |
+| ---------- | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| Preview    | main push; `.github/workflows/deploy-preview.yml`; `wrangler.preview.jsonc`       | Own namespaces; anonymous HTTP read-through to public Gallery; refuses Gallery and Cloud Project writes |
+| Production | `v*` tag or commit dispatch; `.github/workflows/cloudflare.yml`; `wrangler.jsonc` | Public product and its private storage                                                                  |
 
-A release (a `v*` tag, or a manual dispatch naming a commit) deploys the
-Worker, then verifies it against the running site: `/`, `/editor`, `/analytics`, the MCP manifest, and the stale-asset
-fallback. If verification fails, the pipeline restores the version that was
-serving before the deploy, verifies **that**, and fails the run anyway.
+Preview is served at `analog-canvas-preview.tokenzhang.com`, labelled and
+unindexed. Production is `analog-canvas.tokenzhang.com`. The separate
+configuration files do not inherit routes or bindings. Preview has no
+Production Durable Object binding, no Production cookies, and no configured
+OAuth provider. Its simulation capability can be issued without OAuth; public
+site access is not unrestricted compute authority.
 
-Three properties of that sequence are deliberate:
+The channels share source and contracts, not a guarantee of a single promoted
+build artifact: the workflows build their selected checkout. Channel-controlled
+features and runtime bindings may differ.
+[ADR 0057](adr/0057-release-channels-preview-and-production.md) explains the choice.
 
-- **The rollback target is recorded before the deploy**, not after. Read
-  afterwards, the "previous" version is the deploy under test.
-- **A rollback is re-verified.** One that nobody checks is a second
-  unverified deploy.
-- **A successful rollback still fails the run.** Recovery is not a pass. A
-  red run is how anyone finds out this happened.
+## Releasing to Production
 
-When there is nothing to roll back to — a first-ever deploy — the pipeline
-says a human is needed rather than reporting a recovery that did not happen.
+Select a candidate commit that Preview has successfully deployed and verified.
+The current Production workflow accepts **at least one successful
+`deploy-preview.yml` run for that exact commit**. It does not select the latest
+completed run, require the currently serving Preview to have that SHA, or
+compare a separate Profile-qualified promotion receipt. Do not report those
+stronger guarantees from this check.
 
-### Why this exists
-
-On 2026-09-01, `/editor` served 500s for about twenty minutes. The pipeline
-was not blind to it: verification failed six times and the run went red. It
-had no way to act, so production stayed broken until a person noticed.
-
-The change that caused it passed all eight CI checks, and would again: it
-changed `wrangler.jsonc`, which is Cloudflare routing configuration that CI
-never executes. **A green CI run is evidence about the code, not about the
-deployment.** That gap is why verification runs against the live site, and why
-failing it now costs one verification round instead of an afternoon.
-
-## What the rollback does not protect
-
-The rollback restores a previous Worker **version**. Three things it does not
-do, all learned on 2026-09-01 when it fired for the first time on real
-traffic:
-
-**A rollback does not undo a check that was wrong.** #519 made a missing
-hashed asset answer 404, which is correct. The smoke check still required the
-old shell-at-200 answer, so verification failed and the deploy was rolled
-back — the machinery obeying a wrong instruction, perfectly. Every later
-merge then hit the same check and rolled back too. When a change alters
-behaviour a verification asserts, **the verification is part of the change**;
-shipping one without the other blocks the pipeline for everyone.
-
-**Repeated rollbacks do not return to a known state.** After three failed
-deploys and three rollbacks, production was measured serving the NEW
-behaviour: a missing chunk returned 404 with the Worker's own message. The
-version selection after a previous rollback did not land where a reading of
-the deployment list predicts, and the exact bookkeeping Cloudflare applies to
-a rollback's own deployment entry was not established here. Treat "it rolled
-back" as "a previous version is live", not as "the version you had before".
-**Measure production after a rollback, every time.**
-
-**A rollback does not undo bound resources.** Wrangler says so in its own
-warning: Durable Objects, D1, R2 and KV are not restored. A deploy that
-migrates data is not made safe by this protection.
-
-None of that makes the rollback worthless — production stayed up through all
-three failures, which is the whole point. It makes the rollback a way to keep
-serving, not a way to be sure what you are serving.
-
-## What CI cannot tell you
-
-Anything that only exists at Worker runtime:
-
-- `wrangler.jsonc` routing, bindings, and asset handling
-- Durable Object namespaces and their migrations
-- Environment variables and secrets present in the deployment
-- The behaviour of the request path as Cloudflare actually runs it
-
-For those, the live check after deploying is the only evidence.
-
-## Release channels
-
-[ADR 0057](adr/0057-release-channels-preview-and-production.md) defines two
-channels built from one artifact: the **preview**, its own Worker at
-`analog-canvas-preview.tokenzhang.com` configured by `wrangler.preview.jsonc`
-and deployed by `.github/workflows/deploy-preview.yml` on every merge to
-`main`; and **production**, which will deploy only from a release once the
-preview is verified live. The preview is public but `noindex`, has no login,
-reads the gallery through the public site's own API with no cookie, binds
-no Durable Object of the production script, refuses every gallery and
-Cloud Project write, and is where the simulation feature lands first. Nothing in the preview file inherits from
-`wrangler.jsonc`, which is the whole point of it being a separate file. The
-staging environment below is retired once production moves to release-only
-deploys.
-
-## Releasing to production
-
-Every merge to `main` deploys the **preview** (`deploy-preview.yml`) and
-verifies it, simulation included. Production deploys only from a release, and
-the release workflow refuses a commit that has no successful preview deploy
-behind it. Two ways to release a commit `<sha>` that the preview has proved:
+Use either a version tag (choose the intended unused release version):
 
 ```bash
-git tag v0.3.0 <sha> && git push origin v0.3.0
+git tag v0.3.0 <sha>
+git push origin v0.3.0
 ```
+
+or an explicit commit dispatch:
 
 ```bash
 gh workflow run "Deploy Cloudflare" -f sha=<sha>
 ```
 
-A hotfix takes the same road: merge to `main`, let the preview deploy and
-verify, tag that commit. Work on `main` that is not ready for the public
-ships dark behind the channel flag (`ICM_CHANNEL`), never on a long-lived
-branch.
+Ordinary merges do not trigger Production. Normal hotfixes use the same route;
+the incident exception below is separate. Runtime configuration, including the
+simulator gateway, ships only when the selected release contains it.
 
-The preview's simulator is configured in `wrangler.preview.jsonc` and not
-yet in `wrangler.jsonc`; production gains it when a release carries that
-configuration change, like any other.
+Before treating a release as validated, inspect the candidate's actual Preview
+evidence and the relevant required checks. Local unit tests, build success, and
+recorded rawfiles cannot certify deployed bindings, secrets, model identity, or
+the hosted request path.
 
-### Where the simulator runs
+## Deploy, verify, recover
 
-The Worker never runs ngspice itself; it hands the deck to a harness over
-HTTP (`worker/simulation.ts`). On the operator host a small gateway authenticates
-the request and forwards it over an internal network to the harness image
-`containers/ngspice/Dockerfile`, pinned to the benchmark base image by
-digest, and it runs on **an operator-run host**, named by the var
-`SIMULATION_UPSTREAM_URL`: Docker behind a Cloudflare Tunnel, so the host
-opens no inbound port and its only public name is the tunnel's. It answers
-`/run` only to the bearer token in its `SIMULATION_ACCESS_TOKEN`; that token is
-held by the gateway and never enters the executor. The Worker
-presents the same value from its secret `SIMULATION_UPSTREAM_TOKEN`, which
-`deploy-preview.yml` sets from the repository secret of the same name on
-every deploy.
+Production records its rollback target **before** deployment. It verifies the
+serving shell/editor/analytics, MCP manifest, and stale-asset handling. If the
+check fails, it restores the recorded Worker version, verifies that result,
+and still fails the deployment run. Without a rollback target, it reports that
+human intervention is required.
 
-Until 2026-09-04 the preview also bound a Cloudflare Container (`NGSPICE`,
-one `standard-2` instance billed per second while awake) as a second,
-explicitly selectable executor, and every deploy woke it to prove the two
-agreed. It was a cold spare — switching to it meant editing the config and
-redeploying — that cost about one GiB-hour per merge to keep verified, so
-the owner had it removed (migration `v6` deletes the class). The Worker still
-understands `executorTarget: "cloudflare-container"` and answers it "not
-configured"; it never routes a request to another executor than the one
-named. `execution.target` reports the transport that ran, and
-`metadata.environment` identifies the image, simulator, and model bytes that
-performed the run.
+Recovery limitations:
 
-The current operator host is the Frankfurt machine, under its `analogcanvas`
-account, in `~/analog-canvas-sim/`. Its desired state is not private machine
-configuration: [`containers/ngspice/host/compose.yaml`](../containers/ngspice/host/compose.yaml)
-is the sole definition of the trusted authentication gateway, untrusted
-executor, tunnel container, internal network, egress boundary, private
-run-root volume, restart policy, and resource limits. Only the gateway receives
-the bearer token. The executor that runs authored `.control` code has a
-read-only root, no capabilities, bounded PIDs, 8 CPUs and 16 GiB, no published
-host port, no credential, and no egress. `cloudflared` alone joins both the
-internal network and an egress network.
+- Reverting a Worker does not revert Durable Objects, D1, R2, KV, or their data
+  migrations. Data changes require their own backup and recovery plan.
+- A successful rollback check is not proof that every binding or executor
+  returned to its prior state. Measure the serving version and behavior.
+- A stale verification assertion can roll back correct behavior. Change the
+  verification deliberately when its accepted contract changes.
+- Worker recovery does not recover the separately operated simulator. Verify
+  and restore its desired state independently.
 
-The `Simulator host` workflow (`.github/workflows/simulator-host.yml`) copies
-the exact tracked `containers/ngspice/` tree into a commit-addressed release on
-the host. It writes the protected access token over SSH, runs the tracked
-bootstrap/deploy scripts, and verifies `/health`; run by hand it can `probe`
-what the Cloudflare token may do or `bootstrap-tunnel` — create or reuse the
-named tunnel, its ingress, and DNS name, and hand the connector token to the
-host without printing it. It reaches the host with `SIM_HOST_ADDR`,
-`SIM_HOST_USER`, `SIM_HOST_SSH_KEY`, and `SIM_HOST_KNOWN_HOSTS`, and speaks to
-Cloudflare with `CLOUDFLARE_TUNNEL_API_TOKEN` (Account → Cloudflare Tunnel:
-Edit, Zone → DNS: Edit on the site's zone), separate from the deploy token.
+Manual portable-release acceptance must also establish PWA installation and an
+original import/place/wire/save/restart/restore/export journey. Record the
+candidate and artifact hash; historical automated checklist ticks are not that
+human evidence.
 
-No lifecycle script is operator-owned. A clean Docker-capable replacement can
-be reconstructed from the repository and protected environment secrets by the
-procedure in [`containers/ngspice/host/README.md`](../containers/ngspice/host/README.md).
-The independent `containers/ngspice/verify-host-runtime.sh` still checks the
-running result rather than trusting the Compose description. Automatic restart
-is part of the Run Supervisor's fail-stop contract; without it a safe harness
-exit would become a permanent outage. The host has 32 cores; the harness still
-runs one job at a time, by its own slot, until the executor contract gains a
-concurrency count.
+## Where the simulator runs
 
-`metadata.environment.executor` reads `hosted-container`: the harness is a
-container image, and the fingerprint identifies it, not the machine
-underneath. `execution.target` is the separate transport identity.
+The Worker forwards to the configured operator gateway using
+`SIMULATION_UPSTREAM_URL` and its secret `SIMULATION_UPSTREAM_TOKEN`.
+The gateway validates its matching `SIMULATION_ACCESS_TOKEN`; that token never
+enters the executor that runs authored SPICE. The container image is defined by
+[`containers/ngspice/Dockerfile`](../containers/ngspice/Dockerfile).
 
-The editor and browser Agent use `/api/simulation/runs` on Preview. A durable
-control object owns idempotency, per-owner/global admission, leases,
-cancellation, five-minute queue wait, and 24-hour run metadata; Cloudflare
-Queue dispatches one job at a time to the operator host and R2 retains bounded
-immutable inputs/results for one day. A signed-in account is the preferred
-owner. Preview can issue an opaque HttpOnly anonymous simulation capability so
-the feature does not depend on an OAuth provider; global admission remains the
-hard capacity boundary. `/api/simulate` remains the internal/direct execution
-contract and the explicit production/local transport until managed resources
-are promoted there. A failed managed start never falls back to it.
+[`containers/ngspice/host/compose.yaml`](../containers/ngspice/host/compose.yaml)
+owns the gateway, untrusted executor, Tunnel, internal/egress networks, private
+run volume, restart policy, and resource limits. The executor has a read-only
+root, no platform credentials, no published host port, and no egress.
+Only the gateway receives the bearer. The Tunnel connects the internal service
+to its public hostname without an inbound host port.
 
-### The retired staging environment
+The [Simulator host workflow](../.github/workflows/simulator-host.yml) deploys
+the tracked host configuration. Verify its selected image and the measured
+binary/model/startup identities against the
+[hosted Profile](../containers/ngspice/hosted-sky130-profile.json), not just a
+reachable health endpoint. The restart policy must recover a harness that exits
+because it cannot prove a timed-out process is gone.
 
-`env.staging` and the Worker-side access gate were retired by ADR 0057 after
-the 2026-09-03 outage, when a staging deploy inherited the production custom
-domain. **Deleting the configuration does not delete the deployed Worker.**
-`interactive-circuit-maker-staging` keeps answering with its last build until
-someone deletes it in the Cloudflare dashboard, which also discards the
-`STAGING_ACCESS_KEY` secret that was set on it.
+`metadata.environment.executor` describes the measured container environment;
+`execution.target` identifies transport. A request naming an unconfigured
+executor is refused, not redirected.
 
-## When production is broken
+### Managed and direct transport
 
-Restoring service outranks the delivery route. Pushing straight to `main` is
-allowed while the site is degraded, and so is any shortcut that shortens the
-outage; `AGENTS.md` records this as a route rather than a violation, on one
-condition: once service is back, the bypass gets a written record of what was
-broken, what was pushed, and which checks were skipped.
+Preview uses `/api/simulation/runs`. Its durable control object owns owner-bound
+admission, idempotency, leases, cancellation, and bounded run records. Queue
+dispatch sends work to the operator host's declared single slot; R2 holds
+immutable input/result artifacts. Account ownership is preferred; Preview can
+issue an opaque HttpOnly anonymous capability. Capacity controls remain active
+for both.
+
+`/api/simulate` remains the direct/internal contract and the explicit
+Production/local transport until managed bindings are promoted. A managed
+failure never triggers fallback to it. The local host has no automatic
+simulator or PDK discovery.
+
+[Simulation execution](specs/simulation-execution.md) owns queue, deadline,
+retention, result, and error contracts. Neither managed retention nor browser
+comparison stores run history in the Project.
+
+## External resource retirement
+
+Removing repository configuration does not delete a deployed Worker or secret.
+The retirement status of `interactive-circuit-maker-staging` and its
+`STAGING_ACCESS_KEY` must be verified by an authorized operator before declaring
+external cleanup complete. It is not an accepted third channel. Do not delete
+Production data while cleaning up a retired deployment.
+
+## When Production is broken
+
+Restoring service outranks the normal delivery route while service is actually
+degraded. Follow the incident exception in [AGENTS.md](../AGENTS.md): use the
+bounded recovery action needed, then record what was broken, what shipped, and
+which checks were bypassed. Pushing main ordinarily deploys only Preview; it
+does not by itself restore Production.

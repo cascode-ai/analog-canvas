@@ -45,6 +45,26 @@ ordinary typed transaction directly.
 
 ## Consequences
 
+### Movement preserves established connectivity
+
+Instance, group, Junction, rotate, mirror, and direct-contact transforms share
+this planning boundary. Incident Routes follow changed endpoints locally;
+explicit Route edits in the same transaction remain geometry authority for
+those Routes. Protected geometry is not silently overridden.
+
+A direct contact that separates while connection is preserved becomes visible
+Route geometry. Moving its participants together retains direct contact without
+inventing a Wire. Explicit cut changes physical connectivity. Stable leg and
+Junction identities are retained where possible; the follow pass is not a
+global router and promises no globally optimal layout.
+
+Tests cover individual/group transforms, explicit Route overrides, protected
+geometry, direct contacts, undo/redo, and equality between previewed and committed
+electrical effects. The full rules are in the
+[connectivity specification](../specs/connectivity-and-routing.md).
+
+### Shared operation boundary
+
 - `ConnectivityProposal` and its `preview?: unknown` escape hatch are removed;
 - specialist planners still own domain decisions, but return edits to one
   common evaluation boundary;

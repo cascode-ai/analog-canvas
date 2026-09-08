@@ -37,6 +37,27 @@ attachment address.
 The resolver is pure. Only the Edit Engine mutates Route facts, and preview and
 commit are derived from the same edit plan.
 
+## Authoring constraints and canonicalization
+
+There is one Route protocol for every non-zero heading. Projection,
+containment, intersection, collinearity, and direction use the same geometry
+kernel. `orthogonal`, `octilinear`, and `free` are transient authoring
+constraints, not different persisted electrical types. Orthogonal is the
+default; octilinear admits horizontal, vertical, and ±45-degree legs; free
+reaches the authored point directly. Switching mode affects the unresolved
+leg, not committed geometry; Backspace removes the latest authored step.
+
+A `power-rail` remains one non-zero axis-aligned segment. `bulk-dashed`
+changes ordinary Route presentation, not topology. The Agent-local RouteGraph
+helper may impose stricter octilinear input without constraining the Project.
+
+Commit-time normalization may union duplicate same-Net collinear coverage,
+materialize true branches, and remove unowned degree-two Junctions on touched
+Nets. It preserves the resolved centerline point set and electrical membership,
+while reconciling stable identities and attachments. It is not a silent
+reformat of the drawing when an authoring mode changes. Protected geometry and
+other exclusions follow the connectivity specification.
+
 ## Consequences
 
 - Every consumer agrees on Wire geometry and direct-pin/Junction continuity.
@@ -47,9 +68,7 @@ commit are derived from the same edit plan.
 
 ## Related documents
 
-- [`0009-move-stretches-connected-routes.md`](0009-move-stretches-connected-routes.md)
 - [`0013-project-connectivity-index.md`](0013-project-connectivity-index.md)
-- [`0039-any-angle-route-authoring.md`](0039-any-angle-route-authoring.md)
 - [`0048-routing-operation-plan.md`](0048-routing-operation-plan.md)
 - [`../specs/connectivity-and-routing.md`](../specs/connectivity-and-routing.md)
 - [`../specs/export.md`](../specs/export.md)

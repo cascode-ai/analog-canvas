@@ -36,8 +36,13 @@ instead of inventing a Circuit operation. `download` returns only canonical
 Project JSON or formal SVG/PNG/PDF. `stage` accepts a bounded `.icproj.json` or
 structural-SPICE virtual source bundle, but does not mutate the live Project;
 call `inspect`, then `request-approval`. The human must select **Replace
-Project** in the browser. No file request provides filesystem access,
-simulation, waveform data, or design-netlist export.
+Project** in the browser. Simulation raw workspaces and execution artifacts use the same advertised
+File Resource through its simulation operations. The sibling Simulation
+resource provides prepare/start/read/cancel/export; saved setup changes remain
+typed Project structure edits. These resources grant neither arbitrary host-file
+access nor a general-purpose shell. See the
+[execution contract](../specs/simulation-execution.md) and
+[MCP simulation workflow](mcp-quickstart.md#simulation).
 
 A successful `transact` returns `resolvedRoutes`: the post-edit resolved
 polyline for each Route in `diff.changedObjectIds`. Read it to learn the actual

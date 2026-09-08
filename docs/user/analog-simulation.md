@@ -111,17 +111,20 @@ Project record, and closing the Project session clears them.
 
 Closing the drawer keeps a run alive. **Cancel run** asks the execution
 service to cancel; it is not simulated by hiding a spinner. Replacing the
-Project or closing its editor ends that browser-owned scope. Revoking an
+Project ends its browser-owned presentation scope. Closing a tab is not a
+reliable cancellation operation: an admitted managed Preview run can continue,
+with owner-scoped evidence retained for one day. Use Cancel explicitly. Revoking an
 Agent affects its own scope, not a human run. Runtime receipts and results
 are transient, not saved inside the Project.
 
 ## Current boundary
 
-This is the B/C local-DUT and minimal human interface slice, not completion
-of all F1R/F5 requirements in the [v13 plan](../roadmap/simulation-vertical-integration-plan-v13.md).
-Cross-Project publication, persistent result archives, and overlaid multi-run
-waveforms remain outside this slice. Raw/Agent workflows retain their existing
-capabilities.
+The current UI supports local DUT/Testbench reuse and named saved setups.
+The [simulation roadmap](../roadmap/simulation-remaining-work.md) identifies
+the remaining cross-Project and integrated acceptance boundaries.
+Persistent Project result archives and overlaid multi-run waveforms are not
+provided by the session comparison view. Raw/Agent workflows retain their
+advertised capabilities.
 Browser regressions use a controlled executor
 to verify interaction/protocol behavior; they do **not** certify OTA numbers,
 model qualification or the separate real Preview acceptance journey.

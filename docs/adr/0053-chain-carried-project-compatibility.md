@@ -9,7 +9,7 @@ Worker Gallery/Cloud ingestion
 
 ## Context
 
-ADR 0023 bounded the Project file boundary to exactly two schemas: the
+A fixed-width compatibility window admitted exactly two schemas: the
 current shape and one explicitly named previous shape, each release replacing
 the single previous-to-current transform. That kept the runtime surface small,
 but it tied a saved file's lifetime to the schema's release cadence. While the
@@ -34,7 +34,7 @@ A Project loads if the upgrade chain can carry it to the current schema.
   a file at any version in that range loads through the chain. Versions below
   the floor, above the current schema, or missing a chain step are refused
   with a version diagnostic.
-- Each adapter keeps ADR 0023's transform discipline: deterministic,
+- Each adapter is deterministic,
   semantics-preserving, and rejecting ambiguous electrical data at its exact
   path rather than inferring a meaning (the schema 32→33 ownerless-equivalence
   rejection is the model). A refusal names the offending path and the
@@ -68,5 +68,5 @@ the cost of a refused file is a user believing their work is lost.
   the chain stays contiguous from the floor.
 - Users' files survive any number of schema releases without external
   conversion, at the cost of a growing (bounded, floor-limited) adapter list.
-- ADR 0023 is superseded by this decision. Its bounded-window rule produced
-  the #446 refusals; its per-step transform discipline is retained above.
+- A compatibility window cannot expire a file merely because implementation
+  schemas advanced quickly; the floor policy governs deliberate retirement.

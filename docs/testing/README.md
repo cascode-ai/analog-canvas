@@ -73,8 +73,9 @@ Every implementation pull request keeps the inexpensive broad protection:
 
 The merge queue, nightly schedule, and manual workflow always force complete
 browser coverage. CI does not repeat on the subsequent `main` push; the
-Cloudflare workflow builds, deploys, and smoke-checks the production URL after
-the required pull-request checks have already passed.
+Preview workflow builds, deploys, and verifies the merged candidate.
+Production is a separate release-tag or explicit-commit promotion after Preview
+acceptance. [Deployment](../deployment.md) owns that sequence and recovery.
 
 ## Change discipline
 

@@ -4,7 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-Analog Canvas (repo `interactive-circuit-maker`) is a local-first, connectivity-aware schematic editor: structural SPICE is imported into a typed circuit model, edited in the browser (React + SVG), persisted as one canonical `.icproj.json` Project file, and exported as formal SVG/PNG/PDF and deterministic SPICE/Spectre design netlists. It edits circuits and simulates the ones that are fully described at the transistor level: a circuit whose every instance resolves to a PDK device model runs against ngspice, hierarchy included; one containing an abstract block is refused with the block named (ADR 0055). A human UI and an authorized Agent API edit the same live Project through the same edit engine; neither may bypass electrical, revision, lock, or transaction invariants.
+Analog Canvas is a local-first schematic editor with hierarchical SPICE
+interchange, Cloud Project saving, formal image/netlist export, and analog
+simulation orchestration. Supported native primitives and qualified device
+models run through the configured ngspice environment; unsupported blocks are
+diagnosed. Humans and authorized Agents share the typed Edit Engine.
+[Product architecture](docs/overall-product-plan.md) owns the complete boundary;
+[simulation](docs/specs/simulation.md) owns saved intent and execution contracts.
 
 pnpm workspace (`apps/*`, `packages/*`, all scoped `@icm/*`), Node >= 24, pnpm >= 11.16, TypeScript, ESM only.
 
@@ -31,7 +37,10 @@ pnpm test:impact -- --base <base-ref>   # validates the commits' Test-Impact tra
 # Gates
 pnpm ci:static      # format, markdown links, references, generated-catalog drift, typecheck
 pnpm verify:branch  # branch integration: static + all unit + build + production smoke
-pnpm ci:check       # full local mainline gate (required before non-doc changes reach main)
+pnpm gate:plan -- --base <base-ref>      # select validation by changed paths
+pnpm gate:preflight -- --base <base-ref> # preflight before selected gates
+pnpm gate:affected -- --base <base-ref>  # focused path, unless full-delivery selected
+pnpm gate:full                          # conservative full-delivery path
 ```
 
 Unit tests are co-located `*.test.ts(x)` beside implementations under one root `vitest.config.ts` (exception: `packages/agent-routing/test/`). Playwright specs live in `apps/editor/e2e/`; the config auto-starts a Vite server on `127.0.0.1:4173` (reuses a running one) and drives system Chrome locally; CI installs Chromium via `pnpm exec playwright install --with-deps chromium`.
@@ -47,7 +56,7 @@ Never hand-edit `*.generated.ts` files, `packages/symbols/assets/razavi-v1/*`, `
 - **Before editing tracked files**: run `git status --short --branch` and audit dirty paths by ownership (unrelated dirty files don't block, overlapping ones do). Know the target's goal, owned paths, and shared contracts; `plan/` is an untracked scratch area if you want notes.
 - **Test impact**: every commit that changes implementation code carries a `Test-Impact:` trailer — `tests-updated`, or `no-test-change — <evidence>`. `pnpm test:impact -- --base <ref>` cross-checks the claim against the diff and CI runs the same check.
 - **Validation is risk-proportional**: run the smallest deterministic checks that cover changed behavior; full suites only when breadth or policy justifies them. Every target closes with `git diff --check` and `git status --short --branch`, and a commit message that stands alone.
-- **Mainline delivery gate**: non-document changes reach `main` only after a clean `pnpm install --frozen-lockfile && pnpm ci:check` and green remote GitHub Actions checks. Never weaken, skip, or delete a failing check to pass the gate.
+- **Mainline delivery gate**: follow the selected gates and required remote checks in [AGENTS.md](AGENTS.md); [deployment](docs/deployment.md) owns Preview/Production promotion.
 - **Circuit assets**: one circuit per `netlists/<name>/` directory; `.subckt` interfaces and instance pin order are shared contracts (check every caller before changing); never claim electrical correctness from syntax inspection alone; never silently replace vendor/foundry model data with illustrative values.
 - Commits are conventional with scope: `feat(editor):`, `fix(connectivity):`, `docs(specs):`, `test(editor):`.
 
@@ -70,6 +79,8 @@ Dependencies flow strictly downward; `@icm/model` is the root everything shares.
 - `@icm/agent-adapter` — Agent API 2.0 surface (capabilities/snapshot/transact/render): envelopes, zod+OpenAPI schemas, session state, browser-safe host.
 - `@icm/agent-client` — Node-only Agent-side client: HTTP/session clients, credential store, snapshot cache.
 - `@icm/agent-routing` — Agent-local transient RouteGraph → typed-edit expander. ADR 0008: these types never enter the API schema or persisted model; shipped as Agent-side scaffolding via the MCP kit, no in-repo importers.
+- `@icm/simulation-service` — shared preparation, run lifecycle, outputs, and File artifacts.
+- `@icm/spice-run` — deck/environment contracts and simulator-result interpretation.
 - `@icm/platform-node` — Node filesystem storage/recovery adapters (currently unused).
 - `apps/editor` — the React/SVG editor and installable PWA.
 - `apps/local-host` — dependency-free loopback-only static host for `apps/editor/dist` (`bin: interactive-circuit-maker`).
@@ -91,13 +102,13 @@ Dependencies flow strictly downward; `@icm/model` is the root everything shares.
 - Connectivity is explicit: net membership, Junctions, formal cell terminals, and typed Instance terminals are electrical facts. Drawing geometry never silently creates a connection; a Crossing is not a Junction — ambiguous intersections are rejected, not guessed.
 - Routes are visible geometry only; they may stretch during movement without changing logical connectivity.
 - An Agent reads a complete Snapshot and submits typed edits with an expected revision. There is no second command language and no DOM-automation mutation path.
-- The `.icproj.json` Project file is canonical; browser recovery copies are non-authoritative.
+- Canonical Project content follows the file-format spec; Cloud Save, portable export, browser recovery, and execution retention have distinct ownership.
 - The Razavi reference manifest (`fixtures/visual-reference/razavi-reference-v1/`) is the sole visual authority.
 
 ## Documentation authority
 
 When documents disagree: accepted ADR / normative spec (`docs/adr/`, `docs/specs/`) → `docs/overall-product-plan.md` → `docs/roadmap/` → implementation and tests. Implementation never silently redefines an approved contract — update the spec or ADR when behavior intentionally changes.
 
-- Default reading set for product work: `docs/current/README.md` (ordered list of the ADRs and specs defining the current Project shape).
+- Default reading set for product work: [docs/README.md](docs/README.md#contributor-reading-order).
 - Test layers and contract ownership: `docs/testing/README.md` and its contract matrix.
 - Agent schematic-layout workflow: `docs/agent/workflow.md` and the repo-local `skills/circuit-layout/SKILL.md`.

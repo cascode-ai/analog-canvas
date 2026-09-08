@@ -58,7 +58,7 @@ anti-garbage protection, and curators are the ones cleaning up.
 
 Publishing authority: a signed-in session is the whole gate. Every
 signed-in account publishes directly as `public`; an ordinary member
-passes the quality gates below first, and a moderator curates past them.
+receives the quality advice below; it does not veto publication for any role.
 Anonymous upload stays impossible — an entry has to be attributable to
 the account that published it. A successful submission answers 201
 `{id, status, previewRevision}` with `status` always `public`. The editor
@@ -77,10 +77,10 @@ published it even if the account is later renamed. These two fields are
 traceability data, not feed data — the detail route returns them only to
 a moderator or admin, never on a public surface.
 
-## Submission quality gates
+## Submission quality advice
 
 `evaluateSubmissionGates` in `@icm/derived` supplies quality advice when the
-publish dialog opens. Since PR #341 these findings are informational for
+publish dialog opens. Findings are informational for
 every role and never disable Publish. The worker does not enforce an ERC
 quality veto; authentication, Project parsing, ownership, and size/quota
 boundaries still apply. Diagnostic codes:
@@ -132,7 +132,8 @@ the shared site chrome.
 metadata (tags included — they stay editable any time) with the
 submission field rules. Authority: an admin or moderator session may
 update any entry; an ordinary session must own the entry (403 otherwise)
-and passes the quality gates (422). Either way the entry keeps its
+and the submitted content must satisfy input validation. ERC and visual quality
+advice do not block updates. Either way the entry keeps its
 byline and its current status, so editing a published circuit neither
 takes it off the wall nor re-attributes it. The Project is re-serialized
 canonically, the preview is re-rendered, and the netlistable marker is

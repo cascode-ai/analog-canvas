@@ -46,17 +46,17 @@ outside this contract.
 
 Every emitted token has exactly one authority:
 
-| Fact                       | Authority                                     | Never inferred from                           |
-| -------------------------- | --------------------------------------------- | --------------------------------------------- |
-| Cell name                  | `Document.netlist.name`                       | Document title or filename                    |
-| Cell interface order       | first occurrence in `projectCellInterface`    | coordinates or alphabetical order             |
-| Connectivity               | `Net.terminals`                               | Routes, Junction geometry, labels, or overlap |
-| Logical Net name/scope     | resolved owner-addressed marker claims        | legacy Base fields or text appearance         |
-| Instance reference         | `Instance.reference`                          | object ID or annotation text                  |
-| Device class and pin order | reviewed device definition or child interface | `symbolId` string conventions or orientation  |
-| Model/subcircuit target    | typed instance binding                        | symbol name or PDK search                     |
-| Parameters                 | typed raw parameter record                    | rendered text or numeric evaluation           |
-| Dialect syntax             | requested printer                             | persisted source lines                        |
+| Fact                       | Authority                                                         | Never inferred from                                    |
+| -------------------------- | ----------------------------------------------------------------- | ------------------------------------------------------ |
+| Cell name                  | `Document.netlist.name`                                           | Document title or filename                             |
+| Cell interface order       | first occurrence in `projectCellInterface`                        | coordinates or alphabetical order                      |
+| Connectivity               | Base-Net membership and the shared Logical-Net/interface resolver | SVG geometry, loose label text, or uncommitted overlap |
+| Logical Net name/scope     | resolved owner-addressed marker claims                            | legacy Base fields or text appearance                  |
+| Instance reference         | `Instance.reference`                                              | object ID or annotation text                           |
+| Device class and pin order | reviewed device definition or child interface                     | `symbolId` string conventions or orientation           |
+| Model/subcircuit target    | typed instance binding                                            | symbol name or PDK search                              |
+| Parameters                 | typed raw parameter record                                        | rendered text or numeric evaluation                    |
+| Dialect syntax             | requested printer                                                 | persisted source lines                                 |
 
 Retired `spice.name`, `spice.target`, `spice.pin.Pn`, and `spice.param.*`
 properties are invalid. Export extraction and printers do not read them.
