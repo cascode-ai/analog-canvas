@@ -342,6 +342,14 @@ test("one Testbench persists several independently named setups", async ({
   const existingSetupNames = project.simulationSetups.map(
     (setup) => setup.name,
   );
+  const activeSetup = project.simulationSetups.find(
+    (setup) => setup.id === "simulation-setup-ota-op-ac",
+  );
+  const activeTestbenchId =
+    activeSetup?.input.kind === "structured"
+      ? activeSetup.input.rootDocumentId
+      : undefined;
+  expect(activeTestbenchId).toBe("document-ota-5t-testbench");
   await page.route("**/api/simulate", async (route) =>
     route.fulfill({
       json: {
@@ -392,13 +400,20 @@ test("one Testbench persists several independently named setups", async ({
     saved.simulationSetups.map((setup: { name: string }) => setup.name),
   ).toEqual([...existingSetupNames, "Bias sweep"]);
   expect(
+    saved.simulationSetups.find(
+      (setup: { name: string }) => setup.name === "Bias sweep",
+    )?.input.rootDocumentId,
+  ).toBe(activeTestbenchId);
+  expect(
     new Set(
       saved.simulationSetups.map(
         (setup: { input: { rootDocumentId: string } }) =>
           setup.input.rootDocumentId,
       ),
     ),
-  ).toEqual(new Set(["document-ota-5t-testbench"]));
+  ).toEqual(
+    new Set(["document-ota-5t-testbench", "document-ota-5t-testbench-sin"]),
+  );
 
   await selector.click();
   await panel.getByRole("button", { name: "Delete Bias sweep" }).click();

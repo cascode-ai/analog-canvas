@@ -229,8 +229,8 @@ describe("the bundled five-transistor Sky130 OTA", () => {
     (document) => document.netlist?.name === "ota_5t",
   )!;
 
-  it("ships a Testbench Cell that instantiates the OTA Cell", () => {
-    expect(project.documents).toHaveLength(2);
+  it("ships PULSE and SIN Testbench Cells that instantiate the same OTA Cell", () => {
+    expect(project.documents).toHaveLength(3);
     expect(dut.netlist?.terminals.map((terminal) => terminal.name)).toEqual([
       "vss",
       "ibias",
@@ -272,9 +272,24 @@ describe("the bundled five-transistor Sky130 OTA", () => {
       testbench.instances.filter((instance) => instance.symbolId === "ground")
         .length,
     ).toBeGreaterThan(0);
+    const sinTestbench = project.documents.find(
+      (document) => document.id === "document-ota-5t-testbench-sin",
+    );
+    expect(
+      sinTestbench?.instances.find((instance) => instance.id === "VINP"),
+    ).toMatchObject({
+      netlist: {
+        parameters: {
+          waveform: "sin",
+          offset: "0.9",
+          amplitude: "10m",
+          frequency: "1Meg",
+        },
+      },
+    });
   });
 
-  it("persists and compiles its four-analysis acceptance setup", async () => {
+  it("preserves the qualified four-analysis numerical acceptance setup", async () => {
     const setup = project.simulationSetups.find(
       (candidate) => candidate.id === "simulation-setup-ota-op-ac",
     );
@@ -307,17 +322,24 @@ describe("the bundled five-transistor Sky130 OTA", () => {
         quantity: "voltage",
       },
     ]);
+    expect(compiled.deviceOperatingPoints).toEqual([]);
+    expect(compiled.measurements).toEqual([]);
   });
 
-  it("ships independently runnable bias, transfer, corner, and transient setups", async () => {
+  it("ships independently runnable bias, transfer, five-corner AC, transient, and Noise setups", async () => {
     const expected = [
       ["simulation-setup-ota-op-ac", "op,dc,ac,tran", "tt"],
+      ["simulation-setup-ota-full-tt", "op,dc,ac,tran,noise", "tt"],
       ["simulation-setup-ota-bias-tt", "op", "tt"],
       ["simulation-setup-ota-dc-transfer-tt", "dc", "tt"],
       ["simulation-setup-ota-ac-tt", "ac", "tt"],
       ["simulation-setup-ota-ac-ff", "ac", "ff"],
       ["simulation-setup-ota-ac-ss", "ac", "ss"],
+      ["simulation-setup-ota-ac-fs", "ac", "fs"],
+      ["simulation-setup-ota-ac-sf", "ac", "sf"],
       ["simulation-setup-ota-tran-tt", "tran", "tt"],
+      ["simulation-setup-ota-noise-tt", "noise", "tt"],
+      ["simulation-setup-ota-tran-sin-tt", "tran", "tt"],
     ] as const;
 
     expect(
@@ -333,10 +355,67 @@ describe("the bundled five-transistor Sky130 OTA", () => {
     for (const setup of project.simulationSetups) {
       expect(setup.input.kind, setup.name).toBe("structured");
       if (setup.input.kind !== "structured") continue;
-      expect(setup.input.rootDocumentId, setup.name).toBe(testbench.id);
+      expect(setup.input.rootDocumentId, setup.name).toBe(
+        setup.id === "simulation-setup-ota-tran-sin-tt"
+          ? "document-ota-5t-testbench-sin"
+          : testbench.id,
+      );
       const compiled = await compileStructuredSimulation(project, setup);
       expect(compiled.ok, setup.name).toBe(true);
+      if (compiled.ok && setup.id === "simulation-setup-ota-tran-sin-tt") {
+        expect(compiled.request.testbench).toContain("SIN(0.9 10m 1Meg 0 0 0)");
+      }
     }
+  });
+
+  it("covers the complete structured simulation feature matrix", () => {
+    const inputs = project.simulationSetups.flatMap((setup) =>
+      setup.input.kind === "structured" ? [setup.input] : [],
+    );
+    expect(
+      new Set(
+        inputs.flatMap((input) =>
+          input.analyses.map((analysis) => analysis.kind),
+        ),
+      ),
+    ).toEqual(new Set(["op", "dc", "ac", "tran", "noise"]));
+    expect(new Set(inputs.map((input) => input.environment.corner))).toEqual(
+      new Set(["tt", "ff", "ss", "fs", "sf"]),
+    );
+    expect(
+      new Set(
+        inputs.flatMap((input) =>
+          (input.measurements ?? []).map(
+            (measurement) => measurement.method.kind,
+          ),
+        ),
+      ),
+    ).toEqual(
+      new Set([
+        "value",
+        "sample-at",
+        "minimum",
+        "maximum",
+        "peak-to-peak",
+        "mean",
+        "rms",
+      ]),
+    );
+    expect(
+      new Set(
+        inputs.flatMap((input) =>
+          (input.deviceOperatingPoints ?? []).map(
+            (selection) => selection.instanceId,
+          ),
+        ),
+      ),
+    ).toEqual(new Set(["M1", "M3"]));
+    const combined = inputs.find((input) => input.analyses.length === 5)!;
+    expect(
+      combined.outputs.map((candidate) => candidate.expression.kind),
+    ).toEqual(
+      expect.arrayContaining(["voltage", "negate", "divide", "db20", "phase"]),
+    );
   });
 
   it("passes the Check-and-Save gates with no electrical rule issue", () => {

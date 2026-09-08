@@ -6,13 +6,13 @@
           "alignment": "middle",
           "anchor": {
             "fallbackPosition": {
-              "x": 460,
-              "y": 250
+              "x": 615,
+              "y": 400
             },
             "kind": "object",
             "localOffset": {
-              "x": -100,
-              "y": -70
+              "x": 55,
+              "y": 80
             },
             "objectId": "XDUT"
           },
@@ -26,16 +26,16 @@
           "rotation": 0
         },
         {
-          "alignment": "start",
+          "alignment": "middle",
           "anchor": {
             "fallbackPosition": {
-              "x": 160,
-              "y": 210
+              "x": 460,
+              "y": 115
             },
             "kind": "object",
             "localOffset": {
-              "x": 20,
-              "y": 10
+              "x": -30,
+              "y": -45
             },
             "objectId": "VDD"
           },
@@ -49,16 +49,16 @@
           "rotation": 0
         },
         {
-          "alignment": "start",
+          "alignment": "middle",
           "anchor": {
             "fallbackPosition": {
-              "x": 160,
-              "y": 240
+              "x": 500,
+              "y": 115
             },
             "kind": "object",
             "localOffset": {
-              "x": 20,
-              "y": 40
+              "x": 10,
+              "y": -45
             },
             "objectId": "VDD"
           },
@@ -72,16 +72,16 @@
           "rotation": 0
         },
         {
-          "alignment": "start",
+          "alignment": "middle",
           "anchor": {
             "fallbackPosition": {
-              "x": 260,
-              "y": 430
+              "x": 375,
+              "y": 265
             },
             "kind": "object",
             "localOffset": {
-              "x": 20,
-              "y": 10
+              "x": -25,
+              "y": -35
             },
             "objectId": "VINP"
           },
@@ -95,16 +95,16 @@
           "rotation": 0
         },
         {
-          "alignment": "start",
+          "alignment": "middle",
           "anchor": {
             "fallbackPosition": {
-              "x": 260,
-              "y": 460
+              "x": 420,
+              "y": 265
             },
             "kind": "object",
             "localOffset": {
               "x": 20,
-              "y": 40
+              "y": -35
             },
             "objectId": "VINP"
           },
@@ -118,16 +118,16 @@
           "rotation": 0
         },
         {
-          "alignment": "start",
+          "alignment": "middle",
           "anchor": {
             "fallbackPosition": {
-              "x": 360,
-              "y": 550
+              "x": 380,
+              "y": 390
             },
             "kind": "object",
             "localOffset": {
-              "x": 20,
-              "y": 10
+              "x": -20,
+              "y": 40
             },
             "objectId": "VINN"
           },
@@ -141,15 +141,15 @@
           "rotation": 0
         },
         {
-          "alignment": "start",
+          "alignment": "middle",
           "anchor": {
             "fallbackPosition": {
-              "x": 360,
-              "y": 580
+              "x": 425,
+              "y": 390
             },
             "kind": "object",
             "localOffset": {
-              "x": 20,
+              "x": 25,
               "y": 40
             },
             "objectId": "VINN"
@@ -167,13 +167,13 @@
           "alignment": "start",
           "anchor": {
             "fallbackPosition": {
-              "x": 550,
-              "y": 170
+              "x": 500,
+              "y": 205
             },
             "kind": "object",
             "localOffset": {
-              "x": 20,
-              "y": 10
+              "x": -50,
+              "y": -5
             },
             "objectId": "IBIAS"
           },
@@ -190,13 +190,13 @@
           "alignment": "start",
           "anchor": {
             "fallbackPosition": {
-              "x": 550,
-              "y": 200
+              "x": 500,
+              "y": 230
             },
             "kind": "object",
             "localOffset": {
-              "x": 20,
-              "y": 40
+              "x": -50,
+              "y": 20
             },
             "objectId": "IBIAS"
           },
@@ -213,13 +213,13 @@
           "alignment": "start",
           "anchor": {
             "fallbackPosition": {
-              "x": 780,
-              "y": 430
+              "x": 750,
+              "y": 355
             },
             "kind": "object",
             "localOffset": {
               "x": 20,
-              "y": 10
+              "y": -5
             },
             "objectId": "CL"
           },
@@ -236,13 +236,13 @@
           "alignment": "start",
           "anchor": {
             "fallbackPosition": {
-              "x": 780,
-              "y": 460
+              "x": 775,
+              "y": 355
             },
             "kind": "object",
             "localOffset": {
-              "x": 20,
-              "y": 40
+              "x": 45,
+              "y": -5
             },
             "objectId": "CL"
           },
@@ -260,6 +260,31 @@
           "anchor": {
             "direction": "forward",
             "fallbackPosition": {
+              "x": 685,
+              "y": 310
+            },
+            "kind": "route",
+            "legId": "route-leg-9cbad225568967f9",
+            "normalOffset": -10,
+            "orientation": "follow",
+            "routeId": "tb-vout-route",
+            "t": 0.5
+          },
+          "binding": {
+            "kind": "net-name",
+            "netId": "tb-vout-net"
+          },
+          "id": "net-label-tb-vout-route",
+          "kind": "net-label",
+          "locked": false,
+          "netId": "tb-vout-net",
+          "rotation": 0
+        },
+        {
+          "alignment": "middle",
+          "anchor": {
+            "direction": "forward",
+            "fallbackPosition": {
               "x": 0,
               "y": 0
             },
@@ -267,7 +292,7 @@
             "legId": "route-leg-3de2f026488177e2",
             "normalOffset": -10,
             "orientation": "follow",
-            "routeId": "tb-vdd-source-route",
+            "routeId": "route-ui-3",
             "t": 0.5
           },
           "binding": {
@@ -354,31 +379,6 @@
           "locked": false,
           "netId": "tb-vinn-net",
           "rotation": 0
-        },
-        {
-          "alignment": "middle",
-          "anchor": {
-            "direction": "forward",
-            "fallbackPosition": {
-              "x": 0,
-              "y": 0
-            },
-            "kind": "route",
-            "legId": "route-leg-9cbad225568967f9",
-            "normalOffset": -10,
-            "orientation": "follow",
-            "routeId": "tb-vout-route",
-            "t": 0.5
-          },
-          "binding": {
-            "kind": "net-name",
-            "netId": "tb-vout-net"
-          },
-          "id": "net-label-tb-vout-route",
-          "kind": "net-label",
-          "locked": false,
-          "netId": "tb-vout-net",
-          "rotation": 0
         }
       ],
       "connectivityEvidence": [
@@ -386,7 +386,7 @@
           "id": "connectivity-evidence-33dd40c74ee1950d",
           "kind": "name-claim",
           "name": "0",
-          "netId": "net-power-gnd1",
+          "netId": "net-split-a810f1946a2e3084",
           "owner": {
             "kind": "power-marker",
             "objectId": "GND1"
@@ -398,7 +398,7 @@
           "id": "connectivity-evidence-4fd51303c6ed3225",
           "kind": "name-claim",
           "name": "0",
-          "netId": "net-power-gnd2",
+          "netId": "net-split-f3cbcac420d93ece",
           "owner": {
             "kind": "power-marker",
             "objectId": "GND2"
@@ -538,10 +538,10 @@
           "placement": {
             "mirror": "none",
             "position": {
-              "x": 140,
-              "y": 200
+              "x": 490,
+              "y": 160
             },
-            "rotation": 0
+            "rotation": 90
           },
           "reference": "VDD",
           "symbolId": "voltage-source"
@@ -569,10 +569,10 @@
           "placement": {
             "mirror": "none",
             "position": {
-              "x": 240,
-              "y": 420
+              "x": 400,
+              "y": 300
             },
-            "rotation": 0
+            "rotation": 90
           },
           "reference": "VINP",
           "symbolId": "voltage-source"
@@ -591,10 +591,10 @@
           "placement": {
             "mirror": "none",
             "position": {
-              "x": 340,
-              "y": 540
+              "x": 400,
+              "y": 350
             },
-            "rotation": 0
+            "rotation": 90
           },
           "reference": "VINN",
           "symbolId": "voltage-source"
@@ -613,8 +613,8 @@
           "placement": {
             "mirror": "none",
             "position": {
-              "x": 530,
-              "y": 160
+              "x": 550,
+              "y": 210
             },
             "rotation": 0
           },
@@ -635,8 +635,8 @@
           "placement": {
             "mirror": "none",
             "position": {
-              "x": 760,
-              "y": 420
+              "x": 730,
+              "y": 360
             },
             "rotation": 0
           },
@@ -648,10 +648,10 @@
           "placement": {
             "mirror": "none",
             "position": {
-              "x": 140,
-              "y": 260
+              "x": 430,
+              "y": 160
             },
-            "rotation": 0
+            "rotation": 90
           },
           "symbolId": "ground"
         },
@@ -660,10 +660,10 @@
           "placement": {
             "mirror": "none",
             "position": {
-              "x": 240,
-              "y": 480
+              "x": 340,
+              "y": 300
             },
-            "rotation": 0
+            "rotation": 90
           },
           "symbolId": "ground"
         },
@@ -673,9 +673,9 @@
             "mirror": "none",
             "position": {
               "x": 340,
-              "y": 600
+              "y": 350
             },
-            "rotation": 0
+            "rotation": 90
           },
           "symbolId": "ground"
         },
@@ -685,7 +685,7 @@
             "mirror": "none",
             "position": {
               "x": 560,
-              "y": 440
+              "y": 420
             },
             "rotation": 0
           },
@@ -696,8 +696,8 @@
           "placement": {
             "mirror": "none",
             "position": {
-              "x": 760,
-              "y": 500
+              "x": 730,
+              "y": 400
             },
             "rotation": 0
           },
@@ -706,11 +706,11 @@
       ],
       "junctions": [
         {
-          "id": "junction-tb-vdd",
+          "id": "junction-canonical-fa66a02887bbb6d9",
           "netId": "net-tb-vdd",
           "position": {
-            "x": 530,
-            "y": 100
+            "x": 550,
+            "y": 160
           },
           "role": "branch"
         }
@@ -723,32 +723,6 @@
         "terminals": []
       },
       "nets": [
-        {
-          "id": "net-power-gnd1",
-          "terminals": [
-            {
-              "instanceId": "GND1",
-              "pinName": "0"
-            },
-            {
-              "instanceId": "VDD",
-              "pinName": "-"
-            }
-          ]
-        },
-        {
-          "id": "net-power-gnd2",
-          "terminals": [
-            {
-              "instanceId": "GND2",
-              "pinName": "0"
-            },
-            {
-              "instanceId": "VINP",
-              "pinName": "-"
-            }
-          ]
-        },
         {
           "id": "net-power-gnd3",
           "terminals": [
@@ -856,6 +830,32 @@
               "pinName": "1"
             }
           ]
+        },
+        {
+          "id": "net-split-a810f1946a2e3084",
+          "terminals": [
+            {
+              "instanceId": "GND1",
+              "pinName": "0"
+            },
+            {
+              "instanceId": "VDD",
+              "pinName": "-"
+            }
+          ]
+        },
+        {
+          "id": "net-split-f3cbcac420d93ece",
+          "terminals": [
+            {
+              "instanceId": "GND2",
+              "pinName": "0"
+            },
+            {
+              "instanceId": "VINP",
+              "pinName": "-"
+            }
+          ]
         }
       ],
       "noConnects": [],
@@ -864,54 +864,8 @@
         "grid": 10,
         "styleProfileId": "razavi-textbook-v1"
       },
-      "revision": 32,
+      "revision": 161,
       "routes": [
-        {
-          "id": "tb-gnd-vdd-route",
-          "legs": [
-            {
-              "id": "route-leg-7e025ae583c46a1e",
-              "mode": "manual",
-              "to": {
-                "endpoint": {
-                  "instanceId": "GND1",
-                  "kind": "terminal",
-                  "pinName": "0"
-                },
-                "kind": "endpoint"
-              }
-            }
-          ],
-          "netId": "net-power-gnd1",
-          "start": {
-            "instanceId": "VDD",
-            "kind": "terminal",
-            "pinName": "-"
-          }
-        },
-        {
-          "id": "tb-gnd-vinp-route",
-          "legs": [
-            {
-              "id": "route-leg-5f3d0ca4af1a4dce",
-              "mode": "manual",
-              "to": {
-                "endpoint": {
-                  "instanceId": "GND2",
-                  "kind": "terminal",
-                  "pinName": "0"
-                },
-                "kind": "endpoint"
-              }
-            }
-          ],
-          "netId": "net-power-gnd2",
-          "start": {
-            "instanceId": "VINP",
-            "kind": "terminal",
-            "pinName": "-"
-          }
-        },
         {
           "id": "tb-gnd-vinn-route",
           "legs": [
@@ -982,96 +936,6 @@
           }
         },
         {
-          "id": "tb-vdd-source-route",
-          "legs": [
-            {
-              "id": "route-leg-3de2f12648817995",
-              "mode": "manual",
-              "to": {
-                "bendId": "route-bend-3de2f12648817995",
-                "kind": "bend",
-                "position": {
-                  "x": 140,
-                  "y": 100
-                }
-              }
-            },
-            {
-              "id": "route-leg-3de2f026488177e2",
-              "mode": "manual",
-              "to": {
-                "endpoint": {
-                  "junctionId": "junction-tb-vdd",
-                  "kind": "junction"
-                },
-                "kind": "endpoint"
-              }
-            }
-          ],
-          "netId": "net-tb-vdd",
-          "start": {
-            "instanceId": "VDD",
-            "kind": "terminal",
-            "pinName": "+"
-          }
-        },
-        {
-          "id": "tb-vdd-ibias-route",
-          "legs": [
-            {
-              "id": "route-leg-5b16474543a6b8a9",
-              "mode": "manual",
-              "to": {
-                "endpoint": {
-                  "junctionId": "junction-tb-vdd",
-                  "kind": "junction"
-                },
-                "kind": "endpoint"
-              }
-            }
-          ],
-          "netId": "net-tb-vdd",
-          "start": {
-            "instanceId": "IBIAS",
-            "kind": "terminal",
-            "pinName": "+"
-          }
-        },
-        {
-          "id": "tb-vdd-dut-route",
-          "legs": [
-            {
-              "id": "route-leg-624f4d1edaa3951c",
-              "mode": "manual",
-              "to": {
-                "bendId": "route-bend-624f4d1edaa3951c",
-                "kind": "bend",
-                "position": {
-                  "x": 590,
-                  "y": 100
-                }
-              }
-            },
-            {
-              "id": "route-leg-624f4e1edaa396cf",
-              "mode": "manual",
-              "to": {
-                "endpoint": {
-                  "junctionId": "junction-tb-vdd",
-                  "kind": "junction"
-                },
-                "kind": "endpoint"
-              }
-            }
-          ],
-          "netId": "net-tb-vdd",
-          "start": {
-            "instanceId": "XDUT",
-            "kind": "terminal",
-            "pinName": "vdd"
-          }
-        },
-        {
           "id": "tb-ibias-route",
           "legs": [
             {
@@ -1101,18 +965,6 @@
               "id": "route-leg-db9df07a18d56c80",
               "mode": "manual",
               "to": {
-                "bendId": "route-bend-db9df07a18d56c80",
-                "kind": "bend",
-                "position": {
-                  "x": 240,
-                  "y": 290
-                }
-              }
-            },
-            {
-              "id": "route-leg-db9df17a18d56e33",
-              "mode": "manual",
-              "to": {
                 "endpoint": {
                   "instanceId": "XDUT",
                   "kind": "terminal",
@@ -1134,18 +986,6 @@
           "legs": [
             {
               "id": "route-leg-42de77b6b7306ba2",
-              "mode": "manual",
-              "to": {
-                "bendId": "route-bend-42de77b6b7306ba2",
-                "kind": "bend",
-                "position": {
-                  "x": 340,
-                  "y": 350
-                }
-              }
-            },
-            {
-              "id": "route-leg-42de78b6b7306d55",
               "mode": "manual",
               "to": {
                 "endpoint": {
@@ -1174,7 +1014,7 @@
                 "bendId": "route-bend-9cbad225568967f9",
                 "kind": "bend",
                 "position": {
-                  "x": 760,
+                  "x": 730,
                   "y": 320
                 }
               }
@@ -1198,6 +1038,130 @@
             "kind": "terminal",
             "pinName": "vout"
           }
+        },
+        {
+          "id": "route-ui-1",
+          "legs": [
+            {
+              "id": "route-leg-ace29482c237b3d7",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "instanceId": "VDD",
+                  "kind": "terminal",
+                  "pinName": "-"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-split-a810f1946a2e3084",
+          "start": {
+            "instanceId": "GND1",
+            "kind": "terminal",
+            "pinName": "0"
+          }
+        },
+        {
+          "id": "route-35e042e11550de52",
+          "legs": [
+            {
+              "id": "route-leg-94c48a25d3985fe6",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "instanceId": "VINP",
+                  "kind": "terminal",
+                  "pinName": "-"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-split-f3cbcac420d93ece",
+          "start": {
+            "instanceId": "GND2",
+            "kind": "terminal",
+            "pinName": "0"
+          }
+        },
+        {
+          "id": "route-ui-3",
+          "legs": [
+            {
+              "id": "route-leg-950eb45aec291af5",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "junctionId": "junction-canonical-fa66a02887bbb6d9",
+                  "kind": "junction"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-tb-vdd",
+          "start": {
+            "instanceId": "VDD",
+            "kind": "terminal",
+            "pinName": "+"
+          }
+        },
+        {
+          "id": "tb-vdd-dut-route-a-2",
+          "legs": [
+            {
+              "id": "route-leg-624f4d1edaa3951c",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "instanceId": "IBIAS",
+                  "kind": "terminal",
+                  "pinName": "+"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-tb-vdd",
+          "start": {
+            "junctionId": "junction-canonical-fa66a02887bbb6d9",
+            "kind": "junction"
+          }
+        },
+        {
+          "id": "tb-vdd-dut-route-b-2",
+          "legs": [
+            {
+              "id": "route-leg-c64a8aa78eb2d60f",
+              "mode": "manual",
+              "to": {
+                "bendId": "route-bend-624f4d1edaa3951c",
+                "kind": "bend",
+                "position": {
+                  "x": 590,
+                  "y": 160
+                }
+              }
+            },
+            {
+              "id": "route-leg-624f4e1edaa396cf",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "instanceId": "XDUT",
+                  "kind": "terminal",
+                  "pinName": "vdd"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-tb-vdd",
+          "start": {
+            "junctionId": "junction-canonical-fa66a02887bbb6d9",
+            "kind": "junction"
+          }
         }
       ],
       "sourceStatus": "connectivity-modified"
@@ -1205,16 +1169,16 @@
     {
       "annotations": [
         {
-          "alignment": "end",
+          "alignment": "start",
           "anchor": {
             "fallbackPosition": {
-              "x": 90,
-              "y": 480
+              "x": 300,
+              "y": 560
             },
             "kind": "object",
             "localOffset": {
-              "x": -20,
-              "y": 10
+              "x": 10,
+              "y": 20
             },
             "objectId": "PVSS"
           },
@@ -1228,16 +1192,16 @@
           "rotation": 0
         },
         {
-          "alignment": "end",
+          "alignment": "start",
           "anchor": {
             "fallbackPosition": {
-              "x": 60,
-              "y": 370
+              "x": 245,
+              "y": 355
             },
             "kind": "object",
             "localOffset": {
-              "x": -20,
-              "y": 10
+              "x": -45,
+              "y": -5
             },
             "objectId": "PIBIAS"
           },
@@ -1254,13 +1218,13 @@
           "alignment": "end",
           "anchor": {
             "fallbackPosition": {
-              "x": 270,
-              "y": 110
+              "x": 305,
+              "y": 85
             },
             "kind": "object",
             "localOffset": {
-              "x": -20,
-              "y": 10
+              "x": -5,
+              "y": -15
             },
             "objectId": "PVDD"
           },
@@ -1277,7 +1241,7 @@
           "alignment": "start",
           "anchor": {
             "fallbackPosition": {
-              "x": 720,
+              "x": 630,
               "y": 270
             },
             "kind": "object",
@@ -1300,13 +1264,13 @@
           "alignment": "end",
           "anchor": {
             "fallbackPosition": {
-              "x": 230,
-              "y": 290
+              "x": 310,
+              "y": 270
             },
             "kind": "object",
             "localOffset": {
               "x": -20,
-              "y": 10
+              "y": -10
             },
             "objectId": "PVINP"
           },
@@ -1323,13 +1287,13 @@
           "alignment": "start",
           "anchor": {
             "fallbackPosition": {
-              "x": 720,
-              "y": 210
+              "x": 645,
+              "y": 220
             },
             "kind": "object",
             "localOffset": {
-              "x": 20,
-              "y": -10
+              "x": 15,
+              "y": 0
             },
             "objectId": "PVOUT"
           },
@@ -1347,15 +1311,15 @@
           "anchor": {
             "direction": "forward",
             "fallbackPosition": {
-              "x": 0,
-              "y": 0
+              "x": 436,
+              "y": 200
             },
             "kind": "route",
             "legId": "route-leg-220f44782704e593",
             "normalOffset": -10,
             "orientation": "follow",
             "routeId": "dut-nleft-trunk-route",
-            "t": 0.5
+            "t": 0.625
           },
           "binding": {
             "kind": "net-name",
@@ -1396,13 +1360,13 @@
           "alignment": "start",
           "anchor": {
             "fallbackPosition": {
-              "x": 390,
-              "y": 290
+              "x": 345,
+              "y": 315
             },
             "kind": "object",
             "localOffset": {
-              "x": 20,
-              "y": 10
+              "x": -25,
+              "y": 35
             },
             "objectId": "M1"
           },
@@ -1420,12 +1384,12 @@
           "anchor": {
             "fallbackPosition": {
               "x": 390,
-              "y": 320
+              "y": 275
             },
             "kind": "object",
             "localOffset": {
               "x": 20,
-              "y": 40
+              "y": -5
             },
             "objectId": "M1"
           },
@@ -1442,13 +1406,13 @@
           "alignment": "end",
           "anchor": {
             "fallbackPosition": {
-              "x": 550,
-              "y": 290
+              "x": 605,
+              "y": 310
             },
             "kind": "object",
             "localOffset": {
-              "x": -20,
-              "y": 10
+              "x": 35,
+              "y": 30
             },
             "objectId": "M2"
           },
@@ -1465,13 +1429,13 @@
           "alignment": "end",
           "anchor": {
             "fallbackPosition": {
-              "x": 550,
-              "y": 320
+              "x": 555,
+              "y": 285
             },
             "kind": "object",
             "localOffset": {
-              "x": -20,
-              "y": 40
+              "x": -15,
+              "y": 5
             },
             "objectId": "M2"
           },
@@ -1488,13 +1452,13 @@
           "alignment": "end",
           "anchor": {
             "fallbackPosition": {
-              "x": 370,
-              "y": 170
+              "x": 420,
+              "y": 135
             },
             "kind": "object",
             "localOffset": {
-              "x": -20,
-              "y": 10
+              "x": 30,
+              "y": -25
             },
             "objectId": "M3"
           },
@@ -1512,12 +1476,12 @@
           "anchor": {
             "fallbackPosition": {
               "x": 370,
-              "y": 200
+              "y": 165
             },
             "kind": "object",
             "localOffset": {
               "x": -20,
-              "y": 40
+              "y": 5
             },
             "objectId": "M3"
           },
@@ -1527,6 +1491,29 @@
           },
           "id": "instance-value-M3",
           "kind": "instance-value",
+          "locked": false,
+          "rotation": 0
+        },
+        {
+          "alignment": "start",
+          "anchor": {
+            "fallbackPosition": {
+              "x": 520,
+              "y": 140
+            },
+            "kind": "object",
+            "localOffset": {
+              "x": -30,
+              "y": -20
+            },
+            "objectId": "M4"
+          },
+          "binding": {
+            "instanceId": "M4",
+            "kind": "instance-reference"
+          },
+          "id": "instance-label-M4",
+          "kind": "instance-label",
           "locked": false,
           "rotation": 0
         },
@@ -1546,29 +1533,6 @@
           },
           "binding": {
             "instanceId": "M4",
-            "kind": "instance-reference"
-          },
-          "id": "instance-label-M4",
-          "kind": "instance-label",
-          "locked": false,
-          "rotation": 0
-        },
-        {
-          "alignment": "start",
-          "anchor": {
-            "fallbackPosition": {
-              "x": 570,
-              "y": 200
-            },
-            "kind": "object",
-            "localOffset": {
-              "x": 20,
-              "y": 40
-            },
-            "objectId": "M4"
-          },
-          "binding": {
-            "instanceId": "M4",
             "kind": "instance-value"
           },
           "id": "instance-value-M4",
@@ -1580,13 +1544,13 @@
           "alignment": "start",
           "anchor": {
             "fallbackPosition": {
-              "x": 490,
-              "y": 410
+              "x": 440,
+              "y": 465
             },
             "kind": "object",
             "localOffset": {
-              "x": 20,
-              "y": 10
+              "x": -30,
+              "y": 25
             },
             "objectId": "M5"
           },
@@ -1604,12 +1568,12 @@
           "anchor": {
             "fallbackPosition": {
               "x": 490,
-              "y": 440
+              "y": 450
             },
             "kind": "object",
             "localOffset": {
               "x": 20,
-              "y": 40
+              "y": 10
             },
             "objectId": "M5"
           },
@@ -1623,16 +1587,16 @@
           "rotation": 0
         },
         {
-          "alignment": "start",
+          "alignment": "end",
           "anchor": {
             "fallbackPosition": {
-              "x": 220,
-              "y": 410
+              "x": 335,
+              "y": 465
             },
             "kind": "object",
             "localOffset": {
-              "x": 20,
-              "y": 10
+              "x": 35,
+              "y": 25
             },
             "objectId": "M6"
           },
@@ -1646,16 +1610,16 @@
           "rotation": 0
         },
         {
-          "alignment": "start",
+          "alignment": "end",
           "anchor": {
             "fallbackPosition": {
-              "x": 220,
-              "y": 440
+              "x": 275,
+              "y": 450
             },
             "kind": "object",
             "localOffset": {
-              "x": 20,
-              "y": 40
+              "x": -25,
+              "y": 10
             },
             "objectId": "M6"
           },
@@ -1832,7 +1796,7 @@
             "mirror": "none",
             "position": {
               "x": 470,
-              "y": 400
+              "y": 440
             },
             "rotation": 0
           },
@@ -1857,10 +1821,10 @@
             }
           },
           "placement": {
-            "mirror": "none",
+            "mirror": "x",
             "position": {
-              "x": 200,
-              "y": 400
+              "x": 300,
+              "y": 440
             },
             "rotation": 0
           },
@@ -1872,10 +1836,10 @@
           "placement": {
             "mirror": "none",
             "position": {
-              "x": 110,
-              "y": 470
+              "x": 290,
+              "y": 540
             },
-            "rotation": 0
+            "rotation": 270
           },
           "symbolId": "port"
         },
@@ -1884,10 +1848,10 @@
           "placement": {
             "mirror": "none",
             "position": {
-              "x": 80,
+              "x": 290,
               "y": 360
             },
-            "rotation": 0
+            "rotation": 90
           },
           "symbolId": "port"
         },
@@ -1896,7 +1860,7 @@
           "placement": {
             "mirror": "none",
             "position": {
-              "x": 290,
+              "x": 310,
               "y": 100
             },
             "rotation": 0
@@ -1908,7 +1872,7 @@
           "placement": {
             "mirror": "none",
             "position": {
-              "x": 700,
+              "x": 610,
               "y": 280
             },
             "rotation": 180
@@ -1920,7 +1884,7 @@
           "placement": {
             "mirror": "none",
             "position": {
-              "x": 250,
+              "x": 330,
               "y": 280
             },
             "rotation": 0
@@ -1932,7 +1896,7 @@
           "placement": {
             "mirror": "none",
             "position": {
-              "x": 700,
+              "x": 630,
               "y": 220
             },
             "rotation": 180
@@ -1951,33 +1915,6 @@
           "role": "branch"
         },
         {
-          "id": "junction-dut-vss",
-          "netId": "net-cell-pin-pvss",
-          "position": {
-            "x": 210,
-            "y": 470
-          },
-          "role": "branch"
-        },
-        {
-          "id": "junction-dut-ibias-a",
-          "netId": "net-cell-pin-pibias",
-          "position": {
-            "x": 150,
-            "y": 360
-          },
-          "role": "branch"
-        },
-        {
-          "id": "junction-dut-ibias-b",
-          "netId": "net-cell-pin-pibias",
-          "position": {
-            "x": 210,
-            "y": 360
-          },
-          "role": "branch"
-        },
-        {
           "id": "junction-dut-vout",
           "netId": "net-cell-pin-pvout",
           "position": {
@@ -1991,7 +1928,7 @@
           "netId": "net-dut-nleft",
           "position": {
             "x": 380,
-            "y": 220
+            "y": 210
           },
           "role": "branch"
         },
@@ -1999,8 +1936,8 @@
           "id": "junction-dut-nleft-b",
           "netId": "net-dut-nleft",
           "position": {
-            "x": 440,
-            "y": 220
+            "x": 470,
+            "y": 160
           },
           "role": "branch"
         },
@@ -2010,6 +1947,33 @@
           "position": {
             "x": 480,
             "y": 340
+          },
+          "role": "branch"
+        },
+        {
+          "id": "junction-canonical-a69a92ac5a85be8f",
+          "netId": "net-cell-pin-pibias",
+          "position": {
+            "x": 290,
+            "y": 400
+          },
+          "role": "branch"
+        },
+        {
+          "id": "junction-canonical-3993d1302f152696",
+          "netId": "net-cell-pin-pvss",
+          "position": {
+            "x": 290,
+            "y": 490
+          },
+          "role": "branch"
+        },
+        {
+          "id": "junction-canonical-0fddbcfe7d216a81",
+          "netId": "net-cell-pin-pibias",
+          "position": {
+            "x": 380,
+            "y": 440
           },
           "role": "branch"
         }
@@ -2239,19 +2203,9 @@
           },
           "pinPlacements": [
             {
-              "offset": -30,
-              "side": "north",
-              "terminalId": "terminal-pibias"
-            },
-            {
               "offset": 30,
               "side": "north",
               "terminalId": "terminal-pvdd"
-            },
-            {
-              "offset": -30,
-              "side": "west",
-              "terminalId": "terminal-pvinp"
             },
             {
               "offset": 30,
@@ -2267,6 +2221,16 @@
               "offset": 0,
               "side": "south",
               "terminalId": "terminal-pvss"
+            },
+            {
+              "offset": -20,
+              "side": "west",
+              "terminalId": "terminal-pvinp"
+            },
+            {
+              "offset": -10,
+              "side": "north",
+              "terminalId": "terminal-pibias"
             }
           ]
         },
@@ -2274,7 +2238,7 @@
         "grid": 10,
         "styleProfileId": "razavi-textbook-v1"
       },
-      "revision": 43,
+      "revision": 162,
       "routes": [
         {
           "id": "dut-vdd-port-route",
@@ -2352,229 +2316,6 @@
             "instanceId": "M4",
             "kind": "terminal",
             "pinName": "S"
-          }
-        },
-        {
-          "id": "dut-vss-port-route",
-          "legs": [
-            {
-              "id": "route-leg-9a243a8749f3f47b",
-              "mode": "manual",
-              "to": {
-                "endpoint": {
-                  "junctionId": "junction-dut-vss",
-                  "kind": "junction"
-                },
-                "kind": "endpoint"
-              }
-            }
-          ],
-          "netId": "net-cell-pin-pvss",
-          "start": {
-            "instanceId": "PVSS",
-            "kind": "terminal",
-            "pinName": "P"
-          }
-        },
-        {
-          "id": "dut-vss-m6-route",
-          "legs": [
-            {
-              "id": "route-leg-b7e608298a8e0995",
-              "mode": "manual",
-              "to": {
-                "endpoint": {
-                  "junctionId": "junction-dut-vss",
-                  "kind": "junction"
-                },
-                "kind": "endpoint"
-              }
-            }
-          ],
-          "netId": "net-cell-pin-pvss",
-          "start": {
-            "instanceId": "M6",
-            "kind": "terminal",
-            "pinName": "S"
-          }
-        },
-        {
-          "id": "dut-vss-m5-route",
-          "legs": [
-            {
-              "id": "route-leg-1fd2cacc728a5fec",
-              "mode": "manual",
-              "to": {
-                "bendId": "route-bend-1fd2cacc728a5fec",
-                "kind": "bend",
-                "position": {
-                  "x": 480,
-                  "y": 470
-                }
-              }
-            },
-            {
-              "id": "route-leg-1fd2cbcc728a619f",
-              "mode": "manual",
-              "to": {
-                "endpoint": {
-                  "junctionId": "junction-dut-vss",
-                  "kind": "junction"
-                },
-                "kind": "endpoint"
-              }
-            }
-          ],
-          "netId": "net-cell-pin-pvss",
-          "start": {
-            "instanceId": "M5",
-            "kind": "terminal",
-            "pinName": "S"
-          }
-        },
-        {
-          "id": "dut-ibias-port-route",
-          "legs": [
-            {
-              "id": "route-leg-df9387cdaaaab728",
-              "mode": "manual",
-              "to": {
-                "endpoint": {
-                  "junctionId": "junction-dut-ibias-a",
-                  "kind": "junction"
-                },
-                "kind": "endpoint"
-              }
-            }
-          ],
-          "netId": "net-cell-pin-pibias",
-          "start": {
-            "instanceId": "PIBIAS",
-            "kind": "terminal",
-            "pinName": "P"
-          }
-        },
-        {
-          "id": "dut-ibias-m6g-route",
-          "legs": [
-            {
-              "id": "route-leg-36accc90d5a60eab",
-              "mode": "manual",
-              "to": {
-                "bendId": "route-bend-36accc90d5a60eab",
-                "kind": "bend",
-                "position": {
-                  "x": 150,
-                  "y": 400
-                }
-              }
-            },
-            {
-              "id": "route-leg-36accb90d5a60cf8",
-              "mode": "manual",
-              "to": {
-                "endpoint": {
-                  "junctionId": "junction-dut-ibias-a",
-                  "kind": "junction"
-                },
-                "kind": "endpoint"
-              }
-            }
-          ],
-          "netId": "net-cell-pin-pibias",
-          "start": {
-            "instanceId": "M6",
-            "kind": "terminal",
-            "pinName": "G"
-          }
-        },
-        {
-          "id": "dut-ibias-trunk-route",
-          "legs": [
-            {
-              "id": "route-leg-68024747806d6832",
-              "mode": "manual",
-              "to": {
-                "endpoint": {
-                  "junctionId": "junction-dut-ibias-b",
-                  "kind": "junction"
-                },
-                "kind": "endpoint"
-              }
-            }
-          ],
-          "netId": "net-cell-pin-pibias",
-          "start": {
-            "junctionId": "junction-dut-ibias-a",
-            "kind": "junction"
-          }
-        },
-        {
-          "id": "dut-ibias-m6d-route",
-          "legs": [
-            {
-              "id": "route-leg-dfa853aaa4309a7e",
-              "mode": "manual",
-              "to": {
-                "endpoint": {
-                  "junctionId": "junction-dut-ibias-b",
-                  "kind": "junction"
-                },
-                "kind": "endpoint"
-              }
-            }
-          ],
-          "netId": "net-cell-pin-pibias",
-          "start": {
-            "instanceId": "M6",
-            "kind": "terminal",
-            "pinName": "D"
-          }
-        },
-        {
-          "id": "dut-ibias-m5g-route",
-          "legs": [
-            {
-              "id": "route-leg-7172d946242cfd98",
-              "mode": "manual",
-              "to": {
-                "bendId": "route-bend-7172d946242cfd98",
-                "kind": "bend",
-                "position": {
-                  "x": 430,
-                  "y": 400
-                }
-              }
-            },
-            {
-              "id": "route-leg-7172da46242cff4b",
-              "mode": "manual",
-              "to": {
-                "bendId": "route-bend-7172da46242cff4b",
-                "kind": "bend",
-                "position": {
-                  "x": 430,
-                  "y": 360
-                }
-              }
-            },
-            {
-              "id": "route-leg-7172db46242d00fe",
-              "mode": "manual",
-              "to": {
-                "endpoint": {
-                  "junctionId": "junction-dut-ibias-b",
-                  "kind": "junction"
-                },
-                "kind": "endpoint"
-              }
-            }
-          ],
-          "netId": "net-cell-pin-pibias",
-          "start": {
-            "instanceId": "M5",
-            "kind": "terminal",
-            "pinName": "G"
           }
         },
         {
@@ -2740,6 +2481,18 @@
               "id": "route-leg-220f44782704e593",
               "mode": "manual",
               "to": {
+                "bendId": "route-bend-adb5e8be6b3344d6",
+                "kind": "bend",
+                "position": {
+                  "x": 470,
+                  "y": 210
+                }
+              }
+            },
+            {
+              "id": "route-leg-c5b2e6b4e8fd7635",
+              "mode": "manual",
+              "to": {
                 "endpoint": {
                   "junctionId": "junction-dut-nleft-b",
                   "kind": "junction"
@@ -2759,18 +2512,6 @@
           "legs": [
             {
               "id": "route-leg-a7d85c5a0e43f8af",
-              "mode": "manual",
-              "to": {
-                "bendId": "route-bend-a7d85c5a0e43f8af",
-                "kind": "bend",
-                "position": {
-                  "x": 440,
-                  "y": 160
-                }
-              }
-            },
-            {
-              "id": "route-leg-a7d85b5a0e43f6fc",
               "mode": "manual",
               "to": {
                 "endpoint": {
@@ -2793,30 +2534,6 @@
           "legs": [
             {
               "id": "route-leg-5dee764c63230748",
-              "mode": "manual",
-              "to": {
-                "bendId": "route-bend-5dee764c63230748",
-                "kind": "bend",
-                "position": {
-                  "x": 500,
-                  "y": 160
-                }
-              }
-            },
-            {
-              "id": "route-leg-5dee774c632308fb",
-              "mode": "manual",
-              "to": {
-                "bendId": "route-bend-5dee774c632308fb",
-                "kind": "bend",
-                "position": {
-                  "x": 500,
-                  "y": 220
-                }
-              }
-            },
-            {
-              "id": "route-leg-5dee784c63230aae",
               "mode": "manual",
               "to": {
                 "endpoint": {
@@ -2923,6 +2640,1370 @@
             "kind": "terminal",
             "pinName": "S"
           }
+        },
+        {
+          "id": "dut-vss-m5-route",
+          "legs": [
+            {
+              "id": "route-leg-1fd2cacc728a5fec",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "junctionId": "junction-canonical-3993d1302f152696",
+                  "kind": "junction"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-cell-pin-pvss",
+          "start": {
+            "instanceId": "M6",
+            "kind": "terminal",
+            "pinName": "S"
+          }
+        },
+        {
+          "id": "dut-vss-port-route",
+          "legs": [
+            {
+              "id": "route-leg-9a243a8749f3f47b",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "instanceId": "PVSS",
+                  "kind": "terminal",
+                  "pinName": "P"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-cell-pin-pvss",
+          "start": {
+            "junctionId": "junction-canonical-3993d1302f152696",
+            "kind": "junction"
+          }
+        },
+        {
+          "id": "route-canonical-e161f2c6f556c327",
+          "legs": [
+            {
+              "id": "route-leg-6406fbb3dde68137",
+              "mode": "manual",
+              "to": {
+                "bendId": "route-bend-6406fbb3dde68137",
+                "kind": "bend",
+                "position": {
+                  "x": 480,
+                  "y": 490
+                }
+              }
+            },
+            {
+              "id": "route-leg-6406fab3dde67f84",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "instanceId": "M5",
+                  "kind": "terminal",
+                  "pinName": "S"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-cell-pin-pvss",
+          "start": {
+            "junctionId": "junction-canonical-3993d1302f152696",
+            "kind": "junction"
+          }
+        },
+        {
+          "id": "dut-ibias-port-route",
+          "legs": [
+            {
+              "id": "route-leg-df9387cdaaaab728",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "junctionId": "junction-canonical-a69a92ac5a85be8f",
+                  "kind": "junction"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-cell-pin-pibias",
+          "start": {
+            "instanceId": "PIBIAS",
+            "kind": "terminal",
+            "pinName": "P"
+          }
+        },
+        {
+          "id": "dut-ibias-m6d-route",
+          "legs": [
+            {
+              "id": "route-leg-dfa853aaa4309a7e",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "instanceId": "M6",
+                  "kind": "terminal",
+                  "pinName": "D"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-cell-pin-pibias",
+          "start": {
+            "junctionId": "junction-canonical-a69a92ac5a85be8f",
+            "kind": "junction"
+          }
+        },
+        {
+          "id": "dut-ibias-m5g-route",
+          "legs": [
+            {
+              "id": "route-leg-7172d946242cfd98",
+              "mode": "manual",
+              "to": {
+                "bendId": "route-bend-9351f6029255a2bb",
+                "kind": "bend",
+                "position": {
+                  "x": 380,
+                  "y": 400
+                }
+              }
+            },
+            {
+              "id": "route-leg-a63007ca9d22b9cc",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "junctionId": "junction-canonical-0fddbcfe7d216a81",
+                  "kind": "junction"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-cell-pin-pibias",
+          "start": {
+            "junctionId": "junction-canonical-a69a92ac5a85be8f",
+            "kind": "junction"
+          }
+        },
+        {
+          "id": "dut-ibias-m6g-route",
+          "legs": [
+            {
+              "id": "route-leg-36accc90d5a60eab",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "junctionId": "junction-canonical-0fddbcfe7d216a81",
+                  "kind": "junction"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-cell-pin-pibias",
+          "start": {
+            "instanceId": "M6",
+            "kind": "terminal",
+            "pinName": "G"
+          }
+        },
+        {
+          "id": "route-canonical-781ca20d250b5d82",
+          "legs": [
+            {
+              "id": "route-leg-77da2da4eeb4e9de",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "instanceId": "M5",
+                  "kind": "terminal",
+                  "pinName": "G"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-cell-pin-pibias",
+          "start": {
+            "junctionId": "junction-canonical-0fddbcfe7d216a81",
+            "kind": "junction"
+          }
+        }
+      ],
+      "sourceStatus": "connectivity-modified"
+    },
+    {
+      "annotations": [
+        {
+          "alignment": "middle",
+          "anchor": {
+            "fallbackPosition": {
+              "x": 615,
+              "y": 400
+            },
+            "kind": "object",
+            "localOffset": {
+              "x": 55,
+              "y": 80
+            },
+            "objectId": "XDUT"
+          },
+          "binding": {
+            "instanceId": "XDUT",
+            "kind": "instance-reference"
+          },
+          "id": "instance-label-XDUT",
+          "kind": "instance-label",
+          "locked": false,
+          "rotation": 0
+        },
+        {
+          "alignment": "middle",
+          "anchor": {
+            "fallbackPosition": {
+              "x": 460,
+              "y": 115
+            },
+            "kind": "object",
+            "localOffset": {
+              "x": -30,
+              "y": -45
+            },
+            "objectId": "VDD"
+          },
+          "binding": {
+            "instanceId": "VDD",
+            "kind": "instance-reference"
+          },
+          "id": "instance-label-VDD",
+          "kind": "instance-label",
+          "locked": false,
+          "rotation": 0
+        },
+        {
+          "alignment": "middle",
+          "anchor": {
+            "fallbackPosition": {
+              "x": 500,
+              "y": 115
+            },
+            "kind": "object",
+            "localOffset": {
+              "x": 10,
+              "y": -45
+            },
+            "objectId": "VDD"
+          },
+          "binding": {
+            "instanceId": "VDD",
+            "kind": "instance-value"
+          },
+          "id": "instance-value-VDD",
+          "kind": "instance-value",
+          "locked": false,
+          "rotation": 0
+        },
+        {
+          "alignment": "middle",
+          "anchor": {
+            "fallbackPosition": {
+              "x": 375,
+              "y": 265
+            },
+            "kind": "object",
+            "localOffset": {
+              "x": -25,
+              "y": -35
+            },
+            "objectId": "VINP"
+          },
+          "binding": {
+            "instanceId": "VINP",
+            "kind": "instance-reference"
+          },
+          "id": "instance-label-VINP",
+          "kind": "instance-label",
+          "locked": false,
+          "rotation": 0
+        },
+        {
+          "alignment": "middle",
+          "anchor": {
+            "fallbackPosition": {
+              "x": 420,
+              "y": 265
+            },
+            "kind": "object",
+            "localOffset": {
+              "x": 20,
+              "y": -35
+            },
+            "objectId": "VINP"
+          },
+          "binding": {
+            "instanceId": "VINP",
+            "kind": "instance-value"
+          },
+          "id": "instance-value-VINP",
+          "kind": "instance-value",
+          "locked": false,
+          "rotation": 0
+        },
+        {
+          "alignment": "middle",
+          "anchor": {
+            "fallbackPosition": {
+              "x": 380,
+              "y": 390
+            },
+            "kind": "object",
+            "localOffset": {
+              "x": -20,
+              "y": 40
+            },
+            "objectId": "VINN"
+          },
+          "binding": {
+            "instanceId": "VINN",
+            "kind": "instance-reference"
+          },
+          "id": "instance-label-VINN",
+          "kind": "instance-label",
+          "locked": false,
+          "rotation": 0
+        },
+        {
+          "alignment": "middle",
+          "anchor": {
+            "fallbackPosition": {
+              "x": 425,
+              "y": 390
+            },
+            "kind": "object",
+            "localOffset": {
+              "x": 25,
+              "y": 40
+            },
+            "objectId": "VINN"
+          },
+          "binding": {
+            "instanceId": "VINN",
+            "kind": "instance-value"
+          },
+          "id": "instance-value-VINN",
+          "kind": "instance-value",
+          "locked": false,
+          "rotation": 0
+        },
+        {
+          "alignment": "start",
+          "anchor": {
+            "fallbackPosition": {
+              "x": 500,
+              "y": 205
+            },
+            "kind": "object",
+            "localOffset": {
+              "x": -50,
+              "y": -5
+            },
+            "objectId": "IBIAS"
+          },
+          "binding": {
+            "instanceId": "IBIAS",
+            "kind": "instance-reference"
+          },
+          "id": "instance-label-IBIAS",
+          "kind": "instance-label",
+          "locked": false,
+          "rotation": 0
+        },
+        {
+          "alignment": "start",
+          "anchor": {
+            "fallbackPosition": {
+              "x": 500,
+              "y": 230
+            },
+            "kind": "object",
+            "localOffset": {
+              "x": -50,
+              "y": 20
+            },
+            "objectId": "IBIAS"
+          },
+          "binding": {
+            "instanceId": "IBIAS",
+            "kind": "instance-value"
+          },
+          "id": "instance-value-IBIAS",
+          "kind": "instance-value",
+          "locked": false,
+          "rotation": 0
+        },
+        {
+          "alignment": "start",
+          "anchor": {
+            "fallbackPosition": {
+              "x": 750,
+              "y": 355
+            },
+            "kind": "object",
+            "localOffset": {
+              "x": 20,
+              "y": -5
+            },
+            "objectId": "CL"
+          },
+          "binding": {
+            "instanceId": "CL",
+            "kind": "instance-reference"
+          },
+          "id": "instance-label-CL",
+          "kind": "instance-label",
+          "locked": false,
+          "rotation": 0
+        },
+        {
+          "alignment": "start",
+          "anchor": {
+            "fallbackPosition": {
+              "x": 775,
+              "y": 355
+            },
+            "kind": "object",
+            "localOffset": {
+              "x": 45,
+              "y": -5
+            },
+            "objectId": "CL"
+          },
+          "binding": {
+            "instanceId": "CL",
+            "kind": "instance-value"
+          },
+          "id": "instance-value-CL",
+          "kind": "instance-value",
+          "locked": false,
+          "rotation": 0
+        },
+        {
+          "alignment": "middle",
+          "anchor": {
+            "direction": "forward",
+            "fallbackPosition": {
+              "x": 685,
+              "y": 310
+            },
+            "kind": "route",
+            "legId": "route-leg-9cbad225568967f9",
+            "normalOffset": -10,
+            "orientation": "follow",
+            "routeId": "tb-vout-route",
+            "t": 0.5
+          },
+          "binding": {
+            "kind": "net-name",
+            "netId": "tb-vout-net"
+          },
+          "id": "net-label-tb-vout-route",
+          "kind": "net-label",
+          "locked": false,
+          "netId": "tb-vout-net",
+          "rotation": 0
+        },
+        {
+          "alignment": "middle",
+          "anchor": {
+            "direction": "forward",
+            "fallbackPosition": {
+              "x": 0,
+              "y": 0
+            },
+            "kind": "route",
+            "legId": "route-leg-3de2f026488177e2",
+            "normalOffset": -10,
+            "orientation": "follow",
+            "routeId": "route-ui-3",
+            "t": 0.5
+          },
+          "binding": {
+            "kind": "net-name",
+            "netId": "net-tb-vdd"
+          },
+          "id": "net-label-tb-vdd-source-route",
+          "kind": "net-label",
+          "locked": false,
+          "netId": "net-tb-vdd",
+          "rotation": 0
+        },
+        {
+          "alignment": "middle",
+          "anchor": {
+            "direction": "forward",
+            "fallbackPosition": {
+              "x": 0,
+              "y": 0
+            },
+            "kind": "route",
+            "legId": "route-leg-9c7f13cc644db106",
+            "normalOffset": 14,
+            "orientation": "follow",
+            "routeId": "tb-ibias-route",
+            "t": 0.5
+          },
+          "binding": {
+            "kind": "net-name",
+            "netId": "tb-ibias-net"
+          },
+          "id": "net-label-tb-ibias-route",
+          "kind": "net-label",
+          "locked": false,
+          "netId": "tb-ibias-net",
+          "rotation": 0
+        },
+        {
+          "alignment": "middle",
+          "anchor": {
+            "direction": "forward",
+            "fallbackPosition": {
+              "x": 0,
+              "y": 0
+            },
+            "kind": "route",
+            "legId": "route-leg-db9df17a18d56e33",
+            "normalOffset": -10,
+            "orientation": "follow",
+            "routeId": "tb-vinp-route",
+            "t": 0.5
+          },
+          "binding": {
+            "kind": "net-name",
+            "netId": "tb-vinp-net"
+          },
+          "id": "net-label-tb-vinp-route",
+          "kind": "net-label",
+          "locked": false,
+          "netId": "tb-vinp-net",
+          "rotation": 0
+        },
+        {
+          "alignment": "middle",
+          "anchor": {
+            "direction": "forward",
+            "fallbackPosition": {
+              "x": 0,
+              "y": 0
+            },
+            "kind": "route",
+            "legId": "route-leg-42de78b6b7306d55",
+            "normalOffset": -10,
+            "orientation": "follow",
+            "routeId": "tb-vinn-route",
+            "t": 0.5
+          },
+          "binding": {
+            "kind": "net-name",
+            "netId": "tb-vinn-net"
+          },
+          "id": "net-label-tb-vinn-route",
+          "kind": "net-label",
+          "locked": false,
+          "netId": "tb-vinn-net",
+          "rotation": 0
+        }
+      ],
+      "connectivityEvidence": [
+        {
+          "id": "connectivity-evidence-33dd40c74ee1950d",
+          "kind": "name-claim",
+          "name": "0",
+          "netId": "net-split-a810f1946a2e3084",
+          "owner": {
+            "kind": "power-marker",
+            "objectId": "GND1"
+          },
+          "powerDomain": "ground",
+          "scope": "global"
+        },
+        {
+          "id": "connectivity-evidence-4fd51303c6ed3225",
+          "kind": "name-claim",
+          "name": "0",
+          "netId": "net-split-f3cbcac420d93ece",
+          "owner": {
+            "kind": "power-marker",
+            "objectId": "GND2"
+          },
+          "powerDomain": "ground",
+          "scope": "global"
+        },
+        {
+          "id": "connectivity-evidence-97019202b6a994e5",
+          "kind": "name-claim",
+          "name": "0",
+          "netId": "net-power-gnd3",
+          "owner": {
+            "kind": "power-marker",
+            "objectId": "GND3"
+          },
+          "powerDomain": "ground",
+          "scope": "global"
+        },
+        {
+          "id": "connectivity-evidence-d2bb87eae3b4a1c5",
+          "kind": "name-claim",
+          "name": "0",
+          "netId": "net-power-gnd4",
+          "owner": {
+            "kind": "power-marker",
+            "objectId": "GND4"
+          },
+          "powerDomain": "ground",
+          "scope": "global"
+        },
+        {
+          "id": "connectivity-evidence-7ec67ce55c90646d",
+          "kind": "name-claim",
+          "name": "0",
+          "netId": "net-power-gnd5",
+          "owner": {
+            "kind": "power-marker",
+            "objectId": "GND5"
+          },
+          "powerDomain": "ground",
+          "scope": "global"
+        },
+        {
+          "id": "connectivity-evidence-7df4b9f72a121645",
+          "kind": "name-claim",
+          "name": "vdd",
+          "netId": "net-tb-vdd",
+          "owner": {
+            "annotationId": "net-label-tb-vdd-source-route",
+            "kind": "net-label"
+          },
+          "scope": "local"
+        },
+        {
+          "id": "connectivity-evidence-f7b96bb5ab25d11a",
+          "kind": "name-claim",
+          "name": "ibias",
+          "netId": "tb-ibias-net",
+          "owner": {
+            "annotationId": "net-label-tb-ibias-route",
+            "kind": "net-label"
+          },
+          "scope": "local"
+        },
+        {
+          "id": "connectivity-evidence-ade80d1dc122d646",
+          "kind": "name-claim",
+          "name": "vinp",
+          "netId": "tb-vinp-net",
+          "owner": {
+            "annotationId": "net-label-tb-vinp-route",
+            "kind": "net-label"
+          },
+          "scope": "local"
+        },
+        {
+          "id": "connectivity-evidence-b66084c183ee210e",
+          "kind": "name-claim",
+          "name": "vinn",
+          "netId": "tb-vinn-net",
+          "owner": {
+            "annotationId": "net-label-tb-vinn-route",
+            "kind": "net-label"
+          },
+          "scope": "local"
+        },
+        {
+          "id": "connectivity-evidence-db342e0a821d20d0",
+          "kind": "name-claim",
+          "name": "vout",
+          "netId": "tb-vout-net",
+          "owner": {
+            "annotationId": "net-label-tb-vout-route",
+            "kind": "net-label"
+          },
+          "scope": "local"
+        }
+      ],
+      "constraints": [],
+      "drafting": {
+        "objects": []
+      },
+      "id": "document-ota-5t-testbench-sin",
+      "instances": [
+        {
+          "id": "XDUT",
+          "netlist": {
+            "binding": {
+              "childDocumentId": "document-ota-5t",
+              "kind": "subcircuit"
+            },
+            "parameters": {}
+          },
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 560,
+              "y": 320
+            },
+            "rotation": 0
+          },
+          "reference": "XDUT",
+          "symbolId": "hierarchical-symbol-72404fc79d737213"
+        },
+        {
+          "id": "VDD",
+          "netlist": {
+            "binding": {
+              "deviceClass": "voltage-source",
+              "kind": "primitive"
+            },
+            "parameters": {
+              "dc": "1.8"
+            }
+          },
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 490,
+              "y": 160
+            },
+            "rotation": 90
+          },
+          "reference": "VDD",
+          "symbolId": "voltage-source"
+        },
+        {
+          "id": "VINP",
+          "netlist": {
+            "binding": {
+              "deviceClass": "voltage-source",
+              "kind": "primitive"
+            },
+            "parameters": {
+              "acMagnitude": "1",
+              "amplitude": "10m",
+              "damping": "0",
+              "dc": "0.9",
+              "delay": "0",
+              "frequency": "1Meg",
+              "offset": "0.9",
+              "phase": "0",
+              "waveform": "sin"
+            }
+          },
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 400,
+              "y": 300
+            },
+            "rotation": 90
+          },
+          "reference": "VINP",
+          "symbolId": "voltage-source"
+        },
+        {
+          "id": "VINN",
+          "netlist": {
+            "binding": {
+              "deviceClass": "voltage-source",
+              "kind": "primitive"
+            },
+            "parameters": {
+              "dc": "0.9"
+            }
+          },
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 400,
+              "y": 350
+            },
+            "rotation": 90
+          },
+          "reference": "VINN",
+          "symbolId": "voltage-source"
+        },
+        {
+          "id": "IBIAS",
+          "netlist": {
+            "binding": {
+              "deviceClass": "current-source",
+              "kind": "primitive"
+            },
+            "parameters": {
+              "dc": "15u"
+            }
+          },
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 550,
+              "y": 210
+            },
+            "rotation": 0
+          },
+          "reference": "IBIAS",
+          "symbolId": "current-source"
+        },
+        {
+          "id": "CL",
+          "netlist": {
+            "binding": {
+              "deviceClass": "capacitor",
+              "kind": "primitive"
+            },
+            "parameters": {
+              "value": "1p"
+            }
+          },
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 730,
+              "y": 360
+            },
+            "rotation": 0
+          },
+          "reference": "CL",
+          "symbolId": "capacitor"
+        },
+        {
+          "id": "GND1",
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 430,
+              "y": 160
+            },
+            "rotation": 90
+          },
+          "symbolId": "ground"
+        },
+        {
+          "id": "GND2",
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 340,
+              "y": 300
+            },
+            "rotation": 90
+          },
+          "symbolId": "ground"
+        },
+        {
+          "id": "GND3",
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 340,
+              "y": 350
+            },
+            "rotation": 90
+          },
+          "symbolId": "ground"
+        },
+        {
+          "id": "GND4",
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 560,
+              "y": 420
+            },
+            "rotation": 0
+          },
+          "symbolId": "ground"
+        },
+        {
+          "id": "GND5",
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 730,
+              "y": 400
+            },
+            "rotation": 0
+          },
+          "symbolId": "ground"
+        }
+      ],
+      "junctions": [
+        {
+          "id": "junction-canonical-fa66a02887bbb6d9",
+          "netId": "net-tb-vdd",
+          "position": {
+            "x": 550,
+            "y": 160
+          },
+          "role": "branch"
+        }
+      ],
+      "layoutGroups": [],
+      "name": "Testbench SIN",
+      "netlist": {
+        "formalParameters": [],
+        "name": "Testbench_SIN",
+        "terminals": []
+      },
+      "nets": [
+        {
+          "id": "net-power-gnd3",
+          "terminals": [
+            {
+              "instanceId": "GND3",
+              "pinName": "0"
+            },
+            {
+              "instanceId": "VINN",
+              "pinName": "-"
+            }
+          ]
+        },
+        {
+          "id": "net-power-gnd4",
+          "terminals": [
+            {
+              "instanceId": "GND4",
+              "pinName": "0"
+            },
+            {
+              "instanceId": "XDUT",
+              "pinName": "vss"
+            }
+          ]
+        },
+        {
+          "id": "net-power-gnd5",
+          "terminals": [
+            {
+              "instanceId": "GND5",
+              "pinName": "0"
+            },
+            {
+              "instanceId": "CL",
+              "pinName": "2"
+            }
+          ]
+        },
+        {
+          "id": "net-tb-vdd",
+          "terminals": [
+            {
+              "instanceId": "VDD",
+              "pinName": "+"
+            },
+            {
+              "instanceId": "IBIAS",
+              "pinName": "+"
+            },
+            {
+              "instanceId": "XDUT",
+              "pinName": "vdd"
+            }
+          ]
+        },
+        {
+          "id": "tb-ibias-net",
+          "terminals": [
+            {
+              "instanceId": "IBIAS",
+              "pinName": "-"
+            },
+            {
+              "instanceId": "XDUT",
+              "pinName": "ibias"
+            }
+          ]
+        },
+        {
+          "id": "tb-vinp-net",
+          "terminals": [
+            {
+              "instanceId": "VINP",
+              "pinName": "+"
+            },
+            {
+              "instanceId": "XDUT",
+              "pinName": "vinp"
+            }
+          ]
+        },
+        {
+          "id": "tb-vinn-net",
+          "terminals": [
+            {
+              "instanceId": "VINN",
+              "pinName": "+"
+            },
+            {
+              "instanceId": "XDUT",
+              "pinName": "vinn"
+            }
+          ]
+        },
+        {
+          "id": "tb-vout-net",
+          "terminals": [
+            {
+              "instanceId": "XDUT",
+              "pinName": "vout"
+            },
+            {
+              "instanceId": "CL",
+              "pinName": "1"
+            }
+          ]
+        },
+        {
+          "id": "net-split-a810f1946a2e3084",
+          "terminals": [
+            {
+              "instanceId": "GND1",
+              "pinName": "0"
+            },
+            {
+              "instanceId": "VDD",
+              "pinName": "-"
+            }
+          ]
+        },
+        {
+          "id": "net-split-f3cbcac420d93ece",
+          "terminals": [
+            {
+              "instanceId": "GND2",
+              "pinName": "0"
+            },
+            {
+              "instanceId": "VINP",
+              "pinName": "-"
+            }
+          ]
+        }
+      ],
+      "noConnects": [],
+      "presentation": {
+        "compactness": "normal",
+        "grid": 10,
+        "styleProfileId": "razavi-textbook-v1"
+      },
+      "revision": 161,
+      "routes": [
+        {
+          "id": "tb-gnd-vinn-route",
+          "legs": [
+            {
+              "id": "route-leg-34fd6882297027f4",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "instanceId": "GND3",
+                  "kind": "terminal",
+                  "pinName": "0"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-power-gnd3",
+          "start": {
+            "instanceId": "VINN",
+            "kind": "terminal",
+            "pinName": "-"
+          }
+        },
+        {
+          "id": "tb-gnd-dut-route",
+          "legs": [
+            {
+              "id": "route-leg-ac185f3591d27db9",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "instanceId": "XDUT",
+                  "kind": "terminal",
+                  "pinName": "vss"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-power-gnd4",
+          "start": {
+            "instanceId": "GND4",
+            "kind": "terminal",
+            "pinName": "0"
+          }
+        },
+        {
+          "id": "tb-gnd-cl-route",
+          "legs": [
+            {
+              "id": "route-leg-af02721fb438a990",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "instanceId": "GND5",
+                  "kind": "terminal",
+                  "pinName": "0"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-power-gnd5",
+          "start": {
+            "instanceId": "CL",
+            "kind": "terminal",
+            "pinName": "2"
+          }
+        },
+        {
+          "id": "tb-ibias-route",
+          "legs": [
+            {
+              "id": "route-leg-9c7f13cc644db106",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "instanceId": "XDUT",
+                  "kind": "terminal",
+                  "pinName": "ibias"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "tb-ibias-net",
+          "start": {
+            "instanceId": "IBIAS",
+            "kind": "terminal",
+            "pinName": "-"
+          }
+        },
+        {
+          "id": "tb-vinp-route",
+          "legs": [
+            {
+              "id": "route-leg-db9df07a18d56c80",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "instanceId": "XDUT",
+                  "kind": "terminal",
+                  "pinName": "vinp"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "tb-vinp-net",
+          "start": {
+            "instanceId": "VINP",
+            "kind": "terminal",
+            "pinName": "+"
+          }
+        },
+        {
+          "id": "tb-vinn-route",
+          "legs": [
+            {
+              "id": "route-leg-42de77b6b7306ba2",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "instanceId": "XDUT",
+                  "kind": "terminal",
+                  "pinName": "vinn"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "tb-vinn-net",
+          "start": {
+            "instanceId": "VINN",
+            "kind": "terminal",
+            "pinName": "+"
+          }
+        },
+        {
+          "id": "tb-vout-route",
+          "legs": [
+            {
+              "id": "route-leg-9cbad225568967f9",
+              "mode": "manual",
+              "to": {
+                "bendId": "route-bend-9cbad225568967f9",
+                "kind": "bend",
+                "position": {
+                  "x": 730,
+                  "y": 320
+                }
+              }
+            },
+            {
+              "id": "route-leg-9cbad12556896646",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "instanceId": "CL",
+                  "kind": "terminal",
+                  "pinName": "1"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "tb-vout-net",
+          "start": {
+            "instanceId": "XDUT",
+            "kind": "terminal",
+            "pinName": "vout"
+          }
+        },
+        {
+          "id": "route-ui-1",
+          "legs": [
+            {
+              "id": "route-leg-ace29482c237b3d7",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "instanceId": "VDD",
+                  "kind": "terminal",
+                  "pinName": "-"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-split-a810f1946a2e3084",
+          "start": {
+            "instanceId": "GND1",
+            "kind": "terminal",
+            "pinName": "0"
+          }
+        },
+        {
+          "id": "route-35e042e11550de52",
+          "legs": [
+            {
+              "id": "route-leg-94c48a25d3985fe6",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "instanceId": "VINP",
+                  "kind": "terminal",
+                  "pinName": "-"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-split-f3cbcac420d93ece",
+          "start": {
+            "instanceId": "GND2",
+            "kind": "terminal",
+            "pinName": "0"
+          }
+        },
+        {
+          "id": "route-ui-3",
+          "legs": [
+            {
+              "id": "route-leg-950eb45aec291af5",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "junctionId": "junction-canonical-fa66a02887bbb6d9",
+                  "kind": "junction"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-tb-vdd",
+          "start": {
+            "instanceId": "VDD",
+            "kind": "terminal",
+            "pinName": "+"
+          }
+        },
+        {
+          "id": "tb-vdd-dut-route-a-2",
+          "legs": [
+            {
+              "id": "route-leg-624f4d1edaa3951c",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "instanceId": "IBIAS",
+                  "kind": "terminal",
+                  "pinName": "+"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-tb-vdd",
+          "start": {
+            "junctionId": "junction-canonical-fa66a02887bbb6d9",
+            "kind": "junction"
+          }
+        },
+        {
+          "id": "tb-vdd-dut-route-b-2",
+          "legs": [
+            {
+              "id": "route-leg-c64a8aa78eb2d60f",
+              "mode": "manual",
+              "to": {
+                "bendId": "route-bend-624f4d1edaa3951c",
+                "kind": "bend",
+                "position": {
+                  "x": 590,
+                  "y": 160
+                }
+              }
+            },
+            {
+              "id": "route-leg-624f4e1edaa396cf",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "instanceId": "XDUT",
+                  "kind": "terminal",
+                  "pinName": "vdd"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-tb-vdd",
+          "start": {
+            "junctionId": "junction-canonical-fa66a02887bbb6d9",
+            "kind": "junction"
+          }
         }
       ],
       "sourceStatus": "connectivity-modified"
@@ -3021,16 +4102,12 @@
     }
   ],
   "id": "project-five-transistor-ota-sky130",
-  "name": "Five-Transistor OTA (Sky130)",
+  "name": "Five-Transistor OTA — Full Simulation Lab",
   "schemaVersion": 47,
   "simulationSetups": [
     {
       "id": "simulation-setup-ota-op-ac",
-      "name": "OTA OP, DC, AC, and TRAN",
-      "version": 2,
       "input": {
-        "kind": "structured",
-        "rootDocumentId": "document-ota-5t-testbench",
         "analyses": [
           {
             "kind": "op"
@@ -3039,15 +4116,15 @@
             "kind": "dc",
             "sourceInstanceId": "VINP",
             "startValue": 0.88,
-            "stopValue": 0.92,
-            "stepValue": 0.005
+            "stepValue": 0.005,
+            "stopValue": 0.92
           },
           {
             "kind": "ac",
-            "sweep": "dec",
             "points": 10,
             "startHz": 1,
-            "stopHz": 1000000000
+            "stopHz": 1000000000,
+            "sweep": "dec"
           },
           {
             "kind": "tran",
@@ -3055,439 +4132,1679 @@
             "stopSeconds": 0.000004
           }
         ],
+        "environment": {
+          "corner": "tt",
+          "profileId": "sky130-core-continuous-ngspice46-v1",
+          "temperatureC": 27
+        },
+        "kind": "structured",
         "outputs": [
           {
-            "id": "probe-vout",
-            "label": "vout",
             "expression": {
-              "kind": "voltage",
-              "documentId": "document-ota-5t-testbench",
               "anchor": {
-                "kind": "terminal",
                 "instanceId": "XDUT",
+                "kind": "terminal",
                 "pinName": "vout"
               },
+              "documentId": "document-ota-5t-testbench",
+              "kind": "voltage",
               "occurrence": []
-            }
+            },
+            "id": "probe-vout",
+            "label": "vout"
           },
           {
-            "id": "probe-ibias",
-            "label": "ibias",
             "expression": {
-              "kind": "voltage",
-              "documentId": "document-ota-5t-testbench",
               "anchor": {
-                "kind": "terminal",
                 "instanceId": "IBIAS",
+                "kind": "terminal",
                 "pinName": "-"
               },
+              "documentId": "document-ota-5t-testbench",
+              "kind": "voltage",
               "occurrence": []
-            }
+            },
+            "id": "probe-ibias",
+            "label": "ibias"
           },
           {
-            "id": "probe-tail",
-            "label": "tail",
             "expression": {
-              "kind": "voltage",
-              "documentId": "document-ota-5t",
               "anchor": {
-                "kind": "terminal",
                 "instanceId": "M5",
+                "kind": "terminal",
                 "pinName": "D"
               },
+              "documentId": "document-ota-5t",
+              "kind": "voltage",
               "occurrence": ["XDUT"]
-            }
+            },
+            "id": "probe-tail",
+            "label": "tail"
           },
           {
-            "id": "probe-nleft",
-            "label": "nleft",
             "expression": {
-              "kind": "voltage",
-              "documentId": "document-ota-5t",
               "anchor": {
-                "kind": "terminal",
                 "instanceId": "M3",
+                "kind": "terminal",
                 "pinName": "D"
               },
+              "documentId": "document-ota-5t",
+              "kind": "voltage",
               "occurrence": ["XDUT"]
-            }
+            },
+            "id": "probe-nleft",
+            "label": "nleft"
+          }
+        ],
+        "rootDocumentId": "document-ota-5t-testbench"
+      },
+      "name": "OTA OP, DC, AC, and TRAN",
+      "version": 2
+    },
+    {
+      "id": "simulation-setup-ota-full-tt",
+      "input": {
+        "analyses": [
+          {
+            "kind": "op"
+          },
+          {
+            "kind": "dc",
+            "sourceInstanceId": "VINP",
+            "startValue": 0.86,
+            "stepValue": 0.001,
+            "stopValue": 0.94
+          },
+          {
+            "kind": "ac",
+            "points": 40,
+            "startHz": 1,
+            "stopHz": 1000000000,
+            "sweep": "dec"
+          },
+          {
+            "kind": "tran",
+            "maxStepSeconds": 1e-8,
+            "stepSeconds": 1e-8,
+            "stopSeconds": 0.000006
+          },
+          {
+            "inputSourceInstanceId": "VINP",
+            "kind": "noise",
+            "output": {
+              "positive": {
+                "anchor": {
+                  "instanceId": "XDUT",
+                  "kind": "terminal",
+                  "pinName": "vout"
+                },
+                "documentId": "document-ota-5t-testbench",
+                "occurrence": []
+              }
+            },
+            "points": 40,
+            "startHz": 1,
+            "stopHz": 1000000000,
+            "sweep": "dec"
+          }
+        ],
+        "deviceOperatingPoints": [
+          {
+            "documentId": "document-ota-5t",
+            "id": "device-op-m1",
+            "instanceId": "M1",
+            "occurrence": ["XDUT"]
+          },
+          {
+            "documentId": "document-ota-5t",
+            "id": "device-op-m3",
+            "instanceId": "M3",
+            "occurrence": ["XDUT"]
           }
         ],
         "environment": {
-          "profileId": "sky130-core-continuous-ngspice46-v1",
           "corner": "tt",
+          "profileId": "sky130-core-continuous-ngspice46-v1",
           "temperatureC": 27
-        }
-      }
+        },
+        "kind": "structured",
+        "measurements": [
+          {
+            "analysis": "op",
+            "id": "measure-vout-op",
+            "label": "VOUT bias",
+            "method": {
+              "kind": "value"
+            },
+            "outputId": "probe-vout"
+          },
+          {
+            "analysis": "dc",
+            "id": "measure-dc-min",
+            "label": "VOUT DC minimum",
+            "method": {
+              "kind": "minimum"
+            },
+            "outputId": "probe-vout"
+          },
+          {
+            "analysis": "ac",
+            "id": "measure-ac-gain-1k",
+            "label": "Gain at 1 kHz",
+            "method": {
+              "coordinate": 1000,
+              "kind": "sample-at"
+            },
+            "outputId": "probe-gain-db"
+          },
+          {
+            "analysis": "tran",
+            "id": "measure-tran-pp",
+            "label": "VOUT peak-to-peak",
+            "method": {
+              "kind": "peak-to-peak",
+              "window": {
+                "start": 0.000001,
+                "stop": 0.000004
+              }
+            },
+            "outputId": "probe-vout"
+          },
+          {
+            "analysis": "tran",
+            "id": "measure-tran-mean",
+            "label": "VOUT mean",
+            "method": {
+              "kind": "mean",
+              "window": {
+                "start": 0.000001,
+                "stop": 0.000004
+              }
+            },
+            "outputId": "probe-vout"
+          },
+          {
+            "analysis": "tran",
+            "id": "measure-tran-rms",
+            "label": "VOUT RMS",
+            "method": {
+              "kind": "rms",
+              "window": {
+                "start": 0.000001,
+                "stop": 0.000004
+              }
+            },
+            "outputId": "probe-vout"
+          },
+          {
+            "analysis": "noise",
+            "id": "measure-noise-1k",
+            "label": "Output noise at 1 kHz",
+            "method": {
+              "coordinate": 1000,
+              "kind": "sample-at"
+            },
+            "outputId": "noise-output-density"
+          }
+        ],
+        "outputs": [
+          {
+            "expression": {
+              "anchor": {
+                "instanceId": "XDUT",
+                "kind": "terminal",
+                "pinName": "vout"
+              },
+              "documentId": "document-ota-5t-testbench",
+              "kind": "voltage",
+              "occurrence": []
+            },
+            "id": "probe-vout",
+            "label": "vout"
+          },
+          {
+            "expression": {
+              "anchor": {
+                "instanceId": "VINP",
+                "kind": "terminal",
+                "pinName": "+"
+              },
+              "documentId": "document-ota-5t-testbench",
+              "kind": "voltage",
+              "occurrence": []
+            },
+            "id": "probe-vinp",
+            "label": "vinp"
+          },
+          {
+            "expression": {
+              "anchor": {
+                "instanceId": "IBIAS",
+                "kind": "terminal",
+                "pinName": "-"
+              },
+              "documentId": "document-ota-5t-testbench",
+              "kind": "voltage",
+              "occurrence": []
+            },
+            "id": "probe-ibias",
+            "label": "ibias"
+          },
+          {
+            "expression": {
+              "anchor": {
+                "instanceId": "M5",
+                "kind": "terminal",
+                "pinName": "D"
+              },
+              "documentId": "document-ota-5t",
+              "kind": "voltage",
+              "occurrence": ["XDUT"]
+            },
+            "id": "probe-tail",
+            "label": "tail"
+          },
+          {
+            "expression": {
+              "anchor": {
+                "instanceId": "M3",
+                "kind": "terminal",
+                "pinName": "D"
+              },
+              "documentId": "document-ota-5t",
+              "kind": "voltage",
+              "occurrence": ["XDUT"]
+            },
+            "id": "probe-nleft",
+            "label": "nleft"
+          },
+          {
+            "expression": {
+              "kind": "negate",
+              "operand": {
+                "documentId": "document-ota-5t-testbench",
+                "instanceId": "VDD",
+                "kind": "current",
+                "occurrence": [],
+                "pinName": "+"
+              }
+            },
+            "id": "probe-supply-current",
+            "label": "I_supply"
+          },
+          {
+            "expression": {
+              "kind": "divide",
+              "left": {
+                "anchor": {
+                  "instanceId": "XDUT",
+                  "kind": "terminal",
+                  "pinName": "vout"
+                },
+                "documentId": "document-ota-5t-testbench",
+                "kind": "voltage",
+                "occurrence": []
+              },
+              "right": {
+                "anchor": {
+                  "instanceId": "VINP",
+                  "kind": "terminal",
+                  "pinName": "+"
+                },
+                "documentId": "document-ota-5t-testbench",
+                "kind": "voltage",
+                "occurrence": []
+              }
+            },
+            "id": "probe-gain",
+            "label": "A_v"
+          },
+          {
+            "expression": {
+              "kind": "db20",
+              "operand": {
+                "kind": "divide",
+                "left": {
+                  "anchor": {
+                    "instanceId": "XDUT",
+                    "kind": "terminal",
+                    "pinName": "vout"
+                  },
+                  "documentId": "document-ota-5t-testbench",
+                  "kind": "voltage",
+                  "occurrence": []
+                },
+                "right": {
+                  "anchor": {
+                    "instanceId": "VINP",
+                    "kind": "terminal",
+                    "pinName": "+"
+                  },
+                  "documentId": "document-ota-5t-testbench",
+                  "kind": "voltage",
+                  "occurrence": []
+                }
+              }
+            },
+            "id": "probe-gain-db",
+            "label": "A_v / dB"
+          },
+          {
+            "expression": {
+              "kind": "phase",
+              "operand": {
+                "kind": "divide",
+                "left": {
+                  "anchor": {
+                    "instanceId": "XDUT",
+                    "kind": "terminal",
+                    "pinName": "vout"
+                  },
+                  "documentId": "document-ota-5t-testbench",
+                  "kind": "voltage",
+                  "occurrence": []
+                },
+                "right": {
+                  "anchor": {
+                    "instanceId": "VINP",
+                    "kind": "terminal",
+                    "pinName": "+"
+                  },
+                  "documentId": "document-ota-5t-testbench",
+                  "kind": "voltage",
+                  "occurrence": []
+                }
+              }
+            },
+            "id": "probe-gain-phase",
+            "label": "phase(A_v)"
+          }
+        ],
+        "rootDocumentId": "document-ota-5t-testbench"
+      },
+      "name": "Complete OP, DC, AC, TRAN, and Noise (TT)",
+      "version": 2
     },
     {
       "id": "simulation-setup-ota-bias-tt",
-      "name": "Bias point (TT)",
-      "version": 2,
       "input": {
-        "kind": "structured",
-        "rootDocumentId": "document-ota-5t-testbench",
         "analyses": [
           {
             "kind": "op"
           }
         ],
-        "outputs": [
+        "deviceOperatingPoints": [
           {
-            "id": "probe-vout",
-            "label": "vout",
-            "expression": {
-              "kind": "voltage",
-              "documentId": "document-ota-5t-testbench",
-              "anchor": {
-                "kind": "terminal",
-                "instanceId": "XDUT",
-                "pinName": "vout"
-              },
-              "occurrence": []
-            }
+            "documentId": "document-ota-5t",
+            "id": "device-op-m1",
+            "instanceId": "M1",
+            "occurrence": ["XDUT"]
           },
           {
-            "id": "probe-ibias",
-            "label": "ibias",
-            "expression": {
-              "kind": "voltage",
-              "documentId": "document-ota-5t-testbench",
-              "anchor": {
-                "kind": "terminal",
-                "instanceId": "IBIAS",
-                "pinName": "-"
-              },
-              "occurrence": []
-            }
-          },
-          {
-            "id": "probe-tail",
-            "label": "tail",
-            "expression": {
-              "kind": "voltage",
-              "documentId": "document-ota-5t",
-              "anchor": {
-                "kind": "terminal",
-                "instanceId": "M5",
-                "pinName": "D"
-              },
-              "occurrence": ["XDUT"]
-            }
-          },
-          {
-            "id": "probe-nleft",
-            "label": "nleft",
-            "expression": {
-              "kind": "voltage",
-              "documentId": "document-ota-5t",
-              "anchor": {
-                "kind": "terminal",
-                "instanceId": "M3",
-                "pinName": "D"
-              },
-              "occurrence": ["XDUT"]
-            }
-          },
-          {
-            "id": "probe-supply-current",
-            "label": "I_supply",
-            "expression": {
-              "kind": "negate",
-              "operand": {
-                "kind": "current",
-                "documentId": "document-ota-5t-testbench",
-                "instanceId": "VDD",
-                "pinName": "+",
-                "occurrence": []
-              }
-            }
+            "documentId": "document-ota-5t",
+            "id": "device-op-m3",
+            "instanceId": "M3",
+            "occurrence": ["XDUT"]
           }
         ],
         "environment": {
-          "profileId": "sky130-core-continuous-ngspice46-v1",
           "corner": "tt",
+          "profileId": "sky130-core-continuous-ngspice46-v1",
           "temperatureC": 27
-        }
-      }
+        },
+        "kind": "structured",
+        "measurements": [
+          {
+            "analysis": "op",
+            "id": "measure-vout-op",
+            "label": "VOUT bias",
+            "method": {
+              "kind": "value"
+            },
+            "outputId": "probe-vout"
+          },
+          {
+            "analysis": "op",
+            "id": "measure-supply-current-op",
+            "label": "Supply current",
+            "method": {
+              "kind": "value"
+            },
+            "outputId": "probe-supply-current"
+          }
+        ],
+        "outputs": [
+          {
+            "expression": {
+              "anchor": {
+                "instanceId": "XDUT",
+                "kind": "terminal",
+                "pinName": "vout"
+              },
+              "documentId": "document-ota-5t-testbench",
+              "kind": "voltage",
+              "occurrence": []
+            },
+            "id": "probe-vout",
+            "label": "vout"
+          },
+          {
+            "expression": {
+              "anchor": {
+                "instanceId": "VINP",
+                "kind": "terminal",
+                "pinName": "+"
+              },
+              "documentId": "document-ota-5t-testbench",
+              "kind": "voltage",
+              "occurrence": []
+            },
+            "id": "probe-vinp",
+            "label": "vinp"
+          },
+          {
+            "expression": {
+              "anchor": {
+                "instanceId": "IBIAS",
+                "kind": "terminal",
+                "pinName": "-"
+              },
+              "documentId": "document-ota-5t-testbench",
+              "kind": "voltage",
+              "occurrence": []
+            },
+            "id": "probe-ibias",
+            "label": "ibias"
+          },
+          {
+            "expression": {
+              "anchor": {
+                "instanceId": "M5",
+                "kind": "terminal",
+                "pinName": "D"
+              },
+              "documentId": "document-ota-5t",
+              "kind": "voltage",
+              "occurrence": ["XDUT"]
+            },
+            "id": "probe-tail",
+            "label": "tail"
+          },
+          {
+            "expression": {
+              "anchor": {
+                "instanceId": "M3",
+                "kind": "terminal",
+                "pinName": "D"
+              },
+              "documentId": "document-ota-5t",
+              "kind": "voltage",
+              "occurrence": ["XDUT"]
+            },
+            "id": "probe-nleft",
+            "label": "nleft"
+          },
+          {
+            "expression": {
+              "kind": "negate",
+              "operand": {
+                "documentId": "document-ota-5t-testbench",
+                "instanceId": "VDD",
+                "kind": "current",
+                "occurrence": [],
+                "pinName": "+"
+              }
+            },
+            "id": "probe-supply-current",
+            "label": "I_supply"
+          }
+        ],
+        "rootDocumentId": "document-ota-5t-testbench"
+      },
+      "name": "Bias point (TT)",
+      "version": 2
     },
     {
       "id": "simulation-setup-ota-dc-transfer-tt",
-      "name": "DC transfer (TT)",
-      "version": 2,
       "input": {
-        "kind": "structured",
-        "rootDocumentId": "document-ota-5t-testbench",
         "analyses": [
           {
             "kind": "dc",
             "sourceInstanceId": "VINP",
             "startValue": 0.86,
-            "stopValue": 0.94,
-            "stepValue": 0.001
+            "stepValue": 0.001,
+            "stopValue": 0.94
+          }
+        ],
+        "environment": {
+          "corner": "tt",
+          "profileId": "sky130-core-continuous-ngspice46-v1",
+          "temperatureC": 27
+        },
+        "kind": "structured",
+        "measurements": [
+          {
+            "analysis": "dc",
+            "id": "measure-vout-min",
+            "label": "VOUT minimum",
+            "method": {
+              "kind": "minimum"
+            },
+            "outputId": "probe-vout"
+          },
+          {
+            "analysis": "dc",
+            "id": "measure-vout-max",
+            "label": "VOUT maximum",
+            "method": {
+              "kind": "maximum"
+            },
+            "outputId": "probe-vout"
+          },
+          {
+            "analysis": "dc",
+            "id": "measure-vout-pp",
+            "label": "VOUT peak-to-peak",
+            "method": {
+              "kind": "peak-to-peak"
+            },
+            "outputId": "probe-vout"
+          },
+          {
+            "analysis": "dc",
+            "id": "measure-vout-at-balance",
+            "label": "VOUT at VINP = 0.9 V",
+            "method": {
+              "coordinate": 0.9,
+              "kind": "sample-at"
+            },
+            "outputId": "probe-vout"
           }
         ],
         "outputs": [
           {
-            "id": "probe-vout",
-            "label": "vout",
             "expression": {
-              "kind": "voltage",
-              "documentId": "document-ota-5t-testbench",
               "anchor": {
-                "kind": "terminal",
                 "instanceId": "XDUT",
+                "kind": "terminal",
                 "pinName": "vout"
               },
+              "documentId": "document-ota-5t-testbench",
+              "kind": "voltage",
               "occurrence": []
-            }
+            },
+            "id": "probe-vout",
+            "label": "vout"
           },
           {
-            "id": "probe-vinp",
-            "label": "vinp",
             "expression": {
-              "kind": "voltage",
-              "documentId": "document-ota-5t-testbench",
               "anchor": {
-                "kind": "terminal",
                 "instanceId": "VINP",
+                "kind": "terminal",
                 "pinName": "+"
               },
+              "documentId": "document-ota-5t-testbench",
+              "kind": "voltage",
               "occurrence": []
-            }
+            },
+            "id": "probe-vinp",
+            "label": "vinp"
           },
           {
-            "id": "probe-tail",
-            "label": "tail",
             "expression": {
-              "kind": "voltage",
-              "documentId": "document-ota-5t",
               "anchor": {
-                "kind": "terminal",
                 "instanceId": "M5",
+                "kind": "terminal",
                 "pinName": "D"
               },
+              "documentId": "document-ota-5t",
+              "kind": "voltage",
               "occurrence": ["XDUT"]
-            }
+            },
+            "id": "probe-tail",
+            "label": "tail"
           }
         ],
-        "environment": {
-          "profileId": "sky130-core-continuous-ngspice46-v1",
-          "corner": "tt",
-          "temperatureC": 27
-        }
-      }
+        "rootDocumentId": "document-ota-5t-testbench"
+      },
+      "name": "DC transfer (TT)",
+      "version": 2
     },
     {
       "id": "simulation-setup-ota-ac-tt",
-      "name": "AC response (TT)",
-      "version": 2,
       "input": {
-        "kind": "structured",
-        "rootDocumentId": "document-ota-5t-testbench",
         "analyses": [
           {
             "kind": "ac",
-            "sweep": "dec",
             "points": 40,
             "startHz": 1,
-            "stopHz": 1000000000
+            "stopHz": 1000000000,
+            "sweep": "dec"
+          }
+        ],
+        "environment": {
+          "corner": "tt",
+          "profileId": "sky130-core-continuous-ngspice46-v1",
+          "temperatureC": 27
+        },
+        "kind": "structured",
+        "measurements": [
+          {
+            "analysis": "ac",
+            "id": "measure-gain-1k-tt",
+            "label": "Gain at 1 kHz",
+            "method": {
+              "coordinate": 1000,
+              "kind": "sample-at"
+            },
+            "outputId": "probe-gain-db"
+          },
+          {
+            "analysis": "ac",
+            "id": "measure-gain-max-tt",
+            "label": "Maximum gain",
+            "method": {
+              "kind": "maximum"
+            },
+            "outputId": "probe-gain-db"
           }
         ],
         "outputs": [
           {
-            "id": "probe-vout",
-            "label": "vout (A_v for AC=1 V)",
             "expression": {
-              "kind": "voltage",
-              "documentId": "document-ota-5t-testbench",
               "anchor": {
-                "kind": "terminal",
                 "instanceId": "XDUT",
+                "kind": "terminal",
                 "pinName": "vout"
               },
+              "documentId": "document-ota-5t-testbench",
+              "kind": "voltage",
               "occurrence": []
-            }
+            },
+            "id": "probe-vout",
+            "label": "vout"
           },
           {
-            "id": "probe-tail",
-            "label": "tail",
             "expression": {
-              "kind": "voltage",
-              "documentId": "document-ota-5t",
               "anchor": {
+                "instanceId": "VINP",
                 "kind": "terminal",
-                "instanceId": "M5",
-                "pinName": "D"
+                "pinName": "+"
               },
-              "occurrence": ["XDUT"]
-            }
+              "documentId": "document-ota-5t-testbench",
+              "kind": "voltage",
+              "occurrence": []
+            },
+            "id": "probe-vinp",
+            "label": "vinp"
+          },
+          {
+            "expression": {
+              "kind": "divide",
+              "left": {
+                "anchor": {
+                  "instanceId": "XDUT",
+                  "kind": "terminal",
+                  "pinName": "vout"
+                },
+                "documentId": "document-ota-5t-testbench",
+                "kind": "voltage",
+                "occurrence": []
+              },
+              "right": {
+                "anchor": {
+                  "instanceId": "VINP",
+                  "kind": "terminal",
+                  "pinName": "+"
+                },
+                "documentId": "document-ota-5t-testbench",
+                "kind": "voltage",
+                "occurrence": []
+              }
+            },
+            "id": "probe-gain",
+            "label": "A_v"
+          },
+          {
+            "expression": {
+              "kind": "db20",
+              "operand": {
+                "kind": "divide",
+                "left": {
+                  "anchor": {
+                    "instanceId": "XDUT",
+                    "kind": "terminal",
+                    "pinName": "vout"
+                  },
+                  "documentId": "document-ota-5t-testbench",
+                  "kind": "voltage",
+                  "occurrence": []
+                },
+                "right": {
+                  "anchor": {
+                    "instanceId": "VINP",
+                    "kind": "terminal",
+                    "pinName": "+"
+                  },
+                  "documentId": "document-ota-5t-testbench",
+                  "kind": "voltage",
+                  "occurrence": []
+                }
+              }
+            },
+            "id": "probe-gain-db",
+            "label": "A_v / dB"
+          },
+          {
+            "expression": {
+              "kind": "phase",
+              "operand": {
+                "kind": "divide",
+                "left": {
+                  "anchor": {
+                    "instanceId": "XDUT",
+                    "kind": "terminal",
+                    "pinName": "vout"
+                  },
+                  "documentId": "document-ota-5t-testbench",
+                  "kind": "voltage",
+                  "occurrence": []
+                },
+                "right": {
+                  "anchor": {
+                    "instanceId": "VINP",
+                    "kind": "terminal",
+                    "pinName": "+"
+                  },
+                  "documentId": "document-ota-5t-testbench",
+                  "kind": "voltage",
+                  "occurrence": []
+                }
+              }
+            },
+            "id": "probe-gain-phase",
+            "label": "phase(A_v)"
           }
         ],
-        "environment": {
-          "profileId": "sky130-core-continuous-ngspice46-v1",
-          "corner": "tt",
-          "temperatureC": 27
-        }
-      }
+        "rootDocumentId": "document-ota-5t-testbench"
+      },
+      "name": "AC response (TT)",
+      "version": 2
     },
     {
       "id": "simulation-setup-ota-ac-ff",
-      "name": "AC response (FF)",
-      "version": 2,
       "input": {
-        "kind": "structured",
-        "rootDocumentId": "document-ota-5t-testbench",
         "analyses": [
           {
             "kind": "ac",
-            "sweep": "dec",
             "points": 40,
             "startHz": 1,
-            "stopHz": 1000000000
+            "stopHz": 1000000000,
+            "sweep": "dec"
+          }
+        ],
+        "environment": {
+          "corner": "ff",
+          "profileId": "sky130-core-continuous-ngspice46-v1",
+          "temperatureC": 27
+        },
+        "kind": "structured",
+        "measurements": [
+          {
+            "analysis": "ac",
+            "id": "measure-gain-1k-ff",
+            "label": "Gain at 1 kHz",
+            "method": {
+              "coordinate": 1000,
+              "kind": "sample-at"
+            },
+            "outputId": "probe-gain-db"
+          },
+          {
+            "analysis": "ac",
+            "id": "measure-gain-max-ff",
+            "label": "Maximum gain",
+            "method": {
+              "kind": "maximum"
+            },
+            "outputId": "probe-gain-db"
           }
         ],
         "outputs": [
           {
-            "id": "probe-vout",
-            "label": "vout (A_v for AC=1 V)",
             "expression": {
-              "kind": "voltage",
-              "documentId": "document-ota-5t-testbench",
               "anchor": {
-                "kind": "terminal",
                 "instanceId": "XDUT",
+                "kind": "terminal",
                 "pinName": "vout"
               },
+              "documentId": "document-ota-5t-testbench",
+              "kind": "voltage",
               "occurrence": []
-            }
+            },
+            "id": "probe-vout",
+            "label": "vout"
           },
           {
-            "id": "probe-tail",
-            "label": "tail",
             "expression": {
-              "kind": "voltage",
-              "documentId": "document-ota-5t",
               "anchor": {
+                "instanceId": "VINP",
                 "kind": "terminal",
-                "instanceId": "M5",
-                "pinName": "D"
+                "pinName": "+"
               },
-              "occurrence": ["XDUT"]
-            }
+              "documentId": "document-ota-5t-testbench",
+              "kind": "voltage",
+              "occurrence": []
+            },
+            "id": "probe-vinp",
+            "label": "vinp"
+          },
+          {
+            "expression": {
+              "kind": "divide",
+              "left": {
+                "anchor": {
+                  "instanceId": "XDUT",
+                  "kind": "terminal",
+                  "pinName": "vout"
+                },
+                "documentId": "document-ota-5t-testbench",
+                "kind": "voltage",
+                "occurrence": []
+              },
+              "right": {
+                "anchor": {
+                  "instanceId": "VINP",
+                  "kind": "terminal",
+                  "pinName": "+"
+                },
+                "documentId": "document-ota-5t-testbench",
+                "kind": "voltage",
+                "occurrence": []
+              }
+            },
+            "id": "probe-gain",
+            "label": "A_v"
+          },
+          {
+            "expression": {
+              "kind": "db20",
+              "operand": {
+                "kind": "divide",
+                "left": {
+                  "anchor": {
+                    "instanceId": "XDUT",
+                    "kind": "terminal",
+                    "pinName": "vout"
+                  },
+                  "documentId": "document-ota-5t-testbench",
+                  "kind": "voltage",
+                  "occurrence": []
+                },
+                "right": {
+                  "anchor": {
+                    "instanceId": "VINP",
+                    "kind": "terminal",
+                    "pinName": "+"
+                  },
+                  "documentId": "document-ota-5t-testbench",
+                  "kind": "voltage",
+                  "occurrence": []
+                }
+              }
+            },
+            "id": "probe-gain-db",
+            "label": "A_v / dB"
+          },
+          {
+            "expression": {
+              "kind": "phase",
+              "operand": {
+                "kind": "divide",
+                "left": {
+                  "anchor": {
+                    "instanceId": "XDUT",
+                    "kind": "terminal",
+                    "pinName": "vout"
+                  },
+                  "documentId": "document-ota-5t-testbench",
+                  "kind": "voltage",
+                  "occurrence": []
+                },
+                "right": {
+                  "anchor": {
+                    "instanceId": "VINP",
+                    "kind": "terminal",
+                    "pinName": "+"
+                  },
+                  "documentId": "document-ota-5t-testbench",
+                  "kind": "voltage",
+                  "occurrence": []
+                }
+              }
+            },
+            "id": "probe-gain-phase",
+            "label": "phase(A_v)"
           }
         ],
-        "environment": {
-          "profileId": "sky130-core-continuous-ngspice46-v1",
-          "corner": "ff",
-          "temperatureC": 27
-        }
-      }
+        "rootDocumentId": "document-ota-5t-testbench"
+      },
+      "name": "AC response (FF)",
+      "version": 2
     },
     {
       "id": "simulation-setup-ota-ac-ss",
-      "name": "AC response (SS)",
-      "version": 2,
       "input": {
-        "kind": "structured",
-        "rootDocumentId": "document-ota-5t-testbench",
         "analyses": [
           {
             "kind": "ac",
-            "sweep": "dec",
             "points": 40,
             "startHz": 1,
-            "stopHz": 1000000000
+            "stopHz": 1000000000,
+            "sweep": "dec"
+          }
+        ],
+        "environment": {
+          "corner": "ss",
+          "profileId": "sky130-core-continuous-ngspice46-v1",
+          "temperatureC": 27
+        },
+        "kind": "structured",
+        "measurements": [
+          {
+            "analysis": "ac",
+            "id": "measure-gain-1k-ss",
+            "label": "Gain at 1 kHz",
+            "method": {
+              "coordinate": 1000,
+              "kind": "sample-at"
+            },
+            "outputId": "probe-gain-db"
+          },
+          {
+            "analysis": "ac",
+            "id": "measure-gain-max-ss",
+            "label": "Maximum gain",
+            "method": {
+              "kind": "maximum"
+            },
+            "outputId": "probe-gain-db"
           }
         ],
         "outputs": [
           {
-            "id": "probe-vout",
-            "label": "vout (A_v for AC=1 V)",
             "expression": {
-              "kind": "voltage",
-              "documentId": "document-ota-5t-testbench",
               "anchor": {
-                "kind": "terminal",
                 "instanceId": "XDUT",
+                "kind": "terminal",
                 "pinName": "vout"
               },
+              "documentId": "document-ota-5t-testbench",
+              "kind": "voltage",
               "occurrence": []
-            }
+            },
+            "id": "probe-vout",
+            "label": "vout"
           },
           {
-            "id": "probe-tail",
-            "label": "tail",
             "expression": {
-              "kind": "voltage",
-              "documentId": "document-ota-5t",
               "anchor": {
+                "instanceId": "VINP",
                 "kind": "terminal",
-                "instanceId": "M5",
-                "pinName": "D"
+                "pinName": "+"
               },
-              "occurrence": ["XDUT"]
-            }
+              "documentId": "document-ota-5t-testbench",
+              "kind": "voltage",
+              "occurrence": []
+            },
+            "id": "probe-vinp",
+            "label": "vinp"
+          },
+          {
+            "expression": {
+              "kind": "divide",
+              "left": {
+                "anchor": {
+                  "instanceId": "XDUT",
+                  "kind": "terminal",
+                  "pinName": "vout"
+                },
+                "documentId": "document-ota-5t-testbench",
+                "kind": "voltage",
+                "occurrence": []
+              },
+              "right": {
+                "anchor": {
+                  "instanceId": "VINP",
+                  "kind": "terminal",
+                  "pinName": "+"
+                },
+                "documentId": "document-ota-5t-testbench",
+                "kind": "voltage",
+                "occurrence": []
+              }
+            },
+            "id": "probe-gain",
+            "label": "A_v"
+          },
+          {
+            "expression": {
+              "kind": "db20",
+              "operand": {
+                "kind": "divide",
+                "left": {
+                  "anchor": {
+                    "instanceId": "XDUT",
+                    "kind": "terminal",
+                    "pinName": "vout"
+                  },
+                  "documentId": "document-ota-5t-testbench",
+                  "kind": "voltage",
+                  "occurrence": []
+                },
+                "right": {
+                  "anchor": {
+                    "instanceId": "VINP",
+                    "kind": "terminal",
+                    "pinName": "+"
+                  },
+                  "documentId": "document-ota-5t-testbench",
+                  "kind": "voltage",
+                  "occurrence": []
+                }
+              }
+            },
+            "id": "probe-gain-db",
+            "label": "A_v / dB"
+          },
+          {
+            "expression": {
+              "kind": "phase",
+              "operand": {
+                "kind": "divide",
+                "left": {
+                  "anchor": {
+                    "instanceId": "XDUT",
+                    "kind": "terminal",
+                    "pinName": "vout"
+                  },
+                  "documentId": "document-ota-5t-testbench",
+                  "kind": "voltage",
+                  "occurrence": []
+                },
+                "right": {
+                  "anchor": {
+                    "instanceId": "VINP",
+                    "kind": "terminal",
+                    "pinName": "+"
+                  },
+                  "documentId": "document-ota-5t-testbench",
+                  "kind": "voltage",
+                  "occurrence": []
+                }
+              }
+            },
+            "id": "probe-gain-phase",
+            "label": "phase(A_v)"
+          }
+        ],
+        "rootDocumentId": "document-ota-5t-testbench"
+      },
+      "name": "AC response (SS)",
+      "version": 2
+    },
+    {
+      "id": "simulation-setup-ota-ac-fs",
+      "input": {
+        "analyses": [
+          {
+            "kind": "ac",
+            "points": 40,
+            "startHz": 1,
+            "stopHz": 1000000000,
+            "sweep": "dec"
           }
         ],
         "environment": {
+          "corner": "fs",
           "profileId": "sky130-core-continuous-ngspice46-v1",
-          "corner": "ss",
           "temperatureC": 27
-        }
-      }
+        },
+        "kind": "structured",
+        "measurements": [
+          {
+            "analysis": "ac",
+            "id": "measure-gain-1k-fs",
+            "label": "Gain at 1 kHz",
+            "method": {
+              "coordinate": 1000,
+              "kind": "sample-at"
+            },
+            "outputId": "probe-gain-db"
+          },
+          {
+            "analysis": "ac",
+            "id": "measure-gain-max-fs",
+            "label": "Maximum gain",
+            "method": {
+              "kind": "maximum"
+            },
+            "outputId": "probe-gain-db"
+          }
+        ],
+        "outputs": [
+          {
+            "expression": {
+              "anchor": {
+                "instanceId": "XDUT",
+                "kind": "terminal",
+                "pinName": "vout"
+              },
+              "documentId": "document-ota-5t-testbench",
+              "kind": "voltage",
+              "occurrence": []
+            },
+            "id": "probe-vout",
+            "label": "vout"
+          },
+          {
+            "expression": {
+              "anchor": {
+                "instanceId": "VINP",
+                "kind": "terminal",
+                "pinName": "+"
+              },
+              "documentId": "document-ota-5t-testbench",
+              "kind": "voltage",
+              "occurrence": []
+            },
+            "id": "probe-vinp",
+            "label": "vinp"
+          },
+          {
+            "expression": {
+              "kind": "divide",
+              "left": {
+                "anchor": {
+                  "instanceId": "XDUT",
+                  "kind": "terminal",
+                  "pinName": "vout"
+                },
+                "documentId": "document-ota-5t-testbench",
+                "kind": "voltage",
+                "occurrence": []
+              },
+              "right": {
+                "anchor": {
+                  "instanceId": "VINP",
+                  "kind": "terminal",
+                  "pinName": "+"
+                },
+                "documentId": "document-ota-5t-testbench",
+                "kind": "voltage",
+                "occurrence": []
+              }
+            },
+            "id": "probe-gain",
+            "label": "A_v"
+          },
+          {
+            "expression": {
+              "kind": "db20",
+              "operand": {
+                "kind": "divide",
+                "left": {
+                  "anchor": {
+                    "instanceId": "XDUT",
+                    "kind": "terminal",
+                    "pinName": "vout"
+                  },
+                  "documentId": "document-ota-5t-testbench",
+                  "kind": "voltage",
+                  "occurrence": []
+                },
+                "right": {
+                  "anchor": {
+                    "instanceId": "VINP",
+                    "kind": "terminal",
+                    "pinName": "+"
+                  },
+                  "documentId": "document-ota-5t-testbench",
+                  "kind": "voltage",
+                  "occurrence": []
+                }
+              }
+            },
+            "id": "probe-gain-db",
+            "label": "A_v / dB"
+          },
+          {
+            "expression": {
+              "kind": "phase",
+              "operand": {
+                "kind": "divide",
+                "left": {
+                  "anchor": {
+                    "instanceId": "XDUT",
+                    "kind": "terminal",
+                    "pinName": "vout"
+                  },
+                  "documentId": "document-ota-5t-testbench",
+                  "kind": "voltage",
+                  "occurrence": []
+                },
+                "right": {
+                  "anchor": {
+                    "instanceId": "VINP",
+                    "kind": "terminal",
+                    "pinName": "+"
+                  },
+                  "documentId": "document-ota-5t-testbench",
+                  "kind": "voltage",
+                  "occurrence": []
+                }
+              }
+            },
+            "id": "probe-gain-phase",
+            "label": "phase(A_v)"
+          }
+        ],
+        "rootDocumentId": "document-ota-5t-testbench"
+      },
+      "name": "AC response (FS)",
+      "version": 2
+    },
+    {
+      "id": "simulation-setup-ota-ac-sf",
+      "input": {
+        "analyses": [
+          {
+            "kind": "ac",
+            "points": 40,
+            "startHz": 1,
+            "stopHz": 1000000000,
+            "sweep": "dec"
+          }
+        ],
+        "environment": {
+          "corner": "sf",
+          "profileId": "sky130-core-continuous-ngspice46-v1",
+          "temperatureC": 27
+        },
+        "kind": "structured",
+        "measurements": [
+          {
+            "analysis": "ac",
+            "id": "measure-gain-1k-sf",
+            "label": "Gain at 1 kHz",
+            "method": {
+              "coordinate": 1000,
+              "kind": "sample-at"
+            },
+            "outputId": "probe-gain-db"
+          },
+          {
+            "analysis": "ac",
+            "id": "measure-gain-max-sf",
+            "label": "Maximum gain",
+            "method": {
+              "kind": "maximum"
+            },
+            "outputId": "probe-gain-db"
+          }
+        ],
+        "outputs": [
+          {
+            "expression": {
+              "anchor": {
+                "instanceId": "XDUT",
+                "kind": "terminal",
+                "pinName": "vout"
+              },
+              "documentId": "document-ota-5t-testbench",
+              "kind": "voltage",
+              "occurrence": []
+            },
+            "id": "probe-vout",
+            "label": "vout"
+          },
+          {
+            "expression": {
+              "anchor": {
+                "instanceId": "VINP",
+                "kind": "terminal",
+                "pinName": "+"
+              },
+              "documentId": "document-ota-5t-testbench",
+              "kind": "voltage",
+              "occurrence": []
+            },
+            "id": "probe-vinp",
+            "label": "vinp"
+          },
+          {
+            "expression": {
+              "kind": "divide",
+              "left": {
+                "anchor": {
+                  "instanceId": "XDUT",
+                  "kind": "terminal",
+                  "pinName": "vout"
+                },
+                "documentId": "document-ota-5t-testbench",
+                "kind": "voltage",
+                "occurrence": []
+              },
+              "right": {
+                "anchor": {
+                  "instanceId": "VINP",
+                  "kind": "terminal",
+                  "pinName": "+"
+                },
+                "documentId": "document-ota-5t-testbench",
+                "kind": "voltage",
+                "occurrence": []
+              }
+            },
+            "id": "probe-gain",
+            "label": "A_v"
+          },
+          {
+            "expression": {
+              "kind": "db20",
+              "operand": {
+                "kind": "divide",
+                "left": {
+                  "anchor": {
+                    "instanceId": "XDUT",
+                    "kind": "terminal",
+                    "pinName": "vout"
+                  },
+                  "documentId": "document-ota-5t-testbench",
+                  "kind": "voltage",
+                  "occurrence": []
+                },
+                "right": {
+                  "anchor": {
+                    "instanceId": "VINP",
+                    "kind": "terminal",
+                    "pinName": "+"
+                  },
+                  "documentId": "document-ota-5t-testbench",
+                  "kind": "voltage",
+                  "occurrence": []
+                }
+              }
+            },
+            "id": "probe-gain-db",
+            "label": "A_v / dB"
+          },
+          {
+            "expression": {
+              "kind": "phase",
+              "operand": {
+                "kind": "divide",
+                "left": {
+                  "anchor": {
+                    "instanceId": "XDUT",
+                    "kind": "terminal",
+                    "pinName": "vout"
+                  },
+                  "documentId": "document-ota-5t-testbench",
+                  "kind": "voltage",
+                  "occurrence": []
+                },
+                "right": {
+                  "anchor": {
+                    "instanceId": "VINP",
+                    "kind": "terminal",
+                    "pinName": "+"
+                  },
+                  "documentId": "document-ota-5t-testbench",
+                  "kind": "voltage",
+                  "occurrence": []
+                }
+              }
+            },
+            "id": "probe-gain-phase",
+            "label": "phase(A_v)"
+          }
+        ],
+        "rootDocumentId": "document-ota-5t-testbench"
+      },
+      "name": "AC response (SF)",
+      "version": 2
     },
     {
       "id": "simulation-setup-ota-tran-tt",
-      "name": "Transient step (TT)",
-      "version": 2,
       "input": {
-        "kind": "structured",
-        "rootDocumentId": "document-ota-5t-testbench",
         "analyses": [
           {
             "kind": "tran",
+            "maxStepSeconds": 1e-8,
             "stepSeconds": 1e-8,
-            "stopSeconds": 0.000006,
-            "maxStepSeconds": 1e-8
+            "stopSeconds": 0.000006
+          }
+        ],
+        "environment": {
+          "corner": "tt",
+          "profileId": "sky130-core-continuous-ngspice46-v1",
+          "temperatureC": 27
+        },
+        "kind": "structured",
+        "measurements": [
+          {
+            "analysis": "tran",
+            "id": "measure-vout-pp",
+            "label": "VOUT peak-to-peak",
+            "method": {
+              "kind": "peak-to-peak",
+              "window": {
+                "start": 0.000001,
+                "stop": 0.000006
+              }
+            },
+            "outputId": "probe-vout"
+          },
+          {
+            "analysis": "tran",
+            "id": "measure-vout-mean",
+            "label": "VOUT mean",
+            "method": {
+              "kind": "mean",
+              "window": {
+                "start": 0.000001,
+                "stop": 0.000006
+              }
+            },
+            "outputId": "probe-vout"
+          },
+          {
+            "analysis": "tran",
+            "id": "measure-vout-rms",
+            "label": "VOUT RMS",
+            "method": {
+              "kind": "rms",
+              "window": {
+                "start": 0.000001,
+                "stop": 0.000006
+              }
+            },
+            "outputId": "probe-vout"
           }
         ],
         "outputs": [
           {
-            "id": "probe-vinp",
-            "label": "vinp",
             "expression": {
-              "kind": "voltage",
-              "documentId": "document-ota-5t-testbench",
               "anchor": {
-                "kind": "terminal",
                 "instanceId": "VINP",
+                "kind": "terminal",
                 "pinName": "+"
               },
+              "documentId": "document-ota-5t-testbench",
+              "kind": "voltage",
               "occurrence": []
-            }
+            },
+            "id": "probe-vinp",
+            "label": "vinp"
           },
           {
-            "id": "probe-vout",
-            "label": "vout",
             "expression": {
-              "kind": "voltage",
-              "documentId": "document-ota-5t-testbench",
               "anchor": {
-                "kind": "terminal",
                 "instanceId": "XDUT",
+                "kind": "terminal",
                 "pinName": "vout"
               },
+              "documentId": "document-ota-5t-testbench",
+              "kind": "voltage",
               "occurrence": []
-            }
+            },
+            "id": "probe-vout",
+            "label": "vout"
+          }
+        ],
+        "rootDocumentId": "document-ota-5t-testbench"
+      },
+      "name": "Transient PULSE step (TT)",
+      "version": 2
+    },
+    {
+      "id": "simulation-setup-ota-noise-tt",
+      "input": {
+        "analyses": [
+          {
+            "inputSourceInstanceId": "VINP",
+            "kind": "noise",
+            "output": {
+              "positive": {
+                "anchor": {
+                  "instanceId": "XDUT",
+                  "kind": "terminal",
+                  "pinName": "vout"
+                },
+                "documentId": "document-ota-5t-testbench",
+                "occurrence": []
+              }
+            },
+            "points": 40,
+            "startHz": 1,
+            "stopHz": 1000000000,
+            "sweep": "dec"
           }
         ],
         "environment": {
-          "profileId": "sky130-core-continuous-ngspice46-v1",
           "corner": "tt",
+          "profileId": "sky130-core-continuous-ngspice46-v1",
           "temperatureC": 27
-        }
-      }
+        },
+        "kind": "structured",
+        "measurements": [
+          {
+            "analysis": "noise",
+            "id": "measure-output-noise-1k",
+            "label": "Output noise at 1 kHz",
+            "method": {
+              "coordinate": 1000,
+              "kind": "sample-at"
+            },
+            "outputId": "noise-output-density"
+          },
+          {
+            "analysis": "noise",
+            "id": "measure-input-noise-1k",
+            "label": "Input-referred noise at 1 kHz",
+            "method": {
+              "coordinate": 1000,
+              "kind": "sample-at"
+            },
+            "outputId": "noise-input-density"
+          }
+        ],
+        "outputs": [],
+        "rootDocumentId": "document-ota-5t-testbench"
+      },
+      "name": "Noise response (TT)",
+      "version": 2
+    },
+    {
+      "id": "simulation-setup-ota-tran-sin-tt",
+      "input": {
+        "analyses": [
+          {
+            "kind": "tran",
+            "maxStepSeconds": 5e-9,
+            "stepSeconds": 5e-9,
+            "stopSeconds": 0.000005
+          }
+        ],
+        "environment": {
+          "corner": "tt",
+          "profileId": "sky130-core-continuous-ngspice46-v1",
+          "temperatureC": 27
+        },
+        "kind": "structured",
+        "measurements": [
+          {
+            "analysis": "tran",
+            "id": "measure-vout-pp",
+            "label": "VOUT peak-to-peak",
+            "method": {
+              "kind": "peak-to-peak",
+              "window": {
+                "start": 0.000001,
+                "stop": 0.000005
+              }
+            },
+            "outputId": "probe-vout"
+          },
+          {
+            "analysis": "tran",
+            "id": "measure-vout-rms",
+            "label": "VOUT RMS",
+            "method": {
+              "kind": "rms",
+              "window": {
+                "start": 0.000001,
+                "stop": 0.000005
+              }
+            },
+            "outputId": "probe-vout"
+          }
+        ],
+        "outputs": [
+          {
+            "expression": {
+              "anchor": {
+                "instanceId": "VINP",
+                "kind": "terminal",
+                "pinName": "+"
+              },
+              "documentId": "document-ota-5t-testbench-sin",
+              "kind": "voltage",
+              "occurrence": []
+            },
+            "id": "probe-vinp",
+            "label": "vinp"
+          },
+          {
+            "expression": {
+              "anchor": {
+                "instanceId": "XDUT",
+                "kind": "terminal",
+                "pinName": "vout"
+              },
+              "documentId": "document-ota-5t-testbench-sin",
+              "kind": "voltage",
+              "occurrence": []
+            },
+            "id": "probe-vout",
+            "label": "vout"
+          }
+        ],
+        "rootDocumentId": "document-ota-5t-testbench-sin"
+      },
+      "name": "Transient SIN response (TT)",
+      "version": 2
     }
   ],
   "source": {
@@ -3496,7 +5813,7 @@
     "files": [],
     "sourcePolicy": "copy"
   },
-  "structureRevision": 82,
+  "structureRevision": 85,
   "symbolLibrary": {
     "hash": "razavi-reference-v1",
     "id": "razavi-symbols",
