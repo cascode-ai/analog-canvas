@@ -102,6 +102,7 @@ describe("component parameter catalogue", () => {
           { value: "dc", label: "None" },
           { value: "pulse", label: "PULSE" },
           { value: "sin", label: "SIN" },
+          { value: "pwl", label: "PWL" },
         ],
       });
       expect(parameters.find(({ key }) => key === "acMagnitude")).toMatchObject(

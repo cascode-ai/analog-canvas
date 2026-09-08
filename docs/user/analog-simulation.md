@@ -31,6 +31,12 @@ lists published circuits, not bundled examples; the `?example=` link and
 **File → Open** on `apps/editor/src/examples/five-transistor-ota-sky130.icproj.json`
 are the two ways to reach it.
 
+Independent voltage and current sources share four transient modes: None,
+PULSE, SIN, and PWL. PWL accepts at least two comma-separated `time value`
+pairs, for example `0s 0, 1ns 0, 2ns 1.8`. The same authored points print as
+SPICE `PWL(...)` or Spectre `type=pwl wave=[...]`; AC magnitude and phase remain
+an independent small-signal setting.
+
 The five AC corner setups remain independent Project records. Select two or
 more setups in the Setup menu and choose **Run selected** to prepare all of
 them at the current Project revision and run them sequentially. The compact

@@ -128,7 +128,7 @@ export function ComponentElectricalProperties({
     (parameter) =>
       !parameter.compatibilityOnly &&
       (!parameter.visibleForSourceWaveforms ||
-        ((waveform === "pulse" || waveform === "sin") &&
+        ((waveform === "pulse" || waveform === "sin" || waveform === "pwl") &&
           parameter.visibleForSourceWaveforms.includes(waveform))),
   );
   const primaryParameterRows = parameterRows(primaryParameters, waveform);

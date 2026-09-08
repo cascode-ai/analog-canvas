@@ -136,6 +136,9 @@ same contract as `/api/agent/sessions/{sessionId}/simulation`:
    `advanced_transact` with `upsert_simulation_setup`; removal compiles to the
    same `remove_simulation_setup` structure edit. Sources,
    DUT instances, formal ports, and wiring remain ordinary Project edits.
+   Independent voltage/current sources accept `waveform: "pwl"` with
+   `pwlPoints` as comma-separated `time value` pairs; this is the same
+   descriptor and printer path used by GUI source Properties.
    The structured contract supports OP, one-source linear DC sweep, AC, TRAN,
    and Noise; discover the deployment Profile before selecting an analysis,
    because parser support may precede hosted qualification. Noise selects a

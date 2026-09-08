@@ -13,7 +13,7 @@ export interface ComponentParameter {
   help: string;
   inputMode?: "decimal" | "text";
   options?: readonly { readonly value: string; readonly label: string }[];
-  visibleForSourceWaveforms?: readonly ("pulse" | "sin")[];
+  visibleForSourceWaveforms?: readonly ("pulse" | "sin" | "pwl")[];
   compatibilityOnly?: boolean;
 }
 
