@@ -215,6 +215,28 @@ describe("one visual annotation, one electrical authority", () => {
       updateTextEditingSession(session, { content: text("new") })
         .restoreReference,
     ).toBe(false);
+    const formatted = updateTextEditingSession(session, {
+      content: {
+        runs: [
+          {
+            kind: "span",
+            style: "overbar",
+            children: [{ kind: "text", value: "R1" }],
+          },
+        ],
+      },
+    });
+    const styledRestore = proposeTextEditingCommit(custom, formatted);
+    if (styledRestore.kind !== "update") throw new Error(styledRestore.kind);
+    expect(apply(custom, [styledRestore.edit]).annotations[0]).toMatchObject({
+      binding: { kind: "instance-reference", instanceId: "device-1" },
+      formatOverride: formatted.content,
+    });
+    expect(
+      updateTextEditingSession(session, {
+        content: { runs: [{ kind: "math", latex: "R1", display: "inline" }] },
+      }).restoreReference,
+    ).toBe(false);
   });
 
   it.each([false, true])(

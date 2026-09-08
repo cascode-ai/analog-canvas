@@ -122,7 +122,14 @@ export function updateTextEditingSession(
   return {
     ...session,
     ...change,
-    ...(change.content ? { restoreReference: false } : {}),
+    ...(change.content && session.restoreReference
+      ? {
+          restoreReference:
+            isNamePresentation(change.content.runs) &&
+            flattenRichText(change.content) ===
+              flattenRichText(session.content),
+        }
+      : {}),
   };
 }
 
@@ -279,8 +286,7 @@ export function proposeTextEditingCommit(
         ...(follows
           ? {
               binding: { kind: "instance-reference" as const, instanceId },
-              ...(!session.restoreReference &&
-              !richTextEqual(session.content, defaultContent)
+              ...(!richTextEqual(session.content, defaultContent)
                 ? { formatOverride: session.content }
                 : {}),
             }
