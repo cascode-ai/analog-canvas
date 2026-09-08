@@ -393,6 +393,7 @@ export function useAgentSession(
                           "start-batch",
                           "read-batch",
                           "cancel-batch",
+                          "prepare-sweep",
                         ] as const,
                         analyses: ["op", "dc", "ac", "tran", "noise"] as const,
                         maxTimeoutMs: AGENT_SIMULATION_MAX_TIMEOUT_MS,

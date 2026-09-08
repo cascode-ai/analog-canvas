@@ -44,6 +44,12 @@ batch strip shows queued, running, completed, failed, and cancelled members;
 selecting a completed member opens its ordinary Run result. Batch coordination
 is session-only and does not change the Project format.
 
+The Agent/API can also expand one saved structured setup over corner,
+temperature, and exact Instance-parameter axes. Those points reuse the same
+bounded sequential batch and never rewrite the saved setup. The graphical
+sweep composer is intentionally deferred; the current Editor can still open
+each completed member through the common batch result strip.
+
 ## DUT and testbench
 
 1. Define the DUT Cell's formal ports. In **Edit → Manage Cells → Review

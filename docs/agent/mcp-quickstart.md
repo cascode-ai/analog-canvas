@@ -184,6 +184,15 @@ their normal `runId`, so `read` and `export` remain the only result and artifact
 interfaces. Reuse the same outer request ID when retrying `start-batch` after an
 uncertain transport response.
 
+For a Cartesian sweep over one saved structured setup, use `prepare-sweep`
+with 1–4 axes of `corner`, `temperature`, or `parameter`. A parameter axis
+addresses `{documentId,instanceId,parameter}` and supplies string values in the
+same units accepted by the Instance netlist property. The product is limited
+to 16 points and becomes an ordinary sequential batch; follow it with the
+same `start-batch`, `read-batch`, per-run `read`/`export`, and
+`cancel-batch` operations. Sweep values are run-only projections: they do not
+edit the Project or the saved setup.
+
 For **graphless/raw** authoring, call `simulation_files` to `create`, then
 use `list` if a lost response left the workspace ID unknown. Continue with
 `update` with `workspaceId`, `expectedRevision`, `entry`, and `writes` of

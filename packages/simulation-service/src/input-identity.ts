@@ -1,6 +1,10 @@
 import type { CircuitProject } from "@icm/model";
 import { compileStructuredSimulation } from "@icm/netlist";
 import { sha256 } from "./files.js";
+import {
+  projectSimulationVariant,
+  type SimulationProjectVariant,
+} from "./project-variant.js";
 
 type RawSimulationInput = Extract<
   CircuitProject["simulationSetups"][number]["input"],
@@ -26,24 +30,33 @@ export class ProjectInputIdentity {
     this.revision = undefined;
     this.pending.clear();
   }
-  read(project: CircuitProject, setupId: string): Promise<string | null> {
+  read(
+    project: CircuitProject,
+    setupId: string,
+    variant?: SimulationProjectVariant,
+  ): Promise<string | null> {
     if (project.structureRevision !== this.revision) {
       this.pending.clear();
       this.revision = project.structureRevision;
     }
-    const existing = this.pending.get(setupId);
+    const cacheKey = `${setupId}:${JSON.stringify(variant ?? null)}`;
+    const existing = this.pending.get(cacheKey);
     if (existing) return existing;
     const snapshot = structuredClone(project);
     const reading = (async () => {
-      const setup = snapshot.simulationSetups.find((s) => s.id === setupId);
-      if (!setup) return null;
+      const projected = projectSimulationVariant(snapshot, setupId, variant);
+      if (!projected.ok) return null;
+      const { project: projectedProject, setup } = projected;
       if (setup.input.kind === "raw") return rawInputRevision(setup.input);
-      const compiled = await compileStructuredSimulation(snapshot, setup);
+      const compiled = await compileStructuredSimulation(
+        projectedProject,
+        setup,
+      );
       return compiled.ok ? (compiled.request.inputRevision ?? null) : null;
     })();
-    this.pending.set(setupId, reading);
+    this.pending.set(cacheKey, reading);
     void reading.catch(() => {
-      if (this.pending.get(setupId) === reading) this.pending.delete(setupId);
+      if (this.pending.get(cacheKey) === reading) this.pending.delete(cacheKey);
     });
     return reading;
   }

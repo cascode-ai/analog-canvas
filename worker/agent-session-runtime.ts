@@ -504,6 +504,7 @@ export function simulationOperationScopes(
     case "start-batch":
     case "read-batch":
     case "cancel-batch":
+    case "prepare-sweep":
     case "export":
       return ["simulation.run"];
   }

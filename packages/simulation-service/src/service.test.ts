@@ -232,6 +232,63 @@ describe("shared simulation lifecycle", () => {
     expect(maxActive).toBe(1);
   });
 
+  it("expands corner, temperature and instance parameter axes into one batch", async () => {
+    const project = CircuitProjectSchema.parse(ota);
+    const setup = project.simulationSetups.find(
+      (candidate) => candidate.input.kind === "structured",
+    );
+    if (!setup || setup.input.kind !== "structured") throw new Error("setup");
+    const setupInput = setup.input;
+    setupInput.analyses = [{ kind: "op" }];
+    setupInput.environment = { profileId: "test", corner: "tt" };
+    const root = project.documents.find(
+      (document) => document.id === setupInput.rootDocumentId,
+    )!;
+    const source = root.instances.find(
+      (instance) =>
+        instance.netlist?.binding?.kind === "primitive" &&
+        instance.netlist.binding.deviceClass === "voltage-source",
+    );
+    if (!source) throw new Error("source");
+    const f = fixture();
+    f.executor.capabilities = async () => ({
+      ...caps,
+      profiles: [{ id: "test", corners: ["tt", "ff"] }],
+      modelLibrary: { path: "/models/sky130.lib.spice", section: "tt" },
+    });
+    const service = new SimulationService(f.files, f.executor, () => project);
+    const reply = await service.handle(
+      {
+        operation: "prepare-sweep",
+        setupId: setup.id,
+        expectedStructureRevision: project.structureRevision,
+        axes: [
+          { kind: "corner", values: ["tt", "ff"] },
+          { kind: "temperature", values: [-40, 125] },
+          {
+            kind: "parameter",
+            documentId: root.id,
+            instanceId: source.id,
+            parameter: "dc",
+            values: ["0.85", "0.95"],
+          },
+        ],
+      },
+      "prepare-sweep",
+    );
+    expect(reply).toMatchObject({ ok: true, batch: { state: "prepared" } });
+    if (!reply.ok || !("batch" in reply)) return;
+    expect(reply.batch.items[0]).toMatchObject({
+      label: `corner=tt, temp=-40C, ${source.id}.dc=0.85`,
+      prepared: { environment: { corner: "tt", temperatureC: -40 } },
+    });
+    expect(reply.batch.items).toHaveLength(8);
+    expect(
+      new Set(reply.batch.items.map((item) => item.prepared.digest)).size,
+    ).toBe(8);
+    expect(project.documents.find((item) => item.id === root.id)).toEqual(root);
+  });
+
   it("does not start a partially invalid batch and cancels queued members", async () => {
     const f = fixture();
     saveSetup(f.project, {

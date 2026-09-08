@@ -42,6 +42,12 @@ type StoredPrepared = {
   input: ExecutionInput;
   source: PrepareSource;
 };
+type BatchPrepareItem = {
+  id: string;
+  setupId: string;
+  label?: string;
+  source: PrepareSource;
+};
 type InternalBatch = {
   view: SimulationBatch;
   cancelled: boolean;
@@ -93,12 +99,17 @@ export class SimulationService {
           ok: true,
           capabilities: {
             ...(await this.executor.capabilities()),
-            batch: { maxItems: 16, execution: "sequential" },
+            batch: {
+              maxItems: 16,
+              execution: "sequential",
+              sweepAxes: ["corner", "temperature", "parameter"],
+            },
           },
         };
       if (op.operation === "prepare") return await this.prepare(op);
       if (op.operation === "start") return this.start(op, requestId);
       if (op.operation === "prepare-batch") return await this.prepareBatch(op);
+      if (op.operation === "prepare-sweep") return await this.prepareSweep(op);
       if (op.operation === "start-batch") return this.startBatch(op, requestId);
       if (op.operation === "read-batch" || op.operation === "cancel-batch")
         return await this.accessBatch(op);
@@ -134,6 +145,7 @@ export class SimulationService {
             const revision = await this.inputIdentity.read(
               this.getProject(),
               run.source.setupId,
+              run.source.variant,
             );
             run.view.inputStatus =
               revision === null
@@ -176,13 +188,15 @@ export class SimulationService {
               ? "read"
               : op.operation === "prepare-batch"
                 ? "prepare"
-                : op.operation === "start-batch"
-                  ? "start"
-                  : op.operation === "read-batch"
-                    ? "read"
-                    : op.operation === "cancel-batch"
-                      ? "cancel"
-                      : op.operation,
+                : op.operation === "prepare-sweep"
+                  ? "prepare"
+                  : op.operation === "start-batch"
+                    ? "start"
+                    : op.operation === "read-batch"
+                      ? "read"
+                      : op.operation === "cancel-batch"
+                        ? "cancel"
+                        : op.operation,
           recovery: "not-retryable",
           correlationId: crypto.randomUUID(),
         },
@@ -210,6 +224,93 @@ export class SimulationService {
   private async prepareBatch(
     op: Extract<SimulationOperation, { operation: "prepare-batch" }>,
   ): Promise<SimulationReply> {
+    return this.prepareBatchItems(
+      op.items.map((item) => ({
+        ...item,
+        source: {
+          kind: "project-setup" as const,
+          setupId: item.setupId,
+          expectedStructureRevision: op.expectedStructureRevision,
+        },
+      })),
+    );
+  }
+
+  private async prepareSweep(
+    op: Extract<SimulationOperation, { operation: "prepare-sweep" }>,
+  ): Promise<SimulationReply> {
+    type Variant = NonNullable<
+      Extract<PrepareSource, { kind: "project-setup" }>["variant"]
+    >;
+    let variants: Array<{ label: string[]; variant: Variant }> = [
+      { label: [], variant: { parameters: [] } },
+    ];
+    for (const axis of op.axes) {
+      variants = variants.flatMap((existing) =>
+        axis.values.map((value) => {
+          if (axis.kind === "corner") {
+            return {
+              label: [...existing.label, `corner=${value}`],
+              variant: {
+                ...existing.variant,
+                environment: {
+                  ...existing.variant.environment,
+                  corner: value as string,
+                },
+              },
+            };
+          }
+          if (axis.kind === "temperature") {
+            return {
+              label: [...existing.label, `temp=${value}C`],
+              variant: {
+                ...existing.variant,
+                environment: {
+                  ...existing.variant.environment,
+                  temperatureC: value as number,
+                },
+              },
+            };
+          }
+          return {
+            label: [
+              ...existing.label,
+              `${axis.instanceId}.${axis.parameter}=${value}`,
+            ],
+            variant: {
+              ...existing.variant,
+              parameters: [
+                ...(existing.variant.parameters ?? []),
+                {
+                  documentId: axis.documentId,
+                  instanceId: axis.instanceId,
+                  parameter: axis.parameter,
+                  value: value as string,
+                },
+              ],
+            },
+          };
+        }),
+      );
+    }
+    return this.prepareBatchItems(
+      variants.map(({ label, variant }, index) => ({
+        id: `sweep-${index + 1}`,
+        setupId: op.setupId,
+        label: label.join(", "),
+        source: {
+          kind: "project-setup" as const,
+          setupId: op.setupId,
+          expectedStructureRevision: op.expectedStructureRevision,
+          variant,
+        },
+      })),
+    );
+  }
+
+  private async prepareBatchItems(
+    requestedItems: readonly BatchPrepareItem[],
+  ): Promise<SimulationReply> {
     if (
       [...this.runs.values()].some((run) =>
         ["running", "cancelling"].includes(run.view.state),
@@ -231,14 +332,10 @@ export class SimulationService {
     }
     const preparedIds: string[] = [];
     const items: SimulationBatch["items"] = [];
-    for (const item of op.items) {
+    for (const item of requestedItems) {
       const reply = await this.prepare({
         operation: "prepare",
-        source: {
-          kind: "project-setup",
-          setupId: item.setupId,
-          expectedStructureRevision: op.expectedStructureRevision,
-        },
+        source: item.source,
       });
       if (!reply.ok || !("prepared" in reply)) {
         for (const preparedId of preparedIds) this.prepared.delete(preparedId);
@@ -248,6 +345,7 @@ export class SimulationService {
       items.push({
         id: item.id,
         setupId: item.setupId,
+        ...(item.label ? { label: item.label } : {}),
         prepared: structuredClone(reply.prepared),
         state: "prepared",
       });

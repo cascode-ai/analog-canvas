@@ -962,7 +962,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
                   disabled={!item.runId}
                   onClick={() => props.onSelectSetupId(item.setupId)}
                 >
-                  {setup?.name ?? item.setupId} · {item.state}
+                  {item.label ?? setup?.name ?? item.setupId} · {item.state}
                 </button>
               );
             })}

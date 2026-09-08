@@ -99,6 +99,7 @@ export const AgentSimulationResourceCapabilitySchema = z.strictObject({
       "start-batch",
       "read-batch",
       "cancel-batch",
+      "prepare-sweep",
     ]),
   ),
   analyses: z.array(z.enum(["op", "dc", "ac", "tran", "noise"])),

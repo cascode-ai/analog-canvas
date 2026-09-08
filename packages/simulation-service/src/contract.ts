@@ -278,6 +278,27 @@ export const InputSourceSchema = z.discriminatedUnion("kind", [
     kind: z.literal("project-setup"),
     setupId: Id,
     expectedStructureRevision: z.number().int().nonnegative(),
+    variant: z
+      .strictObject({
+        environment: z
+          .strictObject({
+            corner: z.string().min(1).max(64).optional(),
+            temperatureC: z.number().finite().optional(),
+          })
+          .optional(),
+        parameters: z
+          .array(
+            z.strictObject({
+              documentId: Id,
+              instanceId: Id,
+              parameter: z.string().min(1).max(128),
+              value: z.string().max(4096),
+            }),
+          )
+          .max(16)
+          .optional(),
+      })
+      .optional(),
   }),
   z.strictObject({
     kind: z.literal("workspace"),
@@ -290,6 +311,23 @@ export const SimulationBatchItemRequestSchema = z.strictObject({
   id: Id,
   setupId: Id,
 });
+export const SimulationSweepAxisSchema = z.discriminatedUnion("kind", [
+  z.strictObject({
+    kind: z.literal("corner"),
+    values: z.array(z.string().min(1).max(64)).min(1).max(16),
+  }),
+  z.strictObject({
+    kind: z.literal("temperature"),
+    values: z.array(z.number().finite()).min(1).max(16),
+  }),
+  z.strictObject({
+    kind: z.literal("parameter"),
+    documentId: Id,
+    instanceId: Id,
+    parameter: z.string().min(1).max(128),
+    values: z.array(z.string().max(4096)).min(1).max(16),
+  }),
+]);
 export const SimulationOperationSchema = z.discriminatedUnion("operation", [
   z.strictObject({ operation: z.literal("capabilities") }),
   z.strictObject({
@@ -321,6 +359,39 @@ export const SimulationOperationSchema = z.discriminatedUnion("operation", [
           });
         }
         ids.add(item.id);
+      }
+    }),
+  z
+    .strictObject({
+      operation: z.literal("prepare-sweep"),
+      setupId: Id,
+      expectedStructureRevision: z.number().int().nonnegative(),
+      axes: z.array(SimulationSweepAxisSchema).min(1).max(4),
+    })
+    .superRefine((request, context) => {
+      const identities = new Set<string>();
+      let points = 1;
+      for (const [index, axis] of request.axes.entries()) {
+        const identity =
+          axis.kind === "parameter"
+            ? `${axis.kind}:${axis.documentId}:${axis.instanceId}:${axis.parameter.toLowerCase()}`
+            : axis.kind;
+        if (identities.has(identity)) {
+          context.addIssue({
+            code: "custom",
+            message: `Duplicate sweep axis: ${identity}`,
+            path: ["axes", index],
+          });
+        }
+        identities.add(identity);
+        points *= axis.values.length;
+      }
+      if (points > 16) {
+        context.addIssue({
+          code: "custom",
+          message: `Sweep expands to ${points} points; maximum is 16`,
+          path: ["axes"],
+        });
       }
     }),
   z.strictObject({
@@ -368,6 +439,11 @@ export const CapabilitiesSchema = z.strictObject({
     .strictObject({
       maxItems: z.number().int().positive(),
       execution: z.literal("sequential"),
+      sweepAxes: z.tuple([
+        z.literal("corner"),
+        z.literal("temperature"),
+        z.literal("parameter"),
+      ]),
     })
     .optional(),
 });
@@ -388,6 +464,7 @@ export type Run = z.infer<typeof RunSchema>;
 export const SimulationBatchItemSchema = z.strictObject({
   id: Id,
   setupId: Id,
+  label: z.string().min(1).max(256).optional(),
   prepared: PreparedSchema,
   state: z.enum([
     "prepared",
