@@ -9,21 +9,34 @@ import {
 export function useWaveformWidth() {
   const ref = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(760);
+  const [viewportHeight, setViewportHeight] = useState<number>(Infinity);
   useEffect(() => {
     if (!ref.current) return;
+    const resize = () => setViewportHeight(window.innerHeight);
+    resize();
+    window.addEventListener("resize", resize);
     const observer = new ResizeObserver(([entry]) => {
       if (entry && entry.contentRect.width > 0)
         setWidth(Math.max(280, Math.round(entry.contentRect.width)));
     });
     observer.observe(ref.current);
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", resize);
+    };
   }, []);
-  return { ref, width };
+  return { ref, width, viewportHeight };
 }
 
 /** Keep docked plots readable as the resizable Simulation workspace grows. */
-export function responsiveWaveformHeight(width: number): number {
-  return Math.round(Math.min(440, Math.max(320, width * 0.52)));
+export function responsiveWaveformHeight(
+  width: number,
+  viewportHeight = Infinity,
+): number {
+  // Leave room for editor chrome, result navigation, title and plot controls.
+  return Math.round(
+    Math.max(320, Math.min(600, width * 0.52, viewportHeight - 400)),
+  );
 }
 
 export interface WaveformPoint {

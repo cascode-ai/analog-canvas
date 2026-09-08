@@ -1120,19 +1120,73 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
     }),
   ).toBeVisible();
   await panel.getByRole("button", { name: "Maximize simulation" }).click();
-  const maximizedResultHeader = await panel
-    .locator(".simulation-results-header")
-    .boundingBox();
-  const maximizedComparison = await panel
-    .locator(".simulation-comparison-view")
-    .boundingBox();
-  expect(maximizedResultHeader).not.toBeNull();
-  expect(maximizedComparison).not.toBeNull();
-  expect(maximizedResultHeader!.x).toBeCloseTo(maximizedComparison!.x, 0);
-  expect(maximizedResultHeader!.width).toBeCloseTo(
-    maximizedComparison!.width,
-    0,
-  );
+  const previousViewport = page.viewportSize()!;
+  for (const [width, height] of [
+    [1440, 1080],
+    [1920, 1080],
+    [1440, 800],
+  ] as const) {
+    await page.setViewportSize({ width, height });
+    await panel.getByRole("tab", { name: "Compare" }).click();
+    const surfaceBox = (await panel.boundingBox())!;
+    for (const selector of [
+      ".simulation-taskbar",
+      ".simulation-results-header",
+    ]) {
+      const headerBox = (await panel.locator(selector).boundingBox())!;
+      expect(headerBox.x).toBeCloseTo(surfaceBox.x, 0);
+      expect(headerBox.width).toBeCloseTo(surfaceBox.width, 0);
+    }
+    const comparisonBox = (await panel
+      .locator(".simulation-comparison-view")
+      .boundingBox())!;
+    expect(comparisonBox.width).toBeLessThan(surfaceBox.width);
+    expect(comparisonBox.x + comparisonBox.width / 2).toBeCloseTo(
+      surfaceBox.x + surfaceBox.width / 2,
+      0,
+    );
+    await panel.getByRole("tab", { name: "Plot" }).click();
+    const card = panel
+      .locator(".simulation-analysis-card")
+      .filter({
+        has: page.locator(".ac-view-toolbar"),
+      })
+      .first();
+    const shell = card.locator(".ac-plot-shell").first();
+    await expect
+      .poll(async () => (await shell.locator("svg").boundingBox())!.height)
+      .toBeGreaterThan(height > 800 ? 440 : 320);
+    const shellBox = (await shell.boundingBox())!;
+    const titleBox = (await card
+      .locator(".simulation-analysis-card-header h3")
+      .boundingBox())!;
+    const modeBox = (await card.locator(".ac-view-toolbar").boundingBox())!;
+    expect(titleBox.x + titleBox.width / 2).toBeCloseTo(
+      shellBox.x + shellBox.width / 2,
+      0,
+    );
+    expect(modeBox.x).toBeCloseTo(shellBox.x, 0);
+    await expect
+      .poll(() =>
+        panel
+          .locator(".simulation-results-body")
+          .evaluate((element) => element.scrollWidth <= element.clientWidth),
+      )
+      .toBe(true);
+    await panel.locator(".simulation-results-body").evaluate((element) => {
+      element.scrollTop = 0;
+    });
+    await expect
+      .poll(async () => {
+        const box = (await shell.boundingBox())!;
+        return box.y + box.height;
+      })
+      .toBeLessThan(height - 30);
+    await page.screenshot({
+      path: test.info().outputPath(`maximized-${width}-${height}.png`),
+    });
+  }
+  await page.setViewportSize(previousViewport);
   await panel.getByRole("button", { name: "Restore simulation panel" }).click();
   pending = new Promise<void>((r) => {
     release = r;
