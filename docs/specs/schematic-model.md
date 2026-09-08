@@ -122,7 +122,12 @@ and visual diagnostics; `fallbackPosition` is used only for a dangling target.
 `cell-terminal-name` may use a same-text Annotation RichText `formatOverride`;
 `instance-value` resolves typed component parameters. A visible master label or
 other custom object-attached text is a literal Annotation and has no identity
-or export authority. Renderers never derive visible Instance text from IDs,
+or export authority. A device's visual `instance-label` starts as a Reference
+projection; canvas content editing switches that same object to literal
+`content`, removing `binding` and `formatOverride`. Only an explicit reset
+restores following. `Instance.reference` is the Netlist Reference, not a second
+editable presentation string. No extra stored label field is needed.
+Renderers never derive visible Instance text from IDs,
 master bindings, provenance, or copied properties. Drafting objects are
 visual-only and cannot create connectivity.
 

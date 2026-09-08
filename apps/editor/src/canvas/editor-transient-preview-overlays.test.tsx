@@ -56,7 +56,7 @@ describe("editor transient preview overlays", () => {
           onTextCommit={vi.fn()}
           onTextCancel={vi.fn()}
           onTextDelete={vi.fn()}
-          onConvertFormulaToLiteral={vi.fn()}
+          onRestoreReference={vi.fn()}
         />
       </svg>,
     );

@@ -519,9 +519,8 @@ export function defaultInstanceLabel(
     document.annotations.some(
       (annotation) =>
         annotation.kind === "instance-label" &&
-        // Literal attached text is free text, not a projection of this name;
-        // only an existing projection makes a default one redundant.
-        annotation.binding !== undefined &&
+        // A customized visual annotation occupies the same slot as a
+        // following one. Returning from the tray must not add a second label.
         annotation.anchor.kind === "object" &&
         annotation.anchor.objectId === instance.id,
     )

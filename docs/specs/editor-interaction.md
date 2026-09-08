@@ -15,7 +15,7 @@ eligible Cell definitions in a dynamic **Cells** section. A Cell selection
 uses the same cursor preview, grid snap, rotation, mirror, and cancellation
 state as a Symbol; its commit factory alone differs, creating one typed
 subcircuit Instance through a Project structural transaction. `Xn` is its sole
-Instance Reference and is both displayed and emitted. A separate visible
+Netlist Reference and is emitted and displayed by default. A separate visible
 Cell/master label, when present, is ordinary literal attached text with no
 identity or hierarchy authority. Both `port` and
 `port-filled` remain manually reachable artwork for one concept: **Cell Pin**.
@@ -385,28 +385,30 @@ Internal Cells and external subcircuits additionally receive their
 Cell/master presentation as attached literal text; a Cell Pin receives only an object-anchored
 `cell-terminal-name`; and parameter values use `instance-value` when requested
 and displayable.
-Properties and character editing of the bound canvas label both rename the one
-Instance Reference. Same-text RichText formatting stays in the Annotation and
-ordinary attached literal text never becomes a Reference.
-A character edit whose text the component's Reference prefix policy refuses
-(`gm` on a resistor, whose Reference the netlist prints as `R…`) is not
-committed as a rename and does not end in the Edit Engine's refusal: the
-editor offers to keep the Reference and show the typed text as attached
-literal text in the label's place. Accepting hides the `instance-reference`
-projection (`visible: false`), creates one literal `instance-label` Annotation
-at the same anchor with the edited size, alignment, and colour, and leaves
-`Instance.reference` unchanged; declining keeps the editor open. Properties
-exposes the same attached text as a `Label` field for every placed component,
-including one with no Reference at all: setting it creates or rewrites the one
-literal `instance-label` Annotation of that Instance — in the hidden Reference
-projection's place, otherwise on the next free label line below the Reference
-and a shown value — and clearing it removes that Annotation. Neither direction
-touches the Reference, the netlist, or export.
+Properties exposes **Netlist Reference** for explicit electrical renaming:
+case-insensitive Document uniqueness and device-prefix validation still apply.
+The canvas exposes **Visual annotation**. Changing its characters or inserting
+a formula replaces `binding`/`formatOverride` with literal RichText `content`
+on the same Annotation, preserving ID, anchor, size, alignment, color, and
+visibility. Even another valid Reference such as `R2` is a visual edit, never
+an electrical rename. Formatting-only changes retain the live binding when
+their plain characters are unchanged. Custom text stays custom even if the
+author later types the current Netlist Reference.
+
+**Edit annotation** in Properties opens the same floating rich editor; there
+is no second optional Label field. Bold, italic, scripts, overbar, symbols,
+alignment, the existing multiline shortcut (Shift+Enter), and formula tool are available.
+**Use netlist name** restores the live binding and default content styling
+within the editing session; the editor's normal finish action commits it. This
+preserves position and other presentation properties. Copy allocates a unique
+Netlist Reference: following annotations update, custom content copies exactly.
+Old additional annotations are retained as user-authored content rather than
+silently deleted; new edits never generate a hidden/default plus custom pair.
 For a Cell Pin, a character edit renames the terminal while a formatting-only
 edit persists a same-text annotation `formatOverride`. Properties exposes the
 Cell Pin name and direction. Net naming remains a Net Label operation.
 The renderer never synthesizes text from Instance IDs and no empty suppressor
-label exists. Reference label display is a Properties toggle for one or many
+label exists. Visual annotation display is a Properties toggle for one or many
 selected components: hiding sets the annotation's optional `visible: false`
 flag, which renderers and hit/marquee surfaces skip while the annotation stays
 in the Project, so hiding is recoverable and a missing label can be re-created
@@ -445,14 +447,13 @@ math profile, and replaces the current RichText document with one atomic
 formula only after validation succeeds. Ordinary bold, italic, script,
 overbar, alignment, multiline, and symbol controls remain the same RichText
 system; formulas do not create an Additional Text or Annotation side channel.
-For a semantic name binding, Formula Insert checks the proposed formula before
+For a Net or Cell terminal name binding, Formula Insert checks the proposed formula before
 it changes the editing session. A bounded formula made only from groups,
 scripts, overbar, bold/italic wrappers, and supported Greek symbols is compiled
 to the same canonical RichText presentation when its flattened characters
-still equal the bound name. A non-equivalent Instance Reference formula offers to become a
-literal formula annotation attached at the Instance's value-label position;
-accepting keeps `Instance.reference` unchanged. Declining leaves the Formula
-editor open. Other bound electrical names refuse a non-equivalent formula in
+still equal the bound name. Device visual annotations accept any formula allowed
+by the math profile, without name-equivalence checks or conversion prompts.
+Net and Cell terminal names refuse a non-equivalent formula in
 the Formula panel. Ordinary character edits and formatting commands do not use
 this formula-only decision path.
 

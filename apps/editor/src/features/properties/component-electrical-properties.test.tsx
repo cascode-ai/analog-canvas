@@ -182,7 +182,7 @@ describe("component electrical properties", () => {
       />,
     );
     expect(markup).toContain("Value");
-    expect(markup).not.toContain(">Reference<");
+    expect(markup).not.toContain(">Visual annotation<");
   });
 
   it("shows only the active ordinary-source waveform fields", () => {
@@ -293,7 +293,7 @@ describe("the Display row only offers what the drawing can show", () => {
       {},
     );
     expect(markup).not.toContain("Component display toggles");
-    expect(markup).not.toContain("Reference");
+    expect(markup).not.toContain("Visual annotation");
     expect(markup).not.toContain(">Value<");
   });
 
@@ -305,7 +305,7 @@ describe("the Display row only offers what the drawing can show", () => {
       { referenceAvailable: true, valueSupported: true, valueAvailable: true },
     );
     expect(markup).toContain("Component display toggles");
-    expect(markup).toContain("Reference");
+    expect(markup).toContain("Visual annotation");
     expect(markup).toContain("Value");
   });
 
@@ -326,7 +326,7 @@ describe("the Display row only offers what the drawing can show", () => {
       { id: "S1", symbolId: "ideal-switch", placement: null, reference: "S1" },
       { referenceAvailable: true, valueSupported: false },
     );
-    expect(markup).toContain("Reference");
+    expect(markup).toContain("Visual annotation");
     expect(markup).not.toContain(">Value<");
   });
 
@@ -337,6 +337,6 @@ describe("the Display row only offers what the drawing can show", () => {
       { id: "G1", symbolId: "ground", placement: null, reference: "G1" },
       { referenceAvailable: true, referenceLabelRenderable: false },
     );
-    expect(markup).not.toContain("Reference");
+    expect(markup).not.toContain("Visual annotation");
   });
 });

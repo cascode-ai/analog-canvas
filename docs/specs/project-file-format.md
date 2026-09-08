@@ -114,6 +114,12 @@ are rejected.
   carry a RichText `formatOverride` only when its flattened text equals the
   semantic Reference, Net, or terminal name. Reference allocation and rename
   update that same-text projection atomically without discarding its styling.
+  Device visual annotations customized on the canvas use literal `content`
+  instead, on the same Annotation ID and anchor, without `binding` or
+  `formatOverride`. They do not rename or duplicate `Instance.reference`.
+  Save/open and copy preserve this exclusive choice; only explicit **Use
+  netlist name** returns a custom annotation to following. The JSON field
+  remains `Instance.reference` (UI: **Netlist Reference**), with no schema bump.
 - A RichText document is either ordinary styled text runs or one atomic
   formula run containing bounded LaTeX source and `inline`/`block` display
   intent. Typeset SVG paths and metrics are derived artifacts, never Project

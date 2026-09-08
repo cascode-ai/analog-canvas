@@ -1,22 +1,7 @@
-import {
-  defaultInstanceLabelPlacement,
-  resolveDocumentStyleProfile,
-} from "@icm/derived";
 import { flattenRichText, normalizeRichText } from "@icm/model";
-import type {
-  Annotation,
-  RichTextDocument,
-  RichTextRun,
-  SchematicDocument,
-} from "@icm/model";
-import type { SymbolResolver } from "@icm/symbols";
+import type { RichTextDocument, RichTextRun } from "@icm/model";
 
-/**
- * Formula source is presentation, not an electrical identifier grammar. A
- * bound label can keep a formula only when its canonical plain projection is
- * exactly the name it already owns; every other formula must become literal
- * attached text instead of leaking LaTeX into Instance.reference.
- */
+/** Presentation-equivalent formulas for electrical Net/Cell terminal names. */
 export function boundFormulaPresentation(
   latex: string,
   semanticText: string,
@@ -156,50 +141,4 @@ class BoundNameFormulaParser {
     const children = this.parseArgument();
     return children?.length ? [{ kind: "span", style, children }] : null;
   }
-}
-
-/** Build the literal, object-attached formula chosen by the mismatch prompt. */
-export function attachedInstanceFormulaAnnotation(options: {
-  document: SchematicDocument;
-  source: Annotation;
-  formula: RichTextDocument;
-  resolver: SymbolResolver;
-  id: string;
-}): Annotation | null {
-  const { document, source, formula, resolver, id } = options;
-  const binding = source.binding;
-  if (binding?.kind !== "instance-reference") return null;
-  const instance = document.instances.find(
-    (candidate) => candidate.id === binding.instanceId,
-  );
-  if (!instance?.placement) return null;
-  const symbol = resolver.resolve(instance.symbolId, instance.symbolVariantId);
-  if (!symbol) return null;
-  const placement = defaultInstanceLabelPlacement(
-    instance,
-    symbol,
-    resolveDocumentStyleProfile(document.presentation),
-    document.presentation.grid,
-    "value",
-  );
-  if (!placement) return null;
-
-  return {
-    id,
-    kind: "instance-value",
-    content: formula,
-    anchor: {
-      kind: "object",
-      objectId: instance.id,
-      localOffset: {
-        x: placement.position.x - instance.placement.position.x,
-        y: placement.position.y - instance.placement.position.y,
-      },
-      fallbackPosition: placement.position,
-    },
-    alignment: placement.alignment,
-    rotation: 0,
-    locked: false,
-    sizeScale: source.sizeScale ?? 1,
-  };
 }

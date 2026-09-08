@@ -19,7 +19,6 @@ import {
 import type { RichTextDocument, RichTextRun } from "@icm/model";
 
 import { boundFormulaPresentation } from "./bound-formula";
-import type { ReferenceLabelOffer } from "./text-editing";
 
 export interface RichTextEditorProps {
   targetKey: string;
@@ -28,7 +27,7 @@ export interface RichTextEditorProps {
   sizeScale: number;
   alignment: "start" | "middle" | "end";
   /**
-   * A semantic display (for example an instance reference) edits its source
+   * A plain-only display (for example Symbol body text) edits its source
    * field. It is deliberately a plain, single-line input rather than a fake
    * RichText document with disabled formatting controls.
    */
@@ -45,12 +44,8 @@ export interface RichTextEditorProps {
   onReverseCurrentArrow?(): void;
   /** Electrical name represented by this editor, when Formula is constrained. */
   formulaSemanticText?: string;
-  /** Convert a non-equivalent Formula into literal attached text. */
-  onConvertFormulaToLiteral?(formula: RichTextDocument): boolean;
-  /** A refused Reference edit, offered as attached literal text instead. */
-  referenceLabelOffer?: ReferenceLabelOffer;
-  onAcceptReferenceLabelOffer?(): void;
-  onDeclineReferenceLabelOffer?(): void;
+  /** Restore this visual annotation to its live Netlist Reference. */
+  onRestoreReference?(): RichTextDocument | undefined;
   onLayoutHeightChange?(height: number): void;
 }
 
@@ -448,10 +443,7 @@ export function RichTextEditor({
   onDelete,
   onReverseCurrentArrow,
   formulaSemanticText,
-  onConvertFormulaToLiteral,
-  referenceLabelOffer,
-  onAcceptReferenceLabelOffer,
-  onDeclineReferenceLabelOffer,
+  onRestoreReference,
   onLayoutHeightChange,
 }: RichTextEditorProps) {
   const shellRef = useRef<HTMLDivElement>(null);
@@ -468,8 +460,6 @@ export function RichTextEditor({
     existingFormula?.display ?? "inline",
   );
   const [formulaError, setFormulaError] = useState<string | null>(null);
-  const [pendingFormulaConversion, setPendingFormulaConversion] =
-    useState<RichTextDocument | null>(null);
 
   useLayoutEffect(() => {
     const shell = shellRef.current;
@@ -610,20 +600,17 @@ export function RichTextEditor({
     setFormulaDraft(formula?.latex ?? (selection || "V_{OUT}"));
     setFormulaDisplay(formula?.display ?? "inline");
     setFormulaError(null);
-    setPendingFormulaConversion(null);
     setFormulaOpen(true);
   };
 
   const closeFormulaEditor = (): void => {
     setFormulaOpen(false);
     setFormulaError(null);
-    setPendingFormulaConversion(null);
   };
 
   const updateFormulaDraft = (value: string): void => {
     setFormulaDraft(value);
     setFormulaError(null);
-    setPendingFormulaConversion(null);
   };
 
   const applyFormula = async (): Promise<void> => {
@@ -646,30 +633,15 @@ export function RichTextEditor({
         ? null
         : boundFormulaPresentation(latex, formulaSemanticText);
     if (formulaSemanticText !== undefined && !boundPresentation) {
-      if (!onConvertFormulaToLiteral) {
-        setFormulaError(
-          `A bound electrical name formula must preserve “${formulaSemanticText}”`,
-        );
-        return;
-      }
-      setFormulaError(null);
-      setPendingFormulaConversion(next);
+      setFormulaError(
+        `A bound electrical name formula must preserve “${formulaSemanticText}”`,
+      );
       return;
     }
     const inserted = boundPresentation ?? next;
     onChange(inserted);
     if (editableRef.current) {
       editableRef.current.innerHTML = toEditableHtml(inserted);
-    }
-    closeFormulaEditor();
-  };
-
-  const confirmFormulaConversion = (): void => {
-    if (!pendingFormulaConversion || !onConvertFormulaToLiteral) return;
-    if (!onConvertFormulaToLiteral(pendingFormulaConversion)) {
-      setFormulaError("This formula could not be attached to the component");
-      setPendingFormulaConversion(null);
-      return;
     }
     closeFormulaEditor();
   };
@@ -880,6 +852,24 @@ export function RichTextEditor({
         >
           {deleteLabel}
         </button>
+        {onRestoreReference ? (
+          <button
+            type="button"
+            disabled={disabled}
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => {
+              const restored = onRestoreReference();
+              if (restored && editableRef.current) {
+                editableRef.current.innerHTML = toEditableHtml(restored);
+                selectionRangeRef.current = null;
+              }
+              closeFormulaEditor();
+            }}
+            title="Replace this annotation with the live netlist instance name"
+          >
+            Use netlist name
+          </button>
+        ) : null}
         {onReverseCurrentArrow ? (
           <button
             type="button"
@@ -989,68 +979,35 @@ export function RichTextEditor({
               </div>
             ) : null}
           </div>
-          {pendingFormulaConversion && formulaSemanticText !== undefined ? (
-            <div
-              className="rich-text-formula-conversion"
-              data-testid="formula-conversion-confirmation"
-              role="alert"
-            >
-              <div>
-                <strong>Formula does not match the electrical name</strong>
-                <span>
-                  Reference “{formulaSemanticText}” will remain unchanged. Add
-                  this expression as a component formula note?
-                </span>
-              </div>
-              <div className="rich-text-formula-conversion-actions">
-                <button
-                  type="button"
-                  onClick={() => setPendingFormulaConversion(null)}
-                >
-                  Keep editing
-                </button>
-                <button
-                  className="rich-text-formula-primary-action"
-                  type="button"
-                  onClick={confirmFormulaConversion}
-                >
-                  Add as formula note
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="rich-text-formula-actions">
-              <div className="rich-text-formula-display-toggle">
-                <button
-                  type="button"
-                  aria-pressed={formulaDisplay === "inline"}
-                  onClick={() => {
-                    setFormulaDisplay("inline");
-                    setPendingFormulaConversion(null);
-                  }}
-                >
-                  Inline
-                </button>
-                <button
-                  type="button"
-                  aria-pressed={formulaDisplay === "block"}
-                  onClick={() => {
-                    setFormulaDisplay("block");
-                    setPendingFormulaConversion(null);
-                  }}
-                >
-                  Display
-                </button>
-              </div>
+          <div className="rich-text-formula-actions">
+            <div className="rich-text-formula-display-toggle">
               <button
-                className="rich-text-formula-primary-action"
                 type="button"
-                onClick={() => void applyFormula()}
+                aria-pressed={formulaDisplay === "inline"}
+                onClick={() => {
+                  setFormulaDisplay("inline");
+                }}
               >
-                Insert
+                Inline
+              </button>
+              <button
+                type="button"
+                aria-pressed={formulaDisplay === "block"}
+                onClick={() => {
+                  setFormulaDisplay("block");
+                }}
+              >
+                Display
               </button>
             </div>
-          )}
+            <button
+              className="rich-text-formula-primary-action"
+              type="button"
+              onClick={() => void applyFormula()}
+            >
+              Insert
+            </button>
+          </div>
         </div>
       ) : null}
       {sourceOnly ? (
@@ -1121,37 +1078,6 @@ export function RichTextEditor({
           }}
         />
       )}
-      {referenceLabelOffer ? (
-        <div
-          className="rich-text-formula-conversion"
-          data-testid="reference-label-offer"
-          role="alert"
-        >
-          <div>
-            <strong>
-              “{referenceLabelOffer.text}” cannot be this component’s Reference
-            </strong>
-            <span>
-              Its Reference starts with “{referenceLabelOffer.prefix}” because
-              the netlist prints it. Keep Reference “
-              {referenceLabelOffer.reference}” and show “
-              {referenceLabelOffer.text}” as a label in its place?
-            </span>
-          </div>
-          <div className="rich-text-formula-conversion-actions">
-            <button type="button" onClick={onDeclineReferenceLabelOffer}>
-              Keep editing
-            </button>
-            <button
-              className="rich-text-formula-primary-action"
-              type="button"
-              onClick={onAcceptReferenceLabelOffer}
-            >
-              Show as label
-            </button>
-          </div>
-        </div>
-      ) : null}
     </div>
   );
 }

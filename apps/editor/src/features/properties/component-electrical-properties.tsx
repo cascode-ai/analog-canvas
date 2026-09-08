@@ -95,7 +95,7 @@ export function ComponentElectricalProperties({
   /**
    * Whether this instance has a reference designator to show. A part with no
    * device descriptor — a voltage amplifier, an op amp, the signal-flow
-   * blocks — never gets one, so a "Reference" toggle would switch something
+   * blocks — never gets one, so a "Visual annotation" toggle would switch something
    * that does not exist. Read from the reference policy rather than a list of
    * Symbol names, so a Symbol added later is right without anyone editing it.
    */
@@ -234,7 +234,7 @@ export function ComponentElectricalProperties({
                   instance.symbolId === "port" ||
                   instance.symbolId === "port-filled"
                     ? "Port label"
-                    : "Reference"
+                    : "Visual annotation"
                 }
                 checked={referenceVisible}
                 onChange={onReferenceVisibilityChange}

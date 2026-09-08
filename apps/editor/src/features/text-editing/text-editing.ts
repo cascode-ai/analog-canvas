@@ -1,11 +1,12 @@
 import type { SchematicEdit } from "@icm/edit-engine";
-import { flattenRichText } from "@icm/model";
+import { flattenRichText, semanticTextDocument } from "@icm/model";
 import { resolveAnnotationText } from "@icm/derived";
 import type {
   Annotation,
   AnnotationTextBinding,
   DraftingObject,
   RichTextDocument,
+  RichTextRun,
   SchematicDocument,
 } from "@icm/model";
 
@@ -35,25 +36,15 @@ export interface TextEditingSession {
   content: RichTextDocument;
   sizeScale: number;
   alignment: "start" | "middle" | "end";
-  /** Semantic displays edit their source field, not a copied RichText AST. */
+  /** Net/terminal/value displays edit their source; Instance labels edit presentation. */
   bound: boolean;
   bindingKind?: AnnotationTextBinding["kind"];
+  /** Instance whose visual annotation is being edited; never a rename target. */
+  visualInstanceId?: string;
+  /** Explicit restoration requested within the session, committed by Apply. */
+  restoreReference?: boolean;
   /** Symbol body text only: what the Symbol draws with no override. */
   defaultFormula?: string;
-}
-
-/**
- * A Reference edit the prefix policy refused, held while the person decides
- * whether the typed text should become attached literal text instead.
- */
-export interface ReferenceLabelOffer {
-  readonly annotationId: string;
-  /** The typed text, as plain characters. */
-  readonly text: string;
-  /** The Reference that stays, and is printed by the netlist. */
-  readonly reference: string;
-  /** The prefix the component's Reference has to start with. */
-  readonly prefix: string;
 }
 
 export type TextEditingCommitProposal =
@@ -68,6 +59,13 @@ export function createTextEditingSession(
 ): TextEditingSession {
   if (target.owner === "annotation") {
     const annotation = target.object;
+    const anchor = annotation.anchor;
+    const instanceId =
+      annotation.binding?.kind === "instance-reference"
+        ? annotation.binding.instanceId
+        : anchor.kind === "object"
+          ? anchor.objectId
+          : undefined;
     return {
       owner: "annotation",
       id: annotation.id,
@@ -76,8 +74,17 @@ export function createTextEditingSession(
         : (annotation.content ?? { runs: [] }),
       sizeScale: annotation.sizeScale ?? 1,
       alignment: annotation.alignment,
-      bound: annotation.binding !== undefined,
+      bound:
+        annotation.binding !== undefined &&
+        annotation.binding.kind !== "instance-reference",
       ...(annotation.binding ? { bindingKind: annotation.binding.kind } : {}),
+      ...(annotation.kind === "instance-label" &&
+      document?.instances.some(
+        (instance) => instance.id === instanceId && instance.reference,
+      ) &&
+      (!annotation.binding || annotation.binding.kind === "instance-reference")
+        ? { visualInstanceId: instanceId! }
+        : {}),
     };
   }
   if (target.owner === "instance-formula") {
@@ -112,7 +119,18 @@ export function updateTextEditingSession(
     Pick<TextEditingSession, "content" | "sizeScale" | "alignment">
   >,
 ): TextEditingSession {
-  return { ...session, ...change };
+  return {
+    ...session,
+    ...change,
+    ...(change.content && session.restoreReference
+      ? {
+          restoreReference:
+            isNamePresentation(change.content.runs) &&
+            flattenRichText(change.content) ===
+              flattenRichText(session.content),
+        }
+      : {}),
+  };
 }
 
 export function resolveTextEditingTarget(
@@ -163,6 +181,16 @@ function richTextEqual(
   right: RichTextDocument,
 ): boolean {
   return JSON.stringify(left) === JSON.stringify(right);
+}
+
+// Formula source may spell the same characters as a name; that does not make
+// it a name projection. Only styled characters can retain a live binding.
+function isNamePresentation(runs: readonly RichTextRun[]): boolean {
+  return runs.every(
+    (run) =>
+      run.kind === "text" ||
+      (run.kind === "span" && isNamePresentation(run.children)),
+  );
 }
 
 // Persist the exact rich-text AST and suppress revisions when both that AST
@@ -228,6 +256,57 @@ export function proposeTextEditingCommit(
 
   if (target.owner === "annotation") {
     const annotation = target.object;
+    if (
+      annotation.binding?.kind === "instance-reference" ||
+      session.restoreReference
+    ) {
+      const instanceId =
+        annotation.binding?.kind === "instance-reference"
+          ? annotation.binding.instanceId
+          : session.visualInstanceId;
+      const reference = document.instances.find(
+        (instance) => instance.id === instanceId,
+      )?.reference;
+      if (!reference || !instanceId) return { kind: "blocked" };
+      const {
+        binding: _binding,
+        content: _content,
+        formatOverride: _format,
+        ...rest
+      } = annotation;
+      const follows =
+        session.restoreReference ||
+        (isNamePresentation(session.content.runs) &&
+          flattenRichText(session.content) === reference);
+      const defaultContent = semanticTextDocument(reference, "instance-label");
+      const next: Annotation = {
+        ...rest,
+        sizeScale: session.sizeScale,
+        alignment: session.alignment,
+        ...(follows
+          ? {
+              binding: { kind: "instance-reference" as const, instanceId },
+              ...(!richTextEqual(session.content, defaultContent)
+                ? { formatOverride: session.content }
+                : {}),
+            }
+          : { content: session.content }),
+      };
+      if (
+        (annotation.sizeScale ?? 1) === next.sizeScale &&
+        annotation.alignment === next.alignment &&
+        JSON.stringify(annotation.binding) === JSON.stringify(next.binding) &&
+        JSON.stringify(annotation.content) === JSON.stringify(next.content) &&
+        JSON.stringify(annotation.formatOverride) ===
+          JSON.stringify(next.formatOverride)
+      )
+        return { kind: "unchanged" };
+      return {
+        kind: "update",
+        id: annotation.id,
+        edit: { kind: "upsert_schematic_annotation", annotation: next },
+      };
+    }
     // A binding is an electrical/domain fact, never a second editable text
     // payload. The editor dispatches source edits before reaching this guard.
     if (annotation.binding) return { kind: "blocked" };

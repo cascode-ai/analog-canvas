@@ -96,7 +96,7 @@ describe("editor shell", () => {
     expect(markup).toContain("Export SPICE netlist");
     expect(markup).toContain("Export Spectre netlist");
     expect(markup).not.toContain("Cell netlist interface");
-    expect(markup).not.toContain("Component reference");
+    expect(markup).not.toContain("Netlist Reference");
     expect(markup).not.toContain("Component model");
     // Cell navigation is hierarchy navigation, so a flat Project does not
     // carry a row of controls that cannot do anything yet. Manage Cells… stays

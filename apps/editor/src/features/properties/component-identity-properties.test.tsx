@@ -48,10 +48,9 @@ describe("component identity properties", () => {
           suggestions: ["sky130_fd_pr__nfet_01v8"],
           externalSubcircuit: false,
         }}
-        label={null}
         onMarkerNameChange={vi.fn()}
         onReferenceChange={vi.fn()}
-        onLabelChange={vi.fn()}
+        onEditAnnotation={vi.fn()}
         onModelTargetChange={vi.fn()}
       />,
     );
@@ -82,20 +81,19 @@ describe("component identity properties", () => {
         targetDescription={null}
         capacitorPlateRows={null}
         modelTarget={null}
-        label={null}
         onMarkerNameChange={vi.fn()}
         onReferenceChange={vi.fn()}
-        onLabelChange={vi.fn()}
+        onEditAnnotation={vi.fn()}
         onModelTargetChange={vi.fn()}
       />,
     );
     expect(markup).toContain("Symbol");
-    expect(markup).not.toContain('aria-label="Component reference"');
+    expect(markup).not.toContain('aria-label="Netlist Reference"');
     // A retained Instance has nowhere to stand a label yet.
     expect(markup).not.toContain('aria-label="Component label"');
   });
 
-  it("offers a free Label beside the Reference, showing the attached text", () => {
+  it("offers one rich-editor action beside the Netlist Reference", () => {
     const document = createEmptyDocument("cell", "Cell");
     const instance: (typeof document.instances)[number] = {
       id: "R1",
@@ -121,16 +119,15 @@ describe("component identity properties", () => {
         targetDescription={null}
         capacitorPlateRows={null}
         modelTarget={null}
-        label="gm"
         onMarkerNameChange={vi.fn()}
         onReferenceChange={vi.fn()}
-        onLabelChange={vi.fn()}
+        onEditAnnotation={vi.fn()}
         onModelTargetChange={vi.fn()}
       />,
     );
-    expect(markup).toContain('aria-label="Component reference"');
-    expect(markup).toContain('aria-label="Component label"');
-    expect(markup).toContain('value="gm"');
+    expect(markup).toContain('aria-label="Netlist Reference"');
+    expect(markup).toContain("Edit annotation");
+    expect(markup).not.toContain('aria-label="Component label"');
     expect(markup).toContain('value="R1"');
   });
 });
