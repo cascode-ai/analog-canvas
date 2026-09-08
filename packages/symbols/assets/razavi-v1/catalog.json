@@ -1327,7 +1327,7 @@
       "palette": true,
       "automaticMappings": ["spice:V"],
       "assetPath": "voltage-source.symbol.json",
-      "assetHash": "9f295fd28893155c8e3e73f26fd5f858f99a54b77b1917720ee2fbb02fb2942c",
+      "assetHash": "2feeef8f7e425cc38ba9de64ed9b81333ec4c53c3c553a030264c22a919e5402",
       "visualAuthority": {
         "kind": "razavi-reference-v1",
         "referenceManifestPath": "fixtures/visual-reference/razavi-reference-v1/manifest.json",
@@ -1341,7 +1341,7 @@
         "referenceManifestPath": "fixtures/visual-reference/razavi-reference-v1/manifest.json",
         "referencePath": "fixtures/visual-reference/razavi-reference-v1/razavi-six-panel.png",
         "converterPath": "scripts/generate-razavi-peripheral-assets.mjs",
-        "converterVersion": 1
+        "converterVersion": 2
       }
     },
     {

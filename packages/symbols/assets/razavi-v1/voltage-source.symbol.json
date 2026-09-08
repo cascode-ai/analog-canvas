@@ -60,6 +60,7 @@
         "x": -11.918605,
         "y": -14.534884
       },
+      "part": "upright-polarity-positive-horizontal",
       "style": {
         "strokeRole": "normal",
         "lineCap": "butt",
@@ -76,6 +77,7 @@
         "x": -15.988372,
         "y": -10.465117
       },
+      "part": "upright-polarity-positive-vertical",
       "style": {
         "strokeRole": "normal",
         "lineCap": "butt",
@@ -92,6 +94,7 @@
         "x": -11.918605,
         "y": 13.372093
       },
+      "part": "upright-polarity-negative",
       "style": {
         "strokeRole": "normal",
         "lineCap": "butt",

@@ -1586,7 +1586,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     automaticMappings: ["spice:V"],
     assetPath: "voltage-source.symbol.json",
     assetHash:
-      "9f295fd28893155c8e3e73f26fd5f858f99a54b77b1917720ee2fbb02fb2942c",
+      "2feeef8f7e425cc38ba9de64ed9b81333ec4c53c3c553a030264c22a919e5402",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1604,7 +1604,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       referencePath:
         "fixtures/visual-reference/razavi-reference-v1/razavi-six-panel.png",
       converterPath: "scripts/generate-razavi-peripheral-assets.mjs",
-      converterVersion: 1,
+      converterVersion: 2,
     },
   },
   {
@@ -9579,6 +9579,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           x: -11.918605,
           y: -14.534884,
         },
+        part: "upright-polarity-positive-horizontal",
         style: {
           strokeRole: "normal",
           lineCap: "butt",
@@ -9595,6 +9596,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           x: -15.988372,
           y: -10.465117,
         },
+        part: "upright-polarity-positive-vertical",
         style: {
           strokeRole: "normal",
           lineCap: "butt",
@@ -9611,6 +9613,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           x: -11.918605,
           y: 13.372093,
         },
+        part: "upright-polarity-negative",
         style: {
           strokeRole: "normal",
           lineCap: "butt",

@@ -96,6 +96,29 @@ describe("SymbolArtwork pin-name previews", () => {
     );
   });
 
+  it("keeps voltage-source polarity notation upright in a rotated mirrored placement preview", () => {
+    const symbol = requireRazaviCatalogSymbol("voltage-source");
+    const markup = renderToStaticMarkup(
+      <svg>
+        <ComponentPlacementPreview
+          styleProfileId="razavi-textbook-v1"
+          symbolId={symbol.id}
+          symbol={symbol}
+          position={{ x: 100, y: 80 }}
+          rotation={90}
+          mirror="x"
+        />
+      </svg>,
+    );
+
+    expect(markup).toContain(
+      'transform="translate(100 80) rotate(90) scale(-1 1)"',
+    );
+    expect(markup).toContain(
+      'data-part="upright-polarity-negative" x1="-15.988372" y1="17.44186" x2="-15.988372" y2="9.302326"',
+    );
+  });
+
   it.each([0, 90, 180, 270] as const)(
     "keeps visible pin names and Q-bar upright at %d degrees",
     (rotation) => {

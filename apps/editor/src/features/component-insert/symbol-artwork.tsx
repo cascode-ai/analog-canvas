@@ -99,6 +99,10 @@ export function SymbolArtwork({
               symbol,
               variant?.hiddenPrimitiveParts,
               variant?.additionalPrimitives,
+              razaviTextbookProfile,
+              undefined,
+              undefined,
+              { rotation: previewRotation, mirror: "none" },
             ) + formula,
         }}
       />
