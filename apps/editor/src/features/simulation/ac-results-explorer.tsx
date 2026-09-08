@@ -306,7 +306,10 @@ export function ComplexResultsExplorer({
       : {
           ...PLOT_SIZE,
           width: Math.max(280, measured.width - 116),
-          height: responsiveWaveformHeight(Math.max(280, measured.width - 116)),
+          height: responsiveWaveformHeight(
+            Math.max(280, measured.width - 116),
+            measured.viewportHeight,
+          ),
         };
     const valueRange = valueRanges[plot.quantity + plot.kind];
     const layout = layoutAcPlot(

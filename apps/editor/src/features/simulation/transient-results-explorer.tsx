@@ -297,7 +297,10 @@ export function ScalarResultsExplorer({
       : {
           ...PLOT,
           width: Math.max(280, measured.width - 116),
-          height: responsiveWaveformHeight(Math.max(280, measured.width - 116)),
+          height: responsiveWaveformHeight(
+            Math.max(280, measured.width - 116),
+            measured.viewportHeight,
+          ),
         };
     const range = timeRange ?? fullRange;
     const clipId = `${clipPrefix}-${quantity}-${expanded}`;

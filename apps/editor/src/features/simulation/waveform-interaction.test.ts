@@ -10,7 +10,11 @@ describe("waveform axes", () => {
   it("grows docked plots with their panel without becoming unbounded", () => {
     expect(responsiveWaveformHeight(400)).toBe(320);
     expect(responsiveWaveformHeight(760)).toBe(395);
-    expect(responsiveWaveformHeight(1200)).toBe(440);
+    expect(responsiveWaveformHeight(1000)).toBe(520);
+    expect(responsiveWaveformHeight(1200)).toBe(600);
+    expect(responsiveWaveformHeight(2400)).toBe(600);
+    expect(responsiveWaveformHeight(1200, 800)).toBe(400);
+    expect(responsiveWaveformHeight(1200, 600)).toBe(320);
   });
 
   it("adapts tick spacing to nanoseconds and a zoomed small signal", () => {

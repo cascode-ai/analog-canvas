@@ -245,16 +245,31 @@
 }
 
 .spice-simulation-surface.maximized {
+  /* Full-width chrome; one shared, centered content rail below it. */
+  --simulation-content-inset: max(24px, calc((100% - 1600px) / 2));
   border-right: 0;
 }
 
 .spice-simulation-surface.maximized .simulation-taskbar {
-  grid-template-columns: minmax(140px, 1fr) auto minmax(140px, 1fr);
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
+  gap: 24px;
+  padding: 10px 24px;
 }
 
 .spice-simulation-surface.maximized .simulation-task-actions {
-  justify-self: center;
+  justify-self: stretch;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.spice-simulation-surface.maximized .simulation-setup-menu {
+  flex-basis: 180px;
+}
+
+.spice-simulation-surface.maximized .simulation-task-actions > button {
+  min-height: 30px;
+  padding-inline: 10px;
 }
 
 .spice-simulation-surface.maximized .simulation-window-actions {
@@ -267,16 +282,46 @@
   margin-inline: auto;
 }
 
-.spice-simulation-surface.maximized .simulation-results-body > * {
+.spice-simulation-surface.maximized .simulation-results-body {
   box-sizing: border-box;
-  width: min(100%, 1440px);
-  margin-inline: auto;
+  padding: 18px var(--simulation-content-inset) 28px;
+  scrollbar-gutter: stable both-edges;
 }
 
 .spice-simulation-surface.maximized .simulation-results-header {
   box-sizing: border-box;
-  width: min(calc(100% - 32px), 1440px);
-  margin-inline: auto;
+  width: 100%;
+  margin: 0;
+  padding: 8px 24px;
+  background: var(--icm-surface);
+}
+
+.spice-simulation-surface.maximized
+  .simulation-analysis-card:has(.simulation-plot-layout)
+  > .simulation-analysis-card-header {
+  /* Center over the waveform, not waveform + the 108px signal rail. */
+  padding-left: 116px;
+}
+
+@media (max-width: 700px) {
+  .spice-simulation-surface.maximized {
+    --simulation-content-inset: 12px;
+  }
+
+  .spice-simulation-surface.maximized .simulation-taskbar {
+    gap: 8px;
+    padding-inline: 12px;
+  }
+
+  .spice-simulation-surface.maximized .simulation-results-header {
+    padding-inline: 12px;
+  }
+
+  .spice-simulation-surface.maximized
+    .simulation-analysis-card:has(.simulation-plot-layout)
+    > .simulation-analysis-card-header {
+    padding-left: 0;
+  }
 }
 
 .simulation-workspace-notice {
