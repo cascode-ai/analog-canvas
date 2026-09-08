@@ -69,13 +69,6 @@ export function standaloneSimulationPlotSvg(svg: SVGSVGElement): string {
   clone
     .querySelectorAll(".ac-trace-hit, .ac-cursor-hit")
     .forEach((element) => element.remove());
-  clone.querySelectorAll<SVGElement>(".ac-frame").forEach((element) => {
-    // The live frame is transparent. Give the standalone artifact an explicit
-    // background because SVG-to-Canvas otherwise resolves `fill: none` to the
-    // inherited default in Chromium and produces a black plot panel.
-    element.setAttribute("fill", "white");
-    element.style.setProperty("fill", "white");
-  });
   const size = dimensions(svg);
   clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
   clone.setAttribute("width", String(size.width));
@@ -141,12 +134,18 @@ export async function buildVisibleSimulationPlotDownload(
   const plots = [...root.querySelectorAll<SVGSVGElement>("svg[role='img']")];
   if (!plots.length) return null;
   const entries: { name: string; bytes: Uint8Array }[] = [];
-  for (let index = 0; index < plots.length; index++) {
-    const plot = plots[index]!;
+  // Freeze every plot while its nodes still belong to the styled document.
+  // Rasterization yields to React: a busy-state render can replace the SVGs,
+  // after which getComputedStyle on a later plot returns empty presentation.
+  const snapshots = plots.map((plot, index) => {
     const label = plot.getAttribute("aria-label") ?? `Plot ${index + 1}`;
-    const name = `${String(index + 1).padStart(2, "0")}-${safeName(label)}.${format}`;
-    const svg = standaloneSimulationPlotSvg(plot);
-    const size = dimensions(plot);
+    return {
+      name: `${String(index + 1).padStart(2, "0")}-${safeName(label)}.${format}`,
+      svg: standaloneSimulationPlotSvg(plot),
+      size: dimensions(plot),
+    };
+  });
+  for (const { name, svg, size } of snapshots) {
     entries.push({
       name,
       bytes:
