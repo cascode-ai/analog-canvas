@@ -7,12 +7,14 @@ import {
 } from "./pdk-registry.js";
 
 describe("PDK symbol mapping registry", () => {
-  it("offers one bounded reviewed target per MOS polarity", () => {
+  it("offers the qualified core and LVT targets per MOS polarity", () => {
     expect(reviewedSky130MosModelSuggestions("nmos")).toEqual([
       "sky130_fd_pr__nfet_01v8",
+      "sky130_fd_pr__nfet_01v8_lvt",
     ]);
     expect(reviewedSky130MosModelSuggestions("pmos")).toEqual([
       "sky130_fd_pr__pfet_01v8",
+      "sky130_fd_pr__pfet_01v8_lvt",
     ]);
     expect(reviewedSky130MosModelSuggestions("resistor")).toEqual([]);
   });
@@ -30,6 +32,9 @@ describe("PDK symbol mapping registry", () => {
     expect(
       resolvePdkSymbolMapping("sky130_fd_pr__res_high_po", 3),
     ).toMatchObject({ symbolId: "resistor", pinNames: ["1", "2", "B"] });
+    expect(
+      resolvePdkSymbolMapping("sky130_fd_pr__pnp_05v5_W0p68L0p68", 3),
+    ).toMatchObject({ symbolId: "pnp", pinNames: ["C", "B", "E"] });
   });
 
   it("does not guess an unknown namespace or conflicting terminal count", () => {

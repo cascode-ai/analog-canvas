@@ -638,6 +638,69 @@ describe("reviewed external MOS model targets", () => {
     }
   });
 
+  it("switches the ordinary PNP between a primitive model and its exact SKY130 wrapper", () => {
+    const project = createEmptyProject("project", "Project");
+    project.documents[0]!.instances.push({
+      id: "Q1",
+      symbolId: "pnp",
+      placement: null,
+      reference: "Q1",
+      netlist: {
+        binding: { kind: "model", deviceClass: "bjt", name: "generic_pnp" },
+        parameters: {},
+      },
+    });
+    const external = executeProjectTransaction(project, {
+      transactionId: "set-sky130-pnp",
+      projectId: project.id,
+      expectedStructureRevision: project.structureRevision,
+      actor: { kind: "human", id: "test" },
+      edits: planSetDeviceModelTarget(
+        project,
+        project.topDocumentId,
+        "Q1",
+        "sky130_fd_pr__pnp_05v5_W0p68L0p68",
+      ),
+    });
+    expect(external.ok).toBe(true);
+    if (!external.ok) return;
+    expect(external.project.documents[0]!.instances[0]).toMatchObject({
+      symbolId: "pnp",
+      reference: "XQ1",
+      netlist: {
+        binding: { kind: "external-subcircuit" },
+        parameters: {},
+      },
+    });
+    expect(external.project.externalSubcircuitDefinitions[0]).toMatchObject({
+      name: "sky130_fd_pr__pnp_05v5_W0p68L0p68",
+      terminals: [{ name: "C" }, { name: "B" }, { name: "E" }],
+    });
+
+    const ordinary = executeProjectTransaction(external.project, {
+      transactionId: "set-generic-pnp",
+      projectId: external.project.id,
+      expectedStructureRevision: external.project.structureRevision,
+      actor: { kind: "human", id: "test" },
+      edits: planSetDeviceModelTarget(
+        external.project,
+        external.project.topDocumentId,
+        "Q1",
+        "generic_pnp",
+      ),
+    });
+    expect(ordinary.ok).toBe(true);
+    if (!ordinary.ok) return;
+    expect(ordinary.project.documents[0]!.instances[0]).toMatchObject({
+      symbolId: "pnp",
+      reference: "Q1",
+      netlist: {
+        binding: { kind: "model", deviceClass: "bjt", name: "generic_pnp" },
+        parameters: {},
+      },
+    });
+  });
+
   it("refuses a Model transition when its canonical X reference is occupied", () => {
     const project = projectWithNmos();
     project.documents[0]!.instances.push({
