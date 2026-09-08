@@ -64,7 +64,7 @@ function evaluate(
     return {
       real: Array.from({ length: pointCount }, () => expression.value),
       imaginary: Array.from({ length: pointCount }, () => 0),
-      unit: "1",
+      unit: expression.unit ?? "1",
       complex: false,
     };
   }

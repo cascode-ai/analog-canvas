@@ -407,7 +407,7 @@ describe("compiling a structured simulation setup", () => {
     expect(vectors).not.toContain("v(xdut.vinp)");
     expect(vectors).not.toContain("v(xdut.vdd)");
     expect(JSON.stringify(result.deviceOperatingPoints)).toContain(
-      '"kind":"constant","value":0',
+      '"kind":"constant","value":0,"unit":"V"',
     );
     expect(result.request.netlist).toContain("VICMPRB");
   });
