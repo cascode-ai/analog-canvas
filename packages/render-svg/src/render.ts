@@ -2,6 +2,7 @@ import { arrowArtwork, arrowPathData } from "@icm/derived";
 import {
   RectSchema,
   SchematicDocumentSchema,
+  inverseTransformPoint,
   semanticTextDocument,
   transformPoint,
 } from "@icm/model";
@@ -41,6 +42,7 @@ import type {
   DerivedRect,
   DraftingObject,
   GridRect,
+  Orientation,
   Point,
   RichTextDocument,
   RichTextRun,
@@ -279,21 +281,69 @@ function renderPrimitive(
   primitive: SymbolPrimitive,
   profile: SchematicStyleProfile,
   foregroundOverride?: string,
+  orientation?: Pick<Orientation, "rotation" | "mirror">,
 ): string {
   const fg = foregroundOverride ?? profile.foreground;
   const style = primitiveStyle(primitive, profile);
-  switch (primitive.kind) {
+  const rendered = screenUprightPrimitive(primitive, orientation);
+  const uprightPart = rendered.part?.startsWith("upright-")
+    ? ` data-part="${escapeXml(rendered.part)}"`
+    : "";
+  switch (rendered.kind) {
     case "line":
-      return `<line x1="${primitive.from.x}" y1="${primitive.from.y}" x2="${primitive.to.x}" y2="${primitive.to.y}"${style}/>`;
+      return `<line${uprightPart} x1="${rendered.from.x}" y1="${rendered.from.y}" x2="${rendered.to.x}" y2="${rendered.to.y}"${style}/>`;
     case "polyline":
-      return `<polyline points="${pointList(primitive.points)}"${style}/>`;
+      return `<polyline points="${pointList(rendered.points)}"${style}/>`;
     case "circle":
-      return `<circle cx="${primitive.center.x}" cy="${primitive.center.y}" r="${primitive.radius}"${primitive.fill === undefined ? "" : ` fill="${primitive.fill === "foreground" ? fg : "none"}"`}${primitive.stroke === undefined ? "" : ` stroke="${primitive.stroke === "foreground" ? fg : "none"}"`}${style}/>`;
+      return `<circle cx="${rendered.center.x}" cy="${rendered.center.y}" r="${rendered.radius}"${rendered.fill === undefined ? "" : ` fill="${rendered.fill === "foreground" ? fg : "none"}"`}${rendered.stroke === undefined ? "" : ` stroke="${rendered.stroke === "foreground" ? fg : "none"}"`}${style}/>`;
     case "path":
-      return `<path d="${escapeXml(primitive.data)}"${style}/>`;
+      return `<path d="${escapeXml(rendered.data)}"${style}/>`;
     case "polygon":
-      return `<polygon points="${pointList(primitive.points)}" fill="${primitive.fill === "foreground" ? fg : "none"}"${primitive.stroke === undefined ? "" : ` stroke="${primitive.stroke === "foreground" ? fg : "none"}"`}${style}/>`;
+      return `<polygon points="${pointList(rendered.points)}" fill="${rendered.fill === "foreground" ? fg : "none"}"${rendered.stroke === undefined ? "" : ` stroke="${rendered.stroke === "foreground" ? fg : "none"}"`}${style}/>`;
   }
+}
+
+/**
+ * Polarity marks are notation, not device geometry: they move with a source,
+ * but a minus sign remains horizontal on the page. Pre-apply the inverse of
+ * the instance orientation around each marked line's centre; the parent SVG
+ * transform then restores the centre while cancelling rotation and mirror.
+ */
+function screenUprightPrimitive(
+  primitive: SymbolPrimitive,
+  orientation?: Pick<Orientation, "rotation" | "mirror">,
+): SymbolPrimitive {
+  if (
+    primitive.kind !== "line" ||
+    !primitive.part?.startsWith("upright-") ||
+    orientation === undefined
+  ) {
+    return primitive;
+  }
+  const center = {
+    x: (primitive.from.x + primitive.to.x) / 2,
+    y: (primitive.from.y + primitive.to.y) / 2,
+  };
+  const canonicalCoordinate = (value: number): number => {
+    const rounded = Math.round(value * 1_000_000) / 1_000_000;
+    return Object.is(rounded, -0) ? 0 : rounded;
+  };
+  const inverseVector = (point: Point): Point => {
+    const unrotated = inverseTransformPoint(
+      { x: point.x - center.x, y: point.y - center.y },
+      { x: 0, y: 0 },
+      orientation,
+    );
+    return {
+      x: canonicalCoordinate(center.x + unrotated.x),
+      y: canonicalCoordinate(center.y + unrotated.y),
+    };
+  };
+  return {
+    ...primitive,
+    from: inverseVector(primitive.from),
+    to: inverseVector(primitive.to),
+  };
 }
 
 function signalFlowFramePoints(body: {
@@ -325,6 +375,7 @@ export function renderSymbolDefinitionBody(
   profile: SchematicStyleProfile = razaviTextbookProfile,
   foregroundOverride?: string,
   signalFlowParameters?: SignalFlowLayoutParameters,
+  orientation?: Pick<Orientation, "rotation" | "mirror">,
 ): string {
   const adaptive = resolveAdaptiveSignalFlowBlockLayout(
     definition,
@@ -350,7 +401,9 @@ export function renderSymbolDefinitionBody(
   const hidden = new Set(hiddenPrimitiveParts);
   return [...definition.primitives, ...additionalPrimitives]
     .filter((primitive) => !primitive.part || !hidden.has(primitive.part))
-    .map((primitive) => renderPrimitive(primitive, profile, foregroundOverride))
+    .map((primitive) =>
+      renderPrimitive(primitive, profile, foregroundOverride, orientation),
+    )
     .join("");
 }
 
@@ -401,6 +454,7 @@ export function renderInstanceOutlineGeometry(
         profile,
         undefined,
         instance.signalFlowParameters,
+        instance.placement ?? undefined,
       );
       return `<g data-object-id="${escapeXml(instance.id)}"><g transform="${instanceTransform(instance)}">${primitives}</g></g>`;
     })
@@ -932,6 +986,7 @@ export function buildSvgScene(
         profile,
         foregroundOverride,
         instance.signalFlowParameters,
+        instance.placement ?? undefined,
       );
       const pinNames = renderVisiblePinNames(
         resolved.definition,
@@ -1594,6 +1649,9 @@ function renderFloatingSymbol(
     hidden,
     additional,
     profile,
+    undefined,
+    undefined,
+    object.transform,
   );
   return `<g data-object-id="${object.id}" data-kind="draft-floating-symbol"${unresolved} data-symbol-id="${escapeXml(object.symbolId)}"><g transform="translate(${position.x} ${position.y}) rotate(${rotation})${mirror}">${body}</g></g>`;
 }

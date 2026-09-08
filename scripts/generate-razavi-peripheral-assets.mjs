@@ -37,9 +37,15 @@ function logical(measurement, point) {
   };
 }
 
-function line(from, to, style = normal) {
+function line(from, to, style = normal, part) {
   const clean = (point) => ({ x: rounded(point.x), y: rounded(point.y) });
-  return { kind: "line", from: clean(from), to: clean(to), style };
+  return {
+    kind: "line",
+    from: clean(from),
+    to: clean(to),
+    ...(part === undefined ? {} : { part }),
+    style,
+  };
 }
 
 function polyline(points, style = normal) {
@@ -89,14 +95,20 @@ function voltageSource(measurement) {
       line(
         { x: plus.x - halfWidth, y: plus.y },
         { x: plus.x + halfWidth, y: plus.y },
+        normal,
+        "upright-polarity-positive-horizontal",
       ),
       line(
         { x: plus.x, y: plus.y - halfHeight },
         { x: plus.x, y: plus.y + halfHeight },
+        normal,
+        "upright-polarity-positive-vertical",
       ),
       line(
         { x: minus.x - halfWidth, y: minus.y },
         { x: minus.x + halfWidth, y: minus.y },
+        normal,
+        "upright-polarity-negative",
       ),
       line({ x: 0, y: -radius }, { x: 0, y: -20 }),
       line({ x: 0, y: radius }, { x: 0, y: 20 }),
@@ -315,7 +327,7 @@ for (const symbol of symbols) {
           referencePath:
             "fixtures/visual-reference/razavi-reference-v1/razavi-six-panel.png",
           converterPath: "scripts/generate-razavi-peripheral-assets.mjs",
-          converterVersion: 1,
+          converterVersion: symbol.id === "voltage-source" ? 2 : 1,
         };
 }
 const catalogSource = normalize(

@@ -1491,16 +1491,19 @@ describe("Razavi symbol catalog", () => {
         }),
         expect.objectContaining({
           kind: "line",
+          part: "upright-polarity-positive-horizontal",
           from: { x: -20.058139, y: -14.534884 },
           to: { x: -11.918605, y: -14.534884 },
         }),
         expect.objectContaining({
           kind: "line",
+          part: "upright-polarity-positive-vertical",
           from: { x: -15.988372, y: -18.604651 },
           to: { x: -15.988372, y: -10.465117 },
         }),
         expect.objectContaining({
           kind: "line",
+          part: "upright-polarity-negative",
           from: { x: -20.058139, y: 13.372093 },
           to: { x: -11.918605, y: 13.372093 },
         }),

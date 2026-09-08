@@ -65,6 +65,10 @@ export function ComponentPlacementPreview({
               definition,
               variant?.hiddenPrimitiveParts,
               variant?.additionalPrimitives,
+              razaviTextbookProfile,
+              undefined,
+              undefined,
+              { rotation, mirror },
             ) + formula,
         }}
       />

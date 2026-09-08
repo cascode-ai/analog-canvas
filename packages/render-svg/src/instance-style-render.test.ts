@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { createEmptyDocument, createRoutePath } from "@icm/model";
+import {
+  createEmptyDocument,
+  createRoutePath,
+  transformPoint,
+} from "@icm/model";
 import {
   ANALOG_CANVAS_MATH_PROFILE_ID,
   clearFormulaArtifactCacheForTests,
@@ -12,6 +16,61 @@ import { renderDocumentSvg, buildSvgScene } from "./render.js";
 const resolver = new InMemorySymbolResolver(builtInSymbols);
 
 describe("instance style override rendering", () => {
+  it("keeps a voltage source minus horizontal without moving or resizing it", () => {
+    const originalCenter = { x: -15.988372, y: 13.372093 };
+    const originalLength = 8.139534;
+    for (const rotation of [0, 90, 180, 270] as const) {
+      for (const mirror of ["none", "x"] as const) {
+        const placement = {
+          position: { x: 100, y: 80 },
+          rotation,
+          mirror,
+        };
+        const doc = createEmptyDocument("doc-1", "Voltage source polarity");
+        doc.instances.push({
+          id: "V1",
+          symbolId: "voltage-source",
+          placement,
+        });
+
+        const svg = renderDocumentSvg(doc, resolver);
+        const match = svg.match(
+          /<line data-part="upright-polarity-negative" x1="([^"]+)" y1="([^"]+)" x2="([^"]+)" y2="([^"]+)"/u,
+        );
+        expect(match).not.toBeNull();
+        const localStart = { x: Number(match![1]), y: Number(match![2]) };
+        const localEnd = { x: Number(match![3]), y: Number(match![4]) };
+        const worldStart = transformPoint(
+          localStart,
+          placement.position,
+          placement,
+        );
+        const worldEnd = transformPoint(
+          localEnd,
+          placement.position,
+          placement,
+        );
+        const worldCenter = {
+          x: (worldStart.x + worldEnd.x) / 2,
+          y: (worldStart.y + worldEnd.y) / 2,
+        };
+
+        expect(worldStart.y).toBeCloseTo(worldEnd.y, 6);
+        expect(Math.abs(worldEnd.x - worldStart.x)).toBeCloseTo(
+          originalLength,
+          6,
+        );
+        const expectedCenter = transformPoint(
+          originalCenter,
+          placement.position,
+          placement,
+        );
+        expect(worldCenter.x).toBeCloseTo(expectedCenter.x, 6);
+        expect(worldCenter.y).toBeCloseTo(expectedCenter.y, 6);
+      }
+    }
+  });
+
   it("inherits default text fill without a CSS rule overriding authored text colors", () => {
     const svg = renderDocumentSvg(
       createEmptyDocument("doc", "Colors"),
