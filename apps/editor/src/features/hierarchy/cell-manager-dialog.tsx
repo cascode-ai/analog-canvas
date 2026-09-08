@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 
 import type {
+  CircuitProject,
   ExternalSubcircuitDefinition,
   CellSymbolPresentation,
   SchematicDocument,
 } from "@icm/model";
+import type { CloudProjectSummary } from "../editor-shell/cloud-projects";
 
 import { CellInterfaceEditor } from "./cell-interface-dialog";
 import { CellSymbolReview } from "./cell-symbol-review";
@@ -39,6 +41,10 @@ export function CellManagerDialog({
   externalDefinitions,
   onSetExternalDefinition,
   onSetSymbolPresentation,
+  cloudProjects,
+  activeCloudProjectId,
+  onLoadCloudProject,
+  onImportCloudCell,
 }: {
   open: boolean;
   cells: readonly CellManagerEntry[];
@@ -69,12 +75,29 @@ export function CellManagerDialog({
     documentId: string,
     presentation: CellSymbolPresentation | null,
   ): void;
+  cloudProjects: readonly CloudProjectSummary[];
+  activeCloudProjectId: string | null;
+  onLoadCloudProject(
+    projectId: string,
+  ): Promise<
+    { ok: true; project: CircuitProject } | { ok: false; message: string }
+  >;
+  onImportCloudCell(
+    source: CircuitProject,
+    documentId: string,
+  ): Promise<{ ok: boolean; message: string; documentId?: string }>;
 }) {
   const [selectedId, setSelectedId] = useState(activeDocumentId);
   const [draftName, setDraftName] = useState("");
   const [creating, setCreating] = useState(false);
   const [renameId, setRenameId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importProjectId, setImportProjectId] = useState("");
+  const [importSource, setImportSource] = useState<CircuitProject | null>(null);
+  const [importCellId, setImportCellId] = useState("");
+  const [importBusy, setImportBusy] = useState(false);
+  const [importMessage, setImportMessage] = useState("");
 
   useEffect(() => {
     if (open) {
@@ -85,6 +108,12 @@ export function CellManagerDialog({
     setCreating(false);
     setRenameId(null);
     setDeleteId(null);
+    setImporting(false);
+    setImportProjectId("");
+    setImportSource(null);
+    setImportCellId("");
+    setImportBusy(false);
+    setImportMessage("");
   }, [activeDocumentId, open]);
 
   const selectedEntry =
@@ -100,6 +129,7 @@ export function CellManagerDialog({
     setCreating(false);
     setRenameId(null);
     setDeleteId(null);
+    setImporting(false);
   }
 
   function submitCellName(): void {
@@ -175,6 +205,23 @@ export function CellManagerDialog({
               }}
             >
               New Cell
+            </button>
+            <button
+              type="button"
+              className="cell-manager-new"
+              disabled={cloudProjects.length === 0}
+              onClick={() => {
+                setCreating(false);
+                setRenameId(null);
+                setDeleteId(null);
+                setImporting(true);
+                setImportProjectId("");
+                setImportSource(null);
+                setImportCellId("");
+                setImportMessage("");
+              }}
+            >
+              Import Cell
             </button>
           </aside>
 
@@ -282,14 +329,106 @@ export function CellManagerDialog({
           </div>
         </div>
 
-        {deleteTarget || creating || renameTarget ? (
+        {deleteTarget || creating || renameTarget || importing ? (
           <div
             className="cell-manager-dialog-layer"
             onPointerDown={(event) =>
               event.target === event.currentTarget && dismissActionDialog()
             }
           >
-            {deleteTarget ? (
+            {importing ? (
+              <section
+                className="editor-action-dialog"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="import-cell-dialog-title"
+              >
+                <header className="editor-action-dialog-header">
+                  <p>Project hierarchy</p>
+                  <h2 id="import-cell-dialog-title">Import Cloud Cell</h2>
+                </header>
+                <div className="editor-action-dialog-body">
+                  <label>
+                    Source Project
+                    <select
+                      value={importProjectId}
+                      disabled={importBusy}
+                      onChange={async (event) => {
+                        const projectId = event.target.value;
+                        setImportProjectId(projectId);
+                        setImportSource(null);
+                        setImportCellId("");
+                        setImportMessage("");
+                        if (!projectId) return;
+                        setImportBusy(true);
+                        const loaded = await onLoadCloudProject(projectId);
+                        setImportBusy(false);
+                        if (!loaded.ok) {
+                          setImportMessage(loaded.message);
+                          return;
+                        }
+                        setImportSource(loaded.project);
+                        setImportCellId(loaded.project.topDocumentId);
+                      }}
+                    >
+                      <option value="">Choose a saved Project…</option>
+                      {cloudProjects
+                        .filter((cloud) => cloud.id !== activeCloudProjectId)
+                        .map((cloud) => (
+                          <option key={cloud.id} value={cloud.id}>
+                            {cloud.name}
+                          </option>
+                        ))}
+                    </select>
+                  </label>
+                  <label>
+                    Cell
+                    <select
+                      value={importCellId}
+                      disabled={!importSource || importBusy}
+                      onChange={(event) => setImportCellId(event.target.value)}
+                    >
+                      {(importSource?.documents ?? []).map((document) => (
+                        <option key={document.id} value={document.id}>
+                          {document.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {importMessage ? <p role="status">{importMessage}</p> : null}
+                  <p>
+                    The Cell and its child Cells are copied into this Project.
+                    The source stays unchanged.
+                  </p>
+                </div>
+                <footer className="editor-action-dialog-actions">
+                  <button type="button" onClick={dismissActionDialog}>
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!importSource || !importCellId || importBusy}
+                    onClick={async () => {
+                      if (!importSource || !importCellId) return;
+                      setImportBusy(true);
+                      const outcome = await onImportCloudCell(
+                        importSource,
+                        importCellId,
+                      );
+                      setImportBusy(false);
+                      if (!outcome.ok) {
+                        setImportMessage(outcome.message);
+                        return;
+                      }
+                      dismissActionDialog();
+                      if (outcome.documentId) onOpen(outcome.documentId);
+                    }}
+                  >
+                    {importBusy ? "Importing…" : "Import"}
+                  </button>
+                </footer>
+              </section>
+            ) : deleteTarget ? (
               <section
                 className="editor-action-dialog"
                 role="dialog"

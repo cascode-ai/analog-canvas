@@ -273,8 +273,11 @@ describe("current Agent Circuit API service", () => {
     // (about 2.5 KB), including its bounded measurement-method union and the
     // hierarchy-aware Noise selector. This raised the ceiling; it still guards
     // accidental projection bloat.
+    // Project source-file provenance is now an editable structural record so
+    // imported Cell closures can remain source-addressable without bypassing
+    // the canonical transaction contract.
     expect(JSON.stringify(AgentCircuitRequestJsonSchema).length).toBeLessThan(
-      167_000,
+      168_000,
     );
     expect(JSON.stringify(AgentCircuitResponseJsonSchema).length).toBeLessThan(
       180_000,

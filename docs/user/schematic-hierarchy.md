@@ -21,6 +21,17 @@ position. **Enter Cell** opens the child of a selected hierarchical Instance.
 Opening a shared Cell from the selector has no caller context when more than
 one path reaches it, which is reported in the status bar.
 
+Use **Import Cell** in the Cell Manager to copy a Cell from another signed-in
+Cloud Project. The import includes every child Cell it calls, compatible
+external-subcircuit interfaces, formal ports, presentation, and referenced
+source metadata. It is one ordinary undoable Project transaction: the source
+Project is never modified, and the destination copy does not follow later
+source changes. Identity and colliding Cell names are remapped
+deterministically; importing the same source Cell again opens the existing
+copy rather than creating another hidden duplicate. The first release requires
+the source and destination to use the same exact Symbol Library lock and
+reports incompatible external interfaces without changing either Project.
+
 The top Cell is the Project export root and is not instantiated as a symbol,
 but it is still emitted as a reusable structural subcircuit. **Port** and
 **Filled Port** are hollow and filled artwork for the same **Cell Pin** concept.
@@ -89,6 +100,13 @@ Agents use the existing `create-cell` action and `place-cell` with
 `childDocumentId`, `instanceId`, optional `reference`, and `placement`, targeting
 the parent Document. The same Project transaction owns validation and history;
 these actions do not create or modify a SimulationSetup.
+
+The import planner and its small Project edits are also public API contracts.
+An Agent that already holds an authorized source Project can plan the same
+independent closure and submit it through the standard structural transaction;
+the transaction remains revision-guarded and atomic. Reading a private Cloud
+Project is a separate account-authorized operation and is never implied by
+simulation permission.
 
 Hierarchy presentation is saved as definition-level size and pin-placement
 intent in current Project schema 26. Schema-25 projects open through the
