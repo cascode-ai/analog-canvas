@@ -122,7 +122,7 @@ remain valid only while their objects survive the edit lifecycle and are not
 exposed as an alternate Agent naming protocol.
 
 `wireIntent` has the same Route planner as interactive Wire. Its optional
-`routingMode` is `orthogonal` (default), `octilinear`, or `free` (ADR 0039);
+`routingMode` is `orthogonal` (default), `octilinear`, or `free` ([ADR 0014](../adr/0014-resolved-route-geometry.md));
 an optional
 `cornerOrder` selects the deterministic diagonal/orthogonal pair used when an
 exact 45-degree leg cannot reach the target. It never creates a diagonal-only
@@ -131,11 +131,19 @@ edit or a second Route model.
 ## File Resource boundary
 
 `POST /api/agent/sessions/{sessionId}/files` is separate from Circuit
-operations. It provides only authorized bounded Project/formal-artifact
-download and Project/structural-SPICE candidate staging. Staging never changes
-the browser Project. Replacement requires explicit human approval in the
-editor. The resource provides no filesystem, arbitrary-code, simulator, or
-waveform access.
+operations. It provides authorized bounded Project/formal-artifact download,
+Project/structural-SPICE candidate staging, and the advertised simulation input
+workspaces and execution artifacts. Staging never changes the browser Project;
+replacement requires explicit human approval.
+
+`POST /api/agent/sessions/{sessionId}/simulation` provides preparation and run
+operations through the shared SimulationService. Saved setup changes use normal
+Project structure edits; artifacts use File Resource, not Circuit render.
+See [execution and resources](simulation-execution.md).
+
+These resources do not expose arbitrary host files or a general-purpose
+code-execution API. Authored raw SPICE is simulator input within the configured
+isolated executor; its capability does not grant host-shell access.
 
 ## Validation
 

@@ -20,6 +20,7 @@ POST /api/agent/claims
 POST /api/agent/connectors/resume
 POST /api/agent/sessions/{sessionId}/circuit
 POST /api/agent/sessions/{sessionId}/files
+POST /api/agent/sessions/{sessionId}/simulation
 GET  /api/agent/openapi.json
 ```
 
@@ -34,11 +35,16 @@ when a human gives it a connection setup, then writes the listed files locally
 before redeeming the claim.
 
 The Circuit resource implements only API 2.0
-`capabilities/snapshot/transact/render`. The File Resource implements only
-advertised bounded Project/formal-artifact download and Project/structural-
-SPICE candidate staging flows. No endpoint provides arbitrary filesystem,
-code-execution, simulator, waveform, query, dynamic catalog-snapshot, or
-whole-Project mutation access.
+`capabilities/snapshot/transact/render`. File Resource handles advertised
+bounded Project/formal-artifact downloads, approved candidate staging, simulation
+raw workspaces, and execution artifacts. The sibling Simulation resource uses
+the shared prepare/start/read/cancel/export lifecycle; saved setup edits remain
+Project structure edits. See [simulation execution](simulation-execution.md).
+
+There is no arbitrary filesystem or host-code execution resource, retired query
+operation, dynamic catalog Snapshot, or unapproved whole-Project replacement.
+Running authored SPICE in the configured isolated executor is a scoped simulation
+capability, not general shell access.
 
 ## Binding and authority
 

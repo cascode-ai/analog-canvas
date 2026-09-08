@@ -1,42 +1,65 @@
-# Delivery Roadmap
+# Remaining Product Work
 
-This directory contains current cross-module work and its acceptance
-boundaries.
+Roadmaps contain unfinished outcomes and acceptance questions. Current behavior
+belongs in [specifications](../specs/README.md); implementation and delivery
+evidence belong in commits and pull requests. A file's existence or a module's
+unit tests do not establish end-to-end completion.
 
-## Delivery status
+## Active boundaries
 
-| Area                                                  | Status                                                        | Current authority                                                                                                       |
-| ----------------------------------------------------- | ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| SKY130 production export contract                     | implemented; full-delivery validation complete                | [bounded contract repair](sky130-production-export-contract.md)                                                         |
-| Analog simulation: Cell reuse, Testbench, OP, AC, TRAN, raw SPICE | v13 is the latest full-scope handoff plan; current MVP scope and implementation status must be re-audited against accepted contracts, `main`, and Issue #585 | [latest full-scope vertical integration plan](simulation-vertical-integration-plan-v13.md) |
-| Net naming, global projection, and export correctness | proposed C0, P0-P2                                            | [staged boundary and delivery plan](net-naming-resolution-export-p0.md)                                                 |
-| Connectivity, routing, and electrical debugging       | active                                                        | [unification plan](connectivity-routing-debugging-plan.md)                                                              |
-| Browser-authorized Agent sessions                     | implementation validation complete; deployment review pending | [session integration plan](web-agent-session-integration-plan.md) and [web-session spec](../specs/web-agent-session.md) |
-| Current-only Agent/Project/asset contract             | implemented; branch validation in progress                    | [Agent API spec](../specs/agent-api.md) and [ADR 0007](../adr/0007-snapshot-driven-agent-workflow.md)                   |
+| Outcome                           | Remaining boundary                                                                                                                                  | Acceptance owner                                                                      |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| Simulation integration            | Cross-Project reuse, authorized Project operations, and one-candidate complete human/Agent journey                                                  | [Simulation remaining work](simulation-remaining-work.md)                             |
+| Accessible manual editing         | Semantic canvas navigation and keyboard alternatives to pointer-only operations                                                                     | Editor interaction; [current limits](../user/troubleshooting.md#accessibility-limits) |
+| Connectivity consumer closure     | Verify all production consumers use canonical read/geometry/location contracts; remove any reachable duplicate paths only with parity evidence      | Derived/Edit Engine/editor owners                                                     |
+| Named-Net/export closure          | Verify the complete lifecycle and dialect matrix together, not just isolated resolver success                                                       | Derived/netlist/import/editor owners                                                  |
+| Portable release human acceptance | Install the PWA from the packaged local host; import/place/wire/save/restart/restore/export an original circuit; record candidate and artifact hash | Release owner                                                                         |
+| Hosted Agent delivery             | Confirm a deployed grant → edit → undo → revoke journey, credential isolation, and bounded resource access for the release candidate                | Agent/Worker/release owners                                                           |
 
-## Simulation plan history
+The last three rows are acceptance reviews, not claims that the implemented
+index, search, trace, naming, or Agent resources are missing. Close them with
+linked candidate evidence; investigate only gaps that the review actually finds.
 
-These are retained discussion snapshots, not current planning or accepted
-product authority: [v1](simulation-vertical-integration-plan.md) ·
-[v2](simulation-vertical-integration-plan-v2.md) ·
-[v3](simulation-vertical-integration-plan-v3.md) ·
-[v4](simulation-vertical-integration-plan-v4.md) ·
-[v5](simulation-vertical-integration-plan-v5.md) ·
-[v6](simulation-vertical-integration-plan-v6.md) ·
-[v7](simulation-vertical-integration-plan-v7.md) ·
-[v8](simulation-vertical-integration-plan-v8.md) ·
-[v9](simulation-vertical-integration-plan-v9.md) ·
-[v10](simulation-vertical-integration-plan-v10.md) ·
-[v11](simulation-vertical-integration-plan-v11.md) ·
-[v12](simulation-vertical-integration-plan-v12.md).
+## Connectivity and naming acceptance
 
-## Active planning rules
+Use the current [connectivity](../specs/connectivity-and-routing.md),
+[netlist](../specs/netlist-export.md), and
+[diagnostic](../adr/0015-object-locator-and-diagnostic-envelope.md) contracts.
+The acceptance review must cover:
 
-- A roadmap frames a cross-module outcome and its acceptance boundary; it does
-  not own a working-tree change.
-- A bounded target owns implementation, dirty-state handling, validation,
-  and delivery evidence.
-- An accepted spec or ADR overrides stale roadmap wording.
+- One occurrence-aware location path for search, trace, highlight, and check
+  navigation, including two instances of the same child Cell.
+- Shared resolved Route geometry for rendering, hit testing, attachment,
+  dragging, diagnostics, and formal export; stable leg remapping through
+  split, normalization, stretch, and deletion.
+- Manual and Agent behavior for free ends, bends, loops, Junctions, groups,
+  copy/paste, placement contacts, direct-pin separation, locked geometry, and
+  route-bound annotations. Refactoring cannot discard a difficult corner.
+- Wire cut → Base-Net partition → owner reconciliation → endpoint readiness,
+  with undo/redo, reset, save/reopen, NoConnect, MOS bulk, imported provenance,
+  local/global markers, and pin-to-pin contacts.
+- Distinct disconnected local/global equal names; physical joins and subsequent
+  cuts; project-wide canonical global spelling; dialect token collisions;
+  explicit generic versus Cadence spelling; source hints after edits; Ground
+  `0`; and owner-scoped Properties changes without topology mutation.
+- Permutation-stable spelling, structural reparse of emitted netlists, and
+  unchanged physical identity/ownership where only name projection changes.
+- ERC versus advisory visual findings, explicit Check and Save invalidation,
+  and the absence of editor-only overlays from formal exports.
+- The [performance workloads](../specs/performance.md), especially avoiding
+  repeated full-Document scans per Net and expensive pointer-move recomputation.
 
-Use [`phase.template.md`](phase.template.md) only for a new, genuinely staged
-delivery phase.
+These are regression and closure obligations, not a new Net protocol, an
+automatic rerouter, or a requirement to restore retired APIs.
+
+## Execution discipline
+
+Select a bounded target and its owner before implementation. Use the current
+[working rules](../../AGENTS.md) and [test policy](../testing/README.md), rather
+than copying gate commands into each roadmap. Use
+[the phase template](phase.template.md) only when a genuinely staged outcome
+needs a separate plan.
+
+An unresolved requirement must be resolved, explicitly deferred, or retained
+with an acceptance boundary. It must not disappear because an old checklist is
+removed, nor be marked complete because a foundation module landed.

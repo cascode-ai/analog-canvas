@@ -1,67 +1,61 @@
 # Project Documentation
 
-This directory contains the current product, contract, and delivery
-documentation.
+This directory describes the current product, its contracts, and unfinished
+work. Git carries decision and delivery history; this directory is not an
+archive of completed plans.
 
 ## Documentation map
 
-| Area                                                 | Purpose                                                                     |
-| ---------------------------------------------------- | --------------------------------------------------------------------------- |
-| [`user/`](user/getting-started.md)                   | Install, edit, save, compatibility, and troubleshooting guidance            |
-| [`overall-product-plan.md`](overall-product-plan.md) | Current product boundary, system shape, and source-of-truth map             |
-| [`current/`](current/README.md)                      | Default reading set for contributors and Agent-assisted product work        |
-| [`specs/`](specs/README.md)                          | Normative data, API, parser, rendering, persistence, and export contracts   |
-| [`adr/`](adr/README.md)                              | Accepted architectural decisions and their consequences                     |
-| [`agent/`](agent/README.md)                          | Agent workflow, API usage, response interpretation, and on-demand knowledge |
-| [`roadmap/`](roadmap/README.md)                      | Remaining cross-module work and its acceptance boundaries                   |
-| [`release/`](release/v0.1-checklist.md)              | Release checklist and known accessibility limits                            |
-| [`experience/`](experience/README.md)                | Human-requested, evidence-backed reusable lessons                           |
-| [`testing/`](testing/README.md)                       | Test layers, change-impact discipline, and contract ownership matrix        |
+| Area                                            | Purpose                                                                 |
+| ----------------------------------------------- | ----------------------------------------------------------------------- |
+| [User guides](user/getting-started.md)          | Editing, hierarchy, simulation, saving, compatibility, and known limits |
+| [Product architecture](overall-product-plan.md) | System boundaries and sources of truth                                  |
+| [Specifications](specs/README.md)               | Current data, interaction, API, execution, and export contracts         |
+| [Architecture decisions](adr/README.md)         | Why the active architectural boundaries exist                           |
+| [Agent guide](agent/README.md)                  | Authorized workflows and on-demand knowledge                            |
+| [Roadmap](roadmap/README.md)                    | Remaining work and acceptance questions                                 |
+| [Deployment](deployment.md)                     | Preview, Production, qualification, promotion, and recovery             |
+| [Testing](testing/README.md)                    | Validation policy and contract ownership                                |
+| [Experience](experience/README.md)              | Human-requested, evidence-backed reusable lessons                       |
 
-## Authority order
+## Contributor reading order
 
-When documents disagree, resolve the conflict explicitly rather than silently
-choosing one:
+1. [Product architecture](overall-product-plan.md) and [working rules](../AGENTS.md).
+2. [Schematic model](specs/schematic-model.md), [Edit Engine](specs/edit-engine.md),
+   and [connectivity](specs/connectivity-and-routing.md) for electrical work.
+3. [Visual contract](specs/razavi-visual-contract.md) and
+   [visual language](specs/visual-language.md) for rendering work.
+4. [Editor interaction](specs/editor-interaction.md), [Agent API](specs/agent-api.md),
+   and [web sessions](specs/web-agent-session.md) for entry points.
+5. [Simulation](specs/simulation.md) and [netlist export](specs/netlist-export.md)
+   for the design-to-analysis boundary.
+6. [Test system](testing/README.md) and the relevant domain's tests before editing.
 
-```text
-approved current normative spec
-→ active ADR rationale not restated by that spec
-→ current overall product plan
-→ current roadmap phase
-→ implementation and tests
-```
+Read only the domain references needed by the target. Agent-assisted schematic
+work also follows the [Agent workflow](agent/workflow.md).
 
-Implementation and tests are evidence, but they do not silently redefine an
-approved contract. Update the relevant spec when behavior intentionally
-changes. ADR schema numbers and migration examples record their acceptance
-context and never override the current file-format specification.
+## Resolving disagreement
 
-When current behavior and a specification differ, first characterize the
-executable behavior and its user-visible consequences. If the behavior is an
-accidental violation, repair the implementation and retain the rule. If it is a
-deliberate, coherent evolution, update the normative specification and record
-an ADR only when an architectural boundary changed. A reasonable outcome does
-not by itself bless duplicated or ad hoc implementation; code structure is
-reviewed separately from the accepted behavior.
+Specifications define the accepted current contract; ADRs explain its rationale.
+Architecture summarizes those boundaries, and roadmaps propose unfinished work.
+Implementation and tests establish what actually happens.
 
-## Start in the right place
+When behavior and a document disagree, inspect the behavior and its user-visible
+consequences first. Preserve a deliberate, coherent evolution by updating the
+contract; repair an accidental violation instead. A reasonable user outcome does
+not automatically justify duplicated or ad hoc implementation. Record an ADR
+only when the architectural decision changes, not for every correction.
 
-- To use the product: [getting started](user/getting-started.md).
-- To contribute product work: [current reading set](current/README.md).
-- To connect an Agent: [Agent workflow](agent/workflow.md).
-- To understand an approved interface: [specifications](specs/README.md) and
-  the related [ADR](adr/README.md).
-- To review unfinished cross-module work: [roadmap](roadmap/README.md).
+## Keeping documentation small
 
-## Planning flow
-
-```text
-overall architecture
-→ roadmap phase
-→ normative specs / ADRs
-→ implementation and focused validation
-→ a commit that states its intent, validation, and test impact
-```
-
-Roadmap files describe product delivery. A commit describes one specific
-execution target and the paths it owned.
+- Replace an obsolete rule in place; do not append an amendment that leaves
+  contradictory instructions active.
+- Keep one owner for each contract and link to it instead of copying interfaces,
+  schema histories, runtime limits, or delivery commands into several documents.
+- Roadmaps contain remaining outcomes and acceptance criteria, not completed
+  work-package logs or numbered discussion snapshots.
+- Before deleting a plan or decision, preserve its still-valid invariants and
+  unresolved questions in the appropriate current document. Update incoming
+  links, then delete it; do not add a tombstone or archive copy.
+- Bounded execution notes belong in untracked `plan/`. The commit owns what
+  changed, why, validation, and deliberately unfinished work.

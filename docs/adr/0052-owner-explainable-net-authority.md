@@ -43,6 +43,30 @@ retained. Runtime editing and derivation consume only the current contract.
 
 ## Consequences
 
+### Named power and MOS bulk
+
+VDD, Ground, free ports, Net Labels, and power-rail labels use the same
+owner-addressed name-claim mechanism. Multiple disconnected markers are valid;
+their Base Nets stay physical while their names and scopes determine Logical
+Net equivalence. VDD, AVDD, and DVDD are distinct names. Power-domain metadata
+classifies a claim; it is not Net identity and never collapses differently named
+supplies. Ground's explicit reference is global node `0`.
+
+A power rail is a drawing form of a named conductor, not a second electrical
+system. Scope is authored explicitly; UI power defaults do not make arbitrary
+imported text global. Deleting the last owner removes its authority and permits
+ordinary orphan pruning. Scope and dialect spelling follow
+[ADR 0056](0056-derived-net-scope-and-dialect-spelling.md).
+
+MOS bulk resolves from explicit B membership or an explicitly configured Cell
+bulk default. Without either it remains unresolved. Device polarity and supply
+artwork alone cannot invent a Net, short B to S, or suppress a floating-bulk
+finding. The resolver must reevaluate defaults as their targets are removed;
+compatibility data is interpreted only through the current effective-bulk
+contract. Three-terminal presentation never deletes the electrical B terminal.
+
+### Shared authority
+
 - Every non-physical electrical union is explainable by a visible owner, a
   formal Cell Pin, or an explicit global declaration.
 - Imported spelling survives round-trip without becoming hidden connectivity.
@@ -51,7 +75,6 @@ retained. Runtime editing and derivation consume only the current contract.
 
 ## Related documents
 
-- [`0036-named-power-and-mos-bulk-semantics.md`](0036-named-power-and-mos-bulk-semantics.md)
 - [`0041-physical-cut-and-endpoint-readiness.md`](0041-physical-cut-and-endpoint-readiness.md)
 - [`0053-chain-carried-project-compatibility.md`](0053-chain-carried-project-compatibility.md)
 - [`../specs/schematic-model.md`](../specs/schematic-model.md)

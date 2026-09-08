@@ -34,21 +34,18 @@ major boundaries exist.
 - [`0025-schematic-hierarchy-and-formal-ports.md`](0025-schematic-hierarchy-and-formal-ports.md) — schematic hierarchy and independent Cell Pins
 - [`0027-stage-1-netlist-authoring-protocol.md`](0027-stage-1-netlist-authoring-protocol.md) — typed netlist authoring authority
 - [`0029-external-subcircuit-definition-protocol.md`](0029-external-subcircuit-definition-protocol.md) — external subcircuit definitions
-- [`0036-named-power-and-mos-bulk-semantics.md`](0036-named-power-and-mos-bulk-semantics.md) — named power and MOS bulk policy
 - [`0038-document-style-overrides.md`](0038-document-style-overrides.md) — Document style overrides
 - [`0054-single-instance-reference-authority.md`](0054-single-instance-reference-authority.md) — one electrical Netlist Reference; in-place following or custom visual annotation
 - [`0055-simulation-is-part-of-the-product.md`](0055-simulation-is-part-of-the-product.md) — simulation joins the product; what is simulatable, whose testbench, and where ngspice runs
 
 ### Connectivity and routing
 
-- [`0009-move-stretches-connected-routes.md`](0009-move-stretches-connected-routes.md) — topology-preserving movement
 - [`0013-project-connectivity-index.md`](0013-project-connectivity-index.md) — shared Project connectivity index
-- [`0014-resolved-route-geometry.md`](0014-resolved-route-geometry.md) — stable Route legs and resolved geometry
+- [`0014-resolved-route-geometry.md`](0014-resolved-route-geometry.md) — stable Route legs, shared geometry, and authoring modes
 - [`0015-object-locator-and-diagnostic-envelope.md`](0015-object-locator-and-diagnostic-envelope.md) — common locator and diagnostics
-- [`0039-any-angle-route-authoring.md`](0039-any-angle-route-authoring.md) — one Route protocol with any-angle authoring
 - [`0041-physical-cut-and-endpoint-readiness.md`](0041-physical-cut-and-endpoint-readiness.md) — physical cut and endpoint readiness
-- [`0048-routing-operation-plan.md`](0048-routing-operation-plan.md) — evaluated routing-operation plan
-- [`0052-owner-explainable-net-authority.md`](0052-owner-explainable-net-authority.md) — owner-explainable Net authority and non-electrical provenance
+- [`0048-routing-operation-plan.md`](0048-routing-operation-plan.md) — evaluated routing-operation plan and connection-preserving movement
+- [`0052-owner-explainable-net-authority.md`](0052-owner-explainable-net-authority.md) — owner-explainable Net authority, named power, bulk policy, and provenance
 - [`0056-derived-net-scope-and-dialect-spelling.md`](0056-derived-net-scope-and-dialect-spelling.md) — derived effective scope and operation-scoped dialect spelling
 - [`0057-release-channels-preview-and-production.md`](0057-release-channels-preview-and-production.md) — a preview Worker every merge deploys, and production that deploys only from a release
 
@@ -67,10 +64,11 @@ into its successor ADR or normative specification, update incoming links, and
 then delete the obsolete ADR in the same target. The repository keeps no
 superseded ADR directory and no long-lived `partially superseded` state.
 
-Accepted decision rationale is not a rolling schema reference. Schema numbers,
-migration examples, and implementation names inside an older ADR describe its
-acceptance context; the current Project format and complete behavior are owned
-by [`../specs/`](../specs/README.md) and executable contracts.
+ADRs state current decisions and rationale, not rolling schema references or
+implementation progress. Complete current behavior belongs to
+[`../specs/`](../specs/README.md); executable contracts provide the evidence.
+Replace changed decisions in place or merge and retire them rather than retaining
+contradictory bodies with appended amendments.
 
 ## Naming and scope
 

@@ -1,86 +1,94 @@
 # Current Product Architecture
 
-Analog Canvas is a local-first schematic editor. A human edits a circuit in the
-browser, while an authorized Agent may inspect and modify the same live Project
-through typed, revision-checked requests. The product is an editor and a
-structural circuit tool; it is not a simulator, version-control service, or
-general browser-automation service.
+Analog Canvas is a local-first schematic editor with structural netlist
+interchange and analog simulation orchestration. Humans and authorized Agents
+work on the same live Project through typed, revision-checked operations. The
+product does not implement a new numerical solver or a general-purpose remote
+execution service.
 
 ## Product boundary
 
-The editor accepts structural SPICE input, manual component placement, wires,
-text, and limited drawing annotations. It saves private Cloud Projects,
-imports/exports canonical `.icproj.json`, exports SVG/PNG/PDF, and can create deterministic
-structural SPICE or Spectre design netlists once all required design facts are
-explicit. Source SPICE, simulation decks, PDK setup, analyses, and browser
-recovery copies are not authoritative Project data.
+The editor supports hierarchical circuit authoring, structural SPICE import,
+private Cloud Projects, portable `.icproj.json`, vector/raster publication, and
+deterministic SPICE/Spectre design-netlist export. The simulation workspace
+prepares authored structured or raw input, runs it in a configured environment,
+and presents numeric results and bounded execution evidence.
 
-The authoritative sources are deliberately separate:
+A Project persists circuit facts and named simulation setups, including raw
+authored files when selected. It does not persist simulator processes, prepared
+decks, run receipts, or numeric results. Browser recovery and managed execution
+retention serve different lifecycles; neither is another source of circuit facts.
+Preview and Production availability follow [deployment](deployment.md).
 
-| Concern                              | Authority                                                                        |
-| ------------------------------------ | -------------------------------------------------------------------------------- |
-| Persisted circuit facts              | Current Project schema in `@icm/model`                                           |
-| Formal Project persistence           | Stable private Cloud Project id plus optimistic revision                         |
-| Portable file compatibility          | Bounded parse/migrate/serialize boundary in `@icm/project-protocol`              |
-| Built-in device facts                | Single descriptor registry in `@icm/devices`                                     |
-| Human and Agent mutations            | `@icm/edit-engine` transactions                                                  |
-| Built-in device electrical semantics | `@icm/devices`                                                                   |
-| Symbol artwork and pin anchors       | `@icm/symbols`                                                                   |
-| Visual construction and acceptance   | Razavi reference manifest and [visual contract](specs/razavi-visual-contract.md) |
-| SPICE import                         | `@icm/spice` transient Circuit IR                                                |
-| Design-netlist export                | `@icm/netlist` transient DesignNetlistIR                                         |
-| Browser Agent session                | accepted [web-session spec](specs/web-agent-session.md)                          |
+## Sources of truth
+
+| Concern                                          | Authority                                                                        |
+| ------------------------------------------------ | -------------------------------------------------------------------------------- |
+| Circuit facts and authored simulation setups     | Current Project schema in `@icm/model`                                           |
+| Formal save                                      | Stable private Cloud Project ID and optimistic revision                          |
+| Portable file compatibility                      | Parse/upgrade/serialize boundary in `@icm/project-protocol`                      |
+| Device semantics and parameters                  | Descriptor registry in `@icm/devices`                                            |
+| Human and Agent Project mutations                | `@icm/edit-engine` transactions                                                  |
+| Symbol geometry and pin anchors                  | `@icm/symbols`                                                                   |
+| Visual construction and acceptance               | Razavi reference manifest and [visual contract](specs/razavi-visual-contract.md) |
+| Electrical read model                            | `@icm/derived` Base-Net/Logical-Net projections and connectivity index           |
+| Structural SPICE import                          | `@icm/spice` transient Circuit IR                                                |
+| Design-netlist export and structured compilation | `@icm/netlist`                                                                   |
+| Preparation and session-facing execution         | `@icm/simulation-service`                                                        |
+| Simulator evidence and result parsing            | `@icm/spice-run` and the configured executor                                     |
+| Hosted admission and bounded retention           | Worker managed control plane and artifact store                                  |
+| Browser authorization and transport              | [Web-session contract](specs/web-agent-session.md)                               |
 
 ## System shape
 
 ```text
 human UI / authorized Agent
-            │ typed, revision-checked edits
-            ▼
-      Schematic Edit Engine
-            │ validates and atomically applies
-            ▼
-       Project and Document model
-        ├─ derived connectivity and diagnostics
-        ├─ SVG/PNG/PDF formal export
-        ├─ structural SPICE/Spectre export
-        └─ explicit Cloud Save / portable Project interchange
+  ├─ typed Project edits → Edit Engine → Project / Documents / setups
+  │                                      ├─ connectivity / checks / navigation
+  │                                      ├─ rendering / formal image export
+  │                                      ├─ structural netlist export
+  │                                      └─ Cloud Save / portable interchange
+  └─ prepare / run / read / cancel
+       → SimulationService ← immutable snapshot of selected authored input
+       → configured executor / managed admission → ngspice + qualified models
+       → parsed results / artifacts → UI and Agent
 ```
 
-Both actors use the same edit engine. The UI is responsible for interaction,
-file choice, and presentation; the Agent transport is responsible only for
-scoped authentication and forwarding. Neither can bypass electrical,
-revision, lock, or transaction invariants.
+The simulation path reads circuit facts; it does not rewrite a Net or source
+Instance from a result. Testbench bias and waveform parameters remain on ordinary
+Instances. Analyses and outputs belong to the selected setup, not a second
+source-value override.
 
 ## Core invariants
 
-- Net membership, explicit Junctions, formal cell terminals, and typed Instance
-  terminals are
-  electrical facts; drawing geometry never silently creates a connection.
-- A Crossing is not a Junction. Ambiguous intersections are rejected rather
-  than guessed.
-- A Base Net owns physical membership only. Net Label, VDD, Ground,
-  and Power Rail naming all enter one owner-addressed marker system and resolve
-  to one derived Logical-Net view used by ERC, export, search, highlight, and
-  Agent snapshots. Power Rail is a drawing gesture, not another power object.
-- VDD, AVDD, DVDD, and Ground node `0` are ordinary global marker names;
-  different names remain electrically distinct. Cell Pins remain the
-  ordered hierarchy interface rather than another Net-label mechanism.
-- Routes describe visible geometry; they may stretch locally during movement
-  without changing logical connectivity.
-- A Project's canonical content is schema-47 JSON. Explicit Save updates one
-  stable private Cloud Project; `.icproj.json` is portable interchange, and
-  browser recovery is an origin-local, non-authoritative copy.
-- Visual variants may change presentation but never remove electrical terminal
-  semantics. The Razavi raster manifest is the sole visual authority.
-- An Agent reads a complete Snapshot, submits typed edits with an expected
-  revision, and refreshes after a conflict. It does not infer a second command
-  language or mutate through DOM automation.
+- A Base Net owns physical membership. Net Labels, VDD, Ground, and Power Rail
+  naming use one owner-addressed marker system; Logical Nets are derived.
+  Power Rail is a drawing gesture, not a separate electrical object.
+- Different supply names remain distinct. Scope and hierarchy interfaces
+  determine where a name connects; text equality alone is not a universal
+  cross-Cell connection rule.
+- A Crossing is not a Junction. Explicit connect/snap operations update topology;
+  arbitrary visual overlap does not authorize a connection.
+- Movement preserves established connectivity through the common routing plan;
+  explicit cut partitions physical connectivity.
+- Cell Pins are ordered hierarchy interfaces. Visual variants never delete
+  electrical terminal semantics or invent MOS bulk connections.
+- Canonical Project content is schema-47, governed by the
+  [file-format contract](specs/project-file-format.md).
+  Cloud Save, portable file export, browser recovery, and public Gallery
+  publication are distinct operations.
+- The author owns the Testbench. Native primitives and models supported by the
+  selected environment can run; unresolved or unsupported devices produce
+  located diagnostics rather than guessed replacements.
+- Circuit operations, File resources, Project management, and simulation share
+  authorization boundaries without becoming competing mutation protocols.
+- Electrical checks, publication advice, and execution acceptance are different
+  decisions. A successful save, pretty drawing, or exit code alone does not
+  establish electrical correctness.
 
-## Where to read next
+## Read next
 
-- User workflows and limits: [user guides](user/getting-started.md).
-- Stable behavior: [normative specifications](specs/README.md).
-- Why shared boundaries exist: [architecture decisions](adr/README.md).
-- How an Agent should operate: [Agent workflow](agent/workflow.md).
-- Remaining cross-module work: [roadmap](roadmap/README.md).
+- [User workflows](user/getting-started.md) and [analog simulation](user/analog-simulation.md).
+- [Normative contracts](specs/README.md) and [architectural rationale](adr/README.md).
+- [Agent workflow](agent/workflow.md).
+- [Remaining work](roadmap/README.md).

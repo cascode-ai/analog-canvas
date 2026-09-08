@@ -269,8 +269,8 @@ Topology operations have these preconditions:
   transaction. GUI movement planners always author those Route edits; Routes
   protected by locked geometry reject the move.
 - `move_instance` stretches unprotected connected Routes under their existing
-  geometry constraint (orthogonal, octilinear, or free; ADR 0009, ADR 0028, and
-  ADR 0039). A
+  geometry constraint (orthogonal, octilinear, or free; [ADR 0014](../adr/0014-resolved-route-geometry.md) and
+  [ADR 0048](../adr/0048-routing-operation-plan.md)). A
   Route with a locked/trunk adjacent segment is
   skipped; if the caller does not re-point it in the same transaction, the
   post-loop validation rejects with `INVALID_RESULT` naming the Route. The
@@ -341,7 +341,7 @@ an existing kind or adding a kind requires coordinated model, Agent schema,
 permission, transaction, and parity validation. There is no compatibility edit
 adapter.
 
-ADR 0010 defines the current drafting/annotation edit kinds. The annotation
+The [schematic model](schematic-model.md) defines annotation ownership. The annotation
 protocol exposes only `upsert_schematic_annotation` and
 `remove_schematic_annotation`; retired ambiguous edit names are invalid.
 

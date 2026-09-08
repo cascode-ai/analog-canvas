@@ -23,7 +23,7 @@ edit model.
   canonical `.icproj.json`, import structural `.cir`, `.sp`, and `.spi` files, and export
   deterministic structural SPICE or Spectre. The Preview editor also provides
   a saved Testbench setup and a fixed ngspice/SKY130 environment for qualified
-  OP, DC, AC, and TRAN runs; Production availability remains release-controlled.
+  OP, DC, AC, TRAN, and Noise runs; Production availability remains release-controlled.
 - **Publication-ready output:** the web editor's SVG and PDF exports remain
   vector graphics; PNG is rendered at 3× raster scale.
 - **Community publishing:** signed-in users can publish selected circuits with
@@ -59,7 +59,7 @@ automatically rerunning it. File / Save and Ctrl+S remain save-only.
 - **Understand the product:** [current architecture](docs/overall-product-plan.md)
   and [documentation map](docs/README.md).
 - **Develop or contribute:** [working rules](AGENTS.md),
-  [current development reading set](docs/current/README.md), and
+  [current development reading set](docs/README.md#contributor-reading-order), and
   [test system](docs/testing/README.md).
 
 ## Run locally
@@ -98,8 +98,9 @@ files.
   delivery plans.
 
 The [Razavi reference manifest](fixtures/visual-reference/razavi-reference-v1/)
-is the sole visual authority. The production Worker is deployed from `main` by
-the [Cloudflare workflow](.github/workflows/cloudflare.yml).
+is the sole visual authority. Merges to `main` deploy Preview; Production is
+promoted from a release tag or explicit commit dispatch after Preview acceptance.
+See [deployment](docs/deployment.md) for the release and recovery contract.
 
 ## License
 

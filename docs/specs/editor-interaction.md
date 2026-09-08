@@ -187,7 +187,7 @@ observe the first transition even when React batches the next render.
 
 Wire defaults to orthogonal. While Wire is active, a middle-button click
 switches only the unresolved leg between orthogonal, 45-degree octilinear, and
-any angle (ADR 0039);
+any angle ([ADR 0014](../adr/0014-resolved-route-geometry.md));
 a middle-button drag pans as usual. F3 opens Wire options including corner
 order. Existing authored legs are immutable under mode switches; Backspace
 removes the latest authored step rather than an automatically compiled elbow.

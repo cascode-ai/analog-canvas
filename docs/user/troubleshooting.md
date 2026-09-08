@@ -36,13 +36,25 @@ the canonical fallback and contains the same formal scene.
 
 ## The portable host does not start
 
-Use Node 24 or newer and ensure port 4173 is free. The v0.1 host intentionally
+Use Node 24 or newer and ensure port 4173 is free. The portable host intentionally
 does not accept a LAN address. Use `pnpm dev` for a different development port.
 
 ## Agent API requests fail
 
-The static host does not enable the optional loopback Agent adapter. Start that
-adapter explicitly, use a token of at least 32 characters, and send requests
-only to its loopback JSON endpoint. The published editor currently exposes no
-Agent connection controls; its browser relay is reserved for explicitly enabled
-development and staging deployments.
+Use the editor's Agent connection controls and the
+[MCP connection guide](../agent/mcp-install.md). Check session expiry, scopes,
+the currently authorized Project, and the client credential. Replacing a Project
+or revoking a session requires new authorization. A missing simulation environment
+is a recoverable configuration error, not proof that the Agent session is invalid.
+
+The portable static host does not automatically start optional services or
+discover a simulator. Use only the explicitly configured adapter for that host.
+
+## Accessibility limits
+
+Precise component placement, route-segment and endpoint selection, and Junction
+insertion still require pointer input. The schematic does not expose a complete
+object-by-object accessibility tree, focus follows DOM order, and shortcuts
+cannot be customized. Keyboard-focusable controls and status announcements do
+not remove those limitations. Future semantic canvas navigation must use typed
+Edit Engine operations rather than simulated pointer events.
