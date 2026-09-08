@@ -318,6 +318,8 @@ export const CapabilitiesSchema = z.strictObject({
       /** Human-facing name. Automation continues to select the stable id. */
       label: z.string().min(1).max(128).optional(),
       corners: z.array(z.string()),
+      /** Exact model or wrapper names qualified on this hosted environment. */
+      devices: z.array(z.string().min(1).max(256)).optional(),
       /** Environment-owned files addressable by raw Project dependencies. */
       dependencies: z
         .array(z.strictObject({ id: Id, sha256: Digest }))

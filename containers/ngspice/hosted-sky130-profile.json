@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "sky130-core-continuous-ngspice46-v1",
-  "displayName": "SKY130 1.8 V · ngspice 46",
+  "displayName": "SKY130 qualified devices · ngspice 46",
   "sourceImage": "ghcr.io/arcadia-1/circuit-bench-sky130-ngspice@sha256:2da03dc7f1ead7ddc33f2f930a0487ae8618e51518009344584a98fca41a621d",
   "platform": "linux/x64",
   "simulator": {
@@ -23,7 +23,15 @@
     "contentSha256": "5ad94681e17bba379ac84d01fe7773458b34f9bbd77c127a3738f1af47ad5634"
   },
   "qualifiedScope": {
-    "devices": ["sky130_fd_pr__nfet_01v8", "sky130_fd_pr__pfet_01v8"],
+    "devices": [
+      "sky130_fd_pr__nfet_01v8",
+      "sky130_fd_pr__pfet_01v8",
+      "sky130_fd_pr__nfet_01v8_lvt",
+      "sky130_fd_pr__pfet_01v8_lvt",
+      "sky130_fd_pr__res_high_po",
+      "sky130_fd_pr__cap_mim_m3_1",
+      "sky130_fd_pr__pnp_05v5_W0p68L0p68"
+    ],
     "sections": ["tt", "ff", "ss", "fs", "sf"],
     "analyses": ["op", "dc", "ac", "tran", "noise"]
   }

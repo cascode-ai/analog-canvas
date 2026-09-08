@@ -15,7 +15,7 @@ const dockerfile = await readFile(join(directory, "Dockerfile"), "utf8");
 describe("the hosted SKY130 Profile", () => {
   it("pins the exact base image, startup policy and runtime paths", () => {
     expect(profile.id).toBe("sky130-core-continuous-ngspice46-v1");
-    expect(profile.displayName).toBe("SKY130 1.8 V · ngspice 46");
+    expect(profile.displayName).toBe("SKY130 qualified devices · ngspice 46");
     expect(dockerfile).toContain(`ARG BASE_IMAGE=${profile.sourceImage}`);
     expect(createHash("sha256").update(startup).digest("hex")).toBe(
       profile.startup.contentSha256,
@@ -35,7 +35,15 @@ describe("the hosted SKY130 Profile", () => {
 
   it("qualifies only the scope backed by tracked hosted acceptance", () => {
     expect(profile.qualifiedScope).toEqual({
-      devices: ["sky130_fd_pr__nfet_01v8", "sky130_fd_pr__pfet_01v8"],
+      devices: [
+        "sky130_fd_pr__nfet_01v8",
+        "sky130_fd_pr__pfet_01v8",
+        "sky130_fd_pr__nfet_01v8_lvt",
+        "sky130_fd_pr__pfet_01v8_lvt",
+        "sky130_fd_pr__res_high_po",
+        "sky130_fd_pr__cap_mim_m3_1",
+        "sky130_fd_pr__pnp_05v5_W0p68L0p68",
+      ],
       sections: ["tt", "ff", "ss", "fs", "sf"],
       analyses: ["op", "dc", "ac", "tran", "noise"],
     });

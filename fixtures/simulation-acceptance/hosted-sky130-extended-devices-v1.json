@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "fixtureId": "sky130-extended-devices-op-ac-v1",
+  "profileId": "sky130-core-continuous-ngspice46-v1",
+  "devices": [
+    "sky130_fd_pr__nfet_01v8_lvt",
+    "sky130_fd_pr__pfet_01v8_lvt",
+    "sky130_fd_pr__res_high_po",
+    "sky130_fd_pr__cap_mim_m3_1",
+    "sky130_fd_pr__pnp_05v5_W0p68L0p68"
+  ],
+  "analyses": ["op", "ac"],
+  "modelLibrary": { "directive": "lib" },
+  "expectedCorners": {
+    "tt": {
+      "lvtNfetCurrentA": -0.000112452140824601,
+      "lvtPfetSourceCurrentA": -0.00005228921265621606,
+      "resistorOutputV": 0.3158305326064023,
+      "resistorSupplyCurrentA": -0.0003158305326064026,
+      "pnpEmitterCurrentA": -2.128666657177924e-7,
+      "pnpCollectorCurrentA": 1.986898949829154e-7,
+      "mimOutputReal": 9.002255934489363e-12,
+      "mimOutputImag": -0.00000300037596550971
+    },
+    "ff": {
+      "lvtNfetCurrentA": -0.0001329127936535723,
+      "lvtPfetSourceCurrentA": -0.00006968745845296193,
+      "resistorOutputV": 0.313487576360055,
+      "resistorSupplyCurrentA": -0.000313487576360055,
+      "pnpEmitterCurrentA": -2.149132309996193e-7,
+      "pnpCollectorCurrentA": 1.983406510684755e-7,
+      "mimOutputReal": 9.002255934489363e-12,
+      "mimOutputImag": -0.00000300037596550971
+    },
+    "ss": {
+      "lvtNfetCurrentA": -0.000094209857384564,
+      "lvtPfetSourceCurrentA": -0.0000369833947106088,
+      "resistorOutputV": 0.3181574381225752,
+      "resistorSupplyCurrentA": -0.0003181574381225754,
+      "pnpEmitterCurrentA": -2.110363791392456e-7,
+      "pnpCollectorCurrentA": 1.992089077115006e-7,
+      "mimOutputReal": 9.002255934489363e-12,
+      "mimOutputImag": -0.00000300037596550971
+    },
+    "fs": {
+      "lvtNfetCurrentA": -0.00009368284623006984,
+      "lvtPfetSourceCurrentA": -0.0000750196770909553,
+      "resistorOutputV": 0.3158305326064023,
+      "resistorSupplyCurrentA": -0.0003158305326064026,
+      "pnpEmitterCurrentA": -2.093903619399679e-7,
+      "pnpCollectorCurrentA": 2.002390409575156e-7,
+      "mimOutputReal": 9.002255934489363e-12,
+      "mimOutputImag": -0.00000300037596550971
+    },
+    "sf": {
+      "lvtNfetCurrentA": -0.0001326085710116887,
+      "lvtPfetSourceCurrentA": -0.00003164163586561602,
+      "resistorOutputV": 0.3158305326064023,
+      "resistorSupplyCurrentA": -0.0003158305326064026,
+      "pnpEmitterCurrentA": -2.238876271182244e-7,
+      "pnpCollectorCurrentA": 1.97657179798784e-7,
+      "mimOutputReal": 9.002255934489363e-12,
+      "mimOutputImag": -0.00000300037596550971
+    }
+  },
+  "tolerances": {
+    "mosCurrentA": 1e-10,
+    "resistorVoltageV": 1e-9,
+    "resistorCurrentA": 1e-10,
+    "pnpCurrentA": 1e-11,
+    "mimComplex": 1e-12
+  },
+  "evidence": {
+    "observedAt": "2026-09-08",
+    "executor": "operator-host",
+    "environmentFingerprint": "33c245e5df6dc12077b6a2e4ebf308777b0e9014fe9bfdafc3285c614688561d"
+  }
+}

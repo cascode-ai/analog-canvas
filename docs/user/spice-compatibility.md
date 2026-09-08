@@ -13,8 +13,9 @@ turns them into a primitive model call.
 For the exact reviewed SKY130 targets, the editor uses the existing NMOS,
 PMOS, resistor, and capacitor artwork while retaining an external definition.
 A user may place the ordinary NMOS/PMOS with the unchanged Insert flow, then choose
-`sky130_fd_pr__nfet_01v8` or `sky130_fd_pr__pfet_01v8` from the existing Model
-field. The edit creates or reuses the project-local external definition,
+`sky130_fd_pr__nfet_01v8`, `sky130_fd_pr__pfet_01v8`, or their exact
+`01v8_lvt` variants from the existing Model field. The edit creates or reuses
+the project-local external definition,
 preserves connectivity and the authored `M` reference, and exposes `w`, `l`,
 `nf`, and `m`. SPICE derives `XM1` from authored `M1`; it does not convert `m`
 into `nf`.
@@ -25,6 +26,13 @@ icons and visible pins do not change. The resistor's real B substrate terminal
 is selected from existing Nets through `Body/Substrate Net` in Properties and
 has no canvas pin or wire. Physical R/C geometry is `w/l/mult` or `w/l/mf`;
 the editor never derives it from an ideal scalar value.
+
+The ordinary PNP symbol similarly offers the exact fixed
+`sky130_fd_pr__pnp_05v5_W0p68L0p68` wrapper. It keeps the visible C/B/E pins
+and prints an external X call; arbitrary model names continue to use the
+ordinary three-terminal Q card. The generic Diode and NPN symbols remain
+model-bearing structural devices, but this hosted environment does not claim
+a qualified SKY130 diode or NPN target.
 
 This convenience is structural only. It does not install SKY130, resolve a
 local `.include`, supply foundry models or corners, or make the exported
