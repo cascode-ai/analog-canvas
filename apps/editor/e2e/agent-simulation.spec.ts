@@ -1268,6 +1268,16 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
       0,
     );
     await panel.getByRole("tab", { name: "Plot" }).click();
+    const plotCards = panel.locator(
+      ".simulation-plot-view .simulation-output-results > .simulation-analysis-card",
+    );
+    await expect(plotCards).toHaveCount(3);
+    const firstPlotCardBox = (await plotCards.nth(0).boundingBox())!;
+    const secondPlotCardBox = (await plotCards.nth(1).boundingBox())!;
+    expect(secondPlotCardBox.y).toBeCloseTo(firstPlotCardBox.y, 0);
+    expect(secondPlotCardBox.x).toBeGreaterThan(
+      firstPlotCardBox.x + firstPlotCardBox.width,
+    );
     const card = panel
       .locator(".simulation-analysis-card")
       .filter({
@@ -1277,7 +1287,7 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
     const shell = card.locator(".ac-plot-shell").first();
     await expect
       .poll(async () => (await shell.locator("svg").boundingBox())!.height)
-      .toBeGreaterThan(height > 800 ? 440 : 320);
+      .toBeGreaterThan(280);
     const shellBox = (await shell.boundingBox())!;
     const titleBox = (await card
       .locator(".simulation-analysis-card-header h3")
@@ -1288,6 +1298,15 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
       0,
     );
     expect(modeBox.x).toBeCloseTo(shellBox.x, 0);
+    const [resultsHeaderZIndex, plotToolbarZIndex] = await Promise.all([
+      panel
+        .locator(".simulation-results-header")
+        .evaluate((element) => Number(getComputedStyle(element).zIndex)),
+      shell
+        .locator(".ac-plot-toolbar")
+        .evaluate((element) => Number(getComputedStyle(element).zIndex)),
+    ]);
+    expect(resultsHeaderZIndex).toBeGreaterThan(plotToolbarZIndex);
     await expect
       .poll(() =>
         panel
