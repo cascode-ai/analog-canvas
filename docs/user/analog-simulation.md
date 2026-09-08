@@ -129,10 +129,16 @@ the same rules, or replace the complete typed Setup through
 
 **Compare** can keep up to five completed structured results in the current
 Simulation session and align saved rules by measurement ID and automatic
-summaries by output identity, analysis, metric and unit. Keep a result, edit the circuit or conditions, run
-again, and inspect the current and retained columns. These comparison copies
-are intentionally transient: they are not hidden inside the Project or Cloud
-Project record, and closing the Project session clears them.
+summaries by output identity, analysis, metric and unit. Keep a result, edit
+the circuit or conditions, run again, and inspect the current and retained
+columns. These comparison copies are transient.
+
+Choose **Archive** on a completed result to keep its verified run files and
+view locally in this browser. **Compare → Browser archives** can reopen or
+delete up to ten archives for the Project after closing and reopening the
+Editor. An archive is not embedded in the Project and is not synchronized to
+Cloud Projects; use **Complete run · ZIP** for a portable copy. If browser
+storage is unavailable or full, simulation and ZIP export remain usable.
 
 Closing the drawer keeps a run alive. **Cancel run** asks the execution
 service to cancel; it is not simulated by hiding a spinner. Replacing the

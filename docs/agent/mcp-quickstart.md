@@ -184,6 +184,12 @@ their normal `runId`, so `read` and `export` remain the only result and artifact
 interfaces. Reuse the same outer request ID when retrying `start-batch` after an
 uncertain transport response.
 
+Run history is not a Project object. For durable Agent evidence, use `export`
+and `simulation_files` to save the complete run artifacts (including
+`evidence-manifest.json`) to an explicit path. The Editor's **Archive** action
+is a bounded same-browser convenience over those verified artifacts, not a
+second cloud store or an Agent-only result protocol.
+
 For a Cartesian sweep over one saved structured setup, use `prepare-sweep`
 with 1–4 axes of `corner`, `temperature`, or `parameter`. A parameter axis
 addresses `{documentId,instanceId,parameter}` and supplies string values in the

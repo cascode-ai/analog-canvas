@@ -51,6 +51,12 @@ import {
   SimulationRunComparison,
   type SimulationComparisonRun,
 } from "./simulation-run-comparison";
+import { createBrowserSimulationArchiveStore } from "./browser-simulation-archive-store";
+import {
+  captureSimulationRunArchive,
+  restoreSimulationRunArchive,
+  type SimulationRunArchiveSummary,
+} from "./simulation-run-archive";
 
 const RESULT_TABS = [
   ["plot", "Plot"],
@@ -139,6 +145,11 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
   const [retainedComparisonRuns, setRetainedComparisonRuns] = useState<
     readonly SimulationComparisonRun[]
   >([]);
+  const [archiveStore] = useState(() => createBrowserSimulationArchiveStore());
+  const archivedRunIds = useRef(new Set<string>());
+  const [archives, setArchives] = useState<
+    readonly SimulationRunArchiveSummary[]
+  >([]);
   const setupMenuRef = useRef<HTMLDetailsElement>(null);
   useEffect(() => {
     const closeSetupMenu = (event: PointerEvent): void => {
@@ -152,6 +163,21 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
   const operatingPointProjectionRef = useRef(props.onOperatingPointProjection);
   operatingPointProjectionRef.current = props.onOperatingPointProjection;
   useEffect(() => () => operatingPointProjectionRef.current?.(null), []);
+  useEffect(() => {
+    let stopped = false;
+    void archiveStore.list(project.id).then((result) => {
+      if (!stopped && result.ok) setArchives(result.value);
+    });
+    return () => {
+      stopped = true;
+    };
+  }, [archiveStore, project.id, open]);
+  useEffect(
+    () => () => {
+      archiveStore.close();
+    },
+    [archiveStore],
+  );
   const previousSetupId = useRef<string | null>(props.selectedSetupId);
   useEffect(() => {
     if (previousSetupId.current === props.selectedSetupId) return;
@@ -267,7 +293,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
   // Keep tracking while the drawer is closed. A Project replacement unmounts
   // this owner; closing a view is deliberately not cancellation.
   useEffect(() => {
-    if (!run) return;
+    if (!run || archivedRunIds.current.has(run.id)) return;
     let stopped = false;
     let timer: ReturnType<typeof setTimeout>;
     const poll = async () => {
@@ -509,6 +535,107 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
     anchor.download = `simulation-${key}.zip`;
     anchor.click();
     setTimeout(() => URL.revokeObjectURL(url), 0);
+  };
+  const archiveCurrentRun = async () => {
+    if (
+      !run ||
+      !selectedSetup ||
+      !runPresentation ||
+      selectedSetup.id !== runPresentation.setupId
+    )
+      return;
+    setArtifactBusy("archive:save");
+    const captured = await captureSimulationRunArchive(session.files, {
+      projectId: project.id,
+      setup: selectedSetup,
+      prepared: runPresentation.prepared,
+      run,
+    });
+    if (!captured.ok) {
+      setArtifactBusy(undefined);
+      setProblem(captured.error);
+      return;
+    }
+    const saved = await archiveStore.save(captured.value);
+    setArtifactBusy(undefined);
+    if (!saved.ok) {
+      setProblem(
+        uiProblem(
+          "SIMULATION_ARCHIVE_STORAGE_FAILED",
+          saved.code === "quota-exceeded"
+            ? "Browser storage is full; export the complete run ZIP instead"
+            : "Browser result archives are unavailable; export the complete run ZIP instead",
+        ),
+      );
+      return;
+    }
+    setArchives((current) =>
+      [
+        saved.value,
+        ...current.filter((item) => item.id !== saved.value.id),
+      ].slice(0, 10),
+    );
+  };
+  const openArchivedRun = async (archiveId: string) => {
+    setArtifactBusy(`archive:open:${archiveId}`);
+    const stored = await archiveStore.read(archiveId);
+    if (!stored.ok || !stored.value) {
+      setArtifactBusy(undefined);
+      setProblem(
+        uiProblem(
+          "SIMULATION_ARCHIVE_UNAVAILABLE",
+          "The selected browser archive is no longer available",
+        ),
+      );
+      return;
+    }
+    const restored = await restoreSimulationRunArchive(
+      session.files,
+      stored.value,
+    );
+    setArtifactBusy(undefined);
+    if (!restored.ok) {
+      setProblem(restored.error);
+      return;
+    }
+    const presentation: PreparedPresentation = {
+      ...stored.value.presentation,
+      prepared: restored.value.prepared,
+    };
+    preparedPresentations.current.set(restored.value.prepared.id, presentation);
+    archivedRunIds.current.add(restored.value.run.id);
+    setupResults.current.set(stored.value.presentation.setupId, {
+      prepared: restored.value.prepared,
+      run: restored.value.run,
+    });
+    if (
+      stored.value.presentation.setupId !== selectedSetup?.id &&
+      project.simulationSetups.some(
+        (setup) => setup.id === stored.value!.presentation.setupId,
+      )
+    )
+      props.onSelectSetupId(stored.value.presentation.setupId);
+    setPrepared(restored.value.prepared);
+    setRun(restored.value.run);
+    setProblem(undefined);
+    setSetupOpen(false);
+    setResultsOpen(true);
+    setResultTab(preferredResultTab(restored.value.run));
+  };
+  const deleteArchivedRun = async (archiveId: string) => {
+    const deleted = await archiveStore.delete(archiveId);
+    if (!deleted.ok) {
+      setProblem(
+        uiProblem(
+          "SIMULATION_ARCHIVE_DELETE_FAILED",
+          "The browser archive could not be removed",
+        ),
+      );
+      return;
+    }
+    setArchives((current) =>
+      current.filter((archive) => archive.id !== archiveId),
+    );
   };
   const exportVisiblePlots = async (format: SimulationPlotExportFormat) => {
     if (!resultsBodyRef.current) return;
@@ -1060,57 +1187,71 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
               ))}
             </div>
             {run ? (
-              <details className="simulation-result-export">
-                <summary>Export</summary>
-                <div>
-                  {resultTab === "plot" ? (
-                    <>
-                      <button
-                        type="button"
-                        disabled={artifactBusy !== undefined}
-                        onClick={() => void exportVisiblePlots("svg")}
-                      >
-                        {artifactBusy === "plots:svg"
-                          ? "Preparing SVG…"
-                          : "Visible plots · SVG"}
-                      </button>
-                      <button
-                        type="button"
-                        disabled={artifactBusy !== undefined}
-                        onClick={() => void exportVisiblePlots("png")}
-                      >
-                        {artifactBusy === "plots:png"
-                          ? "Preparing PNG…"
-                          : "Visible plots · PNG"}
-                      </button>
-                    </>
-                  ) : null}
-                  {resultCsvArtifacts.length ? (
-                    <section>
-                      <small>Complete result data</small>
-                      {resultCsvArtifacts.map((artifact) => (
+              <div className="simulation-result-actions">
+                <button
+                  type="button"
+                  disabled={
+                    artifactBusy !== undefined ||
+                    (!run.result && !run.outputData) ||
+                    !selectedSetup ||
+                    selectedSetup.id !== runPresentation?.setupId
+                  }
+                  onClick={() => void archiveCurrentRun()}
+                >
+                  {artifactBusy === "archive:save" ? "Archiving…" : "Archive"}
+                </button>
+                <details className="simulation-result-export">
+                  <summary>Export</summary>
+                  <div>
+                    {resultTab === "plot" ? (
+                      <>
                         <button
-                          key={artifact.id}
                           type="button"
                           disabled={artifactBusy !== undefined}
-                          onClick={() => void download(artifact)}
+                          onClick={() => void exportVisiblePlots("svg")}
                         >
-                          {artifact.name}
+                          {artifactBusy === "plots:svg"
+                            ? "Preparing SVG…"
+                            : "Visible plots · SVG"}
                         </button>
-                      ))}
-                    </section>
-                  ) : null}
-                  <button
-                    type="button"
-                    disabled={
-                      artifactBusy !== undefined || run.artifacts.length === 0
-                    }
-                    onClick={() => void downloadBundle("run", run.artifacts)}
-                  >
-                    Complete run · ZIP
-                  </button>
-                </div>
-              </details>
+                        <button
+                          type="button"
+                          disabled={artifactBusy !== undefined}
+                          onClick={() => void exportVisiblePlots("png")}
+                        >
+                          {artifactBusy === "plots:png"
+                            ? "Preparing PNG…"
+                            : "Visible plots · PNG"}
+                        </button>
+                      </>
+                    ) : null}
+                    {resultCsvArtifacts.length ? (
+                      <section>
+                        <small>Complete result data</small>
+                        {resultCsvArtifacts.map((artifact) => (
+                          <button
+                            key={artifact.id}
+                            type="button"
+                            disabled={artifactBusy !== undefined}
+                            onClick={() => void download(artifact)}
+                          >
+                            {artifact.name}
+                          </button>
+                        ))}
+                      </section>
+                    ) : null}
+                    <button
+                      type="button"
+                      disabled={
+                        artifactBusy !== undefined || run.artifacts.length === 0
+                      }
+                      onClick={() => void downloadBundle("run", run.artifacts)}
+                    >
+                      Complete run · ZIP
+                    </button>
+                  </div>
+                </details>
+              </div>
             ) : null}
           </header>
           <div ref={resultsBodyRef} className="simulation-results-body">
@@ -1367,6 +1508,49 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
                     )
                   }
                 />
+                {archives.length ? (
+                  <section
+                    className="simulation-archive-list"
+                    aria-label="Saved result archives"
+                  >
+                    <header>
+                      <strong>Browser archives</strong>
+                      <small>
+                        Local to this browser · {archives.length}/10
+                      </small>
+                    </header>
+                    <ul>
+                      {archives.map((archive) => (
+                        <li key={archive.id}>
+                          <span>
+                            <strong>{archive.setupName}</strong>
+                            <small>
+                              {archive.analysisLabel} ·{" "}
+                              {archive.environment.corner?.toUpperCase() ??
+                                archive.environment.profileId}{" "}
+                              · {new Date(archive.createdAt).toLocaleString()}
+                            </small>
+                          </span>
+                          <button
+                            type="button"
+                            disabled={artifactBusy !== undefined}
+                            onClick={() => void openArchivedRun(archive.id)}
+                          >
+                            Open
+                          </button>
+                          <button
+                            type="button"
+                            aria-label={`Delete archived ${archive.setupName}`}
+                            disabled={artifactBusy !== undefined}
+                            onClick={() => void deleteArchivedRun(archive.id)}
+                          >
+                            ×
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                ) : null}
               </div>
             ) : null}
 

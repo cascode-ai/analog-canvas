@@ -1442,6 +1442,11 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
   }
   await page.setViewportSize(previousViewport);
   await panel.getByRole("button", { name: "Restore simulation panel" }).click();
+  await panel.getByRole("button", { name: "Archive", exact: true }).click();
+  await panel.getByRole("tab", { name: "Compare" }).click();
+  await expect(
+    panel.getByRole("region", { name: "Saved result archives" }),
+  ).toContainText("E2E setup");
   pending = new Promise<void>((r) => {
     release = r;
   });
@@ -1479,6 +1484,15 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
   await expect(panel.getByLabel("TRAN", { exact: true })).toBeChecked();
   await expect(panel.getByLabel("TRAN step (s)")).toHaveValue("1e-9");
   await expect(panel.getByRole("status")).toHaveText("No run yet");
+  await panel.getByRole("button", { name: "Results" }).click();
+  await panel.getByRole("tab", { name: "Compare" }).click();
+  const savedArchives = panel.getByRole("region", {
+    name: "Saved result archives",
+  });
+  await expect(savedArchives).toContainText("E2E setup");
+  await savedArchives.getByRole("button", { name: "Open" }).click();
+  await expect(panel.getByRole("status")).toHaveText("finished · completed");
+  expect(executions).toBe(3);
 });
 
 test("Simulation creates an ordinary testbench and offers the current Cell at the cursor", async ({
