@@ -96,6 +96,15 @@ jobs:
           SIMULATION_UPSTREAM_TOKEN: ${{ secrets.SIMULATION_UPSTREAM_TOKEN }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Give the Preview its private acceptance identity
+        run: |
+          test -n "$PREVIEW_ACCEPTANCE_TOKEN"
+          printf '%s' "$PREVIEW_ACCEPTANCE_TOKEN" \
+            | pnpm dlx wrangler@4.120.1 secret put PREVIEW_ACCEPTANCE_TOKEN --config wrangler.preview.jsonc
+        env:
+          PREVIEW_ACCEPTANCE_TOKEN: ${{ secrets.PREVIEW_ACCEPTANCE_TOKEN }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       # What a preview is for: the page renders, the gallery reads and never
       # writes, nothing is indexed, and the simulator answers.
       - name: Verify preview
@@ -178,11 +187,23 @@ jobs:
         run: node scripts/preview-simulation-smoke.mjs "$PREVIEW_URL"
       - name: Run the public Agent/MCP simulation journey
         run: node scripts/preview-agent-simulation-journey.mjs "$PREVIEW_URL"
+      - name: Run the cross-Project Agent/MCP simulation journey
+        run: node scripts/preview-cross-project-simulation-journey.mjs "$PREVIEW_URL"
+        env:
+          ICM_PREVIEW_ACCEPTANCE_TOKEN: ${{ secrets.PREVIEW_ACCEPTANCE_TOKEN }}
       - name: Preserve the Agent/MCP simulation receipt
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: preview-agent-simulation-${{ github.sha }}
           path: test-results/preview-agent-simulation/
+          if-no-files-found: error
+          retention-days: 14
+      - name: Preserve the cross-Project simulation receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: preview-cross-project-simulation-${{ github.sha }}
+          path: test-results/preview-cross-project-simulation/
           if-no-files-found: error
           retention-days: 14

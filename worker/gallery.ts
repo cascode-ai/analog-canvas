@@ -13,6 +13,10 @@ import { type CircuitProject } from "@icm/model";
 
 import { sessionUserOf } from "./auth";
 import {
+  previewAcceptanceUserOf,
+  type PreviewAcceptanceEnv,
+} from "./preview-acceptance";
+import {
   GALLERY_MAX_AUTHOR_LENGTH,
   GALLERY_MAX_DESCRIPTION_LENGTH,
   GALLERY_MAX_NAME_LENGTH,
@@ -176,13 +180,15 @@ function renderPreview(
 /** Private, stable Cloud Projects. Save updates a bound Project in place. */
 async function handleCloudProjects(
   request: Request,
-  env: GalleryEnv,
+  env: GalleryEnv & PreviewAcceptanceEnv,
   projectId: string | null,
 ): Promise<Response> {
   if (request.method !== "GET" && !sameOrigin(request)) {
     return Response.json({ error: "forbidden" }, { status: 403 });
   }
-  const user = await sessionUserOf(request, env);
+  const user =
+    previewAcceptanceUserOf(request, env) ??
+    (await sessionUserOf(request, env));
   if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
 
   if (request.method === "GET") {
@@ -271,10 +277,12 @@ async function handleCloudProjects(
  */
 async function handleCloudProjectPreview(
   request: Request,
-  env: GalleryEnv,
+  env: GalleryEnv & PreviewAcceptanceEnv,
   projectId: string,
 ): Promise<Response> {
-  const user = await sessionUserOf(request, env);
+  const user =
+    previewAcceptanceUserOf(request, env) ??
+    (await sessionUserOf(request, env));
   if (!user) {
     return Response.json(
       { error: "unauthorized" },
@@ -529,7 +537,7 @@ async function handleEntryUpdate(
  */
 export async function routeGalleryRequest(
   request: Request,
-  env: GalleryEnv,
+  env: GalleryEnv & PreviewAcceptanceEnv,
   runtime: GalleryRouteRuntime = {},
 ): Promise<Response | null> {
   const url = new URL(request.url);

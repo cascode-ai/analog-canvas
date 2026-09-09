@@ -1,3 +1,8 @@
+import {
+  isPreviewAcceptanceRequest,
+  type PreviewAcceptanceEnv,
+} from "./preview-acceptance";
+
 /**
  * Which release channel this deployment is, and what that changes.
  *
@@ -8,7 +13,7 @@
  */
 export type ReleaseChannel = "production" | "preview";
 
-export interface ChannelEnv {
+export interface ChannelEnv extends PreviewAcceptanceEnv {
   /** "preview" on the preview Worker; production leaves it unset. */
   ICM_CHANNEL?: string;
   /**
@@ -45,6 +50,12 @@ export function previewWriteRefusal(
   if (releaseChannel(env) !== "preview") return null;
   if (READ_METHODS.has(request.method)) return null;
   const path = new URL(request.url).pathname;
+  if (
+    path.startsWith("/api/projects") &&
+    isPreviewAcceptanceRequest(request, env)
+  ) {
+    return null;
+  }
   if (!path.startsWith("/api/gallery") && !path.startsWith("/api/projects")) {
     return null;
   }

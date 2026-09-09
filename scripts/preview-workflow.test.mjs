@@ -13,6 +13,10 @@ const agentJourney = readFileSync(
   "scripts/preview-agent-simulation-journey.mjs",
   "utf8",
 );
+const crossProjectJourney = readFileSync(
+  "scripts/preview-cross-project-simulation-journey.mjs",
+  "utf8",
+);
 
 describe("the preview deploy", () => {
   it("deploys the preview configuration file and nothing else", () => {
@@ -70,7 +74,14 @@ describe("the preview deploy", () => {
     expect(preview).toContain(
       'node scripts/preview-agent-simulation-journey.mjs "$PREVIEW_URL"',
     );
+    expect(preview).toContain(
+      'node scripts/preview-cross-project-simulation-journey.mjs "$PREVIEW_URL"',
+    );
+    expect(preview).toContain("PREVIEW_ACCEPTANCE_TOKEN");
     expect(preview).toContain("preview-agent-simulation-${{ github.sha }}");
+    expect(preview).toContain(
+      "preview-cross-project-simulation-${{ github.sha }}",
+    );
     // The reusable smoke is responsible for explicit transport selection,
     // numeric validation, and environment parity; the workflow must not
     // quietly restore an inline, default-executor-only probe.
@@ -89,5 +100,17 @@ describe("the preview deploy", () => {
     expect(agentJourney).toContain("invalidSetup.input.outputs[0]");
     expect(agentJourney).toContain("firstOutput.expression.anchor");
     expect(agentJourney).not.toContain("invalidSetup.input.probes");
+  });
+
+  it("imports a Cloud Project Cell before compiling the cross-Project Testbench", () => {
+    expect(crossProjectJourney).toContain('action: "list-projects"');
+    expect(crossProjectJourney).toContain('action: "list-cells"');
+    expect(crossProjectJourney).toContain('action: "import-cell"');
+    expect(crossProjectJourney).toContain('kind: "add_document"');
+    expect(crossProjectJourney).toContain('kind: "upsert_simulation_setup"');
+    expect(crossProjectJourney).toContain('operation: "prepare"');
+    expect(crossProjectJourney).toContain('operation: "start"');
+    expect(crossProjectJourney).toContain('operation: "read"');
+    expect(crossProjectJourney).toContain("acceptance-report.json");
   });
 });
