@@ -574,13 +574,14 @@ test("a saved Run Plan prepares without executing and Run starts its ordinary ba
     ({ input }) => input.kind === "structured",
   );
   if (!setup || setup.input.kind !== "structured") throw new Error("setup");
+  const setupInput = setup.input;
   const root = project.documents.find(
-    ({ id }) => id === setup.input.rootDocumentId,
+    ({ id }) => id === setupInput.rootDocumentId,
   )!;
   const source = root.instances.find(({ id }) => id === "VINP")!;
-  setup.input.analyses = [{ kind: "op" }];
-  setup.input.outputs = [];
-  setup.input.designVariables = [
+  setupInput.analyses = [{ kind: "op" }];
+  setupInput.outputs = [];
+  setupInput.designVariables = [
     {
       id: "input-level",
       name: "VIN",
@@ -594,7 +595,7 @@ test("a saved Run Plan prepares without executing and Run starts its ordinary ba
       ],
     },
   ];
-  setup.input.runPlan = {
+  setupInput.runPlan = {
     mode: "sweep",
     axes: [
       { kind: "variable", variableId: "input-level", values: ["0.89", "0.9"] },
