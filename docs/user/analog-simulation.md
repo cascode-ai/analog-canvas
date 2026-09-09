@@ -131,7 +131,10 @@ the same rules, or replace the complete typed Setup through
 Simulation session and align saved rules by measurement ID and automatic
 summaries by output identity, analysis, metric and unit. Keep a result, edit
 the circuit or conditions, run again, and inspect the current and retained
-columns. These comparison copies are transient.
+columns. Compatible DC, AC, TRAN and Noise outputs are also overlaid on shared
+waveform axes; incompatible domains or units remain separate rather than being
+silently resampled. Completed batch items populate the same comparison view.
+These comparison copies are transient.
 
 Choose **Archive** on a completed result to keep its verified run files and
 view locally in this browser. **Compare → Browser archives** can reopen or
@@ -156,9 +159,8 @@ independent Cell-closure imports from authorized Cloud Projects. The GUI uses
 The [simulation roadmap](../roadmap/simulation-remaining-work.md) retains the
 integrated cross-Project acceptance boundary rather than treating that
 implemented flow as future functionality.
-Persistent Project result archives and overlaid multi-run waveforms are not
-provided by the session comparison view. Raw/Agent workflows retain their
-advertised capabilities.
+Persistent Project result archives are not provided by the session comparison
+view. Raw/Agent workflows retain their advertised capabilities.
 Browser regressions use a controlled executor
 to verify interaction/protocol behavior; they do **not** certify OTA numbers,
 model qualification or the separate real Preview acceptance journey.

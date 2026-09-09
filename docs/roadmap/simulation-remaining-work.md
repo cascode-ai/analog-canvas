@@ -125,7 +125,7 @@ After promotion, verify actual Production identity and health separately.
 These are not implicit promises of the current UI or executor:
 
 - Live cross-Project library synchronization and automatic version following.
-- Persistent Project result archives and overlaid multi-run waveform comparison.
+- Persistent Project result archives.
 - Monte Carlo, batch optimization, and automated circuit modification.
 - A second simulator, general simulator plugins, or uploaded Verilog-A compilation.
 - Model marketplaces, automatic PDK/binned-model fallback, or parameter rewriting.

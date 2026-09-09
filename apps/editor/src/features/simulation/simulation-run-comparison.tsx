@@ -10,6 +10,7 @@ export interface SimulationComparisonRun {
   readonly label: string;
   readonly inputRevision: string;
   readonly environment: Prepared["environment"];
+  readonly outputData: SimulationOutputData;
   readonly measurements: readonly Measurement[];
   readonly current: boolean;
 }
@@ -131,6 +132,7 @@ export function SimulationRunComparison({
         Complete a structured run to compare its measurements.
       </p>
     );
+  if (!runs.some((run) => run.measurements.length)) return null;
 
   return (
     <div className="simulation-comparison-runs">

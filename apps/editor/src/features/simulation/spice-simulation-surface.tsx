@@ -51,6 +51,7 @@ import {
   SimulationRunComparison,
   type SimulationComparisonRun,
 } from "./simulation-run-comparison";
+import { SimulationWaveformComparison } from "./simulation-waveform-comparison";
 import { createBrowserSimulationArchiveStore } from "./browser-simulation-archive-store";
 import {
   SimulationSweepDialog,
@@ -811,22 +812,54 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
         )
       : undefined;
   const currentComparisonRun: SimulationComparisonRun | undefined =
-    run?.outputData?.measurements?.length && runPresentation
+    run?.outputData && runPresentation
       ? {
           id: run.id,
           label: runPresentation.setupName,
           inputRevision: run.inputRevision,
           environment: runPresentation.prepared.environment,
-          measurements: run.outputData.measurements,
+          outputData: run.outputData,
+          measurements: run.outputData.measurements ?? [],
           current: true,
         }
       : undefined;
+  const batchComparisonRuns: readonly SimulationComparisonRun[] =
+    batch?.items
+      .flatMap((item) => {
+        if (!item.runId) return [];
+        const resolved = batchRuns.current.get(item.runId);
+        const presentation = preparedPresentations.current.get(
+          item.prepared.id,
+        );
+        if (!resolved?.run.outputData || !presentation) return [];
+        return [
+          {
+            id: resolved.run.id,
+            label: presentation.setupName,
+            inputRevision: resolved.run.inputRevision,
+            environment: presentation.prepared.environment,
+            outputData: resolved.run.outputData,
+            measurements: resolved.run.outputData.measurements ?? [],
+            current: resolved.run.id === run?.id,
+          },
+        ];
+      })
+      .slice(-MAX_COMPARISON_RUNS) ?? [];
+  const automaticComparisonIds = new Set(
+    batchComparisonRuns.map((candidate) => candidate.id),
+  );
   const comparisonRuns = [
     ...retainedComparisonRuns.filter(
-      (candidate) => candidate.id !== currentComparisonRun?.id,
+      (candidate) =>
+        candidate.id !== currentComparisonRun?.id &&
+        !automaticComparisonIds.has(candidate.id),
     ),
-    ...(currentComparisonRun ? [currentComparisonRun] : []),
-  ];
+    ...batchComparisonRuns,
+    ...(currentComparisonRun &&
+    !automaticComparisonIds.has(currentComparisonRun.id)
+      ? [currentComparisonRun]
+      : []),
+  ].slice(-MAX_COMPARISON_RUNS);
   const retainCurrentComparison = (): void => {
     if (!currentComparisonRun) return;
     setRetainedComparisonRuns((current) => {
@@ -1605,6 +1638,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
                     again to compare.
                   </p>
                 ) : null}
+                <SimulationWaveformComparison runs={comparisonRuns} />
                 <SimulationRunComparison
                   runs={comparisonRuns}
                   onRemove={(runId) =>
