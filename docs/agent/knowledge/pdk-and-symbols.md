@@ -25,10 +25,11 @@ The mapped instance keeps its external binding while borrowing native artwork.
 Its authored reference remains in the native M/R/C/Q domain; SPICE derives the
 X card. MOS exposes D/G/S/B electrically, resistor R0/R1 map to frozen pins
 1/2 and B is property-only, and MIM C0/C1 map to frozen pins 1/2. The exact PNP
-and NPN interfaces map C/B/E to their existing visible symbols and expose S
-only as a Substrate Net property. Their ordinary model-bound Q cards remain
-three-node. An explicit external block presentation overrides automatic
-artwork choice.
+maps its three public C/B/E terminals directly to the existing symbol; its
+model wrapper ties the internal substrate node to C. The exact NPN maps C/B/E
+to its visible symbol and exposes its fourth S terminal only as a Substrate Net
+property. Their ordinary model-bound Q cards remain three-node. An explicit
+external block presentation overrides automatic artwork choice.
 
 The hosted Profile qualifies seven of those interfaces and excludes the exact
 NPN. The continuous library does not expose

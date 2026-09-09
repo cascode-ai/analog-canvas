@@ -39,7 +39,6 @@ describe("reviewed external device bindings", () => {
         "C",
         "B",
         "E",
-        "S",
       ]),
     ).toMatchObject({
       id: "sky130-pnp-05v5-w0p68l0p68",
@@ -49,7 +48,6 @@ describe("reviewed external device bindings", () => {
         { pinName: "C", interaction: "canvas" },
         { pinName: "B", interaction: "canvas" },
         { pinName: "E", interaction: "canvas" },
-        { pinName: "S", interaction: "property", role: "substrate" },
       ],
     });
     expect(
@@ -69,6 +67,7 @@ describe("reviewed external device bindings", () => {
         "C",
         "B",
         "E",
+        "S",
       ]),
     ).toBeUndefined();
   });

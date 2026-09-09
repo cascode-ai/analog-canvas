@@ -33,8 +33,8 @@ describe("PDK symbol mapping registry", () => {
       resolvePdkSymbolMapping("sky130_fd_pr__res_high_po", 3),
     ).toMatchObject({ symbolId: "resistor", pinNames: ["1", "2", "B"] });
     expect(
-      resolvePdkSymbolMapping("sky130_fd_pr__pnp_05v5_W0p68L0p68", 4),
-    ).toMatchObject({ symbolId: "pnp", pinNames: ["C", "B", "E", "S"] });
+      resolvePdkSymbolMapping("sky130_fd_pr__pnp_05v5_W0p68L0p68", 3),
+    ).toMatchObject({ symbolId: "pnp", pinNames: ["C", "B", "E"] });
     expect(
       resolvePdkSymbolMapping("sky130_fd_pr__npn_05v5_W1p00L1p00", 4),
     ).toMatchObject({ symbolId: "npn", pinNames: ["C", "B", "E", "S"] });
