@@ -11,11 +11,11 @@ Use `inspect` and `search` for IDs and pins, not screenshot coordinates.
 Production hides the Agent UI intentionally. Development/staging enables it
 with `VITE_ICM_AGENT_UI=enabled`.
 
-MCP 0.4.0 is a development release for the matching API 2.0 branch. Releasing
+MCP 0.5.0 is a development release for the matching API 2.0 branch. Releasing
 the adapter does not deploy editor/API fixes or enable the production Agent UI.
 Set `ANALOG_CANVAS_API_URL` to your development endpoint before starting it.
 
-## Create and edit (MCP 0.4 / Kit 4)
+## Create and edit (MCP 0.5 / Kit 4)
 
 Use `apply_actions` for one atomic edit batch, wire, planned command or focus
 operation per call. Split create and wire phases so new pin geometry comes

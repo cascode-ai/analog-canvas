@@ -18,7 +18,7 @@ import {
 import type { McpServerHandler, McpServerInfo } from "./protocol.js";
 
 export const MCP_SERVER_NAME = "analog-canvas";
-export const MCP_SERVER_VERSION = "0.4.0";
+export const MCP_SERVER_VERSION = "0.5.0";
 
 export interface McpServerConfig {
   apiBaseUrl: string;
