@@ -154,14 +154,19 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
     readonly SimulationRunArchiveSummary[]
   >([]);
   const setupMenuRef = useRef<HTMLDetailsElement>(null);
+  const batchMenuRef = useRef<HTMLDetailsElement>(null);
   useEffect(() => {
-    const closeSetupMenu = (event: PointerEvent): void => {
-      if (setupMenuRef.current?.contains(event.target as Node)) return;
-      setupMenuRef.current?.removeAttribute("open");
-      setDeleteSetupId(undefined);
+    const closeTaskbarMenus = (event: PointerEvent): void => {
+      const target = event.target as Node;
+      if (!setupMenuRef.current?.contains(target)) {
+        setupMenuRef.current?.removeAttribute("open");
+        setDeleteSetupId(undefined);
+      }
+      if (!batchMenuRef.current?.contains(target))
+        batchMenuRef.current?.removeAttribute("open");
     };
-    document.addEventListener("pointerdown", closeSetupMenu);
-    return () => document.removeEventListener("pointerdown", closeSetupMenu);
+    document.addEventListener("pointerdown", closeTaskbarMenus);
+    return () => document.removeEventListener("pointerdown", closeTaskbarMenus);
   }, []);
   const operatingPointProjectionRef = useRef(props.onOperatingPointProjection);
   operatingPointProjectionRef.current = props.onOperatingPointProjection;
@@ -990,6 +995,8 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
         if (setupMenuRef.current?.open) {
           setupMenuRef.current.removeAttribute("open");
           setDeleteSetupId(undefined);
+        } else if (batchMenuRef.current?.open) {
+          batchMenuRef.current.removeAttribute("open");
         } else props.onMinimize();
       }}
     >
@@ -1173,6 +1180,55 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
               Set up
             </button>
           )}
+          {batch ? (
+            <details
+              ref={batchMenuRef}
+              className="simulation-batch-menu"
+              onToggle={(event) => {
+                if (event.currentTarget.open)
+                  setupMenuRef.current?.removeAttribute("open");
+              }}
+            >
+              <summary
+                aria-label={`Batch queue: ${batch.state}, ${finishedBatchItems} of ${batch.items.length} finished`}
+                title="Batch queue"
+              >
+                <span aria-hidden="true">≡</span>
+              </summary>
+              <div className="simulation-batch-menu-popover">
+                <header>
+                  <strong>Batch · {batch.state}</strong>
+                  <span>
+                    {finishedBatchItems}/{batch.items.length}
+                  </span>
+                </header>
+                <div className="simulation-batch-menu-items">
+                  {batch.items.map((item) => {
+                    const setup = project.simulationSetups.find(
+                      (candidate) => candidate.id === item.setupId,
+                    );
+                    return (
+                      <button
+                        type="button"
+                        key={item.id}
+                        data-state={item.state}
+                        disabled={item.state === "queued"}
+                        onClick={() => void showBatchItem(item)}
+                      >
+                        <span>{item.label ?? setup?.name ?? item.setupId}</span>
+                        <small>{item.state}</small>
+                      </button>
+                    );
+                  })}
+                </div>
+                {!batchRunning ? (
+                  <button type="button" onClick={() => setBatch(undefined)}>
+                    Dismiss
+                  </button>
+                ) : null}
+              </div>
+            </details>
+          ) : null}
         </div>
         <div className="simulation-window-actions">
           <button
@@ -1208,35 +1264,6 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
           </button>
         </div>
       </header>
-
-      {batch ? (
-        <div className="simulation-batch-strip" role="status">
-          <strong>Batch · {batch.state}</strong>
-          <div>
-            {batch.items.map((item) => {
-              const setup = project.simulationSetups.find(
-                (candidate) => candidate.id === item.setupId,
-              );
-              return (
-                <button
-                  type="button"
-                  key={item.id}
-                  data-state={item.state}
-                  disabled={item.state === "queued"}
-                  onClick={() => void showBatchItem(item)}
-                >
-                  {item.label ?? setup?.name ?? item.setupId} · {item.state}
-                </button>
-              );
-            })}
-          </div>
-          {!batchRunning ? (
-            <button type="button" onClick={() => setBatch(undefined)}>
-              Dismiss
-            </button>
-          ) : null}
-        </div>
-      ) : null}
 
       {!selectedSetup && !hasDutInstance ? (
         <p className="simulation-context-hint">

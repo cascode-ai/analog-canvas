@@ -488,26 +488,23 @@ export function RunPlanEditor({
             >
               Variable
             </button>
-            <details>
-              <summary>Advanced</summary>
-              <button
-                type="button"
-                disabled={axes.length >= 4 || choices.length === 0}
-                onClick={() => {
-                  const choice = choices[0];
-                  if (choice)
-                    addAxis({
-                      kind: "parameter",
-                      documentId: choice.documentId,
-                      instanceId: choice.instanceId,
-                      parameter: choice.parameter,
-                      values: ["1"],
-                    });
-                }}
-              >
-                Instance parameter
-              </button>
-            </details>
+            <button
+              type="button"
+              disabled={axes.length >= 4 || choices.length === 0}
+              onClick={() => {
+                const choice = choices[0];
+                if (choice)
+                  addAxis({
+                    kind: "parameter",
+                    documentId: choice.documentId,
+                    instanceId: choice.instanceId,
+                    parameter: choice.parameter,
+                    values: ["1"],
+                  });
+              }}
+            >
+              Instance parameter
+            </button>
           </div>
           <div className="simulation-run-plan-summary">
             <strong>{pointCount} points</strong>

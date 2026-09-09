@@ -548,16 +548,17 @@ test("a saved-setup batch prepares first and exposes each ordinary run", async (
   await panel.getByLabel("Include TT in batch").check();
   await panel.getByLabel("Include FF in batch").check();
   await panel.getByRole("button", { name: "Run selected (2)" }).click();
-  const batch = panel.locator(".simulation-batch-strip");
+  await panel.getByTitle("Batch queue", { exact: true }).click();
+  const batch = panel.locator(".simulation-batch-menu-popover");
   await expect(batch).toContainText("Batch · finished");
   await expect(
-    batch.getByRole("button", { name: /TT · finished/ }),
+    batch.getByRole("button", { name: /TT finished/ }),
   ).toBeEnabled();
   await expect(
-    batch.getByRole("button", { name: /FF · finished/ }),
+    batch.getByRole("button", { name: /FF finished/ }),
   ).toBeEnabled();
   expect(executions).toBe(2);
-  await batch.getByRole("button", { name: /FF · finished/ }).click();
+  await batch.getByRole("button", { name: /FF finished/ }).click();
   await expect(
     panel.getByTitle("Simulation setup", { exact: true }),
   ).toContainText("FF");
@@ -671,13 +672,14 @@ test("a saved Run Plan prepares without executing and Run starts its ordinary ba
     .click();
   const panel = page.getByRole("region", { name: "Analog simulation" });
   await panel.getByRole("button", { name: "Prepare deck" }).click();
-  await expect(panel.locator(".simulation-batch-strip")).toContainText(
+  await panel.getByTitle("Batch queue", { exact: true }).click();
+  await expect(panel.locator(".simulation-batch-menu-popover")).toContainText(
     "Batch · prepared",
   );
   await expect(panel.getByLabel("Prepare files")).toBeVisible();
   expect(executions).toBe(0);
   await panel.getByRole("button", { name: "Run", exact: true }).click();
-  await expect(panel.locator(".simulation-batch-strip")).toContainText(
+  await expect(panel.locator(".simulation-batch-menu-popover")).toContainText(
     "Batch · finished",
   );
   expect(executions).toBe(2);
