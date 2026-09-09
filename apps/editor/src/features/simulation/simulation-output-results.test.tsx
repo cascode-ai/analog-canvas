@@ -109,4 +109,98 @@ describe("Simulation Output Results", () => {
     expect(markup).toContain("Integrated input-referred noise");
     expect(markup).toContain("1.80000e-7 V");
   });
+
+  it("presents AC expression variants as one switchable signal family", () => {
+    const gain = {
+      kind: "divide" as const,
+      left: {
+        kind: "voltage" as const,
+        documentId: "tb",
+        anchor: { kind: "base-net" as const, netId: "out" },
+        occurrence: [],
+      },
+      right: {
+        kind: "voltage" as const,
+        documentId: "tb",
+        anchor: { kind: "base-net" as const, netId: "in" },
+        occurrence: [],
+      },
+    };
+    const markup = renderToStaticMarkup(
+      <SimulationOutputResults
+        resultKey="run-gain"
+        outputs={[
+          { id: "gain", label: "A_v", expression: gain },
+          {
+            id: "gain-db",
+            label: "dB(A_v)",
+            expression: { kind: "db20", operand: gain },
+          },
+        ]}
+        data={{
+          schemaVersion: 1,
+          diagnostics: [],
+          analyses: [
+            {
+              analysis: "ac",
+              plotName: "AC Analysis",
+              domain: { name: "Frequency", unit: "Hz", values: [10, 100] },
+              outputs: [
+                {
+                  id: "gain",
+                  label: "A_v",
+                  unit: "1",
+                  values: [2, 1],
+                  imaginary: [0, -1],
+                },
+                {
+                  id: "gain-db",
+                  label: "dB(A_v)",
+                  unit: "dB",
+                  values: [6.0206, 3.0103],
+                },
+              ],
+            },
+          ],
+        }}
+      />,
+    );
+
+    expect(markup).toContain("A_v");
+    expect(markup).not.toContain("dB(A_v)");
+    expect(markup).toContain('aria-label="Ratio display"');
+    expect(markup).toContain(">dB</button>");
+    expect(markup.match(/class="simulation-plot-layout"/gu)).toHaveLength(1);
+  });
+
+  it("keeps non-AC scalar outputs visible", () => {
+    const markup = renderToStaticMarkup(
+      <SimulationOutputResults
+        resultKey="run-tran"
+        outputs={[]}
+        data={{
+          schemaVersion: 1,
+          diagnostics: [],
+          analyses: [
+            {
+              analysis: "tran",
+              plotName: "Transient Analysis",
+              domain: { name: "Time", unit: "s", values: [0, 1e-6] },
+              outputs: [
+                {
+                  id: "out-v",
+                  label: "VOUT",
+                  unit: "V",
+                  values: [0, 1.2],
+                },
+              ],
+            },
+          ],
+        }}
+      />,
+    );
+
+    expect(markup).toContain("VOUT");
+    expect(markup).toContain('aria-label="Transient voltage"');
+  });
 });

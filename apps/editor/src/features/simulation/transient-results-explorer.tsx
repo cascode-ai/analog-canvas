@@ -728,14 +728,6 @@ export function ScalarResultsExplorer({
               <div className="simulation-plot-stack">
                 {visibleQuantityTraces.length ? (
                   <div className="ac-plot-row">
-                    <strong>
-                      {quantity === "voltage"
-                        ? "Voltage"
-                        : quantity === "current"
-                          ? "Current"
-                          : quantity}{" "}
-                      {analysisLabel.toLowerCase()}
-                    </strong>
                     {plot(quantity, visibleQuantityTraces)}
                   </div>
                 ) : (

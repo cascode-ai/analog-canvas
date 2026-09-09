@@ -1504,7 +1504,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
             ) : null}
 
             {resultTab === "operating-point" ? (
-              <div className="simulation-analysis-view">
+              <div className="simulation-analysis-view simulation-operating-point-view">
                 <div className="simulation-op-canvas-controls">
                   <button
                     type="button"
@@ -1605,40 +1605,47 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
 
             {resultTab === "compare" ? (
               <div className="simulation-comparison-view">
-                <div className="simulation-comparison-actions">
-                  <button
-                    type="button"
-                    disabled={
-                      !currentComparisonRun ||
-                      retainedComparisonRuns.some(
-                        (candidate) => candidate.id === currentComparisonRun.id,
-                      ) ||
-                      retainedComparisonRuns.length >= MAX_COMPARISON_RUNS - 1
-                    }
-                    onClick={retainCurrentComparison}
-                  >
-                    {retainedComparisonRuns.some(
-                      (candidate) => candidate.id === currentComparisonRun?.id,
-                    )
-                      ? "Current kept"
-                      : "Keep current"}
-                  </button>
-                  {retainedComparisonRuns.length ? (
-                    <button
-                      type="button"
-                      onClick={() => setRetainedComparisonRuns([])}
-                    >
-                      Clear kept
-                    </button>
-                  ) : null}
-                </div>
+                <SimulationWaveformComparison
+                  runs={comparisonRuns}
+                  actions={
+                    <div className="simulation-comparison-actions">
+                      <button
+                        type="button"
+                        disabled={
+                          !currentComparisonRun ||
+                          retainedComparisonRuns.some(
+                            (candidate) =>
+                              candidate.id === currentComparisonRun.id,
+                          ) ||
+                          retainedComparisonRuns.length >=
+                            MAX_COMPARISON_RUNS - 1
+                        }
+                        onClick={retainCurrentComparison}
+                      >
+                        {retainedComparisonRuns.some(
+                          (candidate) =>
+                            candidate.id === currentComparisonRun?.id,
+                        )
+                          ? "Current kept"
+                          : "Keep current"}
+                      </button>
+                      {retainedComparisonRuns.length ? (
+                        <button
+                          type="button"
+                          onClick={() => setRetainedComparisonRuns([])}
+                        >
+                          Clear kept
+                        </button>
+                      ) : null}
+                    </div>
+                  }
+                />
                 {comparisonRuns.length < 2 && currentComparisonRun ? (
                   <p className="simulation-comparison-hint">
                     Keep this result, change the circuit or conditions, then run
                     again to compare.
                   </p>
                 ) : null}
-                <SimulationWaveformComparison runs={comparisonRuns} />
                 <SimulationRunComparison
                   runs={comparisonRuns}
                   onRemove={(runId) =>

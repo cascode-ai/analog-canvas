@@ -42,6 +42,7 @@ describe("DcResultsExplorer", () => {
     );
     expect(markup).toContain('aria-label="DC sweep results"');
     expect(markup).toContain('aria-label="DC voltage"');
+    expect(markup).not.toContain("Voltage DC sweep");
     expect(markup).toContain("3 points");
     expect(markup).toContain("Output");
     expect(markup).toContain('class="ac-axis-title"');

@@ -97,9 +97,6 @@ export function DcResultsExplorer({
         const yLabels = waveformAxisLabels(...yExtent, unit);
         return (
           <div className="ac-plot-row" key={quantity}>
-            <strong>
-              {quantity === "voltage" ? "Voltage" : "Current"} DC sweep
-            </strong>
             <div className="ac-plot-shell">
               <div className="spice-ac-plot">
                 <svg

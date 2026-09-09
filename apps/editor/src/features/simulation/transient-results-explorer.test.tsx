@@ -85,8 +85,8 @@ describe("Transient Results Explorer", () => {
 
     expect(markup).toContain("VOUT");
     expect(markup).toContain("IIN");
-    expect(markup).toContain("Voltage transient");
-    expect(markup).toContain("Current transient");
+    expect(markup).not.toContain("Voltage transient");
+    expect(markup).not.toContain("Current transient");
     expect(markup).toContain('aria-label="Hide VOUT"');
     expect(markup).toContain('aria-label="Hide IIN"');
     expect(markup).toContain('aria-pressed="true"');
