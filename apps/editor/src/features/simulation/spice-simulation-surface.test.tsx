@@ -45,6 +45,8 @@ describe("SpiceSimulationSurface workspace", () => {
     expect(markup).toContain('aria-label="Setup settings" open=""');
     expect(markup).not.toContain('aria-label="Environment settings"');
     expect(markup).toContain('aria-label="Analyses settings"');
+    expect(markup).toContain('aria-label="Design Variables settings"');
+    expect(markup).toContain('aria-label="Run Plan settings"');
     expect(markup).toContain('aria-label="Output probes settings"');
     expect(markup).toContain('aria-label="Device operating point settings"');
     expect(markup).toContain('aria-label="Output signals settings"');
@@ -98,9 +100,11 @@ describe("SpiceSimulationSurface workspace", () => {
     project.simulationSetups.push({
       id: "setup-dc",
       name: "DC Sweep",
-      version: 2,
+      version: 3,
       input: {
         kind: "structured",
+        designVariables: [],
+        runPlan: { mode: "nominal" },
         rootDocumentId: root.id,
         analyses: [
           {
@@ -118,9 +122,11 @@ describe("SpiceSimulationSurface workspace", () => {
     project.simulationSetups.push({
       id: "setup-ac",
       name: "AC Response",
-      version: 2,
+      version: 3,
       input: {
         kind: "structured",
+        designVariables: [],
+        runPlan: { mode: "nominal" },
         rootDocumentId: root.id,
         analyses: [
           {
@@ -161,6 +167,74 @@ describe("SpiceSimulationSurface workspace", () => {
     expect(markup).toContain('name="dcStartValue"');
     expect(markup).toContain('name="dcStopValue"');
     expect(markup).toContain('name="dcStepValue"');
+    expect(markup).not.toContain("Sweep…");
+  });
+
+  it("shows a saved Design Variable and Run Plan inside Settings", () => {
+    const project = createEmptyProject("planned", "Planned");
+    const root = project.documents[0]!;
+    root.instances.push({
+      id: "R1",
+      symbolId: "resistor",
+      reference: "R1",
+      placement: null,
+      netlist: {
+        binding: { kind: "primitive", deviceClass: "resistor" },
+        parameters: { resistance: "1k" },
+      },
+    });
+    project.simulationSetups.push({
+      id: "setup-planned",
+      name: "Load sweep",
+      version: 3,
+      input: {
+        kind: "structured",
+        rootDocumentId: root.id,
+        analyses: [{ kind: "op" }],
+        outputs: [],
+        designVariables: [
+          {
+            id: "load",
+            name: "RLOAD",
+            value: "1k",
+            bindings: [
+              {
+                documentId: root.id,
+                instanceId: "R1",
+                parameter: "resistance",
+              },
+            ],
+          },
+        ],
+        runPlan: {
+          mode: "sweep",
+          axes: [
+            { kind: "variable", variableId: "load", values: ["1k", "2k"] },
+          ],
+        },
+        environment: { profileId: "sky130-core-continuous-ngspice46-v1" },
+      },
+    });
+    const markup = renderToStaticMarkup(
+      <SpiceSimulationSurface
+        open
+        maximized={false}
+        project={project}
+        activeDocumentId={root.id}
+        selectedSetupId="setup-planned"
+        onSelectSetupId={() => undefined}
+        session={{} as BrowserSimulationSession}
+        onToggleMaximized={() => undefined}
+        onMinimize={() => undefined}
+        onExit={() => undefined}
+        onSaveSetup={() => ({ status: "applied" })}
+        onDeleteSetup={() => true}
+      />,
+    );
+    expect(markup).toContain("RLOAD");
+    expect(markup).toContain("R1 · resistance");
+    expect(markup).toContain("2 points");
+    expect(markup).toContain("Design Variable");
   });
 
   it("keeps a saved raw setup distinct from the structured editor", () => {
@@ -168,7 +242,7 @@ describe("SpiceSimulationSurface workspace", () => {
     project.simulationSetups.push({
       id: "setup-raw",
       name: "Raw",
-      version: 2,
+      version: 3,
       input: {
         kind: "raw",
         entry: "tb.cir",
@@ -240,9 +314,11 @@ describe("SpiceSimulationSurface workspace", () => {
     project.simulationSetups.push({
       id: "setup-noise",
       name: "Noise",
-      version: 2,
+      version: 3,
       input: {
         kind: "structured",
+        designVariables: [],
+        runPlan: { mode: "nominal" },
         rootDocumentId: root.id,
         analyses: [
           {

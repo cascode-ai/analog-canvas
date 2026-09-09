@@ -187,3 +187,11 @@ export type {
   Schema46To47MigrationReport,
   Schema46To47MigrationResult,
 } from "./transforms/simulation-device-operating-points.js";
+export {
+  upgradeSchema47To48,
+  upgradeSchema47To48WithReport,
+} from "./transforms/simulation-design-variables.js";
+export type {
+  Schema47To48MigrationReport,
+  Schema47To48MigrationResult,
+} from "./transforms/simulation-design-variables.js";

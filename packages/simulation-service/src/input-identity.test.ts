@@ -8,7 +8,7 @@ describe("Project input identity", () => {
     project.simulationSetups.push({
       id: "s",
       name: "Raw",
-      version: 2,
+      version: 3,
       input: {
         kind: "raw",
         entry: "tb.cir",

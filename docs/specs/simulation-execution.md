@@ -379,12 +379,15 @@ continue. Cancellation terminates the active member and marks queued members
 cancelled. Batch start follows the same request-ID idempotency rule as a normal
 start.
 
-`prepare-sweep` is the compact structured alternative when one saved setup is
-run over corner, temperature, or one or more instance-parameter axes. It
+`prepare-sweep` is the structured execution primitive used by a saved Run Plan
+over corner, temperature, Design Variable, or one or more exact
+instance-parameter axes. It
 expands the Cartesian product into the same bounded 1–16 member batch before
 execution; every point is an immutable run-only projection and never rewrites
 the saved Project or setup. Parameter axes address an exact Document,
-Instance, and netlist parameter. Sweep members keep their ordinary prepared
+Instance, and netlist parameter. Variable axes address a stable Setup-local
+variable ID; preparation fans each point value out to all of that variable's
+exact bindings. Sweep members keep their ordinary prepared
 identity, result, and artifact interfaces, so no second executor or result
 protocol is introduced.
 

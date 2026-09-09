@@ -28,8 +28,8 @@ A Project owns a bounded collection of named `SimulationSetup` records. Each
 record is independently addressable by stable `id`, has an editable `name`,
 and contains exactly one input form:
 
-- a structured setup with its Testbench root, analyses, named outputs, and environment
-  selection; or
+- a structured setup with its Testbench root, analyses, named outputs, Design
+  Variables, saved Run Plan, and environment selection; or
 - a raw setup with its entry path, authored files, and declared dependencies.
 
 Projects without authored setups have an empty collection and retain their
@@ -47,7 +47,7 @@ of making the Project unsaveable.
 interface ProjectSimulationSetup {
   id: StableId;
   name: string;
-  version: 2;
+  version: 3;
   input: SimulationStructuredInput | SimulationRawInput;
 }
 interface SimulationStructuredInput {
@@ -62,8 +62,37 @@ interface SimulationStructuredInput {
     occurrence: StableId[];
   }>;
   measurements?: SimulationMeasurementSpec[]; // saved scalar reductions
+  designVariables: SimulationDesignVariable[];
+  runPlan: SimulationRunPlan;
   environment: { profileId: string; corner?: string; temperatureC?: number };
 }
+interface SimulationDesignVariable {
+  id: StableId;
+  name: string; // Setup-local SPICE-compatible authored name
+  value: string; // nominal value in the existing parameter grammar
+  bindings: Array<{
+    documentId: StableId;
+    instanceId: StableId;
+    parameter: string;
+  }>;
+}
+type SimulationRunPlan =
+  | { mode: "nominal" }
+  | {
+      mode: "sweep";
+      axes: Array<
+        | { kind: "corner"; values: string[] }
+        | { kind: "temperature"; values: number[] }
+        | { kind: "variable"; variableId: StableId; values: string[] }
+        | {
+            kind: "parameter"; // advanced exact-target escape hatch
+            documentId: StableId;
+            instanceId: StableId;
+            parameter: string;
+            values: string[];
+          }
+      >;
+    };
 interface SimulationRawInput {
   kind: "raw";
   entry: string; // safe relative path naming one authored file
@@ -178,6 +207,20 @@ limited to 24 files and 1 MiB, matching the first-release session
 workspace. External dependency bytes are not copied into the Project; logical
 identity, expected digest, and required mount path make absence or substitution
 explicit at preparation time.
+
+Design Variables are Setup-local authored controls, not a second Instance or
+netlist parameter system. Each binding names an exact existing parameter; one
+parameter may be owned by at most one variable. Preparation clones the Project,
+projects every nominal variable value into its bindings, and then applies the
+selected Run Plan point. An advanced exact-parameter axis is applied last and
+therefore deliberately overrides a variable binding at that point. Missing
+variables, Documents, Instances, or bound parameters are recoverable preparation
+diagnostics. They do not make later circuit edits or Project saving fail.
+
+The Run Plan is reusable authored intent. Nominal means one prepare/run. Sweep
+expands 1–4 axes as a Cartesian product into the existing sequential batch; the
+active executor's advertised `maxItems` remains the runtime limit. It does not
+create a second executor, result type, or result history.
 
 Structured Noise uses those same hierarchy-aware voltage anchors; it does not
 create a second probe or Net namespace. Preparation resolves the positive and

@@ -782,9 +782,11 @@ describe("Project structural transaction", () => {
     const setup = {
       id: "setup-main",
       name: "Main setup",
-      version: 2 as const,
+      version: 3 as const,
       input: {
         kind: "structured" as const,
+        designVariables: [],
+        runPlan: { mode: "nominal" },
         rootDocumentId: testbench.id,
         analyses: [
           { kind: "op" as const },
@@ -919,9 +921,11 @@ describe("Project structural transaction", () => {
     const setupFor = (rootDocumentId: string) => ({
       id: "setup-main",
       name: "Main setup",
-      version: 2 as const,
+      version: 3 as const,
       input: {
         kind: "structured" as const,
+        designVariables: [],
+        runPlan: { mode: "nominal" },
         rootDocumentId,
         analyses: [{ kind: "op" as const }],
         outputs: [],
@@ -1048,9 +1052,11 @@ describe("Project structural transaction", () => {
     const setupFor = (id: string, name: string, analysis: "op" | "ac") => ({
       id,
       name,
-      version: 2 as const,
+      version: 3 as const,
       input: {
         kind: "structured" as const,
+        designVariables: [],
+        runPlan: { mode: "nominal" },
         rootDocumentId: project.topDocumentId,
         analyses:
           analysis === "op"
@@ -1116,7 +1122,7 @@ describe("Project structural transaction", () => {
     const setup = {
       id: "setup-raw",
       name: "Raw setup",
-      version: 2 as const,
+      version: 3 as const,
       input: {
         kind: "raw" as const,
         entry: "tb.cir",

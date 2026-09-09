@@ -2,7 +2,7 @@
 
 Status: `accepted`
 
-Current Project schema: `47`
+Current Project schema: `48`
 
 Primary owners: `packages/model` (current shape) and
 `packages/project-protocol` (file boundary)
@@ -56,8 +56,8 @@ Noise analysis intent with hierarchy-aware output anchors and a Testbench-root
 independent input source; the 45→46 adapter invents no analysis. Schema 47
 adds optional hierarchy-aware MOS operating-point selections; the 46→47
 adapter selects no device implicitly. The public file boundary
-supplies only schema 47 in
-memory and writes only schema 47; versions older than 24 or newer than 47
+supplies only schema 48 in
+memory and writes only schema 48; versions older than 24 or newer than 48
 are rejected.
 
 ## Current authorities
@@ -131,7 +131,7 @@ are rejected.
   change persisted terminal connectivity.
 - `Project.simulationSetups` is the named setup collection defined in the
   [simulation spec](simulation.md#persistence-and-compatibility). Each record
-  has stable `id`, editable unique `name`, and a `version: 2` envelope around
+  has stable `id`, editable unique `name`, and a `version: 3` envelope around
   exactly one structured or raw input. A
   structured root must name a Document of the Project, analyses hold at most
   one entry per kind, and output ids and labels are unique. Each output owns
@@ -139,6 +139,9 @@ are rejected.
   `output.label` is the sole authored name used by OP/DC/AC/TRAN results,
   plots, CSV, and MCP. Optional measurement rules reference one enabled
   analysis and one Output and persist a scalar reduction, never a Run result.
+  Structured inputs also own a Setup-local Design Variable table and a saved
+  nominal-or-sweep Run Plan. Bindings use exact Document, Instance, and
+  parameter addresses; execution projects them without mutating the Project.
   Selected MOS operating-point details name concrete hierarchy occurrences;
   the compiler derives VGS/VDS/VBS and drain-entering ID from terminal and Bulk
   connectivity without persisting simulator vectors. Noise owns a differential voltage target and root independent input source;
@@ -155,8 +158,8 @@ are rejected.
 ## Read and write
 
 ```text
-import text -> parse JSON -> require Project schema 24 through 47
--> converge to schema 47 -> strict schema-47 validation -> install unbound
+import text -> parse JSON -> require Project schema 24 through 48
+-> converge to schema 48 -> strict schema-48 validation -> install unbound
 export -> strict validation -> canonical key ordering -> Blob download
 ```
 
@@ -180,7 +183,7 @@ open, and recovery remain exact.
 Canonical serialization ends with one newline and is byte-stable across
 serialize/parse/serialize. The current corpus is listed in
 `fixtures/projects/compatibility-corpus.json`; its accepted entries must all be
-already canonical Project schema 47. The rejected corpus names expected
+already canonical Project schema 48. The rejected corpus names expected
 validation failures.
 
 Viewport, selection, undo history, canvas overlays, Agent credentials,

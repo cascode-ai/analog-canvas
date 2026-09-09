@@ -4103,7 +4103,7 @@
   ],
   "id": "project-five-transistor-ota-sky130",
   "name": "Five-Transistor OTA — Full Simulation Lab",
-  "schemaVersion": 47,
+  "schemaVersion": 48,
   "simulationSetups": [
     {
       "id": "simulation-setup-ota-op-ac",
@@ -4138,6 +4138,8 @@
           "temperatureC": 27
         },
         "kind": "structured",
+        "designVariables": [],
+        "runPlan": { "mode": "nominal" },
         "outputs": [
           {
             "expression": {
@@ -4199,7 +4201,7 @@
         "rootDocumentId": "document-ota-5t-testbench"
       },
       "name": "OTA OP, DC, AC, and TRAN",
-      "version": 2
+      "version": 3
     },
     {
       "id": "simulation-setup-ota-full-tt",
@@ -4268,6 +4270,8 @@
           "temperatureC": 27
         },
         "kind": "structured",
+        "designVariables": [],
+        "runPlan": { "mode": "nominal" },
         "measurements": [
           {
             "analysis": "op",
@@ -4523,7 +4527,7 @@
         "rootDocumentId": "document-ota-5t-testbench"
       },
       "name": "Complete OP, DC, AC, TRAN, and Noise (TT)",
-      "version": 2
+      "version": 3
     },
     {
       "id": "simulation-setup-ota-bias-tt",
@@ -4553,6 +4557,8 @@
           "temperatureC": 27
         },
         "kind": "structured",
+        "designVariables": [],
+        "runPlan": { "mode": "nominal" },
         "measurements": [
           {
             "analysis": "op",
@@ -4662,7 +4668,7 @@
         "rootDocumentId": "document-ota-5t-testbench"
       },
       "name": "Bias point (TT)",
-      "version": 2
+      "version": 3
     },
     {
       "id": "simulation-setup-ota-dc-transfer-tt",
@@ -4682,6 +4688,8 @@
           "temperatureC": 27
         },
         "kind": "structured",
+        "designVariables": [],
+        "runPlan": { "mode": "nominal" },
         "measurements": [
           {
             "analysis": "dc",
@@ -4768,7 +4776,7 @@
         "rootDocumentId": "document-ota-5t-testbench"
       },
       "name": "DC transfer (TT)",
-      "version": 2
+      "version": 3
     },
     {
       "id": "simulation-setup-ota-ac-tt",
@@ -4788,6 +4796,8 @@
           "temperatureC": 27
         },
         "kind": "structured",
+        "designVariables": [],
+        "runPlan": { "mode": "nominal" },
         "measurements": [
           {
             "analysis": "ac",
@@ -4929,7 +4939,7 @@
         "rootDocumentId": "document-ota-5t-testbench"
       },
       "name": "AC response (TT)",
-      "version": 2
+      "version": 3
     },
     {
       "id": "simulation-setup-ota-ac-ff",
@@ -4949,6 +4959,8 @@
           "temperatureC": 27
         },
         "kind": "structured",
+        "designVariables": [],
+        "runPlan": { "mode": "nominal" },
         "measurements": [
           {
             "analysis": "ac",
@@ -5090,7 +5102,7 @@
         "rootDocumentId": "document-ota-5t-testbench"
       },
       "name": "AC response (FF)",
-      "version": 2
+      "version": 3
     },
     {
       "id": "simulation-setup-ota-ac-ss",
@@ -5110,6 +5122,8 @@
           "temperatureC": 27
         },
         "kind": "structured",
+        "designVariables": [],
+        "runPlan": { "mode": "nominal" },
         "measurements": [
           {
             "analysis": "ac",
@@ -5251,7 +5265,7 @@
         "rootDocumentId": "document-ota-5t-testbench"
       },
       "name": "AC response (SS)",
-      "version": 2
+      "version": 3
     },
     {
       "id": "simulation-setup-ota-ac-fs",
@@ -5271,6 +5285,8 @@
           "temperatureC": 27
         },
         "kind": "structured",
+        "designVariables": [],
+        "runPlan": { "mode": "nominal" },
         "measurements": [
           {
             "analysis": "ac",
@@ -5412,7 +5428,7 @@
         "rootDocumentId": "document-ota-5t-testbench"
       },
       "name": "AC response (FS)",
-      "version": 2
+      "version": 3
     },
     {
       "id": "simulation-setup-ota-ac-sf",
@@ -5432,6 +5448,8 @@
           "temperatureC": 27
         },
         "kind": "structured",
+        "designVariables": [],
+        "runPlan": { "mode": "nominal" },
         "measurements": [
           {
             "analysis": "ac",
@@ -5573,7 +5591,7 @@
         "rootDocumentId": "document-ota-5t-testbench"
       },
       "name": "AC response (SF)",
-      "version": 2
+      "version": 3
     },
     {
       "id": "simulation-setup-ota-tran-tt",
@@ -5592,6 +5610,8 @@
           "temperatureC": 27
         },
         "kind": "structured",
+        "designVariables": [],
+        "runPlan": { "mode": "nominal" },
         "measurements": [
           {
             "analysis": "tran",
@@ -5666,7 +5686,7 @@
         "rootDocumentId": "document-ota-5t-testbench"
       },
       "name": "Transient PULSE step (TT)",
-      "version": 2
+      "version": 3
     },
     {
       "id": "simulation-setup-ota-noise-tt",
@@ -5698,6 +5718,8 @@
           "temperatureC": 27
         },
         "kind": "structured",
+        "designVariables": [],
+        "runPlan": { "mode": "nominal" },
         "measurements": [
           {
             "analysis": "noise",
@@ -5724,7 +5746,7 @@
         "rootDocumentId": "document-ota-5t-testbench"
       },
       "name": "Noise response (TT)",
-      "version": 2
+      "version": 3
     },
     {
       "id": "simulation-setup-ota-tran-sin-tt",
@@ -5743,6 +5765,8 @@
           "temperatureC": 27
         },
         "kind": "structured",
+        "designVariables": [],
+        "runPlan": { "mode": "nominal" },
         "measurements": [
           {
             "analysis": "tran",
@@ -5804,7 +5828,7 @@
         "rootDocumentId": "document-ota-5t-testbench-sin"
       },
       "name": "Transient SIN response (TT)",
-      "version": 2
+      "version": 3
     }
   ],
   "source": {

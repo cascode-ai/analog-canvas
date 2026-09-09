@@ -82,9 +82,11 @@ describe("editor transaction commands", () => {
           setup: {
             id: "setup-1",
             name: "OP",
-            version: 2,
+            version: 3,
             input: {
               kind: "structured",
+              designVariables: [],
+              runPlan: { mode: "nominal" },
               rootDocumentId: input.document.id,
               analyses: [{ kind: "op" }],
               outputs: [],

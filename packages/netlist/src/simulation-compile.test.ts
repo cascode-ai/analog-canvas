@@ -145,9 +145,11 @@ function dividerProject(): CircuitProject {
 }
 
 const DIVIDER_SETUP: SimulationStructuredSetup = {
-  version: 2,
+  version: 3,
   input: {
     kind: "structured",
+    designVariables: [],
+    runPlan: { mode: "nominal" },
     rootDocumentId: "tb",
     analyses: [
       { kind: "op" },
@@ -324,7 +326,7 @@ function setupWith(
       })
     : current.outputs;
   return {
-    version: 2,
+    version: 3,
     input: {
       ...DIVIDER_SETUP.input,
       outputs: outputs ?? [],

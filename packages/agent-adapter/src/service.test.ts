@@ -270,15 +270,15 @@ describe("current Agent Circuit API service", () => {
 
     // RichText recursively unfolds into both part documents. Schema 30 added
     // one safe atomic formula leaf to every top-level RichText projection, and
-    // The Project simulation setup edit inlines its setup payload once
-    // (about 2.5 KB), including its bounded measurement-method union and the
-    // hierarchy-aware Noise selector. This raised the ceiling; it still guards
-    // accidental projection bloat.
+    // The Project simulation setup edit inlines its setup payload once,
+    // including its bounded measurement-method union, hierarchy-aware Noise
+    // selector, Design Variables, and persisted Run Plan. This raised the
+    // ceiling; it still guards accidental projection bloat.
     // Project source-file provenance is now an editable structural record so
     // imported Cell closures can remain source-addressable without bypassing
     // the canonical transaction contract.
     expect(JSON.stringify(AgentCircuitRequestJsonSchema).length).toBeLessThan(
-      168_000,
+      172_000,
     );
     expect(JSON.stringify(AgentCircuitResponseJsonSchema).length).toBeLessThan(
       180_000,

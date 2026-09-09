@@ -102,7 +102,7 @@ export class SimulationService {
             batch: {
               maxItems: 16,
               execution: "sequential",
-              sweepAxes: ["corner", "temperature", "parameter"],
+              sweepAxes: ["corner", "temperature", "variable", "parameter"],
             },
           },
         };
@@ -239,6 +239,14 @@ export class SimulationService {
   private async prepareSweep(
     op: Extract<SimulationOperation, { operation: "prepare-sweep" }>,
   ): Promise<SimulationReply> {
+    const setup = this.getProject().simulationSetups.find(
+      ({ id }) => id === op.setupId,
+    );
+    const variableNames = new Map(
+      setup?.input.kind === "structured"
+        ? setup.input.designVariables.map(({ id, name }) => [id, name])
+        : [],
+    );
     type Variant = NonNullable<
       Extract<PrepareSource, { kind: "project-setup" }>["variant"]
     >;
@@ -269,6 +277,21 @@ export class SimulationService {
                   ...existing.variant.environment,
                   temperatureC: value as number,
                 },
+              },
+            };
+          }
+          if (axis.kind === "variable") {
+            return {
+              label: [
+                ...existing.label,
+                `${variableNames.get(axis.variableId) ?? axis.variableId}=${value}`,
+              ],
+              variant: {
+                ...existing.variant,
+                variables: [
+                  ...(existing.variant.variables ?? []),
+                  { variableId: axis.variableId, value: value as string },
+                ],
               },
             };
           }

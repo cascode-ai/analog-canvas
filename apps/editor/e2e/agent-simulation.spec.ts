@@ -175,7 +175,7 @@ test("the qualified OTA setup opens unchanged and preserves all root and hierarc
         batch: {
           maxItems: 16,
           execution: "sequential",
-          sweepAxes: ["corner", "temperature", "parameter"],
+          sweepAxes: ["corner", "temperature", "variable", "parameter"],
         },
       },
     });
@@ -190,18 +190,17 @@ test("the qualified OTA setup opens unchanged and preserves all root and hierarc
     .getByRole("button", { name: "Analog simulation", exact: true })
     .click();
   const panel = page.getByRole("region", { name: "Analog simulation" });
-  await panel.getByTitle("Simulation setup").click();
-  await panel.getByRole("button", { name: "Sweep…" }).click();
-  const sweepDialog = page.getByRole("dialog", {
-    name: "Run parameter sweep",
-  });
-  await sweepDialog.getByLabel("Sweep corner ff").check();
-  await sweepDialog.getByLabel("Sweep corner ss").check();
-  await expect(sweepDialog).toContainText("3 sequential runs");
+  await panel
+    .locator('details[aria-label="Run Plan settings"] > summary')
+    .click();
+  await panel.getByRole("radio", { name: "Sweep" }).check();
+  await panel.getByLabel("Run Plan corner ff").check();
+  await panel.getByLabel("Run Plan corner ss").check();
+  await expect(panel).toContainText("3 points");
   await expect(
     page.getByText("The editor hit an unexpected problem"),
   ).toHaveCount(0);
-  await sweepDialog.getByRole("button", { name: "Cancel" }).click();
+  await panel.getByRole("radio", { name: "Nominal" }).check();
   await panel.getByRole("button", { name: "Settings" }).click();
   await panel
     .locator('details[aria-label="Analyses settings"] > summary')
@@ -475,7 +474,7 @@ test("a saved-setup batch prepares first and exposes each ordinary run", async (
   project.simulationSetups = ["TT", "FF"].map((name) => ({
     id: `setup-${name.toLowerCase()}`,
     name,
-    version: 2,
+    version: 3,
     input: {
       kind: "raw",
       entry: "main.cir",
@@ -567,6 +566,123 @@ test("a saved-setup batch prepares first and exposes each ordinary run", async (
   );
 });
 
+test("a saved Run Plan prepares without executing and Run starts its ordinary batch", async ({
+  page,
+}) => {
+  const project = parseProject(JSON.stringify(ota));
+  const setup = project.simulationSetups.find(
+    ({ input }) => input.kind === "structured",
+  );
+  if (!setup || setup.input.kind !== "structured") throw new Error("setup");
+  const setupInput = setup.input;
+  const root = project.documents.find(
+    ({ id }) => id === setupInput.rootDocumentId,
+  )!;
+  const source = root.instances.find(({ id }) => id === "VINP")!;
+  setupInput.analyses = [{ kind: "op" }];
+  setupInput.outputs = [];
+  setupInput.designVariables = [
+    {
+      id: "input-level",
+      name: "VIN",
+      value: "0.9",
+      bindings: [
+        {
+          documentId: root.id,
+          instanceId: source.id,
+          parameter: "low",
+        },
+      ],
+    },
+  ];
+  setupInput.runPlan = {
+    mode: "sweep",
+    axes: [
+      { kind: "variable", variableId: "input-level", values: ["0.89", "0.9"] },
+    ],
+  };
+  project.simulationSetups = [setup];
+  const rawfile = readFileSync(
+    new URL(
+      "../../../fixtures/ngspice-rawfile/divider-op.raw",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  let executions = 0;
+  await page.route("**/api/simulate", async (route) => {
+    const body = route.request().postDataJSON();
+    if (body.operation === "capabilities")
+      return route.fulfill({
+        json: {
+          configured: true,
+          inputs: ["structured", "raw"],
+          analyses: ["op"],
+          parsedAnalyses: ["op"],
+          profiles: [{ id: profile.id, corners: ["tt"] }],
+          maxTimeoutMs: 120000,
+          maxInputBytes: 1048576,
+          cancel: true,
+        },
+      });
+    executions += 1;
+    return route.fulfill({
+      json: {
+        outcome: { status: "completed" },
+        diagnostics: [],
+        log: "ngspice OP",
+        durationMs: 1,
+        rawfile,
+        executedDeck: body.preparedDeck,
+        metadata: {
+          schemaVersion: 1,
+          input: await createSimulationInputMetadata({
+            inputRevision: body.inputRevision,
+            netlist: body.netlist,
+            testbench: body.testbench,
+            deck: body.preparedDeck,
+          }),
+          configuration: { modelLibrary: null },
+          environment: await createSimulationEnvironmentMetadata({
+            executor: "local-host",
+            reproducibility: "observed",
+            profileId: profile.id,
+            platform: "linux/x64",
+            simulator: {
+              name: "ngspice",
+              version: profile.simulator.version,
+              binarySha256: null,
+            },
+            models: null,
+            startupSha256: null,
+          }),
+        },
+      },
+    });
+  });
+  await page.goto("/editor");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "run-plan.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  await page
+    .getByRole("button", { name: "Analog simulation", exact: true })
+    .click();
+  const panel = page.getByRole("region", { name: "Analog simulation" });
+  await panel.getByRole("button", { name: "Prepare deck" }).click();
+  await expect(panel.locator(".simulation-batch-strip")).toContainText(
+    "Batch · prepared",
+  );
+  await expect(panel.getByLabel("Prepare files")).toBeVisible();
+  expect(executions).toBe(0);
+  await panel.getByRole("button", { name: "Run", exact: true }).click();
+  await expect(panel.locator(".simulation-batch-strip")).toContainText(
+    "Batch · finished",
+  );
+  expect(executions).toBe(2);
+});
+
 test("human simulation uses saved setup, survives minimizing, recovers a bad input and exports results", async ({
   page,
 }) => {
@@ -576,9 +692,11 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
     {
       id: "setup-e2e",
       name: "E2E setup",
-      version: 2,
+      version: 3,
       input: {
         kind: "structured",
+        designVariables: [],
+        runPlan: { mode: "nominal" },
         rootDocumentId: project.topDocumentId,
         analyses: [
           { kind: "op" },

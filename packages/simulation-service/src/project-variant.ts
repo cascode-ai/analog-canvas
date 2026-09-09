@@ -36,16 +36,15 @@ export function projectSimulationVariant(
       message: `Simulation setup does not exist: ${setupId}`,
     };
   }
-  if (!variant) return { ok: true, project, setup };
-
-  if (variant.environment) {
+  if (variant?.environment) {
     setup.input.environment = {
       ...setup.input.environment,
       ...variant.environment,
     };
   }
   if (
-    (variant.parameters?.length ?? 0) > 0 &&
+    ((variant?.parameters?.length ?? 0) > 0 ||
+      (variant?.variables?.length ?? 0) > 0) &&
     setup.input.kind !== "structured"
   ) {
     return {
@@ -54,28 +53,89 @@ export function projectSimulationVariant(
       message: "Instance parameter variants require a structured Project setup",
     };
   }
-  for (const override of variant.parameters ?? []) {
-    const document = project.documents.find(
-      (candidate) => candidate.id === override.documentId,
+  if (setup.input.kind === "structured") {
+    const overrides = new Map(
+      (variant?.variables ?? []).map(({ variableId, value }) => [
+        variableId,
+        value,
+      ]),
     );
-    if (!document) {
-      return {
-        ok: false,
-        code: "SIMULATION_VARIANT_DOCUMENT_MISSING",
-        message: `Variant Document does not exist: ${override.documentId}`,
-      };
+    for (const variable of setup.input.designVariables) {
+      const value = overrides.get(variable.id) ?? variable.value;
+      for (const binding of variable.bindings) {
+        const result = applyParameter(
+          project,
+          binding,
+          value,
+          "Design Variable",
+          "SIMULATION_VARIABLE_BINDING",
+          true,
+        );
+        if (!result.ok) return result;
+      }
     }
-    const instance = document.instances.find(
-      (candidate) => candidate.id === override.instanceId,
+    for (const variableId of overrides.keys()) {
+      if (!setup.input.designVariables.some(({ id }) => id === variableId)) {
+        return {
+          ok: false,
+          code: "SIMULATION_VARIABLE_MISSING",
+          message: `Design Variable does not exist: ${variableId}`,
+        };
+      }
+    }
+  }
+  for (const override of variant?.parameters ?? []) {
+    const result = applyParameter(
+      project,
+      override,
+      override.value,
+      "Variant",
+      "SIMULATION_VARIANT",
     );
-    if (!instance?.netlist) {
-      return {
-        ok: false,
-        code: "SIMULATION_VARIANT_INSTANCE_MISSING",
-        message: `Variant Instance is unavailable or has no netlist parameters: ${override.instanceId}`,
-      };
-    }
-    instance.netlist.parameters[override.parameter] = override.value;
+    if (!result.ok) return result;
   }
   return { ok: true, project, setup };
+}
+
+function applyParameter(
+  project: CircuitProject,
+  target: {
+    readonly documentId: string;
+    readonly instanceId: string;
+    readonly parameter: string;
+  },
+  value: string,
+  source: string,
+  codePrefix: "SIMULATION_VARIABLE_BINDING" | "SIMULATION_VARIANT",
+  requireExisting = false,
+): { ok: true } | { ok: false; code: string; message: string } {
+  const document = project.documents.find(
+    (candidate) => candidate.id === target.documentId,
+  );
+  if (!document) {
+    return {
+      ok: false,
+      code: `${codePrefix}_DOCUMENT_MISSING`,
+      message: `${source} Document does not exist: ${target.documentId}`,
+    };
+  }
+  const instance = document.instances.find(
+    (candidate) => candidate.id === target.instanceId,
+  );
+  if (!instance?.netlist) {
+    return {
+      ok: false,
+      code: `${codePrefix}_INSTANCE_MISSING`,
+      message: `${source} Instance is unavailable or has no netlist parameters: ${target.instanceId}`,
+    };
+  }
+  if (requireExisting && !(target.parameter in instance.netlist.parameters)) {
+    return {
+      ok: false,
+      code: `${codePrefix}_PARAMETER_MISSING`,
+      message: `${source} parameter does not exist: ${target.instanceId}.${target.parameter}`,
+    };
+  }
+  instance.netlist.parameters[target.parameter] = value;
+  return { ok: true };
 }

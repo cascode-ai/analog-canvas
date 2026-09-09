@@ -54,7 +54,7 @@ describe("MCP / browser Simulation Resource parity", () => {
     project.simulationSetups = ["TT", "FF"].map((name) => ({
       id: `setup-${name.toLowerCase()}`,
       name,
-      version: 2 as const,
+      version: 3 as const,
       input: {
         kind: "raw" as const,
         entry: "main.cir",

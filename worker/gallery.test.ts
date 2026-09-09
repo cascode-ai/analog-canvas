@@ -2922,29 +2922,7 @@ describe("gallery administration", () => {
           [String(CURRENT_PROJECT_SCHEMA_VERSION - 1)]: 1,
         },
       },
-      migrationReports: expect.arrayContaining([
-        expect.objectContaining({
-          table: "gallery_entries",
-          id,
-          report: expect.objectContaining({
-            changed: false,
-          }),
-        }),
-        expect.objectContaining({
-          table: "gallery_entry_versions",
-          id: expect.any(String),
-          report: expect.objectContaining({
-            changed: false,
-          }),
-        }),
-        expect.objectContaining({
-          table: "cloud_projects",
-          id: expect.any(String),
-          report: expect.objectContaining({
-            changed: false,
-          }),
-        }),
-      ]),
+      migrationReports: [],
     });
     expect(
       env.gallerySql

@@ -37,7 +37,7 @@ describe("schema 36 to 37 migration (persisted SimulationSetup)", () => {
   };
 
   const setup = (): SimulationSetup => ({
-    version: 2,
+    version: 3,
     input: {
       kind: "structured",
       rootDocumentId: "testbench",
@@ -61,6 +61,8 @@ describe("schema 36 to 37 migration (persisted SimulationSetup)", () => {
           },
         },
       ],
+      designVariables: [],
+      runPlan: { mode: "nominal" },
       environment: { profileId: "sky130-core-continuous-ngspice46-v1" },
     },
   });

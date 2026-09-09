@@ -138,7 +138,7 @@ describe("shared simulation lifecycle", () => {
     project.simulationSetups = ["A", "B"].map((name) => ({
       id: `setup-${name.toLowerCase()}`,
       name,
-      version: 2,
+      version: 3,
       input: {
         kind: "raw" as const,
         entry: "tb.cir",
@@ -232,7 +232,7 @@ describe("shared simulation lifecycle", () => {
     expect(maxActive).toBe(1);
   });
 
-  it("expands corner, temperature and instance parameter axes into one batch", async () => {
+  it("expands corner, Design Variable and instance parameter axes into one batch", async () => {
     const project = CircuitProjectSchema.parse(ota);
     const setup = project.simulationSetups.find(
       (candidate) => candidate.input.kind === "structured",
@@ -247,9 +247,24 @@ describe("shared simulation lifecycle", () => {
     const source = root.instances.find(
       (instance) =>
         instance.netlist?.binding?.kind === "primitive" &&
-        instance.netlist.binding.deviceClass === "voltage-source",
+        instance.netlist.binding.deviceClass === "voltage-source" &&
+        "low" in instance.netlist.parameters,
     );
     if (!source) throw new Error("source");
+    setupInput.designVariables = [
+      {
+        id: "input-bias",
+        name: "VIN",
+        value: "0.9",
+        bindings: [
+          {
+            documentId: root.id,
+            instanceId: source.id,
+            parameter: "low",
+          },
+        ],
+      },
+    ];
     const f = fixture();
     f.executor.capabilities = async () => ({
       ...caps,
@@ -264,13 +279,17 @@ describe("shared simulation lifecycle", () => {
         expectedStructureRevision: project.structureRevision,
         axes: [
           { kind: "corner", values: ["tt", "ff"] },
-          { kind: "temperature", values: [-40, 125] },
+          {
+            kind: "variable",
+            variableId: "input-bias",
+            values: ["0.85", "0.95"],
+          },
           {
             kind: "parameter",
             documentId: root.id,
             instanceId: source.id,
-            parameter: "dc",
-            values: ["0.85", "0.95"],
+            parameter: "high",
+            values: ["0.91", "0.93"],
           },
         ],
       },
@@ -279,8 +298,8 @@ describe("shared simulation lifecycle", () => {
     expect(reply).toMatchObject({ ok: true, batch: { state: "prepared" } });
     if (!reply.ok || !("batch" in reply)) return;
     expect(reply.batch.items[0]).toMatchObject({
-      label: `corner=tt, temp=-40C, ${source.id}.dc=0.85`,
-      prepared: { environment: { corner: "tt", temperatureC: -40 } },
+      label: `corner=tt, VIN=0.85, ${source.id}.high=0.91`,
+      prepared: { environment: { corner: "tt" } },
     });
     expect(reply.batch.items).toHaveLength(8);
     expect(
@@ -292,7 +311,7 @@ describe("shared simulation lifecycle", () => {
   it("does not start a partially invalid batch and cancels queued members", async () => {
     const f = fixture();
     saveSetup(f.project, {
-      version: 2,
+      version: 3,
       input: {
         kind: "raw",
         entry: "tb.cir",
@@ -409,7 +428,7 @@ describe("shared simulation lifecycle", () => {
     f.project.simulationSetups = ["A", "B"].map((name) => ({
       id: `setup-${name.toLowerCase()}`,
       name,
-      version: 2,
+      version: 3,
       input: {
         kind: "raw",
         entry: "tb.cir",
@@ -455,7 +474,7 @@ describe("shared simulation lifecycle", () => {
   it("prepares and runs a persisted raw Project setup without mutating it", async () => {
     const f = fixture();
     saveSetup(f.project, {
-      version: 2,
+      version: 3,
       input: {
         kind: "raw",
         entry: "tb.cir",
@@ -515,7 +534,7 @@ describe("shared simulation lifecycle", () => {
   it("reports unresolved Project dependencies without reading host paths", async () => {
     const f = fixture();
     saveSetup(f.project, {
-      version: 2,
+      version: 3,
       input: {
         kind: "raw",
         entry: "tb.cir",
@@ -567,7 +586,7 @@ describe("shared simulation lifecycle", () => {
       ],
     });
     saveSetup(f.project, {
-      version: 2,
+      version: 3,
       input: {
         kind: "raw",
         entry: "tb.cir",
@@ -877,9 +896,11 @@ describe("shared simulation lifecycle", () => {
     const project = CircuitProjectSchema.parse(ota);
     const profileId = "test";
     saveSetup(project, {
-      version: 2,
+      version: 3,
       input: {
         kind: "structured",
+        designVariables: [],
+        runPlan: { mode: "nominal" },
         rootDocumentId: project.topDocumentId,
         analyses: [
           { kind: "op" },

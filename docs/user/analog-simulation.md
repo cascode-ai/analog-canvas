@@ -44,11 +44,13 @@ batch strip shows queued, running, completed, failed, and cancelled members;
 selecting a completed member opens its ordinary Run result. Batch coordination
 is session-only and does not change the Project format.
 
-The Agent/API can also expand one saved structured setup over corner,
-temperature, and exact Instance-parameter axes. Those points reuse the same
-bounded sequential batch and never rewrite the saved setup. The graphical
-sweep composer is intentionally deferred; the current Editor can still open
-each completed member through the common batch result strip.
+One saved structured setup may also own Design Variables and a reusable Run
+Plan. A variable gives one value a readable name and binds it to one or more
+exact Instance parameters. Choose Nominal for one run, or Sweep to combine
+corner, temperature, variable, and advanced exact-parameter axes. Settings
+shows the Cartesian point count before execution. **View points** expands the
+actual combinations. The plan reuses the bounded sequential batch and each
+completed member opens through the common batch result strip.
 
 ## DUT and testbench
 
@@ -88,6 +90,13 @@ setups (for example bias search and AC response), while a different topology
 uses a different ordinary Testbench Cell. Saving/exporting and reopening the
 Project retains the whole named setup collection.
 
+**Design Variables** and **Run Plan** live in the same Settings page. Variables
+store their nominal value and explicit parameter bindings. The advanced direct
+parameter axis remains available for expert exact-target control, but named
+variables are preferable when the same control is reused or drives several
+parameters. The Setup menu continues to select, clone, delete, and batch several
+setups; it no longer owns a separate temporary Sweep command.
+
 The optional **Measurements** section saves named scalar questions about those
 outputs. Choose an enabled analysis, an Output, and Value, Value at, Minimum,
 Maximum, Peak to peak, Mean, or RMS. A Value-at coordinate and every window use
@@ -95,8 +104,10 @@ the analysis's SI domain (sweep units, hertz, or seconds). Mean and RMS are
 available for TRAN and require a time window. **Apply setup** saves these rules
 with the Setup; it never freezes the number from the last run.
 
-**Prepare deck** compiles without running. **Run** prepares the current saved
-setup and starts that immutable input through the same service as MCP. It
+**Prepare deck** compiles the nominal input or every saved Run Plan point
+without running. **Run** prepares the current saved setup and starts either its
+single nominal input or its sequential Run Plan batch through the same service
+as MCP. It
 does not run unapplied form edits. Input diagnostics leave the Project and
 session intact: correct the input and run again. Run failures keep available
 evidence and never automatically resubmit work.

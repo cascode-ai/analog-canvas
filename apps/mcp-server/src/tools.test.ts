@@ -128,9 +128,11 @@ describe("mcp tool surface", () => {
       {
         id: "setup-op",
         name: "Operating point",
-        version: 2,
+        version: 3,
         input: {
           kind: "structured",
+          designVariables: [],
+          runPlan: { mode: "nominal" },
           rootDocumentId: "main",
           analyses: [{ kind: "op" }],
           outputs: [
@@ -191,6 +193,8 @@ describe("mcp tool surface", () => {
           kind: "structured",
           outputCount: 1,
           measurementCount: 1,
+          designVariableCount: 0,
+          runPlan: { mode: "nominal" },
         },
       ],
     });
@@ -220,6 +224,26 @@ describe("mcp tool surface", () => {
             stopHz: 1e9,
           },
         ],
+        designVariables: [
+          {
+            id: "bias",
+            name: "BIAS",
+            value: "0.9",
+            bindings: [
+              {
+                documentId: "main",
+                instanceId: "instance-1",
+                parameter: "w",
+              },
+            ],
+          },
+        ],
+        runPlan: {
+          mode: "sweep",
+          axes: [
+            { kind: "variable", variableId: "bias", values: ["0.8", "0.9"] },
+          ],
+        },
       },
       session,
     );
@@ -261,6 +285,8 @@ describe("mcp tool surface", () => {
           outputs: [{ id: "vout" }],
           measurements: [{ id: "measure-vout" }],
           analyses: [{ kind: "op" }, { kind: "ac" }],
+          designVariables: [{ id: "bias", name: "BIAS" }],
+          runPlan: { mode: "sweep", axes: [{ kind: "variable" }] },
         },
       },
     });
@@ -304,9 +330,11 @@ describe("mcp tool surface", () => {
       {
         id: "setup-op",
         name: "Operating point",
-        version: 2,
+        version: 3,
         input: {
           kind: "structured",
+          designVariables: [],
+          runPlan: { mode: "nominal" },
           rootDocumentId: "main",
           analyses: [
             { kind: "op" },
@@ -383,7 +411,7 @@ describe("mcp tool surface", () => {
       setup: {
         id: "setup-op",
         name: "Operating point",
-        version: 2,
+        version: 3,
         input: {
           outputs: [
             { id: "vin", label: "Vin" },
@@ -435,9 +463,11 @@ describe("mcp tool surface", () => {
       {
         id: "setup-op",
         name: "Operating point",
-        version: 2,
+        version: 3,
         input: {
           kind: "structured",
+          designVariables: [],
+          runPlan: { mode: "nominal" },
           rootDocumentId: "main",
           analyses: [{ kind: "op" }],
           outputs: [
@@ -516,9 +546,11 @@ describe("mcp tool surface", () => {
       {
         id: "setup-op",
         name: "Operating point",
-        version: 2,
+        version: 3,
         input: {
           kind: "structured",
+          designVariables: [],
+          runPlan: { mode: "nominal" },
           rootDocumentId: "main",
           analyses: [{ kind: "op" }],
           outputs: [],
