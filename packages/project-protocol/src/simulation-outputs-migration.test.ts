@@ -194,9 +194,11 @@ describe("schema 42 to 43 simulation outputs", () => {
     expect(result.project.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
     expect(result.project.simulationSetups).toHaveLength(2);
     expect(result.project.simulationSetups[0]).toMatchObject({
-      version: 2,
+      version: 3,
       input: {
         kind: "structured",
+        designVariables: [],
+        runPlan: { mode: "nominal" },
         outputs: [
           { label: "VOUT_P" },
           {

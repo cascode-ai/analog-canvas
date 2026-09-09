@@ -2,7 +2,7 @@
 
 Status: `accepted`
 
-Current Project schema: `47`
+Current Project schema: `48`
 
 Primary owners: `packages/model` (current shape) and
 `packages/project-protocol` (file boundary)
