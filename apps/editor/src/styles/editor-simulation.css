@@ -1087,8 +1087,14 @@
   min-width: 0;
 }
 .simulation-analysis-card-body > .ac-results-explorer > header,
-.simulation-analysis-card-body > .transient-results-explorer > header {
+.simulation-analysis-card-body > .transient-results-explorer > header,
+.simulation-expression-family > .transient-results-explorer > header {
   display: none;
+}
+.simulation-expression-family {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
 }
 .noise-results-explorer {
   display: grid;

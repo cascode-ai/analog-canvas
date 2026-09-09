@@ -203,4 +203,86 @@ describe("Simulation Output Results", () => {
     expect(markup).toContain("VOUT");
     expect(markup).toContain('aria-label="Transient voltage"');
   });
+
+  it("uses one switchable expression family in DC and transient plots", () => {
+    const gain = {
+      kind: "divide" as const,
+      left: {
+        kind: "voltage" as const,
+        documentId: "tb",
+        anchor: { kind: "base-net" as const, netId: "out" },
+        occurrence: [],
+      },
+      right: {
+        kind: "voltage" as const,
+        documentId: "tb",
+        anchor: { kind: "base-net" as const, netId: "in" },
+        occurrence: [],
+      },
+    };
+    const outputs = [
+      { id: "gain", label: "A_v", expression: gain },
+      {
+        id: "gain-db",
+        label: "A_v / dB",
+        expression: { kind: "db20" as const, operand: gain },
+      },
+      {
+        id: "gain-phase",
+        label: "phase(A_v)",
+        expression: { kind: "phase" as const, operand: gain },
+      },
+    ];
+    const resultOutputs = [
+      { id: "gain", label: "A_v", unit: "1", values: [2, 1] },
+      {
+        id: "gain-db",
+        label: "A_v / dB",
+        unit: "dB",
+        values: [6.0206, 0],
+      },
+      {
+        id: "gain-phase",
+        label: "phase(A_v)",
+        unit: "deg",
+        values: [0, 0],
+      },
+    ];
+    const markup = renderToStaticMarkup(
+      <SimulationOutputResults
+        resultKey="run-complete"
+        outputs={outputs}
+        data={{
+          schemaVersion: 1,
+          diagnostics: [],
+          analyses: [
+            {
+              analysis: "dc",
+              plotName: "DC Analysis",
+              domain: { name: "VINP", unit: "V", values: [0.8, 1] },
+              outputs: resultOutputs,
+            },
+            {
+              analysis: "tran",
+              plotName: "Transient Analysis",
+              domain: { name: "Time", unit: "s", values: [0, 1e-6] },
+              outputs: resultOutputs,
+            },
+          ],
+        }}
+      />,
+    );
+
+    expect(markup.match(/aria-label="A_v display"/gu)).toHaveLength(2);
+    expect(markup.match(/>Value<\/button>/gu)).toHaveLength(2);
+    expect(markup.match(/>dB<\/button>/gu)).toHaveLength(2);
+    expect(markup.match(/>Phase<\/button>/gu)).toHaveLength(2);
+    expect(markup).not.toContain("A_v / dB");
+    expect(markup).not.toContain("phase(A_v)");
+    expect(markup.match(/class="simulation-expression-family"/gu)).toHaveLength(
+      2,
+    );
+    expect(markup.match(/aria-pressed="true">Value/gu)).toHaveLength(2);
+    expect(markup.match(/class="simulation-plot-layout"/gu)).toHaveLength(2);
+  });
 });
