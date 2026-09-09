@@ -335,15 +335,22 @@ try {
   opSetup.input.rootDocumentId = importedTestbenchId;
   opSetup.input.analyses = [{ kind: "op" }];
   delete opSetup.input.deviceOperatingPoints;
-  opSetup.input.outputs = opSetup.input.outputs.map((output) => {
-    const mapped = structuredClone(output);
-    if (mapped.expression.documentId === testbench.id) {
-      mapped.expression.documentId = importedTestbenchId;
-    } else if (mapped.expression.documentId === dut.id) {
-      mapped.expression.documentId = imported.rootDocumentId;
-    }
-    return mapped;
-  });
+  opSetup.input.outputs = opSetup.input.outputs
+    .filter((output) => output.id === "probe-vout")
+    .map((output) => {
+      const mapped = structuredClone(output);
+      if (mapped.expression.documentId === testbench.id) {
+        mapped.expression.documentId = importedTestbenchId;
+      } else if (mapped.expression.documentId === dut.id) {
+        mapped.expression.documentId = imported.rootDocumentId;
+      }
+      return mapped;
+    });
+  assert.deepEqual(
+    opSetup.input.outputs.map((output) => output.id),
+    ["probe-vout"],
+    "The cross-Project baseline must probe only the DUT formal output",
+  );
 
   const authored = await tool("advanced_transact", {
     structureEdits: [
