@@ -244,6 +244,71 @@
   color: #b42318;
   border-color: #fda29b;
 }
+.simulation-sweep-backdrop {
+  position: absolute;
+  z-index: 30;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: color-mix(in srgb, var(--icm-text) 24%, transparent);
+}
+.simulation-sweep-dialog {
+  display: grid;
+  gap: 10px;
+  width: min(620px, 100%);
+  max-height: 90%;
+  padding: 14px;
+  overflow: auto;
+  border: 1px solid var(--icm-border-strong);
+  border-radius: var(--icm-radius-md);
+  background: var(--icm-surface);
+  box-shadow: var(--icm-shadow-lg);
+}
+.simulation-sweep-dialog > header,
+.simulation-sweep-dialog > footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.simulation-sweep-dialog > header > div {
+  display: grid;
+  gap: 2px;
+  margin-right: auto;
+}
+.simulation-sweep-dialog > header span,
+.simulation-sweep-dialog > footer > span {
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
+}
+.simulation-sweep-dialog > footer {
+  justify-content: flex-end;
+}
+.simulation-sweep-dialog > footer > span {
+  margin-right: auto;
+}
+.simulation-sweep-axis {
+  display: grid;
+  grid-template-columns: auto 130px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  min-height: 34px;
+}
+.simulation-sweep-corners,
+.simulation-sweep-parameter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.simulation-sweep-corners label {
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+}
+.simulation-sweep-parameter > * {
+  flex: 1 1 150px;
+  min-width: 0;
+}
 .simulation-primary-button {
   border-color: var(--icm-accent) !important;
   color: #fff !important;

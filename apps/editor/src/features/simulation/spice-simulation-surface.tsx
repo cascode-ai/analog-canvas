@@ -53,6 +53,10 @@ import {
 } from "./simulation-run-comparison";
 import { createBrowserSimulationArchiveStore } from "./browser-simulation-archive-store";
 import {
+  SimulationSweepDialog,
+  type SimulationSweepAxis,
+} from "./simulation-sweep-dialog";
+import {
   captureSimulationRunArchive,
   restoreSimulationRunArchive,
   type SimulationRunArchiveSummary,
@@ -121,7 +125,9 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
   const [run, setRun] = useState<Run>();
   const [batch, setBatch] = useState<SimulationBatch>();
   const [batchSelection, setBatchSelection] = useState<readonly string[]>([]);
+  const [sweepOpen, setSweepOpen] = useState(false);
   const hydratedBatchRuns = useRef(new Set<string>());
+  const batchRuns = useRef(new Map<string, { prepared: Prepared; run: Run }>());
   const runDetails = useRef(new SimulationRunDetails());
   const [problem, setProblem] = useState<Problem>();
   const [busy, setBusy] = useState(false);
@@ -354,6 +360,10 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
         });
         if (!runReply.ok || !("run" in runReply)) continue;
         hydratedBatchRuns.current.add(item.runId);
+        batchRuns.current.set(item.runId, {
+          prepared: item.prepared,
+          run: runReply.run,
+        });
         setupResults.current.set(item.setupId, {
           prepared: item.prepared,
           run: runReply.run,
@@ -484,6 +494,75 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
       lock.current = false;
       if (alive.current) setBusy(false);
     }
+  };
+  const executeSweep = async (axes: readonly SimulationSweepAxis[]) => {
+    if (
+      lock.current ||
+      !selectedSetup ||
+      selectedSetup.input.kind !== "structured"
+    )
+      return;
+    lock.current = true;
+    setBusy(true);
+    setProblem(undefined);
+    hydratedBatchRuns.current.clear();
+    batchRuns.current.clear();
+    try {
+      const preparedReply = await session.handle({
+        operation: "prepare-sweep",
+        setupId: selectedSetup.id,
+        expectedStructureRevision: project.structureRevision,
+        axes: [...axes],
+      });
+      receive(preparedReply);
+      if (!preparedReply.ok || !("batch" in preparedReply)) return;
+      for (const item of preparedReply.batch.items) {
+        preparedPresentations.current.set(item.prepared.id, {
+          setupId: selectedSetup.id,
+          prepared: structuredClone(item.prepared),
+          outputs: structuredClone(selectedSetup.input.outputs),
+          analysisLabel: selectedSetup.input.analyses
+            .map((analysis) => analysis.kind.toUpperCase())
+            .join(" + "),
+          setupName: item.label ?? selectedSetup.name,
+          rootDocumentId: selectedSetup.input.rootDocumentId,
+        });
+      }
+      receive(
+        await session.handle({
+          operation: "start-batch",
+          batchId: preparedReply.batch.id,
+        }),
+      );
+      setSweepOpen(false);
+      setupMenuRef.current?.removeAttribute("open");
+    } finally {
+      lock.current = false;
+      if (alive.current) setBusy(false);
+    }
+  };
+  const showBatchItem = async (item: SimulationBatch["items"][number]) => {
+    if (!item.runId) return;
+    let resolved = batchRuns.current.get(item.runId);
+    if (!resolved) {
+      const reply = await session.handle({
+        operation: "read",
+        runId: item.runId,
+      });
+      if (!reply.ok || !("run" in reply)) {
+        receive(reply);
+        return;
+      }
+      resolved = { prepared: item.prepared, run: reply.run };
+      batchRuns.current.set(item.runId, resolved);
+    }
+    if (item.setupId !== activeSetupId.current)
+      props.onSelectSetupId(item.setupId);
+    setPrepared(resolved.prepared);
+    setRun(resolved.run);
+    setSetupOpen(false);
+    setResultsOpen(true);
+    setResultTab(preferredResultTab(resolved.run));
   };
   const download = async (artifact: ArtifactRef) => {
     setArtifactBusy(`download:${artifact.id}`);
@@ -899,6 +978,20 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
                   Run selected ({batchSelection.length})
                 </button>
               ) : null}
+              {selectedSetup?.input.kind === "structured" &&
+              capabilities?.batch ? (
+                <button
+                  type="button"
+                  className="simulation-setup-menu-batch"
+                  disabled={dirty || busy || !!running}
+                  onClick={() => {
+                    setSweepOpen(true);
+                    setupMenuRef.current?.removeAttribute("open");
+                  }}
+                >
+                  Sweep…
+                </button>
+              ) : null}
               {project.simulationSetups.map((setup) => (
                 <div
                   key={setup.id}
@@ -1087,7 +1180,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
                   key={item.id}
                   data-state={item.state}
                   disabled={!item.runId}
-                  onClick={() => props.onSelectSetupId(item.setupId)}
+                  onClick={() => void showBatchItem(item)}
                 >
                   {item.label ?? setup?.name ?? item.setupId} · {item.state}
                 </button>
@@ -1100,6 +1193,18 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
             </button>
           ) : null}
         </div>
+      ) : null}
+
+      {sweepOpen && selectedSetup && capabilities ? (
+        <SimulationSweepDialog
+          open
+          project={project}
+          setup={selectedSetup}
+          capabilities={capabilities}
+          disabled={busy || !!running}
+          onClose={() => setSweepOpen(false)}
+          onRun={(axes) => void executeSweep(axes)}
+        />
       ) : null}
 
       {!selectedSetup && !hasDutInstance ? (
