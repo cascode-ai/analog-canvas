@@ -1,5 +1,5 @@
 import type { SimulationFocusTarget } from "./simulation-focus-target";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import {
   simulationExpressionDependencies,
   type SimulationExpression,
@@ -18,7 +18,7 @@ import { NoiseResultsExplorer } from "./noise-results-explorer";
 
 export type SimulationAnalysisKind = "op" | "dc" | "ac" | "tran" | "noise";
 
-const AC_PRESENTATION_KINDS = new Set<SimulationExpression["kind"]>([
+const PRESENTATION_KINDS = new Set<SimulationExpression["kind"]>([
   "magnitude",
   "db20",
   "phase",
@@ -27,11 +27,147 @@ const AC_PRESENTATION_KINDS = new Set<SimulationExpression["kind"]>([
   "absolute",
 ]);
 
-function acPresentationBase(expression: SimulationExpression) {
+function presentationBase(expression: SimulationExpression) {
   let base = expression;
-  while ("operand" in base && AC_PRESENTATION_KINDS.has(base.kind))
+  while ("operand" in base && PRESENTATION_KINDS.has(base.kind))
     base = base.operand;
   return JSON.stringify(base);
+}
+
+function presentationMode(expression: SimulationExpression): string {
+  return "operand" in expression && PRESENTATION_KINDS.has(expression.kind)
+    ? expression.kind
+    : "value";
+}
+
+function presentationModeLabel(mode: string): string {
+  switch (mode) {
+    case "magnitude":
+      return "Magnitude";
+    case "db20":
+      return "dB";
+    case "phase":
+      return "Phase";
+    case "real":
+      return "Real";
+    case "imaginary":
+      return "Imag";
+    case "absolute":
+      return "Abs";
+    default:
+      return "Value";
+  }
+}
+
+interface OutputPresentationFamily {
+  readonly base: SimulationOutputSpec;
+  readonly variants: readonly SimulationOutputSpec[];
+}
+
+function outputPresentationFamilies(
+  outputs: readonly SimulationOutputSpec[],
+): readonly OutputPresentationFamily[] {
+  const candidates = new Map<string, SimulationOutputSpec[]>();
+  for (const output of outputs) {
+    const key = presentationBase(output.expression);
+    candidates.set(key, [...(candidates.get(key) ?? []), output]);
+  }
+  return [...candidates.values()].flatMap((variants) => {
+    const base = variants.find(
+      (output) => presentationMode(output.expression) === "value",
+    );
+    return base && variants.length > 1 ? [{ base, variants }] : [];
+  });
+}
+
+function scalarQuantity(unit: string): string {
+  return unit === "V"
+    ? "voltage"
+    : unit === "A"
+      ? "current"
+      : unit === "1"
+        ? "Value"
+        : unit;
+}
+
+function ScalarPresentationFamilyResults({
+  family,
+  variants,
+  resultKey,
+  plotName,
+  analysisLabel,
+  domain,
+  domainLabel,
+  domainUnit,
+  logarithmicX,
+  probes,
+  onFocusProbe,
+}: {
+  family: OutputPresentationFamily;
+  variants: readonly {
+    spec: SimulationOutputSpec;
+    result: {
+      readonly id: string;
+      readonly label: string;
+      readonly unit: string;
+      readonly values: readonly (number | null)[];
+    };
+  }[];
+  resultKey: string;
+  plotName: string;
+  analysisLabel: string;
+  domain: readonly number[];
+  domainLabel: string;
+  domainUnit: string;
+  logarithmicX: boolean;
+  probes: readonly SimulationFocusTarget[];
+  onFocusProbe?: (probe: SimulationFocusTarget) => void;
+}) {
+  const [selectedId, setSelectedId] = useState(family.base.id);
+  const selected =
+    variants.find(({ spec }) => spec.id === selectedId) ?? variants[0]!;
+  const probe = probes.find((candidate) => candidate.id === family.base.id);
+  return (
+    <div className="simulation-expression-family">
+      <div className="ac-view-alignment">
+        <div className="ac-view-toolbar">
+          <div role="group" aria-label={`${family.base.label} display`}>
+            {variants.map(({ spec }) => (
+              <button
+                key={spec.id}
+                type="button"
+                aria-pressed={selected.spec.id === spec.id}
+                onClick={() => setSelectedId(spec.id)}
+              >
+                {presentationModeLabel(presentationMode(spec.expression))}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+      <ScalarResultsExplorer
+        resultKey={`${resultKey}:${family.base.id}`}
+        plotName={plotName}
+        domain={domain}
+        analysisLabel={analysisLabel}
+        domainLabel={domainLabel}
+        domainUnit={domainUnit}
+        logarithmicX={logarithmicX}
+        traces={[
+          {
+            id: family.base.id,
+            label: family.base.label,
+            colorIndex: 0,
+            quantity: scalarQuantity(selected.result.unit),
+            unit: selected.result.unit === "1" ? null : selected.result.unit,
+            values: selected.result.values.map((value) => value ?? Number.NaN),
+            ...(probe ? { probe } : {}),
+          },
+        ]}
+        {...(onFocusProbe ? { onFocusProbe } : {})}
+      />
+    </div>
+  );
 }
 
 function simulationAnalysisTitle(kind: SimulationAnalysisKind): string {
@@ -90,6 +226,7 @@ export function SimulationOutputResults({
   onFocusProbe?(probe: SimulationFocusTarget): void;
 }) {
   const authored = new Map(outputs.map((output) => [output.id, output]));
+  const presentationFamilies = outputPresentationFamilies(outputs);
   const probes = outputs.flatMap((output) => {
     const probe = focusProbe(output);
     return probe ? [probe] : [];
@@ -138,17 +275,36 @@ export function SimulationOutputResults({
         const complexFamilies = new Set(
           complex.flatMap((output) => {
             const expression = authored.get(output.id)?.expression;
-            return expression ? [acPresentationBase(expression)] : [];
+            return expression ? [presentationBase(expression)] : [];
           }),
+        );
+        const scalarFamilies = presentationFamilies.flatMap((family) => {
+          const baseResult = analysis.outputs.find(
+            (output) => output.id === family.base.id && !output.imaginary,
+          );
+          if (!baseResult) return [];
+          const variants = family.variants.flatMap((spec) => {
+            const result = analysis.outputs.find(
+              (output) => output.id === spec.id && !output.imaginary,
+            );
+            return result ? [{ spec, result }] : [];
+          });
+          return variants.length > 1 ? [{ family, variants }] : [];
+        });
+        const scalarFamilyOutputIds = new Set(
+          scalarFamilies.flatMap(({ variants }) =>
+            variants.map(({ spec }) => spec.id),
+          ),
         );
         const scalar = analysis.outputs.filter((output) => {
           if (output.imaginary) return false;
+          if (scalarFamilyOutputIds.has(output.id)) return false;
           if (analysis.analysis !== "ac") return true;
           const expression = authored.get(output.id)?.expression;
           return !(
             expression &&
-            AC_PRESENTATION_KINDS.has(expression.kind) &&
-            complexFamilies.has(acPresentationBase(expression))
+            PRESENTATION_KINDS.has(expression.kind) &&
+            complexFamilies.has(presentationBase(expression))
           );
         });
         const scalarByUnit = new Map<string, typeof scalar>();
@@ -206,6 +362,26 @@ export function SimulationOutputResults({
                 {...(onFocusProbe ? { onFocusProbe } : {})}
               />
             ) : null}
+            {scalarFamilies.map(({ family, variants }) => (
+              <ScalarPresentationFamilyResults
+                key={family.base.id}
+                family={family}
+                variants={variants}
+                resultKey={`${resultKey}:${analysis.analysis}:${analysisIndex}`}
+                plotName={analysis.plotName}
+                analysisLabel={
+                  analysis.analysis === "tran"
+                    ? "Transient"
+                    : analysis.analysis.toUpperCase()
+                }
+                domain={analysis.domain!.values}
+                domainLabel={analysis.domain!.name}
+                domainUnit={analysis.domain!.unit}
+                logarithmicX={analysis.analysis === "ac"}
+                probes={probes}
+                {...(onFocusProbe ? { onFocusProbe } : {})}
+              />
+            ))}
             {[...scalarByUnit.entries()].map(([unit, unitOutputs]) => {
               return (
                 <ScalarResultsExplorer
@@ -225,14 +401,7 @@ export function SimulationOutputResults({
                     id: output.id,
                     label: output.label,
                     colorIndex,
-                    quantity:
-                      unit === "V"
-                        ? "voltage"
-                        : unit === "A"
-                          ? "current"
-                          : unit === "1"
-                            ? "Value"
-                            : unit,
+                    quantity: scalarQuantity(unit),
                     unit: unit === "1" ? null : unit,
                     values: output.values.map((value) => value ?? Number.NaN),
                     ...(probes.find((probe) => probe.id === output.id)
