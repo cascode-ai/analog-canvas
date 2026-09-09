@@ -24,7 +24,7 @@
     // API, over HTTP, exactly as any anonymous visitor would. No Durable
     // Object of the production script is bound here, because a binding has
     // no read-only mode and this Worker runs code production has not
-    // accepted yet. Writes never leave this Worker (see channel.ts).
+    // accepted yet. Gallery writes never leave this Worker (see channel.ts).
     "ICM_GALLERY_UPSTREAM": "https://analog-canvas.tokenzhang.com",
     // Where simulations run: the operator-run host behind its Cloudflare
     // Tunnel (docs/deployment.md, "Where the simulator runs"). The Worker
@@ -55,13 +55,13 @@
     "bindings": [
       { "name": "ANALYTICS", "class_name": "AnalyticsDO" },
       { "name": "AGENT_SESSION", "class_name": "AgentSessionDO" },
-      // The preview's own, empty gallery store. Gallery reads are served from
-      // the public site through ICM_GALLERY_UPSTREAM instead; this binding
-      // exists so the route module has something to hand a write to, and the
-      // channel rules refuse every write before it gets that far.
+      // The preview's own private Project store. Public Gallery reads are
+      // served from the production site through ICM_GALLERY_UPSTREAM and all
+      // Gallery writes are refused before routing. Authenticated /api/projects
+      // requests use only this isolated namespace.
       { "name": "GALLERY", "class_name": "GalleryDO" },
-      // The preview's own accounts: nobody signs in here, and no login
-      // provider is configured, so this namespace stays empty by design.
+      // Preview accounts are isolated from production accounts. The deploy
+      // workflow installs a preview-only Google OAuth client.
       { "name": "AUTH", "class_name": "AuthDO" },
       // Server-side authority for queued runs. Large immutable bytes live in
       // R2; this object stores only lifecycle, ownership and artifact refs.

@@ -39,6 +39,7 @@ import {
   readRecentCloudProjectId,
   rememberRecentCloudProject,
 } from "./cloud-project-session";
+import type { ProjectStoreCopy } from "./release-channel";
 
 export const REFRESH_RESTORE_STORAGE_KEY = "icm.restore-after-refresh.v1";
 
@@ -91,6 +92,7 @@ export interface UseProjectFileLifecycleOptions {
   installProject(project: CircuitProject, viewBox: GridRect): SchematicDocument;
   setStatus(message: string): void;
   onCloudProjectSaved(project: CloudProjectSummary): void;
+  projectStoreCopy: ProjectStoreCopy;
 }
 
 export function useProjectFileLifecycle({
@@ -102,6 +104,7 @@ export function useProjectFileLifecycle({
   installProject,
   setStatus,
   onCloudProjectSaved,
+  projectStoreCopy,
 }: UseProjectFileLifecycleOptions) {
   // Read-only initializer: consuming the one-shot flag here would be a render
   // side effect, and a discarded render (StrictMode's double pass, a Suspense
@@ -224,7 +227,9 @@ export function useProjectFileLifecycle({
     const savedCandidate = structuredClone(candidate);
     const savedCandidateToken = projectChangeToken(savedCandidate);
     setPersistenceState("saving");
-    setStatus(`Saving ${savedCandidate.name} to Cloud`);
+    setStatus(
+      `Saving ${savedCandidate.name} to ${projectStoreCopy.destination}`,
+    );
     recovery.stage(savedCandidate, { unsavedAtSnapshot: true, cloudBinding });
     await recovery.flushNow();
     const outcome = await saveCloudProject(savedCandidate, cloudBinding);
@@ -255,33 +260,35 @@ export function useProjectFileLifecycle({
       onCloudProjectSaved(outcome.project);
       setStatus(
         stillMatchesSavedCandidate
-          ? `Saved ${savedCandidate.name} to Cloud`
-          : `Saved ${savedCandidate.name} to Cloud; newer edits remain unsaved`,
+          ? `Saved ${savedCandidate.name} to ${projectStoreCopy.destination}`
+          : `Saved ${savedCandidate.name} to ${projectStoreCopy.destination}; newer edits remain unsaved`,
       );
       return outcome;
     }
     if (outcome.status === "unreachable") {
       setPersistenceState("offline");
-      setStatus(`Cloud unavailable; work remains local (${outcome.message})`);
+      setStatus(
+        `${projectStoreCopy.plural} unavailable; work remains local (${outcome.message})`,
+      );
       return outcome;
     }
     if (outcome.status === "conflict") {
       setPersistenceState("conflict");
       setStatus(
-        `Cloud Project changed elsewhere at revision ${outcome.project.revision}; current work was not overwritten`,
+        `${projectStoreCopy.singular} changed elsewhere at revision ${outcome.project.revision}; current work was not overwritten`,
       );
       return outcome;
     }
     setPersistenceState("failed");
     setStatus(
       outcome.status === "signed-out"
-        ? "Sign in to save this Cloud Project"
+        ? `Sign in to save this ${projectStoreCopy.singular}`
         : outcome.status === "too-large"
-          ? "Project is too large for Cloud storage; download a backup"
+          ? `Project is too large for ${projectStoreCopy.plural}; download a backup`
           : outcome.status === "limit"
-            ? `Cloud Project limit reached (${outcome.projects.length}/${CLOUD_PROJECT_LIMIT})`
+            ? `${projectStoreCopy.singular} limit reached (${outcome.projects.length}/${CLOUD_PROJECT_LIMIT})`
             : outcome.status === "not-found"
-              ? "Cloud Project no longer exists; current work remains local"
+              ? `${projectStoreCopy.singular} no longer exists; current work remains local`
               : outcome.message,
     );
     return outcome;

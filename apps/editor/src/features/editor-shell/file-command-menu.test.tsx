@@ -9,6 +9,8 @@ describe("FileCommandMenu", () => {
   it("presents one Cloud Save protocol and explicit local interchange", () => {
     const markup = renderToStaticMarkup(
       <FileCommandMenu
+        projectStoreLabel="Cloud Projects"
+        projectStoreItemLabel="Cloud Project"
         cloudProjects={[
           {
             id: "cloud-1",
@@ -52,5 +54,35 @@ describe("FileCommandMenu", () => {
     expect(markup).not.toContain("Download Backup");
     expect(markup).not.toContain("Previous Project");
     expect(markup).not.toContain("cloud snapshot");
+  });
+
+  it("identifies the isolated Preview Project store", () => {
+    const markup = renderToStaticMarkup(
+      <FileCommandMenu
+        projectStoreLabel="Preview Projects"
+        projectStoreItemLabel="Preview Project"
+        cloudProjects={[]}
+        activeCloudProjectId={null}
+        canRevert={false}
+        hasRecoverySessions={false}
+        projectInputRef={createRef<HTMLInputElement>()}
+        onNewProject={vi.fn()}
+        onSave={vi.fn()}
+        onRefreshCloudProjects={vi.fn()}
+        onOpenCloudProject={vi.fn()}
+        onDeleteCloudProject={vi.fn()}
+        onRefresh={vi.fn()}
+        onImportProject={vi.fn()}
+        onImportSpice={vi.fn()}
+        onExportProject={vi.fn()}
+        onExportSvg={vi.fn()}
+        onExportRaster={vi.fn()}
+        onExportNetlist={vi.fn()}
+        onRevert={vi.fn()}
+        onOpenRecovery={vi.fn()}
+      />,
+    );
+
+    expect(markup).toContain(`Preview Projects (0/${CLOUD_PROJECT_LIMIT})`);
   });
 });

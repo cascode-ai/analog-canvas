@@ -80,6 +80,7 @@ import { startCanvasDragVisual } from "../canvas/canvas-drag-visual";
 import { instanceVisibleHitBox } from "../canvas/instance-geometry";
 import {
   loadReleaseChannel,
+  projectStoreCopy,
   type ReleaseChannel,
 } from "../document/release-channel";
 import { createCanvasHitController } from "../canvas/canvas-hit-controller";
@@ -541,7 +542,7 @@ export function App({
   useEffect(() => () => cameraRuntime.dispose(), [cameraRuntime]);
   const [gridDotsVisible, setGridDotsVisible] = useState(true);
   // Which channel serves this build (ADR 0057). Asked once; anything but a
-  // clear "preview" is production, so the public site never wears the banner.
+  // clear "preview" is production, so the public site never wears its badge.
   const [releaseChannel, setReleaseChannel] =
     useState<ReleaseChannel>("production");
   useEffect(() => {
@@ -553,6 +554,7 @@ export function App({
       cancelled = true;
     };
   }, []);
+  const projectStore = projectStoreCopy(releaseChannel);
   // Annotations and drafting place on their own pitch; the Document grid
   // stays the electrical contract for devices, wires, and junctions.
   const [annotationGrid, setAnnotationGridState] = useState<1 | 5 | 10>(() => {
@@ -861,6 +863,7 @@ export function App({
     viewBox,
     defaultViewBox: DEFAULT_VIEWBOX,
     setStatus,
+    projectStoreCopy: projectStore,
     onCloudProjectSaved: (saved) => {
       cloudListMutationRef.current += 1;
       setCloudProjects((current) => [
@@ -4343,6 +4346,8 @@ export function App({
           });
         }}
         fileCommands={{
+          projectStoreLabel: projectStore.plural,
+          projectStoreItemLabel: projectStore.singular,
           cloudProjects,
           activeCloudProjectId: cloudBinding?.id ?? null,
           canRevert: savedProjectBaseline !== null && isDirtyWork(),
@@ -4358,17 +4363,23 @@ export function App({
           onOpenCloudProject: (summary) =>
             void openCloudProjectById(summary.id),
           onDeleteCloudProject: (summary) => {
-            if (!window.confirm(`Delete Cloud Project "${summary.name}"?`)) {
+            if (
+              !window.confirm(
+                `Delete ${projectStore.singular} "${summary.name}"?`,
+              )
+            ) {
               return;
             }
             void deleteCloudProject(summary.id).then((outcome) => {
               if (outcome.status === "deleted") {
                 cloudListMutationRef.current += 1;
                 setCloudProjects(outcome.projects);
-                setStatus(`Deleted Cloud Project ${summary.name}`);
+                setStatus(`Deleted ${projectStore.singular} ${summary.name}`);
                 return;
               }
-              setStatus(`Could not delete Cloud Project (${outcome.message})`);
+              setStatus(
+                `Could not delete ${projectStore.singular} (${outcome.message})`,
+              );
             });
           },
           onRefresh: () => {

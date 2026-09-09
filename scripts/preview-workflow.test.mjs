@@ -65,6 +65,13 @@ describe("the preview deploy", () => {
     expect(preview).toContain("noindex");
     expect(preview).toContain("must read the production gallery");
     expect(preview).toContain("must be refused");
+    expect(preview).toContain("PREVIEW_GOOGLE_CLIENT_ID");
+    expect(preview).toContain("PREVIEW_GOOGLE_CLIENT_SECRET");
+    expect(preview).toContain("/api/auth/providers");
+    expect(preview).toContain("keeping human login dark");
+    expect(preview).toContain(
+      "Anonymous Preview Projects must require sign-in",
+    );
     expect(preview).toContain(
       'node scripts/preview-simulation-smoke.mjs "$PREVIEW_URL"',
     );

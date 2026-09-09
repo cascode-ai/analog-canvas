@@ -1,7 +1,4 @@
-import {
-  isPreviewAcceptanceRequest,
-  type PreviewAcceptanceEnv,
-} from "./preview-acceptance";
+import type { PreviewAcceptanceEnv } from "./preview-acceptance";
 
 /**
  * Which release channel this deployment is, and what that changes.
@@ -28,7 +25,7 @@ export function releaseChannel(env: ChannelEnv): ReleaseChannel {
   return env.ICM_CHANNEL === "preview" ? "preview" : "production";
 }
 
-/** What the editor asks at boot so it can show the preview banner. */
+/** What the editor asks at boot so it can identify the preview channel. */
 export function channelResponse(env: ChannelEnv): Response {
   return Response.json(
     { channel: releaseChannel(env) },
@@ -40,30 +37,23 @@ const READ_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
 /**
  * The preview reads the production gallery live and must never write to it.
- * Every path whose writes would reach the shared store is refused here,
- * before any route handler runs, so no handler can forget.
+ * Gallery writes are refused before any route handler runs, so no handler can
+ * forget. Private Project requests continue to the preview's own isolated
+ * GalleryDO namespace and never reach production.
  */
-export function previewWriteRefusal(
+export function previewGalleryWriteRefusal(
   request: Request,
   env: ChannelEnv,
 ): Response | null {
   if (releaseChannel(env) !== "preview") return null;
   if (READ_METHODS.has(request.method)) return null;
   const path = new URL(request.url).pathname;
-  if (
-    path.startsWith("/api/projects") &&
-    isPreviewAcceptanceRequest(request, env)
-  ) {
-    return null;
-  }
-  if (!path.startsWith("/api/gallery") && !path.startsWith("/api/projects")) {
-    return null;
-  }
+  if (!path.startsWith("/api/gallery")) return null;
   return Response.json(
     {
       error: "preview-read-only",
       message:
-        "The preview build reads the gallery but never writes to it. Publish, like, moderate, and save Cloud Projects on the production site.",
+        "The preview reads the production gallery but never writes to it. Publish, like, and moderate on the production site.",
     },
     { status: 403, headers: { "cache-control": "no-store" } },
   );
@@ -76,7 +66,7 @@ export function previewWriteRefusal(
  * and would have handed unreleased code a namespace with no read-only mode.
  * Fetching the public API instead is read-only by construction: the request
  * carries no cookie, so it is an anonymous visitor's view, and every write
- * has already been refused by `previewWriteRefusal` before this runs.
+ * has already been refused by `previewGalleryWriteRefusal` before this runs.
  */
 export async function previewGalleryReadThrough(
   request: Request,

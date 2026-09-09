@@ -148,6 +148,7 @@ async function signOut(fetchLike: typeof fetch = fetch): Promise<void> {
 export interface AccountMenuViewProps {
   state: AccountState;
   notice: string | null;
+  showGalleryLinks?: boolean;
   onEmailStart: (email: string) => void;
   onRename: (displayName: string) => void;
   onSignOut: () => void;
@@ -157,6 +158,7 @@ export interface AccountMenuViewProps {
 export function AccountMenuView({
   state,
   notice,
+  showGalleryLinks = true,
   onEmailStart,
   onRename,
   onSignOut,
@@ -218,7 +220,7 @@ export function AccountMenuView({
             <span aria-hidden="true">⋯</span>
           </summary>
           <div className="account-popover">
-            {user.isAdmin || user.role === "moderator" ? (
+            {showGalleryLinks && (user.isAdmin || user.role === "moderator") ? (
               <a
                 className="account-link"
                 href="/moderation"
@@ -227,9 +229,15 @@ export function AccountMenuView({
                 Moderation
               </a>
             ) : null}
-            <a className="account-link" href="/mine" data-testid="account-mine">
-              My submissions
-            </a>
+            {showGalleryLinks ? (
+              <a
+                className="account-link"
+                href="/mine"
+                data-testid="account-mine"
+              >
+                My submissions
+              </a>
+            ) : null}
             <button
               type="button"
               className="account-signout"
@@ -294,8 +302,12 @@ export function AccountMenuView({
   );
 }
 
-/** Self-loading account area for the gallery chrome. */
-export function AccountMenu() {
+/** Self-loading account area shared by Gallery and Editor chrome. */
+export function AccountMenu({
+  showGalleryLinks = true,
+}: {
+  showGalleryLinks?: boolean;
+}) {
   const [state, setState] = useState<AccountState | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -318,6 +330,7 @@ export function AccountMenu() {
     <AccountMenuView
       state={state}
       notice={notice}
+      showGalleryLinks={showGalleryLinks}
       onEmailStart={(email) => {
         void requestEmailLink(email).then(setNotice);
       }}

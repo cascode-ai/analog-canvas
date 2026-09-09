@@ -3,9 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
   channelResponse,
   markPreviewResponse,
+  previewGalleryWriteRefusal,
   previewGalleryReadThrough,
   previewRobotsResponse,
-  previewWriteRefusal,
   releaseChannel,
 } from "./channel";
 
@@ -37,16 +37,14 @@ describe("release channel", () => {
     ).toBe("production");
   });
 
-  it("refuses every write to the shared gallery and projects on the preview", async () => {
+  it("refuses every write to the production gallery on the preview", async () => {
     const env = { ICM_CHANNEL: "preview" };
     for (const [path, method] of [
       ["/api/gallery/submissions", "POST"],
       ["/api/gallery/abc/like", "POST"],
       ["/api/gallery/abc", "DELETE"],
-      ["/api/projects", "POST"],
-      ["/api/projects/p1", "PUT"],
     ] as const) {
-      const refusal = previewWriteRefusal(req(path, method), env);
+      const refusal = previewGalleryWriteRefusal(req(path, method), env);
       expect(refusal?.status, `${method} ${path}`).toBe(403);
       const body = (await refusal!.json()) as { error: string };
       expect(body.error).toBe("preview-read-only");
@@ -55,36 +53,40 @@ describe("release channel", () => {
 
   it("lets the preview read, and leaves other routes alone", () => {
     const env = { ICM_CHANNEL: "preview" };
-    expect(previewWriteRefusal(req("/api/gallery"), env)).toBeNull();
-    expect(previewWriteRefusal(req("/api/projects/p1"), env)).toBeNull();
+    expect(previewGalleryWriteRefusal(req("/api/gallery"), env)).toBeNull();
+    expect(previewGalleryWriteRefusal(req("/api/projects/p1"), env)).toBeNull();
+    expect(
+      previewGalleryWriteRefusal(req("/api/projects", "POST"), env),
+    ).toBeNull();
+    expect(
+      previewGalleryWriteRefusal(req("/api/projects/p1", "PUT"), env),
+    ).toBeNull();
+    expect(
+      previewGalleryWriteRefusal(req("/api/projects/p1", "DELETE"), env),
+    ).toBeNull();
     // Simulation runs are the preview's whole purpose; agent sessions and
     // analytics are its own namespaces. None of these reach shared data.
-    expect(previewWriteRefusal(req("/api/simulate", "POST"), env)).toBeNull();
     expect(
-      previewWriteRefusal(req("/api/simulation/runs", "POST"), env),
+      previewGalleryWriteRefusal(req("/api/simulate", "POST"), env),
     ).toBeNull();
-    expect(previewWriteRefusal(req("/api/track", "POST"), env)).toBeNull();
     expect(
-      previewWriteRefusal(req("/api/agent/sessions", "POST"), env),
+      previewGalleryWriteRefusal(req("/api/simulation/runs", "POST"), env),
+    ).toBeNull();
+    expect(
+      previewGalleryWriteRefusal(req("/api/track", "POST"), env),
+    ).toBeNull();
+    expect(
+      previewGalleryWriteRefusal(req("/api/agent/sessions", "POST"), env),
     ).toBeNull();
   });
 
-  it("opens only the isolated Project store to the private Preview journey", () => {
+  it("does not let the private Preview journey bypass the Gallery boundary", () => {
     const env = {
       ICM_CHANNEL: "preview",
       PREVIEW_ACCEPTANCE_TOKEN: "test-token",
     };
     expect(
-      previewWriteRefusal(acceptanceReq("/api/projects", "POST"), env),
-    ).toBeNull();
-    expect(
-      previewWriteRefusal(
-        acceptanceReq("/api/projects/p1", "DELETE", "wrong-token"),
-        env,
-      )?.status,
-    ).toBe(403);
-    expect(
-      previewWriteRefusal(
+      previewGalleryWriteRefusal(
         acceptanceReq("/api/gallery/submissions", "POST"),
         env,
       )?.status,
@@ -93,7 +95,7 @@ describe("release channel", () => {
 
   it("never refuses anything on production", () => {
     expect(
-      previewWriteRefusal(req("/api/gallery/submissions", "POST"), {}),
+      previewGalleryWriteRefusal(req("/api/gallery/submissions", "POST"), {}),
     ).toBeNull();
   });
 

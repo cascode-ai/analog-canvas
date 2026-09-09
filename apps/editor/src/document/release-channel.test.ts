@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { loadReleaseChannel } from "./release-channel";
+import { loadReleaseChannel, projectStoreCopy } from "./release-channel";
 
 const answering = (status: number, body: unknown): typeof fetch =>
   (async () =>
@@ -10,6 +10,19 @@ const answering = (status: number, body: unknown): typeof fetch =>
     })) as unknown as typeof fetch;
 
 describe("release channel discovery", () => {
+  it("names each channel's private Project store without changing its API", () => {
+    expect(projectStoreCopy("production")).toEqual({
+      singular: "Cloud Project",
+      plural: "Cloud Projects",
+      destination: "Cloud",
+    });
+    expect(projectStoreCopy("preview")).toEqual({
+      singular: "Preview Project",
+      plural: "Preview Projects",
+      destination: "Preview Projects",
+    });
+  });
+
   it("reads a preview answer", async () => {
     expect(
       await loadReleaseChannel(answering(200, { channel: "preview" })),

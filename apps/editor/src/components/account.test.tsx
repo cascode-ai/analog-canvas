@@ -8,11 +8,16 @@ import {
   type AccountState,
 } from "./account";
 
-function markupFor(state: AccountState, notice: string | null = null): string {
+function markupFor(
+  state: AccountState,
+  notice: string | null = null,
+  showGalleryLinks = true,
+): string {
   return renderToStaticMarkup(
     createElement(AccountMenuView, {
       state,
       notice,
+      showGalleryLinks,
       onEmailStart: () => undefined,
       onRename: () => undefined,
       onSignOut: () => undefined,
@@ -62,6 +67,28 @@ describe("AccountMenuView", () => {
     expect(markup).toContain('data-testid="account-owner"');
     expect(markup).toContain('data-testid="account-signout"');
     expect(markup).not.toContain("account-signin");
+  });
+
+  it("can reuse the account control without exposing Gallery-only links", () => {
+    const markup = markupFor(
+      {
+        providers: { github: false, google: true, email: false },
+        user: {
+          id: "preview-user",
+          displayName: "Preview Tester",
+          email: "tester@example.com",
+          provider: "google",
+          role: "moderator",
+          isAdmin: false,
+        },
+      },
+      null,
+      false,
+    );
+
+    expect(markup).toContain('data-testid="account-signout"');
+    expect(markup).not.toContain('data-testid="account-mine"');
+    expect(markup).not.toContain('data-testid="account-moderation-link"');
   });
 });
 
