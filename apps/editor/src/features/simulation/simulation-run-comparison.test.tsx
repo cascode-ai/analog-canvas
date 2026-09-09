@@ -18,6 +18,11 @@ function run(
     inputRevision: `revision-${id}`,
     environment: { profileId: "sky130", corner: "tt", temperatureC: 27 },
     current,
+    outputData: {
+      schemaVersion: 1,
+      analyses: [],
+      diagnostics: [],
+    },
     measurements: [
       {
         id: `0:out:maximum:${id}`,

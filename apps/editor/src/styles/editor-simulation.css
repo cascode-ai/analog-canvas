@@ -1252,6 +1252,21 @@
 .simulation-comparison-hint {
   margin: 0 0 10px;
 }
+.simulation-waveform-comparison {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--icm-border);
+}
+.simulation-waveform-comparison > header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.simulation-waveform-comparison > header small {
+  color: var(--icm-text-muted);
+}
 .simulation-archive-list {
   margin-top: 14px;
   border-top: 1px solid var(--icm-border);
