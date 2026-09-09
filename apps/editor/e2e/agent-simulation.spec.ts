@@ -172,6 +172,11 @@ test("the qualified OTA setup opens unchanged and preserves all root and hierarc
         maxTimeoutMs: 120000,
         maxInputBytes: 1048576,
         cancel: true,
+        batch: {
+          maxItems: 16,
+          execution: "sequential",
+          sweepAxes: ["corner", "temperature", "parameter"],
+        },
       },
     });
   });
@@ -185,6 +190,18 @@ test("the qualified OTA setup opens unchanged and preserves all root and hierarc
     .getByRole("button", { name: "Analog simulation", exact: true })
     .click();
   const panel = page.getByRole("region", { name: "Analog simulation" });
+  await panel.getByTitle("Simulation setup").click();
+  await panel.getByRole("button", { name: "Sweep…" }).click();
+  const sweepDialog = page.getByRole("dialog", {
+    name: "Run parameter sweep",
+  });
+  await sweepDialog.getByLabel("Sweep corner ff").check();
+  await sweepDialog.getByLabel("Sweep corner ss").check();
+  await expect(sweepDialog).toContainText("3 sequential runs");
+  await expect(
+    page.getByText("The editor hit an unexpected problem"),
+  ).toHaveCount(0);
+  await sweepDialog.getByRole("button", { name: "Cancel" }).click();
   await panel.getByRole("button", { name: "Settings" }).click();
   await panel
     .locator('details[aria-label="Analyses settings"] > summary')
