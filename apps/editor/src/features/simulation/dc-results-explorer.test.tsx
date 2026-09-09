@@ -45,9 +45,10 @@ describe("DcResultsExplorer", () => {
     expect(markup).toContain("3 points");
     expect(markup).toContain("Output");
     expect(markup).toContain('class="ac-axis-title"');
-    expect(markup).toContain(">v-sweep</text>");
+    expect(markup).toContain(">v-sweep/V</text>");
     expect(markup).toContain("<polyline");
-    expect(markup).toContain("-50mV");
-    expect(markup).toContain("1.050V");
+    expect(markup).toContain(">-0.05</text>");
+    expect(markup).toContain(">1.05</text>");
+    expect(markup).toContain(">voltage/mV</text>");
   });
 });

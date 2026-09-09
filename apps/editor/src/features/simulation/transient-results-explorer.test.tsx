@@ -102,8 +102,9 @@ describe("Transient Results Explorer", () => {
     expect(markup.match(/drag to zoom, click to measure/gu)).toHaveLength(2);
     expect(markup).not.toContain('aria-label="Inspect plot"');
     expect(markup.match(/aria-label="Open plot"/gu)).toHaveLength(2);
-    expect(markup.match(/class="ac-axis-title"/gu)).toHaveLength(2);
-    expect(markup.match(/>Time<\/text>/gu)).toHaveLength(2);
+    expect(markup.match(/class="ac-axis-title"/gu)).toHaveLength(4);
+    expect(markup).toContain("time/");
+    expect(markup).toContain("voltage/");
     expect(markup).toContain(
       'class="ac-trace-hit" fill="none" stroke="transparent" stroke-width="12" pointer-events="stroke"',
     );
