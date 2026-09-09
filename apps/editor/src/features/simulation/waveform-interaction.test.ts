@@ -3,6 +3,7 @@ import {
   responsiveWaveformHeight,
   waveformTicks,
   waveformTickLabel,
+  waveformAxisLabels,
 } from "./waveform-interaction";
 import { layoutAcPlot } from "./ac-response-plot";
 
@@ -18,8 +19,8 @@ describe("waveform axes", () => {
   });
 
   it("adapts tick spacing to nanoseconds and a zoomed small signal", () => {
-    expect(waveformTickLabel(1.8000005, 5e-7, "V")).not.toBe(
-      waveformTickLabel(1.800001, 5e-7, "V"),
+    expect(waveformTickLabel(1.8000005, 5e-7)).not.toBe(
+      waveformTickLabel(1.800001, 5e-7),
     );
     expect(waveformTicks(0, 1e-9, 5)).toEqual([
       0, 2e-10, 4e-10, 6e-10, 8e-10, 1e-9,
@@ -28,6 +29,20 @@ describe("waveform axes", () => {
     expect(ticks.length).toBeGreaterThan(2);
     expect(new Set(ticks).size).toBe(ticks.length);
     expect(waveformTicks(2, 2)).toEqual([]);
+  });
+  it("uses a shared axis unit and numeric-only ticks including zero and log decades", () => {
+    const time = waveformAxisLabels(0, 8e-9, "s");
+    expect(time.unit).toBe("ns");
+    expect([0, 2e-9, 4e-9].map((value) => time.tick(value, 2e-9))).toEqual([
+      "0",
+      "2",
+      "4",
+    ]);
+    const frequency = waveformAxisLabels(1, 1e9, "Hz", true);
+    expect(frequency.unit).toBe("Hz");
+    expect(frequency.tick(1e9, 1e6)).toBe("1e+9");
+    expect(frequency.tick(0.01, 0.00001)).toBe("0.01");
+    expect(waveformAxisLabels(-180, 180, "°").unit).toBe("°");
   });
   it("keeps frequency ticks inside a sub-decade zoom and respects explicit Y zoom", () => {
     const result = layoutAcPlot(

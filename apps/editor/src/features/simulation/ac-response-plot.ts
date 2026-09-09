@@ -1,4 +1,4 @@
-import { waveformTicks } from "./waveform-interaction";
+import { waveformTicks, waveformAxisLabels } from "./waveform-interaction";
 /**
  * A projected waveform plot for complex AC analysis results.
  *
@@ -290,16 +290,23 @@ export function acResponseSvg(
   const axis = layout.value;
   const axisY = project.valueY;
   const unit = options.valueUnit ?? (options.kind === "phase" ? "°" : "");
+  const xLabels = waveformAxisLabels(
+    layout.frequency.min,
+    layout.frequency.max,
+    "Hz",
+    true,
+  );
+  const yLabels = waveformAxisLabels(axis.min, axis.max, unit);
 
   const gridLines = [
     ...layout.frequency.ticks.map((hz) => {
       const projectedX = project.x(hz);
       const x = projectedX.toFixed(2);
-      return `<line class="ac-grid" x1="${x}" y1="${frame.y}" x2="${x}" y2="${frame.y + frame.height}"/><text class="ac-axis-label ac-x-axis-label" x="${x}" y="${frame.y + frame.height + 18}" text-anchor="${horizontalTickAnchor(projectedX, frame)}">${escapeXml(formatFrequency(hz))}</text>`;
+      return `<line class="ac-grid" x1="${x}" y1="${frame.y}" x2="${x}" y2="${frame.y + frame.height}"/><text class="ac-axis-label ac-x-axis-label" x="${x}" y="${frame.y + frame.height + 18}" text-anchor="${horizontalTickAnchor(projectedX, frame)}">${xLabels.tick(hz, hz / 1000)}</text>`;
     }),
     ...axis.ticks.map((value) => {
       const y = axisY(value).toFixed(2);
-      return `<line class="ac-grid" x1="${frame.x}" y1="${y}" x2="${frame.x + frame.width}" y2="${y}"/><text class="ac-axis-label" x="${frame.x - 8}" y="${y}" text-anchor="end" dominant-baseline="middle">${Number(value.toPrecision(6))}${unit}</text>`;
+      return `<line class="ac-grid" x1="${frame.x}" y1="${y}" x2="${frame.x + frame.width}" y2="${y}"/><text class="ac-axis-label" x="${frame.x - 8}" y="${y}" text-anchor="end" dominant-baseline="middle">${yLabels.tick(value, (axis.max - axis.min) / 10)}</text>`;
     }),
   ].join("");
 
@@ -369,7 +376,8 @@ export function acResponseSvg(
     `<defs><clipPath id="${clipId}"><rect x="${frame.x}" y="${frame.y}" width="${frame.width}" height="${frame.height}"/></clipPath></defs>` +
     `<rect class="ac-frame" x="${frame.x}" y="${frame.y}" width="${frame.width}" height="${frame.height}"/>` +
     gridLines +
-    `<text class="ac-axis-title" x="${frame.x + frame.width}" y="${size.height - 7}" text-anchor="end">Frequency</text>` +
+    `<text class="ac-axis-title" x="${frame.x + frame.width}" y="${size.height - 7}" text-anchor="end">freq/Hz</text>` +
+    `<text class="ac-axis-title" x="${frame.x}" y="${frame.y - 5}">${escapeXml(options.kind + (yLabels.unit ? `/${yLabels.unit}` : ""))}</text>` +
     `<g clip-path="url(#${clipId})">${curves}</g>` +
     cursor +
     legend +

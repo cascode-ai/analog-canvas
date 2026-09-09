@@ -60,7 +60,7 @@ describe("AC Results Explorer", () => {
     expect(markup.match(/data-trace-index="0"/gu)).toHaveLength(1);
     expect(markup).toContain('aria-label="Voltage display"');
     expect(markup).toContain('aria-pressed="true">Magnitude');
-    expect(markup).toContain("0.7V");
+    expect(markup).toContain("magnitude/V");
     expect(markup).toContain('aria-label="Plot tools"');
     expect(markup).toContain('class="waveform-tools-hint"');
     expect(markup).toContain('class="waveform-tool-actions"');
@@ -69,7 +69,7 @@ describe("AC Results Explorer", () => {
     expect(markup).not.toContain("<strong>Voltage</strong>");
     expect(markup).toContain('aria-label="Open plot"');
     expect(markup).toContain('class="ac-axis-title"');
-    expect(markup).toContain(">Frequency</text>");
+    expect(markup).toContain(">freq/Hz</text>");
     expect(markup).not.toContain("Wheel to zoom");
   });
 

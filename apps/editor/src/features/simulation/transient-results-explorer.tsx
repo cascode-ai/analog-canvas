@@ -3,7 +3,7 @@ import {
   WaveformInteraction,
   responsiveWaveformHeight,
   waveformTicks,
-  waveformTickLabel,
+  waveformAxisLabels,
   useWaveformWidth,
 } from "./waveform-interaction";
 import { useWaveformView } from "./waveform-view";
@@ -310,6 +310,13 @@ export function ScalarResultsExplorer({
     const automaticExtent = transientValueExtent(visibleValues);
     const extent = valueRanges[quantity] ?? automaticExtent;
     const unit = quantityTraces.find((trace) => trace.unit)?.unit ?? "";
+    const xLabels = waveformAxisLabels(
+      range[0],
+      range[1],
+      domainUnit,
+      logarithmicX,
+    );
+    const yLabels = waveformAxisLabels(extent[0], extent[1], unit);
     return (
       <div className={`ac-plot-shell${expanded ? " expanded" : ""}`}>
         <WaveformInteraction
@@ -444,11 +451,12 @@ export function ScalarResultsExplorer({
                     x={x}
                     y={geometry.height - geometry.bottom + 18}
                   >
-                    {waveformTickLabel(
+                    {xLabels.tick(
                       value,
-                      (range[1] - range[0]) /
-                        Math.max(2, Math.floor(geometry.width / 110)),
-                      domainUnit,
+                      logarithmicX
+                        ? value / 1000
+                        : (range[1] - range[0]) /
+                            Math.max(2, Math.floor(geometry.width / 110)),
                     )}
                   </text>
                 </g>
@@ -460,7 +468,18 @@ export function ScalarResultsExplorer({
               x={geometry.width - geometry.right}
               y={geometry.height - 7}
             >
-              {domainLabel}
+              {domainLabel.toLowerCase() === "frequency"
+                ? "freq"
+                : domainLabel.toLowerCase()}
+              {xLabels.unit ? `/${xLabels.unit}` : ""}
+            </text>
+            <text
+              className="ac-axis-title"
+              x={geometry.left}
+              y={geometry.top - 5}
+            >
+              {quantity}
+              {yLabels.unit ? `/${yLabels.unit}` : ""}
             </text>
             {waveformTicks(
               extent[0],
@@ -487,11 +506,10 @@ export function ScalarResultsExplorer({
                     y={y}
                     dominantBaseline="middle"
                   >
-                    {waveformTickLabel(
+                    {yLabels.tick(
                       value,
                       (extent[1] - extent[0]) /
                         Math.max(2, Math.floor(geometry.height / 55)),
-                      unit,
                     )}
                   </text>
                 </g>

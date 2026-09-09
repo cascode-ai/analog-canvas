@@ -1,6 +1,7 @@
 import type { SimulationFocusTarget } from "./simulation-focus-target";
 import type { DcSweepResult } from "@icm/spice-run";
 import type { Prepared } from "@icm/simulation-service/contract";
+import { waveformAxisLabels } from "./waveform-interaction";
 
 export interface DcResultsExplorerProps {
   analysis: DcSweepResult;
@@ -30,23 +31,6 @@ function extent(values: readonly number[]): readonly [number, number] {
   }
   const margin = Math.max(Math.abs(low) * 0.05, 1e-12);
   return [low - margin, high + margin];
-}
-
-function compact(value: number): string {
-  if (value === 0) return "0";
-  const magnitude = Math.abs(value);
-  const scales = [
-    [1e9, "G"],
-    [1e6, "M"],
-    [1e3, "k"],
-    [1, ""],
-    [1e-3, "m"],
-    [1e-6, "µ"],
-    [1e-9, "n"],
-    [1e-12, "p"],
-  ] as const;
-  const scale = scales.find(([factor]) => magnitude >= factor) ?? [1e-15, "f"];
-  return `${(value / scale[0]).toPrecision(4).replace(/\.0+$/u, "")}${scale[1]}`;
 }
 
 function points(
@@ -91,6 +75,7 @@ export function DcResultsExplorer({
     };
   });
   const xExtent = extent(analysis.sweep.values);
+  const xLabels = waveformAxisLabels(...xExtent, analysis.sweep.unit ?? "");
 
   return (
     <section
@@ -109,6 +94,7 @@ export function DcResultsExplorer({
         if (!group.length) return null;
         const yExtent = extent(group.flatMap((trace) => [...trace.values]));
         const unit = group.find((trace) => trace.unit)?.unit ?? "";
+        const yLabels = waveformAxisLabels(...yExtent, unit);
         return (
           <div className="ac-plot-row" key={quantity}>
             <strong>
@@ -140,8 +126,7 @@ export function DcResultsExplorer({
                     x={PLOT.left}
                     y={PLOT.height - PLOT.bottom + 18}
                   >
-                    {compact(xExtent[0])}
-                    {analysis.sweep.unit ?? ""}
+                    {xLabels.tick(xExtent[0], (xExtent[1] - xExtent[0]) / 100)}
                   </text>
                   <text
                     className="ac-axis-label ac-x-axis-label"
@@ -149,8 +134,7 @@ export function DcResultsExplorer({
                     x={PLOT.width - PLOT.right}
                     y={PLOT.height - PLOT.bottom + 18}
                   >
-                    {compact(xExtent[1])}
-                    {analysis.sweep.unit ?? ""}
+                    {xLabels.tick(xExtent[1], (xExtent[1] - xExtent[0]) / 100)}
                   </text>
                   <text
                     className="ac-axis-title"
@@ -159,14 +143,21 @@ export function DcResultsExplorer({
                     y={PLOT.height - 7}
                   >
                     {analysis.sweep.name}
+                    {xLabels.unit ? `/${xLabels.unit}` : ""}
+                  </text>
+                  <text
+                    className="ac-axis-title"
+                    x={PLOT.left}
+                    y={PLOT.top - 5}
+                  >
+                    {quantity}
+                    {yLabels.unit ? `/${yLabels.unit}` : ""}
                   </text>
                   <text x={4} y={PLOT.top + 5}>
-                    {compact(yExtent[1])}
-                    {unit}
+                    {yLabels.tick(yExtent[1], (yExtent[1] - yExtent[0]) / 100)}
                   </text>
                   <text x={4} y={PLOT.height - PLOT.bottom}>
-                    {compact(yExtent[0])}
-                    {unit}
+                    {yLabels.tick(yExtent[0], (yExtent[1] - yExtent[0]) / 100)}
                   </text>
                   {group.map((trace) => (
                     <polyline

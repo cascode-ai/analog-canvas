@@ -266,19 +266,33 @@ export function waveformTicks(min: number, max: number, count = 6): number[] {
   );
 }
 
-export function waveformTickLabel(
-  value: number,
-  step: number,
+export function waveformTickLabel(value: number, step: number): string {
+  const decimals = Math.min(
+    15,
+    Math.max(0, -Math.floor(Math.log10(Math.abs(step) || 1))),
+  );
+  if (value !== 0 && (Math.abs(value) >= 1e5 || Math.abs(value) < 1e-3))
+    return Number(value.toFixed(decimals)).toExponential();
+  return Number(value.toFixed(decimals)).toString();
+}
+
+/** One scale for the whole visible axis; ticks contain numbers only. */
+export function waveformAxisLabels(
+  min: number,
+  max: number,
   unit: string,
-): string {
+  logarithmic = false,
+) {
   const exponent = Math.max(
     -15,
     Math.min(
       9,
-      Math.floor(Math.log10(Math.abs(value) || Math.abs(step) || 1) / 3) * 3,
+      Math.floor(Math.log10(Math.max(Math.abs(min), Math.abs(max)) || 1) / 3) *
+        3,
     ),
   );
-  const scale = 10 ** exponent;
+  const scale =
+    unit && !logarithmic && unit !== "°" && unit !== "dB" ? 10 ** exponent : 1;
   const prefix =
     new Map([
       [-15, "f"],
@@ -290,10 +304,10 @@ export function waveformTickLabel(
       [3, "k"],
       [6, "M"],
       [9, "G"],
-    ]).get(exponent) ?? "";
-  const decimals = Math.min(
-    15,
-    Math.max(0, -Math.floor(Math.log10(Math.abs(step) / scale || 1))),
-  );
-  return `${(value / scale).toFixed(decimals)} ${prefix}${unit}`;
+    ]).get(scale === 1 ? 0 : exponent) ?? "";
+  return {
+    unit: `${prefix}${unit}`,
+    tick: (value: number, step: number) =>
+      waveformTickLabel(value / scale, step / scale),
+  };
 }
