@@ -11,9 +11,11 @@ import {
 const setup = ProjectSimulationSetupSchema.parse({
   id: "setup-op",
   name: "Bias",
-  version: 2,
+  version: 3,
   input: {
     kind: "structured",
+    designVariables: [],
+    runPlan: { mode: "nominal" },
     rootDocumentId: "doc",
     analyses: [{ kind: "op" }],
     outputs: [],

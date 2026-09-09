@@ -8,9 +8,11 @@ import {
   type ProjectSimulationSetup,
   type SimulationMeasurementSpec,
   type SimulationDeviceOperatingPointSpec,
+  type SimulationDesignVariable,
   type SimulationExpression,
   type SimulationOutputSpec,
   type SimulationStructuredInput,
+  type SimulationRunPlan,
   type SimulationVoltageProbe,
 } from "@icm/model";
 import type { Capabilities, Problem } from "@icm/simulation-service/contract";
@@ -25,6 +27,11 @@ import {
   type SimulationProbeOption,
 } from "./simulation-probe-options";
 import { SimulationMeasurementEditor } from "./simulation-measurement-editor";
+import {
+  DesignVariablesEditor,
+  RunPlanEditor,
+  simulationRunPlanPointCount,
+} from "./simulation-design-run-plan-editor";
 const uiProblem = (code: string, message: string): Problem => ({
   code,
   message,
@@ -100,6 +107,12 @@ export function SetupEditor({
   const [deviceOperatingPoints, setDeviceOperatingPoints] = useState<
     SimulationDeviceOperatingPointSpec[]
   >([...(saved?.deviceOperatingPoints ?? [])]);
+  const [designVariables, setDesignVariables] = useState<
+    SimulationDesignVariable[]
+  >([...(saved?.designVariables ?? [])]);
+  const [runPlan, setRunPlan] = useState<SimulationRunPlan>(
+    saved?.runPlan ?? { mode: "nominal" },
+  );
   const [deviceOperatingPointChoice, setDeviceOperatingPointChoice] =
     useState("");
   const [setupName, setSetupName] = useState(
@@ -384,7 +397,7 @@ export function SetupEditor({
             return;
           }
           const parsed = SimulationSetupSchema.safeParse({
-            version: 2,
+            version: 3,
             input: {
               kind: "structured",
               rootDocumentId: rootId,
@@ -455,6 +468,8 @@ export function SetupEditor({
                 ? { deviceOperatingPoints }
                 : {}),
               ...(measurements.length ? { measurements } : {}),
+              designVariables,
+              runPlan,
               environment: {
                 profileId: data.get("profileId"),
                 ...(data.get("corner") ? { corner: data.get("corner") } : {}),
@@ -946,6 +961,49 @@ export function SetupEditor({
               </div>
             </div>
           ) : null}
+        </SimulationSettingsSection>
+        <SimulationSettingsSection
+          title="Design Variables"
+          summary={`${designVariables.length} configured`}
+        >
+          <DesignVariablesEditor
+            project={project}
+            variables={designVariables}
+            onChange={(next) => {
+              setDesignVariables(next);
+              const ids = new Set(next.map(({ id }) => id));
+              if (runPlan.mode === "sweep") {
+                const axes = runPlan.axes.filter(
+                  (axis) =>
+                    axis.kind !== "variable" || ids.has(axis.variableId),
+                );
+                setRunPlan(
+                  axes.length ? { mode: "sweep", axes } : { mode: "nominal" },
+                );
+              }
+              onDirty(true);
+            }}
+          />
+        </SimulationSettingsSection>
+        <SimulationSettingsSection
+          title="Run Plan"
+          summary={
+            runPlan.mode === "nominal"
+              ? "Nominal"
+              : `${simulationRunPlanPointCount(runPlan)} points`
+          }
+        >
+          <RunPlanEditor
+            project={project}
+            variables={designVariables}
+            plan={runPlan}
+            capabilities={capabilities}
+            profileId={profileId}
+            onChange={(next) => {
+              setRunPlan(next);
+              onDirty(true);
+            }}
+          />
         </SimulationSettingsSection>
         <SimulationSettingsSection
           title="Output probes"

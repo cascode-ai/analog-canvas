@@ -11,7 +11,7 @@ The current-only model in `packages/model` validates the normalized shape;
 `packages/project-protocol` owns parsing, compatibility diagnostics,
 and canonical serialization. Persistence validates the complete current schema
 before import or Cloud Save. The explicit schema 24→47 chain upgrades supported
-historical files; serialization always writes schema 47. The 32→33 adapter
+historical files; serialization always writes schema 48. The 32→33 adapter
 rejects ownerless Net equivalence instead of guessing replacement electrical
 semantics, and the 33→34 adapter removes hidden electrical name authority while
 preserving source spelling as provenance. The 34→35 adapter unifies parallel

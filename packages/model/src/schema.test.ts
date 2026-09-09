@@ -806,9 +806,11 @@ describe("presentation style overrides", () => {
 describe("SimulationSetup schema", () => {
   function setup(): SimulationStructuredSetup {
     return {
-      version: 2,
+      version: 3,
       input: {
         kind: "structured",
+        designVariables: [],
+        runPlan: { mode: "nominal" },
         rootDocumentId: "testbench",
         analyses: [
           { kind: "op" },
@@ -874,6 +876,48 @@ describe("SimulationSetup schema", () => {
     expect(CircuitProjectJsonSchema).toMatchObject({
       properties: { simulationSetups: expect.anything() },
     });
+  });
+
+  it("persists explicit Design Variable bindings and a reusable Run Plan", () => {
+    const candidate = setup();
+    candidate.input.designVariables = [
+      {
+        id: "load",
+        name: "RLOAD",
+        value: "10k",
+        bindings: [
+          {
+            documentId: "testbench",
+            instanceId: "load",
+            parameter: "resistance",
+          },
+        ],
+      },
+    ];
+    candidate.input.runPlan = {
+      mode: "sweep",
+      axes: [
+        { kind: "corner", values: ["tt", "ff"] },
+        { kind: "variable", variableId: "load", values: ["5k", "10k"] },
+      ],
+    };
+    expect(SimulationSetupSchema.parse(candidate)).toEqual(candidate);
+
+    const duplicateBinding = structuredClone(candidate);
+    duplicateBinding.input.designVariables.push({
+      id: "load-2",
+      name: "OTHER",
+      value: "20k",
+      bindings: [...candidate.input.designVariables[0]!.bindings],
+    });
+    expect(
+      SimulationSetupSchema.safeParse(duplicateBinding).error?.issues,
+    ).toContainEqual(
+      expect.objectContaining({
+        message:
+          "An Instance parameter can be bound to only one Design Variable",
+      }),
+    );
   });
 
   it("preserves an unresolved simulation root for preparation diagnostics", () => {
@@ -1122,7 +1166,7 @@ describe("SimulationSetup schema", () => {
 
   it("persists a bounded raw authoring bundle without host paths", () => {
     const raw: SimulationRawSetup = {
-      version: 2,
+      version: 3,
       input: {
         kind: "raw",
         entry: "tb.cir",
@@ -1148,7 +1192,7 @@ describe("SimulationSetup schema", () => {
 
   it("rejects ambiguous, unsafe, and oversized raw bundles", () => {
     const rawInput = (overrides: Record<string, unknown> = {}) => ({
-      version: 2,
+      version: 3,
       input: {
         kind: "raw",
         entry: "tb.cir",

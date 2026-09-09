@@ -2,6 +2,7 @@ import { z } from "zod";
 import { SimulationResultSchema } from "@icm/spice-run";
 import {
   ObjectLocatorSchema,
+  SimulationRunPlanAxisSchema,
   SimulationEnvironmentSelectionSchema,
   SimulationMeasurementSpecSchema,
 } from "@icm/model";
@@ -297,6 +298,15 @@ export const InputSourceSchema = z.discriminatedUnion("kind", [
           )
           .max(16)
           .optional(),
+        variables: z
+          .array(
+            z.strictObject({
+              variableId: Id,
+              value: z.string().trim().min(1).max(4096),
+            }),
+          )
+          .max(16)
+          .optional(),
       })
       .optional(),
   }),
@@ -311,23 +321,8 @@ export const SimulationBatchItemRequestSchema = z.strictObject({
   id: Id,
   setupId: Id,
 });
-export const SimulationSweepAxisSchema = z.discriminatedUnion("kind", [
-  z.strictObject({
-    kind: z.literal("corner"),
-    values: z.array(z.string().min(1).max(64)).min(1).max(16),
-  }),
-  z.strictObject({
-    kind: z.literal("temperature"),
-    values: z.array(z.number().finite()).min(1).max(16),
-  }),
-  z.strictObject({
-    kind: z.literal("parameter"),
-    documentId: Id,
-    instanceId: Id,
-    parameter: z.string().min(1).max(128),
-    values: z.array(z.string().max(4096)).min(1).max(16),
-  }),
-]);
+/** The transient service consumes the same sweep-axis contract persisted by a Setup. */
+export const SimulationSweepAxisSchema = SimulationRunPlanAxisSchema;
 export const SimulationOperationSchema = z.discriminatedUnion("operation", [
   z.strictObject({ operation: z.literal("capabilities") }),
   z.strictObject({
@@ -373,9 +368,11 @@ export const SimulationOperationSchema = z.discriminatedUnion("operation", [
       let points = 1;
       for (const [index, axis] of request.axes.entries()) {
         const identity =
-          axis.kind === "parameter"
-            ? `${axis.kind}:${axis.documentId}:${axis.instanceId}:${axis.parameter.toLowerCase()}`
-            : axis.kind;
+          axis.kind === "variable"
+            ? `${axis.kind}:${axis.variableId}`
+            : axis.kind === "parameter"
+              ? `${axis.kind}:${axis.documentId}:${axis.instanceId}:${axis.parameter.toLowerCase()}`
+              : axis.kind;
         if (identities.has(identity)) {
           context.addIssue({
             code: "custom",
@@ -442,6 +439,7 @@ export const CapabilitiesSchema = z.strictObject({
       sweepAxes: z.tuple([
         z.literal("corner"),
         z.literal("temperature"),
+        z.literal("variable"),
         z.literal("parameter"),
       ]),
     })

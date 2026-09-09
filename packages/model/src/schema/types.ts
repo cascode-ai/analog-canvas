@@ -132,6 +132,16 @@ export type SimulationMeasurementMethod = z.infer<
 export type SimulationMeasurementSpec = z.infer<
   typeof Schema.SimulationMeasurementSpecSchema
 >;
+export type SimulationDesignVariableBinding = z.infer<
+  typeof Schema.SimulationDesignVariableBindingSchema
+>;
+export type SimulationDesignVariable = z.infer<
+  typeof Schema.SimulationDesignVariableSchema
+>;
+export type SimulationRunPlanAxis = z.infer<
+  typeof Schema.SimulationRunPlanAxisSchema
+>;
+export type SimulationRunPlan = z.infer<typeof Schema.SimulationRunPlanSchema>;
 export type SimulationVoltageProbeAnchor = z.infer<
   typeof Schema.SimulationVoltageProbeAnchorSchema
 >;
@@ -152,11 +162,11 @@ export type SimulationRawInput = z.infer<
   typeof Schema.SimulationRawInputSchema
 >;
 export type SimulationStructuredSetup = {
-  version: 2;
+  version: 3;
   input: SimulationStructuredInput;
 };
 export type SimulationRawSetup = {
-  version: 2;
+  version: 3;
   input: SimulationRawInput;
 };
 export type SimulationSetup = z.infer<typeof Schema.SimulationSetupSchema>;

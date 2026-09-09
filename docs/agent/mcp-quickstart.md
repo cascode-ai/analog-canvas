@@ -157,6 +157,10 @@ same contract as `/api/agent/sessions/{sessionId}/simulation`:
    scalars;
    invalid rules return recoverable input errors rather than ending the MCP
    session.
+   Structured setups also expose `designVariables` and `runPlan`. A variable
+   binds one nominal string value to one or more exact
+   `{documentId,instanceId,parameter}` targets. The saved Run Plan selects a
+   nominal run or a Cartesian sweep; GUI and MCP persist the same objects.
 3. `prepare` with `source:{kind:"project-setup",setupId,expectedStructureRevision}`
    freezes the saved structured or raw setup. It returns `prepared.id`,
    `digest`, vectors, and export references. A stale Project revision is a
@@ -191,13 +195,16 @@ is a bounded same-browser convenience over those verified artifacts, not a
 second cloud store or an Agent-only result protocol.
 
 For a Cartesian sweep over one saved structured setup, use `prepare-sweep`
-with 1–4 axes of `corner`, `temperature`, or `parameter`. A parameter axis
-addresses `{documentId,instanceId,parameter}` and supplies string values in the
+with the setup's persisted Run Plan axes, or supply the same 1–4 axis objects
+directly. Axis kinds are `corner`, `temperature`, `variable`, and `parameter`.
+A variable axis addresses its stable `variableId`; a parameter axis addresses
+`{documentId,instanceId,parameter}` and supplies string values in the
 same units accepted by the Instance netlist property. The product is limited
 to 16 points and becomes an ordinary sequential batch; follow it with the
 same `start-batch`, `read-batch`, per-run `read`/`export`, and
-`cancel-batch` operations. Sweep values are run-only projections: they do not
-edit the Project or the saved setup.
+`cancel-batch` operations. Preparation starts from saved nominal variable
+values, applies variable points, then applies advanced exact parameter points.
+Sweep execution never edits the Project or the saved setup.
 
 For **graphless/raw** authoring, call `simulation_files` to `create`, then
 use `list` if a lost response left the workspace ID unknown. Continue with

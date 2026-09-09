@@ -302,6 +302,81 @@ export const SimulationEnvironmentSelectionSchema = z.strictObject({
   temperatureC: z.number().finite().optional(),
 });
 
+/** One exact authored parameter controlled by a named Design Variable. */
+export const SimulationDesignVariableBindingSchema = z.strictObject({
+  documentId: StableIdSchema,
+  instanceId: StableIdSchema,
+  parameter: z.string().trim().min(1).max(128),
+});
+
+/**
+ * A Setup-local scalar shared by one or more exact Instance parameters.
+ * Values stay textual so the existing SPICE parameter grammar remains the
+ * single authority for suffixes and expressions.
+ */
+export const SimulationDesignVariableSchema = z.strictObject({
+  id: StableIdSchema,
+  name: z
+    .string()
+    .trim()
+    .min(1)
+    .max(64)
+    .regex(/^[A-Za-z_][A-Za-z0-9_]*$/u, "Use a SPICE-compatible variable name"),
+  value: z.string().trim().min(1).max(4096),
+  bindings: z.array(SimulationDesignVariableBindingSchema).max(256),
+});
+
+export const SimulationRunPlanAxisSchema = z.discriminatedUnion("kind", [
+  z.strictObject({
+    kind: z.literal("corner"),
+    values: z.array(z.string().min(1).max(64)).min(1).max(64),
+  }),
+  z.strictObject({
+    kind: z.literal("temperature"),
+    values: z.array(z.number().finite()).min(1).max(64),
+  }),
+  z.strictObject({
+    kind: z.literal("variable"),
+    variableId: StableIdSchema,
+    values: z.array(z.string().trim().min(1).max(4096)).min(1).max(64),
+  }),
+  z.strictObject({
+    kind: z.literal("parameter"),
+    documentId: StableIdSchema,
+    instanceId: StableIdSchema,
+    parameter: z.string().trim().min(1).max(128),
+    values: z.array(z.string().trim().min(1).max(4096)).min(1).max(64),
+  }),
+]);
+
+export const SimulationRunPlanSchema = z.discriminatedUnion("mode", [
+  z.strictObject({ mode: z.literal("nominal") }),
+  z
+    .strictObject({
+      mode: z.literal("sweep"),
+      axes: z.array(SimulationRunPlanAxisSchema).min(1).max(4),
+    })
+    .superRefine((plan, context) => {
+      const identities = new Set<string>();
+      for (const [index, axis] of plan.axes.entries()) {
+        const identity =
+          axis.kind === "variable"
+            ? `variable:${axis.variableId}`
+            : axis.kind === "parameter"
+              ? `parameter:${axis.documentId}:${axis.instanceId}:${axis.parameter.toLowerCase()}`
+              : axis.kind;
+        if (identities.has(identity)) {
+          context.addIssue({
+            code: "custom",
+            message: `Duplicate Run Plan axis: ${identity}`,
+            path: ["axes", index],
+          });
+        }
+        identities.add(identity);
+      }
+    }),
+]);
+
 /**
  * Raw simulation inputs use a virtual, relative namespace. The same rule is
  * shared by persisted setups and transient Agent workspaces; it never grants
@@ -423,6 +498,8 @@ export const SimulationStructuredInputSchema = z
       .optional(),
     /** Saved scalar-measurement rules; absent is equivalent to an empty list. */
     measurements: z.array(SimulationMeasurementSpecSchema).max(256).optional(),
+    designVariables: z.array(SimulationDesignVariableSchema).max(256),
+    runPlan: SimulationRunPlanSchema,
     environment: SimulationEnvironmentSelectionSchema,
   })
   .superRefine((input, context) => {
@@ -444,6 +521,44 @@ export const SimulationStructuredInputSchema = z
       context,
     );
     reportDuplicateIds(input.measurements ?? [], "measurements", context);
+    reportDuplicateIds(input.designVariables, "designVariables", context);
+    const variableNames = new Set<string>();
+    const boundParameters = new Set<string>();
+    for (const [variableIndex, variable] of input.designVariables.entries()) {
+      const normalizedName = variable.name.toLowerCase();
+      if (variableNames.has(normalizedName)) {
+        context.addIssue({
+          code: "custom",
+          message: `Duplicate Design Variable name: ${variable.name}`,
+          path: ["designVariables", variableIndex, "name"],
+        });
+      }
+      variableNames.add(normalizedName);
+      for (const [bindingIndex, binding] of variable.bindings.entries()) {
+        const key = `${binding.documentId}:${binding.instanceId}:${binding.parameter.toLowerCase()}`;
+        if (boundParameters.has(key)) {
+          context.addIssue({
+            code: "custom",
+            message:
+              "An Instance parameter can be bound to only one Design Variable",
+            path: ["designVariables", variableIndex, "bindings", bindingIndex],
+          });
+        }
+        boundParameters.add(key);
+      }
+    }
+    if (input.runPlan.mode === "sweep") {
+      const variableIds = new Set(input.designVariables.map(({ id }) => id));
+      for (const [axisIndex, axis] of input.runPlan.axes.entries()) {
+        if (axis.kind === "variable" && !variableIds.has(axis.variableId)) {
+          context.addIssue({
+            code: "custom",
+            message: `Run Plan references an unavailable Design Variable: ${axis.variableId}`,
+            path: ["runPlan", "axes", axisIndex, "variableId"],
+          });
+        }
+      }
+    }
     if (
       (input.deviceOperatingPoints?.length ?? 0) > 0 &&
       !input.analyses.some((analysis) => analysis.kind === "op")
@@ -522,7 +637,7 @@ export const SimulationStructuredInputSchema = z
   });
 
 export const SimulationSetupSchema = z.strictObject({
-  version: z.literal(2),
+  version: z.literal(3),
   input: z.discriminatedUnion("kind", [
     SimulationStructuredInputSchema,
     SimulationRawInputSchema,

@@ -1075,7 +1075,7 @@
   "externalSubcircuitDefinitions": [],
   "id": "instance-value-display",
   "name": "Instance Value Display",
-  "schemaVersion": 47,
+  "schemaVersion": 48,
   "simulationSetups": [],
   "source": {
     "dialect": "none",

@@ -244,71 +244,6 @@
   color: #b42318;
   border-color: #fda29b;
 }
-.simulation-sweep-backdrop {
-  position: absolute;
-  z-index: 30;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  padding: 16px;
-  background: color-mix(in srgb, var(--icm-text) 24%, transparent);
-}
-.simulation-sweep-dialog {
-  display: grid;
-  gap: 10px;
-  width: min(620px, 100%);
-  max-height: 90%;
-  padding: 14px;
-  overflow: auto;
-  border: 1px solid var(--icm-border-strong);
-  border-radius: var(--icm-radius-md);
-  background: var(--icm-surface);
-  box-shadow: var(--icm-shadow-lg);
-}
-.simulation-sweep-dialog > header,
-.simulation-sweep-dialog > footer {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.simulation-sweep-dialog > header > div {
-  display: grid;
-  gap: 2px;
-  margin-right: auto;
-}
-.simulation-sweep-dialog > header span,
-.simulation-sweep-dialog > footer > span {
-  color: var(--icm-text-muted);
-  font-size: var(--icm-font-xs);
-}
-.simulation-sweep-dialog > footer {
-  justify-content: flex-end;
-}
-.simulation-sweep-dialog > footer > span {
-  margin-right: auto;
-}
-.simulation-sweep-axis {
-  display: grid;
-  grid-template-columns: auto 130px minmax(0, 1fr);
-  gap: 8px;
-  align-items: center;
-  min-height: 34px;
-}
-.simulation-sweep-corners,
-.simulation-sweep-parameter {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.simulation-sweep-corners label {
-  display: inline-flex;
-  gap: 3px;
-  align-items: center;
-}
-.simulation-sweep-parameter > * {
-  flex: 1 1 150px;
-  min-width: 0;
-}
 .simulation-primary-button {
   border-color: var(--icm-accent) !important;
   color: #fff !important;
@@ -713,6 +648,118 @@
 }
 .simulation-settings-section-body {
   padding: 8px 9px 9px;
+}
+.simulation-design-variables,
+.simulation-run-plan-editor {
+  display: grid;
+  gap: 8px;
+}
+.simulation-variable-card,
+.simulation-run-plan-axis {
+  display: grid;
+  gap: 6px;
+  padding: 7px;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-sm);
+}
+.simulation-variable-row {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto !important;
+}
+.simulation-variable-row > label,
+.simulation-run-plan-axis > label {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 3px;
+  margin: 0;
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
+}
+.simulation-variable-binding-row,
+.simulation-run-plan-target-values,
+.simulation-run-plan-add,
+.simulation-run-plan-summary,
+.simulation-run-plan-mode,
+.simulation-run-plan-corners {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.simulation-variable-binding-row > select,
+.simulation-run-plan-target-values > select,
+.simulation-run-plan-target-values > input {
+  min-width: 0;
+  flex: 1 1 0;
+}
+.simulation-variable-bindings,
+.simulation-run-plan-points {
+  display: grid;
+  gap: 3px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.simulation-variable-bindings li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 3px 5px;
+  background: var(--icm-surface-muted);
+  font-size: var(--icm-font-xs);
+}
+.simulation-variable-bindings li > span {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.simulation-variable-bindings li > button {
+  min-height: 22px;
+  padding: 0 5px;
+}
+.simulation-run-plan-mode label,
+.simulation-run-plan-corners label {
+  display: inline-flex;
+  grid-template-columns: auto auto;
+  gap: 4px;
+  margin: 0;
+}
+.simulation-run-plan-axis {
+  grid-template-columns: 120px minmax(0, 1fr) auto;
+  align-items: center;
+}
+.simulation-run-plan-add {
+  flex-wrap: wrap;
+}
+.simulation-run-plan-add > details {
+  position: relative;
+}
+.simulation-run-plan-add > details > summary {
+  cursor: pointer;
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
+}
+.simulation-run-plan-add > details > button {
+  margin-top: 4px;
+}
+.simulation-run-plan-summary > span {
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
+}
+.simulation-run-plan-summary > button {
+  margin-left: auto;
+}
+.simulation-run-plan-points {
+  max-height: 160px;
+  overflow: auto;
+  counter-reset: run-point;
+}
+.simulation-run-plan-points li {
+  padding: 3px 6px;
+  background: var(--icm-surface-muted);
+  font-family: var(--icm-font-mono, ui-monospace, monospace);
+  font-size: var(--icm-font-xs);
 }
 .simulation-environment-grid {
   display: grid;

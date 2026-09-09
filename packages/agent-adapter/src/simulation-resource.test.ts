@@ -59,6 +59,15 @@ describe("Simulation sibling contract", () => {
       axes: [{ kind: "temperature", values: [-40, 27, 125] }],
     });
     expect(simulationOperationScopes(sweep)).toEqual(["simulation.run"]);
+    expect(
+      AgentSimulationResourceRequestSchema.parse({
+        ...envelope,
+        operation: "prepare-sweep",
+        setupId: "setup-ac",
+        expectedStructureRevision: 4,
+        axes: [{ kind: "variable", variableId: "load", values: ["1k", "2k"] }],
+      }),
+    ).toMatchObject({ axes: [{ kind: "variable", variableId: "load" }] });
     const files = AgentFileResourceRequestSchema.parse({
       ...envelope,
       operation: "simulation-input",

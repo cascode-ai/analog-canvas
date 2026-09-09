@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   type ProjectSimulationSetup,
   type SimulationOutputSpec,
+  type SimulationRunPlanAxis,
   type SimulationStructuredInput,
 } from "@icm/model";
 import type {
@@ -53,10 +54,6 @@ import {
 } from "./simulation-run-comparison";
 import { SimulationWaveformComparison } from "./simulation-waveform-comparison";
 import { createBrowserSimulationArchiveStore } from "./browser-simulation-archive-store";
-import {
-  SimulationSweepDialog,
-  type SimulationSweepAxis,
-} from "./simulation-sweep-dialog";
 import {
   captureSimulationRunArchive,
   restoreSimulationRunArchive,
@@ -126,7 +123,6 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
   const [run, setRun] = useState<Run>();
   const [batch, setBatch] = useState<SimulationBatch>();
   const [batchSelection, setBatchSelection] = useState<readonly string[]>([]);
-  const [sweepOpen, setSweepOpen] = useState(false);
   const hydratedBatchRuns = useRef(new Set<string>());
   const batchRuns = useRef(new Map<string, { prepared: Prepared; run: Run }>());
   const runDetails = useRef(new SimulationRunDetails());
@@ -388,6 +384,13 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
   }, [batch?.id, batch?.state, session, project]);
   const execute = async (start: boolean) => {
     if (lock.current) return;
+    if (
+      selectedSetup?.input.kind === "structured" &&
+      selectedSetup.input.runPlan.mode === "sweep"
+    ) {
+      await executeSweep(selectedSetup.input.runPlan.axes, start);
+      return;
+    }
     lock.current = true;
     setBusy(true);
     setProblem(undefined);
@@ -496,7 +499,10 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
       if (alive.current) setBusy(false);
     }
   };
-  const executeSweep = async (axes: readonly SimulationSweepAxis[]) => {
+  const executeSweep = async (
+    axes: readonly SimulationRunPlanAxis[],
+    start: boolean,
+  ) => {
     if (
       lock.current ||
       !selectedSetup ||
@@ -529,13 +535,17 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
           rootDocumentId: selectedSetup.input.rootDocumentId,
         });
       }
-      receive(
-        await session.handle({
-          operation: "start-batch",
-          batchId: preparedReply.batch.id,
-        }),
-      );
-      setSweepOpen(false);
+      if (start)
+        receive(
+          await session.handle({
+            operation: "start-batch",
+            batchId: preparedReply.batch.id,
+          }),
+        );
+      else {
+        const first = preparedReply.batch.items[0];
+        if (first) await showBatchItem(first);
+      }
       setupMenuRef.current?.removeAttribute("open");
     } finally {
       lock.current = false;
@@ -543,7 +553,19 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
     }
   };
   const showBatchItem = async (item: SimulationBatch["items"][number]) => {
-    if (!item.runId) return;
+    if (!item.runId) {
+      const presentation = preparedPresentations.current.get(item.prepared.id);
+      setPrepared(item.prepared);
+      setRun(undefined);
+      setProblem(undefined);
+      setArtifactPreview(undefined);
+      setSetupOpen(false);
+      setResultsOpen(true);
+      setResultTab("files");
+      if (presentation)
+        setupResults.current.set(item.setupId, { prepared: item.prepared });
+      return;
+    }
     let resolved = batchRuns.current.get(item.runId);
     if (!resolved) {
       const reply = await session.handle({
@@ -935,7 +957,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
     const created: ProjectSimulationSetup = {
       id: `simulation-setup-${crypto.randomUUID()}`,
       name: `${baseName} ${suffix}`,
-      version: 2,
+      version: 3,
       input: selectedSetup
         ? structuredClone(selectedSetup.input)
         : {
@@ -943,6 +965,8 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
             rootDocumentId: props.activeDocumentId,
             analyses: [{ kind: "op" }],
             outputs: [],
+            designVariables: [],
+            runPlan: { mode: "nominal" },
             environment: {
               profileId:
                 capabilities?.profiles[0]?.id ?? DEVELOPMENT_PROFILE_ID,
@@ -1009,20 +1033,6 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
                   onClick={() => void executeBatch()}
                 >
                   Run selected ({batchSelection.length})
-                </button>
-              ) : null}
-              {selectedSetup?.input.kind === "structured" &&
-              capabilities?.batch ? (
-                <button
-                  type="button"
-                  className="simulation-setup-menu-batch"
-                  disabled={dirty || busy || !!running}
-                  onClick={() => {
-                    setSweepOpen(true);
-                    setupMenuRef.current?.removeAttribute("open");
-                  }}
-                >
-                  Sweep…
                 </button>
               ) : null}
               {project.simulationSetups.map((setup) => (
@@ -1212,7 +1222,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
                   type="button"
                   key={item.id}
                   data-state={item.state}
-                  disabled={!item.runId}
+                  disabled={item.state === "queued"}
                   onClick={() => void showBatchItem(item)}
                 >
                   {item.label ?? setup?.name ?? item.setupId} · {item.state}
@@ -1226,18 +1236,6 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
             </button>
           ) : null}
         </div>
-      ) : null}
-
-      {sweepOpen && selectedSetup && capabilities ? (
-        <SimulationSweepDialog
-          open
-          project={project}
-          setup={selectedSetup}
-          capabilities={capabilities}
-          disabled={busy || !!running}
-          onClose={() => setSweepOpen(false)}
-          onRun={(axes) => void executeSweep(axes)}
-        />
       ) : null}
 
       {!selectedSetup && !hasDutInstance ? (

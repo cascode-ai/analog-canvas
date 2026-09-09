@@ -6,6 +6,8 @@ import {
   SIMULATION_NOISE_INPUT_DENSITY_ID,
   SIMULATION_NOISE_OUTPUT_DENSITY_ID,
   SimulationMeasurementMethodSchema,
+  SimulationDesignVariableSchema,
+  SimulationRunPlanSchema,
 } from "@icm/model";
 import { SimulationOperationSchema } from "@icm/simulation-service/contract";
 import { SimulationFileOperationSchema } from "@icm/simulation-service/files";
@@ -92,6 +94,11 @@ const SimulationSetupArgs = z.discriminatedUnion("action", [
     rootDocumentId: z.string().min(1),
     analyses: z.array(SimulationAnalysisSpecSchema).min(1),
     environment: SimulationEnvironmentSelectionSchema,
+    designVariables: z
+      .array(SimulationDesignVariableSchema)
+      .max(256)
+      .optional(),
+    runPlan: SimulationRunPlanSchema.optional(),
   }),
   z.strictObject({
     action: z.literal("update"),
@@ -101,6 +108,11 @@ const SimulationSetupArgs = z.discriminatedUnion("action", [
     rootDocumentId: z.string().min(1).optional(),
     analyses: z.array(SimulationAnalysisSpecSchema).min(1).optional(),
     environment: SimulationEnvironmentSelectionSchema.optional(),
+    designVariables: z
+      .array(SimulationDesignVariableSchema)
+      .max(256)
+      .optional(),
+    runPlan: SimulationRunPlanSchema.optional(),
   }),
   z.strictObject({
     action: z.literal("clone"),
@@ -492,7 +504,7 @@ const TOOLS: readonly ToolEntry[] = [
     definition: {
       name: "simulation_setup",
       description:
-        "List or inspect saved Simulation setups; create a structured setup; update its name, Testbench root, analyses, or environment; clone any setup; or remove one. Existing outputs, measurements, and MOS operating-point selections survive updates. Ordinary validation failures return recoverable results and do not end the Agent session. Full typed setup replacement remains available through advanced_transact.",
+        "List or inspect saved Simulation setups; create a structured setup; update its name, Testbench root, analyses, environment, Design Variables, or saved Run Plan; clone any setup; or remove one. Existing outputs, measurements, and MOS operating-point selections survive updates. Ordinary validation failures return recoverable results and do not end the Agent session. Full typed setup replacement remains available through advanced_transact.",
       inputSchema: { ...jsonSchemaOf(SimulationSetupArgs), type: "object" },
     },
     handle: async (args, session) => {
@@ -524,6 +536,8 @@ const TOOLS: readonly ToolEntry[] = [
                     measurementCount: setup.input.measurements?.length ?? 0,
                     deviceOperatingPointCount:
                       setup.input.deviceOperatingPoints?.length ?? 0,
+                    designVariableCount: setup.input.designVariables.length,
+                    runPlan: setup.input.runPlan,
                   }
                 : { entry: setup.input.entry }),
             })),
@@ -566,12 +580,14 @@ const TOOLS: readonly ToolEntry[] = [
         next = {
           id: parsed.setupId ?? crypto.randomUUID(),
           name: parsed.name,
-          version: 2 as const,
+          version: 3 as const,
           input: {
             kind: "structured" as const,
             rootDocumentId: parsed.rootDocumentId,
             analyses: parsed.analyses,
             outputs: [],
+            designVariables: parsed.designVariables ?? [],
+            runPlan: parsed.runPlan ?? { mode: "nominal" },
             environment: parsed.environment,
           },
         };
@@ -584,7 +600,9 @@ const TOOLS: readonly ToolEntry[] = [
           parsed.name === undefined &&
           parsed.rootDocumentId === undefined &&
           parsed.analyses === undefined &&
-          parsed.environment === undefined
+          parsed.environment === undefined &&
+          parsed.designVariables === undefined &&
+          parsed.runPlan === undefined
         )
           return {
             ok: false,
@@ -600,7 +618,9 @@ const TOOLS: readonly ToolEntry[] = [
         if (
           parsed.rootDocumentId !== undefined ||
           parsed.analyses !== undefined ||
-          parsed.environment !== undefined
+          parsed.environment !== undefined ||
+          parsed.designVariables !== undefined ||
+          parsed.runPlan !== undefined
         ) {
           if (next.input.kind !== "structured")
             return {
@@ -618,6 +638,9 @@ const TOOLS: readonly ToolEntry[] = [
             next.input.analyses = parsed.analyses;
           if (parsed.environment !== undefined)
             next.input.environment = parsed.environment;
+          if (parsed.designVariables !== undefined)
+            next.input.designVariables = parsed.designVariables;
+          if (parsed.runPlan !== undefined) next.input.runPlan = parsed.runPlan;
         }
       }
       return session.client.advancedTransact(
