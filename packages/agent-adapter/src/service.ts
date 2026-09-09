@@ -37,6 +37,7 @@ import type {
   AgentRenderRequest,
   AgentSessionSnapshot,
   AgentSimulationResourceCapability,
+  AgentProjectResourceCapability,
 } from "./schema.js";
 import { AgentAuthoringCommandSchema } from "./authoring-command.js";
 import { buildProjectConnectivityIndex, traceHierarchyNet } from "@icm/derived";
@@ -94,6 +95,8 @@ export interface AgentCircuitHostServiceOptions {
   fileResource?: AgentFileResourceCapability;
   /** The Simulation Resource sibling, advertised the same way. */
   simulationResource?: AgentSimulationResourceCapability;
+  /** Cloud Project Cell discovery/import sibling. */
+  projectResource?: AgentProjectResourceCapability;
 }
 
 export interface AgentCircuitService {
@@ -270,6 +273,9 @@ export function createAgentCircuitService(
   const simulationResource = useHost
     ? (options as AgentCircuitHostServiceOptions).simulationResource
     : undefined;
+  const projectResource = useHost
+    ? (options as AgentCircuitHostServiceOptions).projectResource
+    : undefined;
   const storeOptions = (
     useHost ? null : options
   ) as AgentCircuitServiceOptions | null;
@@ -343,6 +349,7 @@ export function createAgentCircuitService(
                     ...(simulationResource
                       ? { simulation: simulationResource }
                       : {}),
+                    ...(projectResource ? { project: projectResource } : {}),
                   },
                 }
               : {}),

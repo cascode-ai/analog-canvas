@@ -31,10 +31,24 @@ lists published circuits, not bundled examples; the `?example=` link and
 **File → Open** on `apps/editor/src/examples/five-transistor-ota-sky130.icproj.json`
 are the two ways to reach it.
 
-The five AC corner setups are independent saved runs rather than a hidden
-batch protocol. Run and retain the desired results to exercise the current
-comparison view. A future batch executor can consume this same setup
-collection without changing the Project format.
+Independent voltage and current sources share four transient modes: None,
+PULSE, SIN, and PWL. PWL accepts at least two comma-separated `time value`
+pairs, for example `0s 0, 1ns 0, 2ns 1.8`. The same authored points print as
+SPICE `PWL(...)` or Spectre `type=pwl wave=[...]`; AC magnitude and phase remain
+an independent small-signal setting.
+
+The five AC corner setups remain independent Project records. Select two or
+more setups in the Setup menu and choose **Run selected** to prepare all of
+them at the current Project revision and run them sequentially. The compact
+batch strip shows queued, running, completed, failed, and cancelled members;
+selecting a completed member opens its ordinary Run result. Batch coordination
+is session-only and does not change the Project format.
+
+The Agent/API can also expand one saved structured setup over corner,
+temperature, and exact Instance-parameter axes. Those points reuse the same
+bounded sequential batch and never rewrite the saved setup. The graphical
+sweep composer is intentionally deferred; the current Editor can still open
+each completed member through the common batch result strip.
 
 ## DUT and testbench
 
@@ -115,10 +129,16 @@ the same rules, or replace the complete typed Setup through
 
 **Compare** can keep up to five completed structured results in the current
 Simulation session and align saved rules by measurement ID and automatic
-summaries by output identity, analysis, metric and unit. Keep a result, edit the circuit or conditions, run
-again, and inspect the current and retained columns. These comparison copies
-are intentionally transient: they are not hidden inside the Project or Cloud
-Project record, and closing the Project session clears them.
+summaries by output identity, analysis, metric and unit. Keep a result, edit
+the circuit or conditions, run again, and inspect the current and retained
+columns. These comparison copies are transient.
+
+Choose **Archive** on a completed result to keep its verified run files and
+view locally in this browser. **Compare → Browser archives** can reopen or
+delete up to ten archives for the Project after closing and reopening the
+Editor. An archive is not embedded in the Project and is not synchronized to
+Cloud Projects; use **Complete run · ZIP** for a portable copy. If browser
+storage is unavailable or full, simulation and ZIP export remain usable.
 
 Closing the drawer keeps a run alive. **Cancel run** asks the execution
 service to cancel; it is not simulated by hiding a spinner. Replacing the

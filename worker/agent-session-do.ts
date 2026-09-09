@@ -4,6 +4,7 @@ import {
   AgentCircuitResponseSchema,
   AgentFileResourceResponseSchema,
   AgentSimulationResourceResponseSchema,
+  AgentProjectResourceResponseSchema,
   AgentSessionControlMessageSchema,
   AgentSessionEventSchema,
   AgentSessionMachine,
@@ -13,9 +14,11 @@ import {
   parseAgentCircuitRequest,
   parseAgentFileResourceRequest,
   parseAgentSimulationResourceRequest,
+  parseAgentProjectResourceRequest,
   type AgentCircuitRequest,
   type AgentFileResourceRequest,
   type AgentSimulationResourceRequest,
+  type AgentProjectResourceRequest,
   type AgentSessionEvent,
   type AgentSessionScope,
   type AgentTransportErrorCode,
@@ -40,6 +43,7 @@ import {
   relayHeaders,
   sha256Text,
   simulationOperationScopes,
+  projectOperationScopes,
   transportStatus,
   type AgentSessionEnv,
   type DurableStateLike,
@@ -98,6 +102,9 @@ export class AgentSessionDO {
     }
     if (request.method === "POST" && url.pathname === "/simulation") {
       return this.simulation(request, machine, allowedOrigin);
+    }
+    if (request.method === "POST" && url.pathname === "/projects") {
+      return this.projects(request, machine, allowedOrigin);
     }
     if (request.method === "GET" && url.pathname === "/events") {
       return this.events(request, machine, allowedOrigin);
@@ -168,7 +175,8 @@ export class AgentSessionDO {
     if (
       envelope.kind === "circuit-response" ||
       envelope.kind === "file-response" ||
-      envelope.kind === "simulation-response"
+      envelope.kind === "simulation-response" ||
+      envelope.kind === "project-response"
     ) {
       const pending = this.pendingForwards.get(envelope.requestId);
       if (!pending) return;
@@ -177,7 +185,11 @@ export class AgentSessionDO {
           ? AgentCircuitResponseSchema.safeParse(envelope.payload)
           : envelope.kind === "file-response"
             ? AgentFileResourceResponseSchema.safeParse(envelope.payload)
-            : AgentSimulationResourceResponseSchema.safeParse(envelope.payload);
+            : envelope.kind === "simulation-response"
+              ? AgentSimulationResourceResponseSchema.safeParse(
+                  envelope.payload,
+                )
+              : AgentProjectResourceResponseSchema.safeParse(envelope.payload);
       if (!response.success) {
         clearTimeout(pending.timeout);
         this.pendingForwards.delete(envelope.requestId);
@@ -854,6 +866,125 @@ export class AgentSessionDO {
     }
   }
 
+  private async projects(
+    request: Request,
+    machine: AgentSessionMachine,
+    allowedOrigin: string | null,
+  ): Promise<Response> {
+    const raw = await request.text();
+    const size = machine.checkSize(new TextEncoder().encode(raw).byteLength);
+    if (!size.ok) {
+      return jsonResponse(
+        errorBody(size.code, errorMessage(size.code)),
+        transportStatus(size.code),
+        allowedOrigin,
+      );
+    }
+    let input: unknown;
+    try {
+      input = JSON.parse(raw);
+    } catch {
+      return jsonResponse(
+        errorBody(
+          "PROJECT_REQUEST_INVALID",
+          "Project Resource request must be valid JSON",
+        ),
+        400,
+        allowedOrigin,
+      );
+    }
+    const parsed = parseAgentProjectResourceRequest(input);
+    if (!parsed.success) {
+      return jsonResponse(
+        errorBody(
+          "PROJECT_REQUEST_INVALID",
+          errorMessage("PROJECT_REQUEST_INVALID"),
+        ),
+        400,
+        allowedOrigin,
+      );
+    }
+    const projectRequest = parsed.data;
+    const auth = machine.authorize(bearerToken(request), Date.now());
+    if (!auth.ok) {
+      return jsonResponse(
+        errorBody(auth.code, errorMessage(auth.code)),
+        transportStatus(auth.code),
+        allowedOrigin,
+      );
+    }
+    if (
+      !projectOperationScopes(projectRequest).every(
+        (required) => machine.assertScope(auth.session.scopes, required).ok,
+      )
+    ) {
+      return jsonResponse(
+        errorBody(
+          "TOKEN_SCOPE_INSUFFICIENT",
+          errorMessage("TOKEN_SCOPE_INSUFFICIENT"),
+        ),
+        403,
+        allowedOrigin,
+      );
+    }
+    const begin = machine.beginRequest(
+      projectRequest.requestId,
+      Date.now(),
+      await sha256Text(raw),
+    );
+    if (begin.kind === "cached") {
+      return jsonResponse(begin.result, 200, allowedOrigin);
+    }
+    if (begin.kind === "rejected") {
+      return jsonResponse(
+        errorBody(begin.code, errorMessage(begin.code)),
+        transportStatus(begin.code),
+        allowedOrigin,
+      );
+    }
+    await this.persist();
+    this.emit({
+      type: "operation.started",
+      sessionId: machine.sessionId,
+      requestId: projectRequest.requestId,
+    });
+    try {
+      const result = await this.forwardToEditor(
+        machine,
+        projectRequest,
+        "project-request",
+      );
+      machine.completeRequest(projectRequest.requestId, result, Date.now());
+      await this.persist();
+      this.emit({
+        type: "operation.completed",
+        sessionId: machine.sessionId,
+        requestId: projectRequest.requestId,
+      });
+      return jsonResponse(result, 200, allowedOrigin);
+    } catch (error) {
+      const value = error instanceof Error ? error.message : "";
+      const code: AgentTransportErrorCode =
+        value === "REQUEST_TIMEOUT" || value === "MESSAGE_TOO_LARGE"
+          ? value
+          : value === "EDITOR_OFFLINE"
+            ? "EDITOR_OFFLINE"
+            : "EDITOR_DISCONNECTED";
+      machine.failRequest(projectRequest.requestId, code === "EDITOR_OFFLINE");
+      await this.persist();
+      this.emit({
+        type: "operation.failed",
+        sessionId: machine.sessionId,
+        requestId: projectRequest.requestId,
+      });
+      return jsonResponse(
+        errorBody(code, errorMessage(code)),
+        transportStatus(code),
+        allowedOrigin,
+      );
+    }
+  }
+
   private async events(
     request: Request,
     machine: AgentSessionMachine,
@@ -973,11 +1104,13 @@ export class AgentSessionDO {
     payload:
       | AgentCircuitRequest
       | AgentFileResourceRequest
-      | AgentSimulationResourceRequest,
+      | AgentSimulationResourceRequest
+      | AgentProjectResourceRequest,
     kind:
       | "circuit-request"
       | "file-request"
-      | "simulation-request" = "circuit-request",
+      | "simulation-request"
+      | "project-request" = "circuit-request",
   ): Promise<unknown> {
     const sockets = this.state.getWebSockets?.(EDITOR_SOCKET_TAG) ?? [];
     const socket = sockets.find(

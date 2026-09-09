@@ -60,6 +60,19 @@ const SimulationArgs = z.strictObject({
   request: SimulationOperationSchema,
   requestId: z.string().min(1).optional(),
 });
+const ProjectCellsArgs = z.discriminatedUnion("action", [
+  z.strictObject({ action: z.literal("list-projects") }),
+  z.strictObject({
+    action: z.literal("list-cells"),
+    cloudProjectId: z.string().min(1),
+  }),
+  z.strictObject({
+    action: z.literal("import-cell"),
+    cloudProjectId: z.string().min(1),
+    sourceDocumentId: z.string().min(1),
+    expectedStructureRevision: z.number().int().nonnegative().optional(),
+  }),
+]);
 const SimulationSetupArgs = z.discriminatedUnion("action", [
   z.strictObject({
     action: z.literal("list"),
@@ -402,9 +415,47 @@ const TOOLS: readonly ToolEntry[] = [
   },
   {
     definition: {
+      name: "project_cells",
+      description:
+        "List the signed-in user's Cloud Projects, inspect their reusable Cells and formal ports, or copy one Cell with its dependency closure into the open Project. Import uses the canonical GUI planner and one atomic Project transaction; it creates no live cross-Project reference. Ordinary sign-in, stale-revision, or compatibility failures are recoverable and do not end the Agent session.",
+      inputSchema: { ...jsonSchemaOf(ProjectCellsArgs), type: "object" },
+    },
+    handle: async (args, session) => {
+      const parsed = ProjectCellsArgs.parse(args);
+      if (parsed.action === "list-projects") {
+        return session.client.projectResource({
+          apiVersion: AGENT_API_VERSION,
+          requestId: crypto.randomUUID(),
+          operation: parsed.action,
+        });
+      }
+      if (parsed.action === "list-cells") {
+        return session.client.projectResource({
+          apiVersion: AGENT_API_VERSION,
+          requestId: crypto.randomUUID(),
+          operation: parsed.action,
+          cloudProjectId: parsed.cloudProjectId,
+        });
+      }
+      const expectedStructureRevision =
+        parsed.expectedStructureRevision ??
+        (await session.client.snapshot(undefined, { refresh: true })).snapshot
+          .project.structureRevision;
+      return session.client.projectResource({
+        apiVersion: AGENT_API_VERSION,
+        requestId: crypto.randomUUID(),
+        operation: parsed.action,
+        cloudProjectId: parsed.cloudProjectId,
+        sourceDocumentId: parsed.sourceDocumentId,
+        expectedStructureRevision,
+      });
+    },
+  },
+  {
+    definition: {
       name: "simulation",
       description:
-        "Prepare one explicitly selected persisted Project setup or a session File Resource workspace, start once, poll/read, cancel, and list export artifacts. Supply the SAME requestId for a start retry. Ordinary failures are recoverable result objects, not session failures. Configure named settings through simulation_setup or full typed replacement through advanced_transact; use ordinary Cell/source edits for DUT/testbench.",
+        "Prepare one saved Project setup or a raw File Resource workspace, or prepare and sequentially run a bounded batch of saved setups. Start, poll/read, cancel, and list run artifacts through the shared Simulation Resource. Supply the SAME requestId for a start retry. Ordinary failures are recoverable result objects, not session failures. Configure named settings through simulation_setup or full typed replacement through advanced_transact; use ordinary Cell/source edits for DUT/testbench.",
       inputSchema: jsonSchemaOf(SimulationArgs),
     },
     handle: async (args, session) => {

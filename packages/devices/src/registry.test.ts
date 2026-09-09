@@ -162,7 +162,7 @@ describe("built-in device registry", () => {
     });
   });
 
-  it("gives independent sources one DC, AC, PULSE, and SIN authoring contract", () => {
+  it("gives independent sources one DC, AC, PULSE, SIN, and PWL authoring contract", () => {
     for (const [id, unit] of [
       ["voltage-source", "V"],
       ["current-source", "A"],
@@ -172,6 +172,7 @@ describe("built-in device registry", () => {
       expect(descriptor.parameters.map((parameter) => parameter.name)).toEqual([
         "dc",
         "waveform",
+        "pwlPoints",
         "acMagnitude",
         "acPhase",
         "low",
@@ -204,6 +205,7 @@ describe("built-in device registry", () => {
           { value: "dc", label: "None" },
           { value: "pulse", label: "PULSE" },
           { value: "sin", label: "SIN" },
+          { value: "pwl", label: "PWL" },
         ],
       });
       // The AC fields are optional and default to nothing: a placed source is

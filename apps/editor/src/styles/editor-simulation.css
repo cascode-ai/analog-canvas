@@ -155,12 +155,21 @@
   border-color: transparent !important;
   text-align: left;
 }
+.simulation-setup-menu-batch {
+  justify-self: stretch;
+  border-color: transparent !important;
+  color: var(--icm-accent) !important;
+  text-align: left;
+}
 .simulation-setup-menu-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 3px;
   align-items: center;
   border-top: 1px solid var(--icm-border);
+}
+.simulation-setup-menu-row > input {
+  margin: 0 2px;
 }
 .simulation-setup-menu-row[data-selected="true"] {
   background: var(--icm-surface-muted);
@@ -201,6 +210,39 @@
   color: #067647;
   border-color: #75e0a7;
   background: #ecfdf3;
+}
+.simulation-batch-strip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 3px 7px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--icm-border);
+  background: var(--icm-surface-muted);
+  font-size: var(--icm-font-xs);
+}
+.simulation-batch-strip > strong,
+.simulation-batch-strip > button {
+  flex: 0 0 auto;
+}
+.simulation-batch-strip > div {
+  display: flex;
+  gap: 4px;
+  min-width: 0;
+}
+.simulation-batch-strip button {
+  min-height: 24px;
+  padding: 2px 6px;
+}
+.simulation-batch-strip button[data-state="finished"] {
+  color: #067647;
+  border-color: #75e0a7;
+}
+.simulation-batch-strip button[data-state="failed"],
+.simulation-batch-strip button[data-state="lost"] {
+  color: #b42318;
+  border-color: #fda29b;
 }
 .simulation-primary-button {
   border-color: var(--icm-accent) !important;
@@ -785,9 +827,19 @@
   gap: 2px;
   overflow-x: auto;
 }
+.simulation-result-actions {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: auto;
+}
+.simulation-result-actions > button {
+  min-height: 28px;
+  padding: 4px 8px;
+  font-size: var(--icm-font-xs);
+}
 .simulation-result-export {
   position: relative;
-  margin-left: auto;
 }
 .simulation-result-export > summary {
   min-width: 68px;
@@ -1134,6 +1186,37 @@
 }
 .simulation-comparison-hint {
   margin: 0 0 10px;
+}
+.simulation-archive-list {
+  margin-top: 14px;
+  border-top: 1px solid var(--icm-border);
+}
+.simulation-archive-list > header,
+.simulation-archive-list li {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 0;
+}
+.simulation-archive-list > header small {
+  margin-left: auto;
+}
+.simulation-archive-list ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.simulation-archive-list li {
+  border-top: 1px solid var(--icm-border);
+}
+.simulation-archive-list li > span {
+  display: grid;
+  min-width: 0;
+  margin-right: auto;
+}
+.simulation-archive-list li > button:last-child {
+  width: 27px;
+  padding-inline: 0;
 }
 .simulation-comparison-runs {
   display: grid;

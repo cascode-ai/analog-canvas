@@ -240,6 +240,23 @@ describe("design netlist printers", () => {
     );
   });
 
+  it("prints one canonical PWL waveform in SPICE and Spectre", () => {
+    const ir = structuralIr();
+    ir.cells[1]!.instances.push(
+      device("vpwl", "VPWL", "voltage-source", ["vin", "0"], null, [
+        ["dc", "0"],
+        ["waveform", "pwl"],
+        ["pwlPoints", "0s 0, 1ns 0, 2ns 1.8"],
+      ]),
+    );
+    expect(printSpiceNetlist(ir)).toContain(
+      "VPWL vin 0 DC 0 PWL(0s 0 1ns 0 2ns 1.8)",
+    );
+    expect(printSpectreNetlist(ir)).toContain(
+      "VPWL (vin 0) vsource type=pwl wave=[0s 0 1ns 0 2ns 1.8] dc=0",
+    );
+  });
+
   it("does not infer PULSE from a period parameter", () => {
     const ir = structuralIr();
     ir.cells[1]!.instances.push(

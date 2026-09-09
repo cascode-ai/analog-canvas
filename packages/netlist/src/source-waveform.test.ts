@@ -3,6 +3,46 @@ import { describe, expect, it } from "vitest";
 import { normalizeIndependentSource } from "./source-waveform.js";
 
 describe("independent source waveform normalization", () => {
+  it("normalizes PWL points without leaking helper parameters", () => {
+    const result = normalizeIndependentSource([
+      { name: "dc", rawValue: "0" },
+      { name: "waveform", rawValue: "pwl" },
+      { name: "pwlPoints", rawValue: "0s 0, 1ns 0, 2ns 1.8" },
+    ]);
+    expect(result.transient).toEqual({
+      kind: "pwl",
+      points: [
+        { time: "0s", value: "0" },
+        { time: "1ns", value: "0" },
+        { time: "2ns", value: "1.8" },
+      ],
+    });
+    expect(result.extraParameters).toEqual([]);
+    expect(result.issues).toEqual([]);
+  });
+
+  it("diagnoses incomplete and malformed PWL point lists", () => {
+    expect(
+      normalizeIndependentSource([{ name: "waveform", rawValue: "pwl" }])
+        .issues,
+    ).toContainEqual(
+      expect.objectContaining({
+        code: "MISSING_SOURCE_WAVEFORM_PARAMETER",
+        parameter: "pwlPoints",
+      }),
+    );
+    expect(
+      normalizeIndependentSource([
+        { name: "waveform", rawValue: "pwl" },
+        { name: "pwlPoints", rawValue: "0 0, broken, 2n 1" },
+      ]).issues,
+    ).toContainEqual(
+      expect.objectContaining({
+        code: "INVALID_PWL_POINTS",
+        parameter: "pwlPoints",
+      }),
+    );
+  });
   it("projects a descriptor default without guessing from timing fields", () => {
     const normalized = normalizeIndependentSource(
       [

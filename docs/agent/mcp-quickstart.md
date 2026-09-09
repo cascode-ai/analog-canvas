@@ -54,6 +54,13 @@ large `analog-canvas://contract/advanced-edits` resource meant for offline tooli
 Reading is advisory, not a permission gate.
 Nested `transact_document` entries use their target Document revisions.
 
+Use `project_cells` to list the signed-in user's Cloud Projects, inspect their
+Cell interfaces, and import one Cell into the open Project. Import copies the
+complete local dependency closure through the same atomic planner as the GUI;
+it does not create a live cross-Project link. The helper refreshes the Project
+structure revision when the caller omits it. Sign-in, stale-revision, and
+library-compatibility failures are recoverable and do not revoke the session.
+
 Colors use existing `set_instance_style_override`, `set_route_style_override`,
 `set_presentation_style` and annotation `textColor` edits. Full inspection
 returns these fields, `signalFlowParameters`, Cell interfaces, and external
@@ -129,6 +136,9 @@ same contract as `/api/agent/sessions/{sessionId}/simulation`:
    `advanced_transact` with `upsert_simulation_setup`; removal compiles to the
    same `remove_simulation_setup` structure edit. Sources,
    DUT instances, formal ports, and wiring remain ordinary Project edits.
+   Independent voltage/current sources accept `waveform: "pwl"` with
+   `pwlPoints` as comma-separated `time value` pairs; this is the same
+   descriptor and printer path used by GUI source Properties.
    The structured contract supports OP, one-source linear DC sweep, AC, TRAN,
    and Noise; discover the deployment Profile before selecting an analysis,
    because parser support may precede hosted qualification. Noise selects a
@@ -164,6 +174,30 @@ same contract as `/api/agent/sessions/{sessionId}/simulation`:
    the simulator's primitive `run.result.data` remains raw execution evidence.
    Large run reads set `resultPreview`; use artifact `offset`/`nextOffset` to
    page through full evidence. Local `outputPath` exports assemble all slices.
+
+For a saved-setup batch, call `prepare-batch` once with one Project structure
+revision and 1–16 uniquely identified setup items. Every member is prepared
+before execution starts; one invalid member rejects the batch without running
+the valid members. Then use `start-batch`, `read-batch`, and `cancel-batch`.
+Members run sequentially through the same ordinary Run lifecycle and expose
+their normal `runId`, so `read` and `export` remain the only result and artifact
+interfaces. Reuse the same outer request ID when retrying `start-batch` after an
+uncertain transport response.
+
+Run history is not a Project object. For durable Agent evidence, use `export`
+and `simulation_files` to save the complete run artifacts (including
+`evidence-manifest.json`) to an explicit path. The Editor's **Archive** action
+is a bounded same-browser convenience over those verified artifacts, not a
+second cloud store or an Agent-only result protocol.
+
+For a Cartesian sweep over one saved structured setup, use `prepare-sweep`
+with 1–4 axes of `corner`, `temperature`, or `parameter`. A parameter axis
+addresses `{documentId,instanceId,parameter}` and supplies string values in the
+same units accepted by the Instance netlist property. The product is limited
+to 16 points and becomes an ordinary sequential batch; follow it with the
+same `start-batch`, `read-batch`, per-run `read`/`export`, and
+`cancel-batch` operations. Sweep values are run-only projections: they do not
+edit the Project or the saved setup.
 
 For **graphless/raw** authoring, call `simulation_files` to `create`, then
 use `list` if a lost response left the workspace ID unknown. Continue with

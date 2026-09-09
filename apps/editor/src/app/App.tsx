@@ -237,6 +237,7 @@ import { recoveryStateLabel } from "../components/recovery-banners";
 import { BrowserAgentHost } from "../agent/browser-agent-host";
 import { BrowserAgentFileHost } from "../agent/browser-agent-file-host";
 import { BrowserAgentSimulationHost } from "../agent/browser-agent-simulation-host";
+import { BrowserAgentProjectHost } from "../agent/browser-agent-project-host";
 import { BrowserSimulationSession } from "../features/simulation/browser-simulation-session";
 import { createAgentSemanticIntentHandler } from "../agent/agent-semantic-intent-handler";
 import { PUBLIC_AGENT_UI_ENABLED } from "../agent/public-agent-ui";
@@ -765,6 +766,16 @@ export function App({
       releaseChannel,
     ],
   );
+  const browserAgentProjectHost = useMemo(
+    () =>
+      new BrowserAgentProjectHost({
+        getProjectSessionId: () => editorDocumentController.projectSessionId,
+        getProject: () => editorDocumentController.project,
+        dispatchProjectTransaction: (request) =>
+          browserAgentHost.dispatchProjectTransaction(request),
+      }),
+    [browserAgentHost, editorDocumentController, projectSessionId],
+  );
   const [analogSimulationState, setAnalogSimulationState] = useState<
     "closed" | "open" | "maximized" | "minimized"
   >("closed");
@@ -926,6 +937,7 @@ export function App({
     host: browserAgentHost,
     fileHost: browserAgentFileHost,
     simulationHost: browserAgentSimulationHost,
+    projectHost: browserAgentProjectHost,
   });
   useEffect(() => {
     if (!publicAgentUiEnabled) return;

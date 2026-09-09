@@ -207,6 +207,11 @@ closure once. Deterministic remapping makes re-import idempotent without a
 persistent cross-Project pointer; no import lifecycle manager or live Library
 link exists.
 
+The GUI and Agent `project_cells` resource both call this planner. The Agent
+resource only discovers signed-in Cloud Projects and forwards the resulting
+edits through the live browser's ordinary Project transaction controller; it
+does not own a second Cloud store, imported-Cell format, or write path.
+
 ## Invariants
 
 - A Schematic transaction targets exactly one Document. A Project structural

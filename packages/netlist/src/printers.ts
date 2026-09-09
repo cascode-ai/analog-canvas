@@ -63,7 +63,13 @@ function spiceSourceTokens(instance: DesignNetlistInstance): string[] {
               transient.phase,
             ].join(" ")})`,
           ]
-        : []),
+        : transient.kind === "pwl"
+          ? [
+              `PWL(${transient.points
+                .flatMap((point) => [point.time, point.value])
+                .join(" ")})`,
+            ]
+          : []),
     ...assignments(source.extraParameters),
   ];
 }
@@ -98,6 +104,17 @@ function spectreSourceValues(instance: DesignNetlistInstance): string[] {
       `delay=${transient.delay}`,
       `damp=${transient.damping}`,
       `sinephase=${transient.phase}`,
+      ...ac,
+      ...assignments(source.extraParameters),
+    ];
+  }
+  if (transient.kind === "pwl") {
+    return [
+      "type=pwl",
+      `wave=[${transient.points
+        .flatMap((point) => [point.time, point.value])
+        .join(" ")}]`,
+      ...(source.dc === undefined ? [] : [`dc=${source.dc}`]),
       ...ac,
       ...assignments(source.extraParameters),
     ];

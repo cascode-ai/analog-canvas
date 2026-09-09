@@ -15,6 +15,7 @@ import {
 import { SimulationFiles, sha256 } from "./files.js";
 import type { ExecutionInput } from "./executor.js";
 import { rawInputRevision } from "./input-identity.js";
+import { projectSimulationVariant } from "./project-variant.js";
 type RawSimulationInput = Extract<
   CircuitProject["simulationSetups"][number]["input"],
   { kind: "raw" }
@@ -69,23 +70,24 @@ export async function prepareExecutionInput(
   let structuredAnalyses: ResultVolumeAnalysis[] | null = null;
   if (op.source.kind === "project-setup") {
     const setupId = op.source.setupId;
-    const project = structuredClone(getProject());
-    if (project.structureRevision !== op.source.expectedStructureRevision)
+    const currentProject = getProject();
+    if (
+      currentProject.structureRevision !== op.source.expectedStructureRevision
+    )
       return problem(
         "PROJECT_STRUCTURE_REVISION_CONFLICT",
-        `Expected Project structure revision ${op.source.expectedStructureRevision}, received ${project.structureRevision}`,
+        `Expected Project structure revision ${op.source.expectedStructureRevision}, received ${currentProject.structureRevision}`,
         "prepare",
         "reprepare",
       );
-    const setup = project.simulationSetups.find(
-      (candidate) => candidate.id === setupId,
+    const projected = projectSimulationVariant(
+      currentProject,
+      setupId,
+      op.source.variant,
     );
-    if (!setup)
-      return problem(
-        "SIMULATION_SETUP_MISSING",
-        `Simulation setup does not exist: ${setupId}`,
-        "prepare",
-      );
+    if (!projected.ok)
+      return problem(projected.code, projected.message, "prepare");
+    const { project, setup } = projected;
     if (setup.input.kind === "structured") {
       const compiled = await compileStructuredSimulation(project, setup);
       if (!compiled.ok)

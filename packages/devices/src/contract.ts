@@ -23,7 +23,7 @@ export interface DeviceParameterDefinition {
     readonly label: string;
   }[];
   /** Keep inactive source fields authored but out of the ordinary editor. */
-  readonly visibleForSourceWaveforms?: readonly ("pulse" | "sin")[];
+  readonly visibleForSourceWaveforms?: readonly ("pulse" | "sin" | "pwl")[];
   readonly unitHint?: string;
   readonly placeholder: string;
   readonly help: string;
@@ -76,7 +76,7 @@ export interface DeviceDescriptor {
   readonly pinSemantics?: readonly DevicePinSemantic[];
   readonly targetPolicy: DeviceNetlistTargetPolicy;
   /** Default transient intent projected when an older source has no explicit waveform. */
-  readonly sourceWaveformDefault?: "dc" | "pulse" | "sin";
+  readonly sourceWaveformDefault?: "dc" | "pulse" | "sin" | "pwl";
   /** Ordered authoring metadata; placeholders never create persisted values. */
   readonly parameters: readonly DeviceParameterDefinition[];
   readonly dialects: readonly ["spice", "spectre"];

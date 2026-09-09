@@ -1,6 +1,6 @@
 import type { DesignNetlistParameter } from "./ir.js";
 
-export type IndependentSourceWaveform = "dc" | "pulse" | "sin";
+export type IndependentSourceWaveform = "dc" | "pulse" | "sin" | "pwl";
 
 export const PULSE_PARAMETER_NAMES = [
   "low",
@@ -29,6 +29,7 @@ const SOURCE_PARAMETER_NAMES = [
   ...PULSE_PARAMETER_NAMES,
   ...SIN_REQUIRED_PARAMETER_NAMES,
   ...SIN_OPTIONAL_PARAMETER_NAMES,
+  "pwlPoints",
   // Digital Clock convenience inputs remain loadable but never leak as
   // arbitrary simulator assignments. The Editor already keeps the canonical
   // PULSE fields beside them.
@@ -38,7 +39,9 @@ const SOURCE_PARAMETER_NAMES = [
 
 export interface SourceParameterIssue {
   readonly code:
-    "INVALID_SOURCE_WAVEFORM" | "MISSING_SOURCE_WAVEFORM_PARAMETER";
+    | "INVALID_SOURCE_WAVEFORM"
+    | "MISSING_SOURCE_WAVEFORM_PARAMETER"
+    | "INVALID_PWL_POINTS";
   readonly parameter: string;
   readonly message: string;
 }
@@ -63,6 +66,13 @@ export type NormalizedTransientWaveform =
       readonly delay: string;
       readonly damping: string;
       readonly phase: string;
+    }
+  | {
+      readonly kind: "pwl";
+      readonly points: readonly {
+        readonly time: string;
+        readonly value: string;
+      }[];
     };
 
 export interface NormalizedIndependentSource {
@@ -79,6 +89,26 @@ function parameterMap(parameters: readonly DesignNetlistParameter[]) {
   return new Map(
     parameters.map((item) => [item.name.toLowerCase(), item.rawValue]),
   );
+}
+
+export function parsePwlPoints(
+  raw: string | undefined,
+): readonly { time: string; value: string }[] | null {
+  if (!raw?.trim()) return null;
+  const points = raw
+    .split(/[,;\n]+/u)
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .map((entry) => entry.split(/\s+/u));
+  if (
+    points.length < 2 ||
+    points.some(
+      (point) => point.length !== 2 || !point[0]?.trim() || !point[1]?.trim(),
+    )
+  ) {
+    return null;
+  }
+  return points.map(([time, value]) => ({ time: time!, value: value! }));
 }
 
 /**
@@ -99,14 +129,15 @@ export function normalizeIndependentSource(
     if (
       authoredWaveform === "dc" ||
       authoredWaveform === "pulse" ||
-      authoredWaveform === "sin"
+      authoredWaveform === "sin" ||
+      authoredWaveform === "pwl"
     ) {
       waveform = authoredWaveform;
     } else {
       issues.push({
         code: "INVALID_SOURCE_WAVEFORM",
         parameter: "waveform",
-        message: `Source waveform must be dc, pulse, or sin; received ${authoredWaveform || "an empty value"}`,
+        message: `Source waveform must be dc, pulse, sin, or pwl; received ${authoredWaveform || "an empty value"}`,
       });
     }
   }
@@ -116,15 +147,27 @@ export function normalizeIndependentSource(
       ? PULSE_PARAMETER_NAMES
       : waveform === "sin"
         ? SIN_REQUIRED_PARAMETER_NAMES
-        : [];
+        : waveform === "pwl"
+          ? (["pwlPoints"] as const)
+          : [];
   for (const name of required) {
-    if (!values.get(name)?.trim()) {
+    if (!values.get(name.toLowerCase())?.trim()) {
       issues.push({
         code: "MISSING_SOURCE_WAVEFORM_PARAMETER",
         parameter: name,
         message: `${waveform.toUpperCase()} waveform requires parameter ${name}`,
       });
     }
+  }
+
+  const pwlPoints = parsePwlPoints(values.get("pwlpoints"));
+  if (waveform === "pwl" && values.get("pwlpoints")?.trim() && !pwlPoints) {
+    issues.push({
+      code: "INVALID_PWL_POINTS",
+      parameter: "pwlPoints",
+      message:
+        "PWL points require at least two comma-separated time/value pairs",
+    });
   }
 
   const magnitude = values.get("acmagnitude")?.trim();
@@ -173,7 +216,9 @@ export function normalizeIndependentSource(
               damping: values.get("damping") ?? "0",
               phase: values.get("phase") ?? "0",
             }
-          : { kind: "dc" },
+          : waveform === "pwl"
+            ? { kind: "pwl", points: pwlPoints ?? [] }
+            : { kind: "dc" },
     extraParameters: parameters.filter(
       (item) => !consumed.has(item.name.toLowerCase()),
     ),

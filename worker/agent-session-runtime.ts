@@ -12,6 +12,7 @@ import {
   type AgentSessionLimits,
   type AgentSessionScope,
   type AgentSimulationResourceRequest,
+  type AgentProjectResourceRequest,
   type AgentTransportErrorCode,
   type AgentTransportErrorResponse,
 } from "@icm/agent-adapter";
@@ -299,7 +300,7 @@ export async function routeAgentSessionRequest(
   }
 
   const match =
-    /^\/api\/agent\/sessions\/([^/]+)(?:\/(circuit|files|simulation|events|editor|control))?$/u.exec(
+    /^\/api\/agent\/sessions\/([^/]+)(?:\/(circuit|files|simulation|projects|events|editor|control))?$/u.exec(
       url.pathname,
     );
   if (!match) return jsonResponse({ error: "Not found" }, 404, allowedOrigin);
@@ -411,6 +412,8 @@ export function errorMessage(code: AgentTransportErrorCode): string {
     FILE_EXPORT_FAILED: "Formal file export failed",
     SIMULATION_REQUEST_INVALID:
       "Simulation Resource request does not match its strict schema",
+    PROJECT_REQUEST_INVALID:
+      "Project Resource request does not match its strict schema",
   };
   return messages[code];
 }
@@ -497,9 +500,20 @@ export function simulationOperationScopes(
     case "start":
     case "read":
     case "cancel":
+    case "prepare-batch":
+    case "start-batch":
+    case "read-batch":
+    case "cancel-batch":
+    case "prepare-sweep":
     case "export":
       return ["simulation.run"];
   }
+}
+
+export function projectOperationScopes(
+  _request: AgentProjectResourceRequest,
+): AgentSessionScope[] {
+  return ["project.import"];
 }
 
 export async function sha256Text(value: string): Promise<string> {

@@ -32,6 +32,8 @@ export const AgentSessionMessageKindSchema = z.enum([
   "file-response",
   "simulation-request",
   "simulation-response",
+  "project-request",
+  "project-response",
   "event",
   "cancel",
 ]);
@@ -212,6 +214,8 @@ export const AgentTransportErrorCodeSchema = z.enum([
   "FILE_EXPORT_FAILED",
   // Simulation Resource
   "SIMULATION_REQUEST_INVALID",
+  // Project Resource
+  "PROJECT_REQUEST_INVALID",
 ]);
 
 /** Stable machine-readable failure envelope for every HTTP transport error. */

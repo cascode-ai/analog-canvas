@@ -11,6 +11,7 @@ import type {
   Prepared,
   Problem,
   Run,
+  SimulationBatch,
   SimulationReply,
 } from "@icm/simulation-service/contract";
 import { downloadTextArtifact } from "../../document/project-file-service";
@@ -50,6 +51,12 @@ import {
   SimulationRunComparison,
   type SimulationComparisonRun,
 } from "./simulation-run-comparison";
+import { createBrowserSimulationArchiveStore } from "./browser-simulation-archive-store";
+import {
+  captureSimulationRunArchive,
+  restoreSimulationRunArchive,
+  type SimulationRunArchiveSummary,
+} from "./simulation-run-archive";
 
 const RESULT_TABS = [
   ["plot", "Plot"],
@@ -112,6 +119,9 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
   const [capabilities, setCapabilities] = useState<Capabilities>();
   const [prepared, setPrepared] = useState<Prepared>();
   const [run, setRun] = useState<Run>();
+  const [batch, setBatch] = useState<SimulationBatch>();
+  const [batchSelection, setBatchSelection] = useState<readonly string[]>([]);
+  const hydratedBatchRuns = useRef(new Set<string>());
   const runDetails = useRef(new SimulationRunDetails());
   const [problem, setProblem] = useState<Problem>();
   const [busy, setBusy] = useState(false);
@@ -135,6 +145,11 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
   const [retainedComparisonRuns, setRetainedComparisonRuns] = useState<
     readonly SimulationComparisonRun[]
   >([]);
+  const [archiveStore] = useState(() => createBrowserSimulationArchiveStore());
+  const archivedRunIds = useRef(new Set<string>());
+  const [archives, setArchives] = useState<
+    readonly SimulationRunArchiveSummary[]
+  >([]);
   const setupMenuRef = useRef<HTMLDetailsElement>(null);
   useEffect(() => {
     const closeSetupMenu = (event: PointerEvent): void => {
@@ -148,6 +163,21 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
   const operatingPointProjectionRef = useRef(props.onOperatingPointProjection);
   operatingPointProjectionRef.current = props.onOperatingPointProjection;
   useEffect(() => () => operatingPointProjectionRef.current?.(null), []);
+  useEffect(() => {
+    let stopped = false;
+    void archiveStore.list(project.id).then((result) => {
+      if (!stopped && result.ok) setArchives(result.value);
+    });
+    return () => {
+      stopped = true;
+    };
+  }, [archiveStore, project.id, open]);
+  useEffect(
+    () => () => {
+      archiveStore.close();
+    },
+    [archiveStore],
+  );
   const previousSetupId = useRef<string | null>(props.selectedSetupId);
   useEffect(() => {
     if (previousSetupId.current === props.selectedSetupId) return;
@@ -178,7 +208,11 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
   }, []);
   const receive = (reply: SimulationReply) => {
     if (!alive.current) return;
-    if ((selectedSetup?.id ?? null) !== activeSetupId.current) return;
+    if (
+      !(reply.ok && "batch" in reply) &&
+      (selectedSetup?.id ?? null) !== activeSetupId.current
+    )
+      return;
     if (reply.ok && "run" in reply) {
       const owner = preparedPresentations.current.get(
         reply.run.preparedId,
@@ -195,6 +229,9 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
         setSetupOpen(true);
         setResultsOpen(false);
       }
+    } else if ("batch" in reply) {
+      setBatch(reply.batch);
+      setProblem(undefined);
     } else if ("run" in reply) {
       if (selectedSetup)
         setupResults.current.set(selectedSetup.id, {
@@ -256,7 +293,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
   // Keep tracking while the drawer is closed. A Project replacement unmounts
   // this owner; closing a view is deliberately not cancellation.
   useEffect(() => {
-    if (!run) return;
+    if (!run || archivedRunIds.current.has(run.id)) return;
     let stopped = false;
     let timer: ReturnType<typeof setTimeout>;
     const poll = async () => {
@@ -288,6 +325,56 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
       clearTimeout(timer);
     };
   }, [run?.id, session, project]);
+  useEffect(() => {
+    setBatchSelection((current) =>
+      current.filter((id) =>
+        project.simulationSetups.some((setup) => setup.id === id),
+      ),
+    );
+  }, [project.simulationSetups]);
+  useEffect(() => {
+    if (!batch || !["running", "cancelling"].includes(batch.state)) return;
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout>;
+    const poll = async () => {
+      const reply = await session.handle({
+        operation: "read-batch",
+        batchId: batch.id,
+      });
+      if (stopped) return;
+      receive(reply);
+      if (!reply.ok || !("batch" in reply)) return;
+      for (const item of reply.batch.items) {
+        if (!item.runId || hydratedBatchRuns.current.has(item.runId)) continue;
+        if (!["finished", "failed", "cancelled", "lost"].includes(item.state))
+          continue;
+        const runReply = await session.handle({
+          operation: "read",
+          runId: item.runId,
+        });
+        if (!runReply.ok || !("run" in runReply)) continue;
+        hydratedBatchRuns.current.add(item.runId);
+        setupResults.current.set(item.setupId, {
+          prepared: item.prepared,
+          run: runReply.run,
+        });
+        if (item.setupId === activeSetupId.current) {
+          setPrepared(item.prepared);
+          setRun(runReply.run);
+          setResultsOpen(true);
+          setSetupOpen(false);
+          setResultTab(preferredResultTab(runReply.run));
+        }
+      }
+      if (["running", "cancelling"].includes(reply.batch.state))
+        timer = setTimeout(poll, 500);
+    };
+    void poll();
+    return () => {
+      stopped = true;
+      clearTimeout(timer);
+    };
+  }, [batch?.id, batch?.state, session, project]);
   const execute = async (start: boolean) => {
     if (lock.current) return;
     lock.current = true;
@@ -333,6 +420,66 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
             digest: reply.prepared.digest,
           }),
         );
+    } finally {
+      lock.current = false;
+      if (alive.current) setBusy(false);
+    }
+  };
+  const executeBatch = async () => {
+    if (lock.current) return;
+    const setups = project.simulationSetups.filter((setup) =>
+      batchSelection.includes(setup.id),
+    );
+    if (setups.length < 2) {
+      setProblem(
+        uiProblem(
+          "SIMULATION_BATCH_SELECTION_REQUIRED",
+          "Select at least two saved setups to run as a batch",
+        ),
+      );
+      return;
+    }
+    lock.current = true;
+    setBusy(true);
+    setProblem(undefined);
+    hydratedBatchRuns.current.clear();
+    try {
+      const preparedReply = await session.handle({
+        operation: "prepare-batch",
+        expectedStructureRevision: project.structureRevision,
+        items: setups.map((setup) => ({ id: setup.id, setupId: setup.id })),
+      });
+      receive(preparedReply);
+      if (!preparedReply.ok || !("batch" in preparedReply)) return;
+      for (const item of preparedReply.batch.items) {
+        const setup = setups.find((candidate) => candidate.id === item.setupId);
+        if (!setup) continue;
+        const input = setup.input;
+        preparedPresentations.current.set(item.prepared.id, {
+          setupId: setup.id,
+          prepared: structuredClone(item.prepared),
+          outputs:
+            input.kind === "structured" ? structuredClone(input.outputs) : [],
+          analysisLabel:
+            input.kind === "structured"
+              ? input.analyses
+                  .map((analysis) => analysis.kind.toUpperCase())
+                  .join(" + ")
+              : "RAW",
+          setupName: setup.name,
+          ...(input.kind === "structured"
+            ? { rootDocumentId: input.rootDocumentId }
+            : {}),
+        });
+        setupResults.current.set(setup.id, { prepared: item.prepared });
+      }
+      receive(
+        await session.handle({
+          operation: "start-batch",
+          batchId: preparedReply.batch.id,
+        }),
+      );
+      setupMenuRef.current?.removeAttribute("open");
     } finally {
       lock.current = false;
       if (alive.current) setBusy(false);
@@ -389,6 +536,107 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
     anchor.click();
     setTimeout(() => URL.revokeObjectURL(url), 0);
   };
+  const archiveCurrentRun = async () => {
+    if (
+      !run ||
+      !selectedSetup ||
+      !runPresentation ||
+      selectedSetup.id !== runPresentation.setupId
+    )
+      return;
+    setArtifactBusy("archive:save");
+    const captured = await captureSimulationRunArchive(session.files, {
+      projectId: project.id,
+      setup: selectedSetup,
+      prepared: runPresentation.prepared,
+      run,
+    });
+    if (!captured.ok) {
+      setArtifactBusy(undefined);
+      setProblem(captured.error);
+      return;
+    }
+    const saved = await archiveStore.save(captured.value);
+    setArtifactBusy(undefined);
+    if (!saved.ok) {
+      setProblem(
+        uiProblem(
+          "SIMULATION_ARCHIVE_STORAGE_FAILED",
+          saved.code === "quota-exceeded"
+            ? "Browser storage is full; export the complete run ZIP instead"
+            : "Browser result archives are unavailable; export the complete run ZIP instead",
+        ),
+      );
+      return;
+    }
+    setArchives((current) =>
+      [
+        saved.value,
+        ...current.filter((item) => item.id !== saved.value.id),
+      ].slice(0, 10),
+    );
+  };
+  const openArchivedRun = async (archiveId: string) => {
+    setArtifactBusy(`archive:open:${archiveId}`);
+    const stored = await archiveStore.read(archiveId);
+    if (!stored.ok || !stored.value) {
+      setArtifactBusy(undefined);
+      setProblem(
+        uiProblem(
+          "SIMULATION_ARCHIVE_UNAVAILABLE",
+          "The selected browser archive is no longer available",
+        ),
+      );
+      return;
+    }
+    const restored = await restoreSimulationRunArchive(
+      session.files,
+      stored.value,
+    );
+    setArtifactBusy(undefined);
+    if (!restored.ok) {
+      setProblem(restored.error);
+      return;
+    }
+    const presentation: PreparedPresentation = {
+      ...stored.value.presentation,
+      prepared: restored.value.prepared,
+    };
+    preparedPresentations.current.set(restored.value.prepared.id, presentation);
+    archivedRunIds.current.add(restored.value.run.id);
+    setupResults.current.set(stored.value.presentation.setupId, {
+      prepared: restored.value.prepared,
+      run: restored.value.run,
+    });
+    if (
+      stored.value.presentation.setupId !== selectedSetup?.id &&
+      project.simulationSetups.some(
+        (setup) => setup.id === stored.value!.presentation.setupId,
+      )
+    )
+      props.onSelectSetupId(stored.value.presentation.setupId);
+    setPrepared(restored.value.prepared);
+    setRun(restored.value.run);
+    setProblem(undefined);
+    setSetupOpen(false);
+    setResultsOpen(true);
+    setResultTab(preferredResultTab(restored.value.run));
+  };
+  const deleteArchivedRun = async (archiveId: string) => {
+    const deleted = await archiveStore.delete(archiveId);
+    if (!deleted.ok) {
+      setProblem(
+        uiProblem(
+          "SIMULATION_ARCHIVE_DELETE_FAILED",
+          "The browser archive could not be removed",
+        ),
+      );
+      return;
+    }
+    setArchives((current) =>
+      current.filter((archive) => archive.id !== archiveId),
+    );
+  };
   const exportVisiblePlots = async (format: SimulationPlotExportFormat) => {
     if (!resultsBodyRef.current) return;
     setArtifactBusy(`plots:${format}`);
@@ -420,7 +668,9 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
       setArtifactBusy(undefined);
     }
   };
-  const running = run && ["running", "cancelling"].includes(run.state);
+  const batchRunning = batch && ["running", "cancelling"].includes(batch.state);
+  const running =
+    (run && ["running", "cancelling"].includes(run.state)) || batchRunning;
   const activeCell = project.documents.find(
     (candidate) => candidate.id === props.activeDocumentId,
   );
@@ -429,13 +679,19 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
       (instance) => instance.netlist?.binding?.kind === "subcircuit",
     ),
   );
+  const finishedBatchItems =
+    batch?.items.filter((item) =>
+      ["finished", "failed", "cancelled", "lost"].includes(item.state),
+    ).length ?? 0;
   const statusLabel = busy
     ? "Preparing…"
-    : run
-      ? `${run.state}${run.result ? ` · ${run.result.outcome.status}` : ""}`
-      : prepared
-        ? "Deck prepared"
-        : "No run yet";
+    : batch
+      ? `Batch ${batch.state} · ${finishedBatchItems}/${batch.items.length}`
+      : run
+        ? `${run.state}${run.result ? ` · ${run.result.outcome.status}` : ""}`
+        : prepared
+          ? "Deck prepared"
+          : "No run yet";
   const staleMessage =
     run?.inputStatus === "changed"
       ? "Result belongs to an earlier Project revision. Run again to use the current circuit."
@@ -605,7 +861,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
         <div className="simulation-brand">
           <strong>Simulation</strong>
           <span
-            className={`simulation-status-chip simulation-status-${run?.state ?? (prepared ? "prepared" : "idle")}`}
+            className={`simulation-status-chip simulation-status-${batch?.state ?? run?.state ?? (prepared ? "prepared" : "idle")}`}
             role="status"
           >
             {dirty ? "Setup changed" : statusLabel}
@@ -631,12 +887,40 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
               >
                 New setup
               </button>
+              {project.simulationSetups.length > 1 && capabilities?.batch ? (
+                <button
+                  type="button"
+                  className="simulation-setup-menu-batch"
+                  disabled={
+                    dirty || busy || !!running || batchSelection.length < 2
+                  }
+                  onClick={() => void executeBatch()}
+                >
+                  Run selected ({batchSelection.length})
+                </button>
+              ) : null}
               {project.simulationSetups.map((setup) => (
                 <div
                   key={setup.id}
                   className="simulation-setup-menu-row"
                   data-selected={setup.id === selectedSetup?.id}
                 >
+                  {capabilities?.batch ? (
+                    <input
+                      type="checkbox"
+                      aria-label={`Include ${setup.name} in batch`}
+                      checked={batchSelection.includes(setup.id)}
+                      disabled={dirty || busy || !!running}
+                      onChange={(event) => {
+                        const checked = event.currentTarget.checked;
+                        setBatchSelection((current) =>
+                          checked
+                            ? [...current, setup.id]
+                            : current.filter((id) => id !== setup.id),
+                        );
+                      }}
+                    />
+                  ) : null}
                   <button
                     type="button"
                     className="simulation-setup-menu-select"
@@ -716,14 +1000,21 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
           {running ? (
             <button
               className="simulation-stop-button"
-              disabled={run.state === "cancelling"}
-              onClick={() =>
-                void session
-                  .handle({ operation: "cancel", runId: run.id })
-                  .then(receive)
+              disabled={
+                batch?.state === "cancelling" || run?.state === "cancelling"
               }
+              onClick={() => {
+                if (batchRunning)
+                  void session
+                    .handle({ operation: "cancel-batch", batchId: batch.id })
+                    .then(receive);
+                else if (run)
+                  void session
+                    .handle({ operation: "cancel", runId: run.id })
+                    .then(receive);
+              }}
             >
-              Cancel run
+              {batchRunning ? "Cancel batch" : "Cancel run"}
             </button>
           ) : selectedSetup ? (
             <button
@@ -781,6 +1072,35 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
           </button>
         </div>
       </header>
+
+      {batch ? (
+        <div className="simulation-batch-strip" role="status">
+          <strong>Batch · {batch.state}</strong>
+          <div>
+            {batch.items.map((item) => {
+              const setup = project.simulationSetups.find(
+                (candidate) => candidate.id === item.setupId,
+              );
+              return (
+                <button
+                  type="button"
+                  key={item.id}
+                  data-state={item.state}
+                  disabled={!item.runId}
+                  onClick={() => props.onSelectSetupId(item.setupId)}
+                >
+                  {item.label ?? setup?.name ?? item.setupId} · {item.state}
+                </button>
+              );
+            })}
+          </div>
+          {!batchRunning ? (
+            <button type="button" onClick={() => setBatch(undefined)}>
+              Dismiss
+            </button>
+          ) : null}
+        </div>
+      ) : null}
 
       {!selectedSetup && !hasDutInstance ? (
         <p className="simulation-context-hint">
@@ -867,57 +1187,71 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
               ))}
             </div>
             {run ? (
-              <details className="simulation-result-export">
-                <summary>Export</summary>
-                <div>
-                  {resultTab === "plot" ? (
-                    <>
-                      <button
-                        type="button"
-                        disabled={artifactBusy !== undefined}
-                        onClick={() => void exportVisiblePlots("svg")}
-                      >
-                        {artifactBusy === "plots:svg"
-                          ? "Preparing SVG…"
-                          : "Visible plots · SVG"}
-                      </button>
-                      <button
-                        type="button"
-                        disabled={artifactBusy !== undefined}
-                        onClick={() => void exportVisiblePlots("png")}
-                      >
-                        {artifactBusy === "plots:png"
-                          ? "Preparing PNG…"
-                          : "Visible plots · PNG"}
-                      </button>
-                    </>
-                  ) : null}
-                  {resultCsvArtifacts.length ? (
-                    <section>
-                      <small>Complete result data</small>
-                      {resultCsvArtifacts.map((artifact) => (
+              <div className="simulation-result-actions">
+                <button
+                  type="button"
+                  disabled={
+                    artifactBusy !== undefined ||
+                    (!run.result && !run.outputData) ||
+                    !selectedSetup ||
+                    selectedSetup.id !== runPresentation?.setupId
+                  }
+                  onClick={() => void archiveCurrentRun()}
+                >
+                  {artifactBusy === "archive:save" ? "Archiving…" : "Archive"}
+                </button>
+                <details className="simulation-result-export">
+                  <summary>Export</summary>
+                  <div>
+                    {resultTab === "plot" ? (
+                      <>
                         <button
-                          key={artifact.id}
                           type="button"
                           disabled={artifactBusy !== undefined}
-                          onClick={() => void download(artifact)}
+                          onClick={() => void exportVisiblePlots("svg")}
                         >
-                          {artifact.name}
+                          {artifactBusy === "plots:svg"
+                            ? "Preparing SVG…"
+                            : "Visible plots · SVG"}
                         </button>
-                      ))}
-                    </section>
-                  ) : null}
-                  <button
-                    type="button"
-                    disabled={
-                      artifactBusy !== undefined || run.artifacts.length === 0
-                    }
-                    onClick={() => void downloadBundle("run", run.artifacts)}
-                  >
-                    Complete run · ZIP
-                  </button>
-                </div>
-              </details>
+                        <button
+                          type="button"
+                          disabled={artifactBusy !== undefined}
+                          onClick={() => void exportVisiblePlots("png")}
+                        >
+                          {artifactBusy === "plots:png"
+                            ? "Preparing PNG…"
+                            : "Visible plots · PNG"}
+                        </button>
+                      </>
+                    ) : null}
+                    {resultCsvArtifacts.length ? (
+                      <section>
+                        <small>Complete result data</small>
+                        {resultCsvArtifacts.map((artifact) => (
+                          <button
+                            key={artifact.id}
+                            type="button"
+                            disabled={artifactBusy !== undefined}
+                            onClick={() => void download(artifact)}
+                          >
+                            {artifact.name}
+                          </button>
+                        ))}
+                      </section>
+                    ) : null}
+                    <button
+                      type="button"
+                      disabled={
+                        artifactBusy !== undefined || run.artifacts.length === 0
+                      }
+                      onClick={() => void downloadBundle("run", run.artifacts)}
+                    >
+                      Complete run · ZIP
+                    </button>
+                  </div>
+                </details>
+              </div>
             ) : null}
           </header>
           <div ref={resultsBodyRef} className="simulation-results-body">
@@ -1174,6 +1508,49 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
                     )
                   }
                 />
+                {archives.length ? (
+                  <section
+                    className="simulation-archive-list"
+                    aria-label="Saved result archives"
+                  >
+                    <header>
+                      <strong>Browser archives</strong>
+                      <small>
+                        Local to this browser · {archives.length}/10
+                      </small>
+                    </header>
+                    <ul>
+                      {archives.map((archive) => (
+                        <li key={archive.id}>
+                          <span>
+                            <strong>{archive.setupName}</strong>
+                            <small>
+                              {archive.analysisLabel} ·{" "}
+                              {archive.environment.corner?.toUpperCase() ??
+                                archive.environment.profileId}{" "}
+                              · {new Date(archive.createdAt).toLocaleString()}
+                            </small>
+                          </span>
+                          <button
+                            type="button"
+                            disabled={artifactBusy !== undefined}
+                            onClick={() => void openArchivedRun(archive.id)}
+                          >
+                            Open
+                          </button>
+                          <button
+                            type="button"
+                            aria-label={`Delete archived ${archive.setupName}`}
+                            disabled={artifactBusy !== undefined}
+                            onClick={() => void deleteArchivedRun(archive.id)}
+                          >
+                            ×
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                ) : null}
               </div>
             ) : null}
 

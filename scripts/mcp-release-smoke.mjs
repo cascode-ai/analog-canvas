@@ -312,8 +312,9 @@ try {
   await first.request("initialize", { protocolVersion: "2025-03-26" });
   const listed = await first.request("tools/list");
   if (
-    listed.tools.length !== 18 ||
+    listed.tools.length !== 19 ||
     ![
+      "project_cells",
       "simulation",
       "simulation_setup",
       "simulation_output",
