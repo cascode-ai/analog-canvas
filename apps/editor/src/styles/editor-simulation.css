@@ -408,16 +408,22 @@
   .spice-simulation-surface.maximized
     .simulation-plot-view
     > .simulation-output-results {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1fr);
     align-items: start;
   }
 
   .spice-simulation-surface.maximized
     .simulation-plot-view
-    > .simulation-output-results,
+    .simulation-analysis-card-body,
   .spice-simulation-surface.maximized
-    .simulation-plot-view
-    > .simulation-empty-result,
+    .simulation-operating-point-view
+    > .simulation-output-results,
+  .spice-simulation-surface.maximized .simulation-device-operating-points > div,
+  .spice-simulation-surface.maximized .simulation-comparison-runs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+
   .spice-simulation-surface.maximized
     .simulation-plot-view
     > .simulation-output-results
@@ -426,6 +432,69 @@
     .simulation-plot-view
     > .simulation-output-results
     > .simulation-measurement-results {
+    grid-column: 1 / -1;
+  }
+
+  .spice-simulation-surface.maximized
+    .simulation-plot-view
+    .simulation-analysis-card-body
+    > :only-child,
+  .spice-simulation-surface.maximized
+    .simulation-operating-point-view
+    > .simulation-op-canvas-controls,
+  .spice-simulation-surface.maximized
+    .simulation-operating-point-view
+    > .simulation-device-operating-points {
+    grid-column: 1 / -1;
+  }
+
+  .spice-simulation-surface.maximized
+    .simulation-plot-view
+    .simulation-analysis-card-body
+    > .ac-results-explorer:only-child,
+  .spice-simulation-surface.maximized
+    .simulation-plot-view
+    .noise-results-explorer {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+
+  .spice-simulation-surface.maximized
+    .simulation-plot-view
+    .ac-results-explorer:only-child
+    > header,
+  .spice-simulation-surface.maximized
+    .simulation-plot-view
+    .ac-results-explorer:only-child
+    > .ac-quantity-group:only-of-type,
+  .spice-simulation-surface.maximized
+    .simulation-plot-view
+    .noise-results-explorer
+    > .simulation-integrated-results:only-child {
+    grid-column: 1 / -1;
+  }
+
+  .spice-simulation-surface.maximized
+    .simulation-plot-view
+    .ac-results-explorer:only-child
+    > .ac-quantity-group:only-of-type
+    .simulation-plot-stack {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .spice-simulation-surface.maximized
+    .simulation-plot-view
+    .simulation-plot-stack
+    > :only-child {
+    grid-column: 1 / -1;
+  }
+
+  .spice-simulation-surface.maximized
+    .simulation-plot-view
+    > .simulation-empty-result,
+  .spice-simulation-surface.maximized
+    .simulation-operating-point-view
+    > .simulation-empty-result {
     grid-column: 1 / -1;
   }
 
@@ -1242,7 +1311,7 @@
   align-items: center;
   justify-content: flex-end;
   gap: 6px;
-  margin-bottom: 10px;
+  margin-left: auto;
 }
 .simulation-comparison-view small,
 .simulation-comparison-hint {
@@ -1261,11 +1330,8 @@
 }
 .simulation-waveform-comparison > header {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 8px;
-}
-.simulation-waveform-comparison > header small {
-  color: var(--icm-text-muted);
 }
 .simulation-archive-list {
   margin-top: 14px;
@@ -1751,10 +1817,6 @@
   min-height: 28px;
   max-width: 180px;
 }
-.ac-plot-row > strong small {
-  color: var(--icm-text-muted);
-  font-weight: 500;
-}
 .simulation-plot-layout {
   display: grid;
   grid-template-columns: minmax(88px, 108px) minmax(0, 1fr);
@@ -1771,7 +1833,6 @@
   display: grid;
   gap: 4px;
   min-width: 0;
-  padding-top: 23px;
 }
 .waveform-trace-toggle {
   width: 100%;
@@ -1827,10 +1888,6 @@
   display: grid;
   gap: 6px;
   min-width: 0;
-}
-.ac-plot-row > strong {
-  padding-left: 2px;
-  font-size: var(--icm-font-xs);
 }
 .spice-ac-plot.interactive {
   position: relative;

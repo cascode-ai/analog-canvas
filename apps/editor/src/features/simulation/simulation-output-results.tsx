@@ -2,6 +2,7 @@ import type { SimulationFocusTarget } from "./simulation-focus-target";
 import type { ReactNode } from "react";
 import {
   simulationExpressionDependencies,
+  type SimulationExpression,
   type SimulationOutputSpec,
 } from "@icm/model";
 import type { SimulationOutputData } from "@icm/simulation-service/contract";
@@ -16,6 +17,22 @@ import { SimulationMeasurementResults } from "./simulation-measurement-results";
 import { NoiseResultsExplorer } from "./noise-results-explorer";
 
 export type SimulationAnalysisKind = "op" | "dc" | "ac" | "tran" | "noise";
+
+const AC_PRESENTATION_KINDS = new Set<SimulationExpression["kind"]>([
+  "magnitude",
+  "db20",
+  "phase",
+  "real",
+  "imaginary",
+  "absolute",
+]);
+
+function acPresentationBase(expression: SimulationExpression) {
+  let base = expression;
+  while ("operand" in base && AC_PRESENTATION_KINDS.has(base.kind))
+    base = base.operand;
+  return JSON.stringify(base);
+}
 
 function simulationAnalysisTitle(kind: SimulationAnalysisKind): string {
   switch (kind) {
@@ -118,7 +135,22 @@ export function SimulationOutputResults({
           );
         if (!analysis.domain) return null;
         const complex = analysis.outputs.filter((output) => output.imaginary);
-        const scalar = analysis.outputs.filter((output) => !output.imaginary);
+        const complexFamilies = new Set(
+          complex.flatMap((output) => {
+            const expression = authored.get(output.id)?.expression;
+            return expression ? [acPresentationBase(expression)] : [];
+          }),
+        );
+        const scalar = analysis.outputs.filter((output) => {
+          if (output.imaginary) return false;
+          if (analysis.analysis !== "ac") return true;
+          const expression = authored.get(output.id)?.expression;
+          return !(
+            expression &&
+            AC_PRESENTATION_KINDS.has(expression.kind) &&
+            complexFamilies.has(acPresentationBase(expression))
+          );
+        });
         const scalarByUnit = new Map<string, typeof scalar>();
         for (const output of scalar)
           scalarByUnit.set(output.unit, [

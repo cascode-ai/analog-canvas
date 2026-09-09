@@ -895,7 +895,12 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
   await expect(panel.locator('svg[aria-label="AC db20"]')).toBeVisible();
   await expect(panel.locator('svg[aria-label="AC phase"]')).toBeVisible();
   await expect(panel.getByLabel("Voltage reference")).toHaveValue("");
-  await expect(panel.getByText("ref 1 V", { exact: false })).toHaveCount(2);
+  await expect(panel.getByText("ref 1 V", { exact: false })).toHaveCount(0);
+  await expect(
+    panel
+      .locator('svg[aria-label="AC db20"] .ac-axis-title')
+      .filter({ hasText: "db20/dBV" }),
+  ).toBeVisible();
   await expect
     .poll(
       async () =>
@@ -1371,6 +1376,11 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
       name: "Remove E2E setup from comparison",
     }),
   ).toBeVisible();
+  await expect(
+    panel.locator(
+      ".simulation-waveform-comparison > header > .simulation-comparison-actions",
+    ),
+  ).toContainText("Keep current");
   await panel.getByRole("button", { name: "Maximize simulation" }).click();
   const previousViewport = page.viewportSize()!;
   for (const [width, height] of [
@@ -1397,6 +1407,12 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
       surfaceBox.x + surfaceBox.width / 2,
       0,
     );
+    const firstComparisonRunBox = (await comparisonRuns.nth(0).boundingBox())!;
+    const secondComparisonRunBox = (await comparisonRuns.nth(1).boundingBox())!;
+    expect(secondComparisonRunBox.y).toBeCloseTo(firstComparisonRunBox.y, 0);
+    expect(secondComparisonRunBox.x).toBeGreaterThan(
+      firstComparisonRunBox.x + firstComparisonRunBox.width,
+    );
     await panel.getByRole("tab", { name: "Plot" }).click();
     const plotCards = panel.locator(
       ".simulation-plot-view .simulation-output-results > .simulation-analysis-card",
@@ -1404,9 +1420,10 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
     await expect(plotCards).toHaveCount(3);
     const firstPlotCardBox = (await plotCards.nth(0).boundingBox())!;
     const secondPlotCardBox = (await plotCards.nth(1).boundingBox())!;
-    expect(secondPlotCardBox.y).toBeCloseTo(firstPlotCardBox.y, 0);
-    expect(secondPlotCardBox.x).toBeGreaterThan(
-      firstPlotCardBox.x + firstPlotCardBox.width,
+    expect(secondPlotCardBox.x).toBeCloseTo(firstPlotCardBox.x, 0);
+    expect(secondPlotCardBox.width).toBeCloseTo(firstPlotCardBox.width, 0);
+    expect(secondPlotCardBox.y).toBeGreaterThan(
+      firstPlotCardBox.y + firstPlotCardBox.height,
     );
     const card = panel
       .locator(".simulation-analysis-card")
@@ -1414,6 +1431,16 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
         has: page.locator(".ac-view-toolbar"),
       })
       .first();
+    await expect
+      .poll(() =>
+        card
+          .locator(".simulation-analysis-card-body")
+          .evaluate(
+            (element) =>
+              getComputedStyle(element).gridTemplateColumns.split(" ").length,
+          ),
+      )
+      .toBe(2);
     const shell = card.locator(".ac-plot-shell").first();
     await expect
       .poll(async () => (await shell.locator("svg").boundingBox())!.height)

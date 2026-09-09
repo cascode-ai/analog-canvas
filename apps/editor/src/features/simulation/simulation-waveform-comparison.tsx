@@ -1,4 +1,5 @@
 import type { SimulationOutputData } from "@icm/simulation-service/contract";
+import type { ReactNode } from "react";
 
 import {
   ComplexResultsExplorer,
@@ -159,19 +160,20 @@ export function buildComparisonWaveforms(
 
 export function SimulationWaveformComparison({
   runs,
+  actions,
 }: {
   runs: readonly SimulationComparisonRun[];
+  actions?: ReactNode;
 }) {
   const waveforms = buildComparisonWaveforms(runs);
-  if (!waveforms.scalar.length && !waveforms.complex.length) return null;
   return (
     <section
       className="simulation-waveform-comparison"
       aria-label="Waveform overlays"
     >
       <header>
-        <strong>Waveform overlays</strong>
-        <small>Only compatible analyses and units share an axis.</small>
+        <strong>Waveforms</strong>
+        {actions}
       </header>
       {waveforms.complex.map((group) => (
         <ComplexResultsExplorer

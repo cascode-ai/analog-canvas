@@ -564,20 +564,6 @@ export function ComplexResultsExplorer({
                 {visibleQuantityTraces.length ? (
                   kinds.map((kind) => (
                     <div key={kind} className="ac-plot-row">
-                      <strong>
-                        {groupLabel(quantity)} {plotKindLabel(kind)}
-                        {(kind === "db20" || mode === "bode") && (
-                          <small>
-                            {" "}
-                            · ref{" "}
-                            {referenceId
-                              ? quantityTraces.find(
-                                  (trace) => trace.id === referenceId,
-                                )?.label
-                              : unityReferenceLabel(sourceUnit)}
-                          </small>
-                        )}
-                      </strong>
                       {renderPlot(
                         { quantity, kind, referenced: referenceActive },
                         visibleQuantityTraces,
