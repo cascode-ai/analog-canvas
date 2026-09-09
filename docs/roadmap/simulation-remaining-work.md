@@ -17,12 +17,18 @@ This plan retains the integration and acceptance obligations that are not
 closed merely by those modules existing. It does not assert that a remote
 issue is open or closed; the candidate's evidence decides completion.
 
-## 1. Cross-Project reuse and Project operations
+## 1. Cross-Project reuse acceptance closure
 
-Reuse must import a local, independent Cell closure, not a live reference to a
-different Project. It includes called Cells, formal interfaces and pin order,
-presentation, netlist bindings, source/provenance, and required symbol locks.
-The source stays unchanged and later edits do not synchronize the copies.
+Cross-Project reuse is implemented through the Editor's **Import Cell** flow
+and the Agent's `project_cells` resource. Both call the same atomic planner and
+import a local, independent Cell closure rather than creating a live reference
+to another Project. The closure includes called Cells, formal interfaces and
+pin order, presentation, netlist bindings, source/provenance, and required
+symbol locks. The source stays unchanged and later edits do not synchronize the
+copies.
+
+The remaining work is integrated acceptance of that implementation, not a new
+Project store, library protocol, or second import path.
 
 Acceptance:
 
@@ -40,11 +46,12 @@ Acceptance:
   consistency. Reject hierarchy cycles; do not conflate two reused occurrences.
 - Save/reload and undo/redo the operations through existing Project transactions.
 
-Project roster/read/create/save/rename/delete and Cell retrieval for an Agent,
-where still required, must wrap existing authorized storage and shared services.
-Do not build another Cloud Project store, broad file API, or Library/Cell/View
-platform. Capability absence must be explicit; simulation execution authority
-does not implicitly authorize Project management.
+Project roster and Cell retrieval already wrap the authorized Cloud Project
+service. Any later create/save/rename/delete exposure must continue to wrap
+existing shared services. Do not build another Cloud Project store, broad file
+API, or Library/Cell/View platform. Capability absence must be explicit;
+simulation execution authority does not implicitly authorize Project
+management.
 
 ## 2. One-candidate vertical acceptance
 

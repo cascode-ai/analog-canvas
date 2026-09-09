@@ -150,9 +150,12 @@ are transient, not saved inside the Project.
 
 ## Current boundary
 
-The current UI supports local DUT/Testbench reuse and named saved setups.
-The [simulation roadmap](../roadmap/simulation-remaining-work.md) identifies
-the remaining cross-Project and integrated acceptance boundaries.
+The current UI supports local DUT/Testbench reuse, named saved setups, and
+independent Cell-closure imports from authorized Cloud Projects. The GUI uses
+**Import Cell**; Agents use `project_cells`; both call the same import planner.
+The [simulation roadmap](../roadmap/simulation-remaining-work.md) retains the
+integrated cross-Project acceptance boundary rather than treating that
+implemented flow as future functionality.
 Persistent Project result archives and overlaid multi-run waveforms are not
 provided by the session comparison view. Raw/Agent workflows retain their
 advertised capabilities.
