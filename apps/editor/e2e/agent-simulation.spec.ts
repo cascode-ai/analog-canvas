@@ -671,6 +671,25 @@ test("a saved Run Plan prepares without executing and Run starts its ordinary ba
     .getByRole("button", { name: "Analog simulation", exact: true })
     .click();
   const panel = page.getByRole("region", { name: "Analog simulation" });
+  const runPlan = panel.getByLabel("Run Plan settings");
+  await runPlan.locator(":scope > summary").click();
+  await runPlan
+    .getByRole("button", { name: "Temperature", exact: true })
+    .click();
+  const temperatures = runPlan.getByLabel("Run Plan temperatures");
+  await expect(temperatures).toHaveValue("-40, 27, 125");
+  await temperatures.press("Control+A");
+  await temperatures.press("Backspace");
+  await expect(temperatures).toHaveValue("");
+  await temperatures.type("-20, nope");
+  await temperatures.press("Enter");
+  await expect(temperatures).toHaveValue("-20, nope");
+  await expect(runPlan.getByRole("alert")).toContainText("finite number");
+  await temperatures.press("Control+A");
+  await temperatures.type("-20, 0, 25.5");
+  await temperatures.press("Enter");
+  await expect(temperatures).toHaveValue("-20, 0, 25.5");
+  await panel.getByRole("button", { name: "Apply setup" }).click();
   await panel.getByRole("button", { name: "Prepare deck" }).click();
   await panel.getByTitle("Batch queue", { exact: true }).click();
   await expect(panel.locator(".simulation-batch-menu-popover")).toContainText(
@@ -682,7 +701,7 @@ test("a saved Run Plan prepares without executing and Run starts its ordinary ba
   await expect(panel.locator(".simulation-batch-menu-popover")).toContainText(
     "Batch · finished",
   );
-  expect(executions).toBe(2);
+  expect(executions).toBe(6);
 });
 
 test("human simulation uses saved setup, survives minimizing, recovers a bad input and exports results", async ({

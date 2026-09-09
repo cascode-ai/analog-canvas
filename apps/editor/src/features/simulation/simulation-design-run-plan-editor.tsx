@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type {
   CircuitProject,
   SimulationDesignVariable,
@@ -49,11 +49,106 @@ export function simulationRunPlanPointCount(plan: SimulationRunPlan): number {
     : plan.axes.reduce((count, axis) => count * axis.values.length, 1);
 }
 
-function commaStrings(value: string): readonly string[] {
-  return value
-    .split(",")
-    .map((part) => part.trim())
-    .filter(Boolean);
+type DraftValuesResult<T extends string | number> =
+  | { readonly ok: true; readonly values: readonly T[] }
+  | { readonly ok: false; readonly message: string };
+
+function parseTextValues(value: string): DraftValuesResult<string> {
+  const values = value.split(",").map((part) => part.trim());
+  if (!value.trim() || values.some((part) => !part))
+    return {
+      ok: false,
+      message: "Enter one or more comma-separated values.",
+    };
+  return { ok: true, values };
+}
+
+function parseTemperatureValues(value: string): DraftValuesResult<number> {
+  const parsed = parseTextValues(value);
+  if (!parsed.ok)
+    return {
+      ok: false,
+      message: "Enter one or more comma-separated temperatures.",
+    };
+  const values = parsed.values.map(Number);
+  if (values.some((candidate) => !Number.isFinite(candidate)))
+    return {
+      ok: false,
+      message: "Every temperature must be a finite number in °C.",
+    };
+  return { ok: true, values };
+}
+
+function DraftValuesInput<T extends string | number>({
+  label,
+  values,
+  parse,
+  onCommit,
+}: {
+  readonly label: string;
+  readonly values: readonly T[];
+  readonly parse: (value: string) => DraftValuesResult<T>;
+  readonly onCommit: (values: readonly T[]) => void;
+}) {
+  const canonical = values.join(", ");
+  const [draft, setDraft] = useState(canonical);
+  const [problem, setProblem] = useState<string | null>(null);
+  const input = useRef<HTMLInputElement>(null);
+  const problemId = useId();
+
+  useEffect(() => {
+    setDraft(canonical);
+    setProblem(null);
+    input.current?.setCustomValidity("");
+  }, [canonical]);
+
+  const commit = () => {
+    const result = parse(draft);
+    if (!result.ok) {
+      setProblem(result.message);
+      input.current?.setCustomValidity(result.message);
+      return;
+    }
+    setProblem(null);
+    input.current?.setCustomValidity("");
+    setDraft(result.values.join(", "));
+    onCommit(result.values);
+  };
+
+  return (
+    <span className="simulation-run-plan-draft-values">
+      <input
+        ref={input}
+        aria-label={label}
+        aria-invalid={problem ? true : undefined}
+        aria-describedby={problem ? problemId : undefined}
+        value={draft}
+        onChange={(event) => {
+          setDraft(event.currentTarget.value);
+          setProblem(null);
+          event.currentTarget.setCustomValidity("");
+        }}
+        onBlur={commit}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            event.currentTarget.blur();
+          } else if (event.key === "Escape") {
+            event.preventDefault();
+            setDraft(canonical);
+            setProblem(null);
+            event.currentTarget.setCustomValidity("");
+            event.currentTarget.blur();
+          }
+        }}
+      />
+      {problem ? (
+        <small id={problemId} role="alert">
+          {problem}
+        </small>
+      ) : null}
+    </span>
+  );
 }
 
 function nextVariableName(variables: readonly SimulationDesignVariable[]) {
@@ -352,16 +447,13 @@ export function RunPlanEditor({
                   ))}
                 </span>
               ) : axis.kind === "temperature" ? (
-                <input
-                  aria-label="Run Plan temperatures"
-                  value={axis.values.join(", ")}
-                  onChange={(event) => {
-                    const values = commaStrings(event.currentTarget.value).map(
-                      Number,
-                    );
-                    if (values.length && values.every(Number.isFinite))
-                      replaceAxis(index, { ...axis, values });
-                  }}
+                <DraftValuesInput
+                  label="Run Plan temperatures"
+                  values={axis.values}
+                  parse={parseTemperatureValues}
+                  onCommit={(values) =>
+                    replaceAxis(index, { ...axis, values: [...values] })
+                  }
                 />
               ) : axis.kind === "variable" ? (
                 <span className="simulation-run-plan-target-values">
@@ -381,14 +473,13 @@ export function RunPlanEditor({
                       </option>
                     ))}
                   </select>
-                  <input
-                    aria-label="Run Plan Design Variable values"
-                    value={axis.values.join(", ")}
-                    onChange={(event) => {
-                      const values = commaStrings(event.currentTarget.value);
-                      if (values.length)
-                        replaceAxis(index, { ...axis, values: [...values] });
-                    }}
+                  <DraftValuesInput
+                    label="Run Plan Design Variable values"
+                    values={axis.values}
+                    parse={parseTextValues}
+                    onCommit={(values) =>
+                      replaceAxis(index, { ...axis, values: [...values] })
+                    }
                   />
                 </span>
               ) : (
@@ -415,14 +506,13 @@ export function RunPlanEditor({
                       </option>
                     ))}
                   </select>
-                  <input
-                    aria-label="Run Plan Instance parameter values"
-                    value={axis.values.join(", ")}
-                    onChange={(event) => {
-                      const values = commaStrings(event.currentTarget.value);
-                      if (values.length)
-                        replaceAxis(index, { ...axis, values: [...values] });
-                    }}
+                  <DraftValuesInput
+                    label="Run Plan Instance parameter values"
+                    values={axis.values}
+                    parse={parseTextValues}
+                    onCommit={(values) =>
+                      replaceAxis(index, { ...axis, values: [...values] })
+                    }
                   />
                 </span>
               )}
