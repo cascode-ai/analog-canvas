@@ -235,6 +235,8 @@ describe("SpiceSimulationSurface workspace", () => {
     expect(markup).toContain("R1 · resistance");
     expect(markup).toContain("2 points");
     expect(markup).toContain("Design Variable");
+    expect(markup).toContain(">Instance parameter</button>");
+    expect(markup).not.toContain("<summary>Advanced</summary>");
   });
 
   it("keeps a saved raw setup distinct from the structured editor", () => {
