@@ -15,23 +15,26 @@ existing Net membership. Prefer mappings in this order:
 3. primitive mapping supported by the parsed model type;
 4. unresolved generic symbol.
 
-Only the seven released exact SKY130 masters are mapped: the core and LVT
+Eight exact SKY130 interfaces are mapped structurally: the core and LVT
 1.8 V NFET/PFET pairs, `res_high_po`, `cap_mim_m3_1`, and the fixed
-`pnp_05v5_W0p68L0p68`. Both exact master name and ordered public interface must
-match. No SKY130 family regular expression is an electrical authority.
+`pnp_05v5_W0p68L0p68` and `npn_05v5_W1p00L1p00`. Both exact master name and
+ordered public interface must match. No SKY130 family regular expression is an
+electrical authority.
 
 The mapped instance keeps its external binding while borrowing native artwork.
 Its authored reference remains in the native M/R/C/Q domain; SPICE derives the
 X card. MOS exposes D/G/S/B electrically, resistor R0/R1 map to frozen pins
-1/2 and B is property-only, MIM C0/C1 map to frozen pins 1/2, and the fixed PNP
-maps C/B/E directly to the existing PNP symbol. An explicit external block
-presentation overrides automatic artwork choice.
+1/2 and B is property-only, and MIM C0/C1 map to frozen pins 1/2. The exact PNP
+and NPN interfaces map C/B/E to their existing visible symbols and expose S
+only as a Substrate Net property. Their ordinary model-bound Q cards remain
+three-node. An explicit external block presentation overrides automatic
+artwork choice.
 
-The hosted Profile qualifies those same seven exact names. The continuous
-library does not expose `sky130_fd_pr__diode_pw2nd_05v5`, while the available
-four-terminal `sky130_fd_pr__npn_05v5_W1p00L1p00` makes ngspice 46 discard
-model parameters. Neither is advertised as qualified merely because a generic
-Diode or NPN symbol can print a model-bearing SPICE card.
+The hosted Profile qualifies seven of those interfaces and excludes the exact
+NPN. The continuous library does not expose
+`sky130_fd_pr__diode_pw2nd_05v5`, while the available four-terminal NPN makes
+ngspice 46 discard model parameters. Structural mapping is therefore not a
+qualification claim.
 
 ## Safe symbol replacement
 

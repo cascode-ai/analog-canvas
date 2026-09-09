@@ -5377,7 +5377,7 @@ export function App({
                         ? {
                             label:
                               selectedPropertyOnlyTerminal.role === "substrate"
-                                ? "Body/Substrate Net"
+                                ? "Substrate Net"
                                 : `${selectedPropertyOnlyTerminal.targetName} Net`,
                             pinName: selectedPropertyOnlyTerminal.pinName,
                             netId: selectedPropertyOnlyTerminalNet?.id ?? null,

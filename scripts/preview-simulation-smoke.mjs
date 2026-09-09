@@ -235,7 +235,7 @@ export function hostedSky130ExtendedDeviceRequest(corner) {
       "XMPL dpl gpl spl spl sky130_fd_pr__pfet_01v8_lvt L=0.5 W=3 nf=2",
       "XR1 rin rout 0 sky130_fd_pr__res_high_po w=1 l=5.5 mult=1",
       "XC1 capout 0 sky130_fd_pr__cap_mim_m3_1 w=5 l=5 mf=1",
-      "XQP pc pb pe sky130_fd_pr__pnp_05v5_W0p68L0p68",
+      "XQP pc pb pe 0 sky130_fd_pr__pnp_05v5_W0p68L0p68",
       ".ends extended_models",
     ].join("\n"),
     testbench: [

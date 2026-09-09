@@ -100,7 +100,7 @@ downgraded to an observed hosted run. Local deployment is an optional adapter,
 not an implicit fallback to a program found on the user's machine.
 
 The qualified scope is deliberately exact and factual: core and LVT 1.8 V
-NFET/PFET wrappers, `res_high_po`, `cap_mim_m3_1`, and the fixed
+NFET/PFET wrappers, `res_high_po`, `cap_mim_m3_1`, and the fixed four-terminal
 `pnp_05v5_W0p68L0p68` wrapper, over the Profile's qualified sections
 (`tt/ff/ss/fs/sf`). OP/DC/AC/TRAN/Noise remain covered by the hosted core-model
 acceptance fixture; a second OP/AC fixture verifies every added device at every

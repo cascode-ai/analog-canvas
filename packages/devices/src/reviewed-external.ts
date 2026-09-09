@@ -7,7 +7,8 @@ export type ReviewedExternalBindingId =
   | "sky130-pfet-01v8-lvt"
   | "sky130-res-high-po"
   | "sky130-cap-mim-m3-1"
-  | "sky130-pnp-05v5-w0p68l0p68";
+  | "sky130-pnp-05v5-w0p68l0p68"
+  | "sky130-npn-05v5-w1p00l1p00";
 
 export interface ReviewedExternalTerminalBinding {
   /** Public target terminal spelling and order from the external wrapper. */
@@ -30,7 +31,7 @@ export interface ReviewedExternalDeviceBinding {
   readonly libraryId: "sky130_fd_pr";
   readonly masterName: string;
   readonly invocationKind: "external-subcircuit";
-  readonly symbolId: "nmos" | "pmos" | "resistor" | "capacitor" | "pnp";
+  readonly symbolId: "nmos" | "pmos" | "resistor" | "capacitor" | "npn" | "pnp";
   readonly deviceClass: "mos" | "resistor" | "capacitor" | "bjt";
   readonly terminals: readonly ReviewedExternalTerminalBinding[];
   readonly parameters: readonly ReviewedExternalParameterBinding[];
@@ -74,6 +75,20 @@ const count = (
   targetDefaultValue: "1",
   spiceOrder,
 });
+
+const bjtTerminals = (): readonly ReviewedExternalTerminalBinding[] => [
+  ...["C", "B", "E"].map((name) => ({
+    targetName: name,
+    pinName: name,
+    interaction: "canvas" as const,
+  })),
+  {
+    targetName: "S",
+    pinName: "S",
+    interaction: "property",
+    role: "substrate",
+  },
+];
 
 export const reviewedExternalDeviceBindings: readonly ReviewedExternalDeviceBinding[] =
   [
@@ -200,11 +215,17 @@ export const reviewedExternalDeviceBindings: readonly ReviewedExternalDeviceBind
       invocationKind: "external-subcircuit",
       symbolId: "pnp",
       deviceClass: "bjt",
-      terminals: ["C", "B", "E"].map((name) => ({
-        targetName: name,
-        pinName: name,
-        interaction: "canvas" as const,
-      })),
+      terminals: bjtTerminals(),
+      parameters: [],
+    },
+    {
+      id: "sky130-npn-05v5-w1p00l1p00",
+      libraryId: "sky130_fd_pr",
+      masterName: "sky130_fd_pr__npn_05v5_W1p00L1p00",
+      invocationKind: "external-subcircuit",
+      symbolId: "npn",
+      deviceClass: "bjt",
+      terminals: bjtTerminals(),
       parameters: [],
     },
   ];

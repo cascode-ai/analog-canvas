@@ -1243,8 +1243,17 @@ describe("voltage-controlled switch", () => {
         name: "sky130_fd_pr__pnp_05v5_W0p68L0p68",
         symbolId: "pnp",
         reference: "XQ1",
-        terminalNames: ["C", "B", "E"],
-        pinNames: ["C", "B", "E"],
+        terminalNames: ["C", "B", "E", "S"],
+        pinNames: ["C", "B", "E", "S"],
+        parameters: {},
+      },
+      {
+        id: "sky-npn",
+        name: "sky130_fd_pr__npn_05v5_W1p00L1p00",
+        symbolId: "npn",
+        reference: "XQ2",
+        terminalNames: ["C", "B", "E", "S"],
+        pinNames: ["C", "B", "E", "S"],
         parameters: {},
       },
     ] as const;
@@ -1293,10 +1302,13 @@ describe("voltage-controlled switch", () => {
       "XC1 XC1_0 XC1_1 sky130_fd_pr__cap_mim_m3_1 w=5 l=5 mf=4",
     );
     expect(text).toContain(
-      "XQ1 XQ1_0 XQ1_1 XQ1_2 sky130_fd_pr__pnp_05v5_W0p68L0p68",
+      "XQ1 XQ1_0 XQ1_1 XQ1_2 XQ1_3 sky130_fd_pr__pnp_05v5_W0p68L0p68",
+    );
+    expect(text).toContain(
+      "XQ2 XQ2_0 XQ2_1 XQ2_2 XQ2_3 sky130_fd_pr__npn_05v5_W1p00L1p00",
     );
     expect(
       analysis.ir?.cells[0]?.instances.map((instance) => instance.reference),
-    ).toEqual(["XC1", "XM1", "XQ1", "XR1"]);
+    ).toEqual(["XC1", "XM1", "XQ1", "XQ2", "XR1"]);
   });
 });
