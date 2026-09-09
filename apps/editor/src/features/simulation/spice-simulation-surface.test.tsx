@@ -59,7 +59,7 @@ describe("SpiceSimulationSurface workspace", () => {
     expect(markup).toContain('<input type="hidden" name="profileId"');
     expect(markup).not.toContain("<datalist");
     expect(markup).toContain("sky130-core-continuous-ngspice46-v1");
-    expect(markup).toContain("SKY130 1.8 V · ngspice 46");
+    expect(markup).toContain("SKY130 qualified devices · ngspice 46");
     expect(markup).toContain("Process corner");
     for (const corner of ["TT", "FF", "SS", "FS", "SF"])
       expect(markup).toContain(`>${corner}</option>`);

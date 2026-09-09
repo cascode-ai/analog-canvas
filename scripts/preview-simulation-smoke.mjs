@@ -30,15 +30,48 @@ const qualification = JSON.parse(
     "utf8",
   ),
 );
+const extendedQualification = JSON.parse(
+  readFileSync(
+    new URL(
+      "../fixtures/simulation-acceptance/hosted-sky130-extended-devices-v1.json",
+      import.meta.url,
+    ),
+    "utf8",
+  ),
+);
 if (qualification.profileId !== profile.id) {
   throw new Error(
     `Qualification ${qualification.fixtureId} targets ${String(qualification.profileId)}, not Profile ${profile.id}.`,
+  );
+}
+if (extendedQualification.profileId !== profile.id) {
+  throw new Error(
+    `Qualification ${extendedQualification.fixtureId} targets ${String(extendedQualification.profileId)}, not Profile ${profile.id}.`,
+  );
+}
+const evidencedDevices = new Set([
+  ...(qualification.devices ?? []),
+  ...(extendedQualification.devices ?? []),
+]);
+if (
+  evidencedDevices.size !== profile.qualifiedScope.devices.length ||
+  profile.qualifiedScope.devices.some((device) => !evidencedDevices.has(device))
+) {
+  throw new Error(
+    `Profile ${profile.id} device scope is not fully backed by tracked qualification fixtures.`,
   );
 }
 for (const analysis of qualification.analyses) {
   if (!profile.qualifiedScope.analyses.includes(analysis)) {
     throw new Error(
       `Qualification ${qualification.fixtureId} uses undeclared analysis ${String(analysis)}.`,
+    );
+  }
+}
+for (const analysis of extendedQualification.analyses) {
+  if (!profile.qualifiedScope.analyses.includes(analysis)) {
+    throw new Error(
+      `Qualification ${extendedQualification.fixtureId} uses undeclared analysis ${String(analysis)}.`,
     );
   }
 }
@@ -62,6 +95,24 @@ if (
 ) {
   throw new Error(
     `Qualification ${qualification.fixtureId} does not cover every declared Profile corner.`,
+  );
+}
+const extendedQualificationCorners = Object.keys(
+  extendedQualification.expectedCorners ?? {},
+);
+if (
+  extendedQualification.modelLibrary?.directive !==
+    profile.models.library.directive ||
+  extendedQualificationCorners.length === 0 ||
+  extendedQualificationCorners.some(
+    (corner) => !profile.qualifiedScope.sections.includes(corner),
+  ) ||
+  profile.qualifiedScope.sections.some(
+    (corner) => !extendedQualificationCorners.includes(corner),
+  )
+) {
+  throw new Error(
+    `Qualification ${extendedQualification.fixtureId} does not cover the Profile model selection.`,
   );
 }
 
@@ -172,6 +223,48 @@ export function hostedSky130CornerRequest(corner) {
     ].join("\n"),
     timeoutMs: 110_000,
     inputRevision: `preview-sky130-corner-${corner}`,
+    environment: { profileId: profile.id, corner },
+  };
+}
+
+export function hostedSky130ExtendedDeviceRequest(corner) {
+  return {
+    netlist: [
+      ".subckt extended_models gnl dnl gpl spl dpl rin rout capin capout pc pb pe",
+      "XMNL dnl gnl 0 0 sky130_fd_pr__nfet_01v8_lvt L=0.5 W=3 nf=2",
+      "XMPL dpl gpl spl spl sky130_fd_pr__pfet_01v8_lvt L=0.5 W=3 nf=2",
+      "XR1 rin rout 0 sky130_fd_pr__res_high_po w=1 l=5.5 mult=1",
+      "XC1 capout 0 sky130_fd_pr__cap_mim_m3_1 w=5 l=5 mf=1",
+      "XQP pc pb pe sky130_fd_pr__pnp_05v5_W0p68L0p68",
+      ".ends extended_models",
+    ].join("\n"),
+    testbench: [
+      "* Extended device qualification",
+      "VGNL gnl 0 0.9",
+      "VDNL dnl 0 1.8",
+      "VGPL gpl 0 0.9",
+      "VSPL spl 0 1.8",
+      "VDPL dpl 0 0",
+      "VRIN rin 0 1",
+      "RLOAD rout 0 1k",
+      "VAC capin 0 DC 0 AC 1",
+      "RCAP capin capout 1g",
+      "VPE pe 0 1.8",
+      "VPB pb 0 1.1",
+      "VPC pc 0 0",
+      "XDUT gnl dnl gpl spl dpl rin rout capin capout pc pb pe extended_models",
+      ".control",
+      "set filetype=ascii",
+      "op",
+      "write out.raw i(vdnl) i(vspl) v(rout) i(vrin) i(vpe) i(vpc)",
+      "set appendwrite",
+      "ac lin 1 1g 1g",
+      "write out.raw v(capout)",
+      ".endc",
+      ".end",
+    ].join("\n"),
+    timeoutMs: 110_000,
+    inputRevision: `preview-sky130-extended-${corner}`,
     environment: { profileId: profile.id, corner },
   };
 }
@@ -1119,6 +1212,125 @@ export async function runHostedSky130CornerAcceptance({
   return validateHostedSky130CornerResult(payload, target, corner);
 }
 
+export function validateHostedSky130ExtendedDeviceResult(
+  payload,
+  expectedTarget,
+  corner,
+) {
+  const expected = extendedQualification.expectedCorners?.[corner];
+  if (!expected)
+    throw new Error(`No extended-device evidence exists for ${corner}.`);
+  const result = object(payload, "simulation response");
+  if (object(result.execution, "execution metadata").target !== expectedTarget)
+    throw new Error(
+      `${expectedTarget} did not execute extended devices at ${corner}.`,
+    );
+  if (object(result.outcome, "simulation outcome").status !== "completed")
+    throw new Error(
+      `${expectedTarget} did not complete extended devices at ${corner}.`,
+    );
+  const metadata = object(result.metadata, "run metadata");
+  const modelLibrary = object(
+    object(metadata.configuration, "configuration metadata").modelLibrary,
+    "model selection",
+  );
+  if (
+    modelLibrary.directive !== profile.models.library.directive ||
+    modelLibrary.section !== corner
+  )
+    throw new Error(
+      `${expectedTarget} loaded ${String(modelLibrary.section)}, expected corner ${corner}.`,
+    );
+  const environment = object(metadata.environment, "environment metadata");
+  validatePinnedEnvironment(environment, expectedTarget);
+  if (
+    environment.fingerprint !==
+    extendedQualification.evidence.environmentFingerprint
+  )
+    throw new Error(
+      `${expectedTarget} extended-device evidence came from a different environment.`,
+    );
+  const data = object(result.data, "parsed result data");
+  const analyses = Array.isArray(data.analyses) ? data.analyses : [];
+  const operatingPoint = analyses.find(
+    (analysis) => analysis?.analysis === "op",
+  );
+  const ac = analyses.find((analysis) => analysis?.analysis === "ac");
+  if (!Array.isArray(operatingPoint?.probes) || !Array.isArray(ac?.probes))
+    throw new Error(
+      `${expectedTarget} returned incomplete extended-device analyses for ${corner}.`,
+    );
+  const scalar = (name) => {
+    const probe = operatingPoint.probes.find(
+      (candidate) => candidate?.name === name,
+    );
+    if (typeof probe?.value !== "number")
+      throw new Error(`${expectedTarget} returned no ${name} for ${corner}.`);
+    return probe.value;
+  };
+  const cap = ac.probes.find((candidate) => candidate?.name === "v(capout)");
+  if (
+    !Array.isArray(cap?.real) ||
+    !Array.isArray(cap?.imag) ||
+    typeof cap.real[0] !== "number" ||
+    typeof cap.imag[0] !== "number"
+  )
+    throw new Error(
+      `${expectedTarget} returned no MIM AC response for ${corner}.`,
+    );
+  const actual = {
+    lvtNfetCurrentA: scalar("i(vdnl)"),
+    lvtPfetSourceCurrentA: scalar("i(vspl)"),
+    resistorOutputV: scalar("v(rout)"),
+    resistorSupplyCurrentA: scalar("i(vrin)"),
+    pnpEmitterCurrentA: scalar("i(vpe)"),
+    pnpCollectorCurrentA: scalar("i(vpc)"),
+    mimOutputReal: cap.real[0],
+    mimOutputImag: cap.imag[0],
+  };
+  const tolerances = extendedQualification.tolerances;
+  const checks = [
+    ["lvtNfetCurrentA", tolerances.mosCurrentA],
+    ["lvtPfetSourceCurrentA", tolerances.mosCurrentA],
+    ["resistorOutputV", tolerances.resistorVoltageV],
+    ["resistorSupplyCurrentA", tolerances.resistorCurrentA],
+    ["pnpEmitterCurrentA", tolerances.pnpCurrentA],
+    ["pnpCollectorCurrentA", tolerances.pnpCurrentA],
+    ["mimOutputReal", tolerances.mimComplex],
+    ["mimOutputImag", tolerances.mimComplex],
+  ];
+  for (const [name, tolerance] of checks) {
+    if (Math.abs(actual[name] - expected[name]) > tolerance)
+      throw new Error(
+        `${expectedTarget} solved ${name} at ${corner} as ${actual[name]}, expected ${expected[name]} ± ${tolerance}.`,
+      );
+  }
+  return { corner, ...actual };
+}
+
+export async function runHostedSky130ExtendedDeviceAcceptance({
+  baseUrl,
+  target,
+  corner,
+  fetchImpl = fetch,
+}) {
+  const response = await fetchImpl(new URL("/api/simulate", baseUrl), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      ...hostedSky130ExtendedDeviceRequest(corner),
+      executorTarget: target,
+    }),
+    signal: AbortSignal.timeout(120_000),
+  });
+  const payload = await response.json();
+  if (!response.ok)
+    throw new Error(
+      `[infrastructure:http-${response.status}] ${target} ${corner} extended-device qualification failed.`,
+    );
+  return validateHostedSky130ExtendedDeviceResult(payload, target, corner);
+}
+
 export async function runHostedSky130TransientAcceptance({
   baseUrl,
   target,
@@ -1365,6 +1577,14 @@ async function main() {
       console.log(
         `${target}: SKY130 ${result.corner.toUpperCase()} corner passed ` +
           `(NFET=${result.nfetCurrentA}, PFET=${result.pfetSourceCurrentA})`,
+      );
+      const extended = await runHostedSky130ExtendedDeviceAcceptance({
+        baseUrl,
+        target,
+        corner,
+      });
+      console.log(
+        `${target}: SKY130 ${extended.corner.toUpperCase()} extended devices passed`,
       );
     }
   }

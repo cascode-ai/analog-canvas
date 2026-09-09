@@ -81,6 +81,7 @@ describe("simulation route", () => {
           id: hostedSky130Profile.id,
           label: hostedSky130Profile.displayName,
           corners: hostedSky130Profile.qualifiedScope.sections,
+          devices: hostedSky130Profile.qualifiedScope.devices,
           dependencies: [
             {
               id: hostedSky130Profile.models.id,
