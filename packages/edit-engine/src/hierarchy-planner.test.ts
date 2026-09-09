@@ -663,6 +663,7 @@ describe("reviewed external MOS model targets", () => {
 
   it("switches the ordinary PNP between a primitive model and its exact SKY130 wrapper", () => {
     const project = createEmptyProject("project", "Project");
+    project.documents[0]!.nets.push({ id: "net-substrate", terminals: [] });
     project.documents[0]!.instances.push({
       id: "Q1",
       symbolId: "pnp",
@@ -697,17 +698,44 @@ describe("reviewed external MOS model targets", () => {
     });
     expect(external.project.externalSubcircuitDefinitions[0]).toMatchObject({
       name: "sky130_fd_pr__pnp_05v5_W0p68L0p68",
-      terminals: [{ name: "C" }, { name: "B" }, { name: "E" }],
+      terminals: [{ name: "C" }, { name: "B" }, { name: "E" }, { name: "S" }],
     });
 
-    const ordinary = executeProjectTransaction(external.project, {
-      transactionId: "set-generic-pnp",
+    const withSubstrate = executeProjectTransaction(external.project, {
+      transactionId: "set-sky130-pnp-substrate",
       projectId: external.project.id,
       expectedStructureRevision: external.project.structureRevision,
       actor: { kind: "human", id: "test" },
+      edits: [
+        {
+          kind: "transact_document",
+          documentId: external.project.topDocumentId,
+          expectedRevision: external.project.documents[0]!.revision,
+          edits: [
+            {
+              kind: "set_property_terminal_net",
+              instanceId: "Q1",
+              pinName: "S",
+              netId: "net-substrate",
+            },
+          ],
+        },
+      ],
+    });
+    expect(withSubstrate.ok).toBe(true);
+    if (!withSubstrate.ok) return;
+    expect(withSubstrate.project.documents[0]!.nets[0]!.terminals).toEqual([
+      { instanceId: "Q1", pinName: "S" },
+    ]);
+
+    const ordinary = executeProjectTransaction(withSubstrate.project, {
+      transactionId: "set-generic-pnp",
+      projectId: withSubstrate.project.id,
+      expectedStructureRevision: withSubstrate.project.structureRevision,
+      actor: { kind: "human", id: "test" },
       edits: planSetDeviceModelTarget(
-        external.project,
-        external.project.topDocumentId,
+        withSubstrate.project,
+        withSubstrate.project.topDocumentId,
         "Q1",
         "generic_pnp",
       ),
@@ -722,6 +750,9 @@ describe("reviewed external MOS model targets", () => {
         parameters: {},
       },
     });
+    expect(
+      ordinary.project.documents[0]!.nets.flatMap((net) => net.terminals),
+    ).not.toContainEqual({ instanceId: "Q1", pinName: "S" });
   });
 
   it("refuses a Model transition when its canonical X reference is occupied", () => {

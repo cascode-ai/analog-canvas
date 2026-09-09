@@ -23,16 +23,19 @@ into `nf`.
 The same Model field on the ordinary resistor and capacitor offers
 `sky130_fd_pr__res_high_po` and `sky130_fd_pr__cap_mim_m3_1`. Their existing
 icons and visible pins do not change. The resistor's real B substrate terminal
-is selected from existing Nets through `Body/Substrate Net` in Properties and
+is selected from existing Nets through `Substrate Net` in Properties and
 has no canvas pin or wire. Physical R/C geometry is `w/l/mult` or `w/l/mf`;
 the editor never derives it from an ideal scalar value.
 
 The ordinary PNP symbol similarly offers the exact fixed
-`sky130_fd_pr__pnp_05v5_W0p68L0p68` wrapper. It keeps the visible C/B/E pins
-and prints an external X call; arbitrary model names continue to use the
-ordinary three-terminal Q card. The generic Diode and NPN symbols remain
-model-bearing structural devices, but this hosted environment does not claim
-a qualified SKY130 diode or NPN target.
+`sky130_fd_pr__pnp_05v5_W0p68L0p68` wrapper. It keeps the visible C/B/E pins,
+adds its real S terminal as a `Substrate Net` property, and prints a four-node
+external X call. The exact `sky130_fd_pr__npn_05v5_W1p00L1p00` interface has
+the same model-bound four-terminal behavior, but is structural only in the
+hosted Profile. Clearing Model, or choosing an ordinary model name, restores
+the ordinary three-node Q card and removes the model-only substrate membership.
+The generic Diode remains model-bearing structural only; this hosted
+environment does not claim a qualified SKY130 diode or NPN target.
 
 This convenience is structural only. It does not install SKY130, resolve a
 local `.include`, supply foundry models or corners, or make the exported

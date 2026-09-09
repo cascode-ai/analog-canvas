@@ -318,6 +318,40 @@ function matchingReviewedExternalDefinition(
   return { definition, binding };
 }
 
+function removedPropertyTerminalEdits(
+  document: SchematicDocument,
+  instanceId: string,
+  currentBinding: ReturnType<typeof matchingReviewedExternalDefinition>,
+  nextBinding?: ReturnType<typeof reviewedExternalBindingForMaster>,
+): DocumentEdits {
+  if (!currentBinding) return [];
+  const retainedPins = new Set(
+    nextBinding?.terminals
+      .filter((terminal) => terminal.interaction === "property")
+      .map((terminal) => terminal.pinName.toLowerCase()) ?? [],
+  );
+  return currentBinding.binding.terminals.flatMap((terminal) =>
+    terminal.interaction === "property" &&
+    !retainedPins.has(terminal.pinName.toLowerCase()) &&
+    document.nets.some((net) =>
+      net.terminals.some(
+        (member) =>
+          member.instanceId === instanceId &&
+          member.pinName.toLowerCase() === terminal.pinName.toLowerCase(),
+      ),
+    )
+      ? [
+          {
+            kind: "set_property_terminal_net" as const,
+            instanceId,
+            pinName: terminal.pinName,
+            netId: null,
+          },
+        ]
+      : [],
+  );
+}
+
 /**
  * Switches a native device between its ordinary binding and one exact reviewed
  * external target. The ngspice card designator is the persisted Reference, so
@@ -415,7 +449,12 @@ export function planSetDeviceModelTarget(
         `Cannot set external target because Reference ${reference} is already used`,
       );
     }
-    const documentEdits: DocumentEdits = [];
+    const documentEdits: DocumentEdits = removedPropertyTerminalEdits(
+      document,
+      instanceId,
+      currentExternal,
+      verified,
+    );
     if (instance.symbolId !== symbolId) {
       documentEdits.push({
         kind: "set_instance_symbol",
@@ -522,7 +561,11 @@ export function planSetDeviceModelTarget(
   const unset = Object.keys(instance.netlist.parameters).filter(
     (name) => !ordinaryParameterNames.has(name.toLowerCase()),
   );
-  const documentEdits: DocumentEdits = [];
+  const documentEdits: DocumentEdits = removedPropertyTerminalEdits(
+    document,
+    instanceId,
+    currentExternal,
+  );
   if (instance.symbolId !== symbolId) {
     documentEdits.push({ kind: "set_instance_symbol", instanceId, symbolId });
   }

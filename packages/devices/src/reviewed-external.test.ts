@@ -39,12 +39,38 @@ describe("reviewed external device bindings", () => {
         "C",
         "B",
         "E",
+        "S",
       ]),
     ).toMatchObject({
       id: "sky130-pnp-05v5-w0p68l0p68",
       symbolId: "pnp",
       deviceClass: "bjt",
+      terminals: [
+        { pinName: "C", interaction: "canvas" },
+        { pinName: "B", interaction: "canvas" },
+        { pinName: "E", interaction: "canvas" },
+        { pinName: "S", interaction: "property", role: "substrate" },
+      ],
     });
+    expect(
+      resolveReviewedExternalBinding("sky130_fd_pr__npn_05v5_W1p00L1p00", [
+        "C",
+        "B",
+        "E",
+        "S",
+      ]),
+    ).toMatchObject({
+      id: "sky130-npn-05v5-w1p00l1p00",
+      symbolId: "npn",
+      deviceClass: "bjt",
+    });
+    expect(
+      resolveReviewedExternalBinding("sky130_fd_pr__pnp_05v5_W0p68L0p68", [
+        "C",
+        "B",
+        "E",
+      ]),
+    ).toBeUndefined();
   });
 
   it("converts reviewed geometry in both directions without aliasing counts", () => {
