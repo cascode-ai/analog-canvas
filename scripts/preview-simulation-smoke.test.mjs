@@ -536,7 +536,12 @@ describe("the hosted SKY130 qualification", () => {
     expect(request.netlist).toContain("sky130_fd_pr__pfet_01v8_lvt");
     expect(request.netlist).toContain("sky130_fd_pr__res_high_po");
     expect(request.netlist).toContain("sky130_fd_pr__cap_mim_m3_1");
-    expect(request.netlist).toContain("sky130_fd_pr__pnp_05v5_W0p68L0p68");
+    expect(request.netlist).toContain(
+      "XQP pc pb pe sky130_fd_pr__pnp_05v5_W0p68L0p68",
+    );
+    expect(request.netlist).not.toContain(
+      "XQP pc pb pe 0 sky130_fd_pr__pnp_05v5_W0p68L0p68",
+    );
     expect(
       validateHostedSky130ExtendedDeviceResult(
         extendedDeviceResult("operator-host"),

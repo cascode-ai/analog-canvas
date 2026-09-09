@@ -29,13 +29,14 @@ the editor never derives it from an ideal scalar value.
 
 The ordinary PNP symbol similarly offers the exact fixed
 `sky130_fd_pr__pnp_05v5_W0p68L0p68` wrapper. It keeps the visible C/B/E pins,
-adds its real S terminal as a `Substrate Net` property, and prints a four-node
-external X call. The exact `sky130_fd_pr__npn_05v5_W1p00L1p00` interface has
-the same model-bound four-terminal behavior, but is structural only in the
-hosted Profile. Clearing Model, or choosing an ordinary model name, restores
-the ordinary three-node Q card and removes the model-only substrate membership.
-The generic Diode remains model-bearing structural only; this hosted
-environment does not claim a qualified SKY130 diode or NPN target.
+prints a three-node external X call, and relies on that wrapper's internal
+substrate-to-collector connection. The exact
+`sky130_fd_pr__npn_05v5_W1p00L1p00` interface instead exposes its real fourth S
+terminal as a `Substrate Net` property and is structural only in the hosted
+Profile. Clearing its Model, or choosing an ordinary model name, restores the
+ordinary three-node Q card and removes the model-only substrate membership. The
+generic Diode remains model-bearing structural only; this hosted environment
+does not claim a qualified SKY130 diode or NPN target.
 
 This convenience is structural only. It does not install SKY130, resolve a
 local `.include`, supply foundry models or corners, or make the exported

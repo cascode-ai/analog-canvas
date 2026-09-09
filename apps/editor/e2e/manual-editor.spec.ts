@@ -5008,49 +5008,69 @@ test("selects a reviewed SKY130 MOS through the existing Model field", async ({
   });
 });
 
-for (const fixture of [
-  {
-    symbolId: "pnp",
-    model: "sky130_fd_pr__pnp_05v5_W0p68L0p68",
-  },
-  {
-    symbolId: "npn",
-    model: "sky130_fd_pr__npn_05v5_W1p00L1p00",
-  },
-] as const) {
-  test(`derives ${fixture.symbolId.toUpperCase()} substrate from its exact Model`, async ({
-    page,
-  }) => {
-    await page.goto("/editor");
-    await placeComponent(page, fixture.symbolId, { x: 360, y: 220 });
-    await openSelectionShelf(page);
-    const properties = page.getByRole("complementary", {
-      name: "Properties",
-    });
-    const model = properties.getByLabel("Component model target", {
-      exact: true,
-    });
-
-    await expect(properties.getByLabel("Substrate Net")).toHaveCount(0);
-    await model.selectOption(fixture.model);
-    await expect(properties.getByLabel("Substrate Net")).toBeVisible();
-    await expect(properties.getByLabel("Netlist Reference")).toHaveValue("XQ1");
-
-    const saved = JSON.parse(
-      (await downloadBytes(page, "File", "Export Project File…")).toString(
-        "utf8",
-      ),
-    );
-    expect(saved.externalSubcircuitDefinitions[0]).toMatchObject({
-      name: fixture.model,
-      terminals: [{ name: "C" }, { name: "B" }, { name: "E" }, { name: "S" }],
-    });
-
-    await model.selectOption("");
-    await expect(properties.getByLabel("Substrate Net")).toHaveCount(0);
-    await expect(properties.getByLabel("Netlist Reference")).toHaveValue("Q1");
+test("keeps the exact SKY130 PNP on its three-terminal model interface", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await placeComponent(page, "pnp", { x: 360, y: 220 });
+  await openSelectionShelf(page);
+  const properties = page.getByRole("complementary", {
+    name: "Properties",
   });
-}
+  const model = properties.getByLabel("Component model target", {
+    exact: true,
+  });
+
+  await expect(properties.getByLabel("Substrate Net")).toHaveCount(0);
+  await model.selectOption("sky130_fd_pr__pnp_05v5_W0p68L0p68");
+  await expect(properties.getByLabel("Substrate Net")).toHaveCount(0);
+  await expect(properties.getByLabel("Netlist Reference")).toHaveValue("XQ1");
+
+  const saved = JSON.parse(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(
+      "utf8",
+    ),
+  );
+  expect(saved.externalSubcircuitDefinitions[0]).toMatchObject({
+    name: "sky130_fd_pr__pnp_05v5_W0p68L0p68",
+    terminals: [{ name: "C" }, { name: "B" }, { name: "E" }],
+  });
+
+  await model.selectOption("");
+  await expect(properties.getByLabel("Substrate Net")).toHaveCount(0);
+  await expect(properties.getByLabel("Netlist Reference")).toHaveValue("Q1");
+});
+
+test("derives NPN substrate from its exact Model", async ({ page }) => {
+  await page.goto("/editor");
+  await placeComponent(page, "npn", { x: 360, y: 220 });
+  await openSelectionShelf(page);
+  const properties = page.getByRole("complementary", {
+    name: "Properties",
+  });
+  const model = properties.getByLabel("Component model target", {
+    exact: true,
+  });
+
+  await expect(properties.getByLabel("Substrate Net")).toHaveCount(0);
+  await model.selectOption("sky130_fd_pr__npn_05v5_W1p00L1p00");
+  await expect(properties.getByLabel("Substrate Net")).toBeVisible();
+  await expect(properties.getByLabel("Netlist Reference")).toHaveValue("XQ1");
+
+  const saved = JSON.parse(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(
+      "utf8",
+    ),
+  );
+  expect(saved.externalSubcircuitDefinitions[0]).toMatchObject({
+    name: "sky130_fd_pr__npn_05v5_W1p00L1p00",
+    terminals: [{ name: "C" }, { name: "B" }, { name: "E" }, { name: "S" }],
+  });
+
+  await model.selectOption("");
+  await expect(properties.getByLabel("Substrate Net")).toHaveCount(0);
+  await expect(properties.getByLabel("Netlist Reference")).toHaveValue("Q1");
+});
 
 for (const fixture of [
   {

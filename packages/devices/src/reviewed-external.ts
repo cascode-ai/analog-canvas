@@ -76,19 +76,23 @@ const count = (
   spiceOrder,
 });
 
-const bjtTerminals = (): readonly ReviewedExternalTerminalBinding[] => [
-  ...["C", "B", "E"].map((name) => ({
+const bjtCanvasTerminals = (): readonly ReviewedExternalTerminalBinding[] =>
+  ["C", "B", "E"].map((name) => ({
     targetName: name,
     pinName: name,
     interaction: "canvas" as const,
-  })),
-  {
-    targetName: "S",
-    pinName: "S",
-    interaction: "property",
-    role: "substrate",
-  },
-];
+  }));
+
+const bjtTerminalsWithSubstrate =
+  (): readonly ReviewedExternalTerminalBinding[] => [
+    ...bjtCanvasTerminals(),
+    {
+      targetName: "S",
+      pinName: "S",
+      interaction: "property",
+      role: "substrate",
+    },
+  ];
 
 export const reviewedExternalDeviceBindings: readonly ReviewedExternalDeviceBinding[] =
   [
@@ -215,7 +219,8 @@ export const reviewedExternalDeviceBindings: readonly ReviewedExternalDeviceBind
       invocationKind: "external-subcircuit",
       symbolId: "pnp",
       deviceClass: "bjt",
-      terminals: bjtTerminals(),
+      // This wrapper exposes C/B/E only; its internal Q card ties substrate to C.
+      terminals: bjtCanvasTerminals(),
       parameters: [],
     },
     {
@@ -225,7 +230,7 @@ export const reviewedExternalDeviceBindings: readonly ReviewedExternalDeviceBind
       invocationKind: "external-subcircuit",
       symbolId: "npn",
       deviceClass: "bjt",
-      terminals: bjtTerminals(),
+      terminals: bjtTerminalsWithSubstrate(),
       parameters: [],
     },
   ];
