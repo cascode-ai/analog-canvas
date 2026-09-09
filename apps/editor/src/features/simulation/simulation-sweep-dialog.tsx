@@ -151,13 +151,14 @@ export function SimulationSweepDialog(props: SimulationSweepDialogProps) {
                   aria-label={`Sweep corner ${corner}`}
                   checked={corners.includes(corner)}
                   disabled={!cornerEnabled}
-                  onChange={(event) =>
+                  onChange={(event) => {
+                    const checked = event.currentTarget.checked;
                     setCorners((current) =>
-                      event.currentTarget.checked
+                      checked
                         ? [...current, corner]
                         : current.filter((value) => value !== corner),
-                    )
-                  }
+                    );
+                  }}
                 />
                 {corner}
               </label>
