@@ -12,6 +12,12 @@ import {
 const req = (path: string, method = "GET") =>
   new Request(`https://preview.test${path}`, { method });
 
+const acceptanceReq = (path: string, method = "GET", token = "test-token") =>
+  new Request(`https://preview.test${path}`, {
+    method,
+    headers: { cookie: `icm_preview_acceptance=${token}` },
+  });
+
 describe("release channel", () => {
   it("is production unless the deployment says preview", () => {
     // Production never sets the variable. Anything but the exact word is
@@ -61,6 +67,28 @@ describe("release channel", () => {
     expect(
       previewWriteRefusal(req("/api/agent/sessions", "POST"), env),
     ).toBeNull();
+  });
+
+  it("opens only the isolated Project store to the private Preview journey", () => {
+    const env = {
+      ICM_CHANNEL: "preview",
+      PREVIEW_ACCEPTANCE_TOKEN: "test-token",
+    };
+    expect(
+      previewWriteRefusal(acceptanceReq("/api/projects", "POST"), env),
+    ).toBeNull();
+    expect(
+      previewWriteRefusal(
+        acceptanceReq("/api/projects/p1", "DELETE", "wrong-token"),
+        env,
+      )?.status,
+    ).toBe(403);
+    expect(
+      previewWriteRefusal(
+        acceptanceReq("/api/gallery/submissions", "POST"),
+        env,
+      )?.status,
+    ).toBe(403);
   });
 
   it("never refuses anything on production", () => {

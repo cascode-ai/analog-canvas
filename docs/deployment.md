@@ -2,10 +2,10 @@
 
 ## Channels and data isolation
 
-| Channel    | Trigger and configuration                                                         | Data boundary                                                                                           |
-| ---------- | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| Preview    | main push; `.github/workflows/deploy-preview.yml`; `wrangler.preview.jsonc`       | Own namespaces; anonymous HTTP read-through to public Gallery; refuses Gallery and Cloud Project writes |
-| Production | `v*` tag or commit dispatch; `.github/workflows/cloudflare.yml`; `wrangler.jsonc` | Public product and its private storage                                                                  |
+| Channel    | Trigger and configuration                                                         | Data boundary                                                                                                                                  |
+| ---------- | --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Preview    | main push; `.github/workflows/deploy-preview.yml`; `wrangler.preview.jsonc`       | Own namespaces; anonymous HTTP read-through to public Gallery; public writes refused; private CI acceptance may use the isolated Project shelf |
+| Production | `v*` tag or commit dispatch; `.github/workflows/cloudflare.yml`; `wrangler.jsonc` | Public product and its private storage                                                                                                         |
 
 Preview is served at `analog-canvas-preview.tokenzhang.com`, labelled and
 unindexed. Production is `analog-canvas.tokenzhang.com`. The separate
@@ -18,6 +18,15 @@ The channels share source and contracts, not a guarantee of a single promoted
 build artifact: the workflows build their selected checkout. Channel-controlled
 features and runtime bindings may differ.
 [ADR 0057](adr/0057-release-channels-preview-and-production.md) explains the choice.
+
+The deployed cross-Project journey receives a repository secret as a
+host-scoped HttpOnly cookie. Only `/api/projects` recognizes that identity, and
+only when `ICM_CHANNEL=preview`; Gallery, account, moderation and Production
+routes do not. The journey seeds one DUT Project in the Preview Worker’s own
+GalleryDO, imports it through the public `project_cells` resource, runs the
+resulting Testbench, preserves its receipt, and removes the seed. Missing or
+incorrect credentials fail closed as the same 401/403 seen by an ordinary
+visitor.
 
 ## Releasing to Production
 

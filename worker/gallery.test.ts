@@ -738,6 +738,28 @@ describe("private Cloud Projects", () => {
     });
   }
 
+  it("uses a private Preview acceptance identity only in the isolated shelf", async () => {
+    const env = Object.assign(environment(), {
+      ICM_CHANNEL: "preview",
+      PREVIEW_ACCEPTANCE_TOKEN: "acceptance-secret",
+    });
+    const cookie = "icm_preview_acceptance=acceptance-secret";
+    const saved = await route(env, saveRequest(cookie, "Cross-Project DUT"));
+    expect(saved.status).toBe(201);
+    const listed = await route(
+      env,
+      new Request(`${ORIGIN}/api/projects`, {
+        headers: { Cookie: cookie },
+      }),
+    );
+    expect(listed.status).toBe(200);
+    expect((await listed.json()).projects).toEqual([
+      expect.objectContaining({ name: "Cross-Project DUT" }),
+    ]);
+    const anonymous = await route(env, new Request(`${ORIGIN}/api/projects`));
+    expect(anonymous.status).toBe(401);
+  });
+
   it("limits distinct Projects without evicting an existing Project", async () => {
     const env = environment();
     const cookie = await makerOf(env);

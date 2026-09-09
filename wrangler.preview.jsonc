@@ -37,6 +37,8 @@
     // a release deliberately promotes it.
     "SIMULATION_UPSTREAM_URL": "https://sim-fra.analog-canvas.tokenzhang.com",
     "SIMULATION_DEFAULT_EXECUTOR": "operator-host",
+    // PREVIEW_ACCEPTANCE_TOKEN is a Worker secret, set by the Preview deploy.
+    // It authorizes only the CI journey's isolated Cloud Project shelf.
   },
   "assets": {
     "binding": "ASSETS",
