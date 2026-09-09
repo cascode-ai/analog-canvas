@@ -22,7 +22,8 @@ jobs:
           version: 11.16.0
       - uses: actions/setup-node@v4
         with:
-          node-version: 24
+          # npm pack metadata is part of the immutable tarball digest.
+          node-version: 24.20.0
           cache: pnpm
           registry-url: https://registry.npmjs.org
       - run: pnpm install --frozen-lockfile
