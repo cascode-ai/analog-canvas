@@ -469,17 +469,17 @@ describe("Razavi symbol catalog", () => {
         expect.arrayContaining([
           expect.objectContaining({
             name: "IN+",
-            at: { x: -50, y: 20 },
+            at: { x: -40, y: 20 },
           }),
           expect.objectContaining({
             name: "IN-",
-            at: { x: -50, y: -20 },
+            at: { x: -40, y: -20 },
           }),
           expect.objectContaining({
-            at: { x: 10, y: -20 },
+            at: { x: -10, y: -20 },
           }),
           expect.objectContaining({
-            at: { x: 10, y: 20 },
+            at: { x: -10, y: 20 },
           }),
         ]),
       );
@@ -556,8 +556,8 @@ describe("Razavi symbol catalog", () => {
         throw new Error("FD Amp leads must remain line primitives");
       }
       const triangleHalfStroke = 1.2;
-      expect(topInput.to.x - topInput.from.x).toBeCloseTo(12.0521, 6);
-      expect(bottomInput.to.x - bottomInput.from.x).toBeCloseTo(12.0521, 6);
+      expect(topInput.to.x - topInput.from.x).toBeCloseTo(2.0521, 6);
+      expect(bottomInput.to.x - bottomInput.from.x).toBeCloseTo(2.0521, 6);
       expect(topInput.to.x).toBeLessThan(points.leftTop.x);
       expect(bottomInput.to.x).toBeLessThan(points.leftBottom.x);
       expect(
@@ -788,6 +788,78 @@ describe("Razavi symbol catalog", () => {
           primitive.part === "upright-input-polarity-negative",
       ),
     ).toHaveLength(3);
+    expect(differential.pins.map((pin) => pin.at)).toEqual([
+      { x: -30, y: 10 },
+      { x: -30, y: -10 },
+      { x: 30, y: 0 },
+    ]);
+    expect(
+      differential.primitives.filter(
+        (primitive) =>
+          primitive.part === "input-polarity" ||
+          primitive.part === "upright-input-polarity-negative",
+      ),
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "line",
+          from: { x: -13, y: 10 },
+          to: { x: -7, y: 10 },
+        }),
+        expect.objectContaining({
+          kind: "line",
+          from: { x: -10, y: 7 },
+          to: { x: -10, y: 13 },
+        }),
+        expect.objectContaining({
+          kind: "line",
+          from: { x: -13, y: -10 },
+          to: { x: -7, y: -10 },
+        }),
+      ]),
+    );
+  });
+
+  it("keeps every Analog Blocks lead within one connection-grid cell", () => {
+    const analogBlocks = [
+      "opamp",
+      "opamp-lettered",
+      "opamp-differential",
+      "opamp-differential-lettered",
+      "voltage-amplifier",
+      "voltage-amplifier-lettered",
+      "transconductance",
+      "differential-transconductance",
+      "comparator",
+      "comparator-unmarked",
+      "adc",
+      "dac",
+    ];
+
+    for (const symbolId of analogBlocks) {
+      const symbol = requireRazaviCatalogSymbol(symbolId);
+      for (const pin of symbol.pins) {
+        expect(Math.abs(pin.at.x % 10), `${symbolId}.${pin.name} x`).toBe(0);
+        expect(Math.abs(pin.at.y % 10), `${symbolId}.${pin.name} y`).toBe(0);
+        expect(
+          pin.presentation.leadLength,
+          `${symbolId}.${pin.name} declared lead`,
+        ).toBeLessThanOrEqual(10);
+        const attached = symbol.primitives.filter(
+          (primitive) =>
+            primitive.kind === "line" &&
+            ((primitive.from.x === pin.at.x && primitive.from.y === pin.at.y) ||
+              (primitive.to.x === pin.at.x && primitive.to.y === pin.at.y)),
+        );
+        expect(attached, `${symbolId}.${pin.name} lead count`).toHaveLength(1);
+        const line = attached[0];
+        if (!line || line.kind !== "line") continue;
+        expect(
+          Math.hypot(line.to.x - line.from.x, line.to.y - line.from.y),
+          `${symbolId}.${pin.name} drawn lead`,
+        ).toBeLessThanOrEqual(10);
+      }
+    }
   });
 
   it("keeps Signal Flow leads within one grid cell and closes circular seams", () => {
@@ -1295,9 +1367,9 @@ describe("Razavi symbol catalog", () => {
   it("uses the PDF-derived three-terminal op-amp geometry and polarity marks", () => {
     const opamp = requireRazaviCatalogSymbol("opamp");
     expect(opamp.pins).toMatchObject([
-      { name: "IN+", at: { x: -50, y: 10 }, direction: "west" },
-      { name: "IN-", at: { x: -50, y: -10 }, direction: "west" },
-      { name: "OUT", at: { x: 40, y: 0 }, direction: "east" },
+      { name: "IN+", at: { x: -30, y: 10 }, direction: "west" },
+      { name: "IN-", at: { x: -30, y: -10 }, direction: "west" },
+      { name: "OUT", at: { x: 30, y: 0 }, direction: "east" },
     ]);
     expect(opamp.primitives).toEqual(
       expect.arrayContaining([
@@ -1483,7 +1555,7 @@ describe("Razavi symbol catalog", () => {
         }),
       ]),
     );
-    expect(voltageAmplifier.pins.map((pin) => pin.at.x)).toEqual([-40, 40]);
+    expect(voltageAmplifier.pins.map((pin) => pin.at.x)).toEqual([-30, 30]);
     const idealSwitch = requireRazaviCatalogSymbol("ideal-switch");
     expect(idealSwitch.name).toBe("Open Switch");
     expect(idealSwitch.pins.map((pin) => pin.at.x)).toEqual([-20, 20]);

@@ -78,10 +78,10 @@ describe("SymbolArtwork pin-name previews", () => {
     );
 
     expect(symbol.pins.map((pin) => pin.name)).toEqual(["IN+", "IN-", "OUT"]);
-    expect(markup).toContain('x1="-40" y1="20" x2="-20" y2="20"');
-    expect(markup).toContain('x1="-40" y1="-20" x2="-20" y2="-20"');
-    expect(markup).toContain('x1="-14" y1="17" x2="-14" y2="23"');
-    expect(markup).toContain('x1="-17" y1="-20" x2="-11" y2="-20"');
+    expect(markup).toContain('x1="-30" y1="10" x2="-20" y2="10"');
+    expect(markup).toContain('x1="-30" y1="-10" x2="-20" y2="-10"');
+    expect(markup).toContain('x1="-10" y1="7" x2="-10" y2="13"');
+    expect(markup).toContain('x1="-13" y1="-10" x2="-7" y2="-10"');
     expect(markup).toContain('data-role="formula-subscript"');
   });
 
