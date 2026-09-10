@@ -1,6 +1,79 @@
 import { describe, it, expect } from "vitest";
 import { SimulationFiles, sha256 } from "./files.js";
 describe("simulation File Resource evidence", () => {
+  it("shares atomic patching with source files and commits only one concurrent revision", async () => {
+    const files = new SimulationFiles();
+    const created = await files.handle({ action: "create" });
+    if (!created.ok || !("workspace" in created)) throw Error("create failed");
+    const workspaceId = created.workspace.id;
+    const written = await files.handle({
+      action: "update",
+      workspaceId,
+      expectedRevision: 0,
+      entry: "run.cir",
+      writes: [{ path: "run.cir", text: "op\n" }],
+    });
+    expect(written).toMatchObject({ ok: true, workspace: { revision: 1 } });
+    const textDigest = await sha256("op\n");
+    const patch = (text: string) =>
+      files.handle({
+        action: "update",
+        workspaceId,
+        expectedRevision: 1,
+        patches: [
+          { path: "run.cir", textDigest, startOffset: 0, endOffset: 2, text },
+        ],
+      });
+    const results = await Promise.all([
+      patch("ac dec 10 1 1e6"),
+      patch("tran 1n 1u"),
+    ]);
+    expect(results.filter((result) => result.ok)).toHaveLength(1);
+    expect(results.find((result) => !result.ok)).toMatchObject({
+      error: { code: "WORKSPACE_REVISION_CONFLICT" },
+    });
+    expect(await files.handle({ action: "read", workspaceId })).toMatchObject({
+      ok: true,
+      workspace: { revision: 2 },
+    });
+  });
+
+  it("does not revive a discarded workspace after asynchronous patch hashing", async () => {
+    const files = new SimulationFiles();
+    const created = await files.handle({ action: "create" });
+    if (!created.ok || !("workspace" in created)) throw Error("create failed");
+    const workspaceId = created.workspace.id;
+    await files.handle({
+      action: "update",
+      workspaceId,
+      expectedRevision: 0,
+      entry: "run.cir",
+      writes: [{ path: "run.cir", text: "op" }],
+    });
+    const pending = files.handle({
+      action: "update",
+      workspaceId,
+      expectedRevision: 1,
+      patches: [
+        {
+          path: "run.cir",
+          textDigest: await sha256("op"),
+          startOffset: 0,
+          endOffset: 2,
+          text: "op\n",
+        },
+      ],
+    });
+    files.clear();
+    expect(await pending).toMatchObject({
+      ok: false,
+      error: { code: "WORKSPACE_REVISION_CONFLICT" },
+    });
+    expect(await files.handle({ action: "list" })).toEqual({
+      ok: true,
+      workspaces: [],
+    });
+  });
   it("recovers draft identities after a lost create reply without leaking file bodies", async () => {
     const files = new SimulationFiles();
     const created = await files.handle({ action: "create" });

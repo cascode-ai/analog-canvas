@@ -1,4 +1,9 @@
 import { z } from "zod";
+import { sha256 } from "./content-digest.js";
+import {
+  planSimulationSourceChanges,
+  SimulationTextPatchSchema,
+} from "./source-files.js";
 import {
   isSimulationInputPath,
   MAX_SIMULATION_INPUT_BYTES,
@@ -37,6 +42,7 @@ export const SimulationFileOperationSchema = z.discriminatedUnion("action", [
       .max(24)
       .default([]),
     removes: z.array(z.string()).max(24).default([]),
+    patches: z.array(SimulationTextPatchSchema).max(4096).default([]),
   }),
   z.strictObject({
     action: z.literal("artifact"),
@@ -63,15 +69,7 @@ export const SimulationFileResultSchema = z.union([
     nextOffset: z.number().int().nonnegative().nullable(),
   }),
 ]);
-export async function sha256(text: string): Promise<string> {
-  const bytes = await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(text),
-  );
-  return [...new Uint8Array(bytes)]
-    .map((v) => v.toString(16).padStart(2, "0"))
-    .join("");
-}
+export { sha256 } from "./content-digest.js";
 export function safeInputPath(path: string): boolean {
   return isSimulationInputPath(path);
 }
@@ -178,17 +176,28 @@ export class SimulationFiles {
         "Read the workspace and apply the edit to its current revision",
         "input",
       );
-    const files = new Map(workspace.files.map((f) => [f.path, f.text]));
-    for (const path of op.removes) files.delete(path);
-    for (const file of op.writes) {
-      if (!safeInputPath(file.path))
+    for (const path of [...op.removes, ...op.writes.map((file) => file.path)]) {
+      if (!safeInputPath(path))
         return problem(
           "INPUT_PATH_INVALID",
           "Use a relative path without parent traversal or reserved runtime names",
           "input",
         );
-      files.set(file.path, file.text);
     }
+    const planned = await planSimulationSourceChanges(workspace.files, {
+      writes: op.writes,
+      removes: op.removes,
+      patches: op.patches,
+    });
+    if (!planned.ok) return planned;
+    this.prune();
+    if (this.workspaces.get(workspace.id) !== workspace)
+      return problem(
+        "WORKSPACE_REVISION_CONFLICT",
+        "Workspace changed while applying patches; read it again",
+        "input",
+      );
+    const files = new Map(planned.files.map((file) => [file.path, file.text]));
     const entry = op.entry ?? workspace.entry;
     if (entry !== null && !files.has(entry))
       return problem(

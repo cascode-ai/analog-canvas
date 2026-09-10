@@ -9,6 +9,7 @@ export * from "./annotations.js";
 export * from "./drafting.js";
 export * from "./presentation.js";
 export * from "./simulation.js";
+export * from "./simulation-source.js";
 export * from "./validation.js";
 export * from "./document.js";
 export * from "./project.js";
