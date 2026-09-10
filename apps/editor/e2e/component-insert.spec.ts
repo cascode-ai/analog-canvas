@@ -606,10 +606,22 @@ test("groups drafting tools and editable polarity labels under Annotations", asy
   await canvas.click({ position: { x: 460, y: 260 } });
   const editor = page.getByRole("textbox", { name: "Canvas text editor" });
   await expect(editor).toBeVisible();
-  await editor.fill("VGS");
+  await expect(editor).toHaveText("Vx");
+  await expect(editor.locator("sub")).toHaveText("x");
+  await expect(editor).not.toContainText("_");
   await page.getByRole("button", { name: "Apply text changes" }).click();
 
   const polarity = canvas.locator('[data-polarity="both"]');
+  await expect(polarity).toBeVisible();
+  await expect(polarity.locator("text")).toHaveText("Vx");
+  await expect(polarity.locator('[data-text-run="subscript"]')).toHaveText("x");
+  await expect(polarity.locator("text")).not.toContainText("_");
+
+  await page.getByTestId("drafting-hit-polarity-1").dblclick();
+  await expect(editor).toBeVisible();
+  await editor.fill("VGS");
+  await page.getByRole("button", { name: "Apply text changes" }).click();
+
   await expect(polarity).toBeVisible();
   await expect(polarity).toHaveAttribute("transform", /rotate\(90 /u);
   await expect(
