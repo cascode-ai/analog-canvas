@@ -1,4 +1,7 @@
 import { z } from "zod";
+export const SimulationRawPlotOrdinalsSchema = z
+  .array(z.number().int().nonnegative())
+  .min(1);
 const Sha256Schema = z.string().regex(/^[a-f0-9]{64}$/u);
 const SimulationDiagnosticSchema = z.strictObject({
   severity: z.enum(["error", "warning", "info"]),
@@ -26,6 +29,7 @@ const SimulationProbeShape = {
 
 const SimulationAnalysisResultSchema = z.discriminatedUnion("analysis", [
   z.strictObject({
+    rawPlotOrdinals: SimulationRawPlotOrdinalsSchema.optional(),
     analysis: z.literal("op"),
     plotName: z.string(),
     probes: z.array(
@@ -34,6 +38,7 @@ const SimulationAnalysisResultSchema = z.discriminatedUnion("analysis", [
   }),
   z.strictObject({
     analysis: z.literal("ac"),
+    rawPlotOrdinals: SimulationRawPlotOrdinalsSchema.optional(),
     plotName: z.string(),
     frequencyHz: z.array(z.number()),
     probes: z.array(
@@ -49,6 +54,7 @@ const SimulationAnalysisResultSchema = z.discriminatedUnion("analysis", [
   }),
   z.strictObject({
     analysis: z.literal("dc"),
+    rawPlotOrdinals: SimulationRawPlotOrdinalsSchema.optional(),
     plotName: z.string(),
     sweep: z.strictObject({
       ...SimulationProbeShape,
@@ -60,6 +66,7 @@ const SimulationAnalysisResultSchema = z.discriminatedUnion("analysis", [
   }),
   z.strictObject({
     analysis: z.literal("tran"),
+    rawPlotOrdinals: SimulationRawPlotOrdinalsSchema.optional(),
     plotName: z.string(),
     timeSeconds: z.array(z.number()),
     probes: z.array(
@@ -68,6 +75,7 @@ const SimulationAnalysisResultSchema = z.discriminatedUnion("analysis", [
   }),
   z.strictObject({
     analysis: z.literal("noise"),
+    rawPlotOrdinals: SimulationRawPlotOrdinalsSchema.optional(),
     plotName: z.literal("Noise Analysis"),
     frequencyHz: z.array(z.number()),
     outputNoiseDensity: z.array(z.number()),
@@ -87,6 +95,17 @@ const SimulationResultDataSchema = z.strictObject({
   schemaVersion: z.literal(1),
   /** Never empty: a run that produced no vectors is a diagnostic, not a result. */
   analyses: z.array(SimulationAnalysisResultSchema),
+  rawPlots: z
+    .array(
+      z.strictObject({
+        ordinal: z.number().int().nonnegative(),
+        plotName: z.string(),
+        pointCount: z.number().int().nonnegative(),
+        variables: z.array(z.string()),
+        analysisIndex: z.number().int().nonnegative().optional(),
+      }),
+    )
+    .optional(),
 });
 
 const SimulationRunMetadataSchema = z.strictObject({

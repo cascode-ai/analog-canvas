@@ -65,6 +65,9 @@ function available(
 ): Measurement {
   return {
     id: `${analysisIndex}:${output.id}:${metric}`,
+    ...(analysis.rawPlotOrdinals
+      ? { rawPlotOrdinals: [...analysis.rawPlotOrdinals] }
+      : {}),
     analysisIndex,
     analysis: analysis.analysis,
     plotName: analysis.plotName,
@@ -89,6 +92,9 @@ function unavailable(
 ): Measurement {
   return {
     id: `${analysisIndex}:${output.id}:${metric}`,
+    ...(analysis.rawPlotOrdinals
+      ? { rawPlotOrdinals: [...analysis.rawPlotOrdinals] }
+      : {}),
     analysisIndex,
     analysis: analysis.analysis,
     plotName: analysis.plotName,

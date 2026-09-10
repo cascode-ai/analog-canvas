@@ -6,6 +6,8 @@ export function DeviceOperatingPointResults({
   devices: NonNullable<SimulationOutputData["deviceOperatingPoints"]>;
 }) {
   if (devices.length === 0) return null;
+  const multipleRecords =
+    new Set(devices.map((device) => device.analysisIndex)).size > 1;
   return (
     <section
       className="simulation-device-operating-points"
@@ -16,10 +18,19 @@ export function DeviceOperatingPointResults({
       </header>
       <div>
         {devices.map((device) => (
-          <section key={device.id} aria-label={`${device.reference} details`}>
+          <section
+            key={`${device.analysisIndex ?? "none"}:${device.id}`}
+            aria-label={`${device.reference} details`}
+          >
             <header>
               <strong>{device.reference}</strong>
               <small>{device.polarity.toUpperCase()}</small>
+              {multipleRecords ? (
+                <small>
+                  Record{" "}
+                  {device.rawPlotOrdinals?.join(", ") ?? device.analysisIndex}
+                </small>
+              ) : null}
             </header>
             <table>
               <tbody>

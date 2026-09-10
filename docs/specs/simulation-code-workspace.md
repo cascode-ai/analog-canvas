@@ -309,6 +309,12 @@ matching record and results carry that identity; cross-run comparison needs an
 explicit record choice when there is more than one candidate, never index-based
 automatic pairing.
 
+The shared numeric result exposes `rawPlots` as a header inventory and
+`rawPlotOrdinals` on each qualified analysis. Output evaluation, saved/automatic
+measurements and MOS terminal summaries preserve those ordinals; `analysisIndex`
+addresses the qualified array within that result only. Existing archived results
+without raw ordinals remain readable, but do not acquire invented provenance.
+
 Noise pairing is deliberately bounded: the existing one-density/one-integrated
 case retains full structured Noise. Multiple or reordered Noise invocations
 without unambiguous capture provenance retain their raw records with a located

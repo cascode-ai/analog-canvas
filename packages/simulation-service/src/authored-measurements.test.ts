@@ -19,6 +19,35 @@ function spec(
 }
 
 describe("authored simulation measurements", () => {
+  it("evaluates every repeated native record with distinct identity rather than selecting the first analysis", () => {
+    const analyses = [
+      { ...transient, rawPlotOrdinals: [2] },
+      {
+        ...transient,
+        rawPlotOrdinals: [5],
+        outputs: [{ ...transient.outputs[0]!, values: [0, 4, 4] }],
+      },
+    ];
+    const results = deriveAuthoredMeasurements(analyses, [
+      spec("peak", { kind: "maximum" }),
+    ]);
+    expect(results).toMatchObject([
+      {
+        id: "authored:peak:0",
+        rawPlotOrdinals: [2],
+        analysisIndex: 0,
+        status: "available",
+        value: 2,
+      },
+      {
+        id: "authored:peak:1",
+        rawPlotOrdinals: [5],
+        analysisIndex: 1,
+        status: "available",
+        value: 4,
+      },
+    ]);
+  });
   it("interpolates point values on ascending and descending domains", () => {
     const forward = deriveAuthoredMeasurements(
       [transient],

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { SimulationRawPlotOrdinalsSchema } from "@icm/spice-run";
 import { SimulationRunVariantSchema } from "@icm/model";
 import { SimulationResultSchema } from "@icm/spice-run";
 import {
@@ -159,6 +160,7 @@ export const EvaluatedScalarSchema = z.strictObject({
   value: z.number().finite(),
 });
 export const EvaluatedAnalysisSchema = z.strictObject({
+  rawPlotOrdinals: SimulationRawPlotOrdinalsSchema.optional(),
   analysis: z.enum(["op", "dc", "ac", "tran", "noise"]),
   plotName: z.string(),
   domain: z
@@ -174,6 +176,7 @@ export const EvaluatedAnalysisSchema = z.strictObject({
 });
 export const AutomaticMeasurementSchema = z.discriminatedUnion("status", [
   z.strictObject({
+    rawPlotOrdinals: SimulationRawPlotOrdinalsSchema.optional(),
     id: Id,
     analysisIndex: z.number().int().nonnegative(),
     analysis: z.enum(["op", "dc", "ac", "tran", "noise"]),
@@ -207,6 +210,7 @@ export const AutomaticMeasurementSchema = z.discriminatedUnion("status", [
     value: z.number().finite(),
   }),
   z.strictObject({
+    rawPlotOrdinals: SimulationRawPlotOrdinalsSchema.optional(),
     id: Id,
     analysisIndex: z.number().int().nonnegative(),
     analysis: z.enum(["op", "dc", "ac", "tran", "noise"]),
@@ -247,6 +251,8 @@ export const SimulationOutputDataSchema = z.strictObject({
   deviceOperatingPoints: z
     .array(
       z.strictObject({
+        analysisIndex: z.number().int().nonnegative().optional(),
+        rawPlotOrdinals: SimulationRawPlotOrdinalsSchema.optional(),
         id: Id,
         documentId: Id,
         instanceId: Id,
@@ -275,7 +281,13 @@ export const SimulationOutputDataSchema = z.strictObject({
     )
     .optional(),
   diagnostics: z.array(
-    z.strictObject({ outputId: Id, code: Id, message: z.string() }),
+    z.strictObject({
+      outputId: Id,
+      code: Id,
+      message: z.string(),
+      analysisIndex: z.number().int().nonnegative().optional(),
+      rawPlotOrdinals: SimulationRawPlotOrdinalsSchema.optional(),
+    }),
   ),
 });
 export type SimulationOutputData = z.infer<typeof SimulationOutputDataSchema>;

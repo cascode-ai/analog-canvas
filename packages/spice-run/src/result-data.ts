@@ -49,7 +49,12 @@ export interface OperatingPointProbe extends SimulationProbe {
   readonly value: number;
 }
 
-export interface OperatingPointResult {
+/** Combine these zero-based ordinals with the Run and its collected raw artifact identity. */
+export interface SimulationRawPlotOrigin {
+  /** Optional only for archived results created before native multi-record support. */
+  readonly rawPlotOrdinals?: readonly number[] | undefined;
+}
+export interface OperatingPointResult extends SimulationRawPlotOrigin {
   readonly analysis: "op";
   readonly plotName: string;
   readonly probes: readonly OperatingPointProbe[];
@@ -60,7 +65,7 @@ export interface DcSweepProbe extends SimulationProbe {
   readonly value: readonly number[];
 }
 
-export interface DcSweepResult {
+export interface DcSweepResult extends SimulationRawPlotOrigin {
   readonly analysis: "dc";
   readonly plotName: string;
   readonly sweep: SimulationProbe & { readonly values: readonly number[] };
@@ -73,7 +78,7 @@ export interface AcProbe extends SimulationProbe {
   readonly imag: readonly number[];
 }
 
-export interface AcResult {
+export interface AcResult extends SimulationRawPlotOrigin {
   readonly analysis: "ac";
   readonly plotName: string;
   /** The swept frequencies, in hertz, exactly as the file recorded them. */
@@ -91,7 +96,7 @@ export interface TransientProbe extends SimulationProbe {
   readonly value: readonly number[];
 }
 
-export interface TransientResult {
+export interface TransientResult extends SimulationRawPlotOrigin {
   readonly analysis: "tran";
   readonly plotName: string;
   /**
@@ -109,7 +114,7 @@ export interface TransientResult {
  * hertz, not squared power densities; the input-referred unit follows the
  * selected independent source (voltage or current).
  */
-export interface NoiseResult {
+export interface NoiseResult extends SimulationRawPlotOrigin {
   readonly analysis: "noise";
   readonly plotName: "Noise Analysis";
   readonly frequencyHz: readonly number[];
@@ -136,6 +141,16 @@ export interface SimulationResultData {
   readonly schemaVersion: 1;
   /** Never empty. A result with nothing in it is reported `unusable`. */
   readonly analyses: readonly SimulationAnalysisResult[];
+  /** Header inventory, including records not projected into qualified numerical results. */
+  readonly rawPlots?:
+    | readonly {
+        readonly ordinal: number;
+        readonly plotName: string;
+        readonly pointCount: number;
+        readonly variables: readonly string[];
+        readonly analysisIndex?: number | undefined;
+      }[]
+    | undefined;
 }
 
 /**
@@ -219,28 +234,38 @@ export function readSimulationData(rawfile: string): SimulationDataReading {
   const integratedNoise = parse.plots.filter(
     (plot) => plot.plotName.trim().toLowerCase() === "integrated noise",
   );
+  let noise: NoiseResult | undefined;
+  const noiseOrdinals = parse.plots.flatMap((plot, ordinal) =>
+    noiseSpectra.includes(plot) || integratedNoise.includes(plot)
+      ? [ordinal]
+      : [],
+  );
   if (noiseSpectra.length > 0 || integratedNoise.length > 0) {
     if (noiseSpectra.length !== 1 || integratedNoise.length !== 1) {
       diagnostics.push(
-        error(
-          `A noise result requires one spectral-density plot and one integrated-noise plot; this rawfile holds ${noiseSpectra.length} and ${integratedNoise.length}.`,
+        warning(
+          `A noise result requires one spectral-density plot and one integrated-noise plot; this rawfile holds ${noiseSpectra.length} and ${integratedNoise.length}. Raw records ${noiseOrdinals.join(", ")} remain available without guessing density/integral pairing.`,
         ),
       );
     } else {
       const reading = readNoise(noiseSpectra[0]!, integratedNoise[0]!);
-      if ("analysis" in reading) analyses.push(reading.analysis);
-      else diagnostics.push(reading.diagnostic);
+      if ("analysis" in reading && reading.analysis.analysis === "noise")
+        noise = { ...reading.analysis, rawPlotOrdinals: noiseOrdinals };
+      else if ("diagnostic" in reading) diagnostics.push(reading.diagnostic);
     }
   }
-  for (const plot of parse.plots) {
+  for (const [ordinal, plot] of parse.plots.entries()) {
     const plotName = plot.plotName.trim().toLowerCase();
     if (
       plotName === "noise spectral density curves" ||
       plotName === "integrated noise"
-    )
+    ) {
+      if (noise && ordinal === noiseOrdinals[0]) analyses.push(noise);
       continue;
+    }
     const reading = readPlot(plot);
-    if ("analysis" in reading) analyses.push(reading.analysis);
+    if ("analysis" in reading)
+      analyses.push({ ...reading.analysis, rawPlotOrdinals: [ordinal] });
     else diagnostics.push(reading.diagnostic);
   }
 
@@ -262,7 +287,27 @@ export function readSimulationData(rawfile: string): SimulationDataReading {
       })),
     };
   }
-  return { status: "read", data: { schemaVersion: 1, analyses }, diagnostics };
+  const analysisByOrdinal = new Map(
+    analyses.flatMap((analysis, index) =>
+      (analysis.rawPlotOrdinals ?? []).map(
+        (ordinal) => [ordinal, index] as const,
+      ),
+    ),
+  );
+  const rawPlots = parse.plots.map((plot, ordinal) => ({
+    ordinal,
+    plotName: plot.plotName,
+    pointCount: plot.pointCount,
+    variables: plot.vectors.map((vector) => vector.variable.name),
+    ...(analysisByOrdinal.has(ordinal)
+      ? { analysisIndex: analysisByOrdinal.get(ordinal)! }
+      : {}),
+  }));
+  return {
+    status: "read",
+    data: { schemaVersion: 1, analyses, rawPlots },
+    diagnostics,
+  };
 }
 
 function readPlot(plot: RawfilePlot): PlotReading {
