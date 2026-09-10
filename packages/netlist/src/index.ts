@@ -4,4 +4,8 @@ export * from "./ir.js";
 export * from "./net-name-codec.js";
 export * from "./printers.js";
 export * from "./simulation-compile.js";
+export * from "./simulation-source-migration.js";
+export * from "./simulation-source-compile.js";
+export * from "./simulation-source-graph.js";
+export * from "./simulation-circuit-source.js";
 export * from "./source-waveform.js";

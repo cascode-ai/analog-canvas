@@ -34,16 +34,18 @@ function point(
 }
 
 function compatibleUnit(left: string, right: string): string | null {
-  return left === right ? left : null;
+  return left !== "" && left === right ? left : null;
 }
 
 function productUnit(left: string, right: string): string {
+  if (!left || !right) return "";
   if (left === "1") return right;
   if (right === "1") return left;
   return `${left}·${right}`;
 }
 
 function quotientUnit(left: string, right: string): string {
+  if (!left || !right) return "";
   if (left === right) return "1";
   if (right === "1") return left;
   return `${left}/${right}`;
@@ -206,7 +208,12 @@ function sourceSeries(
   for (const vector of vectors) {
     const source = byName.get(vector.vector.toLowerCase());
     if (!source) continue;
-    const unit = vector.quantity === "voltage" ? "V" : "A";
+    const unit =
+      vector.quantity === "native"
+        ? (source.unit ?? "")
+        : vector.quantity === "voltage"
+          ? "V"
+          : "A";
     if (analysis.analysis === "ac" && "real" in source) {
       result.set(vector.probeId, {
         unit,

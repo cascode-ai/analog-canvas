@@ -61,7 +61,7 @@ export type ArtifactRef = z.infer<typeof ArtifactRefSchema>;
 export const VectorSchema = z.strictObject({
   probeId: Id,
   vector: z.string(),
-  quantity: z.enum(["voltage", "current"]),
+  quantity: z.enum(["voltage", "current", "native"]),
 });
 export const CompiledOutputExpressionSchema: z.ZodType<CompiledSimulationExpression> =
   z.lazy(() =>
@@ -69,7 +69,7 @@ export const CompiledOutputExpressionSchema: z.ZodType<CompiledSimulationExpress
       z.strictObject({
         kind: z.literal("acquisition"),
         acquisitionId: Id,
-        quantity: z.enum(["voltage", "current"]),
+        quantity: z.enum(["voltage", "current", "native"]),
       }),
       z.strictObject({
         kind: z.literal("constant"),

@@ -1011,7 +1011,10 @@ function parseLogicalLine(line: LogicalLine): {
   return parseInstance(fields, line);
 }
 
-export function parseSpiceSource(source: SpiceSourceFile): SpiceSyntaxFile {
+export function parseSpiceSource(
+  source: SpiceSourceFile,
+  options: { titleLine?: boolean } = {},
+): SpiceSyntaxFile {
   const logicalLines = buildLogicalLines(source);
   const statements: SpiceStatement[] = [];
   const diagnostics: SpiceDiagnostic[] = [];
@@ -1019,7 +1022,11 @@ export function parseSpiceSource(source: SpiceSourceFile): SpiceSyntaxFile {
   for (const line of logicalLines) {
     const fields = splitSpiceFields(line.text);
     const keyword = fields[0]?.toLowerCase() ?? "";
-    if (line.physicalLines[0] === 1 && !keyword.startsWith(".")) {
+    if (
+      options.titleLine !== false &&
+      line.physicalLines[0] === 1 &&
+      !keyword.startsWith(".")
+    ) {
       statements.push({
         kind: "directive",
         name: "title",

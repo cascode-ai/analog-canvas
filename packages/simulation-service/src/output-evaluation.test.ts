@@ -3,6 +3,56 @@ import { describe, expect, it } from "vitest";
 import { evaluateSimulationOutputs } from "./output-evaluation.js";
 
 describe("simulation output evaluation", () => {
+  it("uses declared raw units for native vectors and never invents a unit", () => {
+    const result = evaluateSimulationOutputs(
+      {
+        schemaVersion: 1,
+        analyses: [
+          {
+            analysis: "op",
+            plotName: "Operating Point",
+            probes: [
+              {
+                name: "custom",
+                quantity: "resistance",
+                value: 10,
+                unit: "Ohm",
+              },
+              { name: "unknown", quantity: "other", value: 4, unit: null },
+            ],
+          },
+        ],
+      },
+      [
+        { probeId: "a", vector: "custom", quantity: "native" },
+        { probeId: "b", vector: "unknown", quantity: "native" },
+      ],
+      [
+        {
+          id: "r",
+          label: "Resistance",
+          expression: {
+            kind: "acquisition",
+            acquisitionId: "a",
+            quantity: "native",
+          },
+        },
+        {
+          id: "u",
+          label: "Unknown quantity",
+          expression: {
+            kind: "acquisition",
+            acquisitionId: "b",
+            quantity: "native",
+          },
+        },
+      ],
+    );
+    expect(result.analyses[0]!.outputs).toEqual([
+      expect.objectContaining({ id: "r", unit: "Ohm", values: [10] }),
+      expect.objectContaining({ id: "u", unit: "", values: [4] }),
+    ]);
+  });
   it("groups terminal-derived MOS values without exposing private vectors", () => {
     const result = evaluateSimulationOutputs(
       {
