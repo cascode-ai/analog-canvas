@@ -92,6 +92,37 @@ export const ProjectSourceSimulationSetupSchema = z.strictObject({
   input: SimulationSourceInputSchema,
 });
 
+/** Execution-only point override, shared by compiler, service and Agent; never saved as nominal intent. */
+export const SimulationRunVariantSchema = z.strictObject({
+  environment: z
+    .strictObject({
+      corner: z.string().min(1).max(64).optional(),
+      temperatureC: z.number().finite().optional(),
+    })
+    .optional(),
+  parameters: z
+    .array(
+      z.strictObject({
+        documentId: StableIdSchema,
+        instanceId: StableIdSchema,
+        parameter: z.string().min(1).max(128),
+        value: z.string().max(4096),
+      }),
+    )
+    .max(16)
+    .optional(),
+  variables: z
+    .array(
+      z.strictObject({
+        variableId: StableIdSchema,
+        value: z.string().trim().min(1).max(4096),
+      }),
+    )
+    .max(16)
+    .optional(),
+});
+export type SimulationRunVariant = z.infer<typeof SimulationRunVariantSchema>;
+
 export const SimulationCircuitScopeSchema = z.strictObject({
   bindingId: StableIdSchema,
   // Authored X names, not Project Instance IDs. Resolved at preparation.

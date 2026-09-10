@@ -3,8 +3,14 @@ export type SimulationTextOrigin =
   | { kind: "authored"; path: string; startOffset: number }
   | {
       kind: "generated";
-      purpose: "canvas-circuit" | "canvas-acquisitions" | "environment";
+      purpose:
+        | "canvas-circuit"
+        | "canvas-acquisitions"
+        | "environment"
+        | "run-variant";
       bindingId?: string;
+      /** Location of the nominal text replaced for this execution point. */
+      nominal?: { path: string; startOffset: number; endOffset: number };
     };
 export interface SimulationTextSegment {
   startOffset: number;
@@ -56,39 +62,57 @@ export function insertSimulationText(
   text: string,
   origin: Extract<SimulationTextOrigin, { kind: "generated" }>,
 ): MappedSimulationFile {
-  if (!Number.isSafeInteger(offset) || offset < 0 || offset > file.text.length)
+  return replaceSimulationText(file, offset, offset, text, origin);
+}
+
+/** Replace one run-only range without reformatting unaffected source or losing its offsets. */
+export function replaceSimulationText(
+  file: MappedSimulationFile,
+  start: number,
+  end: number,
+  text: string,
+  origin: Extract<SimulationTextOrigin, { kind: "generated" }>,
+): MappedSimulationFile {
+  if (
+    !Number.isSafeInteger(start) ||
+    !Number.isSafeInteger(end) ||
+    start < 0 ||
+    start > end ||
+    end > file.text.length
+  )
     throw new RangeError("Invalid execution composition offset");
+  const shift = text.length - (end - start);
   const before: SimulationTextSegment[] = [];
   const after: SimulationTextSegment[] = [];
   for (const segment of file.segments) {
-    if (segment.startOffset < offset)
+    if (segment.startOffset < start)
       before.push(
         sliceSegment(
           segment,
           segment.startOffset,
-          Math.min(offset, segment.endOffset),
+          Math.min(start, segment.endOffset),
         ),
       );
-    if (segment.endOffset > offset) {
+    if (segment.endOffset > end) {
       const right = sliceSegment(
         segment,
-        Math.max(offset, segment.startOffset),
+        Math.max(end, segment.startOffset),
         segment.endOffset,
       );
       after.push({
         ...right,
-        startOffset: right.startOffset + text.length,
-        endOffset: right.endOffset + text.length,
+        startOffset: right.startOffset + shift,
+        endOffset: right.endOffset + shift,
       });
     }
   }
   return {
     path: file.path,
-    text: file.text.slice(0, offset) + text + file.text.slice(offset),
+    text: file.text.slice(0, start) + text + file.text.slice(end),
     segments: [
       ...before,
       ...(text.length
-        ? [{ startOffset: offset, endOffset: offset + text.length, origin }]
+        ? [{ startOffset: start, endOffset: start + text.length, origin }]
         : []),
       ...after,
     ],

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { SimulationRunVariantSchema } from "@icm/model";
 import { SimulationResultSchema } from "@icm/spice-run";
 import {
   ObjectLocatorSchema,
@@ -283,36 +284,7 @@ export const InputSourceSchema = z.discriminatedUnion("kind", [
     kind: z.literal("project-setup"),
     setupId: Id,
     expectedStructureRevision: z.number().int().nonnegative(),
-    variant: z
-      .strictObject({
-        environment: z
-          .strictObject({
-            corner: z.string().min(1).max(64).optional(),
-            temperatureC: z.number().finite().optional(),
-          })
-          .optional(),
-        parameters: z
-          .array(
-            z.strictObject({
-              documentId: Id,
-              instanceId: Id,
-              parameter: z.string().min(1).max(128),
-              value: z.string().max(4096),
-            }),
-          )
-          .max(16)
-          .optional(),
-        variables: z
-          .array(
-            z.strictObject({
-              variableId: Id,
-              value: z.string().trim().min(1).max(4096),
-            }),
-          )
-          .max(16)
-          .optional(),
-      })
-      .optional(),
+    variant: SimulationRunVariantSchema.optional(),
   }),
   z.strictObject({
     kind: z.literal("workspace"),

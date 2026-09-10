@@ -1,13 +1,7 @@
-import type { CircuitProject } from "@icm/model";
+import type { CircuitProject, SimulationRunVariant } from "@icm/model";
+import { applySimulationParameter } from "@icm/netlist";
 
-import type { SimulationOperation } from "./contract.js";
-
-export type SimulationProjectVariant = NonNullable<
-  Extract<
-    Extract<SimulationOperation, { operation: "prepare" }>["source"],
-    { kind: "project-setup" }
-  >["variant"]
->;
+export type SimulationProjectVariant = SimulationRunVariant;
 
 export type ProjectVariantResult =
   | {
@@ -63,7 +57,7 @@ export function projectSimulationVariant(
     for (const variable of setup.input.designVariables) {
       const value = overrides.get(variable.id) ?? variable.value;
       for (const binding of variable.bindings) {
-        const result = applyParameter(
+        const result = applySimulationParameter(
           project,
           binding,
           value,
@@ -85,7 +79,7 @@ export function projectSimulationVariant(
     }
   }
   for (const override of variant?.parameters ?? []) {
-    const result = applyParameter(
+    const result = applySimulationParameter(
       project,
       override,
       override.value,
@@ -95,47 +89,4 @@ export function projectSimulationVariant(
     if (!result.ok) return result;
   }
   return { ok: true, project, setup };
-}
-
-function applyParameter(
-  project: CircuitProject,
-  target: {
-    readonly documentId: string;
-    readonly instanceId: string;
-    readonly parameter: string;
-  },
-  value: string,
-  source: string,
-  codePrefix: "SIMULATION_VARIABLE_BINDING" | "SIMULATION_VARIANT",
-  requireExisting = false,
-): { ok: true } | { ok: false; code: string; message: string } {
-  const document = project.documents.find(
-    (candidate) => candidate.id === target.documentId,
-  );
-  if (!document) {
-    return {
-      ok: false,
-      code: `${codePrefix}_DOCUMENT_MISSING`,
-      message: `${source} Document does not exist: ${target.documentId}`,
-    };
-  }
-  const instance = document.instances.find(
-    (candidate) => candidate.id === target.instanceId,
-  );
-  if (!instance?.netlist) {
-    return {
-      ok: false,
-      code: `${codePrefix}_INSTANCE_MISSING`,
-      message: `${source} Instance is unavailable or has no netlist parameters: ${target.instanceId}`,
-    };
-  }
-  if (requireExisting && !(target.parameter in instance.netlist.parameters)) {
-    return {
-      ok: false,
-      code: `${codePrefix}_PARAMETER_MISSING`,
-      message: `${source} parameter does not exist: ${target.instanceId}.${target.parameter}`,
-    };
-  }
-  instance.netlist.parameters[target.parameter] = value;
-  return { ok: true };
 }

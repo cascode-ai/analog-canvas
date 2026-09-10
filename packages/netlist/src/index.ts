@@ -10,3 +10,4 @@ export * from "./simulation-source-graph.js";
 export * from "./simulation-circuit-source.js";
 export * from "./source-waveform.js";
 export * from "./simulation-source-map.js";
+export * from "./simulation-source-projection.js";

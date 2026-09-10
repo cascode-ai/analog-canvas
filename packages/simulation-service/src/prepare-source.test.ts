@@ -70,6 +70,35 @@ function setConfig(setup: ProjectSourceSimulationSetup, changes: object) {
   file.text = JSON.stringify({ ...JSON.parse(file.text), ...changes });
 }
 describe("source execution preparation", () => {
+  it("includes actual managed corner/temperature/parameter projection in run identity, not nominal source storage", async () => {
+    const circuit = project();
+    const setup = migrateSimulationSetupToSource(
+      circuit,
+      circuit.simulationSetups[0]!,
+    ).setup;
+    const before = structuredClone(setup);
+    const nominal = await prepareSourceExecutionInput(circuit, setup, caps);
+    const hot = await prepareSourceExecutionInput(circuit, setup, caps, {
+      environment: { corner: "ss", temperatureC: 125 },
+    });
+    const same = await prepareSourceExecutionInput(circuit, setup, caps, {
+      environment: { corner: "ss", temperatureC: 125 },
+    });
+    expect(nominal.ok && hot.ok && same.ok).toBe(true);
+    if (!nominal.ok || !hot.ok || !same.ok) return;
+    expect(hot.input.preparedDeck).toContain('.lib "icm-models.lib" ss');
+    expect(
+      hot.input.files
+        ?.map((f) => f.text)
+        .join("\n")
+        .match(/\.temp\s+125/gu),
+    ).toHaveLength(1);
+    expect(hot.digest).not.toBe(nominal.digest);
+    expect(hot.input.inputRevision).not.toBe(nominal.input.inputRevision);
+    expect(hot.digest).toBe(same.digest);
+    expect(hot.authoredFiles).toEqual(before.input.files);
+    expect(setup).toEqual(before);
+  });
   it("preserves native input exactly and records the declared collection in its digest", async () => {
     const setup = native();
     const before = structuredClone(setup);

@@ -8,8 +8,9 @@ import {
   type SimulationExpression,
   type SimulationSetup,
   type SimulationSourceExpression,
+  type SimulationRunVariant,
 } from "@icm/model";
-import { evaluateSpiceExpression } from "@icm/spice";
+import { projectSourceSimulation } from "./simulation-source-projection.js";
 import { sha256Hex } from "@icm/derived";
 import {
   mapSimulationFile,
@@ -73,6 +74,7 @@ export type SourceSimulationCompilation =
 export function compileSourceSimulation(
   project: CircuitProject,
   setup: ProjectSourceSimulationSetup,
+  variant?: SimulationRunVariant,
 ): SourceSimulationCompilation {
   const diagnostics: SimulationSourceDiagnostic[] = [];
   const fail = (code: string, message: string, field?: string) =>
@@ -114,10 +116,18 @@ export function compileSourceSimulation(
         field: issue.path.join("."),
       })),
     };
-  const config = parsedConfig.data;
   const graph = inspectSimulationSourceGraph(setup.input);
   diagnostics.push(...graph.diagnostics);
-  const effective = projectBoundVariables(project, config, graph, diagnostics);
+  const projection = projectSourceSimulation(
+    project,
+    setup,
+    parsedConfig.data,
+    graph,
+    variant,
+  );
+  const effective = projection.project;
+  const config = projection.config;
+  diagnostics.push(...projection.diagnostics);
   const reachable = new Set(graph.paths);
   const bindings = setup.input.circuitBindings.filter((b) =>
     reachable.has(b.path),
@@ -439,9 +449,7 @@ export function compileSourceSimulation(
   if (diagnostics.some((d) => d.severity === "error"))
     return { ok: false, diagnostics };
   const mappedFiles = [
-    ...setup.input.files
-      .filter((f) => f.path !== setup.input.configPath)
-      .map((f) => mapSimulationFile(f.path, f.text)),
+    ...projection.mappedFiles,
     ...generated.map(({ path, text, bindingId }) =>
       mapSimulationFile(path, text, {
         kind: "generated",
@@ -491,90 +499,4 @@ export function compileSourceSimulation(
       ),
     ],
   };
-}
-
-function projectBoundVariables(
-  project: CircuitProject,
-  config: SimulationExperimentConfig,
-  graph: SimulationSourceGraph,
-  diagnostics: SimulationSourceDiagnostic[],
-): CircuitProject {
-  if (!config.variables.length) return project;
-  const declarations = new Map<
-    string,
-    { path: string; raw: string; local: boolean }[]
-  >();
-  let local = 0;
-  let conditional = 0;
-  for (const { path, statement } of graph.statements) {
-    if (statement.kind === "subckt_start") local++;
-    else if (statement.kind === "subckt_end") local--;
-    else if (statement.kind === "conditional") {
-      if (statement.form === "if") conditional++;
-      else if (statement.form === "endif") conditional--;
-    } else if (statement.kind === "parameter")
-      for (const parameter of statement.parameters) {
-        const key = parameter.name.toLowerCase();
-        declarations.set(key, [
-          ...(declarations.get(key) ?? []),
-          {
-            path,
-            raw: parameter.rawText,
-            local: local !== 0 || conditional !== 0,
-          },
-        ]);
-      }
-  }
-  const values = new Map<string, number>();
-  // Resolve only the bounded constant subset for descriptor projection. Native expressions unrelated to bindings remain untouched.
-  for (let pass = 0; pass < declarations.size; pass++) {
-    let changed = false;
-    for (const [name, items] of declarations) {
-      if (values.has(name) || items.length !== 1 || items[0]!.local) continue;
-      const value = evaluateSpiceExpression(items[0]!.raw, values);
-      if (value !== null) {
-        values.set(name, value);
-        changed = true;
-      }
-    }
-    if (!changed) break;
-  }
-  const effective = structuredClone(project);
-  for (const variable of config.variables) {
-    const key = variable.name.toLowerCase();
-    const items = declarations.get(key) ?? [];
-    const value = values.get(key);
-    if (
-      items.length !== 1 ||
-      items[0]!.path !== variable.sourcePath ||
-      value === undefined
-    ) {
-      diagnostics.push({
-        code: "SIMULATION_VARIABLE_DECLARATION",
-        severity: "error",
-        message: `Variable ${variable.name} requires an unambiguous reachable top-level .param that can be projected into its target descriptors`,
-        path: variable.sourcePath,
-      });
-      continue;
-    }
-    for (const target of variable.bindings) {
-      const instance = effective.documents
-        .find((d) => d.id === target.documentId)
-        ?.instances.find((i) => i.id === target.instanceId);
-      if (
-        !instance?.netlist ||
-        !(target.parameter in instance.netlist.parameters)
-      ) {
-        diagnostics.push({
-          code: "SIMULATION_VARIABLE_TARGET",
-          severity: "error",
-          message: `Variable ${variable.name} target ${target.instanceId}.${target.parameter} is unavailable`,
-          path: variable.sourcePath,
-        });
-        continue;
-      }
-      instance.netlist.parameters[target.parameter] = String(value);
-    }
-  }
-  return effective;
 }

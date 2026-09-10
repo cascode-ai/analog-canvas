@@ -1,4 +1,8 @@
-import type { CircuitProject, ProjectSourceSimulationSetup } from "@icm/model";
+import type {
+  CircuitProject,
+  ProjectSourceSimulationSetup,
+  SimulationRunVariant,
+} from "@icm/model";
 import {
   compileSourceSimulation,
   insertSimulationText,
@@ -33,8 +37,9 @@ export async function prepareSourceExecutionInput(
   project: CircuitProject,
   setup: ProjectSourceSimulationSetup,
   caps: Capabilities,
+  variant?: SimulationRunVariant,
 ) {
-  const compiled = compileSourceSimulation(project, setup);
+  const compiled = compileSourceSimulation(project, setup, variant);
   if (!compiled.ok) return compilationProblem(compiled.diagnostics);
   const { config } = compiled;
   const profile = caps.profiles.find(
