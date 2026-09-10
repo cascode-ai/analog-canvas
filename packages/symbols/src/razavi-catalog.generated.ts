@@ -1894,7 +1894,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "A converter block stands for a subsystem; SPICE has no primitive for one.",
     assetPath: "adc.symbol.json",
     assetHash:
-      "27855e5142d4ae54d83562ac76952e98ba1d4234c188801a73efc8358a4ae09c",
+      "7c6ab38ed2d5157ed15bba0538601a7ec96f5c9a6b0c7cf1b5ef720305130271",
   },
   {
     symbolId: "dac",
@@ -1911,7 +1911,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "A converter block stands for a subsystem; SPICE has no primitive for one.",
     assetPath: "dac.symbol.json",
     assetHash:
-      "4be7f9a855d6055575402bd783a27e10152097b1a85c31e487479ed4612b8d16",
+      "ab663f210d9b2410090ff9ed7bf9d7c029dcbc47ec9d722a7471130a64f43dc6",
   },
 ];
 
@@ -11609,36 +11609,36 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
     id: "adc",
     name: "Analog-to-Digital Converter",
     viewBox: {
-      x: -34,
-      y: -19,
-      width: 68,
-      height: 38,
+      x: -44,
+      y: -24,
+      width: 88,
+      height: 48,
     },
     pins: [
       {
         name: "IN",
         role: "input",
         at: {
-          x: -30,
+          x: -40,
           y: 0,
         },
         direction: "west",
         presentation: {
           visibility: "visible",
-          leadLength: 5,
+          leadLength: 10,
         },
       },
       {
         name: "OUT",
         role: "output",
         at: {
-          x: 30,
+          x: 40,
           y: 0,
         },
         direction: "east",
         presentation: {
           visibility: "visible",
-          leadLength: 5,
+          leadLength: 10,
         },
       },
     ],
@@ -11646,11 +11646,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -30,
+          x: -40,
           y: 0,
         },
         to: {
-          x: -25,
+          x: -30,
           y: 0,
         },
         style: {
@@ -11663,24 +11663,24 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "polygon",
         points: [
           {
-            x: 25,
-            y: -15,
+            x: 30,
+            y: -20,
           },
           {
-            x: -15,
-            y: -15,
+            x: -20,
+            y: -20,
           },
           {
-            x: -25,
+            x: -30,
             y: 0,
           },
           {
-            x: -15,
-            y: 15,
+            x: -20,
+            y: 20,
           },
           {
-            x: 25,
-            y: 15,
+            x: 30,
+            y: 20,
           },
         ],
         fill: "none",
@@ -11694,11 +11694,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: 25,
+          x: 30,
           y: 0,
         },
         to: {
-          x: 30,
+          x: 40,
           y: 0,
         },
         style: {
@@ -11713,7 +11713,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       defaultFormula: "ADC",
       supportsCoefficient: false,
       center: {
-        x: 2.41,
+        x: 2.42,
         y: 0,
       },
       fontSize: 12,
@@ -11724,36 +11724,36 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
     id: "dac",
     name: "Digital-to-Analog Converter",
     viewBox: {
-      x: -34,
-      y: -19,
-      width: 68,
-      height: 38,
+      x: -44,
+      y: -24,
+      width: 88,
+      height: 48,
     },
     pins: [
       {
         name: "IN",
         role: "input",
         at: {
-          x: -30,
+          x: -40,
           y: 0,
         },
         direction: "west",
         presentation: {
           visibility: "visible",
-          leadLength: 5,
+          leadLength: 10,
         },
       },
       {
         name: "OUT",
         role: "output",
         at: {
-          x: 30,
+          x: 40,
           y: 0,
         },
         direction: "east",
         presentation: {
           visibility: "visible",
-          leadLength: 5,
+          leadLength: 10,
         },
       },
     ],
@@ -11761,11 +11761,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -30,
+          x: -40,
           y: 0,
         },
         to: {
-          x: -25,
+          x: -30,
           y: 0,
         },
         style: {
@@ -11778,24 +11778,24 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "polygon",
         points: [
           {
-            x: -25,
-            y: -15,
+            x: -30,
+            y: -20,
           },
           {
-            x: 15,
-            y: -15,
+            x: 20,
+            y: -20,
           },
           {
-            x: 25,
+            x: 30,
             y: 0,
           },
           {
-            x: 15,
-            y: 15,
+            x: 20,
+            y: 20,
           },
           {
-            x: -25,
-            y: 15,
+            x: -30,
+            y: 20,
           },
         ],
         fill: "none",
@@ -11809,11 +11809,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: 25,
+          x: 30,
           y: 0,
         },
         to: {
-          x: 30,
+          x: 40,
           y: 0,
         },
         style: {
@@ -11828,7 +11828,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       defaultFormula: "DAC",
       supportsCoefficient: false,
       center: {
-        x: -2.41,
+        x: -2.42,
         y: 0,
       },
       fontSize: 12,
