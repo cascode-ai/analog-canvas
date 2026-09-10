@@ -7,7 +7,7 @@ import {
   digitalSimulationInputFingerprint,
   simulateDigitalDocument,
   type DigitalSimulationResult,
-} from "@icm/simulation";
+} from "@icm/timing-simulation";
 
 import { RichTextEditor } from "../text-editing/rich-text-editor";
 import { logicalNetChoices } from "../logical-net-choices";

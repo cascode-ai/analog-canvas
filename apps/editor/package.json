@@ -20,7 +20,7 @@
     "@icm/netlist": "workspace:*",
     "@icm/project-protocol": "workspace:*",
     "@icm/render-svg": "workspace:*",
-    "@icm/simulation": "workspace:*",
+    "@icm/timing-simulation": "workspace:*",
     "@icm/spice": "workspace:*",
     "@icm/symbols": "workspace:*",
     "fflate": "0.8.3",

@@ -37,7 +37,7 @@
       "@icm/platform-node": ["./packages/platform-node/src/index.ts"],
       "@icm/render-svg": ["./packages/render-svg/src/index.ts"],
       "@icm/spice": ["./packages/spice/src/index.ts"],
-      "@icm/simulation": ["./packages/simulation/src/index.ts"],
+      "@icm/timing-simulation": ["./packages/timing-simulation/src/index.ts"],
       "@icm/symbols": ["./packages/symbols/src/index.ts"]
     },
     "types": ["node", "vitest/globals"]

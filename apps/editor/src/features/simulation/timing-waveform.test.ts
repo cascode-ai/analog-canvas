@@ -3,7 +3,7 @@ import {
   DraftingObjectSchema,
   flattenRichText,
 } from "@icm/model";
-import type { DigitalSimulationResult } from "@icm/simulation";
+import type { DigitalSimulationResult } from "@icm/timing-simulation";
 import { describe, expect, it } from "vitest";
 
 import {

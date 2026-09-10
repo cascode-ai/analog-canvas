@@ -16,7 +16,7 @@ import type {
   DigitalSimulationResult,
   DigitalTrace,
   LogicValue,
-} from "@icm/simulation";
+} from "@icm/timing-simulation";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 
 const waveformResolver = new InMemorySymbolResolver(builtInSymbols);
