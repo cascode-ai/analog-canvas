@@ -15,8 +15,8 @@ export interface PublishGalleryDialogProps {
   session?: PublishSessionUser | null;
   /** Quality-gate evaluation of the live Project. */
   gateReport?: SubmissionGateReport | null;
-  /** Present when the open circuit came from a gallery entry the signed-in
-   * user may update (owner, admin, or moderator). */
+  /** Present when the current Project is associated with a gallery entry the
+   * signed-in user may update (owner, admin, or moderator). */
   updateTarget?: { id: string; name: string } | null;
   /** The opened entry's stored fields, prefilled once in update mode. */
   updateDefaults?: {
@@ -30,6 +30,8 @@ export interface PublishGalleryDialogProps {
   onPublished: (outcome: {
     id: string;
     name: string;
+    description: string;
+    tags: readonly string[];
     updated: boolean;
     previewRevision?: string;
   }) => void;
@@ -139,6 +141,8 @@ export function PublishGalleryDialog({
       onPublished({
         id: outcome.id,
         name: name.trim(),
+        description: description.trim(),
+        tags,
         updated: updating,
         ...(outcome.previewRevision === undefined
           ? {}

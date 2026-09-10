@@ -1235,7 +1235,8 @@ test("a signed-in member publishes directly, bylined by the account", async ({
           displayName: "Token Zhang",
           email: "owner@example.com",
           provider: "github",
-          isAdmin: true,
+          role: "user",
+          isAdmin: false,
         },
       },
     }),
@@ -1247,6 +1248,7 @@ test("a signed-in member publishes directly, bylined by the account", async ({
     tags: string[];
     schemaVersion: number;
   }[] = [];
+  const updated: { name: string; instanceCount: number }[] = [];
   // The real submissions endpoint is /api/gallery/submissions — the mock
   // matches it exactly so a client posting anywhere else fails this test.
   await page.route("**/api/gallery/submissions", (route) => {
@@ -1266,6 +1268,21 @@ test("a signed-in member publishes directly, bylined by the account", async ({
         .schemaVersion,
     });
     return route.fulfill({ status: 201, json: { id: "entry-77" } });
+  });
+  await page.route("**/api/gallery/entry-77", (route) => {
+    if (route.request().method() !== "PUT") return route.fallback();
+    const body = route.request().postDataJSON() as {
+      name: string;
+      projectText: string;
+    };
+    const project = JSON.parse(body.projectText) as {
+      documents: { instances: unknown[] }[];
+    };
+    updated.push({
+      name: body.name,
+      instanceCount: project.documents[0]?.instances.length ?? 0,
+    });
+    return route.fulfill({ status: 200, json: { id: "entry-77" } });
   });
 
   await page.goto("/editor");
@@ -1295,6 +1312,28 @@ test("a signed-in member publishes directly, bylined by the account", async ({
       schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
     },
   ]);
+
+  // The live Project remains the source of this publication. After another
+  // edit, Publish must update the item it just created rather than creating a
+  // duplicate Gallery entry.
+  await chooseComponent(page, "resistor");
+  await page
+    .getByTestId("schematic-canvas")
+    .click({ position: { x: 340, y: 230 } });
+  await page.keyboard.press("Escape");
+  await page.getByTestId("publish-gallery-button").click();
+  await expect(page.getByTestId("publish-mode")).toContainText(
+    "Session Publish",
+  );
+  await page
+    .getByTestId("publish-gallery-dialog")
+    .getByRole("button", { name: "Update entry" })
+    .click();
+  await expect(page.getByTestId("status")).toHaveText(
+    'Updated "Session Publish" in the gallery',
+  );
+  expect(posted).toHaveLength(1);
+  expect(updated).toEqual([{ name: "Session Publish", instanceCount: 1 }]);
 });
 
 test("a mistaken click beside the publish form keeps what was written", async ({

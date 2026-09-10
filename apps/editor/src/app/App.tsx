@@ -4865,7 +4865,7 @@ export function App({
             ? {
                 draft: publishDraft,
                 onDraftChange: setPublishDraft,
-                defaultName: project.name,
+                defaultName: galleryEntryContext?.name ?? project.name,
                 session: publishSession,
                 gateReport: publishGates,
                 updateTarget:
@@ -4897,10 +4897,37 @@ export function App({
                         ),
                     }
                   : {}),
-                onPublished: ({ id, name, updated, previewRevision }) => {
+                onPublished: ({
+                  id,
+                  name,
+                  description,
+                  tags,
+                  updated,
+                  previewRevision,
+                }) => {
                   // The gallery now holds these exact bytes: leaving or
                   // refreshing loses nothing until the next edit.
                   noteProjectSnapshotSafe();
+                  // Publishing establishes the same update-in-place binding
+                  // as opening an existing Gallery entry. Keep it attached to
+                  // this Project only; replacing the Project clears it above.
+                  setGalleryEntryContext({
+                    id,
+                    name,
+                    projectId: project.id,
+                    ownerUserId: updated
+                      ? (galleryEntryContext?.ownerUserId ??
+                        publishSession?.id ??
+                        null)
+                      : (publishSession?.id ?? null),
+                    author: updated
+                      ? (galleryEntryContext?.author ??
+                        publishSession?.displayName ??
+                        "")
+                      : (publishSession?.displayName ?? ""),
+                    description,
+                    tags,
+                  });
                   void primeGalleryPreview(id, previewRevision);
                   announceGalleryChange({
                     entryId: id,
