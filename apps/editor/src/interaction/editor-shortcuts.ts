@@ -19,7 +19,6 @@ export interface EditorShortcutContext {
   canMirror: boolean;
   hasDraftingSelection: boolean;
   hasInspectableSelection: boolean;
-  hasRouteSelection: boolean;
   hasHighlightableNet: boolean;
   /** A Net highlight is showing; H must stay reachable to clear it. */
   hasActiveNetHighlight: boolean;
@@ -37,7 +36,7 @@ export type EditorShortcutIntent =
   | { kind: "block-browser-bookmark" }
   | { kind: "save" | "open" }
   | { kind: "reverse-current-marker" }
-  | { kind: "edit-net-label" | "net-label-selection-required" }
+  | { kind: "edit-net-label" | "toggle-display-settings" }
   | { kind: "toggle-net-highlight" }
   | {
       kind:
@@ -186,22 +185,12 @@ export function resolveEditorShortcut(
         command: { id: "tool.activate", tool: "wire" },
       };
     }
-    if (plain && key === "a") {
-      return {
-        kind: "run-command",
-        command: { id: "tool.activate", tool: "arrow" },
-      };
-    }
+    if (plain && key === "l") return { kind: "edit-net-label" };
+    if (plain && key === "o") return { kind: "toggle-display-settings" };
     if (plain && key === "k") {
       return {
         kind: "run-command",
         command: { id: "tool.activate", tool: "construction-line" },
-      };
-    }
-    if (plain && key === "o") {
-      return {
-        kind: "run-command",
-        command: { id: "tool.activate", tool: "circle" },
       };
     }
     if (plain && event.shiftKey && key === "r" && context.canMirror) {
@@ -252,7 +241,6 @@ export function resolveEditorShortcut(
     const blockedCommands: Record<string, string> = {
       c: "Copy",
       q: "Properties",
-      l: "Net Label",
       m: "Move",
       t: "Text",
       h: "Net Highlight",
@@ -339,17 +327,7 @@ export function resolveEditorShortcut(
   if (plain && key === "t") {
     return { kind: "run-command", command: { id: "drafting.add-text" } };
   }
-  if (plain && key === "a") {
-    return {
-      kind: "run-command",
-      command: { id: "tool.activate", tool: "arrow" },
-    };
-  }
-  if (plain && key === "l" && context.interactionMode !== "wire") {
-    return context.hasRouteSelection
-      ? { kind: "edit-net-label" }
-      : { kind: "net-label-selection-required" };
-  }
+  if (plain && key === "l") return { kind: "edit-net-label" };
   if (
     plain &&
     key === "h" &&
@@ -363,12 +341,7 @@ export function resolveEditorShortcut(
       command: { id: "tool.activate", tool: "construction-line" },
     };
   }
-  if (plain && key === "o") {
-    return {
-      kind: "run-command",
-      command: { id: "tool.activate", tool: "circle" },
-    };
-  }
+  if (plain && key === "o") return { kind: "toggle-display-settings" };
   if (plain && key === "q") {
     return {
       kind: "run-command",

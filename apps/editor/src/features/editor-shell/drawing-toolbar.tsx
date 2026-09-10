@@ -155,7 +155,7 @@ export function DrawingToolbar({
           className="draw-tool"
           data-testid="draw-tool-arrow"
           aria-pressed={tool === "arrow"}
-          title="Arrow (A)"
+          title="Arrow"
           onClick={() => onActivateTool("arrow")}
         >
           <ArrowStyleIcon preset={arrowPreset} />
@@ -197,7 +197,7 @@ export function DrawingToolbar({
         className="draw-tool"
         data-testid="draw-tool-circle"
         aria-pressed={tool === "circle"}
-        title="Circle (O)"
+        title="Circle"
         onClick={() => onActivateTool("circle")}
       >
         <ToolIcon name="circle" />

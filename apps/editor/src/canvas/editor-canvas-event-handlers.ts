@@ -122,6 +122,10 @@ interface CanvasEventHandlerDependencies {
     complete: () => void;
     cancel: () => void;
   };
+  netLabelPlacement: {
+    active: boolean;
+    place: (routeId: string | null, position: Point) => void;
+  };
   report: (status: string) => void;
   /**
    * Read-and-clear flag for the click that belongs to an armed-verb pickup;
@@ -187,12 +191,31 @@ export function createEditorCanvasEventHandlers({
     complete: completeWire,
     cancel: cancelWire,
   },
+  netLabelPlacement,
   report: setStatus,
   consumePickupClick,
 }: CanvasEventHandlerDependencies) {
   return {
     onClickCapture(event: CanvasMouseEvent) {
       const kind = interactionKind();
+      if (netLabelPlacement.active) {
+        event.preventDefault();
+        event.stopPropagation();
+        const routeHit = rankCanvasHits(
+          event.currentTarget.ownerDocument.elementsFromPoint(
+            event.clientX,
+            event.clientY,
+          ),
+          (hit) =>
+            hit.kind === "route" &&
+            selectionPolicy.allowsCanvasHit(hit, "edit"),
+        ).find((hit) => hit.kind === "route");
+        netLabelPlacement.place(
+          routeHit?.id ?? null,
+          pointFromClient(event.clientX, event.clientY, event.currentTarget),
+        );
+        return;
+      }
       // The pointerdown that just picked something up (an armed Copy/Move
       // verb consuming its target) must not also place it: its click would
       // otherwise commit at the pickup point with zero displacement.
@@ -269,6 +292,11 @@ export function createEditorCanvasEventHandlers({
     onPointerDownCapture(event: CanvasPointerEvent) {
       const target = event.target as Element;
       if (target.closest('[data-testid="canvas-text-editor"]')) return;
+      if (netLabelPlacement.active) {
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
       // The canvas is the keyboard-command surface. Explicitly take focus on
       // pointer entry so an earlier toolbar or Project-name input cannot keep
       // swallowing canvas shortcuts after the user returns to the drawing.

@@ -6,17 +6,8 @@ import type { Point } from "@icm/model";
 import type { WireDraftPreview } from "../features/wiring/wire-draft-preview";
 import { serializePolylinePoints } from "./canvas-geometry";
 
-type RouteGeometryRecord = {
-  route: { id: string };
-  geometry: { centerline: readonly Point[] };
-};
-
 export function EditorWiringOverlay({
-  netLabelEditorOpen,
-  selectedRouteId,
-  selectedRouteSegmentIndex,
-  routeGeometryRecords,
-  netLabelDraft,
+  netLabelPlacement,
   netLabelEditorInputRef,
   onNetLabelDraftChange,
   onNetLabelSubmit,
@@ -27,11 +18,11 @@ export function EditorWiringOverlay({
   bulkRoutePreview,
   snapGuideLayerRef,
 }: {
-  netLabelEditorOpen: boolean;
-  selectedRouteId: string | null;
-  selectedRouteSegmentIndex: number | null;
-  routeGeometryRecords: readonly RouteGeometryRecord[];
-  netLabelDraft: string;
+  netLabelPlacement: {
+    phase: "naming" | "placing";
+    draft: string;
+    position: Point;
+  } | null;
   netLabelEditorInputRef: Ref<HTMLInputElement>;
   onNetLabelDraftChange: (value: string) => void;
   onNetLabelSubmit: () => void;
@@ -45,38 +36,20 @@ export function EditorWiringOverlay({
   bulkRoutePreview: boolean;
   snapGuideLayerRef: Ref<SVGGElement>;
 }) {
-  const selectedGeometry = netLabelEditorOpen
-    ? routeGeometryRecords.find(({ route }) => route.id === selectedRouteId)
-        ?.geometry
-    : undefined;
-  const segmentIndex = selectedGeometry
-    ? Math.min(
-        selectedRouteSegmentIndex ?? 0,
-        selectedGeometry.centerline.length - 2,
-      )
-    : null;
-  const from =
-    segmentIndex === null
-      ? undefined
-      : selectedGeometry?.centerline[segmentIndex];
-  const to =
-    segmentIndex === null
-      ? undefined
-      : selectedGeometry?.centerline[segmentIndex + 1];
-
   return (
     <>
-      {from && to ? (
+      {netLabelPlacement?.phase === "naming" ? (
         <foreignObject
           data-testid="net-label-editor"
-          x={Math.round((from.x + to.x) / 2 - 58)}
-          y={Math.round((from.y + to.y) / 2 - 34)}
-          width="116"
-          height="32"
+          x={netLabelPlacement.position.x + 8}
+          y={netLabelPlacement.position.y - 42}
+          width="160"
+          height="34"
         >
           <form
             className="net-label-editor"
             onPointerDown={(event) => event.stopPropagation()}
+            onClick={(event) => event.stopPropagation()}
             onSubmit={(event) => {
               event.preventDefault();
               onNetLabelSubmit();
@@ -85,7 +58,7 @@ export function EditorWiringOverlay({
             <input
               ref={netLabelEditorInputRef}
               aria-label="Net Label"
-              value={netLabelDraft}
+              value={netLabelPlacement.draft}
               onChange={(event) =>
                 onNetLabelDraftChange(event.currentTarget.value)
               }
@@ -98,6 +71,17 @@ export function EditorWiringOverlay({
             />
           </form>
         </foreignObject>
+      ) : null}
+      {netLabelPlacement?.phase === "placing" ? (
+        <g data-testid="net-label-placement-preview" pointerEvents="none">
+          <text
+            className="net-label-placement-preview"
+            x={netLabelPlacement.position.x}
+            y={netLabelPlacement.position.y}
+          >
+            {netLabelPlacement.draft}
+          </text>
+        </g>
       ) : null}
       {flightlines.map((flightline) => (
         <g key={flightline.id}>

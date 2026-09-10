@@ -3223,7 +3223,7 @@ test("stacks complementary scripts under one uninterrupted overbar", async ({
   ).toEqual([]);
 });
 
-test("L edits a selected route Net Label without opening Properties", async ({
+test("L names first, previews a floating Net Label, then places it on a wire", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -3234,54 +3234,49 @@ test("L edits a selected route Net Label without opening Properties", async ({
   await page.getByTestId("terminal-R2-1").click();
   await page.keyboard.press("Escape");
 
-  await clickRoute(page, "route-ui-1", 0.5, 0);
   await page.keyboard.press("l");
   const editor = page.getByTestId("net-label-editor");
   await expect(editor).toBeVisible();
   await editor.getByRole("textbox", { name: "Net Label" }).fill("SIGNAL");
   await editor.getByRole("textbox", { name: "Net Label" }).press("Enter");
+  const preview = page.getByTestId("net-label-placement-preview");
+  await expect(preview).toContainText("SIGNAL");
+  await clickRoute(page, "route-ui-1", 0.7, 0);
+  await expect(preview).toHaveCount(0);
   await expect(page.locator('[data-layer="annotations"]')).toContainText(
     "SIGNAL",
   );
   await expect(page.getByTestId("flightline")).toHaveCount(0);
-  await openSelectionShelf(page);
-  await page.getByRole("button", { name: "Delete Net label" }).click();
+  await page.keyboard.press("Delete");
   await expect(
     page.getByTestId("annotation-hit-net-label-route-ui-1"),
   ).toHaveCount(0);
   await expect(page.getByTestId("flightline")).toHaveCount(0);
 
-  await clickRoute(page, "route-ui-1", 0.5, 0);
   await page.keyboard.press("l");
   await editor.getByRole("textbox", { name: "Net Label" }).fill("VREF");
   await editor.getByRole("textbox", { name: "Net Label" }).press("Enter");
+  await clickRoute(page, "route-ui-1", 0.25, 0);
   await expect(page.locator('[data-layer="annotations"]')).toContainText(
     "VREF",
   );
 
-  await clickRoute(page, "route-ui-1", 0.5, 0);
   await page.keyboard.press("l");
-  await editor.getByRole("textbox", { name: "Net Label" }).fill("");
-  await editor.getByRole("textbox", { name: "Net Label" }).press("Enter");
-  await expect(
-    page.getByTestId("annotation-hit-net-label-route-ui-1"),
-  ).toHaveCount(0);
-
-  await clickRoute(page, "route-ui-1", 0.5, 0);
-  await page.keyboard.press("l");
-  await editor.getByRole("textbox", { name: "Net Label" }).fill("ESCSAVE");
-  // Escape saves the edit like Enter does instead of discarding it.
+  await editor.getByRole("textbox", { name: "Net Label" }).fill("CANCELLED");
   await editor.getByRole("textbox", { name: "Net Label" }).press("Escape");
-  await expect(page.locator('[data-layer="annotations"]')).toContainText(
-    "ESCSAVE",
+  await expect(editor).toHaveCount(0);
+  await expect(page.locator('[data-layer="annotations"]')).not.toContainText(
+    "CANCELLED",
   );
-  await clickRoute(page, "route-ui-1", 0.5, 0);
+
   await page.keyboard.press("l");
   await editor.getByRole("textbox", { name: "Net Label" }).fill("");
   await editor.getByRole("textbox", { name: "Net Label" }).press("Enter");
-  await expect(
-    page.getByTestId("annotation-hit-net-label-route-ui-1"),
-  ).toHaveCount(0);
+  await expect(editor).toBeVisible();
+  await expect(page.getByTestId("status")).toContainText(
+    "name cannot be empty",
+  );
+  await editor.getByRole("textbox", { name: "Net Label" }).press("Escape");
 });
 
 test("Properties offers no dead Reference controls for a schematic-only block", async ({
@@ -3301,9 +3296,9 @@ test("Properties offers no dead Reference controls for a schematic-only block", 
   // offers neither a Reference field nor the display toggles that could
   // never change the drawing. Its raw component code and Appearance remain.
   await page.locator('[data-canvas-hit-kind="instance"]').first().click();
-  await expect(properties.locator('[aria-label="Component code"]')).toHaveText(
-    "adder",
-  );
+  await expect(
+    properties.locator('[aria-label="SPICE component code"]'),
+  ).toContainText("<subcircuit-model>");
   await expect(referenceField).toHaveCount(0);
   await expect(parametersCard).toHaveCount(0);
   await expect(
@@ -3355,11 +3350,11 @@ test("Properties toggles reference label visibility for one or many components",
       .allTextContents(),
   ).toEqual(["Parameters", "Placement", "Appearance"]);
   await expect(componentProperties.locator(":scope > :last-child")).toHaveText(
-    "resistor",
+    /R1.*<unconnected:1>.*<unconnected:2>.*<value>/u,
   );
   await expect(
     componentProperties.locator(":scope > :last-child"),
-  ).toHaveAttribute("aria-label", "Component code");
+  ).toHaveAttribute("aria-label", "SPICE component code");
   await expect(
     componentProperties.locator(
       ':scope > details[aria-label="Component appearance"]',
@@ -3851,11 +3846,11 @@ test("a dragged Net label re-anchors along its route and stays released", async 
   await page.getByTestId("terminal-R2-1").click();
   await page.keyboard.press("Escape");
 
-  await clickRoute(page, "route-ui-1", 0.5, 0);
   await page.keyboard.press("l");
   const editor = page.getByTestId("net-label-editor");
   await editor.getByRole("textbox", { name: "Net Label" }).fill("NETA");
   await editor.getByRole("textbox", { name: "Net Label" }).press("Enter");
+  await clickRoute(page, "route-ui-1", 0.5, 0);
 
   const label = page.getByTestId("annotation-hit-net-label-route-ui-1");
   const renderedLabel = page.locator('[data-object-id="net-label-route-ui-1"]');
@@ -4842,11 +4837,11 @@ test("edits the transconductance trapezoid from gm to -gmL", async ({
     0,
   );
   await expect(componentProperties.locator(":scope > :last-child")).toHaveText(
-    "transconductance",
+    /X1.*<subcircuit-model>/u,
   );
   await expect(
     componentProperties.locator(":scope > :last-child"),
-  ).toHaveAttribute("aria-label", "Component code");
+  ).toHaveAttribute("aria-label", "SPICE component code");
   await expect(formula).toHaveValue("g_m");
   await expect(frame).toHaveCount(1);
   await expect(frame).toHaveAttribute(

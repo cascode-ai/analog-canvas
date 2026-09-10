@@ -315,9 +315,8 @@ test("keeps quick-start shortcuts in the upper-right corner until the first comp
     "WDraw wire",
     "F3Wire options",
     "TAdd text",
-    "ADraw arrow",
     "KDraw construction line",
-    "ODraw circle",
+    "ODisplay settings",
     "CCopy and place selection",
     "MMove selection",
     "ShiftMMove without wires",
@@ -325,7 +324,7 @@ test("keeps quick-start shortcuts in the upper-right corner until the first comp
     "ShiftRMirror left / right",
     "Ctrl/CmdRMirror top / bottom",
     "QToggle Properties",
-    "LEdit Net Label",
+    "LCreate and place Net Label",
     "HToggle Net highlight",
     "XReverse current marker",
     "EEnter selected Cell",
@@ -1214,8 +1213,13 @@ test("carries a manual Value through placement and Q property editing", async ({
   const componentCode = page.locator(
     '[aria-label="Component properties"] > :last-child',
   );
-  await expect(componentCode).toHaveAttribute("aria-label", "Component code");
-  await expect(componentCode).toHaveText("resistor");
+  await expect(componentCode).toHaveAttribute(
+    "aria-label",
+    "SPICE component code",
+  );
+  await expect(componentCode).toHaveText(
+    /R1.*<unconnected:1>.*<unconnected:2>.*<value>/u,
+  );
   const instanceReference = page.getByLabel("Netlist Reference");
   await expect(instanceReference).toHaveValue("R1");
   await instanceReference.fill("R7");
