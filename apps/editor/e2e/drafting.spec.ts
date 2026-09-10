@@ -218,6 +218,17 @@ test("adds formatted drafting text and undo/redo restores it", async ({
   await expectForeignObjectContentsContained(
     page.getByTestId("canvas-text-editor"),
   );
+  const [canvasBounds, editorBounds] = await Promise.all([
+    page.getByTestId("schematic-canvas").boundingBox(),
+    page.getByTestId("canvas-text-editor").boundingBox(),
+  ]);
+  if (!canvasBounds || !editorBounds) {
+    throw new Error("Canvas text editor geometry is not measurable");
+  }
+  expect(editorBounds.x).toBeGreaterThanOrEqual(canvasBounds.x);
+  expect(editorBounds.x + editorBounds.width).toBeLessThanOrEqual(
+    canvasBounds.x + canvasBounds.width + 1,
+  );
   const toolbarCenters = await page
     .getByRole("toolbar", { name: "Text formatting" })
     .locator(":scope > *")
@@ -227,9 +238,22 @@ test("adds formatted drafting text and undo/redo restores it", async ({
         return bounds.top + bounds.height / 2;
       }),
     );
+  const toolbarRows = toolbarCenters.reduce<number[]>((rows, center) => {
+    if (!rows.some((row) => Math.abs(row - center) < 2)) rows.push(center);
+    return rows;
+  }, []);
+  expect(toolbarRows).toHaveLength(2);
+  await draftInput.fill(
+    "A deliberately long annotation that wraps inside the compact canvas text editor instead of extending beyond it",
+  );
+  await expectForeignObjectContentsContained(
+    page.getByTestId("canvas-text-editor"),
+  );
   expect(
-    Math.max(...toolbarCenters) - Math.min(...toolbarCenters),
-  ).toBeLessThan(1);
+    await draftInput.evaluate(
+      (element) => element.scrollWidth <= element.clientWidth + 1,
+    ),
+  ).toBe(true);
   const initialFontSize = await draftInput.evaluate((element) =>
     Number.parseFloat(getComputedStyle(element).fontSize),
   );

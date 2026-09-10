@@ -28,8 +28,9 @@ export interface RichTextEditorProps {
   alignment: "start" | "middle" | "end";
   /**
    * A plain-only display (for example Symbol body text) edits its source
-   * field. It is deliberately a plain, single-line input rather than a fake
-   * RichText document with disabled formatting controls.
+   * field. It is deliberately a plain editing surface rather than a fake
+   * RichText document with disabled formatting controls. Long source values
+   * wrap visually, but Enter still commits instead of adding stored lines.
    */
   sourceOnly?: boolean;
   multiline?: boolean;
@@ -448,7 +449,7 @@ export function RichTextEditor({
 }: RichTextEditorProps) {
   const shellRef = useRef<HTMLDivElement>(null);
   const editableRef = useRef<HTMLDivElement>(null);
-  const sourceInputRef = useRef<HTMLInputElement>(null);
+  const sourceInputRef = useRef<HTMLTextAreaElement>(null);
   const formulaMathfieldRef = useRef<FormulaMathfieldHandle>(null);
   const selectionRangeRef = useRef<Range | null>(null);
   const existingFormula = soleRichTextMathRun(content);
@@ -1011,13 +1012,14 @@ export function RichTextEditor({
         </div>
       ) : null}
       {sourceOnly ? (
-        <input
+        <textarea
           ref={sourceInputRef}
           className="rich-text-editable rich-text-source-input"
-          type="text"
           dir="auto"
           value={flattenRichText(content)}
           disabled={disabled}
+          rows={2}
+          wrap="soft"
           aria-label="Canvas text editor"
           aria-description="Edit the bound schematic label"
           style={{ fontSize: `${15.116 * sizeScale}px` }}

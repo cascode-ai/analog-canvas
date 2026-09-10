@@ -46,7 +46,7 @@ const EDITOR_LAYOUT_MIN_HEIGHT = 150;
  * apparent size — and because its contents are laid out at a fixed pixel size
  * and scaled with it, they hold their size too.
  */
-const EDITOR_VIEW_FRACTION = 2 / 3;
+const EDITOR_VIEW_FRACTION = 1 / 2;
 
 export interface CanvasTextEditorFrame {
   /** Where the panel sits, in Document units. */

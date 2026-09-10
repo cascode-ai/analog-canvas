@@ -34,6 +34,16 @@ test("double-clicking a Symbol's body text edits it on the canvas", async ({
   const editor = page.getByRole("textbox", { name: "Canvas text editor" });
   await expect(editor).toBeVisible();
   await expect(editor).toHaveValue("DAC");
+  await expect(editor).toHaveAttribute("wrap", "soft");
+
+  await editor.fill(
+    "A deliberately long plain-text symbol formula that wraps while it is edited",
+  );
+  expect(
+    await editor.evaluate(
+      (element) => element.scrollWidth <= element.clientWidth + 1,
+    ),
+  ).toBe(true);
 
   await editor.fill("8-bit DAC");
   await page.getByRole("button", { name: "Apply text changes" }).click();
