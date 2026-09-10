@@ -193,8 +193,24 @@ describe("Razavi symbol catalog", () => {
       ["opamp-lettered-inputs-swapped", "reviewed", "razavi-reference-v1"],
       ["opamp-inputs-swapped", "reviewed", "razavi-reference-v1"],
       ["opamp-differential", "reviewed", "razavi-reference-v1"],
+      ["opamp-differential-lettered", "reviewed", "razavi-reference-v1"],
+      [
+        "opamp-differential-lettered-inputs-swapped",
+        "reviewed",
+        "razavi-reference-v1",
+      ],
       ["opamp-differential-inputs-swapped", "reviewed", "razavi-reference-v1"],
       ["opamp-differential-crossed", "reviewed", "razavi-reference-v1"],
+      [
+        "opamp-differential-crossed-lettered",
+        "reviewed",
+        "razavi-reference-v1",
+      ],
+      [
+        "opamp-differential-crossed-lettered-inputs-swapped",
+        "reviewed",
+        "razavi-reference-v1",
+      ],
       [
         "opamp-differential-crossed-inputs-swapped",
         "reviewed",
@@ -242,8 +258,12 @@ describe("Razavi symbol catalog", () => {
     const figure1348Symbols = new Set([
       "opamp-differential",
       "opamp-differential-inputs-swapped",
+      "opamp-differential-lettered",
+      "opamp-differential-lettered-inputs-swapped",
       "opamp-differential-crossed",
       "opamp-differential-crossed-inputs-swapped",
+      "opamp-differential-crossed-lettered",
+      "opamp-differential-crossed-lettered-inputs-swapped",
     ]);
     const figure1348StrokeWidths = new Set([0.625137, 1.250273]);
     for (const symbol of razaviCatalogSymbols) {
@@ -440,7 +460,10 @@ describe("Razavi symbol catalog", () => {
           to.x * from.y -
           to.y * from.x,
       ) / Math.hypot(to.y - from.y, to.x - from.x);
-    for (const symbolId of ["opamp-differential"]) {
+    for (const symbolId of [
+      "opamp-differential",
+      "opamp-differential-lettered",
+    ]) {
       const symbol = requireRazaviCatalogSymbol(symbolId);
       expect(symbol.pins).toEqual(
         expect.arrayContaining([
@@ -565,7 +588,7 @@ describe("Razavi symbol catalog", () => {
   });
 
   it("uses reviewed catalog objects as the sole built-in product library", () => {
-    expect(razaviCatalogSymbols).toHaveLength(63);
+    expect(razaviCatalogSymbols).toHaveLength(67);
     for (const catalogSymbol of razaviProductSymbols) {
       expect(
         builtInSymbols.find((symbol) => symbol.id === catalogSymbol.id),
@@ -610,6 +633,7 @@ describe("Razavi symbol catalog", () => {
       "opamp",
       "opamp-lettered",
       "opamp-differential",
+      "opamp-differential-lettered",
       "or-gate",
       "pmos",
       "pnp",
@@ -893,6 +917,7 @@ describe("Razavi symbol catalog", () => {
       "capacitor",
       "inductor",
       "opamp",
+      "opamp-differential-lettered",
       "diode",
       "zener-diode",
       "closed-switch",

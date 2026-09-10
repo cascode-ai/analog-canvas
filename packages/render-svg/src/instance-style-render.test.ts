@@ -28,8 +28,12 @@ describe("instance style override rendering", () => {
     ["differential-transconductance-inputs-swapped", 1],
     ["opamp-differential", 2],
     ["opamp-differential-inputs-swapped", 2],
+    ["opamp-differential-lettered", 2],
+    ["opamp-differential-lettered-inputs-swapped", 2],
     ["opamp-differential-crossed", 2],
     ["opamp-differential-crossed-inputs-swapped", 2],
+    ["opamp-differential-crossed-lettered", 2],
+    ["opamp-differential-crossed-lettered-inputs-swapped", 2],
   ] as const)(
     "keeps every %s minus horizontal without moving or resizing it",
     (symbolId, expectedMarkCount) => {

@@ -831,6 +831,40 @@ export const agentRazaviAuthoringCatalog = {
       variants: [],
     },
     {
+      symbolId: "opamp-differential-lettered",
+      name: "Differential Op Amp (lettered)",
+      category: "analog-block",
+      defaultVariantId: null,
+      labelVisibility: "shown",
+      pins: [
+        {
+          name: "IN+",
+          role: "non-inverting-input",
+          direction: "west",
+          visibility: "visible",
+        },
+        {
+          name: "IN-",
+          role: "inverting-input",
+          direction: "west",
+          visibility: "visible",
+        },
+        {
+          name: "OUT+",
+          role: "output",
+          direction: "east",
+          visibility: "visible",
+        },
+        {
+          name: "OUT-",
+          role: "output",
+          direction: "east",
+          visibility: "visible",
+        },
+      ],
+      variants: [],
+    },
+    {
       symbolId: "or-gate",
       name: "OR Gate",
       category: "logic",

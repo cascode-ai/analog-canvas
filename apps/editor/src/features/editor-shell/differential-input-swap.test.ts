@@ -17,6 +17,9 @@ describe("differential input swap", () => {
     expect(differentialInputSibling("opamp-differential-crossed")).toBe(
       "opamp-differential-crossed-inputs-swapped",
     );
+    expect(differentialInputSibling("opamp-differential-lettered")).toBe(
+      "opamp-differential-lettered-inputs-swapped",
+    );
     expect(differentialInputSibling("differential-transconductance")).toBe(
       "differential-transconductance-inputs-swapped",
     );
@@ -58,6 +61,7 @@ describe("differential input swap", () => {
       "comparator",
       "differential-transconductance",
       "opamp-differential",
+      "opamp-differential-lettered",
     ]) {
       const source = byId.get(id)!;
       const swapped = byId.get(differentialInputSibling(id)!)!;

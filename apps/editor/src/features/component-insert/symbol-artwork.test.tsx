@@ -117,6 +117,7 @@ describe("SymbolArtwork pin-name previews", () => {
     "comparator",
     "differential-transconductance",
     "opamp-differential",
+    "opamp-differential-lettered",
   ])(
     "keeps %s negative polarity horizontal in a rotated mirrored placement preview",
     (symbolId) => {

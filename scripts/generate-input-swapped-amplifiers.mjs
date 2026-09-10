@@ -35,7 +35,9 @@ const SOURCE_IDS = [
   "comparator",
   "differential-transconductance",
   "opamp-differential",
+  "opamp-differential-lettered",
   "opamp-differential-crossed",
+  "opamp-differential-crossed-lettered",
 ];
 const SWAPPED_SUFFIX = "-inputs-swapped";
 const INPUT_ROLES = new Set(["non-inverting-input", "inverting-input"]);

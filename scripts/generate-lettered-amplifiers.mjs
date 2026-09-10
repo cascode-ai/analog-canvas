@@ -43,11 +43,25 @@ const SOURCES = [
     id: "opamp",
     letteredId: "opamp-lettered",
     name: "Operational Amplifier (lettered)",
+    palette: true,
+  },
+  {
+    id: "opamp-differential",
+    letteredId: "opamp-differential-lettered",
+    name: "Differential Op Amp (lettered)",
+    palette: true,
+  },
+  {
+    id: "opamp-differential-crossed",
+    letteredId: "opamp-differential-crossed-lettered",
+    name: "Differential Op Amp (crossed outputs, lettered)",
+    palette: false,
   },
   {
     id: "voltage-amplifier",
     letteredId: "voltage-amplifier-lettered",
     name: "Voltage Amplifier (lettered)",
+    palette: true,
   },
 ];
 
@@ -81,7 +95,7 @@ function triangleCentroid(symbol) {
 const catalog = JSON.parse(await readFile(catalogPath, "utf8"));
 const outputs = [];
 
-for (const { id, letteredId, name } of SOURCES) {
+for (const { id, letteredId, name, palette } of SOURCES) {
   const sourceEntry = catalog.entries.find(
     (candidate) => candidate.symbolId === id,
   );
@@ -112,9 +126,10 @@ for (const { id, letteredId, name } of SOURCES) {
     ...sourceEntry,
     symbolId: letteredId,
     name,
-    // A distinct drawing convention, not a state of its source: an author
-    // chooses the lettered body up front, so it belongs in the Library.
-    palette: true,
+    // A distinct drawing convention belongs in the Library when its source
+    // does. A crossed-output body remains an action-only sibling even after
+    // gaining editable body text.
+    palette,
     assetPath,
     assetHash: hash(letteredSource),
     generation: {

@@ -918,6 +918,62 @@
       }
     },
     {
+      "symbolId": "opamp-differential-lettered",
+      "name": "Differential Op Amp (lettered)",
+      "category": "analog-block",
+      "reviewStatus": "reviewed",
+      "pinOrder": ["IN+", "IN-", "OUT+", "OUT-"],
+      "palette": true,
+      "automaticMappings": [],
+      "manualOnlyReason": "Fully differential textbook body; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
+      "assetPath": "opamp-differential-lettered.symbol.json",
+      "assetHash": "1a7be7e6110b196ef2c680e878ebc7ac79c69175aaa030a4441970756994d574",
+      "visualAuthority": {
+        "kind": "razavi-reference-v1",
+        "referenceManifestPath": "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+        "referencePaths": [
+          "fixtures/visual-reference/razavi-reference-v1/opamp-vector-source.json",
+          "fixtures/visual-reference/razavi-reference-v1/differential-opamp-vector-source.json",
+          "fixtures/visual-reference/razavi-reference-v1/differential-opamp-reference.png"
+        ],
+        "calibrationPath": "fixtures/visual-reference/razavi-reference-v1/differential-opamp-geometry.json"
+      },
+      "generation": {
+        "kind": "derived-lettered-body",
+        "sourceSymbolId": "opamp-differential",
+        "converterPath": "scripts/generate-lettered-amplifiers.mjs",
+        "converterVersion": 1
+      }
+    },
+    {
+      "symbolId": "opamp-differential-lettered-inputs-swapped",
+      "name": "Differential Op Amp (lettered) (swapped inputs)",
+      "category": "analog-block",
+      "reviewStatus": "reviewed",
+      "pinOrder": ["IN+", "IN-", "OUT+", "OUT-"],
+      "palette": false,
+      "automaticMappings": [],
+      "manualOnlyReason": "Fully differential textbook body; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
+      "assetPath": "opamp-differential-lettered-inputs-swapped.symbol.json",
+      "assetHash": "489d9c15b1cd0cf1d39982c38f4314b9bcc0c3cdc3b0921be7d7315ceb14dd02",
+      "visualAuthority": {
+        "kind": "razavi-reference-v1",
+        "referenceManifestPath": "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+        "referencePaths": [
+          "fixtures/visual-reference/razavi-reference-v1/opamp-vector-source.json",
+          "fixtures/visual-reference/razavi-reference-v1/differential-opamp-vector-source.json",
+          "fixtures/visual-reference/razavi-reference-v1/differential-opamp-reference.png"
+        ],
+        "calibrationPath": "fixtures/visual-reference/razavi-reference-v1/differential-opamp-geometry.json"
+      },
+      "generation": {
+        "kind": "derived-input-swap",
+        "sourceSymbolId": "opamp-differential-lettered",
+        "converterPath": "scripts/generate-input-swapped-amplifiers.mjs",
+        "converterVersion": 1
+      }
+    },
+    {
       "symbolId": "opamp-differential-inputs-swapped",
       "name": "Differential Op Amp (swapped inputs)",
       "category": "analog-block",
@@ -972,6 +1028,62 @@
         "referencePath": "fixtures/visual-reference/razavi-reference-v1/differential-opamp-vector-source.json",
         "converterPath": "scripts/generate-razavi-opamp-asset.mjs",
         "converterVersion": 4
+      }
+    },
+    {
+      "symbolId": "opamp-differential-crossed-lettered",
+      "name": "Differential Op Amp (crossed outputs, lettered)",
+      "category": "analog-block",
+      "reviewStatus": "reviewed",
+      "pinOrder": ["IN+", "IN-", "OUT+", "OUT-"],
+      "palette": false,
+      "automaticMappings": [],
+      "manualOnlyReason": "Output-polarity sibling of opamp-differential; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
+      "assetPath": "opamp-differential-crossed-lettered.symbol.json",
+      "assetHash": "7761a62e4622b70a2022f1410365054e777c94adad9e9026ad7e705e41a87166",
+      "visualAuthority": {
+        "kind": "razavi-reference-v1",
+        "referenceManifestPath": "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+        "referencePaths": [
+          "fixtures/visual-reference/razavi-reference-v1/opamp-vector-source.json",
+          "fixtures/visual-reference/razavi-reference-v1/differential-opamp-vector-source.json",
+          "fixtures/visual-reference/razavi-reference-v1/differential-opamp-reference.png"
+        ],
+        "calibrationPath": "fixtures/visual-reference/razavi-reference-v1/differential-opamp-geometry.json"
+      },
+      "generation": {
+        "kind": "derived-lettered-body",
+        "sourceSymbolId": "opamp-differential-crossed",
+        "converterPath": "scripts/generate-lettered-amplifiers.mjs",
+        "converterVersion": 1
+      }
+    },
+    {
+      "symbolId": "opamp-differential-crossed-lettered-inputs-swapped",
+      "name": "Differential Op Amp (crossed outputs, lettered) (swapped inputs)",
+      "category": "analog-block",
+      "reviewStatus": "reviewed",
+      "pinOrder": ["IN+", "IN-", "OUT+", "OUT-"],
+      "palette": false,
+      "automaticMappings": [],
+      "manualOnlyReason": "Output-polarity sibling of opamp-differential; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
+      "assetPath": "opamp-differential-crossed-lettered-inputs-swapped.symbol.json",
+      "assetHash": "d2f7069dc052fc7bc3a3b31c76dd3e9969823abb0d2224b681c7c54d2e4f22c6",
+      "visualAuthority": {
+        "kind": "razavi-reference-v1",
+        "referenceManifestPath": "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+        "referencePaths": [
+          "fixtures/visual-reference/razavi-reference-v1/opamp-vector-source.json",
+          "fixtures/visual-reference/razavi-reference-v1/differential-opamp-vector-source.json",
+          "fixtures/visual-reference/razavi-reference-v1/differential-opamp-reference.png"
+        ],
+        "calibrationPath": "fixtures/visual-reference/razavi-reference-v1/differential-opamp-geometry.json"
+      },
+      "generation": {
+        "kind": "derived-input-swap",
+        "sourceSymbolId": "opamp-differential-crossed-lettered",
+        "converterPath": "scripts/generate-input-swapped-amplifiers.mjs",
+        "converterVersion": 1
       }
     },
     {

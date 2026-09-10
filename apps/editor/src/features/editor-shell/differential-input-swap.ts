@@ -20,7 +20,9 @@ const INPUT_SWAP_SOURCES = [
   "comparator",
   "differential-transconductance",
   "opamp-differential",
+  "opamp-differential-lettered",
   "opamp-differential-crossed",
+  "opamp-differential-crossed-lettered",
 ] as const;
 
 export function differentialInputSibling(symbolId: string): string | undefined {

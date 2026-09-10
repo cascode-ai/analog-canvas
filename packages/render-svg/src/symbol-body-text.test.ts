@@ -69,8 +69,29 @@ describe("lettered amplifier body text", () => {
     expect(letters(svg)).toEqual(["A", "K"]);
   });
 
+  it("gives the fully differential amplifier two outputs and editable body text", () => {
+    const definition = builtInSymbols.find(
+      (symbol) => symbol.id === "opamp-differential-lettered",
+    );
+    expect(definition?.pins.map((pin) => pin.name)).toEqual([
+      "IN+",
+      "IN-",
+      "OUT+",
+      "OUT-",
+    ]);
+    const svg = renderDocumentSvg(
+      documentWithAmplifiers("opamp-differential-lettered", [undefined, "G"]),
+      resolver,
+    );
+    expect(letters(svg)).toEqual(["A", "G"]);
+  });
+
   it("leaves the plain amplifiers unlettered", () => {
-    for (const symbolId of ["opamp", "voltage-amplifier"]) {
+    for (const symbolId of [
+      "opamp",
+      "opamp-differential",
+      "voltage-amplifier",
+    ]) {
       const svg = renderDocumentSvg(
         documentWithAmplifiers(symbolId, [undefined]),
         resolver,

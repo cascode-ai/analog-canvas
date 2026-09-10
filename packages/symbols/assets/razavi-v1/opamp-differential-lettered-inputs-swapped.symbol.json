@@ -1,0 +1,257 @@
+{
+  "schemaVersion": 1,
+  "id": "opamp-differential-lettered-inputs-swapped",
+  "name": "Differential Op Amp (lettered) (swapped inputs)",
+  "viewBox": {
+    "x": -54,
+    "y": -28,
+    "width": 98,
+    "height": 56
+  },
+  "pins": [
+    {
+      "name": "IN+",
+      "role": "non-inverting-input",
+      "at": {
+        "x": -50,
+        "y": -20
+      },
+      "direction": "west",
+      "presentation": {
+        "visibility": "visible",
+        "leadLength": 20
+      }
+    },
+    {
+      "name": "IN-",
+      "role": "inverting-input",
+      "at": {
+        "x": -50,
+        "y": 20
+      },
+      "direction": "west",
+      "presentation": {
+        "visibility": "visible",
+        "leadLength": 20
+      }
+    },
+    {
+      "name": "OUT+",
+      "role": "output",
+      "at": {
+        "x": 10,
+        "y": 20
+      },
+      "direction": "east",
+      "presentation": {
+        "visibility": "visible",
+        "leadLength": 20
+      }
+    },
+    {
+      "name": "OUT-",
+      "role": "output",
+      "at": {
+        "x": 10,
+        "y": -20
+      },
+      "direction": "east",
+      "presentation": {
+        "visibility": "visible",
+        "leadLength": 20
+      }
+    }
+  ],
+  "primitives": [
+    {
+      "kind": "line",
+      "part": "input-lead",
+      "from": {
+        "x": -50,
+        "y": -20
+      },
+      "to": {
+        "x": -37.9479,
+        "y": -20
+      },
+      "style": {
+        "strokeRole": "normal",
+        "lineCap": "butt",
+        "lineJoin": "miter"
+      }
+    },
+    {
+      "kind": "line",
+      "part": "input-lead",
+      "from": {
+        "x": -50,
+        "y": 20
+      },
+      "to": {
+        "x": -37.9479,
+        "y": 20
+      },
+      "style": {
+        "strokeRole": "normal",
+        "lineCap": "butt",
+        "lineJoin": "miter"
+      }
+    },
+    {
+      "kind": "line",
+      "part": "output-lead",
+      "from": {
+        "x": -13.468439157806387,
+        "y": -20
+      },
+      "to": {
+        "x": 10,
+        "y": -20
+      },
+      "style": {
+        "strokeRole": "normal",
+        "lineCap": "butt",
+        "lineJoin": "miter"
+      }
+    },
+    {
+      "kind": "line",
+      "part": "output-lead",
+      "from": {
+        "x": -13.461716017666415,
+        "y": 20
+      },
+      "to": {
+        "x": 10,
+        "y": 20
+      },
+      "style": {
+        "strokeRole": "normal",
+        "lineCap": "butt",
+        "lineJoin": "miter"
+      }
+    },
+    {
+      "kind": "path",
+      "data": "M -36.7979 -29.998821 L -36.7979 30.000521 L 33.2021 0.002622 Z",
+      "style": {
+        "strokeRole": "emphasis",
+        "lineCap": "butt",
+        "lineJoin": "miter",
+        "miterLimit": 4
+      }
+    },
+    {
+      "kind": "line",
+      "from": {
+        "x": -30.653576579339017,
+        "y": -18.391246526265867
+      },
+      "to": {
+        "x": -30.653576579339017,
+        "y": -13.034150200001143
+      },
+      "style": {
+        "strokeRole": "normal",
+        "lineCap": "butt",
+        "lineJoin": "miter"
+      },
+      "part": "input-polarity"
+    },
+    {
+      "kind": "line",
+      "from": {
+        "x": -33.332849726715,
+        "y": -15.713321223835566
+      },
+      "to": {
+        "x": -27.975754829029867,
+        "y": -15.713321223835566
+      },
+      "style": {
+        "strokeRole": "normal",
+        "lineCap": "butt",
+        "lineJoin": "miter"
+      },
+      "part": "input-polarity"
+    },
+    {
+      "kind": "line",
+      "from": {
+        "x": -33.33305067844888,
+        "y": 15.713815502660013
+      },
+      "to": {
+        "x": -27.97595578076375,
+        "y": 15.713815502660013
+      },
+      "style": {
+        "strokeRole": "normal",
+        "lineCap": "butt",
+        "lineJoin": "miter"
+      },
+      "part": "upright-input-polarity-negative"
+    },
+    {
+      "kind": "line",
+      "from": {
+        "x": -20.61807623763181,
+        "y": -15.713321223835566
+      },
+      "to": {
+        "x": -15.26222563277121,
+        "y": -15.713321223835566
+      },
+      "style": {
+        "strokeRole": "normal",
+        "lineCap": "butt",
+        "lineJoin": "miter"
+      },
+      "part": "upright-output-polarity-negative"
+    },
+    {
+      "kind": "line",
+      "from": {
+        "x": -17.93987471670441,
+        "y": 13.037135921633837
+      },
+      "to": {
+        "x": -17.93987471670441,
+        "y": 18.394232247898557
+      },
+      "style": {
+        "strokeRole": "normal",
+        "lineCap": "butt",
+        "lineJoin": "miter"
+      },
+      "part": "output-polarity"
+    },
+    {
+      "kind": "line",
+      "from": {
+        "x": -20.618578581937502,
+        "y": 15.713815502660013
+      },
+      "to": {
+        "x": -15.262727977076901,
+        "y": 15.713815502660013
+      },
+      "style": {
+        "strokeRole": "normal",
+        "lineCap": "butt",
+        "lineJoin": "miter"
+      },
+      "part": "output-polarity"
+    }
+  ],
+  "variants": [],
+  "formulaPresentation": {
+    "defaultFormula": "A",
+    "supportsCoefficient": false,
+    "center": {
+      "x": -13.46,
+      "y": 0
+    },
+    "fontSize": 16
+  }
+}

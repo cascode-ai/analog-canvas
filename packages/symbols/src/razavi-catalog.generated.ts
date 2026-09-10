@@ -1102,6 +1102,70 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     },
   },
   {
+    symbolId: "opamp-differential-lettered",
+    name: "Differential Op Amp (lettered)",
+    category: "analog-block",
+    reviewStatus: "reviewed",
+    pinOrder: ["IN+", "IN-", "OUT+", "OUT-"],
+    palette: true,
+    automaticMappings: [],
+    manualOnlyReason:
+      "Fully differential textbook body; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
+    assetPath: "opamp-differential-lettered.symbol.json",
+    assetHash:
+      "1a7be7e6110b196ef2c680e878ebc7ac79c69175aaa030a4441970756994d574",
+    visualAuthority: {
+      kind: "razavi-reference-v1",
+      referenceManifestPath:
+        "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+      referencePaths: [
+        "fixtures/visual-reference/razavi-reference-v1/opamp-vector-source.json",
+        "fixtures/visual-reference/razavi-reference-v1/differential-opamp-vector-source.json",
+        "fixtures/visual-reference/razavi-reference-v1/differential-opamp-reference.png",
+      ],
+      calibrationPath:
+        "fixtures/visual-reference/razavi-reference-v1/differential-opamp-geometry.json",
+    },
+    generation: {
+      kind: "derived-lettered-body",
+      sourceSymbolId: "opamp-differential",
+      converterPath: "scripts/generate-lettered-amplifiers.mjs",
+      converterVersion: 1,
+    },
+  },
+  {
+    symbolId: "opamp-differential-lettered-inputs-swapped",
+    name: "Differential Op Amp (lettered) (swapped inputs)",
+    category: "analog-block",
+    reviewStatus: "reviewed",
+    pinOrder: ["IN+", "IN-", "OUT+", "OUT-"],
+    palette: false,
+    automaticMappings: [],
+    manualOnlyReason:
+      "Fully differential textbook body; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
+    assetPath: "opamp-differential-lettered-inputs-swapped.symbol.json",
+    assetHash:
+      "489d9c15b1cd0cf1d39982c38f4314b9bcc0c3cdc3b0921be7d7315ceb14dd02",
+    visualAuthority: {
+      kind: "razavi-reference-v1",
+      referenceManifestPath:
+        "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+      referencePaths: [
+        "fixtures/visual-reference/razavi-reference-v1/opamp-vector-source.json",
+        "fixtures/visual-reference/razavi-reference-v1/differential-opamp-vector-source.json",
+        "fixtures/visual-reference/razavi-reference-v1/differential-opamp-reference.png",
+      ],
+      calibrationPath:
+        "fixtures/visual-reference/razavi-reference-v1/differential-opamp-geometry.json",
+    },
+    generation: {
+      kind: "derived-input-swap",
+      sourceSymbolId: "opamp-differential-lettered",
+      converterPath: "scripts/generate-input-swapped-amplifiers.mjs",
+      converterVersion: 1,
+    },
+  },
+  {
     symbolId: "opamp-differential-inputs-swapped",
     name: "Differential Op Amp (swapped inputs)",
     category: "analog-block",
@@ -1166,6 +1230,70 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
         "fixtures/visual-reference/razavi-reference-v1/differential-opamp-vector-source.json",
       converterPath: "scripts/generate-razavi-opamp-asset.mjs",
       converterVersion: 4,
+    },
+  },
+  {
+    symbolId: "opamp-differential-crossed-lettered",
+    name: "Differential Op Amp (crossed outputs, lettered)",
+    category: "analog-block",
+    reviewStatus: "reviewed",
+    pinOrder: ["IN+", "IN-", "OUT+", "OUT-"],
+    palette: false,
+    automaticMappings: [],
+    manualOnlyReason:
+      "Output-polarity sibling of opamp-differential; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
+    assetPath: "opamp-differential-crossed-lettered.symbol.json",
+    assetHash:
+      "7761a62e4622b70a2022f1410365054e777c94adad9e9026ad7e705e41a87166",
+    visualAuthority: {
+      kind: "razavi-reference-v1",
+      referenceManifestPath:
+        "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+      referencePaths: [
+        "fixtures/visual-reference/razavi-reference-v1/opamp-vector-source.json",
+        "fixtures/visual-reference/razavi-reference-v1/differential-opamp-vector-source.json",
+        "fixtures/visual-reference/razavi-reference-v1/differential-opamp-reference.png",
+      ],
+      calibrationPath:
+        "fixtures/visual-reference/razavi-reference-v1/differential-opamp-geometry.json",
+    },
+    generation: {
+      kind: "derived-lettered-body",
+      sourceSymbolId: "opamp-differential-crossed",
+      converterPath: "scripts/generate-lettered-amplifiers.mjs",
+      converterVersion: 1,
+    },
+  },
+  {
+    symbolId: "opamp-differential-crossed-lettered-inputs-swapped",
+    name: "Differential Op Amp (crossed outputs, lettered) (swapped inputs)",
+    category: "analog-block",
+    reviewStatus: "reviewed",
+    pinOrder: ["IN+", "IN-", "OUT+", "OUT-"],
+    palette: false,
+    automaticMappings: [],
+    manualOnlyReason:
+      "Output-polarity sibling of opamp-differential; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
+    assetPath: "opamp-differential-crossed-lettered-inputs-swapped.symbol.json",
+    assetHash:
+      "d2f7069dc052fc7bc3a3b31c76dd3e9969823abb0d2224b681c7c54d2e4f22c6",
+    visualAuthority: {
+      kind: "razavi-reference-v1",
+      referenceManifestPath:
+        "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+      referencePaths: [
+        "fixtures/visual-reference/razavi-reference-v1/opamp-vector-source.json",
+        "fixtures/visual-reference/razavi-reference-v1/differential-opamp-vector-source.json",
+        "fixtures/visual-reference/razavi-reference-v1/differential-opamp-reference.png",
+      ],
+      calibrationPath:
+        "fixtures/visual-reference/razavi-reference-v1/differential-opamp-geometry.json",
+    },
+    generation: {
+      kind: "derived-input-swap",
+      sourceSymbolId: "opamp-differential-crossed-lettered",
+      converterPath: "scripts/generate-input-swapped-amplifiers.mjs",
+      converterVersion: 1,
     },
   },
   {
@@ -7175,6 +7303,520 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
   },
   {
     schemaVersion: 1,
+    id: "opamp-differential-lettered",
+    name: "Differential Op Amp (lettered)",
+    viewBox: {
+      x: -54,
+      y: -28,
+      width: 98,
+      height: 56,
+    },
+    pins: [
+      {
+        name: "IN+",
+        role: "non-inverting-input",
+        at: {
+          x: -50,
+          y: 20,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 20,
+        },
+      },
+      {
+        name: "IN-",
+        role: "inverting-input",
+        at: {
+          x: -50,
+          y: -20,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 20,
+        },
+      },
+      {
+        name: "OUT+",
+        role: "output",
+        at: {
+          x: 10,
+          y: 20,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 20,
+        },
+      },
+      {
+        name: "OUT-",
+        role: "output",
+        at: {
+          x: 10,
+          y: -20,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 20,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        part: "input-lead",
+        from: {
+          x: -50,
+          y: -20,
+        },
+        to: {
+          x: -37.9479,
+          y: -20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        part: "input-lead",
+        from: {
+          x: -50,
+          y: 20,
+        },
+        to: {
+          x: -37.9479,
+          y: 20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        part: "output-lead",
+        from: {
+          x: -13.468439157806387,
+          y: -20,
+        },
+        to: {
+          x: 10,
+          y: -20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        part: "output-lead",
+        from: {
+          x: -13.461716017666415,
+          y: 20,
+        },
+        to: {
+          x: 10,
+          y: 20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "path",
+        data: "M -36.7979 -29.998821 L -36.7979 30.000521 L 33.2021 0.002622 Z",
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+          miterLimit: 4,
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -30.653576579339017,
+          y: 18.391246526265867,
+        },
+        to: {
+          x: -30.653576579339017,
+          y: 13.034150200001143,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "input-polarity",
+      },
+      {
+        kind: "line",
+        from: {
+          x: -33.332849726715,
+          y: 15.713321223835566,
+        },
+        to: {
+          x: -27.975754829029867,
+          y: 15.713321223835566,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "input-polarity",
+      },
+      {
+        kind: "line",
+        from: {
+          x: -33.33305067844888,
+          y: -15.713815502660013,
+        },
+        to: {
+          x: -27.97595578076375,
+          y: -15.713815502660013,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "upright-input-polarity-negative",
+      },
+      {
+        kind: "line",
+        from: {
+          x: -20.61807623763181,
+          y: -15.713321223835566,
+        },
+        to: {
+          x: -15.26222563277121,
+          y: -15.713321223835566,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "upright-output-polarity-negative",
+      },
+      {
+        kind: "line",
+        from: {
+          x: -17.93987471670441,
+          y: 13.037135921633837,
+        },
+        to: {
+          x: -17.93987471670441,
+          y: 18.394232247898557,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "output-polarity",
+      },
+      {
+        kind: "line",
+        from: {
+          x: -20.618578581937502,
+          y: 15.713815502660013,
+        },
+        to: {
+          x: -15.262727977076901,
+          y: 15.713815502660013,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "output-polarity",
+      },
+    ],
+    variants: [],
+    formulaPresentation: {
+      defaultFormula: "A",
+      supportsCoefficient: false,
+      center: {
+        x: -13.46,
+        y: 0,
+      },
+      fontSize: 16,
+    },
+  },
+  {
+    schemaVersion: 1,
+    id: "opamp-differential-lettered-inputs-swapped",
+    name: "Differential Op Amp (lettered) (swapped inputs)",
+    viewBox: {
+      x: -54,
+      y: -28,
+      width: 98,
+      height: 56,
+    },
+    pins: [
+      {
+        name: "IN+",
+        role: "non-inverting-input",
+        at: {
+          x: -50,
+          y: -20,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 20,
+        },
+      },
+      {
+        name: "IN-",
+        role: "inverting-input",
+        at: {
+          x: -50,
+          y: 20,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 20,
+        },
+      },
+      {
+        name: "OUT+",
+        role: "output",
+        at: {
+          x: 10,
+          y: 20,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 20,
+        },
+      },
+      {
+        name: "OUT-",
+        role: "output",
+        at: {
+          x: 10,
+          y: -20,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 20,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        part: "input-lead",
+        from: {
+          x: -50,
+          y: -20,
+        },
+        to: {
+          x: -37.9479,
+          y: -20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        part: "input-lead",
+        from: {
+          x: -50,
+          y: 20,
+        },
+        to: {
+          x: -37.9479,
+          y: 20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        part: "output-lead",
+        from: {
+          x: -13.468439157806387,
+          y: -20,
+        },
+        to: {
+          x: 10,
+          y: -20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        part: "output-lead",
+        from: {
+          x: -13.461716017666415,
+          y: 20,
+        },
+        to: {
+          x: 10,
+          y: 20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "path",
+        data: "M -36.7979 -29.998821 L -36.7979 30.000521 L 33.2021 0.002622 Z",
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+          miterLimit: 4,
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -30.653576579339017,
+          y: -18.391246526265867,
+        },
+        to: {
+          x: -30.653576579339017,
+          y: -13.034150200001143,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "input-polarity",
+      },
+      {
+        kind: "line",
+        from: {
+          x: -33.332849726715,
+          y: -15.713321223835566,
+        },
+        to: {
+          x: -27.975754829029867,
+          y: -15.713321223835566,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "input-polarity",
+      },
+      {
+        kind: "line",
+        from: {
+          x: -33.33305067844888,
+          y: 15.713815502660013,
+        },
+        to: {
+          x: -27.97595578076375,
+          y: 15.713815502660013,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "upright-input-polarity-negative",
+      },
+      {
+        kind: "line",
+        from: {
+          x: -20.61807623763181,
+          y: -15.713321223835566,
+        },
+        to: {
+          x: -15.26222563277121,
+          y: -15.713321223835566,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "upright-output-polarity-negative",
+      },
+      {
+        kind: "line",
+        from: {
+          x: -17.93987471670441,
+          y: 13.037135921633837,
+        },
+        to: {
+          x: -17.93987471670441,
+          y: 18.394232247898557,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "output-polarity",
+      },
+      {
+        kind: "line",
+        from: {
+          x: -20.618578581937502,
+          y: 15.713815502660013,
+        },
+        to: {
+          x: -15.262727977076901,
+          y: 15.713815502660013,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "output-polarity",
+      },
+    ],
+    variants: [],
+    formulaPresentation: {
+      defaultFormula: "A",
+      supportsCoefficient: false,
+      center: {
+        x: -13.46,
+        y: 0,
+      },
+      fontSize: 16,
+    },
+  },
+  {
+    schemaVersion: 1,
     id: "opamp-differential-inputs-swapped",
     name: "Differential Op Amp (swapped inputs)",
     viewBox: {
@@ -7668,6 +8310,520 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       },
     ],
     variants: [],
+  },
+  {
+    schemaVersion: 1,
+    id: "opamp-differential-crossed-lettered",
+    name: "Differential Op Amp (crossed outputs, lettered)",
+    viewBox: {
+      x: -54,
+      y: -28,
+      width: 98,
+      height: 56,
+    },
+    pins: [
+      {
+        name: "IN+",
+        role: "non-inverting-input",
+        at: {
+          x: -50,
+          y: 20,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 20,
+        },
+      },
+      {
+        name: "IN-",
+        role: "inverting-input",
+        at: {
+          x: -50,
+          y: -20,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 20,
+        },
+      },
+      {
+        name: "OUT+",
+        role: "output",
+        at: {
+          x: 10,
+          y: -20,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 20,
+        },
+      },
+      {
+        name: "OUT-",
+        role: "output",
+        at: {
+          x: 10,
+          y: 20,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 20,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        part: "input-lead",
+        from: {
+          x: -50,
+          y: -20,
+        },
+        to: {
+          x: -37.9479,
+          y: -20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        part: "input-lead",
+        from: {
+          x: -50,
+          y: 20,
+        },
+        to: {
+          x: -37.9479,
+          y: 20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        part: "output-lead",
+        from: {
+          x: -13.468439157806387,
+          y: -20,
+        },
+        to: {
+          x: 10,
+          y: -20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        part: "output-lead",
+        from: {
+          x: -13.461716017666415,
+          y: 20,
+        },
+        to: {
+          x: 10,
+          y: 20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "path",
+        data: "M -36.7979 -29.998821 L -36.7979 30.000521 L 33.2021 0.002622 Z",
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+          miterLimit: 4,
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -30.653576579339017,
+          y: 18.391246526265867,
+        },
+        to: {
+          x: -30.653576579339017,
+          y: 13.034150200001143,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "input-polarity",
+      },
+      {
+        kind: "line",
+        from: {
+          x: -33.332849726715,
+          y: 15.713321223835566,
+        },
+        to: {
+          x: -27.975754829029867,
+          y: 15.713321223835566,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "input-polarity",
+      },
+      {
+        kind: "line",
+        from: {
+          x: -33.33305067844888,
+          y: -15.713815502660013,
+        },
+        to: {
+          x: -27.97595578076375,
+          y: -15.713815502660013,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "upright-input-polarity-negative",
+      },
+      {
+        kind: "line",
+        from: {
+          x: -20.61807623763181,
+          y: 15.713321223835566,
+        },
+        to: {
+          x: -15.26222563277121,
+          y: 15.713321223835566,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "upright-output-polarity-negative",
+      },
+      {
+        kind: "line",
+        from: {
+          x: -17.93987471670441,
+          y: -13.037135921633837,
+        },
+        to: {
+          x: -17.93987471670441,
+          y: -18.394232247898557,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "output-polarity",
+      },
+      {
+        kind: "line",
+        from: {
+          x: -20.618578581937502,
+          y: -15.713815502660013,
+        },
+        to: {
+          x: -15.262727977076901,
+          y: -15.713815502660013,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "output-polarity",
+      },
+    ],
+    variants: [],
+    formulaPresentation: {
+      defaultFormula: "A",
+      supportsCoefficient: false,
+      center: {
+        x: -13.46,
+        y: 0,
+      },
+      fontSize: 16,
+    },
+  },
+  {
+    schemaVersion: 1,
+    id: "opamp-differential-crossed-lettered-inputs-swapped",
+    name: "Differential Op Amp (crossed outputs, lettered) (swapped inputs)",
+    viewBox: {
+      x: -54,
+      y: -28,
+      width: 98,
+      height: 56,
+    },
+    pins: [
+      {
+        name: "IN+",
+        role: "non-inverting-input",
+        at: {
+          x: -50,
+          y: -20,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 20,
+        },
+      },
+      {
+        name: "IN-",
+        role: "inverting-input",
+        at: {
+          x: -50,
+          y: 20,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 20,
+        },
+      },
+      {
+        name: "OUT+",
+        role: "output",
+        at: {
+          x: 10,
+          y: -20,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 20,
+        },
+      },
+      {
+        name: "OUT-",
+        role: "output",
+        at: {
+          x: 10,
+          y: 20,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 20,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        part: "input-lead",
+        from: {
+          x: -50,
+          y: -20,
+        },
+        to: {
+          x: -37.9479,
+          y: -20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        part: "input-lead",
+        from: {
+          x: -50,
+          y: 20,
+        },
+        to: {
+          x: -37.9479,
+          y: 20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        part: "output-lead",
+        from: {
+          x: -13.468439157806387,
+          y: -20,
+        },
+        to: {
+          x: 10,
+          y: -20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        part: "output-lead",
+        from: {
+          x: -13.461716017666415,
+          y: 20,
+        },
+        to: {
+          x: 10,
+          y: 20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "path",
+        data: "M -36.7979 -29.998821 L -36.7979 30.000521 L 33.2021 0.002622 Z",
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+          miterLimit: 4,
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -30.653576579339017,
+          y: -18.391246526265867,
+        },
+        to: {
+          x: -30.653576579339017,
+          y: -13.034150200001143,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "input-polarity",
+      },
+      {
+        kind: "line",
+        from: {
+          x: -33.332849726715,
+          y: -15.713321223835566,
+        },
+        to: {
+          x: -27.975754829029867,
+          y: -15.713321223835566,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "input-polarity",
+      },
+      {
+        kind: "line",
+        from: {
+          x: -33.33305067844888,
+          y: 15.713815502660013,
+        },
+        to: {
+          x: -27.97595578076375,
+          y: 15.713815502660013,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "upright-input-polarity-negative",
+      },
+      {
+        kind: "line",
+        from: {
+          x: -20.61807623763181,
+          y: 15.713321223835566,
+        },
+        to: {
+          x: -15.26222563277121,
+          y: 15.713321223835566,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "upright-output-polarity-negative",
+      },
+      {
+        kind: "line",
+        from: {
+          x: -17.93987471670441,
+          y: -13.037135921633837,
+        },
+        to: {
+          x: -17.93987471670441,
+          y: -18.394232247898557,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "output-polarity",
+      },
+      {
+        kind: "line",
+        from: {
+          x: -20.618578581937502,
+          y: -15.713815502660013,
+        },
+        to: {
+          x: -15.262727977076901,
+          y: -15.713815502660013,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "output-polarity",
+      },
+    ],
+    variants: [],
+    formulaPresentation: {
+      defaultFormula: "A",
+      supportsCoefficient: false,
+      center: {
+        x: -13.46,
+        y: 0,
+      },
+      fontSize: 16,
+    },
   },
   {
     schemaVersion: 1,
