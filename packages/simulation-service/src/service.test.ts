@@ -109,7 +109,7 @@ async function prepareRaw(f: ReturnType<typeof fixture>) {
   if (!created.ok || !("workspace" in created)) throw Error("create");
   await f.files.handle({
     action: "update",
-    workspaceId: created.workspace.id,
+    owner: { kind: "session-workspace", workspaceId: created.workspace.id },
     expectedRevision: 0,
     entry: "deck.cir",
     writes: [{ path: "deck.cir", text: deck }],
@@ -705,7 +705,7 @@ describe("shared simulation lifecycle", () => {
     expect(prepared.artifacts.map((a) => a.name)).toContain("prepared.cir");
     await f.files.handle({
       action: "update",
-      workspaceId,
+      owner: { kind: "session-workspace", workspaceId },
       expectedRevision: 1,
       writes: [{ path: "deck.cir", text: "changed" }],
     });
@@ -811,16 +811,19 @@ describe("shared simulation lifecycle", () => {
       expect(
         await f.files.handle({
           action: "update",
-          workspaceId,
+          owner: { kind: "session-workspace", workspaceId },
           expectedRevision: 1,
           writes: [{ path, text: "x" }],
         }),
-      ).toMatchObject({ ok: false, error: { code: "INPUT_PATH_INVALID" } });
+      ).toMatchObject({
+        ok: false,
+        error: { code: "SIMULATION_FILE_INVALID" },
+      });
     }
     expect(
       await f.files.handle({
         action: "update",
-        workspaceId,
+        owner: { kind: "session-workspace", workspaceId },
         expectedRevision: 0,
         writes: [],
       }),

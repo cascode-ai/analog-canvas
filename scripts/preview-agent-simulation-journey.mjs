@@ -297,7 +297,7 @@ try {
   const badRaw = await tool("simulation_files", {
     request: {
       action: "update",
-      workspaceId,
+      owner: { kind: "session-workspace", workspaceId },
       expectedRevision: 0,
       entry: "main.cir",
       writes: [
@@ -325,7 +325,7 @@ try {
       source: {
         kind: "workspace",
         workspaceId,
-        expectedRevision: badRaw.workspace.revision,
+        expectedRevision: badRaw.source.revision,
         environment: { profileId: capabilityReply.capabilities.profiles[0].id },
       },
     },
@@ -338,8 +338,8 @@ try {
   const fixedRaw = await tool("simulation_files", {
     request: {
       action: "update",
-      workspaceId,
-      expectedRevision: badRaw.workspace.revision,
+      owner: { kind: "session-workspace", workspaceId },
+      expectedRevision: badRaw.source.revision,
       entry: "main.cir",
       writes: [
         {
@@ -367,7 +367,7 @@ try {
       source: {
         kind: "workspace",
         workspaceId,
-        expectedRevision: fixedRaw.workspace.revision,
+        expectedRevision: fixedRaw.source.revision,
         environment: { profileId: capabilityReply.capabilities.profiles[0].id },
       },
     },

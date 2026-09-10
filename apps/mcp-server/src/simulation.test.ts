@@ -289,7 +289,7 @@ describe("MCP / browser Simulation Resource parity", () => {
       await invoke("simulation_files", {
         request: {
           action: "update",
-          workspaceId,
+          owner: { kind: "session-workspace", workspaceId },
           expectedRevision: 0,
           entry: "main.cir",
           writes: [

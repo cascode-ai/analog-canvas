@@ -208,7 +208,8 @@ Sweep execution never edits the Project or the saved setup.
 
 For **graphless/raw** authoring, call `simulation_files` to `create`, then
 use `list` if a lost response left the workspace ID unknown. Continue with
-`update` with `workspaceId`, `expectedRevision`, `entry`, and `writes` of
+`update` with `owner:{kind:"session-workspace",workspaceId}`,
+`expectedRevision`, `entry`, and `writes` of
 `{path,text}`. Author a complete SPICE entry and relative include files; helpers
 are optional. Prepare with `source:{kind:"workspace",workspaceId,expectedRevision,
 environment:{profileId}}`. Raw deck text owns analyses, temperature and model
@@ -216,6 +217,19 @@ directives; the service does not append sources, analysis commands or `.end`.
 Capabilities identifies the installed model library for an explicit `.lib`.
 Paths are workspace-relative, without traversal or overriding `.spiceinit`.
 This does not replace the Project and needs no Project import approval.
+
+The File Resource uses explicit ownership for `list`, `read`, and `update`.
+For a source-backed saved setup the owner is `{kind:"project-setup",setupId}`:
+updates use the Project structure revision and commit through normal Project
+history, not the expiring session workspace. Project writes require the existing
+`project.import` scope. An unattached host returns `PROJECT_FILES_UNAVAILABLE`;
+it never creates a session copy pretending to be persistent storage. `read`
+addresses one `path` and pages text with `offset`/`maxChars`, returning its full
+`textDigest`. `update` accepts atomic whole-file writes/removes or UTF-16 range
+patches with that digest. Invalid authored syntax is saveable; generated circuit
+and dependency paths remain protected. Revision conflicts are recoverable and
+include `currentRevision` when the Project still exists. Setup deletion uses
+the Project resource, not session `discard`.
 
 A persisted raw Project setup uses the same `project-setup` prepare source as
 a structured setup. Its authored files remain inside the Project. Declared

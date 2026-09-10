@@ -980,7 +980,7 @@ const TOOLS: readonly ToolEntry[] = [
     definition: {
       name: "simulation_files",
       description:
-        "Use the canonical File Resource for an isolated raw testbench workspace: create/list/read/update/discard. list recovers workspace IDs after a lost create response. Writes accept complete authored SPICE text and relative include files, without Canvas or helper-only restrictions. update uses expectedRevision. Fetch an immutable artifact by ID; optional outputPath saves it locally after digest verification. Does not replace the open Project or require import approval.",
+        "Edit simulation source through the canonical File Resource. list without owner recovers session workspace IDs; list/read/update use owner {kind:'session-workspace',workspaceId} or {kind:'project-setup',setupId}. read pages one path with its exact text digest. update atomically applies writes/removes/UTF-16 patches at expectedRevision; Project edits use the Project structure revision and normal history, while session files expire. Generated circuit/dependency text cannot be overwritten. Invalid authored syntax remains saveable. Project writes require the existing project.import scope, not an import approval prompt. create/discard manage session workspaces only; saved setups use Project lifecycle. artifact fetches immutable evidence; outputPath saves only artifacts locally after digest verification.",
       inputSchema: jsonSchemaOf(SimulationFilesArgs),
     },
     handle: async (args, session) => {

@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import mcpDistribution from "../config/agent-mcp-distribution.json";
-import { SESSION_STATE_KEY } from "./agent-session-runtime";
+import {
+  SESSION_STATE_KEY,
+  fileOperationScopes,
+} from "./agent-session-runtime";
+import { AgentFileResourceRequestSchema } from "@icm/agent-adapter";
 
 import {
   AGENT_SSE_KEEPALIVE_INTERVAL_MS,
@@ -32,6 +36,35 @@ const limits: Partial<AgentSessionLimits> = {
   maxRequestBytes: 128,
   rateLimit: { windowMs: 60_000, maxRequests: 10 },
 };
+
+it("uses existing Project write authorization for Project-owned simulation source only", () => {
+  const scopes = (input: unknown) =>
+    fileOperationScopes(
+      AgentFileResourceRequestSchema.parse({
+        apiVersion: "2.0",
+        requestId: "files",
+        operation: "simulation-input",
+        input,
+      }),
+    );
+  expect(
+    scopes({ action: "list", owner: { kind: "project-setup", setupId: "s" } }),
+  ).toEqual(["simulation.run"]);
+  expect(
+    scopes({
+      action: "update",
+      owner: { kind: "session-workspace", workspaceId: "w" },
+      expectedRevision: 0,
+    }),
+  ).toEqual(["simulation.run"]);
+  expect(
+    scopes({
+      action: "update",
+      owner: { kind: "project-setup", setupId: "s" },
+      expectedRevision: 0,
+    }),
+  ).toEqual(["simulation.run", "project.import"]);
+});
 
 function setup() {
   let counter = 0;

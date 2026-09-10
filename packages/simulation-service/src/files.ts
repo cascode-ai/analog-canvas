@@ -1,80 +1,35 @@
-import { z } from "zod";
 import { sha256 } from "./content-digest.js";
+import { planSimulationSourceChanges } from "./source-files.js";
 import {
-  planSimulationSourceChanges,
-  SimulationTextPatchSchema,
-} from "./source-files.js";
+  SimulationFileOperationSchema,
+  type SimulationFileResult,
+  type Workspace,
+  type SimulationFileOwner,
+} from "./file-contract.js";
+import {
+  handleProjectSourceFiles,
+  type ProjectSimulationFileHost,
+} from "./project-source-files.js";
+export * from "./file-contract.js";
+export type {
+  ProjectSimulationFileHost,
+  ProjectSourceSnapshot,
+} from "./project-source-files.js";
 import {
   isSimulationInputPath,
   MAX_SIMULATION_INPUT_BYTES,
   MAX_SIMULATION_INPUT_FILES,
 } from "@icm/model";
-import {
-  ArtifactRefSchema,
-  Id,
-  problem,
-  type ArtifactRef,
-  type Problem,
-} from "./contract.js";
+import { problem, type ArtifactRef, type Problem } from "./contract.js";
 
 export { MAX_SIMULATION_INPUT_BYTES };
 const TTL = 15 * 60_000;
-export const WorkspaceSchema = z.strictObject({
-  id: Id,
-  revision: z.number().int().nonnegative(),
-  entry: z.string().nullable(),
-  files: z.array(z.strictObject({ path: z.string(), text: z.string() })),
-  expiresAt: z.number(),
-});
-export type Workspace = z.infer<typeof WorkspaceSchema>;
-export const SimulationFileOperationSchema = z.discriminatedUnion("action", [
-  z.strictObject({ action: z.literal("list") }),
-  z.strictObject({ action: z.literal("create") }),
-  z.strictObject({ action: z.literal("read"), workspaceId: Id }),
-  z.strictObject({ action: z.literal("discard"), workspaceId: Id }),
-  z.strictObject({
-    action: z.literal("update"),
-    workspaceId: Id,
-    expectedRevision: z.number().int().nonnegative(),
-    entry: z.string().optional(),
-    writes: z
-      .array(z.strictObject({ path: z.string(), text: z.string() }))
-      .max(24)
-      .default([]),
-    removes: z.array(z.string()).max(24).default([]),
-    patches: z.array(SimulationTextPatchSchema).max(4096).default([]),
-  }),
-  z.strictObject({
-    action: z.literal("artifact"),
-    artifactId: Id,
-    offset: z.number().int().nonnegative().default(0),
-    maxChars: z.number().int().positive().max(65536).default(65536),
-  }),
-]);
-export type SimulationFileOperation = z.infer<
-  typeof SimulationFileOperationSchema
->;
-export const SimulationFileResultSchema = z.union([
-  z.strictObject({
-    ok: z.literal(true),
-    workspaces: z.array(WorkspaceSchema.omit({ files: true })),
-  }),
-  z.strictObject({ ok: z.literal(true), workspace: WorkspaceSchema }),
-  z.strictObject({ ok: z.literal(true), discarded: z.literal(true) }),
-  z.strictObject({
-    ok: z.literal(true),
-    artifact: ArtifactRefSchema,
-    text: z.string(),
-    offset: z.number().int().nonnegative(),
-    nextOffset: z.number().int().nonnegative().nullable(),
-  }),
-]);
 export { sha256 } from "./content-digest.js";
 export function safeInputPath(path: string): boolean {
   return isSimulationInputPath(path);
 }
 
-/** File Resource owns mutable drafts and immutable artifact bytes. No Project mutation. */
+/** One File Resource; session storage is local, Project edits use host transactions. */
 export class SimulationFiles {
   private epoch = 0;
   private workspaces = new Map<string, Workspace>();
@@ -82,7 +37,10 @@ export class SimulationFiles {
     string,
     { ref: ArtifactRef; text: string; expiresAt: number }
   >();
-  constructor(private now: () => number = Date.now) {}
+  constructor(
+    private now: () => number = Date.now,
+    private projectHost?: ProjectSimulationFileHost,
+  ) {}
   clear() {
     this.epoch++;
     this.workspaces.clear();
@@ -97,9 +55,7 @@ export class SimulationFiles {
   }
   async handle(
     input: unknown,
-  ): Promise<
-    z.infer<typeof SimulationFileResultSchema> | { ok: false; error: Problem }
-  > {
+  ): Promise<SimulationFileResult | { ok: false; error: Problem }> {
     this.prune();
     const parsed = SimulationFileOperationSchema.safeParse(input);
     if (!parsed.success)
@@ -109,7 +65,27 @@ export class SimulationFiles {
         "input",
       );
     const op = parsed.data;
-    if (op.action === "list")
+    if (
+      (op.action === "list" ||
+        op.action === "read" ||
+        op.action === "update") &&
+      op.owner?.kind === "project-setup"
+    ) {
+      if (!this.projectHost)
+        return problem(
+          "PROJECT_FILES_UNAVAILABLE",
+          "This host has not attached Project-owned simulation files",
+          "input",
+          "retry-after",
+        );
+      const epoch = this.epoch;
+      return handleProjectSourceFiles(
+        this.projectHost,
+        op,
+        () => this.epoch === epoch,
+      );
+    }
+    if (op.action === "list" && !op.owner)
       return {
         ok: true,
         workspaces: [...this.workspaces.values()].map(
@@ -157,7 +133,11 @@ export class SimulationFiles {
         nextOffset: end < item.text.length ? end : null,
       };
     }
-    const workspace = this.workspaces.get(op.workspaceId);
+    const owner = op.owner as Extract<
+      SimulationFileOwner,
+      { kind: "session-workspace" }
+    >;
+    const workspace = this.workspaces.get(owner.workspaceId);
     if (!workspace)
       return problem(
         "WORKSPACE_UNAVAILABLE",
@@ -168,8 +148,47 @@ export class SimulationFiles {
       this.workspaces.delete(workspace.id);
       return { ok: true as const, discarded: true as const };
     }
-    if (op.action === "read")
-      return { ok: true as const, workspace: structuredClone(workspace) };
+    if (op.action === "list") return this.listWorkspace(workspace);
+    if (op.action === "read") {
+      const file = workspace.files.find((f) => f.path === op.path);
+      if (!file)
+        return problem(
+          "SIMULATION_FILE_NOT_FOUND",
+          `No authored file ${op.path}`,
+          "input",
+        );
+      if (op.offset > file.text.length)
+        return problem(
+          "SIMULATION_TEXT_RANGE_INVALID",
+          "Offset exceeds file length",
+          "input",
+        );
+      const textDigest = await sha256(file.text);
+      this.prune();
+      if (this.workspaces.get(workspace.id) !== workspace)
+        return problem(
+          "WORKSPACE_REVISION_CONFLICT",
+          "Workspace changed while reading; read it again",
+          "input",
+        );
+      const end = Math.min(file.text.length, op.offset + op.maxChars);
+      return {
+        ok: true,
+        owner,
+        revision: workspace.revision,
+        path: file.path,
+        textDigest,
+        text: file.text.slice(op.offset, end),
+        offset: op.offset,
+        nextOffset: end < file.text.length ? end : null,
+      };
+    }
+    if (op.configPath !== undefined)
+      return problem(
+        "SIMULATION_FILE_INVALID",
+        "Session entry files do not have a Project configuration path",
+        "input",
+      );
     if (op.expectedRevision !== workspace.revision)
       return problem(
         "WORKSPACE_REVISION_CONFLICT",
@@ -228,7 +247,22 @@ export class SimulationFiles {
       expiresAt: this.now() + TTL,
     };
     this.workspaces.set(next.id, next);
-    return { ok: true as const, workspace: structuredClone(next) };
+    return this.listWorkspace(next);
+  }
+  private listWorkspace(workspace: Workspace): SimulationFileResult {
+    return {
+      ok: true,
+      source: {
+        owner: { kind: "session-workspace", workspaceId: workspace.id },
+        revision: workspace.revision,
+        entry: workspace.entry,
+        files: workspace.files.map((file) => ({
+          path: file.path,
+          kind: "authored",
+          byteLength: new TextEncoder().encode(file.text).byteLength,
+        })),
+      },
+    };
   }
   snapshot(id: string, revision: number) {
     this.prune();

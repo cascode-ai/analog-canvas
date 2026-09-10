@@ -471,7 +471,10 @@ export function fileOperationScopes(
 ): AgentSessionScope[] {
   switch (request.operation) {
     case "simulation-input":
-      return ["simulation.run"];
+      return request.input.action === "update" &&
+        request.input.owner.kind === "project-setup"
+        ? ["simulation.run", "project.import"]
+        : ["simulation.run"];
     case "download":
       return [
         request.artifact === "project" ? "project.download" : "visual.download",

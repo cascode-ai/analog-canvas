@@ -30,6 +30,7 @@ export const ProblemSchema = z.strictObject({
   ]),
   retryAfterMs: z.number().nonnegative().optional(),
   correlationId: Id.optional(),
+  currentRevision: z.number().int().nonnegative().optional(),
   diagnostics: z
     .array(
       z.strictObject({
