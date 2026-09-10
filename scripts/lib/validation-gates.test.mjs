@@ -95,6 +95,10 @@ describe("validation gate planning", () => {
       expect(selected, path).toContain("analog-simulation-browser");
       expect(selected, path).not.toContain("editor-browser");
     }
+
+    expect(ids(["apps/editor/e2e/agent-simulation.spec.ts"])).not.toContain(
+      "analog-simulation-browser",
+    );
   });
 
   it("selects release verification for package scripts", () => {
