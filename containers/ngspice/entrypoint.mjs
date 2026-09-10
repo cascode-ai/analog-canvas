@@ -35,6 +35,7 @@ import { tmpdir } from "node:os";
 import { join, relative, dirname } from "node:path";
 
 import { SimulationRunSupervisor } from "./run-supervisor.mjs";
+import { readDeclaredRawfile, validCollection } from "./rawfile-collector.mjs";
 
 const MODEL_ROOT = process.env.SKY130_MODEL_ROOT ?? "/opt/sky130/sky130A";
 const PROFILE_PATH = process.env.SIMULATION_PROFILE_PATH?.trim() || null;
@@ -717,6 +718,16 @@ async function handleRun(body) {
   if (Buffer.byteLength(deck, "utf8") > MAX_DECK_BYTES) {
     return { status: 413, payload: { error: "deck-too-large" } };
   }
+  if (
+    body.collection !== undefined &&
+    !validCollection(body.collection, [
+      entryPath,
+      SPICEINIT_NAME,
+      ...files.map((file) => file.path),
+      ...dependencies.map((dependency) => dependency.mountPath),
+    ])
+  )
+    return { status: 400, payload: { error: "invalid-output-collection" } };
 
   let runtime;
   try {
@@ -786,10 +797,22 @@ async function handleRun(body) {
         if (token && cancelledTokens.has(token)) runSupervisor.cancel(token);
         const result = await runNgspice(binary, directory, run, entryPath);
         run.phase("collecting");
-        const rawfileRequested = deckRequestsRawfile(deck);
-        const raw = rawfileRequested
-          ? await readRawfile(directory)
-          : { rawfile: null, rawfileName: null, rawfileFormat: null };
+        // Source inputs declare collection explicitly. Legacy callers remain
+        // unchanged until the coordinated setup-v4 cutover retires that path.
+        const rawfileRequested =
+          body.collection === undefined
+            ? deckRequestsRawfile(deck)
+            : body.collection.rawfile !== null;
+        const raw =
+          body.collection !== undefined
+            ? await readDeclaredRawfile(
+                directory,
+                body.collection,
+                MAX_OUTPUT_BYTES,
+              )
+            : rawfileRequested
+              ? await readRawfile(directory)
+              : { rawfile: null, rawfileName: null, rawfileFormat: null };
 
         const truncatedOutputs = [
           ...(result.truncated ? ["log"] : []),
@@ -815,6 +838,10 @@ async function handleRun(body) {
             cancelled: run.cancelled,
             durationMs: result.durationMs,
             rawfileRequested,
+            ...(body.collection === undefined
+              ? {}
+              : { collection: body.collection }),
+            ...(raw.rawfileError ? { rawfileError: raw.rawfileError } : {}),
             truncated: truncatedOutputs.length > 0,
             truncatedOutputs,
             rawfile: raw.rawfile,

@@ -41,6 +41,7 @@ function stubRunner(
     deck?: string;
     timeoutMs?: number;
     dependencies?: unknown;
+    collection?: unknown;
   } = {},
 ): SimulationEnv {
   return {
@@ -51,10 +52,12 @@ function stubRunner(
             deck: string;
             timeoutMs: number;
             dependencies?: unknown;
+            collection?: unknown;
           };
           seen.deck = sent.deck;
           seen.timeoutMs = sent.timeoutMs;
           seen.dependencies = sent.dependencies;
+          seen.collection = sent.collection;
           return Response.json({ environment: HOSTED_ENVIRONMENT, ...reply });
         },
       }),
@@ -66,6 +69,78 @@ const NETLIST = ".subckt amp in out\nM1 out in 0 0 nfet\n.ends\nXA in out amp";
 const TESTBENCH = "V1 in 0 DC 1\n.control\nop\nprint v(out)\n.endc";
 
 describe("simulation route", () => {
+  it("forwards explicit collection, including logs-only, instead of inspecting source text", async () => {
+    for (const rawfile of ["results/op.raw", null]) {
+      const seen: { collection?: unknown } = {};
+      const collection = { rawfile };
+      const response = await routeSimulationRequest(
+        post({
+          mode: "raw",
+          netlist: "",
+          testbench: "title\n.control\nsource analyses.inc\n.endc\n.end",
+          collection,
+        }),
+        stubRunner(
+          {
+            log: "Circuit: test\nNo. of Data Rows : 1\n",
+            exitCode: 0,
+            collection,
+            rawfileRequested: rawfile !== null,
+            rawfile: null,
+          },
+          seen,
+        ),
+      );
+      expect(response!.status).toBe(200);
+      expect(seen.collection).toEqual(collection);
+      // A declared but missing numeric result fails the run, not the session.
+      expect((await response!.json()).outcome.status).toBe(
+        rawfile === null ? "completed" : "failed",
+      );
+    }
+  });
+  it("rejects collector disagreement and input collisions without running a different contract", async () => {
+    const body = {
+      mode: "raw",
+      netlist: "",
+      testbench: "title\n.end",
+      collection: { rawfile: "chosen.raw" },
+    };
+    for (const reply of [
+      {},
+      { collection: { rawfile: "wrong.raw" }, rawfileRequested: true },
+      {
+        collection: body.collection,
+        rawfileRequested: true,
+        rawfile: "Title: other",
+        rawfileName: "other.raw",
+      },
+    ]) {
+      expect(
+        (await routeSimulationRequest(post(body), stubRunner(reply)))!.status,
+      ).toBe(502);
+    }
+    for (const rawfile of [
+      "deck.cir",
+      "input.cir",
+      "models.lib",
+      "../escape.raw",
+      "/etc/passwd",
+    ])
+      expect(
+        (await routeSimulationRequest(
+          post({
+            ...body,
+            files: [
+              { path: "input.cir", text: "" },
+              { path: "models.lib", text: "" },
+            ],
+            collection: { rawfile },
+          }),
+          stubRunner({}),
+        ))!.status,
+      ).toBe(400);
+  });
   it("advertises without fetching the executor; absence is a capability, not a session error", async () => {
     const response = await routeSimulationRequest(
       post({ operation: "capabilities" }),
@@ -73,6 +148,7 @@ describe("simulation route", () => {
     );
     expect(await response!.json()).toMatchObject({
       configured: false,
+      rawfileCollection: "declared-single-ascii",
       inputs: ["structured", "raw"],
       analyses: hostedSky130Profile.qualifiedScope.analyses,
       parsedAnalyses: ["op", "dc", "ac", "tran", "noise"],

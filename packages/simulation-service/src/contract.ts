@@ -407,6 +407,8 @@ export const SimulationOperationSchema = z.discriminatedUnion("operation", [
 export type SimulationOperation = z.infer<typeof SimulationOperationSchema>;
 export const CapabilitiesSchema = z.strictObject({
   configured: z.boolean(),
+  /** Explicit collection protocol; absent on pre-source deployments. */
+  rawfileCollection: z.literal("declared-single-ascii").optional(),
   inputs: z.array(z.enum(["structured", "raw"])),
   analyses: z.array(z.enum(["op", "dc", "ac", "tran", "noise"])),
   parsedAnalyses: z.array(z.enum(["op", "dc", "ac", "tran", "noise"])),

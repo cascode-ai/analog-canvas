@@ -97,6 +97,7 @@ export interface SimulationRequestBody {
   entryPath?: unknown;
   runToken?: unknown;
   preparedDeck?: unknown;
+  collection?: unknown;
   netlist?: unknown;
   testbench?: unknown;
   timeoutMs?: unknown;
@@ -302,6 +303,7 @@ export async function routeSimulationRequest(
   if (body.operation === "capabilities") {
     return Response.json({
       configured: !!selected,
+      rawfileCollection: "declared-single-ascii",
       inputs: ["structured", "raw"],
       analyses: hostedSky130Profile.qualifiedScope.analyses,
       parsedAnalyses: ["op", "dc", "ac", "tran", "noise"],
@@ -477,6 +479,32 @@ export async function routeSimulationRequest(
   if (new TextEncoder().encode(deck).length > MAX_INPUT_BYTES) {
     return Response.json({ error: "deck-too-large" }, { status: 413 });
   }
+  const collection = body.collection as { rawfile?: unknown } | undefined;
+  if (
+    collection !== undefined &&
+    (!collection ||
+      typeof collection !== "object" ||
+      Array.isArray(collection) ||
+      Object.keys(collection).length !== 1 ||
+      !("rawfile" in collection) ||
+      (collection.rawfile !== null &&
+        (!safePath(collection.rawfile) ||
+          [
+            body.entryPath ?? "deck.cir",
+            ".spiceinit",
+            ...files.map((f) => f.path),
+            ...dependencies.map((d) => d.mountPath),
+          ].some(
+            (path) =>
+              path === collection.rawfile ||
+              String(path).startsWith(`${collection.rawfile}/`) ||
+              String(collection.rawfile).startsWith(`${path}/`),
+          ))))
+  )
+    return Response.json(
+      { error: "invalid-output-collection" },
+      { status: 400 },
+    );
 
   let containerResponse: Response;
   if (body.preparedDeck !== undefined && body.preparedDeck !== deck)
@@ -497,6 +525,7 @@ export async function routeSimulationRequest(
         timeoutMs,
         files,
         dependencies,
+        ...(collection === undefined ? {} : { collection }),
         ...(body.entryPath ? { entryPath: body.entryPath } : {}),
         ...(body.runToken ? { runToken: body.runToken } : {}),
       }),
@@ -551,6 +580,9 @@ export async function routeSimulationRequest(
     rawfile?: unknown;
     rawfileFormat?: unknown;
     rawfileRequested?: unknown;
+    rawfileName?: unknown;
+    collection?: { rawfile?: unknown };
+    rawfileError?: unknown;
     truncatedOutputs?: unknown;
   };
   const environment = await verifySimulationEnvironmentMetadata(
@@ -567,7 +599,27 @@ export async function routeSimulationRequest(
     );
   }
   const log = typeof raw.log === "string" ? raw.log : "";
-  const rawfileExpected = deckRequestsRawfile(deck);
+  const rawfileExpected =
+    collection === undefined
+      ? deckRequestsRawfile(deck)
+      : collection.rawfile !== null;
+  if (
+    collection !== undefined &&
+    (raw.collection?.rawfile !== collection.rawfile ||
+      raw.rawfileRequested !== rawfileExpected ||
+      ((typeof raw.rawfile === "string" || raw.rawfileFormat === "binary") &&
+        (collection.rawfile === null ||
+          raw.rawfileName !== collection.rawfile)))
+  )
+    return Response.json(
+      {
+        error: "simulator-protocol-invalid",
+        execution,
+        message:
+          "The executor did not honor the declared output collection. Update the harness and prepare again.",
+      },
+      { status: 502 },
+    );
   // New harnesses report the same fact they used when collecting artifacts.
   // Accept an absent field during a rolling deployment, but never accept an
   // explicit disagreement: one side would otherwise judge a different run

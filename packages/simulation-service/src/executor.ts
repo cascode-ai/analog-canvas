@@ -13,6 +13,8 @@ export interface ExecutionInput {
   dependencies: { id: string; mountPath: string; sha256: string }[];
   entryPath?: string;
   preparedDeck?: string;
+  /** Exact run-local collector, independent of how the native script writes it. */
+  collection?: { rawfile: string | null };
 }
 export interface ExecutionIdentity {
   preparedId: string;
