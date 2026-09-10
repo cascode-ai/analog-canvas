@@ -613,6 +613,15 @@
   background: var(--icm-border-strong);
 }
 
+/* Keep commit controls on a deliberate second row. The canvas editor has one
+   440px layout at both full- and half-window sizes, so this break is stable
+   instead of changing with incidental flex wrapping. */
+.rich-text-toolbar-action-break {
+  flex: 0 0 100%;
+  width: 0;
+  height: 0;
+}
+
 .rich-text-overbar-button {
   text-decoration: overline;
   text-decoration-thickness: 1px;

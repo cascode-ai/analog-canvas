@@ -188,6 +188,12 @@ async function expectForeignObjectContentsContained(
   expect(containment).toEqual({ contentFits: true, contained: true });
 }
 
+async function controlTop(locator: Locator): Promise<number> {
+  const bounds = await locator.boundingBox();
+  if (!bounds) throw new Error("Toolbar control is not measurable");
+  return bounds.y;
+}
+
 // The canvas-local toolbar creates RichText AST without exposing raw markup.
 test("adds formatted drafting text and undo/redo restores it", async ({
   page,
@@ -229,20 +235,42 @@ test("adds formatted drafting text and undo/redo restores it", async ({
   expect(editorBounds.x + editorBounds.width).toBeLessThanOrEqual(
     canvasBounds.x + canvasBounds.width + 1,
   );
-  const toolbarCenters = await page
-    .getByRole("toolbar", { name: "Text formatting" })
-    .locator(":scope > *")
-    .evaluateAll((elements) =>
-      elements.map((element) => {
-        const bounds = element.getBoundingClientRect();
-        return bounds.top + bounds.height / 2;
-      }),
-    );
-  const toolbarRows = toolbarCenters.reduce<number[]>((rows, center) => {
-    if (!rows.some((row) => Math.abs(row - center) < 2)) rows.push(center);
-    return rows;
-  }, []);
-  expect(toolbarRows).toHaveLength(2);
+  expect(editorBounds.width).toBeCloseTo(440, 0);
+  const [boldTop, increaseTop, applyTop, cancelTop, deleteTop] =
+    await Promise.all([
+      controlTop(page.getByRole("button", { name: "Bold" })),
+      controlTop(page.getByRole("button", { name: "Increase text size" })),
+      controlTop(page.getByRole("button", { name: "Apply text changes" })),
+      controlTop(page.getByRole("button", { name: "Cancel text changes" })),
+      controlTop(page.getByRole("button", { name: "Delete text" })),
+    ]);
+  expect(Math.abs(increaseTop - boldTop)).toBeLessThan(1);
+  expect(Math.abs(cancelTop - applyTop)).toBeLessThan(1);
+  expect(Math.abs(deleteTop - applyTop)).toBeLessThan(1);
+  expect(applyTop).toBeGreaterThan(boldTop);
+
+  const fullViewport = page.viewportSize();
+  await page.setViewportSize({ width: 720, height: 720 });
+  await expect
+    .poll(async () =>
+      page
+        .getByTestId("canvas-text-editor")
+        .boundingBox()
+        .then((bounds) => bounds?.width),
+    )
+    .toBeCloseTo(440, 0);
+  const [narrowBoldTop, narrowIncreaseTop, narrowApplyTop, narrowCancelTop] =
+    await Promise.all([
+      controlTop(page.getByRole("button", { name: "Bold" })),
+      controlTop(page.getByRole("button", { name: "Increase text size" })),
+      controlTop(page.getByRole("button", { name: "Apply text changes" })),
+      controlTop(page.getByRole("button", { name: "Cancel text changes" })),
+    ]);
+  expect(Math.abs(narrowIncreaseTop - narrowBoldTop)).toBeLessThan(1);
+  expect(Math.abs(narrowCancelTop - narrowApplyTop)).toBeLessThan(1);
+  expect(narrowApplyTop).toBeGreaterThan(narrowBoldTop);
+  if (fullViewport) await page.setViewportSize(fullViewport);
+
   await draftInput.fill(
     "A deliberately long annotation that wraps inside the compact canvas text editor instead of extending beyond it",
   );

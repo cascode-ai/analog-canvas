@@ -26,9 +26,10 @@ describe("canvas text editor frame", () => {
     expect(frame.layoutWidth).toBeCloseTo(frame.width * pixelsPerUnit, 10);
   });
 
-  it("uses at most half of the canvas and caps its screen width", () => {
+  it("uses one screen width at full- and half-window sizes", () => {
     for (const [view, pixelsPerUnit] of [
       [camera(960, 640), 0.95],
+      [camera(960, 640), 0.7],
       [camera(240, 160), 3.8],
       [camera(3840, 2560), 0.2375],
     ] as const) {
@@ -38,13 +39,17 @@ describe("canvas text editor frame", () => {
         1,
         pixelsPerUnit,
       );
-      expect(frame.width / view.width).toBeLessThanOrEqual(1 / 2);
-      // The same physical canvas width and cap produce one layout width at
-      // every camera zoom.
-      const canvasPx = view.width * pixelsPerUnit;
-      expect(canvasPx).toBeCloseTo(912, 10);
+      expect(view.width * pixelsPerUnit).toBeGreaterThan(440);
+      expect(frame.width * pixelsPerUnit).toBeCloseTo(440, 10);
       expect(frame.layoutWidth).toBeCloseTo(440, 10);
     }
+  });
+
+  it("shrinks only when the canvas cannot fit the standard editor", () => {
+    const frame = resolveCanvasTextEditorFrame(target, camera(400, 640), 1, 1);
+    expect(frame.layoutWidth).toBe(384);
+    expect(frame.x).toBeGreaterThanOrEqual(8);
+    expect(frame.x + frame.width).toBeLessThanOrEqual(392);
   });
 
   it("holds one apparent size however far the camera is zoomed", () => {
