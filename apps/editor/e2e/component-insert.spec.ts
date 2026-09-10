@@ -1851,6 +1851,21 @@ test("keeps a usable canvas while toggling Library at the narrow breakpoint", as
     chromeBox.x + chromeBox.width,
   );
 
+  // Publish is the primary half-screen action. Simulation and Check and Save
+  // may continue to the horizontally scrollable tail, but Publish must be in
+  // the command surface's initial visible segment without any manual scroll.
+  const commandSurface = page.locator(".app-command-surface");
+  const publish = page.getByTestId("publish-gallery-button");
+  const commandBox = await commandSurface.boundingBox();
+  const publishBox = await publish.boundingBox();
+  if (!commandBox || !publishBox) {
+    throw new Error("Primary editor command is not measurable");
+  }
+  expect(publishBox.x).toBeGreaterThanOrEqual(commandBox.x);
+  expect(publishBox.x + publishBox.width).toBeLessThanOrEqual(
+    commandBox.x + commandBox.width,
+  );
+
   const panel = page.getByTestId("shapes-library-panel");
   const canvas = page.getByTestId("schematic-canvas");
   await expect(panel).toHaveAttribute("data-open", "false");
