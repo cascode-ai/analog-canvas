@@ -46,6 +46,7 @@ const COMPACT_LIBRARY_LABELS: Readonly<Record<string, string>> = {
   dac: "DAC",
   "opamp-lettered": "OpAmp A",
   "opamp-differential": "FD Amp",
+  "opamp-differential-lettered": "FD Amp A",
   "opamp-differential-crossed": "FD Amp X",
   "and-gate": "AND",
   comparator: "Comp",

@@ -3,23 +3,23 @@
   "id": "multiplier",
   "name": "Multiplier",
   "viewBox": {
-    "x": -34,
-    "y": -22,
-    "width": 68,
-    "height": 56
+    "x": -24,
+    "y": -16,
+    "width": 48,
+    "height": 40
   },
   "pins": [
     {
       "name": "A",
       "role": "input",
       "at": {
-        "x": -30,
+        "x": -20,
         "y": 0
       },
       "direction": "west",
       "presentation": {
         "visibility": "visible",
-        "leadLength": 15
+        "leadLength": 10
       }
     },
     {
@@ -27,25 +27,25 @@
       "role": "input",
       "at": {
         "x": 0,
-        "y": 30
+        "y": 20
       },
       "direction": "south",
       "presentation": {
         "visibility": "visible",
-        "leadLength": 15
+        "leadLength": 10
       }
     },
     {
       "name": "Y",
       "role": "output",
       "at": {
-        "x": 30,
+        "x": 20,
         "y": 0
       },
       "direction": "east",
       "presentation": {
         "visibility": "visible",
-        "leadLength": 15
+        "leadLength": 10
       }
     }
   ],
@@ -53,11 +53,11 @@
     {
       "kind": "line",
       "from": {
-        "x": -30,
+        "x": -20,
         "y": 0
       },
       "to": {
-        "x": -12,
+        "x": -13,
         "y": 0
       },
       "part": "input-a-lead",
@@ -84,11 +84,11 @@
     {
       "kind": "line",
       "from": {
-        "x": 12,
+        "x": 13,
         "y": 0
       },
       "to": {
-        "x": 30,
+        "x": 20,
         "y": 0
       },
       "part": "output-y-lead",
@@ -102,11 +102,11 @@
       "kind": "line",
       "from": {
         "x": 0,
-        "y": 12
+        "y": 13
       },
       "to": {
         "x": 0,
-        "y": 30
+        "y": 20
       },
       "part": "input-b-lead",
       "style": {

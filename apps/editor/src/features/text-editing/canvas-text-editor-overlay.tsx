@@ -35,6 +35,7 @@ export interface CanvasTextEditorOverlayProps {
  * its proportions instead of reflowing as the camera moves.
  */
 const EDITOR_FALLBACK_LAYOUT_WIDTH = 420;
+const EDITOR_LAYOUT_MAX_WIDTH = 440;
 const EDITOR_LAYOUT_MIN_HEIGHT = 150;
 
 /**
@@ -46,7 +47,7 @@ const EDITOR_LAYOUT_MIN_HEIGHT = 150;
  * apparent size — and because its contents are laid out at a fixed pixel size
  * and scaled with it, they hold their size too.
  */
-const EDITOR_VIEW_FRACTION = 2 / 3;
+const EDITOR_VIEW_FRACTION = 1 / 2;
 
 export interface CanvasTextEditorFrame {
   /** Where the panel sits, in Document units. */
@@ -68,7 +69,7 @@ export function resolveCanvasTextEditorFrame(
   pixelsPerUnit?: number | null,
   preferredLayoutHeight?: number | null,
 ): CanvasTextEditorFrame {
-  const width = viewBox.width * EDITOR_VIEW_FRACTION;
+  const availableWidth = viewBox.width * EDITOR_VIEW_FRACTION;
   // Laying the panel out at true screen pixels is what lets its type be set
   // against the rest of the chrome rather than against the drawing. Without a
   // measurement — the first render, before the canvas is on screen — fall back
@@ -76,7 +77,11 @@ export function resolveCanvasTextEditorFrame(
   const scale =
     pixelsPerUnit && pixelsPerUnit > 0
       ? 1 / pixelsPerUnit
-      : width / EDITOR_FALLBACK_LAYOUT_WIDTH;
+      : availableWidth / EDITOR_FALLBACK_LAYOUT_WIDTH;
+  // Half of a wide canvas is still needlessly long. Cap the editor in actual
+  // screen pixels so ordinary desktop and half-screen windows use the same
+  // compact, wrapping control surface regardless of camera zoom.
+  const width = Math.min(availableWidth, EDITOR_LAYOUT_MAX_WIDTH * scale);
   const layoutWidth = width / scale;
   // A name longer than the box wraps, and the frame is sized before any of it
   // is typed, so budget for a few wrapped lines instead of the one the

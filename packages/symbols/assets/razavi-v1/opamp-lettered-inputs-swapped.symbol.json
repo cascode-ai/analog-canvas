@@ -154,7 +154,8 @@
         "strokeRole": "normal",
         "lineCap": "butt",
         "lineJoin": "miter"
-      }
+      },
+      "part": "upright-input-polarity-negative"
     }
   ],
   "variants": [],

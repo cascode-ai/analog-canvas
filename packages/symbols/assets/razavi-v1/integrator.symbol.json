@@ -3,9 +3,9 @@
   "id": "integrator",
   "name": "Integrator (1/s)",
   "viewBox": {
-    "x": -44,
+    "x": -34,
     "y": -24,
-    "width": 88,
+    "width": 68,
     "height": 48
   },
   "pins": [
@@ -13,26 +13,26 @@
       "name": "A",
       "role": "input",
       "at": {
-        "x": -40,
+        "x": -30,
         "y": 0
       },
       "direction": "west",
       "presentation": {
         "visibility": "visible",
-        "leadLength": 15
+        "leadLength": 10
       }
     },
     {
       "name": "Y",
       "role": "output",
       "at": {
-        "x": 40,
+        "x": 30,
         "y": 0
       },
       "direction": "east",
       "presentation": {
         "visibility": "visible",
-        "leadLength": 15
+        "leadLength": 10
       }
     }
   ],
@@ -40,7 +40,7 @@
     {
       "kind": "line",
       "from": {
-        "x": -40,
+        "x": -30,
         "y": 0
       },
       "to": {
@@ -72,7 +72,7 @@
         "y": 0
       },
       "to": {
-        "x": 40,
+        "x": 30,
         "y": 0
       },
       "part": "output-y-lead",
@@ -96,7 +96,7 @@
       "minBodyHeight": 30,
       "horizontalPadding": 8,
       "verticalPadding": 4,
-      "leadLength": 20
+      "leadLength": 10
     }
   },
   "variants": [],

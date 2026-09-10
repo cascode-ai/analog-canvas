@@ -578,7 +578,7 @@
 
 .rich-text-floating-toolbar {
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   align-items: center;
   box-sizing: border-box;
   width: 100%;
@@ -606,6 +606,7 @@
 }
 
 .rich-text-toolbar-separator {
+  flex: 0 0 1px;
   width: 1px;
   height: 1.2rem;
   margin: 0 0.1rem;
@@ -1007,6 +1008,8 @@
 .rich-text-source-input {
   display: block;
   width: 100%;
+  overflow-x: hidden;
+  resize: none;
 }
 
 .smart-snap-guide {

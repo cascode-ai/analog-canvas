@@ -309,20 +309,13 @@ function renderPrimitive(
  * the instance orientation around each marked line's centre; the parent SVG
  * transform then restores the centre while cancelling rotation and mirror.
  */
-function screenUprightPrimitive(
-  primitive: SymbolPrimitive,
-  orientation?: Pick<Orientation, "rotation" | "mirror">,
-): SymbolPrimitive {
-  if (
-    primitive.kind !== "line" ||
-    !primitive.part?.startsWith("upright-") ||
-    orientation === undefined
-  ) {
-    return primitive;
-  }
+function screenUprightLine<T extends { from: Point; to: Point }>(
+  line: T,
+  orientation: Pick<Orientation, "rotation" | "mirror">,
+): T {
   const center = {
-    x: (primitive.from.x + primitive.to.x) / 2,
-    y: (primitive.from.y + primitive.to.y) / 2,
+    x: (line.from.x + line.to.x) / 2,
+    y: (line.from.y + line.to.y) / 2,
   };
   const canonicalCoordinate = (value: number): number => {
     const rounded = Math.round(value * 1_000_000) / 1_000_000;
@@ -340,10 +333,24 @@ function screenUprightPrimitive(
     };
   };
   return {
-    ...primitive,
-    from: inverseVector(primitive.from),
-    to: inverseVector(primitive.to),
+    ...line,
+    from: inverseVector(line.from),
+    to: inverseVector(line.to),
   };
+}
+
+function screenUprightPrimitive(
+  primitive: SymbolPrimitive,
+  orientation?: Pick<Orientation, "rotation" | "mirror">,
+): SymbolPrimitive {
+  if (
+    primitive.kind !== "line" ||
+    !primitive.part?.startsWith("upright-") ||
+    orientation === undefined
+  ) {
+    return primitive;
+  }
+  return screenUprightLine(primitive, orientation);
 }
 
 function signalFlowFramePoints(body: {
@@ -1415,10 +1422,13 @@ function renderDraftText(
     const strokeWidth =
       profile.strokes.annotation * (object.styleOverride?.strokeScale ?? 1);
     const markers = geometry.polarityLines
-      .map(
-        (line) =>
-          `<line data-role="polarity-${line.role}" x1="${line.from.x}" y1="${line.from.y}" x2="${line.to.x}" y2="${line.to.y}" stroke="${color}" stroke-width="${strokeWidth}" stroke-linecap="${profile.lineCap}"/>`,
-      )
+      .map((line) => {
+        const rendered =
+          line.role === "negative"
+            ? screenUprightLine(line, { rotation, mirror: "none" })
+            : line;
+        return `<line data-role="polarity-${line.role}" x1="${rendered.from.x}" y1="${rendered.from.y}" x2="${rendered.to.x}" y2="${rendered.to.y}" stroke="${color}" stroke-width="${strokeWidth}" stroke-linecap="${profile.lineCap}"/>`;
+      })
       .join("");
     const text = formula
       ? formula

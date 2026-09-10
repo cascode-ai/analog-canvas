@@ -26,6 +26,7 @@ import {
 } from "./editor-transient-preview-overlays";
 import { EditorWiringOverlay } from "./editor-wiring-overlay";
 import type { CameraRuntime } from "./camera-runtime";
+import { EDITOR_SHORTCUT_REFERENCE } from "../interaction/editor-shortcut-reference";
 
 export interface EditorCanvasSurfaceProps {
   empty: boolean;
@@ -71,25 +72,6 @@ export interface EditorCanvasSurfaceProps {
   draftingHandles: ComponentProps<typeof EditorDraftingHandles>;
   interactionPreviews: ComponentProps<typeof EditorInteractionPreviews>;
 }
-
-const CADENCE_QUICK_SHORTCUTS = [
-  { keys: ["Ctrl", "F"], action: "Selection filter" },
-  { keys: ["F"], action: "Fit view" },
-  { keys: ["I"], action: "Insert component" },
-  { keys: ["R"], action: "Rotate" },
-  { keys: ["M"], action: "Move selection" },
-  { keys: ["Shift", "M"], action: "Move without wires" },
-  { keys: ["U"], action: "Undo" },
-  { keys: ["P"], action: "Place Cell Pin" },
-  { keys: ["C"], action: "Copy selection" },
-  { keys: ["Q"], action: "Properties" },
-  { keys: ["W"], action: "Draw wire" },
-  { keys: ["L"], action: "Edit Net Label" },
-  { keys: ["Shift", "R"], action: "Mirror left / right" },
-  { keys: ["Ctrl", "R"], action: "Mirror top / bottom" },
-  { keys: ["Esc"], action: "Cancel tool" },
-  { keys: ["Shift", "U"], action: "Redo" },
-] as const;
 
 function CanvasShortcutChord({ keys }: { keys: readonly string[] }) {
   return (
@@ -231,10 +213,10 @@ export function EditorCanvasSurface({
         >
           <div className="canvas-shortcut-menu-heading">
             <p className="canvas-shortcut-menu-title">Quick start</p>
-            <span>Cadence keys</span>
+            <span>All shortcuts</span>
           </div>
           <ul className="canvas-shortcut-list">
-            {CADENCE_QUICK_SHORTCUTS.map((shortcut) => (
+            {EDITOR_SHORTCUT_REFERENCE.map((shortcut) => (
               <li key={shortcut.keys.join("-")}>
                 <CanvasShortcutChord keys={shortcut.keys} />
                 <span>{shortcut.action}</span>

@@ -303,29 +303,56 @@ test("keeps quick-start shortcuts in the upper-right corner until the first comp
     "Quick start shortcuts",
   );
   await expect(quickStart).toContainText("Quick start");
-  await expect(quickStart).toContainText("Cadence keys");
+  await expect(quickStart).toContainText("All shortcuts");
   await expect(quickStart.locator("li")).toHaveText([
-    "CtrlFSelection filter",
+    "Ctrl/CmdFSelection filter",
+    "Ctrl/CmdShiftFSearch circuit",
     "FFit view",
+    "HomeFit view",
+    "Arrow keysPan view",
     "IInsert component",
-    "RRotate",
+    "PPlace Cell Pin",
+    "WDraw wire",
+    "F3Wire options",
+    "TAdd text",
+    "ADraw arrow",
+    "KDraw construction line",
+    "ODraw circle",
+    "CCopy and place selection",
     "MMove selection",
     "ShiftMMove without wires",
-    "UUndo",
-    "PPlace Cell Pin",
-    "CCopy selection",
-    "QProperties",
-    "WDraw wire",
-    "LEdit Net Label",
+    "RRotate selection / next object",
     "ShiftRMirror left / right",
-    "CtrlRMirror top / bottom",
-    "EscCancel tool",
+    "Ctrl/CmdRMirror top / bottom",
+    "QToggle Properties",
+    "LEdit Net Label",
+    "HToggle Net highlight",
+    "XReverse current marker",
+    "EEnter selected Cell",
+    "ShiftEReturn to parent Cell",
+    "[Decrease selected line width",
+    "]Increase selected line width",
+    "EnterFinish wire or drawing",
+    "DeleteDelete / remove last wire bend",
+    "BackspaceDelete / remove last wire bend",
+    "EscCancel active tool",
+    "Ctrl/CmdASelect all",
+    "Ctrl/CmdDClear selection",
+    "UUndo",
+    "Ctrl/CmdZUndo",
     "ShiftURedo",
+    "Ctrl/CmdShiftZRedo",
+    "Ctrl/CmdYRedo",
+    "Ctrl/CmdSSave project",
+    "Ctrl/CmdOOpen project",
   ]);
-  await expect(quickStart.locator(".canvas-shortcut-list")).toHaveCSS(
-    "grid-template-columns",
-    /^\d+(?:\.\d+)?px$/u,
-  );
+  expect(
+    (
+      await quickStart
+        .locator(".canvas-shortcut-list")
+        .evaluate((element) => getComputedStyle(element).gridTemplateColumns)
+    ).split(" ").length,
+  ).toBeGreaterThan(1);
   expect(
     await quickStart.evaluate((element) => {
       const style = getComputedStyle(element);
@@ -361,6 +388,16 @@ test("keeps quick-start shortcuts in the upper-right corner until the first comp
     Math.round(propertiesBox.x - (quickStartBox.x + quickStartBox.width)),
   ).toBe(12);
   expect(quickStartBox.x).toBeGreaterThanOrEqual(canvasPanelBox.x + 11.5);
+  await expect
+    .poll(async () => {
+      const [menu, panel] = await Promise.all([
+        quickStart.boundingBox(),
+        page.locator(".canvas-panel").boundingBox(),
+      ]);
+      if (!menu || !panel) return Number.POSITIVE_INFINITY;
+      return menu.y + menu.height - (panel.y + panel.height - 11.5);
+    })
+    .toBeLessThanOrEqual(0);
   await page.setViewportSize(initialViewport);
 
   await page.keyboard.press("i");
@@ -667,16 +704,36 @@ test("groups drafting tools and editable polarity labels under Annotations", asy
   await expect(
     loneMinus.locator('[data-role="polarity-negative"]'),
   ).toHaveCount(1);
-  // Its arm is the pair's arm, measured rather than eyeballed.
-  const armOf = (locator: ReturnType<typeof canvas.locator>) =>
-    locator.evaluate((line) =>
-      Math.abs(
-        Number(line.getAttribute("x2")) - Number(line.getAttribute("x1")),
-      ),
-    );
-  expect(
-    await armOf(loneMinus.locator('[data-role="polarity-negative"]')),
-  ).toBe(await armOf(polarity.locator('[data-role="polarity-negative"]')));
+  // Its screen-space arm is the pair's arm, measured after the pair's parent
+  // rotation and the negative mark's counter-rotation have both applied.
+  const screenArmOf = (locator: ReturnType<typeof canvas.locator>) =>
+    locator.evaluate((element) => {
+      const line = element as SVGLineElement;
+      const matrix = line.getCTM();
+      if (!matrix) throw new Error("Polarity line transform is not measurable");
+      const start = new DOMPoint(
+        line.x1.baseVal.value,
+        line.y1.baseVal.value,
+      ).matrixTransform(matrix);
+      const end = new DOMPoint(
+        line.x2.baseVal.value,
+        line.y2.baseVal.value,
+      ).matrixTransform(matrix);
+      return {
+        dx: Math.abs(end.x - start.x),
+        dy: Math.abs(end.y - start.y),
+        length: Math.hypot(end.x - start.x, end.y - start.y),
+      };
+    });
+  const [loneArm, pairArm] = await Promise.all([
+    screenArmOf(loneMinus.locator('[data-role="polarity-negative"]')),
+    screenArmOf(polarity.locator('[data-role="polarity-negative"]')),
+  ]);
+  expect(loneArm.length).toBeCloseTo(pairArm.length, 6);
+  expect(loneArm.dx).toBeCloseTo(loneArm.length, 6);
+  expect(pairArm.dx).toBeCloseTo(pairArm.length, 6);
+  expect(loneArm.dy).toBeCloseTo(0, 6);
+  expect(pairArm.dy).toBeCloseTo(0, 6);
 
   // Three dots use the canonical DraftText path. That makes each dot exactly
   // the current default font's period glyph and reuses the same generic text
@@ -1812,6 +1869,21 @@ test("keeps a usable canvas while toggling Library at the narrow breakpoint", as
   }
   expect(helpBox.x + helpBox.width).toBeLessThanOrEqual(
     chromeBox.x + chromeBox.width,
+  );
+
+  // Publish is the primary half-screen action. Simulation and Check and Save
+  // may continue to the horizontally scrollable tail, but Publish must be in
+  // the command surface's initial visible segment without any manual scroll.
+  const commandSurface = page.locator(".app-command-surface");
+  const publish = page.getByTestId("publish-gallery-button");
+  const commandBox = await commandSurface.boundingBox();
+  const publishBox = await publish.boundingBox();
+  if (!commandBox || !publishBox) {
+    throw new Error("Primary editor command is not measurable");
+  }
+  expect(publishBox.x).toBeGreaterThanOrEqual(commandBox.x);
+  expect(publishBox.x + publishBox.width).toBeLessThanOrEqual(
+    commandBox.x + commandBox.width,
   );
 
   const panel = page.getByTestId("shapes-library-panel");

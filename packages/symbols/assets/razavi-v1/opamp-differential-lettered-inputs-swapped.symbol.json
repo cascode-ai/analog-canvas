@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "id": "opamp-differential-crossed",
-  "name": "Differential Op Amp (crossed outputs)",
+  "id": "opamp-differential-lettered-inputs-swapped",
+  "name": "Differential Op Amp (lettered) (swapped inputs)",
   "viewBox": {
     "x": -54,
     "y": -28,
@@ -14,7 +14,7 @@
       "role": "non-inverting-input",
       "at": {
         "x": -50,
-        "y": 20
+        "y": -20
       },
       "direction": "west",
       "presentation": {
@@ -27,7 +27,7 @@
       "role": "inverting-input",
       "at": {
         "x": -50,
-        "y": -20
+        "y": 20
       },
       "direction": "west",
       "presentation": {
@@ -40,7 +40,7 @@
       "role": "output",
       "at": {
         "x": 10,
-        "y": -20
+        "y": 20
       },
       "direction": "east",
       "presentation": {
@@ -53,7 +53,7 @@
       "role": "output",
       "at": {
         "x": 10,
-        "y": 20
+        "y": -20
       },
       "direction": "east",
       "presentation": {
@@ -145,11 +145,11 @@
       "kind": "line",
       "from": {
         "x": -30.653576579339017,
-        "y": 18.391246526265867
+        "y": -18.391246526265867
       },
       "to": {
         "x": -30.653576579339017,
-        "y": 13.034150200001143
+        "y": -13.034150200001143
       },
       "style": {
         "strokeRole": "normal",
@@ -162,11 +162,11 @@
       "kind": "line",
       "from": {
         "x": -33.332849726715,
-        "y": 15.713321223835566
+        "y": -15.713321223835566
       },
       "to": {
         "x": -27.975754829029867,
-        "y": 15.713321223835566
+        "y": -15.713321223835566
       },
       "style": {
         "strokeRole": "normal",
@@ -179,11 +179,11 @@
       "kind": "line",
       "from": {
         "x": -33.33305067844888,
-        "y": -15.713815502660013
+        "y": 15.713815502660013
       },
       "to": {
         "x": -27.97595578076375,
-        "y": -15.713815502660013
+        "y": 15.713815502660013
       },
       "style": {
         "strokeRole": "normal",
@@ -196,11 +196,11 @@
       "kind": "line",
       "from": {
         "x": -20.61807623763181,
-        "y": 15.713321223835566
+        "y": -15.713321223835566
       },
       "to": {
         "x": -15.26222563277121,
-        "y": 15.713321223835566
+        "y": -15.713321223835566
       },
       "style": {
         "strokeRole": "normal",
@@ -213,11 +213,11 @@
       "kind": "line",
       "from": {
         "x": -17.93987471670441,
-        "y": -13.037135921633837
+        "y": 13.037135921633837
       },
       "to": {
         "x": -17.93987471670441,
-        "y": -18.394232247898557
+        "y": 18.394232247898557
       },
       "style": {
         "strokeRole": "normal",
@@ -230,11 +230,11 @@
       "kind": "line",
       "from": {
         "x": -20.618578581937502,
-        "y": -15.713815502660013
+        "y": 15.713815502660013
       },
       "to": {
         "x": -15.262727977076901,
-        "y": -15.713815502660013
+        "y": 15.713815502660013
       },
       "style": {
         "strokeRole": "normal",
@@ -244,5 +244,14 @@
       "part": "output-polarity"
     }
   ],
-  "variants": []
+  "variants": [],
+  "formulaPresentation": {
+    "defaultFormula": "A",
+    "supportsCoefficient": false,
+    "center": {
+      "x": -13.46,
+      "y": 0
+    },
+    "fontSize": 16
+  }
 }

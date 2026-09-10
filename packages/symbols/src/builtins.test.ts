@@ -41,6 +41,7 @@ const PRODUCT_IDS = [
   "opamp",
   "opamp-lettered",
   "opamp-differential",
+  "opamp-differential-lettered",
   "or-gate",
   "pmos",
   "pnp",
@@ -94,6 +95,9 @@ describe("built-in Symbol libraries", () => {
       "opamp-inputs-swapped",
       "opamp-lettered-inputs-swapped",
       "opamp-differential-inputs-swapped",
+      "opamp-differential-lettered-inputs-swapped",
+      "opamp-differential-crossed-lettered",
+      "opamp-differential-crossed-lettered-inputs-swapped",
       "opamp-differential-crossed-inputs-swapped",
     ]) {
       expect(resolvable.has(id)).toBe(true);

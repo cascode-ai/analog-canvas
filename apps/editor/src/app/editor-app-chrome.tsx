@@ -344,6 +344,19 @@ export function EditorAppChrome({
                 </div>
               </details>
             ) : null}
+            {/* Publishing is the primary narrow-window action. Keeping it
+                before optional workflow controls makes it visible before the
+                command row needs horizontal scrolling. */}
+            <button
+              type="button"
+              data-testid="publish-gallery-button"
+              aria-haspopup="dialog"
+              aria-expanded={publishGalleryOpen}
+              title="Publish to Gallery"
+              onClick={onPublishGallery}
+            >
+              Publish<span className="publish-label-long"> to Gallery</span>
+            </button>
             {simulationAction ? (
               <button
                 type="button"
@@ -368,16 +381,6 @@ export function EditorAppChrome({
             >
               <span className="toolbar-check-glyph" aria-hidden="true" />
               Check and Save
-            </button>
-            <button
-              type="button"
-              data-testid="publish-gallery-button"
-              aria-haspopup="dialog"
-              aria-expanded={publishGalleryOpen}
-              title="Publish to Gallery"
-              onClick={onPublishGallery}
-            >
-              Publish<span className="publish-label-long"> to Gallery</span>
             </button>
           </div>
         </nav>

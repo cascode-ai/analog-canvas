@@ -340,6 +340,7 @@ describe("reach order inside a category", () => {
       "opamp",
       "opamp-lettered",
       "opamp-differential",
+      "opamp-differential-lettered",
       "voltage-amplifier",
       "voltage-amplifier-lettered",
       "transconductance",

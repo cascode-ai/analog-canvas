@@ -16,9 +16,8 @@
 //   from its own drawn points instead of falling back to the viewBox. The
 //   hit box then hugs the shape the way every other primitive-drawn Symbol's
 //   does.
-// - Pin anchors land on multiples of the connection grid and the leads are
-//   short (5), matching the switch family rather than the older long-lead
-//   symbols.
+// - Every body vertex, body contact, and pin anchor lands on the 10-unit
+//   connection grid. Leads extend exactly one cell beyond the body.
 // - The text sits on the AREA centroid, not the bounding-box centre: the
 //   point pulls a pentagon's visual middle towards the blunt end, and text
 //   centred on the box would drift into the tip.
@@ -43,10 +42,10 @@ const normalize = (text) => text.replace(/\r\n/gu, "\n").trimEnd() + "\n";
 const hash = (text) => createHash("sha256").update(text).digest("hex");
 
 /** Half-extents of the body, and how far a lead reaches past it. */
-const BODY_HALF_WIDTH = 25;
-const BODY_HALF_HEIGHT = 15;
+const BODY_HALF_WIDTH = 30;
+const BODY_HALF_HEIGHT = 20;
 const TIP_INSET = 10;
-const PIN_ANCHOR_X = 30;
+const PIN_ANCHOR_X = 40;
 const LEAD_LENGTH = PIN_ANCHOR_X - BODY_HALF_WIDTH;
 const FONT_SIZE = 12;
 

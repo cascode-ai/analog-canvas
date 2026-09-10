@@ -10,6 +10,16 @@ import type { SchematicEdit } from "@icm/edit-engine";
 const OUTPUT_SWAP_SIBLINGS: Readonly<Record<string, string>> = {
   "opamp-differential": "opamp-differential-crossed",
   "opamp-differential-crossed": "opamp-differential",
+  "opamp-differential-inputs-swapped":
+    "opamp-differential-crossed-inputs-swapped",
+  "opamp-differential-crossed-inputs-swapped":
+    "opamp-differential-inputs-swapped",
+  "opamp-differential-lettered": "opamp-differential-crossed-lettered",
+  "opamp-differential-crossed-lettered": "opamp-differential-lettered",
+  "opamp-differential-lettered-inputs-swapped":
+    "opamp-differential-crossed-lettered-inputs-swapped",
+  "opamp-differential-crossed-lettered-inputs-swapped":
+    "opamp-differential-lettered-inputs-swapped",
 };
 
 export function differentialOutputSibling(

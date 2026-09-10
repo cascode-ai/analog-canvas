@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "id": "opamp-differential-crossed",
-  "name": "Differential Op Amp (crossed outputs)",
+  "id": "opamp-differential-lettered",
+  "name": "Differential Op Amp (lettered)",
   "viewBox": {
     "x": -54,
     "y": -28,
@@ -40,7 +40,7 @@
       "role": "output",
       "at": {
         "x": 10,
-        "y": -20
+        "y": 20
       },
       "direction": "east",
       "presentation": {
@@ -53,7 +53,7 @@
       "role": "output",
       "at": {
         "x": 10,
-        "y": 20
+        "y": -20
       },
       "direction": "east",
       "presentation": {
@@ -196,11 +196,11 @@
       "kind": "line",
       "from": {
         "x": -20.61807623763181,
-        "y": 15.713321223835566
+        "y": -15.713321223835566
       },
       "to": {
         "x": -15.26222563277121,
-        "y": 15.713321223835566
+        "y": -15.713321223835566
       },
       "style": {
         "strokeRole": "normal",
@@ -213,11 +213,11 @@
       "kind": "line",
       "from": {
         "x": -17.93987471670441,
-        "y": -13.037135921633837
+        "y": 13.037135921633837
       },
       "to": {
         "x": -17.93987471670441,
-        "y": -18.394232247898557
+        "y": 18.394232247898557
       },
       "style": {
         "strokeRole": "normal",
@@ -230,11 +230,11 @@
       "kind": "line",
       "from": {
         "x": -20.618578581937502,
-        "y": -15.713815502660013
+        "y": 15.713815502660013
       },
       "to": {
         "x": -15.262727977076901,
-        "y": -15.713815502660013
+        "y": 15.713815502660013
       },
       "style": {
         "strokeRole": "normal",
@@ -244,5 +244,14 @@
       "part": "output-polarity"
     }
   ],
-  "variants": []
+  "variants": [],
+  "formulaPresentation": {
+    "defaultFormula": "A",
+    "supportsCoefficient": false,
+    "center": {
+      "x": -13.46,
+      "y": 0
+    },
+    "fontSize": 16
+  }
 }

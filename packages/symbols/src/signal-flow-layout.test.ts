@@ -59,7 +59,7 @@ describe("signal-flow layout", () => {
     ).toBeGreaterThanOrEqual(fraction!.fontSize * 0.4);
   });
 
-  it("snaps adaptive body and pinSpan to 10-grid and only expands min bounds", () => {
+  it("snaps adaptive geometry to the 10-grid without exceeding its lead limit", () => {
     const layout = resolveAdaptiveSignalFlowBlockLayout(definition, {
       ...baseParameters,
       bodyWidth: 121,
@@ -67,9 +67,12 @@ describe("signal-flow layout", () => {
     });
     expect(layout?.body.width).toBe(130);
     expect(layout?.body.height).toBe(70);
-    expect(layout?.pinSpan).toBe(90);
-    expect(layout?.bounds.width).toBe(180);
+    expect(layout?.pinSpan).toBe(80);
+    expect(layout?.bounds.width).toBe(160);
     expect(layout?.bounds.height).toBe(70);
+    expect(layout!.pinSpan - layout!.body.width / 2).toBeLessThanOrEqual(
+      definition.formulaPresentation.adaptiveFrame.leadLength,
+    );
 
     const larger = resolveAdaptiveSignalFlowBlockLayout(definition, {
       formula: "very_long_custom_transfer_function",
@@ -82,6 +85,45 @@ describe("signal-flow layout", () => {
     expect(larger!.body.width % 10).toBe(0);
     expect(larger!.body.height % 10).toBe(0);
     expect(larger!.body.width).toBeGreaterThanOrEqual(layout!.body.width);
+    expect(larger!.pinSpan % 10).toBe(0);
+    expect(larger!.pinSpan - larger!.body.width / 2).toBeLessThanOrEqual(
+      definition.formulaPresentation.adaptiveFrame.leadLength,
+    );
+  });
+
+  it("lands one-cell Signal Flow leads on the first eligible grid point", () => {
+    const oneCellDefinition = {
+      formulaPresentation: {
+        ...definition.formulaPresentation,
+        adaptiveFrame: {
+          ...definition.formulaPresentation.adaptiveFrame,
+          minBodyWidth: 40,
+          leadLength: 10,
+        },
+      },
+    };
+    const halfGridBody = resolveAdaptiveSignalFlowBlockLayout(
+      oneCellDefinition,
+      { formula: "x", bodyWidth: 40 },
+    );
+    const alignedBody = resolveAdaptiveSignalFlowBlockLayout(
+      oneCellDefinition,
+      { formula: "x", bodyWidth: 60 },
+    );
+
+    expect(halfGridBody).toMatchObject({
+      body: { width: 50 },
+      pinSpan: 30,
+    });
+    expect(alignedBody).toMatchObject({
+      body: { width: 60 },
+      pinSpan: 40,
+    });
+    for (const layout of [alignedBody, halfGridBody]) {
+      expect(layout).toBeDefined();
+      expect(layout!.pinSpan % 10).toBe(0);
+      expect(layout!.pinSpan - layout!.body.width / 2).toBeLessThanOrEqual(10);
+    }
   });
 
   it("preserves a right-tapered transconductance frame while expanding long formulas", () => {
