@@ -155,6 +155,16 @@
       "packages/agent-client/**",
       "packages/agent-routing/**"
     ],
+    "analogSimulation": [
+      "apps/editor/src/features/simulation/**",
+      "apps/editor/e2e/agent-simulation.spec.ts",
+      "packages/simulation-service/**",
+      "packages/spice-run/**",
+      "packages/netlist/src/simulation-compile*",
+      "packages/netlist/src/source-waveform*",
+      "scripts/preview-simulation-smoke.mjs",
+      "scripts/simulation-acceptance.mjs"
+    ],
     "release": [
       "apps/local-host/**",
       "config/agent-mcp-distribution.json",
@@ -294,6 +304,18 @@
           "apps/editor/e2e/agent-simulation.spec.ts"
         ]
       }
+    },
+    {
+      "id": "analog-simulation-browser",
+      "stage": "affected",
+      "groups": ["analogSimulation"],
+      "description": "Validate the existing browser-authoritative Analog Simulation workflow.",
+      "command": [
+        "pnpm",
+        "test:e2e:local",
+        "apps/editor/e2e/agent-simulation.spec.ts"
+      ],
+      "ci": { "e2eArgs": ["apps/editor/e2e/agent-simulation.spec.ts"] }
     },
     {
       "id": "editor-browser",
@@ -488,6 +510,7 @@
         "project-file-browser",
         "gallery-browser",
         "agent-browser",
+        "analog-simulation-browser",
         "editor-browser",
         "editor-commands-browser",
         "editor-diagnostics-browser",

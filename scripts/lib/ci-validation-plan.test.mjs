@@ -31,6 +31,16 @@ describe("CI validation planning", () => {
     });
   });
 
+  it("selects the existing Analog Simulation browser contract", () => {
+    expect(
+      ciPlan(["packages/simulation-service/src/service.ts"]),
+    ).toMatchObject({
+      heavy: true,
+      mode: "focused",
+      e2eArgs: ["apps/editor/e2e/agent-simulation.spec.ts"],
+    });
+  });
+
   it("combines fixed browser contracts for a bounded cross-feature change", () => {
     expect(
       ciPlan([
