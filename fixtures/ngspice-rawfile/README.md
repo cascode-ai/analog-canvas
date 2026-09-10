@@ -1,20 +1,20 @@
 # ngspice ASCII rawfile fixtures
 
-Six rawfiles written by ngspice 46, each beside the deck that produced it.
+Seven rawfiles written by ngspice 46, each beside the deck that produced it.
 They exist so a parser is tested against output a simulator actually wrote,
 not against output someone believed it writes.
 
 Regenerate any of them with `ngspice -b <name>.deck.spi` from this directory.
 
-| file                    | plot               | flags       | vars           | points |
-| ----------------------- | ------------------ | ----------- | -------------- | ------ |
-| `divider-op.raw`        | Operating Point    | real        | 3              | 1      |
-| `divider-op-listed.raw` | Operating Point    | real        | 4 (one echoed) | 1      |
-| `divider-dc.raw`        | DC transfer        | real        | 4              | 4      |
-| `rc-ac.raw`             | AC Analysis        | **complex** | 4              | 17     |
-| `rc-tran.raw`           | Transient Analysis | real        | 4              | 79     |
-| `resistor-noise-ngspice46.raw` | Noise spectrum + integrated | real | 3 + 2 | 7 + 1 |
-| `resistor-current-noise-ngspice46.raw` | Noise spectrum + integrated | real | 3 + 2 | 7 + 1 |
+| file                                   | plot                        | flags       | vars           | points |
+| -------------------------------------- | --------------------------- | ----------- | -------------- | ------ |
+| `divider-op.raw`                       | Operating Point             | real        | 3              | 1      |
+| `divider-op-listed.raw`                | Operating Point             | real        | 4 (one echoed) | 1      |
+| `divider-dc.raw`                       | DC transfer                 | real        | 4              | 4      |
+| `rc-ac.raw`                            | AC Analysis                 | **complex** | 4              | 17     |
+| `rc-tran.raw`                          | Transient Analysis          | real        | 4              | 79     |
+| `resistor-noise-ngspice46.raw`         | Noise spectrum + integrated | real        | 3 + 2          | 7 + 1  |
+| `resistor-current-noise-ngspice46.raw` | Noise spectrum + integrated | real        | 3 + 2          | 7 + 1  |
 
 ## What each one is for
 
