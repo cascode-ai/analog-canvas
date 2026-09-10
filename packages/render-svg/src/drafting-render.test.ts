@@ -1,4 +1,4 @@
-import { createEmptyDocument } from "@icm/model";
+import { createEmptyDocument, transformPoint } from "@icm/model";
 import type { RichTextRun } from "@icm/model";
 import {
   resolveDraftingObjectGeometry,
@@ -237,6 +237,23 @@ describe("drafting layer rendering", () => {
       expect(group?.match(/data-role="polarity-/gu)).toHaveLength(lineCount);
       expect(group).toContain('transform="rotate(90 100 100)"');
       expect(group).toContain("V_x");
+      if (polarity !== "positive") {
+        const negative = group?.match(
+          /<line data-role="polarity-negative" x1="([^"]+)" y1="([^"]+)" x2="([^"]+)" y2="([^"]+)"/u,
+        );
+        expect(negative).not.toBeNull();
+        const worldStart = transformPoint(
+          { x: Number(negative![1]), y: Number(negative![2]) },
+          { x: 100, y: 100 },
+          { rotation: 90, mirror: "none" },
+        );
+        const worldEnd = transformPoint(
+          { x: Number(negative![3]), y: Number(negative![4]) },
+          { x: 100, y: 100 },
+          { rotation: 90, mirror: "none" },
+        );
+        expect(worldStart.y).toBeCloseTo(worldEnd.y, 6);
+      }
     },
   );
 

@@ -190,7 +190,7 @@
         "lineCap": "butt",
         "lineJoin": "miter"
       },
-      "part": "input-polarity"
+      "part": "upright-input-polarity-negative"
     },
     {
       "kind": "line",
@@ -207,7 +207,7 @@
         "lineCap": "butt",
         "lineJoin": "miter"
       },
-      "part": "output-polarity"
+      "part": "upright-output-polarity-negative"
     },
     {
       "kind": "line",

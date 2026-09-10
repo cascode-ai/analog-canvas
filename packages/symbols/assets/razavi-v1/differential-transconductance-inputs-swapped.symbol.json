@@ -131,7 +131,7 @@
     },
     {
       "kind": "line",
-      "part": "input-polarity",
+      "part": "upright-input-polarity-negative",
       "from": {
         "x": -17,
         "y": 20

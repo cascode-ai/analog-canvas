@@ -759,7 +759,9 @@ describe("Razavi symbol catalog", () => {
     });
     expect(
       differential.primitives.filter(
-        (primitive) => primitive.part === "input-polarity",
+        (primitive) =>
+          primitive.part === "input-polarity" ||
+          primitive.part === "upright-input-polarity-negative",
       ),
     ).toHaveLength(3);
   });

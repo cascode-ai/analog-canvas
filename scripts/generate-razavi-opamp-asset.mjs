@@ -120,7 +120,10 @@ const symbol = {
     },
     line(geometry.plusVertical),
     line(geometry.plusHorizontal),
-    line(geometry.minusHorizontal),
+    {
+      ...line(geometry.minusHorizontal),
+      part: "upright-input-polarity-negative",
+    },
   ],
   variants: [],
 };
@@ -377,13 +380,13 @@ const sourceInputMarks = [
   ),
   taggedLine(
     scaleDifferentialPairLine(differentialGeometry.input_minus_horizontal, -1),
-    "input-polarity",
+    "upright-input-polarity-negative",
   ),
 ];
 const sourceOutputMarks = [
   taggedLine(
     scaleDifferentialPairLine(differentialGeometry.output_minus_horizontal, 1),
-    "output-polarity",
+    "upright-output-polarity-negative",
   ),
   taggedLine(
     scaleDifferentialPairLine(differentialGeometry.output_plus_vertical, 1),
