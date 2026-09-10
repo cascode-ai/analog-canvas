@@ -108,7 +108,9 @@ export function buildSimulationDeck(
   return lines.join("\n") + "\n";
 }
 
-function formatModelLibrarySelection(selection: ModelLibrarySelection): string {
+export function formatModelLibrarySelection(
+  selection: ModelLibrarySelection,
+): string {
   const path = selection.path.trim();
   if (path.length === 0 || /[\r\n"]/u.test(path)) {
     throw new Error(

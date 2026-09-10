@@ -304,6 +304,7 @@ export async function routeSimulationRequest(
     return Response.json({
       configured: !!selected,
       rawfileCollection: "declared-single-ascii",
+      maxInputFiles: 24,
       inputs: ["structured", "raw"],
       analyses: hostedSky130Profile.qualifiedScope.analyses,
       parsedAnalyses: ["op", "dc", "ac", "tran", "noise"],

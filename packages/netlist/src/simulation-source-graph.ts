@@ -19,6 +19,12 @@ export interface SourceStatement {
 }
 export interface SimulationSourceGraph {
   statements: SourceStatement[];
+  includes: {
+    path: string;
+    target: string;
+    section?: string;
+    sourceRef: SourceSpan;
+  }[];
   /** Repeated includes remain repeated here; they are not silently suppressed. */
   paths: string[];
   diagnostics: SimulationSourceDiagnostic[];
@@ -35,6 +41,7 @@ export function inspectSimulationSourceGraph(
   const dependencies = new Set(input.dependencies.map((dep) => dep.mountPath));
   const result: SimulationSourceGraph = {
     statements: [],
+    includes: [],
     paths: [],
     diagnostics: [],
   };
@@ -140,6 +147,14 @@ export function inspectSimulationSourceGraph(
           );
           continue;
         }
+        result.includes.push({
+          path,
+          target: resolved,
+          sourceRef: statement.sourceRef,
+          ...(statement.kind === "library"
+            ? { section: statement.section }
+            : {}),
+        });
         visit(
           resolved,
           statement.kind === "library" ? statement.section : undefined,

@@ -10,6 +10,12 @@ import {
   type SimulationSourceExpression,
 } from "@icm/model";
 import { evaluateSpiceExpression } from "@icm/spice";
+import { sha256Hex } from "@icm/derived";
+import {
+  mapSimulationFile,
+  insertSimulationText,
+  type SimulationFileSourceMap,
+} from "./simulation-source-map.js";
 import {
   buildSimulationPlan,
   type CompiledSimulation,
@@ -57,6 +63,10 @@ export type SourceSimulationCompilation =
       deviceOperatingPoints: CompiledSimulationDeviceOperatingPoint[];
       warnings: SimulationSourceDiagnostic[];
       reachedDocumentIds: string[];
+      /** Includes object identities/parameters but excludes drawing-only changes. */
+      electricalHash: string;
+      sourceMaps: SimulationFileSourceMap[];
+      includes: SimulationSourceGraph["includes"];
     };
 
 /** Author text stays native. Canvas extraction, instrumentation and output math remain shared. */
@@ -85,7 +95,8 @@ export function compileSourceSimulation(
         {
           code: "SIMULATION_CONFIG_JSON",
           severity: "error",
-          message: "experiment.json must contain valid JSON before preparation",
+          message:
+            "The experiment configuration must contain valid JSON before preparation",
           path: setup.input.configPath,
         },
       ],
@@ -427,27 +438,45 @@ export function compileSourceSimulation(
       );
   if (diagnostics.some((d) => d.severity === "error"))
     return { ok: false, diagnostics };
-  const files = [
+  const mappedFiles = [
     ...setup.input.files
       .filter((f) => f.path !== setup.input.configPath)
-      .map((f) => ({ ...f })),
-    ...generated.map(({ path, text }) => ({ path, text })),
+      .map((f) => mapSimulationFile(f.path, f.text)),
+    ...generated.map(({ path, text, bindingId }) =>
+      mapSimulationFile(path, text, {
+        kind: "generated",
+        purpose: "canvas-circuit",
+        bindingId,
+      }),
+    ),
   ];
   if (capture.size) {
-    const entry = files.find((f) => f.path === setup.input.entry)!;
+    const index = mappedFiles.findIndex((f) => f.path === setup.input.entry);
+    const entry = mappedFiles[index]!;
     const end = entry.text.indexOf("\n");
     const prefix = `* Canvas acquisitions (generated)\n.save all ${[...capture].join(" ")}\n`;
     // Keep the native title in place. Other author bytes are never reformatted.
-    entry.text =
-      end < 0
-        ? `${entry.text}\n${prefix}`
-        : `${entry.text.slice(0, end + 1)}${prefix}${entry.text.slice(end + 1)}`;
+    mappedFiles[index] = insertSimulationText(
+      entry,
+      end < 0 ? entry.text.length : end + 1,
+      (end < 0 ? "\n" : "") + prefix,
+      { kind: "generated", purpose: "canvas-acquisitions" },
+    );
   }
   return {
     ok: true,
     config,
     authoredFiles: structuredClone(setup.input.files),
-    files,
+    files: mappedFiles.map(({ path, text }) => ({ path, text })),
+    sourceMaps: mappedFiles.map(({ path, segments }) => ({ path, segments })),
+    includes: graph.includes,
+    electricalHash: sha256Hex(
+      JSON.stringify(
+        [...plans]
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([id, plan]) => ({ bindingId: id, circuit: plan.circuit })),
+      ),
+    ),
     entry: setup.input.entry,
     generated,
     vectors,

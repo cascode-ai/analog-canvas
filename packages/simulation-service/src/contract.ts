@@ -5,6 +5,7 @@ import {
   SimulationRunPlanAxisSchema,
   SimulationEnvironmentSelectionSchema,
   SimulationMeasurementSpecSchema,
+  SourceSpanSchema,
 } from "@icm/model";
 import type {
   CompiledSimulationDeviceOperatingPoint,
@@ -37,6 +38,8 @@ export const ProblemSchema = z.strictObject({
         severity: z.enum(["error", "warning", "info"]),
         primary: ObjectLocatorSchema.optional(),
         field: z.string().optional(),
+        path: z.string().optional(),
+        sourceRef: SourceSpanSchema.optional(),
       }),
     )
     .optional(),
@@ -409,6 +412,7 @@ export const CapabilitiesSchema = z.strictObject({
   configured: z.boolean(),
   /** Explicit collection protocol; absent on pre-source deployments. */
   rawfileCollection: z.literal("declared-single-ascii").optional(),
+  maxInputFiles: z.number().int().positive().optional(),
   inputs: z.array(z.enum(["structured", "raw"])),
   analyses: z.array(z.enum(["op", "dc", "ac", "tran", "noise"])),
   parsedAnalyses: z.array(z.enum(["op", "dc", "ac", "tran", "noise"])),
