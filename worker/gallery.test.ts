@@ -559,6 +559,49 @@ describe("newest-first gallery feed", () => {
     expect(filtered.total).toBe(3);
   });
 
+  it("ranks public contributors by circuit count and excludes hidden or blank bylines", async () => {
+    const env = environment();
+    const ids = await wallOf(env, 6);
+    env.gallerySql.exec(
+      "UPDATE gallery_entries SET author = ? WHERE id IN (?, ?)",
+      "Alice",
+      ids[0]!,
+      ids[1]!,
+    );
+    env.gallerySql.exec(
+      "UPDATE gallery_entries SET author = ? WHERE id = ?",
+      "Chen",
+      ids[2]!,
+    );
+    env.gallerySql.exec(
+      "UPDATE gallery_entries SET author = ? WHERE id = ?",
+      "Bob",
+      ids[3]!,
+    );
+    env.gallerySql.exec(
+      "UPDATE gallery_entries SET author = '' WHERE id = ?",
+      ids[4]!,
+    );
+    env.gallerySql.exec(
+      "UPDATE gallery_entries SET author = ?, status = 'rejected' WHERE id = ?",
+      "Hidden",
+      ids[5]!,
+    );
+
+    const response = await route(
+      env,
+      new Request(`${ORIGIN}/api/gallery/authors`),
+    );
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(await response.json()).toEqual({
+      authors: [
+        { author: "Alice", count: 2 },
+        { author: "Bob", count: 1 },
+        { author: "Chen", count: 1 },
+      ],
+    });
+  });
+
   it("returns the same newest-first order on every read", async () => {
     const env = environment();
     await wallOf(env, 3);

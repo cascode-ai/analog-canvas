@@ -1059,15 +1059,214 @@
   gap: 6px;
 }
 
-/* The band's spare right side carries the wall's one number. Muted like
-   .shelf-count: a fact about the wall, not a control. */
-.gallery-count-panel {
+/* The wall count is also the door to a compact contributor leaderboard. */
+.gallery-contributor-menu {
+  position: relative;
   margin-left: auto;
   align-self: center;
   padding-bottom: 6px;
+}
+
+.gallery-count-panel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  border: 1px solid var(--icm-border);
+  border-radius: 999px;
+  background: var(--icm-surface);
   color: var(--icm-text-muted);
+  font: inherit;
   font-size: 0.85rem;
+  list-style: none;
   white-space: nowrap;
+  cursor: pointer;
+}
+
+.gallery-count-panel::-webkit-details-marker,
+.gallery-contributor-row > summary::-webkit-details-marker {
+  display: none;
+}
+
+.gallery-count-panel::after,
+.gallery-contributor-row > summary::after {
+  width: 6px;
+  height: 6px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  content: "";
+  transform: translateY(-2px) rotate(45deg);
+  transition: transform 120ms ease;
+}
+
+.gallery-contributor-menu[open] > .gallery-count-panel,
+.gallery-count-panel:hover {
+  border-color: var(--icm-accent);
+  color: var(--icm-text);
+  background: var(--icm-surface-hover);
+}
+
+.gallery-contributor-menu[open] > .gallery-count-panel::after,
+.gallery-contributor-row[open] > summary::after {
+  transform: translateY(2px) rotate(225deg);
+}
+
+.gallery-count-panel:focus-visible,
+.gallery-contributor-row > summary:focus-visible,
+.gallery-contributor-detail button:focus-visible,
+.gallery-contributor-circuits a:focus-visible {
+  outline: 2px solid var(--icm-accent);
+  outline-offset: 2px;
+}
+
+.gallery-contributor-popover {
+  position: absolute;
+  z-index: 70;
+  top: calc(100% + 1px);
+  right: 0;
+  box-sizing: border-box;
+  width: min(23rem, calc(100vw - 44px));
+  padding: 10px;
+  border: 1px solid var(--icm-border);
+  border-radius: 12px;
+  background: var(--icm-surface);
+  box-shadow: 0 16px 36px rgb(15 15 15 / 16%);
+}
+
+.gallery-contributor-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 6px 10px;
+}
+
+.gallery-contributor-heading strong {
+  color: var(--icm-text);
+  font-size: 14px;
+}
+
+.gallery-contributor-heading span,
+.gallery-contributor-status {
+  color: var(--icm-text-muted);
+  font-size: 12px;
+}
+
+.gallery-contributor-status {
+  margin: 0;
+  padding: 10px 6px;
+}
+
+div.gallery-contributor-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.gallery-contributor-status p {
+  margin: 0;
+}
+
+.gallery-contributor-status button,
+.gallery-contributor-detail button {
+  padding: 5px 9px;
+  border: 1px solid var(--icm-border);
+  border-radius: 999px;
+  color: var(--icm-text);
+  background: var(--icm-surface);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.gallery-contributor-status button:hover,
+.gallery-contributor-detail button:hover {
+  border-color: var(--icm-accent);
+  background: var(--icm-accent-soft);
+}
+
+.gallery-contributor-list {
+  max-height: min(32rem, 65vh);
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.gallery-contributor-list > li + li {
+  border-top: 1px solid var(--icm-border);
+}
+
+.gallery-contributor-row > summary {
+  display: grid;
+  grid-template-columns: 1.7rem minmax(0, 1fr) auto 0.6rem;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 6px;
+  border-radius: 7px;
+  color: var(--icm-text);
+  list-style: none;
+  cursor: pointer;
+}
+
+.gallery-contributor-row > summary:hover {
+  background: var(--icm-surface-hover);
+}
+
+.gallery-contributor-rank,
+.gallery-contributor-count {
+  color: var(--icm-text-muted);
+  font-size: 12px;
+}
+
+.gallery-contributor-rank {
+  text-align: center;
+}
+
+.gallery-contributor-author {
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gallery-contributor-detail {
+  display: grid;
+  justify-items: start;
+  gap: 9px;
+  padding: 0 6px 10px 2.5rem;
+}
+
+.gallery-contributor-detail > p {
+  margin: 0;
+  color: var(--icm-text-muted);
+  font-size: 12px;
+}
+
+.gallery-contributor-circuits {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.gallery-contributor-circuits a {
+  display: block;
+  max-width: 17rem;
+  overflow: hidden;
+  color: var(--icm-text-muted);
+  font-size: 12px;
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gallery-contributor-circuits a:hover {
+  color: var(--icm-accent);
+  text-decoration: underline;
 }
 
 .gallery-view-tab {
