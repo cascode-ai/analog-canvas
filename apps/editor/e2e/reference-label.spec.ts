@@ -42,6 +42,23 @@ test("canvas edits one visual annotation without changing the Netlist Reference"
   await expect(
     page.getByRole("button", { name: "Subscript", exact: true }),
   ).toBeVisible();
+  const [sizeControl, ...actionControls] = await Promise.all(
+    [
+      page.getByRole("button", { name: "Increase text size" }),
+      page.getByRole("button", { name: "Apply text changes" }),
+      page.getByRole("button", { name: "Cancel text changes" }),
+      page.getByRole("button", { name: "Delete text" }),
+      page.getByRole("button", { name: "Use netlist name", exact: true }),
+    ].map(async (control) => {
+      const bounds = await control.boundingBox();
+      if (!bounds) throw new Error("Text editor control is not measurable");
+      return bounds;
+    }),
+  );
+  expect(
+    actionControls.every(({ y }) => Math.abs(y - actionControls[0]!.y) < 1),
+  ).toBe(true);
+  expect(actionControls[0]!.y).toBeGreaterThan(sizeControl!.y);
   await editor.fill("R2");
   await editor.press("End");
   await editor.press("Shift+Enter");

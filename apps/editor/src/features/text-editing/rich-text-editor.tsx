@@ -827,6 +827,9 @@ export function RichTextEditor({
             </button>
           </>
         ) : null}
+        {!compact ? (
+          <span className="rich-text-toolbar-action-break" aria-hidden="true" />
+        ) : null}
         <button
           type="button"
           aria-label="Apply text changes"
