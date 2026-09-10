@@ -1,6 +1,6 @@
 # Digital timing simulation
 
-`@icm/simulation` is the deterministic digital event layer. It reads a current
+`@icm/timing-simulation` is the deterministic digital event layer. It reads a current
 `SchematicDocument` and a run profile; it never mutates either one.
 
 The first supported set is:
