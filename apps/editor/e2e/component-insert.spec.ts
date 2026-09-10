@@ -704,16 +704,36 @@ test("groups drafting tools and editable polarity labels under Annotations", asy
   await expect(
     loneMinus.locator('[data-role="polarity-negative"]'),
   ).toHaveCount(1);
-  // Its arm is the pair's arm, measured rather than eyeballed.
-  const armOf = (locator: ReturnType<typeof canvas.locator>) =>
-    locator.evaluate((line) =>
-      Math.abs(
-        Number(line.getAttribute("x2")) - Number(line.getAttribute("x1")),
-      ),
-    );
-  expect(
-    await armOf(loneMinus.locator('[data-role="polarity-negative"]')),
-  ).toBe(await armOf(polarity.locator('[data-role="polarity-negative"]')));
+  // Its screen-space arm is the pair's arm, measured after the pair's parent
+  // rotation and the negative mark's counter-rotation have both applied.
+  const screenArmOf = (locator: ReturnType<typeof canvas.locator>) =>
+    locator.evaluate((element) => {
+      const line = element as SVGLineElement;
+      const matrix = line.getCTM();
+      if (!matrix) throw new Error("Polarity line transform is not measurable");
+      const start = new DOMPoint(
+        line.x1.baseVal.value,
+        line.y1.baseVal.value,
+      ).matrixTransform(matrix);
+      const end = new DOMPoint(
+        line.x2.baseVal.value,
+        line.y2.baseVal.value,
+      ).matrixTransform(matrix);
+      return {
+        dx: Math.abs(end.x - start.x),
+        dy: Math.abs(end.y - start.y),
+        length: Math.hypot(end.x - start.x, end.y - start.y),
+      };
+    });
+  const [loneArm, pairArm] = await Promise.all([
+    screenArmOf(loneMinus.locator('[data-role="polarity-negative"]')),
+    screenArmOf(polarity.locator('[data-role="polarity-negative"]')),
+  ]);
+  expect(loneArm.length).toBeCloseTo(pairArm.length, 6);
+  expect(loneArm.dx).toBeCloseTo(loneArm.length, 6);
+  expect(pairArm.dx).toBeCloseTo(pairArm.length, 6);
+  expect(loneArm.dy).toBeCloseTo(0, 6);
+  expect(pairArm.dy).toBeCloseTo(0, 6);
 
   // Three dots use the canonical DraftText path. That makes each dot exactly
   // the current default font's period glyph and reuses the same generic text
