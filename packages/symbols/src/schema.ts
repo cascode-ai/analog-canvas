@@ -104,6 +104,12 @@ export const SymbolPrimitiveSchema = z.discriminatedUnion("kind", [
   z.strictObject({
     kind: z.literal("path"),
     data: z.string().min(1),
+    /**
+     * Optional tight bounds of the authored path centerline. Path data is
+     * otherwise opaque to geometry consumers, which must conservatively fall
+     * back to the Symbol viewBox.
+     */
+    bounds: SymbolLocalRectSchema.optional(),
     part: StableIdSchema.optional(),
     style: SymbolPrimitiveStyleSchema.optional(),
   }),

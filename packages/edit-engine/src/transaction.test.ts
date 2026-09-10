@@ -85,6 +85,43 @@ function defineCellPin(
   });
 }
 
+function documentWithLegacyResistorLabels(
+  labels: readonly {
+    id: string;
+    kind: "instance-label" | "instance-value";
+    text: string;
+    y: number;
+  }[],
+) {
+  const document = createEmptyDocument("document-main", "Resistor label");
+  document.instances.push({
+    id: "R1",
+    symbolId: "resistor",
+    placement: {
+      position: { x: 100, y: 100 },
+      rotation: 90,
+      mirror: "none",
+    },
+  });
+  for (const label of labels) {
+    document.annotations.push({
+      id: label.id,
+      kind: label.kind,
+      content: { runs: [{ kind: "text", value: label.text }] },
+      anchor: {
+        kind: "object",
+        objectId: "R1",
+        localOffset: { x: -10, y: label.y - 100 },
+        fallbackPosition: { x: 90, y: label.y },
+      },
+      alignment: "middle",
+      rotation: 0,
+      locked: false,
+    });
+  }
+  return document;
+}
+
 describe("Edit Transaction envelope", () => {
   it("accepts 1024 edits and rejects the 1025th before execution", () => {
     const document = createEmptyDocument("document-main", "Main");
@@ -2390,6 +2427,88 @@ describe("Edit Transaction envelope", () => {
     });
     expect(document.instances[0]!.netlist!.parameters).toEqual({
       value: "10k",
+    });
+  });
+
+  it("reflows a legacy canonical resistor label after another rotation", () => {
+    // Before the Resistor path declared tight ink bounds, its viewBox put
+    // these untouched 90-degree rows one grid interval too far from the glyph.
+    const document = documentWithLegacyResistorLabels([
+      {
+        id: "instance-label-R1",
+        kind: "instance-label",
+        text: "R1",
+        y: 140,
+      },
+      {
+        id: "instance-value-R1",
+        kind: "instance-value",
+        text: "1k",
+        y: 170,
+      },
+    ]);
+
+    const result = executeTransaction(
+      document,
+      {
+        ...transaction(),
+        edits: [{ kind: "rotate_instance", instanceId: "R1", rotation: 180 }],
+      },
+      { symbolResolver: resolver },
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.document.annotations).toMatchObject([
+      {
+        alignment: "end",
+        rotation: 0,
+        anchor: {
+          kind: "object",
+          localOffset: { x: -20, y: -10 },
+          fallbackPosition: { x: 80, y: 90 },
+        },
+      },
+      {
+        alignment: "end",
+        rotation: 0,
+        anchor: {
+          kind: "object",
+          localOffset: { x: -20, y: 20 },
+          fallbackPosition: { x: 80, y: 120 },
+        },
+      },
+    ]);
+  });
+
+  it("preserves a user-moved resistor label near the legacy row", () => {
+    const document = documentWithLegacyResistorLabels([
+      {
+        id: "instance-label-R1",
+        kind: "instance-label",
+        text: "R1",
+        y: 150,
+      },
+    ]);
+
+    const result = executeTransaction(
+      document,
+      {
+        ...transaction(),
+        edits: [{ kind: "rotate_instance", instanceId: "R1", rotation: 180 }],
+      },
+      { symbolResolver: resolver },
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.document.annotations[0]).toMatchObject({
+      alignment: "middle",
+      anchor: {
+        kind: "object",
+        localOffset: { x: -50, y: -10 },
+        fallbackPosition: { x: 50, y: 90 },
+      },
     });
   });
 
