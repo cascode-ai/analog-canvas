@@ -439,18 +439,14 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
     panel.getByRole("button", { name: "Current kept" }),
   ).toBeDisabled();
   await panel.getByRole("tab", { name: "Plot" }).click();
-  expect(
-    await panel
-      .locator(".ac-response .ac-trace")
-      .first()
-      .evaluate((trace) => getComputedStyle(trace).strokeWidth),
-  ).toBe("2.4px");
-  expect(
-    await panel
-      .locator(".ac-response .ac-axis-label")
-      .first()
-      .evaluate((label) => getComputedStyle(label).fill),
-  ).toBe("rgb(52, 64, 84)");
+  await expect(panel.locator(".ac-response .ac-trace").first()).toHaveCSS(
+    "stroke-width",
+    "2.4px",
+  );
+  await expect(panel.locator(".ac-response .ac-axis-label").first()).toHaveCSS(
+    "fill",
+    "rgb(52, 64, 84)",
+  );
   await expect(
     panel.getByRole("button", { name: "Hide first-output" }),
   ).toHaveCount(2);
@@ -877,13 +873,24 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
       ".simulation-plot-view .simulation-output-results > .simulation-analysis-card",
     );
     await expect(plotCards).toHaveCount(3);
-    const firstPlotCardBox = (await plotCards.nth(0).boundingBox())!;
-    const secondPlotCardBox = (await plotCards.nth(1).boundingBox())!;
-    expect(secondPlotCardBox.x).toBeCloseTo(firstPlotCardBox.x, 0);
-    expect(secondPlotCardBox.width).toBeCloseTo(firstPlotCardBox.width, 0);
-    expect(secondPlotCardBox.y).toBeGreaterThan(
-      firstPlotCardBox.y + firstPlotCardBox.height,
-    );
+    await expect
+      .poll(async () => {
+        const [first, second] = await Promise.all([
+          plotCards.nth(0).boundingBox(),
+          plotCards.nth(1).boundingBox(),
+        ]);
+        if (!first || !second) return null;
+        return {
+          sameColumn: Math.abs(second.x - first.x) < 1,
+          sameWidth: Math.abs(second.width - first.width) < 1,
+          verticallySeparated: second.y > first.y + first.height,
+        };
+      })
+      .toEqual({
+        sameColumn: true,
+        sameWidth: true,
+        verticallySeparated: true,
+      });
     const card = panel
       .locator(".simulation-analysis-card")
       .filter({
