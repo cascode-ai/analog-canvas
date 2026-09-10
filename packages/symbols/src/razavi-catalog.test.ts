@@ -718,7 +718,7 @@ describe("Razavi symbol catalog", () => {
         minBodyHeight: 30,
         horizontalPadding: 8,
         verticalPadding: 4,
-        leadLength: 20,
+        leadLength: 10,
       },
     } as const;
     const expectedFormulas = {
@@ -757,7 +757,7 @@ describe("Razavi symbol catalog", () => {
         minBodyHeight: 70,
         horizontalPadding: 4,
         verticalPadding: 4,
-        leadLength: 20,
+        leadLength: 10,
       },
     });
     expect(transconductance.primitives).toEqual(
@@ -788,6 +788,69 @@ describe("Razavi symbol catalog", () => {
           primitive.part === "upright-input-polarity-negative",
       ),
     ).toHaveLength(3);
+  });
+
+  it("keeps Signal Flow leads within one grid cell and closes circular seams", () => {
+    const signalFlowFamily = [
+      "adder",
+      "multiplier",
+      "transconductance",
+      "integrator",
+      "unit-delay",
+      "discrete-time-integrator",
+      "quantizer",
+    ];
+
+    for (const symbolId of signalFlowFamily) {
+      const symbol = requireRazaviCatalogSymbol(symbolId);
+      for (const pin of symbol.pins) {
+        expect(Math.abs(pin.at.x % 10), `${symbolId}.${pin.name} x`).toBe(0);
+        expect(Math.abs(pin.at.y % 10), `${symbolId}.${pin.name} y`).toBe(0);
+        expect(
+          pin.presentation.leadLength,
+          `${symbolId}.${pin.name} declared lead`,
+        ).toBe(10);
+
+        const attached = symbol.primitives.filter(
+          (primitive) =>
+            primitive.kind === "line" &&
+            ((primitive.from.x === pin.at.x && primitive.from.y === pin.at.y) ||
+              (primitive.to.x === pin.at.x && primitive.to.y === pin.at.y)),
+        );
+        expect(attached, `${symbolId}.${pin.name} lead count`).toHaveLength(1);
+        const line = attached[0];
+        if (!line || line.kind !== "line") continue;
+        expect(
+          Math.hypot(line.to.x - line.from.x, line.to.y - line.from.y),
+          `${symbolId}.${pin.name} drawn lead`,
+        ).toBeLessThanOrEqual(10);
+      }
+    }
+
+    const adder = requireRazaviCatalogSymbol("adder");
+    const body = adder.primitives.find(
+      (primitive) => primitive.kind === "circle" && primitive.part === "body",
+    );
+    if (!body || body.kind !== "circle") {
+      throw new Error("Adder circle is missing");
+    }
+    for (const part of ["input-a-lead", "input-b-lead", "output-y-lead"]) {
+      const line = adder.primitives.find(
+        (primitive) => primitive.kind === "line" && primitive.part === part,
+      );
+      if (!line || line.kind !== "line") {
+        throw new Error(`Adder ${part} is missing`);
+      }
+      const fromRadius = Math.hypot(
+        line.from.x - body.center.x,
+        line.from.y - body.center.y,
+      );
+      const toRadius = Math.hypot(
+        line.to.x - body.center.x,
+        line.to.y - body.center.y,
+      );
+      expect(Math.min(fromRadius, toRadius), part).toBeGreaterThan(body.radius);
+    }
   });
 
   it("draws the quantizer on a square body with its staircase inset evenly", () => {

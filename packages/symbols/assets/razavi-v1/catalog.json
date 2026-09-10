@@ -294,7 +294,7 @@
       "automaticMappings": [],
       "manualOnlyReason": "Behavioral summing node; structural netlists need an explicit implementation mapping.",
       "assetPath": "adder.symbol.json",
-      "assetHash": "e21a88de008caef10f5740d9370dd3ed68bbaedc934fc73549f0d5657784ae48",
+      "assetHash": "bce68bd71f7b7789b53fe474150c11b80a580d1917743f12134c07a8d524b192",
       "visualAuthority": {
         "kind": "razavi-reference-v1",
         "referenceManifestPath": "fixtures/visual-reference/razavi-reference-v1/manifest.json",
@@ -314,7 +314,7 @@
       "automaticMappings": [],
       "manualOnlyReason": "Behavioral mixing node; structural netlists need an explicit implementation mapping.",
       "assetPath": "multiplier.symbol.json",
-      "assetHash": "34f12c4ea41feb7e9b62804199435b493bfcb2f6e9c60fe47cc8e47ed33b1c9f",
+      "assetHash": "2fc0c7e6a80a91ea5613ed870457215207a0a3899445cc11b55316ff7319bf9c",
       "visualAuthority": {
         "kind": "razavi-reference-v1",
         "referenceManifestPath": "fixtures/visual-reference/razavi-reference-v1/manifest.json",
@@ -334,7 +334,7 @@
       "automaticMappings": [],
       "manualOnlyReason": "Behavioral transconductance block; structural netlists need an explicit implementation mapping.",
       "assetPath": "transconductance.symbol.json",
-      "assetHash": "621ebc548098d19c703dc7196dc7e42d8ed1eb2b557cee12358e5a2543bb098b",
+      "assetHash": "80b329010551f1e54c6ec85c2ca9f6dab5686f3a90c5fd688a1598704d0acbe9",
       "visualAuthority": {
         "kind": "razavi-reference-v1",
         "referenceManifestPath": "fixtures/visual-reference/razavi-reference-v1/manifest.json",
@@ -388,7 +388,7 @@
       "automaticMappings": [],
       "manualOnlyReason": "Behavioral s-domain block; structural netlists need an explicit implementation mapping.",
       "assetPath": "integrator.symbol.json",
-      "assetHash": "55a62393c2a69e557c0d7fe7234c7a7a9e41828ec12a5392b36079035c936c07",
+      "assetHash": "da5c0ce58b82461babadee1487f4f5ef263d7186e6ded85c67ecdd5f5014102c",
       "visualAuthority": {
         "kind": "razavi-reference-v1",
         "referenceManifestPath": "fixtures/visual-reference/razavi-reference-v1/manifest.json",
@@ -408,7 +408,7 @@
       "automaticMappings": [],
       "manualOnlyReason": "Behavioral z-domain block; structural netlists need an explicit implementation mapping.",
       "assetPath": "unit-delay.symbol.json",
-      "assetHash": "ecdb570fed6e24ea7bd77902dfba626174cf4845062b49f82576d00a064b27a6",
+      "assetHash": "581d6c08558e3cfe83d69121e4004d53c959ecbfdbf6ec38c40f600c2488b45f",
       "visualAuthority": {
         "kind": "razavi-reference-v1",
         "referenceManifestPath": "fixtures/visual-reference/razavi-reference-v1/manifest.json",
@@ -428,7 +428,7 @@
       "automaticMappings": [],
       "manualOnlyReason": "Behavioral z-domain block; structural netlists need an explicit implementation mapping.",
       "assetPath": "discrete-time-integrator.symbol.json",
-      "assetHash": "30bd218131b4245c74a778188224d65ebd8422f2ff0462487378b4b0d838400d",
+      "assetHash": "814c6aaf7463c1d2c18eef6b6ee9e9c12c67b8662e178386c67d589d3b9530f3",
       "visualAuthority": {
         "kind": "razavi-reference-v1",
         "referenceManifestPath": "fixtures/visual-reference/razavi-reference-v1/manifest.json",
@@ -448,7 +448,7 @@
       "automaticMappings": [],
       "manualOnlyReason": "Behavioral quantization block; structural netlists need an explicit implementation mapping.",
       "assetPath": "quantizer.symbol.json",
-      "assetHash": "c0a2302385f7059d3016f34d849da63bf6db652383953107f5362305b2de83dc",
+      "assetHash": "86e52b7909fd8bc796cf040eb71b6ef29a5e658c9ffac1c9bf06c4b30032c498",
       "visualAuthority": {
         "kind": "razavi-reference-v1",
         "referenceManifestPath": "fixtures/visual-reference/razavi-reference-v1/manifest.json",

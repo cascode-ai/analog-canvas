@@ -15,6 +15,9 @@ const referenceRoot = resolve(
 const assetRoot = resolve(root, "packages/symbols/assets/razavi-v1");
 const catalogPath = resolve(assetRoot, "catalog.json");
 const check = process.argv.includes("--check");
+const SIGNAL_FLOW_LEAD_LENGTH = 10;
+const CIRCLE_PIN_SPAN = 20;
+const CIRCLE_LEAD_CONTACT = 13;
 
 const normalize = (value) => `${value.replaceAll("\r\n", "\n").trimEnd()}\n`;
 const hash = (value) => createHash("sha256").update(value).digest("hex");
@@ -63,14 +66,20 @@ function horizontalPins(left, right) {
       role: "input",
       at: { x: left, y: 0 },
       direction: "west",
-      presentation: { visibility: "visible", leadLength: 15 },
+      presentation: {
+        visibility: "visible",
+        leadLength: SIGNAL_FLOW_LEAD_LENGTH,
+      },
     },
     {
       name: "Y",
       role: "output",
       at: { x: right, y: 0 },
       direction: "east",
-      presentation: { visibility: "visible", leadLength: 15 },
+      presentation: {
+        visibility: "visible",
+        leadLength: SIGNAL_FLOW_LEAD_LENGTH,
+      },
     },
   ];
 }
@@ -80,23 +89,32 @@ function addSubtractPins() {
     {
       name: "A",
       role: "input",
-      at: { x: -30, y: 0 },
+      at: { x: -CIRCLE_PIN_SPAN, y: 0 },
       direction: "west",
-      presentation: { visibility: "visible", leadLength: 15 },
+      presentation: {
+        visibility: "visible",
+        leadLength: SIGNAL_FLOW_LEAD_LENGTH,
+      },
     },
     {
       name: "B",
       role: "input",
-      at: { x: 0, y: 30 },
+      at: { x: 0, y: CIRCLE_PIN_SPAN },
       direction: "south",
-      presentation: { visibility: "visible", leadLength: 15 },
+      presentation: {
+        visibility: "visible",
+        leadLength: SIGNAL_FLOW_LEAD_LENGTH,
+      },
     },
     {
       name: "Y",
       role: "output",
-      at: { x: 30, y: 0 },
+      at: { x: CIRCLE_PIN_SPAN, y: 0 },
       direction: "east",
-      presentation: { visibility: "visible", leadLength: 15 },
+      presentation: {
+        visibility: "visible",
+        leadLength: SIGNAL_FLOW_LEAD_LENGTH,
+      },
     },
   ];
 }
@@ -106,10 +124,14 @@ function circleBlock(id, name, glyphPrimitives) {
     schemaVersion: 1,
     id,
     name,
-    viewBox: { x: -34, y: -22, width: 68, height: 56 },
+    viewBox: { x: -24, y: -16, width: 48, height: 40 },
     pins: addSubtractPins(),
     primitives: [
-      lead({ x: -30, y: 0 }, { x: -12, y: 0 }, "input-a-lead"),
+      lead(
+        { x: -CIRCLE_PIN_SPAN, y: 0 },
+        { x: -CIRCLE_LEAD_CONTACT, y: 0 },
+        "input-a-lead",
+      ),
       {
         kind: "circle",
         part: "body",
@@ -119,8 +141,16 @@ function circleBlock(id, name, glyphPrimitives) {
         stroke: "foreground",
         style: { strokeRole: "emphasis" },
       },
-      lead({ x: 12, y: 0 }, { x: 30, y: 0 }, "output-y-lead"),
-      lead({ x: 0, y: 12 }, { x: 0, y: 30 }, "input-b-lead"),
+      lead(
+        { x: CIRCLE_LEAD_CONTACT, y: 0 },
+        { x: CIRCLE_PIN_SPAN, y: 0 },
+        "output-y-lead",
+      ),
+      lead(
+        { x: 0, y: CIRCLE_LEAD_CONTACT },
+        { x: 0, y: CIRCLE_PIN_SPAN },
+        "input-b-lead",
+      ),
       ...glyphPrimitives,
     ],
     variants: [],
@@ -147,7 +177,7 @@ const transferFunctionPresentation = (
     minBodyHeight,
     horizontalPadding,
     verticalPadding: 4,
-    leadLength: 20,
+    leadLength: SIGNAL_FLOW_LEAD_LENGTH,
   },
 });
 
@@ -190,16 +220,16 @@ function quantizerBlock() {
     schemaVersion: 1,
     id: "quantizer",
     name: "Quantizer",
-    viewBox: { x: -44, y: -24, width: 88, height: 48 },
-    pins: horizontalPins(-40, 40),
+    viewBox: { x: -34, y: -24, width: 68, height: 48 },
+    pins: horizontalPins(-30, 30),
     primitives: [
-      lead({ x: -40, y: 0 }, { x: -20, y: 0 }, "input-a-lead"),
+      lead({ x: -30, y: 0 }, { x: -20, y: 0 }, "input-a-lead"),
       // Square, not the integrator's 40x26. The quantizer body carries a
       // transfer characteristic rather than a line of formula text, and a
       // plot needs comparable room on both axes; the width and pin span stay
       // family-standard so the leads and grid alignment are untouched.
       bodyPath(-20, -20, 20, 20),
-      lead({ x: 20, y: 0 }, { x: 40, y: 0 }, "output-y-lead"),
+      lead({ x: 20, y: 0 }, { x: 30, y: 0 }, "output-y-lead"),
       {
         kind: "polyline",
         part: "quantizer-staircase",
@@ -261,8 +291,8 @@ const definitions = {
   transconductance: formulaBlock({
     id: "transconductance",
     name: "Transconductance (gₘ)",
-    viewBox: { x: -44, y: -39, width: 88, height: 78 },
-    pinSpan: 40,
+    viewBox: { x: -34, y: -39, width: 68, height: 78 },
+    pinSpan: 30,
     body: { left: -20, top: -35, right: 20, bottom: 35 },
     defaultFormula: "g_m",
     shape: "right-tapered-trapezoid",
@@ -273,16 +303,16 @@ const definitions = {
   integrator: formulaBlock({
     id: "integrator",
     name: "Integrator (1/s)",
-    viewBox: { x: -44, y: -24, width: 88, height: 48 },
-    pinSpan: 40,
+    viewBox: { x: -34, y: -24, width: 68, height: 48 },
+    pinSpan: 30,
     body: { left: -20, top: -20, right: 20, bottom: 20 },
     defaultFormula: "1/s",
   }),
   "unit-delay": formulaBlock({
     id: "unit-delay",
     name: "Unit Delay (z⁻¹)",
-    viewBox: { x: -44, y: -24, width: 88, height: 48 },
-    pinSpan: 40,
+    viewBox: { x: -34, y: -24, width: 68, height: 48 },
+    pinSpan: 30,
     body: { left: -20, top: -15, right: 20, bottom: 15 },
     defaultFormula: "z^-1",
   }),
@@ -290,8 +320,8 @@ const definitions = {
   "discrete-time-integrator": formulaBlock({
     id: "discrete-time-integrator",
     name: "Discrete-Time Integrator (z⁻¹/(1−z⁻¹))",
-    viewBox: { x: -54, y: -24, width: 108, height: 48 },
-    pinSpan: 50,
+    viewBox: { x: -44, y: -24, width: 88, height: 48 },
+    pinSpan: 40,
     body: { left: -30, top: -20, right: 30, bottom: 20 },
     defaultFormula: "z^-1/(1-z^-1)",
   }),

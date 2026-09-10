@@ -359,7 +359,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Behavioral summing node; structural netlists need an explicit implementation mapping.",
     assetPath: "adder.symbol.json",
     assetHash:
-      "e21a88de008caef10f5740d9370dd3ed68bbaedc934fc73549f0d5657784ae48",
+      "bce68bd71f7b7789b53fe474150c11b80a580d1917743f12134c07a8d524b192",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -383,7 +383,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Behavioral mixing node; structural netlists need an explicit implementation mapping.",
     assetPath: "multiplier.symbol.json",
     assetHash:
-      "34f12c4ea41feb7e9b62804199435b493bfcb2f6e9c60fe47cc8e47ed33b1c9f",
+      "2fc0c7e6a80a91ea5613ed870457215207a0a3899445cc11b55316ff7319bf9c",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -407,7 +407,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Behavioral transconductance block; structural netlists need an explicit implementation mapping.",
     assetPath: "transconductance.symbol.json",
     assetHash:
-      "621ebc548098d19c703dc7196dc7e42d8ed1eb2b557cee12358e5a2543bb098b",
+      "80b329010551f1e54c6ec85c2ca9f6dab5686f3a90c5fd688a1598704d0acbe9",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -471,7 +471,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Behavioral s-domain block; structural netlists need an explicit implementation mapping.",
     assetPath: "integrator.symbol.json",
     assetHash:
-      "55a62393c2a69e557c0d7fe7234c7a7a9e41828ec12a5392b36079035c936c07",
+      "da5c0ce58b82461babadee1487f4f5ef263d7186e6ded85c67ecdd5f5014102c",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -495,7 +495,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Behavioral z-domain block; structural netlists need an explicit implementation mapping.",
     assetPath: "unit-delay.symbol.json",
     assetHash:
-      "ecdb570fed6e24ea7bd77902dfba626174cf4845062b49f82576d00a064b27a6",
+      "581d6c08558e3cfe83d69121e4004d53c959ecbfdbf6ec38c40f600c2488b45f",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -519,7 +519,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Behavioral z-domain block; structural netlists need an explicit implementation mapping.",
     assetPath: "discrete-time-integrator.symbol.json",
     assetHash:
-      "30bd218131b4245c74a778188224d65ebd8422f2ff0462487378b4b0d838400d",
+      "814c6aaf7463c1d2c18eef6b6ee9e9c12c67b8662e178386c67d589d3b9530f3",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -543,7 +543,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Behavioral quantization block; structural netlists need an explicit implementation mapping.",
     assetPath: "quantizer.symbol.json",
     assetHash:
-      "c0a2302385f7059d3016f34d849da63bf6db652383953107f5362305b2de83dc",
+      "86e52b7909fd8bc796cf040eb71b6ef29a5e658c9ffac1c9bf06c4b30032c498",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -3427,23 +3427,23 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
     id: "adder",
     name: "Adder",
     viewBox: {
-      x: -34,
-      y: -22,
-      width: 68,
-      height: 56,
+      x: -24,
+      y: -16,
+      width: 48,
+      height: 40,
     },
     pins: [
       {
         name: "A",
         role: "input",
         at: {
-          x: -30,
+          x: -20,
           y: 0,
         },
         direction: "west",
         presentation: {
           visibility: "visible",
-          leadLength: 15,
+          leadLength: 10,
         },
       },
       {
@@ -3451,25 +3451,25 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         role: "input",
         at: {
           x: 0,
-          y: 30,
+          y: 20,
         },
         direction: "south",
         presentation: {
           visibility: "visible",
-          leadLength: 15,
+          leadLength: 10,
         },
       },
       {
         name: "Y",
         role: "output",
         at: {
-          x: 30,
+          x: 20,
           y: 0,
         },
         direction: "east",
         presentation: {
           visibility: "visible",
-          leadLength: 15,
+          leadLength: 10,
         },
       },
     ],
@@ -3477,11 +3477,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -30,
+          x: -20,
           y: 0,
         },
         to: {
-          x: -12,
+          x: -13,
           y: 0,
         },
         part: "input-a-lead",
@@ -3508,11 +3508,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: 12,
+          x: 13,
           y: 0,
         },
         to: {
-          x: 30,
+          x: 20,
           y: 0,
         },
         part: "output-y-lead",
@@ -3526,11 +3526,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "line",
         from: {
           x: 0,
-          y: 12,
+          y: 13,
         },
         to: {
           x: 0,
-          y: 30,
+          y: 20,
         },
         part: "input-b-lead",
         style: {
@@ -3582,23 +3582,23 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
     id: "multiplier",
     name: "Multiplier",
     viewBox: {
-      x: -34,
-      y: -22,
-      width: 68,
-      height: 56,
+      x: -24,
+      y: -16,
+      width: 48,
+      height: 40,
     },
     pins: [
       {
         name: "A",
         role: "input",
         at: {
-          x: -30,
+          x: -20,
           y: 0,
         },
         direction: "west",
         presentation: {
           visibility: "visible",
-          leadLength: 15,
+          leadLength: 10,
         },
       },
       {
@@ -3606,25 +3606,25 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         role: "input",
         at: {
           x: 0,
-          y: 30,
+          y: 20,
         },
         direction: "south",
         presentation: {
           visibility: "visible",
-          leadLength: 15,
+          leadLength: 10,
         },
       },
       {
         name: "Y",
         role: "output",
         at: {
-          x: 30,
+          x: 20,
           y: 0,
         },
         direction: "east",
         presentation: {
           visibility: "visible",
-          leadLength: 15,
+          leadLength: 10,
         },
       },
     ],
@@ -3632,11 +3632,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -30,
+          x: -20,
           y: 0,
         },
         to: {
-          x: -12,
+          x: -13,
           y: 0,
         },
         part: "input-a-lead",
@@ -3663,11 +3663,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: 12,
+          x: 13,
           y: 0,
         },
         to: {
-          x: 30,
+          x: 20,
           y: 0,
         },
         part: "output-y-lead",
@@ -3681,11 +3681,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "line",
         from: {
           x: 0,
-          y: 12,
+          y: 13,
         },
         to: {
           x: 0,
-          y: 30,
+          y: 20,
         },
         part: "input-b-lead",
         style: {
@@ -3737,9 +3737,9 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
     id: "transconductance",
     name: "Transconductance (gₘ)",
     viewBox: {
-      x: -44,
+      x: -34,
       y: -39,
-      width: 88,
+      width: 68,
       height: 78,
     },
     pins: [
@@ -3747,26 +3747,26 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         name: "A",
         role: "input",
         at: {
-          x: -40,
+          x: -30,
           y: 0,
         },
         direction: "west",
         presentation: {
           visibility: "visible",
-          leadLength: 15,
+          leadLength: 10,
         },
       },
       {
         name: "Y",
         role: "output",
         at: {
-          x: 40,
+          x: 30,
           y: 0,
         },
         direction: "east",
         presentation: {
           visibility: "visible",
-          leadLength: 15,
+          leadLength: 10,
         },
       },
     ],
@@ -3774,7 +3774,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -40,
+          x: -30,
           y: 0,
         },
         to: {
@@ -3806,7 +3806,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: 0,
         },
         to: {
-          x: 40,
+          x: 30,
           y: 0,
         },
         part: "output-y-lead",
@@ -3831,7 +3831,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         minBodyHeight: 70,
         horizontalPadding: 4,
         verticalPadding: 4,
-        leadLength: 20,
+        leadLength: 10,
       },
     },
     variants: [],
@@ -4198,9 +4198,9 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
     id: "integrator",
     name: "Integrator (1/s)",
     viewBox: {
-      x: -44,
+      x: -34,
       y: -24,
-      width: 88,
+      width: 68,
       height: 48,
     },
     pins: [
@@ -4208,26 +4208,26 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         name: "A",
         role: "input",
         at: {
-          x: -40,
+          x: -30,
           y: 0,
         },
         direction: "west",
         presentation: {
           visibility: "visible",
-          leadLength: 15,
+          leadLength: 10,
         },
       },
       {
         name: "Y",
         role: "output",
         at: {
-          x: 40,
+          x: 30,
           y: 0,
         },
         direction: "east",
         presentation: {
           visibility: "visible",
-          leadLength: 15,
+          leadLength: 10,
         },
       },
     ],
@@ -4235,7 +4235,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -40,
+          x: -30,
           y: 0,
         },
         to: {
@@ -4267,7 +4267,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: 0,
         },
         to: {
-          x: 40,
+          x: 30,
           y: 0,
         },
         part: "output-y-lead",
@@ -4291,7 +4291,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         minBodyHeight: 30,
         horizontalPadding: 8,
         verticalPadding: 4,
-        leadLength: 20,
+        leadLength: 10,
       },
     },
     variants: [],
@@ -4302,9 +4302,9 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
     id: "unit-delay",
     name: "Unit Delay (z⁻¹)",
     viewBox: {
-      x: -44,
+      x: -34,
       y: -24,
-      width: 88,
+      width: 68,
       height: 48,
     },
     pins: [
@@ -4312,26 +4312,26 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         name: "A",
         role: "input",
         at: {
-          x: -40,
+          x: -30,
           y: 0,
         },
         direction: "west",
         presentation: {
           visibility: "visible",
-          leadLength: 15,
+          leadLength: 10,
         },
       },
       {
         name: "Y",
         role: "output",
         at: {
-          x: 40,
+          x: 30,
           y: 0,
         },
         direction: "east",
         presentation: {
           visibility: "visible",
-          leadLength: 15,
+          leadLength: 10,
         },
       },
     ],
@@ -4339,7 +4339,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -40,
+          x: -30,
           y: 0,
         },
         to: {
@@ -4371,7 +4371,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: 0,
         },
         to: {
-          x: 40,
+          x: 30,
           y: 0,
         },
         part: "output-y-lead",
@@ -4395,7 +4395,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         minBodyHeight: 30,
         horizontalPadding: 8,
         verticalPadding: 4,
-        leadLength: 20,
+        leadLength: 10,
       },
     },
     variants: [],
@@ -4406,9 +4406,9 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
     id: "discrete-time-integrator",
     name: "Discrete-Time Integrator (z⁻¹/(1−z⁻¹))",
     viewBox: {
-      x: -54,
+      x: -44,
       y: -24,
-      width: 108,
+      width: 88,
       height: 48,
     },
     pins: [
@@ -4416,26 +4416,26 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         name: "A",
         role: "input",
         at: {
-          x: -50,
+          x: -40,
           y: 0,
         },
         direction: "west",
         presentation: {
           visibility: "visible",
-          leadLength: 15,
+          leadLength: 10,
         },
       },
       {
         name: "Y",
         role: "output",
         at: {
-          x: 50,
+          x: 40,
           y: 0,
         },
         direction: "east",
         presentation: {
           visibility: "visible",
-          leadLength: 15,
+          leadLength: 10,
         },
       },
     ],
@@ -4443,7 +4443,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -50,
+          x: -40,
           y: 0,
         },
         to: {
@@ -4475,7 +4475,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: 0,
         },
         to: {
-          x: 50,
+          x: 40,
           y: 0,
         },
         part: "output-y-lead",
@@ -4499,7 +4499,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         minBodyHeight: 30,
         horizontalPadding: 8,
         verticalPadding: 4,
-        leadLength: 20,
+        leadLength: 10,
       },
     },
     variants: [],
@@ -4510,9 +4510,9 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
     id: "quantizer",
     name: "Quantizer",
     viewBox: {
-      x: -44,
+      x: -34,
       y: -24,
-      width: 88,
+      width: 68,
       height: 48,
     },
     pins: [
@@ -4520,26 +4520,26 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         name: "A",
         role: "input",
         at: {
-          x: -40,
+          x: -30,
           y: 0,
         },
         direction: "west",
         presentation: {
           visibility: "visible",
-          leadLength: 15,
+          leadLength: 10,
         },
       },
       {
         name: "Y",
         role: "output",
         at: {
-          x: 40,
+          x: 30,
           y: 0,
         },
         direction: "east",
         presentation: {
           visibility: "visible",
-          leadLength: 15,
+          leadLength: 10,
         },
       },
     ],
@@ -4547,7 +4547,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -40,
+          x: -30,
           y: 0,
         },
         to: {
@@ -4579,7 +4579,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: 0,
         },
         to: {
-          x: 40,
+          x: 30,
           y: 0,
         },
         part: "output-y-lead",

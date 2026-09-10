@@ -238,6 +238,10 @@ function snapUp(value: number, step: number): number {
   return Math.ceil(value / step) * step;
 }
 
+function snapDown(value: number, step: number): number {
+  return Math.floor(value / step) * step;
+}
+
 export function resolveAdaptiveSignalFlowBlockLayout(
   definition: Pick<SymbolDefinition, "formulaPresentation">,
   parameters: SignalFlowLayoutParameters | undefined,
@@ -270,7 +274,14 @@ export function resolveAdaptiveSignalFlowBlockLayout(
     width,
     height,
   };
-  const pinSpan = snapUp(width / 2 + frame.leadLength, 10);
+  const bodyHalfWidth = width / 2;
+  // Treat leadLength as a ceiling. Rounding the body edge plus that ceiling
+  // upward can turn a one-cell lead into 15 units when the body ends on a
+  // half-grid; choose the furthest eligible grid point that stays inside it.
+  const pinSpan = Math.max(
+    snapUp(bodyHalfWidth, 10),
+    snapDown(bodyHalfWidth + frame.leadLength, 10),
+  );
   return {
     formula,
     shape: frame.shape ?? "rectangle",

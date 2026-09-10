@@ -542,5 +542,5 @@
     "Visio/VSS may establish legacy pin semantics but must not determine visual geometry."
   ],
   "deltaSigmaGeometryPath": "delta-sigma-geometry.json",
-  "deltaSigmaGeometrySha256": "ee7acb3b810e717a8de0d349832e92ea5ac7afbafd746abb902a251e369fd26d"
+  "deltaSigmaGeometrySha256": "79609db92814660f07b4d68865bcd3531259d71c4aec440e54b403233497a638"
 }
