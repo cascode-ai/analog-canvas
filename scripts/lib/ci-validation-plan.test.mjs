@@ -37,7 +37,13 @@ describe("CI validation planning", () => {
     ).toMatchObject({
       heavy: true,
       mode: "focused",
-      e2eArgs: ["apps/editor/e2e/agent-simulation.spec.ts"],
+      e2eArgs: [
+        "apps/editor/e2e/agent-simulation.spec.ts",
+        "apps/editor/e2e/simulation-batch.spec.ts",
+        "apps/editor/e2e/simulation-plot-export.spec.ts",
+        "apps/editor/e2e/simulation-setup.spec.ts",
+        "apps/editor/e2e/simulation-workspace.spec.ts",
+      ],
     });
   });
 

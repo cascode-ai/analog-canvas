@@ -157,7 +157,10 @@
     ],
     "analogSimulation": [
       "apps/editor/src/features/simulation/**",
-      "apps/editor/e2e/agent-simulation.spec.ts",
+      "apps/editor/e2e/simulation-batch.spec.ts",
+      "apps/editor/e2e/simulation-plot-export.spec.ts",
+      "apps/editor/e2e/simulation-setup.spec.ts",
+      "apps/editor/e2e/simulation-workspace.spec.ts",
       "packages/simulation-service/**",
       "packages/spice-run/**",
       "packages/netlist/src/simulation-compile*",
@@ -313,9 +316,21 @@
       "command": [
         "pnpm",
         "test:e2e:local",
-        "apps/editor/e2e/agent-simulation.spec.ts"
+        "apps/editor/e2e/agent-simulation.spec.ts",
+        "apps/editor/e2e/simulation-batch.spec.ts",
+        "apps/editor/e2e/simulation-plot-export.spec.ts",
+        "apps/editor/e2e/simulation-setup.spec.ts",
+        "apps/editor/e2e/simulation-workspace.spec.ts"
       ],
-      "ci": { "e2eArgs": ["apps/editor/e2e/agent-simulation.spec.ts"] }
+      "ci": {
+        "e2eArgs": [
+          "apps/editor/e2e/agent-simulation.spec.ts",
+          "apps/editor/e2e/simulation-batch.spec.ts",
+          "apps/editor/e2e/simulation-plot-export.spec.ts",
+          "apps/editor/e2e/simulation-setup.spec.ts",
+          "apps/editor/e2e/simulation-workspace.spec.ts"
+        ]
+      }
     },
     {
       "id": "editor-browser",
