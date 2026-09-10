@@ -303,29 +303,56 @@ test("keeps quick-start shortcuts in the upper-right corner until the first comp
     "Quick start shortcuts",
   );
   await expect(quickStart).toContainText("Quick start");
-  await expect(quickStart).toContainText("Cadence keys");
+  await expect(quickStart).toContainText("All shortcuts");
   await expect(quickStart.locator("li")).toHaveText([
-    "CtrlFSelection filter",
+    "Ctrl/CmdFSelection filter",
+    "Ctrl/CmdShiftFSearch circuit",
     "FFit view",
+    "HomeFit view",
+    "Arrow keysPan view",
     "IInsert component",
-    "RRotate",
+    "PPlace Cell Pin",
+    "WDraw wire",
+    "F3Wire options",
+    "TAdd text",
+    "ADraw arrow",
+    "KDraw construction line",
+    "ODraw circle",
+    "CCopy and place selection",
     "MMove selection",
     "ShiftMMove without wires",
-    "UUndo",
-    "PPlace Cell Pin",
-    "CCopy selection",
-    "QProperties",
-    "WDraw wire",
-    "LEdit Net Label",
+    "RRotate selection / next object",
     "ShiftRMirror left / right",
-    "CtrlRMirror top / bottom",
-    "EscCancel tool",
+    "Ctrl/CmdRMirror top / bottom",
+    "QToggle Properties",
+    "LEdit Net Label",
+    "HToggle Net highlight",
+    "XReverse current marker",
+    "EEnter selected Cell",
+    "ShiftEReturn to parent Cell",
+    "[Decrease selected line width",
+    "]Increase selected line width",
+    "EnterFinish wire or drawing",
+    "DeleteDelete / remove last wire bend",
+    "BackspaceDelete / remove last wire bend",
+    "EscCancel active tool",
+    "Ctrl/CmdASelect all",
+    "Ctrl/CmdDClear selection",
+    "UUndo",
+    "Ctrl/CmdZUndo",
     "ShiftURedo",
+    "Ctrl/CmdShiftZRedo",
+    "Ctrl/CmdYRedo",
+    "Ctrl/CmdSSave project",
+    "Ctrl/CmdOOpen project",
   ]);
-  await expect(quickStart.locator(".canvas-shortcut-list")).toHaveCSS(
-    "grid-template-columns",
-    /^\d+(?:\.\d+)?px$/u,
-  );
+  expect(
+    (
+      await quickStart
+        .locator(".canvas-shortcut-list")
+        .evaluate((element) => getComputedStyle(element).gridTemplateColumns)
+    ).split(" ").length,
+  ).toBeGreaterThan(1);
   expect(
     await quickStart.evaluate((element) => {
       const style = getComputedStyle(element);
@@ -361,6 +388,16 @@ test("keeps quick-start shortcuts in the upper-right corner until the first comp
     Math.round(propertiesBox.x - (quickStartBox.x + quickStartBox.width)),
   ).toBe(12);
   expect(quickStartBox.x).toBeGreaterThanOrEqual(canvasPanelBox.x + 11.5);
+  await expect
+    .poll(async () => {
+      const [menu, panel] = await Promise.all([
+        quickStart.boundingBox(),
+        page.locator(".canvas-panel").boundingBox(),
+      ]);
+      if (!menu || !panel) return Number.POSITIVE_INFINITY;
+      return menu.y + menu.height - (panel.y + panel.height - 11.5);
+    })
+    .toBeLessThanOrEqual(0);
   await page.setViewportSize(initialViewport);
 
   await page.keyboard.press("i");
