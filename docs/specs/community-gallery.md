@@ -70,6 +70,12 @@ The byline is not a request field: the Worker takes `author` from the
 session's display name, so one account cannot publish under another's
 name, and an update never re-attributes an entry.
 
+After a successful first publication, the editor associates the live Project
+with the returned entry id. Further edits followed by Publish default to
+`PUT /api/gallery/<id>` for that same item rather than creating duplicates.
+Replacing the active Project clears the association; deliberately choosing
+"Publish as a new entry" replaces it with the newly returned entry id.
+
 Every entry records the submitting account: `owner_user_id` plus the
 `submitter_email` and `submitter_provider` read from the session at
 submission time, so an entry stays traceable to the identity that
