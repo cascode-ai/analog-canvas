@@ -28,6 +28,11 @@ restrictive content-security-policy.
   fallback.
 - `GET /api/gallery/tags` — distinct public tags with counts, most
   frequent first (feeds the multi-select menu).
+- `GET /api/gallery/authors` — non-empty public bylines with their currently
+  visible circuit counts, ranked by count and then author name. The clickable
+  wall count uses this roll-up for its contributor leaderboard; expanding one
+  author lazily reads that author's newest circuits from the ordinary feed and
+  can switch the wall to the existing exact-author filter.
 - `GET /api/gallery/<id>` — one public entry with its canonical
   `projectText`.
 - `GET /api/gallery/<id>/preview.svg?v=<previewRevision>` — the

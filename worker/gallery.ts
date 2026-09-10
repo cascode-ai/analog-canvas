@@ -705,6 +705,14 @@ export async function routeGalleryRequest(
   }
   if (
     segments.length === 1 &&
+    segments[0] === "authors" &&
+    request.method === "GET"
+  ) {
+    const { payload } = await callGallery(env, "authors", {});
+    return Response.json(payload, { headers: { "cache-control": "no-store" } });
+  }
+  if (
+    segments.length === 1 &&
     segments[0] === "mine" &&
     request.method === "GET"
   ) {

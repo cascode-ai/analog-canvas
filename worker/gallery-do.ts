@@ -418,6 +418,11 @@ export class GalleryDO {
       CREATE INDEX IF NOT EXISTS idx_gallery_entries_status_created
       ON gallery_entries(status, created_at)
     `);
+    // Covers both the public contributor roll-up and exact-author feeds.
+    this.sql.exec(`
+      CREATE INDEX IF NOT EXISTS idx_gallery_entries_status_author
+      ON gallery_entries(status, author)
+    `);
     // One thumb per account per circuit, so the primary key is the rule.
     this.sql.exec(`
       CREATE TABLE IF NOT EXISTS gallery_likes (
@@ -636,6 +641,8 @@ export class GalleryDO {
         return this.allIds();
       case "tags":
         return this.tagCounts();
+      case "authors":
+        return this.authorCounts();
       case "update-entry":
         return this.updateEntry(body);
       case "replace-entry":
@@ -1965,6 +1972,25 @@ export class GalleryDO {
       .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "en"))
       .map(([tag, count]) => ({ tag, count }));
     return Response.json({ tags });
+  }
+
+  /** Public bylines ranked by their number of currently visible circuits. */
+  private authorCounts(): Response {
+    const rows = this.sql
+      .exec<{ author: string; count: number }>(
+        `SELECT author, COUNT(*) AS count
+         FROM gallery_entries
+         WHERE status = 'public' AND TRIM(author) <> ''
+         GROUP BY author
+         ORDER BY count DESC, author COLLATE NOCASE ASC, author ASC`,
+      )
+      .toArray();
+    return Response.json({
+      authors: rows.map((row) => ({
+        author: row.author,
+        count: Number(row.count),
+      })),
+    });
   }
 
   private allIds(): Response {

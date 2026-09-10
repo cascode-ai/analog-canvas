@@ -801,6 +801,92 @@ test("the wall states how many circuits the gallery holds", async ({
   await expect(page.getByTestId("gallery-count-panel")).toHaveCount(0);
 });
 
+test("the wall count opens a contributor ranking and each author gallery", async ({
+  page,
+}) => {
+  const aliceEntries = [
+    {
+      ...ENTRY,
+      id: "alice-2",
+      name: "Alice OTA",
+      author: "Alice",
+      createdAt: "2026-08-22T10:00:00.000Z",
+    },
+    {
+      ...ENTRY,
+      id: "alice-1",
+      name: "Alice Bandgap",
+      author: "Alice",
+    },
+  ];
+  const bobEntry = {
+    ...ENTRY,
+    id: "bob-1",
+    name: "Bob Comparator",
+    author: "Bob",
+  };
+  await page.route(galleryListUrl, (route) => {
+    const url = new URL(route.request().url());
+    const entries =
+      url.searchParams.get("author") === "Alice"
+        ? aliceEntries
+        : [...aliceEntries, bobEntry];
+    return route.fulfill({
+      json: { entries, nextCursor: null, total: entries.length },
+    });
+  });
+  await page.route("**/api/gallery/authors", (route) =>
+    route.fulfill({
+      json: {
+        authors: [
+          { author: "Alice", count: 2 },
+          { author: "Bob", count: 1 },
+        ],
+      },
+    }),
+  );
+  await page.route("**/api/gallery/tags", (route) =>
+    route.fulfill({ json: { tags: [] } }),
+  );
+  await page.route("**/api/gallery/*/preview.svg*", (route) =>
+    route.fulfill({
+      contentType: "image/svg+xml",
+      body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect width="10" height="10" fill="#fff"/></svg>',
+    }),
+  );
+
+  await page.goto("/");
+  await page.getByTestId("gallery-count-panel").click();
+  await expect(page.getByTestId("gallery-contributor-popover")).toContainText(
+    "2 authors",
+  );
+  await expect(page.getByTestId("gallery-contributor-row-1")).toContainText(
+    "Alice",
+  );
+  await expect(page.getByTestId("gallery-contributor-row-1")).toContainText(
+    "2 circuits",
+  );
+  await expect(page.getByTestId("gallery-contributor-row-2")).toContainText(
+    "Bob",
+  );
+
+  await page
+    .getByTestId("gallery-contributor-row-1")
+    .locator("summary")
+    .click();
+  await expect(
+    page.getByTestId("gallery-contributor-circuit-alice-2"),
+  ).toHaveText("Alice OTA");
+  await page.getByTestId("gallery-contributor-view-1").click();
+
+  await expect(page).toHaveURL(/\?author=Alice$/u);
+  await expect(page.getByTestId("gallery-filter")).toContainText(
+    "Circuits by Alice",
+  );
+  await expect(page.getByTestId("gallery-tile-alice-2")).toBeVisible();
+  await expect(page.getByTestId("gallery-tile-bob-1")).toHaveCount(0);
+});
+
 test("an API without totals hides the count rather than guessing", async ({
   page,
 }) => {
