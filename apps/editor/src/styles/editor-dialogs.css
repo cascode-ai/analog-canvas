@@ -117,7 +117,11 @@
   display: flex;
   flex-direction: column;
   gap: 0.8rem;
-  width: min(46rem, calc(100vw - 2.5rem));
+  /* The viewport is the available workspace: a half-screen editor fills its
+     half (minus the modal gutter), while a full-screen editor earns enough
+     width for substantially more component columns. The cap keeps ultrawide
+     displays from turning the picker into an unreadably long scan line. */
+  width: min(96rem, calc(100vw - 2.5rem));
   max-height: calc(100dvh - 2.5rem);
   padding: 1rem;
   overflow: hidden;

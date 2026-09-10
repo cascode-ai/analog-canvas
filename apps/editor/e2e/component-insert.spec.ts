@@ -1339,6 +1339,52 @@ test("tiles the whole catalog into one flat quick-pick grid", async ({
   await page.keyboard.press("Escape");
 });
 
+test("widens the Insert picker and adds columns with the editor viewport", async ({
+  page,
+}) => {
+  const measurePicker = async () => {
+    const dialog = page.getByRole("dialog", { name: "Insert Component" });
+    await expect(dialog).toBeVisible();
+    const box = await dialog.boundingBox();
+    if (!box) throw new Error("Insert Component dialog is not measurable");
+    const firstTop = await dialog
+      .getByRole("option")
+      .first()
+      .evaluate((element) => (element as HTMLElement).offsetTop);
+    const columns = await dialog
+      .locator(".insert-tile-grid")
+      .evaluate(
+        (element, top) =>
+          Array.from(
+            element.querySelectorAll<HTMLElement>('[role="option"]'),
+          ).filter((option) => option.offsetTop === top).length,
+        firstTop,
+      );
+    return { width: box.width, columns };
+  };
+
+  // A window snapped to half of a common desktop uses its complete available
+  // width apart from the 20px modal gutter on each side.
+  await page.setViewportSize({ width: 960, height: 800 });
+  await page.goto("/editor");
+  await awaitEditorReady(page);
+  await page.keyboard.press("i");
+  const halfScreen = await measurePicker();
+  const rootFontSize = await page.evaluate(() =>
+    Number.parseFloat(getComputedStyle(document.documentElement).fontSize),
+  );
+  expect(halfScreen.width).toBe(960 - rootFontSize * 2.5);
+
+  await page.keyboard.press("Escape");
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  await page.keyboard.press("i");
+  const fullScreen = await measurePicker();
+
+  expect(fullScreen.width).toBe(rootFontSize * 96);
+  expect(fullScreen.width).toBeGreaterThan(halfScreen.width + 250);
+  expect(fullScreen.columns).toBeGreaterThan(halfScreen.columns);
+});
+
 test("sets MOS parameters and orientation through the ghost and Properties", async ({
   page,
 }) => {
