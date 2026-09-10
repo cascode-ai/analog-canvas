@@ -866,10 +866,31 @@ describe("signal-flow resize direct contacts", () => {
       {
         id: "P1",
         symbolId: "port",
-        // Port pin lands on the integrator's Y pin at (240,200).
-        placement: { position: { x: 250, y: 200 }, rotation: 0, mirror: "x" },
+        placement: { position: { x: 0, y: 0 }, rotation: 0, mirror: "x" },
       },
     );
+    const output = resolveEndpointConnection(document, resolver, {
+      kind: "terminal",
+      instanceId: "SF",
+      pinName: "Y",
+    });
+    const port = resolveEndpointConnection(document, resolver, {
+      kind: "terminal",
+      instanceId: "P1",
+      pinName: "P",
+    });
+    const portInstance = document.instances.find(
+      (instance) => instance.id === "P1",
+    );
+    if (!output || !port || !portInstance?.placement) {
+      throw new Error(
+        "Signal-flow contact fixture endpoints are not resolvable",
+      );
+    }
+    portInstance.placement.position = {
+      x: output.contactPoint.x - port.contactPoint.x,
+      y: output.contactPoint.y - port.contactPoint.y,
+    };
     document.nets.push({
       id: "net-sf",
       terminals: [
