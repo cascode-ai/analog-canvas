@@ -94,6 +94,71 @@ describe("deriveWireUnderSymbolWarnings", () => {
     ).toEqual([]);
   });
 
+  function rotatedOpAmpFixture(routeEnd: { x: number; y: number }) {
+    const document = createEmptyDocument("doc", "Amplifier collision");
+    document.instances.push({
+      id: "U1",
+      symbolId: "opamp",
+      placement: {
+        position: { x: 300, y: 400 },
+        rotation: 180,
+        mirror: "none",
+      },
+      reference: "U1",
+      netlist: { parameters: {} },
+    });
+    const output = resolveEndpointConnection(document, resolver, {
+      kind: "terminal",
+      instanceId: "U1",
+      pinName: "OUT",
+    })!.contactPoint;
+    document.nets.push({
+      id: "net-output",
+      terminals: [{ instanceId: "U1", pinName: "OUT" }],
+    });
+    document.junctions.push(
+      { id: "J1", netId: "net-output", position: output },
+      { id: "J2", netId: "net-output", position: routeEnd },
+    );
+    document.routes.push(
+      createRoutePath({
+        id: "route-output",
+        netId: "net-output",
+        start: { kind: "junction", junctionId: "J1" },
+        end: { kind: "junction", junctionId: "J2" },
+        bends: [],
+        modes: ["manual"],
+      }),
+    );
+    const geometry = resolveDocumentRoutingGeometry(document, resolver);
+    const records = document.routes.flatMap((route) => {
+      const resolved = geometry.routes.get(route.id);
+      return resolved ? [{ route, geometry: resolved }] : [];
+    });
+    return { document, records };
+  }
+
+  it("ignores an amplifier output wire routed through an empty bounding-box corner", () => {
+    // A 180-degree op amp points left. The diagonal leaves its output down and
+    // right, crossing the old rectangular envelope while staying below the
+    // triangle body — the exact false-positive shown by the editor warning.
+    const { document, records } = rotatedOpAmpFixture({ x: 310, y: 450 });
+    expect(
+      deriveWireUnderSymbolWarnings(document, resolver, records).filter(
+        (warning) => warning.instanceId === "U1",
+      ),
+    ).toEqual([]);
+  });
+
+  it("still flags a wire that crosses the amplifier's real triangle body", () => {
+    const { document, records } = rotatedOpAmpFixture({ x: 340, y: 410 });
+    expect(
+      deriveWireUnderSymbolWarnings(document, resolver, records).filter(
+        (warning) => warning.instanceId === "U1",
+      ),
+    ).not.toEqual([]);
+  });
+
   function nmosFixture(
     nmosAt: { x: number; y: number },
     options: { gateOnNet?: boolean } = {},
