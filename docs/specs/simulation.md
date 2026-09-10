@@ -7,6 +7,12 @@ Owners: `packages/model`, `packages/netlist`, `packages/simulation-service`,
 
 Related decision: [ADR 0055](../adr/0055-simulation-is-part-of-the-product.md)
 
+The [Code Workspace contract](simulation-code-workspace.md) freezes the accepted
+replacement authoring design. It is not implemented by this document's v3
+schema. The behavior below remains the shipped contract until the coordinated
+source-input migration and consumer cutover; do not introduce a third permanent
+writer or treat the target's acceptance as runtime capability.
+
 ## Scope
 
 The author owns the Testbench and analyses. Circuit Instances own stimulus and

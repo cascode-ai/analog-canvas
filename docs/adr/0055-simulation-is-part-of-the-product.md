@@ -19,14 +19,26 @@ solver, duplicating electrical extraction, or guessing the author's Testbench.
 Simulation is a product capability with distinct authoring, compilation,
 execution, and result boundaries.
 
-- A named Project setup owns one structured or raw input. Structured input
-  references an ordinary Testbench Cell, independently of the Project top.
-  Several setups may share that Cell; its DUTs remain ordinary Cell instances.
-- Sources and loads are ordinary circuit Instances. Their DC, AC, and waveform
-  parameters are not copied into setup overrides.
-- Structured preparation reuses deterministic design-netlist extraction and
-  compiles the requested analyses and acquisitions. Raw preparation preserves
-  authored intent; it does not invent analyses, sources, or a root call.
+- A named Project setup owns one experiment input, independently of the Project
+  top. The accepted authoring target is a source-file workspace with optional
+  generated Canvas Cell bindings. The current v3 structured/raw representation
+  remains operative until the staged migration and cutover described in the
+  [Code Workspace contract](../specs/simulation-code-workspace.md); acceptance
+  of that target does not assert that its schema or interface has shipped.
+- Canvas circuit structure and instance parameters remain Project facts.
+  Generated code may expose reversible parameter edits through the same typed
+  transactions as Properties, but not a second writable topology. A drawn TB
+  remains an ordinary Cell; a text-authored TB owns its own sources and loads.
+  Neither is copied into a competing writable representation.
+- Authored SPICE/control owns analyses and native expressions. A single authored
+  configuration owns Profile selection, managed Run Plan and result bindings,
+  not duplicate analysis or stimulus values. Templates and human/Agent helpers
+  edit those same sources. No permanent form/text synchronization is introduced.
+- Preparation reuses deterministic design extraction and acquisition mapping,
+  including terminal-current instrumentation. Composition preserves authored
+  intent; it does not invent analyses, sources, or a root call. Unbound text
+  and Canvas-bound text feed the same prepared/execution boundary, without
+  pretending arbitrary text has proven Canvas mappings.
 - Simulatability means supported native primitives or models supplied by the
   selected environment, recursively through hierarchy. It does not require a
   PDK model for an ideal resistor. Unsupported blocks are diagnosed by identity.
@@ -68,6 +80,14 @@ A guessed Testbench would answer an experiment the author did not request.
 Neither is introduced. Saved authored intent improves reproducibility; it does
 not claim that a run with a matching image is electrically correct without
 model-backed acceptance.
+
+Code-first authoring avoids maintaining an expanding settings form and a second
+text authority. It does require source-preserving edits, explicit generated
+parameter mappings, and migration evidence; replacing forms with today's raw
+adapter alone would lose circuit/result identity. The accepted presentation is
+a lazy right-hand Code/Properties dock with Console/Results beneath the code.
+Width and maximize behavior still require prototype/user acceptance. This
+decision does not authorize deleting working interfaces before parity exists.
 
 ## Validation
 
