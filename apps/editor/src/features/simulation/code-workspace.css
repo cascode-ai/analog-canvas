@@ -1,0 +1,211 @@
+.simulation-code-workspace {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  background: var(--icm-surface);
+  color: var(--icm-text);
+  font-size: 12px;
+}
+.simulation-code-workspace button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  white-space: nowrap;
+  padding: 6px 9px;
+}
+.simulation-code-workspace button:hover:not(:disabled) {
+  background: var(--icm-surface-muted);
+}
+.simulation-code-workspace button:disabled {
+  cursor: default;
+  opacity: 0.46;
+}
+.simulation-code-workspace button:focus-visible {
+  outline: 2px solid #328ab0;
+  outline-offset: -2px;
+}
+.simulation-code-toolbar,
+.simulation-code-output-tabs,
+.simulation-code-tabs {
+  display: flex;
+  align-items: center;
+  flex: none;
+  min-height: 32px;
+  border-bottom: 1px solid var(--icm-border);
+  background: var(--icm-surface-muted);
+}
+.simulation-code-actions {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  gap: 4px;
+}
+.simulation-code-more {
+  position: relative;
+}
+.simulation-code-menu {
+  position: absolute;
+  right: 3px;
+  top: 100%;
+  z-index: 5;
+  background: var(--icm-surface);
+  padding: 4px;
+  border: 1px solid var(--icm-border-strong);
+  box-shadow: 0 4px 16px #18263520;
+}
+.simulation-code-menu button {
+  display: block;
+  width: 100%;
+  text-align: left;
+}
+.simulation-code-source-area {
+  display: flex;
+  flex: 1 1 0;
+  min-height: 90px;
+  min-width: 0;
+}
+.simulation-code-files {
+  width: clamp(116px, 23%, 160px);
+  flex-shrink: 0;
+  border-right: 1px solid var(--icm-border);
+  overflow: auto;
+  background: var(--icm-surface-muted);
+}
+.simulation-code-files ul {
+  list-style: none;
+  padding: 6px 0;
+  margin: 0;
+}
+.simulation-code-files button {
+  width: 100%;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.simulation-code-files button.is-active {
+  background: #eaf2f8;
+  color: #155782;
+}
+.simulation-code-document {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+.simulation-code-tabs {
+  overflow-x: auto;
+  align-items: stretch;
+}
+.simulation-code-tab {
+  display: flex;
+  flex: none;
+  border-right: 1px solid var(--icm-border);
+}
+.simulation-code-tab:has([aria-selected="true"]) {
+  background: var(--icm-surface);
+  box-shadow: inset 0 2px var(--icm-accent);
+}
+.simulation-code-document-content {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.simulation-code-editor,
+.simulation-code-editor .cm-editor {
+  height: 100%;
+}
+.simulation-code-editor .cm-editor {
+  font-size: 12px;
+}
+.simulation-code-editor .cm-scroller {
+  overflow: auto;
+  font-family: "Google Sans Code Variable", Consolas, monospace;
+  line-height: 1.65;
+}
+.simulation-code-editor .cm-gutters {
+  border: 0;
+  background: var(--icm-surface);
+  color: var(--icm-text-muted);
+  padding-right: 7px;
+}
+.simulation-code-editor .cm-activeLine,
+.simulation-code-editor .cm-activeLineGutter {
+  background: #f3f7fa;
+}
+.simulation-code-editor .cm-focused {
+  outline: none;
+}
+.simulation-code-editor .cm-content {
+  padding: 10px 0;
+}
+.simulation-code-output-resizer {
+  height: 4px;
+  flex: none;
+  background: var(--icm-border);
+  cursor: ns-resize;
+  touch-action: none;
+}
+.simulation-code-output-resizer:hover,
+.simulation-code-output-resizer:focus-visible {
+  background: #88b8d2;
+}
+.simulation-code-output {
+  display: flex;
+  flex-direction: column;
+  min-height: 32px;
+  flex-grow: 0;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+.simulation-code-output-tabs {
+  background: var(--icm-surface-muted);
+}
+.simulation-code-output-tabs [aria-selected="true"] {
+  color: #155782;
+  box-shadow: inset 0 -2px #317ba5;
+}
+.simulation-code-output-spacer {
+  flex: 1;
+}
+.simulation-code-output-content {
+  overflow: auto;
+  min-height: 0;
+  flex: 1;
+  padding: 8px;
+}
+.simulation-code-status {
+  flex: none;
+  min-height: 22px;
+  padding: 3px 8px;
+  border-top: 1px solid var(--icm-border);
+  font-size: 11px;
+  color: var(--icm-text-muted);
+}
+.simulation-code-workspace.is-maximized .simulation-code-source-area,
+.simulation-code-workspace.is-maximized .simulation-code-output-resizer {
+  display: none;
+}
+.simulation-code-workspace.is-maximized .simulation-code-output {
+  flex: 1 1 auto;
+}
+.simulation-code-help {
+  padding: 8px 10px;
+  max-width: 340px;
+  font:
+    12px/1.5 system-ui,
+    sans-serif;
+}
+.simulation-code-help code {
+  white-space: normal;
+}
+.simulation-code-help p {
+  margin: 5px 0;
+}
+.simulation-code-help a {
+  color: #155782;
+}
