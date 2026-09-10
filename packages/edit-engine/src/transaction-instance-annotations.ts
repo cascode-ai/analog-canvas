@@ -253,6 +253,7 @@ export function isCanonicalInstanceLabel(
   if (!slot || annotation.anchor.kind !== "object") {
     return false;
   }
+  const anchor = annotation.anchor;
   const placement = { position: oldPosition, ...oldOrientation };
   const expected = defaultInstanceLabelPlacement(
     { ...instance, placement },
@@ -261,18 +262,44 @@ export function isCanonicalInstanceLabel(
     document.presentation.grid,
     slot,
   );
-  if (!expected) return false;
   const visiblePosition = {
-    x: oldPosition.x + annotation.anchor.localOffset.x,
-    y: oldPosition.y + annotation.anchor.localOffset.y,
+    x: oldPosition.x + anchor.localOffset.x,
+    y: oldPosition.y + anchor.localOffset.y,
   };
-  return (
-    annotation.alignment === expected.alignment &&
-    visiblePosition.x === expected.position.x &&
-    visiblePosition.y === expected.position.y &&
-    annotation.anchor.fallbackPosition.x === expected.position.x &&
-    annotation.anchor.fallbackPosition.y === expected.position.y
+  const matches = (candidate: typeof expected): boolean =>
+    candidate !== null &&
+    annotation.alignment === candidate.alignment &&
+    visiblePosition.x === candidate.position.x &&
+    visiblePosition.y === candidate.position.y &&
+    anchor.fallbackPosition.x === candidate.position.x &&
+    anchor.fallbackPosition.y === candidate.position.y;
+  if (matches(expected)) return true;
+
+  // Projects saved before the reviewed Resistor path declared tight bounds
+  // used its wider viewBox for the canonical label. Accept that one exact
+  // machine-owned position during the next orientation edit, then re-project
+  // it through the current placement rule. This stays Symbol-specific so a
+  // nearby user-authored label is never absorbed by a general tolerance.
+  if (instance.symbolId !== "resistor") return false;
+  const legacyResolved = {
+    ...resolved,
+    definition: {
+      ...resolved.definition,
+      primitives: resolved.definition.primitives.map((primitive) => {
+        if (primitive.kind !== "path" || !primitive.bounds) return primitive;
+        const { bounds: _bounds, ...withoutBounds } = primitive;
+        return withoutBounds;
+      }),
+    },
+  };
+  const legacyExpected = defaultInstanceLabelPlacement(
+    { ...instance, placement },
+    legacyResolved,
+    resolveDocumentStyleProfile(document.presentation),
+    document.presentation.grid,
+    slot,
   );
+  return matches(legacyExpected);
 }
 
 /**

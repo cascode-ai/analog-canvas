@@ -131,6 +131,25 @@ describe("instance label placement", () => {
     });
   });
 
+  it("keeps quarter-turned resistor and capacitor labels on one row", () => {
+    const resistor = resolver.resolve("resistor");
+    if (!resistor) throw new Error("Missing resistor Symbol");
+    expect(visibleSymbolInkBounds(resistor)).toEqual({
+      x: -4.988372,
+      y: -20,
+      width: 10.360465,
+      height: 40,
+    });
+
+    for (const rotation of [90, 270] as const) {
+      const placements = ["resistor", "capacitor"].map((symbolId) =>
+        placedDefaultLabel(symbolId, rotation),
+      );
+
+      expect(placements[0]!.position.y).toBe(placements[1]!.position.y);
+    }
+  });
+
   it("places the T-coil reference above its routing corridor", () => {
     const resolved = resolver.resolve("tcoil");
     if (!resolved) throw new Error("missing tcoil");

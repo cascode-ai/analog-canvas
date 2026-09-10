@@ -250,7 +250,15 @@ function primitivePoints(primitive: SymbolPrimitive): Point[] | null {
         },
       ];
     case "path":
-      return null;
+      return primitive.bounds
+        ? [
+            { x: primitive.bounds.x, y: primitive.bounds.y },
+            {
+              x: primitive.bounds.x + primitive.bounds.width,
+              y: primitive.bounds.y + primitive.bounds.height,
+            },
+          ]
+        : null;
   }
 }
 
