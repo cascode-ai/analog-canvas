@@ -47,6 +47,11 @@ describe("component identity properties", () => {
           suggestions: ["sky130_fd_pr__nfet_01v8"],
           externalSubcircuit: false,
         }}
+        sourceCode={{
+          code: "M1 drain gate source bulk sky130_fd_pr__nfet_01v8 W=1u L=150n",
+          exact: true,
+          note: null,
+        }}
         onMarkerNameChange={vi.fn()}
         onReferenceChange={vi.fn()}
         onEditAnnotation={vi.fn()}
@@ -62,7 +67,7 @@ describe("component identity properties", () => {
     expect(markup).toContain("Custom…");
     expect(markup).not.toContain("datalist");
     expect(markup).toMatch(
-      /<div class="component-source-code"[^>]*><code>nmos<\/code><\/div>$/u,
+      /<div class="component-source-code"[^>]*><code>M1 drain gate source bulk sky130_fd_pr__nfet_01v8 W=1u L=150n<\/code><\/div>$/u,
     );
   });
 
@@ -82,13 +87,20 @@ describe("component identity properties", () => {
         targetDescription={null}
         capacitorPlateRows={null}
         modelTarget={null}
+        sourceCode={{
+          code: "X2 <in> <out> <subcircuit-model>",
+          exact: false,
+          note: "Subcircuit template — choose a concrete model before export.",
+        }}
         onMarkerNameChange={vi.fn()}
         onReferenceChange={vi.fn()}
         onEditAnnotation={vi.fn()}
         onModelTargetChange={vi.fn()}
       />,
     );
-    expect(markup).toContain("<code>adder</code>");
+    expect(markup).toContain(
+      "<code>X2 &lt;in&gt; &lt;out&gt; &lt;subcircuit-model&gt;</code>",
+    );
     expect(markup).not.toContain("Identity");
     expect(markup).not.toContain("Cell");
     expect(markup).not.toContain('aria-label="Netlist Reference"');
@@ -121,6 +133,7 @@ describe("component identity properties", () => {
         targetDescription={null}
         capacitorPlateRows={null}
         modelTarget={null}
+        sourceCode={{ code: "R1 net1 net2 10k", exact: true, note: null }}
         onMarkerNameChange={vi.fn()}
         onReferenceChange={vi.fn()}
         onEditAnnotation={vi.fn()}

@@ -43,6 +43,33 @@
   -webkit-user-select: text;
 }
 
+.net-label-editor input {
+  box-sizing: border-box;
+  width: 100%;
+  height: 32px;
+  padding: 4px 8px;
+  border: 1px solid var(--icm-accent);
+  border-radius: var(--icm-radius-sm);
+  outline: none;
+  color: var(--icm-text);
+  background: var(--icm-surface);
+  box-shadow: 0 0 0 2px rgb(var(--icm-accent-rgb) / 20%);
+  font:
+    13px "Google Sans Code Variable",
+    ui-monospace,
+    monospace;
+}
+
+.net-label-placement-preview {
+  fill: var(--icm-accent);
+  font-size: 12px;
+  font-weight: 500;
+  paint-order: stroke;
+  stroke: var(--icm-surface);
+  stroke-width: 3px;
+  vector-effect: non-scaling-stroke;
+}
+
 /* The interactive scene reuses the formal renderer body without its exported
    SVG wrapper. Supply that wrapper's canonical schematic typography here so
    canvas labels and free text cannot fall back to the surrounding UI font. */
@@ -614,7 +641,7 @@
 }
 
 /* Keep commit controls on a deliberate second row. The canvas editor has one
-   440px layout at both full- and half-window sizes, so this break is stable
+   compact layout at both full- and half-window sizes, so this break is stable
    instead of changing with incidental flex wrapping. */
 .rich-text-toolbar-action-break {
   flex: 0 0 100%;
@@ -662,6 +689,9 @@
 
 .rich-text-symbol-menu > div {
   position: absolute;
+  top: 100%;
+  right: 0;
+  left: auto;
   z-index: 2;
   display: grid;
   grid-template-columns: repeat(5, 1.8rem);

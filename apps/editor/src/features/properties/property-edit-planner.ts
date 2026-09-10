@@ -74,6 +74,8 @@ export function createPropertyEditPlanner({
       alignment: "start" | "middle" | "end";
       sizeScale: number;
       formatOverride?: RichTextDocument;
+      /** Explicit canvas placement from the Cadence-style L workflow. */
+      position?: { x: number; y: number };
     },
   ): SchematicEdit[] | null => {
     const net = document.nets.find((candidate) => candidate.id === route.netId);
@@ -135,14 +137,15 @@ export function createPropertyEditPlanner({
     const from = geometry.centerline[segment]!;
     const to = geometry.centerline[segment + 1] ?? from;
     const position = snapGridPoint(
-      (existingLabel
-        ? existingLabel.anchor.kind === "free"
-          ? existingLabel.anchor.position
-          : existingLabel.anchor.fallbackPosition
-        : undefined) ?? {
-        x: (from.x + to.x) / 2,
-        y: (from.y + to.y) / 2 - 8,
-      },
+      presentation?.position ??
+        (existingLabel
+          ? existingLabel.anchor.kind === "free"
+            ? existingLabel.anchor.position
+            : existingLabel.anchor.fallbackPosition
+          : undefined) ?? {
+          x: (from.x + to.x) / 2,
+          y: (from.y + to.y) / 2 - 8,
+        },
       document.presentation.grid,
     );
     const previousAnchor =
@@ -158,18 +161,20 @@ export function createPropertyEditPlanner({
         kind: "net-label",
         binding: { kind: "net-name", netId: targetNetId },
         netId: targetNetId,
-        anchor: previousAnchor
-          ? { ...previousAnchor, fallbackPosition: position }
-          : {
-              kind: "route",
-              routeId: route.id,
-              legId: route.legs[segment]!.id,
-              t: 0.5,
-              normalOffset: -8,
-              direction: "forward",
-              orientation: "follow",
-              fallbackPosition: position,
-            },
+        anchor: presentation?.position
+          ? { kind: "free", position }
+          : previousAnchor
+            ? { ...previousAnchor, fallbackPosition: position }
+            : {
+                kind: "route",
+                routeId: route.id,
+                legId: route.legs[segment]!.id,
+                t: 0.5,
+                normalOffset: -8,
+                direction: "forward",
+                orientation: "follow",
+                fallbackPosition: position,
+              },
         alignment:
           presentation?.alignment ?? existingLabel?.alignment ?? "middle",
         rotation: 0,
@@ -193,9 +198,62 @@ export function createPropertyEditPlanner({
     presentationAnnotation?: Annotation,
   ): SchematicEdit[] | null | undefined => {
     const binding = annotation.binding;
-    if (binding?.kind !== "net-name" || annotation.anchor.kind !== "object") {
+    if (binding?.kind !== "net-name") {
       return undefined;
     }
+    const net = document.nets.find(
+      (candidate) => candidate.id === binding.netId,
+    );
+    if (!net) {
+      setStatus(`Net Label references missing Net ${binding.netId}`);
+      return null;
+    }
+    const name = rawName.trim();
+
+    // L places a free visual annotation at the click point. It still owns one
+    // explicit Net name claim, so later double-click edits must rename that
+    // same Net without forcing the label back to a Route midpoint.
+    if (annotation.kind === "net-label") {
+      const labelClaim = document.connectivityEvidence.find(
+        (
+          evidence,
+        ): evidence is Extract<ConnectivityEvidence, { kind: "name-claim" }> =>
+          evidence.kind === "name-claim" &&
+          evidence.owner.kind === "net-label" &&
+          evidence.owner.annotationId === annotation.id,
+      );
+      const namedNetPlan = planEnsureNamedNet(document, {
+        candidateNetId: net.id,
+        name,
+        evidenceId:
+          labelClaim?.id ??
+          deriveStableId(
+            "connectivity-evidence",
+            document.id,
+            "net-label",
+            net.id,
+            annotation.id,
+          ),
+        owner: { kind: "net-label", annotationId: annotation.id },
+        ...(labelClaim ? { scope: labelClaim.scope } : {}),
+      });
+      if (!namedNetPlan.ok) {
+        setStatus(namedNetPlan.message);
+        return null;
+      }
+      return [
+        ...namedNetPlan.edits,
+        ...(presentationAnnotation
+          ? [
+              {
+                kind: "upsert_schematic_annotation" as const,
+                annotation: presentationAnnotation,
+              },
+            ]
+          : []),
+      ];
+    }
+    if (annotation.anchor.kind !== "object") return undefined;
     const ownerObjectId = annotation.anchor.objectId;
     const powerClaim = document.connectivityEvidence.find(
       (
@@ -207,14 +265,6 @@ export function createPropertyEditPlanner({
           evidence.owner.objectId === annotation.id),
     );
     if (annotation.kind !== "power-label") return undefined;
-    const net = document.nets.find(
-      (candidate) => candidate.id === binding.netId,
-    );
-    if (!net) {
-      setStatus(`Net Label references missing Net ${binding.netId}`);
-      return null;
-    }
-    const name = rawName.trim();
     const namedNetPlan = planEnsureNamedNet(document, {
       candidateNetId: net.id,
       name,

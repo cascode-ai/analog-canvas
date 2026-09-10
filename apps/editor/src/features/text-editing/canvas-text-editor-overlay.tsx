@@ -34,7 +34,7 @@ export interface CanvasTextEditorOverlayProps {
  * text — are laid out at this size and then scaled as one, so the panel keeps
  * its proportions instead of reflowing as the camera moves.
  */
-const EDITOR_LAYOUT_WIDTH = 440;
+const EDITOR_LAYOUT_WIDTH = 400;
 const EDITOR_LAYOUT_MIN_HEIGHT = 150;
 
 /**

@@ -7,13 +7,6 @@ import { EditorWiringOverlay } from "./editor-wiring-overlay";
 
 describe("editor wiring overlay", () => {
   it("renders net editing, guidance, and a bulk wire preview in layer order", () => {
-    const route = { id: "route-1" };
-    const geometry = {
-      centerline: [
-        { x: 0, y: 20 },
-        { x: 100, y: 20 },
-      ],
-    };
     const flightline = {
       id: "guide-1",
       netId: "net-1",
@@ -25,11 +18,11 @@ describe("editor wiring overlay", () => {
     const markup = renderToStaticMarkup(
       <svg>
         <EditorWiringOverlay
-          netLabelEditorOpen
-          selectedRouteId={route.id}
-          selectedRouteSegmentIndex={0}
-          routeGeometryRecords={[{ route, geometry }]}
-          netLabelDraft="OUT"
+          netLabelPlacement={{
+            phase: "naming",
+            draft: "OUT",
+            position: { x: 50, y: 20 },
+          }}
           netLabelEditorInputRef={createRef<HTMLInputElement>()}
           onNetLabelDraftChange={vi.fn()}
           onNetLabelSubmit={vi.fn()}
@@ -59,5 +52,34 @@ describe("editor wiring overlay", () => {
     expect(markup).toContain('data-testid="wire-preview-contact"');
     expect(markup).toContain('cx="10"');
     expect(markup).toContain('data-layer="snap-guides"');
+  });
+
+  it("renders a floating Net Label ghost after naming", () => {
+    const markup = renderToStaticMarkup(
+      <svg>
+        <EditorWiringOverlay
+          netLabelPlacement={{
+            phase: "placing",
+            draft: "SIGNAL",
+            position: { x: 80, y: 40 },
+          }}
+          netLabelEditorInputRef={createRef<HTMLInputElement>()}
+          onNetLabelDraftChange={vi.fn()}
+          onNetLabelSubmit={vi.fn()}
+          onNetLabelEscape={vi.fn()}
+          flightlines={[]}
+          onFlightlineClick={vi.fn()}
+          wireDraftPreview={{ points: [], contacts: [] }}
+          bulkRoutePreview={false}
+          snapGuideLayerRef={createRef<SVGGElement>()}
+        />
+      </svg>,
+    );
+
+    expect(markup).not.toContain('data-testid="net-label-editor"');
+    expect(markup).toContain('data-testid="net-label-placement-preview"');
+    expect(markup).toContain("SIGNAL");
+    expect(markup).toContain('x="80"');
+    expect(markup).toContain('y="40"');
   });
 });

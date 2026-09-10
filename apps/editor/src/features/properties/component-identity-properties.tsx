@@ -5,6 +5,7 @@ import type { SchematicDocument } from "@icm/model";
 import { deviceDescriptor } from "@icm/devices";
 
 import type { CapacitorPlatePropertyRow } from "./capacitor-plate-properties";
+import type { ComponentSourceCode } from "./component-source-code";
 
 type Instance = SchematicDocument["instances"][number];
 
@@ -180,6 +181,7 @@ export function ComponentIdentityProperties({
   capacitorPlateRows,
   propertyTerminal,
   modelTarget,
+  sourceCode,
   onEditAnnotation,
   onMarkerNameChange,
   onReferenceChange,
@@ -199,6 +201,7 @@ export function ComponentIdentityProperties({
     onChange: (netId: string | null) => void;
   } | null;
   modelTarget: ComponentModelTargetView | null;
+  sourceCode: ComponentSourceCode;
   onEditAnnotation?: () => void;
   onMarkerNameChange: (value: string) => void;
   onReferenceChange: (value: string) => boolean | void;
@@ -339,8 +342,13 @@ export function ComponentIdentityProperties({
           ) : null}
         </div>
       ) : null}
-      <div className="component-source-code" aria-label="Component code">
-        <code>{instance.symbolId}</code>
+      <div
+        className="component-source-code"
+        aria-label="SPICE component code"
+        data-exact={sourceCode.exact}
+      >
+        <code>{sourceCode.code}</code>
+        {sourceCode.note ? <small>{sourceCode.note}</small> : null}
       </div>
     </>
   );

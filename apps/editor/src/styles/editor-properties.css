@@ -300,20 +300,28 @@
 }
 
 .component-source-code {
-  display: flex;
-  justify-content: flex-end;
+  display: grid;
+  gap: 0.35rem;
   min-width: 0;
-  padding: 0.15rem 0.15rem 0;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-md);
   color: var(--icm-text-muted);
-  font-size: var(--icm-font-xs);
+  background: var(--icm-surface-muted);
+  font-size: var(--icm-font-sm);
 }
 
 .component-source-code code {
-  overflow: hidden;
-  font: inherit;
+  overflow-wrap: anywhere;
+  color: var(--icm-text);
   font-family: var(--icm-font-mono, ui-monospace, monospace);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.component-source-code small {
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
 }
 
 .net-name-properties {
