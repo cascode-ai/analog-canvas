@@ -17,6 +17,9 @@ describe("differential input swap", () => {
     expect(differentialInputSibling("opamp-differential-crossed")).toBe(
       "opamp-differential-crossed-inputs-swapped",
     );
+    expect(differentialInputSibling("differential-transconductance")).toBe(
+      "differential-transconductance-inputs-swapped",
+    );
     expect(differentialInputSibling("comparator-unmarked")).toBeUndefined();
     expect(differentialInputSibling("resistor")).toBeUndefined();
   });
@@ -51,7 +54,11 @@ describe("differential input swap", () => {
 
   it("swaps the marks and the input pins, and nothing else", () => {
     const byId = new Map(builtInSymbols.map((symbol) => [symbol.id, symbol]));
-    for (const id of ["comparator", "opamp-differential"]) {
+    for (const id of [
+      "comparator",
+      "differential-transconductance",
+      "opamp-differential",
+    ]) {
       const source = byId.get(id)!;
       const swapped = byId.get(differentialInputSibling(id)!)!;
 

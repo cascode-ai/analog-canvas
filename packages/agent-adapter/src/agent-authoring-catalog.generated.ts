@@ -321,8 +321,8 @@ export const agentRazaviAuthoringCatalog = {
     },
     {
       symbolId: "transconductance",
-      name: "Transconductance (+gₘ)",
-      category: "signal-flow",
+      name: "Transconductance (gₘ)",
+      category: "analog-block",
       defaultVariantId: null,
       labelVisibility: "hidden",
       pins: [

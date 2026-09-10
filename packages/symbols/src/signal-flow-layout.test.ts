@@ -88,7 +88,7 @@ describe("signal-flow layout", () => {
     const trapezoid = {
       formulaPresentation: {
         ...definition.formulaPresentation,
-        defaultFormula: "+g_m",
+        defaultFormula: "g_m",
         adaptiveFrame: {
           ...definition.formulaPresentation.adaptiveFrame,
           shape: "right-tapered-trapezoid" as const,
@@ -99,7 +99,7 @@ describe("signal-flow layout", () => {
       },
     };
     const preset = resolveAdaptiveSignalFlowBlockLayout(trapezoid, {
-      formula: "+gₘ₁",
+      formula: "gₘ₁",
     });
     const expanded = resolveAdaptiveSignalFlowBlockLayout(trapezoid, {
       formula: "-g_mL_with_a_long_suffix",

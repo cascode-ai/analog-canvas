@@ -25,7 +25,7 @@ describe("component identity properties", () => {
     expect(componentTargetDescription(instance)).toBeNull();
   });
 
-  it("renders identity, editable marker name, and model suggestions", () => {
+  it("renders editable controls without an Identity card and ends with raw component code", () => {
     const document = createEmptyDocument("cell", "Cell");
     const instance: (typeof document.instances)[number] = {
       id: "M1",
@@ -38,7 +38,6 @@ describe("component identity properties", () => {
       <ComponentIdentityProperties
         instance={instance}
         revision={0}
-        cellName="Cell"
         formalTerminalSelected={false}
         portNet={{ id: "net", logicalName: "VDD", supply: true }}
         targetDescription={null}
@@ -55,13 +54,16 @@ describe("component identity properties", () => {
       />,
     );
     expect(markup).toContain('aria-label="Supply name"');
-    expect(markup).toMatch(
-      /<details[^>]*aria-label="Component identity"[^>]*open=""/u,
-    );
+    expect(markup).not.toContain("Identity");
+    expect(markup).not.toContain("<details");
+    expect(markup).not.toContain("Cell");
     expect(markup).toContain('<option value="">None</option>');
     expect(markup).toContain("sky130_fd_pr__nfet_01v8");
     expect(markup).toContain("Custom…");
     expect(markup).not.toContain("datalist");
+    expect(markup).toMatch(
+      /<div class="component-source-code"[^>]*><code>nmos<\/code><\/div>$/u,
+    );
   });
 
   it("offers no Reference field when the object has no authored Reference", () => {
@@ -75,7 +77,6 @@ describe("component identity properties", () => {
       <ComponentIdentityProperties
         instance={instance}
         revision={1}
-        cellName="Main"
         formalTerminalSelected={false}
         portNet={null}
         targetDescription={null}
@@ -87,7 +88,9 @@ describe("component identity properties", () => {
         onModelTargetChange={vi.fn()}
       />,
     );
-    expect(markup).toContain("Symbol");
+    expect(markup).toContain("<code>adder</code>");
+    expect(markup).not.toContain("Identity");
+    expect(markup).not.toContain("Cell");
     expect(markup).not.toContain('aria-label="Netlist Reference"');
     // A retained Instance has nowhere to stand a label yet.
     expect(markup).not.toContain('aria-label="Component label"');
@@ -113,7 +116,6 @@ describe("component identity properties", () => {
       <ComponentIdentityProperties
         instance={instance}
         revision={2}
-        cellName="Cell"
         formalTerminalSelected={false}
         portNet={null}
         targetDescription={null}

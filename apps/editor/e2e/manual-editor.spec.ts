@@ -3299,9 +3299,11 @@ test("Properties offers no dead Reference controls for a schematic-only block", 
 
   // A summing junction hides its designator on the canvas, so the panel
   // offers neither a Reference field nor the display toggles that could
-  // never change the drawing. Identity facts and Appearance remain.
+  // never change the drawing. Its raw component code and Appearance remain.
   await page.locator('[data-canvas-hit-kind="instance"]').first().click();
-  await expect(properties.getByText("Symbol")).toBeVisible();
+  await expect(properties.locator('[aria-label="Component code"]')).toHaveText(
+    "adder",
+  );
   await expect(referenceField).toHaveCount(0);
   await expect(parametersCard).toHaveCount(0);
   await expect(
@@ -3332,7 +3334,6 @@ test("Properties toggles reference label visibility for one or many components",
   await openSelectionShelf(page);
   const properties = page.getByRole("complementary", { name: "Properties" });
   for (const sectionName of [
-    "Identity",
     "Parameters",
     "Display",
     "Netlist overrides",
@@ -3347,12 +3348,18 @@ test("Properties toggles reference label visibility for one or many components",
   });
   await expect(
     componentProperties.locator(":scope > .property-disclosure"),
-  ).toHaveCount(4);
+  ).toHaveCount(3);
   expect(
     await componentProperties
       .locator(":scope > .property-disclosure > summary > span")
       .allTextContents(),
-  ).toEqual(["Identity", "Parameters", "Placement", "Appearance"]);
+  ).toEqual(["Parameters", "Placement", "Appearance"]);
+  await expect(componentProperties.locator(":scope > :last-child")).toHaveText(
+    "resistor",
+  );
+  await expect(
+    componentProperties.locator(":scope > :last-child"),
+  ).toHaveAttribute("aria-label", "Component code");
   await expect(
     componentProperties.locator(
       ':scope > details[aria-label="Component appearance"]',
@@ -4817,7 +4824,7 @@ test("exports structural SPICE and Spectre netlists while exposing instance auth
   await expect(properties.getByText(/^Model:/u)).toHaveCount(0);
 });
 
-test("edits the transconductance trapezoid from +gm1 to -gmL", async ({
+test("edits the transconductance trapezoid from gm to -gmL", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -4825,10 +4832,22 @@ test("edits the transconductance trapezoid from +gm1 to -gmL", async ({
   await openSelectionShelf(page);
   const properties = page.getByRole("complementary", { name: "Properties" });
   const formula = properties.getByLabel("Signal flow formula");
+  const componentProperties = properties.locator(
+    '[aria-label="Component properties"]',
+  );
   const formalScene = page.locator('[data-layer="formal"]');
   const frame = formalScene.locator('[data-role="signal-flow-frame"]');
 
-  await expect(formula).toHaveValue("+g_m");
+  await expect(properties.getByText("Identity", { exact: true })).toHaveCount(
+    0,
+  );
+  await expect(componentProperties.locator(":scope > :last-child")).toHaveText(
+    "transconductance",
+  );
+  await expect(
+    componentProperties.locator(":scope > :last-child"),
+  ).toHaveAttribute("aria-label", "Component code");
+  await expect(formula).toHaveValue("g_m");
   await expect(frame).toHaveCount(1);
   await expect(frame).toHaveAttribute(
     "points",
@@ -4845,7 +4864,7 @@ test("edits the transconductance trapezoid from +gm1 to -gmL", async ({
   ).toHaveText("mL");
 
   await clickCommand(page, "Edit", "Undo");
-  await expect(formula).toHaveValue("+g_m");
+  await expect(formula).toHaveValue("g_m");
   await clickCommand(page, "Edit", "Redo");
   await expect(formula).toHaveValue("−gₘL");
 });
@@ -4861,7 +4880,8 @@ test("edits a formula-capable Signal Flow block with undo, redo, and Reset defau
   const formulaSymbol = razaviProductSymbols.find(
     (symbol) =>
       symbol.formulaPresentation?.supportsCoefficient &&
-      !symbol.formulaPresentation.adaptiveFrame?.shape,
+      symbol.formulaPresentation.adaptiveFrame &&
+      !symbol.formulaPresentation.adaptiveFrame.shape,
   );
   expect(formulaSymbol).toBeDefined();
   const symbol = formulaSymbol!;

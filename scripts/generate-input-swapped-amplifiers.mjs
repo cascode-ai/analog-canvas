@@ -33,6 +33,7 @@ const SOURCE_IDS = [
   "opamp",
   "opamp-lettered",
   "comparator",
+  "differential-transconductance",
   "opamp-differential",
   "opamp-differential-crossed",
 ];

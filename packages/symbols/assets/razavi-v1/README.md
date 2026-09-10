@@ -48,6 +48,10 @@ The product set is exactly the reviewed, Reference-calibrated entries:
   deliberately unmapped. OR is the reviewed NOR body without its output
   bubble; XNOR is the direct XOR body with the reviewed two-input NOR negation
   bubble.
+- the Analog Blocks library includes the reference-calibrated single-input
+  `transconductance` symbol and its user-requested house companion
+  `differential-transconductance`. Both display `g_m` without a default unary
+  plus; the differential form exposes `IN+`, `IN-`, and `OUT`.
 
 `nmos` and `pmos` are the only MOS asset IDs in the Reference-calibrated
 Razavi catalog. Their default visual variant is `textbook-3terminal`; explicit

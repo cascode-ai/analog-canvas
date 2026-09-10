@@ -76,6 +76,8 @@ export function symbolCategory(symbolId: string): string {
       "opamp",
       "opamp-lettered",
       "voltage-amplifier-lettered",
+      "transconductance",
+      "differential-transconductance",
       "opamp-differential",
       "opamp-differential-crossed",
       "voltage-amplifier",
@@ -106,7 +108,6 @@ export function symbolCategory(symbolId: string): string {
     [
       "adder",
       "multiplier",
-      "transconductance",
       "integrator",
       "unit-delay",
       "discrete-time-integrator",
@@ -221,7 +222,6 @@ const SYMBOL_ORDER: readonly string[] = [
   // Signal-flow blocks in signal-chain order, not alphabetical.
   "adder",
   "multiplier",
-  "transconductance",
   "integrator",
   "unit-delay",
   "discrete-time-integrator",
@@ -238,6 +238,8 @@ const SYMBOL_ORDER: readonly string[] = [
   "opamp-differential",
   "voltage-amplifier",
   "voltage-amplifier-lettered",
+  "transconductance",
+  "differential-transconductance",
   "comparator",
   "comparator-unmarked",
   "adc",

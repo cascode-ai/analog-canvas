@@ -170,6 +170,8 @@ describe("Razavi symbol catalog", () => {
       ["adder", "reviewed", "razavi-reference-v1"],
       ["multiplier", "reviewed", "razavi-reference-v1"],
       ["transconductance", "reviewed", "razavi-reference-v1"],
+      ["differential-transconductance", "reviewed", "house"],
+      ["differential-transconductance-inputs-swapped", "reviewed", "house"],
       ["integrator", "reviewed", "razavi-reference-v1"],
       ["unit-delay", "reviewed", "razavi-reference-v1"],
       ["discrete-time-integrator", "reviewed", "razavi-reference-v1"],
@@ -563,7 +565,7 @@ describe("Razavi symbol catalog", () => {
   });
 
   it("uses reviewed catalog objects as the sole built-in product library", () => {
-    expect(razaviCatalogSymbols).toHaveLength(61);
+    expect(razaviCatalogSymbols).toHaveLength(63);
     for (const catalogSymbol of razaviProductSymbols) {
       expect(
         builtInSymbols.find((symbol) => symbol.id === catalogSymbol.id),
@@ -588,6 +590,7 @@ describe("Razavi symbol catalog", () => {
       "adder",
       "multiplier",
       "transconductance",
+      "differential-transconductance",
       "integrator",
       "unit-delay",
       "discrete-time-integrator",
@@ -720,7 +723,7 @@ describe("Razavi symbol catalog", () => {
     const transconductance = requireRazaviCatalogSymbol("transconductance");
     expect(transconductance.pins.map((pin) => pin.name)).toEqual(["A", "Y"]);
     expect(transconductance.formulaPresentation).toEqual({
-      defaultFormula: "+g_m",
+      defaultFormula: "g_m",
       supportsCoefficient: true,
       center: { x: 0, y: 0 },
       fontSize: 12,
@@ -742,6 +745,23 @@ describe("Razavi symbol catalog", () => {
         }),
       ]),
     );
+
+    const differential = requireRazaviCatalogSymbol(
+      "differential-transconductance",
+    );
+    expect(differential.pins.map((pin) => pin.name)).toEqual([
+      "IN+",
+      "IN-",
+      "OUT",
+    ]);
+    expect(differential.formulaPresentation).toMatchObject({
+      defaultFormula: "g_m",
+    });
+    expect(
+      differential.primitives.filter(
+        (primitive) => primitive.part === "input-polarity",
+      ),
+    ).toHaveLength(3);
   });
 
   it("draws the quantizer on a square body with its staircase inset evenly", () => {

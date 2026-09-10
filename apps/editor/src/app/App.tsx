@@ -5387,7 +5387,6 @@ export function App({
                   identity: {
                     instance: selectedInstance,
                     revision: document.revision,
-                    cellName: document.netlist?.name ?? document.name,
                     formalTerminalSelected: Boolean(selectedFormalTerminal),
                     portNet: selectedPortNet
                       ? {
