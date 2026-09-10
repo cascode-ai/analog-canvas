@@ -3,62 +3,62 @@
   "id": "opamp-differential-inputs-swapped",
   "name": "Differential Op Amp (swapped inputs)",
   "viewBox": {
-    "x": -54,
-    "y": -28,
-    "width": 98,
-    "height": 56
+    "x": -44,
+    "y": -34,
+    "width": 82,
+    "height": 68
   },
   "pins": [
     {
       "name": "IN+",
       "role": "non-inverting-input",
       "at": {
-        "x": -50,
+        "x": -40,
         "y": -20
       },
       "direction": "west",
       "presentation": {
         "visibility": "visible",
-        "leadLength": 20
+        "leadLength": 10
       }
     },
     {
       "name": "IN-",
       "role": "inverting-input",
       "at": {
-        "x": -50,
+        "x": -40,
         "y": 20
       },
       "direction": "west",
       "presentation": {
         "visibility": "visible",
-        "leadLength": 20
+        "leadLength": 10
       }
     },
     {
       "name": "OUT+",
       "role": "output",
       "at": {
-        "x": 10,
+        "x": -10,
         "y": 20
       },
       "direction": "east",
       "presentation": {
         "visibility": "visible",
-        "leadLength": 20
+        "leadLength": 10
       }
     },
     {
       "name": "OUT-",
       "role": "output",
       "at": {
-        "x": 10,
+        "x": -10,
         "y": -20
       },
       "direction": "east",
       "presentation": {
         "visibility": "visible",
-        "leadLength": 20
+        "leadLength": 10
       }
     }
   ],
@@ -67,7 +67,7 @@
       "kind": "line",
       "part": "input-lead",
       "from": {
-        "x": -50,
+        "x": -40,
         "y": -20
       },
       "to": {
@@ -84,7 +84,7 @@
       "kind": "line",
       "part": "input-lead",
       "from": {
-        "x": -50,
+        "x": -40,
         "y": 20
       },
       "to": {
@@ -105,7 +105,7 @@
         "y": -20
       },
       "to": {
-        "x": 10,
+        "x": -10,
         "y": -20
       },
       "style": {
@@ -122,7 +122,7 @@
         "y": 20
       },
       "to": {
-        "x": 10,
+        "x": -10,
         "y": 20
       },
       "style": {

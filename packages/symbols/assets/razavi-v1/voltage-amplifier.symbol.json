@@ -3,36 +3,36 @@
   "id": "voltage-amplifier",
   "name": "Voltage Amplifier",
   "viewBox": {
-    "x": -44,
-    "y": -28,
-    "width": 88,
-    "height": 56
+    "x": -34,
+    "y": -32,
+    "width": 68,
+    "height": 64
   },
   "pins": [
     {
       "name": "IN",
       "role": "input",
       "at": {
-        "x": -40,
+        "x": -30,
         "y": 0
       },
       "direction": "west",
       "presentation": {
         "visibility": "visible",
-        "leadLength": 20
+        "leadLength": 10
       }
     },
     {
       "name": "OUT",
       "role": "output",
       "at": {
-        "x": 40,
+        "x": 30,
         "y": 0
       },
       "direction": "east",
       "presentation": {
         "visibility": "visible",
-        "leadLength": 20
+        "leadLength": 10
       }
     }
   ],
@@ -40,7 +40,7 @@
     {
       "kind": "line",
       "from": {
-        "x": -40,
+        "x": -30,
         "y": 0
       },
       "to": {
@@ -69,7 +69,7 @@
         "y": 0
       },
       "to": {
-        "x": 40,
+        "x": 30,
         "y": 0
       },
       "style": {

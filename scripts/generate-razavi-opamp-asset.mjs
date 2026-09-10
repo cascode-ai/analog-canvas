@@ -42,6 +42,9 @@ const check = process.argv.includes("--check");
 const normalize = (value) => `${value.replaceAll("\r\n", "\n").trimEnd()}\n`;
 const hash = (value) => createHash("sha256").update(value).digest("hex");
 const normal = { strokeRole: "normal", lineCap: "butt", lineJoin: "miter" };
+const ANALOG_BLOCK_LEAD_LENGTH = 10;
+const OPAMP_INPUT_PIN_X = -30;
+const OPAMP_OUTPUT_PIN_X = 30;
 
 function fail(message) {
   throw new Error(`Razavi op-amp generation: ${message}`);
@@ -80,34 +83,52 @@ const symbol = {
   schemaVersion: 1,
   id: "opamp",
   name: "Operational Amplifier",
-  viewBox: { x: -54, y: -28, width: 98, height: 56 },
+  viewBox: { x: -34, y: -28, width: 68, height: 56 },
   pins: [
     {
       name: "IN+",
       role: "non-inverting-input",
-      at: { x: -50, y: 10 },
+      at: { x: OPAMP_INPUT_PIN_X, y: 10 },
       direction: "west",
-      presentation: { visibility: "visible", leadLength: 20 },
+      presentation: {
+        visibility: "visible",
+        leadLength: ANALOG_BLOCK_LEAD_LENGTH,
+      },
     },
     {
       name: "IN-",
       role: "inverting-input",
-      at: { x: -50, y: -10 },
+      at: { x: OPAMP_INPUT_PIN_X, y: -10 },
       direction: "west",
-      presentation: { visibility: "visible", leadLength: 20 },
+      presentation: {
+        visibility: "visible",
+        leadLength: ANALOG_BLOCK_LEAD_LENGTH,
+      },
     },
     {
       name: "OUT",
       role: "output",
-      at: { x: 40, y: 0 },
+      at: { x: OPAMP_OUTPUT_PIN_X, y: 0 },
       direction: "east",
-      presentation: { visibility: "visible", leadLength: 20 },
+      presentation: {
+        visibility: "visible",
+        leadLength: ANALOG_BLOCK_LEAD_LENGTH,
+      },
     },
   ],
   primitives: [
-    line(geometry.inputMinus),
-    line(geometry.inputPlus),
-    line(geometry.output),
+    line({
+      ...geometry.inputMinus,
+      from: { ...geometry.inputMinus.from, x: OPAMP_INPUT_PIN_X },
+    }),
+    line({
+      ...geometry.inputPlus,
+      from: { ...geometry.inputPlus.from, x: OPAMP_INPUT_PIN_X },
+    }),
+    line({
+      ...geometry.output,
+      to: { ...geometry.output.to, x: OPAMP_OUTPUT_PIN_X },
+    }),
     {
       kind: "path",
       data: geometry.trianglePathData,
@@ -303,23 +324,20 @@ const acrossAxis = (primitive) => ({
   from: { ...primitive.from, y: -primitive.from.y },
   to: { ...primitive.to, y: -primitive.to.y },
 });
-/** Keep the user-facing FD Amp leads compact on the connection grid. */
-const FD_AMP_LEAD_SCALE = 0.5;
 const CONNECTION_GRID = 10;
-const snapToConnectionGrid = (value) =>
-  Math.round(value / CONNECTION_GRID) * CONNECTION_GRID;
-const halfwayAlongLead = (contact, pin) => ({
+const pinOnGridOutsideBody = (contact, pin, direction) => ({
   ...pin,
   at: {
-    x: snapToConnectionGrid(
-      contact.x + (pin.at.x - contact.x) * FD_AMP_LEAD_SCALE,
-    ),
+    x:
+      (direction === "west" ? Math.floor : Math.ceil)(
+        contact.x / CONNECTION_GRID,
+      ) * CONNECTION_GRID,
     y: contact.y,
   },
-});
-const fullInputLeadPin = (contact, pin) => ({
-  ...pin,
-  at: { x: pin.at.x, y: contact.y },
+  presentation: {
+    ...pin.presentation,
+    leadLength: ANALOG_BLOCK_LEAD_LENGTH,
+  },
 });
 const TRIANGLE_STROKE_WIDTH = 2.4;
 const TRIANGLE_HALF_STROKE = TRIANGLE_STROKE_WIDTH / 2;
@@ -398,28 +416,38 @@ const sourceOutputMarks = [
   ),
 ];
 const differentialSymbol = (id, name, plusOutputAtBottom) => {
-  const topInput = fullInputLeadPin(
+  const topInput = pinOnGridOutsideBody(
     inputLeadContact(-OUTPUT_PAIR_OFFSET),
     symbol.pins[1],
+    "west",
   );
-  const bottomInput = fullInputLeadPin(
+  const bottomInput = pinOnGridOutsideBody(
     inputLeadContact(OUTPUT_PAIR_OFFSET),
     symbol.pins[0],
+    "west",
   );
-  const topOutput = halfwayAlongLead(outputLeadContact(-OUTPUT_PAIR_OFFSET), {
-    name: "OUT-",
-    role: "output",
-    at: { x: geometry.output.to.x, y: -OUTPUT_PAIR_OFFSET },
-    direction: "east",
-    presentation: { visibility: "visible", leadLength: 20 },
-  });
-  const bottomOutput = halfwayAlongLead(outputLeadContact(OUTPUT_PAIR_OFFSET), {
-    name: "OUT+",
-    role: "output",
-    at: { x: geometry.output.to.x, y: OUTPUT_PAIR_OFFSET },
-    direction: "east",
-    presentation: { visibility: "visible", leadLength: 20 },
-  });
+  const topOutput = pinOnGridOutsideBody(
+    outputLeadContact(-OUTPUT_PAIR_OFFSET),
+    {
+      name: "OUT-",
+      role: "output",
+      at: { x: geometry.output.to.x, y: -OUTPUT_PAIR_OFFSET },
+      direction: "east",
+      presentation: { visibility: "visible", leadLength: 20 },
+    },
+    "east",
+  );
+  const bottomOutput = pinOnGridOutsideBody(
+    outputLeadContact(OUTPUT_PAIR_OFFSET),
+    {
+      name: "OUT+",
+      role: "output",
+      at: { x: geometry.output.to.x, y: OUTPUT_PAIR_OFFSET },
+      direction: "east",
+      presentation: { visibility: "visible", leadLength: 20 },
+    },
+    "east",
+  );
   const outputPins = plusOutputAtBottom
     ? [bottomOutput, topOutput]
     : [
@@ -430,7 +458,7 @@ const differentialSymbol = (id, name, plusOutputAtBottom) => {
     schemaVersion: 1,
     id,
     name,
-    viewBox: symbol.viewBox,
+    viewBox: { x: -44, y: -34, width: 82, height: 68 },
     pins: [bottomInput, topInput, ...outputPins],
     primitives: [
       inputLead(topInput, inputLeadContact(-OUTPUT_PAIR_OFFSET)),

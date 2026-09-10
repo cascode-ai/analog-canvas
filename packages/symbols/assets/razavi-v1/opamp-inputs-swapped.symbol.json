@@ -3,9 +3,9 @@
   "id": "opamp-inputs-swapped",
   "name": "Operational Amplifier (swapped inputs)",
   "viewBox": {
-    "x": -54,
+    "x": -34,
     "y": -28,
-    "width": 98,
+    "width": 68,
     "height": 56
   },
   "pins": [
@@ -13,39 +13,39 @@
       "name": "IN+",
       "role": "non-inverting-input",
       "at": {
-        "x": -50,
+        "x": -30,
         "y": -10
       },
       "direction": "west",
       "presentation": {
         "visibility": "visible",
-        "leadLength": 20
+        "leadLength": 10
       }
     },
     {
       "name": "IN-",
       "role": "inverting-input",
       "at": {
-        "x": -50,
+        "x": -30,
         "y": 10
       },
       "direction": "west",
       "presentation": {
         "visibility": "visible",
-        "leadLength": 20
+        "leadLength": 10
       }
     },
     {
       "name": "OUT",
       "role": "output",
       "at": {
-        "x": 40,
+        "x": 30,
         "y": 0
       },
       "direction": "east",
       "presentation": {
         "visibility": "visible",
-        "leadLength": 20
+        "leadLength": 10
       }
     }
   ],
@@ -53,7 +53,7 @@
     {
       "kind": "line",
       "from": {
-        "x": -50,
+        "x": -30,
         "y": -10
       },
       "to": {
@@ -69,7 +69,7 @@
     {
       "kind": "line",
       "from": {
-        "x": -50,
+        "x": -30,
         "y": 10
       },
       "to": {
@@ -89,7 +89,7 @@
         "y": 0
       },
       "to": {
-        "x": 40,
+        "x": 30,
         "y": 0
       },
       "style": {

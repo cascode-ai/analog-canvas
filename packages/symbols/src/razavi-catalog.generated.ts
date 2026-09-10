@@ -148,7 +148,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Textbook comparator block; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "comparator.symbol.json",
     assetHash:
-      "078862e5572a2d43e6d5ad36b71a68fbc9cd6f62813c3642f0f233c9c7cbe731",
+      "183d61c3af6b3e9e52bcf42dca74f05db737fa73942abb8e1e066121064c501e",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -173,7 +173,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Textbook comparator block; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "comparator-inputs-swapped.symbol.json",
     assetHash:
-      "01f193443072617925cd6dc52dc534f30a66b9fb7c51cc05742136f301db9d70",
+      "36f81058bf7084902ad8deef1bdb3f96a0af272ef08c26fd47eae9e1f7dc5f88",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -204,7 +204,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Unmarked comparator block; SPICE subcircuit pin polarity and supply contracts require an explicit PDK mapping.",
     assetPath: "comparator-unmarked.symbol.json",
     assetHash:
-      "201c9f0739ac58b637e93364bf1f1235432dbed0b3eb864f279634d7e099f80c",
+      "e85c804fabdc0c61a911f4cd0bbedb693d93263f8f896fc405707a870cd15d9b",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -434,7 +434,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Behavioral differential transconductance block; structural netlists need an explicit implementation mapping.",
     assetPath: "differential-transconductance.symbol.json",
     assetHash:
-      "62a15b844cb1a0c61fa3af4b60a404986ab5877d477118fe69fc43cb90905a37",
+      "a788faa770d370b7869fc1a8a4d3fa1a03c5209bd078030971c3cdf0b0ef1a74",
   },
   {
     symbolId: "differential-transconductance-inputs-swapped",
@@ -451,7 +451,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Behavioral differential transconductance block; structural netlists need an explicit implementation mapping.",
     assetPath: "differential-transconductance-inputs-swapped.symbol.json",
     assetHash:
-      "5c9ef3b71215dc9006e7b38efebeeb434cfba2664477b58ea979b4bcfce4b15b",
+      "7aff3a7490b6de7fcf0b95e819c7f06771b719423e97c659e5247ffca27d8251",
     generation: {
       kind: "derived-input-swap",
       sourceSymbolId: "differential-transconductance",
@@ -951,7 +951,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Three-terminal textbook op-amp; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp.symbol.json",
     assetHash:
-      "4d605de29d5ccbc5b1207d1225cc55bb0baa4521f57208b270e4ed1cdf9b56eb",
+      "fb6b8605feb8c296edd6bf43500a02690ec4fb17c849745a67e0290ef95890d6",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -985,7 +985,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Three-terminal textbook op-amp; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-lettered.symbol.json",
     assetHash:
-      "fb1ee16e2a32d575939ff2f05030c15d05c81898907dc4c677b5fe1e89c4fe70",
+      "53a12caba1d472fc036044031ef0faaad92554defe84c2f541539f2b164556ff",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1016,7 +1016,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Three-terminal textbook op-amp; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-lettered-inputs-swapped.symbol.json",
     assetHash:
-      "43226808e78e6eb1a2248b4894101eee2ac97154001041c3fbf38d1c3e1ec6bd",
+      "58c63d290daf3e5d72228dd371a7b36042c67d6f2693210fe2402175d4945411",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1047,7 +1047,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Three-terminal textbook op-amp; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-inputs-swapped.symbol.json",
     assetHash:
-      "84ab7f3458235a9281f269dfefb03d27352827af26c40214179bf364c5a55676",
+      "a81158cd150c72ba3b69a441dd50bc3790d779f18489116ef4d3d5d19919d165",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1078,7 +1078,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Fully differential textbook body; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-differential.symbol.json",
     assetHash:
-      "c9bd18c0b9e70fb69fc65d8a8367ceaab7b8213b0f65db8e06db7c72b2c0a87d",
+      "fa4917dfe1c6f3b183006a104428d38bb05a51872778b00235a37d0386ef84d3",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1113,7 +1113,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Fully differential textbook body; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-differential-lettered.symbol.json",
     assetHash:
-      "1a7be7e6110b196ef2c680e878ebc7ac79c69175aaa030a4441970756994d574",
+      "46495affececc8c90b6be3116f9333d7b1e74f99f1cfd9968e8cfdf9db5f717f",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1145,7 +1145,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Fully differential textbook body; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-differential-lettered-inputs-swapped.symbol.json",
     assetHash:
-      "489d9c15b1cd0cf1d39982c38f4314b9bcc0c3cdc3b0921be7d7315ceb14dd02",
+      "a65767af7c4ea9e755e0f8f71452fb53008f776267c96ca1c0fb1413dc777f5a",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1177,7 +1177,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Fully differential textbook body; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-differential-inputs-swapped.symbol.json",
     assetHash:
-      "8875987d3073511fd80e1a09c8bdd52dfb2ac461c98f6d95ab0daa21955b6b8d",
+      "6d362069c9874d18f371cfae6d2ba6c435321cfa90fe8c03fd8636afae9e4dbc",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1209,7 +1209,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Output-polarity sibling of opamp-differential; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-differential-crossed.symbol.json",
     assetHash:
-      "3792399ef9044eb6a6ce77126b1c911b07b6ff94d86603afc49fdf23454d81ab",
+      "2ac3fc5c11fb99903170eff3eb41b240fad47fa1d8e59b2f0ac00865d73f45de",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1244,7 +1244,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Output-polarity sibling of opamp-differential; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-differential-crossed-lettered.symbol.json",
     assetHash:
-      "7761a62e4622b70a2022f1410365054e777c94adad9e9026ad7e705e41a87166",
+      "9ec07bdefa2cd349a613b59dedab23cb31bf3edec1102ee44fcca1596edf3f32",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1276,7 +1276,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Output-polarity sibling of opamp-differential; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-differential-crossed-lettered-inputs-swapped.symbol.json",
     assetHash:
-      "d2f7069dc052fc7bc3a3b31c76dd3e9969823abb0d2224b681c7c54d2e4f22c6",
+      "541b9b86827927457028ec04dba83ae50af40eebaa2ffde5d135329c2f8d9aca",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1308,7 +1308,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Output-polarity sibling of opamp-differential; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-differential-crossed-inputs-swapped.symbol.json",
     assetHash:
-      "4cf4c0894d170c87e34d078c58cc0b27fd72ab641bf4debea3f517e46b235e73",
+      "771c4ca11370b343eb9bccba2d06623df26e90bf9ad0297d19cd6148f20f08e1",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1641,7 +1641,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Textbook gain block has implicit reference nodes and no exact primitive SPICE terminal contract.",
     assetPath: "voltage-amplifier.symbol.json",
     assetHash:
-      "538411b2fc3df120f910c47c92502b1b4bdefef52f1296170167180c61109816",
+      "54a484ad99c36ef67f6774551d96d212fb17855570e545b457ea3b102da6d385",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1675,7 +1675,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Textbook gain block has implicit reference nodes and no exact primitive SPICE terminal contract.",
     assetPath: "voltage-amplifier-lettered.symbol.json",
     assetHash:
-      "b243d887263879131fc7c6eefefc8d5f1ecadeb3f11b51541ec7aa133b0e0db9",
+      "5d07c56e7df42bf779cf172ba471477333ee042d70db4f9e86a4ebf5684fe173",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -2369,9 +2369,9 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
     id: "comparator",
     name: "Comparator",
     viewBox: {
-      x: -54,
+      x: -34,
       y: -28,
-      width: 98,
+      width: 68,
       height: 56,
     },
     pins: [
@@ -2379,39 +2379,39 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         name: "IN+",
         role: "non-inverting-input",
         at: {
-          x: -50,
+          x: -30,
           y: 10,
         },
         direction: "west",
         presentation: {
           visibility: "visible",
-          leadLength: 20,
+          leadLength: 10,
         },
       },
       {
         name: "IN-",
         role: "inverting-input",
         at: {
-          x: -50,
+          x: -30,
           y: -10,
         },
         direction: "west",
         presentation: {
           visibility: "visible",
-          leadLength: 20,
+          leadLength: 10,
         },
       },
       {
         name: "OUT",
         role: "output",
         at: {
-          x: 40,
+          x: 30,
           y: 0,
         },
         direction: "east",
         presentation: {
           visibility: "visible",
-          leadLength: 20,
+          leadLength: 10,
         },
       },
     ],
@@ -2419,7 +2419,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -50,
+          x: -30,
           y: -10,
         },
         to: {
@@ -2435,7 +2435,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -50,
+          x: -30,
           y: 10,
         },
         to: {
@@ -2455,7 +2455,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: 0,
         },
         to: {
-          x: 40,
+          x: 30,
           y: 0,
         },
         style: {
@@ -2541,9 +2541,9 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
     id: "comparator-inputs-swapped",
     name: "Comparator (swapped inputs)",
     viewBox: {
-      x: -54,
+      x: -34,
       y: -28,
-      width: 98,
+      width: 68,
       height: 56,
     },
     pins: [
@@ -2551,39 +2551,39 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         name: "IN+",
         role: "non-inverting-input",
         at: {
-          x: -50,
+          x: -30,
           y: -10,
         },
         direction: "west",
         presentation: {
           visibility: "visible",
-          leadLength: 20,
+          leadLength: 10,
         },
       },
       {
         name: "IN-",
         role: "inverting-input",
         at: {
-          x: -50,
+          x: -30,
           y: 10,
         },
         direction: "west",
         presentation: {
           visibility: "visible",
-          leadLength: 20,
+          leadLength: 10,
         },
       },
       {
         name: "OUT",
         role: "output",
         at: {
-          x: 40,
+          x: 30,
           y: 0,
         },
         direction: "east",
         presentation: {
           visibility: "visible",
-          leadLength: 20,
+          leadLength: 10,
         },
       },
     ],
@@ -2591,7 +2591,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -50,
+          x: -30,
           y: -10,
         },
         to: {
@@ -2607,7 +2607,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -50,
+          x: -30,
           y: 10,
         },
         to: {
@@ -2627,7 +2627,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: 0,
         },
         to: {
-          x: 40,
+          x: 30,
           y: 0,
         },
         style: {
@@ -2713,9 +2713,9 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
     id: "comparator-unmarked",
     name: "Comparator (unmarked)",
     viewBox: {
-      x: -54,
+      x: -34,
       y: -28,
-      width: 98,
+      width: 68,
       height: 56,
     },
     pins: [
@@ -2723,39 +2723,39 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         name: "IN+",
         role: "non-inverting-input",
         at: {
-          x: -50,
+          x: -30,
           y: 10,
         },
         direction: "west",
         presentation: {
           visibility: "visible",
-          leadLength: 20,
+          leadLength: 10,
         },
       },
       {
         name: "IN-",
         role: "inverting-input",
         at: {
-          x: -50,
+          x: -30,
           y: -10,
         },
         direction: "west",
         presentation: {
           visibility: "visible",
-          leadLength: 20,
+          leadLength: 10,
         },
       },
       {
         name: "OUT",
         role: "output",
         at: {
-          x: 40,
+          x: 30,
           y: 0,
         },
         direction: "east",
         presentation: {
           visibility: "visible",
-          leadLength: 20,
+          leadLength: 10,
         },
       },
     ],
@@ -2763,7 +2763,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -50,
+          x: -30,
           y: -10,
         },
         to: {
@@ -2779,7 +2779,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -50,
+          x: -30,
           y: 10,
         },
         to: {
@@ -2799,7 +2799,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: 0,
         },
         to: {
-          x: 40,
+          x: 30,
           y: 0,
         },
         style: {
@@ -3842,9 +3842,9 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
     id: "differential-transconductance",
     name: "Differential Transconductance (gₘ)",
     viewBox: {
-      x: -44,
+      x: -34,
       y: -39,
-      width: 88,
+      width: 68,
       height: 78,
     },
     pins: [
@@ -3852,39 +3852,39 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         name: "IN+",
         role: "non-inverting-input",
         at: {
-          x: -40,
-          y: 20,
+          x: -30,
+          y: 10,
         },
         direction: "west",
         presentation: {
           visibility: "visible",
-          leadLength: 20,
+          leadLength: 10,
         },
       },
       {
         name: "IN-",
         role: "inverting-input",
         at: {
-          x: -40,
-          y: -20,
+          x: -30,
+          y: -10,
         },
         direction: "west",
         presentation: {
           visibility: "visible",
-          leadLength: 20,
+          leadLength: 10,
         },
       },
       {
         name: "OUT",
         role: "output",
         at: {
-          x: 40,
+          x: 30,
           y: 0,
         },
         direction: "east",
         presentation: {
           visibility: "visible",
-          leadLength: 20,
+          leadLength: 10,
         },
       },
     ],
@@ -3893,12 +3893,12 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "line",
         part: "input-positive-lead",
         from: {
-          x: -40,
-          y: 20,
+          x: -30,
+          y: 10,
         },
         to: {
           x: -20,
-          y: 20,
+          y: 10,
         },
         style: {
           strokeRole: "normal",
@@ -3910,12 +3910,12 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "line",
         part: "input-negative-lead",
         from: {
-          x: -40,
-          y: -20,
+          x: -30,
+          y: -10,
         },
         to: {
           x: -20,
-          y: -20,
+          y: -10,
         },
         style: {
           strokeRole: "normal",
@@ -3938,12 +3938,12 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "line",
         part: "input-polarity",
         from: {
-          x: -17,
-          y: 20,
+          x: -13,
+          y: 10,
         },
         to: {
-          x: -11,
-          y: 20,
+          x: -7,
+          y: 10,
         },
         style: {
           strokeRole: "normal",
@@ -3955,12 +3955,12 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "line",
         part: "input-polarity",
         from: {
-          x: -14,
-          y: 17,
+          x: -10,
+          y: 7,
         },
         to: {
-          x: -14,
-          y: 23,
+          x: -10,
+          y: 13,
         },
         style: {
           strokeRole: "normal",
@@ -3972,12 +3972,12 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "line",
         part: "upright-input-polarity-negative",
         from: {
-          x: -17,
-          y: -20,
+          x: -13,
+          y: -10,
         },
         to: {
-          x: -11,
-          y: -20,
+          x: -7,
+          y: -10,
         },
         style: {
           strokeRole: "normal",
@@ -3993,7 +3993,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: 0,
         },
         to: {
-          x: 40,
+          x: 30,
           y: 0,
         },
         style: {
@@ -4020,9 +4020,9 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
     id: "differential-transconductance-inputs-swapped",
     name: "Differential Transconductance (gₘ) (swapped inputs)",
     viewBox: {
-      x: -44,
+      x: -34,
       y: -39,
-      width: 88,
+      width: 68,
       height: 78,
     },
     pins: [
@@ -4030,39 +4030,39 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         name: "IN+",
         role: "non-inverting-input",
         at: {
-          x: -40,
-          y: -20,
+          x: -30,
+          y: -10,
         },
         direction: "west",
         presentation: {
           visibility: "visible",
-          leadLength: 20,
+          leadLength: 10,
         },
       },
       {
         name: "IN-",
         role: "inverting-input",
         at: {
-          x: -40,
-          y: 20,
+          x: -30,
+          y: 10,
         },
         direction: "west",
         presentation: {
           visibility: "visible",
-          leadLength: 20,
+          leadLength: 10,
         },
       },
       {
         name: "OUT",
         role: "output",
         at: {
-          x: 40,
+          x: 30,
           y: 0,
         },
         direction: "east",
         presentation: {
           visibility: "visible",
-          leadLength: 20,
+          leadLength: 10,
         },
       },
     ],
@@ -4071,12 +4071,12 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "line",
         part: "input-positive-lead",
         from: {
-          x: -40,
-          y: 20,
+          x: -30,
+          y: 10,
         },
         to: {
           x: -20,
-          y: 20,
+          y: 10,
         },
         style: {
           strokeRole: "normal",
@@ -4088,12 +4088,12 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "line",
         part: "input-negative-lead",
         from: {
-          x: -40,
-          y: -20,
+          x: -30,
+          y: -10,
         },
         to: {
           x: -20,
-          y: -20,
+          y: -10,
         },
         style: {
           strokeRole: "normal",
@@ -4116,12 +4116,12 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "line",
         part: "input-polarity",
         from: {
-          x: -17,
-          y: -20,
+          x: -13,
+          y: -10,
         },
         to: {
-          x: -11,
-          y: -20,
+          x: -7,
+          y: -10,
         },
         style: {
           strokeRole: "normal",
@@ -4133,12 +4133,12 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "line",
         part: "input-polarity",
         from: {
-          x: -14,
-          y: -17,
+          x: -10,
+          y: -7,
         },
         to: {
-          x: -14,
-          y: -23,
+          x: -10,
+          y: -13,
         },
         style: {
           strokeRole: "normal",
@@ -4150,12 +4150,12 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "line",
         part: "upright-input-polarity-negative",
         from: {
-          x: -17,
-          y: 20,
+          x: -13,
+          y: 10,
         },
         to: {
-          x: -11,
-          y: 20,
+          x: -7,
+          y: 10,
         },
         style: {
           strokeRole: "normal",
@@ -4171,7 +4171,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: 0,
         },
         to: {
-          x: 40,
+          x: 30,
           y: 0,
         },
         style: {
@@ -6392,9 +6392,9 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
     id: "opamp",
     name: "Operational Amplifier",
     viewBox: {
-      x: -54,
+      x: -34,
       y: -28,
-      width: 98,
+      width: 68,
       height: 56,
     },
     pins: [
@@ -6402,39 +6402,39 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         name: "IN+",
         role: "non-inverting-input",
         at: {
-          x: -50,
+          x: -30,
           y: 10,
         },
         direction: "west",
         presentation: {
           visibility: "visible",
-          leadLength: 20,
+          leadLength: 10,
         },
       },
       {
         name: "IN-",
         role: "inverting-input",
         at: {
-          x: -50,
+          x: -30,
           y: -10,
         },
         direction: "west",
         presentation: {
           visibility: "visible",
-          leadLength: 20,
+          leadLength: 10,
         },
       },
       {
         name: "OUT",
         role: "output",
         at: {
-          x: 40,
+          x: 30,
           y: 0,
         },
         direction: "east",
         presentation: {
           visibility: "visible",
-          leadLength: 20,
+          leadLength: 10,
         },
       },
     ],
@@ -6442,7 +6442,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -50,
+          x: -30,
           y: -10,
         },
         to: {
@@ -6458,7 +6458,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -50,
+          x: -30,
           y: 10,
         },
         to: {
@@ -6478,7 +6478,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: 0,
         },
         to: {
-          x: 40,
+          x: 30,
           y: 0,
         },
         style: {
@@ -6554,9 +6554,9 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
     id: "opamp-lettered",
     name: "Operational Amplifier (lettered)",
     viewBox: {
-      x: -54,
+      x: -34,
       y: -28,
-      width: 98,
+      width: 68,
       height: 56,
     },
     pins: [
@@ -6564,39 +6564,39 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         name: "IN+",
         role: "non-inverting-input",
         at: {
-          x: -50,
+          x: -30,
           y: 10,
         },
         direction: "west",
         presentation: {
           visibility: "visible",
-          leadLength: 20,
+          leadLength: 10,
         },
       },
       {
         name: "IN-",
         role: "inverting-input",
         at: {
-          x: -50,
+          x: -30,
           y: -10,
         },
         direction: "west",
         presentation: {
           visibility: "visible",
-          leadLength: 20,
+          leadLength: 10,
         },
       },
       {
         name: "OUT",
         role: "output",
         at: {
-          x: 40,
+          x: 30,
           y: 0,
         },
         direction: "east",
         presentation: {
           visibility: "visible",
-          leadLength: 20,
+          leadLength: 10,
         },
       },
     ],
@@ -6604,7 +6604,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -50,
+          x: -30,
           y: -10,
         },
         to: {
@@ -6620,7 +6620,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -50,
+          x: -30,
           y: 10,
         },
         to: {
@@ -6640,7 +6640,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: 0,
         },
         to: {
-          x: 40,
+          x: 30,
           y: 0,
         },
         style: {
@@ -6725,9 +6725,9 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
     id: "opamp-lettered-inputs-swapped",
     name: "Operational Amplifier (lettered) (swapped inputs)",
     viewBox: {
-      x: -54,
+      x: -34,
       y: -28,
-      width: 98,
+      width: 68,
       height: 56,
     },
     pins: [
@@ -6735,39 +6735,39 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         name: "IN+",
         role: "non-inverting-input",
         at: {
-          x: -50,
+          x: -30,
           y: -10,
         },
         direction: "west",
         presentation: {
           visibility: "visible",
-          leadLength: 20,
+          leadLength: 10,
         },
       },
       {
         name: "IN-",
         role: "inverting-input",
         at: {
-          x: -50,
+          x: -30,
           y: 10,
         },
         direction: "west",
         presentation: {
           visibility: "visible",
-          leadLength: 20,
+          leadLength: 10,
         },
       },
       {
         name: "OUT",
         role: "output",
         at: {
-          x: 40,
+          x: 30,
           y: 0,
         },
         direction: "east",
         presentation: {
           visibility: "visible",
-          leadLength: 20,
+          leadLength: 10,
         },
       },
     ],
@@ -6775,7 +6775,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -50,
+          x: -30,
           y: -10,
         },
         to: {
@@ -6791,7 +6791,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -50,
+          x: -30,
           y: 10,
         },
         to: {
@@ -6811,7 +6811,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: 0,
         },
         to: {
-          x: 40,
+          x: 30,
           y: 0,
         },
         style: {
@@ -6896,9 +6896,9 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
     id: "opamp-inputs-swapped",
     name: "Operational Amplifier (swapped inputs)",
     viewBox: {
-      x: -54,
+      x: -34,
       y: -28,
-      width: 98,
+      width: 68,
       height: 56,
     },
     pins: [
@@ -6906,39 +6906,39 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         name: "IN+",
         role: "non-inverting-input",
         at: {
-          x: -50,
+          x: -30,
           y: -10,
         },
         direction: "west",
         presentation: {
           visibility: "visible",
-          leadLength: 20,
+          leadLength: 10,
         },
       },
       {
         name: "IN-",
         role: "inverting-input",
         at: {
-          x: -50,
+          x: -30,
           y: 10,
         },
         direction: "west",
         presentation: {
           visibility: "visible",
-          leadLength: 20,
+          leadLength: 10,
         },
       },
       {
         name: "OUT",
         role: "output",
         at: {
-          x: 40,
+          x: 30,
           y: 0,
         },
         direction: "east",
         presentation: {
           visibility: "visible",
-          leadLength: 20,
+          leadLength: 10,
         },
       },
     ],
@@ -6946,7 +6946,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -50,
+          x: -30,
           y: -10,
         },
         to: {
@@ -6962,7 +6962,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -50,
+          x: -30,
           y: 10,
         },
         to: {
@@ -6982,7 +6982,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: 0,
         },
         to: {
-          x: 40,
+          x: 30,
           y: 0,
         },
         style: {
@@ -7058,62 +7058,62 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
     id: "opamp-differential",
     name: "Differential Op Amp",
     viewBox: {
-      x: -54,
-      y: -28,
-      width: 98,
-      height: 56,
+      x: -44,
+      y: -34,
+      width: 82,
+      height: 68,
     },
     pins: [
       {
         name: "IN+",
         role: "non-inverting-input",
         at: {
-          x: -50,
+          x: -40,
           y: 20,
         },
         direction: "west",
         presentation: {
           visibility: "visible",
-          leadLength: 20,
+          leadLength: 10,
         },
       },
       {
         name: "IN-",
         role: "inverting-input",
         at: {
-          x: -50,
+          x: -40,
           y: -20,
         },
         direction: "west",
         presentation: {
           visibility: "visible",
-          leadLength: 20,
+          leadLength: 10,
         },
       },
       {
         name: "OUT+",
         role: "output",
         at: {
-          x: 10,
+          x: -10,
           y: 20,
         },
         direction: "east",
         presentation: {
           visibility: "visible",
-          leadLength: 20,
+          leadLength: 10,
         },
       },
       {
         name: "OUT-",
         role: "output",
         at: {
-          x: 10,
+          x: -10,
           y: -20,
         },
         direction: "east",
         presentation: {
           visibility: "visible",
-          leadLength: 20,
+          leadLength: 10,
         },
       },
     ],
@@ -7122,7 +7122,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "line",
         part: "input-lead",
         from: {
-          x: -50,
+          x: -40,
           y: -20,
         },
         to: {
@@ -7139,7 +7139,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "line",
         part: "input-lead",
         from: {
-          x: -50,
+          x: -40,
           y: 20,
         },
         to: {
@@ -7160,7 +7160,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: -20,
         },
         to: {
-          x: 10,
+          x: -10,
           y: -20,
         },
         style: {
@@ -7177,7 +7177,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: 20,
         },
         to: {
-          x: 10,
+          x: -10,
           y: 20,
         },
         style: {
@@ -7306,62 +7306,62 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
     id: "opamp-differential-lettered",
     name: "Differential Op Amp (lettered)",
     viewBox: {
-      x: -54,
-      y: -28,
-      width: 98,
-      height: 56,
+      x: -44,
+      y: -34,
+      width: 82,
+      height: 68,
     },
     pins: [
       {
         name: "IN+",
         role: "non-inverting-input",
         at: {
-          x: -50,
+          x: -40,
           y: 20,
         },
         direction: "west",
         presentation: {
           visibility: "visible",
-          leadLength: 20,
+          leadLength: 10,
         },
       },
       {
         name: "IN-",
         role: "inverting-input",
         at: {
-          x: -50,
+          x: -40,
           y: -20,
         },
         direction: "west",
         presentation: {
           visibility: "visible",
-          leadLength: 20,
+          leadLength: 10,
         },
       },
       {
         name: "OUT+",
         role: "output",
         at: {
-          x: 10,
+          x: -10,
           y: 20,
         },
         direction: "east",
         presentation: {
           visibility: "visible",
-          leadLength: 20,
+          leadLength: 10,
         },
       },
       {
         name: "OUT-",
         role: "output",
         at: {
-          x: 10,
+          x: -10,
           y: -20,
         },
         direction: "east",
         presentation: {
           visibility: "visible",
-          leadLength: 20,
+          leadLength: 10,
         },
       },
     ],
@@ -7370,7 +7370,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "line",
         part: "input-lead",
         from: {
-          x: -50,
+          x: -40,
           y: -20,
         },
         to: {
@@ -7387,7 +7387,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "line",
         part: "input-lead",
         from: {
-          x: -50,
+          x: -40,
           y: 20,
         },
         to: {
@@ -7408,7 +7408,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: -20,
         },
         to: {
-          x: 10,
+          x: -10,
           y: -20,
         },
         style: {
@@ -7425,7 +7425,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: 20,
         },
         to: {
-          x: 10,
+          x: -10,
           y: 20,
         },
         style: {
@@ -7563,62 +7563,62 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
     id: "opamp-differential-lettered-inputs-swapped",
     name: "Differential Op Amp (lettered) (swapped inputs)",
     viewBox: {
-      x: -54,
-      y: -28,
-      width: 98,
-      height: 56,
+      x: -44,
+      y: -34,
+      width: 82,
+      height: 68,
     },
     pins: [
       {
         name: "IN+",
         role: "non-inverting-input",
         at: {
-          x: -50,
+          x: -40,
           y: -20,
         },
         direction: "west",
         presentation: {
           visibility: "visible",
-          leadLength: 20,
+          leadLength: 10,
         },
       },
       {
         name: "IN-",
         role: "inverting-input",
         at: {
-          x: -50,
+          x: -40,
           y: 20,
         },
         direction: "west",
         presentation: {
           visibility: "visible",
-          leadLength: 20,
+          leadLength: 10,
         },
       },
       {
         name: "OUT+",
         role: "output",
         at: {
-          x: 10,
+          x: -10,
           y: 20,
         },
         direction: "east",
         presentation: {
           visibility: "visible",
-          leadLength: 20,
+          leadLength: 10,
         },
       },
       {
         name: "OUT-",
         role: "output",
         at: {
-          x: 10,
+          x: -10,
           y: -20,
         },
         direction: "east",
         presentation: {
           visibility: "visible",
-          leadLength: 20,
+          leadLength: 10,
         },
       },
     ],
@@ -7627,7 +7627,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "line",
         part: "input-lead",
         from: {
-          x: -50,
+          x: -40,
           y: -20,
         },
         to: {
@@ -7644,7 +7644,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "line",
         part: "input-lead",
         from: {
-          x: -50,
+          x: -40,
           y: 20,
         },
         to: {
@@ -7665,7 +7665,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: -20,
         },
         to: {
-          x: 10,
+          x: -10,
           y: -20,
         },
         style: {
@@ -7682,7 +7682,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: 20,
         },
         to: {
-          x: 10,
+          x: -10,
           y: 20,
         },
         style: {
@@ -7820,62 +7820,62 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
     id: "opamp-differential-inputs-swapped",
     name: "Differential Op Amp (swapped inputs)",
     viewBox: {
-      x: -54,
-      y: -28,
-      width: 98,
-      height: 56,
+      x: -44,
+      y: -34,
+      width: 82,
+      height: 68,
     },
     pins: [
       {
         name: "IN+",
         role: "non-inverting-input",
         at: {
-          x: -50,
+          x: -40,
           y: -20,
         },
         direction: "west",
         presentation: {
           visibility: "visible",
-          leadLength: 20,
+          leadLength: 10,
         },
       },
       {
         name: "IN-",
         role: "inverting-input",
         at: {
-          x: -50,
+          x: -40,
           y: 20,
         },
         direction: "west",
         presentation: {
           visibility: "visible",
-          leadLength: 20,
+          leadLength: 10,
         },
       },
       {
         name: "OUT+",
         role: "output",
         at: {
-          x: 10,
+          x: -10,
           y: 20,
         },
         direction: "east",
         presentation: {
           visibility: "visible",
-          leadLength: 20,
+          leadLength: 10,
         },
       },
       {
         name: "OUT-",
         role: "output",
         at: {
-          x: 10,
+          x: -10,
           y: -20,
         },
         direction: "east",
         presentation: {
           visibility: "visible",
-          leadLength: 20,
+          leadLength: 10,
         },
       },
     ],
@@ -7884,7 +7884,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "line",
         part: "input-lead",
         from: {
-          x: -50,
+          x: -40,
           y: -20,
         },
         to: {
@@ -7901,7 +7901,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "line",
         part: "input-lead",
         from: {
-          x: -50,
+          x: -40,
           y: 20,
         },
         to: {
@@ -7922,7 +7922,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: -20,
         },
         to: {
-          x: 10,
+          x: -10,
           y: -20,
         },
         style: {
@@ -7939,7 +7939,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: 20,
         },
         to: {
-          x: 10,
+          x: -10,
           y: 20,
         },
         style: {
@@ -8068,62 +8068,62 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
     id: "opamp-differential-crossed",
     name: "Differential Op Amp (crossed outputs)",
     viewBox: {
-      x: -54,
-      y: -28,
-      width: 98,
-      height: 56,
+      x: -44,
+      y: -34,
+      width: 82,
+      height: 68,
     },
     pins: [
       {
         name: "IN+",
         role: "non-inverting-input",
         at: {
-          x: -50,
+          x: -40,
           y: 20,
         },
         direction: "west",
         presentation: {
           visibility: "visible",
-          leadLength: 20,
+          leadLength: 10,
         },
       },
       {
         name: "IN-",
         role: "inverting-input",
         at: {
-          x: -50,
+          x: -40,
           y: -20,
         },
         direction: "west",
         presentation: {
           visibility: "visible",
-          leadLength: 20,
+          leadLength: 10,
         },
       },
       {
         name: "OUT+",
         role: "output",
         at: {
-          x: 10,
+          x: -10,
           y: -20,
         },
         direction: "east",
         presentation: {
           visibility: "visible",
-          leadLength: 20,
+          leadLength: 10,
         },
       },
       {
         name: "OUT-",
         role: "output",
         at: {
-          x: 10,
+          x: -10,
           y: 20,
         },
         direction: "east",
         presentation: {
           visibility: "visible",
-          leadLength: 20,
+          leadLength: 10,
         },
       },
     ],
@@ -8132,7 +8132,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "line",
         part: "input-lead",
         from: {
-          x: -50,
+          x: -40,
           y: -20,
         },
         to: {
@@ -8149,7 +8149,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "line",
         part: "input-lead",
         from: {
-          x: -50,
+          x: -40,
           y: 20,
         },
         to: {
@@ -8170,7 +8170,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: -20,
         },
         to: {
-          x: 10,
+          x: -10,
           y: -20,
         },
         style: {
@@ -8187,7 +8187,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: 20,
         },
         to: {
-          x: 10,
+          x: -10,
           y: 20,
         },
         style: {
@@ -8316,62 +8316,62 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
     id: "opamp-differential-crossed-lettered",
     name: "Differential Op Amp (crossed outputs, lettered)",
     viewBox: {
-      x: -54,
-      y: -28,
-      width: 98,
-      height: 56,
+      x: -44,
+      y: -34,
+      width: 82,
+      height: 68,
     },
     pins: [
       {
         name: "IN+",
         role: "non-inverting-input",
         at: {
-          x: -50,
+          x: -40,
           y: 20,
         },
         direction: "west",
         presentation: {
           visibility: "visible",
-          leadLength: 20,
+          leadLength: 10,
         },
       },
       {
         name: "IN-",
         role: "inverting-input",
         at: {
-          x: -50,
+          x: -40,
           y: -20,
         },
         direction: "west",
         presentation: {
           visibility: "visible",
-          leadLength: 20,
+          leadLength: 10,
         },
       },
       {
         name: "OUT+",
         role: "output",
         at: {
-          x: 10,
+          x: -10,
           y: -20,
         },
         direction: "east",
         presentation: {
           visibility: "visible",
-          leadLength: 20,
+          leadLength: 10,
         },
       },
       {
         name: "OUT-",
         role: "output",
         at: {
-          x: 10,
+          x: -10,
           y: 20,
         },
         direction: "east",
         presentation: {
           visibility: "visible",
-          leadLength: 20,
+          leadLength: 10,
         },
       },
     ],
@@ -8380,7 +8380,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "line",
         part: "input-lead",
         from: {
-          x: -50,
+          x: -40,
           y: -20,
         },
         to: {
@@ -8397,7 +8397,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "line",
         part: "input-lead",
         from: {
-          x: -50,
+          x: -40,
           y: 20,
         },
         to: {
@@ -8418,7 +8418,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: -20,
         },
         to: {
-          x: 10,
+          x: -10,
           y: -20,
         },
         style: {
@@ -8435,7 +8435,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: 20,
         },
         to: {
-          x: 10,
+          x: -10,
           y: 20,
         },
         style: {
@@ -8573,62 +8573,62 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
     id: "opamp-differential-crossed-lettered-inputs-swapped",
     name: "Differential Op Amp (crossed outputs, lettered) (swapped inputs)",
     viewBox: {
-      x: -54,
-      y: -28,
-      width: 98,
-      height: 56,
+      x: -44,
+      y: -34,
+      width: 82,
+      height: 68,
     },
     pins: [
       {
         name: "IN+",
         role: "non-inverting-input",
         at: {
-          x: -50,
+          x: -40,
           y: -20,
         },
         direction: "west",
         presentation: {
           visibility: "visible",
-          leadLength: 20,
+          leadLength: 10,
         },
       },
       {
         name: "IN-",
         role: "inverting-input",
         at: {
-          x: -50,
+          x: -40,
           y: 20,
         },
         direction: "west",
         presentation: {
           visibility: "visible",
-          leadLength: 20,
+          leadLength: 10,
         },
       },
       {
         name: "OUT+",
         role: "output",
         at: {
-          x: 10,
+          x: -10,
           y: -20,
         },
         direction: "east",
         presentation: {
           visibility: "visible",
-          leadLength: 20,
+          leadLength: 10,
         },
       },
       {
         name: "OUT-",
         role: "output",
         at: {
-          x: 10,
+          x: -10,
           y: 20,
         },
         direction: "east",
         presentation: {
           visibility: "visible",
-          leadLength: 20,
+          leadLength: 10,
         },
       },
     ],
@@ -8637,7 +8637,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "line",
         part: "input-lead",
         from: {
-          x: -50,
+          x: -40,
           y: -20,
         },
         to: {
@@ -8654,7 +8654,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "line",
         part: "input-lead",
         from: {
-          x: -50,
+          x: -40,
           y: 20,
         },
         to: {
@@ -8675,7 +8675,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: -20,
         },
         to: {
-          x: 10,
+          x: -10,
           y: -20,
         },
         style: {
@@ -8692,7 +8692,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: 20,
         },
         to: {
-          x: 10,
+          x: -10,
           y: 20,
         },
         style: {
@@ -8830,62 +8830,62 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
     id: "opamp-differential-crossed-inputs-swapped",
     name: "Differential Op Amp (crossed outputs) (swapped inputs)",
     viewBox: {
-      x: -54,
-      y: -28,
-      width: 98,
-      height: 56,
+      x: -44,
+      y: -34,
+      width: 82,
+      height: 68,
     },
     pins: [
       {
         name: "IN+",
         role: "non-inverting-input",
         at: {
-          x: -50,
+          x: -40,
           y: -20,
         },
         direction: "west",
         presentation: {
           visibility: "visible",
-          leadLength: 20,
+          leadLength: 10,
         },
       },
       {
         name: "IN-",
         role: "inverting-input",
         at: {
-          x: -50,
+          x: -40,
           y: 20,
         },
         direction: "west",
         presentation: {
           visibility: "visible",
-          leadLength: 20,
+          leadLength: 10,
         },
       },
       {
         name: "OUT+",
         role: "output",
         at: {
-          x: 10,
+          x: -10,
           y: -20,
         },
         direction: "east",
         presentation: {
           visibility: "visible",
-          leadLength: 20,
+          leadLength: 10,
         },
       },
       {
         name: "OUT-",
         role: "output",
         at: {
-          x: 10,
+          x: -10,
           y: 20,
         },
         direction: "east",
         presentation: {
           visibility: "visible",
-          leadLength: 20,
+          leadLength: 10,
         },
       },
     ],
@@ -8894,7 +8894,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "line",
         part: "input-lead",
         from: {
-          x: -50,
+          x: -40,
           y: -20,
         },
         to: {
@@ -8911,7 +8911,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "line",
         part: "input-lead",
         from: {
-          x: -50,
+          x: -40,
           y: 20,
         },
         to: {
@@ -8932,7 +8932,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: -20,
         },
         to: {
-          x: 10,
+          x: -10,
           y: -20,
         },
         style: {
@@ -8949,7 +8949,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: 20,
         },
         to: {
-          x: 10,
+          x: -10,
           y: 20,
         },
         style: {
@@ -10564,36 +10564,36 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
     id: "voltage-amplifier",
     name: "Voltage Amplifier",
     viewBox: {
-      x: -44,
-      y: -28,
-      width: 88,
-      height: 56,
+      x: -34,
+      y: -32,
+      width: 68,
+      height: 64,
     },
     pins: [
       {
         name: "IN",
         role: "input",
         at: {
-          x: -40,
+          x: -30,
           y: 0,
         },
         direction: "west",
         presentation: {
           visibility: "visible",
-          leadLength: 20,
+          leadLength: 10,
         },
       },
       {
         name: "OUT",
         role: "output",
         at: {
-          x: 40,
+          x: 30,
           y: 0,
         },
         direction: "east",
         presentation: {
           visibility: "visible",
-          leadLength: 20,
+          leadLength: 10,
         },
       },
     ],
@@ -10601,7 +10601,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -40,
+          x: -30,
           y: 0,
         },
         to: {
@@ -10630,7 +10630,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: 0,
         },
         to: {
-          x: 40,
+          x: 30,
           y: 0,
         },
         style: {
@@ -10647,36 +10647,36 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
     id: "voltage-amplifier-lettered",
     name: "Voltage Amplifier (lettered)",
     viewBox: {
-      x: -44,
-      y: -28,
-      width: 88,
-      height: 56,
+      x: -34,
+      y: -32,
+      width: 68,
+      height: 64,
     },
     pins: [
       {
         name: "IN",
         role: "input",
         at: {
-          x: -40,
+          x: -30,
           y: 0,
         },
         direction: "west",
         presentation: {
           visibility: "visible",
-          leadLength: 20,
+          leadLength: 10,
         },
       },
       {
         name: "OUT",
         role: "output",
         at: {
-          x: 40,
+          x: 30,
           y: 0,
         },
         direction: "east",
         presentation: {
           visibility: "visible",
-          leadLength: 20,
+          leadLength: 10,
         },
       },
     ],
@@ -10684,7 +10684,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -40,
+          x: -30,
           y: 0,
         },
         to: {
@@ -10713,7 +10713,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: 0,
         },
         to: {
-          x: 40,
+          x: 30,
           y: 0,
         },
         style: {
