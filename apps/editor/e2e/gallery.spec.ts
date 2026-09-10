@@ -801,7 +801,7 @@ test("the wall states how many circuits the gallery holds", async ({
   await expect(page.getByTestId("gallery-count-panel")).toHaveCount(0);
 });
 
-test("the wall count opens a contributor ranking and each author gallery", async ({
+test("the wall count opens a contributor ranking whose names open each gallery", async ({
   page,
 }) => {
   const aliceEntries = [
@@ -870,14 +870,11 @@ test("the wall count opens a contributor ranking and each author gallery", async
     "Bob",
   );
 
-  await page
-    .getByTestId("gallery-contributor-row-1")
-    .locator("summary")
-    .click();
   await expect(
-    page.getByTestId("gallery-contributor-circuit-alice-2"),
-  ).toHaveText("Alice OTA");
-  await page.getByTestId("gallery-contributor-view-1").click();
+    page.getByTestId("gallery-contributor-row-1").locator("summary"),
+  ).toHaveCount(0);
+  await expect(page.getByTestId("gallery-contributor-view-1")).toHaveCount(0);
+  await page.getByTestId("gallery-contributor-author-1").click();
 
   await expect(page).toHaveURL(/\?author=Alice$/u);
   await expect(page.getByTestId("gallery-filter")).toContainText(

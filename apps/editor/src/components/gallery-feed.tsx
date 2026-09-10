@@ -44,7 +44,6 @@ import { ShelfWall } from "./shelf-wall";
  * header rather than becoming the page.
  */
 const COLLAPSED_TAG_COUNT = 10;
-const CONTRIBUTOR_PREVIEW_COUNT = 4;
 const OWNER_REJECT_REASONS = [
   "too ugly",
   "circuit incorrect",
@@ -270,73 +269,24 @@ function GalleryContributorRow({
   rank: number;
   onSelectAuthor: (author: string) => void;
 }) {
-  const [preview, setPreview] = useState<{
-    status: "idle" | "loading" | "ready" | "unavailable";
-    entries: GalleryFeedEntry[];
-  }>({ status: "idle", entries: [] });
-  const requestGenerationRef = useRef(0);
-
-  function loadPreview(): void {
-    if (preview.status === "loading" || preview.status === "ready") return;
-    const generation = ++requestGenerationRef.current;
-    setPreview({ status: "loading", entries: [] });
-    void loadGalleryFeed(fetch, {
-      author: option.author,
-      limit: CONTRIBUTOR_PREVIEW_COUNT,
-    }).then((page) => {
-      if (generation !== requestGenerationRef.current) return;
-      setPreview(
-        page
-          ? { status: "ready", entries: page.entries }
-          : { status: "unavailable", entries: [] },
-      );
-    });
-  }
-
   return (
-    <li>
-      <details
-        className="gallery-contributor-row"
-        data-testid={`gallery-contributor-row-${rank}`}
-        onToggle={(event) => {
-          if (event.currentTarget.open) loadPreview();
-        }}
+    <li
+      className="gallery-contributor-row"
+      data-testid={`gallery-contributor-row-${rank}`}
+    >
+      <span className="gallery-contributor-rank">{rank}</span>
+      <button
+        type="button"
+        className="gallery-contributor-author"
+        data-testid={`gallery-contributor-author-${rank}`}
+        aria-label={`View ${option.author}'s gallery`}
+        onClick={() => onSelectAuthor(option.author)}
       >
-        <summary>
-          <span className="gallery-contributor-rank">{rank}</span>
-          <span className="gallery-contributor-author">{option.author}</span>
-          <span className="gallery-contributor-count">
-            {contributionLabel(option.count)}
-          </span>
-        </summary>
-        <div className="gallery-contributor-detail">
-          {preview.status === "loading" ? (
-            <p>Loading circuits…</p>
-          ) : preview.status === "unavailable" ? (
-            <p>Could not load the circuit preview.</p>
-          ) : preview.status === "ready" && preview.entries.length > 0 ? (
-            <ul className="gallery-contributor-circuits">
-              {preview.entries.map((entry) => (
-                <li key={entry.id}>
-                  <a
-                    href={`/g/${entry.id}`}
-                    data-testid={`gallery-contributor-circuit-${entry.id}`}
-                  >
-                    {entry.name}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          ) : null}
-          <button
-            type="button"
-            data-testid={`gallery-contributor-view-${rank}`}
-            onClick={() => onSelectAuthor(option.author)}
-          >
-            View {option.author}&apos;s gallery
-          </button>
-        </div>
-      </details>
+        {option.author}
+      </button>
+      <span className="gallery-contributor-count">
+        {contributionLabel(option.count)}
+      </span>
     </li>
   );
 }
