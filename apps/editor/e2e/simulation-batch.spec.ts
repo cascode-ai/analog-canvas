@@ -232,15 +232,13 @@ test("a saved Run Plan prepares without executing and Run starts its ordinary ba
     .click();
   const temperatures = runPlan.getByLabel("Run Plan temperatures");
   await expect(temperatures).toHaveValue("-40, 27, 125");
-  await temperatures.press("Control+A");
-  await temperatures.press("Backspace");
+  await temperatures.fill("");
   await expect(temperatures).toHaveValue("");
-  await temperatures.type("-20, nope");
+  await temperatures.fill("-20, nope");
   await temperatures.press("Enter");
   await expect(temperatures).toHaveValue("-20, nope");
   await expect(runPlan.getByRole("alert")).toContainText("finite number");
-  await temperatures.press("Control+A");
-  await temperatures.type("-20, 0, 25.5");
+  await temperatures.fill("-20, 0, 25.5");
   await temperatures.press("Enter");
   await expect(temperatures).toHaveValue("-20, 0, 25.5");
   await panel.getByRole("button", { name: "Apply setup" }).click();
