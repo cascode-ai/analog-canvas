@@ -85,6 +85,18 @@ describe("validation gate planning", () => {
     expect(selected).not.toContain("full-delivery");
   });
 
+  it("maps Analog Simulation changes to the existing simulation workflow", () => {
+    for (const path of [
+      "packages/simulation-service/src/service.ts",
+      "packages/spice-run/src/rawfile.ts",
+      "apps/editor/src/features/simulation/spice-simulation-surface.tsx",
+    ]) {
+      const selected = ids([path]);
+      expect(selected, path).toContain("analog-simulation-browser");
+      expect(selected, path).not.toContain("editor-browser");
+    }
+  });
+
   it("selects release verification for package scripts", () => {
     expect(ids(["scripts/package-mcp.mjs"])).toContain("release-verification");
   });
