@@ -67,7 +67,22 @@ describe("SymbolArtwork pin-name previews", () => {
       expect(markup).toContain('data-role="signal-flow-frame"');
       expect(markup).toContain('data-role="formula-subscript"');
       expect(markup).toContain('points="-20,-35 20,-17.5 20,17.5 -20,35"');
+      expect(markup).not.toContain(">+</text>");
     }
+  });
+
+  it("renders the differential transconductance with two signed inputs", () => {
+    const symbol = requireRazaviCatalogSymbol("differential-transconductance");
+    const markup = renderToStaticMarkup(
+      <SymbolArtwork symbol={symbol} className="test-artwork" />,
+    );
+
+    expect(symbol.pins.map((pin) => pin.name)).toEqual(["IN+", "IN-", "OUT"]);
+    expect(markup).toContain('x1="-40" y1="20" x2="-20" y2="20"');
+    expect(markup).toContain('x1="-40" y1="-20" x2="-20" y2="-20"');
+    expect(markup).toContain('x1="-14" y1="17" x2="-14" y2="23"');
+    expect(markup).toContain('x1="-17" y1="-20" x2="-11" y2="-20"');
+    expect(markup).toContain('data-role="formula-subscript"');
   });
 
   it("renders a definition-owned default formula in Library and placement previews", () => {

@@ -96,6 +96,10 @@ describe("component insertion catalog", () => {
     expect(symbolCategory("simple-switch")).toBe("Switches");
     expect(symbolCategory("spdt-switch")).toBe("Switches");
     expect(symbolCategory("discrete-time-integrator")).toBe("Signal Flow");
+    expect(symbolCategory("transconductance")).toBe("Analog Blocks");
+    expect(symbolCategory("differential-transconductance")).toBe(
+      "Analog Blocks",
+    );
     expect(symbolCategory("ndmos")).toBe("Extended Devices");
     expect(symbolCategory("pdmos")).toBe("Extended Devices");
     expect(symbolCategory("annotation-arrow")).toBe("Annotations");
@@ -142,9 +146,8 @@ describe("component insertion catalog", () => {
     expect(symbols[0]?.pins.map((pin) => pin.name)).toEqual(["P1", "P2"]);
   });
 
-  it("offers the directly witnessed transconductance trapezoid by id and formula", () => {
-    expect(symbolCategory("transconductance")).toBe("Signal Flow");
-    for (const query of ["transconductance", "+g_m", "+gₘ"]) {
+  it("offers both transconductance blocks in Analog Blocks without a unary plus", () => {
+    for (const query of ["transconductance", "g_m", "gₘ"]) {
       expect(
         flattenComponentCatalog(componentCatalog("razavi-textbook-v1", query)),
       ).toContainEqual(
@@ -155,11 +158,28 @@ describe("component insertion catalog", () => {
             expect.objectContaining({ name: "Y" }),
           ],
           formulaPresentation: expect.objectContaining({
-            defaultFormula: "+g_m",
+            defaultFormula: "g_m",
           }),
         }),
       );
     }
+    expect(
+      flattenComponentCatalog(
+        componentCatalog("razavi-textbook-v1", "differential transconductance"),
+      ),
+    ).toContainEqual(
+      expect.objectContaining({
+        id: "differential-transconductance",
+        pins: [
+          expect.objectContaining({ name: "IN+" }),
+          expect.objectContaining({ name: "IN-" }),
+          expect.objectContaining({ name: "OUT" }),
+        ],
+        formulaPresentation: expect.objectContaining({
+          defaultFormula: "g_m",
+        }),
+      }),
+    );
   });
 
   it("offers the calibrated discrete-time integrator by formula and canonical id", () => {
@@ -322,6 +342,8 @@ describe("reach order inside a category", () => {
       "opamp-differential",
       "voltage-amplifier",
       "voltage-amplifier-lettered",
+      "transconductance",
+      "differential-transconductance",
       "comparator",
       "comparator-unmarked",
       "adc",

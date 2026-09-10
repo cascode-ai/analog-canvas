@@ -1146,13 +1146,19 @@ test("carries a manual Value through placement and Q property editing", async ({
     page.getByRole("button", { name: "Discard changes" }),
   ).toHaveCount(0);
   // Electrical renaming and the shared visual editor are distinct actions;
-  // there is no second, plain-text Label field.
-  await expect(page.getByLabel("Component identity")).toContainText(
-    "Netlist ReferenceVisual annotationEdit annotationSymbolresistorCell",
+  // there is no second, plain-text Label field or heavyweight Identity card.
+  await expect(page.getByText("Identity", { exact: true })).toHaveCount(0);
+  await expect(page.getByLabel("Component controls")).toContainText(
+    "Netlist ReferenceVisual annotationEdit annotation",
   );
-  await expect(page.getByLabel("Component identity")).not.toContainText(
+  await expect(page.getByLabel("Component controls")).not.toContainText(
     "Device class",
   );
+  const componentCode = page.locator(
+    '[aria-label="Component properties"] > :last-child',
+  );
+  await expect(componentCode).toHaveAttribute("aria-label", "Component code");
+  await expect(componentCode).toHaveText("resistor");
   const instanceReference = page.getByLabel("Netlist Reference");
   await expect(instanceReference).toHaveValue("R1");
   await instanceReference.fill("R7");

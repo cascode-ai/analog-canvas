@@ -326,15 +326,15 @@
     },
     {
       "symbolId": "transconductance",
-      "name": "Transconductance (+gₘ)",
-      "category": "signal-flow",
+      "name": "Transconductance (gₘ)",
+      "category": "analog-block",
       "reviewStatus": "reviewed",
       "pinOrder": ["A", "Y"],
       "palette": true,
       "automaticMappings": [],
       "manualOnlyReason": "Behavioral transconductance block; structural netlists need an explicit implementation mapping.",
       "assetPath": "transconductance.symbol.json",
-      "assetHash": "9540d3afb56d9a9f93f25d5cb252bf6b6457114e45ad4d24992a066ca6432725",
+      "assetHash": "621ebc548098d19c703dc7196dc7e42d8ed1eb2b557cee12358e5a2543bb098b",
       "visualAuthority": {
         "kind": "razavi-reference-v1",
         "referenceManifestPath": "fixtures/visual-reference/razavi-reference-v1/manifest.json",
@@ -342,6 +342,40 @@
           "fixtures/visual-reference/razavi-reference-v1/delta-sigma-geometry.json"
         ],
         "calibrationPath": "fixtures/visual-reference/razavi-reference-v1/delta-sigma-geometry.json"
+      }
+    },
+    {
+      "symbolId": "differential-transconductance",
+      "name": "Differential Transconductance (gₘ)",
+      "category": "analog-block",
+      "reviewStatus": "reviewed",
+      "provenance": "house",
+      "houseReason": "User-requested differential-input companion to the reference-calibrated single-input transconductance block.",
+      "pinOrder": ["IN+", "IN-", "OUT"],
+      "palette": true,
+      "automaticMappings": [],
+      "manualOnlyReason": "Behavioral differential transconductance block; structural netlists need an explicit implementation mapping.",
+      "assetPath": "differential-transconductance.symbol.json",
+      "assetHash": "cb5806ae11b0ecb63867baf9fe33573d75ee3a1f5d2018cdf46d6a31abf168d5"
+    },
+    {
+      "symbolId": "differential-transconductance-inputs-swapped",
+      "name": "Differential Transconductance (gₘ) (swapped inputs)",
+      "category": "analog-block",
+      "reviewStatus": "reviewed",
+      "provenance": "house",
+      "houseReason": "User-requested differential-input companion to the reference-calibrated single-input transconductance block.",
+      "pinOrder": ["IN+", "IN-", "OUT"],
+      "palette": false,
+      "automaticMappings": [],
+      "manualOnlyReason": "Behavioral differential transconductance block; structural netlists need an explicit implementation mapping.",
+      "assetPath": "differential-transconductance-inputs-swapped.symbol.json",
+      "assetHash": "f22a4acd91151aeb4a367e4808e837d8e77cef3671537f92c8c2d90465a3a521",
+      "generation": {
+        "kind": "derived-input-swap",
+        "sourceSymbolId": "differential-transconductance",
+        "converterPath": "scripts/generate-input-swapped-amplifiers.mjs",
+        "converterVersion": 1
       }
     },
     {

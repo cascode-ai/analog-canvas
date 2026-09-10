@@ -44,10 +44,6 @@
   padding: 0.65rem;
 }
 
-.property-identity-card {
-  background: var(--icm-surface-muted);
-}
-
 .property-card > small,
 .property-disclosure-body > small,
 .property-target-card label > small,
@@ -299,6 +295,23 @@
   margin: 0.1rem 0 0;
   color: var(--icm-text);
   font-size: var(--icm-font-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.component-source-code {
+  display: flex;
+  justify-content: flex-end;
+  min-width: 0;
+  padding: 0.15rem 0.15rem 0;
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
+}
+
+.component-source-code code {
+  overflow: hidden;
+  font: inherit;
+  font-family: var(--icm-font-mono, ui-monospace, monospace);
   text-overflow: ellipsis;
   white-space: nowrap;
 }

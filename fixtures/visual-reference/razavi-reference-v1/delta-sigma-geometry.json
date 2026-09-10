@@ -73,7 +73,7 @@
       "witnessSha256": "84038eaab654faaa7fbfcf17c7df204bfbea546e27e0bc4f0b6b08e4b1747902",
       "evidence": [
         "right-tapered transconductance trapezoid",
-        "centered +g_m1 formula",
+        "centered g_m formula with the product-default unary plus omitted",
         "horizontal signal-flow leads"
       ],
       "source": {
@@ -245,7 +245,7 @@
         "bottom": 35
       },
       "formulaPresentation": {
-        "defaultFormula": "+g_m",
+        "defaultFormula": "g_m",
         "supportsCoefficient": true,
         "center": {
           "x": 0,

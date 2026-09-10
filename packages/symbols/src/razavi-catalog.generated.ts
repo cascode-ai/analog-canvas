@@ -397,8 +397,8 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
   },
   {
     symbolId: "transconductance",
-    name: "Transconductance (+gₘ)",
-    category: "signal-flow",
+    name: "Transconductance (gₘ)",
+    category: "analog-block",
     reviewStatus: "reviewed",
     pinOrder: ["A", "Y"],
     palette: true,
@@ -407,7 +407,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Behavioral transconductance block; structural netlists need an explicit implementation mapping.",
     assetPath: "transconductance.symbol.json",
     assetHash:
-      "9540d3afb56d9a9f93f25d5cb252bf6b6457114e45ad4d24992a066ca6432725",
+      "621ebc548098d19c703dc7196dc7e42d8ed1eb2b557cee12358e5a2543bb098b",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -417,6 +417,46 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       ],
       calibrationPath:
         "fixtures/visual-reference/razavi-reference-v1/delta-sigma-geometry.json",
+    },
+  },
+  {
+    symbolId: "differential-transconductance",
+    name: "Differential Transconductance (gₘ)",
+    category: "analog-block",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "User-requested differential-input companion to the reference-calibrated single-input transconductance block.",
+    pinOrder: ["IN+", "IN-", "OUT"],
+    palette: true,
+    automaticMappings: [],
+    manualOnlyReason:
+      "Behavioral differential transconductance block; structural netlists need an explicit implementation mapping.",
+    assetPath: "differential-transconductance.symbol.json",
+    assetHash:
+      "cb5806ae11b0ecb63867baf9fe33573d75ee3a1f5d2018cdf46d6a31abf168d5",
+  },
+  {
+    symbolId: "differential-transconductance-inputs-swapped",
+    name: "Differential Transconductance (gₘ) (swapped inputs)",
+    category: "analog-block",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "User-requested differential-input companion to the reference-calibrated single-input transconductance block.",
+    pinOrder: ["IN+", "IN-", "OUT"],
+    palette: false,
+    automaticMappings: [],
+    manualOnlyReason:
+      "Behavioral differential transconductance block; structural netlists need an explicit implementation mapping.",
+    assetPath: "differential-transconductance-inputs-swapped.symbol.json",
+    assetHash:
+      "f22a4acd91151aeb4a367e4808e837d8e77cef3671537f92c8c2d90465a3a521",
+    generation: {
+      kind: "derived-input-swap",
+      sourceSymbolId: "differential-transconductance",
+      converterPath: "scripts/generate-input-swapped-amplifiers.mjs",
+      converterVersion: 1,
     },
   },
   {
@@ -3565,7 +3605,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
   {
     schemaVersion: 1,
     id: "transconductance",
-    name: "Transconductance (+gₘ)",
+    name: "Transconductance (gₘ)",
     viewBox: {
       x: -44,
       y: -39,
@@ -3648,7 +3688,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       },
     ],
     formulaPresentation: {
-      defaultFormula: "+g_m",
+      defaultFormula: "g_m",
       supportsCoefficient: true,
       center: {
         x: 0,
@@ -3663,6 +3703,362 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         verticalPadding: 4,
         leadLength: 20,
       },
+    },
+    variants: [],
+    labelVisibility: "hidden",
+  },
+  {
+    schemaVersion: 1,
+    id: "differential-transconductance",
+    name: "Differential Transconductance (gₘ)",
+    viewBox: {
+      x: -44,
+      y: -39,
+      width: 88,
+      height: 78,
+    },
+    pins: [
+      {
+        name: "IN+",
+        role: "non-inverting-input",
+        at: {
+          x: -40,
+          y: 20,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 20,
+        },
+      },
+      {
+        name: "IN-",
+        role: "inverting-input",
+        at: {
+          x: -40,
+          y: -20,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 20,
+        },
+      },
+      {
+        name: "OUT",
+        role: "output",
+        at: {
+          x: 40,
+          y: 0,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 20,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        part: "input-positive-lead",
+        from: {
+          x: -40,
+          y: 20,
+        },
+        to: {
+          x: -20,
+          y: 20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        part: "input-negative-lead",
+        from: {
+          x: -40,
+          y: -20,
+        },
+        to: {
+          x: -20,
+          y: -20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "path",
+        part: "body",
+        data: "M -20 -35 L 20 -17.5 L 20 17.5 L -20 35 Z",
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+          miterLimit: 4,
+        },
+      },
+      {
+        kind: "line",
+        part: "input-polarity",
+        from: {
+          x: -17,
+          y: 20,
+        },
+        to: {
+          x: -11,
+          y: 20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        part: "input-polarity",
+        from: {
+          x: -14,
+          y: 17,
+        },
+        to: {
+          x: -14,
+          y: 23,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        part: "input-polarity",
+        from: {
+          x: -17,
+          y: -20,
+        },
+        to: {
+          x: -11,
+          y: -20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        part: "output-lead",
+        from: {
+          x: 20,
+          y: 0,
+        },
+        to: {
+          x: 40,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+    ],
+    formulaPresentation: {
+      defaultFormula: "g_m",
+      supportsCoefficient: true,
+      center: {
+        x: 3,
+        y: 0,
+      },
+      fontSize: 12,
+    },
+    variants: [],
+    labelVisibility: "hidden",
+  },
+  {
+    schemaVersion: 1,
+    id: "differential-transconductance-inputs-swapped",
+    name: "Differential Transconductance (gₘ) (swapped inputs)",
+    viewBox: {
+      x: -44,
+      y: -39,
+      width: 88,
+      height: 78,
+    },
+    pins: [
+      {
+        name: "IN+",
+        role: "non-inverting-input",
+        at: {
+          x: -40,
+          y: -20,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 20,
+        },
+      },
+      {
+        name: "IN-",
+        role: "inverting-input",
+        at: {
+          x: -40,
+          y: 20,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 20,
+        },
+      },
+      {
+        name: "OUT",
+        role: "output",
+        at: {
+          x: 40,
+          y: 0,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 20,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        part: "input-positive-lead",
+        from: {
+          x: -40,
+          y: 20,
+        },
+        to: {
+          x: -20,
+          y: 20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        part: "input-negative-lead",
+        from: {
+          x: -40,
+          y: -20,
+        },
+        to: {
+          x: -20,
+          y: -20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "path",
+        part: "body",
+        data: "M -20 -35 L 20 -17.5 L 20 17.5 L -20 35 Z",
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+          miterLimit: 4,
+        },
+      },
+      {
+        kind: "line",
+        part: "input-polarity",
+        from: {
+          x: -17,
+          y: -20,
+        },
+        to: {
+          x: -11,
+          y: -20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        part: "input-polarity",
+        from: {
+          x: -14,
+          y: -17,
+        },
+        to: {
+          x: -14,
+          y: -23,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        part: "input-polarity",
+        from: {
+          x: -17,
+          y: 20,
+        },
+        to: {
+          x: -11,
+          y: 20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        part: "output-lead",
+        from: {
+          x: 20,
+          y: 0,
+        },
+        to: {
+          x: 40,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+    ],
+    formulaPresentation: {
+      defaultFormula: "g_m",
+      supportsCoefficient: true,
+      center: {
+        x: 3,
+        y: 0,
+      },
+      fontSize: 12,
     },
     variants: [],
     labelVisibility: "hidden",

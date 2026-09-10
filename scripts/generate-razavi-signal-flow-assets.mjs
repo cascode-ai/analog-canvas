@@ -260,11 +260,11 @@ const definitions = {
   ]),
   transconductance: formulaBlock({
     id: "transconductance",
-    name: "Transconductance (+gₘ)",
+    name: "Transconductance (gₘ)",
     viewBox: { x: -44, y: -39, width: 88, height: 78 },
     pinSpan: 40,
     body: { left: -20, top: -35, right: 20, bottom: 35 },
-    defaultFormula: "+g_m",
+    defaultFormula: "g_m",
     shape: "right-tapered-trapezoid",
     minBodyWidth: 40,
     minBodyHeight: 70,
@@ -520,6 +520,17 @@ const signalFlowOrder = [
   "discrete-time-integrator",
   "quantizer",
 ];
+const catalogFamilyOrder = [
+  "adder",
+  "multiplier",
+  "transconductance",
+  "differential-transconductance",
+  "differential-transconductance-inputs-swapped",
+  "integrator",
+  "unit-delay",
+  "discrete-time-integrator",
+  "quantizer",
+];
 for (const symbolId of signalFlowOrder) {
   const definition = definitions[symbolId];
   const measurement = geometry.symbols[symbolId];
@@ -540,7 +551,7 @@ for (const symbolId of signalFlowOrder) {
   Object.assign(entry, {
     symbolId,
     name: definition.name,
-    category: "signal-flow",
+    category: symbolId === "transconductance" ? "analog-block" : "signal-flow",
     reviewStatus: "reviewed",
     pinOrder: definition.pins.map((pin) => pin.name),
     palette: true,
@@ -569,7 +580,7 @@ const orderedEntries = [];
 const seen = new Set();
 for (const entry of catalog.entries) {
   if (entry.symbolId === "adder") {
-    for (const symbolId of signalFlowOrder) {
+    for (const symbolId of catalogFamilyOrder) {
       const signalEntry = catalog.entries.find(
         (candidate) => candidate.symbolId === symbolId,
       );

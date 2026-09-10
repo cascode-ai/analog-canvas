@@ -176,17 +176,21 @@ correct.
 
 - Font embedding and cross-format metric calibration remain deferred.
 
-## Signal Flow transconductance blocks
+## Analog transconductance blocks
 
-A transconductance relation is drawn as a right-tapered trapezoid with one west
-input `A`, one east output `Y`, and renderer-owned formula text centered inside.
-The taller input edge and narrower output edge follow the pinned user-supplied
-small-signal reference. The canonical default is `+g_m`; instance presentation
-may express signed/indexed forms such as `+g_m1`, `−gₘL`, or another safe
-formula without changing the symbol's A/Y electrical identity.
+A transconductance relation is drawn as a right-tapered trapezoid with
+renderer-owned formula text centered inside. The single-input form has one west
+input `A` and one east output `Y`. Its taller input edge and narrower output edge
+follow the pinned user-supplied small-signal reference. The differential form
+has west inputs `IN+` and `IN-`, explicit polarity marks, and one east output
+`OUT`. Both live in Analog Blocks and use the canonical default `g_m`; instance
+presentation may express indexed forms such as `g_m1`, `gₘL`, or another safe
+formula without changing electrical pin identity.
 
-The trapezoid, leads, background, hit bounds, and route endpoints share the
-adaptive Signal Flow layout. Long formulae and explicit minimum dimensions grow
-the body on the 10-unit grid; they never clip or shrink 12-unit formula text.
-The block is behavioral and manual-only: neither its formula nor coefficient
-implies a SPICE primitive or automatic device mapping.
+The single-input trapezoid, leads, background, hit bounds, and route endpoints
+share the adaptive formula-block layout. Long formulae and explicit minimum
+dimensions grow that body on the 10-unit grid; they never clip or shrink 12-unit
+formula text. The differential form keeps fixed calibrated pin spacing so both
+inputs remain unambiguous. Both blocks are behavioral and manual-only: neither
+their formula nor coefficient implies a SPICE primitive or automatic device
+mapping.

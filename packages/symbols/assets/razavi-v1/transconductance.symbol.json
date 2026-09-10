@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "transconductance",
-  "name": "Transconductance (+gₘ)",
+  "name": "Transconductance (gₘ)",
   "viewBox": {
     "x": -44,
     "y": -39,
@@ -84,7 +84,7 @@
     }
   ],
   "formulaPresentation": {
-    "defaultFormula": "+g_m",
+    "defaultFormula": "g_m",
     "supportsCoefficient": true,
     "center": {
       "x": 0,

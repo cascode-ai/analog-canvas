@@ -72,6 +72,7 @@ const COMPACT_LIBRARY_LABELS: Readonly<Record<string, string>> = {
   adder: "Add",
   multiplier: "Mult",
   transconductance: "gm",
+  "differential-transconductance": "Diff gm",
   integrator: "1/s",
   "unit-delay": "z⁻¹",
   "discrete-time-integrator": "DT Int",
