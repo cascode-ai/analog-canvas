@@ -670,6 +670,8 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
     ) {
       id = options.nextId("polarity");
     }
+    // The semantic-text helper turns the suffix into a true subscript. The
+    // authored value is therefore "Vx"; a literal underscore would be drawn.
     const object: Extract<DraftingObject, { kind: "text" }> = {
       id,
       kind: "text",
@@ -680,7 +682,7 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
         ? { runs: [{ kind: "line-break" as const }] }
         : preset
           ? { runs: [{ kind: "text" as const, value: preset }] }
-          : defaultDraftTextDocument("V_x"),
+          : defaultDraftTextDocument("Vx"),
       alignment: "middle",
       rotation: options.componentPlacementRotation,
       typographyToken: "label",
