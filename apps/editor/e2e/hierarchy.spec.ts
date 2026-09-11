@@ -519,7 +519,7 @@ test("edits a Cell Pin name and RichText presentation in place", async ({
   );
 });
 
-test("returns a formal Cell Pin to the Tray without deleting its interface", async ({
+test("keeps the Placement Tray out of the manually authored Cell Pin workflow", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -539,25 +539,13 @@ test("returns a formal Cell Pin to the Tray without deleting its interface", asy
   if ((await shelf.getAttribute("aria-expanded")) === "false") {
     await shelf.click();
   }
-  await page
-    .getByRole("button", { name: "Return component to Placement Tray" })
-    .click();
-
-  await expect(page.getByTestId("status")).toContainText(
-    "Cell interfaces and electrical facts were retained",
-  );
-  await expect(page.getByTestId("unplaced-P1")).toContainText("Vout · port");
-  await expect(page.getByTestId("hit-P1")).toHaveCount(0);
-  await page
-    .getByRole("region", { name: "Placement Tray" })
-    .locator(":scope > summary")
-    .click();
-  await page
-    .getByRole("region", { name: "Placement Tray" })
-    .getByRole("button", { name: "Place all" })
-    .click();
+  await expect(
+    page.getByRole("button", { name: "Return component to Placement Tray" }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("region", { name: "Placement Tray" }),
+  ).toHaveCount(0);
   await expect(page.getByTestId("hit-P1")).toBeVisible();
-  await page.getByTestId("hit-P1").click();
   await expect(page.getByLabel("Cell Pin properties")).toBeVisible();
 });
 
