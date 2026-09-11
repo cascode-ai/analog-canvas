@@ -113,13 +113,30 @@ test("the qualified OTA setup opens unchanged and preserves all root and hierarc
   ).toHaveClass(/origin/u);
   await page.getByTestId("terminal-VINP--").click();
   await helper("Stop picking current");
+  await helper("Observe differential voltage");
+  const observe = panel.getByRole("dialog", { name: "Observe signal" });
+  await observe.getByRole("textbox", { name: "Search signal" }).fill("v(out)");
+  await observe
+    .getByRole("button", { name: "Use native vector: v(out)", exact: true })
+    .click();
+  await observe.getByRole("textbox", { name: "Search signal" }).fill("v(in)");
+  await observe
+    .getByRole("button", { name: "Use native vector: v(in)", exact: true })
+    .click();
   const pickedProject = parseProject(
     (await downloadBytes(page, "File", "Export Project File…")).toString(),
   );
   const pickedConfig = readSimulationExperimentConfig(
     pickedProject.simulationSetups[0]!,
   );
-  expect(pickedConfig.ok && pickedConfig.config.outputs.length).toBe(6);
+  expect(pickedConfig.ok && pickedConfig.config.outputs.length).toBe(7);
+  expect(
+    pickedConfig.ok && pickedConfig.config.outputs.at(-1)?.expression,
+  ).toEqual({
+    kind: "subtract",
+    left: { kind: "vector", vector: "v(out)" },
+    right: { kind: "vector", vector: "v(in)" },
+  });
   const circuit = {
     bindingId: savedSetup.input.circuitBindings[0]!.id,
     callPath: [],
