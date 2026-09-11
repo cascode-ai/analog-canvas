@@ -216,9 +216,11 @@ try {
   await expect(
     panel.getByRole("button", { name: "Cancel run", exact: true }),
   ).toHaveCount(0, { timeout: 240_000 });
-  await panel.getByRole("tab", { name: "Results", exact: true }).click();
-  await panel.getByRole("button", { name: "Maximize results" }).click();
+  await expect(
+    panel.getByRole("tab", { name: "Results", exact: true }),
+  ).toHaveCount(0);
   await panel.getByRole("tab", { name: "Files", exact: true }).click();
+  await panel.getByRole("button", { name: "Maximize results" }).click();
   const preparedEntries = unzipSync(
     await download(
       panel
