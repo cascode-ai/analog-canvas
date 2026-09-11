@@ -1,5 +1,4 @@
 import { useEffect, useId, useState, type ReactNode } from "react";
-import { InlineSourceName } from "./inline-source-name";
 import {
   SimulationFolderTree,
   type SimulationFolderTreeProps,

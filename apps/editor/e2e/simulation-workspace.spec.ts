@@ -1142,10 +1142,8 @@ test("Simulation creates an ordinary testbench and offers the current Cell at th
   await clickNetlistWorkflowCommand(page, "open-analog-simulation");
   await expect(page.getByLabel("Testbench Cell")).toHaveCount(0);
   await page.getByRole("button", { name: "Set up", exact: true }).click();
-  await page
-    .getByRole("button", { name: "Template: current Canvas Cell" })
-    .click();
   await page.getByLabel("New simulation folder name").fill("Main experiment");
+  await page.getByLabel("Folder source").selectOption("Current Canvas Cell");
   await page.getByLabel("New simulation folder name").press("Enter");
   const configured = JSON.parse(
     (await downloadBytes(page, "File", "Export Project File…")).toString(),

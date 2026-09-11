@@ -26,6 +26,11 @@ interface NameRequest {
     options: string[];
     onChange(value: string): void;
   };
+  starter?: {
+    value: string;
+    options: string[];
+    onChange(value: string): void;
+  };
 }
 interface Confirmation {
   title: string;
@@ -334,6 +339,23 @@ function NameInput() {
           }}
         >
           {request.template.options.map((value) => (
+            <option key={value}>{value}</option>
+          ))}
+        </select>
+      ) : null}
+      {request.starter ? (
+        <select
+          aria-label="Folder source"
+          defaultValue={request.starter.value}
+          onChange={(event) =>
+            request.starter?.onChange(event.currentTarget.value)
+          }
+          onKeyDown={(event) => {
+            event.stopPropagation();
+            if (event.key === "Escape") finish(true);
+          }}
+        >
+          {request.starter.options.map((value) => (
             <option key={value}>{value}</option>
           ))}
         </select>

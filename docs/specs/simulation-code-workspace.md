@@ -527,7 +527,8 @@ never execute Canvas editing commands.
 
 New/rename uses one inline naming interaction: Enter and valid blur commit exactly
 once; Escape or empty blur cancels. Invalid names show local feedback without
-trapping focus. New folders offer OP/AC/TRAN templates in this same row. Delete
+trapping focus. New folders offer OP/AC/TRAN templates and the existing text-only,
+Canvas Cell or text-DUT starters in this same row. Delete
 uses the product's small modal confirmation with Cancel initially focused and
 Escape cancelling. File/Project transactions remain the mutation and Undo owner.
 

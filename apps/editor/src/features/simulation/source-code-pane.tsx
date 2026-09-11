@@ -67,8 +67,6 @@ interface Props extends Pick<
   selectedCircuitObject?:
     { documentId: string; instanceId: string } | undefined;
   folder: ProjectSimulationFolder;
-  selectedFile?: { folderId: string; path: string } | undefined;
-  newFileRequest?: string | undefined;
   files: SimulationFiles;
   actions: ReactNode;
   folders?: SimulationCodeWorkspaceProps["folders"];
@@ -143,7 +141,7 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
     };
     const [saving, setSaving] = useState(false);
     const [saveRequested, setSaveRequested] = useState(false);
-    const saveRequest = useRef(false);
+    const projectSaveRequest = useRef(false);
     const [reveal, setReveal] = useState<{
       sourceOffset: number;
       requestId: string;
@@ -371,7 +369,6 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
     }, [props.folder.id]);
     useEffect(() => {
       const selected = props.selectedCircuitObject;
-      if (props.selectedFile?.folderId === props.folder.id) return;
       if (!selected) return;
       for (const { binding, result } of generated) {
         if (!result.ok) continue;
@@ -724,8 +721,8 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
         : generated.diagnostics.map((d) => `* ${d.message}`).join("\n");
     };
     const requestSave = async () => {
-      if (saveRequest.current) return;
-      saveRequest.current = true;
+      if (projectSaveRequest.current) return;
+      projectSaveRequest.current = true;
       setSaveRequested(true);
       try {
         if (props.onSaveProject) await props.onSaveProject();
@@ -740,7 +737,7 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
           ),
         );
       } finally {
-        saveRequest.current = false;
+        projectSaveRequest.current = false;
         setSaveRequested(false);
       }
     };
@@ -793,23 +790,6 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
         }
         additionalActions={[
           { label: "View final deck", run: () => props.onPrepare?.() },
-          ...(binding
-            ? [
-                {
-                  label: props.pickNetsActive
-                    ? "Picking Nets…"
-                    : "Add voltage observation from Canvas",
-                  run: () => props.onPickNetsChange?.(!props.pickNetsActive),
-                },
-                {
-                  label: props.pickTerminalsActive
-                    ? "Picking current…"
-                    : "Add current observation from Canvas",
-                  run: () =>
-                    props.onPickTerminalsChange?.(!props.pickTerminalsActive),
-                },
-              ]
-            : []),
         ]}
         files={ownFiles.map((filePath) => ({
           path: filePath,
@@ -995,7 +975,6 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
           setPath(path, folderId);
           render((value) => value + 1);
         }}
-        newFileRequest={props.newFileRequest}
         actions={
           <>
             <button
