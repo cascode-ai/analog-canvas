@@ -3727,6 +3727,7 @@ test("value display projects MOS W/L and passive values beside the reference", a
   await openSelectionShelf(page);
   await page.getByLabel("Component w", { exact: true }).fill("2u");
   await page.getByLabel("Component l", { exact: true }).fill("180n");
+  await page.getByLabel("Component m", { exact: true }).fill("4");
   await editComponentPropertyCode(page, (propertyCode) => {
     propertyCode.display.value = true;
   });
@@ -3739,7 +3740,21 @@ test("value display projects MOS W/L and passive values beside the reference", a
   // numerator and denominator are separate part texts around a fraction bar.
   await expect(value).toContainText("2um");
   await expect(value).toContainText("180nm");
+  await expect(value).toContainText("×4");
   await expect(page.locator('[data-role="fraction-bar"]')).toHaveCount(1);
+  const multiplierGap = await value.evaluate((element) => {
+    const bar = element.querySelector<SVGLineElement>(
+      '[data-role="fraction-bar"]',
+    );
+    const multiplier = [
+      ...element.querySelectorAll<SVGTextElement>("text"),
+    ].find((text) => text.getAttribute("text-anchor") === "start");
+    if (!bar || !multiplier) throw new Error("Value geometry is incomplete");
+    const barBox = bar.getBBox();
+    return multiplier.getStartPositionOfChar(1).x - (barBox.x + barBox.width);
+  });
+  expect(multiplierGap).toBeGreaterThan(0);
+  expect(multiplierGap).toBeLessThan(12);
   // The value block is the second upright row under the reference.
   const referenceBox = await reference.boundingBox();
   const valueBox = await value.boundingBox();
@@ -3772,6 +3787,7 @@ test("value display projects MOS W/L and passive values beside the reference", a
   expect(svg).toContain('data-role="fraction-bar"');
   expect(svg).toContain("2um");
   expect(svg).toContain("180nm");
+  expect(svg).toContain("×4");
   expect(svg).toContain("33kΩ");
 });
 

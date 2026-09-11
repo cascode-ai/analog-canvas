@@ -24,6 +24,7 @@ import {
   resolveDocumentStyleProfile,
   resolveDocumentLogicalNets,
   draftTextLayoutContent,
+  measureRichTextDocument,
   richTextMetrics,
   resolveRouteAttachment,
   razaviTextbookProfile,
@@ -119,7 +120,7 @@ function renderAnnotationText(
 function renderStackedFractionAnnotation(
   fraction: Extract<RichTextRun, { kind: "fraction" }>,
   options: {
-    attributes: string;
+    attributes?: string;
     position: Point;
     alignment: "start" | "middle" | "end";
     width: number;
@@ -154,7 +155,87 @@ function renderStackedFractionAnnotation(
   const textColor = options.color
     ? ` fill="${options.color}" color="${options.color}"`
     : "";
-  return `<g ${options.attributes}><text data-role="fraction-numerator" x="${centerX}" y="${numeratorY}" text-anchor="middle" font-size="${partFont}"${textColor} style="${partStyle}">${renderRichTextDocument(fraction.numerator, profile, { defaultBold: true, fontSize: partFont })}</text><line data-role="fraction-bar" x1="${centerX - halfWidth}" y1="${barY}" x2="${centerX + halfWidth}" y2="${barY}" stroke="${options.color ?? profile.foreground}" stroke-width="${profile.strokes.annotation}"/><text data-role="fraction-denominator" x="${centerX}" y="${denominatorY}" text-anchor="middle" font-size="${partFont}"${textColor} style="${partStyle}">${renderRichTextDocument(fraction.denominator, profile, { defaultBold: true, fontSize: partFont })}</text></g>`;
+  const attributes = options.attributes ? ` ${options.attributes}` : "";
+  return `<g${attributes}><text data-role="fraction-numerator" x="${centerX}" y="${numeratorY}" text-anchor="middle" font-size="${partFont}"${textColor} style="${partStyle}">${renderRichTextDocument(fraction.numerator, profile, { defaultBold: true, fontSize: partFont })}</text><line data-role="fraction-bar" x1="${centerX - halfWidth}" y1="${barY}" x2="${centerX + halfWidth}" y2="${barY}" stroke="${options.color ?? profile.foreground}" stroke-width="${profile.strokes.annotation}"/><text data-role="fraction-denominator" x="${centerX}" y="${denominatorY}" text-anchor="middle" font-size="${partFont}"${textColor} style="${partStyle}">${renderRichTextDocument(fraction.denominator, profile, { defaultBold: true, fontSize: partFont })}</text></g>`;
+}
+
+function isPositionableFractionCompanion(run: RichTextRun): boolean {
+  return (
+    run.kind === "text" ||
+    (run.kind === "span" && run.children.every(isPositionableFractionCompanion))
+  );
+}
+
+/**
+ * Paint one top-level fraction and its ordinary styled companions as siblings.
+ * SVG forbids the fraction's line inside a <text>, so the generic inline path
+ * cannot preserve its bar. Explicit x positions keep the bar and continuation
+ * on the same measured line without changing the canonical RichText AST.
+ */
+function renderPositionedFractionAnnotation(
+  content: RichTextDocument,
+  options: {
+    attributes: string;
+    position: Point;
+    alignment: "start" | "middle" | "end";
+    fontSize: number;
+    color?: string;
+    profile: SchematicStyleProfile;
+  },
+): string | null {
+  const fractionIndexes = content.runs.flatMap((run, index) =>
+    run.kind === "fraction" ? [index] : [],
+  );
+  if (fractionIndexes.length !== 1) return null;
+  const fractionIndex = fractionIndexes[0]!;
+  const companions = content.runs.filter((_, index) => index !== fractionIndex);
+  if (!companions.every(isPositionableFractionCompanion)) return null;
+
+  const fraction = content.runs[fractionIndex] as Extract<
+    RichTextRun,
+    { kind: "fraction" }
+  >;
+  const prefix: RichTextDocument = {
+    runs: content.runs.slice(0, fractionIndex),
+  };
+  const suffix: RichTextDocument = {
+    runs: content.runs.slice(fractionIndex + 1),
+  };
+  const metrics = {
+    ...richTextMetrics(options.profile),
+    fontSize: options.fontSize,
+  };
+  const widthOf = (document: RichTextDocument): number =>
+    document.runs.length === 0
+      ? 0
+      : measureRichTextDocument(document, metrics).width;
+  const prefixWidth = widthOf(prefix);
+  const fractionWidth = widthOf({ runs: [fraction] });
+  const suffixWidth = widthOf(suffix);
+  const totalWidth = prefixWidth + fractionWidth + suffixWidth;
+  const startX =
+    options.alignment === "start"
+      ? options.position.x
+      : options.alignment === "end"
+        ? options.position.x - totalWidth
+        : options.position.x - totalWidth / 2;
+  const textColor = options.color
+    ? ` fill="${options.color}" color="${options.color}"`
+    : "";
+  const renderCompanion = (document: RichTextDocument, x: number): string =>
+    document.runs.length === 0
+      ? ""
+      : `<text x="${x}" y="${options.position.y}" text-anchor="start" font-size="${options.fontSize}" xml:space="preserve"${textColor}>${renderRichTextDocument(document, options.profile, { lineOriginX: x, fontSize: options.fontSize })}</text>`;
+  const fractionX = startX + prefixWidth;
+  const fractionMarkup = renderStackedFractionAnnotation(fraction, {
+    position: { x: fractionX, y: options.position.y },
+    alignment: "start",
+    width: fractionWidth,
+    fontSize: options.fontSize,
+    ...(options.color ? { color: options.color } : {}),
+    profile: options.profile,
+  });
+  return `<g ${options.attributes}>${renderCompanion(prefix, startX)}${fractionMarkup}${renderCompanion(suffix, fractionX + fractionWidth)}</g>`;
 }
 
 function escapeXml(value: string): string {
@@ -1285,25 +1366,19 @@ export function buildSvgScene(
         return `<g ${attributes}><text data-role="polarity-positive" x="${position.x + positiveOffset.x}" y="${position.y + positiveOffset.y + 4}" text-anchor="middle" font-size="${profile.typography.polarityFontSize}" style="${polarityStyle}">+</text><text data-role="polarity-negative" x="${position.x + negativeOffset.x}" y="${position.y + negativeOffset.y + 4}" text-anchor="middle" font-size="${profile.typography.polarityFontSize}" style="${polarityStyle}">−</text>${text}</g>`;
       }
       const emphasis = "";
-      const fractionRun =
-        annotation.rotation === 0 &&
-        content.runs.length === 1 &&
-        content.runs[0]!.kind === "fraction"
-          ? (content.runs[0] as Extract<RichTextRun, { kind: "fraction" }>)
+      const positionedFraction =
+        annotation.rotation === 0
+          ? renderPositionedFractionAnnotation(content, {
+              attributes,
+              position,
+              alignment: annotation.alignment,
+              fontSize: annotationFontSize,
+              ...(colorOverride ? { color: colorOverride } : {}),
+              profile,
+            })
           : null;
-      if (fractionRun) {
-        const fraction = renderStackedFractionAnnotation(fractionRun, {
-          attributes,
-          position,
-          alignment: annotation.alignment,
-          width: presentation.bounds.width,
-          fontSize:
-            schematicTextFontSize(annotation.kind, profile) *
-            (annotation.sizeScale ?? 1),
-          ...(colorOverride ? { color: colorOverride } : {}),
-          profile,
-        });
-        return `<g>${fraction}${globalBadge}</g>`;
+      if (positionedFraction) {
+        return `<g>${positionedFraction}${globalBadge}</g>`;
       }
       const formula = renderFormulaDocument(content, profile, {
         x: position.x,
