@@ -2426,9 +2426,15 @@ test("initializes NMOS bulk from the first explicitly placed Ground", async ({
 
   await page.getByTestId("hit-M1").click();
   await openSelectionShelf(page);
-  await expect(page.getByLabel("MOS bulk connection")).toContainText(
-    "M1.B → 0 · cell-default",
+  const bulk = page.getByLabel("MOS bulk connection");
+  await expect(bulk.locator(".mos-bulk-status")).toHaveText("0");
+  await expect(bulk.locator(".mos-bulk-status")).toHaveAttribute(
+    "title",
+    "M1.B → 0 · Cell default",
   );
+  await expect(
+    bulk.getByRole("button", { name: "Draw bulk connection" }),
+  ).toHaveText("Draw");
 
   const saved = JSON.parse(
     (await downloadBytes(page, "File", "Export Project File…")).toString(
