@@ -95,9 +95,28 @@ performs the one-way schema-48 migration. No new setup sidecar store is introduc
   otherwise retain the now-unresolved entry/reference for diagnosis. Deleting
   a binding is explicit, not a side effect of editing its displayed filename.
 
-The default template presents `circuit.spice` (generated), `testbench.spice`
-(authored), and `run.cir` (authored entry). These are conventions, not mandatory
-file counts. A migrated drawn TB does not need an additional authored TB file.
+New experiments explicitly choose one of three starting points: run the current
+Cell directly (top-level binding), write a text TB around the current DUT
+(subcircuit binding and an authored call using the exported port order), or
+start with text only (no binding). None creates a TB Cell or guesses stimuli.
+Existing experiments reopen unchanged; duplication is an explicit action.
+`circuit.spice`, `testbench.spice`, and `run.cir` are conventions, not mandatory
+file counts. A drawn TB does not need an additional authored TB file.
+
+The flat **Helper** list and Ctrl+Space share the ngspice help catalog. Search
+accepts command names and purpose keywords; contextual typing completion is
+limited to commands and relevant arguments, not comments or arbitrary text.
+An unknown command offers a quiet Helper hint instead of opening a large list.
+Choosing a command inserts its name and presents missing arguments as display-only
+ghosts. Tab/Shift+Tab navigate arguments, Escape dismisses guidance, and no ghost
+or implicit default enters saved/exported/executed text. Parameter guidance is
+advisory: users and Agents may continue writing native syntax beyond the catalog.
+
+Helper's Observe actions add ordinary output expressions to the configuration:
+voltage, differential voltage, or terminal current. Canvas targets include the
+proven authored DUT call path, so two calls to one Cell remain distinct; native
+vectors remain available for text-only or statically unresolvable scopes.
+Discovery runs when the picker opens, not on every ordinary keystroke.
 `experiment.json` is available through Files, not a compulsory fourth panel.
 
 ### Experiment configuration

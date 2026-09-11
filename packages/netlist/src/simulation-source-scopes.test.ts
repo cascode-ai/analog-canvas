@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { SimulationSourceInputSchema } from "@icm/model";
 import { inspectSimulationSourceGraph } from "./simulation-source-graph.js";
-import { resolveAuthoredCircuitScope } from "./simulation-source-scopes.js";
+import {
+  resolveAuthoredCircuitScope,
+  listAuthoredCircuitScopes,
+} from "./simulation-source-scopes.js";
 import type { DesignNetlistIR } from "./ir.js";
 
 const binding = {
@@ -23,6 +26,28 @@ const circuit: DesignNetlistIR = {
     },
   ],
 };
+it("enumerates distinct authored DUT calls without guessing conditional or recursive paths", () => {
+  const input = SimulationSourceInputSchema.parse({
+    kind: "source",
+    entry: "run.cir",
+    configPath: "experiment.json",
+    dependencies: [],
+    circuitBindings: [binding],
+    files: [
+      {
+        path: "run.cir",
+        text: "* test\nX1 a DUT\nX2 b DUT\n.if x\nX3 c DUT\n.endif\n.end\n",
+      },
+    ],
+  });
+  expect(
+    listAuthoredCircuitScopes(
+      inspectSimulationSourceGraph(input),
+      binding,
+      circuit,
+    ).map((scope) => scope.callPath),
+  ).toEqual([["X1"], ["X2"]]);
+});
 function scope(text: string, callPath: string[]) {
   const graph = inspectSimulationSourceGraph(
     SimulationSourceInputSchema.parse({

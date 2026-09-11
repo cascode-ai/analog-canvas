@@ -2,10 +2,10 @@ import type { SimulationFocusTarget } from "./simulation-focus-target";
 import { useEffect, useRef, useState } from "react";
 import {
   type ProjectSimulationSetup,
-  createSourceSimulationSetup,
   readSimulationExperimentConfig,
   type SimulationRunPlanAxis,
 } from "@icm/model";
+import { createSimulationStarter } from "@icm/netlist";
 import type {
   ArtifactRef,
   Capabilities,
@@ -957,7 +957,10 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
   const presentationLabels = Object.fromEntries(
     (runPresentation?.outputs ?? []).map((output) => [output.id, output.label]),
   );
-  const createSetup = async (): Promise<void> => {
+  const [newExperiment, setNewExperiment] = useState(false);
+  const createSetup = async (
+    mode: "circuit" | "dut" | "text" | "clone",
+  ): Promise<void> => {
     const authored = await codeRef.current?.flush();
     if (authored && !authored.ok) return;
     const baseName = "Setup";
@@ -972,22 +975,35 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
       id: `simulation-setup-${crypto.randomUUID()}`,
       name: `${baseName} ${suffix}`,
     };
-    const created: ProjectSimulationSetup = selectedSetup
-      ? {
-          ...structuredClone(authored?.ok ? authored.setup : selectedSetup),
-          ...identity,
-        }
-      : createSourceSimulationSetup({
-          ...identity,
-          documentId:
-            props.draftContext?.rootDocumentId ?? props.activeDocumentId,
-          profileId: capabilities?.profiles[0]?.id ?? authoringProfile.id,
-        });
+    const starter =
+      mode === "clone"
+        ? undefined
+        : createSimulationStarter(project, {
+            ...identity,
+            mode,
+            documentId:
+              props.draftContext?.rootDocumentId ?? props.activeDocumentId,
+            profileId: capabilities?.profiles[0]?.id ?? authoringProfile.id,
+          });
+    if (starter && !starter.ok) {
+      setProblem(uiProblem("SIMULATION_STARTER_INTERFACE", starter.message));
+      return;
+    }
+    const created: ProjectSimulationSetup =
+      mode === "clone" && selectedSetup
+        ? {
+            ...structuredClone(authored?.ok ? authored.setup : selectedSetup),
+            ...identity,
+          }
+        : starter!.ok
+          ? starter!.setup
+          : selectedSetup!;
     const result = props.onSaveSetup(
       created,
       authored?.ok ? authored.revision : project.structureRevision,
     );
     if (result.status !== "rejected") {
+      setNewExperiment(false);
       props.onSelectSetupId(created.id);
       setupMenuRef.current?.removeAttribute("open");
     } else setProblem(result.problem);
@@ -1650,6 +1666,36 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
         } else props.onMinimize();
       }}
     >
+      {newExperiment && (
+        <div
+          className="simulation-starter-choices"
+          role="dialog"
+          aria-label="New experiment"
+          onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              event.stopPropagation();
+              setNewExperiment(false);
+            }
+          }}
+        >
+          <strong>Start an experiment</strong>
+          <button onClick={() => void createSetup("circuit")}>
+            Run current Cell — use its existing sources and wiring
+          </button>
+          <button onClick={() => void createSetup("dut")}>
+            Write a text TB for this DUT — no TB Cell needed
+          </button>
+          <button onClick={() => void createSetup("text")}>
+            Start with text only — no Canvas binding
+          </button>
+          {selectedSetup && (
+            <button onClick={() => void createSetup("clone")}>
+              Duplicate current experiment
+            </button>
+          )}
+          <button onClick={() => setNewExperiment(false)}>Cancel</button>
+        </div>
+      )}
       <header className="simulation-taskbar">
         <div className="simulation-brand">
           <strong>Simulation</strong>
@@ -1676,7 +1722,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
                 type="button"
                 className="simulation-setup-menu-new"
                 disabled={busy || !!running}
-                onClick={createSetup}
+                onClick={() => setNewExperiment(true)}
               >
                 New setup
               </button>
@@ -2020,7 +2066,9 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
         />
       ) : (
         <div className="simulation-empty-result">
-          <button onClick={createSetup}>Create experiment for this Cell</button>
+          <button onClick={() => setNewExperiment(true)}>
+            Create experiment for this Cell
+          </button>
         </div>
       )}
     </section>

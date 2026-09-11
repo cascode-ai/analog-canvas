@@ -30,6 +30,7 @@ const SetupArgs = z.discriminatedUnion("action", [
     name: Name,
     rootDocumentId: Id.optional(),
     profileId: Id,
+    dut: z.strictObject({ name: Id, ports: z.array(Id) }).optional(),
   }),
   z.strictObject({
     action: z.literal("update"),
@@ -204,7 +205,7 @@ function upsert<T extends { id: string }>(items: T[], item: T) {
 export const simulationAuthoringTools: readonly Entry[] = [
   tool(
     "simulation_setup",
-    "Manage saved source experiments: list/get/create/clone/rename/remove. create writes the same small OP source template used by Code. Omit rootDocumentId for a text-only Testbench. Native analyses, .param, .temp and control programs are edited with simulation_files; input replacement can change bindings/dependencies. There is no parallel structured analyses authority. Updates are revision-guarded; malformed code can still be saved.",
+    "Manage saved source experiments: list/get/create/clone/rename/remove. create writes the same small OP source template used by Code. Omit rootDocumentId for text only; rootDocumentId alone runs the drawn Cell directly. Add dut {name, ports} using the exported subcircuit name and ordered ports to start a text TB around that Cell without creating another Cell. Native analyses, .param, .temp and control programs are edited with simulation_files; input replacement can change bindings/dependencies. There is no parallel structured analyses authority. Updates are revision-guarded; malformed code can still be saved.",
     SetupArgs,
     async (parsed, session) => {
       const snapshot = await session.client.snapshot(parsed.documentId, {
@@ -254,16 +255,22 @@ export const simulationAuthoringTools: readonly Entry[] = [
           },
         );
       let next: ProjectSimulationSetup;
-      if (parsed.action === "create")
+      if (parsed.action === "create") {
+        if (parsed.dut && !parsed.rootDocumentId)
+          return failure(
+            "SIMULATION_DUT_CELL_REQUIRED",
+            "A DUT template needs rootDocumentId; omit dut for text-only input.",
+          );
         next = createSourceSimulationSetup({
           id: parsed.setupId ?? crypto.randomUUID(),
           name: parsed.name,
           profileId: parsed.profileId,
+          ...(parsed.dut ? { dut: parsed.dut } : {}),
           ...(parsed.rootDocumentId
             ? { documentId: parsed.rootDocumentId }
             : {}),
         });
-      else if (parsed.action === "clone")
+      } else if (parsed.action === "clone")
         next = {
           ...structuredClone(current!),
           id: parsed.newSetupId ?? crypto.randomUUID(),

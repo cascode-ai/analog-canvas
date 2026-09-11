@@ -329,6 +329,9 @@ test("one Testbench persists several independently named setups", async ({
   await expect(selector).toContainText("OTA OP, DC, AC, and TRAN");
   await selector.click();
   await panel.getByRole("button", { name: "New setup", exact: true }).click();
+  await panel
+    .getByRole("button", { name: "Duplicate current experiment" })
+    .click();
   await expect(selector).toContainText(
     `Setup ${existingSetupNames.length + 1}`,
   );

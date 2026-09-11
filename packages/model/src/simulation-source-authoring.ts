@@ -11,6 +11,8 @@ export function createSourceSimulationSetup(options: {
   name: string;
   profileId: string;
   documentId?: string;
+  /** Supplied from the canonical netlist interface when authoring a textual TB. */
+  dut?: { name: string; ports: string[] };
 }): ProjectSimulationSetup {
   const config = SimulationExperimentConfigSchema.parse({
     version: 1,
@@ -25,11 +27,26 @@ export function createSourceSimulationSetup(options: {
       entry: "run.cir",
       configPath: "experiment.json",
       files: [
+        ...(options.dut
+          ? [
+              {
+                path: "testbench.spice",
+                text: [
+                  "* Text Testbench — add your sources and loads here.",
+                  options.dut.ports.length
+                    ? `XDUT ${[...options.dut.ports, options.dut.name].join(" ")}`
+                    : "* This Cell has no formal ports. Add its interface and DUT call here, or run the Cell directly.",
+                  "",
+                ].join("\n"),
+              },
+            ]
+          : []),
         {
           path: "run.cir",
           text: [
             `* ${options.name.replace(/[\r\n]/gu, " ")}`,
             ...(options.documentId ? ['.include "circuit.spice"'] : []),
+            ...(options.dut ? ['.include "testbench.spice"'] : []),
             ".control",
             "set filetype=ascii",
             "set appendwrite",
@@ -51,7 +68,7 @@ export function createSourceSimulationSetup(options: {
               id: "circuit",
               path: "circuit.spice",
               documentId: options.documentId,
-              emission: "top-level",
+              emission: options.dut ? "subcircuit" : "top-level",
             },
           ]
         : [],

@@ -241,3 +241,124 @@
 .simulation-code-help a {
   color: #155782;
 }
+.simulation-code-editor-shell {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+}
+.simulation-code-editor-shell > .simulation-code-editor {
+  min-height: 0;
+  flex: 1;
+}
+.simulation-code-helper-toolbar {
+  display: flex;
+  gap: 12px;
+  padding: 3px 8px;
+  border-bottom: 1px solid var(--icm-border);
+}
+.simulation-code-helper-toolbar button {
+  background: transparent;
+  border: 0;
+  color: var(--icm-text-muted);
+  cursor: pointer;
+}
+.simulation-code-helper-toolbar kbd {
+  font: inherit;
+  opacity: 0.65;
+  margin-left: 6px;
+}
+.simulation-helper-list {
+  position: absolute;
+  top: 32px;
+  left: 8px;
+  right: 8px;
+  max-height: 80%;
+  display: flex;
+  flex-direction: column;
+  z-index: 30;
+  border: 1px solid var(--icm-border);
+  border-radius: 6px;
+  padding: 8px;
+  background: var(--icm-surface);
+  box-shadow: 0 8px 24px #0002;
+}
+.simulation-helper-list > input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px;
+}
+.simulation-helper-options {
+  overflow: auto;
+  min-height: 0;
+}
+.simulation-helper-options button {
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  text-align: left;
+  gap: 4px 12px;
+  border: 0;
+  padding: 7px 8px;
+  background: transparent;
+  color: var(--icm-text);
+  cursor: pointer;
+}
+.simulation-helper-options button[aria-selected="true"] {
+  background: var(--icm-surface-muted);
+}
+.simulation-helper-options small {
+  color: var(--icm-text-muted);
+  overflow-wrap: anywhere;
+}
+.simulation-helper-group {
+  padding: 9px 8px 3px;
+  color: var(--icm-text-muted);
+  font-size: 11px;
+}
+.simulation-parameter-ghost {
+  color: var(--icm-text-muted);
+  opacity: 0.6;
+  pointer-events: none;
+  user-select: none;
+  font-style: italic;
+}
+.simulation-find-helper {
+  animation: simulation-helper-appear 0.1s 0.8s both;
+}
+@keyframes simulation-helper-appear {
+  from {
+    opacity: 0;
+    visibility: hidden;
+  }
+  to {
+    opacity: 1;
+    visibility: visible;
+  }
+}
+.simulation-starter-choices {
+  position: absolute;
+  z-index: 35;
+  inset: 50px 12px auto;
+  background: var(--icm-surface);
+  border: 1px solid var(--icm-border);
+  box-shadow: 0 8px 24px #0002;
+  padding: 12px;
+  display: grid;
+  gap: 8px;
+}
+.simulation-probe-picker {
+  position: absolute;
+  z-index: 40;
+  inset: 45px 12px auto;
+  max-height: 70%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: var(--icm-surface);
+  border: 1px solid var(--icm-border);
+  box-shadow: 0 8px 24px #0002;
+}

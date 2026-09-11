@@ -1,5 +1,56 @@
 import { expect, test } from "@playwright/test";
 
+test("flat Helper finds an analysis by purpose and ghost arguments never enter saved source", async ({
+  page,
+}) => {
+  const editor = page.getByRole("textbox", {
+    name: "Simulation source editor",
+  });
+  await editor.fill("* test\n.control\n");
+  await page.getByRole("button", { name: /Helper.*Ctrl\+Space/ }).click();
+  await page
+    .getByRole("textbox", { name: "Search commands or purpose" })
+    .fill("频响");
+  await page.getByRole("option").click();
+  await expect(page.locator(".simulation-parameter-ghost")).toContainText(
+    "dec|oct|lin",
+  );
+  await expect(page.getByTestId("draft-source")).toHaveText(
+    JSON.stringify("* test\n.control\nac "),
+  );
+  await page.keyboard.insertText("dec");
+  await page.keyboard.press("Tab");
+  await page.keyboard.insertText("20");
+  await page.keyboard.press("Tab");
+  await page.keyboard.insertText("10");
+  await page.keyboard.press("Tab");
+  await page.keyboard.insertText("1G");
+  await page.keyboard.press("Control+s");
+  await expect(page.getByTestId("saved-source")).toHaveText(
+    JSON.stringify("* test\n.control\nac dec 20 10 1G"),
+  );
+});
+
+test("unknown input offers explicit help and Escape suppresses parameter ghosts", async ({
+  page,
+}) => {
+  const editor = page.getByRole("textbox", {
+    name: "Simulation source editor",
+  });
+  await editor.fill("* test\n.control\n频响");
+  await page.keyboard.press("Control+Space");
+  await expect(
+    page.getByRole("dialog", { name: "Insert / Helper" }),
+  ).toBeVisible();
+  await page.keyboard.press("Escape");
+  await editor.fill("* test\n.control\nac ");
+  await expect(page.locator(".simulation-parameter-ghost")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.locator(".simulation-parameter-ghost")).toHaveCount(0);
+  await page.keyboard.insertText("dec");
+  await expect(page.locator(".simulation-parameter-ghost")).toHaveCount(0);
+});
+
 test.beforeEach(async ({ page }) => {
   await page.route("**/code-component-check", (route) =>
     route.fulfill({

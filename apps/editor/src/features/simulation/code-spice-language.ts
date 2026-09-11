@@ -10,6 +10,7 @@ import type {
   CompletionResult,
 } from "@codemirror/autocomplete";
 import { hoverTooltip } from "@codemirror/view";
+import { parameterGuide, insertSpiceHelp } from "./code-parameter-guide";
 
 interface State {
   control: boolean;
@@ -64,6 +65,7 @@ export const spiceCodeLanguage = StreamLanguage.define(parser);
 
 export function spiceCompletion(
   context: CompletionContext,
+  relatedSources: readonly string[] = [],
 ): CompletionResult | null {
   const line = context.state.doc.lineAt(context.pos);
   const word = context.matchBefore(/[.\w]+/u);
@@ -71,6 +73,62 @@ export function spiceCompletion(
   const before = line.text.slice(0, context.pos - line.from);
   if (/^\s*\*/u.test(before)) return null;
   const head = /^\s*[.\w]*$/u.test(before);
+  const guide = parameterGuide(context.state);
+  if (!head && guide) {
+    const choices = guide.parameters[guide.index]?.choices;
+    if (!choices) {
+      const parameter = guide.parameters[guide.index]?.label;
+      const wantsSource = parameter === "source" || parameter === "inputSource";
+      const wantsVector =
+        parameter === "vector" || parameter === "v(out[,ref])";
+      if (!wantsSource && !wantsVector) return null;
+      const symbols = new Set<string>();
+      for (const text of [context.state.doc.toString(), ...relatedSources]) {
+        let subckt = false;
+        for (const row of text.split(/\r?\n/u)) {
+          if (/^\s*\.subckt\b/iu.test(row)) subckt = true;
+          if (/^\s*\.ends\b/iu.test(row)) subckt = false;
+          if (subckt) continue;
+          const instance = /^\s*([RCLVI][\w.]*)\s+(\S+)\s+(\S+)\s+/iu.exec(row);
+          if (!instance) continue;
+          if (wantsSource && /^[VI]/iu.test(instance[1]!))
+            symbols.add(instance[1]!);
+          if (wantsVector) {
+            for (const node of instance.slice(2, 4)) symbols.add(`v(${node})`);
+            if (/^V/iu.test(instance[1]!)) symbols.add(`i(${instance[1]})`);
+          }
+        }
+      }
+      const vectorWord = context.matchBefore(/[\w().,:]+/u);
+      return {
+        from: vectorWord?.from ?? context.pos,
+        options: [...symbols].map((label) => ({ label, type: "variable" })),
+      };
+    }
+    return {
+      from: word?.from ?? context.pos,
+      options: choices.map((label) => {
+        const wave = /^(PULSE|SIN|PWL)$/u.test(label)
+          ? lookupSimulationHelp(label, "deck")
+          : undefined;
+        return {
+          label,
+          type: "enum",
+          ...(wave
+            ? {
+                apply: (
+                  view: Parameters<typeof insertSpiceHelp>[0],
+                  _completion: unknown,
+                  from: number,
+                  to: number,
+                ) => insertSpiceHelp(view, wave, from, to),
+              }
+            : {}),
+        };
+      }),
+    };
+  }
+  if (!head) return null;
   // Partial lines need a lexical context for completion; the authoritative parser diagnoses whole files separately.
   const preceding = context.state.doc.sliceString(0, line.from);
   const boundaries = [...preceding.matchAll(/^\s*\.(control|endc)\b/gimu)];
@@ -91,7 +149,13 @@ export function spiceCompletion(
       type: "keyword",
       detail: rule.signature,
       info: `${rule.summary}\nngspice 46 manual §${rule.section}`,
-      apply: rule.name,
+      boost: 100 - (rule.priority ?? 90),
+      apply: (
+        view: Parameters<typeof insertSpiceHelp>[0],
+        _completion: unknown,
+        from: number,
+        to: number,
+      ) => insertSpiceHelp(view, rule, from, to),
     }));
   return { from: word?.from ?? context.pos, options, validFor: /^[.\w]*$/u };
 }
