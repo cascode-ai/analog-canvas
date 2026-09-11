@@ -961,9 +961,6 @@
 /* Half-screen windows: tighten every menubar pill so File…Publish and the
    right-side actions share one uncut row. */
 @media (max-width: 940px) {
-  .app-command-surface .menubar-row {
-    gap: 1px;
-  }
   .app-command-surface .menubar-row > button {
     padding-inline: 0.25rem;
   }
@@ -971,6 +968,14 @@
   .toolbar-button,
   .menubar-help {
     padding-inline: 0.35rem;
+  }
+}
+
+/* At supported half-window widths, the variable Project name yields before
+   primary commands. Smaller windows retain the scrollable command viewport. */
+@media (min-width: 720px) and (max-width: 940px) {
+  .app-command-surface {
+    flex-shrink: 0;
   }
 }
 
