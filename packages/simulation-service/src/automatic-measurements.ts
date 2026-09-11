@@ -124,7 +124,7 @@ function measurement(
 }
 
 /**
- * Conservative, setup-free summaries over the complete evaluated outputs.
+ * Conservative, folder-free summaries over the complete evaluated outputs.
  * A metric failure remains local to its row and never changes Run status.
  */
 export function deriveAutomaticMeasurements(

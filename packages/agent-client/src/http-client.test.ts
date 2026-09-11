@@ -35,7 +35,7 @@ describe("agent http client", () => {
     });
     await expect(
       http.circuit("s", "t", {
-        apiVersion: "2.0",
+        apiVersion: "3.0",
         requestId: "same-id",
         transactionId: "same-tx",
         operation: "transact",
@@ -141,7 +141,7 @@ describe("agent http client", () => {
       },
     });
     const response = await http.circuit("session-1", "tok", {
-      apiVersion: "2.0",
+      apiVersion: "3.0",
       requestId: "req-1",
       operation: "capabilities",
     });
@@ -155,7 +155,7 @@ describe("agent http client", () => {
     });
     await expect(
       http.circuit("s", "t", {
-        apiVersion: "2.0",
+        apiVersion: "3.0",
         requestId: "req-1",
         operation: "capabilities",
       }),
@@ -173,7 +173,7 @@ describe("agent http client", () => {
     });
     await expect(
       offline.circuit("s", "t", {
-        apiVersion: "2.0",
+        apiVersion: "3.0",
         requestId: "r",
         operation: "snapshot",
         documentId: "main",
@@ -189,7 +189,7 @@ describe("agent http client", () => {
     });
     await expect(
       bare.circuit("s", "t", {
-        apiVersion: "2.0",
+        apiVersion: "3.0",
         requestId: "r",
         operation: "snapshot",
         documentId: "main",
@@ -206,7 +206,7 @@ describe("agent http client", () => {
     });
     await expect(
       http.circuit("s", "t", {
-        apiVersion: "2.0",
+        apiVersion: "3.0",
         requestId: "r",
         operation: "snapshot",
         documentId: "main",
@@ -220,7 +220,7 @@ describe("agent http client", () => {
       fetch: async () => jsonResponse(200, snapshotResponse("req-2")),
     });
     const response = await http.circuit("s", "t", {
-      apiVersion: "2.0",
+      apiVersion: "3.0",
       requestId: "req-2",
       operation: "snapshot",
       documentId: "main",

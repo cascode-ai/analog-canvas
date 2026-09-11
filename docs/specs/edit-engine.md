@@ -95,7 +95,7 @@ The Agent Document transaction schema is derived from this union, applies its
 scope restrictions, and excludes unsupported history kinds. Formal-interface
 edits are submitted inside `structureEdits`, which composes the same union with
 add/remove Document operations under one Project `structureRevision`. The
-Project-level `upsert_simulation_setup` and `remove_simulation_setup` edits are
+Project-level `upsert_simulation_folder` and `remove_simulation_folder` edits are
 structure edits too. They address one named setup by stable ID, refuse a new
 structured root that is not a Document of the Project, treat an identical
 upsert or absent removal as no change, and preserve authored intent when a later

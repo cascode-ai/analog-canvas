@@ -86,29 +86,31 @@ describe("schema 36 to 37 migration (persisted SimulationSetup)", () => {
     expect(result.sourceSchemaVersion).toBe(36);
     expect(result.migrated).toBe(true);
     expect(result.project.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
-    expect(result.project.simulationSetups).toEqual([]);
+    expect(result.project.simulationFolders).toEqual([]);
     expect(result.project.documents[0]!.instances[0]!.netlist).toEqual({
       parameters: { dc: "1" },
     });
-    expect(serializeProject(result.project)).toContain('"simulationSetups"');
+    expect(serializeProject(result.project)).toContain('"simulationFolders"');
   });
 
   it("round-trips an authored setup byte-stably beside the circuit", () => {
     const project = createEmptyProject("ota-bench", "OTA bench", "testbench");
     project.documents.push(createEmptyDocument("ota", "OTA"));
-    project.simulationSetups.push(
+    project.simulationFolders.push(
       migrateSimulationSetupToSource(project, {
         id: "setup-1",
         name: "Setup 1",
         ...setup(),
-      }).setup,
+      }).folder,
     );
 
     const serialized = serializeProject(project);
     const reloaded = parseProjectWithMetadata(serialized);
 
     expect(reloaded.migrated).toBe(false);
-    expect(reloaded.project.simulationSetups).toEqual(project.simulationSetups);
+    expect(reloaded.project.simulationFolders).toEqual(
+      project.simulationFolders,
+    );
     expect(serializeProject(reloaded.project)).toBe(serialized);
   });
 
@@ -124,7 +126,7 @@ describe("schema 36 to 37 migration (persisted SimulationSetup)", () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.project.simulationSetups[0]).toMatchObject({
+    expect(result.project.simulationFolders[0]).toMatchObject({
       id: "setup-1",
       name: "Setup 1",
       version: 4,

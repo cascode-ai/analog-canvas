@@ -6,7 +6,7 @@ import {
   type DeviceParameterDefinition,
 } from "@icm/devices";
 import { parseSpiceNumber } from "@icm/spice";
-import { analyzeDesignNetlist } from "./extract.js";
+import { analyzeDesignNetlistForAuthoring } from "./extract.js";
 import {
   printSpiceWithLocations,
   type PrintedSpiceParameter,
@@ -35,13 +35,55 @@ export function generateCircuitSource(
 ):
   | { ok: true; source: GeneratedCircuitSource; warnings: NetlistDiagnostic[] }
   | { ok: false; diagnostics: NetlistDiagnostic[] } {
-  const analysis = analyzeDesignNetlist(project, {
+  const analysis = analyzeDesignNetlistForAuthoring(project, {
     format: "spice",
     rootDocumentId: binding.documentId,
   });
-  if (!analysis.ir || analysis.diagnostics.some((d) => d.severity === "error"))
+  if (
+    !analysis.ir ||
+    !analysis.ir.cells.some((cell) => cell.id === binding.documentId)
+  )
     return { ok: false, diagnostics: analysis.diagnostics };
   const ir = analysis.ir;
+  // These deliberately non-numeric slots exist only in the editing projection.
+  // Never invent an electrical default or persist generated text as circuit authority.
+  for (const cell of ir.cells) {
+    for (const card of cell.instances) {
+      const instance = project.documents
+        .find((d) => d.id === cell.id)
+        ?.instances.find((i) => i.id === card.id);
+      if (!instance?.netlist) continue;
+      const reviewed = reviewedExternalDeviceBindings.find(
+        (item) => item.id === card.reviewedExternalBindingId,
+      );
+      const definitions =
+        reviewed?.parameters ??
+        deviceDescriptor(instance.symbolId)?.parameters ??
+        [];
+      for (const definition of definitions) {
+        if (
+          definition.editor === "select" ||
+          definition.authoringVisibility === "compatibility"
+        )
+          continue;
+        const present = card.parameters.find(
+          (p) => p.name.toLowerCase() === definition.name.toLowerCase(),
+        );
+        const original = Object.entries(instance.netlist.parameters).find(
+          ([name]) => name.toLowerCase() === definition.name.toLowerCase(),
+        );
+        if (!present && !definition.required && !original) continue;
+        if (present?.rawValue.trim()) continue;
+        const rawValue = original?.[1].trim() || `<${definition.name}>`;
+        if (present) present.rawValue = rawValue;
+        else
+          card.parameters.push({
+            name: original?.[0] ?? definition.name,
+            rawValue,
+          });
+      }
+    }
+  }
   const printed = printSpiceWithLocations(ir, binding.emission === "top-level");
   const parameters = printed.parameters.flatMap(
     (span): EditableCircuitParameter[] => {
@@ -54,7 +96,6 @@ export function generateCircuitSource(
       const originalName = Object.keys(instance.netlist.parameters).find(
         (name) => name.toLowerCase() === span.parameter.toLowerCase(),
       );
-      if (!originalName) return [];
       const reviewed = reviewedExternalDeviceBindings.find(
         (item) => item.id === generated.reviewedExternalBindingId,
       );
@@ -64,8 +105,7 @@ export function generateCircuitSource(
       if (
         !descriptor ||
         descriptor.editor === "select" ||
-        descriptor.authoringVisibility === "compatibility" ||
-        !parseSpiceNumber(span.rawValue)
+        descriptor.authoringVisibility === "compatibility"
       )
         return [];
       const conversion =
@@ -76,10 +116,12 @@ export function generateCircuitSource(
       return [
         {
           ...span,
-          parameter: originalName,
+          parameter: originalName ?? descriptor.name,
           descriptor,
           conversion,
-          originalValue: instance.netlist.parameters[originalName]!,
+          originalValue: originalName
+            ? instance.netlist.parameters[originalName]!
+            : "",
           documentRevision: document.revision,
         },
       ];
@@ -149,6 +191,30 @@ export function planCircuitSourceEdit(
         "The edited text changes a protected Circuit boundary",
       );
     const raw = nextText.slice(nextOffset, end);
+    const key = JSON.stringify([
+      span.documentId,
+      span.instanceId,
+      span.parameter,
+    ]);
+    // Preserve repeated-appearance agreement without validating untouched slots.
+    if (raw === span.rawValue) {
+      const prior = changes.get(key);
+      if (prior && prior.value !== span.originalValue)
+        return fail(
+          "SIMULATION_PARAMETER_CONFLICT",
+          `Repeated appearances of ${span.parameter} must agree`,
+        );
+      changes.set(key, {
+        documentId: span.documentId,
+        expectedRevision: span.documentRevision,
+        instanceId: span.instanceId,
+        parameter: span.parameter,
+        value: span.originalValue,
+      });
+      originalOffset = span.endOffset;
+      nextOffset = end;
+      continue;
+    }
     const number = parseSpiceNumber(raw);
     if (!number || !Number.isFinite(number.value) || /\s/u.test(raw))
       return fail(
@@ -183,12 +249,6 @@ export function planCircuitSourceEdit(
         error instanceof Error ? error.message : String(error),
       );
     }
-    const key = JSON.stringify([
-      span.documentId,
-      span.instanceId,
-      span.parameter,
-    ]);
-    if (raw === span.rawValue) value = span.originalValue;
     const prior = changes.get(key);
     if (prior && prior.value !== value)
       return fail(

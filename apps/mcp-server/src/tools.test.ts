@@ -1,5 +1,5 @@
 import {
-  createSourceSimulationSetup,
+  createSimulationFolder,
   readSimulationExperimentConfig,
 } from "@icm/model";
 import { describe, expect, it } from "vitest";
@@ -41,7 +41,7 @@ describe("mcp tool surface", () => {
       "connection_status",
       "project_cells",
       "simulation",
-      "simulation_setup",
+      "simulation_folder",
       "simulation_output",
       "simulation_measurement",
       "simulation_device_operating_point",
@@ -95,7 +95,7 @@ describe("mcp tool surface", () => {
       await callTool("project_cells", { action: "list-projects" }, session),
     ) as { ok: boolean; projects: unknown[] };
     expect(value).toEqual({
-      apiVersion: "2.0",
+      apiVersion: "3.0",
       requestId: expect.any(String),
       operation: "list-projects",
       ok: true,
@@ -128,15 +128,15 @@ describe("mcp tool surface", () => {
       { session } = await toolSession(http);
     await callTool("connect", { claimCode: "session-1.code" }, session);
     const snapshot = testSnapshot();
-    const setup = createSourceSimulationSetup({
+    const folder = createSimulationFolder({
       id: "s",
       name: "OP",
       profileId: "test",
       documentId: "main",
     });
-    setup.input.files[0]!.text =
+    folder.input.files[0]!.text =
       "* custom 🧪\r\n.control\r\nrepeat 2\r\nop\r\nend\r\n.endc\r\n.end";
-    snapshot.project.simulationSetups = [setup];
+    snapshot.project.simulationFolders = [folder];
     const writes: unknown[] = [];
     http.circuitHandler = async ({ request }) => {
       if (request.operation === "snapshot")
@@ -153,8 +153,8 @@ describe("mcp tool surface", () => {
     expect(
       parseText(
         await callTool(
-          "simulation_setup",
-          { action: "update", setupId: "s", name: "Bias" },
+          "simulation_folder",
+          { action: "update", folderId: "s", name: "Bias" },
           session,
         ),
       ),
@@ -162,8 +162,8 @@ describe("mcp tool surface", () => {
     expect(
       parseText(
         await callTool(
-          "simulation_setup",
-          { action: "clone", setupId: "s", newSetupId: "copy", name: "AC" },
+          "simulation_folder",
+          { action: "clone", folderId: "s", newFolderId: "copy", name: "AC" },
           session,
         ),
       ),
@@ -171,26 +171,26 @@ describe("mcp tool surface", () => {
     expect(writes[0]).toMatchObject({
       structureEdits: [
         {
-          kind: "upsert_simulation_setup",
-          setup: { id: "s", name: "Bias", input: setup.input },
+          kind: "upsert_simulation_folder",
+          folder: { id: "s", name: "Bias", input: folder.input },
         },
       ],
     });
     expect(writes[1]).toMatchObject({
       structureEdits: [
         {
-          kind: "upsert_simulation_setup",
-          setup: { id: "copy", input: setup.input },
+          kind: "upsert_simulation_folder",
+          folder: { id: "copy", input: folder.input },
         },
       ],
     });
     expect(
       parseText(
         await callTool(
-          "simulation_setup",
+          "simulation_folder",
           {
             action: "create",
-            setupId: "text",
+            folderId: "text",
             name: "Native",
             profileId: "test",
           },
@@ -201,21 +201,24 @@ describe("mcp tool surface", () => {
     expect(writes[2]).toMatchObject({
       structureEdits: [
         {
-          setup: { version: 4, input: { kind: "source", circuitBindings: [] } },
+          folder: {
+            version: 4,
+            input: { kind: "source", circuitBindings: [] },
+          },
         },
       ],
     });
     expect(
       parseText(
         await callTool(
-          "simulation_setup",
-          { action: "update", setupId: "s" },
+          "simulation_folder",
+          { action: "update", folderId: "s" },
           session,
         ),
       ),
     ).toMatchObject({
       ok: false,
-      error: { code: "SIMULATION_SETUP_UPDATE_EMPTY" },
+      error: { code: "SIMULATION_FOLDER_UPDATE_EMPTY" },
     });
   });
   it("writes output, measurement and MOS helpers into the one config source, preserving native programs", async () => {
@@ -223,22 +226,22 @@ describe("mcp tool surface", () => {
       { session } = await toolSession(http);
     await callTool("connect", { claimCode: "session-1.code" }, session);
     const snapshot = testSnapshot();
-    snapshot.project.simulationSetups = [
-      createSourceSimulationSetup({
+    snapshot.project.simulationFolders = [
+      createSimulationFolder({
         id: "s",
         name: "Program",
         profileId: "test",
         documentId: "main",
       }),
     ];
-    const native = snapshot.project.simulationSetups[0]!.input.files[0]!.text;
+    const native = snapshot.project.simulationFolders[0]!.input.files[0]!.text;
     http.circuitHandler = async ({ request }) => {
       if (request.operation === "snapshot")
         return snapshotResponse(request.requestId, snapshot);
       if (request.operation === "transact") {
         const edit = request.structureEdits?.[0];
-        if (edit?.kind === "upsert_simulation_setup") {
-          snapshot.project.simulationSetups = [edit.setup];
+        if (edit?.kind === "upsert_simulation_folder") {
+          snapshot.project.simulationFolders = [edit.folder];
           snapshot.project.structureRevision++;
         }
         return transactSuccessResponse(
@@ -250,7 +253,7 @@ describe("mcp tool surface", () => {
     };
     const cfg = () => {
       const result = readSimulationExperimentConfig(
-        snapshot.project.simulationSetups[0]!,
+        snapshot.project.simulationFolders[0]!,
       );
       if (!result.ok) throw Error(result.message);
       return result.config;
@@ -261,7 +264,7 @@ describe("mcp tool surface", () => {
           "simulation_output",
           {
             action: "upsert",
-            setupId: "s",
+            folderId: "s",
             outputId: "gain",
             label: "Gain",
             expression: {
@@ -279,7 +282,7 @@ describe("mcp tool surface", () => {
           "simulation_measurement",
           {
             action: "upsert",
-            setupId: "s",
+            folderId: "s",
             measurementId: "gain-at-1k",
             label: "Gain at 1 kHz",
             analysis: "ac",
@@ -296,7 +299,7 @@ describe("mcp tool surface", () => {
           "simulation_device_operating_point",
           {
             action: "upsert",
-            setupId: "s",
+            folderId: "s",
             deviceOperatingPointId: "m1",
             targetDocumentId: "main",
             instanceId: "instance-1",
@@ -315,11 +318,11 @@ describe("mcp tool surface", () => {
       ],
     });
     expect(
-      snapshot.project.simulationSetups[0]!.input.files.find(
+      snapshot.project.simulationFolders[0]!.input.files.find(
         (f) => f.path === "run.cir",
       )!.text,
     ).toBe(native);
-    expect(snapshot.project.simulationSetups[0]!.input).not.toHaveProperty(
+    expect(snapshot.project.simulationFolders[0]!.input).not.toHaveProperty(
       "analyses",
     );
   });
@@ -328,14 +331,14 @@ describe("mcp tool surface", () => {
       { session } = await toolSession(http);
     await callTool("connect", { claimCode: "session-1.code" }, session);
     const snapshot = testSnapshot(),
-      setup = createSourceSimulationSetup({
+      folder = createSimulationFolder({
         id: "s",
         name: "Draft",
         profileId: "test",
       });
-    setup.input.files.find((f) => f.path === setup.input.configPath)!.text =
+    folder.input.files.find((f) => f.path === folder.input.configPath)!.text =
       "{";
-    snapshot.project.simulationSetups = [setup];
+    snapshot.project.simulationFolders = [folder];
     http.circuitHandler = async ({ request }) =>
       request.operation === "snapshot"
         ? snapshotResponse(request.requestId, snapshot)
@@ -344,7 +347,7 @@ describe("mcp tool surface", () => {
       parseText(
         await callTool(
           "simulation_output",
-          { action: "list", setupId: "s" },
+          { action: "list", folderId: "s" },
           session,
         ),
       ),
@@ -355,14 +358,14 @@ describe("mcp tool surface", () => {
     expect(
       parseText(
         await callTool(
-          "simulation_setup",
-          { action: "get", setupId: "s" },
+          "simulation_folder",
+          { action: "get", folderId: "s" },
           session,
         ),
       ),
     ).toMatchObject({
       ok: true,
-      setup: {
+      folder: {
         input: {
           files: expect.arrayContaining([
             { path: "experiment.json", text: "{" },
@@ -370,8 +373,8 @@ describe("mcp tool surface", () => {
         },
       },
     });
-    snapshot.project.simulationSetups = [
-      createSourceSimulationSetup({
+    snapshot.project.simulationFolders = [
+      createSimulationFolder({
         id: "s",
         name: "Repaired",
         profileId: "test",
@@ -381,7 +384,7 @@ describe("mcp tool surface", () => {
       parseText(
         await callTool(
           "simulation_output",
-          { action: "list", setupId: "s" },
+          { action: "list", folderId: "s" },
           session,
         ),
       ),

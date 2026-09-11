@@ -664,25 +664,25 @@ export function App({
     null,
   );
   const [simulationDraftContext, setSimulationDraftContext] = useState<{
-    setupId: string;
-    setupName: string;
+    folderId: string;
+    folderName: string;
     dutDocumentId: string;
     rootDocumentId: string;
   } | null>(null);
-  const [activeSimulationSetupId, setActiveSimulationSetupId] = useState<
+  const [activeSimulationFolderId, setActiveSimulationFolderId] = useState<
     string | null
   >(null);
-  const activeSimulationSetup =
-    project.simulationSetups.find(
-      (setup) => setup.id === activeSimulationSetupId,
+  const activeSimulationFolder =
+    project.simulationFolders.find(
+      (folder) => folder.id === activeSimulationFolderId,
     ) ??
-    (simulationDraftContext?.setupId === activeSimulationSetupId
+    (simulationDraftContext?.folderId === activeSimulationFolderId
       ? undefined
-      : project.simulationSetups[0]);
+      : project.simulationFolders[0]);
   useEffect(() => {
     setNewTestbenchDutId(null);
     setSimulationDraftContext(null);
-    setActiveSimulationSetupId(null);
+    setActiveSimulationFolderId(null);
   }, [projectSessionId]);
   const [canvasContextMenu, setCanvasContextMenu] = useState<{
     x: number;
@@ -813,7 +813,7 @@ export function App({
               },
             };
           return host.handle({
-            apiVersion: "2.0",
+            apiVersion: "3.0",
             requestId: crypto.randomUUID(),
             operation: "read",
             runId,
@@ -1248,7 +1248,7 @@ export function App({
   }, [projectSessionId]);
   useEffect(() => {
     setSimulationTerminalPickStart(null);
-  }, [activeSimulationSetupId]);
+  }, [activeSimulationFolderId]);
   const routeCounter = useRef(0);
   const canvasDragSessionRef = useRef<CanvasDragSession | null>(null);
   /**
@@ -1761,10 +1761,10 @@ export function App({
     return group?.baseNetIds[0] ?? null;
   };
   const simulationPickRootDocumentId =
-    activeSimulationSetup?.input.circuitBindings.find(
+    activeSimulationFolder?.input.circuitBindings.find(
       (binding) => binding.emission === "top-level",
     )?.documentId ??
-    (simulationDraftContext?.setupId === activeSimulationSetupId
+    (simulationDraftContext?.folderId === activeSimulationFolderId
       ? simulationDraftContext.rootDocumentId
       : undefined);
   const simulationPickOccurrence: readonly string[] | undefined =
@@ -3467,14 +3467,14 @@ export function App({
     }
     setDocumentStack([]);
     setNewTestbenchDutId(null);
-    const setupId = createId("simulation-setup");
+    const folderId = createId("simulation-folder");
     setSimulationDraftContext({
-      setupId,
-      setupName: `${testbench.name} setup`,
+      folderId,
+      folderName: `${testbench.name} folder`,
       dutDocumentId: dut.id,
       rootDocumentId: testbench.id,
     });
-    setActiveSimulationSetupId(setupId);
+    setActiveSimulationFolderId(folderId);
     if (analogSimulationOpen) minimizeAnalogSimulation();
     if (request.placeDut) {
       beginProjectCellPlacement(dut.id);
@@ -5326,12 +5326,13 @@ export function App({
                         }
                       : undefined
                   }
-                  selectedSetupId={
-                    simulationDraftContext?.setupId === activeSimulationSetupId
-                      ? simulationDraftContext.setupId
-                      : (activeSimulationSetup?.id ?? null)
+                  selectedFolderId={
+                    simulationDraftContext?.folderId ===
+                    activeSimulationFolderId
+                      ? simulationDraftContext.folderId
+                      : (activeSimulationFolder?.id ?? null)
                   }
-                  onSelectSetupId={setActiveSimulationSetupId}
+                  onSelectFolderId={setActiveSimulationFolderId}
                   {...(simulationDraftContext
                     ? { draftContext: simulationDraftContext }
                     : {})}
@@ -5347,8 +5348,8 @@ export function App({
                     simulationSourceBuffer.current = buffer;
                   }}
                   onSaveProject={() => void saveProjectToCloud()}
-                  onSaveSetup={(
-                    setup,
+                  onSaveFolder={(
+                    folder,
                     expectedRevision = project.structureRevision,
                   ) => {
                     const result = dispatchProjectTransaction({
@@ -5356,15 +5357,15 @@ export function App({
                       projectId: project.id,
                       expectedStructureRevision: expectedRevision,
                       actor: { kind: "human", id: "human-local" },
-                      edits: [{ kind: "upsert_simulation_setup", setup }],
+                      edits: [{ kind: "upsert_simulation_folder", folder }],
                     });
                     if (result.ok) {
                       setSimulationDraftContext(null);
-                      setActiveSimulationSetupId(setup.id);
+                      setActiveSimulationFolderId(folder.id);
                       setStatus(
                         result.applied
-                          ? `Updated simulation setup ${setup.name}`
-                          : `Simulation setup ${setup.name} is already up to date`,
+                          ? `Updated simulation folder ${folder.name}`
+                          : `Simulation folder ${folder.name} is already up to date`,
                       );
                       return {
                         status: result.applied ? "applied" : "unchanged",
@@ -5398,13 +5399,13 @@ export function App({
                       },
                     };
                   }}
-                  onDeleteSetup={(setupId) => {
+                  onDeleteFolder={(folderId) => {
                     const committed = commitStructure(
-                      "remove-simulation-setup",
-                      [{ kind: "remove_simulation_setup", setupId }],
+                      "remove-simulation-folder",
+                      [{ kind: "remove_simulation_folder", folderId }],
                     );
-                    if (committed && activeSimulationSetupId === setupId) {
-                      setActiveSimulationSetupId(null);
+                    if (committed && activeSimulationFolderId === folderId) {
+                      setActiveSimulationFolderId(null);
                       setSimulationDraftContext(null);
                     }
                     return committed;
@@ -5443,7 +5444,7 @@ export function App({
                       );
                       return;
                     }
-                    const input = activeSimulationSetup?.input;
+                    const input = activeSimulationFolder?.input;
                     const rootDocumentId =
                       preparedRootDocumentId ??
                       ("circuit" in probe

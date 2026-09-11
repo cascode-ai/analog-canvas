@@ -24,10 +24,10 @@ function fixture(actor: "human" | "agent" = "human") {
     actor: { kind: actor, id: actor },
   });
   const files = new SimulationFiles(Date.now, host);
-  const setup = controller.project.simulationSetups[0]!;
+  const folder = controller.project.simulationFolders[0]!;
   const generated = generateCircuitSource(
     controller.project,
-    setup.input.circuitBindings[0]!,
+    folder.input.circuitBindings[0]!,
   );
   if (!generated.ok) throw Error(JSON.stringify(generated.diagnostics));
   const source = generated.source;
@@ -40,11 +40,11 @@ function fixture(actor: "human" | "agent" = "human") {
     controller,
     dispatch,
     files,
-    setup,
+    folder,
     source,
     span,
     text,
-    owner: { kind: "project-setup" as const, setupId: setup.id },
+    owner: { kind: "project-folder" as const, folderId: folder.id },
   };
 }
 describe("shared human/Agent generated Circuit File Resource", () => {
@@ -72,7 +72,7 @@ describe("shared human/Agent generated Circuit File Resource", () => {
         expectedRevision: before.structureRevision,
         writes: [
           {
-            path: f.setup.input.entry,
+            path: f.folder.input.entry,
             text: "* 🧪\r\nunfinished code is saveable\r\n",
           },
         ],
@@ -108,15 +108,15 @@ describe("shared human/Agent generated Circuit File Resource", () => {
           ({ revision, ...content }) => content,
         ),
       ).toEqual(before.documents.map(({ revision, ...content }) => content));
-      expect(f.controller.project.simulationSetups).toEqual(
-        before.simulationSetups,
+      expect(f.controller.project.simulationFolders).toEqual(
+        before.simulationFolders,
       );
       f.controller.transact([{ kind: "redo" }]);
       expect(f.controller.project.documents.map((d) => d.instances)).toEqual(
         after.documents.map((d) => d.instances),
       );
-      expect(f.controller.project.simulationSetups).toEqual(
-        after.simulationSetups,
+      expect(f.controller.project.simulationFolders).toEqual(
+        after.simulationFolders,
       );
     },
   );
@@ -136,7 +136,7 @@ describe("shared human/Agent generated Circuit File Resource", () => {
         expectedRevision: before.structureRevision,
         writes: [
           {
-            path: f.setup.input.configPath,
+            path: f.folder.input.configPath,
             text: "invalid JSON can be saved, but not half a rejected transaction",
           },
         ],
@@ -155,7 +155,7 @@ describe("shared human/Agent generated Circuit File Resource", () => {
         action: "update",
         owner: f.owner,
         expectedRevision,
-        writes: [{ path: f.setup.input.configPath, text: "{" }],
+        writes: [{ path: f.folder.input.configPath, text: "{" }],
       });
     expect(
       f.controller.dispatchProjectTransaction({
@@ -176,8 +176,8 @@ describe("shared human/Agent generated Circuit File Resource", () => {
     expect(
       parseProject(
         serializeProject(f.controller.project),
-      ).simulationSetups[0]!.input.files.find(
-        (file) => file.path === f.setup.input.configPath,
+      ).simulationFolders[0]!.input.files.find(
+        (file) => file.path === f.folder.input.configPath,
       )!.text,
     ).toBe("{");
   });

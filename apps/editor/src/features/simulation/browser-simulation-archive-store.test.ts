@@ -11,8 +11,8 @@ function archive(id: string, createdAt: string): SimulationRunArchiveV1 {
     projectId: "project",
     createdAt,
     presentation: {
-      setupId: "setup",
-      setupName: "Bias",
+      folderId: "folder",
+      folderName: "Bias",
       analysisLabel: "OP",
       outputs: [],
     },

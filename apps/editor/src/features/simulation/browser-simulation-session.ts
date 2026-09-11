@@ -39,6 +39,12 @@ export class BrowserSimulationSession {
       () => {},
     );
   }
+  /** Read the current controller state after an awaited File Resource commit. */
+  currentProject(): CircuitProject | undefined {
+    return this.options.getProjectSessionId() === this.projectSessionId
+      ? this.options.getProject()
+      : undefined;
+  }
   async handle(
     operation: SimulationOperation,
     requestId: string = crypto.randomUUID(),

@@ -323,25 +323,6 @@ export function EditorAppChrome({
                 >
                   Instance Table…
                 </button>
-                {simulationAction ? (
-                  <>
-                    <span className="command-group-label">Simulation</span>
-                    <button
-                      type="button"
-                      data-testid="open-analog-simulation"
-                      aria-label="Analog simulation"
-                      aria-pressed={
-                        simulationState === "open" ||
-                        simulationState === "maximized"
-                      }
-                      onClick={simulationAction}
-                    >
-                      {simulationState === "minimized"
-                        ? "Simulation · Minimized"
-                        : "Simulation"}
-                    </button>
-                  </>
-                ) : null}
                 <span className="command-group-label">Check</span>
                 <button
                   type="button"
@@ -363,6 +344,21 @@ export function EditorAppChrome({
                 </button>
               </div>
             </details>
+            {simulationAction ? (
+              <button
+                type="button"
+                data-testid="open-analog-simulation"
+                aria-label="Analog simulation"
+                aria-pressed={
+                  simulationState === "open" || simulationState === "maximized"
+                }
+                onClick={simulationAction}
+              >
+                {simulationState === "minimized"
+                  ? "Simulation · Minimized"
+                  : "Simulation"}
+              </button>
+            ) : null}
             {agentAction ? (
               <details className="command-menu" name="editor-command-menu">
                 <summary>Agent</summary>

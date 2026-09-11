@@ -10,6 +10,7 @@ describe("schema 46 to 47 MOS operating-point migration", () => {
       createEmptyProject("project", "Project"),
     ) as unknown as Record<string, unknown>;
     previous.schemaVersion = 46;
+    previous.simulationSetups = [];
 
     const upgraded = upgradeSchema46To47(previous);
 
@@ -21,7 +22,9 @@ describe("schema 46 to 47 MOS operating-point migration", () => {
     const previous = structuredClone(createEmptyProject("project", "Project"));
     previous.schemaVersion = 46 as typeof previous.schemaVersion;
 
-    const result = parseProjectWithMetadata(JSON.stringify(previous));
+    const result = parseProjectWithMetadata(
+      JSON.stringify({ ...previous, simulationSetups: [] }),
+    );
 
     expect(result.sourceSchemaVersion).toBe(46);
     expect(result.migrated).toBe(true);

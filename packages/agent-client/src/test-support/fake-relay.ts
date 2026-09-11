@@ -23,13 +23,13 @@ export interface RecordedCircuitCall {
 
 export function capabilitiesResponse(requestId: string): AgentCircuitResponse {
   return {
-    apiVersion: "2.0",
+    apiVersion: "3.0",
     requestId,
     operation: "capabilities",
     ok: true,
     capabilities: {
-      apiVersions: ["2.0"],
-      snapshotVersions: ["2.0"],
+      apiVersions: ["3.0"],
+      snapshotVersions: ["3.0"],
       operations: ["capabilities", "snapshot", "transact", "render"],
       editKinds: ["add_instance", "move_instance", "connect_endpoints"],
       permissions: {
@@ -55,7 +55,7 @@ export function snapshotResponse(
   revision = snapshot.document.revision,
 ): AgentCircuitResponse {
   return {
-    apiVersion: "2.0",
+    apiVersion: "3.0",
     requestId,
     operation: "snapshot",
     ok: true,
@@ -71,7 +71,7 @@ export function transactSuccessResponse(
   changedObjectIds: string[] = [],
 ): AgentCircuitResponse {
   return {
-    apiVersion: "2.0",
+    apiVersion: "3.0",
     requestId,
     operation: "transact",
     ok: true,
@@ -96,7 +96,7 @@ export function errorResponse(
   message: string,
 ): AgentCircuitResponse {
   return {
-    apiVersion: "2.0",
+    apiVersion: "3.0",
     requestId,
     operation,
     ok: false,
@@ -108,7 +108,7 @@ export function errorResponse(
 export function renderResponse(requestId: string): AgentCircuitResponse {
   const svg = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"/>', "utf8");
   return {
-    apiVersion: "2.0",
+    apiVersion: "3.0",
     requestId,
     operation: "render",
     ok: true,
@@ -173,7 +173,7 @@ export class FakeAgentHttp extends AgentHttpClient {
     this.fileHandler =
       options.files ??
       ((request) => ({
-        apiVersion: "2.0",
+        apiVersion: "3.0",
         requestId: request.requestId,
         operation: "discard",
         ok: true,
@@ -182,7 +182,7 @@ export class FakeAgentHttp extends AgentHttpClient {
     this.projectHandler =
       options.projects ??
       ((request) => ({
-        apiVersion: "2.0",
+        apiVersion: "3.0",
         requestId: request.requestId,
         operation: "list-projects",
         ok: true,

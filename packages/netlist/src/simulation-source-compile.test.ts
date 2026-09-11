@@ -6,8 +6,8 @@ import { describe, expect, it } from "vitest";
 import {
   CircuitProjectSchema,
   SimulationExperimentConfigSchema,
-  ProjectSourceSimulationSetupSchema,
-  type ProjectSourceSimulationSetup,
+  ProjectSimulationFolderSchema,
+  type ProjectSimulationFolder,
 } from "@icm/model";
 import ota from "../../../apps/editor/src/examples/five-transistor-ota-sky130.icproj.json";
 const legacySetups = () =>
@@ -18,19 +18,21 @@ import { buildSimulationPlan } from "./simulation-compile.js";
 
 const project = () =>
   CircuitProjectSchema.parse({
-    ...ota,
+    ...Object.fromEntries(
+      Object.entries(ota).filter(([key]) => key !== "simulationSetups"),
+    ),
     schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
-    simulationSetups: [],
+    simulationFolders: [],
   });
-function config(setup: ProjectSourceSimulationSetup) {
+function config(folder: ProjectSimulationFolder) {
   return SimulationExperimentConfigSchema.parse(
     JSON.parse(
-      setup.input.files.find((f) => f.path === setup.input.configPath)!.text,
+      folder.input.files.find((f) => f.path === folder.input.configPath)!.text,
     ),
   );
 }
 function raw(text: string) {
-  return ProjectSourceSimulationSetupSchema.parse({
+  return ProjectSimulationFolderSchema.parse({
     id: "raw",
     name: "Raw",
     version: 4,
@@ -62,10 +64,10 @@ function raw(text: string) {
 }
 describe("source simulation compiler", () => {
   it("accepts only known intrinsic Noise outputs, not arbitrary missing ids", () => {
-    const setup = raw("* test\n.control\nop\nwrite out.raw\n.endc\n.end\n");
-    const settings = config(setup);
-    const file = setup.input.files.find(
-      (f) => f.path === setup.input.configPath,
+    const folder = raw("* test\n.control\nop\nwrite out.raw\n.endc\n.end\n");
+    const settings = config(folder);
+    const file = folder.input.files.find(
+      (f) => f.path === folder.input.configPath,
     )!;
     for (const outputId of [
       "noise-output-density",
@@ -82,7 +84,7 @@ describe("source simulation compiler", () => {
         },
       ];
       file.text = JSON.stringify(settings);
-      const result = compileSourceSimulation(project(), setup);
+      const result = compileSourceSimulation(project(), folder);
       expect(result.ok).toBe(outputId !== "noise-typo");
       if (!result.ok)
         expect(
@@ -108,16 +110,16 @@ describe("source simulation compiler", () => {
   });
   it("keeps each migrated OTA experiment compilable with the same acquisition identities", () => {
     const before = project();
-    for (const setup of legacySetups()) {
-      if (setup.input.kind !== "structured") continue;
-      const migrated = migrateSimulationSetupToSource(before, setup).setup;
+    for (const folder of legacySetups()) {
+      if (folder.input.kind !== "structured") continue;
+      const migrated = migrateSimulationSetupToSource(before, folder).folder;
       const compiled = compileSourceSimulation(before, migrated);
       expect(
         compiled.ok,
         JSON.stringify(compiled.ok ? [] : compiled.diagnostics),
       ).toBe(true);
       if (!compiled.ok) continue;
-      const original = buildSimulationPlan(before, setup);
+      const original = buildSimulationPlan(before, folder);
       expect(original.ok).toBe(true);
       if (!original.ok) continue;
       expect(compiled.vectors.map((v) => v.vector).sort()).toEqual(
@@ -141,14 +143,14 @@ describe("source simulation compiler", () => {
     const original = legacySetups().find(
       (s) => s.input.kind === "structured" && s.input.outputs.length,
     )!;
-    const setup = migrateSimulationSetupToSource(before, original).setup;
-    const binding = setup.input.circuitBindings[0]!;
+    const folder = migrateSimulationSetupToSource(before, original).folder;
+    const binding = folder.input.circuitBindings[0]!;
     const base = buildSimulationPlan(before, original);
     if (!base.ok) throw Error(JSON.stringify(base.diagnostics));
     const root = base.circuit.cells.find((c) => c.ports.length > 0)!;
     binding.documentId = root.id;
     binding.emission = "subcircuit";
-    const settings = config(setup);
+    const settings = config(folder);
     settings.deviceOperatingPoints = [];
     settings.measurements = [];
     const internalNet = root.nets.find(
@@ -167,12 +169,12 @@ describe("source simulation compiler", () => {
         circuit: { bindingId: binding.id, callPath: [call] },
       },
     }));
-    setup.input.files.find((f) => f.path === setup.input.configPath)!.text =
+    folder.input.files.find((f) => f.path === folder.input.configPath)!.text =
       JSON.stringify(settings);
     const ports = root.ports.map((_, i) => `input${i}`).join(" ");
-    setup.input.files.find((f) => f.path === setup.input.entry)!.text =
+    folder.input.files.find((f) => f.path === folder.input.entry)!.text =
       `* calls\n.include "${binding.path}"\nXLEFT ${ports} ${root.name}\nXRIGHT ${ports} ${root.name}\n.control\nop\nwrite out.raw\n.endc\n.end\n`;
-    const compiled = compileSourceSimulation(before, setup);
+    const compiled = compileSourceSimulation(before, folder);
     expect(
       compiled.ok,
       JSON.stringify(compiled.ok ? [] : compiled.diagnostics),
@@ -186,14 +188,14 @@ describe("source simulation compiler", () => {
     );
   });
   it("returns source diagnostics for broken author/config text instead of throwing", () => {
-    const setup = raw('* title\n.include "missing.spice"\n');
-    expect(compileSourceSimulation(project(), setup)).toMatchObject({
+    const folder = raw('* title\n.include "missing.spice"\n');
+    expect(compileSourceSimulation(project(), folder)).toMatchObject({
       ok: false,
       diagnostics: [{ code: "SIMULATION_FILE_MISSING" }],
     });
-    setup.input.files.find((f) => f.path === setup.input.configPath)!.text =
+    folder.input.files.find((f) => f.path === folder.input.configPath)!.text =
       "{";
-    expect(compileSourceSimulation(project(), setup)).toMatchObject({
+    expect(compileSourceSimulation(project(), folder)).toMatchObject({
       ok: false,
       diagnostics: [{ code: "SIMULATION_CONFIG_JSON" }],
     });

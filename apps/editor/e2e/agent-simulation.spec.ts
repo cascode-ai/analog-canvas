@@ -8,7 +8,7 @@ import {
 
 import { openMenu } from "./editor-fixtures.js";
 import { profile } from "./simulation-e2e-fixtures.js";
-import { createSourceSimulationSetup } from "@icm/model";
+import { createSimulationFolder } from "@icm/model";
 import { unzipSync, strFromU8 } from "fflate";
 test("Agent raw simulation recovers input errors, returns a run receipt and exports through Files", async ({
   page,
@@ -137,7 +137,7 @@ test("Agent raw simulation recovers input errors, returns a run receipt and expo
         requestId,
         sentAt: new Date().toISOString(),
         kind: `${kind}-request`,
-        payload: { apiVersion: "2.0", requestId, ...payload },
+        payload: { apiVersion: "3.0", requestId, ...payload },
       }),
     );
     await expect
@@ -171,19 +171,19 @@ test("Agent raw simulation recovers input errors, returns a run receipt and expo
     await send("simulation", {
       operation: "prepare",
       source: {
-        kind: "project-setup",
-        setupId: "missing-setup",
+        kind: "project-folder",
+        folderId: "missing-folder",
         expectedStructureRevision: 0,
       },
     }),
-  ).toMatchObject({ ok: false, error: { code: "SIMULATION_SETUP_MISSING" } });
+  ).toMatchObject({ ok: false, error: { code: "SIMULATION_FOLDER_MISSING" } });
   const workspace = (
     await send("file", {
       operation: "simulation-input",
       input: { action: "create" },
     })
   ).result.workspace;
-  const sourceSetup = createSourceSimulationSetup({
+  const sourceSetup = createSimulationFolder({
     id: "e2e",
     name: "Divider",
     profileId: profile.id,

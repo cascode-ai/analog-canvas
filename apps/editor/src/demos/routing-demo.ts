@@ -91,6 +91,6 @@ export function createRoutingDemoProject(): CircuitProject {
         constraints: [],
       },
     ],
-    simulationSetups: [],
+    simulationFolders: [],
   });
 }

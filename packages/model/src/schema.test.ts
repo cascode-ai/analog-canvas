@@ -1,4 +1,4 @@
-import { createSourceSimulationSetup } from "./simulation-source-authoring.js";
+import { createSimulationFolder } from "./simulation-source-authoring.js";
 import { describe, expect, it } from "vitest";
 
 import { createEmptyDocument, createEmptyProject } from "./factories.js";
@@ -9,7 +9,7 @@ import {
   DraftTextSchema,
   SchematicDocumentSchema,
   LegacySimulationSetupSchema,
-  ProjectSimulationSetupSchema,
+  ProjectSimulationFolderSchema,
 } from "./schema.js";
 import type {
   SimulationRawSetup,
@@ -805,8 +805,8 @@ describe("presentation style overrides", () => {
   });
 });
 
-describe("legacy SimulationSetup reader (one-way migration input)", () => {
-  function setup(): SimulationStructuredSetup {
+describe("legacy SimulationFolderInput reader (one-way migration input)", () => {
+  function folder(): SimulationStructuredSetup {
     return {
       version: 3,
       input: {
@@ -859,36 +859,36 @@ describe("legacy SimulationSetup reader (one-way migration input)", () => {
     project.documents.push(createEmptyDocument("ota", "OTA"));
     return {
       ...project,
-      simulationSetups: [
-        { id: "setup-1", name: "Setup 1", ...(simulation as object) },
+      simulationFolders: [
+        { id: "folder-1", name: "Setup 1", ...(simulation as object) },
       ],
     };
   }
 
-  it("round-trips a named collection while preserving the reusable setup shape", () => {
+  it("round-trips a named collection while preserving the reusable folder shape", () => {
     const project = createEmptyProject("plain", "Plain");
-    expect(CircuitProjectSchema.parse(project).simulationSetups).toEqual([]);
-    expect(LegacySimulationSetupSchema.parse(setup())).toEqual(setup());
+    expect(CircuitProjectSchema.parse(project).simulationFolders).toEqual([]);
+    expect(LegacySimulationSetupSchema.parse(folder())).toEqual(folder());
     expect(
-      CircuitProjectSchema.safeParse(projectWithSetup(setup())).success,
+      CircuitProjectSchema.safeParse(projectWithSetup(folder())).success,
     ).toBe(false);
-    const source = createSourceSimulationSetup({
-      id: "setup-1",
+    const source = createSimulationFolder({
+      id: "folder-1",
       name: "Setup 1",
       profileId: "test",
       documentId: "testbench",
     });
-    expect(ProjectSimulationSetupSchema.parse(source)).toEqual(source);
+    expect(ProjectSimulationFolderSchema.parse(source)).toEqual(source);
     expect(
-      CircuitProjectSchema.parse(projectWithSetup(source)).simulationSetups[0],
+      CircuitProjectSchema.parse(projectWithSetup(source)).simulationFolders[0],
     ).toEqual(source);
     expect(CircuitProjectJsonSchema).toMatchObject({
-      properties: { simulationSetups: expect.anything() },
+      properties: { simulationFolders: expect.anything() },
     });
   });
 
   it("persists explicit Design Variable bindings and a reusable Run Plan", () => {
-    const candidate = setup();
+    const candidate = folder();
     candidate.input.designVariables = [
       {
         id: "load",
@@ -930,19 +930,19 @@ describe("legacy SimulationSetup reader (one-way migration input)", () => {
   });
 
   it("preserves an unresolved simulation root for preparation diagnostics", () => {
-    const orphaned = createSourceSimulationSetup({
-      id: "setup-1",
+    const orphaned = createSimulationFolder({
+      id: "folder-1",
       name: "Setup 1",
       profileId: "test",
       documentId: "missing-testbench",
     });
     const result = CircuitProjectSchema.safeParse(projectWithSetup(orphaned));
     expect(result.success).toBe(true);
-    expect(result.data?.simulationSetups[0]).toEqual(orphaned);
+    expect(result.data?.simulationFolders[0]).toEqual(orphaned);
   });
 
   it("holds one analysis per kind and unique output ids", () => {
-    const repeatedAnalysis = setup();
+    const repeatedAnalysis = folder();
     repeatedAnalysis.input.analyses.push({ kind: "op" });
     expect(
       LegacySimulationSetupSchema.safeParse(repeatedAnalysis).error?.issues,
@@ -952,7 +952,7 @@ describe("legacy SimulationSetup reader (one-way migration input)", () => {
         path: ["input", "analyses", 2, "kind"],
       }),
     ]);
-    const repeatedProbe = setup();
+    const repeatedProbe = folder();
     repeatedProbe.input.outputs.push({
       ...repeatedProbe.input.outputs[0]!,
       label: "other-output",
@@ -965,7 +965,7 @@ describe("legacy SimulationSetup reader (one-way migration input)", () => {
         path: ["input", "outputs", 2, "id"],
       }),
     ]);
-    const repeatedLabel = setup();
+    const repeatedLabel = folder();
     repeatedLabel.input.outputs[1] = {
       ...repeatedLabel.input.outputs[1]!,
       label: repeatedLabel.input.outputs[0]!.label.toUpperCase(),
@@ -978,7 +978,7 @@ describe("legacy SimulationSetup reader (one-way migration input)", () => {
         path: ["input", "outputs", 1, "label"],
       }),
     ]);
-    const noAnalysis = setup();
+    const noAnalysis = folder();
     noAnalysis.input.analyses = [];
     expect(LegacySimulationSetupSchema.safeParse(noAnalysis).success).toBe(
       false,
@@ -986,7 +986,7 @@ describe("legacy SimulationSetup reader (one-way migration input)", () => {
   });
 
   it("persists bounded measurement rules with analysis-appropriate methods", () => {
-    const measured = setup();
+    const measured = folder();
     measured.input.measurements = [
       {
         id: "measurement-op",
@@ -1022,7 +1022,7 @@ describe("legacy SimulationSetup reader (one-way migration input)", () => {
   });
 
   it("persists selected hierarchy-aware MOS operating-point details", () => {
-    const selected = setup();
+    const selected = folder();
     selected.input.deviceOperatingPoints = [
       {
         id: "op-m1",
@@ -1049,7 +1049,7 @@ describe("legacy SimulationSetup reader (one-way migration input)", () => {
   });
 
   it("persists a hierarchy-aware differential Noise request", () => {
-    const noisy = setup();
+    const noisy = folder();
     noisy.input.analyses = [
       {
         kind: "noise",
@@ -1086,7 +1086,7 @@ describe("legacy SimulationSetup reader (one-way migration input)", () => {
 
   it("bounds the AC sweep and the environment selection", () => {
     const ac = (overrides: Record<string, unknown>) => {
-      const candidate = setup();
+      const candidate = folder();
       candidate.input.analyses = [
         {
           kind: "ac",
@@ -1111,9 +1111,9 @@ describe("legacy SimulationSetup reader (one-way migration input)", () => {
     expect(ac({ tstop: 1 })).toBe(false);
     const tran = (overrides: Record<string, unknown>) =>
       LegacySimulationSetupSchema.safeParse({
-        ...setup(),
+        ...folder(),
         input: {
-          ...setup().input,
+          ...folder().input,
           analyses: [
             {
               kind: "tran",
@@ -1134,7 +1134,7 @@ describe("legacy SimulationSetup reader (one-way migration input)", () => {
     expect(tran({ tstop: 1 })).toBe(false);
 
     const environment = (overrides: Record<string, unknown>) => {
-      const candidate = setup();
+      const candidate = folder();
       candidate.input.environment = {
         ...candidate.input.environment,
         ...overrides,
@@ -1152,7 +1152,7 @@ describe("legacy SimulationSetup reader (one-way migration input)", () => {
 
   it("accepts one finite, non-zero-range DC source sweep", () => {
     const dc = (overrides: Record<string, unknown>) => {
-      const candidate = setup();
+      const candidate = folder();
       candidate.input.analyses = [
         {
           kind: "dc",
@@ -1261,11 +1261,12 @@ describe("legacy SimulationSetup reader (one-way migration input)", () => {
 
   it("rejects transient run data and unknown input forms", () => {
     expect(
-      LegacySimulationSetupSchema.safeParse({ ...setup(), lastRunId: "run-1" })
+      LegacySimulationSetupSchema.safeParse({ ...folder(), lastRunId: "run-1" })
         .success,
     ).toBe(false);
     expect(
-      LegacySimulationSetupSchema.safeParse({ ...setup(), version: 1 }).success,
+      LegacySimulationSetupSchema.safeParse({ ...folder(), version: 1 })
+        .success,
     ).toBe(false);
     expect(
       LegacySimulationSetupSchema.safeParse({

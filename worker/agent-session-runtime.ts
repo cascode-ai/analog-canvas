@@ -472,7 +472,7 @@ export function fileOperationScopes(
   switch (request.operation) {
     case "simulation-input":
       return request.input.action === "update" &&
-        request.input.owner.kind === "project-setup"
+        request.input.owner.kind === "project-folder"
         ? [
             "simulation.run",
             "project.import",

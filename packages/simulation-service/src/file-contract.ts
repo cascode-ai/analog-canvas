@@ -1,11 +1,14 @@
 import { z } from "zod";
-import { SimulationInputPathSchema } from "@icm/model";
+import {
+  SimulationInputPathSchema,
+  SimulationSourceDraftSchema,
+} from "@icm/model";
 import { Id, Digest, ArtifactRefSchema } from "./contract.js";
 import { SimulationSourceChangesSchema } from "./source-files.js";
 
 export const SimulationFileOwnerSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("session-workspace"), workspaceId: Id }),
-  z.strictObject({ kind: z.literal("project-setup"), setupId: Id }),
+  z.strictObject({ kind: z.literal("project-folder"), folderId: Id }),
 ]);
 export type SimulationFileOwner = z.infer<typeof SimulationFileOwnerSchema>;
 
@@ -43,6 +46,8 @@ export const SimulationFileOperationSchema = z.discriminatedUnion("action", [
     expectedRevision: Revision,
     entry: SimulationInputPathSchema.optional(),
     configPath: SimulationInputPathSchema.optional(),
+    /** Save/discard unapplied buffers without claiming they updated the circuit. */
+    drafts: z.array(SimulationSourceDraftSchema).max(4096).optional(),
     /** Exact generated Circuit edits are mapped to typed numeric parameter transactions. */
     circuitEdits: z
       .array(
@@ -70,6 +75,7 @@ export const SimulationSourceListingSchema = z.strictObject({
   revision: Revision,
   entry: SimulationInputPathSchema.nullable(),
   configPath: SimulationInputPathSchema.optional(),
+  drafts: z.array(SimulationSourceDraftSchema).optional(),
   files: z.array(
     z.strictObject({
       path: SimulationInputPathSchema,

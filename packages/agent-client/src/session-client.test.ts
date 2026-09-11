@@ -531,7 +531,7 @@ describe("agent session client", () => {
     const result = await client.advancedTransact(
       {
         structureEdits: [
-          { kind: "remove_simulation_setup", setupId: "setup-1" },
+          { kind: "remove_simulation_folder", folderId: "folder-1" },
         ],
       },
       { expectedStructureRevision: 11 },

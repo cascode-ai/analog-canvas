@@ -42,6 +42,10 @@ function minimalProjectAt(version: number): string {
     serializeProject(createEmptyProject("legacy-load", "Legacy load")),
   ) as Record<string, unknown>;
   project.schemaVersion = version;
+  if (version < 50) {
+    project.simulationSetups = project.simulationFolders;
+    delete project.simulationFolders;
+  }
   return JSON.stringify(project);
 }
 

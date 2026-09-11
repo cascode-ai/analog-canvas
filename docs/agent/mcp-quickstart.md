@@ -135,7 +135,7 @@ resources.
 1. `simulation` / `capabilities` discovers the Profile, qualified analyses,
    parser support, declared rawfile collection and resource limits without
    starting ngspice.
-2. `simulation_setup` lists, gets, creates, clones, renames and removes saved
+2. `simulation_folder` lists, gets, creates, clones, renames and removes saved
    source experiments. Omit the root Cell to create a graphless experiment.
    A saved setup v4 owns authored files, its entry/config paths, generated
    Circuit bindings and declared dependencies. It does not contain another
@@ -148,7 +148,7 @@ resources.
    Output/measurement/device-OP helpers write that same config. Warnings and
    invalid drafts remain repairable; they are not session revocations.
 4. `prepare` with
-   `source:{kind:"project-setup",setupId,expectedStructureRevision}` freezes the
+   `source:{kind:"project-folder",folderId,expectedStructureRevision}` freezes the
    input and returns `prepared.id`, `digest`, vectors and artifacts.
    `prepared.json` contains the exact execution request, `prepared.cir` the
    entry, and individual files/source maps the rest of the bundle.
@@ -170,7 +170,7 @@ resources.
 
 ### File ownership and editing
 
-For saved experiments use `owner:{kind:"project-setup",setupId}`. Updates use
+For saved experiments use `owner:{kind:"project-folder",folderId}`. Updates use
 the Project structure revision and ordinary undoable transactions. `read`
 returns exact text, a SHA-256 `textDigest`, and generated instance/parameter
 spans when applicable. `update` accepts writes/removes or UTF-16 range patches
@@ -184,7 +184,7 @@ For an expiring graphless session workspace, call File `create`, then
 `expectedRevision`, `entry`, and authored files including a valid config.
 Prepare using `source:{kind:"workspace",workspaceId,expectedRevision}`.
 Environment belongs to the config, not a second prepare argument. Use
-`simulation_setup` instead when this work must survive Project save/reload.
+`simulation_folder` instead when this work must survive Project save/reload.
 
 Files and dependencies are virtual-root-relative. Environment owners resolve
 declared dependency identities/digests; arbitrary host paths and startup

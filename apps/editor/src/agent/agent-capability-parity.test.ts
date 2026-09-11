@@ -7,7 +7,7 @@ import { callTool, type ToolSessionState } from "../../../mcp-server/src/tools";
 import { EditorDocumentController } from "../document/document-controller";
 import { BrowserAgentHost } from "./browser-agent-host";
 
-async function setup() {
+async function folder() {
   const project = createEmptyProject("project-1", "Parity");
   project.documents[0]!.id = "main";
   project.topDocumentId = "main";
@@ -52,7 +52,7 @@ async function setup() {
 
 describe("MCP → API → shared editor parity", () => {
   it("places the original top in a new TB through public actions and retains normal history", async () => {
-    const { client, controller } = await setup();
+    const { client, controller } = await folder();
     expect(
       (
         await client.applyActions([
@@ -78,7 +78,7 @@ describe("MCP → API → shared editor parity", () => {
     );
     expect(placed.ok, placed.message).toBe(true);
     expect(controller.project.topDocumentId).toBe("main");
-    expect(controller.project.simulationSetups).toEqual([]);
+    expect(controller.project.simulationFolders).toEqual([]);
     const instance = controller.project.documents.find((d) => d.id === "tb")!
       .instances[0]!;
     expect(instance.netlist?.binding).toEqual({
@@ -119,7 +119,7 @@ describe("MCP → API → shared editor parity", () => {
     ).toBe(true);
   });
   it("places a retained Instance with the GUI's missing default labels", async () => {
-    const { client, controller, add } = await setup();
+    const { client, controller, add } = await folder();
     const id = await add();
     expect(
       (await client.applyActions([{ kind: "unplace", instanceIds: [id] }])).ok,
@@ -141,7 +141,7 @@ describe("MCP → API → shared editor parity", () => {
     ).toBe(true);
   });
   it("names, renames and deletes an actual Net label through the shared name-claim planner", async () => {
-    const { client, controller, tool } = await setup();
+    const { client, controller, tool } = await folder();
     expect(
       (
         await client.applyActions([
@@ -217,7 +217,7 @@ describe("MCP → API → shared editor parity", () => {
     ).toBeNull();
   });
   it("places an unnamed power marker and reports Reference-only changes", async () => {
-    const { client, controller, add } = await setup();
+    const { client, controller, add } = await folder();
     const id = await add();
     const rename = await client.applyActions([
       {
@@ -243,7 +243,7 @@ describe("MCP → API → shared editor parity", () => {
     ).toBeUndefined();
   });
   it("routes free wires and reads the shared Net trace without local inference", async () => {
-    const { client, controller, tool } = await setup();
+    const { client, controller, tool } = await folder();
     const result = await client.applyActions([
       {
         kind: "connect",
@@ -261,7 +261,7 @@ describe("MCP → API → shared editor parity", () => {
     expect(traced.trace.highlights[0].routes).toContain(route.id);
   });
   it("reads colors and formula data back and reports their authoritative object IDs", async () => {
-    const { add, client, tool } = await setup();
+    const { add, client, tool } = await folder();
     const id = await add();
     const result = await client.advancedTransact([
       {
@@ -293,7 +293,7 @@ describe("MCP → API → shared editor parity", () => {
   });
 
   it("plans Model switching with the GUI planner and exposes its definition", async () => {
-    const { add, client, controller } = await setup();
+    const { add, client, controller } = await folder();
     const instanceId = await add();
     const result = await client.applyActions([
       { kind: "set-model", instanceId, model: "sky130_fd_pr__nfet_01v8" },
@@ -314,7 +314,7 @@ describe("MCP → API → shared editor parity", () => {
   });
 
   it("copies, transforms, returns to tray, and undoes through shared history", async () => {
-    const { add, client, controller } = await setup();
+    const { add, client, controller } = await folder();
     const id = await add();
     const copied = await client.applyActions([
       {
@@ -360,7 +360,7 @@ describe("MCP → API → shared editor parity", () => {
   });
 
   it("accepts project structure edits from MCP without manual revision bookkeeping", async () => {
-    const { client, tool, controller } = await setup();
+    const { client, tool, controller } = await folder();
     const created = await client.applyActions([
       { kind: "create-cell", id: "child", name: "Amplifier" },
     ]);

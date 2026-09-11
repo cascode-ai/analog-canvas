@@ -130,7 +130,7 @@ export const agentCircuitRequestExamples = {
   capabilities: {
     summary: "Discover the current four-operation contract and limits",
     value: {
-      apiVersion: "2.0",
+      apiVersion: "3.0",
       requestId: "capabilities-1",
       operation: "capabilities",
     },
@@ -138,7 +138,7 @@ export const agentCircuitRequestExamples = {
   snapshot: {
     summary: "Read one complete authorized Document",
     value: {
-      apiVersion: "2.0",
+      apiVersion: "3.0",
       requestId: "snapshot-1",
       operation: "snapshot",
       documentId: "document-main",
@@ -148,7 +148,7 @@ export const agentCircuitRequestExamples = {
   transactDryRun: {
     summary: "Dry-run one atomic edit batch before committing the same edits",
     value: {
-      apiVersion: "2.0",
+      apiVersion: "3.0",
       requestId: "dry-run-1",
       operation: "transact",
       documentId: "document-main",
@@ -174,7 +174,7 @@ export const agentCircuitRequestExamples = {
   render: {
     summary: "Render the formal scene after a successful commit",
     value: {
-      apiVersion: "2.0",
+      apiVersion: "3.0",
       requestId: "render-1",
       operation: "render",
       documentId: "document-main",
@@ -265,7 +265,7 @@ const circuitSessionResponses = {
       "application/json": {
         schema: agentCircuitResponseRef,
         example: {
-          apiVersion: "2.0",
+          apiVersion: "3.0",
           requestId: "req-123",
           operation: "error",
           ok: false,

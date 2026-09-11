@@ -1,6 +1,6 @@
 import { sourcePresentation } from "./source-presentation";
 import { describe, expect, it } from "vitest";
-import { createEmptyProject, createSourceSimulationSetup } from "@icm/model";
+import { createEmptyProject, createSimulationFolder } from "@icm/model";
 import type { Prepared, Run } from "@icm/simulation-service/contract";
 import { SimulationFiles } from "@icm/simulation-service/files";
 
@@ -9,13 +9,13 @@ import {
   restoreSimulationRunArchive,
 } from "./simulation-run-archive";
 
-const setup = createSourceSimulationSetup({
-  id: "setup-op",
+const folder = createSimulationFolder({
+  id: "folder-op",
   name: "Bias",
   profileId: "test",
   documentId: "doc",
 });
-const presentation = sourcePresentation(setup);
+const presentation = sourcePresentation(folder);
 
 describe("simulation run archive", () => {
   it("captures verified artifacts and restores a view into a new session", async () => {
@@ -62,10 +62,10 @@ describe("simulation run archive", () => {
       prepared,
       run,
     });
-    setup.name = "Renamed after run";
+    folder.name = "Renamed after run";
     expect(captured.ok).toBe(true);
     if (!captured.ok) return;
-    expect(captured.value.presentation.setupName).toBe("Bias");
+    expect(captured.value.presentation.folderName).toBe("Bias");
     expect(captured.value.artifacts.map((item) => item.name)).toEqual([
       "prepared.cir",
       "outputs.json",

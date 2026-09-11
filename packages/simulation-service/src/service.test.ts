@@ -4,7 +4,7 @@ import {
   createEmptyProject,
   CircuitProjectSchema,
   type CircuitProject,
-  type LegacySimulationSetup as SimulationSetup,
+  type LegacySimulationSetup as SimulationFolderInput,
   CURRENT_PROJECT_SCHEMA_VERSION,
   LegacyProjectSimulationSetupSchema,
 } from "@icm/model";
@@ -42,14 +42,17 @@ const caps: Capabilities = {
 };
 const deck =
   "divider\nV1 in 0 1\nR1 in out 1k\nR2 out 0 1k\n.control\nset filetype=ascii\nop\nwrite out.raw all\n.endc\n.end\n";
-const SETUP_ID = "setup-1";
-function saveSetup(project: CircuitProject, setup: SimulationSetup): void {
-  project.simulationSetups = [
+const SETUP_ID = "folder-1";
+function saveSetup(
+  project: CircuitProject,
+  folder: SimulationFolderInput,
+): void {
+  project.simulationFolders = [
     migrateSimulationSetupToSource(project, {
       id: SETUP_ID,
       name: "Setup 1",
-      ...structuredClone(setup),
-    }).setup,
+      ...structuredClone(folder),
+    }).folder,
   ];
 }
 async function result(input: ExecutionInput) {
@@ -154,13 +157,13 @@ async function prepareRaw(f: ReturnType<typeof fixture>) {
   return { prepared, workspaceId: created.workspace.id };
 }
 describe("shared simulation lifecycle", () => {
-  it("prepares every saved setup before running a batch sequentially", async () => {
+  it("prepares every saved folder before running a batch sequentially", async () => {
     const files = new SimulationFiles();
     const project = createEmptyProject("batch-project", "Batch", "doc");
-    project.simulationSetups = ["A", "B"].map(
+    project.simulationFolders = ["A", "B"].map(
       (name) =>
         migrateSimulationSetupToSource(project, {
-          id: `setup-${name.toLowerCase()}`,
+          id: `folder-${name.toLowerCase()}`,
           name,
           version: 3,
           input: {
@@ -170,7 +173,7 @@ describe("shared simulation lifecycle", () => {
             dependencies: [],
             environment: { profileId: "test" },
           },
-        }).setup,
+        }).folder,
     );
     const releases: Array<() => void> = [];
     let active = 0;
@@ -202,8 +205,8 @@ describe("shared simulation lifecycle", () => {
         operation: "prepare-batch",
         expectedStructureRevision: project.structureRevision,
         items: [
-          { id: "tt", setupId: "setup-a" },
-          { id: "ff", setupId: "setup-b" },
+          { id: "tt", folderId: "folder-a" },
+          { id: "ff", folderId: "folder-b" },
         ],
       },
       "prepare-batch",
@@ -259,15 +262,18 @@ describe("shared simulation lifecycle", () => {
 
   it("expands corner, Design Variable and instance parameter axes into one batch", async () => {
     const project = CircuitProjectSchema.parse({
-      ...ota,
+      ...Object.fromEntries(
+        Object.entries(ota).filter(([key]) => key !== "simulationSetups"),
+      ),
       schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
-      simulationSetups: [],
+      simulationFolders: [],
     });
-    const setup = ota.simulationSetups
+    const folder = ota.simulationSetups
       .map((s) => LegacyProjectSimulationSetupSchema.parse(s))
       .find((s) => s.input.kind === "structured");
-    if (!setup || setup.input.kind !== "structured") throw new Error("setup");
-    const setupInput = setup.input;
+    if (!folder || folder.input.kind !== "structured")
+      throw new Error("folder");
+    const setupInput = folder.input;
     setupInput.analyses = [{ kind: "op" }];
     setupInput.environment = { profileId: "test", corner: "tt" };
     const root = project.documents.find(
@@ -306,15 +312,15 @@ describe("shared simulation lifecycle", () => {
       ],
       modelLibrary: { path: "/models/sky130.lib.spice", section: "tt" },
     });
-    if (typeof setup !== "undefined")
-      project.simulationSetups = [
-        migrateSimulationSetupToSource(project, setup).setup,
+    if (typeof folder !== "undefined")
+      project.simulationFolders = [
+        migrateSimulationSetupToSource(project, folder).folder,
       ];
     const service = new SimulationService(f.files, f.executor, () => project);
     const reply = await service.handle(
       {
         operation: "prepare-sweep",
-        setupId: setup.id,
+        folderId: folder.id,
         expectedStructureRevision: project.structureRevision,
         axes: [
           { kind: "corner", values: ["tt", "ff"] },
@@ -365,15 +371,15 @@ describe("shared simulation lifecycle", () => {
           operation: "prepare-batch",
           expectedStructureRevision: f.project.structureRevision,
           items: [
-            { id: "valid", setupId: SETUP_ID },
-            { id: "missing", setupId: "setup-missing" },
+            { id: "valid", folderId: SETUP_ID },
+            { id: "missing", folderId: "folder-missing" },
           ],
         },
         "invalid-batch",
       ),
     ).toMatchObject({
       ok: false,
-      error: { code: "SIMULATION_SETUP_MISSING" },
+      error: { code: "SIMULATION_FOLDER_MISSING" },
     });
     expect(f.executor.execute).not.toHaveBeenCalled();
 
@@ -382,8 +388,8 @@ describe("shared simulation lifecycle", () => {
         operation: "prepare-batch",
         expectedStructureRevision: f.project.structureRevision,
         items: [
-          { id: "one", setupId: SETUP_ID },
-          { id: "two", setupId: SETUP_ID },
+          { id: "one", folderId: SETUP_ID },
+          { id: "two", folderId: SETUP_ID },
         ],
       },
       "cancel-prepare",
@@ -422,18 +428,20 @@ describe("shared simulation lifecycle", () => {
     expect(f.executor.execute).toHaveBeenCalledTimes(1);
   });
 
-  it("prepares the corner selected by a structured setup", async () => {
+  it("prepares the corner selected by a structured folder", async () => {
     const project = CircuitProjectSchema.parse({
-      ...ota,
+      ...Object.fromEntries(
+        Object.entries(ota).filter(([key]) => key !== "simulationSetups"),
+      ),
       schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
-      simulationSetups: [],
+      simulationFolders: [],
     });
-    const setup = LegacyProjectSimulationSetupSchema.parse(
+    const folder = LegacyProjectSimulationSetupSchema.parse(
       ota.simulationSetups[0],
     );
-    if (!setup || setup.input.kind !== "structured")
-      throw new Error("fixture has no structured setup");
-    setup.input.environment = { profileId: "test", corner: "ff" };
+    if (!folder || folder.input.kind !== "structured")
+      throw new Error("fixture has no structured folder");
+    folder.input.environment = { profileId: "test", corner: "ff" };
     const f = fixture();
     f.executor.capabilities = async () => ({
       ...caps,
@@ -447,9 +455,9 @@ describe("shared simulation lifecycle", () => {
       ],
       modelLibrary: { path: "/models/sky130.lib.spice", section: "tt" },
     });
-    if (typeof setup !== "undefined")
-      project.simulationSetups = [
-        migrateSimulationSetupToSource(project, setup).setup,
+    if (typeof folder !== "undefined")
+      project.simulationFolders = [
+        migrateSimulationSetupToSource(project, folder).folder,
       ];
     const service = new SimulationService(f.files, f.executor, () => project);
     const prepared = unwrap(
@@ -457,8 +465,8 @@ describe("shared simulation lifecycle", () => {
         {
           operation: "prepare",
           source: {
-            kind: "project-setup",
-            setupId: setup.id,
+            kind: "project-folder",
+            folderId: folder.id,
             expectedStructureRevision: project.structureRevision,
           },
         },
@@ -478,12 +486,12 @@ describe("shared simulation lifecycle", () => {
     });
   });
 
-  it("prepares the explicitly addressed setup when a Project has several", async () => {
+  it("prepares the explicitly addressed folder when a Project has several", async () => {
     const f = fixture();
-    f.project.simulationSetups = ["A", "B"].map(
+    f.project.simulationFolders = ["A", "B"].map(
       (name) =>
         migrateSimulationSetupToSource(f.project, {
-          id: `setup-${name.toLowerCase()}`,
+          id: `folder-${name.toLowerCase()}`,
           name,
           version: 3,
           input: {
@@ -493,15 +501,15 @@ describe("shared simulation lifecycle", () => {
             dependencies: [],
             environment: { profileId: "test" },
           },
-        }).setup,
+        }).folder,
     );
     const prepared = unwrap(
       await f.service.handle(
         {
           operation: "prepare",
           source: {
-            kind: "project-setup",
-            setupId: "setup-b",
+            kind: "project-folder",
+            folderId: "folder-b",
             expectedStructureRevision: f.project.structureRevision,
           },
         },
@@ -529,7 +537,7 @@ describe("shared simulation lifecycle", () => {
     f.release();
   });
 
-  it("prepares and runs a persisted raw Project setup without mutating it", async () => {
+  it("prepares and runs a persisted raw Project folder without mutating it", async () => {
     const f = fixture();
     saveSetup(f.project, {
       version: 3,
@@ -548,8 +556,8 @@ describe("shared simulation lifecycle", () => {
         {
           operation: "prepare",
           source: {
-            kind: "project-setup",
-            setupId: SETUP_ID,
+            kind: "project-folder",
+            folderId: SETUP_ID,
             expectedStructureRevision: f.project.structureRevision,
           },
         },
@@ -612,8 +620,8 @@ describe("shared simulation lifecycle", () => {
         {
           operation: "prepare",
           source: {
-            kind: "project-setup",
-            setupId: SETUP_ID,
+            kind: "project-folder",
+            folderId: SETUP_ID,
             expectedStructureRevision: f.project.structureRevision,
           },
         },
@@ -672,8 +680,8 @@ describe("shared simulation lifecycle", () => {
         {
           operation: "prepare",
           source: {
-            kind: "project-setup",
-            setupId: SETUP_ID,
+            kind: "project-folder",
+            folderId: SETUP_ID,
             expectedStructureRevision: f.project.structureRevision,
           },
         },
@@ -718,7 +726,7 @@ describe("shared simulation lifecycle", () => {
         ),
       ).toMatchObject({ state: "finished", inputStatus: "unchanged" }),
     );
-    const saved = f.project.simulationSetups[0]!;
+    const saved = f.project.simulationFolders[0]!;
 
     saved.input.dependencies[0]!.sha256 = "b".repeat(64);
     f.project.structureRevision++;
@@ -733,15 +741,15 @@ describe("shared simulation lifecycle", () => {
     ).toMatchObject({ inputStatus: "changed" });
   });
 
-  it("rejects stale Project setup preparation by structure revision", async () => {
+  it("rejects stale Project folder preparation by structure revision", async () => {
     const f = fixture();
     expect(
       await f.service.handle(
         {
           operation: "prepare",
           source: {
-            kind: "project-setup",
-            setupId: SETUP_ID,
+            kind: "project-folder",
+            folderId: SETUP_ID,
             expectedStructureRevision: f.project.structureRevision + 1,
           },
         },
@@ -850,8 +858,8 @@ describe("shared simulation lifecycle", () => {
         {
           operation: "prepare",
           source: {
-            kind: "project-setup",
-            setupId: SETUP_ID,
+            kind: "project-folder",
+            folderId: SETUP_ID,
             expectedStructureRevision: f.project.structureRevision,
           },
         },
@@ -859,7 +867,7 @@ describe("shared simulation lifecycle", () => {
       ),
     ).toMatchObject({
       ok: false,
-      error: { code: "SIMULATION_SETUP_MISSING", recovery: "fix-input" },
+      error: { code: "SIMULATION_FOLDER_MISSING", recovery: "fix-input" },
     });
     const { workspaceId } = await prepareRaw(f);
     for (const path of [
@@ -957,9 +965,11 @@ describe("shared simulation lifecycle", () => {
   });
   it("compiles the shipped hierarchical OTA through the public structured prepare path", async () => {
     const project = CircuitProjectSchema.parse({
-      ...ota,
+      ...Object.fromEntries(
+        Object.entries(ota).filter(([key]) => key !== "simulationSetups"),
+      ),
       schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
-      simulationSetups: [],
+      simulationFolders: [],
     });
     const profileId = "test";
     saveSetup(project, {
@@ -1018,8 +1028,8 @@ describe("shared simulation lifecycle", () => {
         {
           operation: "prepare",
           source: {
-            kind: "project-setup",
-            setupId: SETUP_ID,
+            kind: "project-folder",
+            folderId: SETUP_ID,
             expectedStructureRevision: project.structureRevision,
           },
         },
@@ -1057,8 +1067,8 @@ describe("shared simulation lifecycle", () => {
         {
           operation: "prepare",
           source: {
-            kind: "project-setup",
-            setupId: SETUP_ID,
+            kind: "project-folder",
+            folderId: SETUP_ID,
             expectedStructureRevision: project.structureRevision,
           },
         },
@@ -1076,29 +1086,31 @@ describe("shared simulation lifecycle", () => {
 
   it("prepares qualified TRAN and keeps an oversized estimate advisory", async () => {
     const project = CircuitProjectSchema.parse({
-      ...ota,
+      ...Object.fromEntries(
+        Object.entries(ota).filter(([key]) => key !== "simulationSetups"),
+      ),
       schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
-      simulationSetups: [],
+      simulationFolders: [],
     });
-    const setup = LegacyProjectSimulationSetupSchema.parse(
+    const folder = LegacyProjectSimulationSetupSchema.parse(
       ota.simulationSetups[0],
     );
-    if (!setup) throw new Error("fixture has no setup");
-    if (setup.input.kind !== "structured")
-      throw new Error("fixture setup is not structured");
-    setup.input.analyses = [
+    if (!folder) throw new Error("fixture has no folder");
+    if (folder.input.kind !== "structured")
+      throw new Error("fixture folder is not structured");
+    folder.input.analyses = [
       { kind: "tran", stepSeconds: 1e-9, stopSeconds: 1e-3 },
     ];
-    setup.input.environment.profileId = "test";
+    folder.input.environment.profileId = "test";
     const f = fixture();
     f.executor.capabilities = async () => ({
       ...caps,
       analyses: ["op", "ac", "tran"],
       maxOutputBytes: 1024,
     });
-    if (typeof setup !== "undefined")
-      project.simulationSetups = [
-        migrateSimulationSetupToSource(project, setup).setup,
+    if (typeof folder !== "undefined")
+      project.simulationFolders = [
+        migrateSimulationSetupToSource(project, folder).folder,
       ];
     const service = new SimulationService(f.files, f.executor, () => project);
     const prepared = unwrap(
@@ -1106,8 +1118,8 @@ describe("shared simulation lifecycle", () => {
         {
           operation: "prepare",
           source: {
-            kind: "project-setup",
-            setupId: setup.id,
+            kind: "project-folder",
+            folderId: folder.id,
             expectedStructureRevision: project.structureRevision,
           },
         },

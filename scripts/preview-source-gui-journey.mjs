@@ -40,11 +40,11 @@ const fixtureText = await readFile(
   "utf8",
 );
 const project = parseProject(fixtureText);
-const setup = project.simulationSetups[0];
-const parsed = readSimulationExperimentConfig(setup);
+const folder = project.simulationFolders[0];
+const parsed = readSimulationExperimentConfig(folder);
 assert(parsed.ok);
 const config = parsed.config;
-const binding = setup.input.circuitBindings.find(
+const binding = folder.input.circuitBindings.find(
   (item) => item.emission === "top-level",
 );
 assert(binding);
@@ -55,8 +55,8 @@ const parameter = generated.source.parameters.find(
 );
 assert(parameter);
 const program =
-  setup.input.files
-    .find((file) => file.path === setup.input.entry)
+  folder.input.files
+    .find((file) => file.path === folder.input.entry)
     .text.replace(
       ".endc",
       "noise v(vout) VINP dec 20 1 1000000000\nwrite out.raw noise1.all noise2.all\n.endc",
@@ -69,10 +69,10 @@ config.deviceOperatingPoints = ["M1", "M3"].map((instanceId) => ({
   circuit: { bindingId: binding.id, callPath: [] },
 }));
 const qualified = replaceSimulationExperimentConfig(
-  structuredClone(setup),
+  structuredClone(folder),
   config,
 );
-qualified.input.files.find((file) => file.path === setup.input.entry).text =
+qualified.input.files.find((file) => file.path === folder.input.entry).text =
   program;
 const compiled = compileSourceSimulation(project, qualified);
 assert(compiled.ok);
@@ -89,7 +89,7 @@ let page;
 let panel;
 const digest = (value) => createHash("sha256").update(value).digest("hex");
 async function edit(path, text) {
-  if (path === setup.input.configPath) {
+  if (path === folder.input.configPath) {
     await panel.getByRole("button", { name: "More code actions" }).click();
     await panel.getByRole("button", { name: "Advanced configuration" }).click();
   } else await panel.getByRole("tab", { name: path, exact: false }).click();
@@ -195,19 +195,20 @@ try {
     restoredValue,
   };
 
-  await edit(setup.input.configPath, JSON.stringify(config, null, 2));
+  await edit(folder.input.configPath, JSON.stringify(config, null, 2));
   await edit(
-    setup.input.entry,
+    folder.input.entry,
     program.replace(
       ".control",
       '.include "missing-gui-acceptance.spice"\n.control',
     ),
   );
-  await panel.getByRole("button", { name: "Prepare deck" }).click();
+  await panel.getByRole("button", { name: "More code actions" }).click();
+  await panel.getByRole("button", { name: "View final deck" }).click();
   await expect(panel).toContainText("missing-gui-acceptance.spice", {
     timeout: 30_000,
   });
-  await edit(setup.input.entry, program);
+  await edit(folder.input.entry, program);
   await panel.getByRole("button", { name: "Run", exact: true }).click();
   await expect(
     panel.getByRole("button", { name: "Cancel run", exact: true }),
@@ -294,8 +295,9 @@ try {
     mode: "sweep",
     axes: [{ kind: "temperature", values: [27, 28] }],
   };
-  await edit(setup.input.configPath, JSON.stringify(config, null, 2));
-  await panel.getByRole("button", { name: "Prepare deck" }).click();
+  await edit(folder.input.configPath, JSON.stringify(config, null, 2));
+  await panel.getByRole("button", { name: "More code actions" }).click();
+  await panel.getByRole("button", { name: "View final deck" }).click();
   await panel.getByTitle("Batch queue", { exact: true }).click();
   await expect(panel.locator(".simulation-batch-menu-popover")).toContainText(
     "Batch · prepared",
@@ -309,8 +311,8 @@ try {
   report.batch = { state: "finished", points: 2, temperatures: [27, 28] };
   const saved = await exportProject("source-workspace.icproj.json");
   assert(
-    saved.simulationSetups
-      .find((item) => item.id === setup.id)
+    saved.simulationFolders
+      .find((item) => item.id === folder.id)
       .input.files.some((file) =>
         file.text.includes("Source workspace GUI acceptance"),
       ),

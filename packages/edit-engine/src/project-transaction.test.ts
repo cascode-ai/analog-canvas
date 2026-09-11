@@ -1,4 +1,4 @@
-import { createRoutePath, createSourceSimulationSetup } from "@icm/model";
+import { createRoutePath, createSimulationFolder } from "@icm/model";
 import { describe, expect, it } from "vitest";
 
 import { createEmptyDocument, createEmptyProject } from "@icm/model";
@@ -775,42 +775,42 @@ describe("Project structural transaction", () => {
     });
   });
 
-  it("sets, keeps, and clears the Project simulation setup as structural edits", () => {
+  it("sets, keeps, and clears the Project simulation folder as structural edits", () => {
     const project = createEmptyProject("project", "Project");
     const testbench = createEmptyDocument("document-testbench", "Testbench");
     project.documents.push(testbench);
-    const setup = createSourceSimulationSetup({
-      id: "setup-main",
-      name: "Main setup",
+    const folder = createSimulationFolder({
+      id: "folder-main",
+      name: "Main folder",
       profileId: "test",
       documentId: testbench.id,
     });
     const actor = { kind: "human" as const, id: "human-local" };
 
     const set = executeProjectTransaction(project, {
-      transactionId: "set-setup",
+      transactionId: "set-folder",
       projectId: project.id,
       expectedStructureRevision: 0,
       actor,
-      edits: [{ kind: "upsert_simulation_setup", setup }],
+      edits: [{ kind: "upsert_simulation_folder", folder }],
     });
     expect(set).toMatchObject({
       ok: true,
       applied: true,
       structureRevision: 1,
-      project: { simulationSetups: [setup] },
+      project: { simulationFolders: [folder] },
     });
-    expect(project.simulationSetups).toEqual([]);
+    expect(project.simulationFolders).toEqual([]);
     if (!set.ok) return;
 
-    // The same setup again is not a change and does not spend a revision.
+    // The same folder again is not a change and does not spend a revision.
     const unchanged = executeProjectTransaction(set.project, {
-      transactionId: "same-setup",
+      transactionId: "same-folder",
       projectId: project.id,
       expectedStructureRevision: 1,
       actor,
       edits: [
-        { kind: "upsert_simulation_setup", setup: structuredClone(setup) },
+        { kind: "upsert_simulation_folder", folder: structuredClone(folder) },
       ],
     });
     expect(unchanged).toMatchObject({
@@ -820,20 +820,20 @@ describe("Project structural transaction", () => {
     });
 
     const rerooted = executeProjectTransaction(set.project, {
-      transactionId: "replace-setup",
+      transactionId: "replace-folder",
       projectId: project.id,
       expectedStructureRevision: 1,
       actor,
       edits: [
         {
-          kind: "upsert_simulation_setup",
-          setup: {
-            ...setup,
+          kind: "upsert_simulation_folder",
+          folder: {
+            ...folder,
             input: {
-              ...setup.input,
+              ...folder.input,
               circuitBindings: [
                 {
-                  ...setup.input.circuitBindings[0]!,
+                  ...folder.input.circuitBindings[0]!,
                   documentId: project.topDocumentId,
                 },
               ],
@@ -847,7 +847,7 @@ describe("Project structural transaction", () => {
       applied: true,
       structureRevision: 2,
       project: {
-        simulationSetups: [
+        simulationFolders: [
           {
             input: {
               circuitBindings: [{ documentId: project.topDocumentId }],
@@ -859,11 +859,11 @@ describe("Project structural transaction", () => {
     if (!rerooted.ok) return;
 
     const cleared = executeProjectTransaction(rerooted.project, {
-      transactionId: "clear-setup",
+      transactionId: "clear-folder",
       projectId: project.id,
       expectedStructureRevision: 2,
       actor,
-      edits: [{ kind: "remove_simulation_setup", setupId: setup.id }],
+      edits: [{ kind: "remove_simulation_folder", folderId: folder.id }],
     });
     expect(cleared).toMatchObject({
       ok: true,
@@ -871,15 +871,15 @@ describe("Project structural transaction", () => {
       structureRevision: 3,
     });
     if (!cleared.ok) return;
-    expect(cleared.project.simulationSetups).toEqual([]);
+    expect(cleared.project.simulationFolders).toEqual([]);
 
     expect(
       executeProjectTransaction(cleared.project, {
-        transactionId: "clear-absent-setup",
+        transactionId: "clear-absent-folder",
         projectId: project.id,
         expectedStructureRevision: 3,
         actor,
-        edits: [{ kind: "remove_simulation_setup", setupId: setup.id }],
+        edits: [{ kind: "remove_simulation_folder", folderId: folder.id }],
       }),
     ).toMatchObject({ ok: true, applied: false, structureRevision: 3 });
   });
@@ -890,9 +890,9 @@ describe("Project structural transaction", () => {
     project.documents.push(testbench);
     const actor = { kind: "agent" as const, id: "agent" };
     const setupFor = (rootDocumentId: string) =>
-      createSourceSimulationSetup({
-        id: "setup-main",
-        name: "Main setup",
+      createSimulationFolder({
+        id: "folder-main",
+        name: "Main folder",
         profileId: "test",
         documentId: rootDocumentId,
       });
@@ -905,15 +905,15 @@ describe("Project structural transaction", () => {
         actor,
         edits: [
           {
-            kind: "upsert_simulation_setup",
-            setup: setupFor("document-missing"),
+            kind: "upsert_simulation_folder",
+            folder: setupFor("document-missing"),
           },
         ],
       }),
     ).toMatchObject({
       ok: true,
       project: {
-        simulationSetups: [
+        simulationFolders: [
           { input: { circuitBindings: [{ documentId: "document-missing" }] } },
         ],
       },
@@ -921,26 +921,26 @@ describe("Project structural transaction", () => {
 
     expect(
       executeProjectTransaction(project, {
-        transactionId: "stale-setup",
+        transactionId: "stale-folder",
         projectId: project.id,
         expectedStructureRevision: 4,
         actor,
         edits: [
-          { kind: "upsert_simulation_setup", setup: setupFor(testbench.id) },
+          { kind: "upsert_simulation_folder", folder: setupFor(testbench.id) },
         ],
       }),
     ).toMatchObject({ ok: false, error: { code: "STALE_STRUCTURE_REVISION" } });
 
     expect(
       executeProjectTransaction(project, {
-        transactionId: "malformed-setup",
+        transactionId: "malformed-folder",
         projectId: project.id,
         expectedStructureRevision: 0,
         actor,
         edits: [
           {
-            kind: "upsert_simulation_setup",
-            setup: {
+            kind: "upsert_simulation_folder",
+            folder: {
               ...setupFor(testbench.id),
               input: { ...setupFor(testbench.id).input, lastRunId: "run-1" },
             },
@@ -960,14 +960,14 @@ describe("Project structural transaction", () => {
         actor,
         edits: [
           { kind: "add_document", document: bench2 },
-          { kind: "upsert_simulation_setup", setup: setupFor(bench2.id) },
+          { kind: "upsert_simulation_folder", folder: setupFor(bench2.id) },
         ],
       }),
     ).toMatchObject({
       ok: true,
       applied: true,
       project: {
-        simulationSetups: [
+        simulationFolders: [
           { input: { circuitBindings: [{ documentId: bench2.id }] } },
         ],
       },
@@ -979,10 +979,10 @@ describe("Project structural transaction", () => {
       expectedStructureRevision: 0,
       actor,
       edits: [
-        { kind: "upsert_simulation_setup", setup: setupFor(testbench.id) },
+        { kind: "upsert_simulation_folder", folder: setupFor(testbench.id) },
       ],
     });
-    if (!configured.ok) throw new Error("setup was not applied");
+    if (!configured.ok) throw new Error("folder was not applied");
     const deleted = executeProjectTransaction(configured.project, {
       transactionId: "delete-root",
       projectId: project.id,
@@ -994,7 +994,7 @@ describe("Project structural transaction", () => {
       ok: true,
       applied: true,
       project: {
-        simulationSetups: [
+        simulationFolders: [
           { input: { circuitBindings: [{ documentId: testbench.id }] } },
         ],
         documents: [{ id: project.topDocumentId }],
@@ -1007,7 +1007,7 @@ describe("Project structural transaction", () => {
         expectedStructureRevision: 1,
         actor,
         edits: [
-          { kind: "remove_simulation_setup", setupId: "setup-main" },
+          { kind: "remove_simulation_folder", folderId: "folder-main" },
           { kind: "remove_document", documentId: testbench.id },
         ],
       }),
@@ -1018,35 +1018,35 @@ describe("Project structural transaction", () => {
     });
   });
 
-  it("keeps independent named setups on one Testbench and removes only the addressed setup", () => {
+  it("keeps independent named folders on one Testbench and removes only the addressed folder", () => {
     const project = createEmptyProject("project", "Project");
     const setupFor = (id: string, name: string, analysis: "op" | "ac") => {
-      const setup = createSourceSimulationSetup({
+      const folder = createSimulationFolder({
         id,
         name,
         profileId: "test",
         documentId: project.topDocumentId,
       });
       if (analysis === "ac")
-        setup.input.files[0]!.text = setup.input.files[0]!.text.replace(
+        folder.input.files[0]!.text = folder.input.files[0]!.text.replace(
           "\nop\n",
           "\nac dec 10 1 1e6\n",
         );
-      return setup;
+      return folder;
     };
     const added = executeProjectTransaction(project, {
-      transactionId: "add-two-setups",
+      transactionId: "add-two-folders",
       projectId: project.id,
       expectedStructureRevision: 0,
       actor: { kind: "human", id: "human" },
       edits: [
         {
-          kind: "upsert_simulation_setup",
-          setup: setupFor("setup-op", "Bias", "op"),
+          kind: "upsert_simulation_folder",
+          folder: setupFor("folder-op", "Bias", "op"),
         },
         {
-          kind: "upsert_simulation_setup",
-          setup: setupFor("setup-ac", "Response", "ac"),
+          kind: "upsert_simulation_folder",
+          folder: setupFor("folder-ac", "Response", "ac"),
         },
       ],
     });
@@ -1054,23 +1054,23 @@ describe("Project structural transaction", () => {
       ok: true,
       applied: true,
       project: {
-        simulationSetups: [
-          { id: "setup-op", name: "Bias" },
-          { id: "setup-ac", name: "Response" },
+        simulationFolders: [
+          { id: "folder-op", name: "Bias" },
+          { id: "folder-ac", name: "Response" },
         ],
       },
     });
     if (!added.ok) return;
     const removed = executeProjectTransaction(added.project, {
-      transactionId: "remove-one-setup",
+      transactionId: "remove-one-folder",
       projectId: project.id,
       expectedStructureRevision: 1,
       actor: { kind: "human", id: "human" },
-      edits: [{ kind: "remove_simulation_setup", setupId: "setup-op" }],
+      edits: [{ kind: "remove_simulation_folder", folderId: "folder-op" }],
     });
     expect(removed).toMatchObject({
       ok: true,
-      project: { simulationSetups: [{ id: "setup-ac" }] },
+      project: { simulationFolders: [{ id: "folder-ac" }] },
     });
   });
 
@@ -1079,24 +1079,24 @@ describe("Project structural transaction", () => {
     const unrelated = createEmptyDocument("document-unrelated", "Unrelated");
     project.documents.push(unrelated);
     const actor = { kind: "agent" as const, id: "agent" };
-    const setup = createSourceSimulationSetup({
-      id: "setup-raw",
+    const folder = createSimulationFolder({
+      id: "folder-raw",
       name: "Source experiment",
       profileId: "test",
     });
-    setup.input.files[0]!.text = "* invalid while editing\nV1 in 0 ";
+    folder.input.files[0]!.text = "* invalid while editing\nV1 in 0 ";
     const configured = executeProjectTransaction(project, {
-      transactionId: "set-raw-setup",
+      transactionId: "set-raw-folder",
       projectId: project.id,
       expectedStructureRevision: 0,
       actor,
-      edits: [{ kind: "upsert_simulation_setup", setup }],
+      edits: [{ kind: "upsert_simulation_folder", folder }],
     });
     expect(configured).toMatchObject({
       ok: true,
       applied: true,
       structureRevision: 1,
-      project: { simulationSetups: [setup] },
+      project: { simulationFolders: [folder] },
     });
     if (!configured.ok) return;
 
@@ -1111,16 +1111,16 @@ describe("Project structural transaction", () => {
       ok: true,
       applied: true,
       structureRevision: 2,
-      project: { simulationSetups: [setup] },
+      project: { simulationFolders: [folder] },
     });
     if (!removed.ok) return;
 
     const cleared = executeProjectTransaction(removed.project, {
-      transactionId: "clear-raw-setup",
+      transactionId: "clear-raw-folder",
       projectId: project.id,
       expectedStructureRevision: 2,
       actor,
-      edits: [{ kind: "remove_simulation_setup", setupId: setup.id }],
+      edits: [{ kind: "remove_simulation_folder", folderId: folder.id }],
     });
     expect(cleared).toMatchObject({
       ok: true,
@@ -1128,7 +1128,7 @@ describe("Project structural transaction", () => {
       structureRevision: 3,
     });
     if (!cleared.ok) return;
-    expect(cleared.project.simulationSetups).toEqual([]);
+    expect(cleared.project.simulationFolders).toEqual([]);
   });
 
   it("removes an Instance before deleting its now-unreferenced Cell", () => {

@@ -179,7 +179,7 @@ test("grants a browser Agent, edits through the live host, and shares undo", asy
   };
 
   const capabilities = await sendCircuitRequest("capabilities", {
-    apiVersion: "2.0",
+    apiVersion: "3.0",
     requestId: "capabilities",
     operation: "capabilities",
   });
@@ -197,7 +197,7 @@ test("grants a browser Agent, edits through the live host, and shares undo", asy
   });
 
   const snapshot = await sendCircuitRequest("snapshot-before", {
-    apiVersion: "2.0",
+    apiVersion: "3.0",
     requestId: "snapshot-before",
     operation: "snapshot",
     documentId: "document-main",
@@ -210,7 +210,7 @@ test("grants a browser Agent, edits through the live host, and shares undo", asy
   });
 
   const semantic = await sendCircuitRequest("semantic-fit", {
-    apiVersion: "2.0",
+    apiVersion: "3.0",
     requestId: "semantic-fit",
     operation: "transact",
     documentId: "document-main",
@@ -233,7 +233,7 @@ test("grants a browser Agent, edits through the live host, and shares undo", asy
   await expect(page.getByTestId("revision")).toHaveText("0");
 
   const transaction = await sendCircuitRequest("agent-edit", {
-    apiVersion: "2.0",
+    apiVersion: "3.0",
     requestId: "agent-edit",
     operation: "transact",
     documentId: "document-main",
@@ -268,7 +268,7 @@ test("grants a browser Agent, edits through the live host, and shares undo", asy
     .toBe(true);
 
   const replay = await sendCircuitRequest("agent-edit", {
-    apiVersion: "2.0",
+    apiVersion: "3.0",
     requestId: "agent-edit",
     operation: "transact",
     documentId: "document-main",
@@ -294,7 +294,7 @@ test("grants a browser Agent, edits through the live host, and shares undo", asy
     ),
   );
   const staged = await sendFileRequest("stage-project", {
-    apiVersion: "2.0",
+    apiVersion: "3.0",
     requestId: "stage-project",
     operation: "stage",
     kind: "project",
@@ -313,7 +313,7 @@ test("grants a browser Agent, edits through the live host, and shares undo", asy
   const candidateId = (staged.payload as { candidate: { candidateId: string } })
     .candidate.candidateId;
   await sendFileRequest("approve-staged-project", {
-    apiVersion: "2.0",
+    apiVersion: "3.0",
     requestId: "approve-staged-project",
     operation: "request-approval",
     candidateId,

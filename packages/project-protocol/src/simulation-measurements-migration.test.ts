@@ -49,7 +49,7 @@ describe("schema 44 to 45 migration (simulation measurements)", () => {
       project: { schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION },
     });
     if (!loaded.ok) throw new Error("Expected migration to succeed");
-    expect(loaded.project.simulationSetups[0]?.input).not.toHaveProperty(
+    expect(loaded.project.simulationFolders[0]?.input).not.toHaveProperty(
       "measurements",
     );
   });

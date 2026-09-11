@@ -1,5 +1,5 @@
 import {
-  createSourceSimulationSetup,
+  createSimulationFolder,
   readSimulationExperimentConfig,
   replaceSimulationExperimentConfig,
 } from "@icm/model";
@@ -13,7 +13,7 @@ import { parseProject } from "@icm/project-protocol";
 
 import { clickNetlistWorkflowCommand } from "./editor-fixtures.js";
 import { ota, profile, editSimulationFile } from "./simulation-e2e-fixtures.js";
-test("a saved-setup batch prepares first and exposes each ordinary run", async ({
+test("a saved-folder batch prepares first and exposes each ordinary run", async ({
   page,
 }) => {
   const project = parseProject(JSON.stringify(ota));
@@ -31,14 +31,14 @@ test("a saved-setup batch prepares first and exposes each ordinary run", async (
     ),
     "utf8",
   );
-  project.simulationSetups = ["TT", "FF"].map((name) => {
-    const setup = createSourceSimulationSetup({
-      id: "setup-" + name.toLowerCase(),
+  project.simulationFolders = ["TT", "FF"].map((name) => {
+    const folder = createSimulationFolder({
+      id: "folder-" + name.toLowerCase(),
       name,
       profileId: profile.id,
     });
-    setup.input.files.find((f) => f.path === setup.input.entry)!.text = deck;
-    return setup;
+    folder.input.files.find((f) => f.path === folder.input.entry)!.text = deck;
+    return folder;
   });
   let executions = 0;
   await page.route("**/api/simulate", async (route) => {
@@ -109,10 +109,16 @@ test("a saved-setup batch prepares first and exposes each ordinary run", async (
   });
   await clickNetlistWorkflowCommand(page, "open-analog-simulation");
   const panel = page.getByRole("region", { name: "Analog simulation" });
-  await panel.getByTitle("Simulation setup", { exact: true }).click();
-  await panel.getByLabel("Include TT in batch").check();
-  await panel.getByLabel("Include FF in batch").check();
-  await panel.getByRole("button", { name: "Run selected (2)" }).click();
+  await panel.getByRole("button", { name: "Folder TT", exact: true }).click();
+  await panel
+    .getByRole("button", { name: "Folder FF", exact: true })
+    .click({ modifiers: ["Control"] });
+  await panel
+    .getByRole("button", { name: "Folder FF", exact: true })
+    .click({ button: "right" });
+  await panel
+    .getByRole("menuitem", { name: "Run selected folders (2)" })
+    .click();
   await panel.getByTitle("Batch queue", { exact: true }).click();
   const batch = panel.locator(".simulation-batch-menu-popover");
   await expect(batch).toContainText("Batch · finished");
@@ -125,8 +131,8 @@ test("a saved-setup batch prepares first and exposes each ordinary run", async (
   expect(executions).toBe(2);
   await batch.getByRole("button", { name: /FF finished/ }).click();
   await expect(
-    panel.getByTitle("Simulation setup", { exact: true }),
-  ).toContainText("FF");
+    panel.getByRole("button", { name: "Folder FF", exact: true }),
+  ).toHaveClass(/is-active/);
   await expect(panel.getByRole("status").first()).toContainText(
     "Batch finished",
   );
@@ -136,8 +142,8 @@ test("a saved Run Plan prepares without executing and Run starts its ordinary ba
   page,
 }) => {
   const project = parseProject(JSON.stringify(ota));
-  let setup = project.simulationSetups[0]!;
-  const parsed = readSimulationExperimentConfig(setup);
+  let folder = project.simulationFolders[0]!;
+  const parsed = readSimulationExperimentConfig(folder);
   if (!parsed.ok) throw Error(parsed.message);
   const config = parsed.config;
   config.outputs = [];
@@ -151,7 +157,7 @@ test("a saved Run Plan prepares without executing and Run starts its ordinary ba
     {
       id: "input-level",
       name: "VIN",
-      sourcePath: setup.input.entry,
+      sourcePath: folder.input.entry,
       bindings: [
         {
           documentId: project.topDocumentId,
@@ -161,10 +167,10 @@ test("a saved Run Plan prepares without executing and Run starts its ordinary ba
       ],
     },
   ];
-  setup = replaceSimulationExperimentConfig(setup, config);
-  setup.input.files.find((f) => f.path === setup.input.entry)!.text =
+  folder = replaceSimulationExperimentConfig(folder, config);
+  folder.input.files.find((f) => f.path === folder.input.entry)!.text =
     '* Run plan\n.param VIN=0.9\n.include "circuit.spice"\n.control\nset filetype=ascii\nop\nwrite out.raw\n.endc\n.end\n';
-  project.simulationSetups = [setup];
+  project.simulationFolders = [folder];
   const rawfile = readFileSync(
     new URL(
       "../../../fixtures/ngspice-rawfile/divider-op.raw",
@@ -253,7 +259,8 @@ test("a saved Run Plan prepares without executing and Run starts its ordinary ba
     "experiment.json",
     JSON.stringify(config, null, 2),
   );
-  await panel.getByRole("button", { name: "Prepare deck" }).click();
+  await panel.getByRole("button", { name: "More code actions" }).click();
+  await panel.getByRole("button", { name: "View final deck" }).click();
   await panel.getByTitle("Batch queue", { exact: true }).click();
   await expect(panel.locator(".simulation-batch-menu-popover")).toContainText(
     "Batch · prepared",

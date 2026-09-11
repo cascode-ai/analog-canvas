@@ -1,4 +1,8 @@
 import { useEffect, useId, useState, type ReactNode } from "react";
+import {
+  SimulationFolderTree,
+  type SimulationFolderTreeProps,
+} from "./simulation-file-tree";
 
 export interface SimulationCodeFile {
   path: string;
@@ -15,6 +19,12 @@ export interface SimulationCodeWorkspaceProps {
   onNewFile?(): void;
   onCopyFile?(): void;
   onExportFile?(): void;
+  onFileAction?(
+    action: "rename" | "delete" | "entry" | "discard",
+    path: string,
+  ): void;
+  folders?: Omit<SimulationFolderTreeProps, "children"> | undefined;
+  additionalActions?: ReactNode;
   children: ReactNode;
   actions: ReactNode;
   status?: ReactNode;
@@ -33,11 +43,12 @@ export function SimulationCodeWorkspace(props: SimulationCodeWorkspaceProps) {
     props.files
       .filter((f) => f.kind === "generated" || f.path === props.entryPath)
       .map((f) => f.path);
-  const [filesOpen, setFilesOpen] = useState(false);
+  const [filesOpen, setFilesOpen] = useState(Boolean(props.folders));
   const [opened, setOpened] = useState(defaults);
   const [moreOpen, setMoreOpen] = useState(false);
   const [resultsHeight, setResultsHeight] = useState(38);
   const [collapsed, setCollapsed] = useState(false);
+  const [fileMenu, setFileMenu] = useState<string>();
   useEffect(() => {
     setOpened(defaults());
     setMoreOpen(false);
@@ -61,6 +72,113 @@ export function SimulationCodeWorkspace(props: SimulationCodeWorkspaceProps) {
     if (props.activePath === path)
       props.onSelectFile(next.at(-1) ?? props.entryPath);
   };
+  const fileList = () => (
+    <ul>
+      {props.files
+        .filter((file) => file.path !== props.configPath)
+        .map((file) => (
+          <li
+            key={file.path}
+            onContextMenu={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              openFile(file.path);
+              setFileMenu(file.path);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                event.stopPropagation();
+                setFileMenu(undefined);
+              }
+            }}
+          >
+            <button
+              type="button"
+              className={file.path === props.activePath ? "is-active" : ""}
+              title={file.path}
+              onClick={() => openFile(file.path)}
+            >
+              <span aria-hidden="true">
+                {file.kind === "generated"
+                  ? "◇"
+                  : file.kind === "prepared"
+                    ? "▧"
+                    : "·"}
+              </span>{" "}
+              {file.path}
+              {file.dirty ? " ●" : ""}
+            </button>
+            {fileMenu === file.path ? (
+              <div role="menu" aria-label={`Actions for ${file.path}`}>
+                <button
+                  role="menuitem"
+                  onClick={() => {
+                    props.onCopyFile?.();
+                    setFileMenu(undefined);
+                  }}
+                >
+                  Copy contents
+                </button>
+                <button
+                  role="menuitem"
+                  onClick={() => {
+                    props.onExportFile?.();
+                    setFileMenu(undefined);
+                  }}
+                >
+                  Export file…
+                </button>
+                {file.kind === "authored" ? (
+                  <>
+                    <button
+                      role="menuitem"
+                      onClick={() => {
+                        props.onFileAction?.("rename", file.path);
+                        setFileMenu(undefined);
+                      }}
+                    >
+                      Rename…
+                    </button>
+                    <button
+                      role="menuitem"
+                      onClick={() => {
+                        props.onFileAction?.("delete", file.path);
+                        setFileMenu(undefined);
+                      }}
+                    >
+                      Delete…
+                    </button>
+                    <button
+                      role="menuitem"
+                      onClick={() => {
+                        props.onFileAction?.("entry", file.path);
+                        setFileMenu(undefined);
+                      }}
+                    >
+                      Use as run entry
+                    </button>
+                  </>
+                ) : null}
+                {file.dirty ? (
+                  <button
+                    role="menuitem"
+                    onClick={() => {
+                      props.onFileAction?.("discard", file.path);
+                      setFileMenu(undefined);
+                    }}
+                  >
+                    Discard draft
+                  </button>
+                ) : null}
+                <button role="menuitem" onClick={() => setFileMenu(undefined)}>
+                  Close menu
+                </button>
+              </div>
+            ) : null}
+          </li>
+        ))}
+    </ul>
+  );
   return (
     <section
       className={`simulation-code-workspace${props.maximized ? " is-maximized" : ""}`}
@@ -134,6 +252,7 @@ export function SimulationCodeWorkspace(props: SimulationCodeWorkspaceProps) {
                   New file…
                 </button>
               ) : null}
+              {props.additionalActions}
             </div>
           ) : null}
         </div>
@@ -145,32 +264,13 @@ export function SimulationCodeWorkspace(props: SimulationCodeWorkspaceProps) {
             className="simulation-code-files"
             aria-label="Simulation files"
           >
-            <ul>
-              {props.files
-                .filter((file) => file.path !== props.configPath)
-                .map((file) => (
-                  <li key={file.path}>
-                    <button
-                      type="button"
-                      className={
-                        file.path === props.activePath ? "is-active" : ""
-                      }
-                      title={file.path}
-                      onClick={() => openFile(file.path)}
-                    >
-                      <span aria-hidden="true">
-                        {file.kind === "generated"
-                          ? "◇"
-                          : file.kind === "prepared"
-                            ? "▧"
-                            : "·"}
-                      </span>{" "}
-                      {file.path}
-                      {file.dirty ? " ●" : ""}
-                    </button>
-                  </li>
-                ))}
-            </ul>
+            {props.folders ? (
+              <SimulationFolderTree {...props.folders}>
+                {fileList()}
+              </SimulationFolderTree>
+            ) : (
+              fileList()
+            )}
           </aside>
         ) : null}
         <div className="simulation-code-document">

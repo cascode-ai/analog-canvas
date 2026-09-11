@@ -50,14 +50,14 @@ function credential(agentToken) {
 
 function snapshot() {
   return {
-    snapshotVersion: "2.0",
+    snapshotVersion: "3.0",
     electricalTopologyHash: "a".repeat(64),
     byteLength: 512,
     project: {
       id: "release-project",
       name: "Release Smoke",
       structureRevision: 0,
-      simulationSetups: [],
+      simulationFolders: [],
       topDocumentId: "main",
       documents: [
         {
@@ -128,13 +128,13 @@ const relay = createServer(async (request, response) => {
     const body = await requestBody(request);
     if (body.operation === "capabilities") {
       result = json({
-        apiVersion: "2.0",
+        apiVersion: "3.0",
         requestId: body.requestId,
         operation: "capabilities",
         ok: true,
         capabilities: {
-          apiVersions: ["2.0"],
-          snapshotVersions: ["2.0"],
+          apiVersions: ["3.0"],
+          snapshotVersions: ["3.0"],
           operations: ["capabilities", "snapshot", "transact", "render"],
           editKinds: ["add_instance"],
           permissions: {
@@ -154,7 +154,7 @@ const relay = createServer(async (request, response) => {
       });
     } else if (body.operation === "snapshot") {
       result = json({
-        apiVersion: "2.0",
+        apiVersion: "3.0",
         requestId: body.requestId,
         operation: "snapshot",
         ok: true,
@@ -166,7 +166,7 @@ const relay = createServer(async (request, response) => {
       const fromRevision = revision;
       if (!body.dryRun) revision += 1;
       result = json({
-        apiVersion: "2.0",
+        apiVersion: "3.0",
         requestId: body.requestId,
         operation: "transact",
         ok: true,
@@ -184,7 +184,7 @@ const relay = createServer(async (request, response) => {
       });
     } else {
       result = json({
-        apiVersion: "2.0",
+        apiVersion: "3.0",
         requestId: body.requestId,
         operation: "render",
         ok: true,
@@ -204,7 +204,7 @@ const relay = createServer(async (request, response) => {
     const body = await requestBody(request);
     if (body.operation === "download") {
       result = json({
-        apiVersion: "2.0",
+        apiVersion: "3.0",
         requestId: body.requestId,
         operation: "download",
         ok: true,
@@ -219,7 +219,7 @@ const relay = createServer(async (request, response) => {
       });
     } else {
       result = json({
-        apiVersion: "2.0",
+        apiVersion: "3.0",
         requestId: body.requestId,
         operation: "stage",
         ok: true,
@@ -316,7 +316,7 @@ try {
     ![
       "project_cells",
       "simulation",
-      "simulation_setup",
+      "simulation_folder",
       "simulation_output",
       "simulation_measurement",
       "simulation_device_operating_point",

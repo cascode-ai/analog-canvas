@@ -175,7 +175,7 @@ export function matchSimulationVoltageProbeOptions(
 /**
  * Match a visible terminal against the concrete current targets below the
  * selected Testbench root. Definition-only picks deliberately retain every
- * occurrence so the setup editor can ask which call the author meant.
+ * occurrence so the folder editor can ask which call the author meant.
  */
 export function matchSimulationTerminalCurrentProbeOptions(
   options: readonly SimulationProbeOption<TerminalCurrentProbeTarget>[],

@@ -1,22 +1,23 @@
 import {
-  ProjectSimulationSetupSchema,
+  ProjectSimulationFolderSchema,
   SimulationExperimentConfigSchema,
-  type ProjectSimulationSetup,
+  type ProjectSimulationFolder,
   type SimulationExperimentConfig,
 } from "./schema.js";
 
 /** The same small starter text for a human or Agent; no hidden analyses writer. */
-export function createSourceSimulationSetup(options: {
+export function createSimulationFolder(options: {
   id: string;
   name: string;
   profileId: string;
   documentId?: string;
-}): ProjectSimulationSetup {
+  template?: "op" | "ac" | "tran";
+}): ProjectSimulationFolder {
   const config = SimulationExperimentConfigSchema.parse({
     version: 1,
     environment: { profileId: options.profileId },
   });
-  return ProjectSimulationSetupSchema.parse({
+  return ProjectSimulationFolderSchema.parse({
     id: options.id,
     name: options.name,
     version: 4,
@@ -33,7 +34,11 @@ export function createSourceSimulationSetup(options: {
             ".control",
             "set filetype=ascii",
             "set appendwrite",
-            "op",
+            options.template === "ac"
+              ? "ac dec 20 1 1G"
+              : options.template === "tran"
+                ? "tran 1n 1u"
+                : "op",
             "write out.raw",
             ".endc",
             ".end",
@@ -61,7 +66,9 @@ export function createSourceSimulationSetup(options: {
 }
 
 /** Broken JSON is normal authoring state, not a thrown error or a fallback configuration. */
-export function readSimulationExperimentConfig(setup: ProjectSimulationSetup):
+export function readSimulationExperimentConfig(
+  folder: ProjectSimulationFolder,
+):
   | { ok: true; config: SimulationExperimentConfig }
   | {
       ok: false;
@@ -69,8 +76,8 @@ export function readSimulationExperimentConfig(setup: ProjectSimulationSetup):
       path: string;
       fields: Array<{ field: string; message: string }>;
     } {
-  const path = setup.input.configPath;
-  const text = setup.input.files.find((file) => file.path === path)?.text;
+  const path = folder.input.configPath;
+  const text = folder.input.files.find((file) => file.path === path)?.text;
   let value: unknown;
   try {
     value = JSON.parse(text ?? "");
@@ -98,21 +105,21 @@ export function readSimulationExperimentConfig(setup: ProjectSimulationSetup):
 
 /** Pure helper: caller commits the returned source through the normal File/Project transaction. */
 export function replaceSimulationExperimentConfig(
-  setup: ProjectSimulationSetup,
+  folder: ProjectSimulationFolder,
   config: SimulationExperimentConfig,
-): ProjectSimulationSetup {
+): ProjectSimulationFolder {
   const text =
     JSON.stringify(SimulationExperimentConfigSchema.parse(config), null, 2) +
     "\n";
   return {
-    ...setup,
+    ...folder,
     input: {
-      ...setup.input,
+      ...folder.input,
       files: [
-        ...setup.input.files.filter(
-          (file) => file.path !== setup.input.configPath,
+        ...folder.input.files.filter(
+          (file) => file.path !== folder.input.configPath,
         ),
-        { path: setup.input.configPath, text },
+        { path: folder.input.configPath, text },
       ],
     },
   };

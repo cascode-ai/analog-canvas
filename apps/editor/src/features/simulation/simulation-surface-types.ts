@@ -1,7 +1,7 @@
 import type {
   CircuitProject,
   ObjectLocator,
-  ProjectSimulationSetup,
+  ProjectSimulationFolder,
   SimulationExpression,
   SimulationSourceExpression,
 } from "@icm/model";
@@ -16,22 +16,22 @@ export interface SpiceSimulationSurfaceProps {
   selectedCircuitObject?:
     { documentId: string; instanceId: string } | undefined;
   draftContext?: {
-    readonly setupId: string;
-    readonly setupName: string;
+    readonly folderId: string;
+    readonly folderName: string;
     readonly dutDocumentId: string;
     readonly rootDocumentId: string;
   };
-  selectedSetupId: string | null;
-  onSelectSetupId(setupId: string): void;
+  selectedFolderId: string | null;
+  onSelectFolderId(folderId: string): void;
   session: BrowserSimulationSession;
   onToggleMaximized(): void;
   onMinimize(): void;
   onExit(): void;
-  onSaveSetup(
-    setup: ProjectSimulationSetup,
+  onSaveFolder(
+    folder: ProjectSimulationFolder,
     expectedRevision?: number,
-  ): SimulationSetupSaveResult;
-  onDeleteSetup(setupId: string): boolean;
+  ): SimulationFolderSaveResult;
+  onDeleteFolder(folderId: string): boolean;
   onHistoryBoundary(direction: "undo" | "redo"): void;
   onSourceBuffer?(
     buffer: { flush(): Promise<boolean>; dirty: boolean } | null,
@@ -72,6 +72,6 @@ export interface SpiceSimulationSurfaceProps {
   ): void;
 }
 
-export type SimulationSetupSaveResult =
+export type SimulationFolderSaveResult =
   | { readonly status: "applied" | "unchanged" }
   | { readonly status: "rejected"; readonly problem: Problem };

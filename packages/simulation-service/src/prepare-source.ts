@@ -1,6 +1,6 @@
 import type {
   CircuitProject,
-  ProjectSourceSimulationSetup,
+  ProjectSimulationFolder,
   SimulationRunVariant,
 } from "@icm/model";
 import {
@@ -22,7 +22,7 @@ import { outputVolumeWarning } from "./result-volume.js";
 
 async function sourceCompilationProblem(
   diagnostics: SimulationSourceDiagnostic[],
-  setup: ProjectSourceSimulationSetup,
+  folder: ProjectSimulationFolder,
 ): Promise<{
   ok: false;
   error: Problem;
@@ -36,7 +36,7 @@ async function sourceCompilationProblem(
       recovery: "fix-input",
       diagnostics: await Promise.all(
         diagnostics.map(async (diagnostic) => {
-          const file = setup.input.files.find(
+          const file = folder.input.files.find(
             (file) =>
               file.path === (diagnostic.sourceRef?.fileId ?? diagnostic.path),
           );
@@ -63,13 +63,13 @@ async function sourceCompilationProblem(
 /** Shared source adapter. No execution, Project mutation or private GUI deck path. */
 export async function prepareSourceExecutionInput(
   project: CircuitProject,
-  setup: ProjectSourceSimulationSetup,
+  folder: ProjectSimulationFolder,
   caps: Capabilities,
   variant?: SimulationRunVariant,
 ) {
   const compilationProblem = (diagnostics: SimulationSourceDiagnostic[]) =>
-    sourceCompilationProblem(diagnostics, setup);
-  const compiled = compileSourceSimulation(project, setup, variant);
+    sourceCompilationProblem(diagnostics, folder);
+  const compiled = compileSourceSimulation(project, folder, variant);
   if (!compiled.ok) return compilationProblem(compiled.diagnostics);
   const { config } = compiled;
   const profile = caps.profiles.find(
@@ -97,7 +97,7 @@ export async function prepareSourceExecutionInput(
       "prepare",
       "retry-after",
     );
-  const dependencies = structuredClone(setup.input.dependencies);
+  const dependencies = structuredClone(folder.input.dependencies);
   const available = new Map(
     (profile.dependencies ?? []).map((item) => [item.id, item.sha256]),
   );
@@ -133,7 +133,7 @@ export async function prepareSourceExecutionInput(
       const occupied = new Set([
         ...files.map((file) => file.path),
         ...dependencies.map((item) => item.mountPath),
-        setup.input.configPath,
+        folder.input.configPath,
       ]);
       let mountPath = "icm-models.lib";
       for (
@@ -206,7 +206,7 @@ export async function prepareSourceExecutionInput(
   if (
     output !== null &&
     [
-      setup.input.configPath,
+      folder.input.configPath,
       ...files.map((file) => file.path),
       ...dependencies.map((dep) => dep.mountPath),
     ].some(
@@ -222,7 +222,7 @@ export async function prepareSourceExecutionInput(
         severity: "error",
         message:
           "The collected rawfile must not overwrite an input or dependency",
-        path: setup.input.configPath,
+        path: folder.input.configPath,
         field: "collection.rawfile",
       },
     ]);
@@ -242,9 +242,9 @@ export async function prepareSourceExecutionInput(
       `Prepared input is ${bytes} bytes; this executor accepts ${caps.maxInputBytes}. The Project can still be saved.`,
       "prepare",
     );
-  const inputRevision = await sourceInputRevision(setup, compiled);
+  const inputRevision = await sourceInputRevision(folder, compiled);
   const analyses = literalSourceAnalyses(
-    inspectSimulationSourceGraph({ ...setup.input, files: compiled.files }),
+    inspectSimulationSourceGraph({ ...folder.input, files: compiled.files }),
   );
   const volume = outputVolumeWarning(
     analyses,

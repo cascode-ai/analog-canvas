@@ -737,7 +737,7 @@ export function importCircuitIR(
     topDocumentId: topDocument.id,
     documents,
     externalSubcircuitDefinitions,
-    simulationSetups: [],
+    simulationFolders: [],
   });
   return { project, diagnostics };
 }

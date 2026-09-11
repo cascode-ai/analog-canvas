@@ -69,7 +69,7 @@ export class SimulationFiles {
       (op.action === "list" ||
         op.action === "read" ||
         op.action === "update") &&
-      op.owner?.kind === "project-setup"
+      op.owner?.kind === "project-folder"
     ) {
       if (!this.projectHost)
         return problem(
@@ -184,10 +184,10 @@ export class SimulationFiles {
         nextOffset: end < file.text.length ? end : null,
       };
     }
-    if (op.circuitEdits.length)
+    if (op.circuitEdits.length || op.drafts !== undefined)
       return problem(
         "SIMULATION_CIRCUIT_OWNER_REQUIRED",
-        "Generated Circuit edits require a Project setup owner",
+        "Circuit edits and saved drafts require a Project folder owner",
         "input",
       );
     if (op.expectedRevision !== workspace.revision)

@@ -3,7 +3,7 @@ import {
   ExternalSubcircuitDefinitionSchema,
   SourceFileRecordSchema,
   SchematicDocumentSchema,
-  ProjectSimulationSetupSchema,
+  ProjectSimulationFolderSchema,
   type CircuitProject,
   type SchematicDocument,
 } from "@icm/model";
@@ -61,12 +61,12 @@ export const ProjectStructureEditSchema = z.discriminatedUnion("kind", [
     definitionId: z.string().min(1),
   }),
   z.strictObject({
-    kind: z.literal("upsert_simulation_setup"),
-    setup: ProjectSimulationSetupSchema,
+    kind: z.literal("upsert_simulation_folder"),
+    folder: ProjectSimulationFolderSchema,
   }),
   z.strictObject({
-    kind: z.literal("remove_simulation_setup"),
-    setupId: z.string().min(1),
+    kind: z.literal("remove_simulation_folder"),
+    folderId: z.string().min(1),
   }),
   z.strictObject({
     kind: z.literal("transact_document"),
@@ -511,44 +511,44 @@ export function executeProjectTransaction(
       continue;
     }
 
-    if (edit.kind === "upsert_simulation_setup") {
+    if (edit.kind === "upsert_simulation_folder") {
       // Missing circuit/file references are repairable authoring state. Prepare
       // diagnoses them; saving a source draft must not require it to simulate.
-      const duplicateName = candidate.simulationSetups.find(
-        (setup) =>
-          setup.id !== edit.setup.id &&
-          setup.name.toLocaleLowerCase("en-US") ===
-            edit.setup.name.toLocaleLowerCase("en-US"),
+      const duplicateName = candidate.simulationFolders.find(
+        (folder) =>
+          folder.id !== edit.folder.id &&
+          folder.name.toLocaleLowerCase("en-US") ===
+            edit.folder.name.toLocaleLowerCase("en-US"),
       );
       if (duplicateName) {
         return rejectProjectTransaction(
           project,
           "EDIT_PRECONDITION",
-          `Simulation setup name already exists: ${edit.setup.name}`,
+          `Simulation folder name already exists: ${edit.folder.name}`,
         );
       }
-      const index = candidate.simulationSetups.findIndex(
-        (setup) => setup.id === edit.setup.id,
+      const index = candidate.simulationFolders.findIndex(
+        (folder) => folder.id === edit.folder.id,
       );
       if (
         index >= 0 &&
-        JSON.stringify(candidate.simulationSetups[index]) ===
-          JSON.stringify(edit.setup)
+        JSON.stringify(candidate.simulationFolders[index]) ===
+          JSON.stringify(edit.folder)
       )
         continue;
       if (index >= 0)
-        candidate.simulationSetups[index] = structuredClone(edit.setup);
-      else candidate.simulationSetups.push(structuredClone(edit.setup));
+        candidate.simulationFolders[index] = structuredClone(edit.folder);
+      else candidate.simulationFolders.push(structuredClone(edit.folder));
       structuralChange = true;
       continue;
     }
 
-    if (edit.kind === "remove_simulation_setup") {
-      const index = candidate.simulationSetups.findIndex(
-        (setup) => setup.id === edit.setupId,
+    if (edit.kind === "remove_simulation_folder") {
+      const index = candidate.simulationFolders.findIndex(
+        (folder) => folder.id === edit.folderId,
       );
       if (index < 0) continue;
-      candidate.simulationSetups.splice(index, 1);
+      candidate.simulationFolders.splice(index, 1);
       structuralChange = true;
       continue;
     }

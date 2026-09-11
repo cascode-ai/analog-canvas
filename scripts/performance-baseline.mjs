@@ -150,7 +150,7 @@ const service = createAgentCircuitService({
 });
 const snapshot = await measure(() =>
   service.handle({
-    apiVersion: "2.0",
+    apiVersion: "3.0",
     requestId: "performance-snapshot",
     operation: "snapshot",
     documentId: document.id,
@@ -158,7 +158,7 @@ const snapshot = await measure(() =>
 );
 const edit = await measure(() =>
   service.handle({
-    apiVersion: "2.0",
+    apiVersion: "3.0",
     requestId: "performance-edit",
     operation: "transact",
     documentId: document.id,

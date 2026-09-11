@@ -41,12 +41,15 @@ describe("browser simulation ownership", () => {
       await human.handle({
         operation: "prepare",
         source: {
-          kind: "project-setup",
-          setupId: "missing-setup",
+          kind: "project-folder",
+          folderId: "missing-folder",
           expectedStructureRevision: project.structureRevision,
         },
       }),
-    ).toMatchObject({ ok: false, error: { code: "SIMULATION_SETUP_MISSING" } });
+    ).toMatchObject({
+      ok: false,
+      error: { code: "SIMULATION_FOLDER_MISSING" },
+    });
     expect(await human.handle({ operation: "capabilities" })).toMatchObject({
       ok: true,
     });

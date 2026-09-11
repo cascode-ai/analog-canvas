@@ -65,6 +65,6 @@ export function createEmptyProject(
     topDocumentId: documentId,
     documents: [createEmptyDocument(documentId, "Main")],
     externalSubcircuitDefinitions: [],
-    simulationSetups: [],
+    simulationFolders: [],
   });
 }

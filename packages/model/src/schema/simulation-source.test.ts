@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
-  ProjectSourceSimulationSetupSchema,
+  ProjectSimulationFolderSchema,
   SimulationExperimentConfigSchema,
   SimulationSourceExpressionSchema,
-  type ProjectSourceSimulationSetup,
 } from "./simulation-source.js";
+import type { ProjectSimulationFolder } from "./types.js";
 
-function setup(): ProjectSourceSimulationSetup {
+function folder(): ProjectSimulationFolder {
   return {
     id: "experiment",
     name: "AC",
@@ -34,12 +34,10 @@ function setup(): ProjectSourceSimulationSetup {
 
 describe("source experiment persistence", () => {
   it("preserves broken SPICE/JSON and missing Cell/entry for repair", () => {
-    const authored = setup();
+    const authored = folder();
     authored.input.entry = "removed.cir";
     expect(
-      ProjectSourceSimulationSetupSchema.parse(
-        JSON.parse(JSON.stringify(authored)),
-      ),
+      ProjectSimulationFolderSchema.parse(JSON.parse(JSON.stringify(authored))),
     ).toEqual(authored);
   });
 
@@ -49,9 +47,9 @@ describe("source experiment persistence", () => {
       ["environment", { profileId: "p" }],
       ["config", {}],
     ]) {
-      const authored = setup();
+      const authored = folder();
       expect(
-        ProjectSourceSimulationSetupSchema.safeParse({
+        ProjectSimulationFolderSchema.safeParse({
           ...authored,
           input: { ...authored.input, [String(key)]: value },
         }).success,
@@ -68,17 +66,17 @@ describe("source experiment persistence", () => {
     "a/../b",
     "a\u0000b",
   ])("refuses unsafe path %s", (path) => {
-    const authored = setup();
+    const authored = folder();
     authored.input.files.push({ path, text: "" });
-    expect(ProjectSourceSimulationSetupSchema.safeParse(authored).success).toBe(
+    expect(ProjectSimulationFolderSchema.safeParse(authored).success).toBe(
       false,
     );
   });
 
   it("rejects duplicate ownership across author, generator and dependency paths", () => {
-    const authored = setup();
+    const authored = folder();
     authored.input.files.push({ path: "circuit.spice", text: "override" });
-    expect(ProjectSourceSimulationSetupSchema.safeParse(authored).success).toBe(
+    expect(ProjectSimulationFolderSchema.safeParse(authored).success).toBe(
       false,
     );
     authored.input.files.pop();
@@ -87,15 +85,15 @@ describe("source experiment persistence", () => {
       mountPath: "run.cir",
       sha256: "a".repeat(64),
     });
-    expect(ProjectSourceSimulationSetupSchema.safeParse(authored).success).toBe(
+    expect(ProjectSimulationFolderSchema.safeParse(authored).success).toBe(
       false,
     );
   });
 
   it("does not permit competing drawn Testbench roots or generated entry/config", () => {
-    const authored = setup();
+    const authored = folder();
     authored.input.entry = "circuit.spice";
-    expect(ProjectSourceSimulationSetupSchema.safeParse(authored).success).toBe(
+    expect(ProjectSimulationFolderSchema.safeParse(authored).success).toBe(
       false,
     );
     authored.input.entry = "run.cir";
@@ -105,18 +103,18 @@ describe("source experiment persistence", () => {
       path: `${id}.spice`,
       emission: "top-level",
     }));
-    expect(ProjectSourceSimulationSetupSchema.safeParse(authored).success).toBe(
+    expect(ProjectSimulationFolderSchema.safeParse(authored).success).toBe(
       false,
     );
   });
 
   it("does not apply session TTL/input limits to persisted Project text", () => {
-    const authored = setup();
+    const authored = folder();
     authored.input.files = Array.from({ length: 25 }, (_, index) => ({
       path: `${index}.cir`,
       text: "x".repeat(45_000),
     }));
-    expect(ProjectSourceSimulationSetupSchema.safeParse(authored).success).toBe(
+    expect(ProjectSimulationFolderSchema.safeParse(authored).success).toBe(
       true,
     );
   });

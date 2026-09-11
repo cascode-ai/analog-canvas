@@ -45,7 +45,7 @@ type StoredPrepared = {
 };
 type BatchPrepareItem = {
   id: string;
-  setupId: string;
+  folderId: string;
   label?: string;
   source: PrepareSource;
 };
@@ -146,7 +146,7 @@ export class SimulationService {
           } else {
             const revision = await this.inputIdentity.read(
               this.getProject(),
-              run.source.setupId,
+              run.source.folderId,
               run.source.variant,
             );
             run.view.inputStatus =
@@ -230,8 +230,8 @@ export class SimulationService {
       op.items.map((item) => ({
         ...item,
         source: {
-          kind: "project-setup" as const,
-          setupId: item.setupId,
+          kind: "project-folder" as const,
+          folderId: item.folderId,
           expectedStructureRevision: op.expectedStructureRevision,
         },
       })),
@@ -241,17 +241,17 @@ export class SimulationService {
   private async prepareSweep(
     op: Extract<SimulationOperation, { operation: "prepare-sweep" }>,
   ): Promise<SimulationReply> {
-    const setup = this.getProject().simulationSetups.find(
-      ({ id }) => id === op.setupId,
+    const folder = this.getProject().simulationFolders.find(
+      ({ id }) => id === op.folderId,
     );
-    const config = setup ? readSimulationExperimentConfig(setup) : undefined;
+    const config = folder ? readSimulationExperimentConfig(folder) : undefined;
     const variableNames = new Map(
       config?.ok
         ? config.config.variables.map(({ id, name }) => [id, name])
         : [],
     );
     type Variant = NonNullable<
-      Extract<PrepareSource, { kind: "project-setup" }>["variant"]
+      Extract<PrepareSource, { kind: "project-folder" }>["variant"]
     >;
     let variants: Array<{ label: string[]; variant: Variant }> = [
       { label: [], variant: { parameters: [] } },
@@ -322,11 +322,11 @@ export class SimulationService {
     return this.prepareBatchItems(
       variants.map(({ label, variant }, index) => ({
         id: `sweep-${index + 1}`,
-        setupId: op.setupId,
+        folderId: op.folderId,
         label: label.join(", "),
         source: {
-          kind: "project-setup" as const,
-          setupId: op.setupId,
+          kind: "project-folder" as const,
+          folderId: op.folderId,
           expectedStructureRevision: op.expectedStructureRevision,
           variant,
         },
@@ -370,7 +370,7 @@ export class SimulationService {
       preparedIds.push(reply.prepared.id);
       items.push({
         id: item.id,
-        setupId: item.setupId,
+        folderId: item.folderId,
         ...(item.label ? { label: item.label } : {}),
         prepared: structuredClone(reply.prepared),
         state: "prepared",

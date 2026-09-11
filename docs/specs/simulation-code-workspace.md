@@ -28,15 +28,15 @@ are outside this work.
 
 ## 1. One owner for each fact
 
-| Fact | Authority | Permitted editor |
-| --- | --- | --- |
-| Canvas circuit topology, interfaces, model/device identity | Existing Project Cells and Instances | Existing Project edits |
-| Persistent circuit dimensions and exposed instance values | Instance netlist parameters | Properties or mapped code edits, through the same transaction |
-| Text-authored Testbench, sources, loads, analyses and control flow | Authored SPICE files | Human, Agent, template or helper |
-| Drawn Testbench topology and source values | Its ordinary Cell | Canvas/Properties or mapped parameter edits |
-| Profile, managed Run Plan, output bindings and saved measurements | Authored experiment configuration file | Human, Agent or helper |
-| Generated text, ASTs, effective parameters and object/vector mappings | Derived from one captured input | Read-only projections |
-| Prepared artifacts, run state and results | Existing simulation service and executor | Existing lifecycle and artifact resources |
+| Fact                                                                  | Authority                                | Permitted editor                                              |
+| --------------------------------------------------------------------- | ---------------------------------------- | ------------------------------------------------------------- |
+| Canvas circuit topology, interfaces, model/device identity            | Existing Project Cells and Instances     | Existing Project edits                                        |
+| Persistent circuit dimensions and exposed instance values             | Instance netlist parameters              | Properties or mapped code edits, through the same transaction |
+| Text-authored Testbench, sources, loads, analyses and control flow    | Authored SPICE files                     | Human, Agent, template or helper                              |
+| Drawn Testbench topology and source values                            | Its ordinary Cell                        | Canvas/Properties or mapped parameter edits                   |
+| Profile, managed Run Plan, output bindings and saved measurements     | Authored experiment configuration file   | Human, Agent or helper                                        |
+| Generated text, ASTs, effective parameters and object/vector mappings | Derived from one captured input          | Read-only projections                                         |
+| Prepared artifacts, run state and results                             | Existing simulation service and executor | Existing lifecycle and artifact resources                     |
 
 No hidden `analyses[]`, source overrides, form state or second parsed JSON
 object is persisted beside the text as another editable authority. A drawn TB
@@ -45,11 +45,13 @@ has no Canvas binding and may freely edit its own topology.
 
 ## 2. Saved input and virtual files
 
-Keep `Project.simulationSetups`, stable setup `id`/`name`, and existing
-create/clone/delete/save/recovery/undo semantics. All new input uses one form:
+`Project.simulationFolders` is the sole saved source-container collection.
+Each folder has a stable `id`/`name`, explicit entry and the existing
+create/clone/delete/save/recovery/undo semantics. There is no separate Setup
+selector or settings object. All new input uses one form:
 
 ```ts
-interface ProjectSimulationSetup {
+interface ProjectSimulationFolder {
   id: StableId;
   name: string;
   version: 4;
@@ -69,8 +71,9 @@ interface ProjectSimulationSetup {
 }
 ```
 
-Version 4 is the **setup** format in Project schema 49. The existing upgrader
-performs the one-way schema-48 migration. No new setup sidecar store is introduced.
+Version 4 is the source-input format in Project schema 50. The existing upgrader
+performs the source migration and a one-way schema-49 collection rename, preserving
+IDs and exact files. Older data is read only at that compatibility boundary.
 
 - `subcircuit` emits the bound Cell and its closure as definitions, with the
   normal printer's interface order. Author text owns the actual DUT call(s).
@@ -105,16 +108,16 @@ file counts. A migrated drawn TB does not need an additional authored TB file.
 The JSON text at `configPath` is the sole configuration authority. Its version-1
 object has these fields; bounded leaves reuse the existing model schemas:
 
-| Field | Meaning |
-| --- | --- |
-| `version: 1` | Configuration format, not simulator version |
-| `environment` | Existing Profile ID and optional corner; no copied manifest, binary path, or nominal temperature |
-| `runPlan` | Existing nominal/sweep plan, including corner, temperature, variable and exact-parameter axes |
-| `variables` | `{id, name, sourcePath, bindings}`; existing exact-target parameter bindings, **no nominal value** |
-| `outputs` | Existing stable output IDs, labels and expression AST; acquisition addressing below |
-| `deviceOperatingPoints` | Existing device selections with explicit circuit scope below |
-| `measurements` | Existing `SimulationMeasurementSpec[]` and evaluator |
-| `collection` | `{ rawfile: string \| null }`; default `out.raw`, null explicitly requests artifacts/logs only |
+| Field                   | Meaning                                                                                            |
+| ----------------------- | -------------------------------------------------------------------------------------------------- |
+| `version: 1`            | Configuration format, not simulator version                                                        |
+| `environment`           | Existing Profile ID and optional corner; no copied manifest, binary path, or nominal temperature   |
+| `runPlan`               | Existing nominal/sweep plan, including corner, temperature, variable and exact-parameter axes      |
+| `variables`             | `{id, name, sourcePath, bindings}`; existing exact-target parameter bindings, **no nominal value** |
+| `outputs`               | Existing stable output IDs, labels and expression AST; acquisition addressing below                |
+| `deviceOperatingPoints` | Existing device selections with explicit circuit scope below                                       |
+| `measurements`          | Existing `SimulationMeasurementSpec[]` and evaluator                                               |
+| `collection`            | `{ rawfile: string \| null }`; default `out.raw`, null explicitly requests artifacts/logs only     |
 
 Arrays default to empty, `runPlan` to nominal and `collection.rawfile` to
 `out.raw`; helpers write those defaults explicitly. `environment.profileId` is
@@ -190,9 +193,15 @@ overlapping or invalid range. Offsets are UTF-16 code units, matching browser
 strings; diagnostics also expose one-based line/column locations. Preserve
 authored line endings/comments rather than whole-file formatting on every edit.
 
-GUI typing can remain in a local draft between bounded commits. Run, Prepare
-and Project Save flush that draft before capturing input. Invalid authored
-syntax is committed as text; it is not silently discarded or made runnable.
+GUI typing can remain in a local draft between bounded commits. Run applies
+the active folder's draft before capturing input. Save first applies valid edits,
+then preserves remaining buffers in optional `input.drafts` with path, base text,
+draft text and optional Circuit binding. These are explicitly unapplied buffers,
+not parameter overrides; preparation refuses unresolved buffers rather than
+running old values. Save/reload retains invalid numeric input and concurrent
+drafts without blocking on electrical or syntax diagnostics. Successful file
+edits or explicit discard clear the corresponding saved buffer.
+Invalid authored syntax is committed as text; it is not silently discarded or made runnable.
 Unflushed typing uses editor undo; committed batches use Project undo. The two
 histories must not undo the same edit twice. Flush/reload establishes an explicit
 history boundary, including writes made by the Agent.
@@ -346,14 +355,14 @@ lint references. Each implemented rule has a stable ID, language context,
 manual/source citation and a positive/negative or opaque-preservation test.
 Do not create a complete new parser or LSP as a prerequisite to shipping.
 
-| First scope | Boundary |
-| --- | --- |
-| Lines, comments, continuation, numbers, delimiters | Source-preserving lexical checks |
-| `.include`, `.lib`, `.subckt`, `.ends`, `.param`, `.func` | Locate and explain declarations, scopes and dependencies |
-| RLC, V/I, model-backed instance cards; DC/AC/PULSE/SIN/PWL | Contextual signatures; Canvas editing still follows descriptors |
-| OP/DC/AC/TRAN/Noise | Distinguish circuit dot-cards from control commands |
+| First scope                                                                                                        | Boundary                                                                          |
+| ------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------- |
+| Lines, comments, continuation, numbers, delimiters                                                                 | Source-preserving lexical checks                                                  |
+| `.include`, `.lib`, `.subckt`, `.ends`, `.param`, `.func`                                                          | Locate and explain declarations, scopes and dependencies                          |
+| RLC, V/I, model-backed instance cards; DC/AC/PULSE/SIN/PWL                                                         | Contextual signatures; Canvas editing still follows descriptors                   |
+| OP/DC/AC/TRAN/Noise                                                                                                | Distinguish circuit dot-cards from control commands                               |
 | `.control`, `.endc`, `save`, `write`, `set`, `let`, `alter`, `alterparam`, `reset`, basic loops/conditions, `meas` | Completion/hover and proven local checks, not a claim of whole-program evaluation |
-| Experiment JSON | Validate the one configuration schema and object bindings |
+| Experiment JSON                                                                                                    | Validate the one configuration schema and object bindings                         |
 
 Keep `.param`, B-source and control expression contexts distinct. The current
 bounded structural evaluator is not their universal grammar. Valid ngspice
@@ -428,6 +437,17 @@ Ordinary Canvas                 | Code | Properties           x
 
 - Simulation opens Code lazily; opening the ordinary Editor does not load the
   code editor or start ngspice. Reuse the current service and Properties dock.
+- Simulation has its own top-level command, outside Netlist. Missing circuit
+  parameters do not prevent opening Code. An authoring-only IR keeps device
+  cards with explicit missing-value slots; export and execution stay strict.
+- Files displays execution folders. Right-click offers creation from OP/AC/TRAN
+  templates, duplicate, rename, delete, export and Run. Multi-select runs a Batch.
+  File actions use the shared File Resource; generated topology remains locked.
+- There is no permanent Prepare or Pick toolbar. Run prepares automatically;
+  final-deck inspection and Canvas observation helpers are available on demand.
+  Observation helpers reveal the configuration they change rather than silently
+  modifying hidden output bindings. Diagnostics use code marks and Console,
+  not a top-level input-error alert bar.
 - Code and Properties remember independent widths. Start prototype evaluation
   around 40% and 22% respectively, not hard-coded accepted dimensions. Narrow
   windows use a temporary overlay/maximized view instead of crushing Canvas.
@@ -448,7 +468,7 @@ Ordinary Canvas                 | Code | Properties           x
 Agent APIs expose the same file owner, read/range patch, generated text/spans,
 parameter edits, container lifecycle, helper patches, prepare/run/cancel, Batch
 and artifacts. Extend existing resources instead of new parallel endpoints.
-`simulation_setup` remains container lifecycle; analysis/output conveniences
+`simulation_folder` remains container lifecycle; analysis/output conveniences
 become source/config helpers, never structured-field writers after cutover.
 Direct edits remain available whenever a helper cannot rewrite losslessly.
 GUI cannot privately assemble a deck or require an extra authorization click
@@ -498,16 +518,16 @@ silently replaced by the last successfully prepared command.
 The existing Project upgrader converts v3 once; no long-lived structured/raw/
 source triple writer or automatic reverse conversion is allowed.
 
-| Existing intent | Source representation |
-| --- | --- |
-| Structured root | One `top-level` binding to the same TB Cell; no invented root/stimulus |
-| Analyses | Equivalent visible control commands and capture snippets |
-| Outputs/device OP/measurements | Config bindings with preserved IDs/labels and explicit circuit scope |
-| Design Variables | Nominal `.param` text plus value-free exact-target bindings |
-| Run Plan/Profile/corner | Config; same point precedence, limits and qualified scope |
-| Nominal temperature | Explicit authored `.temp` |
-| Raw entry/files/dependencies | Preserve text/entry/dependencies, add collision-free config path |
-| Raw environment | Config Profile/corner; preserve existing effective temperature semantics without competing directives |
+| Existing intent                | Source representation                                                                                 |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------- |
+| Structured root                | One `top-level` binding to the same TB Cell; no invented root/stimulus                                |
+| Analyses                       | Equivalent visible control commands and capture snippets                                              |
+| Outputs/device OP/measurements | Config bindings with preserved IDs/labels and explicit circuit scope                                  |
+| Design Variables               | Nominal `.param` text plus value-free exact-target bindings                                           |
+| Run Plan/Profile/corner        | Config; same point precedence, limits and qualified scope                                             |
+| Nominal temperature            | Explicit authored `.temp`                                                                             |
+| Raw entry/files/dependencies   | Preserve text/entry/dependencies, add collision-free config path                                      |
+| Raw environment                | Config Profile/corner; preserve existing effective temperature semantics without competing directives |
 
 Migration is deterministic and offline. Keep stable setup identity, names and
 broken references for repair, not a replacement success template. Generated
@@ -519,13 +539,13 @@ of differently organized decks.
 
 C0 freezes this contract only. The remaining bounded targets are:
 
-| Target | Primary owner and exit evidence |
-| --- | --- |
-| C1 — source lifecycle | Model/Edit Engine/File Resource: migration, save/reload, copy/delete, undo, revisions and session/Project isolation |
-| C2 — source compiler | SPICE/netlist/service and execution collection adapter: reversible parameter spans, scoped variables/scaling, authored/Canvas composition, collection and maps |
-| C3 — Agent parity | Service/Agent/MCP: public file/helpers and real stdio edit → error → repair → prepare/run → export |
-| C4 — code dock | Editor: layout prototype acceptance, lazy editor, focused browser tests, no lost state or Canvas shortcut leakage |
-| C5 — cutover | Integration: retained feature matrix, same-candidate Preview GUI/MCP numerical journey, removal of old writers/forms/adapters |
+| Target                | Primary owner and exit evidence                                                                                                                                |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| C1 — source lifecycle | Model/Edit Engine/File Resource: migration, save/reload, copy/delete, undo, revisions and session/Project isolation                                            |
+| C2 — source compiler  | SPICE/netlist/service and execution collection adapter: reversible parameter spans, scoped variables/scaling, authored/Canvas composition, collection and maps |
+| C3 — Agent parity     | Service/Agent/MCP: public file/helpers and real stdio edit → error → repair → prepare/run → export                                                             |
+| C4 — code dock        | Editor: layout prototype acceptance, lazy editor, focused browser tests, no lost state or Canvas shortcut leakage                                              |
+| C5 — cutover          | Integration: retained feature matrix, same-candidate Preview GUI/MCP numerical journey, removal of old writers/forms/adapters                                  |
 
 C1 and C2 must provide an end-to-end reader/compiler adapter before a new
 persisted schema becomes the default. C3/C4 can then progress independently;

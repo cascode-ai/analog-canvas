@@ -1,7 +1,7 @@
 /**
  * Conservative, advisory size estimation for ngspice's ASCII rawfile.
  *
- * This deliberately stays independent of the persisted SimulationSetup
+ * This deliberately stays independent of the persisted SimulationFolderInput
  * schema so parser support may remain broader than structured authoring. The
  * estimate is a warning input, never an execution admission check.
  */

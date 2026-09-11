@@ -1,4 +1,4 @@
-import type { CircuitProject, ProjectSimulationSetup } from "@icm/model";
+import type { CircuitProject, ProjectSimulationFolder } from "@icm/model";
 import {
   problem,
   type SimulationOperation,
@@ -16,7 +16,7 @@ export async function prepareExecutionInput(
 ) {
   const project = getProject();
   const source = op.source;
-  if (source.kind === "project-setup") {
+  if (source.kind === "project-folder") {
     if (project.structureRevision !== source.expectedStructureRevision)
       return problem(
         "PROJECT_STRUCTURE_REVISION_CONFLICT",
@@ -24,21 +24,21 @@ export async function prepareExecutionInput(
         "prepare",
         "reprepare",
       );
-    const setup = project.simulationSetups.find(
-      (setup) => setup.id === source.setupId,
+    const folder = project.simulationFolders.find(
+      (folder) => folder.id === source.folderId,
     );
-    if (!setup)
+    if (!folder)
       return problem(
-        "SIMULATION_SETUP_MISSING",
+        "SIMULATION_FOLDER_MISSING",
         "The requested experiment no longer exists",
         "prepare",
       );
-    return prepareSourceExecutionInput(project, setup, caps, source.variant);
+    return prepareSourceExecutionInput(project, folder, caps, source.variant);
   }
   const read = files.snapshot(source.workspaceId, source.expectedRevision);
   if (!read.ok) return read;
   const { workspace } = read;
-  const setup: ProjectSimulationSetup = {
+  const folder: ProjectSimulationFolder = {
     id: workspace.id,
     name: "Session experiment",
     version: 4,
@@ -51,5 +51,5 @@ export async function prepareExecutionInput(
       circuitBindings: [],
     },
   };
-  return prepareSourceExecutionInput(project, setup, caps);
+  return prepareSourceExecutionInput(project, folder, caps);
 }

@@ -42,7 +42,7 @@ describe("MCP file operations", () => {
             ...selection,
           });
           return {
-            apiVersion: "2.0",
+            apiVersion: "3.0",
             requestId: request.requestId,
             operation: "download",
             ok: true,
@@ -73,7 +73,7 @@ describe("MCP file operations", () => {
   it("stages local files through the existing browser approval workflow", async () => {
     const http = new FakeAgentHttp({
       files: (request) => ({
-        apiVersion: "2.0",
+        apiVersion: "3.0",
         requestId: request.requestId,
         operation: "stage",
         ok: true,

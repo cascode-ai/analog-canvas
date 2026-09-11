@@ -5,6 +5,7 @@ import {
 import { describe, expect, it } from "vitest";
 import { CircuitProjectSchema } from "@icm/model";
 import ota from "../../../apps/editor/src/examples/five-transistor-ota-sky130.icproj.json";
+import { analyzeDesignNetlist } from "./extract.js";
 const legacySetups = () =>
   ota.simulationSetups.map((s) => LegacyProjectSimulationSetupSchema.parse(s));
 import {
@@ -15,16 +16,18 @@ import {
 
 function fixture() {
   const project = CircuitProjectSchema.parse({
-    ...ota,
+    ...Object.fromEntries(
+      Object.entries(ota).filter(([key]) => key !== "simulationSetups"),
+    ),
     schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
-    simulationSetups: [],
+    simulationFolders: [],
   });
-  const setup = legacySetups().find((s) => s.input.kind === "structured")!;
-  if (setup.input.kind !== "structured") throw Error("expected Canvas setup");
+  const folder = legacySetups().find((s) => s.input.kind === "structured")!;
+  if (folder.input.kind !== "structured") throw Error("expected Canvas folder");
   const result = generateCircuitSource(project, {
     id: "b",
     path: "circuit.spice",
-    documentId: setup.input.rootDocumentId,
+    documentId: folder.input.rootDocumentId,
     emission: "top-level",
   });
   if (!result.ok) throw Error(JSON.stringify(result.diagnostics));
@@ -43,6 +46,47 @@ function replace(
   return text;
 }
 describe("Circuit parameter source projection", () => {
+  it("keeps incomplete circuits editable without inventing defaults or relaxing export", () => {
+    const { project, source } = fixture();
+    const width = source.parameters.find((p) => p.parameter === "w")!;
+    const instance = project.documents
+      .find((d) => d.id === width.documentId)!
+      .instances.find((i) => i.id === width.instanceId)!;
+    delete instance.netlist!.parameters.w;
+    delete instance.netlist!.parameters.l;
+    const result = generateCircuitSource(project, source.binding);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const index = result.source.parameters.findIndex(
+      (p) => p.instanceId === width.instanceId && p.parameter === "w",
+    );
+    expect(result.source.parameters[index]!.rawValue).toBe("<w>");
+    expect(planCircuitSourceEdit(result.source, result.source.text)).toEqual({
+      ok: true,
+      changes: [],
+    });
+    expect(
+      planCircuitSourceEdit(
+        result.source,
+        replace(result.source, [{ index, text: "20" }]),
+      ),
+    ).toMatchObject({
+      ok: true,
+      changes: [{ instanceId: width.instanceId, parameter: "w", value: "20u" }],
+    });
+    expect(instance.netlist!.parameters.w).toBeUndefined();
+    const capacitance = source.parameters.find((p) => p.parameter === "value")!;
+    const capacitor = project.documents
+      .find((d) => d.id === capacitance.documentId)!
+      .instances.find((i) => i.id === capacitance.instanceId)!;
+    delete capacitor.netlist!.parameters.value;
+    expect(generateCircuitSource(project, source.binding).ok).toBe(true);
+    expect(
+      analyzeDesignNetlist(project, {
+        rootDocumentId: source.binding.documentId,
+      }).ir,
+    ).toBeNull();
+  });
   it("maps all printed instance cards, including a parameterless DUT call, to Canvas identities", () => {
     const { source } = fixture();
     const dut = source.instances.find((card) => card.instanceId === "XDUT");
@@ -89,9 +133,11 @@ describe("Circuit parameter source projection", () => {
     });
     expect(project).toEqual(
       CircuitProjectSchema.parse({
-        ...ota,
+        ...Object.fromEntries(
+          Object.entries(ota).filter(([key]) => key !== "simulationSetups"),
+        ),
         schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
-        simulationSetups: [],
+        simulationFolders: [],
       }),
     );
     for (const span of source.parameters)

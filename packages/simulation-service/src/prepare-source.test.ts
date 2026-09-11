@@ -5,8 +5,8 @@ import {
 import { describe, expect, it } from "vitest";
 import {
   CircuitProjectSchema,
-  ProjectSourceSimulationSetupSchema,
-  type ProjectSourceSimulationSetup,
+  ProjectSimulationFolderSchema,
+  type ProjectSimulationFolder,
 } from "@icm/model";
 import {
   migrateSimulationSetupToSource,
@@ -21,9 +21,11 @@ import { prepareSourceExecutionInput } from "./prepare-source.js";
 
 const project = () =>
   CircuitProjectSchema.parse({
-    ...ota,
+    ...Object.fromEntries(
+      Object.entries(ota).filter(([key]) => key !== "simulationSetups"),
+    ),
     schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
-    simulationSetups: [],
+    simulationFolders: [],
   });
 const caps = CapabilitiesSchema.parse({
   configured: true,
@@ -48,7 +50,7 @@ const caps = CapabilitiesSchema.parse({
   cancel: true,
 });
 function native() {
-  return ProjectSourceSimulationSetupSchema.parse({
+  return ProjectSimulationFolderSchema.parse({
     version: 4,
     id: "native",
     name: "Native",
@@ -74,18 +76,18 @@ function native() {
     },
   });
 }
-function setConfig(setup: ProjectSourceSimulationSetup, changes: object) {
-  const file = setup.input.files.find(
-    (file) => file.path === setup.input.configPath,
+function setConfig(folder: ProjectSimulationFolder, changes: object) {
+  const file = folder.input.files.find(
+    (file) => file.path === folder.input.configPath,
   )!;
   file.text = JSON.stringify({ ...JSON.parse(file.text), ...changes });
 }
 describe("source execution preparation", () => {
   it("returns source locations tied to exact authored bytes, shared by GUI and MCP", async () => {
-    const setup = native();
-    setup.input.files[0]!.text =
+    const folder = native();
+    folder.input.files[0]!.text =
       '* error 🧪\r\n.include "missing.cir"\r\n.end\r\n';
-    const result = await prepareSourceExecutionInput(project(), setup, caps);
+    const result = await prepareSourceExecutionInput(project(), folder, caps);
     expect(result.ok).toBe(false);
     if (result.ok) return;
     const diagnostic = result.error.diagnostics!.find(
@@ -99,7 +101,7 @@ describe("source execution preparation", () => {
     });
     expect(diagnostic.source?.textDigest).toMatch(/^[0-9a-f]{64}$/u);
     expect(
-      setup.input.files[0]!.text.slice(
+      folder.input.files[0]!.text.slice(
         diagnostic.source!.startOffset,
         diagnostic.source!.endOffset,
       ),
@@ -108,16 +110,16 @@ describe("source execution preparation", () => {
   });
   it("includes actual managed corner/temperature/parameter projection in run identity, not nominal source storage", async () => {
     const circuit = project();
-    const setup = migrateSimulationSetupToSource(
+    const folder = migrateSimulationSetupToSource(
       circuit,
       legacySetups()[0]!,
-    ).setup;
-    const before = structuredClone(setup);
-    const nominal = await prepareSourceExecutionInput(circuit, setup, caps);
-    const hot = await prepareSourceExecutionInput(circuit, setup, caps, {
+    ).folder;
+    const before = structuredClone(folder);
+    const nominal = await prepareSourceExecutionInput(circuit, folder, caps);
+    const hot = await prepareSourceExecutionInput(circuit, folder, caps, {
       environment: { corner: "ss", temperatureC: 125 },
     });
-    const same = await prepareSourceExecutionInput(circuit, setup, caps, {
+    const same = await prepareSourceExecutionInput(circuit, folder, caps, {
       environment: { corner: "ss", temperatureC: 125 },
     });
     expect(nominal.ok && hot.ok && same.ok).toBe(true);
@@ -133,29 +135,29 @@ describe("source execution preparation", () => {
     expect(hot.input.inputRevision).not.toBe(nominal.input.inputRevision);
     expect(hot.digest).toBe(same.digest);
     expect(hot.authoredFiles).toEqual(before.input.files);
-    expect(setup).toEqual(before);
+    expect(folder).toEqual(before);
   });
   it("preserves native input exactly and records the declared collection in its digest", async () => {
-    const setup = native();
-    const before = structuredClone(setup);
-    const a = await prepareSourceExecutionInput(project(), setup, caps);
+    const folder = native();
+    const before = structuredClone(folder);
+    const a = await prepareSourceExecutionInput(project(), folder, caps);
     expect(a.ok).toBe(true);
     if (!a.ok) return;
-    expect(a.input.testbench).toBe(setup.input.files[0]!.text);
+    expect(a.input.testbench).toBe(folder.input.files[0]!.text);
     expect(a.input.collection).toEqual({ rawfile: "out.raw" });
     expect(a.input.dependencies).toEqual([]);
-    expect(a.authoredFiles).toEqual(setup.input.files);
-    expect(setup).toEqual(before);
-    setConfig(setup, { collection: { rawfile: null } });
-    const b = await prepareSourceExecutionInput(project(), setup, caps);
+    expect(a.authoredFiles).toEqual(folder.input.files);
+    expect(folder).toEqual(before);
+    setConfig(folder, { collection: { rawfile: null } });
+    const b = await prepareSourceExecutionInput(project(), folder, caps);
     expect(b.ok && b.digest).not.toBe(a.digest);
     expect(b.ok && b.input.collection).toEqual({ rawfile: null });
   });
   it("prepares the saved OTA sources with digest-addressed models and complete text mappings", async () => {
     const circuit = project();
     for (const original of legacySetups()) {
-      const setup = migrateSimulationSetupToSource(circuit, original).setup;
-      const result = await prepareSourceExecutionInput(circuit, setup, caps);
+      const folder = migrateSimulationSetupToSource(circuit, original).folder;
+      const result = await prepareSourceExecutionInput(circuit, folder, caps);
       expect(result.ok, JSON.stringify(result.ok ? [] : result.error)).toBe(
         true,
       );
@@ -169,11 +171,11 @@ describe("source execution preparation", () => {
         `.lib "icm-models.lib" ${original.input.environment.corner ?? "tt"}`,
       );
       expect(result.input.preparedDeck).not.toContain("/not-a-client-path/");
-      const source = setup.input.files.find(
-        (file) => file.path === setup.input.entry,
+      const source = folder.input.files.find(
+        (file) => file.path === folder.input.entry,
       )!;
       const map = result.sourceMaps.find(
-        (item) => item.path === setup.input.entry,
+        (item) => item.path === folder.input.entry,
       )!;
       const control = result.input.preparedDeck.indexOf(".control");
       expect(locateSimulationText(map, control)).toEqual({
@@ -191,11 +193,11 @@ describe("source execution preparation", () => {
   });
   it("uses electrical and authored identity, not layout or unrelated Project revisions", async () => {
     const circuit = project();
-    const setup = migrateSimulationSetupToSource(
+    const folder = migrateSimulationSetupToSource(
       circuit,
       legacySetups()[0]!,
-    ).setup;
-    const a = await prepareSourceExecutionInput(circuit, setup, caps);
+    ).folder;
+    const a = await prepareSourceExecutionInput(circuit, folder, caps);
     if (!a.ok) throw Error(a.error.message);
     const moved = structuredClone(circuit);
     moved.structureRevision++;
@@ -203,34 +205,34 @@ describe("source execution preparation", () => {
       .flatMap((doc) => doc.instances)
       .find((instance) => instance.placement)!;
     instance.placement!.position.x += 20;
-    const b = await prepareSourceExecutionInput(moved, setup, caps);
+    const b = await prepareSourceExecutionInput(moved, folder, caps);
     expect(b.ok && b.input.inputRevision).toBe(a.input.inputRevision);
     const resized = structuredClone(circuit);
     const mos = resized.documents
       .flatMap((doc) => doc.instances)
       .find((instance) => instance.netlist?.parameters.w)!;
     mos.netlist!.parameters.w = "25u";
-    const c = await prepareSourceExecutionInput(resized, setup, caps);
+    const c = await prepareSourceExecutionInput(resized, folder, caps);
     expect(c.ok, JSON.stringify(c)).toBe(true);
     expect(c.ok && c.input.inputRevision).not.toBe(a.input.inputRevision);
   });
   it("resolves nested entries and does not duplicate a matching authored model load", async () => {
     const circuit = project();
-    const setup = migrateSimulationSetupToSource(
+    const folder = migrateSimulationSetupToSource(
       circuit,
       legacySetups()[0]!,
-    ).setup;
-    const entry = setup.input.files.find(
-      (file) => file.path === setup.input.entry,
+    ).folder;
+    const entry = folder.input.files.find(
+      (file) => file.path === folder.input.entry,
     )!;
-    setup.input.entry = entry.path = "tb/run.cir";
+    folder.input.entry = entry.path = "tb/run.cir";
     entry.text = entry.text.replace('"circuit.spice"', '"../circuit.spice"');
-    setConfig(setup, { variables: [] });
-    const automatic = await prepareSourceExecutionInput(circuit, setup, caps);
+    setConfig(folder, { variables: [] });
+    const automatic = await prepareSourceExecutionInput(circuit, folder, caps);
     expect(automatic.ok && automatic.input.preparedDeck).toContain(
       '.lib "../icm-models.lib" tt',
     );
-    setup.input.dependencies.push({
+    folder.input.dependencies.push({
       id: profile.models.id,
       sha256: profile.models.contentSha256,
       mountPath: "models/library.lib",
@@ -239,13 +241,13 @@ describe("source execution preparation", () => {
       ".control",
       '.lib "../models/library.lib" tt\n.control',
     );
-    const authored = await prepareSourceExecutionInput(circuit, setup, caps);
+    const authored = await prepareSourceExecutionInput(circuit, folder, caps);
     expect(authored.ok, JSON.stringify(authored)).toBe(true);
     if (!authored.ok) return;
     expect(authored.input.preparedDeck.match(/\.lib /gu)).toHaveLength(1);
-    expect(authored.input.dependencies).toEqual(setup.input.dependencies);
+    expect(authored.input.dependencies).toEqual(folder.input.dependencies);
     entry.text = entry.text.replace('library.lib" tt', 'library.lib" ff');
-    const conflict = await prepareSourceExecutionInput(circuit, setup, caps);
+    const conflict = await prepareSourceExecutionInput(circuit, folder, caps);
     expect(conflict).toMatchObject({
       ok: false,
       error: {
@@ -259,9 +261,9 @@ describe("source execution preparation", () => {
     });
   });
   it("returns located diagnostics for invalid drafts and capability problems without mutating them", async () => {
-    const setup = native();
-    setup.input.files[0]!.text = "title\n.include missing.inc\n.end";
-    const invalid = await prepareSourceExecutionInput(project(), setup, caps);
+    const folder = native();
+    folder.input.files[0]!.text = "title\n.include missing.inc\n.end";
+    const invalid = await prepareSourceExecutionInput(project(), folder, caps);
     expect(invalid.ok).toBe(false);
     if (!invalid.ok) {
       expect(ProblemSchema.safeParse(invalid.error).success).toBe(true);

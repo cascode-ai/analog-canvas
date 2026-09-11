@@ -329,7 +329,7 @@ const TOOLS: readonly ToolEntry[] = [
     definition: {
       name: "simulation",
       description:
-        "Prepare one saved Project setup or a raw File Resource workspace, or prepare and sequentially run a bounded batch of saved setups. Start, poll/read, cancel, and list run artifacts through the shared Simulation Resource. Supply the SAME requestId for a start retry. Ordinary failures are recoverable result objects, not session failures. Configure named settings through simulation_setup or full typed replacement through advanced_transact; use ordinary Cell/source edits for DUT/testbench.",
+        "Prepare one saved Project folder or a raw File Resource workspace, or prepare and sequentially run a bounded batch of saved folders. Start, poll/read, cancel, and list run artifacts through the shared Simulation Resource. Supply the SAME requestId for a start retry. Ordinary failures are recoverable result objects, not session failures. Configure named settings through simulation_folder or full typed replacement through advanced_transact; use ordinary Cell/source edits for DUT/testbench.",
       inputSchema: jsonSchemaOf(SimulationArgs),
     },
     handle: async (args, session) => {
@@ -367,7 +367,7 @@ const TOOLS: readonly ToolEntry[] = [
     definition: {
       name: "simulation_files",
       description:
-        "Edit simulation source through the canonical File Resource. list without owner recovers session workspace IDs; list/read/update use owner {kind:'session-workspace',workspaceId} or {kind:'project-setup',setupId}. read pages one path with its exact text digest. update atomically applies writes/removes/UTF-16 patches at expectedRevision; Project edits use the Project structure revision and normal history, while session files expire. Generated circuit/dependency text cannot be overwritten. Invalid authored syntax remains saveable. Project writes require the existing project.import scope, not an import approval prompt. create/discard manage session workspaces only; saved setups use Project lifecycle. artifact fetches immutable evidence; outputPath saves only artifacts locally after digest verification.",
+        "Edit simulation source through the canonical File Resource. list without owner recovers session workspace IDs; list/read/update use owner {kind:'session-workspace',workspaceId} or {kind:'project-folder',folderId}. read pages one path with its exact text digest. update atomically applies writes/removes/UTF-16 patches at expectedRevision; Project edits use the Project structure revision and normal history, while session files expire. Generated circuit/dependency text cannot be overwritten. Invalid authored syntax remains saveable. Project writes require the existing project.import scope, not an import approval prompt. create/discard manage session workspaces only; saved folders use Project lifecycle. artifact fetches immutable evidence; outputPath saves only artifacts locally after digest verification.",
       inputSchema: jsonSchemaOf(SimulationFilesArgs),
     },
     handle: async (args, session) => {

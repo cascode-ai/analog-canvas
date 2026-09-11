@@ -42,8 +42,8 @@ const dut = referenceProject.documents.find(
 const testbench = referenceProject.documents.find(
   (document) => document.id === "document-ota-5t-testbench",
 );
-const referenceSetup = referenceProject.simulationSetups.find(
-  (setup) => setup.id === "simulation-setup-ota-op-ac",
+const referenceSetup = referenceProject.simulationFolders.find(
+  (folder) => folder.id === "simulation-setup-ota-op-ac",
 );
 assert(
   dut && testbench && referenceSetup,
@@ -55,7 +55,7 @@ sourceProject.id = "preview-cross-project-dut-source";
 sourceProject.name = "Preview Cross-Project OTA DUT";
 sourceProject.topDocumentId = dut.id;
 sourceProject.documents = [structuredClone(dut)];
-sourceProject.simulationSetups = [];
+sourceProject.simulationFolders = [];
 const sourceProjectText = serializeProject(sourceProject);
 
 const destinationProject = createEmptyProject(
@@ -385,7 +385,7 @@ try {
   const authored = await tool("advanced_transact", {
     structureEdits: [
       { kind: "add_document", document: importedTestbench },
-      { kind: "upsert_simulation_setup", setup: opSetup },
+      { kind: "upsert_simulation_folder", folder: opSetup },
     ],
   });
   assert.equal(authored.ok, true);
@@ -393,8 +393,8 @@ try {
     request: {
       operation: "prepare",
       source: {
-        kind: "project-setup",
-        setupId: importedSetupId,
+        kind: "project-folder",
+        folderId: importedSetupId,
         expectedStructureRevision: authored.projectStructure.toRevision,
       },
     },
@@ -460,7 +460,7 @@ try {
     testbenchDocumentId: importedTestbenchId,
   };
   report.simulation = {
-    setupId: importedSetupId,
+    folderId: importedSetupId,
     preparedId: preparedReply.prepared.id,
     runId: finished.id,
     inputRevision: preparedReply.prepared.inputRevision,

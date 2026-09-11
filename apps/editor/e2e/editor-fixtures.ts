@@ -61,6 +61,10 @@ export async function clickNetlistWorkflowCommand(
   page: Page,
   command: "open-analog-simulation" | "check-and-save",
 ): Promise<void> {
+  if (command === "open-analog-simulation") {
+    await page.getByTestId(command).click();
+    return;
+  }
   const details = await openMenu(page, "Netlist");
   await details.getByTestId(command).click();
 }

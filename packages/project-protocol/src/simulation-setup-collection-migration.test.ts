@@ -53,7 +53,7 @@ describe("schema 41 to 42 named simulation setup migration", () => {
       migrated: true,
       project: {
         schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
-        simulationSetups: [],
+        simulationFolders: [],
       },
     });
   });

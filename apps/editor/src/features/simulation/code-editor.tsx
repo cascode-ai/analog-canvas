@@ -64,6 +64,8 @@ export interface SimulationCodeEditorProps {
   entry?: boolean;
   readOnly?: boolean;
   diagnostics?: readonly SimulationSourceDiagnostic[] | undefined;
+  /** Generated authoring slots are not legal values; diagnose them without locking the file. */
+  generated?: boolean;
   onChange(text: string): void;
   /** Generated Circuit uses its mapped-span planner here; invalid numeric drafts may remain editable. */
   acceptChange?(text: string): boolean;
@@ -273,7 +275,13 @@ export default function SimulationCodeEditor(props: SimulationCodeEditorProps) {
     view.current?.dispatch({
       effects: configuration.current.reconfigure(extensions()),
     });
-  }, [props.mode, props.entry, props.readOnly, props.diagnostics]);
+  }, [
+    props.mode,
+    props.entry,
+    props.readOnly,
+    props.generated,
+    props.diagnostics,
+  ]);
 
   useEffect(() => {
     const editor = view.current;
@@ -329,6 +337,17 @@ function sourceExtensions(
         const diagnostics: Diagnostic[] = (
           current.mode === "json" ? jsonParseLinter()(editor) : []
         ) as Diagnostic[];
+        if (current.generated) {
+          for (const match of text.matchAll(/<([A-Za-z][A-Za-z0-9_]*)>/g)) {
+            diagnostics.push({
+              from: editorOffset(text, match.index),
+              to: editorOffset(text, match.index + match[0].length),
+              severity: "error",
+              message: `Enter ${match[1]}. This incomplete value can be saved, but cannot run.`,
+              source: "MISSING_REQUIRED_PARAMETER",
+            });
+          }
+        }
         for (const item of [...local, ...(current.diagnostics ?? [])]) {
           if (
             ("path" in item && item.path && item.path !== current.path) ||

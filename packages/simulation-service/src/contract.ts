@@ -307,8 +307,8 @@ export const SimulationOutputDataSchema = z.strictObject({
 export type SimulationOutputData = z.infer<typeof SimulationOutputDataSchema>;
 export const InputSourceSchema = z.discriminatedUnion("kind", [
   z.strictObject({
-    kind: z.literal("project-setup"),
-    setupId: Id,
+    kind: z.literal("project-folder"),
+    folderId: Id,
     expectedStructureRevision: z.number().int().nonnegative(),
     variant: SimulationRunVariantSchema.optional(),
   }),
@@ -320,7 +320,7 @@ export const InputSourceSchema = z.discriminatedUnion("kind", [
 ]);
 export const SimulationBatchItemRequestSchema = z.strictObject({
   id: Id,
-  setupId: Id,
+  folderId: Id,
 });
 /** The transient service consumes the same sweep-axis contract persisted by a Setup. */
 export const SimulationSweepAxisSchema = SimulationRunPlanAxisSchema;
@@ -360,7 +360,7 @@ export const SimulationOperationSchema = z.discriminatedUnion("operation", [
   z
     .strictObject({
       operation: z.literal("prepare-sweep"),
-      setupId: Id,
+      folderId: Id,
       expectedStructureRevision: z.number().int().nonnegative(),
       axes: z.array(SimulationSweepAxisSchema).min(1).max(4),
     })
@@ -465,7 +465,7 @@ export const RunSchema = z.strictObject({
 export type Run = z.infer<typeof RunSchema>;
 export const SimulationBatchItemSchema = z.strictObject({
   id: Id,
-  setupId: Id,
+  folderId: Id,
   label: z.string().min(1).max(256).optional(),
   prepared: PreparedSchema,
   state: z.enum([
