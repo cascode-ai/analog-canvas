@@ -38,6 +38,9 @@ export interface SpiceSimulationSurfaceProps {
     buffer: { flush(): Promise<boolean>; dirty: boolean } | null,
   ): void;
   onSaveProject?(): void;
+  projectSaveState?:
+    | import("../../document/use-project-file-lifecycle").PersistenceState
+    | undefined;
   pickNetsActive?: boolean;
   pickedNet?: {
     readonly sequence: number;

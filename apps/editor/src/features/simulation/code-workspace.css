@@ -80,9 +80,14 @@
 .simulation-code-more {
   position: relative;
 }
-.simulation-code-menu {
+.workspace-context-menu {
   position: fixed;
-  z-index: 40;
+  z-index: 1200;
+  min-width: 190px;
+  color: var(--icm-text);
+  font:
+    12px system-ui,
+    sans-serif;
   max-height: calc(100vh - 100px);
   overflow-y: auto;
   background: var(--icm-surface);
@@ -90,10 +95,116 @@
   border: 1px solid var(--icm-border-strong);
   box-shadow: 0 4px 16px #18263520;
 }
-.simulation-code-menu button {
+.workspace-context-menu button {
   display: block;
   width: 100%;
   text-align: left;
+  border: 0;
+  padding: 7px 12px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.workspace-context-menu button:hover:not(:disabled),
+.workspace-context-menu button:focus-visible {
+  background: var(--icm-surface-muted);
+  outline: 1px solid var(--icm-accent);
+}
+.workspace-context-menu button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.workspace-context-menu button:active:not(:disabled),
+.simulation-code-workspace button:active:not(:disabled) {
+  background: var(--icm-border);
+}
+.workspace-confirm-dialog {
+  width: min(360px, 85vw);
+  border: 1px solid var(--icm-border-strong);
+  border-radius: 8px;
+  padding: 20px;
+  background: var(--icm-surface);
+  color: var(--icm-text);
+  box-shadow: 0 8px 30px #0003;
+}
+.workspace-confirm-dialog::backdrop {
+  background: #0003;
+}
+.workspace-confirm-dialog h3 {
+  margin: 0 0 10px;
+  font-size: 15px;
+}
+.workspace-confirm-dialog p {
+  font-size: 13px;
+}
+.workspace-confirm-dialog > div {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.workspace-confirm-dialog button {
+  padding: 6px 14px;
+  border: 1px solid var(--icm-border);
+  border-radius: 4px;
+  cursor: pointer;
+}
+.workspace-confirm-dialog .is-danger {
+  background: #b42318;
+  color: white;
+}
+.workspace-inline-name {
+  padding: 3px 6px;
+  min-width: 0;
+}
+.workspace-inline-name input {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  padding: 4px;
+  border: 1px solid var(--icm-accent);
+  background: var(--icm-surface);
+  color: var(--icm-text);
+  font: inherit;
+}
+.workspace-inline-name input[aria-invalid="true"] {
+  border-color: #b42318;
+}
+.workspace-inline-name small {
+  display: block;
+  color: #b42318;
+  white-space: normal;
+}
+.workspace-folder-row {
+  display: flex;
+  align-items: center;
+}
+.simulation-code-files .workspace-folder-toggle {
+  flex: none;
+  width: 24px;
+  padding-inline: 4px;
+}
+.workspace-folder-row > button[data-tree-row] {
+  flex: 1;
+  min-width: 0;
+}
+.workspace-editor-content {
+  height: 100%;
+}
+.workspace-empty-editor {
+  margin: 24px;
+  color: var(--icm-text-muted);
+  font-size: 12px;
+}
+.workspace-files-resizer {
+  width: 5px;
+  flex: none;
+  cursor: col-resize;
+  touch-action: none;
+}
+.workspace-files-resizer:hover,
+.workspace-files-resizer:focus-visible {
+  background: var(--icm-accent);
 }
 .simulation-code-source-area {
   display: flex;
@@ -102,7 +213,7 @@
   min-width: 0;
 }
 .simulation-code-files {
-  width: clamp(116px, 23%, 160px);
+  max-width: max(110px, calc(100% - 180px));
   flex-shrink: 0;
   border-right: 1px solid var(--icm-border);
   overflow: auto;
@@ -142,20 +253,6 @@
 .simulation-folder-tree button[aria-pressed="true"] {
   outline: 1px solid var(--icm-accent);
   outline-offset: -1px;
-}
-.simulation-folder-menu {
-  position: fixed;
-  z-index: 200;
-  min-width: 190px;
-  padding: 4px;
-  background: var(--icm-surface);
-  border: 1px solid var(--icm-border);
-  box-shadow: 0 4px 16px #18263530;
-}
-.simulation-folder-menu button {
-  display: block;
-  width: 100%;
-  text-align: left;
 }
 .simulation-code-files button {
   width: 100%;

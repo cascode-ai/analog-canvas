@@ -169,7 +169,7 @@ test("Files opens sideways, configuration is advanced, and results maximize/rest
   expect(after!.y).toBe(before!.y);
   expect(after!.x - before!.x).toBeGreaterThan(100);
   await page.getByRole("button", { name: "More code actions" }).click();
-  await page.getByRole("button", { name: "Advanced configuration" }).click();
+  await page.getByRole("menuitem", { name: "Advanced configuration" }).click();
   await expect(
     page.getByRole("tab", { name: "Configuration" }),
   ).toHaveAttribute("aria-selected", "true");
@@ -269,7 +269,7 @@ test("file switching preserves caret, selection, scroll and local Undo history",
   const scroll = await scroller.evaluate((el) => el.scrollTop);
   expect(scroll).toBeGreaterThan(100);
   await page.getByRole("button", { name: "More code actions" }).click();
-  await page.getByRole("button", { name: "Advanced configuration" }).click();
+  await page.getByRole("menuitem", { name: "Advanced configuration" }).click();
   await editor.fill('{"version":1,"different":true}');
   await page.getByRole("tab", { name: "run.cir" }).click();
   await editor.focus();

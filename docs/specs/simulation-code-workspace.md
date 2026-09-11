@@ -509,6 +509,41 @@ Direct edits remain available whenever a helper cannot rewrite losslessly.
 GUI cannot privately assemble a deck or require an extra authorization click
 that the authorized MCP path lacks. Existing owner/scope checks still apply.
 
+### Workspace interaction contract
+
+Selection, directory expansion, open editors, keyboard focus and execution target
+are distinct UI states. Selecting or collapsing a folder and right-clicking a file
+do not change the execution target. Opening a file in another folder selects that
+folder for Run; the Run control identifies it. Closing any tab, including the
+entry or the last tab, neither deletes source nor changes the entry. Empty editor
+views are valid. Folder switches retain their open tabs, selected file and drafts.
+
+File, folder and More commands use one portalled context menu. Menus never occupy
+tree layout and only one may be open. Outside pointer-down dismisses without
+preventing the destination click. Escape restores focus; arrows/Home/End and
+Enter navigate/execute. Commands capture explicit folder/file targets, not an
+implicitly changed active editor. Source-workspace and overlay keyboard events
+never execute Canvas editing commands.
+
+New/rename uses one inline naming interaction: Enter and valid blur commit exactly
+once; Escape or empty blur cancels. Invalid names show local feedback without
+trapping focus. New folders offer OP/AC/TRAN templates in this same row. Delete
+uses the product's small modal confirmation with Cancel initially focused and
+Escape cancelling. File/Project transactions remain the mutation and Undo owner.
+
+Files has a bounded draggable/keyboard-adjustable splitter; double-click restores
+the default. Width is an optional local preference, not Project data. Buttons
+share hover, pressed, focus-visible, disabled and in-flight styling. Save reflects
+the existing Project persistence lifecycle, not merely buffer flush. An unsaved
+dot, a saved-but-unapplied draft indicator and source diagnostics are different
+states. Invalid source remains saveable, but preparation cannot execute stale
+committed values behind an unapplied draft.
+
+Regression acceptance covers cancellation, blur, external clicks, background
+targets, empty tabs, folder switches, draft retention and keyboard isolation,
+not only the successful button path. No new filesystem, Setup, or persisted
+interaction protocol is introduced.
+
 ## 7. Valid and refused operations
 
 A minimal unbound experiment has `run.cir`, no circuit bindings/dependencies,

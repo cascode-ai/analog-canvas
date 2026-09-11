@@ -96,9 +96,9 @@ test("incomplete circuit opens Code and saves invalid parameter drafts across re
   await panel
     .getByRole("button", { name: "Folder Draft", exact: true })
     .click({ button: "right" });
-  await panel.getByRole("menuitem", { name: "Duplicate…" }).click();
-  await panel.getByRole("textbox", { name: "Folder name" }).fill("Draft copy");
-  await panel.getByRole("textbox", { name: "Folder name" }).press("Enter");
+  await page.getByRole("menuitem", { name: "Duplicate…" }).click();
+  await panel.getByLabel("New simulation folder name").fill("Draft copy");
+  await panel.getByLabel("New simulation folder name").press("Enter");
   await expect(
     panel.getByRole("button", { name: "Folder Draft copy", exact: true }),
   ).toBeVisible();
@@ -359,14 +359,9 @@ test("human simulation uses saved folder, survives minimizing, recovers a bad in
   ).toBeVisible();
   await expect(panel.locator(".simulation-results-header")).toHaveCount(0);
   // A completed run belongs to its folder, not whichever folder is currently visible.
-  await panel
-    .getByLabel("Simulation folders", { exact: true })
-    .click({ button: "right", position: { x: 3, y: 3 } });
-  await panel.getByRole("menuitem", { name: "New folder…" }).click();
-  await panel
-    .getByRole("textbox", { name: "Folder name" })
-    .fill("Second folder");
-  await panel.getByRole("textbox", { name: "Folder name" }).press("Enter");
+  await panel.getByRole("button", { name: "+ New folder…" }).click();
+  await panel.getByLabel("New simulation folder name").fill("Second folder");
+  await panel.getByLabel("New simulation folder name").press("Enter");
   await expect(panel.getByRole("status")).not.toHaveText(
     "finished · completed",
   );
@@ -397,6 +392,9 @@ test("human simulation uses saved folder, survives minimizing, recovers a bad in
   ).toContainText(".save v(out)");
   await panel
     .getByRole("button", { name: "Folder E2E folder", exact: true })
+    .locator("..")
+    .locator("..")
+    .getByRole("button", { name: "· run.cir", exact: true })
     .click();
   await expect(panel.getByRole("status")).toHaveText("finished · completed");
   expect(executions).toBe(1);
@@ -865,7 +863,7 @@ test("human simulation uses saved folder, survives minimizing, recovers a bad in
     .click();
   expect((await bundleDownload).suggestedFilename()).toBe("simulation-run.zip");
   await panel.getByRole("button", { name: "More code actions" }).click();
-  await panel.getByRole("button", { name: "View final deck" }).click();
+  await page.getByRole("menuitem", { name: "View final deck" }).click();
   await expect(panel.getByLabel("Prepare Netlist")).toBeVisible();
   await expect(panel.getByLabel("Run Results")).toBeVisible();
   await expect(panel.getByText("Input identity", { exact: true })).toHaveCount(
@@ -1147,6 +1145,8 @@ test("Simulation creates an ordinary testbench and offers the current Cell at th
   await page
     .getByRole("button", { name: "Template: current Canvas Cell" })
     .click();
+  await page.getByLabel("New simulation folder name").fill("Main experiment");
+  await page.getByLabel("New simulation folder name").press("Enter");
   const configured = JSON.parse(
     (await downloadBytes(page, "File", "Export Project File…")).toString(),
   );

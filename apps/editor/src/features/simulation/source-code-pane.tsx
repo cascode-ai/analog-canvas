@@ -36,6 +36,7 @@ import SimulationCodeEditor from "./code-editor";
 import { downloadTextArtifact } from "../../document/project-file-service";
 import { WORKING_COPY_STORAGE_KEY } from "../../document/recovery-coordinator";
 import { sourceDraftCache } from "./source-draft-cache";
+import { useWorkspaceInteractions } from "./workspace-interactions";
 import {
   SimulationCodeWorkspace,
   type SimulationCodeWorkspaceProps,
@@ -86,6 +87,7 @@ interface Props extends Pick<
   diagnostics?: Problem["diagnostics"];
   onRun(): void;
   onSaveProject?: (() => void) | undefined;
+  projectSaveState?: SpiceSimulationSurfaceProps["projectSaveState"];
   onHistoryBoundary(direction: "undo" | "redo"): void;
 }
 const inputProblem = (code: string, message: string): Problem => ({
@@ -98,6 +100,7 @@ const inputProblem = (code: string, message: string): Problem => ({
 /** Local dirty buffers only; Project files, circuit parameters and runs keep their existing owners. */
 export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
   function SourceCodePane(props, ref) {
+    const ui = useWorkspaceInteractions();
     const current = useRef(props);
     current.current = props;
     let storage: Storage | undefined;
@@ -132,14 +135,12 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
     useEffect(() => {
       setRecoveryAvailable(cache.write(drafts.current));
     }, [cache, draftRevision]);
-    const [path, setPath] = useState(props.folder.input.entry);
-    useEffect(() => {
-      setPath(
-        props.selectedFile?.folderId === props.folder.id
-          ? props.selectedFile.path
-          : props.folder.input.entry,
-      );
-    }, [props.folder.id, props.selectedFile]);
+    const [paths, setPaths] = useState<Record<string, string>>({});
+    const path = paths[props.folder.id] ?? props.folder.input.entry;
+    const setPath = (value: string, folderId = props.folder.id) => {
+      setPaths((current) => ({ ...current, [folderId]: value }));
+      if (folderId !== props.folder.id) props.folders?.onSelect(folderId);
+    };
     const [saving, setSaving] = useState(false);
     const [reveal, setReveal] = useState<{
       sourceOffset: number;
@@ -681,17 +682,112 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
           .map((id) => id.slice(props.folder.id.length + 1)),
       ]),
     ];
+    const validateFileName = (
+      name: string,
+      folderId: string,
+      previous?: string,
+    ) => {
+      if (
+        /^[\\/]|[\\\u0000-\u001f]/u.test(name) ||
+        name.split("/").some((part) => !part || part === "." || part === "..")
+      )
+        return "Use a relative file path without . or .. segments.";
+      const folder = current.current.project.simulationFolders.find(
+        (item) => item.id === folderId,
+      );
+      if (
+        name !== previous &&
+        (folder?.input.files.some((f) => f.path === name) ||
+          folder?.input.circuitBindings.some((b) => b.path === name) ||
+          drafts.current.has(`${folderId}\u0000${name}`))
+      )
+        return "A file with this path already exists.";
+      return undefined;
+    };
+    const fileText = (folderId: string, filePath: string) => {
+      const draft = drafts.current.get(`${folderId}\u0000${filePath}`);
+      if (draft) return draft.text;
+      const folder = props.project.simulationFolders.find(
+        (item) => item.id === folderId,
+      );
+      const file = folder?.input.files.find((item) => item.path === filePath);
+      if (file) return file.text;
+      const binding = folder?.input.circuitBindings.find(
+        (item) => item.path === filePath,
+      );
+      if (!binding) return "";
+      const generated = generateCircuitSource(props.project, binding);
+      return generated.ok
+        ? generated.source.text
+        : generated.diagnostics.map((d) => `* ${d.message}`).join("\n");
+    };
     return (
       <SimulationCodeWorkspace
         workspaceKey={props.folder.id}
-        folders={props.folders}
-        additionalActions={
-          <>
-            <button type="button" onClick={props.onPrepare}>
-              View final deck
-            </button>
-          </>
+        folders={
+          props.folders
+            ? {
+                ...props.folders,
+                folders: props.folders.folders.map((node) => {
+                  const folder = props.project.simulationFolders.find(
+                    (f) => f.id === node.id,
+                  )!;
+                  const names = new Set([
+                    ...(node.files ?? []).map((f) => f.path),
+                    ...[...drafts.current.keys()]
+                      .filter((key) => key.startsWith(`${node.id}\u0000`))
+                      .map((key) => key.slice(node.id.length + 1)),
+                  ]);
+                  return {
+                    ...node,
+                    files: [...names].map((path) => {
+                      const draft = drafts.current.get(
+                        `${node.id}\u0000${path}`,
+                      );
+                      const modified = !!draft && draft.text !== draft.base;
+                      return {
+                        path,
+                        kind: folder.input.circuitBindings.some(
+                          (b) => b.path === path,
+                        )
+                          ? ("generated" as const)
+                          : ("authored" as const),
+                        draft: modified,
+                        dirty:
+                          modified &&
+                          !folder.input.drafts?.some(
+                            (saved) =>
+                              saved.path === path &&
+                              saved.base === draft.base &&
+                              saved.text === draft.text,
+                          ),
+                      };
+                    }),
+                  };
+                }),
+              }
+            : undefined
         }
+        additionalActions={[
+          { label: "View final deck", run: () => props.onPrepare?.() },
+          ...(binding
+            ? [
+                {
+                  label: props.pickNetsActive
+                    ? "Picking Nets…"
+                    : "Add voltage observation from Canvas",
+                  run: () => props.onPickNetsChange?.(!props.pickNetsActive),
+                },
+                {
+                  label: props.pickTerminalsActive
+                    ? "Picking current…"
+                    : "Add current observation from Canvas",
+                  run: () =>
+                    props.onPickTerminalsChange?.(!props.pickTerminalsActive),
+                },
+              ]
+            : []),
+        ]}
         files={ownFiles.map((filePath) => ({
           path: filePath,
           kind: input.circuitBindings.some((b) => b.path === filePath)
@@ -700,20 +796,39 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
           dirty:
             !!drafts.current.get(key(filePath)) &&
             drafts.current.get(key(filePath))!.text !==
+              drafts.current.get(key(filePath))!.base &&
+            !input.drafts?.some(
+              (saved) =>
+                saved.path === filePath &&
+                saved.text === drafts.current.get(key(filePath))!.text &&
+                saved.base === drafts.current.get(key(filePath))!.base,
+            ),
+          draft:
+            !!drafts.current.get(key(filePath)) &&
+            drafts.current.get(key(filePath))!.text !==
               drafts.current.get(key(filePath))!.base,
         }))}
         activePath={path}
         onSelectFile={setPath}
-        onFileAction={async (action, filePath, newPath) => {
+        onFileAction={async (
+          action,
+          filePath,
+          targetFolderId = props.folder.id,
+        ) => {
+          const owner = {
+            kind: "project-folder" as const,
+            folderId: targetFolderId,
+          };
+          const bufferKey = `${targetFolderId}\u0000${filePath}`;
           if (action === "discard") {
             const listed = await props.files.handle({
               action: "list",
-              owner: { kind: "project-folder", folderId: props.folder.id },
+              owner,
             });
             if (!listed.ok || !("source" in listed)) return;
             const result = await props.files.handle({
               action: "update",
-              owner: { kind: "project-folder", folderId: props.folder.id },
+              owner,
               expectedRevision: listed.source.revision,
               drafts: (listed.source.drafts ?? []).filter(
                 (draft) => draft.path !== filePath,
@@ -723,63 +838,102 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
               props.onProblem(result.error);
               return;
             }
-            drafts.current.delete(key(filePath));
+            drafts.current.delete(bufferKey);
             cache.write(drafts.current);
             render((v) => v + 1);
             props.onProblem(undefined);
             return;
           }
-          // File management need not apply an unrelated unfinished Circuit buffer.
-          const authored = await flush(filePath);
-          if (!authored.ok) return;
-          const file = authored.folder.input.files.find(
-            (item) => item.path === filePath,
-          );
-          if (!file) return;
           if (
             action === "delete" &&
-            !window.confirm(
-              `Delete ${filePath}? References remain visible for repair.`,
-            )
+            !(await ui.confirm({
+              title: `Delete ${filePath}?`,
+              message:
+                "This removes the file and its draft. Undo restores it. References to this file may need repair.",
+            }))
           )
             return;
-          const nextPath = action === "rename" ? newPath : filePath;
+          const nextPath =
+            action === "rename"
+              ? await ui.name({
+                  kind: "file",
+                  folderId: targetFolderId,
+                  path: filePath,
+                  label: "Relative file path",
+                  initial: filePath,
+                  validate: (name) =>
+                    validateFileName(name, targetFolderId, filePath),
+                })
+              : filePath;
           if (!nextPath || (action === "rename" && nextPath === filePath))
             return;
-          if (action === "rename" && ownFiles.includes(nextPath)) {
+          const listed = await props.files.handle({ action: "list", owner });
+          if (!listed.ok || !("source" in listed)) {
+            if (!listed.ok) props.onProblem(listed.error);
+            return;
+          }
+          const folder = current.current.project.simulationFolders.find(
+            (item) => item.id === targetFolderId,
+          );
+          const file = folder?.input.files.find(
+            (item) => item.path === filePath,
+          );
+          if (!folder || !file) return;
+          const draft = drafts.current.get(bufferKey);
+          if (draft && draft.base !== file.text) {
             props.onProblem(
               inputProblem(
-                "SIMULATION_FILE_EXISTS",
-                `${nextPath} already exists.`,
+                "SOURCE_CONFLICT",
+                "File changed elsewhere; draft retained.",
               ),
             );
             return;
           }
+          const content = draft?.text ?? file.text;
           const result = await props.files.handle({
             action: "update",
-            owner: { kind: "project-folder", folderId: props.folder.id },
-            expectedRevision: authored.revision,
+            owner,
+            expectedRevision: listed.source.revision,
             ...(action === "rename"
               ? {
                   removes: [filePath],
-                  writes: [{ path: nextPath, text: file.text }],
-                  ...(filePath === input.entry ? { entry: nextPath } : {}),
-                  ...(filePath === input.configPath
+                  writes: [{ path: nextPath, text: content }],
+                  ...(filePath === folder.input.entry
+                    ? { entry: nextPath }
+                    : {}),
+                  ...(filePath === folder.input.configPath
                     ? { configPath: nextPath }
                     : {}),
                 }
               : action === "delete"
                 ? { removes: [filePath] }
-                : { entry: filePath }),
+                : {
+                    entry: filePath,
+                    writes: [{ path: filePath, text: content }],
+                  }),
           });
           if (!result.ok) props.onProblem(result.error);
-          else setPath(action === "delete" ? input.entry : nextPath);
+          else {
+            drafts.current.delete(bufferKey);
+            cache.write(drafts.current);
+            render((v) => v + 1);
+            // Operating on a background file never opens it as a side effect.
+            if (
+              paths[targetFolderId] === filePath ||
+              (targetFolderId === props.folder.id && path === filePath)
+            )
+              setPaths((current) => ({
+                ...current,
+                [targetFolderId]: action === "delete" ? "" : nextPath,
+              }));
+            props.onProblem(undefined);
+          }
         }}
         entryPath={input.entry}
         configPath={input.configPath}
-        onCopyFile={() => {
+        onCopyFile={(filePath, folderId = props.folder.id) => {
           void navigator.clipboard
-            .writeText(text)
+            .writeText(fileText(folderId, filePath))
             .catch(() =>
               props.onProblem(
                 inputProblem(
@@ -789,37 +943,63 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
               ),
             );
         }}
-        onExportFile={() => {
-          const result = downloadTextArtifact(text, path.split("/").at(-1)!);
+        onExportFile={(filePath, folderId = props.folder.id) => {
+          const result = downloadTextArtifact(
+            fileText(folderId, filePath),
+            filePath.split("/").at(-1)!,
+          );
           if (result.status === "failed")
             props.onProblem(
               inputProblem("SOURCE_EXPORT_FAILED", result.message),
             );
         }}
-        onNewFile={(path) => {
+        onNewFile={async (folderId = props.folder.id) => {
+          const path = await ui.name({
+            kind: "file",
+            folderId,
+            label: "Relative file path",
+            initial: "stimulus.cir",
+            validate: (name) => validateFileName(name, folderId),
+          });
           if (!path) return;
-          if (ownFiles.includes(path)) {
-            setPath(path);
-            return;
-          }
-          drafts.current.set(key(path), {
+          drafts.current.set(`${folderId}\u0000${path}`, {
             base: "",
             text: "* New source\n",
-            committed: props.project.structureRevision,
+            committed: current.current.project.structureRevision,
           });
-          setPath(path);
+          setPath(path, folderId);
           render((value) => value + 1);
         }}
         newFileRequest={props.newFileRequest}
         actions={
           <>
             <button
-              disabled={saving}
+              data-workspace-save="true"
+              aria-label="Save project"
+              title={
+                props.projectSaveState === "failed" ||
+                props.projectSaveState === "offline"
+                  ? "Save failed; drafts remain local. Retry save."
+                  : "Save Project · Ctrl+S"
+              }
+              disabled={
+                saving ||
+                props.projectSaveState === "saving" ||
+                (props.projectSaveState === "clean" && !dirty)
+              }
+              aria-busy={saving || props.projectSaveState === "saving"}
               onClick={() =>
                 props.onSaveProject ? props.onSaveProject() : void flush()
               }
             >
-              Save
+              {saving || props.projectSaveState === "saving"
+                ? "Saving…"
+                : props.projectSaveState === "clean" && !dirty
+                  ? "Saved"
+                  : props.projectSaveState === "failed" ||
+                      props.projectSaveState === "offline"
+                    ? "Retry save"
+                    : "Save"}
             </button>
             {props.actions}
           </>

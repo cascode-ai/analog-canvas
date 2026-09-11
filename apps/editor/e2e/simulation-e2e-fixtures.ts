@@ -38,7 +38,7 @@ export async function editSimulationFile(
   const panel = page.getByRole("region", { name: "Analog simulation" });
   if (path === "experiment.json") {
     await panel.getByRole("button", { name: "More code actions" }).click();
-    await panel.getByRole("button", { name: "Advanced configuration" }).click();
+    await page.getByRole("menuitem", { name: "Advanced configuration" }).click();
   } else await panel.getByRole("tab", { name: path, exact: false }).click();
   const editor = panel.getByRole("textbox", {
     name: "Simulation source editor",

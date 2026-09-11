@@ -935,6 +935,7 @@ export function App({
     saveProjectToCloud,
     isSaveInFlight,
     saveBusy,
+    persistenceState,
     exportProjectFile,
     downloadCurrentProjectBackup,
     guardDirtyReplacement,
@@ -4021,6 +4022,14 @@ export function App({
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent): void {
+      // The source workbench owns its keyboard scope, including portalled menus.
+      if (
+        event.target instanceof Element &&
+        event.target.closest(
+          ".simulation-code-workspace, [data-workspace-interaction]",
+        )
+      )
+        return;
       // File flyout arrows navigate the focused menu, never pan the canvas.
       if (
         event.target instanceof Element &&
@@ -5373,6 +5382,7 @@ export function App({
                     simulationSourceBuffer.current = buffer;
                   }}
                   onSaveProject={() => void saveProjectToCloud()}
+                  projectSaveState={persistenceState}
                   onSaveFolder={(
                     folder,
                     expectedRevision = project.structureRevision,

@@ -1,239 +1,213 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
-import { InlineSourceName } from "./inline-source-name";
-
+import { useState, type ReactNode } from "react";
+import {
+  useWorkspaceInteractions,
+  WorkspaceNameInput,
+  type WorkspaceMenuItem,
+} from "./workspace-interactions";
 export interface SimulationFolderNode {
   id: string;
   name: string;
-  paths?: readonly string[];
+  files?: readonly {
+    path: string;
+    kind: "authored" | "generated" | "prepared";
+    dirty?: boolean;
+    draft?: boolean;
+  }[];
+  configPath?: string;
 }
 export type FolderAction =
   "new" | "duplicate" | "rename" | "delete" | "run" | "export" | "batch";
 export interface SimulationFolderTreeProps {
   folders: readonly SimulationFolderNode[];
   activeId: string;
-  onSelect(id: string, path?: string): void;
-  onAction(action: FolderAction, ids: string[], name?: string): void;
-  onNewFile?(id: string): void;
-  children: ReactNode;
+  onSelect(id: string): void;
+  onAction(action: FolderAction, ids: string[]): void;
+  renderFiles(id: string): ReactNode;
+  onNewFile(id: string): void;
   busy?: boolean;
 }
-
-/** One execution root per folder. The tree owns selection, never source or run state. */
+/** Selection and expansion do not change execution context. Opening a file does. */
 export function SimulationFolderTree(props: SimulationFolderTreeProps) {
+  const ui = useWorkspaceInteractions();
   const [selected, setSelected] = useState<string[]>([]);
-  const [expanded, setExpanded] = useState<string[]>([props.activeId]);
-  const [naming, setNaming] = useState<{
-    action: "new" | "rename" | "duplicate";
-    ids: string[];
-    initial: string;
-  }>();
-  useEffect(() => {
-    setExpanded((ids) =>
-      ids.includes(props.activeId) ? ids : [...ids, props.activeId],
-    );
-  }, [props.activeId]);
-  const [menu, setMenu] = useState<{ x: number; y: number; ids: string[] }>();
-  const menuRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    setSelected((ids) =>
-      ids.filter((id) => props.folders.some((folder) => folder.id === id)),
-    );
-  }, [props.folders]);
-  useEffect(() => {
-    if (!menu) return;
-    menuRef.current?.querySelector<HTMLButtonElement>("button")?.focus();
-    const close = (event: PointerEvent) => {
-      if (!menuRef.current?.contains(event.target as Node)) setMenu(undefined);
-    };
-    window.addEventListener("pointerdown", close);
-    return () => window.removeEventListener("pointerdown", close);
-  }, [menu]);
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
+  const action = (name: FolderAction, ids: string[]) =>
+    props.onAction(name, ids);
   const open = (x: number, y: number, id?: string) => {
-    const ids = id ? (selected.includes(id) ? selected : [id]) : [];
+    const ids = id
+      ? selected.includes(id)
+        ? selected.filter((key) => props.folders.some((f) => f.id === key))
+        : [id]
+      : [];
     setSelected(ids);
-    setMenu({
-      x: Math.max(0, Math.min(x, window.innerWidth - 210)),
-      y: Math.max(0, Math.min(y, window.innerHeight - 280)),
-      ids,
-    });
-  };
-  const action = (name: FolderAction, ids = menu?.ids ?? []) => {
-    if (name === "new" || name === "rename" || name === "duplicate") {
-      const folder = props.folders.find((f) => f.id === ids[0]);
-      setNaming({
-        action: name,
-        ids,
-        initial:
-          name === "new"
-            ? "Untitled"
-            : `${folder?.name ?? "Untitled"}${name === "duplicate" ? " copy" : ""}`,
+    const target = id ?? props.activeId;
+    const items: WorkspaceMenuItem[] = [
+      { label: "New folder…", run: () => action("new", []) },
+      {
+        label: "New file…",
+        disabled: !target,
+        run: () => {
+          setCollapsed(
+            (set) => new Set([...set].filter((key) => key !== target)),
+          );
+          props.onNewFile(target);
+        },
+      },
+    ];
+    if (ids.length === 1)
+      items.push(
+        {
+          label: "Run folder",
+          disabled: props.busy,
+          run: () => action("run", ids),
+        },
+        { label: "Duplicate…", run: () => action("duplicate", ids) },
+        { label: "Rename…", run: () => action("rename", ids) },
+        { label: "Export folder…", run: () => action("export", ids) },
+        { label: "Delete…", run: () => action("delete", ids) },
+      );
+    if (ids.length > 1)
+      items.push({
+        label: `Run selected folders (${ids.length})`,
+        disabled: props.busy,
+        run: () => action("batch", ids),
       });
-    } else props.onAction(name, ids);
-    setMenu(undefined);
+    items.push({
+      label: "Collapse all",
+      run: () => setCollapsed(new Set(props.folders.map((f) => f.id))),
+    });
+    ui.menu(x, y, items, "Folder actions");
   };
+  const naming = ui.edit?.kind === "folder";
   return (
     <div
       className="simulation-folder-tree"
       aria-label="Simulation folders"
+      onClick={(event) => {
+        if (event.target === event.currentTarget) setSelected([]);
+      }}
       onContextMenu={(event) => {
         event.preventDefault();
         event.stopPropagation();
         open(event.clientX, event.clientY);
       }}
+      onKeyDown={(event) => {
+        event.stopPropagation();
+        if (event.target instanceof HTMLInputElement) return;
+        if (["ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)) {
+          const rows = [
+            ...event.currentTarget.querySelectorAll<HTMLButtonElement>(
+              "button[data-tree-row]",
+            ),
+          ];
+          const current = rows.indexOf(
+            document.activeElement as HTMLButtonElement,
+          );
+          const index =
+            event.key === "Home"
+              ? 0
+              : event.key === "End"
+                ? rows.length - 1
+                : Math.max(
+                    0,
+                    Math.min(
+                      rows.length - 1,
+                      current + (event.key === "ArrowDown" ? 1 : -1),
+                    ),
+                  );
+          event.preventDefault();
+          rows[index]?.focus();
+        }
+      }}
     >
-      {naming && (
-        <InlineSourceName
-          label="Folder name"
-          initial={naming.initial}
-          onCancel={() => setNaming(undefined)}
-          onSubmit={(name) => {
-            props.onAction(naming.action, naming.ids, name);
-            setNaming(undefined);
-          }}
-        />
-      )}
+      <button type="button" onClick={() => action("new", [])}>
+        + New folder…
+      </button>
+      {naming && !ui.edit?.folderId ? (
+        <WorkspaceNameInput key="new-folder" />
+      ) : null}
       {props.folders.map((folder) => (
         <div key={folder.id}>
-          <div
-            className="simulation-folder-row"
-            onContextMenu={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              open(event.clientX, event.clientY, folder.id);
-            }}
-          >
-            <button
-              type="button"
-              aria-label={`Toggle ${folder.name}`}
-              aria-expanded={expanded.includes(folder.id)}
-              onClick={() =>
-                setExpanded((ids) =>
-                  ids.includes(folder.id)
-                    ? ids.filter((id) => id !== folder.id)
-                    : [...ids, folder.id],
-                )
-              }
-            >
-              {expanded.includes(folder.id) ? "▾" : "▸"}
-            </button>
-            <button
-              type="button"
-              className={folder.id === props.activeId ? "is-active" : ""}
-              aria-label={`Folder ${folder.name}`}
-              aria-pressed={selected.includes(folder.id)}
-              onClick={(event) => {
-                if (event.ctrlKey || event.metaKey)
-                  setSelected((ids) =>
-                    ids.includes(folder.id)
-                      ? ids.filter((id) => id !== folder.id)
-                      : [...ids, folder.id],
-                  );
-                else {
-                  setSelected([folder.id]);
-                  props.onSelect(folder.id);
-                }
-              }}
+          {naming && ui.edit?.folderId === folder.id ? (
+            <WorkspaceNameInput key={folder.id} />
+          ) : (
+            <div
+              className="workspace-folder-row"
               onContextMenu={(event) => {
                 event.preventDefault();
                 event.stopPropagation();
                 open(event.clientX, event.clientY, folder.id);
               }}
-              onKeyDown={(event) => {
-                if (
-                  event.key === "ContextMenu" ||
-                  (event.shiftKey && event.key === "F10")
-                ) {
-                  event.preventDefault();
-                  const rect = event.currentTarget.getBoundingClientRect();
-                  open(rect.left, rect.bottom, folder.id);
-                }
-              }}
             >
-              {folder.name}
-            </button>
-          </div>
-          {expanded.includes(folder.id) ? (
-            folder.id === props.activeId ? (
-              props.children
-            ) : (
-              <ul>
-                {folder.paths?.map((path) => (
-                  <li key={path}>
-                    <button
-                      type="button"
-                      onClick={() => props.onSelect(folder.id, path)}
-                    >
-                      {path}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )
-          ) : null}
-        </div>
-      ))}
-      {menu ? (
-        <div
-          ref={menuRef}
-          role="menu"
-          aria-label="Folder actions"
-          className="simulation-folder-menu"
-          style={{ left: menu.x, top: menu.y }}
-          onContextMenu={(event) => event.stopPropagation()}
-          onKeyDown={(event) => {
-            if (event.key === "Escape") {
-              event.stopPropagation();
-              setMenu(undefined);
-            }
-          }}
-        >
-          <button role="menuitem" onClick={() => action("new", [])}>
-            New folder…
-          </button>
-          {menu.ids.length === 1 ? (
-            <>
               <button
-                role="menuitem"
-                onClick={() => {
-                  props.onSelect(menu.ids[0]!);
-                  props.onNewFile?.(menu.ids[0]!);
-                  setMenu(undefined);
+                type="button"
+                className="workspace-folder-toggle"
+                aria-label={`Toggle ${folder.name}`}
+                aria-expanded={!collapsed.has(folder.id)}
+                onClick={() =>
+                  setCollapsed((set) => {
+                    const next = new Set(set);
+                    if (next.has(folder.id)) next.delete(folder.id);
+                    else next.add(folder.id);
+                    return next;
+                  })
+                }
+              >
+                {collapsed.has(folder.id) ? "▸" : "▾"}
+              </button>
+              <button
+                type="button"
+                data-tree-row="folder"
+                aria-label={`Folder ${folder.name}`}
+                aria-pressed={selected.includes(folder.id)}
+                title={
+                  folder.id === props.activeId
+                    ? `${folder.name} · Run target`
+                    : folder.name
+                }
+                className={folder.id === props.activeId ? "is-active" : ""}
+                onClick={(event) =>
+                  setSelected((ids) =>
+                    event.ctrlKey || event.metaKey
+                      ? ids.includes(folder.id)
+                        ? ids.filter((id) => id !== folder.id)
+                        : [...ids, folder.id]
+                      : [folder.id],
+                  )
+                }
+                onKeyDown={(event) => {
+                  if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+                    event.preventDefault();
+                    setCollapsed((set) => {
+                      const next = new Set(set);
+                      if (event.key === "ArrowLeft") next.add(folder.id);
+                      else next.delete(folder.id);
+                      return next;
+                    });
+                  }
+                  if (event.key === "F2" || event.key === "Delete") {
+                    event.preventDefault();
+                    action(event.key === "F2" ? "rename" : "delete", [
+                      folder.id,
+                    ]);
+                  }
+                  if (
+                    event.key === "ContextMenu" ||
+                    (event.shiftKey && event.key === "F10")
+                  ) {
+                    event.preventDefault();
+                    const rect = event.currentTarget.getBoundingClientRect();
+                    open(rect.left, rect.bottom, folder.id);
+                  }
                 }}
               >
-                New file…
+                {folder.name}
               </button>
-              <button
-                role="menuitem"
-                disabled={props.busy}
-                onClick={() => action("run")}
-              >
-                Run folder
-              </button>
-              <button role="menuitem" onClick={() => action("duplicate")}>
-                Duplicate…
-              </button>
-              <button role="menuitem" onClick={() => action("rename")}>
-                Rename…
-              </button>
-              <button role="menuitem" onClick={() => action("export")}>
-                Export folder…
-              </button>
-              <button role="menuitem" onClick={() => action("delete")}>
-                Delete…
-              </button>
-            </>
-          ) : null}
-          {menu.ids.length > 1 ? (
-            <button
-              role="menuitem"
-              disabled={props.busy}
-              onClick={() => action("batch")}
-            >
-              Run selected folders ({menu.ids.length})
-            </button>
-          ) : null}
+            </div>
+          )}
+          {!collapsed.has(folder.id) ? props.renderFiles(folder.id) : null}
         </div>
-      ) : null}
+      ))}
     </div>
   );
 }

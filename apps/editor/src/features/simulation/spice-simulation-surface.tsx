@@ -1,6 +1,12 @@
 import type { SimulationFocusTarget } from "./simulation-focus-target";
 import { useEffect, useRef, useState } from "react";
 import {
+  WorkspaceInteractions,
+  WorkspaceNameInput,
+  useWorkspaceInteractions,
+} from "./workspace-interactions";
+import {
+  createSimulationFolder,
   readSimulationExperimentConfig,
   type SimulationRunPlanAxis,
 } from "@icm/model";
@@ -119,6 +125,14 @@ function uiProblem(code: string, message: string): Problem {
 /** A projection of the same prepare/start/read/cancel service used by MCP.
  * The canvas remains the editor for sources, connections and DUT instances. */
 export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
+  return (
+    <WorkspaceInteractions key={props.project.id}>
+      <SimulationSurface {...props} />
+    </WorkspaceInteractions>
+  );
+}
+function SimulationSurface(props: SpiceSimulationSurfaceProps) {
+  const interaction = useWorkspaceInteractions();
   const { session, project, open } = props;
   const selectedFolder = project.simulationFolders.find(
     (folder) => folder.id === props.selectedFolderId,
@@ -978,9 +992,15 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
     }
     if (action === "delete" && folder) {
       if (
-        window.confirm(`Delete folder "${folder.name}" and its source files?`)
-      )
+        await interaction.confirm({
+          title: `Delete folder ${folder.name}?`,
+          message:
+            "This removes its source files and saved drafts from the Project. Undo restores the folder; archived results are kept.",
+        })
+      ) {
+        if (codeRef.current && !(await codeRef.current.save())) return;
         props.onDeleteFolder(folder.id);
+      }
       return;
     }
     // Folder management must preserve unfinished code, not require a runnable deck.
@@ -997,15 +1017,29 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
       );
       return;
     }
-    const name = suppliedName;
-    if (!name && action === "new") {
-      setNewFolder({
-        id: `simulation-folder-${crypto.randomUUID()}`,
-        name: "Untitled",
-        template: "op",
-      });
-      return;
-    }
+    let template = ids[0] === "ac" ? "AC" : ids[0] === "tran" ? "TRAN" : "OP";
+    const name = await interaction.name({
+      kind: "folder",
+      ...(action === "rename" && current ? { folderId: current.id } : {}),
+      label: action === "rename" ? "Folder name" : "New simulation folder name",
+      ...(action === "new"
+        ? {
+            template: {
+              value: template,
+              options: ["OP", "AC", "TRAN"],
+              onChange: (value: string) => {
+                template = value;
+              },
+            },
+          }
+        : {}),
+      initial:
+        action === "rename"
+          ? (current?.name ?? "")
+          : action === "duplicate"
+            ? `${current?.name} copy`
+            : `Simulation ${latestProject.simulationFolders.length + 1}`,
+    });
     if (!name?.trim()) return;
     const identity = {
       id:
@@ -1014,28 +1048,28 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
           : `simulation-folder-${crypto.randomUUID()}`,
       name: name.trim(),
     };
-    if (!current || (action !== "rename" && action !== "duplicate")) {
-      const starter = createSimulationStarter(latestProject, {
-        ...identity,
-        template: "op",
-        mode: "text",
-        documentId: props.activeDocumentId,
-        profileId: capabilities?.profiles[0]?.id ?? authoringProfile.id,
-      });
-      if (!starter.ok)
-        setProblem(uiProblem("SIMULATION_STARTER_INVALID", starter.message));
-      else {
-        const saved = props.onSaveFolder(
-          starter.folder,
-          latestProject.structureRevision,
-        );
-        if (saved.status === "rejected") setProblem(saved.problem);
-        else props.onSelectFolderId(starter.folder.id);
-      }
-      return;
-    }
-    const created = { ...structuredClone(current), ...identity };
-    const result = props.onSaveFolder(created, latestProject.structureRevision);
+    const created =
+      current && (action === "rename" || action === "duplicate")
+        ? { ...structuredClone(current), ...identity }
+        : createSimulationFolder({
+            ...identity,
+            documentId:
+              props.draftContext?.rootDocumentId ?? props.activeDocumentId,
+            profileId: capabilities?.profiles[0]?.id ?? authoringProfile.id,
+            template:
+              template === "AC" ? "ac" : template === "TRAN" ? "tran" : "op",
+          });
+    // Naming is non-modal: refresh the revision and source after the user finishes.
+    const namingProject = session.currentProject();
+    if (!namingProject) return;
+    const newest = namingProject.simulationFolders.find(
+      (item) => item.id === current?.id,
+    );
+    if (current && !newest) return;
+    const result = props.onSaveFolder(
+      newest ? { ...structuredClone(newest), ...identity } : created,
+      namingProject.structureRevision,
+    );
     if (result.status === "rejected") setProblem(result.problem);
     else props.onSelectFolderId(created.id);
   };
@@ -1752,7 +1786,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
               disabled={busy}
               onClick={() => void execute(true)}
               aria-label="Run"
-              title="Run"
+              title={`Run ${selectedFolder.name}`}
             >
               ▶
             </button>
@@ -1928,11 +1962,16 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
           folders={{
             folders: project.simulationFolders.map((folder) => ({
               ...folder,
-              paths: [
-                ...folder.input.files
-                  .filter((file) => file.path !== folder.input.configPath)
-                  .map((file) => file.path),
-                ...folder.input.circuitBindings.map((binding) => binding.path),
+              configPath: folder.input.configPath,
+              files: [
+                ...folder.input.files.map((file) => ({
+                  path: file.path,
+                  kind: "authored" as const,
+                })),
+                ...folder.input.circuitBindings.map((binding) => ({
+                  path: binding.path,
+                  kind: "generated" as const,
+                })),
               ],
             })),
             activeId: selectedFolder.id,
@@ -1948,6 +1987,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
           }}
           onHistoryBoundary={props.onHistoryBoundary}
           onSaveProject={props.onSaveProject}
+          projectSaveState={props.projectSaveState}
         />
       ) : (
         <div className="simulation-empty-result" />
