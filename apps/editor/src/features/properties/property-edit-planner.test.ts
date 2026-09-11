@@ -103,6 +103,85 @@ describe("property edit planner", () => {
     );
   });
 
+  it("places a new L-command label at the explicit canvas point", () => {
+    const input = routedFixture();
+    const planner = createPropertyEditPlanner(input);
+
+    const edits = planner.netLabelEditsForRoute(
+      input.document.routes[0]!,
+      "SIGNAL",
+      {
+        alignment: "start",
+        sizeScale: 1,
+        position: { x: 73, y: 14 },
+      },
+    );
+
+    expect(edits).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "upsert_schematic_annotation",
+          annotation: expect.objectContaining({
+            id: "net-label-route",
+            alignment: "start",
+            anchor: {
+              kind: "free",
+              position: { x: 70, y: 10 },
+            },
+          }),
+        }),
+      ]),
+    );
+  });
+
+  it("renames a free L-command label without moving it back onto a Route", () => {
+    const input = routedFixture();
+    const annotation: Annotation = {
+      id: "free-label",
+      kind: "net-label",
+      binding: { kind: "net-name", netId: "net" },
+      netId: "net",
+      anchor: { kind: "free", position: { x: 70, y: 10 } },
+      alignment: "start",
+      rotation: 0,
+      locked: false,
+    };
+    input.document.annotations.push(annotation);
+    input.document.connectivityEvidence.push({
+      id: "claim-free-label",
+      kind: "name-claim",
+      netId: "net",
+      name: "SIGNAL",
+      scope: "local",
+      owner: { kind: "net-label", annotationId: annotation.id },
+    });
+    const presentation = { ...annotation, sizeScale: 1.2 };
+    const planner = createPropertyEditPlanner(input);
+
+    const edits = planner.netNameEditsForAnnotation(
+      annotation,
+      "RENAMED",
+      presentation,
+    );
+
+    expect(edits).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "upsert_connectivity_evidence",
+          evidence: expect.objectContaining({ name: "RENAMED" }),
+        }),
+        {
+          kind: "upsert_schematic_annotation",
+          annotation: presentation,
+        },
+      ]),
+    );
+    expect(presentation.anchor).toEqual({
+      kind: "free",
+      position: { x: 70, y: 10 },
+    });
+  });
+
   it("surfaces a rejected named-net plan on the status bar instead of failing silently", () => {
     const input = routedFixture();
     input.document.connectivityEvidence.push(

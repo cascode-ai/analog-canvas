@@ -20,6 +20,42 @@ import { normalizeSwitchLeads } from "./lib/normalize-switch-leads.mjs";
  * held by the catalog test rather than by this pass.
  */
 const ONE_CELL_LEAD_SYMBOLS = new Set(["closed-switch", "ideal-switch"]);
+const ANALOG_BLOCK_LEAD_LENGTH = 10;
+
+/**
+ * Keep gain-block connection anchors on the nearest outer grid points. The
+ * reference body is untouched; only the blank lead between it and the sheet
+ * connection is compacted to the one-cell Analog Blocks contract.
+ */
+function normalizeVoltageAmplifierLeads(symbol) {
+  const targetX = new Map([
+    ["IN", -30],
+    ["OUT", 30],
+  ]);
+  const originalPins = new Map(
+    symbol.pins.map((pin) => [pin.name, { ...pin.at }]),
+  );
+  symbol.pins = symbol.pins.map((pin) => ({
+    ...pin,
+    at: { ...pin.at, x: targetX.get(pin.name) },
+    presentation: {
+      ...pin.presentation,
+      leadLength: ANALOG_BLOCK_LEAD_LENGTH,
+    },
+  }));
+  symbol.primitives = symbol.primitives.map((primitive) => {
+    if (primitive.kind !== "line") return primitive;
+    let from = primitive.from;
+    let to = primitive.to;
+    for (const pin of symbol.pins) {
+      const original = originalPins.get(pin.name);
+      if (from.x === original.x && from.y === original.y) from = pin.at;
+      if (to.x === original.x && to.y === original.y) to = pin.at;
+    }
+    return { ...primitive, from, to };
+  });
+  symbol.viewBox = { x: -34, y: -32, width: 68, height: 64 };
+}
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const referenceRoot = resolve(
@@ -79,6 +115,9 @@ for (const [symbolId, name, category, pinOrder, automaticMappings] of entries) {
   }
   delete symbol.aliases;
   if (ONE_CELL_LEAD_SYMBOLS.has(symbolId)) normalizeSwitchLeads(symbol);
+  if (symbolId === "voltage-amplifier") {
+    normalizeVoltageAmplifierLeads(symbol);
+  }
   const assetPath = resolve(assetRoot, `${symbolId}.symbol.json`);
   const assetSource = normalize(
     await format(JSON.stringify(symbol, null, 2), { parser: "json" }),
@@ -133,9 +172,6 @@ for (const [symbolId, name, category, pinOrder, automaticMappings] of entries) {
     await writeFile(assetPath, assetSource, "utf8");
   }
 }
-catalog.entries.sort((left, right) =>
-  left.symbolId.localeCompare(right.symbolId),
-);
 const catalogSource = normalize(
   await format(JSON.stringify(catalog, null, 2), { parser: "json" }),
 );

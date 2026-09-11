@@ -34,19 +34,17 @@ export interface CanvasTextEditorOverlayProps {
  * text — are laid out at this size and then scaled as one, so the panel keeps
  * its proportions instead of reflowing as the camera moves.
  */
-const EDITOR_FALLBACK_LAYOUT_WIDTH = 420;
+const EDITOR_LAYOUT_WIDTH = 400;
 const EDITOR_LAYOUT_MIN_HEIGHT = 150;
 
 /**
- * How much of the camera the panel occupies.
+ * How much of the camera the panel occupies before its screen scale is known.
  *
- * Sizing the panel in Document units made it a part of the drawing: it grew
- * on zoom in and shrank to illegibility on zoom out. A fraction of the camera
- * is the same fraction of the canvas at every zoom, so the panel holds one
- * apparent size — and because its contents are laid out at a fixed pixel size
- * and scaled with it, they hold their size too.
+ * The measured editor has one fixed screen width at both full- and half-window
+ * sizes. This fraction only supplies a stable first-paint scale before the SVG
+ * has reported its screen dimensions.
  */
-const EDITOR_VIEW_FRACTION = 2 / 3;
+const EDITOR_FALLBACK_VIEW_FRACTION = 1 / 2;
 
 export interface CanvasTextEditorFrame {
   /** Where the panel sits, in Document units. */
@@ -68,7 +66,8 @@ export function resolveCanvasTextEditorFrame(
   pixelsPerUnit?: number | null,
   preferredLayoutHeight?: number | null,
 ): CanvasTextEditorFrame {
-  const width = viewBox.width * EDITOR_VIEW_FRACTION;
+  const viewportInset = 8;
+  const availableWidth = Math.max(0, viewBox.width - viewportInset * 2);
   // Laying the panel out at true screen pixels is what lets its type be set
   // against the rest of the chrome rather than against the drawing. Without a
   // measurement — the first render, before the canvas is on screen — fall back
@@ -76,7 +75,10 @@ export function resolveCanvasTextEditorFrame(
   const scale =
     pixelsPerUnit && pixelsPerUnit > 0
       ? 1 / pixelsPerUnit
-      : width / EDITOR_FALLBACK_LAYOUT_WIDTH;
+      : (viewBox.width * EDITOR_FALLBACK_VIEW_FRACTION) / EDITOR_LAYOUT_WIDTH;
+  // Full- and half-window workspaces use the same control surface. Only a
+  // canvas physically narrower than the editor makes it shrink.
+  const width = Math.min(availableWidth, EDITOR_LAYOUT_WIDTH * scale);
   const layoutWidth = width / scale;
   // A name longer than the box wraps, and the frame is sized before any of it
   // is typed, so budget for a few wrapped lines instead of the one the
@@ -89,7 +91,6 @@ export function resolveCanvasTextEditorFrame(
     preferredLayoutHeight ?? 0,
   );
   const height = layoutHeight * scale;
-  const viewportInset = 8;
   const targetGap = 8;
   const minX = viewBox.x + viewportInset;
   const maxX = viewBox.x + viewBox.width - width - viewportInset;

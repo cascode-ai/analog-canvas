@@ -6,6 +6,7 @@ import {
   galleryEntryMatchesQuery,
   GalleryCountPanel,
   GalleryFeed,
+  loadGalleryAuthors,
   loadGalleryFeed,
 } from "./gallery-feed";
 
@@ -47,10 +48,12 @@ describe("loadGalleryFeed", () => {
     await loadGalleryFeed(capturing);
     await loadGalleryFeed(capturing, { author: "alice" });
     await loadGalleryFeed(capturing, { author: "alice", cursor: "c|1" });
+    await loadGalleryFeed(capturing, { author: "alice", limit: 4 });
     expect(urls).toEqual([
       "/api/gallery",
       "/api/gallery?author=alice",
       "/api/gallery?author=alice&cursor=c%7C1",
+      "/api/gallery?author=alice&limit=4",
     ]);
   });
 
@@ -70,6 +73,37 @@ describe("loadGalleryFeed", () => {
       throw new Error("offline");
     }) as unknown as typeof fetch;
     expect(await loadGalleryFeed(throwing)).toBeNull();
+  });
+});
+
+describe("loadGalleryAuthors", () => {
+  it("loads the full public contributor ranking", async () => {
+    const urls: string[] = [];
+    const capturing = (async (input: RequestInfo | URL) => {
+      urls.push(String(input));
+      return new Response(
+        JSON.stringify({
+          authors: [
+            { author: "Alice", count: 12 },
+            { author: "Bob", count: 3 },
+          ],
+        }),
+        { status: 200 },
+      );
+    }) as typeof fetch;
+
+    expect(await loadGalleryAuthors(capturing)).toEqual([
+      { author: "Alice", count: 12 },
+      { author: "Bob", count: 3 },
+    ]);
+    expect(urls).toEqual(["/api/gallery/authors"]);
+  });
+
+  it("distinguishes an empty ranking from an unavailable one", async () => {
+    expect(await loadGalleryAuthors(fetchReturning({ authors: [] }))).toEqual(
+      [],
+    );
+    expect(await loadGalleryAuthors(fetchReturning({}, false))).toBeNull();
   });
 });
 
@@ -109,6 +143,7 @@ describe("GalleryCountPanel", () => {
     expect(render(1280)).toContain(`${(1280).toLocaleString()} circuits`);
     expect(render(1)).toContain("1 circuit");
     expect(render(1)).not.toContain("circuits");
+    expect(render(1)).toContain("Show contributor leaderboard");
     // "Filtered" names the state; "match" belongs to the text query alone.
     expect(render(3, true)).toContain("3 filtered circuits");
     expect(render(1, true)).toContain("1 filtered circuit");

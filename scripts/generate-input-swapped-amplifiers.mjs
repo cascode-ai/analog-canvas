@@ -33,8 +33,11 @@ const SOURCE_IDS = [
   "opamp",
   "opamp-lettered",
   "comparator",
+  "differential-transconductance",
   "opamp-differential",
+  "opamp-differential-lettered",
   "opamp-differential-crossed",
+  "opamp-differential-crossed-lettered",
 ];
 const SWAPPED_SUFFIX = "-inputs-swapped";
 const INPUT_ROLES = new Set(["non-inverting-input", "inverting-input"]);
@@ -58,7 +61,12 @@ const midpoint = (primitive) => ({
  * must leave the outputs exactly where they are.
  */
 function isInputMark(primitive, centerX) {
-  if (primitive.part === "input-polarity") return true;
+  if (
+    primitive.part === "input-polarity" ||
+    primitive.part === "upright-input-polarity-negative"
+  ) {
+    return true;
+  }
   if (primitive.part !== undefined) return false;
   if (primitive.kind !== "line") return false;
   const length = Math.hypot(

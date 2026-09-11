@@ -1,12 +1,12 @@
 {
   "schemaVersion": 1,
-  "id": "opamp-inputs-swapped",
-  "name": "Operational Amplifier (swapped inputs)",
+  "id": "differential-transconductance-inputs-swapped",
+  "name": "Differential Transconductance (gₘ) (swapped inputs)",
   "viewBox": {
     "x": -34,
-    "y": -28,
+    "y": -39,
     "width": 68,
-    "height": 56
+    "height": 78
   },
   "pins": [
     {
@@ -52,28 +52,13 @@
   "primitives": [
     {
       "kind": "line",
-      "from": {
-        "x": -30,
-        "y": -10
-      },
-      "to": {
-        "x": -26.952962,
-        "y": -10
-      },
-      "style": {
-        "strokeRole": "normal",
-        "lineCap": "butt",
-        "lineJoin": "miter"
-      }
-    },
-    {
-      "kind": "line",
+      "part": "input-positive-lead",
       "from": {
         "x": -30,
         "y": 10
       },
       "to": {
-        "x": -26.797909,
+        "x": -20,
         "y": 10
       },
       "style": {
@@ -84,8 +69,88 @@
     },
     {
       "kind": "line",
+      "part": "input-negative-lead",
       "from": {
-        "x": 23.202091,
+        "x": -30,
+        "y": -10
+      },
+      "to": {
+        "x": -20,
+        "y": -10
+      },
+      "style": {
+        "strokeRole": "normal",
+        "lineCap": "butt",
+        "lineJoin": "miter"
+      }
+    },
+    {
+      "kind": "path",
+      "part": "body",
+      "data": "M -20 -35 L 20 -17.5 L 20 17.5 L -20 35 Z",
+      "style": {
+        "strokeRole": "emphasis",
+        "lineCap": "butt",
+        "lineJoin": "miter",
+        "miterLimit": 4
+      }
+    },
+    {
+      "kind": "line",
+      "part": "input-polarity",
+      "from": {
+        "x": -13,
+        "y": -10
+      },
+      "to": {
+        "x": -7,
+        "y": -10
+      },
+      "style": {
+        "strokeRole": "normal",
+        "lineCap": "round",
+        "lineJoin": "round"
+      }
+    },
+    {
+      "kind": "line",
+      "part": "input-polarity",
+      "from": {
+        "x": -10,
+        "y": -7
+      },
+      "to": {
+        "x": -10,
+        "y": -13
+      },
+      "style": {
+        "strokeRole": "normal",
+        "lineCap": "round",
+        "lineJoin": "round"
+      }
+    },
+    {
+      "kind": "line",
+      "part": "upright-input-polarity-negative",
+      "from": {
+        "x": -13,
+        "y": 10
+      },
+      "to": {
+        "x": -7,
+        "y": 10
+      },
+      "style": {
+        "strokeRole": "normal",
+        "lineCap": "round",
+        "lineJoin": "round"
+      }
+    },
+    {
+      "kind": "line",
+      "part": "output-lead",
+      "from": {
+        "x": 20,
         "y": 0
       },
       "to": {
@@ -97,66 +162,17 @@
         "lineCap": "butt",
         "lineJoin": "miter"
       }
-    },
-    {
-      "kind": "path",
-      "data": "M -26.7979 -24.9983 L -26.7979 25 L 23.2021 0 Z",
-      "style": {
-        "strokeRole": "emphasis",
-        "lineCap": "butt",
-        "lineJoin": "miter",
-        "miterLimit": 4
-      }
-    },
-    {
-      "kind": "line",
-      "from": {
-        "x": -18.047038,
-        "y": -8.749129
-      },
-      "to": {
-        "x": -18.047038,
-        "y": -16.249129
-      },
-      "style": {
-        "strokeRole": "normal",
-        "lineCap": "butt",
-        "lineJoin": "miter"
-      }
-    },
-    {
-      "kind": "line",
-      "from": {
-        "x": -21.796167,
-        "y": -12.5
-      },
-      "to": {
-        "x": -14.296167,
-        "y": -12.5
-      },
-      "style": {
-        "strokeRole": "normal",
-        "lineCap": "butt",
-        "lineJoin": "miter"
-      }
-    },
-    {
-      "kind": "line",
-      "from": {
-        "x": -21.796167,
-        "y": 12.5
-      },
-      "to": {
-        "x": -14.296167,
-        "y": 12.5
-      },
-      "style": {
-        "strokeRole": "normal",
-        "lineCap": "butt",
-        "lineJoin": "miter"
-      },
-      "part": "upright-input-polarity-negative"
     }
   ],
-  "variants": []
+  "formulaPresentation": {
+    "defaultFormula": "g_m",
+    "supportsCoefficient": true,
+    "center": {
+      "x": 3,
+      "y": 0
+    },
+    "fontSize": 12
+  },
+  "variants": [],
+  "labelVisibility": "hidden"
 }

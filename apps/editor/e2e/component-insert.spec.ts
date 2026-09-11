@@ -303,29 +303,55 @@ test("keeps quick-start shortcuts in the upper-right corner until the first comp
     "Quick start shortcuts",
   );
   await expect(quickStart).toContainText("Quick start");
-  await expect(quickStart).toContainText("Cadence keys");
+  await expect(quickStart).toContainText("All shortcuts");
   await expect(quickStart.locator("li")).toHaveText([
-    "CtrlFSelection filter",
+    "Ctrl/CmdFSelection filter",
+    "Ctrl/CmdShiftFSearch circuit",
     "FFit view",
+    "HomeFit view",
+    "Arrow keysPan view",
     "IInsert component",
-    "RRotate",
+    "PPlace Cell Pin",
+    "WDraw wire",
+    "F3Wire options",
+    "TAdd text",
+    "KDraw construction line",
+    "ODisplay settings",
+    "CCopy and place selection",
     "MMove selection",
     "ShiftMMove without wires",
-    "UUndo",
-    "PPlace Cell Pin",
-    "CCopy selection",
-    "QProperties",
-    "WDraw wire",
-    "LEdit Net Label",
+    "RRotate selection / next object",
     "ShiftRMirror left / right",
-    "CtrlRMirror top / bottom",
-    "EscCancel tool",
+    "Ctrl/CmdRMirror top / bottom",
+    "QToggle Properties",
+    "LCreate and place Net Label",
+    "HToggle Net highlight",
+    "XReverse current marker",
+    "EEnter selected Cell",
+    "ShiftEReturn to parent Cell",
+    "[Decrease selected line width",
+    "]Increase selected line width",
+    "EnterFinish wire or drawing",
+    "DeleteDelete / remove last wire bend",
+    "BackspaceDelete / remove last wire bend",
+    "EscCancel active tool",
+    "Ctrl/CmdASelect all",
+    "Ctrl/CmdDClear selection",
+    "UUndo",
+    "Ctrl/CmdZUndo",
     "ShiftURedo",
+    "Ctrl/CmdShiftZRedo",
+    "Ctrl/CmdYRedo",
+    "Ctrl/CmdSSave project",
+    "Ctrl/CmdOOpen project",
   ]);
-  await expect(quickStart.locator(".canvas-shortcut-list")).toHaveCSS(
-    "grid-template-columns",
-    /^\d+(?:\.\d+)?px$/u,
-  );
+  expect(
+    (
+      await quickStart
+        .locator(".canvas-shortcut-list")
+        .evaluate((element) => getComputedStyle(element).gridTemplateColumns)
+    ).split(" ").length,
+  ).toBeGreaterThan(1);
   expect(
     await quickStart.evaluate((element) => {
       const style = getComputedStyle(element);
@@ -361,6 +387,16 @@ test("keeps quick-start shortcuts in the upper-right corner until the first comp
     Math.round(propertiesBox.x - (quickStartBox.x + quickStartBox.width)),
   ).toBe(12);
   expect(quickStartBox.x).toBeGreaterThanOrEqual(canvasPanelBox.x + 11.5);
+  await expect
+    .poll(async () => {
+      const [menu, panel] = await Promise.all([
+        quickStart.boundingBox(),
+        page.locator(".canvas-panel").boundingBox(),
+      ]);
+      if (!menu || !panel) return Number.POSITIVE_INFINITY;
+      return menu.y + menu.height - (panel.y + panel.height - 11.5);
+    })
+    .toBeLessThanOrEqual(0);
   await page.setViewportSize(initialViewport);
 
   await page.keyboard.press("i");
@@ -667,16 +703,36 @@ test("groups drafting tools and editable polarity labels under Annotations", asy
   await expect(
     loneMinus.locator('[data-role="polarity-negative"]'),
   ).toHaveCount(1);
-  // Its arm is the pair's arm, measured rather than eyeballed.
-  const armOf = (locator: ReturnType<typeof canvas.locator>) =>
-    locator.evaluate((line) =>
-      Math.abs(
-        Number(line.getAttribute("x2")) - Number(line.getAttribute("x1")),
-      ),
-    );
-  expect(
-    await armOf(loneMinus.locator('[data-role="polarity-negative"]')),
-  ).toBe(await armOf(polarity.locator('[data-role="polarity-negative"]')));
+  // Its screen-space arm is the pair's arm, measured after the pair's parent
+  // rotation and the negative mark's counter-rotation have both applied.
+  const screenArmOf = (locator: ReturnType<typeof canvas.locator>) =>
+    locator.evaluate((element) => {
+      const line = element as SVGLineElement;
+      const matrix = line.getCTM();
+      if (!matrix) throw new Error("Polarity line transform is not measurable");
+      const start = new DOMPoint(
+        line.x1.baseVal.value,
+        line.y1.baseVal.value,
+      ).matrixTransform(matrix);
+      const end = new DOMPoint(
+        line.x2.baseVal.value,
+        line.y2.baseVal.value,
+      ).matrixTransform(matrix);
+      return {
+        dx: Math.abs(end.x - start.x),
+        dy: Math.abs(end.y - start.y),
+        length: Math.hypot(end.x - start.x, end.y - start.y),
+      };
+    });
+  const [loneArm, pairArm] = await Promise.all([
+    screenArmOf(loneMinus.locator('[data-role="polarity-negative"]')),
+    screenArmOf(polarity.locator('[data-role="polarity-negative"]')),
+  ]);
+  expect(loneArm.length).toBeCloseTo(pairArm.length, 6);
+  expect(loneArm.dx).toBeCloseTo(loneArm.length, 6);
+  expect(pairArm.dx).toBeCloseTo(pairArm.length, 6);
+  expect(loneArm.dy).toBeCloseTo(0, 6);
+  expect(pairArm.dy).toBeCloseTo(0, 6);
 
   // Three dots use the canonical DraftText path. That makes each dot exactly
   // the current default font's period glyph and reuses the same generic text
@@ -1146,12 +1202,23 @@ test("carries a manual Value through placement and Q property editing", async ({
     page.getByRole("button", { name: "Discard changes" }),
   ).toHaveCount(0);
   // Electrical renaming and the shared visual editor are distinct actions;
-  // there is no second, plain-text Label field.
-  await expect(page.getByLabel("Component identity")).toContainText(
-    "Netlist ReferenceVisual annotationEdit annotationSymbolresistorCell",
+  // there is no second, plain-text Label field or heavyweight Identity card.
+  await expect(page.getByText("Identity", { exact: true })).toHaveCount(0);
+  await expect(page.getByLabel("Component controls")).toContainText(
+    "Netlist ReferenceVisual annotationEdit annotation",
   );
-  await expect(page.getByLabel("Component identity")).not.toContainText(
+  await expect(page.getByLabel("Component controls")).not.toContainText(
     "Device class",
+  );
+  const componentCode = page.locator(
+    '[aria-label="Component properties"] > :last-child',
+  );
+  await expect(componentCode).toHaveAttribute(
+    "aria-label",
+    "SPICE component code",
+  );
+  await expect(componentCode).toHaveText(
+    /R1.*<unconnected:1>.*<unconnected:2>.*<value>/u,
   );
   const instanceReference = page.getByLabel("Netlist Reference");
   await expect(instanceReference).toHaveValue("R1");
@@ -1337,6 +1404,52 @@ test("tiles the whole catalog into one flat quick-pick grid", async ({
   await canvas.hover({ position: { x: 360, y: 230 } });
   await expect(page.getByTestId("component-placement-preview")).toBeVisible();
   await page.keyboard.press("Escape");
+});
+
+test("widens the Insert picker and adds columns with the editor viewport", async ({
+  page,
+}) => {
+  const measurePicker = async () => {
+    const dialog = page.getByRole("dialog", { name: "Insert Component" });
+    await expect(dialog).toBeVisible();
+    const box = await dialog.boundingBox();
+    if (!box) throw new Error("Insert Component dialog is not measurable");
+    const firstTop = await dialog
+      .getByRole("option")
+      .first()
+      .evaluate((element) => (element as HTMLElement).offsetTop);
+    const columns = await dialog
+      .locator(".insert-tile-grid")
+      .evaluate(
+        (element, top) =>
+          Array.from(
+            element.querySelectorAll<HTMLElement>('[role="option"]'),
+          ).filter((option) => option.offsetTop === top).length,
+        firstTop,
+      );
+    return { width: box.width, columns };
+  };
+
+  // A window snapped to half of a common desktop uses its complete available
+  // width apart from the 20px modal gutter on each side.
+  await page.setViewportSize({ width: 960, height: 800 });
+  await page.goto("/editor");
+  await awaitEditorReady(page);
+  await page.keyboard.press("i");
+  const halfScreen = await measurePicker();
+  const rootFontSize = await page.evaluate(() =>
+    Number.parseFloat(getComputedStyle(document.documentElement).fontSize),
+  );
+  expect(halfScreen.width).toBe(960 - rootFontSize * 2.5);
+
+  await page.keyboard.press("Escape");
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  await page.keyboard.press("i");
+  const fullScreen = await measurePicker();
+
+  expect(fullScreen.width).toBe(rootFontSize * 96);
+  expect(fullScreen.width).toBeGreaterThan(halfScreen.width + 250);
+  expect(fullScreen.columns).toBeGreaterThan(halfScreen.columns);
 });
 
 test("sets MOS parameters and orientation through the ghost and Properties", async ({
@@ -1760,6 +1873,21 @@ test("keeps a usable canvas while toggling Library at the narrow breakpoint", as
   }
   expect(helpBox.x + helpBox.width).toBeLessThanOrEqual(
     chromeBox.x + chromeBox.width,
+  );
+
+  // Publish is the primary half-screen action. Simulation and Check and Save
+  // may continue to the horizontally scrollable tail, but Publish must be in
+  // the command surface's initial visible segment without any manual scroll.
+  const commandSurface = page.locator(".app-command-surface");
+  const publish = page.getByTestId("publish-gallery-button");
+  const commandBox = await commandSurface.boundingBox();
+  const publishBox = await publish.boundingBox();
+  if (!commandBox || !publishBox) {
+    throw new Error("Primary editor command is not measurable");
+  }
+  expect(publishBox.x).toBeGreaterThanOrEqual(commandBox.x);
+  expect(publishBox.x + publishBox.width).toBeLessThanOrEqual(
+    commandBox.x + commandBox.width,
   );
 
   const panel = page.getByTestId("shapes-library-panel");

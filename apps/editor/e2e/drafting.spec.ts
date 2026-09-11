@@ -80,7 +80,7 @@ test("outline arrow style is chosen before stamp/drag and shares editable geomet
 
   await canvas.focus();
   await page.keyboard.press("Escape");
-  await page.keyboard.press("a");
+  await clickDrawTool(page, "arrow");
   const from = { x: box.x + 220, y: box.y + 150 },
     to = { x: from.x + 80, y: from.y + 120 };
   await page.mouse.move(from.x, from.y);
@@ -188,6 +188,12 @@ async function expectForeignObjectContentsContained(
   expect(containment).toEqual({ contentFits: true, contained: true });
 }
 
+async function controlTop(locator: Locator): Promise<number> {
+  const bounds = await locator.boundingBox();
+  if (!bounds) throw new Error("Toolbar control is not measurable");
+  return bounds.y;
+}
+
 // The canvas-local toolbar creates RichText AST without exposing raw markup.
 test("adds formatted drafting text and undo/redo restores it", async ({
   page,
@@ -218,18 +224,79 @@ test("adds formatted drafting text and undo/redo restores it", async ({
   await expectForeignObjectContentsContained(
     page.getByTestId("canvas-text-editor"),
   );
-  const toolbarCenters = await page
-    .getByRole("toolbar", { name: "Text formatting" })
-    .locator(":scope > *")
-    .evaluateAll((elements) =>
-      elements.map((element) => {
-        const bounds = element.getBoundingClientRect();
-        return bounds.top + bounds.height / 2;
-      }),
-    );
+  const [canvasBounds, editorBounds] = await Promise.all([
+    page.getByTestId("schematic-canvas").boundingBox(),
+    page.getByTestId("canvas-text-editor").boundingBox(),
+  ]);
+  if (!canvasBounds || !editorBounds) {
+    throw new Error("Canvas text editor geometry is not measurable");
+  }
+  expect(editorBounds.x).toBeGreaterThanOrEqual(canvasBounds.x);
+  expect(editorBounds.x + editorBounds.width).toBeLessThanOrEqual(
+    canvasBounds.x + canvasBounds.width + 1,
+  );
+  expect(editorBounds.width).toBeCloseTo(400, 0);
+  const [boldTop, increaseTop, applyTop, cancelTop, deleteTop] =
+    await Promise.all([
+      controlTop(page.getByRole("button", { name: "Bold" })),
+      controlTop(page.getByRole("button", { name: "Increase text size" })),
+      controlTop(page.getByRole("button", { name: "Apply text changes" })),
+      controlTop(page.getByRole("button", { name: "Cancel text changes" })),
+      controlTop(page.getByRole("button", { name: "Delete text" })),
+    ]);
+  expect(Math.abs(increaseTop - boldTop)).toBeLessThan(1);
+  expect(Math.abs(cancelTop - applyTop)).toBeLessThan(1);
+  expect(Math.abs(deleteTop - applyTop)).toBeLessThan(1);
+  expect(applyTop).toBeGreaterThan(boldTop);
+
+  const fullViewport = page.viewportSize();
+  await page.setViewportSize({ width: 720, height: 720 });
+  await expect
+    .poll(async () =>
+      page
+        .getByTestId("canvas-text-editor")
+        .boundingBox()
+        .then((bounds) => bounds?.width),
+    )
+    .toBeCloseTo(400, 0);
+  const [narrowBoldTop, narrowIncreaseTop, narrowApplyTop, narrowCancelTop] =
+    await Promise.all([
+      controlTop(page.getByRole("button", { name: "Bold" })),
+      controlTop(page.getByRole("button", { name: "Increase text size" })),
+      controlTop(page.getByRole("button", { name: "Apply text changes" })),
+      controlTop(page.getByRole("button", { name: "Cancel text changes" })),
+    ]);
+  expect(Math.abs(narrowIncreaseTop - narrowBoldTop)).toBeLessThan(1);
+  // Browser font metrics may shift text-only button boxes by a few pixels;
+  // both actions must still occupy the deliberate second toolbar row.
+  expect(Math.abs(narrowCancelTop - narrowApplyTop)).toBeLessThan(8);
+  expect(narrowApplyTop).toBeGreaterThan(narrowBoldTop);
+  await page.getByLabel("Insert circuit symbol").click();
+  const [symbolMenuBounds, narrowEditorBounds] = await Promise.all([
+    page.getByRole("menu", { name: "Circuit symbols" }).boundingBox(),
+    page.getByTestId("canvas-text-editor").boundingBox(),
+  ]);
+  if (!symbolMenuBounds || !narrowEditorBounds) {
+    throw new Error("Circuit symbol menu geometry is not measurable");
+  }
+  expect(symbolMenuBounds.x).toBeGreaterThanOrEqual(narrowEditorBounds.x);
+  expect(symbolMenuBounds.x + symbolMenuBounds.width).toBeLessThanOrEqual(
+    narrowEditorBounds.x + narrowEditorBounds.width + 1,
+  );
+  await page.getByLabel("Insert circuit symbol").click();
+  if (fullViewport) await page.setViewportSize(fullViewport);
+
+  await draftInput.fill(
+    "A deliberately long annotation that wraps inside the compact canvas text editor instead of extending beyond it",
+  );
+  await expectForeignObjectContentsContained(
+    page.getByTestId("canvas-text-editor"),
+  );
   expect(
-    Math.max(...toolbarCenters) - Math.min(...toolbarCenters),
-  ).toBeLessThan(1);
+    await draftInput.evaluate(
+      (element) => element.scrollWidth <= element.clientWidth + 1,
+    ),
+  ).toBe(true);
   const initialFontSize = await draftInput.evaluate((element) =>
     Number.parseFloat(getComputedStyle(element).fontSize),
   );
@@ -772,7 +839,7 @@ test("switching creation tools discards the incompatible draft session", async (
   await expect(page.getByTestId("active-tool")).toHaveText("pointer");
 });
 
-test("repeating A or K preserves the current drafting session", async ({
+test("A is unbound while K preserves the current drafting session", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -780,6 +847,8 @@ test("repeating A or K preserves the current drafting session", async ({
   const canvas = page.getByTestId("schematic-canvas");
 
   await page.keyboard.press("a");
+  await expect(page.getByTestId("active-tool")).toHaveText("pointer");
+  await clickDrawTool(page, "arrow");
   await canvas.click({ position: { x: 220, y: 220 } });
   await canvas.hover({ position: { x: 420, y: 260 } });
   await expect(page.getByTestId("drafting-create-preview")).toBeVisible();
@@ -1232,12 +1301,25 @@ test("R creates a selectable, styleable rectangle with four resize handles", asy
   expect(await rectangle.getAttribute("points")).not.toBe(pointsBeforeResize);
 });
 
-test("O creates a selectable, styleable circle with one radial handle and no rotation", async ({
+test("O toggles Display settings and never activates Circle", async ({
   page,
 }) => {
   await page.goto("/editor");
   await awaitEditorReady(page);
+
   await page.keyboard.press("o");
+  await expect(page.getByLabel("Document settings")).toBeVisible();
+  await expect(page.getByTestId("active-tool")).toHaveText("pointer");
+  await page.keyboard.press("o");
+  await expect(page.getByLabel("Document settings")).toHaveCount(0);
+});
+
+test("the Circle toolbar creates a selectable shape with one radial handle and no rotation", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await awaitEditorReady(page);
+  await clickDrawTool(page, "circle");
   await clickCreate(page, { x: 260, y: 260 }, { x: 340, y: 260 });
   await expect(page.getByTestId("revision")).toHaveText("1");
 

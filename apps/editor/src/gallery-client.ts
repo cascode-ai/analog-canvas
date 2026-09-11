@@ -216,12 +216,19 @@ export interface GalleryTagOption {
   count: number;
 }
 
+/** One public byline and its contribution to the whole Gallery wall. */
+export interface GalleryAuthorOption {
+  author: string;
+  count: number;
+}
+
 export async function loadGalleryFeed(
   fetchLike: typeof fetch = fetch,
   options: {
     cursor?: string | null;
     author?: string | null;
     tags?: readonly string[];
+    limit?: number;
   } = {},
 ): Promise<GalleryFeedPage | null> {
   const params = new URLSearchParams();
@@ -230,6 +237,7 @@ export async function loadGalleryFeed(
     params.set("tags", options.tags.join(","));
   }
   if (options.cursor) params.set("cursor", options.cursor);
+  if (options.limit !== undefined) params.set("limit", String(options.limit));
   const query = params.toString();
   try {
     const response = await fetchLike(
@@ -248,6 +256,24 @@ export async function loadGalleryFeed(
         typeof payload.nextCursor === "string" ? payload.nextCursor : null,
       total: typeof payload.total === "number" ? payload.total : null,
     };
+  } catch {
+    return null;
+  }
+}
+
+/** The public contributors ranked by how many circuits they have shared. */
+export async function loadGalleryAuthors(
+  fetchLike: typeof fetch = fetch,
+): Promise<GalleryAuthorOption[] | null> {
+  try {
+    const response = await fetchLike("/api/gallery/authors", {
+      credentials: "same-origin",
+    });
+    if (!response.ok) return null;
+    const payload = (await response.json()) as {
+      authors?: GalleryAuthorOption[];
+    };
+    return payload.authors ?? [];
   } catch {
     return null;
   }

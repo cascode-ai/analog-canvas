@@ -28,6 +28,11 @@ restrictive content-security-policy.
   fallback.
 - `GET /api/gallery/tags` — distinct public tags with counts, most
   frequent first (feeds the multi-select menu).
+- `GET /api/gallery/authors` — non-empty public bylines with their currently
+  visible circuit counts, ranked by count and then author name. The clickable
+  wall count uses this roll-up for its contributor leaderboard; expanding one
+  author lazily reads that author's newest circuits from the ordinary feed and
+  can switch the wall to the existing exact-author filter.
 - `GET /api/gallery/<id>` — one public entry with its canonical
   `projectText`.
 - `GET /api/gallery/<id>/preview.svg?v=<previewRevision>` — the
@@ -69,6 +74,12 @@ no-store metadata without waiting for a cache TTL.
 The byline is not a request field: the Worker takes `author` from the
 session's display name, so one account cannot publish under another's
 name, and an update never re-attributes an entry.
+
+After a successful first publication, the editor associates the live Project
+with the returned entry id. Further edits followed by Publish default to
+`PUT /api/gallery/<id>` for that same item rather than creating duplicates.
+Replacing the active Project clears the association; deliberately choosing
+"Publish as a new entry" replaces it with the newly returned entry id.
 
 Every entry records the submitting account: `owner_user_id` plus the
 `submitter_email` and `submitter_provider` read from the session at

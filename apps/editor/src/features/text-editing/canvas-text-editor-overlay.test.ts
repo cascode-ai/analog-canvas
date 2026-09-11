@@ -26,9 +26,10 @@ describe("canvas text editor frame", () => {
     expect(frame.layoutWidth).toBeCloseTo(frame.width * pixelsPerUnit, 10);
   });
 
-  it("covers two thirds of the canvas", () => {
+  it("uses one screen width at full- and half-window sizes", () => {
     for (const [view, pixelsPerUnit] of [
       [camera(960, 640), 0.95],
+      [camera(960, 640), 0.7],
       [camera(240, 160), 3.8],
       [camera(3840, 2560), 0.2375],
     ] as const) {
@@ -38,11 +39,17 @@ describe("canvas text editor frame", () => {
         1,
         pixelsPerUnit,
       );
-      expect(frame.width / view.width).toBeCloseTo(2 / 3, 10);
-      // Which is two thirds of the canvas, in pixels, at every zoom.
-      const canvasPx = view.width * pixelsPerUnit;
-      expect((frame.width * pixelsPerUnit) / canvasPx).toBeCloseTo(2 / 3, 10);
+      expect(view.width * pixelsPerUnit).toBeGreaterThan(400);
+      expect(frame.width * pixelsPerUnit).toBeCloseTo(400, 10);
+      expect(frame.layoutWidth).toBeCloseTo(400, 10);
     }
+  });
+
+  it("shrinks only when the canvas cannot fit the standard editor", () => {
+    const frame = resolveCanvasTextEditorFrame(target, camera(400, 640), 1, 1);
+    expect(frame.layoutWidth).toBe(384);
+    expect(frame.x).toBeGreaterThanOrEqual(8);
+    expect(frame.x + frame.width).toBeLessThanOrEqual(392);
   });
 
   it("holds one apparent size however far the camera is zoomed", () => {
@@ -62,7 +69,7 @@ describe("canvas text editor frame", () => {
   it("stays proportional before the canvas has been measured", () => {
     // The first paint has no measurement; the panel must still be sensible.
     const frame = resolveCanvasTextEditorFrame(target, camera(960, 640), 1);
-    expect(frame.width / 960).toBeCloseTo(2 / 3, 10);
+    expect(frame.width / 960).toBeCloseTo(1 / 2, 10);
     expect(frame.layoutWidth).toBeGreaterThan(0);
   });
 

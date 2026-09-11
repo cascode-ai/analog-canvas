@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "id": "opamp-differential-crossed-inputs-swapped",
-  "name": "Differential Op Amp (crossed outputs) (swapped inputs)",
+  "id": "opamp-differential-crossed-lettered-inputs-swapped",
+  "name": "Differential Op Amp (crossed outputs, lettered) (swapped inputs)",
   "viewBox": {
     "x": -44,
     "y": -34,
@@ -244,5 +244,14 @@
       "part": "output-polarity"
     }
   ],
-  "variants": []
+  "variants": [],
+  "formulaPresentation": {
+    "defaultFormula": "A",
+    "supportsCoefficient": false,
+    "center": {
+      "x": -13.46,
+      "y": 0
+    },
+    "fontSize": 16
+  }
 }

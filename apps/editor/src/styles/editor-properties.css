@@ -44,10 +44,6 @@
   padding: 0.65rem;
 }
 
-.property-identity-card {
-  background: var(--icm-surface-muted);
-}
-
 .property-card > small,
 .property-disclosure-body > small,
 .property-target-card label > small,
@@ -301,6 +297,31 @@
   font-size: var(--icm-font-sm);
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.component-source-code {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-md);
+  color: var(--icm-text-muted);
+  background: var(--icm-surface-muted);
+  font-size: var(--icm-font-sm);
+}
+
+.component-source-code code {
+  overflow-wrap: anywhere;
+  color: var(--icm-text);
+  font-family: var(--icm-font-mono, ui-monospace, monospace);
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.component-source-code small {
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
 }
 
 .net-name-properties {

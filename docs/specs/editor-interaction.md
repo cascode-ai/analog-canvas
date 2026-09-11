@@ -79,25 +79,27 @@ remains unresolved. Drawing the visible `bulk-dashed` connection clears that
 default binding and connects B to the selected Net in the same transaction.
 Imported MOS instances do not receive a guessed fourth node.
 
-## Formula-capable Signal Flow blocks
+## Formula-capable behavioral blocks
 
 Integrator (`1/s`), Unit Delay (`z^-1`), and Discrete-Time Integrator
 (`z^-1/(1-z^-1)`) are presets of one rectangular Transfer Function presentation
-contract; they differ only in the prefilled formula. Transconductance (`+g_m`)
-uses the same formula and adaptive-layout contract with a directly witnessed
-right-tapered trapezoid. Authors can edit it to textbook forms such as `+g_m1`
-or `-g_mL`; `_` and Unicode subscript glyphs render as SVG subscripts. Every
-formula glyph uses the same
-12-unit size. Fractions stack numerator and denominator without shrinking the
-text, and longer content automatically expands the frame and the horizontal
-A/Y lead span on the 10-unit grid. Properties edits the formula, optional
-coefficient, and optional minimum width/height. Authored dimensions are lower
-bounds—content can make the frame larger, never smaller or clipped. The shared
+contract; they differ only in the prefilled formula. The Analog Blocks library
+also provides single-input and differential Transconductance (`g_m`) forms.
+The single-input form uses the same adaptive-layout contract with a directly
+witnessed right-tapered trapezoid; the differential form keeps two fixed input
+anchors and one output anchor. Authors can edit either to textbook forms such as
+`g_m1` or `-g_mL`; `_` and Unicode subscript glyphs render as SVG subscripts.
+Every formula glyph uses the same 12-unit size. Fractions stack numerator and
+denominator without shrinking the text. For adaptive forms, longer content
+automatically expands the frame and horizontal lead span on the 10-unit grid;
+authored dimensions are lower bounds, never clipping constraints. That shared
 layout also drives route endpoints, hit bounds, backgrounds, previews, and
-untouched canonical instance-label placement. These controls are schematic-only
-and do not modify SPICE parameters, netlist identity, or electrical pin names.
-All formula-capable Signal Flow blocks remain manual-only behavioral elements;
-a structural netlist requires an explicit implementation mapping.
+untouched canonical instance-label placement. Properties always edits the
+formula and optional coefficient, and offers minimum width/height only when the
+Symbol declares an adaptive frame. These controls are schematic-only and do not
+modify SPICE parameters, netlist identity, or electrical pin names. All such
+behavioral blocks remain manual-only; a structural netlist requires an explicit
+implementation mapping.
 
 Ground is the `ground` component connected through pin `0`; placement reuses an
 existing global ground supply Net. Power Rail is a virtual Library item presented

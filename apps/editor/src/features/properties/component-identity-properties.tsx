@@ -5,7 +5,7 @@ import type { SchematicDocument } from "@icm/model";
 import { deviceDescriptor } from "@icm/devices";
 
 import type { CapacitorPlatePropertyRow } from "./capacitor-plate-properties";
-import { PropertyDisclosure } from "./property-disclosure";
+import type { ComponentSourceCode } from "./component-source-code";
 
 type Instance = SchematicDocument["instances"][number];
 
@@ -175,13 +175,13 @@ export function componentTargetDescription(
 export function ComponentIdentityProperties({
   instance,
   revision,
-  cellName,
   formalTerminalSelected,
   portNet,
   targetDescription,
   capacitorPlateRows,
   propertyTerminal,
   modelTarget,
+  sourceCode,
   onEditAnnotation,
   onMarkerNameChange,
   onReferenceChange,
@@ -189,7 +189,6 @@ export function ComponentIdentityProperties({
 }: {
   instance: Instance;
   revision: number;
-  cellName: string;
   formalTerminalSelected: boolean;
   portNet: { id: string; logicalName: string; supply: boolean } | null;
   targetDescription: string | null;
@@ -202,84 +201,83 @@ export function ComponentIdentityProperties({
     onChange: (netId: string | null) => void;
   } | null;
   modelTarget: ComponentModelTargetView | null;
+  sourceCode: ComponentSourceCode;
   onEditAnnotation?: () => void;
   onMarkerNameChange: (value: string) => void;
   onReferenceChange: (value: string) => boolean | void;
   onModelTargetChange: (value: string) => void;
 }) {
   const reference = instance.reference ?? "";
+  const hasEditableIdentityControls = Boolean(
+    (portNet && !formalTerminalSelected) ||
+    instance.reference ||
+    onEditAnnotation ||
+    targetDescription,
+  );
   return (
     <>
-      <PropertyDisclosure
-        title="Identity"
-        className="property-identity-card"
-        ariaLabel="Component identity"
-        defaultOpen
-      >
-        <dl className="component-readonly-fields">
-          {portNet && !formalTerminalSelected ? (
-            <div>
-              <dt>{portNet.supply ? "Supply" : "Net name"}</dt>
-              <dd>
-                <input
-                  dir="auto"
-                  key={`${portNet.id}-${revision}-net-port-name`}
-                  aria-label={
-                    portNet.supply ? "Supply name" : "Supply Net name"
-                  }
-                  defaultValue={portNet.logicalName}
-                  onBlur={(event) =>
-                    onMarkerNameChange(event.currentTarget.value)
-                  }
-                />
-              </dd>
-            </div>
-          ) : null}
-          {instance.reference ? (
-            <div>
-              <dt>Netlist Reference</dt>
-              <dd>
-                <input
-                  dir="auto"
-                  key={`${instance.id}-${revision}-reference`}
-                  aria-label="Netlist Reference"
-                  defaultValue={reference}
-                  onBlur={(event) =>
-                    commitIdentityInput(event, reference, onReferenceChange)
-                  }
-                  onKeyDown={(event) =>
-                    handleIdentityInputKeyDown(event, reference)
-                  }
-                />
-              </dd>
-            </div>
-          ) : null}
-          {onEditAnnotation ? (
-            <div>
-              <dt>Visual annotation</dt>
-              <dd>
-                <button type="button" onClick={onEditAnnotation}>
-                  Edit annotation
-                </button>
-              </dd>
-            </div>
-          ) : null}
-          <div>
-            <dt>Symbol</dt>
-            <dd>{instance.symbolId}</dd>
-          </div>
-          <div>
-            <dt>Cell</dt>
-            <dd>{cellName}</dd>
-          </div>
-          {targetDescription ? (
-            <div className="property-identity-target">
-              <dt>Target</dt>
-              <dd>{targetDescription}</dd>
-            </div>
-          ) : null}
-        </dl>
-      </PropertyDisclosure>
+      {hasEditableIdentityControls ? (
+        <div
+          className="property-card component-identity-controls"
+          aria-label="Component controls"
+        >
+          <dl className="component-readonly-fields">
+            {portNet && !formalTerminalSelected ? (
+              <div>
+                <dt>{portNet.supply ? "Supply" : "Net name"}</dt>
+                <dd>
+                  <input
+                    dir="auto"
+                    key={`${portNet.id}-${revision}-net-port-name`}
+                    aria-label={
+                      portNet.supply ? "Supply name" : "Supply Net name"
+                    }
+                    defaultValue={portNet.logicalName}
+                    onBlur={(event) =>
+                      onMarkerNameChange(event.currentTarget.value)
+                    }
+                  />
+                </dd>
+              </div>
+            ) : null}
+            {instance.reference ? (
+              <div>
+                <dt>Netlist Reference</dt>
+                <dd>
+                  <input
+                    dir="auto"
+                    key={`${instance.id}-${revision}-reference`}
+                    aria-label="Netlist Reference"
+                    defaultValue={reference}
+                    onBlur={(event) =>
+                      commitIdentityInput(event, reference, onReferenceChange)
+                    }
+                    onKeyDown={(event) =>
+                      handleIdentityInputKeyDown(event, reference)
+                    }
+                  />
+                </dd>
+              </div>
+            ) : null}
+            {onEditAnnotation ? (
+              <div>
+                <dt>Visual annotation</dt>
+                <dd>
+                  <button type="button" onClick={onEditAnnotation}>
+                    Edit annotation
+                  </button>
+                </dd>
+              </div>
+            ) : null}
+            {targetDescription ? (
+              <div className="property-identity-target">
+                <dt>Target</dt>
+                <dd>{targetDescription}</dd>
+              </div>
+            ) : null}
+          </dl>
+        </div>
+      ) : null}
       {capacitorPlateRows ? (
         <div
           className="property-card property-terminal-card"
@@ -344,6 +342,14 @@ export function ComponentIdentityProperties({
           ) : null}
         </div>
       ) : null}
+      <div
+        className="component-source-code"
+        aria-label="SPICE component code"
+        data-exact={sourceCode.exact}
+      >
+        <code>{sourceCode.code}</code>
+        {sourceCode.note ? <small>{sourceCode.note}</small> : null}
+      </div>
     </>
   );
 }

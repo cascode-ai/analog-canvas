@@ -198,11 +198,11 @@ describe("render svg", () => {
     const transconductance = {
       ...definition,
       id: "transconductance",
-      name: "Transconductance (+gₘ)",
+      name: "Transconductance (gₘ)",
       viewBox: { x: -44, y: -39, width: 88, height: 78 },
       formulaPresentation: {
         ...definition.formulaPresentation,
-        defaultFormula: "+g_m",
+        defaultFormula: "g_m",
         adaptiveFrame: {
           ...definition.formulaPresentation.adaptiveFrame,
           shape: "right-tapered-trapezoid" as const,

@@ -1,7 +1,12 @@
-import type { SchematicDocument } from "@icm/model";
+import {
+  transformPoint,
+  type DerivedPoint,
+  type SchematicDocument,
+  type SymbolLocalPoint,
+} from "@icm/model";
 import { resolveEndpointConnection } from "@icm/derived";
 import type { ResolvedRouteGeometry } from "@icm/derived";
-import type { SymbolResolver } from "@icm/symbols";
+import type { ResolvedSymbol, SymbolResolver } from "@icm/symbols";
 
 import { instanceVisibleHitBox } from "./instance-geometry";
 
@@ -20,6 +25,13 @@ export interface WireUnderSymbolWarning {
 const BODY_CLEARANCE = 4;
 
 const AXIS_EPSILON = 1e-6;
+
+type CollisionRegion =
+  | {
+      kind: "box";
+      box: { x: number; y: number; width: number; height: number };
+    }
+  | { kind: "convex-polygon"; points: readonly DerivedPoint[] };
 
 interface PinLead {
   pinName: string;
@@ -149,11 +161,177 @@ function clipSegmentToBox(
 }
 
 /**
+ * Read the deliberately small closed-path subset used by straight-edged
+ * symbol bodies (`M x y L x y ... Z`). Curves and open decorative strokes
+ * stay opaque and keep the conservative box fallback.
+ */
+function closedStraightPathPoints(data: string): SymbolLocalPoint[] | null {
+  const tokenPattern =
+    /[A-Za-z]|[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?/gu;
+  const tokens = data.match(tokenPattern) ?? [];
+  const unsupported = data.replace(tokenPattern, "").replace(/[\s,]/gu, "");
+  if (unsupported.length > 0 || tokens[0] !== "M") return null;
+
+  const points: SymbolLocalPoint[] = [];
+  let index = 1;
+  const readPoint = (): SymbolLocalPoint | null => {
+    const x = Number(tokens[index]);
+    const y = Number(tokens[index + 1]);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+    index += 2;
+    return { x, y };
+  };
+  const first = readPoint();
+  if (!first) return null;
+  points.push(first);
+
+  while (tokens[index] === "L") {
+    index += 1;
+    const point = readPoint();
+    if (!point) return null;
+    points.push(point);
+  }
+  if (
+    tokens[index] !== "Z" ||
+    index !== tokens.length - 1 ||
+    points.length < 3
+  ) {
+    return null;
+  }
+  return points;
+}
+
+function signedPolygonArea(points: readonly SymbolLocalPoint[]): number {
+  return (
+    points.reduce((sum, point, index) => {
+      const next = points[(index + 1) % points.length]!;
+      return sum + point.x * next.y - next.x * point.y;
+    }, 0) / 2
+  );
+}
+
+function isConvexPolygon(points: readonly SymbolLocalPoint[]): boolean {
+  let turn = 0;
+  for (let index = 0; index < points.length; index += 1) {
+    const a = points[index]!;
+    const b = points[(index + 1) % points.length]!;
+    const c = points[(index + 2) % points.length]!;
+    const cross = (b.x - a.x) * (c.y - b.y) - (b.y - a.y) * (c.x - b.x);
+    if (Math.abs(cross) <= AXIS_EPSILON) continue;
+    const direction = Math.sign(cross);
+    if (turn !== 0 && direction !== turn) return false;
+    turn = direction;
+  }
+  return turn !== 0 && Math.abs(signedPolygonArea(points)) > AXIS_EPSILON;
+}
+
+/** Clip a segment to a convex polygon inset by the body clearance. */
+function clipSegmentToConvexPolygon(
+  from: DerivedPoint,
+  to: DerivedPoint,
+  points: readonly DerivedPoint[],
+): { from: DerivedPoint; to: DerivedPoint } | null {
+  const area = signedPolygonArea(points);
+  if (Math.abs(area) <= AXIS_EPSILON) return null;
+  const orientation = Math.sign(area);
+  let t0 = 0;
+  let t1 = 1;
+
+  for (let index = 0; index < points.length; index += 1) {
+    const edgeFrom = points[index]!;
+    const edgeTo = points[(index + 1) % points.length]!;
+    const edgeX = edgeTo.x - edgeFrom.x;
+    const edgeY = edgeTo.y - edgeFrom.y;
+    const edgeLength = Math.hypot(edgeX, edgeY);
+    if (edgeLength <= AXIS_EPSILON) continue;
+    const signedDistance = (point: DerivedPoint) =>
+      (orientation *
+        (edgeX * (point.y - edgeFrom.y) - edgeY * (point.x - edgeFrom.x))) /
+      edgeLength;
+    const startDistance = signedDistance(from);
+    const distanceDelta = signedDistance(to) - startDistance;
+    if (Math.abs(distanceDelta) <= AXIS_EPSILON) {
+      if (startDistance <= BODY_CLEARANCE) return null;
+      continue;
+    }
+    const crossing = (BODY_CLEARANCE - startDistance) / distanceDelta;
+    if (distanceDelta > 0) t0 = Math.max(t0, crossing);
+    else t1 = Math.min(t1, crossing);
+    if (t1 - t0 <= 1e-9) return null;
+  }
+
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  return {
+    from: { x: from.x + dx * t0, y: from.y + dy * t0 },
+    to: { x: from.x + dx * t1, y: from.y + dy * t1 },
+  };
+}
+
+function collisionRegions(
+  instance: SchematicDocument["instances"][number],
+  resolved: ResolvedSymbol,
+): CollisionRegion[] {
+  if (!instance.placement) return [];
+  const hiddenParts = new Set(resolved.variant?.hiddenPrimitiveParts ?? []);
+  const primitives = [
+    ...resolved.definition.primitives,
+    ...(resolved.variant?.additionalPrimitives ?? []),
+  ].filter((primitive) => !primitive.part || !hiddenParts.has(primitive.part));
+  // Adaptive Signal Flow frames are rendered from per-instance dimensions;
+  // their authored path is only the default size, so retain the bounds path.
+  const polygons = resolved.definition.formulaPresentation?.adaptiveFrame
+    ? []
+    : primitives.flatMap((primitive) => {
+        if (primitive.kind !== "path") return [];
+        const points = closedStraightPathPoints(primitive.data);
+        if (!points || !isConvexPolygon(points)) return [];
+        return [
+          {
+            kind: "convex-polygon" as const,
+            points: points.map((point) =>
+              transformPoint(
+                point,
+                instance.placement!.position,
+                instance.placement!,
+              ),
+            ),
+          },
+        ];
+      });
+  if (polygons.length > 0) return polygons;
+
+  const box = instanceVisibleHitBox(instance, resolved);
+  if (!box) return [];
+  const deflated = {
+    x: box.x + BODY_CLEARANCE,
+    y: box.y + BODY_CLEARANCE,
+    width: box.width - BODY_CLEARANCE * 2,
+    height: box.height - BODY_CLEARANCE * 2,
+  };
+  return deflated.width > 0 && deflated.height > 0
+    ? [{ kind: "box", box: deflated }]
+    : [];
+}
+
+function clipSegmentToRegion(
+  from: DerivedPoint,
+  to: DerivedPoint,
+  region: CollisionRegion,
+): { from: DerivedPoint; to: DerivedPoint } | null {
+  return region.kind === "box"
+    ? clipSegmentToBox(from, to, region.box)
+    : clipSegmentToConvexPolygon(from, to, region.points);
+}
+
+/**
  * Conductor spans buried under symbol artwork. Escape leads (a pin's own
  * derived stem), bulk-dashed presentation, and spans riding exactly one pin
  * lead that the route's Net lists as a terminal are exempt; everything else
- * that crosses the deflated body box of any placed instance is reported so
- * the editor can paint a warning over the covered span.
+ * that crosses the inset body region of any placed instance is reported so
+ * the editor can paint a warning over the covered span. Closed straight-edged
+ * bodies use their real polygon rather than the empty corners of a bounding
+ * box; opaque or curved artwork keeps the conservative box fallback.
  */
 export function deriveWireUnderSymbolWarnings(
   document: SchematicDocument,
@@ -163,31 +341,25 @@ export function deriveWireUnderSymbolWarnings(
     geometry: ResolvedRouteGeometry;
   }[],
 ): WireUnderSymbolWarning[] {
-  const boxes = document.instances.flatMap((instance) => {
+  const targets = document.instances.flatMap((instance) => {
     if (!instance.placement) return [];
     const resolved = resolver.resolve(
       instance.symbolId,
       instance.symbolVariantId,
     );
-    const box = resolved ? instanceVisibleHitBox(instance, resolved) : null;
-    if (!box) return [];
-    const deflated = {
-      x: box.x + BODY_CLEARANCE,
-      y: box.y + BODY_CLEARANCE,
-      width: box.width - BODY_CLEARANCE * 2,
-      height: box.height - BODY_CLEARANCE * 2,
-    };
-    return deflated.width > 0 && deflated.height > 0
+    if (!resolved) return [];
+    const regions = collisionRegions(instance, resolved);
+    return regions.length > 0
       ? [
           {
             instanceId: instance.id,
-            box: deflated,
+            regions,
             leads: visiblePinLeads(document, resolver, instance),
           },
         ]
       : [];
   });
-  if (boxes.length === 0) return [];
+  if (targets.length === 0) return [];
 
   const warnings: WireUnderSymbolWarning[] = [];
   for (const { route, geometry } of records) {
@@ -202,9 +374,7 @@ export function deriveWireUnderSymbolWarnings(
     const noPins: ReadonlySet<string> = new Set();
     for (const segment of geometry.segments) {
       if (segment.mode === "escape") continue;
-      for (const { instanceId, box, leads } of boxes) {
-        const clipped = clipSegmentToBox(segment.from, segment.to, box);
-        if (!clipped) continue;
+      for (const { instanceId, regions, leads } of targets) {
         if (
           segmentIsSingleConnectedPinRide(
             segment.from,
@@ -215,6 +385,12 @@ export function deriveWireUnderSymbolWarnings(
         ) {
           continue;
         }
+        const clipped = regions
+          .map((region) =>
+            clipSegmentToRegion(segment.from, segment.to, region),
+          )
+          .find((candidate) => candidate !== null);
+        if (!clipped) continue;
         warnings.push({
           routeId: route.id,
           instanceId,

@@ -21,6 +21,7 @@ const PRODUCT_IDS = [
   "adder",
   "multiplier",
   "transconductance",
+  "differential-transconductance",
   "integrator",
   "unit-delay",
   "discrete-time-integrator",
@@ -40,6 +41,7 @@ const PRODUCT_IDS = [
   "opamp",
   "opamp-lettered",
   "opamp-differential",
+  "opamp-differential-lettered",
   "or-gate",
   "pmos",
   "pnp",
@@ -89,9 +91,13 @@ describe("built-in Symbol libraries", () => {
       // "Swap + / - outputs", not a second part to browse for.
       "opamp-differential-crossed",
       "comparator-inputs-swapped",
+      "differential-transconductance-inputs-swapped",
       "opamp-inputs-swapped",
       "opamp-lettered-inputs-swapped",
       "opamp-differential-inputs-swapped",
+      "opamp-differential-lettered-inputs-swapped",
+      "opamp-differential-crossed-lettered",
+      "opamp-differential-crossed-lettered-inputs-swapped",
       "opamp-differential-crossed-inputs-swapped",
     ]) {
       expect(resolvable.has(id)).toBe(true);

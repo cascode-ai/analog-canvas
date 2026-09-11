@@ -321,8 +321,8 @@ export const agentRazaviAuthoringCatalog = {
     },
     {
       symbolId: "transconductance",
-      name: "Transconductance (+gₘ)",
-      category: "signal-flow",
+      name: "Transconductance (gₘ)",
+      category: "analog-block",
       defaultVariantId: null,
       labelVisibility: "hidden",
       pins: [
@@ -799,6 +799,40 @@ export const agentRazaviAuthoringCatalog = {
     {
       symbolId: "opamp-differential",
       name: "Differential Op Amp",
+      category: "analog-block",
+      defaultVariantId: null,
+      labelVisibility: "shown",
+      pins: [
+        {
+          name: "IN+",
+          role: "non-inverting-input",
+          direction: "west",
+          visibility: "visible",
+        },
+        {
+          name: "IN-",
+          role: "inverting-input",
+          direction: "west",
+          visibility: "visible",
+        },
+        {
+          name: "OUT+",
+          role: "output",
+          direction: "east",
+          visibility: "visible",
+        },
+        {
+          name: "OUT-",
+          role: "output",
+          direction: "east",
+          visibility: "visible",
+        },
+      ],
+      variants: [],
+    },
+    {
+      symbolId: "opamp-differential-lettered",
+      name: "Differential Op Amp (lettered)",
       category: "analog-block",
       defaultVariantId: null,
       labelVisibility: "shown",

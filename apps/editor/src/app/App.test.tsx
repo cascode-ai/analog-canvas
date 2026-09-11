@@ -109,19 +109,17 @@ describe("editor shell", () => {
     expect(markup).toContain("<summary>Netlist</summary>");
     expect(markup).toContain("Check Report…");
     expect(markup).toContain('data-testid="check-and-save"');
-    expect(markup.indexOf("<summary>Agent</summary>")).toBeLessThan(
+    const agentEnd =
+      markup.indexOf("</details>", markup.indexOf("<summary>Agent</summary>")) +
+      "</details>".length;
+    expect(markup.slice(agentEnd)).toMatch(
+      /^<button[^>]*data-testid="publish-gallery-button"/u,
+    );
+    expect(markup.indexOf('data-testid="publish-gallery-button"')).toBeLessThan(
       markup.indexOf('data-testid="open-analog-simulation"'),
     );
     expect(markup.indexOf('data-testid="open-analog-simulation"')).toBeLessThan(
       markup.indexOf('data-testid="check-and-save"'),
-    );
-    const checkAndSaveEnd =
-      markup.indexOf(
-        "</button>",
-        markup.indexOf('data-testid="check-and-save"'),
-      ) + "</button>".length;
-    expect(markup.slice(checkAndSaveEnd)).toMatch(
-      /^<button[^>]*data-testid="publish-gallery-button"/u,
     );
     expect(markup).toContain("Not checked");
     expect(erc).not.toHaveBeenCalled();

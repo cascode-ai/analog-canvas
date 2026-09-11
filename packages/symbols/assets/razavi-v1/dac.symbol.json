@@ -3,36 +3,36 @@
   "id": "dac",
   "name": "Digital-to-Analog Converter",
   "viewBox": {
-    "x": -34,
-    "y": -19,
-    "width": 68,
-    "height": 38
+    "x": -44,
+    "y": -24,
+    "width": 88,
+    "height": 48
   },
   "pins": [
     {
       "name": "IN",
       "role": "input",
       "at": {
-        "x": -30,
+        "x": -40,
         "y": 0
       },
       "direction": "west",
       "presentation": {
         "visibility": "visible",
-        "leadLength": 5
+        "leadLength": 10
       }
     },
     {
       "name": "OUT",
       "role": "output",
       "at": {
-        "x": 30,
+        "x": 40,
         "y": 0
       },
       "direction": "east",
       "presentation": {
         "visibility": "visible",
-        "leadLength": 5
+        "leadLength": 10
       }
     }
   ],
@@ -40,11 +40,11 @@
     {
       "kind": "line",
       "from": {
-        "x": -30,
+        "x": -40,
         "y": 0
       },
       "to": {
-        "x": -25,
+        "x": -30,
         "y": 0
       },
       "style": {
@@ -57,24 +57,24 @@
       "kind": "polygon",
       "points": [
         {
-          "x": -25,
-          "y": -15
+          "x": -30,
+          "y": -20
         },
         {
-          "x": 15,
-          "y": -15
+          "x": 20,
+          "y": -20
         },
         {
-          "x": 25,
+          "x": 30,
           "y": 0
         },
         {
-          "x": 15,
-          "y": 15
+          "x": 20,
+          "y": 20
         },
         {
-          "x": -25,
-          "y": 15
+          "x": -30,
+          "y": 20
         }
       ],
       "fill": "none",
@@ -88,11 +88,11 @@
     {
       "kind": "line",
       "from": {
-        "x": 25,
+        "x": 30,
         "y": 0
       },
       "to": {
-        "x": 30,
+        "x": 40,
         "y": 0
       },
       "style": {
@@ -107,7 +107,7 @@
     "defaultFormula": "DAC",
     "supportsCoefficient": false,
     "center": {
-      "x": -2.41,
+      "x": -2.42,
       "y": 0
     },
     "fontSize": 12

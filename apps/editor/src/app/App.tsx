@@ -145,6 +145,7 @@ import { useVisualClipboard } from "../features/clipboard/visual-clipboard";
 import { deriveWireUnderSymbolWarnings } from "../canvas/wire-under-symbol";
 import { createPlacementTrayCommands } from "../features/component-insert/placement-tray-commands";
 import { componentTargetDescription } from "../features/properties/component-identity-properties";
+import { componentSourceCode } from "../features/properties/component-source-code";
 import {
   endpointTestId,
   instanceLabelAnnotationFor,
@@ -1438,6 +1439,18 @@ export function App({
   const selectedAnnotationOwnerInstanceId = selectedAnnotation
     ? annotationOwningInstanceId(selectedAnnotation)
     : undefined;
+  const selectedComponentSourceCode = useMemo(
+    () =>
+      selectedInstance
+        ? componentSourceCode(
+            project,
+            document.id,
+            selectedInstance.id,
+            resolver,
+          )
+        : null,
+    [document.id, project, resolver, selectedInstance],
+  );
   const selectedAnnotationOwnerInstance = selectedAnnotationOwnerInstanceId
     ? document.instances.find(
         (instance) => instance.id === selectedAnnotationOwnerInstanceId,
@@ -1926,11 +1939,11 @@ export function App({
     additionalParameterDraft,
     additionalParameterDraftChanges,
     applyAdditionalParameters,
-    applyNetLabel,
     beginAnnotationTextEditing,
     beginDraftingTextEditing,
     beginInstanceFormulaEditing,
     beginNetLabelEditing,
+    cancelNetLabelEditing,
     commitInstancePropertyDraft,
     commitElectricalMarkerName,
     commitNetLabelScope,
@@ -1945,9 +1958,9 @@ export function App({
     hasInstancePropertyDraftChanges,
     instancePropertyDraft,
     netLabelDraft,
-    netLabelEditorOpen,
+    netLabelPlacement,
+    placeNetLabel,
     removeAdditionalParameter,
-    setNetLabelEditorOpen,
     setReferenceLabelsVisible,
     setValueLabelsVisible,
     showSelectedInstanceValue,
@@ -1956,6 +1969,8 @@ export function App({
     updateAdditionalParameter,
     updateTextEditing,
     updateNetLabelDraft,
+    updateNetLabelPlacementDraft,
+    updateNetLabelPlacementPosition,
   } = usePropertiesEditor({
     document,
     resolver,
@@ -1964,7 +1979,6 @@ export function App({
     selectedRouteNetLabels,
     selectedInstance,
     componentParametersForInstance: propertyParametersForInstance,
-    wireSourceActive: wireSource !== null,
     netLabelEditorInputRef,
     transact,
     setStatus,
@@ -2894,7 +2908,8 @@ export function App({
         (pendingSymbolId && pendingComponentPlacement) ||
         vddRailMode ||
         copyPlacement !== null ||
-        pendingWaveformPlacement !== null,
+        pendingWaveformPlacement !== null ||
+        netLabelPlacement?.phase === "placing",
       ),
       tool,
       cellSymbolLayoutEnabled,
@@ -3004,6 +3019,7 @@ export function App({
       paintSnapGuides,
       noteCanvasPoint: (point) => {
         lastCanvasPointRef.current = point;
+        updateNetLabelPlacementPosition(point);
       },
       setStatus,
       measureCanvasView,
@@ -3920,6 +3936,11 @@ export function App({
         ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)
       )
         return;
+      if (event.key === "Escape" && netLabelPlacement) {
+        event.preventDefault();
+        cancelNetLabelEditing();
+        return;
+      }
       if (event.key === "Escape" && simulationPickActive) {
         event.preventDefault();
         setSimulationPickMode(null);
@@ -3991,7 +4012,6 @@ export function App({
         }).enabled,
         hasDraftingSelection: Boolean(selectedDrafting),
         hasInspectableSelection,
-        hasRouteSelection: Boolean(selectedRoute),
         hasHighlightableNet: selectedHighlightNetId !== null,
         hasActiveNetHighlight: highlightedNetOrigin !== null,
         wireReadyToFinish: Boolean(wireSource && wirePreviewPoint),
@@ -4035,10 +4055,21 @@ export function App({
           reverseSelectedCurrentArrow();
           return;
         case "edit-net-label":
-          beginNetLabelEditing();
+          activateTool("pointer");
+          beginNetLabelEditing(
+            lastCanvasPointRef.current ?? {
+              x: viewBox.x + viewBox.width / 2,
+              y: viewBox.y + viewBox.height / 2,
+            },
+          );
           return;
-        case "net-label-selection-required":
-          setStatus("Select a wire segment before adding a Net Label");
+        case "toggle-display-settings":
+          activateTool("pointer");
+          setDocumentSettingsOpen((open) => {
+            const next = !open;
+            setSelectionOpen(next || hasInspectableSelection);
+            return next;
+          });
           return;
         case "toggle-net-highlight":
           toggleHighlightedNet();
@@ -4346,6 +4377,10 @@ export function App({
         setBulkDrawInstanceId(null);
         setStatus("Wire cancelled");
       },
+    },
+    netLabelPlacement: {
+      active: netLabelPlacement?.phase === "placing",
+      place: placeNetLabel,
     },
     report: setStatus,
     consumePickupClick: () => {
@@ -4896,7 +4931,7 @@ export function App({
             ? {
                 draft: publishDraft,
                 onDraftChange: setPublishDraft,
-                defaultName: project.name,
+                defaultName: galleryEntryContext?.name ?? project.name,
                 session: publishSession,
                 gateReport: publishGates,
                 updateTarget:
@@ -4928,10 +4963,37 @@ export function App({
                         ),
                     }
                   : {}),
-                onPublished: ({ id, name, updated, previewRevision }) => {
+                onPublished: ({
+                  id,
+                  name,
+                  description,
+                  tags,
+                  updated,
+                  previewRevision,
+                }) => {
                   // The gallery now holds these exact bytes: leaving or
                   // refreshing loses nothing until the next edit.
                   noteProjectSnapshotSafe();
+                  // Publishing establishes the same update-in-place binding
+                  // as opening an existing Gallery entry. Keep it attached to
+                  // this Project only; replacing the Project clears it above.
+                  setGalleryEntryContext({
+                    id,
+                    name,
+                    projectId: project.id,
+                    ownerUserId: updated
+                      ? (galleryEntryContext?.ownerUserId ??
+                        publishSession?.id ??
+                        null)
+                      : (publishSession?.id ?? null),
+                    author: updated
+                      ? (galleryEntryContext?.author ??
+                        publishSession?.displayName ??
+                        "")
+                      : (publishSession?.displayName ?? ""),
+                    description,
+                    tags,
+                  });
                   void primeGalleryPreview(id, previewRevision);
                   announceGalleryChange({
                     entryId: id,
@@ -5130,7 +5192,14 @@ export function App({
           simulationOpen={analogSimulationOpen}
           propertiesOpen={selectionOpen}
           maximized={analogSimulationMaximized}
-          onSelectProperties={setSelectionOpen}
+          onSelectProperties={(open) => {
+            if (open && compactLayout) setCompactLibraryPanelOpen(false);
+            if (!open) {
+              exitCellSymbolLayout();
+              setImportReviewOpen(false);
+            }
+            setSelectionOpen(open);
+          }}
           code={
             analogSimulationOpened ? (
               <Suspense fallback={null}>
@@ -5430,8 +5499,8 @@ export function App({
                         : null,
                       identity: {
                         instance: selectedInstance,
+                        sourceCode: selectedComponentSourceCode!,
                         revision: document.revision,
-                        cellName: document.netlist?.name ?? document.name,
                         formalTerminalSelected: Boolean(selectedFormalTerminal),
                         portNet: selectedPortNet
                           ? {
@@ -6026,18 +6095,11 @@ export function App({
             mirror: componentPlacementMirror,
           }}
           wiring={{
-            netLabelEditorOpen,
-            selectedRouteId,
-            selectedRouteSegmentIndex,
-            routeGeometryRecords,
-            netLabelDraft,
+            netLabelPlacement,
             netLabelEditorInputRef,
-            onNetLabelDraftChange: updateNetLabelDraft,
+            onNetLabelDraftChange: updateNetLabelPlacementDraft,
             onNetLabelSubmit: commitNetLabelEditing,
-            onNetLabelEscape: () => {
-              applyNetLabel();
-              setNetLabelEditorOpen(false);
-            },
+            onNetLabelEscape: cancelNetLabelEditing,
             flightlines: displayedFlightlines,
             onFlightlineClick: handleFlightline,
             wireDraftPreview,

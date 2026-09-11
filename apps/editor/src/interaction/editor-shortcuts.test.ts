@@ -15,7 +15,6 @@ const baseContext: EditorShortcutContext = {
   canMirror: false,
   hasDraftingSelection: false,
   hasInspectableSelection: false,
-  hasRouteSelection: false,
   hasHighlightableNet: false,
   hasActiveNetHighlight: false,
   wireReadyToFinish: false,
@@ -200,15 +199,11 @@ describe("editor shortcut contract", () => {
     expect(resolve("w")).toEqual(
       command({ id: "tool.activate", tool: "wire" }),
     );
-    expect(resolve("a")).toEqual(
-      command({ id: "tool.activate", tool: "arrow" }),
-    );
+    expect(resolve("a")).toBeNull();
     expect(resolve("k")).toEqual(
       command({ id: "tool.activate", tool: "construction-line" }),
     );
-    expect(resolve("o")).toEqual(
-      command({ id: "tool.activate", tool: "circle" }),
-    );
+    expect(resolve("o")).toEqual({ kind: "toggle-display-settings" });
     expect(resolve("p")).toEqual(command({ id: "insert.cell-pin" }));
     expect(resolve("m")).toEqual(command({ id: "selection.move" }));
     // Virtuoso's pairing: M stretches the wires along with the part, Shift+M
@@ -217,15 +212,9 @@ describe("editor shortcut contract", () => {
     expect(resolve("m", {}, { shiftKey: true })).toEqual(
       command({ id: "selection.move", detach: true }),
     );
-    expect(resolve("l")).toEqual({ kind: "net-label-selection-required" });
-    expect(resolve("l", { hasRouteSelection: true })).toEqual({
+    expect(resolve("l")).toEqual({ kind: "edit-net-label" });
+    expect(resolve("l", { interactionMode: "wire" })).toEqual({
       kind: "edit-net-label",
-    });
-    expect(
-      resolve("l", { hasRouteSelection: true, interactionMode: "wire" }),
-    ).toEqual({
-      kind: "blocked-interaction-command",
-      command: "Net Label",
     });
     expect(resolve("h")).toBeNull();
     expect(resolve("h", { hasHighlightableNet: true })).toEqual({
@@ -386,6 +375,10 @@ describe("editor shortcut contract", () => {
     expect(resolve("w", active)).toEqual(
       command({ id: "tool.activate", tool: "wire" }),
     );
+    expect(resolve("l", active)).toEqual({ kind: "edit-net-label" });
+    expect(resolve("o", active)).toEqual({
+      kind: "toggle-display-settings",
+    });
     expect(resolve("f", active)).toEqual(command({ id: "view.fit" }));
     for (const modifiers of [{ ctrlKey: true }, { metaKey: true }]) {
       expect(resolve("a", active, modifiers)).toEqual({

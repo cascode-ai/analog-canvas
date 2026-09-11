@@ -67,7 +67,22 @@ describe("SymbolArtwork pin-name previews", () => {
       expect(markup).toContain('data-role="signal-flow-frame"');
       expect(markup).toContain('data-role="formula-subscript"');
       expect(markup).toContain('points="-20,-35 20,-17.5 20,17.5 -20,35"');
+      expect(markup).not.toContain(">+</text>");
     }
+  });
+
+  it("renders the differential transconductance with two signed inputs", () => {
+    const symbol = requireRazaviCatalogSymbol("differential-transconductance");
+    const markup = renderToStaticMarkup(
+      <SymbolArtwork symbol={symbol} className="test-artwork" />,
+    );
+
+    expect(symbol.pins.map((pin) => pin.name)).toEqual(["IN+", "IN-", "OUT"]);
+    expect(markup).toContain('x1="-30" y1="10" x2="-20" y2="10"');
+    expect(markup).toContain('x1="-30" y1="-10" x2="-20" y2="-10"');
+    expect(markup).toContain('x1="-10" y1="7" x2="-10" y2="13"');
+    expect(markup).toContain('x1="-13" y1="-10" x2="-7" y2="-10"');
+    expect(markup).toContain('data-role="formula-subscript"');
   });
 
   it("renders a definition-owned default formula in Library and placement previews", () => {
@@ -96,28 +111,40 @@ describe("SymbolArtwork pin-name previews", () => {
     );
   });
 
-  it("keeps voltage-source polarity notation upright in a rotated mirrored placement preview", () => {
-    const symbol = requireRazaviCatalogSymbol("voltage-source");
-    const markup = renderToStaticMarkup(
-      <svg>
-        <ComponentPlacementPreview
-          styleProfileId="razavi-textbook-v1"
-          symbolId={symbol.id}
-          symbol={symbol}
-          position={{ x: 100, y: 80 }}
-          rotation={90}
-          mirror="x"
-        />
-      </svg>,
-    );
+  it.each([
+    "voltage-source",
+    "opamp",
+    "comparator",
+    "differential-transconductance",
+    "opamp-differential",
+    "opamp-differential-lettered",
+  ])(
+    "keeps %s negative polarity horizontal in a rotated mirrored placement preview",
+    (symbolId) => {
+      const symbol = requireRazaviCatalogSymbol(symbolId);
+      const markup = renderToStaticMarkup(
+        <svg>
+          <ComponentPlacementPreview
+            styleProfileId="razavi-textbook-v1"
+            symbolId={symbol.id}
+            symbol={symbol}
+            position={{ x: 100, y: 80 }}
+            rotation={90}
+            mirror="x"
+          />
+        </svg>,
+      );
 
-    expect(markup).toContain(
-      'transform="translate(100 80) rotate(90) scale(-1 1)"',
-    );
-    expect(markup).toContain(
-      'data-part="upright-polarity-negative" x1="-15.988372" y1="17.44186" x2="-15.988372" y2="9.302326"',
-    );
-  });
+      expect(markup).toContain(
+        'transform="translate(100 80) rotate(90) scale(-1 1)"',
+      );
+      const negative = markup.match(
+        /data-part="upright-[^"]*polarity-negative" x1="([^"]+)" y1="[^"]+" x2="([^"]+)"/u,
+      );
+      expect(negative).not.toBeNull();
+      expect(Number(negative![1])).toBeCloseTo(Number(negative![2]), 6);
+    },
+  );
 
   it.each([0, 90, 180, 270] as const)(
     "keeps visible pin names and Q-bar upright at %d degrees",

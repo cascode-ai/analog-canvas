@@ -147,7 +147,6 @@ export function EditorPropertiesDock({
               {component.cellSymbolLayout ? (
                 <CellSymbolLayoutProperties {...component.cellSymbolLayout} />
               ) : null}
-              <ComponentIdentityProperties {...component.identity} />
               {component.signalFlow ? (
                 <ComponentSignalFlowProperties {...component.signalFlow} />
               ) : null}
@@ -157,6 +156,7 @@ export function EditorPropertiesDock({
                 key={component.style.instance.id}
                 {...component.style}
               />
+              <ComponentIdentityProperties {...component.identity} />
             </section>
           ) : null}
           {annotationText ? (

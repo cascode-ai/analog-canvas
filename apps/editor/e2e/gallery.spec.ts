@@ -801,6 +801,89 @@ test("the wall states how many circuits the gallery holds", async ({
   await expect(page.getByTestId("gallery-count-panel")).toHaveCount(0);
 });
 
+test("the wall count opens a contributor ranking whose names open each gallery", async ({
+  page,
+}) => {
+  const aliceEntries = [
+    {
+      ...ENTRY,
+      id: "alice-2",
+      name: "Alice OTA",
+      author: "Alice",
+      createdAt: "2026-08-22T10:00:00.000Z",
+    },
+    {
+      ...ENTRY,
+      id: "alice-1",
+      name: "Alice Bandgap",
+      author: "Alice",
+    },
+  ];
+  const bobEntry = {
+    ...ENTRY,
+    id: "bob-1",
+    name: "Bob Comparator",
+    author: "Bob",
+  };
+  await page.route(galleryListUrl, (route) => {
+    const url = new URL(route.request().url());
+    const entries =
+      url.searchParams.get("author") === "Alice"
+        ? aliceEntries
+        : [...aliceEntries, bobEntry];
+    return route.fulfill({
+      json: { entries, nextCursor: null, total: entries.length },
+    });
+  });
+  await page.route("**/api/gallery/authors", (route) =>
+    route.fulfill({
+      json: {
+        authors: [
+          { author: "Alice", count: 2 },
+          { author: "Bob", count: 1 },
+        ],
+      },
+    }),
+  );
+  await page.route("**/api/gallery/tags", (route) =>
+    route.fulfill({ json: { tags: [] } }),
+  );
+  await page.route("**/api/gallery/*/preview.svg*", (route) =>
+    route.fulfill({
+      contentType: "image/svg+xml",
+      body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect width="10" height="10" fill="#fff"/></svg>',
+    }),
+  );
+
+  await page.goto("/");
+  await page.getByTestId("gallery-count-panel").click();
+  await expect(page.getByTestId("gallery-contributor-popover")).toContainText(
+    "2 authors",
+  );
+  await expect(page.getByTestId("gallery-contributor-row-1")).toContainText(
+    "Alice",
+  );
+  await expect(page.getByTestId("gallery-contributor-row-1")).toContainText(
+    "2 circuits",
+  );
+  await expect(page.getByTestId("gallery-contributor-row-2")).toContainText(
+    "Bob",
+  );
+
+  await expect(
+    page.getByTestId("gallery-contributor-row-1").locator("summary"),
+  ).toHaveCount(0);
+  await expect(page.getByTestId("gallery-contributor-view-1")).toHaveCount(0);
+  await page.getByTestId("gallery-contributor-author-1").click();
+
+  await expect(page).toHaveURL(/\?author=Alice$/u);
+  await expect(page.getByTestId("gallery-filter")).toContainText(
+    "Circuits by Alice",
+  );
+  await expect(page.getByTestId("gallery-tile-alice-2")).toBeVisible();
+  await expect(page.getByTestId("gallery-tile-bob-1")).toHaveCount(0);
+});
+
 test("an API without totals hides the count rather than guessing", async ({
   page,
 }) => {
@@ -1235,7 +1318,8 @@ test("a signed-in member publishes directly, bylined by the account", async ({
           displayName: "Token Zhang",
           email: "owner@example.com",
           provider: "github",
-          isAdmin: true,
+          role: "user",
+          isAdmin: false,
         },
       },
     }),
@@ -1247,6 +1331,7 @@ test("a signed-in member publishes directly, bylined by the account", async ({
     tags: string[];
     schemaVersion: number;
   }[] = [];
+  const updated: { name: string; instanceCount: number }[] = [];
   // The real submissions endpoint is /api/gallery/submissions — the mock
   // matches it exactly so a client posting anywhere else fails this test.
   await page.route("**/api/gallery/submissions", (route) => {
@@ -1266,6 +1351,21 @@ test("a signed-in member publishes directly, bylined by the account", async ({
         .schemaVersion,
     });
     return route.fulfill({ status: 201, json: { id: "entry-77" } });
+  });
+  await page.route("**/api/gallery/entry-77", (route) => {
+    if (route.request().method() !== "PUT") return route.fallback();
+    const body = route.request().postDataJSON() as {
+      name: string;
+      projectText: string;
+    };
+    const project = JSON.parse(body.projectText) as {
+      documents: { instances: unknown[] }[];
+    };
+    updated.push({
+      name: body.name,
+      instanceCount: project.documents[0]?.instances.length ?? 0,
+    });
+    return route.fulfill({ status: 200, json: { id: "entry-77" } });
   });
 
   await page.goto("/editor");
@@ -1295,6 +1395,28 @@ test("a signed-in member publishes directly, bylined by the account", async ({
       schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
     },
   ]);
+
+  // The live Project remains the source of this publication. After another
+  // edit, Publish must update the item it just created rather than creating a
+  // duplicate Gallery entry.
+  await chooseComponent(page, "resistor");
+  await page
+    .getByTestId("schematic-canvas")
+    .click({ position: { x: 340, y: 230 } });
+  await page.keyboard.press("Escape");
+  await page.getByTestId("publish-gallery-button").click();
+  await expect(page.getByTestId("publish-mode")).toContainText(
+    "Session Publish",
+  );
+  await page
+    .getByTestId("publish-gallery-dialog")
+    .getByRole("button", { name: "Update entry" })
+    .click();
+  await expect(page.getByTestId("status")).toHaveText(
+    'Updated "Session Publish" in the gallery',
+  );
+  expect(posted).toHaveLength(1);
+  expect(updated).toEqual([{ name: "Session Publish", instanceCount: 1 }]);
 });
 
 test("a mistaken click beside the publish form keeps what was written", async ({

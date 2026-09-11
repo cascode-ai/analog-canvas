@@ -16,60 +16,107 @@ import { renderDocumentSvg, buildSvgScene } from "./render.js";
 const resolver = new InMemorySymbolResolver(builtInSymbols);
 
 describe("instance style override rendering", () => {
-  it("keeps a voltage source minus horizontal without moving or resizing it", () => {
-    const originalCenter = { x: -15.988372, y: 13.372093 };
-    const originalLength = 8.139534;
-    for (const rotation of [0, 90, 180, 270] as const) {
-      for (const mirror of ["none", "x"] as const) {
-        const placement = {
-          position: { x: 100, y: 80 },
-          rotation,
-          mirror,
-        };
-        const doc = createEmptyDocument("doc-1", "Voltage source polarity");
-        doc.instances.push({
-          id: "V1",
-          symbolId: "voltage-source",
-          placement,
-        });
+  it.each([
+    ["voltage-source", 1],
+    ["opamp", 1],
+    ["opamp-lettered", 1],
+    ["opamp-inputs-swapped", 1],
+    ["opamp-lettered-inputs-swapped", 1],
+    ["comparator", 1],
+    ["comparator-inputs-swapped", 1],
+    ["differential-transconductance", 1],
+    ["differential-transconductance-inputs-swapped", 1],
+    ["opamp-differential", 2],
+    ["opamp-differential-inputs-swapped", 2],
+    ["opamp-differential-lettered", 2],
+    ["opamp-differential-lettered-inputs-swapped", 2],
+    ["opamp-differential-crossed", 2],
+    ["opamp-differential-crossed-inputs-swapped", 2],
+    ["opamp-differential-crossed-lettered", 2],
+    ["opamp-differential-crossed-lettered-inputs-swapped", 2],
+  ] as const)(
+    "keeps every %s minus horizontal without moving or resizing it",
+    (symbolId, expectedMarkCount) => {
+      const definition = builtInSymbols.find(
+        (candidate) => candidate.id === symbolId,
+      );
+      expect(definition).toBeDefined();
+      const negativeMarks = definition!.primitives.filter(
+        (primitive) =>
+          primitive.kind === "line" &&
+          primitive.part?.startsWith("upright-") &&
+          primitive.part.endsWith("polarity-negative"),
+      );
+      expect(negativeMarks).toHaveLength(expectedMarkCount);
 
-        const svg = renderDocumentSvg(doc, resolver);
-        const match = svg.match(
-          /<line data-part="upright-polarity-negative" x1="([^"]+)" y1="([^"]+)" x2="([^"]+)" y2="([^"]+)"/u,
-        );
-        expect(match).not.toBeNull();
-        const localStart = { x: Number(match![1]), y: Number(match![2]) };
-        const localEnd = { x: Number(match![3]), y: Number(match![4]) };
-        const worldStart = transformPoint(
-          localStart,
-          placement.position,
-          placement,
-        );
-        const worldEnd = transformPoint(
-          localEnd,
-          placement.position,
-          placement,
-        );
-        const worldCenter = {
-          x: (worldStart.x + worldEnd.x) / 2,
-          y: (worldStart.y + worldEnd.y) / 2,
-        };
+      for (const rotation of [0, 90, 180, 270] as const) {
+        for (const mirror of ["none", "x"] as const) {
+          const placement = {
+            position: { x: 100, y: 80 },
+            rotation,
+            mirror,
+          };
+          const doc = createEmptyDocument("doc-1", `${symbolId} polarity`);
+          doc.instances.push({
+            id: "X1",
+            symbolId,
+            placement,
+          });
 
-        expect(worldStart.y).toBeCloseTo(worldEnd.y, 6);
-        expect(Math.abs(worldEnd.x - worldStart.x)).toBeCloseTo(
-          originalLength,
-          6,
-        );
-        const expectedCenter = transformPoint(
-          originalCenter,
-          placement.position,
-          placement,
-        );
-        expect(worldCenter.x).toBeCloseTo(expectedCenter.x, 6);
-        expect(worldCenter.y).toBeCloseTo(expectedCenter.y, 6);
+          const svg = renderDocumentSvg(doc, resolver);
+          const matches = [
+            ...svg.matchAll(
+              /<line data-part="upright-[^"]*polarity-negative" x1="([^"]+)" y1="([^"]+)" x2="([^"]+)" y2="([^"]+)"/gu,
+            ),
+          ];
+          expect(matches).toHaveLength(expectedMarkCount);
+          for (const [index, match] of matches.entries()) {
+            const original = negativeMarks[index]!;
+            if (original.kind !== "line") {
+              throw new Error(`${symbolId} negative mark must be a line`);
+            }
+            const localStart = { x: Number(match[1]), y: Number(match[2]) };
+            const localEnd = { x: Number(match[3]), y: Number(match[4]) };
+            const worldStart = transformPoint(
+              localStart,
+              placement.position,
+              placement,
+            );
+            const worldEnd = transformPoint(
+              localEnd,
+              placement.position,
+              placement,
+            );
+            const worldCenter = {
+              x: (worldStart.x + worldEnd.x) / 2,
+              y: (worldStart.y + worldEnd.y) / 2,
+            };
+            const originalCenter = {
+              x: (original.from.x + original.to.x) / 2,
+              y: (original.from.y + original.to.y) / 2,
+            };
+            const originalLength = Math.hypot(
+              original.to.x - original.from.x,
+              original.to.y - original.from.y,
+            );
+
+            expect(worldStart.y).toBeCloseTo(worldEnd.y, 6);
+            expect(Math.abs(worldEnd.x - worldStart.x)).toBeCloseTo(
+              originalLength,
+              5,
+            );
+            const expectedCenter = transformPoint(
+              originalCenter,
+              placement.position,
+              placement,
+            );
+            expect(worldCenter.x).toBeCloseTo(expectedCenter.x, 6);
+            expect(worldCenter.y).toBeCloseTo(expectedCenter.y, 6);
+          }
+        }
       }
-    }
-  });
+    },
+  );
 
   it("inherits default text fill without a CSS rule overriding authored text colors", () => {
     const svg = renderDocumentSvg(

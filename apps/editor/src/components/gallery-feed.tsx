@@ -7,9 +7,11 @@ import {
   galleryCountLabel,
   galleryEntryMatchesQuery,
   galleryPreviewUrl,
+  loadGalleryAuthors,
   loadGalleryFeed,
   loadGalleryTags,
   subscribeGalleryRefresh,
+  type GalleryAuthorOption,
   type GalleryFeedEntry,
   type GalleryFeedPage,
   type GalleryFeedState,
@@ -22,8 +24,10 @@ import type { BundledGalleryTile } from "./gallery-bundled-fallback";
 // existing importer of this module working unchanged.
 export {
   galleryEntryMatchesQuery,
+  loadGalleryAuthors,
   loadGalleryFeed,
   loadGalleryTags,
+  type GalleryAuthorOption,
   type GalleryFeedEntry,
   type GalleryFeedPage,
   type GalleryFeedState,
@@ -252,21 +256,142 @@ function HeartIcon({ filled }: { filled: boolean }) {
  * clause counts VISIBLE tiles (true at every instant by construction) and
  * says "so far" until the feed is exhausted.
  */
+function contributionLabel(count: number): string {
+  return `${count.toLocaleString()} ${count === 1 ? "circuit" : "circuits"}`;
+}
+
+function GalleryContributorRow({
+  option,
+  rank,
+  onSelectAuthor,
+}: {
+  option: GalleryAuthorOption;
+  rank: number;
+  onSelectAuthor: (author: string) => void;
+}) {
+  return (
+    <li
+      className="gallery-contributor-row"
+      data-testid={`gallery-contributor-row-${rank}`}
+    >
+      <span className="gallery-contributor-rank">{rank}</span>
+      <button
+        type="button"
+        className="gallery-contributor-author"
+        data-testid={`gallery-contributor-author-${rank}`}
+        aria-label={`View ${option.author}'s gallery`}
+        onClick={() => onSelectAuthor(option.author)}
+      >
+        {option.author}
+      </button>
+      <span className="gallery-contributor-count">
+        {contributionLabel(option.count)}
+      </span>
+    </li>
+  );
+}
+
 export function GalleryCountPanel({
   total,
   filtered = false,
   search = null,
+  refreshSignal = 0,
+  onSelectAuthor = () => undefined,
 }: {
   total: number | null;
   filtered?: boolean;
   search?: { visible: number; settled: boolean } | null;
+  refreshSignal?: number;
+  onSelectAuthor?: (author: string) => void;
 }) {
   const label = galleryCountLabel(total, { filtered, search });
+  const rootRef = useRef<HTMLDetailsElement | null>(null);
+  const requestGenerationRef = useRef(0);
+  const revision = `${refreshSignal}:${total ?? "unknown"}`;
+  const [contributors, setContributors] = useState<{
+    status: "idle" | "loading" | "ready" | "unavailable";
+    authors: GalleryAuthorOption[];
+    revision: string;
+  }>({ status: "idle", authors: [], revision });
+  const contributorStatus =
+    contributors.revision === revision ? contributors.status : "idle";
+  const contributorAuthors =
+    contributors.revision === revision ? contributors.authors : [];
+
+  function loadContributors(): void {
+    if (contributorStatus === "loading" || contributorStatus === "ready") {
+      return;
+    }
+    const generation = ++requestGenerationRef.current;
+    setContributors({ status: "loading", authors: [], revision });
+    void loadGalleryAuthors(fetch).then((authors) => {
+      if (generation !== requestGenerationRef.current) return;
+      setContributors(
+        authors === null
+          ? { status: "unavailable", authors: [], revision }
+          : { status: "ready", authors, revision },
+      );
+    });
+  }
+
   if (label === null) return null;
   return (
-    <span className="gallery-count-panel" data-testid="gallery-count-panel">
-      {label}
-    </span>
+    <details
+      ref={rootRef}
+      className="gallery-contributor-menu"
+      data-testid="gallery-contributor-menu"
+      onToggle={(event) => {
+        if (event.currentTarget.open) loadContributors();
+      }}
+    >
+      <summary
+        className="gallery-count-panel"
+        data-testid="gallery-count-panel"
+        aria-label={`${label}. Show contributor leaderboard`}
+      >
+        {label}
+      </summary>
+      <div
+        className="gallery-contributor-popover"
+        data-testid="gallery-contributor-popover"
+      >
+        <div className="gallery-contributor-heading">
+          <strong>Contributors</strong>
+          {contributorStatus === "ready" ? (
+            <span>
+              {contributorAuthors.length.toLocaleString()}{" "}
+              {contributorAuthors.length === 1 ? "author" : "authors"}
+            </span>
+          ) : null}
+        </div>
+        {contributorStatus === "loading" || contributorStatus === "idle" ? (
+          <p className="gallery-contributor-status">Loading contributors…</p>
+        ) : contributorStatus === "unavailable" ? (
+          <div className="gallery-contributor-status">
+            <p>Could not load contributors.</p>
+            <button type="button" onClick={loadContributors}>
+              Try again
+            </button>
+          </div>
+        ) : contributorAuthors.length === 0 ? (
+          <p className="gallery-contributor-status">No contributors yet.</p>
+        ) : (
+          <ol className="gallery-contributor-list">
+            {contributorAuthors.map((option, index) => (
+              <GalleryContributorRow
+                key={`${refreshSignal}:${total}:${option.author}`}
+                option={option}
+                rank={index + 1}
+                onSelectAuthor={(author) => {
+                  rootRef.current?.removeAttribute("open");
+                  onSelectAuthor(author);
+                }}
+              />
+            ))}
+          </ol>
+        )}
+      </div>
+    </details>
   );
 }
 
@@ -524,6 +649,13 @@ export function GalleryFeed({
     syncQuery(next, selectedTags);
   }
 
+  function selectContributor(nextAuthor: string): void {
+    setSearchQuery("");
+    setSelectedTags([]);
+    setAuthor(nextAuthor);
+    syncQuery(nextAuthor, []);
+  }
+
   function toggleTag(tag: string): void {
     setSelectedTags((previous) => {
       const next = previous.includes(tag)
@@ -693,6 +825,8 @@ export function GalleryFeed({
           <GalleryCountPanel
             total={state.total}
             filtered={author !== null || selectedTags.length > 0}
+            refreshSignal={refreshSignal}
+            onSelectAuthor={selectContributor}
             search={
               normalizedSearchQuery
                 ? {
