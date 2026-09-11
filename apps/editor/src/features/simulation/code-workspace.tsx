@@ -1,14 +1,19 @@
 import { useEffect, useId, useState, type ReactNode } from "react";
-import { InlineSourceName } from "./inline-source-name";
 import {
   SimulationFolderTree,
   type SimulationFolderTreeProps,
 } from "./simulation-file-tree";
+import {
+  useWorkspaceInteractions,
+  WorkspaceNameInput,
+  type WorkspaceMenuItem,
+} from "./workspace-interactions";
 
 export interface SimulationCodeFile {
   path: string;
   kind: "authored" | "generated" | "prepared";
   dirty?: boolean;
+  draft?: boolean;
 }
 export interface SimulationCodeWorkspaceProps {
   workspaceKey: string;
@@ -16,18 +21,18 @@ export interface SimulationCodeWorkspaceProps {
   entryPath: string;
   configPath: string;
   activePath: string;
-  onSelectFile(path: string): void;
-  onNewFile?(path: string): void;
-  newFileRequest?: string | undefined;
-  onCopyFile?(): void;
-  onExportFile?(): void;
+  onSelectFile(path: string, folderId?: string): void;
+  onNewFile?(folderId?: string): void;
+  onCopyFile?(path: string, folderId?: string): void;
+  onExportFile?(path: string, folderId?: string): void;
   onFileAction?(
     action: "rename" | "delete" | "entry" | "discard",
     path: string,
-    newPath?: string,
+    folderId?: string,
   ): void;
-  folders?: Omit<SimulationFolderTreeProps, "children"> | undefined;
-  additionalActions?: ReactNode;
+  folders?:
+    Omit<SimulationFolderTreeProps, "renderFiles" | "onNewFile"> | undefined;
+  additionalActions?: WorkspaceMenuItem[];
   children: ReactNode;
   actions: ReactNode;
   status?: ReactNode;
@@ -42,184 +47,214 @@ export interface SimulationCodeWorkspaceProps {
 
 /** Approved Code layout only; Project, drafts and Run ownership remain in their controllers. */
 export function SimulationCodeWorkspace(props: SimulationCodeWorkspaceProps) {
+  const ui = useWorkspaceInteractions();
   const filesId = useId();
   const defaults = () =>
     props.files
       .filter((f) => f.kind === "generated" || f.path === props.entryPath)
       .map((f) => f.path);
   const [filesOpen, setFilesOpen] = useState(Boolean(props.folders));
-  const [opened, setOpened] = useState(defaults);
-  const [moreOpen, setMoreOpen] = useState(false);
-  const [menuPosition, setMenuPosition] = useState({ top: 0, right: 0 });
+  const [views, setViews] = useState<Record<string, string[]>>({});
+  const opened = views[props.workspaceKey] ?? defaults();
+  const setOpened = (update: string[] | ((paths: string[]) => string[])) =>
+    setViews((current) => ({
+      ...current,
+      [props.workspaceKey]:
+        typeof update === "function"
+          ? update(current[props.workspaceKey] ?? defaults())
+          : update,
+    }));
+  const [filesWidth, setFilesWidth] = useState(() => {
+    try {
+      return Math.max(
+        110,
+        Math.min(
+          420,
+          Number(localStorage.getItem("icm.code.files-width")) || 170,
+        ),
+      );
+    } catch {
+      return 170;
+    }
+  });
   const [resultsHeight, setResultsHeight] = useState(38);
   const [collapsed, setCollapsed] = useState(false);
-  const [fileMenu, setFileMenu] = useState<string>();
-  const [naming, setNaming] = useState<{ path?: string; initial: string }>();
   useEffect(() => {
-    if (props.newFileRequest) {
-      setFilesOpen(true);
-      setNaming({ initial: "untitled.spice" });
+    if (props.activePath)
+      setOpened((paths) =>
+        paths.includes(props.activePath) ? paths : [...paths, props.activePath],
+      );
+  }, [props.activePath, props.workspaceKey]);
+  useEffect(() => {
+    if (ui.edit) setFilesOpen(true);
+  }, [ui.edit]);
+  useEffect(() => {
+    try {
+      localStorage.setItem("icm.code.files-width", String(filesWidth));
+    } catch {
+      /* Optional layout preference. */
     }
-  }, [props.newFileRequest]);
-  useEffect(() => {
-    setOpened(defaults());
-    setFileMenu(undefined);
-    setMoreOpen(false);
-  }, [props.workspaceKey]);
-  useEffect(() => {
-    setOpened((paths) =>
-      paths.includes(props.activePath) ? paths : [...paths, props.activePath],
-    );
-  }, [props.activePath]);
+  }, [filesWidth]);
   const tabs = opened.filter((path) =>
     props.files.some((file) => file.path === path),
   );
-  const openFile = (path: string) => {
-    setOpened((paths) => (paths.includes(path) ? paths : [...paths, path]));
-    props.onSelectFile(path);
-    setMoreOpen(false);
+  const openFile = (path: string, folderId?: string) => {
+    if (!folderId || folderId === props.folders?.activeId)
+      setOpened((paths) => (paths.includes(path) ? paths : [...paths, path]));
+    props.onSelectFile(path, folderId);
+    ui.closeMenu();
   };
   const closeFile = (path: string) => {
     const next = tabs.filter((item) => item !== path);
     setOpened(next);
-    if (props.activePath === path)
-      props.onSelectFile(next.at(-1) ?? props.entryPath);
+    if (props.activePath === path) props.onSelectFile(next.at(-1) ?? "");
   };
-  const fileList = () => (
-    <ul>
-      {naming && (
-        <li>
-          <InlineSourceName
-            label="File name"
-            initial={naming.initial}
-            onCancel={() => setNaming(undefined)}
-            onSubmit={(name) => {
-              if (naming.path)
-                props.onFileAction?.("rename", naming.path, name);
-              else props.onNewFile?.(name);
-              setNaming(undefined);
-            }}
-          />
-        </li>
-      )}
-      {props.files
-        .filter((file) => file.path !== props.configPath)
-        .map((file) => (
-          <li
-            key={file.path}
-            onContextMenu={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              openFile(file.path);
-              setFileMenu(file.path);
-            }}
-            onKeyDown={(event) => {
-              if (event.key === "Escape") {
-                event.stopPropagation();
-                setFileMenu(undefined);
-              }
-            }}
-          >
-            <button
-              type="button"
-              className={file.path === props.activePath ? "is-active" : ""}
-              title={file.path}
-              onClick={() => openFile(file.path)}
-            >
-              <span aria-hidden="true">
-                {file.kind === "generated"
-                  ? "◇"
-                  : file.kind === "prepared"
-                    ? "▧"
-                    : "·"}
-              </span>{" "}
-              {file.path}
-              {file.dirty ? " ●" : ""}
-            </button>
-            {fileMenu === file.path ? (
-              <div role="menu" aria-label={`Actions for ${file.path}`}>
-                <button
-                  role="menuitem"
-                  onClick={() => {
-                    setNaming({ initial: "untitled.spice" });
-                    setFileMenu(undefined);
-                  }}
-                >
-                  New file…
-                </button>
-                <button
-                  role="menuitem"
-                  onClick={() => {
-                    props.onCopyFile?.();
-                    setFileMenu(undefined);
-                  }}
-                >
-                  Copy contents
-                </button>
-                <button
-                  role="menuitem"
-                  onClick={() => {
-                    props.onExportFile?.();
-                    setFileMenu(undefined);
-                  }}
-                >
-                  Export file…
-                </button>
-                {file.kind === "authored" ? (
-                  <>
-                    <button
-                      role="menuitem"
-                      onClick={() => {
-                        setNaming({ path: file.path, initial: file.path });
-                        setFileMenu(undefined);
-                      }}
-                    >
-                      Rename…
-                    </button>
-                    <button
-                      role="menuitem"
-                      onClick={() => {
-                        props.onFileAction?.("delete", file.path);
-                        setFileMenu(undefined);
-                      }}
-                    >
-                      Delete…
-                    </button>
-                    <button
-                      role="menuitem"
-                      onClick={() => {
-                        props.onFileAction?.("entry", file.path);
-                        setFileMenu(undefined);
-                      }}
-                    >
-                      Use as run entry
-                    </button>
-                  </>
-                ) : null}
-                {file.dirty ? (
-                  <button
-                    role="menuitem"
-                    onClick={() => {
-                      props.onFileAction?.("discard", file.path);
-                      setFileMenu(undefined);
-                    }}
-                  >
-                    Discard draft
-                  </button>
-                ) : null}
-                <button role="menuitem" onClick={() => setFileMenu(undefined)}>
-                  Close menu
-                </button>
-              </div>
-            ) : null}
+  const fileMenu = (
+    file: SimulationCodeFile,
+    folderId: string | undefined,
+    x: number,
+    y: number,
+  ) => {
+    const items: WorkspaceMenuItem[] = [
+      { label: "Open", run: () => openFile(file.path, folderId) },
+      {
+        label: "Copy contents",
+        run: () => props.onCopyFile?.(file.path, folderId),
+      },
+      {
+        label: "Export file…",
+        run: () => props.onExportFile?.(file.path, folderId),
+      },
+    ];
+    if (file.kind === "authored")
+      items.push(
+        ...(
+          [
+            ["rename", "Rename…"],
+            ["delete", "Delete…"],
+            ["entry", "Use as run entry"],
+          ] as const
+        ).map(([action, label]) => ({
+          label,
+          run: () => props.onFileAction?.(action, file.path, folderId),
+        })),
+      );
+    if (file.draft)
+      items.push({
+        label: "Discard draft",
+        run: () => props.onFileAction?.("discard", file.path, folderId),
+      });
+    ui.menu(x, y, items, `Actions for ${file.path}`);
+  };
+  const fileList = (folderId?: string) => {
+    const current = !folderId || folderId === props.folders?.activeId;
+    const folder = props.folders?.folders.find((f) => f.id === folderId);
+    const files = current ? props.files : (folder?.files ?? []);
+    const editing =
+      ui.edit?.kind === "file" &&
+      ui.edit.folderId === (folderId ?? props.folders?.activeId);
+    return (
+      <ul>
+        {editing && !ui.edit?.path ? (
+          <li>
+            <WorkspaceNameInput key="new-file" />
           </li>
-        ))}
-    </ul>
-  );
+        ) : null}
+        {files
+          .filter(
+            (file) =>
+              file.path !== (current ? props.configPath : folder?.configPath),
+          )
+          .map((file) => (
+            <li
+              key={file.path}
+              onContextMenu={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                fileMenu(file, folderId, event.clientX, event.clientY);
+              }}
+              onKeyDown={(event) => {
+                if (event.target instanceof HTMLInputElement) return;
+                if (
+                  (event.key === "F2" || event.key === "Delete") &&
+                  file.kind === "authored"
+                ) {
+                  event.preventDefault();
+                  props.onFileAction?.(
+                    event.key === "F2" ? "rename" : "delete",
+                    file.path,
+                    folderId,
+                  );
+                }
+                if (
+                  event.key === "ContextMenu" ||
+                  (event.shiftKey && event.key === "F10")
+                ) {
+                  event.preventDefault();
+                  const rect = event.currentTarget.getBoundingClientRect();
+                  fileMenu(file, folderId, rect.left, rect.bottom);
+                }
+              }}
+            >
+              {editing && ui.edit?.path === file.path ? (
+                <WorkspaceNameInput key={file.path} />
+              ) : (
+                <button
+                  type="button"
+                  data-tree-row="file"
+                  data-folder-id={folderId ?? props.folders?.activeId}
+                  data-file-path={file.path}
+                  className={
+                    current && file.path === props.activePath ? "is-active" : ""
+                  }
+                  title={file.path}
+                  onClick={() => openFile(file.path, folderId)}
+                >
+                  <span aria-hidden="true">
+                    {file.kind === "generated"
+                      ? "◇"
+                      : file.kind === "prepared"
+                        ? "▧"
+                        : "·"}
+                  </span>{" "}
+                  {file.path}
+                  {"dirty" in file && file.dirty
+                    ? " ●"
+                    : "draft" in file && file.draft
+                      ? " ◌"
+                      : ""}
+                </button>
+              )}
+            </li>
+          ))}
+      </ul>
+    );
+  };
   return (
     <section
       className={`simulation-code-workspace${props.maximized ? " is-maximized" : ""}`}
       aria-label="Simulation Code workspace"
+      onKeyDown={(event) => {
+        if (event.defaultPrevented) return;
+        if (
+          (event.ctrlKey || event.metaKey) &&
+          event.key.toLowerCase() === "s"
+        ) {
+          event.preventDefault();
+          event.stopPropagation();
+          event.currentTarget
+            .querySelector<HTMLButtonElement>("[data-workspace-save]")
+            ?.click();
+        }
+        if (
+          (event.ctrlKey || event.metaKey) &&
+          event.key.toLowerCase() === "w"
+        ) {
+          event.preventDefault();
+          event.stopPropagation();
+          if (props.activePath) closeFile(props.activePath);
+        }
+      }}
     >
       <header className="simulation-code-toolbar">
         <button
@@ -231,65 +266,45 @@ export function SimulationCodeWorkspace(props: SimulationCodeWorkspaceProps) {
           Files
         </button>
         <div className="simulation-code-actions">{props.actions}</div>
-        <div
-          className="simulation-code-more"
-          onBlur={(event) => {
-            if (!event.currentTarget.contains(event.relatedTarget))
-              setMoreOpen(false);
-          }}
-        >
+        <div className="simulation-code-more">
           <button
             type="button"
             aria-label="More code actions"
-            aria-expanded={moreOpen}
             onClick={(event) => {
               const rect = event.currentTarget.getBoundingClientRect();
-              setMenuPosition({
-                top: rect.bottom,
-                right: Math.max(4, window.innerWidth - rect.right),
-              });
-              setMoreOpen(!moreOpen);
+              ui.menu(
+                rect.left,
+                rect.bottom,
+                [
+                  {
+                    label: "Advanced configuration",
+                    run: () => openFile(props.configPath),
+                  },
+                  {
+                    label: "Copy current file",
+                    disabled: !props.activePath,
+                    run: () => props.onCopyFile?.(props.activePath),
+                  },
+                  {
+                    label: "Export current file…",
+                    disabled: !props.activePath,
+                    run: () => props.onExportFile?.(props.activePath),
+                  },
+                  {
+                    label: "Close all editors",
+                    run: () => {
+                      setOpened([]);
+                      props.onSelectFile("");
+                    },
+                  },
+                  ...(props.additionalActions ?? []),
+                ],
+                "Code actions",
+              );
             }}
           >
             ···
           </button>
-          {moreOpen ? (
-            <div
-              className="simulation-code-menu"
-              style={menuPosition}
-              onClick={() => setMoreOpen(false)}
-              onKeyDown={(event) => {
-                if (event.key === "Escape") setMoreOpen(false);
-              }}
-            >
-              <button type="button" onClick={() => openFile(props.configPath)}>
-                Advanced configuration
-              </button>
-              {props.onCopyFile ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    props.onCopyFile?.();
-                    setMoreOpen(false);
-                  }}
-                >
-                  Copy current file
-                </button>
-              ) : null}
-              {props.onExportFile ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    props.onExportFile?.();
-                    setMoreOpen(false);
-                  }}
-                >
-                  Export current file…
-                </button>
-              ) : null}
-              {props.additionalActions}
-            </div>
-          ) : null}
         </div>
       </header>
       <div className="simulation-code-source-area">
@@ -297,16 +312,67 @@ export function SimulationCodeWorkspace(props: SimulationCodeWorkspaceProps) {
           <aside
             id={filesId}
             className="simulation-code-files"
+            style={{ width: filesWidth }}
             aria-label="Simulation files"
           >
             {props.folders ? (
-              <SimulationFolderTree {...props.folders}>
-                {fileList()}
-              </SimulationFolderTree>
+              <SimulationFolderTree
+                {...props.folders}
+                renderFiles={fileList}
+                onNewFile={(id) => props.onNewFile?.(id)}
+              />
             ) : (
               fileList()
             )}
           </aside>
+        ) : null}
+        {filesOpen ? (
+          <div
+            className="workspace-files-resizer"
+            role="separator"
+            tabIndex={0}
+            aria-label="Resize simulation files"
+            aria-orientation="vertical"
+            aria-valuemin={110}
+            aria-valuemax={420}
+            aria-valuenow={filesWidth}
+            onDoubleClick={() => setFilesWidth(170)}
+            onKeyDown={(event) => {
+              if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+                event.preventDefault();
+                event.stopPropagation();
+                setFilesWidth((width) =>
+                  Math.max(
+                    110,
+                    Math.min(
+                      420,
+                      width + (event.key === "ArrowRight" ? 10 : -10),
+                    ),
+                  ),
+                );
+              }
+            }}
+            onPointerDown={(event) => {
+              const handle = event.currentTarget;
+              const bounds = handle.parentElement!.getBoundingClientRect();
+              const maximum = Math.max(110, Math.min(420, bounds.width - 180));
+              handle.setPointerCapture(event.pointerId);
+              const move = (e: PointerEvent) =>
+                setFilesWidth(
+                  Math.max(110, Math.min(maximum, e.clientX - bounds.left)),
+                );
+              const end = () => {
+                handle.removeEventListener("pointermove", move);
+                handle.removeEventListener("pointerup", end);
+                handle.removeEventListener("pointercancel", end);
+                handle.removeEventListener("lostpointercapture", end);
+              };
+              handle.addEventListener("pointermove", move);
+              handle.addEventListener("pointerup", end);
+              handle.addEventListener("pointercancel", end);
+              handle.addEventListener("lostpointercapture", end);
+            }}
+          />
         ) : null}
         <div className="simulation-code-document">
           <div
@@ -329,9 +395,9 @@ export function SimulationCodeWorkspace(props: SimulationCodeWorkspaceProps) {
                       ? "Configuration"
                       : path.split("/").at(-1)}
                     {file.kind === "generated" ? " ◇" : ""}
-                    {file.dirty ? " ●" : ""}
+                    {file.dirty ? " ●" : file.draft ? " ◌" : ""}
                   </button>
-                  {path !== props.entryPath ? (
+                  {
                     <button
                       type="button"
                       aria-label={`Close ${path}`}
@@ -339,13 +405,23 @@ export function SimulationCodeWorkspace(props: SimulationCodeWorkspaceProps) {
                     >
                       ×
                     </button>
-                  ) : null}
+                  }
                 </div>
               );
             })}
           </div>
           <div className="simulation-code-document-content">
-            {props.children}
+            <div
+              hidden={!props.activePath}
+              className="workspace-editor-content"
+            >
+              {props.children}
+            </div>
+            {!props.activePath ? (
+              <p className="workspace-empty-editor">
+                Select a file to edit. Closing tabs does not delete files.
+              </p>
+            ) : null}
           </div>
         </div>
       </div>

@@ -544,24 +544,6 @@
   line-height: 1.45;
 }
 
-.simulation-exit-confirmation {
-  margin: 10px 12px 0;
-  padding: 10px;
-  border: 1px solid #fda29b;
-  border-radius: var(--icm-radius-sm);
-  background: #fff4f2;
-  font-size: var(--icm-font-sm);
-}
-.simulation-exit-confirmation p {
-  margin: 5px 0 10px;
-  color: var(--icm-text-muted);
-  line-height: 1.4;
-}
-.simulation-exit-confirmation > div {
-  display: flex;
-  gap: 6px;
-}
-
 .simulation-setup-panel {
   flex: 1 1 auto;
   min-height: 0;

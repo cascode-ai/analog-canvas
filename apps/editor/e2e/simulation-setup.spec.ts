@@ -177,7 +177,7 @@ test("the qualified OTA folder opens unchanged and preserves all root and hierar
     JSON.stringify(config, null, 2),
   );
   await panel.getByRole("button", { name: "More code actions" }).click();
-  await panel.getByRole("button", { name: "View final deck" }).click();
+  await page.getByRole("menuitem", { name: "View final deck" }).click();
   await expect(panel.getByLabel("Prepare files")).toBeVisible();
   await panel
     .getByRole("button", { name: "prepared.cir", exact: true })
@@ -225,7 +225,7 @@ test("the qualified OTA folder opens unchanged and preserves all root and hierar
   });
   await clickNetlistWorkflowCommand(page, "open-analog-simulation");
   await panel.getByRole("button", { name: "More code actions" }).click();
-  await panel.getByRole("button", { name: "Advanced configuration" }).click();
+  await page.getByRole("menuitem", { name: "Advanced configuration" }).click();
   await expect(
     panel.getByRole("textbox", { name: "Simulation source editor" }),
   ).toContainText(profile.id);
@@ -345,27 +345,25 @@ test("one Testbench persists several independently named folders", async ({
       exact: true,
     }),
   ).toBeVisible();
-  await folders.click({ button: "right", position: { x: 3, y: 3 } });
-  await folders.getByRole("menuitem", { name: "New folder…" }).click();
-  await folders
-    .getByRole("textbox", { name: "Folder name" })
-    .fill("Bias sweep");
-  await folders.getByRole("textbox", { name: "Folder name" }).press("Enter");
+  await folders.getByRole("button", { name: "+ New folder…" }).click();
+  await folders.getByLabel("New simulation folder name").fill("Bias sweep");
+  await folders.getByLabel("New simulation folder name").press("Enter");
   await expect(
     folders.getByRole("button", { name: "Folder Bias sweep", exact: true }),
   ).toBeVisible();
   await folders
     .getByRole("button", { name: "Folder Bias sweep", exact: true })
     .click({ button: "right" });
-  await folders.getByRole("menuitem", { name: "Rename…" }).click();
+  await page.getByRole("menuitem", { name: "Rename…" }).click();
   await folders
-    .getByRole("textbox", { name: "Folder name" })
+    .getByLabel("Folder name", { exact: true })
     .fill("OTA OP, DC, AC, and TRAN");
-  await folders.getByRole("textbox", { name: "Folder name" }).press("Enter");
-  await panel.getByRole("tab", { name: "Console", exact: true }).click();
-  await expect(panel.getByLabel("Simulation results")).toContainText(
-    "already exists",
-  );
+  await folders.getByLabel("Folder name", { exact: true }).press("Enter");
+  await expect(
+    folders.getByLabel("Folder name", { exact: true }),
+  ).toHaveAttribute("aria-invalid", "true");
+  await expect(folders).toContainText("already exists");
+  await folders.getByLabel("Folder name", { exact: true }).press("Escape");
   const saved = JSON.parse(
     (await downloadBytes(page, "File", "Export Project File…")).toString(),
   );
@@ -396,16 +394,22 @@ test("one Testbench persists several independently named folders", async ({
   await folders
     .getByRole("button", { name: "Folder Bias sweep", exact: true })
     .click({ button: "right" });
-  page.once("dialog", (dialog) => void dialog.dismiss());
-  await folders.getByRole("menuitem", { name: "Delete…" }).click();
+  await page.getByRole("menuitem", { name: "Delete…" }).click();
+  await page
+    .getByRole("dialog", { name: "Delete folder Bias sweep?" })
+    .getByRole("button", { name: "Cancel" })
+    .click();
   await expect(
     folders.getByRole("button", { name: "Folder Bias sweep", exact: true }),
   ).toBeVisible();
   await folders
     .getByRole("button", { name: "Folder Bias sweep", exact: true })
     .click({ button: "right" });
-  page.once("dialog", (dialog) => void dialog.accept());
-  await folders.getByRole("menuitem", { name: "Delete…" }).click();
+  await page.getByRole("menuitem", { name: "Delete…" }).click();
+  await page
+    .getByRole("dialog", { name: "Delete folder Bias sweep?" })
+    .getByRole("button", { name: "Delete", exact: true })
+    .click();
   await expect(
     folders.getByRole("button", { name: "Folder Bias sweep", exact: true }),
   ).toHaveCount(0);

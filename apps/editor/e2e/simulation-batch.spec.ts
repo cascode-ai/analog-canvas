@@ -116,7 +116,7 @@ test("a saved-folder batch prepares first and exposes each ordinary run", async 
   await panel
     .getByRole("button", { name: "Folder FF", exact: true })
     .click({ button: "right" });
-  await panel
+  await page
     .getByRole("menuitem", { name: "Run selected folders (2)" })
     .click();
   await panel.getByTitle("Batch queue", { exact: true }).click();
@@ -260,7 +260,7 @@ test("a saved Run Plan prepares without executing and Run starts its ordinary ba
     JSON.stringify(config, null, 2),
   );
   await panel.getByRole("button", { name: "More code actions" }).click();
-  await panel.getByRole("button", { name: "View final deck" }).click();
+  await page.getByRole("menuitem", { name: "View final deck" }).click();
   await panel.getByTitle("Batch queue", { exact: true }).click();
   await expect(panel.locator(".simulation-batch-menu-popover")).toContainText(
     "Batch · prepared",

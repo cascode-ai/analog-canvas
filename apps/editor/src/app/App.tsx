@@ -935,6 +935,7 @@ export function App({
     saveProjectToCloud,
     isSaveInFlight,
     saveBusy,
+    persistenceState,
     exportProjectFile,
     downloadCurrentProjectBackup,
     guardDirtyReplacement,
@@ -4015,6 +4016,14 @@ export function App({
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent): void {
+      // The source workbench owns its keyboard scope, including portalled menus.
+      if (
+        event.target instanceof Element &&
+        event.target.closest(
+          ".simulation-code-workspace, [data-workspace-interaction]",
+        )
+      )
+        return;
       // File flyout arrows navigate the focused menu, never pan the canvas.
       if (
         event.target instanceof Element &&
@@ -5366,7 +5375,8 @@ export function App({
                   onSourceBuffer={(buffer) => {
                     simulationSourceBuffer.current = buffer;
                   }}
-                  onSaveProject={() => void saveProjectToCloud()}
+                  onSaveProject={() => saveProjectToCloud()}
+                  projectSaveState={persistenceState}
                   onSaveFolder={(
                     folder,
                     expectedRevision = project.structureRevision,
@@ -5418,11 +5428,22 @@ export function App({
                       },
                     };
                   }}
-                  onDeleteFolder={(folderId) => {
-                    const committed = commitStructure(
-                      "remove-simulation-folder",
-                      [{ kind: "remove_simulation_folder", folderId }],
-                    );
+                  onDeleteFolder={(
+                    folderId,
+                    expectedRevision = project.structureRevision,
+                  ) => {
+                    const result = dispatchProjectTransaction({
+                      transactionId: `remove-simulation-folder-${crypto.randomUUID()}`,
+                      projectId: project.id,
+                      expectedStructureRevision: expectedRevision,
+                      actor: { kind: "human", id: "human-local" },
+                      edits: [{ kind: "remove_simulation_folder", folderId }],
+                    });
+                    const committed = result.ok;
+                    if (!result.ok)
+                      setStatus(
+                        `${result.error.code}: ${result.error.message}`,
+                      );
                     if (committed && activeSimulationFolderId === folderId) {
                       setActiveSimulationFolderId(null);
                       setSimulationDraftContext(null);

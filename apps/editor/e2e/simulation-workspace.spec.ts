@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { strFromU8, unzipSync } from "fflate";
@@ -96,9 +96,9 @@ test("incomplete circuit opens Code and saves invalid parameter drafts across re
   await panel
     .getByRole("button", { name: "Folder Draft", exact: true })
     .click({ button: "right" });
-  await panel.getByRole("menuitem", { name: "Duplicate…" }).click();
-  await panel.getByRole("textbox", { name: "Folder name" }).fill("Draft copy");
-  await panel.getByRole("textbox", { name: "Folder name" }).press("Enter");
+  await page.getByRole("menuitem", { name: "Duplicate…" }).click();
+  await panel.getByLabel("New simulation folder name").fill("Draft copy");
+  await panel.getByLabel("New simulation folder name").press("Enter");
   await expect(
     panel.getByRole("button", { name: "Folder Draft copy", exact: true }),
   ).toBeVisible();
@@ -359,14 +359,9 @@ test("human simulation uses saved folder, survives minimizing, recovers a bad in
   ).toBeVisible();
   await expect(panel.locator(".simulation-results-header")).toHaveCount(0);
   // A completed run belongs to its folder, not whichever folder is currently visible.
-  await panel
-    .getByLabel("Simulation folders", { exact: true })
-    .click({ button: "right", position: { x: 3, y: 3 } });
-  await panel.getByRole("menuitem", { name: "New folder…" }).click();
-  await panel
-    .getByRole("textbox", { name: "Folder name" })
-    .fill("Second folder");
-  await panel.getByRole("textbox", { name: "Folder name" }).press("Enter");
+  await panel.getByRole("button", { name: "+ New folder…" }).click();
+  await panel.getByLabel("New simulation folder name").fill("Second folder");
+  await panel.getByLabel("New simulation folder name").press("Enter");
   await expect(panel.getByRole("status")).not.toHaveText(
     "finished · completed",
   );
@@ -379,9 +374,13 @@ test("human simulation uses saved folder, survives minimizing, recovers a bad in
   await panel
     .getByRole("button", { name: "Folder Second folder", exact: true })
     .click({ button: "right" });
-  await panel.getByRole("menuitem", { name: "New file…", exact: true }).click();
-  await panel.getByRole("textbox", { name: "File name" }).fill("bias.spice");
-  await panel.getByRole("textbox", { name: "File name" }).press("Enter");
+  await page.getByRole("menuitem", { name: "New file…", exact: true }).click();
+  await panel
+    .getByRole("textbox", { name: "Relative file path" })
+    .fill("bias.spice");
+  await panel
+    .getByRole("textbox", { name: "Relative file path" })
+    .press("Enter");
   await expect(panel.getByRole("tab", { name: /bias.spice/ })).toBeVisible();
   await panel.getByRole("button", { name: /Helper.*Ctrl\+Space/ }).click();
   await panel
@@ -397,6 +396,9 @@ test("human simulation uses saved folder, survives minimizing, recovers a bad in
   ).toContainText(".save v(out)");
   await panel
     .getByRole("button", { name: "Folder E2E folder", exact: true })
+    .locator("..")
+    .locator("..")
+    .getByRole("button", { name: "run.cir", exact: true })
     .click();
   await expect(panel.getByRole("status")).toHaveText("finished · completed");
   expect(executions).toBe(1);
@@ -865,7 +867,7 @@ test("human simulation uses saved folder, survives minimizing, recovers a bad in
     .click();
   expect((await bundleDownload).suggestedFilename()).toBe("simulation-run.zip");
   await panel.getByRole("button", { name: "More code actions" }).click();
-  await panel.getByRole("button", { name: "View final deck" }).click();
+  await page.getByRole("menuitem", { name: "View final deck" }).click();
   await expect(panel.getByLabel("Prepare Netlist")).toBeVisible();
   await expect(panel.getByLabel("Run Results")).toBeVisible();
   await expect(panel.getByText("Input identity", { exact: true })).toHaveCount(
@@ -1144,9 +1146,9 @@ test("Simulation creates an ordinary testbench and offers the current Cell at th
   await clickNetlistWorkflowCommand(page, "open-analog-simulation");
   await expect(page.getByLabel("Testbench Cell")).toHaveCount(0);
   await page.getByRole("button", { name: "Set up", exact: true }).click();
-  await page
-    .getByRole("button", { name: "Template: current Canvas Cell" })
-    .click();
+  await page.getByLabel("New simulation folder name").fill("Main experiment");
+  await page.getByLabel("Folder source").selectOption("Current Canvas Cell");
+  await page.getByLabel("New simulation folder name").press("Enter");
   const configured = JSON.parse(
     (await downloadBytes(page, "File", "Export Project File…")).toString(),
   );
@@ -1187,19 +1189,238 @@ test("Simulation creates an ordinary testbench and offers the current Cell at th
   );
   await clickNetlistWorkflowCommand(page, "open-analog-simulation");
   await page.getByRole("button", { name: "Exit simulation" }).click();
-  const exitConfirmation = page.getByRole("alertdialog");
+  const exitConfirmation = page.getByRole("dialog", {
+    name: "Exit Simulation?",
+  });
   await expect(exitConfirmation).toContainText("temporary run files");
-  await exitConfirmation.getByRole("button", { name: "Keep working" }).click();
+  await exitConfirmation.getByRole("button", { name: "Cancel" }).click();
   await expect(
     page.getByRole("region", { name: "Analog simulation" }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Exit simulation" }).click();
   await page
-    .getByRole("alertdialog")
+    .getByRole("dialog", { name: "Exit Simulation?" })
     .getByRole("button", { name: "Exit Simulation" })
     .click();
   await expect(
     page.getByRole("region", { name: "Analog simulation" }),
   ).toHaveCount(0);
   await expect(page.getByTestId("library-toggle")).toBeEnabled();
+});
+
+async function openWorkspace(page: Page) {
+  const project = parseProject(JSON.stringify(ota));
+  project.simulationFolders = ["Alpha", "Beta"].map((name) =>
+    createSimulationFolder({
+      id: name,
+      name,
+      documentId: project.topDocumentId,
+      profileId: profile.id,
+    }),
+  );
+  await page.goto("/editor");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "interactions.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  await page.getByTestId("open-analog-simulation").click();
+  return page.getByRole("region", { name: "Simulation Code workspace" });
+}
+
+test("workspace menus, selection, empty editors and resizing share non-destructive semantics", async ({
+  page,
+}) => {
+  const workspace = await openWorkspace(page);
+  const files = workspace.getByRole("complementary", {
+    name: "Simulation files",
+  });
+  const alpha = files.getByRole("button", {
+    name: "Folder Alpha",
+    exact: true,
+  });
+  const beta = files.getByRole("button", { name: "Folder Beta", exact: true });
+  await expect(
+    workspace.getByRole("tab", { name: "run.cir", exact: true }),
+  ).toHaveAttribute("aria-selected", "true");
+  const before = await files.boundingBox();
+  await files
+    .getByRole("button", { name: "circuit.spice", exact: true })
+    .first()
+    .click({ button: "right" });
+  await expect(
+    page.getByRole("menu", { name: "Actions for circuit.spice" }),
+  ).toBeVisible();
+  await expect(
+    workspace.getByRole("tab", { name: "run.cir", exact: true }),
+  ).toHaveAttribute("aria-selected", "true");
+  expect((await files.boundingBox())!.width).toBe(before!.width);
+  // One outside click both dismisses the menu and activates its intended target.
+  await beta.click({ position: { x: 2, y: 2 } });
+  await expect(page.getByRole("menu")).toHaveCount(0);
+  await expect(beta).toHaveAttribute("aria-pressed", "true");
+  await expect(
+    page.getByRole("button", { name: "Run", exact: true }),
+  ).toHaveAttribute("title", "Run Alpha");
+  await files
+    .getByRole("button", { name: "Toggle Alpha", exact: true })
+    .click();
+  await expect(alpha).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Run", exact: true }),
+  ).toHaveAttribute("title", "Run Alpha");
+  await workspace
+    .getByRole("button", { name: "Close run.cir", exact: true })
+    .click();
+  await workspace
+    .getByRole("button", { name: "Close circuit.spice", exact: true })
+    .click();
+  await expect(
+    workspace
+      .getByRole("tablist", { name: "Open simulation files" })
+      .getByRole("tab"),
+  ).toHaveCount(0);
+  await expect(
+    workspace.getByText("Select a file to edit.", { exact: false }),
+  ).toBeVisible();
+  await files
+    .getByRole("button", { name: "Toggle Alpha", exact: true })
+    .click();
+  await files
+    .getByRole("button", { name: "run.cir", exact: true })
+    .first()
+    .click();
+  await expect(
+    workspace.getByRole("textbox", { name: "Simulation source editor" }),
+  ).toBeVisible();
+  const handle = workspace.getByRole("separator", {
+    name: "Resize simulation files",
+  });
+  const original = Number(await handle.getAttribute("aria-valuenow"));
+  await handle.focus();
+  await handle.press("ArrowRight");
+  await expect(handle).toHaveAttribute("aria-valuenow", String(original + 10));
+  await handle.dblclick();
+  await expect(handle).toHaveAttribute("aria-valuenow", "170");
+  await alpha.click({ button: "right" });
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("menu")).toHaveCount(0);
+  await expect(workspace).toBeVisible();
+  // An old Canvas selection must not override explicit activation in another folder.
+  await page
+    .locator('[data-canvas-hit-kind="instance"]')
+    .first()
+    .click({ force: true });
+  await expect(
+    workspace.getByRole("tab", { name: /circuit\.spice/ }),
+  ).toHaveAttribute("aria-selected", "true");
+  await beta
+    .locator("..")
+    .locator("..")
+    .getByRole("button", { name: "run.cir", exact: true })
+    .click();
+  await expect(
+    workspace.getByRole("tab", { name: "run.cir", exact: true }),
+  ).toHaveAttribute("aria-selected", "true");
+  await expect(
+    page.getByRole("button", { name: "Run", exact: true }),
+  ).toHaveAttribute("title", "Run Beta");
+});
+
+test("inline naming commits once on blur, cancels on Escape, and deletion uses a local dialog", async ({
+  page,
+}) => {
+  const workspace = await openWorkspace(page);
+  const nativeDialogs: string[] = [];
+  page.on("dialog", (dialog) => {
+    nativeDialogs.push(dialog.type());
+    void dialog.dismiss();
+  });
+  await workspace
+    .getByRole("button", { name: "+ New folder…", exact: true })
+    .click();
+  const input = workspace.getByRole("textbox", {
+    name: "New simulation folder name",
+  });
+  await input.fill("Gamma");
+  await workspace.getByLabel("Folder template").selectOption("AC");
+  // The destination click is not eaten by the naming transaction.
+  await workspace
+    .getByRole("button", { name: "Folder Beta", exact: true })
+    .click();
+  await expect(
+    workspace.getByRole("button", { name: "Folder Gamma", exact: true }),
+  ).toHaveCount(1);
+  await expect(
+    workspace.getByRole("textbox", { name: "Simulation source editor" }),
+  ).toContainText("ac ");
+  await workspace
+    .getByRole("button", { name: "+ New folder…", exact: true })
+    .click();
+  await workspace
+    .getByRole("textbox", { name: "New simulation folder name" })
+    .fill("Cancelled");
+  await page.keyboard.press("Escape");
+  await expect(
+    workspace.getByRole("button", { name: "Folder Cancelled", exact: true }),
+  ).toHaveCount(0);
+  const gamma = workspace.getByRole("button", {
+    name: "Folder Gamma",
+    exact: true,
+  });
+  await gamma.focus();
+  await gamma.press("F2");
+  await workspace
+    .getByRole("textbox", { name: "Folder name", exact: true })
+    .fill("Renamed");
+  await page.keyboard.press("Enter");
+  const renamed = workspace.getByRole("button", {
+    name: "Folder Renamed",
+    exact: true,
+  });
+  await renamed.click({ button: "right" });
+  await page.getByRole("menuitem", { name: "New file…", exact: true }).click();
+  const fileName = workspace.getByRole("textbox", {
+    name: "Relative file path",
+  });
+  await fileName.fill("run.cir");
+  await fileName.press("Enter");
+  await expect(fileName).toHaveAttribute("aria-invalid", "true");
+  await fileName.fill("stimulus.cir");
+  await fileName.press("Enter");
+  await expect(
+    workspace.getByRole("tab", { name: /stimulus\.cir/u }),
+  ).toBeVisible();
+  const editor = workspace.getByRole("textbox", {
+    name: "Simulation source editor",
+  });
+  await editor.click();
+  await editor.press("Control+End");
+  await editor.pressSequentially("* Editable new file");
+  await expect(editor).toContainText("Editable new file");
+  await renamed.focus();
+  await renamed.press("Delete");
+  const dialog = page.getByRole("dialog", { name: "Delete folder Renamed?" });
+  await expect(dialog).toBeVisible();
+  await expect(
+    dialog.getByRole("button", { name: "Cancel", exact: true }),
+  ).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(renamed).toBeVisible();
+  await renamed.focus();
+  await renamed.press("Delete");
+  await dialog.getByRole("button", { name: "Delete", exact: true }).click();
+  await expect(renamed).toHaveCount(0);
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  await expect(renamed).toBeVisible();
+  await renamed
+    .locator("..")
+    .locator("..")
+    .getByRole("button", { name: "stimulus.cir", exact: true })
+    .click();
+  await expect(editor).toContainText("Editable new file");
+  expect(nativeDialogs).toEqual([]);
+  await expect(
+    page.getByRole("heading", { name: "The editor hit an unexpected problem" }),
+  ).toHaveCount(0);
 });
