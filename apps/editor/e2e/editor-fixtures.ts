@@ -137,6 +137,19 @@ export async function setComponentParameter(
   });
 }
 
+export async function setComponentCodeField(
+  page: Page,
+  path: string,
+  value: unknown,
+): Promise<void> {
+  await editComponentPropertyCode(page, (code) => {
+    const parts = path.split(".");
+    const key = parts.pop()!;
+    const target = parts.reduce((target, part) => (target[part] ??= {}), code);
+    target[key] = value;
+  });
+}
+
 export async function expectComponentCodeField(
   page: Page,
   path: string,

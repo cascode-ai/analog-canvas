@@ -63,11 +63,14 @@ is appended only by the Project transaction.
 
 ## Component property code
 
-Selecting a placed component and opening **Properties** presents its canvas
-properties first as strict, editable JSON:
+Selecting a component and opening **Properties** presents its instance
+properties together as strict, editable JSON. For example, a resistor:
 
 ```json
 {
+  "reference": "R1",
+  "parameters": { "value": "10k", "tc": "0.1" },
+  "netlistTarget": "",
   "placement": {
     "at": [360, 240],
     "rotation": 90,
@@ -90,11 +93,22 @@ annotations supported by that Symbol. Fixed colors are displayed as compact
 `[R, G, B]` tuples with integer channels 0–255; six-digit hex input remains
 accepted and persisted instance colors remain hex. `"auto"` inherits global
 ink for foreground and adds no independent background fill; it does not mean
-fixed black or white. Applying valid code plans the existing typed placement, annotation,
-and style edits and submits them as one transaction. Unknown keys and invalid
-values are rejected without changing the Document. Connectivity, pins, Netlist
-identity, and Placement Tray lifecycle are intentionally absent from this
-surface; their dedicated typed commands remain authoritative.
+fixed black or white. Applying valid code plans the existing typed placement,
+annotation, parameter, identity, and style edits as one transaction. Unknown
+root keys and invalid values are rejected without changing the Document.
+`parameters` contains descriptor-owned values and arbitrary model/dialect
+overrides as raw strings; empty values or removed keys unset a parameter.
+`netlistTarget` accepts model names, including reviewed external targets, and
+an empty string clears it. A target switch composes the existing structural
+planner with the rest of the draft into one project transaction. No new
+project format or parallel netlist authority is introduced.
+
+The optional `symbol` enum exposes only the existing pin-compatible input,
+output, or switch-contact variants. `signalFlow` owns formula presentation
+overrides. Setting `placement` to null uses the retained-instance unplacement
+planner; coordinates re-place the retained instance. Electrical connectivity
+and Cell-level interface/layout operations retain their existing typed
+authoring surfaces; removing a component remains an explicit Delete action.
 
 The lazy JSON editor provides syntax highlighting, bracket matching, JSON
 diagnostics and local text undo. Canvas-layer field metadata owns the rotation
@@ -104,13 +118,18 @@ they never apply implicitly. Left/right and top/bottom actions compose the
 current draft orientation in canvas coordinates, updating rotation and the one
 local mirror bit together. Invalid drafts disable assistance, not text editing.
 Hints and widgets are editor decorations, never JSON comments or persisted data.
-Apply is one document transaction; Revert discards the draft, and switching
-components cannot carry an old draft or its local history into a new selection.
+**Discard draft** restores the last applied state without changing the circuit.
+**Defaults** loads known parameter, orientation, color, and formula defaults
+into the draft; it preserves coordinates, reference, model target, display
+flags, and unknown overrides. It still requires Apply. **Copy JSON** copies
+the complete raw draft without decorations. Switching components cannot carry
+an old draft or its local history into a new selection.
 
 The old component placement, display, and appearance button grids are not
-mounted in the composed Properties dock. Electrical parameters, Reference,
-model bindings, Symbol-specific actions, and the exact read-only SPICE card
-remain in their focused sections below the canvas code. The left edge of
+mounted in the composed Properties dock. Parameters, Netlist Overrides,
+Actions, and Netlist Target no longer have duplicate forms below the JSON.
+Specialized electrical terminal and Cell interface/layout controls retain
+their distinct connectivity/definition ownership. The left edge of
 Properties is draggable and keyboard-adjustable in both docked and compact
 overlay layouts; its independent width is retained locally without becoming
 Project data.
@@ -471,8 +490,9 @@ in the Project, so hiding is recoverable and a missing label can be re-created
 from the same toggle. Component value display is the paired `Value` toggle on
 the same control row: MOS devices project `W/L` as a stacked fraction with a
 fraction bar, passives and independent sources project their scalar parameter,
-and every projected value is upright bold text carrying its engineering unit
-(`150n` displays as `150nm`, `10k` as `10kΩ`). The toggle's availability
+and every projected value is upright bold text preserving authored spelling
+(`150n` stays `150n`, `EV` stays `EV`; `150nm` stays `150nm` when explicitly
+entered). No unit suffix is invented. The toggle's availability
 follows the live property draft — typing a value enables it without
 reopening the panel — and checking it commits the typed parameters and shows
 the projected value in one transaction. Showing a value re-projects its text

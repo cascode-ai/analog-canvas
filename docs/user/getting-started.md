@@ -40,7 +40,9 @@ palette-first manual authoring; no Project file needs to be opened first.
   **Remove route geometry** action to keep logical membership while deleting
   only the drawn route.
 - Select a component and press `Q` to open **Properties**. Its editable
-  **Canvas properties** JSON keeps position as `"at": [x, y]`, plus quarter-turn
+  **Component properties** JSON keeps raw parameters (W/L/NF/M and additional
+  netlist overrides), reference and model target together with position as
+  `"at": [x, y]`, plus quarter-turn
   rotation, mirror, supported Reference/Value visibility, and foreground/background
   colors. Use the inline switches, angle/mirror menus, color swatches and field
   hints, or type JSON directly. Fixed colors display as `[R, G, B]` (0–255);
@@ -48,8 +50,14 @@ palette-first manual authoring; no Project file needs to be opened first.
   independent background override. Flip arrows work in canvas directions.
   These controls change the draft: choose **Apply code** (or
   press `Ctrl`/`Cmd`+`Enter`); invalid or unknown properties are reported
-  without changing the drawing. Electrical parameters and the read-only SPICE
-  card remain below it. Drag the panel's left edge to set a comfortable width.
+  without changing the drawing. Parameter values are strings: type unit suffixes
+  yourself; `EV` remains `EV`, and `2u` is not changed to `2um`.
+  **Discard draft** cancels unapplied edits. **Defaults** loads known defaults
+  into the draft without moving, renaming or rebinding the component; Apply
+  commits them. **Copy JSON** excludes hints and controls. Compatible drawing
+  variants and formula overrides are in the same editor, with no duplicate
+  Parameters/Actions/Netlist Target forms. Drag the panel's left edge to set a
+  comfortable width.
 - Right-click an endpoint for the distinct **Disconnect endpoint** and
   **Delete connection** actions.
 - `Delete` on a connected component now removes the component while preserving

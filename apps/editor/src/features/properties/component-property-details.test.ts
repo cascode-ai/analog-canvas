@@ -42,6 +42,23 @@ describe("unified component property details", () => {
       value: { parameters: instance.netlist!.parameters },
     });
   });
+
+  it("never color-converts parameter names or reformats tuples inside raw strings", () => {
+    const raw = {
+      ...instance,
+      netlist: {
+        parameters: {
+          foreground: "EV",
+          background: "[1,2]",
+          custom: 'say "[3,4]"',
+        },
+      },
+    };
+    const rawContext = { ...context, instance: raw };
+    expect(
+      JSON.parse(formatComponentPropertyCode(rawContext)).parameters,
+    ).toMatchObject(raw.netlist.parameters);
+  });
   it("plans parameter set/unset, identity and placement as ordinary atomic edits", () => {
     const decoded = JSON.parse(formatComponentPropertyCode(context));
     decoded.reference = "M2";
@@ -107,5 +124,41 @@ describe("unified component property details", () => {
       ]),
     );
     expect(componentSymbolOptions("nmos")).toEqual(["nmos"]);
+  });
+
+  it("keeps Digital Clock primary controls connected to its compatibility pulse values", () => {
+    const clock = {
+      ...instance,
+      symbolId: "pulse-voltage-source",
+      reference: "V1",
+      netlist: {
+        parameters: {
+          period: "10ns",
+          dutyCycle: "50",
+          initial: "0",
+          low: "0",
+          high: "1",
+          width: "5ns",
+          delay: "5ns",
+        },
+      },
+    };
+    const clockContext = {
+      ...context,
+      instance: clock,
+      details: { parameters: componentParameters(clock.symbolId) },
+    };
+    const source = JSON.parse(formatComponentPropertyCode(clockContext));
+    source.parameters.dutyCycle = "25";
+    const parsed = parseComponentPropertyCode(
+      JSON.stringify(source),
+      clockContext,
+    );
+    expect(parsed).toMatchObject({
+      ok: true,
+      value: {
+        parameters: { dutyCycle: "25", width: "2500ps", delay: "7500ps" },
+      },
+    });
   });
 });

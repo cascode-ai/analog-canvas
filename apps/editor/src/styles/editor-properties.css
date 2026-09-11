@@ -487,8 +487,8 @@
 
 .component-property-code-status {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
+  align-items: stretch;
   gap: var(--icm-space-2);
   min-width: 0;
 }
@@ -502,7 +502,8 @@
 
 .component-property-code-status > div {
   display: flex;
-  flex: none;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: var(--icm-space-1);
 }
 

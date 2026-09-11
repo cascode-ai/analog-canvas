@@ -1290,6 +1290,7 @@ export function App({
   const projectInputRef = useRef<HTMLInputElement>(null);
   const selectionShelfRef = useRef<HTMLButtonElement>(null);
   const instanceValueInputRef = useRef<HTMLInputElement>(null);
+  const [propertyCodeFocusRequest, setPropertyCodeFocusRequest] = useState(0);
   const netLabelPropertyInputRef = useRef<HTMLInputElement>(null);
   const netLabelEditorInputRef = useRef<HTMLInputElement>(null);
   const documentViewBoxes = useRef(new Map<string, GridRect>());
@@ -3327,9 +3328,7 @@ export function App({
     setImportReviewOpen(false);
     setSelectionOpen(true);
     setStatus(`Properties for ${instanceId}`);
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => instanceValueInputRef.current?.focus());
-    });
+    setPropertyCodeFocusRequest((current) => current + 1);
   }
 
   function toggleExamplesPanel(): void {
@@ -5643,6 +5642,7 @@ export function App({
                 selectedInstance
                   ? {
                       code: {
+                        focusRequest: propertyCodeFocusRequest,
                         instance: selectedInstance,
                         defaultForeground: styleProfile.foreground,
                         revision: document.revision,

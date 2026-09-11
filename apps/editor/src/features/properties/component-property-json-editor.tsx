@@ -47,6 +47,7 @@ interface Props {
   historyKey: string;
   context: ComponentPropertyCodeContext;
   defaultForeground: string;
+  focusRequest: number;
   onChange(source: string): void;
   onApply(): void;
 }
@@ -142,6 +143,10 @@ export default function ComponentPropertyJsonEditor(props: Props) {
       });
     } else view.dispatch({ effects: refreshAssists.of(null) });
   }, [props.value, props.historyKey, props.context, props.defaultForeground]);
+
+  useLayoutEffect(() => {
+    if (props.focusRequest > 0) viewRef.current?.focus();
+  }, [props.focusRequest]);
 
   return <div className="component-json-editor" ref={parent} />;
 }

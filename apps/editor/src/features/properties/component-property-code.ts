@@ -190,20 +190,29 @@ export function serializeComponentPropertyCode(
   value: ComponentPropertyCodeValue,
 ): string {
   const source = JSON.stringify(
-    value,
-    (key, item: unknown) =>
-      (key === "foreground" || key === "background") &&
-      typeof item === "string" &&
-      item !== "auto"
-        ? colorToRgb(item)
-        : item,
+    {
+      ...value,
+      appearance: {
+        foreground:
+          value.appearance.foreground === "auto"
+            ? "auto"
+            : colorToRgb(value.appearance.foreground),
+        background:
+          value.appearance.background === "auto"
+            ? "auto"
+            : colorToRgb(value.appearance.background),
+      },
+    },
+    null,
     2,
   );
   // Keep coordinate and RGB tuples readable on one line; this remains strict JSON.
   return source.replace(
-    /\[\s*(-?\d+(?:\.\d+)?(?:e[+-]?\d+)?)\s*,\s*(-?\d+(?:\.\d+)?(?:e[+-]?\d+)?)(?:\s*,\s*(\d+))?\s*\]/giu,
-    (_match, first: string, second: string, third?: string) =>
-      `[${first}, ${second}${third === undefined ? "" : `, ${third}`}]`,
+    /"(?:\\.|[^"\\])*"|\[\s*(-?\d+(?:\.\d+)?(?:e[+-]?\d+)?)\s*,\s*(-?\d+(?:\.\d+)?(?:e[+-]?\d+)?)(?:\s*,\s*(\d+))?\s*\]/giu,
+    (match, first?: string, second?: string, third?: string) =>
+      first === undefined
+        ? match
+        : `[${first}, ${second}${third === undefined ? "" : `, ${third}`}]`,
   );
 }
 

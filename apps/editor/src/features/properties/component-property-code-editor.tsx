@@ -23,6 +23,7 @@ export interface ComponentPropertyCodeEditorProps {
   valueVisible: boolean | null;
   defaultForeground?: string;
   details?: ComponentPropertyCodeContext["details"];
+  focusRequest?: number;
   onApply: (
     value: ComponentPropertyCodeValue,
   ) => { ok: true } | { ok: false; message: string };
@@ -36,6 +37,7 @@ export function ComponentPropertyCodeEditor({
   valueVisible,
   defaultForeground = "#000000",
   details,
+  focusRequest = 0,
   onApply,
 }: ComponentPropertyCodeEditorProps) {
   const context = useMemo<ComponentPropertyCodeContext>(
@@ -56,10 +58,11 @@ export function ComponentPropertyCodeEditor({
   const [applyMessage, setApplyMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    setDraft((current) =>
-      current === previousBaseline.current ? baseline : current,
-    );
+    // Capture before enqueueing: React may run the updater after the ref has
+    // advanced. Reading the ref inside it leaves normalized target edits stale.
+    const previous = previousBaseline.current;
     previousBaseline.current = baseline;
+    setDraft((current) => (current === previous ? baseline : current));
   }, [baseline]);
 
   const parsed = useMemo(
@@ -112,6 +115,7 @@ export function ComponentPropertyCodeEditor({
           historyKey={baseline}
           context={context}
           defaultForeground={defaultForeground}
+          focusRequest={focusRequest}
           onChange={(source) => {
             setDraft(source);
             setApplyMessage(null);

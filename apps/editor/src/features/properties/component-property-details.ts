@@ -5,6 +5,10 @@ import {
 } from "@icm/model";
 import type { Instance } from "@icm/model";
 import type { ComponentParameter } from "../component-insert/component-parameters";
+import {
+  effectiveComponentParameterValue,
+  updateComponentParameterValues,
+} from "../component-insert/component-parameters";
 import { differentialInputSibling } from "../editor-shell/differential-input-swap";
 import { differentialOutputSibling } from "../editor-shell/differential-output-swap";
 import { switchContactStyleSibling } from "../editor-shell/switch-contact-style";
@@ -51,7 +55,10 @@ export function componentPropertyDetailsValue(
             ...Object.fromEntries(
               context.parameters
                 .filter((parameter) => !parameter.compatibilityOnly)
-                .map((parameter) => [parameter.key, ""]),
+                .map((parameter) => [
+                  parameter.key,
+                  effectiveComponentParameterValue(instance, parameter),
+                ]),
             ),
             ...instance.netlist.parameters,
           },
@@ -115,6 +122,21 @@ export function parseComponentPropertyDetails(
         entries.push([name, raw]);
       }
       result.parameters = Object.fromEntries(entries);
+      // The Digital Clock's primary timing controls still own its legacy
+      // pulse-source projection. Reuse that policy rather than leaving the
+      // displayed duty cycle disconnected from the waveform sent to SPICE.
+      if (instance.symbolId === "pulse-voltage-source") {
+        for (const key of ["period", "dutyCycle", "initial"]) {
+          const raw = result.parameters[key];
+          if (raw !== undefined && raw !== baseline.parameters?.[key])
+            result.parameters = updateComponentParameterValues(
+              instance.symbolId,
+              result.parameters,
+              key,
+              raw,
+            );
+        }
+      }
     } else if (key === "signalFlow") {
       const parsed = SignalFlowParametersSchema.safeParse(value);
       if (!parsed.success)
