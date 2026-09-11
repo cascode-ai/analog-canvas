@@ -1,6 +1,11 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import { chooseComponent, downloadBytes } from "./editor-fixtures";
+import {
+  chooseComponent,
+  downloadBytes,
+  expectComponentCodeField,
+  setComponentCodeField,
+} from "./editor-fixtures";
 
 async function placeSymbol(page: Page, symbolId: string): Promise<void> {
   await page.goto("/editor");
@@ -64,7 +69,14 @@ test("the Properties field shows what the canvas edit committed", async ({
   await page.getByRole("button", { name: "Apply text changes" }).click();
 
   await page.getByTestId("hit-X1").click();
-  await expect(page.getByLabel("Formula")).toHaveValue("current steering");
+  const shelf = page.getByTestId("selection-shelf");
+  if ((await shelf.getAttribute("aria-expanded")) !== "true")
+    await shelf.click();
+  await expectComponentCodeField(
+    page,
+    "signalFlow.formula",
+    "current steering",
+  );
 
   const saved = JSON.parse(
     (await downloadBytes(page, "File", "Export Project File…")).toString(
@@ -155,10 +167,7 @@ test("the swapped-input op-amp edits its body text too", async ({ page }) => {
   await placeSymbol(page, "opamp-lettered");
   await page.getByTestId("hit-X1").click();
   await page.getByTestId("selection-shelf").click();
-  await page
-    .getByLabel("Amplifier placement actions")
-    .getByRole("button", { name: "Swap the + and - inputs" })
-    .click();
+  await setComponentCodeField(page, "symbol", "opamp-lettered-inputs-swapped");
 
   await page.getByTestId("hit-X1").dblclick();
   const editor = page.getByRole("textbox", { name: "Canvas text editor" });
