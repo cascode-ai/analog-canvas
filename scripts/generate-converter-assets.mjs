@@ -1,4 +1,8 @@
 #!/usr/bin/env node
+import {
+  readComponentProjection,
+  writeComponentProjection,
+} from "./lib/component-library.mjs";
 // Draws the data-converter blocks: an ADC and a DAC, each a five-sided arrow
 // whose point states which way the conversion runs — left into the digital
 // domain, right back out of it.
@@ -22,15 +26,14 @@
 //   point pulls a pentagon's visual middle towards the blunt end, and text
 //   centred on the box would drift into the tip.
 import { createHash } from "node:crypto";
-import { readFile, writeFile } from "node:fs/promises";
 import { relative, resolve } from "node:path";
 import process from "node:process";
 
 import { format } from "prettier";
 
 const root = resolve(import.meta.dirname, "..");
-const assetRoot = resolve(root, "packages/symbols/assets/razavi-v1");
-const catalogPath = resolve(assetRoot, "catalog.json");
+const assetRoot = resolve(root, "packages/components/definitions");
+const catalogPath = resolve(assetRoot, "../catalog.json");
 const check = process.argv.includes("--check");
 
 function fail(message) {
@@ -170,7 +173,7 @@ const CONVERTERS = [
   },
 ];
 
-const catalog = JSON.parse(await readFile(catalogPath, "utf8"));
+const catalog = JSON.parse(await readComponentProjection(catalogPath));
 const outputs = [];
 
 for (const converter of CONVERTERS) {
@@ -178,7 +181,7 @@ for (const converter of CONVERTERS) {
   const source = normalize(
     await format(JSON.stringify(symbol, null, 2), { parser: "json" }),
   );
-  const assetPath = `${converter.id}.symbol.json`;
+  const assetPath = `${converter.id}.json`;
   outputs.push([resolve(assetRoot, assetPath), source]);
 
   const entry = {
@@ -210,14 +213,14 @@ outputs.push([
 
 if (check) {
   for (const [path, source] of outputs) {
-    const existing = await readFile(path, "utf8").catch(() => null);
+    const existing = await readComponentProjection(path).catch(() => null);
     if (existing === null || normalize(existing) !== source) {
       fail(`${relative(root, path)} is stale`);
     }
   }
 } else {
   for (const [path, source] of outputs) {
-    await writeFile(path, source, "utf8");
+    await writeComponentProjection(path, source);
   }
 }
 

@@ -1,0 +1,133 @@
+{
+  "schemaVersion": 1,
+  "symbol": {
+    "schemaVersion": 1,
+    "id": "dac",
+    "name": "Digital-to-Analog Converter",
+    "viewBox": {
+      "x": -44,
+      "y": -24,
+      "width": 98,
+      "height": 48
+    },
+    "pins": [
+      {
+        "name": "IN",
+        "role": "input",
+        "at": {
+          "x": -40,
+          "y": 0
+        },
+        "direction": "west",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      },
+      {
+        "name": "OUT",
+        "role": "output",
+        "at": {
+          "x": 50,
+          "y": 0
+        },
+        "direction": "east",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      }
+    ],
+    "primitives": [
+      {
+        "kind": "line",
+        "from": {
+          "x": -40,
+          "y": 0
+        },
+        "to": {
+          "x": -30,
+          "y": 0
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "polygon",
+        "points": [
+          {
+            "x": -30,
+            "y": -20
+          },
+          {
+            "x": 20,
+            "y": -20
+          },
+          {
+            "x": 40,
+            "y": 0
+          },
+          {
+            "x": 20,
+            "y": 20
+          },
+          {
+            "x": -30,
+            "y": 20
+          }
+        ],
+        "fill": "none",
+        "stroke": "foreground",
+        "style": {
+          "strokeRole": "emphasis",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 40,
+          "y": 0
+        },
+        "to": {
+          "x": 50,
+          "y": 0
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      }
+    ],
+    "variants": [],
+    "formulaPresentation": {
+      "defaultFormula": "DAC",
+      "supportsCoefficient": false,
+      "center": {
+        "x": 0.28,
+        "y": 0
+      },
+      "fontSize": 12
+    }
+  },
+  "electrical": null,
+  "catalog": {
+    "library": "razavi",
+    "symbolId": "dac",
+    "name": "Digital-to-Analog Converter",
+    "category": "analog-block",
+    "reviewStatus": "reviewed",
+    "provenance": "house",
+    "houseReason": "The reference draws converter internals, never a block standing for one on a sheet. Drawn here as the ADC's mirror so a signal chain reads in both directions.",
+    "pinOrder": ["IN", "OUT"],
+    "palette": true,
+    "automaticMappings": [],
+    "manualOnlyReason": "A converter block stands for a subsystem; SPICE has no primitive for one.",
+    "assetPath": "dac.json"
+  }
+}

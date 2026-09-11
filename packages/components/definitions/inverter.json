@@ -1,0 +1,131 @@
+{
+  "schemaVersion": 1,
+  "symbol": {
+    "schemaVersion": 1,
+    "id": "inverter",
+    "name": "Inverter",
+    "viewBox": {
+      "x": -44,
+      "y": -24,
+      "width": 88,
+      "height": 48
+    },
+    "pins": [
+      {
+        "name": "A",
+        "role": "input",
+        "at": {
+          "x": -30,
+          "y": 0
+        },
+        "direction": "west",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 15
+        }
+      },
+      {
+        "name": "Y",
+        "role": "output",
+        "at": {
+          "x": 30,
+          "y": 0
+        },
+        "direction": "east",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 15
+        }
+      }
+    ],
+    "primitives": [
+      {
+        "kind": "line",
+        "from": {
+          "x": -30,
+          "y": 0
+        },
+        "to": {
+          "x": -14.727526,
+          "y": 0
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "path",
+        "data": "M 9.023455 0.0 L -14.727526 -15.000436 L -14.727526 13.748365 L 9.023455 0.0",
+        "style": {
+          "strokeRole": "emphasis",
+          "lineCap": "butt",
+          "lineJoin": "miter",
+          "miterLimit": 4
+        }
+      },
+      {
+        "kind": "circle",
+        "center": {
+          "x": 12.794489,
+          "y": 0.009591
+        },
+        "radius": 3.750109,
+        "part": "negation-bubble",
+        "style": {
+          "strokeRole": "emphasis",
+          "lineCap": "butt",
+          "lineJoin": "miter",
+          "miterLimit": 4
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 16.525416,
+          "y": 0
+        },
+        "to": {
+          "x": 30,
+          "y": 0
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      }
+    ],
+    "variants": []
+  },
+  "electrical": null,
+  "catalog": {
+    "library": "razavi",
+    "symbolId": "inverter",
+    "name": "Inverter",
+    "category": "logic",
+    "reviewStatus": "reviewed",
+    "pinOrder": ["A", "Y"],
+    "palette": true,
+    "automaticMappings": [],
+    "manualOnlyReason": "Behavioral logic gate; structural SPICE realization requires an explicit subcircuit or PDK mapping.",
+    "assetPath": "inverter.json",
+    "visualAuthority": {
+      "kind": "razavi-reference-v1",
+      "referenceManifestPath": "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+      "referencePaths": [
+        "fixtures/visual-reference/razavi-reference-v1/logic-inverter-vector-source.json",
+        "fixtures/visual-reference/razavi-reference-v1/logic-inverter-reference.png"
+      ],
+      "calibrationPath": "fixtures/visual-reference/razavi-reference-v1/logic-gate-geometry.json"
+    },
+    "generation": {
+      "kind": "razavi-pdf-vector-reference",
+      "referenceManifestPath": "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+      "referencePath": "fixtures/visual-reference/razavi-reference-v1/logic-inverter-vector-source.json",
+      "converterPath": "scripts/generate-razavi-logic-gate-assets.mjs",
+      "converterVersion": 2
+    }
+  }
+}

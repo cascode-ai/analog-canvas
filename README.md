@@ -85,6 +85,9 @@ files.
 - `packages/model/`, `packages/project-protocol/`, and `packages/edit-engine/`:
   current persisted circuit model, bounded file compatibility, and atomic
   mutation boundary.
+- [`packages/components/`](packages/components/README.md): one canonical JSON
+  file per built-in component, containing its symbol, electrical rules and
+  catalog metadata; runtime packages consume generated projections.
 - `packages/spice/`, `packages/devices/`, `packages/symbols/`, and
   `packages/netlist/`: structural SPICE import, built-in device facts, symbol
   semantics, and deterministic design-netlist export.

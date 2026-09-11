@@ -1,5 +1,8 @@
+import {
+  readComponentProjection,
+  writeComponentProjection,
+} from "./lib/component-library.mjs";
 import { createHash } from "node:crypto";
-import { readFile, writeFile } from "node:fs/promises";
 import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -12,8 +15,8 @@ const referenceRoot = resolve(
   root,
   "fixtures/visual-reference/razavi-reference-v1",
 );
-const assetRoot = resolve(root, "packages/symbols/assets/razavi-v1");
-const catalogPath = resolve(assetRoot, "catalog.json");
+const assetRoot = resolve(root, "packages/components/definitions");
+const catalogPath = resolve(assetRoot, "../catalog.json");
 const check = process.argv.includes("--check");
 const normalize = (value) => `${value.replaceAll("\r\n", "\n").trimEnd()}\n`;
 const hash = (value) => createHash("sha256").update(value).digest("hex");
@@ -131,10 +134,13 @@ const evidenceFor = (id) => {
 const xfmrEvidence = evidenceFor("razavi-ojsscs-figure-19-xfmr");
 const tcoilEvidence = evidenceFor("razavi-bridged-tcoil-figure-2");
 const inductor = JSON.parse(
-  await readFile(resolve(assetRoot, "inductor-compact.symbol.json"), "utf8"),
+  await readComponentProjection(
+    resolve(assetRoot, "inductor-compact.json"),
+    "utf8",
+  ),
 );
 const capacitor = JSON.parse(
-  await readFile(resolve(assetRoot, "capacitor.symbol.json"), "utf8"),
+  await readComponentProjection(resolve(assetRoot, "capacitor.json")),
 );
 const inductorPath = inductor.primitives.find(
   (primitive) => primitive.kind === "path",
@@ -271,7 +277,7 @@ for (const symbol of [tcoil, xfmr]) {
   );
 }
 
-const catalog = JSON.parse(await readFile(catalogPath, "utf8"));
+const catalog = JSON.parse(await readComponentProjection(catalogPath));
 const entryTemplate = (symbol, evidence, manualOnlyReason) => ({
   symbolId: symbol.id,
   name: symbol.name,
@@ -281,7 +287,7 @@ const entryTemplate = (symbol, evidence, manualOnlyReason) => ({
   palette: true,
   automaticMappings: [],
   manualOnlyReason,
-  assetPath: `${symbol.id}.symbol.json`,
+  assetPath: `${symbol.id}.json`,
   assetHash: hash(outputSources.get(symbol.id)),
   visualAuthority: {
     kind: "razavi-reference-v1",
@@ -333,20 +339,20 @@ const catalogSource = normalize(
 
 const filesToWrite = [
   ...[tcoil, xfmr].map((symbol) => [
-    resolve(assetRoot, `${symbol.id}.symbol.json`),
+    resolve(assetRoot, `${symbol.id}.json`),
     outputSources.get(symbol.id),
   ]),
   [catalogPath, catalogSource],
 ];
 if (check) {
   for (const [path, source] of filesToWrite) {
-    if (normalize(await readFile(path, "utf8")) !== source) {
+    if (normalize(await readComponentProjection(path)) !== source) {
       fail(`${relative(root, path)} is stale`);
     }
   }
 } else {
   for (const [path, source] of filesToWrite) {
-    await writeFile(path, source, "utf8");
+    await writeComponentProjection(path, source);
   }
 }
 

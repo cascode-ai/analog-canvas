@@ -1,5 +1,8 @@
+import {
+  readComponentProjection,
+  writeComponentProjection,
+} from "./lib/component-library.mjs";
 import { createHash } from "node:crypto";
-import { readFile, writeFile } from "node:fs/promises";
 import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -12,8 +15,8 @@ const referenceRoot = resolve(
   root,
   "fixtures/visual-reference/razavi-reference-v1",
 );
-const assetRoot = resolve(root, "packages/symbols/assets/razavi-v1");
-const catalogPath = resolve(assetRoot, "catalog.json");
+const assetRoot = resolve(root, "packages/components/definitions");
+const catalogPath = resolve(assetRoot, "../catalog.json");
 const check = process.argv.includes("--check");
 const SIGNAL_FLOW_LEAD_LENGTH = 10;
 const CIRCLE_PIN_SPAN = 20;
@@ -524,7 +527,7 @@ for (const [symbolId, definition] of Object.entries(definitions)) {
   }
 }
 
-const catalog = JSON.parse(await readFile(catalogPath, "utf8"));
+const catalog = JSON.parse(await readComponentProjection(catalogPath));
 const manualOnlyReasons = {
   adder:
     "Behavioral summing node; structural netlists need an explicit implementation mapping.",
@@ -587,7 +590,7 @@ for (const symbolId of signalFlowOrder) {
     palette: true,
     automaticMappings: [],
     manualOnlyReason: manualOnlyReasons[symbolId],
-    assetPath: `${symbolId}.symbol.json`,
+    assetPath: `${symbolId}.json`,
     assetHash: hash(await asSource(definition)),
     // The geometry contract owns direct-vs-derived evidence status and points
     // to individually hash-pinned witnesses. Catalog authority stays focused
@@ -628,14 +631,14 @@ for (const entry of catalog.entries) {
 catalog.entries = orderedEntries;
 
 for (const [symbolId, definition] of Object.entries(definitions)) {
-  const output = resolve(assetRoot, `${symbolId}.symbol.json`);
+  const output = resolve(assetRoot, `${symbolId}.json`);
   const source = await asSource(definition);
   if (check) {
-    if (normalize(await readFile(output, "utf8")) !== source) {
+    if (normalize(await readComponentProjection(output)) !== source) {
       fail(`${relative(root, output)} is stale`);
     }
   } else {
-    await writeFile(output, source, "utf8");
+    await writeComponentProjection(output, source);
   }
 }
 
@@ -643,11 +646,11 @@ const catalogSource = normalize(
   await format(JSON.stringify(catalog, null, 2), { parser: "json" }),
 );
 if (check) {
-  if (normalize(await readFile(catalogPath, "utf8")) !== catalogSource) {
+  if (normalize(await readComponentProjection(catalogPath)) !== catalogSource) {
     fail(`${relative(root, catalogPath)} is stale`);
   }
 } else {
-  await writeFile(catalogPath, catalogSource, "utf8");
+  await writeComponentProjection(catalogPath, catalogSource);
 }
 
 const metric = (key) => Math.max(...fidelity.map((result) => result[key]));

@@ -13,3 +13,7 @@
 *.tsx text eol=lf
 *.yaml text eol=lf
 *.yml text eol=lf
+# These two approved extracts were hashed with CRLF. Preserve their exact
+# evidence bytes instead of changing the manifest's pinned identities.
+fixtures/visual-reference/razavi-reference-v1/xfmr-vector-source.json -text !eol whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+fixtures/visual-reference/razavi-reference-v1/tcoil-vector-source.json -text !eol whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol

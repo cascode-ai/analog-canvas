@@ -181,6 +181,7 @@
       "scripts/editor-production-smoke.mjs"
     ],
     "highRisk": [
+      "packages/components/**",
       "packages/model/**",
       "packages/project-protocol/**",
       "packages/edit-engine/**",

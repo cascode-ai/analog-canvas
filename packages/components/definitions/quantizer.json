@@ -1,0 +1,155 @@
+{
+  "schemaVersion": 1,
+  "symbol": {
+    "schemaVersion": 1,
+    "id": "quantizer",
+    "name": "Quantizer",
+    "viewBox": {
+      "x": -34,
+      "y": -24,
+      "width": 68,
+      "height": 48
+    },
+    "pins": [
+      {
+        "name": "A",
+        "role": "input",
+        "at": {
+          "x": -30,
+          "y": 0
+        },
+        "direction": "west",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      },
+      {
+        "name": "Y",
+        "role": "output",
+        "at": {
+          "x": 30,
+          "y": 0
+        },
+        "direction": "east",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      }
+    ],
+    "primitives": [
+      {
+        "kind": "line",
+        "from": {
+          "x": -30,
+          "y": 0
+        },
+        "to": {
+          "x": -20,
+          "y": 0
+        },
+        "part": "input-a-lead",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "path",
+        "part": "body",
+        "data": "M -20 -20 L 20 -20 L 20 20 L -20 20 Z",
+        "style": {
+          "strokeRole": "emphasis",
+          "lineCap": "butt",
+          "lineJoin": "miter",
+          "miterLimit": 4
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 20,
+          "y": 0
+        },
+        "to": {
+          "x": 30,
+          "y": 0
+        },
+        "part": "output-y-lead",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "polyline",
+        "part": "quantizer-staircase",
+        "points": [
+          {
+            "x": -14,
+            "y": 15
+          },
+          {
+            "x": -7,
+            "y": 15
+          },
+          {
+            "x": -7,
+            "y": 5
+          },
+          {
+            "x": 0,
+            "y": 5
+          },
+          {
+            "x": 0,
+            "y": -5
+          },
+          {
+            "x": 7,
+            "y": -5
+          },
+          {
+            "x": 7,
+            "y": -15
+          },
+          {
+            "x": 14,
+            "y": -15
+          }
+        ],
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "round",
+          "lineJoin": "round"
+        }
+      }
+    ],
+    "variants": [],
+    "labelVisibility": "hidden"
+  },
+  "electrical": null,
+  "catalog": {
+    "library": "razavi",
+    "symbolId": "quantizer",
+    "name": "Quantizer",
+    "category": "signal-flow",
+    "reviewStatus": "reviewed",
+    "pinOrder": ["A", "Y"],
+    "palette": true,
+    "automaticMappings": [],
+    "manualOnlyReason": "Behavioral quantization block; structural netlists need an explicit implementation mapping.",
+    "assetPath": "quantizer.json",
+    "visualAuthority": {
+      "kind": "razavi-reference-v1",
+      "referenceManifestPath": "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+      "referencePaths": [
+        "fixtures/visual-reference/razavi-reference-v1/delta-sigma-geometry.json"
+      ],
+      "calibrationPath": "fixtures/visual-reference/razavi-reference-v1/delta-sigma-geometry.json"
+    }
+  }
+}

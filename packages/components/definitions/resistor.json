@@ -1,0 +1,106 @@
+{
+  "schemaVersion": 1,
+  "symbol": {
+    "schemaVersion": 1,
+    "id": "resistor",
+    "name": "Resistor",
+    "viewBox": {
+      "x": -10,
+      "y": -24,
+      "width": 20,
+      "height": 48
+    },
+    "pins": [
+      {
+        "name": "1",
+        "role": "passive",
+        "at": {
+          "x": 0,
+          "y": -20
+        },
+        "direction": "north",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      },
+      {
+        "name": "2",
+        "role": "passive",
+        "at": {
+          "x": 0,
+          "y": 20
+        },
+        "direction": "south",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      }
+    ],
+    "primitives": [
+      {
+        "kind": "path",
+        "data": "M 0 -20 L 0 -8.72093 L 5.372093 -6.395349 L -4.604651 -4.069767 L 5.372093 -1.162791 L -4.988372 1.744186 L 5.372093 4.651163 L -4.604651 7.55814 L 0 8.72093 L 0 20",
+        "bounds": {
+          "x": -4.988372,
+          "y": -20,
+          "width": 10.360465,
+          "height": 40
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter",
+          "miterLimit": 12
+        }
+      }
+    ],
+    "variants": []
+  },
+  "electrical": {
+    "id": "resistor",
+    "symbolId": "resistor",
+    "deviceClass": "resistor",
+    "referencePrefix": "R",
+    "pinOrder": ["1", "2"],
+    "targetPolicy": "builtin",
+    "parameters": [
+      {
+        "name": "value",
+        "label": "Value",
+        "required": true,
+        "editor": "text",
+        "unitHint": "Ohm",
+        "placeholder": "10k",
+        "help": "Resistance",
+        "displayRole": "value"
+      }
+    ],
+    "dialects": ["spice", "spectre"],
+    "capabilities": {
+      "supportsModel": false,
+      "supportsBulkBinding": false,
+      "supportsValueAnnotation": true
+    }
+  },
+  "catalog": {
+    "library": "razavi",
+    "symbolId": "resistor",
+    "name": "Resistor",
+    "category": "passive",
+    "reviewStatus": "reviewed",
+    "pinOrder": ["1", "2"],
+    "palette": true,
+    "automaticMappings": ["spice:R"],
+    "assetPath": "resistor.json",
+    "visualAuthority": {
+      "kind": "razavi-reference-v1",
+      "referenceManifestPath": "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+      "referencePaths": [
+        "fixtures/visual-reference/razavi-reference-v1/razavi-six-panel.png"
+      ],
+      "calibrationPath": "fixtures/visual-reference/razavi-reference-v1/passive-geometry.json"
+    }
+  }
+}

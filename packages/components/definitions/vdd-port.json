@@ -1,0 +1,106 @@
+{
+  "schemaVersion": 1,
+  "symbol": {
+    "schemaVersion": 1,
+    "id": "vdd-port",
+    "name": "VDD Power Port",
+    "viewBox": {
+      "x": -12,
+      "y": -2,
+      "width": 24,
+      "height": 26
+    },
+    "pins": [
+      {
+        "name": "P",
+        "role": "power",
+        "at": {
+          "x": 0,
+          "y": 20
+        },
+        "direction": "south",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      }
+    ],
+    "primitives": [
+      {
+        "kind": "line",
+        "from": {
+          "x": 0,
+          "y": 20
+        },
+        "to": {
+          "x": 0,
+          "y": 1.5
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "polygon",
+        "points": [
+          {
+            "x": -10,
+            "y": -0.88
+          },
+          {
+            "x": 10,
+            "y": -0.88
+          },
+          {
+            "x": 10,
+            "y": 2.36
+          },
+          {
+            "x": -10,
+            "y": 2.36
+          }
+        ],
+        "fill": "foreground",
+        "stroke": "none"
+      }
+    ],
+    "variants": [],
+    "labelVisibility": "hidden"
+  },
+  "electrical": {
+    "id": "vdd-port",
+    "symbolId": "vdd-port",
+    "deviceClass": "net-marker",
+    "referencePrefix": null,
+    "pinOrder": ["P"],
+    "targetPolicy": "none",
+    "parameters": [],
+    "dialects": ["spice", "spectre"],
+    "capabilities": {
+      "supportsModel": false,
+      "supportsBulkBinding": false,
+      "supportsValueAnnotation": false
+    }
+  },
+  "catalog": {
+    "library": "razavi",
+    "symbolId": "vdd-port",
+    "name": "VDD Power Port",
+    "category": "power",
+    "reviewStatus": "reviewed",
+    "pinOrder": ["P"],
+    "palette": true,
+    "automaticMappings": [],
+    "assetPath": "vdd-port.json",
+    "visualAuthority": {
+      "kind": "razavi-reference-v1",
+      "referenceManifestPath": "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+      "referencePaths": [
+        "fixtures/visual-reference/razavi-reference-v1/vdd-reference.png"
+      ],
+      "calibrationPath": "fixtures/visual-reference/razavi-reference-v1/vdd-geometry.json"
+    }
+  }
+}

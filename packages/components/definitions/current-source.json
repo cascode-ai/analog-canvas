@@ -1,0 +1,381 @@
+{
+  "schemaVersion": 1,
+  "symbol": {
+    "schemaVersion": 1,
+    "id": "current-source",
+    "name": "Independent Current Source",
+    "viewBox": {
+      "x": -15,
+      "y": -24,
+      "width": 30,
+      "height": 48
+    },
+    "pins": [
+      {
+        "name": "+",
+        "role": "positive",
+        "at": {
+          "x": 0,
+          "y": -20
+        },
+        "direction": "north",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      },
+      {
+        "name": "-",
+        "role": "negative",
+        "at": {
+          "x": 0,
+          "y": 20
+        },
+        "direction": "south",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      }
+    ],
+    "primitives": [
+      {
+        "kind": "circle",
+        "center": {
+          "x": 0,
+          "y": 0
+        },
+        "radius": 10.755814,
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 0,
+          "y": -6.976744
+        },
+        "to": {
+          "x": 0,
+          "y": -2.325581
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "polygon",
+        "points": [
+          {
+            "x": 0,
+            "y": 6.976744
+          },
+          {
+            "x": -4.651163,
+            "y": -2.325581
+          },
+          {
+            "x": 4.651163,
+            "y": -2.325581
+          }
+        ],
+        "fill": "foreground",
+        "stroke": "none"
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 0,
+          "y": -10.755814
+        },
+        "to": {
+          "x": 0,
+          "y": -20
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 0,
+          "y": 10.755814
+        },
+        "to": {
+          "x": 0,
+          "y": 20
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      }
+    ],
+    "variants": []
+  },
+  "electrical": {
+    "id": "current-source",
+    "symbolId": "current-source",
+    "deviceClass": "current-source",
+    "referencePrefix": "I",
+    "pinOrder": ["+", "-"],
+    "targetPolicy": "builtin",
+    "sourceWaveformDefault": "dc",
+    "parameters": [
+      {
+        "name": "dc",
+        "label": "DC value",
+        "required": true,
+        "editor": "text",
+        "unitHint": "A",
+        "placeholder": "1m",
+        "help": "DC value and operating-point bias",
+        "displayRole": "value"
+      },
+      {
+        "name": "waveform",
+        "label": "Transient",
+        "required": false,
+        "editor": "select",
+        "options": [
+          {
+            "value": "dc",
+            "label": "None"
+          },
+          {
+            "value": "pulse",
+            "label": "PULSE"
+          },
+          {
+            "value": "sin",
+            "label": "SIN"
+          },
+          {
+            "value": "pwl",
+            "label": "PWL"
+          }
+        ],
+        "placeholder": "dc",
+        "help": "Transient waveform emitted by this source",
+        "defaultValue": "dc",
+        "displayRole": "none"
+      },
+      {
+        "name": "pwlPoints",
+        "label": "PWL points",
+        "required": false,
+        "editor": "text",
+        "unitHint": "s / A",
+        "placeholder": "0s 0, 1ns 0, 2ns 1m",
+        "help": "Comma-separated time/value pairs",
+        "visibleForSourceWaveforms": ["pwl"],
+        "displayRole": "none"
+      },
+      {
+        "name": "acMagnitude",
+        "label": "AC magnitude",
+        "required": false,
+        "editor": "text",
+        "unitHint": "A",
+        "placeholder": "1m",
+        "help": "Small-signal magnitude for AC analysis; leave empty for no AC excitation",
+        "displayRole": "none"
+      },
+      {
+        "name": "acPhase",
+        "label": "AC phase",
+        "required": false,
+        "editor": "text",
+        "unitHint": "deg",
+        "placeholder": "0",
+        "help": "Small-signal phase in degrees; used only with an AC magnitude",
+        "displayRole": "none"
+      },
+      {
+        "name": "low",
+        "label": "Low",
+        "required": false,
+        "editor": "text",
+        "unitHint": "A",
+        "placeholder": "0",
+        "help": "PULSE value before and between active pulses",
+        "defaultValue": "0",
+        "visibleForSourceWaveforms": ["pulse"],
+        "displayRole": "none"
+      },
+      {
+        "name": "high",
+        "label": "High",
+        "required": false,
+        "editor": "text",
+        "unitHint": "A",
+        "placeholder": "1m",
+        "help": "PULSE active value",
+        "defaultValue": "1m",
+        "visibleForSourceWaveforms": ["pulse"],
+        "displayRole": "none"
+      },
+      {
+        "name": "delay",
+        "label": "Delay",
+        "required": false,
+        "editor": "text",
+        "unitHint": "s",
+        "placeholder": "0",
+        "help": "Time before the transient waveform begins",
+        "defaultValue": "0",
+        "visibleForSourceWaveforms": ["pulse", "sin"],
+        "displayRole": "none"
+      },
+      {
+        "name": "rise",
+        "label": "Rise time",
+        "required": false,
+        "editor": "text",
+        "unitHint": "s",
+        "placeholder": "1ps",
+        "help": "PULSE rising-edge duration",
+        "defaultValue": "1ps",
+        "visibleForSourceWaveforms": ["pulse"],
+        "displayRole": "none"
+      },
+      {
+        "name": "fall",
+        "label": "Fall time",
+        "required": false,
+        "editor": "text",
+        "unitHint": "s",
+        "placeholder": "1ps",
+        "help": "PULSE falling-edge duration",
+        "defaultValue": "1ps",
+        "visibleForSourceWaveforms": ["pulse"],
+        "displayRole": "none"
+      },
+      {
+        "name": "width",
+        "label": "Pulse width",
+        "required": false,
+        "editor": "text",
+        "unitHint": "s",
+        "placeholder": "5ns",
+        "help": "Time the PULSE source remains at its high value",
+        "defaultValue": "5ns",
+        "visibleForSourceWaveforms": ["pulse"],
+        "displayRole": "none"
+      },
+      {
+        "name": "period",
+        "label": "Period",
+        "required": false,
+        "editor": "text",
+        "unitHint": "s",
+        "placeholder": "10ns",
+        "help": "Time between PULSE rising edges",
+        "defaultValue": "10ns",
+        "visibleForSourceWaveforms": ["pulse"],
+        "displayRole": "none"
+      },
+      {
+        "name": "offset",
+        "label": "Offset",
+        "required": false,
+        "editor": "text",
+        "unitHint": "A",
+        "placeholder": "0",
+        "help": "SIN waveform offset",
+        "defaultValue": "0",
+        "visibleForSourceWaveforms": ["sin"],
+        "displayRole": "none"
+      },
+      {
+        "name": "amplitude",
+        "label": "Amplitude",
+        "required": false,
+        "editor": "text",
+        "unitHint": "A",
+        "placeholder": "1m",
+        "help": "SIN peak amplitude",
+        "defaultValue": "1m",
+        "visibleForSourceWaveforms": ["sin"],
+        "displayRole": "none"
+      },
+      {
+        "name": "frequency",
+        "label": "Frequency",
+        "required": false,
+        "editor": "text",
+        "unitHint": "Hz",
+        "placeholder": "1k",
+        "help": "SIN frequency",
+        "defaultValue": "1k",
+        "visibleForSourceWaveforms": ["sin"],
+        "displayRole": "none"
+      },
+      {
+        "name": "damping",
+        "label": "Damping",
+        "required": false,
+        "editor": "text",
+        "unitHint": "1/s",
+        "placeholder": "0",
+        "help": "SIN exponential damping factor",
+        "defaultValue": "0",
+        "visibleForSourceWaveforms": ["sin"],
+        "displayRole": "none"
+      },
+      {
+        "name": "phase",
+        "label": "SIN phase",
+        "required": false,
+        "editor": "text",
+        "unitHint": "deg",
+        "placeholder": "0",
+        "help": "SIN phase in degrees",
+        "defaultValue": "0",
+        "visibleForSourceWaveforms": ["sin"],
+        "displayRole": "none"
+      }
+    ],
+    "dialects": ["spice", "spectre"],
+    "capabilities": {
+      "supportsModel": false,
+      "supportsBulkBinding": false,
+      "supportsValueAnnotation": true
+    }
+  },
+  "catalog": {
+    "library": "razavi",
+    "symbolId": "current-source",
+    "name": "Independent Current Source",
+    "category": "source",
+    "reviewStatus": "reviewed",
+    "pinOrder": ["+", "-"],
+    "palette": true,
+    "automaticMappings": ["spice:I"],
+    "assetPath": "current-source.json",
+    "visualAuthority": {
+      "kind": "razavi-reference-v1",
+      "referenceManifestPath": "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+      "referencePaths": [
+        "fixtures/visual-reference/razavi-reference-v1/current-port-reference.png"
+      ],
+      "calibrationPath": "fixtures/visual-reference/razavi-reference-v1/current-port-geometry.json"
+    },
+    "generation": {
+      "kind": "razavi-raster-reference",
+      "referenceManifestPath": "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+      "referencePath": "fixtures/visual-reference/razavi-reference-v1/razavi-six-panel.png",
+      "converterPath": "scripts/generate-razavi-peripheral-assets.mjs",
+      "converterVersion": 1
+    }
+  }
+}

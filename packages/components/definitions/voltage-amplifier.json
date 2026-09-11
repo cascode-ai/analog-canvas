@@ -1,0 +1,115 @@
+{
+  "schemaVersion": 1,
+  "symbol": {
+    "schemaVersion": 1,
+    "id": "voltage-amplifier",
+    "name": "Voltage Amplifier",
+    "viewBox": {
+      "x": -34,
+      "y": -32,
+      "width": 68,
+      "height": 64
+    },
+    "pins": [
+      {
+        "name": "IN",
+        "role": "input",
+        "at": {
+          "x": -30,
+          "y": 0
+        },
+        "direction": "west",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      },
+      {
+        "name": "OUT",
+        "role": "output",
+        "at": {
+          "x": 30,
+          "y": 0
+        },
+        "direction": "east",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      }
+    ],
+    "primitives": [
+      {
+        "kind": "line",
+        "from": {
+          "x": -30,
+          "y": 0
+        },
+        "to": {
+          "x": -23.63,
+          "y": 0
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "path",
+        "data": "M -23.63 -28.62 L -23.63 28.62 L 23.63 0 Z",
+        "style": {
+          "strokeRole": "emphasis",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 23.63,
+          "y": 0
+        },
+        "to": {
+          "x": 30,
+          "y": 0
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      }
+    ],
+    "variants": []
+  },
+  "electrical": null,
+  "catalog": {
+    "library": "razavi",
+    "symbolId": "voltage-amplifier",
+    "name": "Voltage Amplifier",
+    "category": "analog-block",
+    "reviewStatus": "reviewed",
+    "pinOrder": ["IN", "OUT"],
+    "palette": true,
+    "automaticMappings": [],
+    "manualOnlyReason": "Textbook gain block has implicit reference nodes and no exact primitive SPICE terminal contract.",
+    "assetPath": "voltage-amplifier.json",
+    "visualAuthority": {
+      "kind": "razavi-reference-v1",
+      "referenceManifestPath": "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+      "referencePaths": [
+        "fixtures/visual-reference/razavi-reference-v1/voltage-amplifier-vector-source.json",
+        "fixtures/visual-reference/razavi-reference-v1/voltage-amplifier-reference.png"
+      ],
+      "calibrationPath": "fixtures/visual-reference/razavi-reference-v1/common-symbol-geometry.json"
+    },
+    "generation": {
+      "kind": "razavi-pdf-vector-reference",
+      "referenceManifestPath": "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+      "referencePath": "fixtures/visual-reference/razavi-reference-v1/voltage-amplifier-vector-source.json",
+      "converterPath": "scripts/generate-razavi-common-assets.mjs",
+      "converterVersion": 1
+    }
+  }
+}

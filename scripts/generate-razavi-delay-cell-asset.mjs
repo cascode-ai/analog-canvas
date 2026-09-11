@@ -1,5 +1,8 @@
+import {
+  readComponentProjection,
+  writeComponentProjection,
+} from "./lib/component-library.mjs";
 import { createHash } from "node:crypto";
-import { readFile, writeFile } from "node:fs/promises";
 import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -13,9 +16,9 @@ const referenceRoot = resolve(
   root,
   "fixtures/visual-reference/razavi-reference-v1",
 );
-const assetRoot = resolve(root, "packages/symbols/assets/razavi-v1");
-const assetPath = resolve(assetRoot, "delay-cell.symbol.json");
-const catalogPath = resolve(assetRoot, "catalog.json");
+const assetRoot = resolve(root, "packages/components/definitions");
+const assetPath = resolve(assetRoot, "delay-cell.json");
+const catalogPath = resolve(assetRoot, "../catalog.json");
 const check = process.argv.includes("--check");
 const normalize = (value) => `${value.replaceAll("\r\n", "\n").trimEnd()}\n`;
 const hash = (value) => createHash("sha256").update(value).digest("hex");
@@ -52,7 +55,7 @@ const definition = normalizeLogicPortLeads(structuredClone(sourceDefinition));
 const assetSource = normalize(
   await format(JSON.stringify(definition, null, 2), { parser: "json" }),
 );
-const catalog = JSON.parse(await readFile(catalogPath, "utf8"));
+const catalog = JSON.parse(await readComponentProjection(catalogPath));
 let entry = catalog.entries.find(
   (candidate) => candidate.symbolId === "delay-cell",
 );
@@ -72,7 +75,7 @@ Object.assign(entry, {
   automaticMappings: [],
   manualOnlyReason:
     "Visual delay-stage block; timing and structural netlist semantics require an explicit implementation mapping.",
-  assetPath: "delay-cell.symbol.json",
+  assetPath: "delay-cell.json",
   assetHash: hash(assetSource),
   visualAuthority: {
     kind: "razavi-reference-v1",
@@ -100,15 +103,15 @@ const catalogSource = normalize(
 );
 
 if (check) {
-  if (normalize(await readFile(assetPath, "utf8")) !== assetSource) {
+  if (normalize(await readComponentProjection(assetPath)) !== assetSource) {
     fail(`${relative(root, assetPath)} is stale`);
   }
-  if (normalize(await readFile(catalogPath, "utf8")) !== catalogSource) {
+  if (normalize(await readComponentProjection(catalogPath)) !== catalogSource) {
     fail(`${relative(root, catalogPath)} is stale`);
   }
 } else {
-  await writeFile(assetPath, assetSource, "utf8");
-  await writeFile(catalogPath, catalogSource, "utf8");
+  await writeComponentProjection(assetPath, assetSource);
+  await writeComponentProjection(catalogPath, catalogSource);
 }
 
 console.log(

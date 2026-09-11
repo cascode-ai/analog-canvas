@@ -1,0 +1,170 @@
+{
+  "schemaVersion": 1,
+  "symbol": {
+    "schemaVersion": 1,
+    "id": "nand-gate",
+    "name": "NAND Gate",
+    "viewBox": {
+      "x": -44,
+      "y": -24,
+      "width": 88,
+      "height": 48
+    },
+    "pins": [
+      {
+        "name": "A",
+        "role": "input",
+        "at": {
+          "x": -40,
+          "y": -10
+        },
+        "direction": "west",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 15
+        }
+      },
+      {
+        "name": "B",
+        "role": "input",
+        "at": {
+          "x": -40,
+          "y": 10
+        },
+        "direction": "west",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 15
+        }
+      },
+      {
+        "name": "Y",
+        "role": "output",
+        "at": {
+          "x": 30,
+          "y": 0
+        },
+        "direction": "east",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      }
+    ],
+    "primitives": [
+      {
+        "kind": "line",
+        "from": {
+          "x": -40,
+          "y": -10
+        },
+        "to": {
+          "x": -23.437963,
+          "y": -10
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": -40,
+          "y": 10
+        },
+        "to": {
+          "x": -23.437963,
+          "y": 10
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "path",
+        "data": "M -4.531345 15.07978 L -23.125817 15.07978 L -23.125817 -14.921092 L -5.234109 -14.921092",
+        "style": {
+          "strokeRole": "emphasis",
+          "lineCap": "butt",
+          "lineJoin": "miter",
+          "miterLimit": 4
+        }
+      },
+      {
+        "kind": "path",
+        "data": "M -4.609818 15.07978 C -4.609818 15.07978 -4.609818 15.07978 -4.362194 15.06583 C -4.11457 15.051879 -3.619322 15.025722 -3.371698 15.013515 C -3.124074 15.001308 -3.124074 15.001308 -2.447467 14.894934 C -1.770861 14.792048 -0.417648 14.582788 0.792571 14.234022 C 2.004534 13.880024 3.073502 13.38652 4.23315 12.591333 C 5.391054 11.79789 6.641381 10.704508 7.603976 9.558811 C 8.566571 8.413114 9.244921 7.213358 9.766327 5.990932 C 10.285988 4.766763 10.652193 3.516436 10.847502 2.213794 C 11.041067 0.911152 11.068969 -0.442061 10.936437 -1.706339 C 10.807394 -2.968873 10.523149 -4.140727 9.986049 -5.429418 C 9.452437 -6.71811 8.671201 -8.125381 7.773128 -9.283285 C 6.875054 -10.442933 5.860145 -11.354957 5.026593 -12.031563 C 4.193042 -12.70817 3.542593 -13.151103 2.85378 -13.503357 C 2.159735 -13.853867 1.434301 -14.115442 0.780364 -14.322958 C 0.131659 -14.530473 -0.442061 -14.687418 -0.949516 -14.778097 C -1.458715 -14.870521 -1.901648 -14.894934 -2.356788 -14.908885 C -2.811928 -14.921092 -3.281018 -14.921092 -3.776266 -14.921092 C -4.269771 -14.921092 -4.791176 -14.921092 -5.052751 -14.921092 C -5.312582 -14.921092 -5.312582 -14.921092 -5.312582 -14.921092",
+        "style": {
+          "strokeRole": "emphasis",
+          "lineCap": "butt",
+          "lineJoin": "miter",
+          "miterLimit": 4
+        }
+      },
+      {
+        "kind": "circle",
+        "center": {
+          "x": 16.52716,
+          "y": 0.010463
+        },
+        "radius": 3.375185,
+        "part": "negation-bubble",
+        "style": {
+          "strokeRole": "emphasis",
+          "lineCap": "butt",
+          "lineJoin": "miter",
+          "miterLimit": 4
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 19.531781,
+          "y": 0.000872
+        },
+        "to": {
+          "x": 30,
+          "y": 0
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      }
+    ],
+    "variants": []
+  },
+  "electrical": null,
+  "catalog": {
+    "library": "razavi",
+    "symbolId": "nand-gate",
+    "name": "NAND Gate",
+    "category": "logic",
+    "reviewStatus": "reviewed",
+    "pinOrder": ["A", "B", "Y"],
+    "palette": true,
+    "automaticMappings": [],
+    "manualOnlyReason": "Behavioral logic gate; structural SPICE realization requires an explicit subcircuit or PDK mapping.",
+    "assetPath": "nand-gate.json",
+    "visualAuthority": {
+      "kind": "razavi-reference-v1",
+      "referenceManifestPath": "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+      "referencePaths": [
+        "fixtures/visual-reference/razavi-reference-v1/logic-nand-gate-vector-source.json",
+        "fixtures/visual-reference/razavi-reference-v1/logic-nand-gate-reference.png"
+      ],
+      "calibrationPath": "fixtures/visual-reference/razavi-reference-v1/logic-gate-geometry.json"
+    },
+    "generation": {
+      "kind": "razavi-pdf-vector-reference",
+      "referenceManifestPath": "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+      "referencePath": "fixtures/visual-reference/razavi-reference-v1/logic-nand-gate-vector-source.json",
+      "converterPath": "scripts/generate-razavi-logic-gate-assets.mjs",
+      "converterVersion": 2
+    }
+  }
+}

@@ -1,0 +1,274 @@
+{
+  "schemaVersion": 1,
+  "symbol": {
+    "schemaVersion": 1,
+    "id": "pulse-voltage-source",
+    "name": "Digital Clock",
+    "viewBox": {
+      "x": -24,
+      "y": -24,
+      "width": 39,
+      "height": 48
+    },
+    "pins": [
+      {
+        "name": "+",
+        "role": "positive",
+        "at": {
+          "x": 0,
+          "y": -20
+        },
+        "direction": "north",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      },
+      {
+        "name": "-",
+        "role": "negative",
+        "at": {
+          "x": 0,
+          "y": 20
+        },
+        "direction": "south",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      }
+    ],
+    "primitives": [
+      {
+        "kind": "circle",
+        "center": {
+          "x": 0,
+          "y": 0
+        },
+        "radius": 10.755814,
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "polyline",
+        "points": [
+          {
+            "x": 4,
+            "y": 7
+          },
+          {
+            "x": 4,
+            "y": 4
+          },
+          {
+            "x": -4,
+            "y": 4
+          },
+          {
+            "x": -4,
+            "y": -4
+          },
+          {
+            "x": 4,
+            "y": -4
+          },
+          {
+            "x": 4,
+            "y": -7
+          }
+        ],
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 0,
+          "y": -10.755814
+        },
+        "to": {
+          "x": 0,
+          "y": -20
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 0,
+          "y": 10.755814
+        },
+        "to": {
+          "x": 0,
+          "y": 20
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      }
+    ],
+    "variants": []
+  },
+  "electrical": {
+    "id": "pulse-voltage-source",
+    "symbolId": "pulse-voltage-source",
+    "deviceClass": "voltage-source",
+    "referencePrefix": "V",
+    "pinOrder": ["+", "-"],
+    "targetPolicy": "builtin",
+    "sourceWaveformDefault": "pulse",
+    "parameters": [
+      {
+        "name": "period",
+        "label": "Period",
+        "required": true,
+        "editor": "text",
+        "unitHint": "s",
+        "placeholder": "10ns",
+        "help": "Time for one complete clock cycle",
+        "defaultValue": "10ns",
+        "displayRole": "value"
+      },
+      {
+        "name": "dutyCycle",
+        "label": "Duty cycle",
+        "required": false,
+        "editor": "decimal",
+        "unitHint": "%",
+        "placeholder": "50",
+        "help": "Percentage of each period at logic 1",
+        "defaultValue": "50",
+        "displayRole": "none"
+      },
+      {
+        "name": "initial",
+        "label": "Initial level",
+        "required": false,
+        "editor": "decimal",
+        "placeholder": "0",
+        "help": "Logic level at the start of simulation (0 or 1)",
+        "defaultValue": "0",
+        "displayRole": "none"
+      },
+      {
+        "name": "low",
+        "label": "Low",
+        "required": true,
+        "editor": "text",
+        "unitHint": "V",
+        "placeholder": "0",
+        "help": "Voltage while the pulse is low",
+        "defaultValue": "0",
+        "displayRole": "none",
+        "authoringVisibility": "compatibility"
+      },
+      {
+        "name": "high",
+        "label": "High",
+        "required": true,
+        "editor": "text",
+        "unitHint": "V",
+        "placeholder": "1",
+        "help": "Voltage while the pulse is high",
+        "defaultValue": "1",
+        "displayRole": "none",
+        "authoringVisibility": "compatibility"
+      },
+      {
+        "name": "delay",
+        "label": "Delay",
+        "required": true,
+        "editor": "text",
+        "unitHint": "s",
+        "placeholder": "5ns",
+        "help": "SPICE-compatible time before the first active edge",
+        "defaultValue": "5ns",
+        "displayRole": "none",
+        "authoringVisibility": "compatibility"
+      },
+      {
+        "name": "rise",
+        "label": "Rise",
+        "required": true,
+        "editor": "text",
+        "unitHint": "s",
+        "placeholder": "1ps",
+        "help": "Analog netlist rise time",
+        "defaultValue": "1ps",
+        "displayRole": "none",
+        "authoringVisibility": "compatibility"
+      },
+      {
+        "name": "fall",
+        "label": "Fall",
+        "required": true,
+        "editor": "text",
+        "unitHint": "s",
+        "placeholder": "1ps",
+        "help": "Analog netlist fall time",
+        "defaultValue": "1ps",
+        "displayRole": "none",
+        "authoringVisibility": "compatibility"
+      },
+      {
+        "name": "width",
+        "label": "Width",
+        "required": true,
+        "editor": "text",
+        "unitHint": "s",
+        "placeholder": "5ns",
+        "help": "Time the pulse remains high",
+        "defaultValue": "5ns",
+        "displayRole": "none",
+        "authoringVisibility": "compatibility"
+      }
+    ],
+    "dialects": ["spice", "spectre"],
+    "capabilities": {
+      "supportsModel": false,
+      "supportsBulkBinding": false,
+      "supportsValueAnnotation": true
+    }
+  },
+  "catalog": {
+    "library": "razavi",
+    "symbolId": "pulse-voltage-source",
+    "name": "Pulse Voltage Source",
+    "category": "source",
+    "reviewStatus": "reviewed",
+    "pinOrder": ["+", "-"],
+    "palette": true,
+    "automaticMappings": [],
+    "manualOnlyReason": "Pulse semantics require authored timing parameters and must not replace imported DC voltage sources automatically.",
+    "assetPath": "pulse-voltage-source.json",
+    "visualAuthority": {
+      "kind": "razavi-reference-v1",
+      "referenceManifestPath": "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+      "referencePaths": [
+        "fixtures/visual-reference/razavi-reference-v1/razavi-six-panel.png",
+        "fixtures/visual-reference/razavi-reference-v1/data-converters-clock-pulse-vector-source.json",
+        "fixtures/visual-reference/razavi-reference-v1/data-converters-clock-pulse-reference.png"
+      ],
+      "calibrationPath": "fixtures/visual-reference/razavi-reference-v1/peripheral-geometry.json"
+    },
+    "generation": {
+      "kind": "razavi-pdf-vector-reference",
+      "referenceManifestPath": "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+      "referencePath": "fixtures/visual-reference/razavi-reference-v1/data-converters-clock-pulse-vector-source.json",
+      "converterPath": "scripts/generate-razavi-peripheral-assets.mjs",
+      "converterVersion": 4
+    }
+  }
+}

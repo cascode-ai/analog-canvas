@@ -1,0 +1,166 @@
+{
+  "schemaVersion": 1,
+  "symbol": {
+    "schemaVersion": 1,
+    "id": "closed-switch",
+    "name": "Closed Switch",
+    "viewBox": {
+      "x": -34,
+      "y": -12,
+      "width": 68,
+      "height": 24
+    },
+    "pins": [
+      {
+        "name": "1",
+        "role": "passive",
+        "at": {
+          "x": -20,
+          "y": 0
+        },
+        "direction": "west",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      },
+      {
+        "name": "2",
+        "role": "passive",
+        "at": {
+          "x": 20,
+          "y": 0
+        },
+        "direction": "east",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      }
+    ],
+    "primitives": [
+      {
+        "kind": "line",
+        "from": {
+          "x": -20,
+          "y": 0
+        },
+        "to": {
+          "x": -13.562064,
+          "y": 0
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "circle",
+        "center": {
+          "x": -10.36318,
+          "y": 0
+        },
+        "radius": 3.198884,
+        "fill": "none",
+        "stroke": "foreground",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": -7.186611,
+          "y": -1.496234
+        },
+        "to": {
+          "x": 13.608926,
+          "y": -4.694003
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "circle",
+        "center": {
+          "x": 10.36318,
+          "y": 0
+        },
+        "radius": 3.198884,
+        "fill": "none",
+        "stroke": "foreground",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 13.562064,
+          "y": 0
+        },
+        "to": {
+          "x": 20,
+          "y": 0
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      }
+    ],
+    "variants": []
+  },
+  "electrical": {
+    "id": "closed-switch",
+    "symbolId": "closed-switch",
+    "deviceClass": "switch",
+    "referencePrefix": "S",
+    "pinOrder": ["1", "2"],
+    "targetPolicy": "none",
+    "parameters": [],
+    "dialects": ["spice", "spectre"],
+    "capabilities": {
+      "supportsModel": false,
+      "supportsBulkBinding": false,
+      "supportsValueAnnotation": false
+    }
+  },
+  "catalog": {
+    "library": "razavi",
+    "symbolId": "closed-switch",
+    "name": "Closed Switch",
+    "category": "switch",
+    "reviewStatus": "reviewed",
+    "pinOrder": ["1", "2"],
+    "palette": true,
+    "automaticMappings": [],
+    "manualOnlyReason": "Two-terminal Razavi switch; SPICE S has a four-terminal control contract.",
+    "assetPath": "closed-switch.json",
+    "visualAuthority": {
+      "kind": "razavi-reference-v1",
+      "referenceManifestPath": "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+      "referencePaths": [
+        "fixtures/visual-reference/razavi-reference-v1/closed-switch-vector-source.json",
+        "fixtures/visual-reference/razavi-reference-v1/closed-switch-reference.png"
+      ],
+      "calibrationPath": "fixtures/visual-reference/razavi-reference-v1/common-symbol-geometry.json"
+    },
+    "generation": {
+      "kind": "razavi-pdf-vector-reference",
+      "referenceManifestPath": "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+      "referencePath": "fixtures/visual-reference/razavi-reference-v1/closed-switch-vector-source.json",
+      "converterPath": "scripts/generate-razavi-common-assets.mjs",
+      "converterVersion": 1
+    }
+  }
+}

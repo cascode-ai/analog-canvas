@@ -1,0 +1,159 @@
+{
+  "schemaVersion": 1,
+  "symbol": {
+    "schemaVersion": 1,
+    "id": "diode",
+    "name": "Diode",
+    "viewBox": {
+      "x": -24,
+      "y": -10,
+      "width": 48,
+      "height": 20
+    },
+    "pins": [
+      {
+        "name": "A",
+        "role": "anode",
+        "at": {
+          "x": -20,
+          "y": 0
+        },
+        "direction": "west",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      },
+      {
+        "name": "K",
+        "role": "cathode",
+        "at": {
+          "x": 20,
+          "y": 0
+        },
+        "direction": "east",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      }
+    ],
+    "primitives": [
+      {
+        "kind": "line",
+        "from": {
+          "x": -20,
+          "y": 0
+        },
+        "to": {
+          "x": -8.333334,
+          "y": 0
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "polygon",
+        "points": [
+          {
+            "x": -8.333334,
+            "y": -6.75
+          },
+          {
+            "x": -8.333334,
+            "y": 6.75
+          },
+          {
+            "x": 5.833334,
+            "y": 0
+          }
+        ],
+        "fill": "none",
+        "stroke": "foreground",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 6.666666,
+          "y": -7.333334
+        },
+        "to": {
+          "x": 6.666666,
+          "y": 7.333334
+        },
+        "style": {
+          "strokeRole": "emphasis",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 6.666666,
+          "y": 0
+        },
+        "to": {
+          "x": 20,
+          "y": 0
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      }
+    ],
+    "variants": []
+  },
+  "electrical": {
+    "id": "diode",
+    "symbolId": "diode",
+    "deviceClass": "diode",
+    "referencePrefix": "D",
+    "pinOrder": ["A", "K"],
+    "targetPolicy": "required-model",
+    "parameters": [],
+    "dialects": ["spice", "spectre"],
+    "capabilities": {
+      "supportsModel": true,
+      "supportsBulkBinding": false,
+      "supportsValueAnnotation": true
+    }
+  },
+  "catalog": {
+    "library": "razavi",
+    "symbolId": "diode",
+    "name": "Diode",
+    "category": "passive",
+    "reviewStatus": "reviewed",
+    "pinOrder": ["A", "K"],
+    "palette": true,
+    "automaticMappings": ["spice:D"],
+    "assetPath": "diode.json",
+    "visualAuthority": {
+      "kind": "razavi-reference-v1",
+      "referenceManifestPath": "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+      "referencePaths": [
+        "fixtures/visual-reference/razavi-reference-v1/diode-vector-source.json",
+        "fixtures/visual-reference/razavi-reference-v1/diode-reference.png"
+      ],
+      "calibrationPath": "fixtures/visual-reference/razavi-reference-v1/common-symbol-geometry.json"
+    },
+    "generation": {
+      "kind": "razavi-pdf-vector-reference",
+      "referenceManifestPath": "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+      "referencePath": "fixtures/visual-reference/razavi-reference-v1/diode-vector-source.json",
+      "converterPath": "scripts/generate-razavi-common-assets.mjs",
+      "converterVersion": 1
+    }
+  }
+}

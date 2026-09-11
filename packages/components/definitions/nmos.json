@@ -1,0 +1,382 @@
+{
+  "schemaVersion": 1,
+  "symbol": {
+    "schemaVersion": 1,
+    "id": "nmos",
+    "name": "NMOS",
+    "viewBox": {
+      "x": -24,
+      "y": -24,
+      "width": 48,
+      "height": 48
+    },
+    "pins": [
+      {
+        "name": "D",
+        "role": "drain",
+        "at": {
+          "x": 10,
+          "y": -20
+        },
+        "direction": "north",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      },
+      {
+        "name": "G",
+        "role": "gate",
+        "at": {
+          "x": -20,
+          "y": 0
+        },
+        "direction": "west",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      },
+      {
+        "name": "S",
+        "role": "source",
+        "at": {
+          "x": 10,
+          "y": 20
+        },
+        "direction": "south",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      },
+      {
+        "name": "B",
+        "role": "bulk",
+        "at": {
+          "x": 20,
+          "y": 0
+        },
+        "direction": "east",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      }
+    ],
+    "primitives": [
+      {
+        "kind": "polyline",
+        "points": [
+          {
+            "x": -4.244186,
+            "y": -6.976744
+          },
+          {
+            "x": 10,
+            "y": -6.976744
+          },
+          {
+            "x": 10,
+            "y": -20
+          }
+        ],
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "polyline",
+        "points": [
+          {
+            "x": -4.244186,
+            "y": 6.976744
+          },
+          {
+            "x": 10,
+            "y": 6.976744
+          },
+          {
+            "x": 10,
+            "y": 20
+          }
+        ],
+        "part": "source-arrow-host",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "polygon",
+        "points": [
+          {
+            "x": -11.802326,
+            "y": -9.593023
+          },
+          {
+            "x": -11.802326,
+            "y": 9.593023
+          },
+          {
+            "x": -8.895349,
+            "y": 9.593023
+          },
+          {
+            "x": -8.895349,
+            "y": -9.593023
+          }
+        ],
+        "fill": "foreground",
+        "stroke": "none",
+        "part": "gate-bar"
+      },
+      {
+        "kind": "polygon",
+        "points": [
+          {
+            "x": -6.569767,
+            "y": -12.5
+          },
+          {
+            "x": -6.569767,
+            "y": 12.5
+          },
+          {
+            "x": -3.662791,
+            "y": 12.5
+          },
+          {
+            "x": -3.662791,
+            "y": -12.5
+          }
+        ],
+        "fill": "foreground",
+        "stroke": "none",
+        "part": "gate-bar"
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": -8.895349,
+          "y": 0
+        },
+        "to": {
+          "x": -20,
+          "y": 0
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": -3.662791,
+          "y": 0
+        },
+        "to": {
+          "x": 10,
+          "y": 0
+        },
+        "part": "bulk-lead",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 16.395349,
+          "y": 0
+        },
+        "to": {
+          "x": 20,
+          "y": 0
+        },
+        "part": "bulk-lead",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "polygon",
+        "points": [
+          {
+            "x": 10,
+            "y": 0
+          },
+          {
+            "x": 16.395349,
+            "y": -3.488372
+          },
+          {
+            "x": 16.395349,
+            "y": 3.488372
+          }
+        ],
+        "fill": "foreground",
+        "stroke": "none",
+        "part": "bulk-lead"
+      }
+    ],
+    "variants": [
+      {
+        "id": "textbook-3terminal",
+        "hiddenPinNames": ["B"],
+        "auxiliaryPins": [
+          {
+            "name": "B",
+            "at": {
+              "x": -4,
+              "y": 0
+            },
+            "direction": "east",
+            "routing": {
+              "escape": "outward",
+              "preferredLanding": {
+                "x": 0,
+                "y": 0
+              }
+            }
+          }
+        ],
+        "hiddenPrimitiveParts": ["bulk-lead", "source-arrow-host"],
+        "additionalPrimitives": [
+          {
+            "kind": "polyline",
+            "points": [
+              {
+                "x": -3.662791,
+                "y": 6.976744
+              },
+              {
+                "x": 10,
+                "y": 6.976744
+              },
+              {
+                "x": 10,
+                "y": 20
+              }
+            ],
+            "part": "source-arrow",
+            "style": {
+              "strokeRole": "normal",
+              "lineCap": "butt",
+              "lineJoin": "miter"
+            }
+          },
+          {
+            "kind": "polygon",
+            "points": [
+              {
+                "x": 10.581395,
+                "y": 6.976744
+              },
+              {
+                "x": 1.27907,
+                "y": 2.906977
+              },
+              {
+                "x": 1.27907,
+                "y": 11.046512
+              }
+            ],
+            "fill": "foreground",
+            "stroke": "none",
+            "part": "source-arrow"
+          }
+        ]
+      }
+    ],
+    "defaultVariantId": "textbook-3terminal"
+  },
+  "electrical": {
+    "id": "nmos",
+    "symbolId": "nmos",
+    "deviceClass": "mos",
+    "mosBulkClass": "nmos",
+    "referencePrefix": "M",
+    "pinOrder": ["D", "G", "S", "B"],
+    "seriesInsertionPinPair": ["D", "S"],
+    "targetPolicy": "required-model",
+    "parameters": [
+      {
+        "name": "w",
+        "label": "W",
+        "required": true,
+        "editor": "text",
+        "unitHint": "m",
+        "placeholder": "1u",
+        "defaultValue": "1u",
+        "help": "Total channel width",
+        "displayRole": "width"
+      },
+      {
+        "name": "l",
+        "label": "L",
+        "required": true,
+        "editor": "text",
+        "unitHint": "m",
+        "placeholder": "150n",
+        "defaultValue": "150n",
+        "help": "Channel length",
+        "displayRole": "length"
+      },
+      {
+        "name": "nf",
+        "label": "NF",
+        "required": false,
+        "editor": "decimal",
+        "placeholder": "1",
+        "defaultValue": "1",
+        "help": "Finger count, so finger width is W / NF",
+        "displayRole": "finger-count"
+      },
+      {
+        "name": "m",
+        "label": "M",
+        "required": false,
+        "editor": "decimal",
+        "placeholder": "1",
+        "defaultValue": "1",
+        "help": "Parallel multiplier",
+        "displayRole": "multiplier"
+      }
+    ],
+    "dialects": ["spice", "spectre"],
+    "capabilities": {
+      "supportsModel": true,
+      "supportsBulkBinding": true,
+      "supportsValueAnnotation": true
+    }
+  },
+  "catalog": {
+    "library": "razavi",
+    "symbolId": "nmos",
+    "name": "NMOS",
+    "category": "transistor",
+    "reviewStatus": "reviewed",
+    "visualAuthority": {
+      "kind": "razavi-reference-v1",
+      "referenceManifestPath": "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+      "referencePaths": [
+        "fixtures/visual-reference/razavi-reference-v1/razavi-six-panel.png"
+      ],
+      "calibrationPath": "fixtures/visual-reference/razavi-reference-v1/mos-geometry.json"
+    },
+    "pinOrder": ["D", "G", "S", "B"],
+    "palette": true,
+    "automaticMappings": ["spice:M:nmos", "pdk:model-type:nmos"],
+    "assetPath": "nmos.json"
+  }
+}

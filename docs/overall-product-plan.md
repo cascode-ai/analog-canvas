@@ -27,9 +27,9 @@ Preview and Production availability follow [deployment](deployment.md).
 | Circuit facts and authored simulation setups     | Current Project schema in `@icm/model`                                           |
 | Formal save                                      | Stable private Cloud Project ID and optimistic revision                          |
 | Portable file compatibility                      | Parse/upgrade/serialize boundary in `@icm/project-protocol`                      |
-| Device semantics and parameters                  | Descriptor registry in `@icm/devices`                                            |
+| Device semantics and parameters                  | Component definition `electrical` section, projected into `@icm/devices`         |
 | Human and Agent Project mutations                | `@icm/edit-engine` transactions                                                  |
-| Symbol geometry and pin anchors                  | `@icm/symbols`                                                                   |
+| Symbol geometry and pin anchors                  | Component definition `symbol` section, projected into `@icm/symbols`              |
 | Visual construction and acceptance               | Razavi reference manifest and [visual contract](specs/razavi-visual-contract.md) |
 | Electrical read model                            | `@icm/derived` Base-Net/Logical-Net projections and connectivity index           |
 | Structural SPICE import                          | `@icm/spice` transient Circuit IR                                                |
@@ -40,6 +40,14 @@ Preview and Production availability follow [deployment](deployment.md).
 | Browser authorization and transport              | [Web-session contract](specs/web-agent-session.md)                               |
 
 ## System shape
+
+The core authoring model has two levels: reusable **component definitions** and
+**canvas Documents/Instances**. Each built-in component has one canonical file
+under [`packages/components/definitions`](../packages/components/README.md),
+with symbol, electrical and catalog sections. An Instance references its stable
+symbol ID and supplies actual placement and parameter values; the Document owns
+connectivity and annotations. Separate runtime symbol/device packages are
+generated views of that definition, not competing sources of truth.
 
 ```text
 human UI / authorized Agent

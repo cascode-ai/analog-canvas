@@ -1,3 +1,7 @@
+import {
+  readComponentProjection,
+  writeComponentProjection,
+} from "./lib/component-library.mjs";
 import { createHash } from "node:crypto";
 import { readFile, writeFile } from "node:fs/promises";
 import { dirname, relative, resolve, sep } from "node:path";
@@ -10,10 +14,10 @@ const referenceRoot = resolve(
   root,
   "fixtures/visual-reference/razavi-reference-v1",
 );
-const assetRoot = resolve(root, "packages/symbols/assets/razavi-v1");
+const assetRoot = resolve(root, "packages/components/definitions");
 const manifestPath = resolve(referenceRoot, "manifest.json");
 const geometryPath = resolve(referenceRoot, "peripheral-geometry.json");
-const catalogPath = resolve(assetRoot, "catalog.json");
+const catalogPath = resolve(assetRoot, "../catalog.json");
 const styleGeometryPath = resolve(
   root,
   "packages/derived/src/razavi-peripheral-geometry.generated.ts",
@@ -291,18 +295,18 @@ for (const symbol of symbols) {
     await format(JSON.stringify(symbol, null, 2), { parser: "json" }),
   );
   sources.set(symbol.id, source);
-  const target = resolve(assetRoot, `${symbol.id}.symbol.json`);
+  const target = resolve(assetRoot, `${symbol.id}.json`);
   if (!target.startsWith(`${assetRoot}${sep}`))
     fail(`invalid target ${target}`);
   if (check) {
-    if (normalize(await readFile(target, "utf8")) !== source)
+    if (normalize(await readComponentProjection(target)) !== source)
       fail(`${relative(root, target)} is stale`);
   } else {
-    await writeFile(target, source, "utf8");
+    await writeComponentProjection(target, source);
   }
 }
 
-const catalog = JSON.parse(await readFile(catalogPath, "utf8"));
+const catalog = JSON.parse(await readComponentProjection(catalogPath));
 for (const symbol of symbols) {
   const entry = catalog.entries.find(
     (candidate) => candidate.symbolId === symbol.id,
@@ -334,10 +338,10 @@ const catalogSource = normalize(
   await format(JSON.stringify(catalog, null, 2), { parser: "json" }),
 );
 if (check) {
-  if (normalize(await readFile(catalogPath, "utf8")) !== catalogSource)
+  if (normalize(await readComponentProjection(catalogPath)) !== catalogSource)
     fail("catalog is stale");
 } else {
-  await writeFile(catalogPath, catalogSource, "utf8");
+  await writeComponentProjection(catalogPath, catalogSource);
 }
 
 console.log(

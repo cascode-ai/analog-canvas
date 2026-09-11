@@ -1,5 +1,8 @@
+import {
+  readComponentProjection,
+  writeComponentProjection,
+} from "./lib/component-library.mjs";
 import { createHash } from "node:crypto";
-import { readFile, writeFile } from "node:fs/promises";
 import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -62,8 +65,8 @@ const referenceRoot = resolve(
   root,
   "fixtures/visual-reference/razavi-reference-v1",
 );
-const assetRoot = resolve(root, "packages/symbols/assets/razavi-v1");
-const catalogPath = resolve(assetRoot, "catalog.json");
+const assetRoot = resolve(root, "packages/components/definitions");
+const catalogPath = resolve(assetRoot, "../catalog.json");
 const check = process.argv.includes("--check");
 const normalize = (value) => `${value.replaceAll("\r\n", "\n").trimEnd()}\n`;
 const hash = (value) => createHash("sha256").update(value).digest("hex");
@@ -94,7 +97,7 @@ function fail(message) {
 }
 
 const { manifest, files } = await loadRazaviReferenceAuthority(referenceRoot);
-const catalog = JSON.parse(await readFile(catalogPath, "utf8"));
+const catalog = JSON.parse(await readComponentProjection(catalogPath));
 for (const [symbolId, name, category, pinOrder, automaticMappings] of entries) {
   const authorityId = `razavi-textbook-${symbolId}`;
   const authority = manifest.vectorEvidence?.find(
@@ -118,7 +121,7 @@ for (const [symbolId, name, category, pinOrder, automaticMappings] of entries) {
   if (symbolId === "voltage-amplifier") {
     normalizeVoltageAmplifierLeads(symbol);
   }
-  const assetPath = resolve(assetRoot, `${symbolId}.symbol.json`);
+  const assetPath = resolve(assetRoot, `${symbolId}.json`);
   const assetSource = normalize(
     await format(JSON.stringify(symbol, null, 2), { parser: "json" }),
   );
@@ -141,7 +144,7 @@ for (const [symbolId, name, category, pinOrder, automaticMappings] of entries) {
               : "Textbook gain block has implicit reference nodes and no exact primitive SPICE terminal contract.",
         }
       : {}),
-    assetPath: `${symbolId}.symbol.json`,
+    assetPath: `${symbolId}.json`,
     assetHash: hash(assetSource),
     visualAuthority: {
       kind: "razavi-reference-v1",
@@ -166,20 +169,20 @@ for (const [symbolId, name, category, pinOrder, automaticMappings] of entries) {
   if (entry) Object.assign(entry, nextEntry);
   else catalog.entries.push(nextEntry);
   if (check) {
-    if (normalize(await readFile(assetPath, "utf8")) !== assetSource)
+    if (normalize(await readComponentProjection(assetPath)) !== assetSource)
       fail(`${relative(root, assetPath)} is stale`);
   } else {
-    await writeFile(assetPath, assetSource, "utf8");
+    await writeComponentProjection(assetPath, assetSource);
   }
 }
 const catalogSource = normalize(
   await format(JSON.stringify(catalog, null, 2), { parser: "json" }),
 );
 if (check) {
-  if (normalize(await readFile(catalogPath, "utf8")) !== catalogSource)
+  if (normalize(await readComponentProjection(catalogPath)) !== catalogSource)
     fail(`${relative(root, catalogPath)} is stale`);
 } else {
-  await writeFile(catalogPath, catalogSource, "utf8");
+  await writeComponentProjection(catalogPath, catalogSource);
 }
 console.log(
   `${check ? "Validated" : "Generated"} ${entries.length} common Razavi assets`,

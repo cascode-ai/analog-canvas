@@ -47,7 +47,7 @@
     "gate:branch": "pnpm verify:branch",
     "gate:full": "pnpm ci:check",
     "setup:e2e": "playwright install --with-deps chromium",
-    "ci:static": "pnpm format:check && pnpm docs:check && pnpm references:check && pnpm agent-kit:catalog:check && pnpm mcp:distribution:check && pnpm typecheck",
+    "ci:static": "pnpm format:check && pnpm docs:check && pnpm references:check && pnpm components:check && pnpm agent-kit:catalog:check && pnpm mcp:distribution:check && pnpm typecheck",
     "ci:unit": "pnpm test",
     "ci:release": "pnpm release:verify",
     "ci:e2e": "pnpm build && playwright test",
@@ -57,8 +57,8 @@
     "format:check": "prettier --check \"apps/**/*.{ts,tsx,json,css,html}\" \"packages/**/*.{ts,tsx,json}\" \"references/**/*.json\" \"scripts/**/*.mjs\" \"*.{json,yaml}\"",
     "references:check": "node scripts/check-references.mjs",
     "docs:check": "node scripts/check-markdown-links.mjs",
-    "symbols:razavi": "node scripts/generate-razavi-signal-flow-assets.mjs && node scripts/generate-razavi-magnetic-components.mjs && node scripts/generate-razavi-symbol-catalog.mjs && node scripts/generate-agent-authoring-catalog.mjs && pnpm --filter @icm/agent-adapter... build && node scripts/generate-mcp-resources.mjs",
-    "symbols:razavi:check": "node scripts/generate-razavi-signal-flow-assets.mjs --check && node scripts/generate-razavi-magnetic-components.mjs --check && node scripts/generate-razavi-symbol-catalog.mjs --check && node scripts/generate-agent-authoring-catalog.mjs --check && pnpm --filter @icm/agent-adapter... build && node scripts/generate-mcp-resources.mjs --check",
+    "symbols:razavi": "node scripts/generate-razavi-signal-flow-assets.mjs && node scripts/generate-razavi-magnetic-components.mjs && node scripts/generate-component-library.mjs && node scripts/generate-razavi-symbol-catalog.mjs && node scripts/generate-agent-authoring-catalog.mjs && pnpm --filter @icm/agent-adapter... build && node scripts/generate-mcp-resources.mjs",
+    "symbols:razavi:check": "node scripts/generate-razavi-signal-flow-assets.mjs --check && node scripts/generate-razavi-magnetic-components.mjs --check && node scripts/generate-component-library.mjs --check && node scripts/generate-razavi-symbol-catalog.mjs --check && node scripts/generate-agent-authoring-catalog.mjs --check && pnpm --filter @icm/agent-adapter... build && node scripts/generate-mcp-resources.mjs --check",
     "symbols:razavi-mos": "node scripts/generate-razavi-mos-assets.mjs",
     "symbols:razavi-mos:check": "node scripts/generate-razavi-mos-assets.mjs --check",
     "symbols:razavi-peripherals": "node scripts/generate-razavi-peripheral-assets.mjs",
@@ -96,7 +96,9 @@
     "test:production-smoke:check": "pnpm --filter @icm/editor build && node scripts/editor-production-smoke.mjs --check",
     "typecheck": "tsc -p tsconfig.check.json --noEmit",
     "symbols:razavi-signal-flow": "node scripts/generate-razavi-signal-flow-assets.mjs",
-    "symbols:razavi-signal-flow:check": "node scripts/generate-razavi-signal-flow-assets.mjs --check"
+    "symbols:razavi-signal-flow:check": "node scripts/generate-razavi-signal-flow-assets.mjs --check",
+    "components:generate": "node scripts/generate-component-library.mjs && node scripts/generate-razavi-symbol-catalog.mjs && node scripts/generate-agent-authoring-catalog.mjs",
+    "components:check": "node scripts/generate-component-library.mjs --check && node scripts/generate-razavi-symbol-catalog.mjs --check"
   },
   "devDependencies": {
     "@playwright/test": "1.62.1",
