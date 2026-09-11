@@ -367,9 +367,18 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
     useEffect(() => {
       setReveal(undefined);
     }, [props.folder.id]);
+    const lastCanvasSelection = useRef<string | undefined>(undefined);
     useEffect(() => {
       const selected = props.selectedCircuitObject;
+      const selectionKey = selected
+        ? JSON.stringify([selected.documentId, selected.instanceId])
+        : undefined;
+      const changed = lastCanvasSelection.current !== selectionKey;
+      lastCanvasSelection.current = selectionKey;
       if (!selected) return;
+      // A new Canvas selection reveals code; changing folders must not overwrite
+      // an explicit file activation with an old selection from the drawing.
+      if (!changed && paths[props.folder.id] !== undefined) return;
       for (const { binding, result } of generated) {
         if (!result.ok) continue;
         const instance = result.source.instances.find(

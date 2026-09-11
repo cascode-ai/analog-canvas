@@ -35,7 +35,7 @@ describe("approved simulation Code layout", () => {
     );
     expect(markup).toContain("OTA AC");
     expect(markup).toContain("OTA transient");
-    expect(markup).not.toContain("New folder");
+    expect(markup).toContain('data-workspace-new-folder="true"');
     expect(markup).not.toContain("New file");
     expect(markup).not.toContain("Setup");
   });

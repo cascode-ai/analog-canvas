@@ -232,21 +232,6 @@
 .simulation-folder-tree {
   min-height: 100%;
 }
-.simulation-folder-row {
-  display: flex;
-  align-items: center;
-}
-.simulation-folder-row > button:first-child {
-  width: 1.5em;
-  flex: 0 0 1.5em;
-  padding: 3px 0;
-  text-align: center;
-  font-size: inherit;
-}
-.simulation-folder-row > button:last-child {
-  flex: 1;
-  min-width: 0;
-}
 .simulation-code-files input {
   width: 100%;
   min-width: 0;
@@ -506,17 +491,6 @@
     opacity: 1;
     visibility: visible;
   }
-}
-.simulation-starter-choices {
-  position: absolute;
-  z-index: 35;
-  inset: 50px 12px auto;
-  background: var(--icm-surface);
-  border: 1px solid var(--icm-border);
-  box-shadow: 0 8px 24px #0002;
-  padding: 12px;
-  display: grid;
-  gap: 8px;
 }
 .simulation-probe-picker {
   position: absolute;

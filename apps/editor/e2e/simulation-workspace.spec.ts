@@ -374,9 +374,13 @@ test("human simulation uses saved folder, survives minimizing, recovers a bad in
   await panel
     .getByRole("button", { name: "Folder Second folder", exact: true })
     .click({ button: "right" });
-  await panel.getByRole("menuitem", { name: "New file…", exact: true }).click();
-  await panel.getByRole("textbox", { name: "File name" }).fill("bias.spice");
-  await panel.getByRole("textbox", { name: "File name" }).press("Enter");
+  await page.getByRole("menuitem", { name: "New file…", exact: true }).click();
+  await panel
+    .getByRole("textbox", { name: "Relative file path" })
+    .fill("bias.spice");
+  await panel
+    .getByRole("textbox", { name: "Relative file path" })
+    .press("Enter");
   await expect(panel.getByRole("tab", { name: /bias.spice/ })).toBeVisible();
   await panel.getByRole("button", { name: /Helper.*Ctrl\+Space/ }).click();
   await panel
@@ -1302,6 +1306,25 @@ test("workspace menus, selection, empty editors and resizing share non-destructi
   await page.keyboard.press("Escape");
   await expect(page.getByRole("menu")).toHaveCount(0);
   await expect(workspace).toBeVisible();
+  // An old Canvas selection must not override explicit activation in another folder.
+  await page
+    .locator('[data-canvas-hit-kind="instance"]')
+    .first()
+    .click({ force: true });
+  await expect(
+    workspace.getByRole("tab", { name: /circuit\.spice/ }),
+  ).toHaveAttribute("aria-selected", "true");
+  await beta
+    .locator("..")
+    .locator("..")
+    .getByRole("button", { name: "run.cir", exact: true })
+    .click();
+  await expect(
+    workspace.getByRole("tab", { name: "run.cir", exact: true }),
+  ).toHaveAttribute("aria-selected", "true");
+  await expect(
+    page.getByRole("button", { name: "Run", exact: true }),
+  ).toHaveAttribute("title", "Run Beta");
 });
 
 test("inline naming commits once on blur, cancels on Escape, and deletion uses a local dialog", async ({
