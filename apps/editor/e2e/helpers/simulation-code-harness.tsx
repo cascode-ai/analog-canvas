@@ -7,6 +7,7 @@ import {
   SimulationCodeWorkspace,
   type SimulationCodeWorkspaceProps,
 } from "../../src/features/simulation/code-workspace";
+import { WorkspaceInteractions } from "../../src/features/simulation/workspace-interactions";
 import "../../src/styles/editor-entry.css";
 
 const initial =
@@ -96,7 +97,7 @@ function Harness() {
         >
           <SimulationCodeEditor
             path={path}
-            text={files[path]!}
+            text={files[path] ?? ""}
             historyKey={String(revision)}
             entry={path === "run.cir"}
             mode={path.endsWith(".json") ? "json" : "spice"}
@@ -135,5 +136,9 @@ export function mountSimulationCodeHarness() {
   document.documentElement.style.setProperty("--icm-text", "#28303b");
   document.documentElement.style.setProperty("--icm-text-muted", "#79818a");
   document.documentElement.style.setProperty("--icm-border", "#e1e5e9");
-  createRoot(root).render(<Harness />);
+  createRoot(root).render(
+    <WorkspaceInteractions>
+      <Harness />
+    </WorkspaceInteractions>,
+  );
 }

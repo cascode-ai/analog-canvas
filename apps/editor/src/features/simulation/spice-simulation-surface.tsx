@@ -180,7 +180,6 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
     return () => props.onSourceBuffer?.(null);
   }, [dirty, selectedFolder?.id, props.onSourceBuffer]);
   const [resultTab, setResultTab] = useState<ResultTab>("plot");
-  const [exitConfirmationOpen, setExitConfirmationOpen] = useState(false);
 
   const [artifactPreview, setArtifactPreview] =
     useState<SimulationArtifactContent>();
@@ -999,7 +998,10 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
         })
       ) {
         if (codeRef.current && !(await codeRef.current.save())) return;
-        props.onDeleteFolder(folder.id);
+        props.onDeleteFolder(
+          folder.id,
+          session.currentProject()?.structureRevision,
+        );
       }
       return;
     }
@@ -1022,6 +1024,17 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
       kind: "folder",
       ...(action === "rename" && current ? { folderId: current.id } : {}),
       label: action === "rename" ? "Folder name" : "New simulation folder name",
+      validate: (value) =>
+        session
+          .currentProject()
+          ?.simulationFolders.some(
+            (item) =>
+              !(action === "rename" && item.id === current?.id) &&
+              item.name.toLocaleLowerCase("en-US") ===
+                value.toLocaleLowerCase("en-US"),
+          )
+          ? `Simulation folder name already exists: ${value}`
+          : undefined,
       ...(action === "new"
         ? {
             template: {
@@ -1717,7 +1730,7 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
         if (e.key !== "Escape") return;
         if (batchMenuRef.current?.open) {
           batchMenuRef.current.removeAttribute("open");
-        } else props.onMinimize();
+        }
       }}
     >
       {newFolder && (
@@ -1876,7 +1889,19 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
           </button>
           <button
             className="simulation-close-button"
-            onClick={() => setExitConfirmationOpen(true)}
+            onClick={async () => {
+              if (
+                await interaction.confirm({
+                  title: "Exit Simulation?",
+                  message:
+                    "Unsaved source drafts and temporary run files will be discarded. An active run will be cancelled.",
+                  acceptLabel: "Exit Simulation",
+                })
+              ) {
+                codeRef.current?.discard();
+                props.onExit();
+              }
+            }}
             aria-label="Exit simulation"
           >
             ×
@@ -1888,30 +1913,6 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
         <p className="simulation-context-hint">
           No DUT instance in this Cell · Edit → New Testbench Cell if needed.
         </p>
-      ) : null}
-
-      {exitConfirmationOpen ? (
-        <div className="simulation-exit-confirmation" role="alertdialog">
-          <strong>Exit Simulation?</strong>
-          <p>
-            Unsaved source drafts and temporary run files will be discarded. An
-            active run will be cancelled.
-          </p>
-          <div>
-            <button onClick={() => setExitConfirmationOpen(false)}>
-              Keep working
-            </button>
-            <button
-              className="simulation-stop-button"
-              onClick={() => {
-                codeRef.current?.discard();
-                props.onExit();
-              }}
-            >
-              Exit Simulation
-            </button>
-          </div>
-        </div>
       ) : null}
 
       {selectedFolder ? (

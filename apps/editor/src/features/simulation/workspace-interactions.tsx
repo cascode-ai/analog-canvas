@@ -35,7 +35,7 @@ interface Confirmation {
 interface Interactions {
   edit: (NameRequest & { requestId: number }) | undefined;
   name(request: NameRequest): Promise<string | null>;
-  finishName(value: string | null): void;
+  finishName(value: string | null, restoreFocus?: boolean): void;
   confirm(request: Confirmation): Promise<boolean>;
   menu(x: number, y: number, items: WorkspaceMenuItem[], label?: string): void;
   closeMenu(restore?: boolean): void;
@@ -74,11 +74,30 @@ export function WorkspaceInteractions({ children }: { children: ReactNode }) {
     setMenu(undefined);
     if (focus) restore();
   };
-  const finishName = (value: string | null) => {
+  const finishName = (value: string | null, restoreFocus = false) => {
     const resolve = nameResolver.current;
     nameResolver.current = undefined;
     setEdit(undefined);
     resolve?.(value);
+    if (restoreFocus && edit)
+      requestAnimationFrame(() => {
+        const row =
+          edit.kind === "folder"
+            ? value
+              ? document.querySelector<HTMLElement>(
+                  `[aria-label="${CSS.escape(`Folder ${value}`)}"]`,
+                )
+              : document.querySelector<HTMLElement>(
+                  `[data-folder-id="${CSS.escape(edit.folderId ?? "")}"][data-tree-row="folder"]`,
+                )
+            : document.querySelector<HTMLElement>(
+                `[data-folder-id="${CSS.escape(edit.folderId ?? "")}"][data-file-path="${CSS.escape(value ?? edit.path ?? "")}"]`,
+              );
+        (
+          row ??
+          document.querySelector<HTMLElement>("[data-workspace-new-folder]")
+        )?.focus();
+      });
   };
   const finishConfirm = (value: boolean) => {
     confirmResolver.current?.(value);
@@ -262,7 +281,7 @@ function NameInput() {
     input.current?.focus();
     input.current?.select();
   }, []);
-  const finish = (cancel = false) => {
+  const finish = (cancel = false, restoreFocus = false) => {
     if (finished.current) return;
     const name = value.trim();
     const problem = !cancel && name ? request.validate?.(name) : undefined;
@@ -271,7 +290,7 @@ function NameInput() {
       return;
     }
     finished.current = true;
-    interaction.finishName(cancel || !name ? null : name);
+    interaction.finishName(cancel || !name ? null : name, restoreFocus);
   };
   return (
     <div
@@ -294,11 +313,11 @@ function NameInput() {
           e.stopPropagation();
           if (e.key === "Enter" && !e.nativeEvent.isComposing) {
             e.preventDefault();
-            finish();
+            finish(false, true);
           }
           if (e.key === "Escape") {
             e.preventDefault();
-            finish(true);
+            finish(true, true);
           }
         }}
       />

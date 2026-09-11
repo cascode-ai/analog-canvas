@@ -5381,7 +5381,7 @@ export function App({
                   onSourceBuffer={(buffer) => {
                     simulationSourceBuffer.current = buffer;
                   }}
-                  onSaveProject={() => void saveProjectToCloud()}
+                  onSaveProject={() => saveProjectToCloud()}
                   projectSaveState={persistenceState}
                   onSaveFolder={(
                     folder,
@@ -5434,11 +5434,22 @@ export function App({
                       },
                     };
                   }}
-                  onDeleteFolder={(folderId) => {
-                    const committed = commitStructure(
-                      "remove-simulation-folder",
-                      [{ kind: "remove_simulation_folder", folderId }],
-                    );
+                  onDeleteFolder={(
+                    folderId,
+                    expectedRevision = project.structureRevision,
+                  ) => {
+                    const result = dispatchProjectTransaction({
+                      transactionId: `remove-simulation-folder-${crypto.randomUUID()}`,
+                      projectId: project.id,
+                      expectedStructureRevision: expectedRevision,
+                      actor: { kind: "human", id: "human-local" },
+                      edits: [{ kind: "remove_simulation_folder", folderId }],
+                    });
+                    const committed = result.ok;
+                    if (!result.ok)
+                      setStatus(
+                        `${result.error.code}: ${result.error.message}`,
+                      );
                     if (committed && activeSimulationFolderId === folderId) {
                       setActiveSimulationFolderId(null);
                       setSimulationDraftContext(null);

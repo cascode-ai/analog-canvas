@@ -86,7 +86,7 @@ interface Props extends Pick<
   onProblem(problem: Problem | undefined): void;
   diagnostics?: Problem["diagnostics"];
   onRun(): void;
-  onSaveProject?: (() => void) | undefined;
+  onSaveProject?: (() => void | Promise<unknown>) | undefined;
   projectSaveState?: SpiceSimulationSurfaceProps["projectSaveState"];
   onHistoryBoundary(direction: "undo" | "redo"): void;
 }
@@ -142,6 +142,8 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
       if (folderId !== props.folder.id) props.folders?.onSelect(folderId);
     };
     const [saving, setSaving] = useState(false);
+    const [saveRequested, setSaveRequested] = useState(false);
+    const saveRequest = useRef(false);
     const [reveal, setReveal] = useState<{
       sourceOffset: number;
       requestId: string;
@@ -424,7 +426,7 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
       (item) => item.binding.path === path,
     )?.result;
     const buffer = drafts.current.get(key(path));
-    const conflict = buffer && buffer.base !== selected?.text;
+    const conflict = buffer && buffer.base !== (selected?.text ?? "");
     const text = buffer?.text ?? selected?.text ?? "";
     useEffect(() => {
       let current = true;
@@ -721,6 +723,27 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
         ? generated.source.text
         : generated.diagnostics.map((d) => `* ${d.message}`).join("\n");
     };
+    const requestSave = async () => {
+      if (saveRequest.current) return;
+      saveRequest.current = true;
+      setSaveRequested(true);
+      try {
+        if (props.onSaveProject) await props.onSaveProject();
+        else await flush();
+      } catch (error) {
+        props.onProblem(
+          inputProblem(
+            "PROJECT_SAVE_FAILED",
+            error instanceof Error
+              ? error.message
+              : "Save failed; drafts retained.",
+          ),
+        );
+      } finally {
+        saveRequest.current = false;
+        setSaveRequested(false);
+      }
+    };
     return (
       <SimulationCodeWorkspace
         workspaceKey={props.folder.id}
@@ -875,11 +898,13 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
           const folder = current.current.project.simulationFolders.find(
             (item) => item.id === targetFolderId,
           );
-          const file = folder?.input.files.find(
+          const persistedFile = folder?.input.files.find(
             (item) => item.path === filePath,
           );
-          if (!folder || !file) return;
           const draft = drafts.current.get(bufferKey);
+          const file =
+            persistedFile ?? (draft ? { path: filePath, text: "" } : undefined);
+          if (!folder || !file) return;
           if (draft && draft.base !== file.text) {
             props.onProblem(
               inputProblem(
@@ -983,16 +1008,17 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
                   : "Save Project · Ctrl+S"
               }
               disabled={
+                saveRequested ||
                 saving ||
                 props.projectSaveState === "saving" ||
                 (props.projectSaveState === "clean" && !dirty)
               }
-              aria-busy={saving || props.projectSaveState === "saving"}
-              onClick={() =>
-                props.onSaveProject ? props.onSaveProject() : void flush()
+              aria-busy={
+                saveRequested || saving || props.projectSaveState === "saving"
               }
+              onClick={() => void requestSave()}
             >
-              {saving || props.projectSaveState === "saving"
+              {saveRequested || saving || props.projectSaveState === "saving"
                 ? "Saving…"
                 : props.projectSaveState === "clean" && !dirty
                   ? "Saved"
@@ -1163,9 +1189,7 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
             )
           }
           onChange={change}
-          onSave={() =>
-            props.onSaveProject ? props.onSaveProject() : void flush()
-          }
+          onSave={() => void requestSave()}
           onRun={props.onRun}
           onHistoryBoundary={props.onHistoryBoundary}
         />

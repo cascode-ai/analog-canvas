@@ -4,7 +4,11 @@ import { describe, expect, it } from "vitest";
 import { BrowserSimulationSession } from "./browser-simulation-session";
 import { SpiceSimulationSurface } from "./spice-simulation-surface";
 
-function render(saved: boolean, broken = false) {
+function render(
+  saved: boolean,
+  broken = false,
+  projectSaveState?: "saving" | "clean" | "failed",
+) {
   const project = createEmptyProject("code", "Code");
   if (saved) {
     const folder = createSimulationFolder({
@@ -38,10 +42,17 @@ function render(saved: boolean, broken = false) {
       onSaveFolder={() => ({ status: "applied" })}
       onDeleteFolder={() => true}
       onHistoryBoundary={() => {}}
+      projectSaveState={projectSaveState}
     />,
   );
 }
 describe("source workspace default cutover", () => {
+  it("projects the Project save lifecycle instead of claiming a buffer flush saved to cloud", () => {
+    expect(render(true, false, "saving")).toContain("Saving…");
+    expect(render(true, false, "saving")).toContain('aria-busy="true"');
+    expect(render(true, false, "clean")).toContain(">Saved</button>");
+    expect(render(true, false, "failed")).toContain("Retry save");
+  });
   it("offers creation without restoring the retired Settings form", () => {
     const markup = render(false);
     expect(markup).toContain("Set up");

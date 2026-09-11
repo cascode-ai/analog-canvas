@@ -5443,6 +5443,13 @@ test("keeps the production command surface compact and publishes PWA metadata", 
     page.getByRole("region", { name: "Analog simulation" }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Exit Simulation" }).click();
+  await page
+    .getByRole("dialog", { name: "Exit Simulation?" })
+    .getByRole("button", { name: "Exit Simulation", exact: true })
+    .click();
+  await expect(
+    page.getByRole("dialog", { name: "Exit Simulation?" }),
+  ).toHaveCount(0);
   // Drawing tools live in the always-visible toolbar, not behind a menu.
   await expect(toolbar.locator("summary", { hasText: "Draw" })).toHaveCount(0);
   await expect(page.getByTestId("draw-toolbar")).toBeVisible();

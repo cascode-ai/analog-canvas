@@ -84,7 +84,12 @@ export function SimulationFolderTree(props: SimulationFolderTreeProps) {
       className="simulation-folder-tree"
       aria-label="Simulation folders"
       onClick={(event) => {
-        if (event.target === event.currentTarget) setSelected([]);
+        if (
+          event.target === event.currentTarget ||
+          (event.target instanceof Element &&
+            event.target.closest('[data-tree-row="file"]'))
+        )
+          setSelected([]);
       }}
       onContextMenu={(event) => {
         event.preventDefault();
@@ -120,7 +125,11 @@ export function SimulationFolderTree(props: SimulationFolderTreeProps) {
         }
       }}
     >
-      <button type="button" onClick={() => action("new", [])}>
+      <button
+        type="button"
+        data-workspace-new-folder="true"
+        onClick={() => action("new", [])}
+      >
         + New folder…
       </button>
       {naming && !ui.edit?.folderId ? (
@@ -158,6 +167,7 @@ export function SimulationFolderTree(props: SimulationFolderTreeProps) {
               <button
                 type="button"
                 data-tree-row="folder"
+                data-folder-id={folder.id}
                 aria-label={`Folder ${folder.name}`}
                 aria-pressed={selected.includes(folder.id)}
                 title={

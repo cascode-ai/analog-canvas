@@ -203,6 +203,8 @@ export function SimulationCodeWorkspace(props: SimulationCodeWorkspaceProps) {
                 <button
                   type="button"
                   data-tree-row="file"
+                  data-folder-id={folderId ?? props.folders?.activeId}
+                  data-file-path={file.path}
                   className={
                     current && file.path === props.activePath ? "is-active" : ""
                   }
@@ -234,6 +236,7 @@ export function SimulationCodeWorkspace(props: SimulationCodeWorkspaceProps) {
       className={`simulation-code-workspace${props.maximized ? " is-maximized" : ""}`}
       aria-label="Simulation Code workspace"
       onKeyDown={(event) => {
+        if (event.defaultPrevented) return;
         if (
           (event.ctrlKey || event.metaKey) &&
           event.key.toLowerCase() === "s"

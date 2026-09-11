@@ -359,10 +359,11 @@ test("one Testbench persists several independently named folders", async ({
     .getByLabel("Folder name", { exact: true })
     .fill("OTA OP, DC, AC, and TRAN");
   await folders.getByLabel("Folder name", { exact: true }).press("Enter");
-  await panel.getByRole("tab", { name: "Console", exact: true }).click();
-  await expect(panel.getByLabel("Simulation results")).toContainText(
-    "already exists",
-  );
+  await expect(
+    folders.getByLabel("Folder name", { exact: true }),
+  ).toHaveAttribute("aria-invalid", "true");
+  await expect(folders).toContainText("already exists");
+  await folders.getByLabel("Folder name", { exact: true }).press("Escape");
   const saved = JSON.parse(
     (await downloadBytes(page, "File", "Export Project File…")).toString(),
   );
