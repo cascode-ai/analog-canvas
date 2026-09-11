@@ -176,9 +176,9 @@ export const spiceParameterGuide = [
     {
       key: "Escape",
       run(view) {
-        if (closeCompletion(view)) return true;
+        const closed = closeCompletion(view);
         if (!parameterGuide(view.state) || view.state.field(guideDismissed))
-          return false;
+          return closed;
         view.dispatch({ effects: dismissParameterGuide.of(true) });
         return true;
       },
