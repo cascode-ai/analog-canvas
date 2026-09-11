@@ -12,6 +12,7 @@ import {
   chooseComponent,
   clickCommand,
   clickDrawTool,
+  clickNetlistWorkflowCommand,
   downloadBytes,
   openMenu,
   readRecoveryRecords,
@@ -5280,9 +5281,26 @@ test("keeps the production command surface compact and publishes PWA metadata", 
 }) => {
   await page.goto("/editor");
   const toolbar = page.getByRole("navigation", { name: "Editor commands" });
-  for (const label of ["File", "Edit"]) {
+  for (const label of ["File", "Edit", "Netlist"]) {
     await expect(toolbar.locator("summary", { hasText: label })).toBeVisible();
   }
+  await expect(
+    toolbar.locator("summary").filter({ hasText: /^Run$/u }),
+  ).toHaveCount(0);
+  const netlistSummary = toolbar
+    .locator("summary")
+    .filter({ hasText: /^Netlist$/u });
+  await expect(page.getByTestId("open-analog-simulation")).toBeHidden();
+  await expect(page.getByTestId("check-and-save")).toBeHidden();
+  await netlistSummary.click();
+  await expect(page.getByTestId("open-analog-simulation")).toBeVisible();
+  await expect(page.getByTestId("check-and-save")).toBeVisible();
+  await netlistSummary.click();
+  await clickNetlistWorkflowCommand(page, "open-analog-simulation");
+  await expect(
+    page.getByRole("region", { name: "Analog simulation" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Exit Simulation" }).click();
   // Drawing tools live in the always-visible toolbar, not behind a menu.
   await expect(toolbar.locator("summary", { hasText: "Draw" })).toHaveCount(0);
   await expect(page.getByTestId("draw-toolbar")).toBeVisible();
@@ -5853,7 +5871,7 @@ test("surfaces and locates current-document ERC diagnostics", async ({
 }) => {
   await page.goto("/editor");
   await placeComponent(page, "resistor", { x: 380, y: 260 });
-  await page.getByTestId("check-and-save").click();
+  await clickNetlistWorkflowCommand(page, "check-and-save");
   await expect(page.getByTestId("check-and-save")).toBeEnabled();
 
   await expect(page.getByTestId("project-diagnostics")).toContainText(
@@ -5880,7 +5898,7 @@ test("rechecks resolved diagnostics and invalidates them through undo", async ({
 }) => {
   await page.goto("/editor");
   await placeComponent(page, "resistor", { x: 380, y: 260 });
-  await page.getByTestId("check-and-save").click();
+  await clickNetlistWorkflowCommand(page, "check-and-save");
   await expect(page.getByTestId("check-and-save")).toBeEnabled();
   const diagnostics = page.getByTestId("project-diagnostics");
   await expect(diagnostics).toContainText("ERC_UNCONNECTED_PIN");
@@ -5893,7 +5911,7 @@ test("rechecks resolved diagnostics and invalidates them through undo", async ({
     "Check out of date",
   );
   await expect(page.locator(".diagnostic-marker")).toHaveCount(0);
-  await page.getByTestId("check-and-save").click();
+  await clickNetlistWorkflowCommand(page, "check-and-save");
   await expect(page.getByTestId("check-and-save")).toBeEnabled();
   await expect(diagnostics).not.toContainText("ERC_UNCONNECTED_PIN");
   await expect(page.getByTestId("no-current-diagnostics")).toBeVisible();
@@ -5902,7 +5920,7 @@ test("rechecks resolved diagnostics and invalidates them through undo", async ({
   await expect(page.getByTestId("statusbar-issues")).toHaveText(
     "Check out of date",
   );
-  await page.getByTestId("check-and-save").click();
+  await clickNetlistWorkflowCommand(page, "check-and-save");
   await expect(page.getByTestId("check-and-save")).toBeEnabled();
   await expect(diagnostics).toContainText("ERC_UNCONNECTED_PIN");
 
@@ -5910,7 +5928,7 @@ test("rechecks resolved diagnostics and invalidates them through undo", async ({
   await expect(page.getByTestId("statusbar-issues")).toHaveText(
     "Check out of date",
   );
-  await page.getByTestId("check-and-save").click();
+  await clickNetlistWorkflowCommand(page, "check-and-save");
   await expect(diagnostics).not.toContainText("ERC_UNCONNECTED_PIN");
 });
 
@@ -5920,7 +5938,7 @@ test("filters and navigates locator-backed visual diagnostics", async ({
   await page.goto("/editor");
   await placeComponent(page, "resistor", { x: 420, y: 300 });
   await placeComponent(page, "resistor", { x: 420, y: 300 });
-  await page.getByTestId("check-and-save").click();
+  await clickNetlistWorkflowCommand(page, "check-and-save");
   await expect(page.getByTestId("check-and-save")).toBeEnabled();
 
   await page.getByTestId("diagnostic-observations-toggle").click();

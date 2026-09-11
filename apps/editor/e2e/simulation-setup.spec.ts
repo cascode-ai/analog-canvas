@@ -1,7 +1,10 @@
 import { test, expect } from "@playwright/test";
 import { parseProject } from "@icm/project-protocol";
 
-import { downloadBytes } from "./editor-fixtures.js";
+import {
+  clickNetlistWorkflowCommand,
+  downloadBytes,
+} from "./editor-fixtures.js";
 import { ota, profile } from "./simulation-e2e-fixtures.js";
 test("the qualified OTA setup opens unchanged and preserves all root and hierarchical outputs", async ({
   page,
@@ -80,9 +83,7 @@ test("the qualified OTA setup opens unchanged and preserves all root and hierarc
     mimeType: "application/json",
     buffer: Buffer.from(JSON.stringify(project)),
   });
-  await page
-    .getByRole("button", { name: "Analog simulation", exact: true })
-    .click();
+  await clickNetlistWorkflowCommand(page, "open-analog-simulation");
   const panel = page.getByRole("region", { name: "Analog simulation" });
   await panel
     .locator('details[aria-label="Run Plan settings"] > summary')
@@ -226,9 +227,7 @@ test("the qualified OTA setup opens unchanged and preserves all root and hierarc
     mimeType: "application/json",
     buffer: Buffer.from(JSON.stringify(saved)),
   });
-  await page
-    .getByRole("button", { name: "Analog simulation", exact: true })
-    .click();
+  await clickNetlistWorkflowCommand(page, "open-analog-simulation");
   await panel.getByRole("button", { name: "Settings" }).click();
   await panel
     .locator('details[aria-label="Analyses settings"] > summary')
@@ -280,9 +279,7 @@ test("one Testbench persists several independently named setups", async ({
     mimeType: "application/json",
     buffer: Buffer.from(JSON.stringify(project)),
   });
-  await page
-    .getByRole("button", { name: "Analog simulation", exact: true })
-    .click();
+  await clickNetlistWorkflowCommand(page, "open-analog-simulation");
   const panel = page.getByRole("region", { name: "Analog simulation" });
   const selector = panel.getByTitle("Simulation setup", { exact: true });
   await expect(selector).toContainText("OTA OP, DC, AC, and TRAN");

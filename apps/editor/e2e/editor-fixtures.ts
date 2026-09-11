@@ -56,6 +56,15 @@ export async function clickCommand(
   await details.getByRole("button", { name: button, exact: true }).click();
 }
 
+/** Run one workflow command from the Netlist menu. */
+export async function clickNetlistWorkflowCommand(
+  page: Page,
+  command: "open-analog-simulation" | "check-and-save",
+): Promise<void> {
+  const details = await openMenu(page, "Netlist");
+  await details.getByTestId(command).click();
+}
+
 export type DrawTool =
   | "insert"
   | "wire"

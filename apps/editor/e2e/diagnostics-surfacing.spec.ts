@@ -1,6 +1,9 @@
 import { expect, test } from "@playwright/test";
 
-import { chooseComponent } from "./editor-fixtures";
+import {
+  chooseComponent,
+  clickNetlistWorkflowCommand,
+} from "./editor-fixtures";
 
 /**
  * Findings must reach the person drawing: the statusbar carries a persistent
@@ -26,7 +29,7 @@ test("Check and Save surfaces findings in the existing workbench and canvas", as
   await page.keyboard.press("Escape");
   await expect(badge).toHaveText("Not checked");
   await expect(page.locator(".diagnostic-marker")).toHaveCount(0);
-  await page.getByTestId("check-and-save").click();
+  await clickNetlistWorkflowCommand(page, "check-and-save");
   await expect(badge).toHaveAttribute("data-severity", "warning");
   await expect(badge).toContainText("warning");
   await expect(page.getByTestId("check-and-save")).toBeEnabled();
@@ -85,7 +88,7 @@ test("signed-out Save does not suppress ERC or visual check results", async ({
     await page.keyboard.press("Escape");
   }
   await expect(page.getByTestId("statusbar-issues")).toHaveText("Not checked");
-  await page.getByTestId("check-and-save").click();
+  await clickNetlistWorkflowCommand(page, "check-and-save");
   await expect(page.getByTestId("status")).toContainText("Sign in to save");
   await expect(page.getByTestId("project-diagnostics")).toContainText(
     "ERC_UNCONNECTED_PIN",

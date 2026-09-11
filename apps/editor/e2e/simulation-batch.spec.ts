@@ -6,6 +6,7 @@ import {
 } from "@icm/spice-run";
 import { parseProject } from "@icm/project-protocol";
 
+import { clickNetlistWorkflowCommand } from "./editor-fixtures.js";
 import { ota, profile } from "./simulation-e2e-fixtures.js";
 test("a saved-setup batch prepares first and exposes each ordinary run", async ({
   page,
@@ -94,9 +95,7 @@ test("a saved-setup batch prepares first and exposes each ordinary run", async (
     mimeType: "application/json",
     buffer: Buffer.from(JSON.stringify(project)),
   });
-  await page
-    .getByRole("button", { name: "Analog simulation", exact: true })
-    .click();
+  await clickNetlistWorkflowCommand(page, "open-analog-simulation");
   const panel = page.getByRole("region", { name: "Analog simulation" });
   await panel.getByTitle("Simulation setup", { exact: true }).click();
   await panel.getByLabel("Include TT in batch").check();
@@ -221,9 +220,7 @@ test("a saved Run Plan prepares without executing and Run starts its ordinary ba
     mimeType: "application/json",
     buffer: Buffer.from(JSON.stringify(project)),
   });
-  await page
-    .getByRole("button", { name: "Analog simulation", exact: true })
-    .click();
+  await clickNetlistWorkflowCommand(page, "open-analog-simulation");
   const panel = page.getByRole("region", { name: "Analog simulation" });
   const runPlan = panel.getByLabel("Run Plan settings");
   await runPlan.locator(":scope > summary").click();
