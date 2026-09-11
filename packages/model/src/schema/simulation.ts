@@ -636,7 +636,8 @@ export const SimulationStructuredInputSchema = z
     }
   });
 
-export const SimulationSetupSchema = z.strictObject({
+/** Read-only historical input for the one-way source migration; never a current Project writer. */
+export const LegacySimulationSetupSchema = z.strictObject({
   version: z.literal(3),
   input: z.discriminatedUnion("kind", [
     SimulationStructuredInputSchema,
@@ -646,7 +647,8 @@ export const SimulationSetupSchema = z.strictObject({
 
 /** A named Project-owned setup. The id is the durable run/selection address;
  * the name is presentation and may change independently. */
-export const ProjectSimulationSetupSchema = SimulationSetupSchema.extend({
-  id: StableIdSchema,
-  name: z.string().trim().min(1).max(128),
-});
+export const LegacyProjectSimulationSetupSchema =
+  LegacySimulationSetupSchema.extend({
+    id: StableIdSchema,
+    name: z.string().trim().min(1).max(128),
+  });

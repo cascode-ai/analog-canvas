@@ -65,7 +65,7 @@ import type {
   SimulationDeviceOperatingPointSpec,
   SimulationExpression,
   SimulationMeasurementSpec,
-  SimulationSetup,
+  LegacySimulationSetup as SimulationSetup,
   SimulationStructuredInput,
   SimulationVoltageProbe,
   StableId,
@@ -99,7 +99,7 @@ export interface CompiledSimulationVector {
   readonly probeId: string;
   /** ngspice's own spelling, e.g. `v(mid)`, `v(x1.out)`, `i(v1)`. */
   readonly vector: string;
-  readonly quantity: "voltage" | "current";
+  readonly quantity: "voltage" | "current" | "native";
 }
 
 interface ResolvedSimulationProbe {
@@ -110,7 +110,7 @@ interface ResolvedSimulationProbe {
   readonly netlistInstrumentation?: TerminalCurrentInstrumentation;
 }
 
-interface TerminalCurrentInstrumentation {
+export interface TerminalCurrentInstrumentation {
   readonly cellId: StableId;
   readonly instanceId: StableId;
   readonly pinName: string;
@@ -122,7 +122,7 @@ export type CompiledSimulationExpression =
   | {
       readonly kind: "acquisition";
       readonly acquisitionId: string;
-      readonly quantity: "voltage" | "current";
+      readonly quantity: "voltage" | "current" | "native";
     }
   | {
       readonly kind: "constant";
@@ -182,6 +182,14 @@ export type CompiledSimulation =
       readonly outputs: ReadonlyArray<CompiledSimulationOutput>;
       readonly deviceOperatingPoints: ReadonlyArray<CompiledSimulationDeviceOperatingPoint>;
       readonly measurements: ReadonlyArray<SimulationMeasurementSpec>;
+      /** Derived ingredients shared by source composition and offline migration. */
+      readonly circuit: DesignNetlistIR;
+      readonly captureVectors: readonly string[];
+      readonly terminalInstrumentations: readonly TerminalCurrentInstrumentation[];
+      readonly commands: readonly {
+        kind: SimulationAnalysis;
+        command: string;
+      }[];
       readonly diagnostics: readonly [];
       /**
        * Everything the extraction reported that did not stop the compile --
@@ -197,6 +205,10 @@ export type CompiledSimulation =
 export interface CompileStructuredSimulationOptions {
   /** Wall-clock ceiling for the simulator process; the runner clamps it. */
   readonly timeoutMs?: number;
+  /** Native commands remain author-owned; do not reject measurements from an incomplete static analysis list. */
+  readonly nativeControl?: boolean;
+  /** Shared ephemeral instrumentation when multiple generated bindings reuse Cells. */
+  readonly terminalInstrumentations?: readonly TerminalCurrentInstrumentation[];
 }
 
 function diagnostic(
@@ -787,6 +799,27 @@ export async function compileStructuredSimulation(
   setup: SimulationSetup,
   options: CompileStructuredSimulationOptions = {},
 ): Promise<CompiledSimulation> {
+  const compiled = buildSimulationPlan(project, setup, options);
+  if (!compiled.ok || setup.input.kind !== "structured") return compiled;
+  return {
+    ...compiled,
+    request: {
+      ...compiled.request,
+      inputRevision: await inputRevisionOf(
+        compiled.request.netlist,
+        compiled.request.testbench.trimEnd(),
+        setup.input,
+      ),
+    },
+  };
+}
+
+/** Pure planning; neither execution nor asynchronous hashing belongs to migration. */
+export function buildSimulationPlan(
+  project: CircuitProject,
+  setup: SimulationSetup,
+  options: CompileStructuredSimulationOptions = {},
+): CompiledSimulation {
   if (setup.input.kind !== "structured") {
     return {
       ok: false,
@@ -988,7 +1021,12 @@ export async function compileStructuredSimulation(
   const terminalCurrentInstrumentations = new Map<
     string,
     TerminalCurrentInstrumentation
-  >();
+  >(
+    (options.terminalInstrumentations ?? []).map((item) => [
+      instrumentationKey(item),
+      item,
+    ]),
+  );
   const compileExpression = (
     ownerId: string,
     topExpression: SimulationExpression,
@@ -1237,12 +1275,12 @@ export async function compileStructuredSimulation(
 
   const enabledAnalyses = new Set(input.analyses.map((item) => item.kind));
   const outputIds = new Set(input.outputs.map((output) => output.id));
-  if (enabledAnalyses.has("noise")) {
+  if (enabledAnalyses.has("noise") || options.nativeControl) {
     outputIds.add(SIMULATION_NOISE_OUTPUT_DENSITY_ID);
     outputIds.add(SIMULATION_NOISE_INPUT_DENSITY_ID);
   }
   for (const measurement of input.measurements ?? []) {
-    if (!enabledAnalyses.has(measurement.analysis))
+    if (!options.nativeControl && !enabledAnalyses.has(measurement.analysis))
       diagnostics.push(
         diagnostic(
           "SIMULATION_MEASUREMENT_ANALYSIS_UNAVAILABLE",
@@ -1312,7 +1350,6 @@ export async function compileStructuredSimulation(
       netlist,
       testbench: `${testbench}\n`,
       analyses,
-      inputRevision: await inputRevisionOf(netlist, testbench, input),
       ...(options.timeoutMs === undefined
         ? {}
         : { timeoutMs: options.timeoutMs }),
@@ -1321,6 +1358,10 @@ export async function compileStructuredSimulation(
     outputs,
     deviceOperatingPoints,
     measurements: structuredClone(input.measurements ?? []),
+    circuit: instrumentedIr,
+    captureVectors: written,
+    terminalInstrumentations: [...terminalCurrentInstrumentations.values()],
+    commands: analysisCommands,
     diagnostics: [],
     warnings: analysis.diagnostics,
   };

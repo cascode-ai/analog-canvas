@@ -2,6 +2,10 @@ import type {
   Prepared,
   SimulationOutputData,
 } from "@icm/simulation-service/contract";
+import {
+  selectedResultRecords,
+  type RecordSelection,
+} from "./simulation-result-records";
 
 type Measurement = NonNullable<SimulationOutputData["measurements"]>[number];
 
@@ -13,6 +17,7 @@ export interface SimulationComparisonRun {
   readonly outputData: SimulationOutputData;
   readonly measurements: readonly Measurement[];
   readonly current: boolean;
+  readonly records?: RecordSelection;
 }
 
 interface ComparisonColumn {
@@ -68,8 +73,18 @@ function analysisTitle(analysis: Measurement["analysis"]): string {
 
 function sectionsForRun(run: SimulationComparisonRun): ComparisonSection[] {
   const groups = new Map<string, Measurement[]>();
+  const selected = new Set(
+    selectedResultRecords(run.outputData, run.records).map(
+      (record) => record.index,
+    ),
+  );
   for (const measurement of run.measurements) {
-    const key = `${measurement.analysis}\u0000${measurement.plotName}`;
+    if (
+      run.outputData.analyses.length &&
+      !selected.has(measurement.analysisIndex)
+    )
+      continue;
+    const key = `${measurement.analysis}\u0000${measurement.plotName}\u0000${measurement.analysisIndex}`;
     const group = groups.get(key) ?? [];
     group.push(measurement);
     groups.set(key, group);

@@ -8,3 +8,4 @@ export * from "./source.js";
 export * from "./printer.js";
 export type * from "./source-types.js";
 export * from "./syntax.js";
+export * from "./simulation-language.js";

@@ -1,7 +1,4 @@
-import type {
-  ProjectSimulationSetup,
-  SimulationStructuredInput,
-} from "@icm/model";
+import { type SimulationPresentationOutput } from "./source-presentation";
 import {
   PreparedSchema,
   RunSchema,
@@ -24,7 +21,7 @@ export interface SimulationArchivePresentation {
   readonly setupName: string;
   readonly analysisLabel: string;
   readonly rootDocumentId?: string;
-  readonly outputs: SimulationStructuredInput["outputs"];
+  readonly outputs: SimulationPresentationOutput[];
 }
 
 interface ArchivedArtifact {
@@ -84,7 +81,7 @@ export async function captureSimulationRunArchive(
   files: SimulationFiles,
   input: {
     readonly projectId: string;
-    readonly setup: ProjectSimulationSetup;
+    readonly presentation: SimulationArchivePresentation;
     readonly prepared: Prepared;
     readonly run: Run;
   },
@@ -130,7 +127,6 @@ export async function captureSimulationRunArchive(
       "SIMULATION_ARCHIVE_OUTPUT_ARTIFACT_MISSING",
       "The complete evaluated-output artifact is unavailable; export the remaining files instead",
     );
-  const setupInput = input.setup.input;
   const { artifacts: preparedArtifacts, ...prepared } = input.prepared;
   const {
     artifacts: _runArtifacts,
@@ -147,23 +143,7 @@ export async function captureSimulationRunArchive(
       id: crypto.randomUUID(),
       projectId: input.projectId,
       createdAt: new Date().toISOString(),
-      presentation: {
-        setupId: input.setup.id,
-        setupName: input.setup.name,
-        analysisLabel:
-          setupInput.kind === "structured"
-            ? setupInput.analyses
-                .map((analysis) => analysis.kind.toUpperCase())
-                .join(" + ")
-            : "RAW",
-        outputs:
-          setupInput.kind === "structured"
-            ? structuredClone(setupInput.outputs)
-            : [],
-        ...(setupInput.kind === "structured"
-          ? { rootDocumentId: setupInput.rootDocumentId }
-          : {}),
-      },
+      presentation: structuredClone(input.presentation),
       prepared: {
         ...structuredClone(prepared),
         artifactIds: preparedArtifacts.map((artifact) => artifact.id),

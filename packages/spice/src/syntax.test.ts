@@ -1,10 +1,31 @@
 import { describe, expect, it } from "vitest";
 
 import { createSourceBundle } from "./source.js";
+import { locateSpiceParameterValues } from "./syntax.js";
 
 const encoder = new TextEncoder();
 
 describe("SPICE statement profile", () => {
+  it("locates .param value ranges without touching comments, duplicate name text or continuations", async () => {
+    const text =
+      "* 🧪\r\n.param R = 1k $ R=bad\r\n* R=comment\r\n+ SCALE = {2 * R} C='R / 3'\r\n.end\r\n";
+    const bundle = await createSourceBundle(
+      [{ path: "params.cir", bytes: encoder.encode(text) }],
+      "params.cir",
+    );
+    const statement = bundle.syntaxFiles[0]!.statements.find(
+      (s) => s.kind === "parameter",
+    )!;
+    if (statement.kind !== "parameter") throw Error("param");
+    const ranges = locateSpiceParameterValues(statement);
+    expect(
+      ranges.map((r) => [r.name, text.slice(r.startOffset, r.endOffset)]),
+    ).toEqual([
+      ["R", "1k"],
+      ["SCALE", "{2 * R}"],
+      ["C", "'R / 3'"],
+    ]);
+  });
   it("normalizes explicit and bare independent-source DC values", async () => {
     const bundle = await createSourceBundle(
       [

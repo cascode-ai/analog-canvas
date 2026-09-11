@@ -11,3 +11,4 @@ export * from "./managed-run.js";
 export * from "./managed-run-registry.js";
 
 export * from "./executor.js";
+export * from "./prepare-source.js";

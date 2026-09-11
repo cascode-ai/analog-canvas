@@ -3,6 +3,7 @@ import type {
   ObjectLocator,
   ProjectSimulationSetup,
   SimulationExpression,
+  SimulationSourceExpression,
 } from "@icm/model";
 import type { Problem } from "@icm/simulation-service/contract";
 import type { BrowserSimulationSession } from "./browser-simulation-session";
@@ -12,6 +13,8 @@ export interface SpiceSimulationSurfaceProps {
   maximized: boolean;
   project: CircuitProject;
   activeDocumentId: string;
+  selectedCircuitObject?:
+    { documentId: string; instanceId: string } | undefined;
   draftContext?: {
     readonly setupId: string;
     readonly setupName: string;
@@ -24,8 +27,16 @@ export interface SpiceSimulationSurfaceProps {
   onToggleMaximized(): void;
   onMinimize(): void;
   onExit(): void;
-  onSaveSetup(setup: ProjectSimulationSetup): SimulationSetupSaveResult;
+  onSaveSetup(
+    setup: ProjectSimulationSetup,
+    expectedRevision?: number,
+  ): SimulationSetupSaveResult;
   onDeleteSetup(setupId: string): boolean;
+  onHistoryBoundary(direction: "undo" | "redo"): void;
+  onSourceBuffer?(
+    buffer: { flush(): Promise<boolean>; dirty: boolean } | null,
+  ): void;
+  onSaveProject?(): void;
   pickNetsActive?: boolean;
   pickedNet?: {
     readonly sequence: number;
@@ -48,7 +59,10 @@ export interface SpiceSimulationSurfaceProps {
   } | null;
   onPickTerminalsChange?(active: boolean): void;
   onFocusProbe?(
-    probe: Extract<SimulationExpression, { kind: "voltage" | "current" }>,
+    probe: Extract<
+      SimulationExpression | SimulationSourceExpression,
+      { kind: "voltage" | "current" }
+    >,
     rootDocumentId?: string,
   ): void;
   onFocusDiagnostic?(locator: ObjectLocator): void;

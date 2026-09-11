@@ -6,11 +6,16 @@ import { join, resolve } from "node:path";
 import { createInterface } from "node:readline";
 
 import { chromium } from "@playwright/test";
-import { compileStructuredSimulation } from "../packages/netlist/dist/index.js";
+import { compileSourceSimulation } from "../packages/netlist/dist/index.js";
+import {
+  readSimulationExperimentConfig,
+  replaceSimulationExperimentConfig,
+} from "../packages/model/dist/index.js";
 import { parseProject } from "../packages/project-protocol/dist/index.js";
 import { SimulationOutputDataSchema } from "../packages/simulation-service/dist/contract.js";
 import { SimulationResultSchema } from "../packages/spice-run/dist/index.js";
 import { materializeSimulationRunEvidence } from "./lib/simulation-run-evidence.mjs";
+import { verifyPreviewCandidate } from "./lib/preview-candidate.mjs";
 import {
   validateHostedSky130NoiseResult,
   validateHostedSky130Result,
@@ -33,37 +38,50 @@ const projectText = await readFile(
 const project = parseProject(projectText);
 const setup = project.simulationSetups[0];
 assert(setup, "The acceptance Project has no saved setup");
-assert.equal(setup.input.kind, "structured");
-const qualifiedSetup = structuredClone(setup);
-const noiseOutput = qualifiedSetup.input.outputs.find(
+assert.equal(setup.input.kind, "source");
+const parsedConfig = readSimulationExperimentConfig(setup);
+assert(parsedConfig.ok, "The acceptance experiment configuration is invalid");
+const qualifiedConfig = parsedConfig.config;
+const noiseOutput = qualifiedConfig.outputs.find(
   (output) => output.id === "probe-vout",
 );
 assert.equal(noiseOutput?.expression.kind, "voltage");
-const { kind: _noiseExpressionKind, ...noisePositive } = noiseOutput.expression;
-qualifiedSetup.input.analyses.push({
-  kind: "noise",
-  output: { positive: noisePositive },
-  inputSourceInstanceId: "VINP",
-  sweep: "dec",
-  points: 20,
-  startHz: 1,
-  stopHz: 1e9,
-});
-qualifiedSetup.input.deviceOperatingPoints = [
+const rootBinding = setup.input.circuitBindings.find(
+  (binding) => binding.emission === "top-level",
+);
+assert(
+  rootBinding,
+  "The OTA qualification must keep its drawn Testbench binding",
+);
+qualifiedConfig.deviceOperatingPoints = [
   {
     id: "acceptance-op-m1",
     documentId: "document-ota-5t",
     instanceId: "M1",
     occurrence: ["XDUT"],
+    circuit: { bindingId: rootBinding.id, callPath: [] },
   },
   {
     id: "acceptance-op-m3",
     documentId: "document-ota-5t",
     instanceId: "M3",
     occurrence: ["XDUT"],
+    circuit: { bindingId: rootBinding.id, callPath: [] },
   },
 ];
-const compiled = await compileStructuredSimulation(project, qualifiedSetup);
+const qualifiedSetup = replaceSimulationExperimentConfig(
+  structuredClone(setup),
+  qualifiedConfig,
+);
+const program = qualifiedSetup.input.files.find(
+  (file) => file.path === qualifiedSetup.input.entry,
+);
+assert(program);
+program.text = program.text.replace(
+  ".endc",
+  "noise v(vout) VINP dec 20 1 1000000000\nwrite out.raw noise1.all noise2.all\n.endc",
+);
+const compiled = compileSourceSimulation(project, qualifiedSetup);
 assert(compiled.ok, "The acceptance Project no longer compiles");
 
 await mkdir(outputDirectory, { recursive: true });
@@ -219,6 +237,7 @@ async function startAndRead(prepared) {
 }
 
 try {
+  report.candidate = await verifyPreviewCandidate(baseUrl);
   browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({
     viewport: { width: 1_440, height: 1_000 },
@@ -271,7 +290,7 @@ try {
     "Agent inspection did not expose the complete authored Simulation setup",
   );
   const sourceReport = await tool("inspect", {
-    documentId: discoveredSetup.input.rootDocumentId,
+    documentId: rootBinding.documentId,
     target: { kind: "object", id: "VINP" },
   });
   assert.equal(
@@ -288,7 +307,7 @@ try {
 
   // A bad model is a recoverable run result, not an MCP-session failure. Fix
   // the same graphless workspace and prove a second run can complete before
-  // the full Project-owned structured journey continues.
+  // the full Project-owned source journey continues.
   const rawWorkspace = await tool("simulation_files", {
     request: { action: "create" },
   });
@@ -297,10 +316,19 @@ try {
   const badRaw = await tool("simulation_files", {
     request: {
       action: "update",
-      workspaceId,
+      owner: { kind: "session-workspace", workspaceId },
       expectedRevision: 0,
       entry: "main.cir",
       writes: [
+        {
+          path: "experiment.json",
+          text: JSON.stringify({
+            version: 1,
+            environment: {
+              profileId: capabilityReply.capabilities.profiles[0].id,
+            },
+          }),
+        },
         {
           path: "main.cir",
           text: [
@@ -325,8 +353,7 @@ try {
       source: {
         kind: "workspace",
         workspaceId,
-        expectedRevision: badRaw.workspace.revision,
-        environment: { profileId: capabilityReply.capabilities.profiles[0].id },
+        expectedRevision: badRaw.source.revision,
       },
     },
   });
@@ -338,8 +365,8 @@ try {
   const fixedRaw = await tool("simulation_files", {
     request: {
       action: "update",
-      workspaceId,
-      expectedRevision: badRaw.workspace.revision,
+      owner: { kind: "session-workspace", workspaceId },
+      expectedRevision: badRaw.source.revision,
       entry: "main.cir",
       writes: [
         {
@@ -367,8 +394,7 @@ try {
       source: {
         kind: "workspace",
         workspaceId,
-        expectedRevision: fixedRaw.workspace.revision,
-        environment: { profileId: capabilityReply.capabilities.profiles[0].id },
+        expectedRevision: fixedRaw.source.revision,
       },
     },
   });
@@ -381,13 +407,8 @@ try {
     `Recovered raw run failed: ${JSON.stringify(fixedRun.result?.outcome)}`,
   );
 
-  const invalidSetup = structuredClone(qualifiedSetup);
-  assert.equal(
-    invalidSetup.input.kind,
-    "structured",
-    "The acceptance setup must use structured simulation input",
-  );
-  const firstOutput = invalidSetup.input.outputs[0];
+  const invalidConfig = structuredClone(qualifiedConfig);
+  const firstOutput = invalidConfig.outputs[0];
   assert(firstOutput, "The acceptance setup has no authored output");
   assert(
     ["voltage", "current"].includes(firstOutput.expression.kind),
@@ -398,6 +419,10 @@ try {
     instanceId: "missing-acceptance-instance",
     pinName: "out",
   };
+  const invalidSetup = replaceSimulationExperimentConfig(
+    qualifiedSetup,
+    invalidConfig,
+  );
   const invalidEdit = await tool("advanced_transact", {
     structureEdits: [{ kind: "upsert_simulation_setup", setup: invalidSetup }],
   });
@@ -419,8 +444,10 @@ try {
   assert.equal(refused.ok, false);
   assert.equal(refused.error.recovery, "fix-input");
 
-  const setupWithoutDeviceOperatingPoints = structuredClone(qualifiedSetup);
-  delete setupWithoutDeviceOperatingPoints.input.deviceOperatingPoints;
+  const setupWithoutDeviceOperatingPoints = replaceSimulationExperimentConfig(
+    qualifiedSetup,
+    { ...qualifiedConfig, deviceOperatingPoints: [] },
+  );
   const restored = await tool("advanced_transact", {
     structureEdits: [
       {
@@ -431,7 +458,7 @@ try {
   });
   assert.equal(restored.ok, true);
   let configuredRevision = restored.projectStructure.toRevision;
-  for (const selection of qualifiedSetup.input.deviceOperatingPoints) {
+  for (const selection of qualifiedConfig.deviceOperatingPoints) {
     const configured = await tool("simulation_device_operating_point", {
       action: "upsert",
       setupId: setup.id,
@@ -439,10 +466,103 @@ try {
       targetDocumentId: selection.documentId,
       instanceId: selection.instanceId,
       occurrence: selection.occurrence,
+      circuit: selection.circuit,
     });
     assert.equal(configured.ok, true);
     configuredRevision = configured.projectStructure.toRevision;
   }
+  // Exercise mapped text edits through the public File API, then restore the
+  // qualified geometry before checking the unchanged numerical reference.
+  const owner = { kind: "project-setup", setupId: setup.id };
+  const circuit = await tool("simulation_files", {
+    request: { action: "read", owner, path: rootBinding.path },
+  });
+  assert(circuit.ok);
+  const parameter = circuit.editableParameters.find(
+    (item) => item.parameter === "w",
+  );
+  assert(parameter, "No mapped MOS width was exposed");
+  const originalNumber = Number(
+    circuit.text.slice(parameter.from, parameter.to),
+  );
+  assert(Number.isFinite(originalNumber));
+  const resized = await tool("simulation_files", {
+    request: {
+      action: "update",
+      owner,
+      expectedRevision: circuit.revision,
+      circuitEdits: [
+        {
+          path: circuit.path,
+          textDigest: circuit.textDigest,
+          text:
+            circuit.text.slice(0, parameter.from) +
+            String(originalNumber * 1.1) +
+            circuit.text.slice(parameter.to),
+        },
+      ],
+    },
+  });
+  assert(resized.ok, JSON.stringify(resized));
+  const changedCircuit = await tool("simulation_files", {
+    request: { action: "read", owner, path: circuit.path },
+  });
+  assert.notEqual(changedCircuit.textDigest, circuit.textDigest);
+  const reverted = await tool("simulation_files", {
+    request: {
+      action: "update",
+      owner,
+      expectedRevision: changedCircuit.revision,
+      circuitEdits: [
+        {
+          path: circuit.path,
+          textDigest: changedCircuit.textDigest,
+          text: circuit.text,
+        },
+      ],
+    },
+  });
+  assert(reverted.ok, JSON.stringify(reverted));
+  const entryFile = await tool("simulation_files", {
+    request: { action: "read", owner, path: qualifiedSetup.input.entry },
+  });
+  const authored = await tool("simulation_files", {
+    request: {
+      action: "update",
+      owner,
+      expectedRevision: entryFile.revision,
+      writes: [
+        {
+          path: entryFile.path,
+          text: entryFile.text + "\n* Source workspace MCP acceptance\n",
+        },
+      ],
+    },
+  });
+  assert(authored.ok, JSON.stringify(authored));
+  configuredRevision = authored.source.revision;
+  report.mappedEdit = {
+    documentId: parameter.documentId,
+    instanceId: parameter.instanceId,
+    parameter: parameter.parameter,
+    before: circuit.textDigest,
+    changed: changedCircuit.textDigest,
+    restored: true,
+  };
+  const savedPath = join(outputDirectory, "source-workspace.icproj.json");
+  const savedExport = await tool("export_file", {
+    artifact: "project",
+    outputPath: savedPath,
+  });
+  assert(savedExport.ok);
+  const savedProject = parseProject(await readFile(savedPath, "utf8"));
+  assert(
+    savedProject.simulationSetups
+      .find((item) => item.id === setup.id)
+      .input.files.some((file) =>
+        file.text.includes("Source workspace MCP acceptance"),
+      ),
+  );
   const prepared = await tool("simulation", {
     request: {
       operation: "prepare",
@@ -458,6 +578,14 @@ try {
   assert.deepEqual(
     prepared.prepared.deviceOperatingPoints,
     compiled.deviceOperatingPoints,
+  );
+  const inputArtifact = prepared.prepared.artifacts.find(
+    (artifact) => artifact.name === "prepared.json",
+  );
+  assert(inputArtifact, "Prepared input evidence is missing");
+  await exportArtifact(inputArtifact, "prepared.json");
+  const sourceInput = JSON.parse(
+    await readFile(join(outputDirectory, "prepared.json"), "utf8"),
   );
   const finished = await startAndRead(prepared.prepared);
   assert.equal(finished.state, "finished");
@@ -486,11 +614,14 @@ try {
     "operator-host",
     prepared.prepared.inputRevision,
     prepared.prepared.vectors,
+    sourceInput,
   );
   const acceptedNoise = validateHostedSky130NoiseResult(
     fullRun.result,
     "operator-host",
     prepared.prepared.inputRevision,
+    prepared.prepared.vectors,
+    sourceInput,
   );
   assert(
     fullRun.outputData?.analyses.length,
@@ -559,6 +690,57 @@ try {
     ),
   );
 
+  const acRecord = fullRun.outputData.analyses.findIndex(
+    (analysis) => analysis.analysis === "ac",
+  );
+  assert(acRecord >= 0);
+  for (const format of ["svg", "png"]) {
+    const exported = await tool("export_file", {
+      artifact: "simulation-plot",
+      simulation: { runId: finished.id, analysisIndex: acRecord, format },
+      outputPath: join(outputDirectory, `ac-plots-${format}.zip`),
+    });
+    assert(exported.ok, JSON.stringify(exported));
+    exports.push(exported);
+  }
+  exports.push(savedExport);
+  // Managed Batch remains separate from native loops and reuses this saved source.
+  const batchPreparation = await tool("simulation", {
+    request: {
+      operation: "prepare-batch",
+      expectedStructureRevision: configuredRevision,
+      items: [
+        { id: "first", setupId: setup.id },
+        { id: "second", setupId: setup.id },
+      ],
+    },
+  });
+  assert(batchPreparation.ok, JSON.stringify(batchPreparation));
+  const batchStart = await tool("simulation", {
+    request: { operation: "start-batch", batchId: batchPreparation.batch.id },
+  });
+  assert(batchStart.ok, JSON.stringify(batchStart));
+  let batch;
+  for (let attempt = 0; attempt < 180; attempt++) {
+    const read = await tool("simulation", {
+      request: { operation: "read-batch", batchId: batchPreparation.batch.id },
+    });
+    assert(read.ok);
+    batch = read.batch;
+    if (!["running", "cancelling"].includes(batch.state)) break;
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+  }
+  assert.equal(batch.state, "finished", JSON.stringify(batch));
+  assert.equal(batch.items.length, 2);
+  for (const item of batch.items) {
+    const read = await tool("simulation", {
+      request: { operation: "read", runId: item.runId },
+    });
+    assert.equal(read.run.result.outcome.status, "completed");
+  }
+  report.batch = batch;
+  report.savedProject = savedExport;
+
   report.status = "passed";
   report.completedAt = new Date().toISOString();
   report.connection = { mode: connection.mode };
@@ -569,14 +751,14 @@ try {
     setup: {
       id: discoveredSetup.id,
       name: discoveredSetup.name,
-      rootDocumentId: discoveredSetup.input.rootDocumentId,
-      analyses: qualifiedSetup.input.analyses,
-      outputs: qualifiedSetup.input.outputs.map((output) => ({
+      circuitBindings: discoveredSetup.input.circuitBindings,
+      entry: qualifiedSetup.input.entry,
+      outputs: qualifiedConfig.outputs.map((output) => ({
         id: output.id,
         label: output.label,
         expressionKind: output.expression.kind,
       })),
-      deviceOperatingPoints: qualifiedSetup.input.deviceOperatingPoints,
+      deviceOperatingPoints: qualifiedConfig.deviceOperatingPoints,
     },
     source: {
       id: sourceReport.id,
@@ -653,6 +835,40 @@ try {
     },
   };
   report.exports = exports;
+  await tool("disconnect");
+  paired = false;
+  // Reload the actual browser owner and reclaim it; old Run IDs are intentionally
+  // session-scoped, while committed experiment files must survive recovery.
+  page.on("dialog", (dialog) => void dialog.accept());
+  await page.reload();
+  const recovery = page.getByTestId("startup-recovery-banner");
+  await recovery.waitFor({ state: "visible" });
+  await recovery.getByRole("button", { name: "Restore", exact: true }).click();
+  await page
+    .locator("summary")
+    .filter({ hasText: /^Agent$/ })
+    .click();
+  await page
+    .getByRole("button", { name: "Connect Agent", exact: true })
+    .click();
+  await page.getByTestId("agent-preset-full").click();
+  const restoredClaim = page.getByTestId("agent-claim-code");
+  await restoredClaim.waitFor({ state: "attached", timeout: 30000 });
+  const reconnected = await tool("connect", {
+    claimCode: await restoredClaim.textContent(),
+  });
+  assert(reconnected.ok);
+  paired = true;
+  await page
+    .getByTestId("agent-status")
+    .filter({ hasText: "Connected" })
+    .waitFor({ state: "visible", timeout: 30000 });
+  const reloaded = await tool("simulation_files", {
+    request: { action: "read", owner, path: qualifiedSetup.input.entry },
+  });
+  assert(reloaded.ok);
+  assert(reloaded.text.includes("Source workspace MCP acceptance"));
+  report.saveReload = { recovered: true, sourceDigest: reloaded.textDigest };
   await tool("disconnect");
   paired = false;
   console.log(

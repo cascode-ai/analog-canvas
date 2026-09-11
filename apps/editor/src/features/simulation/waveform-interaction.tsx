@@ -33,9 +33,27 @@ export function responsiveWaveformHeight(
   width: number,
   viewportHeight = Infinity,
 ): number {
-  // Leave room for editor chrome, result navigation, title and plot controls.
+  // Leave room for editor chrome, Code output tabs/status, result navigation and plot controls.
   return Math.round(
-    Math.max(320, Math.min(600, width * 0.52, viewportHeight - 400)),
+    Math.max(320, Math.min(600, width * 0.52, viewportHeight - 448)),
+  );
+}
+
+/** Measure the actual plot column, not its parent which can contain several plots. */
+export function WaveformPlotSlot({
+  children,
+}: {
+  children(size: { width: number; height: number }): ReactNode;
+}) {
+  const measured = useWaveformWidth();
+  const width = Math.max(280, measured.width - 2);
+  return (
+    <div ref={measured.ref} style={{ minWidth: 0 }}>
+      {children({
+        width,
+        height: responsiveWaveformHeight(width, measured.viewportHeight),
+      })}
+    </div>
   );
 }
 

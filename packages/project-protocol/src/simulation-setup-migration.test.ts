@@ -5,7 +5,8 @@ import {
   createEmptyProject,
   CURRENT_PROJECT_SCHEMA_VERSION,
 } from "@icm/model";
-import type { SimulationSetup } from "@icm/model";
+import type { LegacySimulationSetup as SimulationSetup } from "@icm/model";
+import { migrateSimulationSetupToSource } from "@icm/netlist";
 
 import {
   parseProjectWithMetadata,
@@ -95,21 +96,19 @@ describe("schema 36 to 37 migration (persisted SimulationSetup)", () => {
   it("round-trips an authored setup byte-stably beside the circuit", () => {
     const project = createEmptyProject("ota-bench", "OTA bench", "testbench");
     project.documents.push(createEmptyDocument("ota", "OTA"));
-    project.simulationSetups.push({
-      id: "setup-1",
-      name: "Setup 1",
-      ...setup(),
-    });
+    project.simulationSetups.push(
+      migrateSimulationSetupToSource(project, {
+        id: "setup-1",
+        name: "Setup 1",
+        ...setup(),
+      }).setup,
+    );
 
     const serialized = serializeProject(project);
     const reloaded = parseProjectWithMetadata(serialized);
 
     expect(reloaded.migrated).toBe(false);
-    expect(reloaded.project.simulationSetups[0]).toEqual({
-      id: "setup-1",
-      name: "Setup 1",
-      ...setup(),
-    });
+    expect(reloaded.project.simulationSetups).toEqual(project.simulationSetups);
     expect(serializeProject(reloaded.project)).toBe(serialized);
   });
 
@@ -117,6 +116,7 @@ describe("schema 36 to 37 migration (persisted SimulationSetup)", () => {
     const project = createEmptyProject("orphan", "Orphan");
     const candidate = {
       ...JSON.parse(serializeProject(project)),
+      schemaVersion: 48,
       simulationSetups: [{ id: "setup-1", name: "Setup 1", ...setup() }],
     };
 
@@ -124,10 +124,11 @@ describe("schema 36 to 37 migration (persisted SimulationSetup)", () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.project.simulationSetups[0]).toEqual({
+    expect(result.project.simulationSetups[0]).toMatchObject({
       id: "setup-1",
       name: "Setup 1",
-      ...setup(),
+      version: 4,
+      input: { kind: "source", circuitBindings: [{ documentId: "testbench" }] },
     });
   });
 });

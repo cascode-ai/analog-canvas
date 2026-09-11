@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { createHash } from "node:crypto";
+import { validateQualifiedModelSelection } from "./lib/preview-simulation-sky130-validation.mjs";
 
 import {
   compileHostedSky130Project,
@@ -649,6 +651,36 @@ describe("the hosted SKY130 qualification", () => {
     ).toThrow(/qualified model-library section/u);
   });
 
+  it("verifies source model selection against the executed input hash and pinned dependency", async () => {
+    const { request } = await compileHostedSky130Project();
+    const candidate = modelResult("operator-host", {}, request.inputRevision);
+    candidate.metadata.configuration.modelLibrary = null;
+    candidate.metadata.input.testbenchSha256 = createHash("sha256")
+      .update(request.testbench)
+      .digest("hex");
+    expect(() =>
+      validateQualifiedModelSelection(candidate, "operator-host", request),
+    ).not.toThrow();
+    expect(() =>
+      validateQualifiedModelSelection(candidate, "operator-host"),
+    ).toThrow(/verified input evidence/u);
+    const wrongCorner = structuredClone(request);
+    wrongCorner.environment.corner = "ff";
+    expect(() =>
+      validateQualifiedModelSelection(candidate, "operator-host", wrongCorner),
+    ).toThrow(/qualified model-library/u);
+    const changed = structuredClone(request);
+    changed.testbench += "\n* changed after execution\n";
+    expect(() =>
+      validateQualifiedModelSelection(candidate, "operator-host", changed),
+    ).toThrow(/verified input evidence/u);
+    const wrongModel = structuredClone(request);
+    wrongModel.dependencies[0].sha256 = SHA;
+    expect(() =>
+      validateQualifiedModelSelection(candidate, "operator-host", wrongModel),
+    ).toThrow(/verified input evidence/u);
+  }, 15_000);
+
   it("sends the model fixture through the selected executor", async () => {
     let submitted;
     const accepted = await runHostedSky130Acceptance({
@@ -662,27 +694,36 @@ describe("the hosted SKY130 qualification", () => {
       },
     });
     expect(submitted.executorTarget).toBe("operator-host");
-    expect(submitted.netlist).toContain(".subckt ota_5t");
+    expect(submitted.files.map((file) => file.text).join("\n")).toContain(
+      ".subckt ota_5t",
+    );
     expect(submitted.testbench).toContain("set appendwrite");
-    expect(submitted.testbench).toContain("write out.raw v(vout)");
+    expect(submitted.testbench).toContain("write out.raw");
+    expect(submitted.testbench).toContain("v(vout)");
     expect(submitted.testbench).toContain("ac dec 10 1 1000000000");
     expect(accepted.fixtureId).toBe("ota-5t-structured-op-dc-ac-tran-noise-v3");
   }, 15_000);
 
   it("compiles the persisted Project setup into the qualified request", async () => {
     const compiled = await compileHostedSky130Project();
-    expect(compiled.request.analyses).toEqual(["op", "dc", "ac", "tran"]);
-    expect(compiled.vectors).toEqual(EXPECTED_VECTORS);
+    for (const command of ["op", "dc VINP", "ac dec", "tran "]) {
+      expect(compiled.request.testbench).toContain(command);
+    }
+    expect(
+      compiled.vectors.map(({ vector, quantity }) => ({ vector, quantity })),
+    ).toEqual(
+      EXPECTED_VECTORS.map(({ vector, quantity }) => ({ vector, quantity })),
+    );
     expect(compiled.request.inputRevision).toMatch(/^[0-9a-f]{64}$/u);
   });
 
   it("compiles and validates the model-backed structured transient slice", async () => {
     const compiled = await compileHostedSky130TransientProject();
-    expect(compiled.request.analyses).toEqual(["tran"]);
+    expect(compiled.request.testbench).not.toMatch(/^op$/mu);
     expect(compiled.request.testbench).toContain("tran 2e-8 0.000004");
-    expect(compiled.request.testbench).toContain(
-      "VINP vinp 0 DC 0.9 AC 1 0 PULSE(0.9 0.91 1u 1n 1n 1u 3u)",
-    );
+    expect(
+      compiled.request.files.map((file) => file.text).join("\n"),
+    ).toContain("VINP vinp 0 DC 0.9 AC 1 0 PULSE(0.9 0.91 1u 1n 1n 1u 3u)");
 
     const values = Array(232).fill(0.7589797395133877);
     values[1] = 0.75886248142361;
@@ -758,7 +799,7 @@ describe("the hosted SKY130 qualification", () => {
 
   it("compiles and validates the model-backed structured Noise slice", async () => {
     const compiled = await compileHostedSky130NoiseProject();
-    expect(compiled.request.analyses).toEqual(["noise"]);
+    expect(compiled.request.testbench).not.toMatch(/^op$/mu);
     expect(compiled.request.testbench).toContain(
       "noise v(vout) VINP dec 20 1 1000000000",
     );
@@ -790,7 +831,9 @@ describe("the hosted SKY130 qualification", () => {
       },
     });
     expect(submitted.executorTarget).toBe("operator-host");
-    expect(submitted.analyses).toEqual(["noise"]);
+    expect(submitted.testbench).toContain(
+      "noise v(vout) VINP dec 20 1 1000000000",
+    );
     expect(accepted.pointCount).toBe(181);
   });
 

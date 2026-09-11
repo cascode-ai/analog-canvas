@@ -2,7 +2,7 @@
 
 Status: `accepted`
 
-Current Project schema: `48`
+Current Project schema: `49`
 
 Primary owners: `packages/model` (current shape) and
 `packages/project-protocol` (file boundary)
@@ -56,8 +56,8 @@ Noise analysis intent with hierarchy-aware output anchors and a Testbench-root
 independent input source; the 45→46 adapter invents no analysis. Schema 47
 adds optional hierarchy-aware MOS operating-point selections; the 46→47
 adapter selects no device implicitly. The public file boundary
-supplies only schema 48 in
-memory and writes only schema 48; versions older than 24 or newer than 48
+supplies only schema 49 in
+memory and writes only schema 49; versions older than 24 or newer than 49
 are rejected.
 
 ## Current authorities
@@ -158,8 +158,8 @@ are rejected.
 ## Read and write
 
 ```text
-import text -> parse JSON -> require Project schema 24 through 48
--> converge to schema 48 -> strict schema-48 validation -> install unbound
+import text -> parse JSON -> require Project schema 24 through 49
+-> converge to schema 49 -> strict schema-49 validation -> install unbound
 export -> strict validation -> canonical key ordering -> Blob download
 ```
 
@@ -183,7 +183,7 @@ open, and recovery remain exact.
 Canonical serialization ends with one newline and is byte-stable across
 serialize/parse/serialize. The current corpus is listed in
 `fixtures/projects/compatibility-corpus.json`; its accepted entries must all be
-already canonical Project schema 48. The rejected corpus names expected
+already canonical Project schema 49. The rejected corpus names expected
 validation failures.
 
 Viewport, selection, undo history, canvas overlays, Agent credentials,

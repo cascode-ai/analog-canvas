@@ -69,7 +69,7 @@ WORKDIR ${RUN_ROOT}
 # The build context is the repository root (wrangler.preview.jsonc sets
 # image_build_context to "."), so every COPY is repo-root relative.
 ARG HARNESS_DIR=containers/ngspice
-COPY ${HARNESS_DIR}/entrypoint.mjs ${HARNESS_DIR}/gateway.mjs ${HARNESS_DIR}/run-supervisor.mjs /opt/harness/
+COPY ${HARNESS_DIR}/entrypoint.mjs ${HARNESS_DIR}/gateway.mjs ${HARNESS_DIR}/run-supervisor.mjs ${HARNESS_DIR}/rawfile-collector.mjs /opt/harness/
 COPY ${HARNESS_DIR}/hosted-sky130-profile.json /opt/harness/hosted-sky130-profile.json
 COPY ${HARNESS_DIR}/hosted.spiceinit /opt/harness/hosted.spiceinit
 

@@ -82,6 +82,10 @@ describe("the preview deploy", () => {
       'node scripts/preview-agent-simulation-journey.mjs "$PREVIEW_URL"',
     );
     expect(preview).toContain(
+      'node scripts/preview-source-gui-journey.mjs "$PREVIEW_URL"',
+    );
+    expect(preview).toContain("preview-source-gui-${{ github.sha }}");
+    expect(preview).toContain(
       'node scripts/preview-cross-project-simulation-journey.mjs "$PREVIEW_URL"',
     );
     expect(preview).toContain("PREVIEW_ACCEPTANCE_TOKEN");
@@ -104,9 +108,11 @@ describe("the preview deploy", () => {
   });
 
   it("injects its recoverable failure through the current authored-output contract", () => {
-    expect(agentJourney).toContain("invalidSetup.input.outputs[0]");
+    expect(agentJourney).toContain("invalidConfig.outputs[0]");
+    expect(agentJourney).toContain("replaceSimulationExperimentConfig(");
     expect(agentJourney).toContain("firstOutput.expression.anchor");
     expect(agentJourney).not.toContain("invalidSetup.input.probes");
+    expect(agentJourney).not.toContain("invalidSetup.input.outputs");
   });
 
   it("imports a Cloud Project Cell before compiling the cross-Project Testbench", () => {

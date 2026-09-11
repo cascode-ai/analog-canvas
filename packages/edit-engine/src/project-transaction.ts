@@ -512,20 +512,8 @@ export function executeProjectTransaction(
     }
 
     if (edit.kind === "upsert_simulation_setup") {
-      if (edit.setup.input.kind === "structured") {
-        const rootDocumentId = edit.setup.input.rootDocumentId;
-        if (
-          !candidate.documents.some(
-            (document) => document.id === rootDocumentId,
-          )
-        ) {
-          return rejectProjectTransaction(
-            project,
-            "OBJECT_NOT_FOUND",
-            `Simulation root Document does not exist: ${rootDocumentId}`,
-          );
-        }
-      }
+      // Missing circuit/file references are repairable authoring state. Prepare
+      // diagnoses them; saving a source draft must not require it to simulate.
       const duplicateName = candidate.simulationSetups.find(
         (setup) =>
           setup.id !== edit.setup.id &&

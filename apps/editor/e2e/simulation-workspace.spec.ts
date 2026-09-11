@@ -7,13 +7,18 @@ import {
   createSimulationInputMetadata,
   readSimulationData,
 } from "@icm/spice-run";
+import {
+  createSourceSimulationSetup,
+  readSimulationExperimentConfig,
+  replaceSimulationExperimentConfig,
+} from "@icm/model";
 import { parseProject } from "@icm/project-protocol";
 
 import {
   clickNetlistWorkflowCommand,
   downloadBytes,
 } from "./editor-fixtures.js";
-import { ota, profile } from "./simulation-e2e-fixtures.js";
+import { ota, profile, editSimulationFile } from "./simulation-e2e-fixtures.js";
 
 const loadModule = createRequire(import.meta.url);
 const { PNG } = loadModule("pngjs") as {
@@ -32,40 +37,35 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
 }) => {
   test.setTimeout(90_000);
   const project = parseProject(JSON.stringify(ota));
-  project.simulationSetups = [
+  let setup = createSourceSimulationSetup({
+    id: "setup-e2e",
+    name: "E2E setup",
+    profileId: profile.id,
+    documentId: project.topDocumentId,
+  });
+  const parsed = readSimulationExperimentConfig(setup);
+  if (!parsed.ok) throw Error(parsed.message);
+  const config = parsed.config;
+  config.environment.corner = "tt";
+  config.outputs = [
     {
-      id: "setup-e2e",
-      name: "E2E setup",
-      version: 3,
-      input: {
-        kind: "structured",
-        designVariables: [],
-        runPlan: { mode: "nominal" },
-        rootDocumentId: project.topDocumentId,
-        analyses: [
-          { kind: "op" },
-          { kind: "ac", sweep: "dec", points: 10, startHz: 1, stopHz: 1e6 },
-        ],
-        outputs: [
-          {
-            id: "out",
-            label: "out",
-            expression: {
-              kind: "voltage",
-              documentId: project.topDocumentId,
-              anchor: {
-                kind: "terminal",
-                instanceId: "missing-instance",
-                pinName: "out",
-              },
-              occurrence: [],
-            },
-          },
-        ],
-        environment: { profileId: profile.id },
+      id: "out",
+      label: "out",
+      expression: {
+        kind: "voltage",
+        circuit: { bindingId: "circuit", callPath: [] },
+        documentId: project.topDocumentId,
+        anchor: {
+          kind: "terminal",
+          instanceId: "missing-instance",
+          pinName: "out",
+        },
+        occurrence: [],
       },
     },
   ];
+  setup = replaceSimulationExperimentConfig(setup, config);
+  project.simulationSetups = [setup];
   let calls = 0,
     executions = 0,
     cancellations = 0;
@@ -80,10 +80,20 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
       return route.fulfill({
         json: {
           configured: true,
-          inputs: ["structured", "raw"],
+          rawfileCollection: "declared-single-ascii",
+          maxOutputBytes: 1048576,
+          inputs: ["source", "raw"],
           analyses: ["op", "ac", "tran", "noise"],
           parsedAnalyses: ["op", "ac", "tran", "noise"],
-          profiles: [{ id: profile.id, corners: ["tt"] }],
+          profiles: [
+            {
+              id: profile.id,
+              corners: ["tt"],
+              dependencies: [
+                { id: profile.models.id, sha256: profile.models.contentSha256 },
+              ],
+            },
+          ],
           maxTimeoutMs: 120000,
           maxInputBytes: 1048576,
           cancel: true,
@@ -96,8 +106,9 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
     }
     executions++;
     await pending;
-    const requestedVector =
-      /write\s+out\.raw\s+([^\s]+)/iu.exec(body.preparedDeck)?.[1] ?? "v(out)";
+    // Fixture response matches the acquisition inserted for the Canvas vout probe.
+    const requestedVector = "v(vout)";
+    expect(body.preparedDeck).toContain(requestedVector);
     const rawfile = readFileSync(
       new URL(
         "../../../fixtures/ngspice-rawfile/divider-op.raw",
@@ -213,79 +224,41 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
   await panel.getByRole("button", { name: "Run", exact: true }).click();
   await expect(panel.getByRole("alert")).toContainText(/PROBE|probe/);
   expect(executions).toBe(0);
-  await panel.getByRole("button", { name: "Settings" }).click();
-  await panel
-    .locator('details[aria-label="Analyses settings"] > summary')
-    .click();
-  await panel
-    .locator('details[aria-label="Output probes settings"] > summary')
-    .click();
-  await panel
-    .locator('details[aria-label="Output signals settings"] > summary')
-    .click();
-  await panel.getByRole("button", { name: "Remove output" }).click();
-  await panel
-    .getByLabel("Add voltage probe")
-    .selectOption({ label: "Testbench · vout" });
-  await panel.getByLabel("TRAN", { exact: true }).check();
-  await panel.getByLabel("TRAN step (s)").fill("1e-9");
-  await panel.getByLabel("TRAN stop (s)").fill("1e-6");
-  await panel.getByLabel("TRAN maximum step (s)").fill("5e-10");
-  await panel.getByLabel("Noise", { exact: true }).check();
-  await panel
-    .getByLabel("Noise output positive")
-    .selectOption({ label: "Testbench · vout" });
-  await panel.getByLabel("Noise output negative").selectOption("");
-  await panel.getByLabel("Input source").selectOption({ index: 0 });
-  await panel.getByLabel("Noise sweep").selectOption("dec");
-  await panel.getByLabel("Start (Hz)").last().fill("1");
-  await panel.getByLabel("Stop (Hz)").last().fill("1000000");
-  await panel.getByLabel(/Output name for/).fill("first-output");
-  const analysisBoxes = await panel
-    .locator(".simulation-analysis-options > label")
-    .all();
-  const firstAnalysisBox = (await analysisBoxes[0]!.boundingBox())!;
-  expect(analysisBoxes).toHaveLength(5);
-  for (const option of analysisBoxes) {
-    expect((await option.boundingBox())!.y).toBeCloseTo(firstAnalysisBox.y, 0);
-  }
-  await panel
-    .locator('details[aria-label="Measurements settings"] > summary')
-    .click();
-  const measurementEditor = panel.locator(".simulation-measurement-editor");
-  await measurementEditor
-    .getByRole("button", { name: "Add measurement" })
-    .click();
-  await measurementEditor
-    .getByLabel("Name", { exact: true })
-    .fill("Peak output");
-  await measurementEditor
-    .getByRole("combobox", { name: "Analysis", exact: true })
-    .selectOption("tran");
-  await measurementEditor
-    .getByRole("combobox", { name: "Measure", exact: true })
-    .selectOption("rms");
-  await measurementEditor.getByLabel("Window stop / SI").fill("1e-6");
-  const addBox = (await measurementEditor
-    .getByRole("button", { name: "Add measurement" })
-    .boundingBox())!;
-  const removeBox = (await measurementEditor
-    .getByRole("button", { name: "Remove measurement" })
-    .boundingBox())!;
-  expect(addBox.y).toBeCloseTo(removeBox.y, 0);
-  expect(
-    await measurementEditor.evaluate(
-      (element) => element.scrollWidth <= element.clientWidth,
-    ),
-  ).toBe(true);
-  await measurementEditor.screenshot({
-    path: test.info().outputPath("measurement-settings.png"),
-  });
-  await measurementEditor
-    .getByRole("button", { name: "Remove measurement" })
-    .click();
-  await expect(measurementEditor.locator("fieldset")).toHaveCount(0);
-  await panel.getByRole("button", { name: "Apply setup" }).click();
+  config.outputs[0] = {
+    id: "out",
+    label: "first-output",
+    expression: {
+      kind: "voltage",
+      circuit: { bindingId: "circuit", callPath: [] },
+      documentId: project.topDocumentId,
+      anchor: { kind: "terminal", instanceId: "XDUT", pinName: "vout" },
+      occurrence: [],
+    },
+  };
+  await editSimulationFile(
+    page,
+    setup.input.configPath,
+    JSON.stringify(config, null, 2),
+  );
+  const program = [
+    "* Source-owned E2E experiment",
+    '.include "circuit.spice"',
+    ".control",
+    "set filetype=ascii",
+    "set appendwrite",
+    "op",
+    "write out.raw",
+    "ac dec 10 1 1e6",
+    "write out.raw",
+    "tran 1e-9 1e-6 0 5e-10",
+    "write out.raw",
+    "noise v(vout) VINP dec 10 1 1e6",
+    "write out.raw",
+    ".endc",
+    ".end",
+    "",
+  ].join("\n");
+  await editSimulationFile(page, setup.input.entry, program);
   await panel.getByRole("button", { name: "Run", exact: true }).click();
   await expect.poll(() => executions).toBe(1);
   await panel.getByRole("button", { name: "Minimize simulation" }).click();
@@ -309,6 +282,7 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
     "finished · completed",
   );
   await expect(panel.locator(".simulation-console-view > pre")).toBeVisible();
+  await panel.getByRole("tab", { name: "Results", exact: true }).click();
   await panel.getByRole("tab", { name: "Operating Point" }).click();
   await expect(panel.getByRole("region", { name: "OP results" })).toContainText(
     "0.500000",
@@ -327,6 +301,7 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
   );
   await panel.getByRole("button", { name: "Hide canvas values" }).click();
   await expect(page.getByTestId("operating-point-badges")).toHaveCount(0);
+  await panel.getByRole("button", { name: "Maximize results" }).click();
   await panel.getByRole("tab", { name: "Plot" }).click();
   await expect(
     panel.getByRole("heading", { name: "AC Analysis" }),
@@ -538,7 +513,9 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
       return { x: screen.x, y: screen.y };
     });
   await page.mouse.click(tracePoint.x, tracePoint.y);
+  await panel.getByRole("button", { name: "Restore results" }).click();
   await expect(page.getByTestId("net-highlight-overlay")).toBeVisible();
+  await panel.getByRole("button", { name: "Maximize results" }).click();
   await expect(
     panel.locator('svg[aria-label="Transient voltage"]'),
   ).toBeVisible();
@@ -770,17 +747,24 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
     0,
   );
   expect(executions).toBe(1);
-  await panel.getByRole("button", { name: "Settings" }).click();
-  await panel
-    .locator('details[aria-label="Output signals settings"] > summary')
-    .click();
-  await panel.getByLabel(/Output name for/).fill("new-output");
-  await panel.getByLabel("Temperature (°C)").fill("30");
-  await panel.getByRole("button", { name: "Apply setup" }).click();
+  await panel.getByRole("button", { name: "Restore results" }).click();
+  config.outputs[0]!.label = "new-output";
+  await editSimulationFile(
+    page,
+    setup.input.configPath,
+    JSON.stringify(config, null, 2),
+  );
+  await editSimulationFile(
+    page,
+    setup.input.entry,
+    program.replace(".control", ".temp 30\n.control"),
+  );
+  await downloadBytes(page, "File", "Export Project File…");
   await expect(panel.getByRole("alert")).toContainText(
     "earlier Project revision",
   );
-  await panel.getByRole("button", { name: "Results" }).click();
+  await panel.getByRole("tab", { name: "Results", exact: true }).click();
+  await panel.getByRole("button", { name: "Maximize results" }).click();
   await panel.getByRole("tab", { name: "Plot" }).click();
   await expect(
     panel.getByRole("button", { name: "Hide first-output" }),
@@ -837,7 +821,9 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
       ".simulation-waveform-comparison > header > .simulation-comparison-actions",
     ),
   ).toContainText("Keep current");
-  await panel.getByRole("button", { name: "Maximize simulation" }).click();
+  await expect(page.locator(".app-workspace")).toHaveClass(
+    /simulation-maximized/,
+  );
   const previousViewport = page.viewportSize()!;
   for (const [width, height] of [
     [1440, 1080],
@@ -952,7 +938,7 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
     });
   }
   await page.setViewportSize(previousViewport);
-  await panel.getByRole("button", { name: "Restore simulation panel" }).click();
+  await panel.getByRole("button", { name: "Restore results" }).click();
   await panel.getByRole("button", { name: "Archive", exact: true }).click();
   await panel.getByRole("tab", { name: "Compare" }).click();
   await expect(
@@ -968,19 +954,15 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
   expect(cancellations).toBe(1);
   await panel.getByRole("button", { name: "Minimize simulation" }).click();
   const saved = await downloadBytes(page, "File", "Export Project File…");
-  expect(
-    JSON.parse(saved.toString()).simulationSetups[0].input.environment
-      .temperatureC,
-  ).toBe(30);
-  expect(
-    JSON.parse(saved.toString()).simulationSetups[0].input.analyses.find(
-      (analysis: { kind: string }) => analysis.kind === "tran",
-    ),
-  ).toEqual({
-    kind: "tran",
-    stepSeconds: 1e-9,
-    stopSeconds: 1e-6,
-    maxStepSeconds: 5e-10,
+  const reopenedSetup = parseProject(saved.toString()).simulationSetups[0]!;
+  const reopenedProgram = reopenedSetup.input.files.find(
+    (f) => f.path === reopenedSetup.input.entry,
+  )!.text;
+  expect(reopenedProgram).toContain(".temp 30");
+  expect(reopenedProgram).toContain("tran 1e-9 1e-6 0 5e-10");
+  expect(readSimulationExperimentConfig(reopenedSetup)).toMatchObject({
+    ok: true,
+    config: { outputs: [{ label: "new-output" }] },
   });
   await page.reload();
   // Explicit import is the persistence contract, not browser recovery heuristics.
@@ -990,12 +972,11 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
     buffer: saved,
   });
   await clickNetlistWorkflowCommand(page, "open-analog-simulation");
-  await panel.getByRole("button", { name: "Settings" }).click();
-  await expect(panel.getByLabel("Temperature (°C)")).toHaveValue("30");
-  await expect(panel.getByLabel("TRAN", { exact: true })).toBeChecked();
-  await expect(panel.getByLabel("TRAN step (s)")).toHaveValue("1e-9");
+  await expect(
+    panel.getByRole("textbox", { name: "Simulation source editor" }),
+  ).toContainText(".temp 30");
   await expect(panel.getByRole("status")).toHaveText("No run yet");
-  await panel.getByRole("button", { name: "Results" }).click();
+  await panel.getByRole("tab", { name: "Results", exact: true }).click();
   await panel.getByRole("tab", { name: "Compare" }).click();
   const savedArchives = panel.getByRole("region", {
     name: "Saved result archives",
@@ -1037,11 +1018,15 @@ test("Simulation creates an ordinary testbench and offers the current Cell at th
   expect(saved.simulationSetups).toEqual([]);
   await clickNetlistWorkflowCommand(page, "open-analog-simulation");
   await expect(page.getByLabel("Testbench Cell")).toHaveCount(0);
-  await page.getByRole("button", { name: "Apply setup" }).click();
+  await page
+    .getByRole("button", { name: "Create experiment for this Cell" })
+    .click();
   const configured = JSON.parse(
     (await downloadBytes(page, "File", "Export Project File…")).toString(),
   );
-  expect(configured.simulationSetups[0].input.rootDocumentId).toBe(tb.id);
+  expect(
+    configured.simulationSetups[0].input.circuitBindings[0].documentId,
+  ).toBe(tb.id);
   const simulationResize = page.getByTestId("simulation-resize-handle");
   const initialWidth = Number(
     await simulationResize.getAttribute("aria-valuenow"),
@@ -1050,7 +1035,7 @@ test("Simulation creates an ordinary testbench and offers the current Cell at th
   await simulationResize.press("ArrowRight");
   await expect(simulationResize).toHaveAttribute(
     "aria-valuenow",
-    String(initialWidth + 8),
+    String(initialWidth - 8),
   );
   await page.getByRole("button", { name: "Maximize simulation" }).click();
   await expect(page.locator(".app-workspace")).toHaveClass(
@@ -1058,18 +1043,17 @@ test("Simulation creates an ordinary testbench and offers the current Cell at th
   );
   await expect(page.getByTestId("schematic-canvas")).toBeHidden();
   await expect(page.getByTestId("simulation-resize-handle")).toHaveCount(0);
-  const maximizedSetup = await page
-    .locator(".simulation-setup-panel form")
-    .boundingBox();
-  expect(maximizedSetup!.width).toBeLessThanOrEqual(960);
+  await expect(
+    page.getByRole("region", { name: "Simulation Code workspace" }),
+  ).toBeVisible();
   await page.getByRole("button", { name: "Restore simulation panel" }).click();
   await expect(page.locator(".app-workspace")).not.toHaveClass(
     /simulation-maximized/,
   );
   await expect(page.getByTestId("schematic-canvas")).toBeVisible();
   await expect(page.getByTestId("simulation-resize-handle")).toBeVisible();
-  await expect(page.getByTestId("library-toggle")).toBeDisabled();
-  await expect(page.getByTestId("examples-toggle")).toBeDisabled();
+  await expect(page.getByTestId("library-toggle")).toBeEnabled();
+  await expect(page.getByTestId("examples-toggle")).toBeEnabled();
   await page.getByRole("button", { name: "Minimize simulation" }).click();
   await expect(page.getByTestId("library-toggle")).toBeEnabled();
   await expect(page.getByTestId("open-analog-simulation")).toContainText(

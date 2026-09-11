@@ -1,8 +1,10 @@
-import type { CircuitProject, SimulationOutputSpec } from "@icm/model";
+import type { CircuitProject } from "@icm/model";
+import type { SimulationPresentationOutput as SimulationOutputSpec } from "./source-presentation";
 import type { SimulationOutputData } from "@icm/simulation-service/contract";
 
 import type { OperatingPointDisplay } from "./operating-point-labels";
 import { resolveSimulationVoltageProbeNetId } from "./simulation-probe-options";
+import { selectedResultRecords } from "./simulation-result-records";
 
 export interface OperatingPointCanvasValue {
   readonly documentId: string;
@@ -34,10 +36,16 @@ export function deriveOperatingPointCanvasProjection(
   data: SimulationOutputData | undefined,
   outputs: readonly SimulationOutputSpec[],
   display: OperatingPointDisplay,
+  opRecordIndex?: number,
 ): OperatingPointCanvasProjection {
   const authored = new Map(outputs.map((output) => [output.id, output]));
   const values = new Map<string, OperatingPointCanvasValue>();
-  for (const analysis of data?.analyses ?? []) {
+  for (const { analysis } of data
+    ? selectedResultRecords(
+        data,
+        opRecordIndex === undefined ? {} : { op: opRecordIndex },
+      )
+    : []) {
     if (analysis.analysis !== "op") continue;
     for (const result of analysis.outputs) {
       const output = authored.get(result.id);

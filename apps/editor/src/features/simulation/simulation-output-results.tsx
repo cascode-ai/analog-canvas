@@ -1,10 +1,10 @@
 import type { SimulationFocusTarget } from "./simulation-focus-target";
 import { useState, type ReactNode } from "react";
 import {
-  simulationExpressionDependencies,
-  type SimulationExpression,
-  type SimulationOutputSpec,
-} from "@icm/model";
+  presentationDependencies as simulationExpressionDependencies,
+  type SimulationPresentationExpression as SimulationExpression,
+  type SimulationPresentationOutput as SimulationOutputSpec,
+} from "./source-presentation";
 import type { SimulationOutputData } from "@icm/simulation-service/contract";
 
 import {
@@ -421,8 +421,8 @@ export function SimulationOutputResults({
       })}
       {data.diagnostics.length > 0 ? (
         <div className="simulation-output-diagnostics" role="status">
-          {data.diagnostics.map((diagnostic) => (
-            <p key={`${diagnostic.outputId}:${diagnostic.code}`}>
+          {data.diagnostics.map((diagnostic, index) => (
+            <p key={`${index}:${diagnostic.outputId}:${diagnostic.code}`}>
               <strong>
                 {authored.get(diagnostic.outputId)?.label ??
                   diagnostic.outputId}

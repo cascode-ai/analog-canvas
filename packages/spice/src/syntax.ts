@@ -386,12 +386,25 @@ function parametersFromTokens(
   tokens: string[],
   sourceRef: SourceSpan,
 ): RawSpiceParameter[] {
-  const result: RawSpiceParameter[] = [];
   const text = tokens
     .filter((token) => token.toLowerCase() !== "params:")
     .join(" ")
     .replace(/^\s*\(/u, "")
     .replace(/\)\s*$/u, "");
+  return scanParameterAssignments(text).map(({ name, rawText }) => ({
+    name,
+    rawText,
+    sourceRef,
+  }));
+}
+
+function scanParameterAssignments(text: string) {
+  const result: {
+    name: string;
+    rawText: string;
+    start: number;
+    end: number;
+  }[] = [];
   let cursor = 0;
   while (cursor < text.length) {
     const assignment = /^\s*([a-z_][a-z0-9_.]*)\s*=\s*/iu.exec(
@@ -431,10 +444,48 @@ function parametersFromTokens(
     result.push({
       name,
       rawText,
-      sourceRef,
+      start: valueStart,
+      end: valueStart + text.slice(valueStart, cursor).trimEnd().length,
     });
   }
   return result;
+}
+
+/** Physical UTF-16 ranges for a parsed .param; same assignment grammar, not textual name replacement. */
+export function locateSpiceParameterValues(statement: ParameterStatement) {
+  // Mask comments and continuation prefixes without shifting any physical offsets.
+  const raw = statement.rawText;
+  const chars = raw.split("");
+  for (const line of physicalLines(raw)) {
+    const content = line.content;
+    const trimmed = content.trimStart();
+    const visible = trimmed.startsWith("*") ? "" : stripInlineComment(content);
+    for (let i = visible.length; i < content.length; i++)
+      chars[line.startOffset + i] = " ";
+    if (trimmed.startsWith("+"))
+      chars[line.startOffset + content.indexOf("+")] = " ";
+  }
+  const masked = chars.join("");
+  const prefix = /^\s*\.param\s+/iu.exec(masked);
+  if (!prefix) return [];
+  const offset = prefix[0].length;
+  const assignments = scanParameterAssignments(masked.slice(offset));
+  // A locator cannot authorize an edit if it did not recover the parser's assignments exactly.
+  if (
+    assignments.length !== statement.parameters.length ||
+    assignments.some(
+      (p, i) =>
+        p.name.toLowerCase() !== statement.parameters[i]!.name.toLowerCase() ||
+        p.rawText.replace(/\s+/gu, "") !==
+          statement.parameters[i]!.rawText.replace(/\s+/gu, ""),
+    )
+  )
+    return [];
+  return assignments.map((p) => ({
+    name: p.name,
+    startOffset: statement.sourceRef.start.offset + offset + p.start,
+    endOffset: statement.sourceRef.start.offset + offset + p.end,
+  }));
 }
 
 function positionalAndParameters(
@@ -1011,7 +1062,10 @@ function parseLogicalLine(line: LogicalLine): {
   return parseInstance(fields, line);
 }
 
-export function parseSpiceSource(source: SpiceSourceFile): SpiceSyntaxFile {
+export function parseSpiceSource(
+  source: SpiceSourceFile,
+  options: { titleLine?: boolean } = {},
+): SpiceSyntaxFile {
   const logicalLines = buildLogicalLines(source);
   const statements: SpiceStatement[] = [];
   const diagnostics: SpiceDiagnostic[] = [];
@@ -1019,7 +1073,11 @@ export function parseSpiceSource(source: SpiceSourceFile): SpiceSyntaxFile {
   for (const line of logicalLines) {
     const fields = splitSpiceFields(line.text);
     const keyword = fields[0]?.toLowerCase() ?? "";
-    if (line.physicalLines[0] === 1 && !keyword.startsWith(".")) {
+    if (
+      options.titleLine !== false &&
+      line.physicalLines[0] === 1 &&
+      !keyword.startsWith(".")
+    ) {
       statements.push({
         kind: "directive",
         name: "title",

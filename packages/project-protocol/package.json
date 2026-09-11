@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@icm/devices": "workspace:*",
-    "@icm/model": "workspace:*"
+    "@icm/model": "workspace:*",
+    "@icm/netlist": "workspace:*"
   }
 }

@@ -520,4 +520,26 @@ describe("agent session client", () => {
     expect(report.revision).toBe(6);
     expect(client.summary("main")?.revision).toBe(6);
   });
+
+  it("does not silently rebase a source helper after a concurrent Project edit", async () => {
+    const { client, http } = await freshClient();
+    await client.connect("session-1.code");
+    const current = testSnapshot();
+    current.project.structureRevision = 12;
+    http.circuitHandler = async ({ request }) =>
+      snapshotResponse(request.requestId, current);
+    const result = await client.advancedTransact(
+      {
+        structureEdits: [
+          { kind: "remove_simulation_setup", setupId: "setup-1" },
+        ],
+      },
+      { expectedStructureRevision: 11 },
+    );
+    expect(result).toMatchObject({ ok: false, code: "STATE_CHANGED" });
+    expect(
+      http.circuitCalls.some((call) => call.request.operation === "transact"),
+    ).toBe(false);
+    expect(client.connection.snapshot.state).toBe("online");
+  });
 });

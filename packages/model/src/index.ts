@@ -12,3 +12,4 @@ export * from "./semantic-text.js";
 export * from "./simulation-expression.js";
 export * from "./schema/bound-annotation-text.js";
 export * from "./schema.js";
+export * from "./simulation-source-authoring.js";

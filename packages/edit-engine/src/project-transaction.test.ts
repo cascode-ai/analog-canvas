@@ -1,4 +1,4 @@
-import { createRoutePath } from "@icm/model";
+import { createRoutePath, createSourceSimulationSetup } from "@icm/model";
 import { describe, expect, it } from "vitest";
 
 import { createEmptyDocument, createEmptyProject } from "@icm/model";
@@ -779,44 +779,12 @@ describe("Project structural transaction", () => {
     const project = createEmptyProject("project", "Project");
     const testbench = createEmptyDocument("document-testbench", "Testbench");
     project.documents.push(testbench);
-    const setup = {
+    const setup = createSourceSimulationSetup({
       id: "setup-main",
       name: "Main setup",
-      version: 3 as const,
-      input: {
-        kind: "structured" as const,
-        designVariables: [],
-        runPlan: { mode: "nominal" },
-        rootDocumentId: testbench.id,
-        analyses: [
-          { kind: "op" as const },
-          {
-            kind: "ac" as const,
-            sweep: "dec" as const,
-            points: 10,
-            startHz: 1,
-            stopHz: 1e6,
-          },
-        ],
-        outputs: [
-          {
-            id: "probe-out",
-            label: "out",
-            expression: {
-              kind: "voltage" as const,
-              documentId: testbench.id,
-              anchor: {
-                kind: "terminal" as const,
-                instanceId: "load",
-                pinName: "1",
-              },
-              occurrence: [],
-            },
-          },
-        ],
-        environment: { profileId: "sky130-core-continuous-ngspice46-v1" },
-      },
-    };
+      profileId: "test",
+      documentId: testbench.id,
+    });
     const actor = { kind: "human" as const, id: "human-local" };
 
     const set = executeProjectTransaction(project, {
@@ -863,8 +831,12 @@ describe("Project structural transaction", () => {
             ...setup,
             input: {
               ...setup.input,
-              rootDocumentId: project.topDocumentId,
-              analyses: [{ kind: "op" }],
+              circuitBindings: [
+                {
+                  ...setup.input.circuitBindings[0]!,
+                  documentId: project.topDocumentId,
+                },
+              ],
             },
           },
         },
@@ -878,8 +850,7 @@ describe("Project structural transaction", () => {
         simulationSetups: [
           {
             input: {
-              rootDocumentId: project.topDocumentId,
-              analyses: [{ kind: "op" }],
+              circuitBindings: [{ documentId: project.topDocumentId }],
             },
           },
         ],
@@ -913,25 +884,18 @@ describe("Project structural transaction", () => {
     ).toMatchObject({ ok: true, applied: false, structureRevision: 3 });
   });
 
-  it("rejects a newly configured missing root but preserves setup when its root Cell is deleted", () => {
+  it("preserves unresolved source bindings for repair, including after a Cell is deleted", () => {
     const project = createEmptyProject("project", "Project");
     const testbench = createEmptyDocument("document-testbench", "Testbench");
     project.documents.push(testbench);
     const actor = { kind: "agent" as const, id: "agent" };
-    const setupFor = (rootDocumentId: string) => ({
-      id: "setup-main",
-      name: "Main setup",
-      version: 3 as const,
-      input: {
-        kind: "structured" as const,
-        designVariables: [],
-        runPlan: { mode: "nominal" },
-        rootDocumentId,
-        analyses: [{ kind: "op" as const }],
-        outputs: [],
-        environment: { profileId: "sky130-core-continuous-ngspice46-v1" },
-      },
-    });
+    const setupFor = (rootDocumentId: string) =>
+      createSourceSimulationSetup({
+        id: "setup-main",
+        name: "Main setup",
+        profileId: "test",
+        documentId: rootDocumentId,
+      });
 
     expect(
       executeProjectTransaction(project, {
@@ -947,10 +911,11 @@ describe("Project structural transaction", () => {
         ],
       }),
     ).toMatchObject({
-      ok: false,
-      error: {
-        code: "OBJECT_NOT_FOUND",
-        message: "Simulation root Document does not exist: document-missing",
+      ok: true,
+      project: {
+        simulationSetups: [
+          { input: { circuitBindings: [{ documentId: "document-missing" }] } },
+        ],
       },
     });
 
@@ -1001,7 +966,11 @@ describe("Project structural transaction", () => {
     ).toMatchObject({
       ok: true,
       applied: true,
-      project: { simulationSetups: [{ input: { rootDocumentId: bench2.id } }] },
+      project: {
+        simulationSetups: [
+          { input: { circuitBindings: [{ documentId: bench2.id }] } },
+        ],
+      },
     });
 
     const configured = executeProjectTransaction(project, {
@@ -1025,7 +994,9 @@ describe("Project structural transaction", () => {
       ok: true,
       applied: true,
       project: {
-        simulationSetups: [{ input: { rootDocumentId: testbench.id } }],
+        simulationSetups: [
+          { input: { circuitBindings: [{ documentId: testbench.id }] } },
+        ],
         documents: [{ id: project.topDocumentId }],
       },
     });
@@ -1049,31 +1020,20 @@ describe("Project structural transaction", () => {
 
   it("keeps independent named setups on one Testbench and removes only the addressed setup", () => {
     const project = createEmptyProject("project", "Project");
-    const setupFor = (id: string, name: string, analysis: "op" | "ac") => ({
-      id,
-      name,
-      version: 3 as const,
-      input: {
-        kind: "structured" as const,
-        designVariables: [],
-        runPlan: { mode: "nominal" },
-        rootDocumentId: project.topDocumentId,
-        analyses:
-          analysis === "op"
-            ? [{ kind: "op" as const }]
-            : [
-                {
-                  kind: "ac" as const,
-                  sweep: "dec" as const,
-                  points: 10,
-                  startHz: 1,
-                  stopHz: 1e6,
-                },
-              ],
-        outputs: [],
-        environment: { profileId: "test" },
-      },
-    });
+    const setupFor = (id: string, name: string, analysis: "op" | "ac") => {
+      const setup = createSourceSimulationSetup({
+        id,
+        name,
+        profileId: "test",
+        documentId: project.topDocumentId,
+      });
+      if (analysis === "ac")
+        setup.input.files[0]!.text = setup.input.files[0]!.text.replace(
+          "\nop\n",
+          "\nac dec 10 1 1e6\n",
+        );
+      return setup;
+    };
     const added = executeProjectTransaction(project, {
       transactionId: "add-two-setups",
       projectId: project.id,
@@ -1114,24 +1074,17 @@ describe("Project structural transaction", () => {
     });
   });
 
-  it("replaces and clears a raw simulation setup without a Canvas root", () => {
+  it("replaces and clears unbound source input without a Canvas root", () => {
     const project = createEmptyProject("project", "Project");
     const unrelated = createEmptyDocument("document-unrelated", "Unrelated");
     project.documents.push(unrelated);
     const actor = { kind: "agent" as const, id: "agent" };
-    const setup = {
+    const setup = createSourceSimulationSetup({
       id: "setup-raw",
-      name: "Raw setup",
-      version: 3 as const,
-      input: {
-        kind: "raw" as const,
-        entry: "tb.cir",
-        files: [{ path: "tb.cir", text: "V1 in 0 1\n.end\n" }],
-        dependencies: [],
-        environment: { profileId: "custom-ngspice46-v1" },
-      },
-    };
-
+      name: "Source experiment",
+      profileId: "test",
+    });
+    setup.input.files[0]!.text = "* invalid while editing\nV1 in 0 ";
     const configured = executeProjectTransaction(project, {
       transactionId: "set-raw-setup",
       projectId: project.id,

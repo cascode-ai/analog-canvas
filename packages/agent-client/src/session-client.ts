@@ -498,7 +498,11 @@ export class AgentSessionClient {
   /** Same four-operation API; the helper only supplies identity and revisions. */
   async advancedTransact(
     payload: unknown,
-    options: { documentId?: string; dryRun?: boolean } = {},
+    options: {
+      documentId?: string;
+      dryRun?: boolean;
+      expectedStructureRevision?: number;
+    } = {},
   ): Promise<ApplyActionsReport> {
     const normalized = Array.isArray(payload) ? { edits: payload } : payload;
     const parsed = AgentTransactionPayloadSchema.safeParse(normalized);
@@ -510,6 +514,15 @@ export class AgentSessionClient {
         message: parsed.error.issues[0]?.message ?? "Invalid transaction",
       };
     const entry = await this.snapshot(options.documentId, { refresh: true });
+    if (
+      options.expectedStructureRevision !== undefined &&
+      entry.snapshot.project.structureRevision !==
+        options.expectedStructureRevision
+    )
+      return this.stateChangedReport(
+        entry,
+        "The Project changed after this edit was authored; read it and apply the edit again",
+      );
     return this.submitTransaction(entry, parsed.data, options);
   }
 

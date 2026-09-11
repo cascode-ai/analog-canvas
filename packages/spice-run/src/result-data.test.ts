@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import { classifySimulationOutcome, readNgspiceDiagnostics } from "./index.js";
+import { SimulationResultSchema } from "./result-schema.js";
 import {
   readSimulationData,
   simulationAnalysisToCsv,
@@ -87,6 +88,108 @@ function pulseVolts(seconds: number): number {
   // computed is the one that can be.
   return seconds <= RISE_SECONDS ? seconds * 1e9 : 1;
 }
+
+describe("native multi-record result identity", () => {
+  it("preserves repeated OP/AC/TRAN records in physical order without kind-based overwriting", () => {
+    const raw = [
+      "divider-op.raw",
+      "rc-ac.raw",
+      "divider-op.raw",
+      "rc-tran.raw",
+      "rc-ac.raw",
+    ]
+      .map(fixture)
+      .join("\n");
+    const reading = readSimulationData(raw);
+    expect(reading.status).toBe("read");
+    if (reading.status !== "read") return;
+    expect(
+      reading.data.analyses.map((a) => [a.analysis, a.rawPlotOrdinals]),
+    ).toEqual([
+      ["op", [0]],
+      ["ac", [1]],
+      ["op", [2]],
+      ["tran", [3]],
+      ["ac", [4]],
+    ]);
+    expect(
+      reading.data.rawPlots?.map((p) => [p.ordinal, p.analysisIndex]),
+    ).toEqual([
+      [0, 0],
+      [1, 1],
+      [2, 2],
+      [3, 3],
+      [4, 4],
+    ]);
+    expect(
+      SimulationResultSchema.shape.data.unwrap().safeParse(reading.data)
+        .success,
+    ).toBe(true);
+    const archived = {
+      schemaVersion: 1,
+      analyses: reading.data.analyses.map(
+        ({ rawPlotOrdinals: _origin, ...analysis }) => analysis,
+      ),
+    };
+    expect(
+      SimulationResultSchema.shape.data.unwrap().safeParse(archived).success,
+    ).toBe(true);
+    expect(simulationAnalysisToCsv(reading.data.analyses[0]!)).toBe(
+      simulationAnalysisToCsv(reading.data.analyses[2]!),
+    );
+  });
+  it("keeps one unambiguous noise pair at its first raw position, not ahead of earlier results", () => {
+    const reading = readSimulationData(
+      [
+        fixture("divider-op.raw"),
+        fixture("resistor-noise-ngspice46.raw"),
+        fixture("rc-ac.raw"),
+      ].join("\n"),
+    );
+    expect(reading.status).toBe("read");
+    if (reading.status !== "read") return;
+    expect(
+      reading.data.analyses.map((a) => [a.analysis, a.rawPlotOrdinals]),
+    ).toEqual([
+      ["op", [0]],
+      ["noise", [1, 2]],
+      ["ac", [3]],
+    ]);
+    expect(reading.data.rawPlots?.map((p) => p.analysisIndex)).toEqual([
+      0, 1, 1, 2,
+    ]);
+  });
+  it("does not guess repeated noise pairing, but keeps raw inventory and other qualified results", () => {
+    const reading = readSimulationData(
+      [
+        fixture("resistor-noise-ngspice46.raw"),
+        fixture("divider-op.raw"),
+        fixture("resistor-noise-ngspice46.raw"),
+        fixture("rc-ac.raw"),
+      ].join("\n"),
+    );
+    expect(reading.status).toBe("read");
+    if (reading.status !== "read") return;
+    expect(
+      reading.data.analyses.map((a) => [a.analysis, a.rawPlotOrdinals]),
+    ).toEqual([
+      ["op", [2]],
+      ["ac", [5]],
+    ]);
+    expect(reading.data.rawPlots).toHaveLength(6);
+    expect(
+      reading.data.rawPlots
+        ?.filter((p) => p.analysisIndex === undefined)
+        .map((p) => p.ordinal),
+    ).toEqual([0, 1, 3, 4]);
+    expect(reading.diagnostics).toEqual([
+      expect.objectContaining({
+        severity: "warning",
+        text: expect.stringContaining("without guessing"),
+      }),
+    ]);
+  });
+});
 
 describe("an operating point", () => {
   it("is the scalar the divider arithmetic says it is", () => {

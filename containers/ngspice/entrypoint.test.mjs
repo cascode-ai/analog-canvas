@@ -415,6 +415,27 @@ describeHarness("the output cap", () => {
 });
 
 describeHarness("the rawfile", () => {
+  it("honors a declared collector and returns no guessed alternative", async () => {
+    const { port } = await startHarness(
+      await simulator(
+        "declared.sh",
+        "mkdir -p results\nprintf 'Title: chosen\\n' > results/chosen.raw\nprintf 'wrong' > other.raw\necho 'Circuit: test'\n",
+      ),
+    );
+    for (const name of ["results/chosen.raw", "missing.raw", null]) {
+      const collection = { rawfile: name };
+      const { payload } = await json(
+        await run(port, { deck: "title\n.end", collection }),
+      );
+      expect(payload.collection).toEqual(collection);
+      expect(payload.rawfileRequested).toBe(name !== null);
+      expect(payload.rawfile).toBe(
+        name === "results/chosen.raw" ? "Title: chosen\n" : null,
+      );
+      if (name === "missing.raw")
+        expect(payload.rawfileError).toBe("missing-output");
+    }
+  });
   it("comes back as text when the deck asked for one", async () => {
     const { port } = await startHarness(
       await simulator(

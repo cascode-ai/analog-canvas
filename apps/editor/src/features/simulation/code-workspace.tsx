@@ -1,0 +1,327 @@
+import { useEffect, useId, useState, type ReactNode } from "react";
+
+export interface SimulationCodeFile {
+  path: string;
+  kind: "authored" | "generated" | "prepared";
+  dirty?: boolean;
+}
+export interface SimulationCodeWorkspaceProps {
+  workspaceKey: string;
+  files: readonly SimulationCodeFile[];
+  entryPath: string;
+  configPath: string;
+  activePath: string;
+  onSelectFile(path: string): void;
+  onNewFile?(): void;
+  onCopyFile?(): void;
+  onExportFile?(): void;
+  children: ReactNode;
+  actions: ReactNode;
+  status?: ReactNode;
+  console: ReactNode;
+  results: ReactNode;
+  outputPane: "console" | "results";
+  onSelectOutputPane(pane: "console" | "results"): void;
+  maximized?: boolean;
+  onToggleMaximize?(): void;
+}
+
+/** Approved Code layout only; Project, drafts and Run ownership remain in their controllers. */
+export function SimulationCodeWorkspace(props: SimulationCodeWorkspaceProps) {
+  const filesId = useId();
+  const defaults = () =>
+    props.files
+      .filter((f) => f.kind === "generated" || f.path === props.entryPath)
+      .map((f) => f.path);
+  const [filesOpen, setFilesOpen] = useState(false);
+  const [opened, setOpened] = useState(defaults);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [resultsHeight, setResultsHeight] = useState(38);
+  const [collapsed, setCollapsed] = useState(false);
+  useEffect(() => {
+    setOpened(defaults());
+    setMoreOpen(false);
+  }, [props.workspaceKey]);
+  useEffect(() => {
+    setOpened((paths) =>
+      paths.includes(props.activePath) ? paths : [...paths, props.activePath],
+    );
+  }, [props.activePath]);
+  const tabs = opened.filter((path) =>
+    props.files.some((file) => file.path === path),
+  );
+  const openFile = (path: string) => {
+    setOpened((paths) => (paths.includes(path) ? paths : [...paths, path]));
+    props.onSelectFile(path);
+    setMoreOpen(false);
+  };
+  const closeFile = (path: string) => {
+    const next = tabs.filter((item) => item !== path);
+    setOpened(next);
+    if (props.activePath === path)
+      props.onSelectFile(next.at(-1) ?? props.entryPath);
+  };
+  return (
+    <section
+      className={`simulation-code-workspace${props.maximized ? " is-maximized" : ""}`}
+      aria-label="Simulation Code workspace"
+    >
+      <header className="simulation-code-toolbar">
+        <button
+          type="button"
+          aria-expanded={filesOpen}
+          aria-controls={filesId}
+          onClick={() => setFilesOpen(!filesOpen)}
+        >
+          Files
+        </button>
+        <div className="simulation-code-actions">{props.actions}</div>
+        <div
+          className="simulation-code-more"
+          onBlur={(event) => {
+            if (!event.currentTarget.contains(event.relatedTarget))
+              setMoreOpen(false);
+          }}
+        >
+          <button
+            type="button"
+            aria-label="More code actions"
+            aria-expanded={moreOpen}
+            onClick={() => setMoreOpen(!moreOpen)}
+          >
+            ···
+          </button>
+          {moreOpen ? (
+            <div
+              className="simulation-code-menu"
+              onKeyDown={(event) => {
+                if (event.key === "Escape") setMoreOpen(false);
+              }}
+            >
+              <button type="button" onClick={() => openFile(props.configPath)}>
+                Advanced configuration
+              </button>
+              {props.onCopyFile ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    props.onCopyFile?.();
+                    setMoreOpen(false);
+                  }}
+                >
+                  Copy current file
+                </button>
+              ) : null}
+              {props.onExportFile ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    props.onExportFile?.();
+                    setMoreOpen(false);
+                  }}
+                >
+                  Export current file…
+                </button>
+              ) : null}
+              {props.onNewFile ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    props.onNewFile?.();
+                    setMoreOpen(false);
+                  }}
+                >
+                  New file…
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      </header>
+      <div className="simulation-code-source-area">
+        {filesOpen ? (
+          <aside
+            id={filesId}
+            className="simulation-code-files"
+            aria-label="Simulation files"
+          >
+            <ul>
+              {props.files
+                .filter((file) => file.path !== props.configPath)
+                .map((file) => (
+                  <li key={file.path}>
+                    <button
+                      type="button"
+                      className={
+                        file.path === props.activePath ? "is-active" : ""
+                      }
+                      title={file.path}
+                      onClick={() => openFile(file.path)}
+                    >
+                      <span aria-hidden="true">
+                        {file.kind === "generated"
+                          ? "◇"
+                          : file.kind === "prepared"
+                            ? "▧"
+                            : "·"}
+                      </span>{" "}
+                      {file.path}
+                      {file.dirty ? " ●" : ""}
+                    </button>
+                  </li>
+                ))}
+            </ul>
+          </aside>
+        ) : null}
+        <div className="simulation-code-document">
+          <div
+            className="simulation-code-tabs"
+            role="tablist"
+            aria-label="Open simulation files"
+          >
+            {tabs.map((path) => {
+              const file = props.files.find((f) => f.path === path)!;
+              return (
+                <div className="simulation-code-tab" key={path}>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={props.activePath === path}
+                    onClick={() => props.onSelectFile(path)}
+                    title={path}
+                  >
+                    {path === props.configPath
+                      ? "Configuration"
+                      : path.split("/").at(-1)}
+                    {file.kind === "generated" ? " ◇" : ""}
+                    {file.dirty ? " ●" : ""}
+                  </button>
+                  {path !== props.entryPath ? (
+                    <button
+                      type="button"
+                      aria-label={`Close ${path}`}
+                      onClick={() => closeFile(path)}
+                    >
+                      ×
+                    </button>
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
+          <div className="simulation-code-document-content">
+            {props.children}
+          </div>
+        </div>
+      </div>
+      <div
+        className="simulation-code-output-resizer"
+        role="separator"
+        aria-label="Resize code results"
+        aria-orientation="horizontal"
+        tabIndex={0}
+        aria-valuemin={15}
+        aria-valuemax={75}
+        aria-valuenow={resultsHeight}
+        onKeyDown={(event) => {
+          if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+            event.preventDefault();
+            event.stopPropagation();
+            setResultsHeight((height) =>
+              Math.max(
+                15,
+                Math.min(75, height + (event.key === "ArrowUp" ? 5 : -5)),
+              ),
+            );
+          }
+        }}
+        onPointerDown={(event) => {
+          const handle = event.currentTarget,
+            container = handle.parentElement!,
+            bounds = container.getBoundingClientRect();
+          handle.setPointerCapture(event.pointerId);
+          const move = (pointer: PointerEvent) =>
+            setResultsHeight(
+              Math.max(
+                15,
+                Math.min(
+                  75,
+                  ((bounds.bottom - pointer.clientY) / bounds.height) * 100,
+                ),
+              ),
+            );
+          const end = () => {
+            handle.removeEventListener("pointermove", move);
+            handle.removeEventListener("pointerup", end);
+            handle.removeEventListener("pointercancel", end);
+            handle.removeEventListener("lostpointercapture", end);
+          };
+          handle.addEventListener("pointermove", move);
+          handle.addEventListener("pointerup", end);
+          handle.addEventListener("pointercancel", end);
+          handle.addEventListener("lostpointercapture", end);
+        }}
+      />
+      <section
+        className="simulation-code-output"
+        style={{
+          flexBasis: props.maximized
+            ? "auto"
+            : collapsed
+              ? "32px"
+              : `${resultsHeight}%`,
+        }}
+        aria-label="Code output"
+      >
+        <header className="simulation-code-output-tabs">
+          <div role="tablist" aria-label="Code output view">
+            {(["console", "results"] as const).map((pane) => (
+              <button
+                key={pane}
+                type="button"
+                role="tab"
+                aria-selected={pane === props.outputPane}
+                onClick={() => {
+                  props.onSelectOutputPane(pane);
+                  setCollapsed(false);
+                }}
+              >
+                {pane === "console" ? "Console" : "Results"}
+              </button>
+            ))}
+          </div>
+          <span className="simulation-code-output-spacer" />
+          <button
+            type="button"
+            aria-label={
+              collapsed ? "Expand code output" : "Collapse code output"
+            }
+            onClick={() => setCollapsed(!collapsed)}
+          >
+            {collapsed ? "⌃" : "⌄"}
+          </button>
+          {props.onToggleMaximize ? (
+            <button
+              type="button"
+              aria-label={
+                props.maximized ? "Restore results" : "Maximize results"
+              }
+              onClick={() => {
+                setCollapsed(false);
+                props.onToggleMaximize?.();
+              }}
+            >
+              {props.maximized ? "⧉" : "□"}
+            </button>
+          ) : null}
+        </header>
+        {!collapsed ? (
+          <div className="simulation-code-output-content" role="tabpanel">
+            {props.outputPane === "console" ? props.console : props.results}
+          </div>
+        ) : null}
+      </section>
+      <footer className="simulation-code-status">{props.status}</footer>
+    </section>
+  );
+}

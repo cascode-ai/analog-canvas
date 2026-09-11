@@ -7,6 +7,13 @@ each execution target must name its accountable implementer.
 
 ## Boundary
 
+The accepted [Code Workspace target](../specs/simulation-code-workspace.md)
+owns the C0 source-authoring decisions and C1–C5 implementation/acceptance
+boundaries. Its contract is frozen, not delivered. It replaces the settings
+authoring shell without relaxing the integration and qualification obligations
+below. The disposable dock prototype still needs user acceptance before UI
+cutover; lifecycle/compiler work need not wait for pixel-level layout choices.
+
 The product already has named saved setups, structured/raw preparation,
 OP/DC/AC/TRAN/Noise, qualified SKY130 corners, outputs and measurements, runtime
 isolation, and managed Preview execution. Their current contracts are in

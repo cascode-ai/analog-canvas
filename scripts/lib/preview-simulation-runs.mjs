@@ -59,6 +59,7 @@ export async function runHostedSky130Acceptance({
     target,
     compiled.request.inputRevision,
     compiled.vectors,
+    compiled.request,
   );
 }
 
@@ -131,6 +132,7 @@ export async function runHostedSky130TransientAcceptance({
     target,
     compiled.request.inputRevision,
     compiled.vectors,
+    compiled.request,
   );
 }
 
@@ -155,6 +157,8 @@ export async function runHostedSky130NoiseAcceptance({
     payload,
     target,
     compiled.request.inputRevision,
+    compiled.vectors,
+    compiled.request,
   );
 }
 

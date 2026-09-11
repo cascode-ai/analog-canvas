@@ -26,6 +26,7 @@
   "dependencies": {
     "@icm/model": "workspace:*",
     "@icm/netlist": "workspace:*",
+    "@icm/spice": "workspace:*",
     "@icm/spice-run": "workspace:*",
     "zod": "4.4.3"
   }

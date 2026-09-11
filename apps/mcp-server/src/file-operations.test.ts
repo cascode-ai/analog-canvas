@@ -24,36 +24,51 @@ async function tempDirectory(): Promise<string> {
 }
 
 describe("MCP file operations", () => {
-  it("writes a verified browser export to the explicit local path", async () => {
-    const bytes = Buffer.from("project-data", "utf8");
-    const hash = createHash("sha256").update(bytes).digest("hex");
-    const http = new FakeAgentHttp({
-      files: (request) => ({
-        apiVersion: "2.0",
-        requestId: request.requestId,
-        operation: "download",
-        ok: true,
-        artifact: {
-          name: "project.icm.json",
-          mediaType: "application/json",
-          encoding: "base64",
-          data: bytes.toString("base64"),
-          byteLength: bytes.byteLength,
-          sha256: hash,
+  it.each([
+    { artifact: "project" as const },
+    {
+      artifact: "simulation-plot" as const,
+      simulation: { runId: "run-1", analysisIndex: 2, format: "svg" as const },
+    },
+  ])(
+    "writes a verified $artifact export to the explicit local path",
+    async (selection) => {
+      const bytes = Buffer.from("project-data", "utf8");
+      const hash = createHash("sha256").update(bytes).digest("hex");
+      const http = new FakeAgentHttp({
+        files: (request) => {
+          expect(request).toMatchObject({
+            operation: "download",
+            ...selection,
+          });
+          return {
+            apiVersion: "2.0",
+            requestId: request.requestId,
+            operation: "download",
+            ok: true,
+            artifact: {
+              name: "project.icm.json",
+              mediaType: "application/json",
+              encoding: "base64",
+              data: bytes.toString("base64"),
+              byteLength: bytes.byteLength,
+              sha256: hash,
+            },
+          };
         },
-      }),
-    });
-    const client = new AgentSessionClient({ http });
-    await client.connect("session-1.code");
-    const directory = await tempDirectory();
-    const outputPath = join(directory, "nested", "project.icm.json");
-    const report = await exportFile(client, {
-      artifact: "project",
-      outputPath,
-    });
-    expect(await readFile(outputPath, "utf8")).toBe("project-data");
-    expect(report).toMatchObject({ ok: true, outputPath, sha256: hash });
-  });
+      });
+      const client = new AgentSessionClient({ http });
+      await client.connect("session-1.code");
+      const directory = await tempDirectory();
+      const outputPath = join(directory, "nested", "project.icm.json");
+      const report = await exportFile(client, {
+        ...selection,
+        outputPath,
+      });
+      expect(await readFile(outputPath, "utf8")).toBe("project-data");
+      expect(report).toMatchObject({ ok: true, outputPath, sha256: hash });
+    },
+  );
 
   it("stages local files through the existing browser approval workflow", async () => {
     const http = new FakeAgentHttp({

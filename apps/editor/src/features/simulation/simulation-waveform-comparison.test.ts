@@ -38,6 +38,29 @@ function run(
 }
 
 describe("buildComparisonWaveforms", () => {
+  it("requires a concrete record for repeated analyses rather than matching Plotname", () => {
+    const first = run("tt", [0, 1], 1),
+      second = run("ff", [0, 1], 2);
+    const repeated = {
+      ...first,
+      outputData: {
+        ...first.outputData,
+        analyses: [
+          ...first.outputData.analyses,
+          ...run("other", [0, 1], 3).outputData.analyses,
+        ],
+      },
+    };
+    expect(buildComparisonWaveforms([repeated, second]).scalar).toEqual([]);
+    const selected = buildComparisonWaveforms([
+      { ...repeated, records: { tran: 1 } },
+      second,
+    ]);
+    expect(selected.scalar[0]?.traces.map((trace) => trace.values)).toEqual([
+      [0, 3],
+      [0, 2],
+    ]);
+  });
   it("overlays matching outputs from separate runs with run-qualified labels", () => {
     const result = buildComparisonWaveforms([
       run("tt", [0, 1, 2], 1),

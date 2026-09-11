@@ -8,6 +8,7 @@ import {
   type OutputTrace,
 } from "./ac-results-explorer";
 import type { SimulationComparisonRun } from "./simulation-run-comparison";
+import { selectedResultRecords } from "./simulation-result-records";
 import {
   ScalarResultsExplorer,
   type ScalarTrace,
@@ -78,7 +79,10 @@ export function buildComparisonWaveforms(
   let colorIndex = 0;
 
   for (const run of runs) {
-    for (const analysis of run.outputData.analyses) {
+    for (const { analysis } of selectedResultRecords(
+      run.outputData,
+      run.records,
+    )) {
       if (!analysis.domain || analysis.analysis === "op") continue;
       for (const output of analysis.outputs) {
         const label = `${output.label} — ${runLabel(run)}`;

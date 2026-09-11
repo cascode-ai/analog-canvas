@@ -1,5 +1,6 @@
+import { sourcePresentation } from "./source-presentation";
 import { describe, expect, it } from "vitest";
-import { createEmptyProject, ProjectSimulationSetupSchema } from "@icm/model";
+import { createEmptyProject, createSourceSimulationSetup } from "@icm/model";
 import type { Prepared, Run } from "@icm/simulation-service/contract";
 import { SimulationFiles } from "@icm/simulation-service/files";
 
@@ -8,20 +9,13 @@ import {
   restoreSimulationRunArchive,
 } from "./simulation-run-archive";
 
-const setup = ProjectSimulationSetupSchema.parse({
+const setup = createSourceSimulationSetup({
   id: "setup-op",
   name: "Bias",
-  version: 3,
-  input: {
-    kind: "structured",
-    designVariables: [],
-    runPlan: { mode: "nominal" },
-    rootDocumentId: "doc",
-    analyses: [{ kind: "op" }],
-    outputs: [],
-    environment: { profileId: "test", corner: "tt" },
-  },
+  profileId: "test",
+  documentId: "doc",
 });
+const presentation = sourcePresentation(setup);
 
 describe("simulation run archive", () => {
   it("captures verified artifacts and restores a view into a new session", async () => {
@@ -64,12 +58,14 @@ describe("simulation run archive", () => {
     const project = createEmptyProject("project", "Archive", "doc");
     const captured = await captureSimulationRunArchive(source, {
       projectId: project.id,
-      setup,
+      presentation,
       prepared,
       run,
     });
+    setup.name = "Renamed after run";
     expect(captured.ok).toBe(true);
     if (!captured.ok) return;
+    expect(captured.value.presentation.setupName).toBe("Bias");
     expect(captured.value.artifacts.map((item) => item.name)).toEqual([
       "prepared.cir",
       "outputs.json",

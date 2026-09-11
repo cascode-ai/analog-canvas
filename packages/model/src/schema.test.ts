@@ -1,3 +1,4 @@
+import { createSourceSimulationSetup } from "./simulation-source-authoring.js";
 import { describe, expect, it } from "vitest";
 
 import { createEmptyDocument, createEmptyProject } from "./factories.js";
@@ -7,7 +8,8 @@ import {
   CircuitProjectSchema,
   DraftTextSchema,
   SchematicDocumentSchema,
-  SimulationSetupSchema,
+  LegacySimulationSetupSchema,
+  ProjectSimulationSetupSchema,
 } from "./schema.js";
 import type {
   SimulationRawSetup,
@@ -803,7 +805,7 @@ describe("presentation style overrides", () => {
   });
 });
 
-describe("SimulationSetup schema", () => {
+describe("legacy SimulationSetup reader (one-way migration input)", () => {
   function setup(): SimulationStructuredSetup {
     return {
       version: 3,
@@ -866,13 +868,20 @@ describe("SimulationSetup schema", () => {
   it("round-trips a named collection while preserving the reusable setup shape", () => {
     const project = createEmptyProject("plain", "Plain");
     expect(CircuitProjectSchema.parse(project).simulationSetups).toEqual([]);
-    expect(SimulationSetupSchema.parse(setup())).toEqual(setup());
-    const parsed = CircuitProjectSchema.parse(projectWithSetup(setup()));
-    expect(parsed.simulationSetups[0]).toEqual({
+    expect(LegacySimulationSetupSchema.parse(setup())).toEqual(setup());
+    expect(
+      CircuitProjectSchema.safeParse(projectWithSetup(setup())).success,
+    ).toBe(false);
+    const source = createSourceSimulationSetup({
       id: "setup-1",
       name: "Setup 1",
-      ...setup(),
+      profileId: "test",
+      documentId: "testbench",
     });
+    expect(ProjectSimulationSetupSchema.parse(source)).toEqual(source);
+    expect(
+      CircuitProjectSchema.parse(projectWithSetup(source)).simulationSetups[0],
+    ).toEqual(source);
     expect(CircuitProjectJsonSchema).toMatchObject({
       properties: { simulationSetups: expect.anything() },
     });
@@ -901,7 +910,7 @@ describe("SimulationSetup schema", () => {
         { kind: "variable", variableId: "load", values: ["5k", "10k"] },
       ],
     };
-    expect(SimulationSetupSchema.parse(candidate)).toEqual(candidate);
+    expect(LegacySimulationSetupSchema.parse(candidate)).toEqual(candidate);
 
     const duplicateBinding = structuredClone(candidate);
     duplicateBinding.input.designVariables.push({
@@ -911,7 +920,7 @@ describe("SimulationSetup schema", () => {
       bindings: [...candidate.input.designVariables[0]!.bindings],
     });
     expect(
-      SimulationSetupSchema.safeParse(duplicateBinding).error?.issues,
+      LegacySimulationSetupSchema.safeParse(duplicateBinding).error?.issues,
     ).toContainEqual(
       expect.objectContaining({
         message:
@@ -921,22 +930,22 @@ describe("SimulationSetup schema", () => {
   });
 
   it("preserves an unresolved simulation root for preparation diagnostics", () => {
-    const orphaned = setup();
-    orphaned.input.rootDocumentId = "missing-testbench";
-    const result = CircuitProjectSchema.safeParse(projectWithSetup(orphaned));
-    expect(result.success).toBe(true);
-    expect(result.data?.simulationSetups[0]).toEqual({
+    const orphaned = createSourceSimulationSetup({
       id: "setup-1",
       name: "Setup 1",
-      ...orphaned,
+      profileId: "test",
+      documentId: "missing-testbench",
     });
+    const result = CircuitProjectSchema.safeParse(projectWithSetup(orphaned));
+    expect(result.success).toBe(true);
+    expect(result.data?.simulationSetups[0]).toEqual(orphaned);
   });
 
   it("holds one analysis per kind and unique output ids", () => {
     const repeatedAnalysis = setup();
     repeatedAnalysis.input.analyses.push({ kind: "op" });
     expect(
-      SimulationSetupSchema.safeParse(repeatedAnalysis).error?.issues,
+      LegacySimulationSetupSchema.safeParse(repeatedAnalysis).error?.issues,
     ).toEqual([
       expect.objectContaining({
         message: "Duplicate simulation analysis: op",
@@ -949,7 +958,7 @@ describe("SimulationSetup schema", () => {
       label: "other-output",
     });
     expect(
-      SimulationSetupSchema.safeParse(repeatedProbe).error?.issues,
+      LegacySimulationSetupSchema.safeParse(repeatedProbe).error?.issues,
     ).toEqual([
       expect.objectContaining({
         message: "Duplicate ID: probe-out",
@@ -962,7 +971,7 @@ describe("SimulationSetup schema", () => {
       label: repeatedLabel.input.outputs[0]!.label.toUpperCase(),
     };
     expect(
-      SimulationSetupSchema.safeParse(repeatedLabel).error?.issues,
+      LegacySimulationSetupSchema.safeParse(repeatedLabel).error?.issues,
     ).toEqual([
       expect.objectContaining({
         message: `Duplicate simulation output label: ${repeatedLabel.input.outputs[1]!.label}`,
@@ -971,7 +980,9 @@ describe("SimulationSetup schema", () => {
     ]);
     const noAnalysis = setup();
     noAnalysis.input.analyses = [];
-    expect(SimulationSetupSchema.safeParse(noAnalysis).success).toBe(false);
+    expect(LegacySimulationSetupSchema.safeParse(noAnalysis).success).toBe(
+      false,
+    );
   });
 
   it("persists bounded measurement rules with analysis-appropriate methods", () => {
@@ -992,7 +1003,7 @@ describe("SimulationSetup schema", () => {
         method: { kind: "sample-at", coordinate: 10_000 },
       },
     ];
-    expect(SimulationSetupSchema.parse(measured)).toEqual(measured);
+    expect(LegacySimulationSetupSchema.parse(measured)).toEqual(measured);
 
     const invalid = structuredClone(measured);
     invalid.input.measurements![1]!.method = {
@@ -1000,7 +1011,7 @@ describe("SimulationSetup schema", () => {
       window: { start: 1, stop: 10 },
     };
     expect(
-      SimulationSetupSchema.safeParse(invalid).error?.issues,
+      LegacySimulationSetupSchema.safeParse(invalid).error?.issues,
     ).toContainEqual(
       expect.objectContaining({
         message:
@@ -1020,14 +1031,14 @@ describe("SimulationSetup schema", () => {
         occurrence: ["X1"],
       },
     ];
-    expect(SimulationSetupSchema.parse(selected)).toEqual(selected);
+    expect(LegacySimulationSetupSchema.parse(selected)).toEqual(selected);
 
     const withoutOp = structuredClone(selected);
     withoutOp.input.analyses = withoutOp.input.analyses.filter(
       (analysis) => analysis.kind !== "op",
     );
     expect(
-      SimulationSetupSchema.safeParse(withoutOp).error?.issues,
+      LegacySimulationSetupSchema.safeParse(withoutOp).error?.issues,
     ).toContainEqual(
       expect.objectContaining({
         message:
@@ -1065,12 +1076,12 @@ describe("SimulationSetup schema", () => {
         stopHz: 1e9,
       },
     ];
-    expect(SimulationSetupSchema.parse(noisy)).toEqual(noisy);
+    expect(LegacySimulationSetupSchema.parse(noisy)).toEqual(noisy);
 
     const invalid = structuredClone(noisy);
     const analysis = invalid.input.analyses[0];
     if (analysis?.kind === "noise") analysis.stopHz = analysis.startHz;
-    expect(SimulationSetupSchema.safeParse(invalid).success).toBe(false);
+    expect(LegacySimulationSetupSchema.safeParse(invalid).success).toBe(false);
   });
 
   it("bounds the AC sweep and the environment selection", () => {
@@ -1086,7 +1097,7 @@ describe("SimulationSetup schema", () => {
           ...overrides,
         } as SimulationStructuredInput["analyses"][number],
       ];
-      return SimulationSetupSchema.safeParse(candidate).success;
+      return LegacySimulationSetupSchema.safeParse(candidate).success;
     };
     expect(ac({})).toBe(true);
     expect(ac({ sweep: "lin" })).toBe(true);
@@ -1099,7 +1110,7 @@ describe("SimulationSetup schema", () => {
     expect(ac({ stopHz: Number.POSITIVE_INFINITY })).toBe(false);
     expect(ac({ tstop: 1 })).toBe(false);
     const tran = (overrides: Record<string, unknown>) =>
-      SimulationSetupSchema.safeParse({
+      LegacySimulationSetupSchema.safeParse({
         ...setup(),
         input: {
           ...setup().input,
@@ -1128,7 +1139,7 @@ describe("SimulationSetup schema", () => {
         ...candidate.input.environment,
         ...overrides,
       } as SimulationStructuredInput["environment"];
-      return SimulationSetupSchema.safeParse(candidate).success;
+      return LegacySimulationSetupSchema.safeParse(candidate).success;
     };
     expect(environment({ corner: undefined, temperatureC: undefined })).toBe(
       true,
@@ -1152,7 +1163,7 @@ describe("SimulationSetup schema", () => {
           ...overrides,
         } as SimulationStructuredInput["analyses"][number],
       ];
-      return SimulationSetupSchema.safeParse(candidate).success;
+      return LegacySimulationSetupSchema.safeParse(candidate).success;
     };
     expect(dc({})).toBe(true);
     expect(dc({ startValue: 1.8, stopValue: 0 })).toBe(true);
@@ -1184,10 +1195,10 @@ describe("SimulationSetup schema", () => {
         environment: { profileId: "custom-ngspice46-v1" },
       },
     };
-    expect(SimulationSetupSchema.parse(raw)).toEqual(raw);
-    expect(
-      CircuitProjectSchema.parse(projectWithSetup(raw)).simulationSetups[0],
-    ).toEqual({ id: "setup-1", name: "Setup 1", ...raw });
+    expect(LegacySimulationSetupSchema.parse(raw)).toEqual(raw);
+    expect(CircuitProjectSchema.safeParse(projectWithSetup(raw)).success).toBe(
+      false,
+    );
   });
 
   it("rejects ambiguous, unsafe, and oversized raw bundles", () => {
@@ -1202,20 +1213,22 @@ describe("SimulationSetup schema", () => {
         ...overrides,
       },
     });
-    expect(SimulationSetupSchema.safeParse(rawInput()).success).toBe(true);
+    expect(LegacySimulationSetupSchema.safeParse(rawInput()).success).toBe(
+      true,
+    );
     expect(
-      SimulationSetupSchema.safeParse(rawInput({ entry: "missing.cir" }))
+      LegacySimulationSetupSchema.safeParse(rawInput({ entry: "missing.cir" }))
         .success,
     ).toBe(false);
     for (const path of ["../tb.cir", "/tb.cir", "C:/tb.cir", ".spiceinit"]) {
       expect(
-        SimulationSetupSchema.safeParse(
+        LegacySimulationSetupSchema.safeParse(
           rawInput({ files: [{ path, text: ".end\n" }], entry: path }),
         ).success,
       ).toBe(false);
     }
     expect(
-      SimulationSetupSchema.safeParse(
+      LegacySimulationSetupSchema.safeParse(
         rawInput({
           files: [
             { path: "tb.cir", text: "" },
@@ -1225,14 +1238,14 @@ describe("SimulationSetup schema", () => {
       ).success,
     ).toBe(false);
     expect(
-      SimulationSetupSchema.safeParse(
+      LegacySimulationSetupSchema.safeParse(
         rawInput({
           files: [{ path: "tb.cir", text: "x".repeat(1024 * 1024 + 1) }],
         }),
       ).success,
     ).toBe(false);
     expect(
-      SimulationSetupSchema.safeParse(
+      LegacySimulationSetupSchema.safeParse(
         rawInput({
           dependencies: [
             {
@@ -1248,14 +1261,14 @@ describe("SimulationSetup schema", () => {
 
   it("rejects transient run data and unknown input forms", () => {
     expect(
-      SimulationSetupSchema.safeParse({ ...setup(), lastRunId: "run-1" })
+      LegacySimulationSetupSchema.safeParse({ ...setup(), lastRunId: "run-1" })
         .success,
     ).toBe(false);
     expect(
-      SimulationSetupSchema.safeParse({ ...setup(), version: 1 }).success,
+      LegacySimulationSetupSchema.safeParse({ ...setup(), version: 1 }).success,
     ).toBe(false);
     expect(
-      SimulationSetupSchema.safeParse({
+      LegacySimulationSetupSchema.safeParse({
         version: 1,
         input: { kind: "legacy-raw", entryPath: "tb.cir", files: [] },
       }).success,

@@ -1,10 +1,13 @@
 import { z } from "zod";
+import { SimulationRawPlotOrdinalsSchema } from "@icm/spice-run";
+import { SimulationRunVariantSchema } from "@icm/model";
 import { SimulationResultSchema } from "@icm/spice-run";
 import {
   ObjectLocatorSchema,
   SimulationRunPlanAxisSchema,
   SimulationEnvironmentSelectionSchema,
   SimulationMeasurementSpecSchema,
+  SourceSpanSchema,
 } from "@icm/model";
 import type {
   CompiledSimulationDeviceOperatingPoint,
@@ -15,6 +18,18 @@ import type {
 export const Id = z.string().min(1).max(256);
 export const Digest = z.string().regex(/^[a-f0-9]{64}$/u);
 export const EnvironmentSchema = SimulationEnvironmentSelectionSchema;
+export const SimulationSourceLocationSchema = z.strictObject({
+  scope: z.enum(["authored", "generated", "prepared"]),
+  path: z.string(),
+  textDigest: Digest,
+  startOffset: z.number().int().nonnegative(),
+  endOffset: z.number().int().nonnegative(),
+  line: z.number().int().positive(),
+  column: z.number().int().positive(),
+});
+export type SimulationSourceLocation = z.infer<
+  typeof SimulationSourceLocationSchema
+>;
 export const ProblemSchema = z.strictObject({
   code: Id,
   message: z.string(),
@@ -29,6 +44,7 @@ export const ProblemSchema = z.strictObject({
   ]),
   retryAfterMs: z.number().nonnegative().optional(),
   correlationId: Id.optional(),
+  currentRevision: z.number().int().nonnegative().optional(),
   diagnostics: z
     .array(
       z.strictObject({
@@ -37,6 +53,9 @@ export const ProblemSchema = z.strictObject({
         severity: z.enum(["error", "warning", "info"]),
         primary: ObjectLocatorSchema.optional(),
         field: z.string().optional(),
+        path: z.string().optional(),
+        sourceRef: SourceSpanSchema.optional(),
+        source: SimulationSourceLocationSchema.optional(),
       }),
     )
     .optional(),
@@ -61,7 +80,7 @@ export type ArtifactRef = z.infer<typeof ArtifactRefSchema>;
 export const VectorSchema = z.strictObject({
   probeId: Id,
   vector: z.string(),
-  quantity: z.enum(["voltage", "current"]),
+  quantity: z.enum(["voltage", "current", "native"]),
 });
 export const CompiledOutputExpressionSchema: z.ZodType<CompiledSimulationExpression> =
   z.lazy(() =>
@@ -69,7 +88,7 @@ export const CompiledOutputExpressionSchema: z.ZodType<CompiledSimulationExpress
       z.strictObject({
         kind: z.literal("acquisition"),
         acquisitionId: Id,
-        quantity: z.enum(["voltage", "current"]),
+        quantity: z.enum(["voltage", "current", "native"]),
       }),
       z.strictObject({
         kind: z.literal("constant"),
@@ -129,7 +148,8 @@ export const PreparedSchema = z.strictObject({
   digest: Digest,
   inputRevision: z.string(),
   expiresAt: z.number(),
-  mode: z.enum(["structured", "raw"]),
+  // Historical receipts may still be read; new preparations always use source.
+  mode: z.enum(["source", "structured", "raw"]),
   environment: EnvironmentSchema,
   vectors: z.array(VectorSchema),
   outputs: z.array(CompiledOutputSchema),
@@ -154,6 +174,7 @@ export const EvaluatedScalarSchema = z.strictObject({
   value: z.number().finite(),
 });
 export const EvaluatedAnalysisSchema = z.strictObject({
+  rawPlotOrdinals: SimulationRawPlotOrdinalsSchema.optional(),
   analysis: z.enum(["op", "dc", "ac", "tran", "noise"]),
   plotName: z.string(),
   domain: z
@@ -169,6 +190,7 @@ export const EvaluatedAnalysisSchema = z.strictObject({
 });
 export const AutomaticMeasurementSchema = z.discriminatedUnion("status", [
   z.strictObject({
+    rawPlotOrdinals: SimulationRawPlotOrdinalsSchema.optional(),
     id: Id,
     analysisIndex: z.number().int().nonnegative(),
     analysis: z.enum(["op", "dc", "ac", "tran", "noise"]),
@@ -202,6 +224,7 @@ export const AutomaticMeasurementSchema = z.discriminatedUnion("status", [
     value: z.number().finite(),
   }),
   z.strictObject({
+    rawPlotOrdinals: SimulationRawPlotOrdinalsSchema.optional(),
     id: Id,
     analysisIndex: z.number().int().nonnegative(),
     analysis: z.enum(["op", "dc", "ac", "tran", "noise"]),
@@ -242,6 +265,8 @@ export const SimulationOutputDataSchema = z.strictObject({
   deviceOperatingPoints: z
     .array(
       z.strictObject({
+        analysisIndex: z.number().int().nonnegative().optional(),
+        rawPlotOrdinals: SimulationRawPlotOrdinalsSchema.optional(),
         id: Id,
         documentId: Id,
         instanceId: Id,
@@ -270,7 +295,13 @@ export const SimulationOutputDataSchema = z.strictObject({
     )
     .optional(),
   diagnostics: z.array(
-    z.strictObject({ outputId: Id, code: Id, message: z.string() }),
+    z.strictObject({
+      outputId: Id,
+      code: Id,
+      message: z.string(),
+      analysisIndex: z.number().int().nonnegative().optional(),
+      rawPlotOrdinals: SimulationRawPlotOrdinalsSchema.optional(),
+    }),
   ),
 });
 export type SimulationOutputData = z.infer<typeof SimulationOutputDataSchema>;
@@ -279,42 +310,12 @@ export const InputSourceSchema = z.discriminatedUnion("kind", [
     kind: z.literal("project-setup"),
     setupId: Id,
     expectedStructureRevision: z.number().int().nonnegative(),
-    variant: z
-      .strictObject({
-        environment: z
-          .strictObject({
-            corner: z.string().min(1).max(64).optional(),
-            temperatureC: z.number().finite().optional(),
-          })
-          .optional(),
-        parameters: z
-          .array(
-            z.strictObject({
-              documentId: Id,
-              instanceId: Id,
-              parameter: z.string().min(1).max(128),
-              value: z.string().max(4096),
-            }),
-          )
-          .max(16)
-          .optional(),
-        variables: z
-          .array(
-            z.strictObject({
-              variableId: Id,
-              value: z.string().trim().min(1).max(4096),
-            }),
-          )
-          .max(16)
-          .optional(),
-      })
-      .optional(),
+    variant: SimulationRunVariantSchema.optional(),
   }),
   z.strictObject({
     kind: z.literal("workspace"),
     workspaceId: Id,
     expectedRevision: z.number().int().nonnegative(),
-    environment: EnvironmentSchema.pick({ profileId: true }),
   }),
 ]);
 export const SimulationBatchItemRequestSchema = z.strictObject({
@@ -407,7 +408,10 @@ export const SimulationOperationSchema = z.discriminatedUnion("operation", [
 export type SimulationOperation = z.infer<typeof SimulationOperationSchema>;
 export const CapabilitiesSchema = z.strictObject({
   configured: z.boolean(),
-  inputs: z.array(z.enum(["structured", "raw"])),
+  /** Explicit collection protocol; absent on pre-source deployments. */
+  rawfileCollection: z.literal("declared-single-ascii").optional(),
+  maxInputFiles: z.number().int().positive().optional(),
+  inputs: z.array(z.enum(["source", "structured", "raw"])),
   analyses: z.array(z.enum(["op", "dc", "ac", "tran", "noise"])),
   parsedAnalyses: z.array(z.enum(["op", "dc", "ac", "tran", "noise"])),
   profiles: z.array(

@@ -34,16 +34,18 @@ function point(
 }
 
 function compatibleUnit(left: string, right: string): string | null {
-  return left === right ? left : null;
+  return left !== "" && left === right ? left : null;
 }
 
 function productUnit(left: string, right: string): string {
+  if (!left || !right) return "";
   if (left === "1") return right;
   if (right === "1") return left;
   return `${left}·${right}`;
 }
 
 function quotientUnit(left: string, right: string): string {
+  if (!left || !right) return "";
   if (left === right) return "1";
   if (right === "1") return left;
   return `${left}/${right}`;
@@ -206,7 +208,12 @@ function sourceSeries(
   for (const vector of vectors) {
     const source = byName.get(vector.vector.toLowerCase());
     if (!source) continue;
-    const unit = vector.quantity === "voltage" ? "V" : "A";
+    const unit =
+      vector.quantity === "native"
+        ? (source.unit ?? "")
+        : vector.quantity === "voltage"
+          ? "V"
+          : "A";
     if (analysis.analysis === "ac" && "real" in source) {
       result.set(vector.probeId, {
         unit,
@@ -238,10 +245,14 @@ export function evaluateSimulationOutputs(
 ): SimulationOutputData {
   const diagnostics: SimulationOutputData["diagnostics"] = [];
   const analyses: SimulationOutputData["analyses"] = data.analyses.map(
-    (analysis) => {
+    (analysis, analysisIndex) => {
+      const rawOrigin = analysis.rawPlotOrdinals
+        ? { rawPlotOrdinals: [...analysis.rawPlotOrdinals] }
+        : {};
       if (analysis.analysis === "noise") {
         return {
           analysis: "noise" as const,
+          ...rawOrigin,
           plotName: analysis.plotName,
           domain: {
             name: "Frequency",
@@ -301,6 +312,8 @@ export function evaluateSimulationOutputs(
           ];
         } catch (error) {
           diagnostics.push({
+            analysisIndex,
+            ...rawOrigin,
             outputId: output.id,
             code: "SIMULATION_OUTPUT_EVALUATION_FAILED",
             message:
@@ -327,60 +340,73 @@ export function evaluateSimulationOutputs(
               : undefined;
       return {
         analysis: analysis.analysis,
+        ...rawOrigin,
         plotName: analysis.plotName,
         ...(domain ? { domain } : {}),
         outputs: evaluated,
       };
     },
   );
-  const operatingPoint = data.analyses.find(
-    (analysis) => analysis.analysis === "op",
+  const operatingPoints = data.analyses.flatMap((analysis, index) =>
+    analysis.analysis === "op" ? [{ analysis, index }] : [],
   );
-  const deviceOperatingPoints = deviceOperatingPointSpecs.map((device) => {
-    const acquisitions = operatingPoint
-      ? sourceSeries(operatingPoint, vectors)
-      : new Map();
-    return {
-      id: device.id,
-      documentId: device.documentId,
-      instanceId: device.instanceId,
-      occurrence: [...device.occurrence],
-      reference: device.reference,
-      polarity: device.polarity,
-      values: device.values.map((parameter) => {
-        if (!operatingPoint)
-          return {
-            parameter: parameter.parameter,
-            label: parameter.label,
-            unit: parameter.unit,
-            status: "unavailable" as const,
-            reason: "The run returned no operating-point analysis",
-          };
-        try {
-          const series = evaluate(parameter.expression, acquisitions, 1);
-          const value = series.real[0];
-          if (value === undefined || value === null || !Number.isFinite(value))
-            throw new Error("The operating-point value is unavailable");
-          return {
-            parameter: parameter.parameter,
-            label: parameter.label,
-            unit: parameter.unit,
-            status: "available" as const,
-            value,
-          };
-        } catch (error) {
-          return {
-            parameter: parameter.parameter,
-            label: parameter.label,
-            unit: parameter.unit,
-            status: "unavailable" as const,
-            reason:
-              error instanceof Error ? error.message : "Evaluation failed",
-          };
-        }
-      }),
-    };
-  });
+  const records = operatingPoints.length ? operatingPoints : [undefined];
+  const deviceOperatingPoints = records.flatMap((record) =>
+    deviceOperatingPointSpecs.map((device) => {
+      const operatingPoint = record?.analysis;
+      const acquisitions = operatingPoint
+        ? sourceSeries(operatingPoint, vectors)
+        : new Map();
+      return {
+        id: device.id,
+        ...(record ? { analysisIndex: record.index } : {}),
+        ...(operatingPoint?.rawPlotOrdinals
+          ? { rawPlotOrdinals: [...operatingPoint.rawPlotOrdinals] }
+          : {}),
+        documentId: device.documentId,
+        instanceId: device.instanceId,
+        occurrence: [...device.occurrence],
+        reference: device.reference,
+        polarity: device.polarity,
+        values: device.values.map((parameter) => {
+          if (!operatingPoint)
+            return {
+              parameter: parameter.parameter,
+              label: parameter.label,
+              unit: parameter.unit,
+              status: "unavailable" as const,
+              reason: "The run returned no operating-point analysis",
+            };
+          try {
+            const series = evaluate(parameter.expression, acquisitions, 1);
+            const value = series.real[0];
+            if (
+              value === undefined ||
+              value === null ||
+              !Number.isFinite(value)
+            )
+              throw new Error("The operating-point value is unavailable");
+            return {
+              parameter: parameter.parameter,
+              label: parameter.label,
+              unit: parameter.unit,
+              status: "available" as const,
+              value,
+            };
+          } catch (error) {
+            return {
+              parameter: parameter.parameter,
+              label: parameter.label,
+              unit: parameter.unit,
+              status: "unavailable" as const,
+              reason:
+                error instanceof Error ? error.message : "Evaluation failed",
+            };
+          }
+        }),
+      };
+    }),
+  );
   return {
     schemaVersion: 1,
     diagnostics,
@@ -398,11 +424,26 @@ export function simulationDeviceOperatingPointsToCsv(
 ): string {
   const quote = (value: string | number) =>
     `"${String(value).replaceAll('"', '""')}"`;
+  const multiple =
+    new Set(devices.map((device) => device.analysisIndex)).size > 1;
   return (
     [
-      ["Device", "Parameter", "Value", "Unit", "Status"],
+      [
+        ...(multiple ? ["Analysis index", "Raw plot ordinals"] : []),
+        "Device",
+        "Parameter",
+        "Value",
+        "Unit",
+        "Status",
+      ],
       ...devices.flatMap((device) =>
         device.values.map((value) => [
+          ...(multiple
+            ? [
+                device.analysisIndex ?? "",
+                device.rawPlotOrdinals?.join(";") ?? "",
+              ]
+            : []),
           device.reference,
           value.label,
           value.status === "available" ? value.value : value.reason,

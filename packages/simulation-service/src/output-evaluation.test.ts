@@ -1,8 +1,141 @@
 import { describe, expect, it } from "vitest";
 
-import { evaluateSimulationOutputs } from "./output-evaluation.js";
+import {
+  evaluateSimulationOutputs,
+  simulationDeviceOperatingPointsToCsv,
+} from "./output-evaluation.js";
+import { SimulationOutputDataSchema } from "./contract.js";
 
 describe("simulation output evaluation", () => {
+  it("keeps MOS terminal values and automatic/authored measurements for each raw OP record", () => {
+    const result = evaluateSimulationOutputs(
+      {
+        schemaVersion: 1,
+        analyses: [1, 2].map((value, i) => ({
+          analysis: "op",
+          plotName: "Operating Point",
+          rawPlotOrdinals: [i + 3],
+          probes: [{ name: "v(g)", quantity: "voltage", unit: "V", value }],
+        })),
+      },
+      [{ probeId: "gate", vector: "v(g)", quantity: "voltage" }],
+      [
+        {
+          id: "gate-voltage",
+          label: "Gate voltage",
+          expression: {
+            kind: "acquisition",
+            acquisitionId: "gate",
+            quantity: "voltage",
+          },
+        },
+      ],
+      [
+        {
+          id: "vg",
+          label: "Gate",
+          analysis: "op",
+          outputId: "gate-voltage",
+          method: { kind: "value" },
+        },
+      ],
+      [
+        {
+          id: "mos",
+          documentId: "dut",
+          instanceId: "M1",
+          occurrence: [],
+          reference: "M1",
+          polarity: "nmos",
+          values: [
+            {
+              parameter: "vgs",
+              label: "VGS",
+              unit: "V",
+              expression: {
+                kind: "acquisition",
+                acquisitionId: "gate",
+                quantity: "voltage",
+              },
+            },
+          ],
+        },
+      ],
+    );
+    expect(SimulationOutputDataSchema.safeParse(result).success).toBe(true);
+    expect(result.analyses.map((a) => a.rawPlotOrdinals)).toEqual([[3], [4]]);
+    expect(
+      result.measurements?.filter((m) => m.origin === "authored"),
+    ).toMatchObject([
+      { rawPlotOrdinals: [3], value: 1 },
+      { rawPlotOrdinals: [4], value: 2 },
+    ]);
+    expect(
+      result.measurements?.filter((m) => m.origin === "automatic"),
+    ).toMatchObject([
+      { rawPlotOrdinals: [3], value: 1 },
+      { rawPlotOrdinals: [4], value: 2 },
+    ]);
+    expect(result.deviceOperatingPoints).toMatchObject([
+      { analysisIndex: 0, rawPlotOrdinals: [3], values: [{ value: 1 }] },
+      { analysisIndex: 1, rawPlotOrdinals: [4], values: [{ value: 2 }] },
+    ]);
+    const csv = simulationDeviceOperatingPointsToCsv(
+      result.deviceOperatingPoints!,
+    );
+    expect(csv).toContain('"Analysis index","Raw plot ordinals"');
+    expect(csv).toContain('"1","4","M1","VGS","2"');
+  });
+  it("uses declared raw units for native vectors and never invents a unit", () => {
+    const result = evaluateSimulationOutputs(
+      {
+        schemaVersion: 1,
+        analyses: [
+          {
+            analysis: "op",
+            plotName: "Operating Point",
+            probes: [
+              {
+                name: "custom",
+                quantity: "resistance",
+                value: 10,
+                unit: "Ohm",
+              },
+              { name: "unknown", quantity: "other", value: 4, unit: null },
+            ],
+          },
+        ],
+      },
+      [
+        { probeId: "a", vector: "custom", quantity: "native" },
+        { probeId: "b", vector: "unknown", quantity: "native" },
+      ],
+      [
+        {
+          id: "r",
+          label: "Resistance",
+          expression: {
+            kind: "acquisition",
+            acquisitionId: "a",
+            quantity: "native",
+          },
+        },
+        {
+          id: "u",
+          label: "Unknown quantity",
+          expression: {
+            kind: "acquisition",
+            acquisitionId: "b",
+            quantity: "native",
+          },
+        },
+      ],
+    );
+    expect(result.analyses[0]!.outputs).toEqual([
+      expect.objectContaining({ id: "r", unit: "Ohm", values: [10] }),
+      expect.objectContaining({ id: "u", unit: "", values: [4] }),
+    ]);
+  });
   it("groups terminal-derived MOS values without exposing private vectors", () => {
     const result = evaluateSimulationOutputs(
       {

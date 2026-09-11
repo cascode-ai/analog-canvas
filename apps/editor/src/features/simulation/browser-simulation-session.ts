@@ -1,5 +1,6 @@
 import type { CircuitProject } from "@icm/model";
 import { SimulationFiles } from "@icm/simulation-service/files";
+import type { ProjectSimulationFileHost } from "@icm/simulation-service/files";
 import type {
   SimulationOperation,
   SimulationReply,
@@ -10,6 +11,7 @@ export interface BrowserSimulationSessionOptions {
   getProjectSessionId(): string;
   getProject(): CircuitProject;
   files?: SimulationFiles;
+  projectFiles?: ProjectSimulationFileHost;
   fetch?: typeof fetch;
   /** Explicit deployment composition; never inferred after a start fails. */
   transport?: "direct" | "managed";
@@ -24,7 +26,8 @@ export class BrowserSimulationSession {
   private readonly projectSessionId: string;
   constructor(private options: BrowserSimulationSessionOptions) {
     this.projectSessionId = options.getProjectSessionId();
-    this.files = options.files ?? new SimulationFiles();
+    this.files =
+      options.files ?? new SimulationFiles(Date.now, options.projectFiles);
   }
   async clear() {
     this.generation++;

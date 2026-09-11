@@ -14,6 +14,7 @@ against. They describe required behavior and invariants, not task history.
 | [`symbol-dsl.md`](symbol-dsl.md)                             | accepted | Geometry, electrical/visual pins, variants, validation                                   |
 | [`spice-frontend.md`](spice-frontend.md)                     | accepted | Lossless syntax, dialects, includes, expressions, elaboration                            |
 | [`simulation.md`](simulation.md)                             | accepted | Saved setups, Testbench roots, expressions, sources, and structured compilation          |
+| [`simulation-code-workspace.md`](simulation-code-workspace.md) | accepted target | C0 source-authoring replacement contract; implementation and UI acceptance pending |
 | [`simulation-execution.md`](simulation-execution.md)         | accepted | Profiles, preparation, execution, retention, File artifacts, and qualification           |
 | [`simulation-results.md`](simulation-results.md)             | accepted | Numeric evidence, rawfiles, units, measurements, and CSV                                 |
 | [`connectivity-and-routing.md`](connectivity-and-routing.md) | accepted | Physical/Logical Nets, Route graph, contacts, guidance, cuts, and locks                  |

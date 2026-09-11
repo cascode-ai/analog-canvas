@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { createEmptyProject, CURRENT_PROJECT_SCHEMA_VERSION } from "@icm/model";
+import { migrateSimulationSetupToSource } from "@icm/netlist";
 
 import { tryParseProjectWithMetadata } from "./load.js";
 import { serializeProject } from "./save.js";
@@ -50,15 +51,10 @@ describe("schema 38 to 39 migration (raw SimulationSetup)", () => {
           {
             id: "simulation-setup-1",
             name: "Setup 1",
-            version: 3,
+            version: 4,
             input: {
-              kind: "structured",
-              rootDocumentId: "tb",
-              analyses: [{ kind: "op" }],
-              outputs: [],
-              designVariables: [],
-              runPlan: { mode: "nominal" },
-              environment: { profileId: "profile" },
+              kind: "source",
+              circuitBindings: [{ documentId: "tb", emission: "top-level" }],
             },
           },
         ],
@@ -68,30 +64,32 @@ describe("schema 38 to 39 migration (raw SimulationSetup)", () => {
 
   it("round-trips raw authored files byte-identically", () => {
     const project = createEmptyProject("raw", "Raw");
-    project.simulationSetups.push({
-      id: "setup-raw",
-      name: "Raw",
-      version: 3,
-      input: {
-        kind: "raw",
-        entry: "tb.cir",
-        files: [
-          {
-            path: "dut.spi",
-            text: ".subckt DUT in out\nR1 in out 1k\n.ends DUT\n",
-          },
-          { path: "tb.cir", text: ".include dut.spi\nX1 in out DUT\n.end\n" },
-        ],
-        dependencies: [
-          {
-            id: "models/sky130-core",
-            mountPath: "models/sky130.lib.spice",
-            sha256: "a".repeat(64),
-          },
-        ],
-        environment: { profileId: "custom-ngspice46-v1" },
-      },
-    });
+    project.simulationSetups.push(
+      migrateSimulationSetupToSource(project, {
+        id: "setup-raw",
+        name: "Raw",
+        version: 3,
+        input: {
+          kind: "raw",
+          entry: "tb.cir",
+          files: [
+            {
+              path: "dut.spi",
+              text: ".subckt DUT in out\nR1 in out 1k\n.ends DUT\n",
+            },
+            { path: "tb.cir", text: ".include dut.spi\nX1 in out DUT\n.end\n" },
+          ],
+          dependencies: [
+            {
+              id: "models/sky130-core",
+              mountPath: "models/sky130.lib.spice",
+              sha256: "a".repeat(64),
+            },
+          ],
+          environment: { profileId: "custom-ngspice46-v1" },
+        },
+      }).setup,
+    );
 
     const serialized = serializeProject(project);
     const loaded = tryParseProjectWithMetadata(serialized);

@@ -1,4 +1,4 @@
-import { createEmptyProject } from "@icm/model";
+import { createEmptyProject, createSourceSimulationSetup } from "@icm/model";
 import { describe, expect, it, vi } from "vitest";
 
 import type { InteractionMode } from "../interaction/interaction-state";
@@ -79,20 +79,12 @@ describe("editor transaction commands", () => {
       commands.transactStructure("upsert-simulation-setup", [
         {
           kind: "upsert_simulation_setup",
-          setup: {
+          setup: createSourceSimulationSetup({
             id: "setup-1",
             name: "OP",
-            version: 3,
-            input: {
-              kind: "structured",
-              designVariables: [],
-              runPlan: { mode: "nominal" },
-              rootDocumentId: input.document.id,
-              analyses: [{ kind: "op" }],
-              outputs: [],
-              environment: { profileId: "profile" },
-            },
-          },
+            documentId: input.document.id,
+            profileId: "profile",
+          }),
         },
       ]),
     ).toBe(unchanged);

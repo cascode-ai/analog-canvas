@@ -37,6 +37,9 @@ function resultBase(
   return {
     id: `authored:${spec.id}:${analysisIndex}`,
     analysisIndex,
+    ...(analysis.rawPlotOrdinals
+      ? { rawPlotOrdinals: [...analysis.rawPlotOrdinals] }
+      : {}),
     analysis: analysis.analysis,
     plotName: analysis.plotName,
     outputId: output.id,
@@ -167,121 +170,123 @@ export function deriveAuthoredMeasurements(
   analyses: readonly Analysis[],
   specs: readonly SimulationMeasurementSpec[],
 ): Result[] {
-  return specs.map((spec) => {
-    const analysisIndex = analyses.findIndex(
-      (analysis) => analysis.analysis === spec.analysis,
+  return specs.flatMap((spec) => {
+    const matching = analyses.flatMap((analysis, index) =>
+      analysis.analysis === spec.analysis ? [index] : [],
     );
-    const analysis = analyses[analysisIndex];
-    const output = analysis?.outputs.find(
-      (candidate) => candidate.id === spec.outputId,
-    );
-    if (!analysis || !output) {
-      const fallbackAnalysis =
-        analysis ??
-        ({
-          analysis: spec.analysis,
-          plotName: spec.analysis.toUpperCase(),
-          outputs: [],
-        } as Analysis);
-      const fallbackOutput =
-        output ??
-        ({
-          id: spec.outputId,
-          label: spec.outputId,
-          unit: "",
-          values: [],
-        } as Output);
-      return unavailable(
-        spec,
-        fallbackAnalysis,
-        Math.max(0, analysisIndex),
-        fallbackOutput,
-        analysis
-          ? "The referenced Output is unavailable"
-          : "The referenced analysis result is unavailable",
+    return (matching.length ? matching : [-1]).map((analysisIndex) => {
+      const analysis = analyses[analysisIndex];
+      const output = analysis?.outputs.find(
+        (candidate) => candidate.id === spec.outputId,
       );
-    }
-    if (output.imaginary)
-      return unavailable(
-        spec,
-        analysis,
-        analysisIndex,
-        output,
-        "Define an explicit mag, db20, phase, real, or imag Output before measuring complex AC data",
-      );
+      if (!analysis || !output) {
+        const fallbackAnalysis =
+          analysis ??
+          ({
+            analysis: spec.analysis,
+            plotName: spec.analysis.toUpperCase(),
+            outputs: [],
+          } as Analysis);
+        const fallbackOutput =
+          output ??
+          ({
+            id: spec.outputId,
+            label: spec.outputId,
+            unit: "",
+            values: [],
+          } as Output);
+        return unavailable(
+          spec,
+          fallbackAnalysis,
+          Math.max(0, analysisIndex),
+          fallbackOutput,
+          analysis
+            ? "The referenced Output is unavailable"
+            : "The referenced analysis result is unavailable",
+        );
+      }
+      if (output.imaginary)
+        return unavailable(
+          spec,
+          analysis,
+          analysisIndex,
+          output,
+          "Define an explicit mag, db20, phase, real, or imag Output before measuring complex AC data",
+        );
 
-    const method = spec.method;
-    if (method.kind === "value")
-      return available(
-        spec,
-        analysis,
-        analysisIndex,
-        output,
-        output.values[0],
-        "The operating-point value is unavailable",
-      );
-    const domain = analysis.domain?.values;
-    if (!domain)
-      return unavailable(
-        spec,
-        analysis,
-        analysisIndex,
-        output,
-        "This measurement requires an analysis domain",
-      );
-    if (method.kind === "sample-at")
-      return available(
-        spec,
-        analysis,
-        analysisIndex,
-        output,
-        interpolate(domain, output.values, method.coordinate),
-        "The requested coordinate is outside the available finite samples",
-      );
+      const method = spec.method;
+      if (method.kind === "value")
+        return available(
+          spec,
+          analysis,
+          analysisIndex,
+          output,
+          output.values[0],
+          "The operating-point value is unavailable",
+        );
+      const domain = analysis.domain?.values;
+      if (!domain)
+        return unavailable(
+          spec,
+          analysis,
+          analysisIndex,
+          output,
+          "This measurement requires an analysis domain",
+        );
+      if (method.kind === "sample-at")
+        return available(
+          spec,
+          analysis,
+          analysisIndex,
+          output,
+          interpolate(domain, output.values, method.coordinate),
+          "The requested coordinate is outside the available finite samples",
+        );
 
-    const selected = method.window
-      ? windowSeries(
-          domain,
-          output.values,
-          method.window.start,
-          method.window.stop,
-        )
-      : { domain: [...domain], values: [...output.values] };
-    if (!selected)
-      return unavailable(
-        spec,
-        analysis,
-        analysisIndex,
-        output,
-        "The requested window is outside the available finite samples",
-      );
-    if (method.kind === "mean" || method.kind === "rms")
+      const selected = method.window
+        ? windowSeries(
+            domain,
+            output.values,
+            method.window.start,
+            method.window.stop,
+          )
+        : { domain: [...domain], values: [...output.values] };
+      if (!selected)
+        return unavailable(
+          spec,
+          analysis,
+          analysisIndex,
+          output,
+          "The requested window is outside the available finite samples",
+        );
+      if (method.kind === "mean" || method.kind === "rms")
+        return available(
+          spec,
+          analysis,
+          analysisIndex,
+          output,
+          weighted(selected.domain, selected.values, method.kind === "rms"),
+          "At least two increasing finite samples are required in the window",
+        );
+      const values = finite(selected.values);
+      const minimum = values.length ? Math.min(...values) : null;
+      const maximum = values.length ? Math.max(...values) : null;
+      const value =
+        method.kind === "minimum"
+          ? minimum
+          : method.kind === "maximum"
+            ? maximum
+            : minimum === null || maximum === null
+              ? null
+              : maximum - minimum;
       return available(
         spec,
         analysis,
         analysisIndex,
         output,
-        weighted(selected.domain, selected.values, method.kind === "rms"),
-        "At least two increasing finite samples are required in the window",
+        value,
+        "No finite samples are available in the requested range",
       );
-    const values = finite(selected.values);
-    const minimum = values.length ? Math.min(...values) : null;
-    const maximum = values.length ? Math.max(...values) : null;
-    const value =
-      method.kind === "minimum"
-        ? minimum
-        : method.kind === "maximum"
-          ? maximum
-          : minimum === null || maximum === null
-            ? null
-            : maximum - minimum;
-    return available(
-      spec,
-      analysis,
-      analysisIndex,
-      output,
-      value,
-      "No finite samples are available in the requested range",
-    );
+    });
   });
 }

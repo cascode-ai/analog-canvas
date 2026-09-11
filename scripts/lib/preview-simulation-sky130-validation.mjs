@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import {
   extendedQualification,
   profile,
@@ -12,11 +13,65 @@ import {
   transientAnalysis,
   validatePinnedEnvironment,
 } from "./preview-simulation-validation-core.mjs";
+
+/** Source runs carry their model load in the prepared input, not a second GUI field. */
+export function validateQualifiedModelSelection(
+  result,
+  expectedTarget,
+  sourceInput,
+) {
+  const metadata = object(result.metadata, "run metadata");
+  const selection = object(
+    metadata.configuration,
+    "configuration metadata",
+  ).modelLibrary;
+  if (selection !== null) {
+    const modelLibrary = object(selection, "model selection");
+    if (
+      modelLibrary.directive === qualification.modelLibrary.directive &&
+      modelLibrary.section === qualification.modelLibrary.section
+    )
+      return;
+  } else if (sourceInput) {
+    const dependency = sourceInput.dependencies?.find(
+      (item) =>
+        item.id === profile.models.id &&
+        item.sha256 === profile.models.contentSha256,
+    );
+    const relative =
+      dependency &&
+      "../".repeat(sourceInput.entryPath.split("/").length - 1) +
+        dependency.mountPath;
+    const expectedLoad = `.lib "${relative}" ${qualification.modelLibrary.section}`;
+    const input = object(metadata.input, "input metadata");
+    if (
+      dependency &&
+      sourceInput.environment?.profileId === profile.id &&
+      sourceInput.environment?.corner === qualification.modelLibrary.section &&
+      sourceInput.testbench
+        .split(/\r?\n/u)
+        .some((line) => line.trim() === expectedLoad) &&
+      createHash("sha256").update(sourceInput.testbench).digest("hex") ===
+        input.testbenchSha256 &&
+      sourceInput.inputRevision === input.inputRevision
+    ) {
+      validatePinnedEnvironment(
+        object(metadata.environment, "environment metadata"),
+        expectedTarget,
+      );
+      return;
+    }
+  }
+  throw Error(
+    `${expectedTarget} did not run the qualified model-library section with verified input evidence.`,
+  );
+}
 export function validateHostedSky130TransientResult(
   payload,
   expectedTarget,
   expectedInputRevision,
   expectedVectors,
+  sourceInput,
 ) {
   const { result, tran } = transientAnalysis(payload, expectedTarget);
   const metadata = object(result.metadata, "run metadata");
@@ -24,18 +79,7 @@ export function validateHostedSky130TransientResult(
   if (input.inputRevision !== expectedInputRevision) {
     throw new Error(`${expectedTarget} returned stale structured TRAN data.`);
   }
-  const modelLibrary = object(
-    object(metadata.configuration, "configuration metadata").modelLibrary,
-    "model selection",
-  );
-  if (
-    modelLibrary.directive !== qualification.modelLibrary.directive ||
-    modelLibrary.section !== qualification.modelLibrary.section
-  ) {
-    throw new Error(
-      `${expectedTarget} did not run TRAN with the qualified model-library section.`,
-    );
-  }
+  validateQualifiedModelSelection(result, expectedTarget, sourceInput);
   const expected = qualification.expectedTran;
   if (
     tran.timeSeconds.length !== expected.pointCount ||
@@ -89,6 +133,8 @@ export function validateHostedSky130NoiseResult(
   payload,
   expectedTarget,
   expectedInputRevision,
+  _expectedVectors,
+  sourceInput,
 ) {
   const { result, environment, noise } = parsedNoiseAnalysis(
     payload,
@@ -100,17 +146,7 @@ export function validateHostedSky130NoiseResult(
     expectedInputRevision
   )
     throw new Error(`${expectedTarget} returned stale structured Noise data.`);
-  const modelLibrary = object(
-    object(metadata.configuration, "configuration metadata").modelLibrary,
-    "model selection",
-  );
-  if (
-    modelLibrary.directive !== qualification.modelLibrary.directive ||
-    modelLibrary.section !== qualification.modelLibrary.section
-  )
-    throw new Error(
-      `${expectedTarget} did not run Noise with the qualified model-library section.`,
-    );
+  validateQualifiedModelSelection(result, expectedTarget, sourceInput);
   const expected = qualification.expectedNoise;
   if (environment.fingerprint !== expected.evidence.environmentFingerprint)
     throw new Error(
@@ -186,6 +222,7 @@ export function validateHostedSky130Result(
   expectedTarget,
   expectedInputRevision,
   expectedVectors,
+  sourceInput,
 ) {
   const result = object(payload, "simulation response");
   const execution = object(result.execution, "execution metadata");
@@ -206,19 +243,7 @@ export function validateHostedSky130Result(
       `[result:stale-input] requested ${expectedInputRevision}, but the Worker returned ${String(input.inputRevision)}.`,
     );
   }
-  const configuration = object(
-    metadata.configuration,
-    "configuration metadata",
-  );
-  const modelLibrary = object(configuration.modelLibrary, "model selection");
-  if (
-    modelLibrary.directive !== qualification.modelLibrary.directive ||
-    modelLibrary.section !== qualification.modelLibrary.section
-  ) {
-    throw new Error(
-      `${expectedTarget} did not run the qualified model-library section.`,
-    );
-  }
+  validateQualifiedModelSelection(result, expectedTarget, sourceInput);
   const environment = object(metadata.environment, "environment metadata");
   validatePinnedEnvironment(environment, expectedTarget);
 
@@ -395,6 +420,7 @@ export function validateHostedSky130Result(
     expectedTarget,
     expectedInputRevision,
     expectedVectors,
+    sourceInput,
   );
   return {
     target: expectedTarget,

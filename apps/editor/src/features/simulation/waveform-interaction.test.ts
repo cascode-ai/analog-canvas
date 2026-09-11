@@ -14,7 +14,7 @@ describe("waveform axes", () => {
     expect(responsiveWaveformHeight(1000)).toBe(520);
     expect(responsiveWaveformHeight(1200)).toBe(600);
     expect(responsiveWaveformHeight(2400)).toBe(600);
-    expect(responsiveWaveformHeight(1200, 800)).toBe(400);
+    expect(responsiveWaveformHeight(1200, 800)).toBe(352);
     expect(responsiveWaveformHeight(1200, 600)).toBe(320);
   });
 
