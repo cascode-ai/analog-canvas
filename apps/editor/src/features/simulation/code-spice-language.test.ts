@@ -20,6 +20,17 @@ describe("SPICE editor assistance", () => {
         sources,
       )?.options.map((o) => o.label),
     ).toEqual(["VBIAS"]);
+    const card = "* test\nR2 ";
+    const cardState = EditorState.create({
+      doc: card,
+      selection: { anchor: card.length },
+    });
+    expect(
+      spiceCompletion(
+        new CompletionContext(cardState, card.length, true),
+        sources,
+      )?.options.map((o) => o.label),
+    ).toEqual(["in", "0", "out"]);
   });
   it("guides AC parameters without inserting ghost text, including returning to earlier arguments", () => {
     const doc = "* test\n.control\nac dec 20 ";

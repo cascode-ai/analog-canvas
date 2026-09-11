@@ -81,7 +81,8 @@ export function spiceCompletion(
       const wantsSource = parameter === "source" || parameter === "inputSource";
       const wantsVector =
         parameter === "vector" || parameter === "v(out[,ref])";
-      if (!wantsSource && !wantsVector) return null;
+      const wantsNode = parameter === "n+" || parameter === "n-";
+      if (!wantsSource && !wantsVector && !wantsNode) return null;
       const symbols = new Set<string>();
       for (const text of [context.state.doc.toString(), ...relatedSources]) {
         let subckt = false;
@@ -93,6 +94,8 @@ export function spiceCompletion(
           if (!instance) continue;
           if (wantsSource && /^[VI]/iu.test(instance[1]!))
             symbols.add(instance[1]!);
+          if (wantsNode)
+            for (const node of instance.slice(2, 4)) symbols.add(node);
           if (wantsVector) {
             for (const node of instance.slice(2, 4)) symbols.add(`v(${node})`);
             if (/^V/iu.test(instance[1]!)) symbols.add(`i(${instance[1]})`);

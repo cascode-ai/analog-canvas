@@ -601,7 +601,7 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
           />
         )}
         <SimulationCodeEditor
-          relatedSources={input.files.map(
+          relatedSources={sourceFiles.map(
             (file) =>
               drafts.current.get(`${props.setup.id}\u0000${file.path}`)?.text ??
               file.text,

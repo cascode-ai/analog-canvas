@@ -182,19 +182,21 @@ export function insertSpiceHelp(
   view.focus();
 }
 
+export function dismissSpiceGuide(view: EditorView): boolean {
+  const closed = closeCompletion(view);
+  if (!parameterGuide(view.state) || view.state.field(guideDismissed, false))
+    return closed;
+  view.dispatch({ effects: dismissParameterGuide.of(true) });
+  return true;
+}
+
 export const spiceParameterGuide = [
   guideDismissed,
   ghost,
   keymap.of([
     {
       key: "Escape",
-      run(view) {
-        const closed = closeCompletion(view);
-        if (!parameterGuide(view.state) || view.state.field(guideDismissed))
-          return closed;
-        view.dispatch({ effects: dismissParameterGuide.of(true) });
-        return true;
-      },
+      run: dismissSpiceGuide,
     },
     {
       key: "Tab",

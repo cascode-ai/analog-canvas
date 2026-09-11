@@ -61,6 +61,7 @@ import {
   insertSpiceHelp,
   spiceParameterGuide,
   dismissParameterGuide,
+  dismissSpiceGuide,
   parameterGuide,
 } from "./code-parameter-guide";
 import { CodeHelperList, type CodeHelperAction } from "./code-helper-list";
@@ -365,6 +366,18 @@ export default function SimulationCodeEditor(props: SimulationCodeEditorProps) {
             const line = editor.state.doc.lineAt(
               editor.state.selection.main.head,
             );
+            if (
+              /^(PULSE|SIN|PWL)$/u.test(rule.name) &&
+              /^[VI]\S*\s/iu.test(line.text.trim())
+            ) {
+              insertSpiceHelp(
+                editor,
+                rule,
+                editor.state.selection.main.from,
+                editor.state.selection.main.to,
+              );
+              return;
+            }
             // Replace an unfinished command only. Existing populated code is preserved.
             if (/^\s*[.\p{L}\w]*$/u.test(line.text))
               insertSpiceHelp(editor, rule);
@@ -382,6 +395,16 @@ export default function SimulationCodeEditor(props: SimulationCodeEditorProps) {
         ref={parent}
         className="simulation-code-editor"
         onKeyDownCapture={(event) => {
+          if (
+            event.key === "Escape" &&
+            props.mode !== "json" &&
+            view.current &&
+            dismissSpiceGuide(view.current)
+          ) {
+            event.preventDefault();
+            event.stopPropagation();
+            return;
+          }
           if (
             !event.ctrlKey ||
             event.code !== "Space" ||
