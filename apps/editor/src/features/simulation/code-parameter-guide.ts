@@ -83,7 +83,9 @@ export function parameterGuide(state: EditorState) {
               ? "points / decade"
               : tokens[0]?.value.toLowerCase() === "oct"
                 ? "points / octave"
-                : "points (total)",
+                : tokens[0]?.value.toLowerCase() === "lin"
+                  ? "points (total)"
+                  : "points",
         }
       : p,
   );

@@ -57,9 +57,15 @@ export function CodeHelperList({
     return () => document.removeEventListener("pointerdown", close);
   }, [onClose]);
   const choose = (index: number) => {
-    entries[index]?.run();
+    if (!entries[index]) return;
+    entries[index].run();
     onClose();
   };
+  useEffect(() => {
+    root.current
+      ?.querySelector('[aria-selected="true"]')
+      ?.scrollIntoView({ block: "nearest" });
+  }, [selected, query]);
   return (
     <div
       ref={root}
