@@ -39,6 +39,13 @@ palette-first manual authoring; no Project file needs to be opened first.
   the rest of the wire. Use the contextual
   **Remove route geometry** action to keep logical membership while deleting
   only the drawn route.
+- Select a component and press `Q` to open **Properties**. Its editable
+  **Canvas properties** JSON keeps position as `"at": [x, y]`, plus quarter-turn
+  rotation, mirror, supported Reference/Value visibility, and automatic or hex
+  foreground/background colors. Edit the code and choose **Apply code** (or
+  press `Ctrl`/`Cmd`+`Enter`); invalid or unknown properties are reported
+  without changing the drawing. Electrical parameters and the read-only SPICE
+  card remain below it. Drag the panel's left edge to set a comfortable width.
 - Right-click an endpoint for the distinct **Disconnect endpoint** and
   **Delete connection** actions.
 - `Delete` on a connected component now removes the component while preserving

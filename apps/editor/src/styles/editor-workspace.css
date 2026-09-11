@@ -64,6 +64,16 @@
   background: transparent;
 }
 
+.properties-resize-handle {
+  grid-area: props;
+  z-index: 14;
+  width: 9px;
+  margin-left: -5px;
+  cursor: col-resize;
+  touch-action: none;
+  background: transparent;
+}
+
 .editor-right-dock {
   grid-area: props;
   display: flex;
@@ -110,7 +120,9 @@
 }
 
 .simulation-resize-handle:hover,
-.simulation-resize-handle:focus-visible {
+.simulation-resize-handle:focus-visible,
+.properties-resize-handle:hover,
+.properties-resize-handle:focus-visible {
   background: linear-gradient(
     to right,
     transparent 3px,
@@ -710,6 +722,21 @@
 
   .app-workspace.library-collapsed .shapes-panel {
     display: none;
+  }
+
+  .properties-resize-handle {
+    grid-area: auto;
+    position: absolute;
+    top: 0;
+    right: calc(
+      min(
+          var(--icm-properties-width, var(--icm-props-open)),
+          calc(100% - var(--icm-rail-width))
+        ) -
+        5px
+    );
+    bottom: 0;
+    margin-left: 0;
   }
 
   .shapes-panel {

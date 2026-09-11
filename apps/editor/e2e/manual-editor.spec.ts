@@ -14,6 +14,7 @@ import {
   clickDrawTool,
   clickNetlistWorkflowCommand,
   downloadBytes,
+  editComponentPropertyCode,
   openMenu,
   readRecoveryRecords,
   recoveryProjectTexts,
@@ -790,28 +791,28 @@ test("a part with no designator offers no Reference toggle", async ({
   await openSelectionShelf(page);
   const properties = page.getByRole("complementary", { name: "Properties" });
   await expect(properties).toContainText("voltage-amplifier");
-  // The row switched something that does not exist, so it is not there.
-  await expect(properties.getByLabel("Component display toggles")).toHaveCount(
-    0,
-  );
+  await expect(
+    properties.getByLabel("Editable Canvas property code"),
+  ).not.toHaveValue(/"display"/u);
 
   // The brake: a resistor designates R1 and carries a value, so its toggles
   // are untouched and still work.
   await placeComponent(page, "resistor", { x: 500, y: 200 });
   await openSelectionShelf(page);
-  const toggles = properties.getByLabel("Component display toggles");
-  await expect(toggles).toBeVisible();
-  await expect(toggles).toContainText("Visual annotation");
-  await expect(toggles).toContainText("Value");
-  const reference = toggles.getByLabel("Visual annotation");
-  await expect(reference).toBeChecked();
+  const code = properties.getByLabel("Editable Canvas property code");
+  await expect(code).toHaveValue(/"reference": true/u);
+  await expect(code).toHaveValue(/"value": false/u);
   const drawnLabel = page.locator(
     '[data-layer="annotations"] [data-object-id="instance-label-R1"]',
   );
   await expect(drawnLabel).toHaveCount(1);
-  await reference.uncheck();
+  await editComponentPropertyCode(page, (value) => {
+    value.display.reference = false;
+  });
   await expect(drawnLabel).toHaveCount(0);
-  await reference.check();
+  await editComponentPropertyCode(page, (value) => {
+    value.display.reference = true;
+  });
   await expect(drawnLabel).toHaveCount(1);
 });
 
@@ -3294,8 +3295,8 @@ test("Properties offers no dead Reference controls for a schematic-only block", 
   );
 
   // A summing junction hides its designator on the canvas, so the panel
-  // offers neither a Reference field nor the display toggles that could
-  // never change the drawing. Its raw component code and Appearance remain.
+  // offers neither a Reference field nor display keys that could never
+  // change the drawing. Its Canvas property code still owns placement/style.
   await page.locator('[data-canvas-hit-kind="instance"]').first().click();
   await expect(
     properties.locator('[aria-label="SPICE component code"]'),
@@ -3303,20 +3304,113 @@ test("Properties offers no dead Reference controls for a schematic-only block", 
   await expect(referenceField).toHaveCount(0);
   await expect(parametersCard).toHaveCount(0);
   await expect(
+    properties.getByLabel("Editable Canvas property code"),
+  ).not.toHaveValue(/"display"/u);
+  await expect(
     properties.locator('details[aria-label="Component appearance"]'),
-  ).not.toHaveAttribute("open", "");
-  await properties
-    .locator('details[aria-label="Component appearance"] > summary')
-    .click();
-  await expect(properties.getByText("Line", { exact: true })).toBeVisible();
+  ).toHaveCount(0);
 
   // An ordinary device keeps both.
   await page.getByTestId("hit-R1").click();
   await expect(referenceField).toHaveCount(1);
   await expect(parametersCard).toHaveCount(1);
+  await expect(
+    properties.getByLabel("Editable Canvas property code"),
+  ).toHaveValue(/"display"/u);
+});
+
+test("resizes Properties and applies component presentation as editable code", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await placeComponent(page, "resistor", { x: 360, y: 240 });
+  await openSelectionShelf(page);
+
+  const properties = page.getByRole("complementary", { name: "Properties" });
+  const resize = page.getByTestId("properties-resize-handle");
+  const code = properties.getByLabel("Editable Canvas property code");
+  await expect(resize).toBeVisible();
+  await expect(code).toBeVisible();
+  await expect(properties.getByLabel("Component geometry")).toHaveCount(0);
+  await expect(
+    properties.locator('details[aria-label="Component appearance"]'),
+  ).toHaveCount(0);
   await expect(properties.getByLabel("Component display toggles")).toHaveCount(
-    1,
+    0,
   );
+
+  const beforeWidth = (await properties.boundingBox())!.width;
+  const resizeBox = await resize.boundingBox();
+  if (!resizeBox) throw new Error("Properties resize handle is not measurable");
+  await page.mouse.move(
+    resizeBox.x + resizeBox.width / 2,
+    resizeBox.y + resizeBox.height / 2,
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    resizeBox.x + resizeBox.width / 2 - 24,
+    resizeBox.y + resizeBox.height / 2,
+  );
+  await page.mouse.up();
+  await expect
+    .poll(async () => (await properties.boundingBox())?.width ?? 0)
+    .toBeCloseTo(beforeWidth + 24, 0);
+
+  await resize.focus();
+  await resize.press("Shift+ArrowLeft");
+  await expect
+    .poll(async () => (await properties.boundingBox())?.width ?? 0)
+    .toBeCloseTo(beforeWidth + 56, 0);
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        Number(localStorage.getItem("icm.properties-panel-width.v1")),
+      ),
+    )
+    .toBeCloseTo(beforeWidth + 56, 0);
+
+  // The half-window overlay keeps the same adjustable left edge rather than
+  // falling back to a fixed narrow Properties panel.
+  await page.setViewportSize({ width: 760, height: 900 });
+  await expect(resize).toBeVisible();
+  const compactWidth = (await properties.boundingBox())!.width;
+  await resize.focus();
+  await resize.press("ArrowLeft");
+  await expect
+    .poll(async () => (await properties.boundingBox())?.width ?? 0)
+    .toBeCloseTo(compactWidth + 8, 0);
+
+  const edited = JSON.parse(await code.inputValue());
+  edited.placement.at = [420, 280];
+  edited.placement.rotation = 90;
+  edited.placement.mirror = "x";
+  edited.display.reference = false;
+  edited.appearance.foreground = "#DC2626";
+  await code.fill(JSON.stringify(edited, null, 2));
+  await properties.getByRole("button", { name: "Apply code" }).click();
+
+  await expect(page.getByTestId("revision")).toHaveText("2");
+  await expect(
+    page.locator(
+      '[data-layer="formal"] [data-object-id="R1"] [data-role="instance-symbol"]',
+    ),
+  ).toHaveAttribute("stroke", "#DC2626");
+  await expect(
+    page.getByTestId("annotation-hit-instance-label-R1"),
+  ).toHaveCount(0);
+  const saved = JSON.parse(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(
+      "utf8",
+    ),
+  );
+  expect(saved.documents[0].instances[0]).toMatchObject({
+    placement: {
+      position: { x: 420, y: 280 },
+      rotation: 90,
+      mirror: "x",
+    },
+    styleOverride: { foreground: "#DC2626" },
+  });
 });
 
 test("Properties toggles reference label visibility for one or many components", async ({
@@ -3329,12 +3423,7 @@ test("Properties toggles reference label visibility for one or many components",
   await page.getByTestId("hit-R1").click();
   await openSelectionShelf(page);
   const properties = page.getByRole("complementary", { name: "Properties" });
-  for (const sectionName of [
-    "Parameters",
-    "Display",
-    "Netlist overrides",
-    "Placement",
-  ]) {
+  for (const sectionName of ["Parameters", "Netlist overrides", "Actions"]) {
     await expect(
       properties.getByText(sectionName, { exact: true }),
     ).toBeVisible();
@@ -3344,12 +3433,12 @@ test("Properties toggles reference label visibility for one or many components",
   });
   await expect(
     componentProperties.locator(":scope > .property-disclosure"),
-  ).toHaveCount(3);
+  ).toHaveCount(2);
   expect(
     await componentProperties
       .locator(":scope > .property-disclosure > summary > span")
       .allTextContents(),
-  ).toEqual(["Parameters", "Placement", "Appearance"]);
+  ).toEqual(["Parameters", "Actions"]);
   await expect(componentProperties.locator(":scope > :last-child")).toHaveText(
     /R1.*<unconnected:1>.*<unconnected:2>.*<value>/u,
   );
@@ -3360,10 +3449,7 @@ test("Properties toggles reference label visibility for one or many components",
     componentProperties.locator(
       ':scope > details[aria-label="Component appearance"]',
     ),
-  ).not.toHaveAttribute("open", "");
-  await expect(
-    componentProperties.getByText("Appearance", { exact: true }),
-  ).toBeVisible();
+  ).toHaveCount(0);
   await expect(
     componentProperties.getByText("Built-in primitive: resistor", {
       exact: true,
@@ -3375,12 +3461,9 @@ test("Properties toggles reference label visibility for one or many components",
   await expect(
     componentProperties.getByLabel("Component model target"),
   ).toBeVisible();
-  const singleToggle = page.getByRole("checkbox", {
-    name: "Visual annotation",
-    exact: true,
+  await editComponentPropertyCode(page, (value) => {
+    value.display.reference = false;
   });
-  await expect(singleToggle).toBeChecked();
-  await singleToggle.uncheck();
   await expect(
     page.getByTestId("annotation-hit-instance-label-R1"),
   ).toHaveCount(0);
@@ -3391,7 +3474,9 @@ test("Properties toggles reference label visibility for one or many components",
     page.getByTestId("annotation-hit-instance-label-R2"),
   ).toHaveCount(1);
   // Hiding is recoverable: the annotation is still in the project.
-  await singleToggle.check();
+  await editComponentPropertyCode(page, (value) => {
+    value.display.reference = true;
+  });
   await expect(
     page.getByTestId("annotation-hit-instance-label-R1"),
   ).toHaveCount(1);
@@ -3444,13 +3529,10 @@ test("Properties keeps component and Annotation text colors independent", async 
   const label = page.locator('[data-object-id="instance-label-R1"]');
   const secondLabel = page.locator('[data-object-id="instance-label-R2"]');
 
-  await properties
-    .locator('details[aria-label="Component appearance"] > summary')
-    .click();
-  await properties.getByRole("button", { name: "Use Red for line" }).click();
-  await properties
-    .getByRole("button", { name: "Use Blue for background" })
-    .click();
+  await editComponentPropertyCode(page, (value) => {
+    value.appearance.foreground = "#dc2626";
+    value.appearance.background = "#2563eb";
+  });
   await expect(symbol).toHaveAttribute("stroke", "#dc2626");
   await expect(
     component.locator('[data-role="instance-background"]'),
@@ -3611,7 +3693,9 @@ test("value display projects MOS W/L and passive values beside the reference", a
   await openSelectionShelf(page);
   await page.getByLabel("Component w", { exact: true }).fill("2u");
   await page.getByLabel("Component l", { exact: true }).fill("180n");
-  await page.getByRole("checkbox", { name: "Value", exact: true }).check();
+  await editComponentPropertyCode(page, (propertyCode) => {
+    propertyCode.display.value = true;
+  });
   await canvas.click({ position: { x: 80, y: 80 } });
 
   const reference = page.locator('[data-object-id="instance-label-M1"]');
@@ -3637,7 +3721,9 @@ test("value display projects MOS W/L and passive values beside the reference", a
   await page.getByTestId("hit-R1").click();
   await openSelectionShelf(page);
   await page.getByLabel("Component value", { exact: true }).fill("33k");
-  await page.getByRole("checkbox", { name: "Value", exact: true }).check();
+  await editComponentPropertyCode(page, (propertyCode) => {
+    propertyCode.display.value = true;
+  });
   await canvas.click({ position: { x: 80, y: 80 } });
   await expect(
     page.locator('[data-object-id="instance-value-R1"]'),
@@ -3655,34 +3741,36 @@ test("value display projects MOS W/L and passive values beside the reference", a
   expect(svg).toContain("33kΩ");
 });
 
-test("reference and value toggles refresh content after parameter edits", async ({
+test("reference and value code refreshes content after parameter edits", async ({
   page,
 }) => {
   await page.goto("/editor");
   await placeComponent(page, "resistor", { x: 300, y: 200 });
   await placeComponent(page, "resistor", { x: 500, y: 200 });
 
-  // Quick-place leaves the parameters blank, so the Value toggle starts
-  // disabled and no hidden annotation exists at all.
+  // Quick-place leaves the parameters blank, so code cannot enable the value
+  // display and no hidden annotation exists at all.
   await page.getByTestId("hit-R1").click();
   await openSelectionShelf(page);
-  const valueToggle = page.getByRole("checkbox", {
-    name: "Value",
-    exact: true,
-  });
-  await expect(valueToggle).toBeDisabled();
+  const properties = page.getByRole("complementary", { name: "Properties" });
+  const propertyCode = properties.getByLabel("Editable Canvas property code");
+  const missingValueCode = JSON.parse(await propertyCode.inputValue());
+  missingValueCode.display.value = true;
+  await propertyCode.fill(JSON.stringify(missingValueCode, null, 2));
+  await properties.getByRole("button", { name: "Apply code" }).click();
+  await expect(
+    properties.getByText(/Set a valid component value/u),
+  ).toBeVisible();
   await expect(
     page.getByTestId("annotation-hit-instance-value-R1"),
   ).toHaveCount(0);
 
-  // Typing a value enables the toggle immediately from the live draft,
-  // without closing and reopening the properties panel.
+  // Typing a value makes the same pending code applicable without closing and
+  // reopening Properties.
   await page.getByLabel("Component value").click();
   await page.getByLabel("Component value").fill("33k");
-  await expect(valueToggle).toBeEnabled();
-  // Checking commits the typed parameters and shows the projected value in
-  // one step.
-  await valueToggle.check();
+  await page.getByLabel("Component value").press("Tab");
+  await properties.getByRole("button", { name: "Apply code" }).click();
   await expect(
     page.locator('[data-object-id="instance-value-R1"]'),
   ).toContainText("33kΩ");
@@ -3700,7 +3788,9 @@ test("reference and value toggles refresh content after parameter edits", async 
   // Hiding keeps the annotation recoverable.
   await page.getByTestId("hit-R1").click();
   await openSelectionShelf(page);
-  await page.getByRole("checkbox", { name: "Value", exact: true }).uncheck();
+  await editComponentPropertyCode(page, (code) => {
+    code.display.value = false;
+  });
   await expect(
     page.getByTestId("annotation-hit-instance-value-R1"),
   ).toHaveCount(0);
@@ -3744,7 +3834,9 @@ test("drag value annotation keeps the user offset through rotation", async ({
     .click({ position: { x: 60, y: 60 } });
   await page.getByTestId("hit-R1").click();
   await openSelectionShelf(page);
-  await page.getByRole("checkbox", { name: "Value", exact: true }).check();
+  await editComponentPropertyCode(page, (propertyCode) => {
+    propertyCode.display.value = true;
+  });
   await expect(
     page.locator('[data-object-id="instance-value-R1"]'),
   ).toContainText("33kΩ");

@@ -324,6 +324,94 @@
   font-size: var(--icm-font-xs);
 }
 
+.component-property-code-editor {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+  padding: 0.65rem;
+  border: 1px solid var(--icm-border-strong);
+  border-radius: var(--icm-radius-md);
+  background: var(--icm-surface-muted);
+}
+
+.component-property-code-editor > header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--icm-space-2);
+}
+
+.component-property-code-editor > header > div {
+  display: flex;
+  align-items: baseline;
+  min-width: 0;
+  gap: var(--icm-space-2);
+}
+
+.component-property-code-editor > header strong {
+  font-size: var(--icm-font-sm);
+}
+
+.component-property-code-editor > header span,
+.component-property-code-editor > header code {
+  overflow: hidden;
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.component-property-code-editor > textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 15.5rem;
+  resize: vertical;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-sm);
+  color: var(--icm-text);
+  background: var(--icm-surface);
+  font-family: var(--icm-font-mono, ui-monospace, monospace);
+  font-size: 12px;
+  line-height: 1.5;
+  tab-size: 2;
+  white-space: pre;
+}
+
+.component-property-code-editor > textarea:focus {
+  border-color: var(--icm-accent);
+  outline: 2px solid var(--icm-accent-soft);
+  outline-offset: 0;
+}
+
+.component-property-code-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--icm-space-2);
+  min-width: 0;
+}
+
+.component-property-code-status > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
+}
+
+.component-property-code-status > div {
+  display: flex;
+  flex: none;
+  gap: var(--icm-space-1);
+}
+
+.component-property-code-status button {
+  min-height: var(--icm-control-h);
+  padding: 0 var(--icm-space-2);
+  font-size: var(--icm-font-xs);
+}
+
 .net-name-properties {
   display: grid;
   gap: 0.55rem;

@@ -5,6 +5,7 @@ import {
   chooseComponent,
   clickCommand,
   downloadBytes,
+  editComponentPropertyCode,
   recoveryProjectTexts,
 } from "./editor-fixtures.js";
 
@@ -1121,53 +1122,19 @@ test("carries a manual Value through placement and Q property editing", async ({
     "aria-expanded",
     "true",
   );
-  const placementControls = page.getByLabel("Component geometry");
-  await expect(placementControls).toContainText("XY");
-  await expect(
-    placementControls.getByRole("button", {
-      name: /Rotate component clockwise 90 degrees/,
-    }),
-  ).toBeVisible();
-  await expect(
-    placementControls.getByRole("button", {
-      name: "Mirror component left to right, Shift+R",
-    }),
-  ).toBeVisible();
-  await expect(
-    placementControls.getByRole("button", {
-      name: "Mirror component top to bottom, Ctrl+R",
-    }),
-  ).toBeVisible();
-  expect(
-    await placementControls.evaluate(
-      (element) =>
-        getComputedStyle(element).gridTemplateColumns.split(" ").length,
-    ),
-  ).toBe(5);
+  await expect(page.getByLabel("Component geometry")).toHaveCount(0);
+  const propertyCode = page.getByLabel("Editable Canvas property code");
+  await expect(propertyCode).toHaveValue(/"at": \[/u);
+  await expect(propertyCode).toHaveValue(/"rotation": 0/u);
+  await expect(propertyCode).toHaveValue(/"mirror": "none"/u);
   await expect(page.locator(".selection-overview")).toHaveCount(0);
   await expect(page.getByTestId("selection-shelf")).toContainText(
     "R1 · resistor",
   );
-  const displayCard = page.locator(".property-display-card");
-  await expect(
-    displayCard.getByLabel("Component display toggles"),
-  ).toContainText("Visual annotationValue");
-  expect(
-    await displayCard.evaluate((element) => ({
-      columns: getComputedStyle(element).gridTemplateColumns.split(" ").length,
-      height: element.getBoundingClientRect().height,
-      toggleBackgrounds: Array.from(
-        element.querySelectorAll<HTMLElement>(".display-toggle"),
-        (toggle) => getComputedStyle(toggle).backgroundColor,
-      ),
-    })),
-  ).toEqual({
-    columns: 2,
-    height: expect.any(Number),
-    toggleBackgrounds: ["rgba(0, 0, 0, 0)", "rgba(0, 0, 0, 0)"],
-  });
-  expect((await displayCard.boundingBox())?.height).toBeLessThan(48);
-  await expect(page.getByText("Placement", { exact: true })).toBeVisible();
+  await expect(page.getByLabel("Component display toggles")).toHaveCount(0);
+  await expect(propertyCode).toHaveValue(/"reference": true/u);
+  await expect(propertyCode).toHaveValue(/"value": false/u);
+  await expect(page.getByText("Actions", { exact: true })).toBeVisible();
   const propertyValue = page.getByLabel("Component value");
   // Opening focuses the shelf header, never the first field: Q stays a pure
   // toggle and editing starts only when the user clicks an input.
@@ -1487,9 +1454,9 @@ test("sets MOS parameters and orientation through the ghost and Properties", asy
   await page.getByLabel("Component l", { exact: true }).fill("180n");
   await page.getByLabel("Component m", { exact: true }).fill("4");
   await page.getByLabel("Component m", { exact: true }).press("Tab");
-  await page
-    .getByRole("checkbox", { name: "Visual annotation", exact: true })
-    .uncheck();
+  await editComponentPropertyCode(page, (value) => {
+    value.display.reference = false;
+  });
   await expect(
     page.locator('[data-object-id="instance-label-M1"]'),
   ).toHaveCount(0);
@@ -1502,11 +1469,9 @@ test("sets MOS parameters and orientation through the ghost and Properties", asy
   await expect(page.getByLabel("Component m", { exact: true })).toHaveValue(
     "4",
   );
-  await expect(
-    page.getByRole("button", {
-      name: /Rotate component clockwise 90 degrees; current rotation 90 degrees/,
-    }),
-  ).toBeVisible();
+  await expect(page.getByLabel("Editable Canvas property code")).toHaveValue(
+    /"rotation": 90/u,
+  );
 });
 
 test("keeps component placement active across independent canvas commits", async ({

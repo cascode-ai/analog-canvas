@@ -77,6 +77,7 @@ export function ComponentElectricalProperties({
   onAdditionalParameterAdd,
   onAdditionalParametersApply,
   onAdditionalParametersCancel,
+  displayControls = true,
 }: {
   instance: Instance;
   parameters: readonly ComponentParameter[];
@@ -119,6 +120,8 @@ export function ComponentElectricalProperties({
   onAdditionalParameterAdd: () => void;
   onAdditionalParametersApply: () => void;
   onAdditionalParametersCancel: () => void;
+  /** Display flags are edited in Canvas property code on the composed dock. */
+  displayControls?: boolean;
 }) {
   const fingerWidth = derivedFingerWidth(parameterValues.w, parameterValues.nf);
   const descriptor = deviceDescriptor(instance.symbolId);
@@ -143,8 +146,13 @@ export function ComponentElectricalProperties({
   // instance has and this Symbol draws, and a value this device supports.
   const referenceToggleable = referenceLabelRenderable && referenceAvailable;
   const displayable = referenceToggleable || valueSupported;
+  const renderedDisplayable = displayControls && displayable;
   const isMos = descriptor?.deviceClass === "mos";
-  if (primaryParameters.length === 0 && !displayable && !instance.netlist) {
+  if (
+    primaryParameters.length === 0 &&
+    !renderedDisplayable &&
+    !instance.netlist
+  ) {
     return null;
   }
   return (
@@ -221,7 +229,7 @@ export function ComponentElectricalProperties({
           Finger width {fingerWidth} · W = FW × NF
         </p>
       ) : null}
-      {displayable ? (
+      {renderedDisplayable ? (
         <div className="property-display-card">
           <div className="property-section-heading">Display</div>
           <div

@@ -20,6 +20,7 @@ export function ComponentPlacementProperties({
   onSwapContactStyle,
   onSwapInputs,
   onDiscard,
+  geometryControls = true,
 }: {
   instance: Instance;
   x: string;
@@ -35,6 +36,8 @@ export function ComponentPlacementProperties({
   onSwapContactStyle?: { label: string; run: () => void };
   onSwapInputs?: () => void;
   onDiscard: () => void;
+  /** The composed dock edits coordinates and orientation as property code. */
+  geometryControls?: boolean;
 }) {
   return (
     <>
@@ -51,61 +54,65 @@ export function ComponentPlacementProperties({
       ) : null}
       {instance.placement ? (
         <PropertyDisclosure
-          title="Placement"
+          title={geometryControls ? "Placement" : "Actions"}
           className="property-placement-card"
-          ariaLabel="Component placement"
+          ariaLabel={
+            geometryControls ? "Component placement" : "Component actions"
+          }
           defaultOpen
         >
-          <div
-            className="component-geometry-row property-placement-controls"
-            aria-label="Component geometry"
-          >
-            <label>
-              X
-              <input
-                aria-label="Component X position"
-                inputMode="decimal"
-                value={x}
-                onChange={(event) => onXChange(event.currentTarget.value)}
-              />
-            </label>
-            <label>
-              Y
-              <input
-                aria-label="Component Y position"
-                inputMode="decimal"
-                value={y}
-                onChange={(event) => onYChange(event.currentTarget.value)}
-              />
-            </label>
-            <button
-              type="button"
-              className="property-placement-icon-button"
-              aria-label={`Rotate component clockwise 90 degrees; current rotation ${rotation} degrees; shortcut R`}
-              title={`Rotate 90° clockwise · current ${rotation}° (R)`}
-              onClick={onRotate}
+          {geometryControls ? (
+            <div
+              className="component-geometry-row property-placement-controls"
+              aria-label="Component geometry"
             >
-              <ToolIcon name="rotate" />
-            </button>
-            <button
-              type="button"
-              className="property-placement-icon-button"
-              aria-label="Mirror component left to right, Shift+R"
-              title="Mirror left/right (Shift+R)"
-              onClick={() => onMirror("left-right")}
-            >
-              <ToolIcon name="mirror-horizontal" />
-            </button>
-            <button
-              type="button"
-              className="property-placement-icon-button"
-              aria-label="Mirror component top to bottom, Ctrl+R"
-              title="Mirror top/bottom (Ctrl+R)"
-              onClick={() => onMirror("top-bottom")}
-            >
-              <ToolIcon name="mirror-vertical" />
-            </button>
-          </div>
+              <label>
+                X
+                <input
+                  aria-label="Component X position"
+                  inputMode="decimal"
+                  value={x}
+                  onChange={(event) => onXChange(event.currentTarget.value)}
+                />
+              </label>
+              <label>
+                Y
+                <input
+                  aria-label="Component Y position"
+                  inputMode="decimal"
+                  value={y}
+                  onChange={(event) => onYChange(event.currentTarget.value)}
+                />
+              </label>
+              <button
+                type="button"
+                className="property-placement-icon-button"
+                aria-label={`Rotate component clockwise 90 degrees; current rotation ${rotation} degrees; shortcut R`}
+                title={`Rotate 90° clockwise · current ${rotation}° (R)`}
+                onClick={onRotate}
+              >
+                <ToolIcon name="rotate" />
+              </button>
+              <button
+                type="button"
+                className="property-placement-icon-button"
+                aria-label="Mirror component left to right, Shift+R"
+                title="Mirror left/right (Shift+R)"
+                onClick={() => onMirror("left-right")}
+              >
+                <ToolIcon name="mirror-horizontal" />
+              </button>
+              <button
+                type="button"
+                className="property-placement-icon-button"
+                aria-label="Mirror component top to bottom, Ctrl+R"
+                title="Mirror top/bottom (Ctrl+R)"
+                onClick={() => onMirror("top-bottom")}
+              >
+                <ToolIcon name="mirror-vertical" />
+              </button>
+            </div>
+          ) : null}
           <button
             type="button"
             className="property-return-to-tray"
