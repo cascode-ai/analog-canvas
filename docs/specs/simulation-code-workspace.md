@@ -2,8 +2,8 @@
 
 Status: accepted
 
-Delivery: source-input cutover candidate; layout approved. Full delivery and
-same-candidate Preview numerical acceptance must pass before claiming C5 complete.
+Delivery: source-input Code workspace implemented and layout approved; Preview
+only. Full delivery and the two live acceptance journeys gate mainline delivery.
 
 Owners: `packages/model` / `packages/edit-engine` (saved input and edits),
 `packages/spice` / `packages/netlist` (language and compilation),
@@ -15,7 +15,7 @@ Related decision: [ADR 0055](../adr/0055-simulation-is-part-of-the-product.md).
 
 This is the source-authoring contract. [Simulation Setup and Compilation](simulation.md)
 describes its integration with the existing electrical compiler and device facts.
-It is not a claim that this branch has shipped to Preview or Production.
+Production promotion is a separate release decision.
 The execution and numeric contracts remain in
 [execution](simulation-execution.md) and [results](simulation-results.md).
 Only the changes explicitly identified here amend those boundaries.
@@ -557,3 +557,15 @@ configuration stays hidden by default, Code/Properties have independent widths,
 and Console/Results stay beneath code with reversible maximization. Browser
 regressions verify those interactions. That approval does not replace language,
 runtime, numerical or delivery acceptance.
+
+The executable acceptance is retained in
+[`preview-source-gui-journey.mjs`](../../scripts/preview-source-gui-journey.mjs)
+and [`preview-agent-simulation-journey.mjs`](../../scripts/preview-agent-simulation-journey.mjs).
+The first drives the real GUI without replacing simulation responses; the second
+uses the built stdio MCP adapter after browser authorization. Both verify the
+served entry bytes against the candidate build, edit and restore an actual MOS W
+parameter, repair authored input, execute the qualified OTA, export evidence and
+plots, complete a small managed Batch, and save/reload. Numerical tolerances come
+from the existing qualified fixtures, not screenshots. The Preview workflow keeps
+both receipts and exported artifacts; native image qualification and the separate
+cross-Project journey remain required alongside them.

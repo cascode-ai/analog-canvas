@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { basename, join, resolve } from "node:path";
 import { createHash } from "node:crypto";
+import { createRequire } from "node:module";
 import { chromium, expect } from "@playwright/test";
-import { unzipSync } from "fflate";
 import { parseProject } from "../packages/project-protocol/dist/index.js";
 import {
   readSimulationExperimentConfig,
@@ -18,6 +18,10 @@ import {
   validateHostedSky130NoiseResult,
   validateHostedSky130Result,
 } from "./preview-simulation-smoke.mjs";
+
+const { unzipSync } = createRequire(
+  new URL("../apps/editor/package.json", import.meta.url),
+)("fflate");
 
 // No intercepted simulation response, private browser state, or direct run API:
 // bootstrap with a portable Project, then author/run/export through the GUI.
@@ -64,7 +68,10 @@ config.deviceOperatingPoints = ["M1", "M3"].map((instanceId) => ({
   occurrence: ["XDUT"],
   circuit: { bindingId: binding.id, callPath: [] },
 }));
-const qualified = replaceSimulationExperimentConfig(setup, config);
+const qualified = replaceSimulationExperimentConfig(
+  structuredClone(setup),
+  config,
+);
 qualified.input.files.find((file) => file.path === setup.input.entry).text =
   program;
 const compiled = compileSourceSimulation(project, qualified);

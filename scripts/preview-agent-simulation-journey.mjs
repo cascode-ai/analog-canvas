@@ -70,7 +70,7 @@ qualifiedConfig.deviceOperatingPoints = [
   },
 ];
 const qualifiedSetup = replaceSimulationExperimentConfig(
-  setup,
+  structuredClone(setup),
   qualifiedConfig,
 );
 const program = qualifiedSetup.input.files.find(
