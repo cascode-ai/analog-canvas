@@ -14,6 +14,11 @@ import { renderDocumentSvg } from "./render.js";
 import { InMemorySymbolResolver, builtInSymbols } from "@icm/symbols";
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);
+const bold = (value: string) => ({
+  kind: "span" as const,
+  style: "bold" as const,
+  children: [{ kind: "text" as const, value }],
+});
 
 describe("drafting layer rendering", () => {
   it("exports a transparent complete outline, without a center shaft or duplicated head", () => {
@@ -818,6 +823,56 @@ describe("instance value fraction rendering", () => {
     // Fraction parts render three A+ levels (30%) above the subscript scale:
     // 15.116 × (0.76 × 1.3) ≈ 14.93px, roughly level with the reference label.
     expect(svg).toContain('font-size="14.93"');
+  });
+
+  it("keeps the bar when a multiplier follows the fraction", () => {
+    const document = createEmptyDocument("doc", "Multiplied value fraction");
+    document.instances.push({
+      id: "M1",
+      symbolId: "nmos",
+      placement: {
+        position: { x: 100, y: 100 },
+        rotation: 0,
+        mirror: "none",
+      },
+    });
+    document.annotations.push({
+      id: "instance-value-M1",
+      kind: "instance-value",
+      content: {
+        runs: [
+          {
+            kind: "fraction",
+            numerator: { runs: [bold("2um")] },
+            denominator: { runs: [bold("600nm")] },
+          },
+          bold(" ×4"),
+        ],
+      },
+      anchor: {
+        kind: "object",
+        objectId: "M1",
+        localOffset: { x: 40, y: 30 },
+        fallbackPosition: { x: 140, y: 130 },
+      },
+      alignment: "start",
+      rotation: 0,
+      locked: false,
+    });
+    const svg = renderDocumentSvg(document, resolver);
+    expect(svg).toContain('data-kind="instance-value"');
+    expect(svg).toContain('data-role="fraction-numerator"');
+    expect(svg).toContain('data-role="fraction-denominator"');
+    expect(svg).toContain('data-role="fraction-bar"');
+    expect(svg).toContain('xml:space="preserve"');
+    expect(svg).toContain("> ×4</tspan>");
+    const barEnd = Number(
+      svg.match(/data-role="fraction-bar"[^>]* x2="([^"]+)"/u)?.[1],
+    );
+    const multiplierStart = Number(
+      svg.match(/<text x="([^"]+)"[^>]*><tspan[^>]*> ×4<\/tspan>/u)?.[1],
+    );
+    expect(multiplierStart).toBeCloseTo(barEnd, 5);
   });
 });
 

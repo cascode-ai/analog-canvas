@@ -54,6 +54,29 @@ describe("displayableInstanceValue", () => {
     });
   });
 
+  it("appends a non-default parallel multiplier without flattening W/L", () => {
+    const result = displayableInstanceValue(
+      instance("nmos", { w: "2u", l: "600n", m: "4" }),
+    );
+    expect(result).toEqual({
+      kind: "displayable",
+      content: {
+        runs: [
+          {
+            kind: "fraction",
+            numerator: { runs: [bold("2um")] },
+            denominator: { runs: [bold("600nm")] },
+          },
+          {
+            kind: "span",
+            style: "bold",
+            children: [{ kind: "text", value: " ×4" }],
+          },
+        ],
+      },
+    });
+  });
+
   it("rejects a MOS device with either dimension missing", () => {
     expect(displayableInstanceValue(instance("nmos", { w: "10u" })).kind).toBe(
       "undisplayable",
