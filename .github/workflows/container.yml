@@ -31,6 +31,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.16.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @icm/simulation-service... build
+
       - name: Validate the operator-host topology
         env:
           SIMULATION_ACCESS_TOKEN: ci-contract-token
@@ -207,6 +217,26 @@ jobs:
           fi
           grep -iq '^retry-after:' /tmp/second.head \
             || { echo "A refusal must say when to come back."; cat /tmp/second.head; exit 1; }
+
+      - name: Qualify source compilation against the candidate ngspice image
+        run: |
+          set -euo pipefail
+          docker run -d --name icm-source-check -p 127.0.0.1:8082:8080 icm-ngspice:pr
+          trap 'docker logs icm-source-check || true; docker rm -f icm-source-check >/dev/null 2>&1 || true' EXIT
+          ready() { curl --silent --fail --max-time 5 http://127.0.0.1:8082/health | grep -q '"status":"ready"'; }
+          for _ in $(seq 1 180); do
+            if ready; then break; fi
+            sleep 1
+          done
+          ready || { echo "Source acceptance image did not become ready"; exit 1; }
+          ICM_SOURCE_ACCEPTANCE_URL=http://127.0.0.1:8082 pnpm test:local scripts/simulation-source-native.test.mjs
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: source-native-results
+          path: test-results/source-native/
+          if-no-files-found: ignore
 
       - name: Replace a harness whose run lease expires
         run: |
