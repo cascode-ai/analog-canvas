@@ -51,6 +51,14 @@ describe("SPICE editor assistance", () => {
     expect(guide.help.name).toBe("PULSE");
     expect(guide.index).toBe(2);
     expect(guide.parameters[2]!.label).toBe("delay / s");
+    const completed = "* test\nV1 in 0 PULSE(0 1 0 1n 1n 5n 10n)";
+    const outer = parameterGuide(
+      EditorState.create({
+        doc: completed,
+        selection: { anchor: completed.length },
+      }),
+    )!;
+    expect(outer.parameters.slice(outer.tokens.length)).toEqual([]);
     const noise = "* test\n.control\nnoise v(out, ref) VIN ";
     expect(
       parameterGuide(

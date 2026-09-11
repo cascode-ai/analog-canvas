@@ -74,7 +74,7 @@ export function parameterGuide(state: EditorState) {
     (token) => cursor >= token.from && cursor <= token.to,
   );
   const index = active >= 0 ? active : tokens.length;
-  const parameters = help.parameters.map((p, i) =>
+  let parameters = help.parameters.map((p, i) =>
     help.name.replace(/^\./u, "") === "ac" && i === 1
       ? {
           ...p,
@@ -87,6 +87,19 @@ export function parameterGuide(state: EditorState) {
         }
       : p,
   );
+  if (/^[VI]$/u.test(help.name) && tokens[2]) {
+    const excitation = tokens[2].value.toUpperCase();
+    if (/^(PULSE|SIN|PWL)\(/u.test(excitation))
+      parameters = parameters.slice(0, 3);
+    else if (excitation === "AC")
+      parameters = [
+        ...parameters.slice(0, 3),
+        { label: "magnitude" },
+        { label: "phase / deg", optional: true },
+      ];
+    else if (excitation !== "DC")
+      parameters = [...parameters.slice(0, 2), { label: "value" }];
+  }
   return { line, help, tokens, index, parameters };
 }
 

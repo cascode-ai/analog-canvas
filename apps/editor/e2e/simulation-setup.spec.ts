@@ -99,18 +99,20 @@ test("the qualified OTA setup opens unchanged and preserves all root and hierarc
   await clickNetlistWorkflowCommand(page, "open-analog-simulation");
   const panel = page.getByRole("region", { name: "Analog simulation" });
   // Canvas picking and authored scoped expressions share the same config file.
-  await panel.getByRole("button", { name: "Pick Net", exact: true }).click();
+  const helper = async (name: string) => {
+    await panel.getByRole("button", { name: /Helper.*Ctrl\+Space/ }).click();
+    await panel.getByRole("option", { name, exact: true }).click();
+  };
+  await helper("Pick Net on Canvas");
   await page.getByTestId("route-hit-tb-vinp-route").click({ force: true });
-  await panel.getByRole("button", { name: "Picking Nets…" }).click();
-  await panel
-    .getByRole("button", { name: "Pick current", exact: true })
-    .click();
+  await helper("Stop picking Nets");
+  await helper("Pick current on Canvas");
   await page.getByTestId("terminal-VINP-+").click();
   await expect(
     page.getByTestId("terminal-VINP-+-current-pick-marker"),
   ).toHaveClass(/origin/u);
   await page.getByTestId("terminal-VINP--").click();
-  await panel.getByRole("button", { name: "Picking current…" }).click();
+  await helper("Stop picking current");
   const pickedProject = parseProject(
     (await downloadBytes(page, "File", "Export Project File…")).toString(),
   );
