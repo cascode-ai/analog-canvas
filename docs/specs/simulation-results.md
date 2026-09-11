@@ -9,6 +9,13 @@ Owners: `packages/spice-run`, `packages/simulation-service`
 
 ## Result data
 
+The shared service exposes every returned native vector alongside configured
+expressions, without requiring an output binding for `save` to work. Direct
+acquisition duplicates are suppressed. Prepared `signalNames` is optional,
+derived run-local metadata mapping native voltage vectors to Canvas paths/names;
+it does not rename the raw data or change connectivity. Native results retain
+their executable spelling alongside friendly names, including in MCP and CSV.
+
 Numbers are read from ngspice's ASCII rawfile, never from console text. The
 parsed result extends `SimulationResult` with:
 

@@ -65,5 +65,8 @@ describe("approved simulation Code layout", () => {
       markup.indexOf("Run console"),
     );
     expect(markup).not.toContain("Settings");
+    expect(markup).toContain(">Compare</button>");
+    expect(markup).toContain(">OP</button>");
+    expect(markup).not.toContain(">Results</button>");
   });
 });

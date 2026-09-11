@@ -642,6 +642,7 @@ export class SimulationService {
       mode: "source",
       environment: input.environment,
       vectors,
+      signalNames: preparation.signalNames,
       outputs,
       deviceOperatingPoints,
       measurements,
@@ -757,20 +758,15 @@ export class SimulationService {
       });
       if (epoch !== this.epoch) return;
       run.view.result = output.result;
-      if (
-        output.result.data &&
-        (run.prepared.outputs.length > 0 ||
-          run.prepared.deviceOperatingPoints.length > 0 ||
-          output.result.data.analyses.some(
-            (analysis) => analysis.analysis === "noise",
-          ))
-      ) {
+      if (output.result.data) {
         run.view.outputData = evaluateSimulationOutputs(
           output.result.data,
           run.prepared.vectors,
           run.prepared.outputs,
           run.prepared.measurements ?? [],
           run.prepared.deviceOperatingPoints,
+          true,
+          run.prepared.signalNames,
         );
       }
       const artifact = async (name: string, type: string, text: string) =>
@@ -840,6 +836,7 @@ export class SimulationService {
               mode: run.prepared.mode,
               environment: run.prepared.environment,
               vectors: run.prepared.vectors,
+              signalNames: run.prepared.signalNames,
               outputs: run.prepared.outputs,
               deviceOperatingPoints: run.prepared.deviceOperatingPoints,
               measurements: run.prepared.measurements ?? [],

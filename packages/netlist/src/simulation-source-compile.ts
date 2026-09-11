@@ -461,7 +461,13 @@ export function compileSourceSimulation(
     const index = mappedFiles.findIndex((f) => f.path === folder.input.entry);
     const entry = mappedFiles[index]!;
     const end = entry.text.indexOf("\n");
-    const prefix = `* Canvas acquisitions (generated)\n.save all ${[...capture].join(" ")}\n`;
+    const explicitSave =
+      graph.statements.some(
+        ({ statement }) =>
+          statement.kind === "control_command" &&
+          statement.command.toLowerCase() === "save",
+      ) || folder.input.files.some((file) => /^\s*\.save\b/imu.test(file.text));
+    const prefix = `* Canvas acquisitions (generated)\n.save ${explicitSave ? "" : "all "}${[...capture].join(" ")}\n`;
     // Keep the native title in place. Other author bytes are never reformatted.
     mappedFiles[index] = insertSimulationText(
       entry,

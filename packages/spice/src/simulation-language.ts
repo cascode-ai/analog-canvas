@@ -19,6 +19,7 @@ export interface SimulationLanguageHelp {
     label: string;
     choices?: readonly string[];
     optional?: boolean;
+    repeat?: boolean;
   }[];
 }
 export const NGSPICE_LANGUAGE_REFERENCE =
@@ -271,8 +272,8 @@ const parameterHints: Record<
     { label: "startHz" },
     { label: "stopHz" },
   ],
-  save: [{ label: "vector" }],
-  write: [{ label: "file" }, { label: "vector", optional: true }],
+  save: [{ label: "vector", repeat: true }],
+  write: [{ label: "file" }, { label: "vector", optional: true, repeat: true }],
   param: [{ label: "name=expression" }],
   temp: [{ label: "temperature / °C" }],
   include: [{ label: '"relative-file.spice"' }],

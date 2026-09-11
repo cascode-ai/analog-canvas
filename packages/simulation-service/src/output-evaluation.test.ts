@@ -7,6 +7,44 @@ import {
 import { SimulationOutputDataSchema } from "./contract.js";
 
 describe("simulation output evaluation", () => {
+  it("exposes saved native vectors alongside configured outputs with run-local names", () => {
+    const result = evaluateSimulationOutputs(
+      {
+        schemaVersion: 1,
+        analyses: [
+          {
+            analysis: "op",
+            plotName: "OP",
+            probes: [
+              { name: "v(out)", quantity: "voltage", unit: "V", value: 0.8 },
+              { name: "v(in)", quantity: "voltage", unit: "V", value: 1 },
+            ],
+          },
+        ],
+      },
+      [{ probeId: "input", vector: "v(in)", quantity: "voltage" }],
+      [
+        {
+          id: "input-voltage",
+          label: "Input",
+          expression: {
+            kind: "acquisition",
+            acquisitionId: "input",
+            quantity: "voltage",
+          },
+        },
+      ],
+      [],
+      [],
+      true,
+      { "v(out)": "XDUT/Vout" },
+    );
+    expect(result.analyses[0]!.outputs.map((o) => o.label)).toEqual([
+      "Input",
+      "XDUT/Vout — v(out)",
+    ]);
+    expect(result.analyses[0]!.outputs[1]!.values).toEqual([0.8]);
+  });
   it("keeps MOS terminal values and automatic/authored measurements for each raw OP record", () => {
     const result = evaluateSimulationOutputs(
       {

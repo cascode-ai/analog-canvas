@@ -96,8 +96,9 @@ test("incomplete circuit opens Code and saves invalid parameter drafts across re
   await panel
     .getByRole("button", { name: "Folder Draft", exact: true })
     .click({ button: "right" });
-  page.once("dialog", (dialog) => void dialog.accept("Draft copy"));
   await panel.getByRole("menuitem", { name: "Duplicate…" }).click();
+  await panel.getByRole("textbox", { name: "Folder name" }).fill("Draft copy");
+  await panel.getByRole("textbox", { name: "Folder name" }).press("Enter");
   await expect(
     panel.getByRole("button", { name: "Folder Draft copy", exact: true }),
   ).toBeVisible();
@@ -352,12 +353,39 @@ test("human simulation uses saved folder, survives minimizing, recovers a bad in
   await clickNetlistWorkflowCommand(page, "open-analog-simulation");
   await expect(panel.getByRole("status")).toHaveText("finished · completed");
   // A completed run belongs to its folder, not whichever folder is currently visible.
-  page.once("dialog", (dialog) => void dialog.accept("Second folder"));
   await panel.getByRole("button", { name: "+ New folder…" }).click();
-  await panel.getByRole("button", { name: /Run current Cell/ }).click();
+  await panel
+    .getByRole("textbox", { name: "Folder name" })
+    .fill("Second folder");
+  await panel.getByRole("textbox", { name: "Folder name" }).press("Enter");
   await expect(panel.getByRole("status")).not.toHaveText(
     "finished · completed",
   );
+  await expect(
+    panel.getByRole("button", { name: "Toggle E2E folder" }),
+  ).toHaveAttribute("aria-expanded", "true");
+  await expect(
+    panel.getByRole("button", { name: "Toggle Second folder" }),
+  ).toHaveAttribute("aria-expanded", "true");
+  await panel
+    .getByRole("button", { name: "Folder Second folder", exact: true })
+    .click({ button: "right" });
+  await panel.getByRole("menuitem", { name: "New file…", exact: true }).click();
+  await panel.getByRole("textbox", { name: "File name" }).fill("bias.spice");
+  await panel.getByRole("textbox", { name: "File name" }).press("Enter");
+  await expect(panel.getByRole("tab", { name: /bias.spice/ })).toBeVisible();
+  await panel.getByRole("button", { name: /Helper.*Ctrl\+Space/ }).click();
+  await panel
+    .getByRole("textbox", { name: "Search commands or purpose" })
+    .fill("Save voltage");
+  await panel.getByRole("option", { name: "Save voltage…" }).click();
+  await panel.getByRole("textbox", { name: "Search signal" }).fill("v(out)");
+  await panel
+    .getByRole("button", { name: "Use native vector: v(out)" })
+    .click();
+  await expect(
+    panel.getByRole("textbox", { name: "Simulation source editor" }),
+  ).toContainText(".save v(out)");
   await panel
     .getByRole("button", { name: "Folder E2E folder", exact: true })
     .click();
@@ -369,7 +397,7 @@ test("human simulation uses saved folder, survives minimizing, recovers a bad in
     "finished · completed",
   );
   await expect(panel.locator(".simulation-console-view > pre")).toBeVisible();
-  await panel.getByRole("tab", { name: "Results", exact: true }).click();
+  await panel.getByRole("tab", { name: "Plot", exact: true }).click();
   await panel.getByRole("tab", { name: "Operating Point" }).click();
   await expect(panel.getByRole("region", { name: "OP results" })).toContainText(
     "0.500000",
@@ -851,7 +879,7 @@ test("human simulation uses saved folder, survives minimizing, recovers a bad in
   await expect(panel.locator(".simulation-code-status")).toContainText(
     "earlier Project revision",
   );
-  await panel.getByRole("tab", { name: "Results", exact: true }).click();
+  await panel.getByRole("tab", { name: "Plot", exact: true }).click();
   await panel.getByRole("button", { name: "Maximize results" }).click();
   await panel.getByRole("tab", { name: "Plot" }).click();
   await expect(
@@ -1064,7 +1092,7 @@ test("human simulation uses saved folder, survives minimizing, recovers a bad in
     panel.getByRole("textbox", { name: "Simulation source editor" }),
   ).toContainText(".temp 30");
   await expect(panel.getByRole("status")).toHaveText("No run yet");
-  await panel.getByRole("tab", { name: "Results", exact: true }).click();
+  await panel.getByRole("tab", { name: "Plot", exact: true }).click();
   await panel.getByRole("tab", { name: "Compare" }).click();
   const savedArchives = panel.getByRole("region", {
     name: "Saved result archives",
@@ -1106,11 +1134,12 @@ test("Simulation creates an ordinary testbench and offers the current Cell at th
   expect(saved.simulationFolders).toEqual([]);
   await clickNetlistWorkflowCommand(page, "open-analog-simulation");
   await expect(page.getByLabel("Testbench Cell")).toHaveCount(0);
-  page.once("dialog", (dialog) => void dialog.accept("Main experiment"));
   await page
     .getByRole("button", { name: "Create experiment for this Cell" })
     .click();
-  await page.getByRole("button", { name: /Run current Cell/ }).click();
+  await page
+    .getByRole("button", { name: "Template: current Canvas Cell" })
+    .click();
   const configured = JSON.parse(
     (await downloadBytes(page, "File", "Export Project File…")).toString(),
   );

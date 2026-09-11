@@ -66,6 +66,7 @@ export const spiceCodeLanguage = StreamLanguage.define(parser);
 export function spiceCompletion(
   context: CompletionContext,
   relatedSources: readonly string[] = [],
+  signalNames?: () => Readonly<Record<string, string>>,
 ): CompletionResult | null {
   const line = context.state.doc.lineAt(context.pos);
   const word = context.matchBefore(/[.\w]+/u);
@@ -84,6 +85,13 @@ export function spiceCompletion(
       const wantsNode = parameter === "n+" || parameter === "n-";
       if (!wantsSource && !wantsVector && !wantsNode) return null;
       const symbols = new Set<string>();
+      if (
+        wantsVector &&
+        guide.help.name.replace(/^\./u, "").toLowerCase() === "save"
+      )
+        symbols.add("all");
+      const mapped = wantsVector ? (signalNames?.() ?? {}) : {};
+      for (const vector of Object.keys(mapped)) symbols.add(vector);
       for (const text of [context.state.doc.toString(), ...relatedSources]) {
         let subckt = false;
         for (const row of text.split(/\r?\n/u)) {
@@ -105,7 +113,11 @@ export function spiceCompletion(
       const vectorWord = context.matchBefore(/[\w().,:]+/u);
       return {
         from: vectorWord?.from ?? context.pos,
-        options: [...symbols].map((label) => ({ label, type: "variable" })),
+        options: [...symbols].map((label) => ({
+          label,
+          type: "variable",
+          ...(mapped[label] ? { detail: mapped[label] } : {}),
+        })),
       };
     }
     return {

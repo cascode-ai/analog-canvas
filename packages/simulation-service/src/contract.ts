@@ -152,6 +152,7 @@ export const PreparedSchema = z.strictObject({
   mode: z.enum(["source", "structured", "raw"]),
   environment: EnvironmentSchema,
   vectors: z.array(VectorSchema),
+  signalNames: z.record(z.string(), z.string()).optional(),
   outputs: z.array(CompiledOutputSchema),
   deviceOperatingPoints: z.array(CompiledDeviceOperatingPointSchema),
   measurements: z.array(SimulationMeasurementSpecSchema).optional(),

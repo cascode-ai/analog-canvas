@@ -98,38 +98,27 @@ test("the qualified OTA folder opens unchanged and preserves all root and hierar
   });
   await clickNetlistWorkflowCommand(page, "open-analog-simulation");
   const panel = page.getByRole("region", { name: "Analog simulation" });
-  // Canvas picking and authored scoped expressions share the same config file.
+  // Ordinary picks write native save text; current instrumentation keeps its owner.
   const helper = async (name: string) => {
     await panel.getByRole("button", { name: /Helper.*Ctrl\+Space/ }).click();
     await panel.getByRole("option", { name, exact: true }).click();
   };
   await helper("Pick Net on Canvas");
   await page.getByTestId("route-hit-tb-vinp-route").click({ force: true });
-  // One-shot Canvas picking opens the config; observations must stay reachable
-  // there without offering SPICE snippets that would corrupt the JSON file.
   await expect(
-    panel.getByRole("tab", { name: "Configuration", exact: false }),
-  ).toHaveAttribute("aria-selected", "true");
-  await panel.getByRole("button", { name: /Helper.*Ctrl\+Space/ }).click();
-  await expect(
-    panel.getByRole("option", { name: ".include", exact: true }),
-  ).toHaveCount(0);
-  await page.keyboard.press("Escape");
+    panel.getByRole("textbox", { name: "Simulation source editor" }),
+  ).toContainText("save ");
   await helper("Pick current on Canvas");
   await page.getByTestId("terminal-VINP-+").click();
   await expect(
     page.getByTestId("terminal-VINP-+-current-pick-marker"),
   ).toHaveClass(/origin/u);
   await page.getByTestId("terminal-VINP--").click();
-  await helper("Observe differential voltage");
-  const observe = panel.getByRole("dialog", { name: "Observe signal" });
+  await helper("Save voltage…");
+  const observe = panel.getByRole("dialog", { name: "Save signal" });
   await observe.getByRole("textbox", { name: "Search signal" }).fill("v(out)");
   await observe
     .getByRole("button", { name: "Use native vector: v(out)", exact: true })
-    .click();
-  await observe.getByRole("textbox", { name: "Search signal" }).fill("v(in)");
-  await observe
-    .getByRole("button", { name: "Use native vector: v(in)", exact: true })
     .click();
   const pickedProject = parseProject(
     (await downloadBytes(page, "File", "Export Project File…")).toString(),
@@ -137,14 +126,10 @@ test("the qualified OTA folder opens unchanged and preserves all root and hierar
   const pickedConfig = readSimulationExperimentConfig(
     pickedProject.simulationFolders[0]!,
   );
-  expect(pickedConfig.ok && pickedConfig.config.outputs.length).toBe(7);
+  expect(pickedConfig.ok && pickedConfig.config.outputs.length).toBe(5);
   expect(
     pickedConfig.ok && pickedConfig.config.outputs.at(-1)?.expression,
-  ).toEqual({
-    kind: "subtract",
-    left: { kind: "vector", vector: "v(out)" },
-    right: { kind: "vector", vector: "v(in)" },
-  });
+  ).toMatchObject({ kind: "current" });
   const circuit = {
     bindingId: savedSetup.input.circuitBindings[0]!.id,
     callPath: [],
@@ -228,7 +213,9 @@ test("the qualified OTA folder opens unchanged and preserves all root and hierar
       (f) => f.path === savedSetup.input.entry,
     )?.text,
   ).toBe(
-    savedSetup.input.files.find((f) => f.path === savedSetup.input.entry)?.text,
+    pickedProject.simulationFolders[0]!.input.files.find(
+      (f) => f.path === savedSetup.input.entry,
+    )?.text,
   );
   await page.reload();
   await page.getByTestId("project-file").setInputFiles({
@@ -358,20 +345,22 @@ test("one Testbench persists several independently named folders", async ({
       exact: true,
     }),
   ).toBeVisible();
-  page.once("dialog", (dialog) => void dialog.accept("Bias sweep"));
   await folders.getByRole("button", { name: "+ New folder…" }).click();
-  await panel.getByRole("button", { name: /Run current Cell/ }).click();
+  await folders
+    .getByRole("textbox", { name: "Folder name" })
+    .fill("Bias sweep");
+  await folders.getByRole("textbox", { name: "Folder name" }).press("Enter");
   await expect(
     folders.getByRole("button", { name: "Folder Bias sweep", exact: true }),
   ).toBeVisible();
   await folders
     .getByRole("button", { name: "Folder Bias sweep", exact: true })
     .click({ button: "right" });
-  page.once(
-    "dialog",
-    (dialog) => void dialog.accept("OTA OP, DC, AC, and TRAN"),
-  );
   await folders.getByRole("menuitem", { name: "Rename…" }).click();
+  await folders
+    .getByRole("textbox", { name: "Folder name" })
+    .fill("OTA OP, DC, AC, and TRAN");
+  await folders.getByRole("textbox", { name: "Folder name" }).press("Enter");
   await panel.getByRole("tab", { name: "Console", exact: true }).click();
   await expect(panel.getByLabel("Simulation results")).toContainText(
     "already exists",
@@ -387,7 +376,7 @@ test("one Testbench persists several independently named folders", async ({
     saved.simulationFolders.find(
       (folder: { name: string }) => folder.name === "Bias sweep",
     )?.input.circuitBindings[0]?.documentId,
-  ).toBe(activeTestbenchId);
+  ).toBeUndefined();
   expect(
     new Set(
       saved.simulationFolders.map(
@@ -396,7 +385,11 @@ test("one Testbench persists several independently named folders", async ({
       ),
     ),
   ).toEqual(
-    new Set(["document-ota-5t-testbench", "document-ota-5t-testbench-sin"]),
+    new Set([
+      "document-ota-5t-testbench",
+      "document-ota-5t-testbench-sin",
+      undefined,
+    ]),
   );
 
   await folders

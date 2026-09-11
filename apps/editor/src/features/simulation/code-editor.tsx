@@ -65,6 +65,7 @@ import {
   parameterGuide,
 } from "./code-parameter-guide";
 import { CodeHelperList, type CodeHelperAction } from "./code-helper-list";
+import { nativeSaveEdit } from "./native-save-edit";
 
 export interface SimulationCodeEditorProps {
   path: string;
@@ -91,6 +92,8 @@ export interface SimulationCodeEditorProps {
   onCursor?(sourceOffset: number): void;
   helperActions?: readonly CodeHelperAction[];
   relatedSources?: readonly string[];
+  signalNames?: (() => Readonly<Record<string, string>>) | undefined;
+  saveRequest?: { id: string; vectors: string[] } | undefined;
   reveal?:
     { sourceOffset: number; requestId: string; focus?: boolean } | undefined;
 }
@@ -334,6 +337,29 @@ export default function SimulationCodeEditor(props: SimulationCodeEditorProps) {
     if (props.reveal.focus !== false) editor.focus();
   }, [props.reveal?.requestId]);
 
+  useEffect(() => {
+    const editor = view.current;
+    if (
+      !editor ||
+      !props.saveRequest ||
+      props.generated ||
+      props.mode === "json"
+    )
+      return;
+    const edit = nativeSaveEdit(
+      editor.state.doc.toString(),
+      editor.state.selection.main.head,
+      props.saveRequest.vectors,
+      !!props.entry,
+    );
+    editor.dispatch({
+      changes: { from: edit.from, insert: edit.insert },
+      selection: { anchor: edit.from + edit.insert.length },
+      scrollIntoView: true,
+    });
+    editor.focus();
+  }, [props.saveRequest?.id]);
+
   return (
     <div className="simulation-code-editor-shell">
       <div
@@ -347,6 +373,8 @@ export default function SimulationCodeEditor(props: SimulationCodeEditorProps) {
         <button
           type="button"
           title="Insert / Helper · Ctrl+Space"
+          data-simulation-helper-trigger
+          aria-expanded={helperOpen}
           onClick={() => setHelperOpen((open) => !open)}
         >
           Helper <kbd>Ctrl+Space</kbd>
@@ -478,7 +506,11 @@ function sourceExtensions(
           autocompletion({
             override: [
               (context) =>
-                spiceCompletion(context, callbacks.current.relatedSources),
+                spiceCompletion(
+                  context,
+                  callbacks.current.relatedSources,
+                  callbacks.current.signalNames,
+                ),
             ],
             activateOnTypingDelay: 350,
           }),

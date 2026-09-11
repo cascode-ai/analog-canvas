@@ -7,6 +7,7 @@ import {
   analyzeDesignNetlist,
   inspectSimulationSourceGraph,
   listAuthoredCircuitScopes,
+  simulationSignalNames,
 } from "@icm/netlist";
 import { deriveSimulationProbeOptions } from "./simulation-probe-options";
 
@@ -22,6 +23,7 @@ export function sourceProbeChoices(
   const graph = inspectSimulationSourceGraph(input);
   const choices: SourceProbeChoice[] = [];
   for (const binding of input.circuitBindings) {
+    if (!graph.paths.includes(binding.path)) continue;
     const analysis = analyzeDesignNetlist(project, {
       format: "spice",
       rootDocumentId: binding.documentId,
@@ -33,12 +35,6 @@ export function sourceProbeChoices(
       const prefix = scope.callPath.length
         ? `${scope.callPath.join("/")} · `
         : "";
-      for (const option of options.voltage)
-        choices.push({
-          kind: "voltage",
-          label: prefix + option.label,
-          expression: { ...option.target, circuit: scope },
-        });
       for (const option of options.terminalCurrent)
         choices.push({
           kind: "current",
@@ -49,6 +45,15 @@ export function sourceProbeChoices(
   }
   // Native top-level nodes and independent voltage-source currents need no Canvas mapping.
   const vectors = new Set<string>();
+  const names = simulationSignalNames(project, input);
+  for (const [vector, name] of Object.entries(names)) {
+    choices.push({
+      kind: "voltage",
+      label: `${name.replaceAll("/", " · ")} — ${vector}`,
+      expression: { kind: "vector", vector },
+    });
+    vectors.add(vector);
+  }
   let depth = 0;
   for (const { statement } of graph.statements) {
     if (statement.kind === "subckt_start") depth++;
@@ -59,10 +64,11 @@ export function sourceProbeChoices(
       vectors.add(`i(${statement.name})`);
   }
   for (const vector of vectors)
-    choices.push({
-      kind: vector.startsWith("v(") ? "voltage" : "current",
-      label: vector,
-      expression: { kind: "vector", vector },
-    });
+    if (!names[vector.toLowerCase()])
+      choices.push({
+        kind: vector.startsWith("v(") ? "voltage" : "current",
+        label: vector,
+        expression: { kind: "vector", vector },
+      });
   return choices;
 }

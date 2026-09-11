@@ -41,7 +41,7 @@ export function CodeHelperList({
         key: action.id,
         label: action.label,
         detail: "",
-        group: "Observe",
+        group: "Signals",
         run: action.run,
       })),
     ...rules.map((rule) => ({
@@ -54,7 +54,11 @@ export function CodeHelperList({
   ];
   useEffect(() => {
     const close = (event: PointerEvent) => {
-      if (!root.current?.contains(event.target as Node)) onClose();
+      if (
+        !root.current?.contains(event.target as Node) &&
+        !(event.target as Element).closest?.("[data-simulation-helper-trigger]")
+      )
+        onClose();
     };
     document.addEventListener("pointerdown", close);
     return () => document.removeEventListener("pointerdown", close);

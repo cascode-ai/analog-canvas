@@ -13,3 +13,4 @@ export * from "./simulation-source-map.js";
 export * from "./simulation-source-projection.js";
 export * from "./simulation-starter.js";
 export * from "./simulation-source-scopes.js";
+export * from "./simulation-signal-names.js";
