@@ -22,6 +22,7 @@ import {
   planProjectCellImport,
   planSetCellSymbolPresentation,
   type CellResetPlan,
+  type SchematicEdit,
   type WireSource,
 } from "@icm/edit-engine";
 import {
@@ -276,6 +277,8 @@ import { deriveSelectionInspectionModel } from "../features/selection/selection-
 import { usePropertiesEditor } from "../features/properties/use-properties-editor";
 import { createPropertyEditPlanner } from "../features/properties/property-edit-planner";
 import { createSelectionPropertyCommands } from "../features/properties/selection-property-commands";
+import { planComponentPropertyCodeEdits } from "../features/properties/component-property-code-edits";
+import type { ComponentPropertyCodeValue } from "../features/properties/component-property-code";
 import {
   LIBRARY_WIDTH_MAX,
   LIBRARY_WIDTH_MIN,
@@ -319,7 +322,11 @@ const DEFAULT_VIEWBOX: GridRect = { x: 0, y: 0, width: 960, height: 640 };
 const RECENT_COMPONENTS_STORAGE_KEY = "icm.recent-components.v1";
 const LIBRARY_PANEL_STORAGE_KEY = "icm.library-panel-open.v1";
 const LIBRARY_WIDTH_STORAGE_KEY = "icm.library-panel-width.v1";
+const PROPERTIES_WIDTH_STORAGE_KEY = "icm.properties-panel-width.v1";
 const SIMULATION_WIDTH_STORAGE_KEY = "icm.simulation-panel-width.v2";
+const PROPERTIES_WIDTH_MIN = 280;
+const PROPERTIES_WIDTH_MAX = 760;
+const PROPERTIES_WIDTH_RATIO = 0.24;
 const SIMULATION_WIDTH_MIN = 320;
 const SIMULATION_WIDTH_MAX = 1200;
 const SIMULATION_WIDTH_RATIO = 0.4;
@@ -329,6 +336,15 @@ function defaultSimulationWidth(viewportWidth: number): number {
     Math.min(
       SIMULATION_WIDTH_MAX,
       Math.max(SIMULATION_WIDTH_MIN, viewportWidth * SIMULATION_WIDTH_RATIO),
+    ),
+  );
+}
+
+function defaultPropertiesWidth(viewportWidth: number): number {
+  return Math.round(
+    Math.min(
+      PROPERTIES_WIDTH_MAX,
+      Math.max(PROPERTIES_WIDTH_MIN, viewportWidth * PROPERTIES_WIDTH_RATIO),
     ),
   );
 }
@@ -376,6 +392,34 @@ export function App({
     pointerX: number;
     width: number;
   } | null>(null);
+  const propertiesResizeOriginRef = useRef<{
+    pointerX: number;
+    width: number;
+  } | null>(null);
+  const [propertiesWidth, setPropertiesWidthState] = useState(() => {
+    if (typeof window === "undefined") return defaultPropertiesWidth(1100);
+    try {
+      const stored = Number(
+        window.localStorage.getItem(PROPERTIES_WIDTH_STORAGE_KEY),
+      );
+      return Number.isFinite(stored) && stored > 0
+        ? Math.min(PROPERTIES_WIDTH_MAX, Math.max(PROPERTIES_WIDTH_MIN, stored))
+        : defaultPropertiesWidth(window.innerWidth);
+    } catch {
+      return defaultPropertiesWidth(window.innerWidth);
+    }
+  });
+  const setPropertiesWidth = (width: number): void => {
+    const next = Math.round(
+      Math.min(PROPERTIES_WIDTH_MAX, Math.max(PROPERTIES_WIDTH_MIN, width)),
+    );
+    setPropertiesWidthState(next);
+    try {
+      window.localStorage.setItem(PROPERTIES_WIDTH_STORAGE_KEY, String(next));
+    } catch {
+      // Resizing remains available when browser storage is unavailable.
+    }
+  };
   const [simulationWidth, setSimulationWidthState] = useState(() => {
     if (typeof window === "undefined") return defaultSimulationWidth(1100);
     try {
@@ -5108,10 +5152,53 @@ export function App({
         style={
           {
             "--icm-shapes-width": `${libraryWidth}px`,
+            "--icm-properties-width": `${propertiesWidth}px`,
             "--icm-simulation-width": `${simulationWidth}px`,
           } as CSSProperties
         }
       >
+        {selectionOpen && !analogSimulationMaximized ? (
+          <div
+            className="properties-resize-handle"
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize the Properties panel"
+            aria-valuenow={propertiesWidth}
+            aria-valuemin={PROPERTIES_WIDTH_MIN}
+            aria-valuemax={PROPERTIES_WIDTH_MAX}
+            tabIndex={0}
+            data-testid="properties-resize-handle"
+            onPointerDown={(event) => {
+              event.preventDefault();
+              event.currentTarget.setPointerCapture(event.pointerId);
+              propertiesResizeOriginRef.current = {
+                pointerX: event.clientX,
+                width: propertiesWidth,
+              };
+            }}
+            onPointerMove={(event) => {
+              const origin = propertiesResizeOriginRef.current;
+              if (!origin) return;
+              setPropertiesWidth(
+                origin.width - (event.clientX - origin.pointerX),
+              );
+            }}
+            onPointerUp={(event) => {
+              propertiesResizeOriginRef.current = null;
+              event.currentTarget.releasePointerCapture(event.pointerId);
+            }}
+            onKeyDown={(event) => {
+              const step = event.shiftKey ? 32 : 8;
+              if (event.key === "ArrowLeft") {
+                event.preventDefault();
+                setPropertiesWidth(propertiesWidth + step);
+              } else if (event.key === "ArrowRight") {
+                event.preventDefault();
+                setPropertiesWidth(propertiesWidth - step);
+              }
+            }}
+          />
+        ) : null}
         {analogSimulationOpen &&
         !selectionOpen &&
         !analogSimulationMaximized ? (
@@ -5492,6 +5579,88 @@ export function App({
               component={
                 selectedInstance
                   ? {
+                      code: {
+                        instance: selectedInstance,
+                        revision: document.revision,
+                        referenceVisible:
+                          selectedLabelRenderable &&
+                          symbolCarriesReference(selectedInstance.symbolId)
+                            ? selectedInstanceLabel !== undefined &&
+                              selectedInstanceLabel.visible !== false
+                            : null,
+                        valueVisible: symbolSupportsValueAnnotation(
+                          selectedInstance.symbolId,
+                        )
+                          ? selectedInstanceValue !== null &&
+                            selectedInstanceValue.visible !== false
+                          : null,
+                        onApply: (value: ComponentPropertyCodeValue) => {
+                          const edits: SchematicEdit[] =
+                            planComponentPropertyCodeEdits(
+                              document,
+                              selectedInstance,
+                              value,
+                            );
+                          const desiredReference = value.display?.reference;
+                          const currentReference =
+                            selectedInstanceLabel !== undefined &&
+                            selectedInstanceLabel.visible !== false;
+                          if (
+                            typeof desiredReference === "boolean" &&
+                            desiredReference !== currentReference
+                          ) {
+                            edits.push(
+                              ...referenceLabelVisibilityEdits(
+                                [selectedInstance.id],
+                                desiredReference,
+                              ),
+                            );
+                          }
+                          const desiredValue = value.display?.value;
+                          const currentValue =
+                            selectedInstanceValue !== null &&
+                            selectedInstanceValue.visible !== false;
+                          if (
+                            typeof desiredValue === "boolean" &&
+                            desiredValue !== currentValue
+                          ) {
+                            if (
+                              desiredValue &&
+                              !selectedInstanceValueAvailable
+                            ) {
+                              return {
+                                ok: false as const,
+                                message:
+                                  "Set a valid component value before enabling its display",
+                              };
+                            }
+                            edits.push(
+                              ...valueVisibilityEdits(
+                                document,
+                                [selectedInstance.id],
+                                desiredValue,
+                              ),
+                            );
+                          }
+                          if (edits.length === 0) {
+                            setStatus(
+                              `Canvas properties for ${selectedInstance.id} are already up to date`,
+                            );
+                            return { ok: true as const };
+                          }
+                          if (!transact(edits).ok) {
+                            return {
+                              ok: false as const,
+                              message:
+                                "Canvas property code was rejected; see the status bar",
+                            };
+                          }
+                          setStatus(
+                            `Applied Canvas property code to ${selectedInstance.id}`,
+                          );
+                          return { ok: true as const };
+                        },
+                      },
                       formalPort: selectedFormalTerminal
                         ? {
                             terminal: selectedFormalTerminal,
@@ -5697,26 +5866,6 @@ export function App({
                         onAdditionalParametersApply: applyAdditionalParameters,
                         onAdditionalParametersCancel:
                           cancelAdditionalParameters,
-                      },
-                      style: {
-                        instance: selectedInstance,
-                        defaultForeground: styleProfile.foreground,
-                        onChange: (styleOverride) => {
-                          const result = transact([
-                            {
-                              kind: "set_instance_style_override",
-                              instanceId: selectedInstance.id,
-                              styleOverride,
-                            },
-                          ]);
-                          if (result.ok) {
-                            setStatus(
-                              styleOverride
-                                ? `Updated appearance for ${selectedInstance.id}`
-                                : `Reset appearance for ${selectedInstance.id}`,
-                            );
-                          }
-                        },
                       },
                       placement: {
                         instance: selectedInstance,

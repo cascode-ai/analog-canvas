@@ -61,6 +61,46 @@ removes electrical memberships, NoConnects, owned labels, layout references,
 and the Instance in one transaction. The formal-terminal and caller projection
 is appended only by the Project transaction.
 
+## Component property code
+
+Selecting a placed component and opening **Properties** presents its canvas
+properties first as strict, editable JSON:
+
+```json
+{
+  "placement": {
+    "at": [360, 240],
+    "rotation": 90,
+    "mirror": "none"
+  },
+  "display": {
+    "reference": true,
+    "value": false
+  },
+  "appearance": {
+    "foreground": "auto",
+    "background": "auto"
+  }
+}
+```
+
+`placement.at` is the `[x, y]` grid coordinate, rotation is restricted to
+quarter turns, and mirror is `"none"` or `"x"`. Display keys appear only for
+annotations supported by that Symbol. Colors are `"auto"` or six-digit hex
+values. Applying valid code plans the existing typed placement, annotation,
+and style edits and submits them as one transaction. Unknown keys and invalid
+values are rejected without changing the Document. Connectivity, pins, Netlist
+identity, and Placement Tray lifecycle are intentionally absent from this
+surface; their dedicated typed commands remain authoritative.
+
+The old component placement, display, and appearance button grids are not
+mounted in the composed Properties dock. Electrical parameters, Reference,
+model bindings, Symbol-specific actions, and the exact read-only SPICE card
+remain in their focused sections below the canvas code. The left edge of
+Properties is draggable and keyboard-adjustable in both docked and compact
+overlay layouts; its independent width is retained locally without becoming
+Project data.
+
 The **Placement Tray** is the only retained-unplaced presentation surface. A
 tray item may be dragged, entered into the ordinary placement cursor, or placed
 with **Place all** into a deterministic starter grid in the current view.

@@ -3,6 +3,7 @@ import {
   awaitEditorReady,
   chooseComponent,
   downloadBytes,
+  editComponentPropertyCode,
 } from "./editor-fixtures.js";
 
 async function placeResistor(page: Page) {
@@ -128,12 +129,13 @@ test("Properties renames the electrical identity explicitly; restore is an in-pl
   await reference.fill("gm");
   await reference.press("Enter");
   await expect(reference).toHaveValue("R7");
-  const toggle = properties
-    .getByLabel("Component display toggles")
-    .getByLabel("Visual annotation");
-  await toggle.uncheck();
+  await editComponentPropertyCode(page, (value) => {
+    value.display.reference = false;
+  });
   await expect(visual(page)).toHaveCount(0);
-  await toggle.check();
+  await editComponentPropertyCode(page, (value) => {
+    value.display.reference = true;
+  });
   await expect(visual(page)).toContainText("load");
 
   await properties.getByRole("button", { name: "Edit annotation" }).click();

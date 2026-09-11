@@ -14,7 +14,8 @@
 }
 
 .selection-dock.open {
-  width: min(var(--icm-props-open), 42vw);
+  width: min(var(--icm-properties-width, var(--icm-props-open)), 70vw);
+  transition: none;
 }
 
 .selection-panel h2 {
@@ -323,6 +324,9 @@
   }
 
   .selection-dock.open {
-    width: min(var(--icm-props-open), calc(100% - var(--icm-rail-width)));
+    width: min(
+      var(--icm-properties-width, var(--icm-props-open)),
+      calc(100% - var(--icm-rail-width))
+    );
   }
 }

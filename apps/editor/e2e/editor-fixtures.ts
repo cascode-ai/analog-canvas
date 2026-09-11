@@ -95,6 +95,18 @@ export async function chooseComponent(
   await dialog.getByTestId(`insert-component-${symbolId}`).click();
 }
 
+/** Edit the selected component's strict Canvas-property JSON and apply it. */
+export async function editComponentPropertyCode(
+  page: Page,
+  update: (value: Record<string, any>) => void,
+): Promise<void> {
+  const input = page.getByLabel("Editable Canvas property code");
+  const value = JSON.parse(await input.inputValue()) as Record<string, any>;
+  update(value);
+  await input.fill(JSON.stringify(value, null, 2));
+  await page.getByRole("button", { name: "Apply code" }).click();
+}
+
 export async function downloadBytes(
   page: Page,
   menu: string,

@@ -11,7 +11,7 @@ import { ComponentIdentityProperties } from "../features/properties/component-id
 import { ComponentElectricalProperties } from "../features/properties/component-electrical-properties";
 import { ComponentSignalFlowProperties } from "../features/properties/component-signal-flow-properties";
 import { ComponentPlacementProperties } from "../features/properties/component-placement-properties";
-import { ComponentStyleProperties } from "../features/properties/component-style-properties";
+import { ComponentPropertyCodeEditor } from "../features/properties/component-property-code-editor";
 import { AnnotationColorProperties } from "../features/properties/annotation-color-properties";
 import { NetNameProperties } from "../features/properties/net-name-properties";
 import { DraftingPropertiesPanel } from "../features/drafting/drafting-properties-panel";
@@ -31,12 +31,12 @@ import {
 import { LazyAgentPropertiesSection } from "./lazy-editor-dialogs";
 
 interface ComponentPropertiesModel {
+  code: ComponentProps<typeof ComponentPropertyCodeEditor>;
   formalPort: ComponentProps<typeof FormalPortProperties> | null;
   cellSymbolLayout: ComponentProps<typeof CellSymbolLayoutProperties> | null;
   identity: ComponentProps<typeof ComponentIdentityProperties>;
   signalFlow: ComponentProps<typeof ComponentSignalFlowProperties> | null;
   electrical: ComponentProps<typeof ComponentElectricalProperties>;
-  style: ComponentProps<typeof ComponentStyleProperties>;
   placement: ComponentProps<typeof ComponentPlacementProperties>;
 }
 
@@ -141,6 +141,10 @@ export function EditorPropertiesDock({
               className="property-section component-properties"
               aria-label="Component properties"
             >
+              <ComponentPropertyCodeEditor
+                key={component.code.instance.id}
+                {...component.code}
+              />
               {component.formalPort ? (
                 <FormalPortProperties {...component.formalPort} />
               ) : null}
@@ -150,11 +154,13 @@ export function EditorPropertiesDock({
               {component.signalFlow ? (
                 <ComponentSignalFlowProperties {...component.signalFlow} />
               ) : null}
-              <ComponentElectricalProperties {...component.electrical} />
-              <ComponentPlacementProperties {...component.placement} />
-              <ComponentStyleProperties
-                key={component.style.instance.id}
-                {...component.style}
+              <ComponentElectricalProperties
+                {...component.electrical}
+                displayControls={false}
+              />
+              <ComponentPlacementProperties
+                {...component.placement}
+                geometryControls={false}
               />
               <ComponentIdentityProperties {...component.identity} />
             </section>
