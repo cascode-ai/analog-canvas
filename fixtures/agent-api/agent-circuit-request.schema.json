@@ -191,7 +191,7 @@
   "$defs": {
     "__schema0": {
       "type": "string",
-      "const": "2.0"
+      "const": "3.0"
     },
     "__schema1": {
       "type": "string",
@@ -14786,9 +14786,9 @@
           "properties": {
             "kind": {
               "type": "string",
-              "const": "upsert_simulation_setup"
+              "const": "upsert_simulation_folder"
             },
-            "setup": {
+            "folder": {
               "type": "object",
               "properties": {
                 "version": {
@@ -14815,6 +14815,9 @@
                     },
                     "dependencies": {
                       "$ref": "#/$defs/__schema378"
+                    },
+                    "drafts": {
+                      "$ref": "#/$defs/__schema380"
                     }
                   },
                   "required": [
@@ -14847,7 +14850,7 @@
           },
           "required": [
             "kind",
-            "setup"
+            "folder"
           ],
           "additionalProperties": false
         },
@@ -14856,16 +14859,16 @@
           "properties": {
             "kind": {
               "type": "string",
-              "const": "remove_simulation_setup"
+              "const": "remove_simulation_folder"
             },
-            "setupId": {
+            "folderId": {
               "type": "string",
               "minLength": 1
             }
           },
           "required": [
             "kind",
-            "setupId"
+            "folderId"
           ],
           "additionalProperties": false
         },
@@ -15307,6 +15310,36 @@
         "id",
         "mountPath",
         "sha256"
+      ],
+      "additionalProperties": false
+    },
+    "__schema380": {
+      "maxItems": 4096,
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/__schema381"
+      }
+    },
+    "__schema381": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/__schema373"
+        },
+        "base": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "binding": {
+          "$ref": "#/$defs/__schema377"
+        }
+      },
+      "required": [
+        "path",
+        "base",
+        "text"
       ],
       "additionalProperties": false
     }

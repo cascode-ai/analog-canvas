@@ -63,6 +63,26 @@ function raw(text: string) {
   });
 }
 describe("source simulation compiler", () => {
+  it("never prepares stale committed bytes while an unapplied saved draft exists", () => {
+    const folder = raw("* test\n.control\nop\nwrite out.raw\n.endc\n.end\n");
+    expect(compileSourceSimulation(project(), folder).ok).toBe(true);
+    const text = folder.input.files[0]!.text;
+    folder.input.drafts = [{ path: "run.cir", base: text, text: "unfinished" }];
+    const refused = compileSourceSimulation(project(), folder);
+    expect(refused.ok).toBe(false);
+    if (!refused.ok)
+      expect(refused.diagnostics).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            code: "SIMULATION_SOURCE_DRAFT_PENDING",
+            path: "run.cir",
+          }),
+        ]),
+      );
+    expect(folder.input.files[0]!.text).toBe(text);
+    folder.input.drafts = [];
+    expect(compileSourceSimulation(project(), folder).ok).toBe(true);
+  });
   it("accepts only known intrinsic Noise outputs, not arbitrary missing ids", () => {
     const folder = raw("* test\n.control\nop\nwrite out.raw\n.endc\n.end\n");
     const settings = config(folder);

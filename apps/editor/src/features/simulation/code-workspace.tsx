@@ -46,6 +46,7 @@ export function SimulationCodeWorkspace(props: SimulationCodeWorkspaceProps) {
   const [filesOpen, setFilesOpen] = useState(Boolean(props.folders));
   const [opened, setOpened] = useState(defaults);
   const [moreOpen, setMoreOpen] = useState(false);
+  const [menuPosition, setMenuPosition] = useState({ top: 0, right: 0 });
   const [resultsHeight, setResultsHeight] = useState(38);
   const [collapsed, setCollapsed] = useState(false);
   const [fileMenu, setFileMenu] = useState<string>();
@@ -205,13 +206,22 @@ export function SimulationCodeWorkspace(props: SimulationCodeWorkspaceProps) {
             type="button"
             aria-label="More code actions"
             aria-expanded={moreOpen}
-            onClick={() => setMoreOpen(!moreOpen)}
+            onClick={(event) => {
+              const rect = event.currentTarget.getBoundingClientRect();
+              setMenuPosition({
+                top: rect.bottom,
+                right: Math.max(4, window.innerWidth - rect.right),
+              });
+              setMoreOpen(!moreOpen);
+            }}
           >
             ···
           </button>
           {moreOpen ? (
             <div
               className="simulation-code-menu"
+              style={menuPosition}
+              onClick={() => setMoreOpen(false)}
               onKeyDown={(event) => {
                 if (event.key === "Escape") setMoreOpen(false);
               }}

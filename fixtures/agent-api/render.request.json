@@ -1,5 +1,5 @@
 {
-  "apiVersion": "2.0",
+  "apiVersion": "3.0",
   "requestId": "example-render",
   "operation": "render",
   "documentId": "document-differential-stage",

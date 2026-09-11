@@ -1,5 +1,5 @@
 import {
-  isSimulationRunArchive,
+  readSimulationRunArchive,
   summarizeSimulationRunArchive,
   type SimulationRunArchiveSummary,
   type SimulationRunArchiveV1,
@@ -116,7 +116,9 @@ export function createBrowserSimulationArchiveStore(
       transaction.objectStore(STORE_NAME).getAll(),
     );
     await transactionDone(transaction);
-    return values.filter(isSimulationRunArchive);
+    return values
+      .map(readSimulationRunArchive)
+      .filter((value): value is SimulationRunArchiveV1 => value !== null);
   }
 
   return {
@@ -141,7 +143,7 @@ export function createBrowserSimulationArchiveStore(
         await transactionDone(transaction);
         return {
           ok: true,
-          value: isSimulationRunArchive(value) ? value : null,
+          value: readSimulationRunArchive(value),
         };
       } catch (error) {
         return failure(error);

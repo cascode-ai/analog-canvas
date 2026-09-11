@@ -89,6 +89,22 @@ describe("source experiment persistence", () => {
       false,
     );
   });
+  it("permits an unfinished draft but rejects ambiguous draft ownership", () => {
+    const authored = folder();
+    const draft = {
+      path: "circuit.spice",
+      base: "W=<w>",
+      text: "W=unfinished",
+    };
+    authored.input.drafts = [draft];
+    expect(ProjectSimulationFolderSchema.safeParse(authored).success).toBe(
+      true,
+    );
+    authored.input.drafts.push(draft);
+    expect(ProjectSimulationFolderSchema.safeParse(authored).success).toBe(
+      false,
+    );
+  });
 
   it("does not permit competing drawn Testbench roots or generated entry/config", () => {
     const authored = folder();

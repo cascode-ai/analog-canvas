@@ -38,7 +38,7 @@ structural-SPICE virtual source bundle, but does not mutate the live Project;
 call `inspect`, then `request-approval`. The human must select **Replace
 Project** in the browser. Simulation raw workspaces and execution artifacts use the same advertised
 File Resource through its simulation operations. The sibling Simulation
-resource provides prepare/start/read/cancel/export; saved setup changes remain
+resource provides prepare/start/read/cancel/export; saved folder changes remain
 typed Project structure edits. These resources grant neither arbitrary host-file
 access nor a general-purpose shell. See the
 [execution contract](../specs/simulation-execution.md) and
@@ -77,14 +77,14 @@ Host: 127.0.0.1:PORT
 Authorization: Bearer HOST_GENERATED_TOKEN
 Content-Type: application/json
 
-{"apiVersion":"2.0","requestId":"cap-1","operation":"capabilities"}
+{"apiVersion":"3.0","requestId":"cap-1","operation":"capabilities"}
 ```
 
 Then request the selected Document:
 
 ```json
 {
-  "apiVersion": "2.0",
+  "apiVersion": "3.0",
   "requestId": "snapshot-1",
   "operation": "snapshot",
   "documentId": "document-differential-stage",
@@ -144,7 +144,7 @@ placement; the next Snapshot is authoritative for the live Document.
    Authorization: Bearer AGENT_TOKEN
    Content-Type: application/json
 
-   {"apiVersion":"2.0","requestId":"cap-1","operation":"capabilities"}
+   {"apiVersion":"3.0","requestId":"cap-1","operation":"capabilities"}
    ```
 
    Then `snapshot`, `transact` (with the Snapshot revision as `expectedRevision`,
@@ -161,7 +161,7 @@ placement; the next Snapshot is authoritative for the live Document.
    Authorization: Bearer AGENT_TOKEN
    Content-Type: application/json
 
-   {"apiVersion":"2.0","requestId":"download-project-1","operation":"download","artifact":"project"}
+   {"apiVersion":"3.0","requestId":"download-project-1","operation":"download","artifact":"project"}
    ```
 
    Do not treat staging as an import. It only returns a candidate summary;

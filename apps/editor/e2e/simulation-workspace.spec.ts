@@ -13,6 +13,7 @@ import {
   replaceSimulationExperimentConfig,
 } from "@icm/model";
 import { parseProject } from "@icm/project-protocol";
+import { generateCircuitSource } from "@icm/netlist";
 
 import {
   clickNetlistWorkflowCommand,
@@ -43,13 +44,11 @@ test("incomplete circuit opens Code and saves invalid parameter drafts across re
     }),
   );
   await page.goto("/editor");
-  await page
-    .getByTestId("project-file")
-    .setInputFiles({
-      name: "unfinished.icproj.json",
-      mimeType: "application/json",
-      buffer: Buffer.from(JSON.stringify(project)),
-    });
+  await page.getByTestId("project-file").setInputFiles({
+    name: "unfinished.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
   await page.getByTestId("open-analog-simulation").click();
   const panel = page.getByRole("region", { name: "Analog simulation" });
   await panel.getByRole("tab", { name: "circuit.spice", exact: false }).click();
@@ -61,9 +60,15 @@ test("incomplete circuit opens Code and saves invalid parameter drafts across re
   await editor.click();
   await editor.press("Control+Home");
   // Numeric fields are editable; a deliberately incomplete value remains saveable.
-  const original = await editor.innerText();
+  const source = generateCircuitSource(
+    project,
+    folder.input.circuitBindings[0]!,
+  );
+  if (!source.ok) throw Error("Expected incomplete authoring projection");
+  const original = source.source.text;
   await editor.press("Control+A");
   await page.keyboard.insertText(original.replace("<value>", "bad-value"));
+  await expect(editor).toContainText("bad-value");
   const bytes = await downloadBytes(page, "File", "Export Project File…");
   const saved = parseProject(bytes.toString());
   expect(saved.simulationFolders[0]!.input.drafts?.[0]?.text).toContain(
@@ -75,13 +80,11 @@ test("incomplete circuit opens Code and saves invalid parameter drafts across re
       .instances.find((i) => i.id === capacitor.id)!.netlist!.parameters.value,
   ).toBeUndefined();
   await page.reload();
-  await page
-    .getByTestId("project-file")
-    .setInputFiles({
-      name: "saved.icproj.json",
-      mimeType: "application/json",
-      buffer: bytes,
-    });
+  await page.getByTestId("project-file").setInputFiles({
+    name: "saved.icproj.json",
+    mimeType: "application/json",
+    buffer: bytes,
+  });
   await page.getByTestId("open-analog-simulation").click();
   await panel.getByRole("tab", { name: "circuit.spice", exact: false }).click();
   await expect(editor).toContainText("bad-value");
@@ -296,7 +299,10 @@ test("human simulation uses saved folder, survives minimizing, recovers a bad in
   await clickNetlistWorkflowCommand(page, "open-analog-simulation");
   const panel = page.getByRole("region", { name: "Analog simulation" });
   await panel.getByRole("button", { name: "Run", exact: true }).click();
-  await expect(panel.getByRole("alert")).toContainText(/PROBE|probe/);
+  await panel.getByRole("tab", { name: "Console", exact: true }).click();
+  await expect(panel.getByLabel("Simulation results")).toContainText(
+    /PROBE|probe/,
+  );
   expect(executions).toBe(0);
   config.outputs[0] = {
     id: "out",
@@ -341,13 +347,14 @@ test("human simulation uses saved folder, survives minimizing, recovers a bad in
   await clickNetlistWorkflowCommand(page, "open-analog-simulation");
   await expect(panel.getByRole("status")).toHaveText("finished · completed");
   // A completed run belongs to its folder, not whichever folder is currently visible.
-  await panel.getByTitle("Simulation folder", { exact: true }).click();
-  await panel.getByRole("button", { name: "New folder", exact: true }).click();
+  page.once("dialog", (dialog) => void dialog.accept("Second folder"));
+  await panel.getByRole("button", { name: "+ New folder…" }).click();
   await expect(panel.getByRole("status")).not.toHaveText(
     "finished · completed",
   );
-  await panel.getByTitle("Simulation folder", { exact: true }).click();
-  await panel.getByRole("button", { name: "E2E folder", exact: true }).click();
+  await panel
+    .getByRole("button", { name: "Folder E2E folder", exact: true })
+    .click();
   await expect(panel.getByRole("status")).toHaveText("finished · completed");
   expect(executions).toBe(1);
   await expect(panel.getByRole("tab", { name: "Summary" })).toHaveCount(0);
@@ -835,7 +842,7 @@ test("human simulation uses saved folder, survives minimizing, recovers a bad in
     program.replace(".control", ".temp 30\n.control"),
   );
   await downloadBytes(page, "File", "Export Project File…");
-  await expect(panel.getByRole("alert")).toContainText(
+  await expect(panel.locator(".simulation-code-status")).toContainText(
     "earlier Project revision",
   );
   await panel.getByRole("tab", { name: "Results", exact: true }).click();
@@ -1093,6 +1100,7 @@ test("Simulation creates an ordinary testbench and offers the current Cell at th
   expect(saved.simulationFolders).toEqual([]);
   await clickNetlistWorkflowCommand(page, "open-analog-simulation");
   await expect(page.getByLabel("Testbench Cell")).toHaveCount(0);
+  page.once("dialog", (dialog) => void dialog.accept("Main experiment"));
   await page
     .getByRole("button", { name: "Create experiment for this Cell" })
     .click();

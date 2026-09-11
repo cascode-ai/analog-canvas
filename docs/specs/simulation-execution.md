@@ -12,7 +12,7 @@ Owners: `packages/simulation-service`, `packages/spice-run`, `worker`,
 
 The implementation has these boundaries:
 
-- Model owns saved setups and canonical voltage/current expressions.
+- Model owns saved source folders and canonical voltage/current expressions.
 - Netlist compiles source intent and generated Canvas bindings. The service's
   preparation module resolves capabilities and immutable input identity.
 - SimulationService owns preparation and the session-facing run presentation.
@@ -22,7 +22,7 @@ The implementation has these boundaries:
   and production direct transports keep the same semantic service contract.
 - spice-run separates request/result types, deck assembly, metadata and terminal
   verdicts. Its public exports remain the same.
-- GUI setup editing, diagnostic display and result materialization are separate
+- GUI source editing, diagnostic display and result materialization are separate
   from workspace orchestration. Charts consume scalar/complex series; derived
   outputs are not re-encoded as fake simulator analyses.
 
@@ -35,9 +35,9 @@ reports `configured: false`, and execution returns
 Run reads return bounded receipts. Full `result.json` and `outputs.json`
 remain File artifacts; the GUI materializes these only when a receipt is a
 preview. MCP keeps paged file access instead of receiving unbounded arrays.
-Input freshness is cached per Project structure revision and setup ID; raw
+Input freshness is cached per Project structure revision and folder ID; raw
 dependency declarations participate in identity, not a separate unavailable state.
-Switching setups restores their session-local results; these are not saved in
+Switching folders restores their session-local results; these are not saved in
 the Project. A human may explicitly archive a completed result in bounded
 browser IndexedDB storage; this preserves verified artifacts for that Project
 on the same browser without changing the Project schema or claiming cloud
@@ -371,7 +371,7 @@ server records and artifacts for the bounded period below; direct/local receipts
 depend on their session service and resource lifetime. Once that evidence is
 unavailable, a receipt reads as lost. A lost run is never silently rerun.
 
-The same session resource exposes bounded saved-setup batches through
+The same session resource exposes bounded saved-folder batches through
 `prepare-batch`, `start-batch`, `read-batch`, and `cancel-batch`. Preparation
 freezes all 1–16 members at one Project structure revision before any member
 runs. Execution is sequential and each member is an ordinary Run with its own
@@ -386,7 +386,7 @@ over corner, temperature, Design Variable, or one or more exact
 instance-parameter axes. It
 expands the Cartesian product into the same bounded 1–16 member batch before
 execution; every point is an immutable run-only projection and never rewrites
-the saved Project or setup. Parameter axes address an exact Document,
+the saved Project or folder. Parameter axes address an exact Document,
 Instance, and netlist parameter. Variable axes address a stable Setup-local
 variable ID; preparation fans each point value out to all of that variable's
 exact bindings. Sweep members keep their ordinary prepared
@@ -399,13 +399,13 @@ protocol is introduced.
 
 `packages/simulation-service` owns transport-neutral prepare/run lifecycle and
 the canonical operation/result codecs. Its `SimulationFiles` is exposed through
-the existing File Resource. Project setup and source parameters retain the
+the existing File Resource. Project folder and source parameters retain the
 existing Project edit authority. Browser and MCP adapters do not compile their
 own decks or own a second simulation model. The browser lazily creates a service
 for its live Project session; opening the editor does not start ngspice.
 
-`prepare` accepts the Project's saved setup or an isolated raw workspace. The
-Project source requires `expectedStructureRevision`; there is no inline setup
+`prepare` accepts the Project's saved folder or an isolated raw workspace. The
+Project source requires `expectedStructureRevision`; there is no inline folder
 that bypasses Project edit ownership. It snapshots input and publishes immutable
 SHA-256-addressed artifact metadata; raw input retains its entry text and include
 files. `prepared.cir` is available before execution. Structured composition uses

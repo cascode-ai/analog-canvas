@@ -163,8 +163,8 @@ changing the circuit or becoming executable overrides.
 ## Read and write
 
 ```text
-import text -> parse JSON -> require Project schema 24 through 49
--> converge to schema 49 -> strict schema-49 validation -> install unbound
+import text -> parse JSON -> require Project schema 24 through 50
+-> converge to schema 50 -> strict schema-50 validation -> install unbound
 export -> strict validation -> canonical key ordering -> Blob download
 ```
 
@@ -188,7 +188,7 @@ open, and recovery remain exact.
 Canonical serialization ends with one newline and is byte-stable across
 serialize/parse/serialize. The current corpus is listed in
 `fixtures/projects/compatibility-corpus.json`; its accepted entries must all be
-already canonical Project schema 49. The rejected corpus names expected
+already canonical Project schema 50. The rejected corpus names expected
 validation failures.
 
 Viewport, selection, undo history, canvas overlays, Agent credentials,

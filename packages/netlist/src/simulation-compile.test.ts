@@ -351,7 +351,11 @@ function codes(result: Awaited<ReturnType<typeof compile>>): string[] {
 describe("compiling a structured simulation folder", () => {
   it("derives hierarchy-aware NMOS and PMOS terminal operating points", async () => {
     const project = CircuitProjectSchema.parse({
-      ...fiveTransistorOtaSky130,
+      ...Object.fromEntries(
+        Object.entries(fiveTransistorOtaSky130).filter(
+          ([key]) => key !== "simulationSetups",
+        ),
+      ),
       schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
       simulationFolders: [],
     });
@@ -421,7 +425,11 @@ describe("compiling a structured simulation folder", () => {
 
   it("refuses a selected MOS with unavailable Bulk instead of guessing", async () => {
     const project = CircuitProjectSchema.parse({
-      ...fiveTransistorOtaSky130,
+      ...Object.fromEntries(
+        Object.entries(fiveTransistorOtaSky130).filter(
+          ([key]) => key !== "simulationSetups",
+        ),
+      ),
       schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
       simulationFolders: [],
     });

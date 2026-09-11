@@ -961,6 +961,9 @@
 /* Half-screen windows: tighten every menubar pill so File…Publish and the
    right-side actions share one uncut row. */
 @media (max-width: 940px) {
+  .app-command-surface .menubar-row > button {
+    padding-inline: 0.25rem;
+  }
   .command-menu summary,
   .toolbar-button,
   .menubar-help {

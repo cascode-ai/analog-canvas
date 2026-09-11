@@ -11,7 +11,7 @@ Use `inspect` and `search` for IDs and pins, not screenshot coordinates.
 Production hides the Agent UI intentionally. Development/staging enables it
 with `VITE_ICM_AGENT_UI=enabled`.
 
-MCP 0.6.0 is the source-workspace candidate for API 2.0 and Project schema 49.
+MCP 0.7.0 is the source-folder candidate for API 3.0 and Project schema 50.
 It authors setup v4 source/config files; do not pair older setup-writing helpers
 with this cutover. The distribution manifest continues to identify the last
 published 0.5.0 artifact until a separately verified release is authorized.

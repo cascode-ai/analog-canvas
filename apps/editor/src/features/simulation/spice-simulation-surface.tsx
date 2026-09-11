@@ -135,7 +135,6 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
   const [prepared, setPrepared] = useState<Prepared>();
   const [run, setRun] = useState<Run>();
   const [batch, setBatch] = useState<SimulationBatch>();
-  const [batchSelection, setBatchSelection] = useState<readonly string[]>([]);
   const hydratedBatchRuns = useRef(new Set<string>());
   const batchRuns = useRef(new Map<string, { prepared: Prepared; run: Run }>());
   const runDetails = useRef(new SimulationRunDetails());
@@ -222,10 +221,10 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
     },
     [archiveStore],
   );
-  const previousSetupId = useRef<string | null>(props.selectedFolderId);
+  const previousFolderId = useRef<string | null>(props.selectedFolderId);
   useEffect(() => {
-    if (previousSetupId.current === props.selectedFolderId) return;
-    previousSetupId.current = props.selectedFolderId;
+    if (previousFolderId.current === props.selectedFolderId) return;
+    previousFolderId.current = props.selectedFolderId;
     const previous = props.selectedFolderId
       ? folderResults.current.get(props.selectedFolderId)
       : undefined;
@@ -235,9 +234,6 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
     setArtifactPreview(undefined);
     props.onOperatingPointProjection?.(null);
   }, [props.selectedFolderId]);
-  useEffect(() => {
-    if (!open || selectedFolder) return;
-  }, [open, selectedFolder, props.activeDocumentId]);
   const lock = useRef(false);
   const alive = useRef(true);
   useEffect(() => {
@@ -359,13 +355,6 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
     };
   }, [run?.id, session, project]);
   useEffect(() => {
-    setBatchSelection((current) =>
-      current.filter((id) =>
-        project.simulationFolders.some((folder) => folder.id === id),
-      ),
-    );
-  }, [project.simulationFolders]);
-  useEffect(() => {
     if (!batch || !["running", "cancelling"].includes(batch.state)) return;
     let stopped = false;
     let timer: ReturnType<typeof setTimeout>;
@@ -452,7 +441,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
       if (alive.current) setBusy(false);
     }
   };
-  const executeBatch = async (selection = batchSelection) => {
+  const executeBatch = async (selection: readonly string[]) => {
     if (lock.current) return;
     const authored = await codeRef.current?.flush();
     if (authored && !authored.ok) return;

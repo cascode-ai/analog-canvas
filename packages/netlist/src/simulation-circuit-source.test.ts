@@ -165,6 +165,12 @@ describe("Circuit parameter source projection", () => {
     expect(
       planCircuitSourceEdit(source, replace(source, [{ index, text: "25u" }])),
     ).toMatchObject({ ok: false, code: "SIMULATION_PARAMETER_INVALID" });
+    expect(
+      planCircuitSourceEdit(
+        source,
+        replace(source, [{ index, text: "bad-value" }]) + "Rnew n1 0 1k\n",
+      ),
+    ).toMatchObject({ ok: false, code: "SIMULATION_CIRCUIT_STRUCTURE_LOCKED" });
   });
   it("accepts multiple numeric edits with shifting text offsets in one plan", () => {
     const { source } = fixture();

@@ -13,7 +13,7 @@ Related decision: [ADR 0055](../adr/0055-simulation-is-part-of-the-product.md).
 
 ## Applicability
 
-This is the source-authoring contract. [Simulation Setup and Compilation](simulation.md)
+This is the source-authoring contract. [Simulation Folders and Compilation](simulation.md)
 describes its integration with the existing electrical compiler and device facts.
 Production promotion is a separate release decision.
 The execution and numeric contracts remain in
@@ -176,7 +176,7 @@ and typed Canvas acquisitions reuse the existing evaluator.
 
 ### Authored files
 
-Extend the existing Simulation File Resource with an explicit Project-setup
+Extend the existing Simulation File Resource with an explicit Project-folder
 owner; keep the existing session-workspace owner. Share list/read/update and
 patch codecs, not storage lifetime. Project text cannot expire with a session.
 Rename is one atomic remove/write/reference update, not a new filesystem layer.
@@ -217,7 +217,7 @@ three-way merge or new collaboration protocol is required.
 The printer supplies read-only text plus typed editable spans containing the
 exact object/parameter target, descriptor, original value and generation input
 digest. These spans are derived, never persisted. The digest covers every
-reached Document revision and setup state needed for that generation.
+reached Document revision and folder state needed for that generation.
 
 - Initial editable fields are MOS W/L and existing descriptor-backed numeric
   dimension/multiplicity fields, R/C/L value, and numeric V/I DC, AC and selected

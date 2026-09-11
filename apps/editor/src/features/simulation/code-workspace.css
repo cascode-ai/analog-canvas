@@ -81,10 +81,10 @@
   position: relative;
 }
 .simulation-code-menu {
-  position: absolute;
-  right: 3px;
-  top: 100%;
-  z-index: 5;
+  position: fixed;
+  z-index: 40;
+  max-height: calc(100vh - 100px);
+  overflow-y: auto;
   background: var(--icm-surface);
   padding: 4px;
   border: 1px solid var(--icm-border-strong);

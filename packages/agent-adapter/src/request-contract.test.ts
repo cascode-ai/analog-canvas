@@ -35,7 +35,7 @@ describe("Agent golden request contract", () => {
   });
 
   it("publishes claim, Circuit, and the separate File Resource paths", () => {
-    for (const apiVersion of ["1.0", "3.0"] as const) {
+    for (const apiVersion of ["1.0", "2.0", "4.0"] as const) {
       expect(
         AgentProductionCircuitRequestSchema.safeParse({
           apiVersion,

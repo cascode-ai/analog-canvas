@@ -107,7 +107,7 @@ test("the qualified OTA folder opens unchanged and preserves all root and hierar
     })
     .click();
   await page.getByTestId("route-hit-tb-vinp-route").click({ force: true });
-  await panel.getByRole("button", { name: "Picking Nets…" }).click();
+  await panel.getByRole("button", { name: "More code actions" }).click();
   await panel
     .getByRole("button", {
       name: "Add current observation from Canvas",
@@ -119,7 +119,6 @@ test("the qualified OTA folder opens unchanged and preserves all root and hierar
     page.getByTestId("terminal-VINP-+-current-pick-marker"),
   ).toHaveClass(/origin/u);
   await page.getByTestId("terminal-VINP--").click();
-  await panel.getByRole("button", { name: "Picking current…" }).click();
   const pickedProject = parseProject(
     (await downloadBytes(page, "File", "Export Project File…")).toString(),
   );

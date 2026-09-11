@@ -156,16 +156,26 @@ export function planCircuitSourceEdit(
   nextText: string,
 ):
   | { ok: true; changes: CircuitParameterChange[] }
-  | { ok: false; code: string; message: string } {
+  | {
+      ok: false;
+      code: string;
+      message: string;
+      range?: { from: number; to: number };
+    } {
+  let parameterRange: { from: number; to: number } | undefined;
   const fail = (code: string, message: string) => ({
     ok: false as const,
     code,
     message,
+    ...(code === "SIMULATION_PARAMETER_INVALID" && parameterRange
+      ? { range: parameterRange }
+      : {}),
   });
   const spans = [...source.parameters].sort(
     (a, b) => a.startOffset - b.startOffset,
   );
   const changes = new Map<string, CircuitParameterChange>();
+  let invalid: ReturnType<typeof fail> | undefined;
   let originalOffset = 0;
   let nextOffset = 0;
   for (let index = 0; index < spans.length; index++) {
@@ -191,6 +201,7 @@ export function planCircuitSourceEdit(
         "The edited text changes a protected Circuit boundary",
       );
     const raw = nextText.slice(nextOffset, end);
+    parameterRange = { from: nextOffset, to: end };
     const key = JSON.stringify([
       span.documentId,
       span.instanceId,
@@ -216,38 +227,53 @@ export function planCircuitSourceEdit(
       continue;
     }
     const number = parseSpiceNumber(raw);
-    if (!number || !Number.isFinite(number.value) || /\s/u.test(raw))
-      return fail(
+    if (!number || !Number.isFinite(number.value) || /\s/u.test(raw)) {
+      invalid ??= fail(
         "SIMULATION_PARAMETER_INVALID",
         `Finish the numeric value for ${span.descriptor.label} before applying`,
       );
+      originalOffset = span.endOffset;
+      nextOffset = end;
+      continue;
+    }
     if (
       ["width", "length", "multiplier", "finger-count"].includes(
         span.descriptor.displayRole,
       ) &&
       number.value <= 0
-    )
-      return fail(
+    ) {
+      invalid ??= fail(
         "SIMULATION_PARAMETER_INVALID",
         `${span.descriptor.label} must be positive`,
       );
+      originalOffset = span.endOffset;
+      nextOffset = end;
+      continue;
+    }
     if (
       span.descriptor.displayRole === "finger-count" &&
       !Number.isInteger(number.value)
-    )
-      return fail(
+    ) {
+      invalid ??= fail(
         "SIMULATION_PARAMETER_INVALID",
         "Finger count must be an integer",
       );
+      originalOffset = span.endOffset;
+      nextOffset = end;
+      continue;
+    }
     let value = raw;
     try {
       if (span.conversion === "sky130-micrometres")
         value = sky130MicrometresToProjectLength(raw);
     } catch (error) {
-      return fail(
+      invalid ??= fail(
         "SIMULATION_PARAMETER_INVALID",
         error instanceof Error ? error.message : String(error),
       );
+      originalOffset = span.endOffset;
+      nextOffset = end;
+      continue;
     }
     const prior = changes.get(key);
     if (prior && prior.value !== value)
@@ -270,6 +296,7 @@ export function planCircuitSourceEdit(
       "SIMULATION_CIRCUIT_STRUCTURE_LOCKED",
       "The edited text changes protected Circuit content",
     );
+  if (invalid) return invalid;
   return {
     ok: true,
     changes: [...changes.values()].filter(

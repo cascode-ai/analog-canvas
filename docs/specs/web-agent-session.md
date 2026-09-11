@@ -34,7 +34,7 @@ authority for every object in the live Project. The Agent fetches the Kit only
 when a human gives it a connection setup, then writes the listed files locally
 before redeeming the claim.
 
-The Circuit resource implements only API 2.0
+The Circuit resource implements only API 3.0
 `capabilities/snapshot/transact/render`. File Resource handles advertised
 bounded Project/formal-artifact downloads, approved candidate staging, simulation
 raw workspaces, and execution artifacts. The sibling Simulation resource uses

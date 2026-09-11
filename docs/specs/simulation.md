@@ -1,4 +1,4 @@
-# Simulation Setup and Compilation
+# Simulation Folders and Compilation
 
 Status: accepted
 
@@ -10,7 +10,7 @@ Related decision: [ADR 0055](../adr/0055-simulation-is-part-of-the-product.md).
 ## Contract map
 
 - [Code Workspace](simulation-code-workspace.md) owns source authoring,
-  generated circuit boundaries, the version-4 setup, configuration, language
+  generated circuit boundaries, the version-4 source input, configuration, language
   assistance, migration and the Code/Properties dock.
 - [Execution and resources](simulation-execution.md) owns Profiles, preparation,
   isolation, admission, lifecycle, retention, artifacts and qualification.
@@ -18,24 +18,25 @@ Related decision: [ADR 0055](../adr/0055-simulation-is-part-of-the-product.md).
   measurements and CSV.
 - [User workflow](../user/analog-simulation.md) describes the interaction.
 
-Project schema 49 writes **source-only** setups. A setup has a stable id/name,
+Project schema 50 writes **source-only** simulation folders. A folder has a stable id/name,
 an authored entry and configuration path, authored virtual files, generated
 Canvas circuit bindings and declared dependencies. There is no persistent
 structured/raw choice or parallel analyses/form state. The schema-48 reader
-converts older inputs once through the existing Project upgrader. Historical
+converts older inputs to source; the schema-49 reader renames the collection
+to `simulationFolders`, retaining IDs and source bytes. Historical
 schemas and the old structured compiler remain internal migration/qualification
 oracles, not current Project writers or separate public execution paths.
 
-All setups share Project save/load, structure revision, Undo/Redo and cloud
+All folders share Project save/load, structure revision, Undo/Redo and cloud
 ownership. Invalid source syntax and unresolved references remain saveable.
 Unsafe paths, duplicate ownership and invalid outer Project structure do not.
 Model bytes, generated text, prepared decks, runs, receipts and results are
-not persisted as another setup authority.
+not persisted as another folder authority.
 
 ## Compilation and circuit ownership
 
 `compileSourceSimulation` and the shared service's
-`prepareSourceExecutionInput` consume one Project/setup snapshot.
+`prepareSourceExecutionInput` consume one Project/folder snapshot.
 They reuse electrical extraction, ordinary SPICE printing, terminal-current
 instrumentation, expression evaluation and managed Run Plan projection.
 
@@ -56,7 +57,10 @@ GUI and Agent use the same File Resource. One update can atomically apply
 authored text and digest-guarded generated parameter edits. Old source or
 Project revisions return a repairable conflict rather than overwriting another
 writer. Prepare and Run capture committed source; File Save/Export and Check
-and Save first flush the human code buffer into that same Project snapshot.
+and Save first save the human code buffer into that same Project snapshot.
+Valid generated-parameter edits update Instances atomically; unfinished edits
+remain explicit, unapplied drafts. These drafts are saveable but prevent
+preparation until applied or discarded, so Run never silently uses stale values.
 
 Profile selection, output expressions, saved measurements, value-free variable
 bindings and managed Run Plan are authored in the configuration file. Nominal

@@ -280,3 +280,30 @@ export function isSimulationRunArchive(
     )
   );
 }
+
+/** Read-only compatibility at the archive boundary; artifact bytes and run evidence never change. */
+export function readSimulationRunArchive(
+  value: unknown,
+): SimulationRunArchiveV1 | null {
+  if (isSimulationRunArchive(value)) return value;
+  if (!value || typeof value !== "object" || !("presentation" in value))
+    return null;
+  const presentation = value.presentation;
+  if (
+    !presentation ||
+    typeof presentation !== "object" ||
+    !("setupId" in presentation) ||
+    typeof presentation.setupId !== "string" ||
+    !("setupName" in presentation) ||
+    typeof presentation.setupName !== "string" ||
+    "folderId" in presentation ||
+    "folderName" in presentation
+  )
+    return null;
+  const { setupId, setupName, ...rest } = presentation;
+  const normalized = {
+    ...value,
+    presentation: { ...rest, folderId: setupId, folderName: setupName },
+  };
+  return isSimulationRunArchive(normalized) ? normalized : null;
+}

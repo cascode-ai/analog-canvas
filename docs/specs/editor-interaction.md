@@ -506,7 +506,7 @@ Project through one replacement boundary; they are not Edit Engine
 transactions. Replacement cancels pending recovery for the outgoing Project
 and terminates its Agent session. A complete Project covered by the schema
 24→47 upgrade chain may be upgraded at the read boundary and then enters the
-editor only as schema-49; migrated files are marked as needing save.
+editor only as schema-50; migrated files are marked as needing save.
 
 Selection, viewport, active tool, previews, Agent tokens, and approval UI are
 transient and never enter Project JSON. Recovery is scheduled only after a
@@ -531,7 +531,7 @@ through to a second native `beforeunload` prompt.
 
 ## Agent semantic control
 
-API 2.0 may advertise optional `semanticControl` for transient review focus:
+API 3.0 may advertise optional `semanticControl` for transient review focus:
 select a canonical locator, highlight a Net, activate/fit an existing Cell, or
 clear focus. It cannot send pointer events, keystrokes, CSS, selectors, DOM
 queries, or arbitrary zoom matrices. Semantic control never changes revision,

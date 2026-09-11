@@ -66,6 +66,10 @@ export interface SimulationCodeEditorProps {
   diagnostics?: readonly SimulationSourceDiagnostic[] | undefined;
   /** Generated authoring slots are not legal values; diagnose them without locking the file. */
   generated?: boolean;
+  /** Exact mapped-parameter validation reuses the compiler's edit planner. */
+  validateText?(
+    text: string,
+  ): readonly { from: number; to: number; message: string; code: string }[];
   onChange(text: string): void;
   /** Generated Circuit uses its mapped-span planner here; invalid numeric drafts may remain editable. */
   acceptChange?(text: string): boolean;
@@ -339,6 +343,13 @@ function sourceExtensions(
         ) as Diagnostic[];
         if (current.generated) {
           for (const match of text.matchAll(/<([A-Za-z][A-Za-z0-9_]*)>/g)) {
+            if (
+              text
+                .slice(text.lastIndexOf("\n", match.index) + 1, match.index)
+                .trimStart()
+                .startsWith("*")
+            )
+              continue;
             diagnostics.push({
               from: editorOffset(text, match.index),
               to: editorOffset(text, match.index + match[0].length),
@@ -348,6 +359,14 @@ function sourceExtensions(
             });
           }
         }
+        for (const item of current.validateText?.(text) ?? [])
+          diagnostics.push({
+            from: editorOffset(text, item.from),
+            to: editorOffset(text, item.to),
+            severity: "error",
+            message: item.message,
+            source: item.code,
+          });
         for (const item of [...local, ...(current.diagnostics ?? [])]) {
           if (
             ("path" in item && item.path && item.path !== current.path) ||

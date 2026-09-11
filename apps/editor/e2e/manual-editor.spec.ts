@@ -5416,7 +5416,7 @@ test("keeps the production command surface compact and publishes PWA metadata", 
   const netlistSummary = toolbar
     .locator("summary")
     .filter({ hasText: /^Netlist$/u });
-  await expect(page.getByTestId("open-analog-simulation")).toBeHidden();
+  await expect(toolbar.getByTestId("open-analog-simulation")).toBeVisible();
   await expect(page.getByTestId("check-and-save")).toBeHidden();
   await netlistSummary.click();
   await expect(page.getByTestId("open-analog-simulation")).toBeVisible();

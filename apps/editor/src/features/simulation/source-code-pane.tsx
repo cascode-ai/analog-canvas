@@ -185,6 +185,9 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
           ...match.target,
           circuit: { bindingId: binding.id, callPath: [] },
         };
+      props.onPickNetsChange?.(false);
+      props.onPickTerminalsChange?.(false);
+      setPath(input.configPath);
       if (
         parsed.config.outputs.some(
           (o) => JSON.stringify(o.expression) === JSON.stringify(expression),
@@ -312,10 +315,18 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
         current = false;
       };
     }, [text]);
-    const dirty = [...drafts.current].some(
-      ([key, value]) =>
-        key.startsWith(`${props.folder.id}\u0000`) && value.text !== value.base,
-    );
+    const dirty = [...drafts.current].some(([key, value]) => {
+      const owner = props.project.simulationFolders.find((folder) =>
+        key.startsWith(`${folder.id}\u0000`),
+      );
+      if (!owner || value.text === value.base) return false;
+      return !owner.input.drafts?.some(
+        (saved) =>
+          saved.path === key.slice(owner.id.length + 1) &&
+          saved.base === value.base &&
+          saved.text === value.text,
+      );
+    });
     useEffect(() => props.onDirty(dirty), [dirty, props.folder.id]);
     useEffect(() => {
       // Clean buffers follow remote edits. A dirty buffer remains visible for explicit repair.
@@ -325,7 +336,7 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
           drafts.current.delete(key(file.path));
       }
     }, [props.project]);
-    const flush = async (): Promise<SourceFlush> => {
+    const flush = async (onlyPath?: string): Promise<SourceFlush> => {
       if (savingRef.current) return { ok: false };
       savingRef.current = true;
       setSaving(true);
@@ -334,7 +345,9 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
         let folder = current.current.folder;
         const pending = [...drafts.current].filter(
           ([key, value]) =>
-            key.startsWith(`${folder.id}\u0000`) && value.text !== value.base,
+            key.startsWith(`${folder.id}\u0000`) &&
+            value.text !== value.base &&
+            (onlyPath === undefined || key === `${folder.id}\u0000${onlyPath}`),
         );
         const authored: Array<{ path: string; text: string }> = [];
         const circuitEdits: Array<{
@@ -612,7 +625,8 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
             props.onProblem(undefined);
             return;
           }
-          const authored = await flush();
+          // File management need not apply an unrelated unfinished Circuit buffer.
+          const authored = await flush(filePath);
           if (!authored.ok) return;
           const file = authored.folder.input.files.find(
             (item) => item.path === filePath,
@@ -736,6 +750,8 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
               </>
             ) : dirty ? (
               "Unsaved source"
+            ) : buffer && buffer.text !== buffer.base ? (
+              "Draft saved · finish or discard before Run"
             ) : (
               props.status
             )}
@@ -749,6 +765,13 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
           mode={path.endsWith(".json") ? "json" : "spice"}
           entry={path === input.entry}
           generated={Boolean(originalGenerated)}
+          validateText={(text) => {
+            if (!originalGenerated?.ok) return [];
+            const plan = planCircuitSourceEdit(originalGenerated.source, text);
+            return !plan.ok && plan.range
+              ? [{ ...plan.range, message: plan.message, code: plan.code }]
+              : [];
+          }}
           reveal={reveal}
           diagnostics={props.diagnostics
             ?.filter(

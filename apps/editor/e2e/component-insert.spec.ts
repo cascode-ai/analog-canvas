@@ -1840,9 +1840,7 @@ test("keeps a usable canvas while toggling Library at the narrow breakpoint", as
     chromeBox.x + chromeBox.width,
   );
 
-  // Publish is the primary half-screen action. Secondary workflow actions
-  // live in Netlist, while Publish remains in the command surface's initial
-  // visible segment without any manual scroll.
+  // Simulation and Publish remain directly visible without horizontal scrolling.
   const commandSurface = page.locator(".app-command-surface");
   const publish = page.getByTestId("publish-gallery-button");
   const commandBox = await commandSurface.boundingBox();
@@ -1852,6 +1850,13 @@ test("keeps a usable canvas while toggling Library at the narrow breakpoint", as
   }
   expect(publishBox.x).toBeGreaterThanOrEqual(commandBox.x);
   expect(publishBox.x + publishBox.width).toBeLessThanOrEqual(
+    commandBox.x + commandBox.width,
+  );
+  const simulationBox = await page
+    .getByTestId("open-analog-simulation")
+    .boundingBox();
+  expect(simulationBox).not.toBeNull();
+  expect(simulationBox!.x + simulationBox!.width).toBeLessThanOrEqual(
     commandBox.x + commandBox.width,
   );
 
