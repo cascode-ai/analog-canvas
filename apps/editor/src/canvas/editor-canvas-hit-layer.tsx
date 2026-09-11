@@ -17,7 +17,6 @@ import {
 import type { SymbolResolver } from "@icm/symbols";
 
 import {
-  annotationAnchor,
   annotationHitBox,
   instanceHitBox,
 } from "../features/wiring/route-interaction-geometry";
@@ -274,17 +273,10 @@ function SelectionHitTargets({
           isSchematicAnnotationVisible(document, annotation),
         )
         .map((annotation) => {
-          const anchor = annotationAnchor(
+          const hitBox = annotationHitBox(
             document,
             resolver,
             annotation,
-            routeGeometryRecords,
-            styleProfile,
-          );
-          const hitBox = annotationHitBox(
-            document,
-            annotation,
-            anchor,
             routeGeometryRecords,
             styleProfile,
           );

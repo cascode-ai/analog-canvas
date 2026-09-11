@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { createEmptyDocument } from "@icm/model";
 import {
+  resolveAnnotationPresentation,
   resolveRouteGeometry,
   resolveSchematicStyleProfile,
 } from "@icm/derived";
@@ -10,6 +11,7 @@ import { InMemorySymbolResolver, builtInSymbols } from "@icm/symbols";
 
 import {
   annotationAnchor,
+  annotationHitBox,
   attachmentAtPoint,
   routeTapPoint,
   defaultInstanceLabel,
@@ -63,6 +65,45 @@ function routeRecord(document: ReturnType<typeof looseRouteDocument>) {
 }
 
 describe("route interaction geometry", () => {
+  it.each([0.5, 1, 2])(
+    "includes a W/L numerator in the shared text hit bounds at scale %s",
+    (sizeScale) => {
+      const document = createEmptyDocument("labels", "Labels");
+      const annotation = {
+        id: "value",
+        kind: "instance-value" as const,
+        content: {
+          runs: [
+            {
+              kind: "fraction" as const,
+              numerator: { runs: [{ kind: "text" as const, value: "2um" }] },
+              denominator: {
+                runs: [{ kind: "text" as const, value: "180nm" }],
+              },
+            },
+          ],
+        },
+        anchor: { kind: "free" as const, position: { x: 100, y: 100 } },
+        alignment: "start" as const,
+        rotation: 0 as const,
+        locked: false,
+        sizeScale,
+      };
+      const profile = resolveSchematicStyleProfile(
+        document.presentation.styleProfileId,
+      );
+      const presentation = resolveAnnotationPresentation(
+        document,
+        resolver,
+        annotation,
+        profile,
+      );
+      expect(
+        annotationHitBox(document, resolver, annotation, [], profile),
+      ).toEqual(presentation.bounds);
+    },
+  );
+
   it("recognizes a free route backed by two loose route anchors", () => {
     const document = looseRouteDocument();
     expect(looseRouteAnchorIds(document, document.routes[0]!)).toEqual([

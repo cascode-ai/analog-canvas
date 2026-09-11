@@ -463,7 +463,11 @@ follows the live property draft — typing a value enables it without
 reopening the panel — and checking it commits the typed parameters and shows
 the projected value in one transaction. Showing a value re-projects its text
 without touching electrical parameters or a user-dragged anchor; the Edit
-Engine refreshes a non-hand-edited value after parameter edits. Net/power
+Engine refreshes a non-hand-edited value after parameter edits. Value labels
+can be grabbed anywhere in their visible text, including a fraction's
+numerator, and dragged without a host-distance limit. The annotation grid
+still rounds their position; their object anchor retains the authored offset
+when the component moves or rotates and through Project file save/load. Net/power
 labels carry Net identity separately from their
 visual anchor. A resolved anchor drives both the glyph and every text
 hit/marquee surface; its fallback is only for an orphaned target, never an
