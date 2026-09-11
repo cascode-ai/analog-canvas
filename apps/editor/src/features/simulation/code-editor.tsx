@@ -141,33 +141,6 @@ export default function SimulationCodeEditor(props: SimulationCodeEditorProps) {
           }),
           keymap.of([
             {
-              key: "Ctrl-Space",
-              run: (editor) => {
-                editor.dispatch({ effects: dismissParameterGuide.of(false) });
-                const line = editor.state.doc.lineAt(
-                  editor.state.selection.main.head,
-                );
-                if (
-                  /^\s*[.\p{L}\w]*$/u.test(line.text) &&
-                  !spiceCompletion(
-                    new CompletionContext(
-                      editor.state,
-                      editor.state.selection.main.head,
-                      true,
-                    ),
-                  )?.options.some((option) =>
-                    option.label
-                      .toLowerCase()
-                      .startsWith(line.text.trim().toLowerCase()),
-                  )
-                ) {
-                  setHelperOpen(true);
-                  return true;
-                }
-                return startCompletion(editor);
-              },
-            },
-            {
               key: "Mod-s",
               run: () => {
                 callbacks.current.onSave?.();
@@ -350,28 +323,29 @@ export default function SimulationCodeEditor(props: SimulationCodeEditorProps) {
 
   return (
     <div className="simulation-code-editor-shell">
-      {props.mode !== "json" && (
-        <div className="simulation-code-helper-toolbar">
+      <div
+        className="simulation-code-helper-toolbar"
+        style={props.mode === "json" ? { visibility: "hidden" } : undefined}
+      >
+        <button
+          type="button"
+          title="Insert / Helper · Ctrl+Space"
+          onClick={() => setHelperOpen((open) => !open)}
+        >
+          Helper <kbd>Ctrl+Space</kbd>
+        </button>
+        {unknownCommand && !helperOpen && (
           <button
-            type="button"
-            title="Insert / Helper · Ctrl+Space"
-            onClick={() => setHelperOpen((open) => !open)}
+            className="simulation-find-helper"
+            onClick={() => setHelperOpen(true)}
           >
-            Helper <kbd>Ctrl+Space</kbd>
+            Find a helper…
           </button>
-          {unknownCommand && !helperOpen && (
-            <button
-              className="simulation-find-helper"
-              onClick={() => setHelperOpen(true)}
-            >
-              Find a helper…
-            </button>
-          )}
-          {argumentHint && (
-            <small aria-live="polite">{argumentHint} · Tab / Shift+Tab</small>
-          )}
-        </div>
-      )}
+        )}
+        {argumentHint && (
+          <small aria-live="polite">{argumentHint} · Tab / Shift+Tab</small>
+        )}
+      </div>
       {helperOpen && (
         <CodeHelperList
           control={controlContext(
@@ -407,6 +381,39 @@ export default function SimulationCodeEditor(props: SimulationCodeEditorProps) {
       <div
         ref={parent}
         className="simulation-code-editor"
+        onKeyDownCapture={(event) => {
+          if (
+            !event.ctrlKey ||
+            event.code !== "Space" ||
+            event.altKey ||
+            event.nativeEvent.isComposing ||
+            props.mode === "json"
+          )
+            return;
+          const editor = view.current;
+          if (!editor) return;
+          event.preventDefault();
+          event.stopPropagation();
+          editor.dispatch({ effects: dismissParameterGuide.of(false) });
+          const line = editor.state.doc.lineAt(
+            editor.state.selection.main.head,
+          );
+          const prefix = line.text.trim().toLowerCase();
+          if (
+            /^[.\p{L}\w]+$/u.test(prefix) &&
+            !spiceCompletion(
+              new CompletionContext(
+                editor.state,
+                editor.state.selection.main.head,
+                true,
+              ),
+            )?.options.some((option) =>
+              option.label.toLowerCase().startsWith(prefix),
+            )
+          )
+            setHelperOpen(true);
+          else startCompletion(editor);
+        }}
         onKeyDown={(event) => event.stopPropagation()}
       />
     </div>

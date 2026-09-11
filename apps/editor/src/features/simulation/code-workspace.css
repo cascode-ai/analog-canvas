@@ -242,6 +242,7 @@
   color: #155782;
 }
 .simulation-code-editor-shell {
+  height: 100%;
   display: flex;
   flex-direction: column;
   position: relative;
@@ -254,6 +255,12 @@
   flex: 1;
 }
 .simulation-code-helper-toolbar {
+  height: 28px;
+  box-sizing: border-box;
+  flex: none;
+  align-items: center;
+  white-space: nowrap;
+  overflow: hidden;
   display: flex;
   gap: 12px;
   padding: 3px 8px;

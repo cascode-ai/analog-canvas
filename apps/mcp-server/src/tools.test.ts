@@ -209,6 +209,39 @@ describe("mcp tool surface", () => {
       parseText(
         await callTool(
           "simulation_setup",
+          {
+            action: "create",
+            setupId: "dut-text",
+            name: "DUT text",
+            profileId: "test",
+            rootDocumentId: "main",
+            dut: { name: "amp", ports: ["inp", "inn", "out"] },
+          },
+          session,
+        ),
+      ),
+    ).toMatchObject({ ok: true });
+    expect(writes[3]).toMatchObject({
+      structureEdits: [
+        {
+          setup: {
+            input: {
+              circuitBindings: [{ documentId: "main", emission: "subcircuit" }],
+              files: expect.arrayContaining([
+                expect.objectContaining({
+                  path: "testbench.spice",
+                  text: expect.stringContaining("XDUT inp inn out amp"),
+                }),
+              ]),
+            },
+          },
+        },
+      ],
+    });
+    expect(
+      parseText(
+        await callTool(
+          "simulation_setup",
           { action: "update", setupId: "s" },
           session,
         ),

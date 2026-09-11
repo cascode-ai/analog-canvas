@@ -16,7 +16,7 @@ test("flat Helper finds an analysis by purpose and ghost arguments never enter s
     "dec|oct|lin",
   );
   await expect(page.getByTestId("draft-source")).toHaveText(
-    JSON.stringify("* test\n.control\nac "),
+    JSON.stringify("* test\r\n.control\r\nac "),
   );
   await page.keyboard.insertText("dec");
   await page.keyboard.press("Tab");
@@ -27,7 +27,7 @@ test("flat Helper finds an analysis by purpose and ghost arguments never enter s
   await page.keyboard.insertText("1G");
   await page.keyboard.press("Control+s");
   await expect(page.getByTestId("saved-source")).toHaveText(
-    JSON.stringify("* test\n.control\nac dec 20 10 1G"),
+    JSON.stringify("* test\r\n.control\r\nac dec 20 10 1G"),
   );
 });
 
@@ -38,6 +38,9 @@ test("unknown input offers explicit help and Escape suppresses parameter ghosts"
     name: "Simulation source editor",
   });
   await editor.fill("* test\n.control\n频响");
+  await expect(
+    page.getByRole("button", { name: "Find a helper…" }),
+  ).toBeVisible();
   await page.keyboard.press("Control+Space");
   await expect(
     page.getByRole("dialog", { name: "Insert / Helper" }),
