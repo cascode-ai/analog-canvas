@@ -7,13 +7,33 @@ import {
   resolveAuthoredCircuitScope,
 } from "./simulation-source-scopes.js";
 
+export interface SimulationSignalTarget {
+  rootDocumentId: string;
+  documentId: string;
+  netId: string;
+  occurrence: string[];
+}
+
 /** Run-local display metadata. Native vector spelling and electrical identity never change. */
 export function simulationSignalNames(
   project: CircuitProject,
   input: SimulationSourceInput,
 ): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(simulationSignals(project, input)).map(
+      ([vector, signal]) => [vector, signal.label],
+    ),
+  );
+}
+
+/** Native vectors and Canvas addresses share the same resolved traversal. */
+export function simulationSignals(
+  project: CircuitProject,
+  input: SimulationSourceInput,
+): Record<string, { label: string; targets: SimulationSignalTarget[] }> {
   const graph = inspectSimulationSourceGraph(input);
   const labels = new Map<string, Set<string>>();
+  const targets = new Map<string, SimulationSignalTarget[]>();
   for (const binding of input.circuitBindings) {
     if (!graph.paths.includes(binding.path)) continue;
     const ir = analyzeDesignNetlist(project, {
@@ -33,6 +53,7 @@ export function simulationSignalNames(
         nodes: Map<string, string>,
         path: string[],
         ancestors: Set<string>,
+        occurrence: string[],
       ) {
         if (++visits > 4096 || ancestors.has(cell.id)) return;
         const local = new Map(nodes);
@@ -49,6 +70,15 @@ export function simulationSignalNames(
           const names = labels.get(vector) ?? new Set<string>();
           names.add(name);
           labels.set(vector, names);
+          targets.set(vector, [
+            ...(targets.get(vector) ?? []),
+            {
+              rootDocumentId: binding.documentId,
+              documentId: cell.id,
+              netId: net.id,
+              occurrence,
+            },
+          ]);
         }
         for (const instance of cell.instances) {
           if (instance.deviceClass !== "hierarchical") continue;
@@ -70,13 +100,20 @@ export function simulationSignalNames(
             ports,
             [...path, instance.reference],
             new Set([...ancestors, cell.id]),
+            [...occurrence, instance.id],
           );
         }
       }
-      visit(root, new Map(), [], new Set());
+      visit(root, new Map(), [], new Set(), []);
     }
   }
   return Object.fromEntries(
-    [...labels].map(([vector, names]) => [vector, [...names].join(" · ")]),
+    [...labels].map(([vector, names]) => [
+      vector,
+      {
+        label: [...names].join(" · "),
+        targets: targets.get(vector) ?? [],
+      },
+    ]),
   );
 }

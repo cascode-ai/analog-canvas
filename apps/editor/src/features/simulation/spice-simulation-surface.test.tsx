@@ -44,7 +44,8 @@ function render(saved: boolean, broken = false) {
 describe("source workspace default cutover", () => {
   it("offers creation without restoring the retired Settings form", () => {
     const markup = render(false);
-    expect(markup).toContain("Create experiment");
+    expect(markup).toContain("Set up");
+    expect(markup).not.toContain("Create experiment");
     expect(markup).not.toContain('aria-label="Analyses settings"');
     expect(markup).not.toContain('aria-label="Setup settings"');
   });

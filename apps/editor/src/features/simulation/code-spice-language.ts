@@ -70,7 +70,6 @@ export function spiceCompletion(
 ): CompletionResult | null {
   const line = context.state.doc.lineAt(context.pos);
   const word = context.matchBefore(/[.\w]+/u);
-  if (!context.explicit && !word) return null;
   const before = line.text.slice(0, context.pos - line.from);
   if (/^\s*\*/u.test(before)) return null;
   const head = /^\s*[.\w]*$/u.test(before);
@@ -144,6 +143,7 @@ export function spiceCompletion(
     };
   }
   if (!head) return null;
+  if (!context.explicit && !word) return null;
   // Partial lines need a lexical context for completion; the authoritative parser diagnoses whole files separately.
   const preceding = context.state.doc.sliceString(0, line.from);
   const boundaries = [...preceding.matchAll(/^\s*\.(control|endc)\b/gimu)];

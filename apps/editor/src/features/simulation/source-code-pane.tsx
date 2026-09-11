@@ -24,7 +24,7 @@ import {
   generateCircuitSource,
   planCircuitSourceEdit,
   compileSourceSimulation,
-  simulationSignalNames,
+  simulationSignals,
 } from "@icm/netlist";
 import type { SimulationFiles } from "@icm/simulation-service/files";
 import { sha256 } from "@icm/simulation-service/files";
@@ -60,6 +60,7 @@ interface Props extends Pick<
   | "pickTerminalsActive"
   | "onPickNetsChange"
   | "onPickTerminalsChange"
+  | "onFocusProbe"
 > {
   project: CircuitProject;
   selectedCircuitObject?:
@@ -73,6 +74,7 @@ interface Props extends Pick<
   onPrepare?(): void;
   console: ReactNode;
   results: ReactNode;
+  outputActions?: ReactNode;
   status?: ReactNode;
   outputPane: SimulationCodeWorkspaceProps["outputPane"];
   onSelectOutputPane: SimulationCodeWorkspaceProps["onSelectOutputPane"];
@@ -155,6 +157,19 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
       terminal: props.pickedTerminal?.sequence,
     });
     const input = props.folder.input;
+    const signals = useMemo(
+      () =>
+        simulationSignals(props.project, {
+          ...input,
+          files: input.files.map((file) => ({
+            ...file,
+            text:
+              drafts.current.get(`${props.folder.id}\u0000${file.path}`)
+                ?.text ?? file.text,
+          })),
+        }),
+      [props.project, input, draftRevision],
+    );
     const [probePicker, setProbePicker] = useState<"voltage" | "current">();
     const probeChoices = useMemo(
       () =>
@@ -811,6 +826,7 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
         }
         console={props.console}
         results={props.results}
+        outputActions={props.outputActions}
         outputPane={props.outputPane}
         onSelectOutputPane={props.onSelectOutputPane}
         maximized={props.maximized}
@@ -854,14 +870,26 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
         )}
         <SimulationCodeEditor
           signalNames={() =>
-            simulationSignalNames(props.project, {
-              ...input,
-              files: input.files.map((file) => ({
-                ...file,
-                text: drafts.current.get(key(file.path))?.text ?? file.text,
-              })),
-            })
+            Object.fromEntries(
+              Object.entries(signals).map(([vector, signal]) => [
+                vector,
+                signal.label,
+              ]),
+            )
           }
+          onFocusSignal={(vector) => {
+            const target = signals[vector.toLowerCase()]?.targets[0];
+            if (target)
+              props.onFocusProbe?.(
+                {
+                  kind: "voltage",
+                  documentId: target.documentId,
+                  occurrence: target.occurrence,
+                  anchor: { kind: "base-net", netId: target.netId },
+                },
+                target.rootDocumentId,
+              );
+          }}
           saveRequest={saveRequest}
           relatedSources={sourceFiles.map(
             (file) =>

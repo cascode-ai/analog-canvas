@@ -32,7 +32,8 @@ describe("approved simulation Code layout", () => {
     );
     expect(markup).toContain("OTA AC");
     expect(markup).toContain("OTA transient");
-    expect(markup).toContain("New folder");
+    expect(markup).not.toContain("New folder");
+    expect(markup).not.toContain("New file");
     expect(markup).not.toContain("Setup");
   });
   it("opens only circuit/run tabs by default, with output below the editor and configuration on demand", () => {

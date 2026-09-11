@@ -345,7 +345,8 @@ test("one Testbench persists several independently named folders", async ({
       exact: true,
     }),
   ).toBeVisible();
-  await folders.getByRole("button", { name: "+ New folder…" }).click();
+  await folders.click({ button: "right", position: { x: 3, y: 3 } });
+  await folders.getByRole("menuitem", { name: "New folder…" }).click();
   await folders
     .getByRole("textbox", { name: "Folder name" })
     .fill("Bias sweep");

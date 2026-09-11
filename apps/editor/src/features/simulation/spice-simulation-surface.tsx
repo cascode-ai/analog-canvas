@@ -1040,80 +1040,82 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
     else props.onSelectFolderId(created.id);
   };
   const createFolder = () => void folderAction("new", []);
+  const outputActions = (
+    <>
+      {run ? (
+        <div className="simulation-result-actions">
+          <button
+            type="button"
+            disabled={
+              artifactBusy !== undefined ||
+              (!run.result && !run.outputData) ||
+              !selectedFolder ||
+              selectedFolder.id !== runPresentation?.folderId
+            }
+            onClick={() => void archiveCurrentRun()}
+          >
+            {artifactBusy === "archive:save" ? "Archiving…" : "Archive"}
+          </button>
+          <details className="simulation-result-export">
+            <summary>Export</summary>
+            <div>
+              {resultTab === "plot" ? (
+                <>
+                  <button
+                    type="button"
+                    disabled={artifactBusy !== undefined}
+                    onClick={() => void exportVisiblePlots("svg")}
+                  >
+                    {artifactBusy === "plots:svg"
+                      ? "Preparing SVG…"
+                      : "Visible plots · SVG"}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={artifactBusy !== undefined}
+                    onClick={() => void exportVisiblePlots("png")}
+                  >
+                    {artifactBusy === "plots:png"
+                      ? "Preparing PNG…"
+                      : "Visible plots · PNG"}
+                  </button>
+                </>
+              ) : null}
+              {resultCsvArtifacts.length ? (
+                <section>
+                  <small>Complete result data</small>
+                  {resultCsvArtifacts.map((artifact) => (
+                    <button
+                      key={artifact.id}
+                      type="button"
+                      disabled={artifactBusy !== undefined}
+                      onClick={() => void download(artifact)}
+                    >
+                      {artifact.name}
+                    </button>
+                  ))}
+                </section>
+              ) : null}
+              <button
+                type="button"
+                disabled={
+                  artifactBusy !== undefined || run.artifacts.length === 0
+                }
+                onClick={() => void downloadBundle("run", run.artifacts)}
+              >
+                Complete run · ZIP
+              </button>
+            </div>
+          </details>
+        </div>
+      ) : null}
+    </>
+  );
   const resultContent = (
     <section
       className="simulation-results-dock"
       aria-label="Simulation results"
     >
-      <header className="simulation-results-header">
-        {run ? (
-          <div className="simulation-result-actions">
-            <button
-              type="button"
-              disabled={
-                artifactBusy !== undefined ||
-                (!run.result && !run.outputData) ||
-                !selectedFolder ||
-                selectedFolder.id !== runPresentation?.folderId
-              }
-              onClick={() => void archiveCurrentRun()}
-            >
-              {artifactBusy === "archive:save" ? "Archiving…" : "Archive"}
-            </button>
-            <details className="simulation-result-export">
-              <summary>Export</summary>
-              <div>
-                {resultTab === "plot" ? (
-                  <>
-                    <button
-                      type="button"
-                      disabled={artifactBusy !== undefined}
-                      onClick={() => void exportVisiblePlots("svg")}
-                    >
-                      {artifactBusy === "plots:svg"
-                        ? "Preparing SVG…"
-                        : "Visible plots · SVG"}
-                    </button>
-                    <button
-                      type="button"
-                      disabled={artifactBusy !== undefined}
-                      onClick={() => void exportVisiblePlots("png")}
-                    >
-                      {artifactBusy === "plots:png"
-                        ? "Preparing PNG…"
-                        : "Visible plots · PNG"}
-                    </button>
-                  </>
-                ) : null}
-                {resultCsvArtifacts.length ? (
-                  <section>
-                    <small>Complete result data</small>
-                    {resultCsvArtifacts.map((artifact) => (
-                      <button
-                        key={artifact.id}
-                        type="button"
-                        disabled={artifactBusy !== undefined}
-                        onClick={() => void download(artifact)}
-                      >
-                        {artifact.name}
-                      </button>
-                    ))}
-                  </section>
-                ) : null}
-                <button
-                  type="button"
-                  disabled={
-                    artifactBusy !== undefined || run.artifacts.length === 0
-                  }
-                  onClick={() => void downloadBundle("run", run.artifacts)}
-                >
-                  Complete run · ZIP
-                </button>
-              </div>
-            </details>
-          </div>
-        ) : null}
-      </header>
       <div ref={resultsBodyRef} className="simulation-results-body">
         {resultTab === "plot" ? (
           <div className="simulation-analysis-view simulation-plot-view">
@@ -1686,7 +1688,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
         <div
           className="simulation-starter-choices"
           role="dialog"
-          aria-label="New experiment"
+          aria-label="Simulation setup"
           onKeyDown={(event) => {
             if (event.key === "Escape") {
               event.stopPropagation();
@@ -1753,7 +1755,10 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
               ▶
             </button>
           ) : (
-            <button className="simulation-primary-button" onClick={() => {}}>
+            <button
+              className="simulation-primary-button"
+              onClick={createFolder}
+            >
               Set up
             </button>
           )}
@@ -1886,6 +1891,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
               : undefined
           }
           selectedCircuitObject={props.selectedCircuitObject}
+          {...(props.onFocusProbe ? { onFocusProbe: props.onFocusProbe } : {})}
           files={session.files}
           {...{
             ...(props.pickedNet !== undefined
@@ -1908,6 +1914,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
           onProblem={setProblem}
           console={resultContent}
           results={resultContent}
+          outputActions={outputActions}
           outputPane={resultTab}
           onSelectOutputPane={setResultTab}
           maximized={resultsMaximized}
@@ -1939,11 +1946,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
           onSaveProject={props.onSaveProject}
         />
       ) : (
-        <div className="simulation-empty-result">
-          <button onClick={createFolder}>
-            Create experiment for this Cell
-          </button>
-        </div>
+        <div className="simulation-empty-result" />
       )}
     </section>
   );

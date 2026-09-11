@@ -8,6 +8,7 @@ import {
 } from "@codemirror/state";
 import {
   EditorView,
+  ViewPlugin,
   drawSelection,
   highlightActiveLine,
   highlightActiveLineGutter,
@@ -34,6 +35,7 @@ import {
   completionKeymap,
   startCompletion,
   CompletionContext,
+  selectedCompletion,
 } from "@codemirror/autocomplete";
 import { json, jsonParseLinter } from "@codemirror/lang-json";
 import { linter, lintGutter, type Diagnostic } from "@codemirror/lint";
@@ -93,6 +95,7 @@ export interface SimulationCodeEditorProps {
   helperActions?: readonly CodeHelperAction[];
   relatedSources?: readonly string[];
   signalNames?: (() => Readonly<Record<string, string>>) | undefined;
+  onFocusSignal?: ((vector: string) => void) | undefined;
   saveRequest?: { id: string; vectors: string[] } | undefined;
   reveal?:
     { sourceOffset: number; requestId: string; focus?: boolean } | undefined;
@@ -513,6 +516,39 @@ function sourceExtensions(
                 ),
             ],
             activateOnTypingDelay: 350,
+          }),
+          EditorView.updateListener.of((update) => {
+            const previous = selectedCompletion(update.startState)?.label;
+            const selected = selectedCompletion(update.state)?.label;
+            if (selected && selected !== previous)
+              callbacks.current.onFocusSignal?.(selected);
+            if (!selected && update.selectionSet) {
+              const cursor = update.state.selection.main.head;
+              const line = update.state.doc.lineAt(cursor);
+              const vector = [...line.text.matchAll(/\bv\([^\s)]+\)/giu)].find(
+                (match) =>
+                  line.from + match.index <= cursor &&
+                  cursor <= line.from + match.index + match[0].length,
+              );
+              if (vector) callbacks.current.onFocusSignal?.(vector[0]);
+            }
+          }),
+          ViewPlugin.define((view) => {
+            const preview = (event: MouseEvent) => {
+              const row = (event.target as Element).closest?.(
+                ".cm-tooltip-autocomplete li",
+              );
+              const label = row?.querySelector(
+                ".cm-completionLabel",
+              )?.textContent;
+              if (label) callbacks.current.onFocusSignal?.(label);
+            };
+            view.dom.addEventListener("mouseover", preview);
+            return {
+              destroy() {
+                view.dom.removeEventListener("mouseover", preview);
+              },
+            };
           }),
           spiceHoverHelp,
         ];

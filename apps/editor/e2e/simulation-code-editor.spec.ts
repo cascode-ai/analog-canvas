@@ -1,5 +1,40 @@
 import { expect, test } from "@playwright/test";
 
+test("native save and dc arguments open automatically and preview their Canvas target", async ({
+  page,
+}) => {
+  const editor = page.getByRole("textbox", {
+    name: "Simulation source editor",
+  });
+  await editor.fill("* test\n.control\nsave");
+  await page.keyboard.press("End");
+  await page.keyboard.type(" ");
+  const output = page.getByRole("option").filter({ hasText: "v(out)" });
+  await expect(output).toBeVisible();
+  await page.keyboard.press("ArrowDown");
+  const selected = await page
+    .locator(
+      '.cm-tooltip-autocomplete [aria-selected="true"] .cm-completionLabel',
+    )
+    .textContent();
+  await expect(page.locator("body")).toHaveAttribute(
+    "data-focused-signal",
+    selected!,
+  );
+  await output.hover();
+  await expect(page.locator("body")).toHaveAttribute(
+    "data-focused-signal",
+    "v(out)",
+  );
+  await page.keyboard.press("Escape");
+  await editor.fill("* test\n.control\ndc");
+  await page.keyboard.press("End");
+  await page.keyboard.type(" ");
+  await expect(
+    page.getByRole("option").filter({ hasText: "VBIAS" }),
+  ).toBeVisible();
+});
+
 test("flat Helper finds an analysis by purpose and ghost arguments never enter saved source", async ({
   page,
 }) => {
