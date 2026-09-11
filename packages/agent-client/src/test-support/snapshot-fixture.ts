@@ -17,7 +17,7 @@ function connection(x: number, y: number) {
  */
 export function testSnapshot(): AgentSessionSnapshot {
   return {
-    snapshotVersion: "2.0",
+    snapshotVersion: "3.0",
     electricalTopologyHash: "a".repeat(64),
     byteLength: 2048,
     project: {
@@ -25,7 +25,7 @@ export function testSnapshot(): AgentSessionSnapshot {
       name: "Test Project",
       structureRevision: 0,
       topDocumentId: "main",
-      simulationSetups: [],
+      simulationFolders: [],
       documents: [
         {
           id: "main",

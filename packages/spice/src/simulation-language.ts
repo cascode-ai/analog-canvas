@@ -12,6 +12,14 @@ export interface SimulationLanguageHelp {
   summary: string;
   section: string;
   minimumArguments?: number;
+  group?: string;
+  keywords?: string;
+  priority?: number;
+  parameters?: readonly {
+    label: string;
+    choices?: readonly string[];
+    optional?: boolean;
+  }[];
 }
 export const NGSPICE_LANGUAGE_REFERENCE =
   "https://ngspice.sourceforge.io/docs/ngspice-46-manual.pdf";
@@ -64,7 +72,7 @@ const analyses: SimulationLanguageHelp[] = [
 ];
 
 /** Shared UI/MCP assistance, not an executor allow-list or universal grammar. */
-export const simulationLanguageHelp: readonly SimulationLanguageHelp[] = [
+const languageHelp: readonly SimulationLanguageHelp[] = [
   ...analyses,
   ...analyses.map((rule) => ({
     ...rule,
@@ -230,6 +238,115 @@ export const simulationLanguageHelp: readonly SimulationLanguageHelp[] = [
     context: "control" as const,
   })),
 ];
+
+// One catalogue feeds the editor, hover and Agent help. These are authoring hints,
+// never an execution allow-list or values silently inserted into the document.
+const parameterHints: Record<
+  string,
+  NonNullable<SimulationLanguageHelp["parameters"]>
+> = {
+  ac: [
+    { label: "sweep", choices: ["dec", "oct", "lin"] },
+    { label: "points" },
+    { label: "startHz" },
+    { label: "stopHz" },
+  ],
+  dc: [
+    { label: "source" },
+    { label: "start" },
+    { label: "stop" },
+    { label: "step" },
+  ],
+  tran: [
+    { label: "tstep / s" },
+    { label: "tstop / s" },
+    { label: "tstart / s", optional: true },
+    { label: "tmax / s", optional: true },
+  ],
+  noise: [
+    { label: "v(out[,ref])" },
+    { label: "inputSource" },
+    { label: "sweep", choices: ["dec", "oct", "lin"] },
+    { label: "points" },
+    { label: "startHz" },
+    { label: "stopHz" },
+  ],
+  save: [{ label: "vector" }],
+  write: [{ label: "file" }, { label: "vector", optional: true }],
+  param: [{ label: "name=expression" }],
+  temp: [{ label: "temperature / °C" }],
+  include: [{ label: '"relative-file.spice"' }],
+  lib: [{ label: '"models.spice"' }, { label: "section" }],
+  R: [{ label: "n+" }, { label: "n-" }, { label: "resistance / Ω" }],
+  C: [{ label: "n+" }, { label: "n-" }, { label: "capacitance / F" }],
+  L: [{ label: "n+" }, { label: "n-" }, { label: "inductance / H" }],
+  V: [
+    { label: "n+" },
+    { label: "n-" },
+    { label: "excitation", choices: ["DC", "AC", "PULSE", "SIN", "PWL"] },
+    { label: "value" },
+  ],
+  I: [
+    { label: "n+" },
+    { label: "n-" },
+    { label: "excitation", choices: ["DC", "AC", "PULSE", "SIN", "PWL"] },
+    { label: "value" },
+  ],
+  PULSE: [
+    { label: "low" },
+    { label: "high" },
+    { label: "delay / s" },
+    { label: "rise / s" },
+    { label: "fall / s" },
+    { label: "width / s" },
+    { label: "period / s" },
+  ],
+  SIN: [
+    { label: "offset" },
+    { label: "amplitude" },
+    { label: "frequency / Hz" },
+    { label: "delay / s", optional: true },
+    { label: "damping", optional: true },
+    { label: "phase / deg", optional: true },
+  ],
+  PWL: [{ label: "time / s" }, { label: "value" }],
+};
+const taskHints: Record<string, [string, string, number]> = {
+  save: [
+    "Observe",
+    "probe voltage current signal 观测 电压 电流 信号 看输出",
+    5,
+  ],
+  op: ["Analysis", "operating point bias 工作点 偏置", 10],
+  dc: ["Analysis", "直流 扫描 sweep", 11],
+  ac: ["Analysis", "交流 频响 频率 frequency response", 12],
+  tran: ["Analysis", "瞬态 时域 transient 时间", 13],
+  noise: ["Analysis", "噪声 noise", 14],
+  V: ["Sources & loads", "电压 激励 voltage source", 20],
+  I: ["Sources & loads", "电流 激励 current source", 21],
+  PULSE: ["Sources & loads", "脉冲 pulse", 22],
+  SIN: ["Sources & loads", "正弦 sine", 23],
+  R: ["Sources & loads", "电阻 resistor load", 24],
+  C: ["Sources & loads", "电容 capacitor load", 25],
+  L: ["Sources & loads", "电感 inductor", 26],
+  param: ["Parameters & sweeps", "参数 variable", 30],
+  temp: ["Parameters & sweeps", "温度 temperature", 31],
+  foreach: ["Parameters & sweeps", "循环 扫描 loop sweep", 32],
+  write: ["Results", "保存 导出 采集 export capture", 40],
+  meas: ["Results", "测量 measurement", 41],
+};
+export const simulationLanguageHelp: readonly SimulationLanguageHelp[] =
+  languageHelp.map((rule) => {
+    const name = rule.name.replace(/^\./u, "");
+    const task = taskHints[name];
+    return {
+      ...rule,
+      group: task?.[0] ?? "More syntax",
+      keywords: task?.[1] ?? "",
+      priority: task?.[2] ?? 90,
+      ...(parameterHints[name] ? { parameters: parameterHints[name] } : {}),
+    };
+  });
 
 export function lookupSimulationHelp(
   name: string,

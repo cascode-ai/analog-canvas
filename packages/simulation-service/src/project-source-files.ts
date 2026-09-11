@@ -1,6 +1,6 @@
 import {
-  ProjectSourceSimulationSetupSchema,
-  type ProjectSourceSimulationSetup,
+  ProjectSimulationFolderSchema,
+  type ProjectSimulationFolder,
   type CircuitProject,
 } from "@icm/model";
 import {
@@ -20,21 +20,21 @@ export interface ProjectSourceSnapshot {
   /** The host's Project replacement identity, distinct from the revision. */
   projectSessionId: string;
   structureRevision: number;
-  setup: ProjectSourceSimulationSetup;
+  folder: ProjectSimulationFolder;
   /** Omitted only by text-only hosts; generated Circuit access requires the authoritative Project. */
   project?: CircuitProject;
 }
 
 /** Adapter to existing Project history/transactions; it does not own a store. */
 export interface ProjectSimulationFileHost {
-  read(setupId: string): ProjectSourceSnapshot | undefined;
+  read(folderId: string): ProjectSourceSnapshot | undefined;
   /** Must atomically check the session and expected revision before upsert. */
   commit(
     expected: Pick<
       ProjectSourceSnapshot,
       "projectSessionId" | "structureRevision"
     >,
-    setup: ProjectSourceSimulationSetup,
+    folder: ProjectSimulationFolder,
     parameters?: CircuitParameterChange[],
   ):
     | { ok: true; snapshot: ProjectSourceSnapshot }
@@ -50,15 +50,16 @@ type OwnedOperation = Extract<
 export function listProjectSource(
   snapshot: ProjectSourceSnapshot,
 ): SimulationFileResult {
-  const { setup, structureRevision } = snapshot;
-  const input = setup.input;
+  const { folder, structureRevision } = snapshot;
+  const input = folder.input;
   return {
     ok: true,
     source: {
-      owner: { kind: "project-setup", setupId: setup.id },
+      owner: { kind: "project-folder", folderId: folder.id },
       revision: structureRevision,
       entry: input.entry,
       configPath: input.configPath,
+      ...(input.drafts?.length ? { drafts: input.drafts } : {}),
       files: [
         ...input.files.map((file) => ({
           path: file.path,
@@ -83,21 +84,21 @@ export async function handleProjectSourceFiles(
   op: OwnedOperation,
   active: () => boolean,
 ): Promise<FileReply> {
-  if (!op.owner || op.owner.kind !== "project-setup")
+  if (!op.owner || op.owner.kind !== "project-folder")
     return problem(
       "SIMULATION_FILE_INVALID",
-      "Expected a Project setup owner",
+      "Expected a Project folder owner",
       "input",
     );
-  const setupId = op.owner.setupId;
-  const before = host.read(setupId);
+  const folderId = op.owner.folderId;
+  const before = host.read(folderId);
   if (!before || !active())
     return problem(
-      "SIMULATION_SETUP_UNAVAILABLE",
-      "Read the current Project and select an existing setup",
+      "SIMULATION_FOLDER_UNAVAILABLE",
+      "Read the current Project and select an existing folder",
       "input",
     );
-  const current = () => host.read(setupId);
+  const current = () => host.read(folderId);
   const conflict = () => {
     const result = problem(
       "PROJECT_REVISION_CONFLICT",
@@ -120,10 +121,10 @@ export async function handleProjectSourceFiles(
   };
   if (op.action === "list") return listProjectSource(before);
   if (op.action === "read") {
-    let file = before.setup.input.files.find((f) => f.path === op.path);
+    let file = before.folder.input.files.find((f) => f.path === op.path);
     let editableParameters;
     let instances;
-    const binding = before.setup.input.circuitBindings.find(
+    const binding = before.folder.input.circuitBindings.find(
       (b) => b.path === op.path,
     );
     if (!file && binding && before.project) {
@@ -175,7 +176,7 @@ export async function handleProjectSourceFiles(
     };
   }
   if (op.expectedRevision !== before.structureRevision) return conflict();
-  const input = before.setup.input;
+  const input = before.folder.input;
   const planned = await planSimulationSourceChanges(
     input.files,
     {
@@ -234,13 +235,23 @@ export async function handleProjectSourceFiles(
     }
   }
   if (!unchanged()) return conflict();
-  const next = ProjectSourceSimulationSetupSchema.safeParse({
-    ...before.setup,
+  const committedPaths = new Set([
+    ...op.writes.map((file) => file.path),
+    ...op.removes,
+    ...op.patches.map((patch) => patch.path),
+    ...editedPaths,
+  ]);
+  const remainingDrafts =
+    op.drafts ??
+    input.drafts?.filter((draft) => !committedPaths.has(draft.path));
+  const next = ProjectSimulationFolderSchema.safeParse({
+    ...before.folder,
     input: {
       ...input,
       files: planned.files,
       entry: op.entry ?? input.entry,
       configPath: op.configPath ?? input.configPath,
+      ...(remainingDrafts ? { drafts: remainingDrafts } : {}),
     },
   });
   if (!next.success)
@@ -252,7 +263,7 @@ export async function handleProjectSourceFiles(
   // Do not parse SPICE/JSON here: broken text and missing references are saveable.
   if (
     !parameters.size &&
-    JSON.stringify(next.data) === JSON.stringify(before.setup)
+    JSON.stringify(next.data) === JSON.stringify(before.folder)
   )
     return listProjectSource(before);
   const committed = host.commit(before, next.data, [...parameters.values()]);

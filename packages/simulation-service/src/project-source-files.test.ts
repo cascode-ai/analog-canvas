@@ -8,14 +8,14 @@ import {
 } from "./files.js";
 import { ProblemSchema, problem } from "./contract.js";
 
-const owner = { kind: "project-setup" as const, setupId: "setup-a" };
+const owner = { kind: "project-folder" as const, folderId: "folder-a" };
 function fixture() {
   let time = 0;
   let snapshot: ProjectSourceSnapshot | undefined = {
     projectSessionId: "project-session",
     structureRevision: 7,
-    setup: {
-      id: owner.setupId,
+    folder: {
+      id: owner.folderId,
       name: "AC",
       version: 4,
       input: {
@@ -41,7 +41,7 @@ function fixture() {
     },
   };
   const commit = vi.fn<ProjectSimulationFileHost["commit"]>(
-    (expected, setup) => {
+    (expected, folder) => {
       if (
         !snapshot ||
         expected.projectSessionId !== snapshot.projectSessionId ||
@@ -51,13 +51,13 @@ function fixture() {
       snapshot = {
         ...snapshot,
         structureRevision: snapshot.structureRevision + 1,
-        setup,
+        folder,
       };
       return { ok: true, snapshot };
     },
   );
   const host: ProjectSimulationFileHost = {
-    read: (id) => (id === owner.setupId ? snapshot : undefined),
+    read: (id) => (id === owner.folderId ? snapshot : undefined),
     commit,
   };
   const files = new SimulationFiles(() => time, host);
@@ -80,6 +80,37 @@ function fixture() {
 }
 
 describe("Project and session File Resource ownership", () => {
+  it("saves unfinished buffers explicitly and clears them only when their file is applied", async () => {
+    const f = fixture();
+    const draft = {
+      path: "run.cir",
+      base: f.snapshot.folder.input.files[0]!.text,
+      text: ".control\nac dec\n",
+    };
+    const saved = await f.files.handle({
+      action: "update",
+      owner,
+      expectedRevision: 7,
+      drafts: [draft],
+    });
+    expect(saved).toMatchObject({ ok: true, source: { drafts: [draft] } });
+    expect(
+      f.snapshot.folder.input.files.find((file) => file.path === draft.path)!
+        .text,
+    ).toBe(draft.base);
+    const applied = await f.files.handle({
+      action: "update",
+      owner,
+      expectedRevision: 8,
+      writes: [{ path: draft.path, text: draft.text }],
+    });
+    expect(applied.ok).toBe(true);
+    expect(f.snapshot.folder.input.drafts).toEqual([]);
+    expect(
+      f.snapshot.folder.input.files.find((file) => file.path === draft.path)!
+        .text,
+    ).toBe(draft.text);
+  });
   it("lists ownership without file bodies and pages exact bytes/digests through the shared codec", async () => {
     const f = fixture();
     const listed = await f.files.handle({ action: "list", owner });
@@ -98,7 +129,7 @@ describe("Project and session File Resource ownership", () => {
       },
     });
     expect(JSON.stringify(listed)).not.toContain(".control");
-    const original = f.snapshot.setup.input.files[0]!.text;
+    const original = f.snapshot.folder.input.files[0]!.text;
     let offset = 0,
       text = "";
     do {
@@ -122,7 +153,7 @@ describe("Project and session File Resource ownership", () => {
 
   it("atomically renames and patches references with one host commit; incomplete syntax is saveable", async () => {
     const f = fixture(),
-      original = f.snapshot.setup.input.files[0]!.text;
+      original = f.snapshot.folder.input.files[0]!.text;
     const result = await f.files.handle({
       action: "update",
       owner,
@@ -145,7 +176,7 @@ describe("Project and session File Resource ownership", () => {
       source: { revision: 8, entry: "scripts/main.cir" },
     });
     expect(f.commit).toHaveBeenCalledTimes(1);
-    expect(f.snapshot.setup.input.files).toEqual([
+    expect(f.snapshot.folder.input.files).toEqual([
       { path: "config.json", text: "{broken" },
       { path: "scripts/main.cir", text: original },
     ]);
@@ -191,12 +222,12 @@ describe("Project and session File Resource ownership", () => {
       ok: true,
       source: { revision: 8 },
     });
-    expect(f.snapshot.setup.input.files).toHaveLength(32);
+    expect(f.snapshot.folder.input.files).toHaveLength(32);
     expect(await f.files.handle({ action: "discard", owner })).toMatchObject({
       ok: false,
       error: { code: "SIMULATION_FILE_INVALID" },
     });
-    expect(f.snapshot.setup.input.files).toHaveLength(32);
+    expect(f.snapshot.folder.input.files).toHaveLength(32);
   });
 
   it("keeps generated/dependency ownership and rejects the complete mixed edit on stale text", async () => {
@@ -241,7 +272,7 @@ describe("Project and session File Resource ownership", () => {
 
   it("returns the current structure revision and commits only one racing patch", async () => {
     const f = fixture();
-    const textDigest = await sha256(f.snapshot.setup.input.files[0]!.text);
+    const textDigest = await sha256(f.snapshot.folder.input.files[0]!.text);
     const update = (text: string) =>
       f.files.handle({
         action: "update",
@@ -266,7 +297,7 @@ describe("Project and session File Resource ownership", () => {
     "does not publish an in-flight patch after %s",
     async (action) => {
       const f = fixture();
-      const textDigest = await sha256(f.snapshot.setup.input.files[0]!.text);
+      const textDigest = await sha256(f.snapshot.folder.input.files[0]!.text);
       const pending = f.files.handle({
         action: "update",
         owner,

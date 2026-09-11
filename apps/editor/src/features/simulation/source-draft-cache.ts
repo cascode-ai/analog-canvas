@@ -30,7 +30,7 @@ export function recoverSourceDrafts(
   }
 }
 
-/** Tab-local recovery of uncommitted buffers, never a runnable setup or cloud authority. */
+/** Tab-local recovery of uncommitted buffers, never a runnable folder or cloud authority. */
 export function sourceDraftCache(
   storage: Storage | undefined,
   workingCopyId: string,

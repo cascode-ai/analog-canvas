@@ -10,10 +10,10 @@ export const SIMULATION_NOISE_INPUT_DENSITY_ID = "noise-input-density";
 /**
  * Authored simulation intent persisted with the Project (ADR 0055, amended
  * 2026-09-04; `docs/specs/simulation.md`, "Persistence and compatibility").
- * A setup names what to run and where to look; results, run ids, receipts,
+ * A folder names what to run and where to look; results, run ids, receipts,
  * prepared decks, simulator paths, and caches are transient and never appear
  * here. Source values (DC, AC magnitude and phase, waveforms) live on the
- * source Instances in the Testbench Cell, never in the setup.
+ * source Instances in the Testbench Cell, never in the folder.
  */
 export const SimulationOperatingPointAnalysisSchema = z.strictObject({
   kind: z.literal("op"),
@@ -216,7 +216,7 @@ export const SimulationOutputSpecSchema = z.strictObject({
 /**
  * One concrete MOS occurrence whose terminal-derived operating-point details
  * should be collected. The compiler resolves the device and its Bulk binding;
- * persisted setup state never stores simulator vector names or model-private
+ * persisted folder state never stores simulator vector names or model-private
  * parameters.
  */
 export const SimulationDeviceOperatingPointSpecSchema = z.strictObject({
@@ -379,7 +379,7 @@ export const SimulationRunPlanSchema = z.discriminatedUnion("mode", [
 
 /**
  * Raw simulation inputs use a virtual, relative namespace. The same rule is
- * shared by persisted setups and transient Agent workspaces; it never grants
+ * shared by persisted folders and transient Agent workspaces; it never grants
  * access to a browser or host filesystem.
  */
 export const MAX_SIMULATION_INPUT_FILES = 24;
@@ -645,7 +645,7 @@ export const LegacySimulationSetupSchema = z.strictObject({
   ]),
 });
 
-/** A named Project-owned setup. The id is the durable run/selection address;
+/** A named Project-owned folder. The id is the durable run/selection address;
  * the name is presentation and may change independently. */
 export const LegacyProjectSimulationSetupSchema =
   LegacySimulationSetupSchema.extend({

@@ -7,7 +7,7 @@ import {
   CircuitProjectSchema,
   SimulationExperimentConfigSchema,
   type SimulationRunVariant,
-  type ProjectSourceSimulationSetup,
+  type ProjectSimulationFolder,
 } from "@icm/model";
 import ota from "../../../apps/editor/src/examples/five-transistor-ota-sky130.icproj.json";
 const legacySetups = () =>
@@ -20,14 +20,16 @@ import { locateSimulationText } from "./simulation-source-map.js";
 
 function fixture() {
   const project = CircuitProjectSchema.parse({
-    ...ota,
+    ...Object.fromEntries(
+      Object.entries(ota).filter(([key]) => key !== "simulationSetups"),
+    ),
     schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
-    simulationSetups: [],
+    simulationFolders: [],
   });
-  const setup = migrateSimulationSetupToSource(
+  const folder = migrateSimulationSetupToSource(
     project,
     legacySetups()[0]!,
-  ).setup;
+  ).folder;
   const document = project.documents.find((d) =>
     d.instances.some((i) => i.netlist?.parameters.w),
   )!;
@@ -37,8 +39,8 @@ function fixture() {
     instanceId: instance.id,
     parameter: "w",
   };
-  const configFile = setup.input.files.find(
-    (f) => f.path === setup.input.configPath,
+  const configFile = folder.input.files.find(
+    (f) => f.path === folder.input.configPath,
   )!;
   const config = SimulationExperimentConfigSchema.parse(
     JSON.parse(configFile.text),
@@ -53,17 +55,17 @@ function fixture() {
     },
   ];
   configFile.text = JSON.stringify(config);
-  const entry = setup.input.files.find((f) => f.path === setup.input.entry)!;
+  const entry = folder.input.files.find((f) => f.path === folder.input.entry)!;
   const end = entry.text.indexOf("\n") + 1;
   entry.text =
     entry.text.slice(0, end) +
     '.include "bias.spice"\n' +
     entry.text.slice(end);
-  setup.input.files.push({
+  folder.input.files.push({
     path: "bias.spice",
     text: ".param BASE=10u $ BASE is the starting value\r\n+ WIDTH={BASE * 2}\r\n",
   });
-  return { project, setup, config, document, target };
+  return { project, folder, config, document, target };
 }
 function projectPoint(
   f: ReturnType<typeof fixture>,
@@ -71,9 +73,9 @@ function projectPoint(
 ) {
   return projectSourceSimulation(
     f.project,
-    f.setup,
+    f.folder,
     f.config,
-    inspectSimulationSourceGraph(f.setup.input),
+    inspectSimulationSourceGraph(f.folder.input),
     variant,
   );
 }
@@ -124,7 +126,7 @@ describe("native source run projection", () => {
   });
   it("does not mistake unrelated local .param names for ambiguous root variables", () => {
     const f = fixture();
-    f.setup.input.files.find((f) => f.path === "bias.spice")!.text +=
+    f.folder.input.files.find((f) => f.path === "bias.spice")!.text +=
       ".subckt unrelated a b\n.param BASE=999\nR1 a b {BASE}\n.ends\n";
     const point = projectPoint(f, {
       variables: [{ variableId: "base", value: "11u" }],
@@ -150,7 +152,7 @@ describe("native source run projection", () => {
     "repeated-point",
   ] as const)("reports a repairable managed variable error for %s", (type) => {
     const f = fixture(),
-      file = f.setup.input.files.find((f) => f.path === "bias.spice")!;
+      file = f.folder.input.files.find((f) => f.path === "bias.spice")!;
     let points = [{ variableId: "base", value: "12u" }];
     if (type === "duplicate") file.text += ".param BASE=2u\n";
     if (type === "conditional") file.text = `.if (1)\n${file.text}.endif\n`;
@@ -166,9 +168,11 @@ describe("native source run projection", () => {
     ).toBe(true);
     expect(f.project).toEqual(
       CircuitProjectSchema.parse({
-        ...ota,
+        ...Object.fromEntries(
+          Object.entries(ota).filter(([key]) => key !== "simulationSetups"),
+        ),
         schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
-        simulationSetups: [],
+        simulationFolders: [],
       }),
     );
   });
@@ -177,7 +181,7 @@ describe("native source run projection", () => {
     f.config.variables = [
       { id: "native", name: "NATIVE", sourcePath: "bias.spice", bindings: [] },
     ];
-    f.setup.input.files.find((f) => f.path === "bias.spice")!.text +=
+    f.folder.input.files.find((f) => f.path === "bias.spice")!.text +=
       ".param NATIVE={custom_function(3)}\n";
     expect(projectPoint(f).diagnostics).toEqual([]);
   });
@@ -185,11 +189,11 @@ describe("native source run projection", () => {
     "replaces .temp %s once, preserving source comments and later line mappings",
     (value) => {
       const f = fixture(),
-        entry = f.setup.input.files.find(
-          (file) => file.path === f.setup.input.entry,
+        entry = f.folder.input.files.find(
+          (file) => file.path === f.folder.input.entry,
         )!;
       entry.text = entry.text.replace(/^\.temp[^\n]*\n/gmu, "");
-      f.setup.input.files.find((file) => file.path === "bias.spice")!.text +=
+      f.folder.input.files.find((file) => file.path === "bias.spice")!.text +=
         `.temp ${value} $ nominal\r\n`;
       const point = projectPoint(f, {
         environment: { corner: "ss", temperatureC: -40 },
@@ -216,7 +220,7 @@ describe("native source run projection", () => {
   );
   it("only diagnoses competing .temp declarations when a managed point is requested", () => {
     const f = fixture();
-    f.setup.input.files.find((f) => f.path === "bias.spice")!.text +=
+    f.folder.input.files.find((f) => f.path === "bias.spice")!.text +=
       ".temp 0\n.temp 50\n";
     expect(projectPoint(f).diagnostics).toEqual([]);
     expect(
@@ -227,7 +231,7 @@ describe("native source run projection", () => {
   });
   it("supports native-only temperature points and produces compilable mapped projections for OTA", () => {
     const f = fixture();
-    const point = compileSourceSimulation(f.project, f.setup, {
+    const point = compileSourceSimulation(f.project, f.folder, {
       variables: [{ variableId: "base", value: "12u" }],
       environment: { temperatureC: 85 },
     });
@@ -235,16 +239,14 @@ describe("native source run projection", () => {
       true,
     );
     if (!point.ok) return;
-    expect(point.authoredFiles).toEqual(f.setup.input.files);
+    expect(point.authoredFiles).toEqual(f.folder.input.files);
     const bias = point.files.find((f) => f.path === "bias.spice")!.text;
     expect(bias).toContain("BASE=12u");
     const sourceMap = point.sourceMaps.find((f) => f.path === "bias.spice")!;
     expect(locateSimulationText(sourceMap, bias.indexOf("12u"))).toMatchObject({
       purpose: "run-variant",
     });
-    const native = structuredClone(
-      f.setup,
-    ) satisfies ProjectSourceSimulationSetup;
+    const native = structuredClone(f.folder) satisfies ProjectSimulationFolder;
     native.input.circuitBindings = [];
     const config = native.input.files.find(
       (file) => file.path === native.input.configPath,

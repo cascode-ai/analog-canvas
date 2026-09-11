@@ -15,23 +15,23 @@ export function createSimulationProjectFileHost(options: {
   dispatch(request: ProjectTransaction): ProjectTransactionResult;
   actor: ProjectTransaction["actor"];
 }): ProjectSimulationFileHost {
-  const read = (setupId: string) => {
+  const read = (folderId: string) => {
     const project = options.getProject();
-    const setup = project.simulationSetups.find(
-      (setup) => setup.id === setupId,
+    const folder = project.simulationFolders.find(
+      (folder) => folder.id === folderId,
     );
-    return setup
+    return folder
       ? {
           projectSessionId: options.getProjectSessionId(),
           structureRevision: project.structureRevision,
           project,
-          setup,
+          folder,
         }
       : undefined;
   };
   return {
     read,
-    commit(expected, setup, parameters = []) {
+    commit(expected, folder, parameters = []) {
       const project = options.getProject();
       const fail = (code: string, message: string) => ({
         ok: false as const,
@@ -110,7 +110,7 @@ export function createSimulationProjectFileHost(options: {
         documents.set(document.id, target);
       }
       const edits: ProjectStructureEdit[] = [
-        { kind: "upsert_simulation_setup", setup },
+        { kind: "upsert_simulation_folder", folder },
         ...[...documents].map(([documentId, value]) => ({
           kind: "transact_document" as const,
           documentId,
@@ -130,12 +130,12 @@ export function createSimulationProjectFileHost(options: {
           result.error.code,
           result.diagnostics[0]?.message ?? result.error.message,
         );
-      const snapshot = read(setup.id);
+      const snapshot = read(folder.id);
       return snapshot
         ? { ok: true, snapshot }
         : fail(
-            "SIMULATION_SETUP_UNAVAILABLE",
-            "The setup is no longer present",
+            "SIMULATION_FOLDER_UNAVAILABLE",
+            "The folder is no longer present",
           );
     },
   };

@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
-import { createEmptyProject, createSourceSimulationSetup } from "@icm/model";
+import { createEmptyProject, createSimulationFolder } from "@icm/model";
 import {
   prepareSourceExecutionInput,
   CapabilitiesSchema,
@@ -85,13 +85,13 @@ describe.skipIf(!endpoint)("candidate ngspice46 source qualification", () => {
   it("keeps repeated native records and recovers after an engine error", async () => {
     const response = await post({ operation: "capabilities" });
     const caps = CapabilitiesSchema.parse(await response.json());
-    const setup = createSourceSimulationSetup({
+    const folder = createSimulationFolder({
       id: "native",
       name: "Native records",
       profileId: profile.id,
     });
-    const entry = setup.input.files.find(
-      (file) => file.path === setup.input.entry,
+    const entry = folder.input.files.find(
+      (file) => file.path === folder.input.entry,
     );
     entry.text = [
       "* native records",
@@ -108,7 +108,7 @@ describe.skipIf(!endpoint)("candidate ngspice46 source qualification", () => {
       ".end",
       "",
     ].join("\n");
-    setup.input.files.push({
+    folder.input.files.push({
       path: "sections.spice",
       text: ".lib tt\nV1 in 0 1\nR1 in out 1k\nR2 out 0 1k\n.endl tt\n.lib unused\nV1 in 0 99\n.endl unused\n",
     });
@@ -117,7 +117,7 @@ describe.skipIf(!endpoint)("candidate ngspice46 source qualification", () => {
       "Native acceptance",
       "main",
     );
-    const compiled = await prepareSourceExecutionInput(project, setup, caps);
+    const compiled = await prepareSourceExecutionInput(project, folder, caps);
     expect(compiled.ok, JSON.stringify(compiled)).toBe(true);
     const result = await run(compiled.input, "native-records");
     expect(result.outcome.status, JSON.stringify(result)).toBe("completed");
@@ -147,7 +147,7 @@ describe.skipIf(!endpoint)("candidate ngspice46 source qualification", () => {
 
     entry.text =
       "* missing model\nD1 n 0 MODEL_DOES_NOT_EXIST\nV1 n 0 1\n.control\nop\nwrite out.raw\n.endc\n.end\n";
-    const bad = await prepareSourceExecutionInput(project, setup, caps);
+    const bad = await prepareSourceExecutionInput(project, folder, caps);
     expect(bad.ok).toBe(true);
     expect(
       (await run(bad.input, "recoverable-model-error")).outcome.status,

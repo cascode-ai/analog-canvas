@@ -1,13 +1,13 @@
 import { z } from "zod";
 import {
-  createSourceSimulationSetup,
+  createSimulationFolder,
   readSimulationExperimentConfig,
   replaceSimulationExperimentConfig,
   SimulationSourceInputSchema,
   SimulationSourceExpressionSchema,
   SimulationMeasurementSpecSchema,
   SimulationSourceDeviceOperatingPointSchema,
-  type ProjectSimulationSetup,
+  type ProjectSimulationFolder,
   type SimulationExperimentConfig,
 } from "@icm/model";
 import type { McpToolDefinition } from "./protocol.js";
@@ -16,43 +16,45 @@ import type { ToolSessionState } from "./tools.js";
 const Id = z.string().min(1).max(256);
 const Name = z.string().trim().min(1).max(128);
 const common = { documentId: Id.optional() };
-const SetupArgs = z.discriminatedUnion("action", [
+const FolderArgs = z.discriminatedUnion("action", [
   z.strictObject({
     action: z.literal("list"),
     ...common,
     rootDocumentId: Id.optional(),
   }),
-  z.strictObject({ action: z.literal("get"), ...common, setupId: Id }),
+  z.strictObject({ action: z.literal("get"), ...common, folderId: Id }),
   z.strictObject({
     action: z.literal("create"),
     ...common,
-    setupId: Id.optional(),
+    folderId: Id.optional(),
     name: Name,
     rootDocumentId: Id.optional(),
     profileId: Id,
+    template: z.enum(["op", "ac", "tran"]).optional(),
+    dut: z.strictObject({ name: Id, ports: z.array(Id) }).optional(),
   }),
   z.strictObject({
     action: z.literal("update"),
     ...common,
-    setupId: Id,
+    folderId: Id,
     name: Name.optional(),
     input: SimulationSourceInputSchema.optional(),
   }),
   z.strictObject({
     action: z.literal("clone"),
     ...common,
-    setupId: Id,
-    newSetupId: Id.optional(),
+    folderId: Id,
+    newFolderId: Id.optional(),
     name: Name,
   }),
-  z.strictObject({ action: z.literal("remove"), ...common, setupId: Id }),
+  z.strictObject({ action: z.literal("remove"), ...common, folderId: Id }),
 ]);
 const OutputArgs = z.discriminatedUnion("action", [
-  z.strictObject({ action: z.literal("list"), ...common, setupId: Id }),
+  z.strictObject({ action: z.literal("list"), ...common, folderId: Id }),
   z.strictObject({
     action: z.literal("upsert"),
     ...common,
-    setupId: Id,
+    folderId: Id,
     outputId: Id.optional(),
     label: Name,
     expression: SimulationSourceExpressionSchema,
@@ -60,31 +62,31 @@ const OutputArgs = z.discriminatedUnion("action", [
   z.strictObject({
     action: z.literal("remove"),
     ...common,
-    setupId: Id,
+    folderId: Id,
     outputId: Id,
   }),
 ]);
 const MeasurementArgs = z.discriminatedUnion("action", [
-  z.strictObject({ action: z.literal("list"), ...common, setupId: Id }),
+  z.strictObject({ action: z.literal("list"), ...common, folderId: Id }),
   SimulationMeasurementSpecSchema.omit({ id: true }).extend({
     action: z.literal("upsert"),
     ...common,
-    setupId: Id,
+    folderId: Id,
     measurementId: Id.optional(),
   }),
   z.strictObject({
     action: z.literal("remove"),
     ...common,
-    setupId: Id,
+    folderId: Id,
     measurementId: Id,
   }),
 ]);
 const DeviceArgs = z.discriminatedUnion("action", [
-  z.strictObject({ action: z.literal("list"), ...common, setupId: Id }),
+  z.strictObject({ action: z.literal("list"), ...common, folderId: Id }),
   z.strictObject({
     action: z.literal("upsert"),
     ...common,
-    setupId: Id,
+    folderId: Id,
     deviceOperatingPointId: Id.optional(),
     targetDocumentId: Id,
     instanceId: Id,
@@ -95,7 +97,7 @@ const DeviceArgs = z.discriminatedUnion("action", [
   z.strictObject({
     action: z.literal("remove"),
     ...common,
-    setupId: Id,
+    folderId: Id,
     deviceOperatingPointId: Id,
   }),
 ]);
@@ -144,22 +146,22 @@ function tool<T extends z.ZodType>(
 }
 async function read(
   session: ToolSessionState,
-  setupId: string,
+  folderId: string,
   documentId?: string,
 ) {
   const snapshot = await session.client.snapshot(documentId, { refresh: true });
-  const setup = snapshot.snapshot.project.simulationSetups.find(
-    (item) => item.id === setupId,
+  const folder = snapshot.snapshot.project.simulationFolders.find(
+    (item) => item.id === folderId,
   );
-  if (!setup)
+  if (!folder)
     return {
       ok: false as const,
       result: failure(
-        "SIMULATION_SETUP_NOT_FOUND",
-        `Experiment ${setupId} does not exist`,
+        "SIMULATION_FOLDER_NOT_FOUND",
+        `Experiment ${folderId} does not exist`,
       ),
     };
-  const parsed = readSimulationExperimentConfig(setup);
+  const parsed = readSimulationExperimentConfig(folder);
   if (!parsed.ok)
     return {
       ok: false as const,
@@ -170,30 +172,30 @@ async function read(
     };
   return {
     ok: true as const,
-    setup,
+    folder,
     config: parsed.config,
     revision: snapshot.snapshot.project.structureRevision,
   };
 }
 async function save(
   session: ToolSessionState,
-  setup: ProjectSimulationSetup,
+  folder: ProjectSimulationFolder,
   revision: number,
   documentId?: string,
 ) {
   return session.client.advancedTransact(
-    { structureEdits: [{ kind: "upsert_simulation_setup", setup }] },
+    { structureEdits: [{ kind: "upsert_simulation_folder", folder }] },
     {
       ...(documentId ? { documentId } : {}),
       expectedStructureRevision: revision,
     },
   );
 }
-function configSetup(
-  setup: ProjectSimulationSetup,
+function configFolder(
+  folder: ProjectSimulationFolder,
   config: SimulationExperimentConfig,
 ) {
-  return replaceSimulationExperimentConfig(setup, config);
+  return replaceSimulationExperimentConfig(folder, config);
 }
 function upsert<T extends { id: string }>(items: T[], item: T) {
   const at = items.findIndex((current) => current.id === item.id);
@@ -203,9 +205,9 @@ function upsert<T extends { id: string }>(items: T[], item: T) {
 
 export const simulationAuthoringTools: readonly Entry[] = [
   tool(
-    "simulation_setup",
-    "Manage saved source experiments: list/get/create/clone/rename/remove. create writes the same small OP source template used by Code. Omit rootDocumentId for a text-only Testbench. Native analyses, .param, .temp and control programs are edited with simulation_files; input replacement can change bindings/dependencies. There is no parallel structured analyses authority. Updates are revision-guarded; malformed code can still be saved.",
-    SetupArgs,
+    "simulation_folder",
+    "Manage saved source experiments: list/get/create/clone/rename/remove. create writes the same small OP source template used by Code. Omit rootDocumentId for text only; rootDocumentId alone runs the drawn Cell directly. Add dut {name, ports} using the exported subcircuit name and ordered ports to start a text TB around that Cell without creating another Cell. Native analyses, .param, .temp and control programs are edited with simulation_files; input replacement can change bindings/dependencies. There is no parallel structured analyses authority. Updates are revision-guarded; malformed code can still be saved.",
+    FolderArgs,
     async (parsed, session) => {
       const snapshot = await session.client.snapshot(parsed.documentId, {
         refresh: true,
@@ -214,38 +216,38 @@ export const simulationAuthoringTools: readonly Entry[] = [
       if (parsed.action === "list")
         return {
           ok: true,
-          setups: project.simulationSetups
+          folders: project.simulationFolders
             .filter(
-              (setup) =>
+              (folder) =>
                 !parsed.rootDocumentId ||
-                setup.input.circuitBindings.some(
+                folder.input.circuitBindings.some(
                   (b) => b.documentId === parsed.rootDocumentId,
                 ),
             )
-            .map((setup) => ({
-              id: setup.id,
-              name: setup.name,
-              entry: setup.input.entry,
-              circuitBindings: setup.input.circuitBindings,
+            .map((folder) => ({
+              id: folder.id,
+              name: folder.name,
+              entry: folder.input.entry,
+              circuitBindings: folder.input.circuitBindings,
             })),
         };
-      const current = project.simulationSetups.find(
-        (setup) => setup.id === parsed.setupId,
+      const current = project.simulationFolders.find(
+        (folder) => folder.id === parsed.folderId,
       );
       if (parsed.action === "get")
         return current
-          ? { ok: true, setup: current }
-          : failure("SIMULATION_SETUP_NOT_FOUND", "Experiment does not exist");
+          ? { ok: true, folder: current }
+          : failure("SIMULATION_FOLDER_NOT_FOUND", "Experiment does not exist");
       if (parsed.action !== "create" && !current)
         return failure(
-          "SIMULATION_SETUP_NOT_FOUND",
+          "SIMULATION_FOLDER_NOT_FOUND",
           "Experiment does not exist",
         );
       if (parsed.action === "remove")
         return session.client.advancedTransact(
           {
             structureEdits: [
-              { kind: "remove_simulation_setup", setupId: parsed.setupId },
+              { kind: "remove_simulation_folder", folderId: parsed.folderId },
             ],
           },
           {
@@ -253,26 +255,33 @@ export const simulationAuthoringTools: readonly Entry[] = [
             expectedStructureRevision: project.structureRevision,
           },
         );
-      let next: ProjectSimulationSetup;
-      if (parsed.action === "create")
-        next = createSourceSimulationSetup({
-          id: parsed.setupId ?? crypto.randomUUID(),
+      let next: ProjectSimulationFolder;
+      if (parsed.action === "create") {
+        if (parsed.dut && !parsed.rootDocumentId)
+          return failure(
+            "SIMULATION_DUT_CELL_REQUIRED",
+            "A DUT template needs rootDocumentId; omit dut for text-only input.",
+          );
+        next = createSimulationFolder({
+          id: parsed.folderId ?? crypto.randomUUID(),
           name: parsed.name,
           profileId: parsed.profileId,
+          ...(parsed.dut ? { dut: parsed.dut } : {}),
+          ...(parsed.template ? { template: parsed.template } : {}),
           ...(parsed.rootDocumentId
             ? { documentId: parsed.rootDocumentId }
             : {}),
         });
-      else if (parsed.action === "clone")
+      } else if (parsed.action === "clone")
         next = {
           ...structuredClone(current!),
-          id: parsed.newSetupId ?? crypto.randomUUID(),
+          id: parsed.newFolderId ?? crypto.randomUUID(),
           name: parsed.name,
         };
       else {
         if (parsed.name === undefined && parsed.input === undefined)
           return failure(
-            "SIMULATION_SETUP_UPDATE_EMPTY",
+            "SIMULATION_FOLDER_UPDATE_EMPTY",
             "Supply a name or source input; use simulation_files for text patches",
           );
         next = {
@@ -289,7 +298,7 @@ export const simulationAuthoringTools: readonly Entry[] = [
     "Manage experiment output ASTs in the one configuration source file. Use {kind:'vector',vector:'v(out)'} for native vectors, circuit-qualified voltage/current for Canvas anchors, and unary/binary math ASTs. Native SPICE expressions in run.cir remain freely editable. Missing runtime vectors diagnose at prepare/result time, never end the session.",
     OutputArgs,
     async (parsed, session) => {
-      const result = await read(session, parsed.setupId, parsed.documentId);
+      const result = await read(session, parsed.folderId, parsed.documentId);
       if (!result.ok) return result.result;
       const { config } = result;
       if (parsed.action === "list")
@@ -312,7 +321,7 @@ export const simulationAuthoringTools: readonly Entry[] = [
         });
       return save(
         session,
-        configSetup(result.setup, config),
+        configFolder(result.folder, config),
         result.revision,
         parsed.documentId,
       );
@@ -323,7 +332,7 @@ export const simulationAuthoringTools: readonly Entry[] = [
     "Manage saved per-record scalar measurements in the experiment configuration source. value, sample-at, minimum, maximum, peak-to-peak, mean and RMS share the runtime schema. A measurement may be authored before its analysis or output exists; prepare and result diagnostics identify unresolved references without blocking file editing.",
     MeasurementArgs,
     async (parsed, session) => {
-      const result = await read(session, parsed.setupId, parsed.documentId);
+      const result = await read(session, parsed.folderId, parsed.documentId);
       if (!result.ok) return result.result;
       const { config } = result;
       if (parsed.action === "list")
@@ -347,7 +356,7 @@ export const simulationAuthoringTools: readonly Entry[] = [
         });
       return save(
         session,
-        configSetup(result.setup, config),
+        configFolder(result.folder, config),
         result.revision,
         parsed.documentId,
       );
@@ -355,10 +364,10 @@ export const simulationAuthoringTools: readonly Entry[] = [
   ),
   tool(
     "simulation_device_operating_point",
-    "Select MOS occurrences for terminal-derived VGS, VDS, VBS and drain-entering ID. circuit names the generated binding and authored X callPath; occurrence addresses hierarchy inside that binding. This edits the same experiment configuration used by Code, not a second setup object. OP may be added to the native program before or after this helper.",
+    "Select MOS occurrences for terminal-derived VGS, VDS, VBS and drain-entering ID. circuit names the generated binding and authored X callPath; occurrence addresses hierarchy inside that binding. This edits the same experiment configuration used by Code, not a second folder object. OP may be added to the native program before or after this helper.",
     DeviceArgs,
     async (parsed, session) => {
-      const result = await read(session, parsed.setupId, parsed.documentId);
+      const result = await read(session, parsed.folderId, parsed.documentId);
       if (!result.ok) return result.result;
       const { config } = result;
       if (parsed.action === "list")
@@ -389,7 +398,7 @@ export const simulationAuthoringTools: readonly Entry[] = [
         });
       return save(
         session,
-        configSetup(result.setup, config),
+        configFolder(result.folder, config),
         result.revision,
         parsed.documentId,
       );

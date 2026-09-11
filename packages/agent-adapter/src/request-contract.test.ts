@@ -35,7 +35,7 @@ describe("Agent golden request contract", () => {
   });
 
   it("publishes claim, Circuit, and the separate File Resource paths", () => {
-    for (const apiVersion of ["1.0", "3.0"] as const) {
+    for (const apiVersion of ["1.0", "2.0", "4.0"] as const) {
       expect(
         AgentProductionCircuitRequestSchema.safeParse({
           apiVersion,
@@ -56,7 +56,7 @@ describe("Agent golden request contract", () => {
 
   it("returns every violation with a stable redacted path", () => {
     const parsed = parseAgentCircuitRequest({
-      apiVersion: "2.0",
+      apiVersion: "3.0",
       requestId: "req-123",
       operation: "transact",
       documentId: "document-main",
@@ -79,7 +79,7 @@ describe("Agent golden request contract", () => {
     expect(parsed.success).toBe(false);
     if (parsed.success) return;
     expect(parsed.response).toMatchObject({
-      apiVersion: "2.0",
+      apiVersion: "3.0",
       requestId: "req-123",
       operation: "error",
       ok: false,
@@ -113,7 +113,7 @@ describe("Agent golden request contract", () => {
 
   it("rejects migration-only annotation and spice property writes", () => {
     const legacyAnnotation = AgentProductionCircuitRequestSchema.safeParse({
-      apiVersion: "2.0",
+      apiVersion: "3.0",
       requestId: "legacy-annotation",
       operation: "transact",
       documentId: "document-main",
@@ -146,7 +146,7 @@ describe("Agent golden request contract", () => {
     }
 
     const legacySpice = AgentProductionCircuitRequestSchema.safeParse({
-      apiVersion: "2.0",
+      apiVersion: "3.0",
       requestId: "legacy-spice",
       operation: "transact",
       documentId: "document-main",
@@ -163,7 +163,7 @@ describe("Agent golden request contract", () => {
     expect(legacySpice.success).toBe(false);
 
     const legacyVdd = AgentProductionCircuitRequestSchema.safeParse({
-      apiVersion: "2.0",
+      apiVersion: "3.0",
       requestId: "legacy-vdd",
       operation: "transact",
       documentId: "document-main",
@@ -192,7 +192,7 @@ describe("Agent golden request contract", () => {
 
     expect(
       AgentProductionCircuitRequestSchema.safeParse({
-        apiVersion: "2.0",
+        apiVersion: "3.0",
         requestId: "vdd-rail",
         operation: "transact",
         documentId: "document-main",

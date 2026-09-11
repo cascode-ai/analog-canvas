@@ -11,8 +11,8 @@ function archive(id: string, createdAt: string): SimulationRunArchiveV1 {
     projectId: "project",
     createdAt,
     presentation: {
-      setupId: "setup",
-      setupName: "Bias",
+      folderId: "folder",
+      folderName: "Bias",
       analysisLabel: "OP",
       outputs: [],
     },
@@ -41,6 +41,47 @@ function archive(id: string, createdAt: string): SimulationRunArchiveV1 {
 }
 
 describe("browser simulation archive store", () => {
+  it("lists and opens pre-folder archives without rewriting their execution evidence", async () => {
+    const factory = new IDBFactory();
+    const record = archive("legacy", new Date(0).toISOString());
+    const { folderId, folderName, ...presentation } = record.presentation;
+    const old = {
+      ...record,
+      presentation: {
+        ...presentation,
+        setupId: folderId,
+        setupName: folderName,
+      },
+    };
+    await new Promise<void>((resolve, reject) => {
+      const request = factory.open("legacy-archives", 1);
+      request.onupgradeneeded = () => request.result.createObjectStore("runs");
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => {
+        const transaction = request.result.transaction("runs", "readwrite");
+        transaction.objectStore("runs").put(old, old.id);
+        transaction.oncomplete = () => {
+          request.result.close();
+          resolve();
+        };
+        transaction.onerror = () => reject(transaction.error);
+      };
+    });
+    const store = createBrowserSimulationArchiveStore({
+      idbFactory: factory,
+      databaseName: "legacy-archives",
+    });
+    expect(await store.list("project")).toMatchObject({
+      ok: true,
+      value: [{ folderId, folderName }],
+    });
+    expect(await store.read("legacy")).toMatchObject({
+      ok: true,
+      value: record,
+    });
+    expect(old.presentation).toHaveProperty("setupId");
+    store.close();
+  });
   it("survives store replacement and retains the ten newest Project runs", async () => {
     const factory = new IDBFactory() as unknown as IDBFactory;
     const options = { idbFactory: factory, databaseName: "archive-test" };

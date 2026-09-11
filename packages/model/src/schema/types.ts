@@ -172,14 +172,16 @@ export type SimulationRawSetup = {
   version: 3;
   input: SimulationRawInput;
 };
-export type SimulationSetup = z.infer<typeof Schema.SimulationSetupSchema>;
+export type SimulationFolderInput = z.infer<
+  typeof Schema.SimulationFolderInputSchema
+>;
 export type LegacySimulationSetup = z.infer<
   typeof Schema.LegacySimulationSetupSchema
 >;
 export type LegacyProjectSimulationSetup = z.infer<
   typeof Schema.LegacyProjectSimulationSetupSchema
 >;
-export type ProjectSimulationSetup = z.infer<
-  typeof Schema.ProjectSimulationSetupSchema
+export type ProjectSimulationFolder = z.infer<
+  typeof Schema.ProjectSimulationFolderSchema
 >;
 export type CircuitProject = z.infer<typeof Schema.CircuitProjectSchema>;

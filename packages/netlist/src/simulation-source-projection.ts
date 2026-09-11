@@ -1,7 +1,7 @@
 import {
   SimulationRunVariantSchema,
   type CircuitProject,
-  type ProjectSourceSimulationSetup,
+  type ProjectSimulationFolder,
   type SimulationExperimentConfig,
   type SimulationRunVariant,
 } from "@icm/model";
@@ -60,15 +60,15 @@ export function applySimulationParameter(
 /** Nominal source -> variable point -> exact Canvas point, with no edits to persistent input. */
 export function projectSourceSimulation(
   project: CircuitProject,
-  setup: ProjectSourceSimulationSetup,
+  folder: ProjectSimulationFolder,
   config: SimulationExperimentConfig,
   graph: SimulationSourceGraph,
   variant?: SimulationRunVariant,
 ) {
   const effective = structuredClone(project);
   config = structuredClone(config);
-  const mappedFiles = setup.input.files
-    .filter((f) => f.path !== setup.input.configPath)
+  const mappedFiles = folder.input.files
+    .filter((f) => f.path !== folder.input.configPath)
     .map((f) => mapSimulationFile(f.path, f.text));
   const diagnostics: SimulationSourceDiagnostic[] = [];
   const issue = (code: string, message: string, item?: SourceStatement) =>
@@ -309,7 +309,7 @@ export function projectSourceSimulation(
         });
       }
     } else {
-      const entry = mappedFiles.find((f) => f.path === setup.input.entry);
+      const entry = mappedFiles.find((f) => f.path === folder.input.entry);
       if (entry) {
         const lineEnd = entry.text.indexOf("\n");
         const start = lineEnd < 0 ? entry.text.length : lineEnd + 1;

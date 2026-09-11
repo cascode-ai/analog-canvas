@@ -1,6 +1,6 @@
 import type {
   CircuitProject,
-  ProjectSimulationSetup,
+  ProjectSimulationFolder,
   SimulationRunVariant,
 } from "@icm/model";
 import { compileSourceSimulation } from "@icm/netlist";
@@ -8,12 +8,12 @@ import { sha256 } from "./content-digest.js";
 
 /** Authored/electrical identity is separate from the resolved runtime's prepared digest. */
 export function sourceInputRevision(
-  setup: ProjectSimulationSetup,
+  folder: ProjectSimulationFolder,
   compiled: Extract<ReturnType<typeof compileSourceSimulation>, { ok: true }>,
 ) {
   return sha256(
     JSON.stringify({
-      source: setup.input,
+      source: folder.input,
       electricalHash: compiled.electricalHash,
       files: compiled.files,
       outputs: compiled.outputs,
@@ -33,7 +33,7 @@ export class ProjectInputIdentity {
   }
   read(
     project: CircuitProject,
-    setupId: string,
+    folderId: string,
     variant?: SimulationRunVariant,
   ): Promise<string | null> {
     // Document edits (including W/L) need not advance structureRevision.
@@ -46,14 +46,16 @@ export class ProjectInputIdentity {
       this.pending.clear();
       this.revision = revision;
     }
-    const key = JSON.stringify([setupId, variant ?? null]);
+    const key = JSON.stringify([folderId, variant ?? null]);
     const existing = this.pending.get(key);
     if (existing) return existing;
-    const setup = project.simulationSetups.find((item) => item.id === setupId);
-    if (!setup) return Promise.resolve(null);
-    const compiled = compileSourceSimulation(project, setup, variant);
+    const folder = project.simulationFolders.find(
+      (item) => item.id === folderId,
+    );
+    if (!folder) return Promise.resolve(null);
+    const compiled = compileSourceSimulation(project, folder, variant);
     const reading = compiled.ok
-      ? sourceInputRevision(setup, compiled)
+      ? sourceInputRevision(folder, compiled)
       : Promise.resolve(null);
     this.pending.set(key, reading);
     void reading.catch(() => {

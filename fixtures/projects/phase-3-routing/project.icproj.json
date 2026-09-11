@@ -170,8 +170,8 @@
   "externalSubcircuitDefinitions": [],
   "id": "project-routing",
   "name": "Phase 3 Routing Demo",
-  "schemaVersion": 49,
-  "simulationSetups": [],
+  "schemaVersion": 50,
+  "simulationFolders": [],
   "source": {
     "dialect": "none",
     "entry": null,

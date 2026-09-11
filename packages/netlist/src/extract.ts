@@ -1288,6 +1288,22 @@ export function analyzeDesignNetlist(
   project: CircuitProject,
   options: DesignNetlistAnalysisOptions = {},
 ): DesignNetlistAnalysisResult {
+  return analyzeDesign(project, options, false);
+}
+
+/** Incomplete authoring projection only. Export and execution keep the strict entry above. */
+export function analyzeDesignNetlistForAuthoring(
+  project: CircuitProject,
+  options: DesignNetlistAnalysisOptions = {},
+): DesignNetlistAnalysisResult {
+  return analyzeDesign(project, options, true);
+}
+
+function analyzeDesign(
+  project: CircuitProject,
+  options: DesignNetlistAnalysisOptions,
+  authoring: boolean,
+): DesignNetlistAnalysisResult {
   const resolvedOptions: ResolvedDesignNetlistAnalysisOptions = {
     format: options.format ?? "spice",
     namingProfile: options.namingProfile ?? "native",
@@ -1345,7 +1361,7 @@ export function analyzeDesignNetlist(
         .localeCompare(right.objectIds.join("\u0000")),
   );
   attachDiagnosticLocators(project, diagnostics);
-  if (diagnostics.some((item) => item.severity === "error")) {
+  if (!authoring && diagnostics.some((item) => item.severity === "error")) {
     return { ir: null, diagnostics };
   }
   const globals = [

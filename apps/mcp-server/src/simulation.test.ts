@@ -48,11 +48,11 @@ describe("MCP / browser Simulation Resource parity", () => {
     expect(send.mock.calls[1]![0]).toEqual(send.mock.calls[0]![0]);
     expect(http.claims).toHaveLength(1);
   });
-  it("prepares and runs saved setups as ordinary sequential runs", async () => {
+  it("prepares and runs saved folders as ordinary sequential runs", async () => {
     const files = new SimulationFiles();
     const project = createEmptyProject("batch-project", "Batch", "doc");
-    project.simulationSetups = ["TT", "FF"].map((name) => ({
-      id: `setup-${name.toLowerCase()}`,
+    project.simulationFolders = ["TT", "FF"].map((name) => ({
+      id: `folder-${name.toLowerCase()}`,
       name,
       version: 4 as const,
       input: {
@@ -161,8 +161,8 @@ describe("MCP / browser Simulation Resource parity", () => {
         operation: "prepare-batch",
         expectedStructureRevision: project.structureRevision,
         items: [
-          { id: "tt", setupId: "setup-tt" },
-          { id: "ff", setupId: "setup-ff" },
+          { id: "tt", folderId: "folder-tt" },
+          { id: "ff", folderId: "folder-ff" },
         ],
       });
       expect(executions).toBe(0);
@@ -261,14 +261,14 @@ describe("MCP / browser Simulation Resource parity", () => {
       files: async (request) =>
         request.operation === "simulation-input"
           ? {
-              apiVersion: "2.0",
+              apiVersion: "3.0",
               requestId: request.requestId,
               operation: "simulation-input",
               ok: true,
               result: await files.handle(request.input),
             }
           : {
-              apiVersion: "2.0",
+              apiVersion: "3.0",
               requestId: request.requestId,
               operation: "error",
               ok: false,
@@ -286,15 +286,15 @@ describe("MCP / browser Simulation Resource parity", () => {
         request: {
           operation: "prepare",
           source: {
-            kind: "project-setup",
-            setupId: "setup-1",
+            kind: "project-folder",
+            folderId: "folder-1",
             expectedStructureRevision: project.structureRevision,
           },
         },
       });
       expect(bad).toMatchObject({
         ok: false,
-        error: { code: "SIMULATION_SETUP_MISSING" },
+        error: { code: "SIMULATION_FOLDER_MISSING" },
       });
       const created = await invoke("simulation_files", {
         request: { action: "create" },

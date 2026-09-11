@@ -23,6 +23,14 @@ export const SimulationCircuitBindingSchema = z.strictObject({
   emission: z.enum(["subcircuit", "top-level"]),
 });
 
+/** Unapplied editing buffer, never an electrical override or executable source. */
+export const SimulationSourceDraftSchema = z.strictObject({
+  path: SimulationInputPathSchema,
+  base: z.string(),
+  text: z.string(),
+  binding: SimulationCircuitBindingSchema.optional(),
+});
+
 /** A Project may save broken references and invalid author text for repair. */
 export const SimulationSourceInputSchema = z
   .strictObject({
@@ -32,6 +40,7 @@ export const SimulationSourceInputSchema = z
     files: z.array(SimulationRawFileSchema).max(4096),
     circuitBindings: z.array(SimulationCircuitBindingSchema).max(1024),
     dependencies: z.array(SimulationRawDependencySchema).max(1024),
+    drafts: z.array(SimulationSourceDraftSchema).max(4096).optional(),
   })
   .superRefine((input, context) => {
     const paths = new Set<string>();
@@ -56,6 +65,16 @@ export const SimulationSourceInputSchema = z
     }
     reportDuplicateIds(input.circuitBindings, "circuitBindings", context);
     reportDuplicateIds(input.dependencies, "dependencies", context);
+    const draftPaths = new Set<string>();
+    input.drafts?.forEach((draft, index) => {
+      if (draftPaths.has(draft.path))
+        context.addIssue({
+          code: "custom",
+          message: `Duplicate draft path: ${draft.path}`,
+          path: ["drafts", index, "path"],
+        });
+      draftPaths.add(draft.path);
+    });
     if (input.entry === input.configPath)
       context.addIssue({
         code: "custom",
@@ -85,15 +104,16 @@ export const SimulationSourceInputSchema = z
     }
   });
 
-export const SimulationSetupSchema = z.strictObject({
+export const SimulationFolderInputSchema = z.strictObject({
   version: z.literal(4),
   input: SimulationSourceInputSchema,
 });
-export const ProjectSimulationSetupSchema = SimulationSetupSchema.extend({
-  id: StableIdSchema,
-  name: z.string().trim().min(1).max(128),
-});
-export const ProjectSourceSimulationSetupSchema = ProjectSimulationSetupSchema;
+export const ProjectSimulationFolderSchema = SimulationFolderInputSchema.extend(
+  {
+    id: StableIdSchema,
+    name: z.string().trim().min(1).max(128),
+  },
+);
 
 /** Execution-only point override, shared by compiler, service and Agent; never saved as nominal intent. */
 export const SimulationRunVariantSchema = z.strictObject({
@@ -273,9 +293,6 @@ export const SimulationExperimentConfigSchema = z
   });
 
 export type SimulationSourceInput = z.infer<typeof SimulationSourceInputSchema>;
-export type ProjectSourceSimulationSetup = z.infer<
-  typeof ProjectSourceSimulationSetupSchema
->;
 export type SimulationCircuitBinding = z.infer<
   typeof SimulationCircuitBindingSchema
 >;

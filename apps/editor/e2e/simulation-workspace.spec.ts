@@ -8,11 +8,12 @@ import {
   readSimulationData,
 } from "@icm/spice-run";
 import {
-  createSourceSimulationSetup,
+  createSimulationFolder,
   readSimulationExperimentConfig,
   replaceSimulationExperimentConfig,
 } from "@icm/model";
 import { parseProject } from "@icm/project-protocol";
+import { generateCircuitSource } from "@icm/netlist";
 
 import {
   clickNetlistWorkflowCommand,
@@ -21,6 +22,87 @@ import {
 import { ota, profile, editSimulationFile } from "./simulation-e2e-fixtures.js";
 
 const loadModule = createRequire(import.meta.url);
+test("incomplete circuit opens Code and saves invalid parameter drafts across reload and folder duplication", async ({
+  page,
+}) => {
+  const project = parseProject(JSON.stringify(ota));
+  const root = project.topDocumentId;
+  const cell = project.documents.find((d) => d.id === root)!;
+  const capacitor = cell.instances.find((i) => i.reference === "CL")!;
+  delete capacitor.netlist!.parameters.value;
+  const unconfiguredMos = project.documents
+    .flatMap((document) => document.instances)
+    .find((instance) => instance.symbolId === "nmos")!;
+  unconfiguredMos.netlist = { parameters: {} };
+  const folder = createSimulationFolder({
+    id: "draft-folder",
+    name: "Draft",
+    documentId: root,
+    profileId: profile.id,
+  });
+  project.simulationFolders = [folder];
+  await page.route("**/api/simulate", (route) =>
+    route.fulfill({
+      status: 503,
+      json: { error: "Offline authoring fixture" },
+    }),
+  );
+  await page.goto("/editor");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "unfinished.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  await page.getByTestId("open-analog-simulation").click();
+  const panel = page.getByRole("region", { name: "Analog simulation" });
+  await panel.getByRole("tab", { name: "circuit.spice", exact: false }).click();
+  const editor = panel.getByRole("textbox", {
+    name: "Simulation source editor",
+  });
+  await expect(editor).toContainText("<value>");
+  await expect(editor).toContainText("<model>");
+  await expect(panel.locator(".cm-lintRange-error").first()).toBeVisible();
+  await editor.click();
+  await editor.press("Control+Home");
+  // Numeric fields are editable; a deliberately incomplete value remains saveable.
+  const source = generateCircuitSource(
+    project,
+    folder.input.circuitBindings[0]!,
+  );
+  if (!source.ok) throw Error("Expected incomplete authoring projection");
+  const original = source.source.text;
+  await editor.press("Control+A");
+  await page.keyboard.insertText(original.replace("<value>", "bad-value"));
+  await expect(editor).toContainText("bad-value");
+  const bytes = await downloadBytes(page, "File", "Export Project File…");
+  const saved = parseProject(bytes.toString());
+  expect(saved.simulationFolders[0]!.input.drafts?.[0]?.text).toContain(
+    "bad-value",
+  );
+  expect(
+    saved.documents
+      .find((d) => d.id === root)!
+      .instances.find((i) => i.id === capacitor.id)!.netlist!.parameters.value,
+  ).toBeUndefined();
+  await page.reload();
+  await page.getByTestId("project-file").setInputFiles({
+    name: "saved.icproj.json",
+    mimeType: "application/json",
+    buffer: bytes,
+  });
+  await page.getByTestId("open-analog-simulation").click();
+  await panel.getByRole("tab", { name: "circuit.spice", exact: false }).click();
+  await expect(editor).toContainText("bad-value");
+  await panel
+    .getByRole("button", { name: "Folder Draft", exact: true })
+    .click({ button: "right" });
+  page.once("dialog", (dialog) => void dialog.accept("Draft copy"));
+  await panel.getByRole("menuitem", { name: "Duplicate…" }).click();
+  await expect(
+    panel.getByRole("button", { name: "Folder Draft copy", exact: true }),
+  ).toBeVisible();
+});
+
 const { PNG } = loadModule("pngjs") as {
   PNG: {
     sync: {
@@ -32,18 +114,18 @@ const { PNG } = loadModule("pngjs") as {
     };
   };
 };
-test("human simulation uses saved setup, survives minimizing, recovers a bad input and exports results", async ({
+test("human simulation uses saved folder, survives minimizing, recovers a bad input and exports results", async ({
   page,
 }) => {
   test.setTimeout(90_000);
   const project = parseProject(JSON.stringify(ota));
-  let setup = createSourceSimulationSetup({
-    id: "setup-e2e",
-    name: "E2E setup",
+  let folder = createSimulationFolder({
+    id: "folder-e2e",
+    name: "E2E folder",
     profileId: profile.id,
     documentId: project.topDocumentId,
   });
-  const parsed = readSimulationExperimentConfig(setup);
+  const parsed = readSimulationExperimentConfig(folder);
   if (!parsed.ok) throw Error(parsed.message);
   const config = parsed.config;
   config.environment.corner = "tt";
@@ -64,8 +146,8 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
       },
     },
   ];
-  setup = replaceSimulationExperimentConfig(setup, config);
-  project.simulationSetups = [setup];
+  folder = replaceSimulationExperimentConfig(folder, config);
+  project.simulationFolders = [folder];
   let calls = 0,
     executions = 0,
     cancellations = 0;
@@ -222,7 +304,10 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
   await clickNetlistWorkflowCommand(page, "open-analog-simulation");
   const panel = page.getByRole("region", { name: "Analog simulation" });
   await panel.getByRole("button", { name: "Run", exact: true }).click();
-  await expect(panel.getByRole("alert")).toContainText(/PROBE|probe/);
+  await panel.getByRole("tab", { name: "Console", exact: true }).click();
+  await expect(panel.getByLabel("Simulation results")).toContainText(
+    /PROBE|probe/,
+  );
   expect(executions).toBe(0);
   config.outputs[0] = {
     id: "out",
@@ -237,7 +322,7 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
   };
   await editSimulationFile(
     page,
-    setup.input.configPath,
+    folder.input.configPath,
     JSON.stringify(config, null, 2),
   );
   const program = [
@@ -258,7 +343,7 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
     ".end",
     "",
   ].join("\n");
-  await editSimulationFile(page, setup.input.entry, program);
+  await editSimulationFile(page, folder.input.entry, program);
   await panel.getByRole("button", { name: "Run", exact: true }).click();
   await expect.poll(() => executions).toBe(1);
   await panel.getByRole("button", { name: "Minimize simulation" }).click();
@@ -266,14 +351,16 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
   release();
   await clickNetlistWorkflowCommand(page, "open-analog-simulation");
   await expect(panel.getByRole("status")).toHaveText("finished · completed");
-  // A completed run belongs to its setup, not whichever setup is currently visible.
-  await panel.getByTitle("Simulation setup", { exact: true }).click();
-  await panel.getByRole("button", { name: "New setup", exact: true }).click();
+  // A completed run belongs to its folder, not whichever folder is currently visible.
+  page.once("dialog", (dialog) => void dialog.accept("Second folder"));
+  await panel.getByRole("button", { name: "+ New folder…" }).click();
+  await panel.getByRole("button", { name: /Run current Cell/ }).click();
   await expect(panel.getByRole("status")).not.toHaveText(
     "finished · completed",
   );
-  await panel.getByTitle("Simulation setup", { exact: true }).click();
-  await panel.getByRole("button", { name: "E2E setup", exact: true }).click();
+  await panel
+    .getByRole("button", { name: "Folder E2E folder", exact: true })
+    .click();
   await expect(panel.getByRole("status")).toHaveText("finished · completed");
   expect(executions).toBe(1);
   await expect(panel.getByRole("tab", { name: "Summary" })).toHaveCount(0);
@@ -740,7 +827,8 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
     .getByRole("button", { name: "Download ZIP" })
     .click();
   expect((await bundleDownload).suggestedFilename()).toBe("simulation-run.zip");
-  await panel.getByRole("button", { name: "Prepare deck" }).click();
+  await panel.getByRole("button", { name: "More code actions" }).click();
+  await panel.getByRole("button", { name: "View final deck" }).click();
   await expect(panel.getByLabel("Prepare Netlist")).toBeVisible();
   await expect(panel.getByLabel("Run Results")).toBeVisible();
   await expect(panel.getByText("Input identity", { exact: true })).toHaveCount(
@@ -751,16 +839,16 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
   config.outputs[0]!.label = "new-output";
   await editSimulationFile(
     page,
-    setup.input.configPath,
+    folder.input.configPath,
     JSON.stringify(config, null, 2),
   );
   await editSimulationFile(
     page,
-    setup.input.entry,
+    folder.input.entry,
     program.replace(".control", ".temp 30\n.control"),
   );
   await downloadBytes(page, "File", "Export Project File…");
-  await expect(panel.getByRole("alert")).toContainText(
+  await expect(panel.locator(".simulation-code-status")).toContainText(
     "earlier Project revision",
   );
   await panel.getByRole("tab", { name: "Results", exact: true }).click();
@@ -813,7 +901,7 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
   await expect(comparisonRuns.last()).not.toContainText("Time-weighted RMS");
   await expect(
     comparisonRuns.getByRole("button", {
-      name: "Remove E2E setup from comparison",
+      name: "Remove E2E folder from comparison",
     }),
   ).toBeVisible();
   await expect(
@@ -943,7 +1031,7 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
   await panel.getByRole("tab", { name: "Compare" }).click();
   await expect(
     panel.getByRole("region", { name: "Saved result archives" }),
-  ).toContainText("E2E setup");
+  ).toContainText("E2E folder");
   pending = new Promise<void>((r) => {
     release = r;
   });
@@ -954,7 +1042,7 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
   expect(cancellations).toBe(1);
   await panel.getByRole("button", { name: "Minimize simulation" }).click();
   const saved = await downloadBytes(page, "File", "Export Project File…");
-  const reopenedSetup = parseProject(saved.toString()).simulationSetups[0]!;
+  const reopenedSetup = parseProject(saved.toString()).simulationFolders[0]!;
   const reopenedProgram = reopenedSetup.input.files.find(
     (f) => f.path === reopenedSetup.input.entry,
   )!.text;
@@ -981,7 +1069,7 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
   const savedArchives = panel.getByRole("region", {
     name: "Saved result archives",
   });
-  await expect(savedArchives).toContainText("E2E setup");
+  await expect(savedArchives).toContainText("E2E folder");
   await savedArchives.getByRole("button", { name: "Open" }).click();
   await expect(panel.getByRole("status")).toHaveText("finished · completed");
   expect(executions).toBe(3);
@@ -1015,17 +1103,19 @@ test("Simulation creates an ordinary testbench and offers the current Cell at th
     childDocumentId: "document-main",
   });
   expect(saved.topDocumentId).toBe("document-main");
-  expect(saved.simulationSetups).toEqual([]);
+  expect(saved.simulationFolders).toEqual([]);
   await clickNetlistWorkflowCommand(page, "open-analog-simulation");
   await expect(page.getByLabel("Testbench Cell")).toHaveCount(0);
+  page.once("dialog", (dialog) => void dialog.accept("Main experiment"));
   await page
     .getByRole("button", { name: "Create experiment for this Cell" })
     .click();
+  await page.getByRole("button", { name: /Run current Cell/ }).click();
   const configured = JSON.parse(
     (await downloadBytes(page, "File", "Export Project File…")).toString(),
   );
   expect(
-    configured.simulationSetups[0].input.circuitBindings[0].documentId,
+    configured.simulationFolders[0].input.circuitBindings[0].documentId,
   ).toBe(tb.id);
   const simulationResize = page.getByTestId("simulation-resize-handle");
   const initialWidth = Number(

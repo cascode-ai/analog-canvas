@@ -537,6 +537,8 @@ describe("migrateLegacyProjectRecovery", () => {
     const { store } = freshStore();
     const previous = JSON.parse(projectText);
     previous.schemaVersion = CURRENT_PROJECT_SCHEMA_VERSION - 1;
+    previous.simulationSetups = previous.simulationFolders;
+    delete previous.simulationFolders;
     const previousText = JSON.stringify(previous);
     const storage = memoryStorage({ [PROJECT_RECOVERY_KEY]: previousText });
 

@@ -36,17 +36,17 @@ const projectText = await readFile(
   "utf8",
 );
 const project = parseProject(projectText);
-const setup = project.simulationSetups[0];
-assert(setup, "The acceptance Project has no saved setup");
-assert.equal(setup.input.kind, "source");
-const parsedConfig = readSimulationExperimentConfig(setup);
+const folder = project.simulationFolders[0];
+assert(folder, "The acceptance Project has no saved folder");
+assert.equal(folder.input.kind, "source");
+const parsedConfig = readSimulationExperimentConfig(folder);
 assert(parsedConfig.ok, "The acceptance experiment configuration is invalid");
 const qualifiedConfig = parsedConfig.config;
 const noiseOutput = qualifiedConfig.outputs.find(
   (output) => output.id === "probe-vout",
 );
 assert.equal(noiseOutput?.expression.kind, "voltage");
-const rootBinding = setup.input.circuitBindings.find(
+const rootBinding = folder.input.circuitBindings.find(
   (binding) => binding.emission === "top-level",
 );
 assert(
@@ -70,7 +70,7 @@ qualifiedConfig.deviceOperatingPoints = [
   },
 ];
 const qualifiedSetup = replaceSimulationExperimentConfig(
-  structuredClone(setup),
+  structuredClone(folder),
   qualifiedConfig,
 );
 const program = qualifiedSetup.input.files.find(
@@ -281,13 +281,13 @@ try {
     tool("inspect", { target: { kind: "document" }, detail: "full" }),
     tool("simulation", { request: { operation: "capabilities" } }),
   ]);
-  const discoveredSetup = inspected.project?.simulationSetups?.find(
-    (candidate) => candidate.id === setup.id,
+  const discoveredSetup = inspected.project?.simulationFolders?.find(
+    (candidate) => candidate.id === folder.id,
   );
   assert.deepEqual(
     discoveredSetup,
-    setup,
-    "Agent inspection did not expose the complete authored Simulation setup",
+    folder,
+    "Agent inspection did not expose the complete authored Simulation folder",
   );
   const sourceReport = await tool("inspect", {
     documentId: rootBinding.documentId,
@@ -409,7 +409,7 @@ try {
 
   const invalidConfig = structuredClone(qualifiedConfig);
   const firstOutput = invalidConfig.outputs[0];
-  assert(firstOutput, "The acceptance setup has no authored output");
+  assert(firstOutput, "The acceptance folder has no authored output");
   assert(
     ["voltage", "current"].includes(firstOutput.expression.kind),
     "The first acceptance output cannot be anchored to a circuit terminal",
@@ -424,7 +424,9 @@ try {
     invalidConfig,
   );
   const invalidEdit = await tool("advanced_transact", {
-    structureEdits: [{ kind: "upsert_simulation_setup", setup: invalidSetup }],
+    structureEdits: [
+      { kind: "upsert_simulation_folder", folder: invalidSetup },
+    ],
   });
   assert.equal(invalidEdit.ok, true);
   const refused = await tool(
@@ -433,8 +435,8 @@ try {
       request: {
         operation: "prepare",
         source: {
-          kind: "project-setup",
-          setupId: setup.id,
+          kind: "project-folder",
+          folderId: folder.id,
           expectedStructureRevision: invalidEdit.projectStructure.toRevision,
         },
       },
@@ -451,8 +453,8 @@ try {
   const restored = await tool("advanced_transact", {
     structureEdits: [
       {
-        kind: "upsert_simulation_setup",
-        setup: setupWithoutDeviceOperatingPoints,
+        kind: "upsert_simulation_folder",
+        folder: setupWithoutDeviceOperatingPoints,
       },
     ],
   });
@@ -461,7 +463,7 @@ try {
   for (const selection of qualifiedConfig.deviceOperatingPoints) {
     const configured = await tool("simulation_device_operating_point", {
       action: "upsert",
-      setupId: setup.id,
+      folderId: folder.id,
       deviceOperatingPointId: selection.id,
       targetDocumentId: selection.documentId,
       instanceId: selection.instanceId,
@@ -473,7 +475,7 @@ try {
   }
   // Exercise mapped text edits through the public File API, then restore the
   // qualified geometry before checking the unchanged numerical reference.
-  const owner = { kind: "project-setup", setupId: setup.id };
+  const owner = { kind: "project-folder", folderId: folder.id };
   const circuit = await tool("simulation_files", {
     request: { action: "read", owner, path: rootBinding.path },
   });
@@ -557,8 +559,8 @@ try {
   assert(savedExport.ok);
   const savedProject = parseProject(await readFile(savedPath, "utf8"));
   assert(
-    savedProject.simulationSetups
-      .find((item) => item.id === setup.id)
+    savedProject.simulationFolders
+      .find((item) => item.id === folder.id)
       .input.files.some((file) =>
         file.text.includes("Source workspace MCP acceptance"),
       ),
@@ -567,8 +569,8 @@ try {
     request: {
       operation: "prepare",
       source: {
-        kind: "project-setup",
-        setupId: setup.id,
+        kind: "project-folder",
+        folderId: folder.id,
         expectedStructureRevision: configuredRevision,
       },
     },
@@ -710,8 +712,8 @@ try {
       operation: "prepare-batch",
       expectedStructureRevision: configuredRevision,
       items: [
-        { id: "first", setupId: setup.id },
-        { id: "second", setupId: setup.id },
+        { id: "first", folderId: folder.id },
+        { id: "second", folderId: folder.id },
       ],
     },
   });
@@ -748,7 +750,7 @@ try {
     projectId: contextReport.projectId,
     documentId: contextReport.documentId,
     structureRevision: inspected.project?.structureRevision,
-    setup: {
+    folder: {
       id: discoveredSetup.id,
       name: discoveredSetup.name,
       circuitBindings: discoveredSetup.input.circuitBindings,

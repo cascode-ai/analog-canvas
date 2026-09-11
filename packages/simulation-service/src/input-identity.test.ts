@@ -7,7 +7,7 @@ import { ProjectInputIdentity } from "./input-identity.js";
 describe("Project input identity", () => {
   it("reuses a revision and recognizes raw inputs with resolved dependencies", async () => {
     const project = createEmptyProject("p", "test");
-    project.simulationSetups.push({
+    project.simulationFolders.push({
       id: "s",
       name: "Raw",
       version: 4,
@@ -38,18 +38,18 @@ describe("Project input identity", () => {
     expect(hash).toMatch(/^[a-f0-9]{64}$/);
     project.structureRevision++;
     expect(await cache.read(project, "s")).toBe(hash);
-    const input = project.simulationSetups[0]!.input;
+    const input = project.simulationFolders[0]!.input;
     input.files[0]!.text += "\n* changed";
     project.structureRevision++;
     expect(await cache.read(project, "s")).not.toBe(hash);
-    project.simulationSetups = [];
+    project.simulationFolders = [];
     project.structureRevision++;
     expect(await cache.read(project, "s")).toBeNull();
   });
   it("invalidates on a Document-only parameter edit, while layout leaves electrical identity unchanged", async () => {
     const project = parseProject(JSON.stringify(ota));
     const cache = new ProjectInputIdentity(),
-      id = project.simulationSetups[0]!.id;
+      id = project.simulationFolders[0]!.id;
     const before = await cache.read(project, id);
     expect(before).toMatch(/^[a-f0-9]{64}$/u);
     const document = project.documents.find((d) =>

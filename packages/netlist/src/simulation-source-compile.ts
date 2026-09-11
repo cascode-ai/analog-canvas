@@ -3,12 +3,12 @@ import {
   SIMULATION_NOISE_INPUT_DENSITY_ID,
   SIMULATION_NOISE_OUTPUT_DENSITY_ID,
   type CircuitProject,
-  type ProjectSourceSimulationSetup,
+  type ProjectSimulationFolder,
   type SimulationCircuitBinding,
   type SimulationCircuitScope,
   type SimulationExperimentConfig,
   type SimulationExpression,
-  type LegacySimulationSetup as SimulationSetup,
+  type LegacySimulationSetup as SimulationFolderInput,
   type SimulationSourceExpression,
   type SimulationRunVariant,
 } from "@icm/model";
@@ -75,9 +75,20 @@ export type SourceSimulationCompilation =
 /** Author text stays native. Canvas extraction, instrumentation and output math remain shared. */
 export function compileSourceSimulation(
   project: CircuitProject,
-  setup: ProjectSourceSimulationSetup,
+  folder: ProjectSimulationFolder,
   variant?: SimulationRunVariant,
 ): SourceSimulationCompilation {
+  if (folder.input.drafts?.length)
+    return {
+      ok: false,
+      diagnostics: folder.input.drafts.map((draft) => ({
+        code: "SIMULATION_SOURCE_DRAFT_PENDING",
+        severity: "error",
+        path: draft.path,
+        message:
+          "This folder contains a saved unapplied draft. Apply or discard it before running; saving remains available.",
+      })),
+    };
   const diagnostics: SimulationSourceDiagnostic[] = [];
   const fail = (code: string, message: string, field?: string) =>
     diagnostics.push({
@@ -86,7 +97,7 @@ export function compileSourceSimulation(
       message,
       ...(field ? { field } : {}),
     });
-  const parsedConfig = readSimulationExperimentConfig(setup);
+  const parsedConfig = readSimulationExperimentConfig(folder);
   if (!parsedConfig.ok)
     return {
       ok: false,
@@ -103,11 +114,11 @@ export function compileSourceSimulation(
         ...(issue.field ? { field: issue.field } : {}),
       })),
     };
-  const graph = inspectSimulationSourceGraph(setup.input);
+  const graph = inspectSimulationSourceGraph(folder.input);
   diagnostics.push(...graph.diagnostics);
   const projection = projectSourceSimulation(
     project,
-    setup,
+    folder,
     parsedConfig.config,
     graph,
     variant,
@@ -116,7 +127,7 @@ export function compileSourceSimulation(
   const config = projection.config;
   diagnostics.push(...projection.diagnostics);
   const reachable = new Set(graph.paths);
-  const bindings = setup.input.circuitBindings.filter((b) =>
+  const bindings = folder.input.circuitBindings.filter((b) =>
     reachable.has(b.path),
   );
   const byBinding = new Map(bindings.map((b) => [b.id, b]));
@@ -177,7 +188,7 @@ export function compileSourceSimulation(
           designVariables: [],
           runPlan: { mode: "nominal" },
         },
-      } satisfies SimulationSetup,
+      } satisfies SimulationFolderInput,
     ]),
   );
   // Two passes share one ephemeral instrumentation set across reused Cell definitions.
@@ -447,7 +458,7 @@ export function compileSourceSimulation(
     ),
   ];
   if (capture.size) {
-    const index = mappedFiles.findIndex((f) => f.path === setup.input.entry);
+    const index = mappedFiles.findIndex((f) => f.path === folder.input.entry);
     const entry = mappedFiles[index]!;
     const end = entry.text.indexOf("\n");
     const prefix = `* Canvas acquisitions (generated)\n.save all ${[...capture].join(" ")}\n`;
@@ -462,7 +473,7 @@ export function compileSourceSimulation(
   return {
     ok: true,
     config,
-    authoredFiles: structuredClone(setup.input.files),
+    authoredFiles: structuredClone(folder.input.files),
     files: mappedFiles.map(({ path, text }) => ({ path, text })),
     sourceMaps: mappedFiles.map(({ path, segments }) => ({ path, segments })),
     includes: graph.includes,
@@ -473,7 +484,7 @@ export function compileSourceSimulation(
           .map(([id, plan]) => ({ bindingId: id, circuit: plan.circuit })),
       ),
     ),
-    entry: setup.input.entry,
+    entry: folder.input.entry,
     generated,
     vectors,
     outputs,

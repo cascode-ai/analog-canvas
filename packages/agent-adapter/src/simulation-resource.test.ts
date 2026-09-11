@@ -22,7 +22,7 @@ describe("Simulation sibling contract", () => {
     ).toEqual(["request-approval"]);
   });
   it("exposes async operations, not an ambiguous synchronous run", () => {
-    const envelope = { apiVersion: "2.0", requestId: "test" };
+    const envelope = { apiVersion: "3.0", requestId: "test" };
     expect(
       AgentSimulationResourceRequestSchema.safeParse({
         ...envelope,
@@ -46,15 +46,15 @@ describe("Simulation sibling contract", () => {
       operation: "prepare-batch",
       expectedStructureRevision: 3,
       items: [
-        { id: "tt", setupId: "setup-tt" },
-        { id: "ff", setupId: "setup-ff" },
+        { id: "tt", folderId: "folder-tt" },
+        { id: "ff", folderId: "folder-ff" },
       ],
     });
     expect(simulationOperationScopes(batch)).toEqual(["simulation.run"]);
     const sweep = AgentSimulationResourceRequestSchema.parse({
       ...envelope,
       operation: "prepare-sweep",
-      setupId: "setup-ac",
+      folderId: "folder-ac",
       expectedStructureRevision: 4,
       axes: [{ kind: "temperature", values: [-40, 27, 125] }],
     });
@@ -63,7 +63,7 @@ describe("Simulation sibling contract", () => {
       AgentSimulationResourceRequestSchema.parse({
         ...envelope,
         operation: "prepare-sweep",
-        setupId: "setup-ac",
+        folderId: "folder-ac",
         expectedStructureRevision: 4,
         axes: [{ kind: "variable", variableId: "load", values: ["1k", "2k"] }],
       }),
@@ -78,7 +78,7 @@ describe("Simulation sibling contract", () => {
   it("retains recovery hints and located diagnostics in the shared envelope", () => {
     expect(
       AgentSimulationResourceResponseSchema.parse({
-        apiVersion: "2.0",
+        apiVersion: "3.0",
         requestId: "bad-input",
         operation: "prepare",
         ok: false,
@@ -94,7 +94,7 @@ describe("Simulation sibling contract", () => {
   });
   it("exports a specific simulation record through Files without a Canvas document", () => {
     const request = {
-      apiVersion: "2.0",
+      apiVersion: "3.0",
       requestId: "plot",
       operation: "download",
       artifact: "simulation-plot",
@@ -120,7 +120,7 @@ describe("Simulation sibling contract", () => {
   });
   it("accepts DC sweep capability and result data through the shared resource", () => {
     const response = AgentSimulationResourceResponseSchema.parse({
-      apiVersion: "2.0",
+      apiVersion: "3.0",
       requestId: "dc-result",
       operation: "read",
       ok: true,

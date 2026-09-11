@@ -276,6 +276,9 @@ test("imports and upgrades a portable Project before explicit export", async ({
   ) as Record<string, unknown>;
   const previousVersion = CURRENT_PROJECT_SCHEMA_VERSION - 1;
   source.schemaVersion = previousVersion;
+  // Schema 49 stored the same source folders under the former collection name.
+  source.simulationSetups = source.simulationFolders;
+  delete source.simulationFolders;
   await page.goto("/editor");
   await page.getByTestId("project-file").setInputFiles({
     name: `minimal-v${previousVersion}.icproj.json`,

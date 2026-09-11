@@ -111,7 +111,8 @@ describe("editor shell", () => {
     const netlistMenu = markup.slice(netlistStart, netlistEnd);
     expect(netlistStart).toBeGreaterThan(-1);
     expect(markup).toContain("Check Report…");
-    expect(netlistMenu).toContain('data-testid="open-analog-simulation"');
+    expect(netlistMenu).not.toContain('data-testid="open-analog-simulation"');
+    expect(markup).toContain('data-testid="open-analog-simulation"');
     expect(netlistMenu).toContain('data-testid="check-and-save"');
     expect(markup).not.toContain("<summary>Run</summary>");
     const agentEnd =

@@ -293,18 +293,20 @@ describe("the bundled five-transistor Sky130 OTA", () => {
     });
   });
 
-  it("preserves the qualified four-analysis numerical acceptance setup", async () => {
-    const setup = project.simulationSetups.find(
+  it("preserves the qualified four-analysis numerical acceptance folder", async () => {
+    const folder = project.simulationFolders.find(
       (candidate) => candidate.id === "simulation-setup-ota-op-ac",
     );
-    expect(setup).toBeDefined();
-    expect(setup?.input.kind).toBe("source");
-    if (setup?.input.kind !== "source") return;
-    const compiled = await compileSourceSimulation(project, setup);
+    expect(folder).toBeDefined();
+    expect(folder?.input.kind).toBe("source");
+    if (folder?.input.kind !== "source") return;
+    const compiled = await compileSourceSimulation(project, folder);
     expect(compiled.ok).toBe(true);
     if (!compiled.ok) return;
 
-    expect(sourcePresentation(setup).analysisLabel).toBe("OP + DC + AC + TRAN");
+    expect(sourcePresentation(folder).analysisLabel).toBe(
+      "OP + DC + AC + TRAN",
+    );
     expect(compiled.files.map((file) => file.text).join("\n")).toContain(
       "VINP",
     );
@@ -346,7 +348,7 @@ describe("the bundled five-transistor Sky130 OTA", () => {
     expect(compiled.config.measurements).toEqual([]);
   });
 
-  it("ships independently runnable bias, transfer, five-corner AC, transient, and Noise setups", async () => {
+  it("ships independently runnable bias, transfer, five-corner AC, transient, and Noise folders", async () => {
     const expected = [
       ["simulation-setup-ota-op-ac", "op,dc,ac,tran", "tt"],
       ["simulation-setup-ota-full-tt", "op,dc,ac,tran,noise", "tt"],
@@ -363,38 +365,39 @@ describe("the bundled five-transistor Sky130 OTA", () => {
     ] as const;
 
     expect(
-      project.simulationSetups.map((setup) => [
-        setup.id,
-        setup.input.kind === "source"
-          ? sourcePresentation(setup)
+      project.simulationFolders.map((folder) => [
+        folder.id,
+        folder.input.kind === "source"
+          ? sourcePresentation(folder)
               .analysisLabel.toLowerCase()
               .split(" + ")
               .join(",")
-          : setup.input.kind,
-        readSimulationExperimentConfig(setup).ok
+          : folder.input.kind,
+        readSimulationExperimentConfig(folder).ok
           ? JSON.parse(
-              setup.input.files.find((f) => f.path === setup.input.configPath)!
-                .text,
+              folder.input.files.find(
+                (f) => f.path === folder.input.configPath,
+              )!.text,
             ).environment.corner
           : null,
       ]),
     ).toEqual(expected);
 
-    for (const setup of project.simulationSetups) {
-      expect(setup.input.kind, setup.name).toBe("source");
-      if (setup.input.kind !== "source") continue;
+    for (const folder of project.simulationFolders) {
+      expect(folder.input.kind, folder.name).toBe("source");
+      if (folder.input.kind !== "source") continue;
       expect(
-        setup.input.circuitBindings.find((b) => b.emission === "top-level")
+        folder.input.circuitBindings.find((b) => b.emission === "top-level")
           ?.documentId,
-        setup.name,
+        folder.name,
       ).toBe(
-        setup.id === "simulation-setup-ota-tran-sin-tt"
+        folder.id === "simulation-setup-ota-tran-sin-tt"
           ? "document-ota-5t-testbench-sin"
           : testbench.id,
       );
-      const compiled = await compileSourceSimulation(project, setup);
-      expect(compiled.ok, setup.name).toBe(true);
-      if (compiled.ok && setup.id === "simulation-setup-ota-tran-sin-tt") {
+      const compiled = await compileSourceSimulation(project, folder);
+      expect(compiled.ok, folder.name).toBe(true);
+      if (compiled.ok && folder.id === "simulation-setup-ota-tran-sin-tt") {
         expect(compiled.files.map((file) => file.text).join("\n")).toContain(
           "SIN(0.9 10m 1Meg 0 0 0)",
         );
@@ -403,12 +406,12 @@ describe("the bundled five-transistor Sky130 OTA", () => {
   });
 
   it("covers the complete structured simulation feature matrix", () => {
-    const inputs = project.simulationSetups.map((setup) => {
-      const parsed = readSimulationExperimentConfig(setup);
+    const inputs = project.simulationFolders.map((folder) => {
+      const parsed = readSimulationExperimentConfig(folder);
       if (!parsed.ok) throw Error(parsed.message);
       return {
         ...parsed.config,
-        analyses: sourcePresentation(setup)
+        analyses: sourcePresentation(folder)
           .analysisLabel.toLowerCase()
           .split(" + ")
           .map((kind) => ({ kind })),

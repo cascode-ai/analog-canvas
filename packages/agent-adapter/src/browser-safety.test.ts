@@ -46,14 +46,14 @@ describe("agent-adapter browser-safe boundary", () => {
     });
 
     const capabilities = service.handle({
-      apiVersion: "2.0",
+      apiVersion: "3.0",
       requestId: "r1",
       operation: "capabilities",
     });
     expect(capabilities.ok).toBe(true);
 
     const snapshot = service.handle({
-      apiVersion: "2.0",
+      apiVersion: "3.0",
       requestId: "r2",
       operation: "snapshot",
       documentId: document.id,
@@ -61,7 +61,7 @@ describe("agent-adapter browser-safe boundary", () => {
     expect(snapshot.ok).toBe(true);
 
     const render = service.handle({
-      apiVersion: "2.0",
+      apiVersion: "3.0",
       requestId: "r3",
       operation: "render",
       documentId: document.id,

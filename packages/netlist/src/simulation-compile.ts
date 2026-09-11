@@ -1,7 +1,7 @@
 /**
- * Compiling a structured `SimulationSetup` into one simulation request.
+ * Compiling a structured `SimulationFolderInput` into one simulation request.
  *
- * A setup names a Testbench root, the analyses to run, and the outputs to
+ * A folder names a Testbench root, the analyses to run, and the outputs to
  * record (`docs/specs/simulation.md`, "Inputs and root"). This turns that into
  * the two texts `/api/simulate` already consumes -- the design netlist of
  * everything the root reaches, and the root itself as a top-level deck -- plus
@@ -65,7 +65,7 @@ import type {
   SimulationDeviceOperatingPointSpec,
   SimulationExpression,
   SimulationMeasurementSpec,
-  LegacySimulationSetup as SimulationSetup,
+  LegacySimulationSetup as SimulationFolderInput,
   SimulationStructuredInput,
   SimulationVoltageProbe,
   StableId,
@@ -291,9 +291,9 @@ function analysisCommand(
 }
 
 /**
- * A stable serialization of the authored setup, field order fixed here rather
+ * A stable serialization of the authored folder, field order fixed here rather
  * than inherited from however the object was built, so the digest below is a
- * fact about the setup and not about its construction. Follows the same
+ * fact about the folder and not about its construction. Follows the same
  * canonical-then-hash shape `@icm/spice-run` uses for environment facts.
  */
 function canonicalSetup(input: SimulationStructuredInput): string {
@@ -349,7 +349,7 @@ function canonicalSetup(input: SimulationStructuredInput): string {
 }
 
 /**
- * SHA-256 over the exact deck texts and the authored setup.
+ * SHA-256 over the exact deck texts and the authored folder.
  *
  * Browser-safe by construction: Web Crypto only, which is why this function is
  * async, matching `createSimulationInputMetadata` in `@icm/spice-run`. The
@@ -787,20 +787,20 @@ function terminalCurrentVector(
 }
 
 /**
- * Compile one structured setup into the netlist, testbench, analyses, and
+ * Compile one structured folder into the netlist, testbench, analyses, and
  * probe-to-vector bindings a simulation run needs.
  *
- * Deterministic: the same Project and setup produce byte-identical texts, in
+ * Deterministic: the same Project and folder produce byte-identical texts, in
  * the extraction's own Cell and Instance order, with probes in the order the
  * author wrote them.
  */
 export async function compileStructuredSimulation(
   project: CircuitProject,
-  setup: SimulationSetup,
+  folder: SimulationFolderInput,
   options: CompileStructuredSimulationOptions = {},
 ): Promise<CompiledSimulation> {
-  const compiled = buildSimulationPlan(project, setup, options);
-  if (!compiled.ok || setup.input.kind !== "structured") return compiled;
+  const compiled = buildSimulationPlan(project, folder, options);
+  if (!compiled.ok || folder.input.kind !== "structured") return compiled;
   return {
     ...compiled,
     request: {
@@ -808,7 +808,7 @@ export async function compileStructuredSimulation(
       inputRevision: await inputRevisionOf(
         compiled.request.netlist,
         compiled.request.testbench.trimEnd(),
-        setup.input,
+        folder.input,
       ),
     },
   };
@@ -817,23 +817,23 @@ export async function compileStructuredSimulation(
 /** Pure planning; neither execution nor asynchronous hashing belongs to migration. */
 export function buildSimulationPlan(
   project: CircuitProject,
-  setup: SimulationSetup,
+  folder: SimulationFolderInput,
   options: CompileStructuredSimulationOptions = {},
 ): CompiledSimulation {
-  if (setup.input.kind !== "structured") {
+  if (folder.input.kind !== "structured") {
     return {
       ok: false,
       diagnostics: [
         diagnostic(
           "SIMULATION_INPUT_MODE_MISMATCH",
           project.id,
-          "Structured compilation requires a structured SimulationSetup",
+          "Structured compilation requires a structured SimulationFolderInput",
           locator(project.topDocumentId, [], "document", project.topDocumentId),
         ),
       ],
     };
   }
-  const input = setup.input;
+  const input = folder.input;
   const analysis = analyzeDesignNetlist(project, {
     format: "spice",
     rootDocumentId: input.rootDocumentId,

@@ -3,6 +3,38 @@ import { describe, expect, it } from "vitest";
 import { SimulationCodeWorkspace } from "./code-workspace";
 
 describe("approved simulation Code layout", () => {
+  it("presents execution folders beside code without a Setup selector", () => {
+    const markup = renderToStaticMarkup(
+      <SimulationCodeWorkspace
+        workspaceKey="a"
+        entryPath="run.cir"
+        configPath="experiment.json"
+        activePath="run.cir"
+        files={[{ path: "run.cir", kind: "authored" }]}
+        onSelectFile={() => {}}
+        folders={{
+          folders: [
+            { id: "a", name: "OTA AC" },
+            { id: "b", name: "OTA transient" },
+          ],
+          activeId: "a",
+          onSelect: () => {},
+          onAction: () => {},
+        }}
+        actions={<button>Run</button>}
+        console={null}
+        results={null}
+        outputPane="console"
+        onSelectOutputPane={() => {}}
+      >
+        <div>Code</div>
+      </SimulationCodeWorkspace>,
+    );
+    expect(markup).toContain("OTA AC");
+    expect(markup).toContain("OTA transient");
+    expect(markup).toContain("New folder");
+    expect(markup).not.toContain("Setup");
+  });
   it("opens only circuit/run tabs by default, with output below the editor and configuration on demand", () => {
     const markup = renderToStaticMarkup(
       <SimulationCodeWorkspace

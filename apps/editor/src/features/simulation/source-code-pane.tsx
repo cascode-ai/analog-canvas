@@ -10,7 +10,8 @@ import {
 import {
   readSimulationExperimentConfig,
   type CircuitProject,
-  type ProjectSimulationSetup,
+  type ProjectSimulationFolder,
+  type SimulationSourceExpression,
 } from "@icm/model";
 import type { SpiceSimulationSurfaceProps } from "./simulation-surface-types";
 import {
@@ -30,12 +31,19 @@ import SimulationCodeEditor from "./code-editor";
 import { downloadTextArtifact } from "../../document/project-file-service";
 import { WORKING_COPY_STORAGE_KEY } from "../../document/recovery-coordinator";
 import { sourceDraftCache } from "./source-draft-cache";
-import { SimulationCodeWorkspace } from "./code-workspace";
+import {
+  SimulationCodeWorkspace,
+  type SimulationCodeWorkspaceProps,
+} from "./code-workspace";
+import { sourceProbeChoices } from "./source-probe-choices";
+import { SourceProbePicker } from "./source-probe-picker";
 
 export type SourceFlush =
-  { ok: true; setup: ProjectSimulationSetup; revision: number } | { ok: false };
+  | { ok: true; folder: ProjectSimulationFolder; revision: number }
+  | { ok: false };
 export interface SourceCodeHandle {
   flush(): Promise<SourceFlush>;
+  save(): Promise<boolean>;
   discard(): void;
   reveal(location: SimulationSourceLocation): Promise<void>;
 }
@@ -51,9 +59,11 @@ interface Props extends Pick<
   project: CircuitProject;
   selectedCircuitObject?:
     { documentId: string; instanceId: string } | undefined;
-  setup: ProjectSimulationSetup;
+  folder: ProjectSimulationFolder;
   files: SimulationFiles;
   actions: ReactNode;
+  folders?: SimulationCodeWorkspaceProps["folders"];
+  onPrepare?(): void;
   console: ReactNode;
   results: ReactNode;
   status?: ReactNode;
@@ -92,13 +102,27 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
       () => sourceDraftCache(storage, workingCopyId, props.project.id),
       [storage, workingCopyId, props.project.id],
     );
-    const drafts = useMemo(() => ({ current: cache.read() }), [cache]);
+    const drafts = useMemo(() => {
+      const buffers = cache.read();
+      for (const folder of props.project.simulationFolders)
+        for (const draft of folder.input.drafts ?? []) {
+          const key = `${folder.id}\u0000${draft.path}`;
+          if (!buffers.has(key))
+            buffers.set(key, {
+              base: draft.base,
+              text: draft.text,
+              committed: props.project.structureRevision,
+              ...(draft.binding ? { binding: draft.binding } : {}),
+            });
+        }
+      return { current: buffers };
+    }, [cache]);
     const [draftRevision, render] = useState(0);
     const [recoveryAvailable, setRecoveryAvailable] = useState(true);
     useEffect(() => {
       setRecoveryAvailable(cache.write(drafts.current));
     }, [cache, draftRevision]);
-    const [path, setPath] = useState(props.setup.input.entry);
+    const [path, setPath] = useState(props.folder.input.entry);
     const [saving, setSaving] = useState(false);
     const [reveal, setReveal] = useState<{
       sourceOffset: number;
@@ -111,7 +135,25 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
       net: props.pickedNet?.sequence,
       terminal: props.pickedTerminal?.sequence,
     });
-    const input = props.setup.input;
+    const input = props.folder.input;
+    const [probePicker, setProbePicker] = useState<
+      "voltage" | "current" | "difference"
+    >();
+    const probeChoices = useMemo(
+      () =>
+        probePicker
+          ? sourceProbeChoices(props.project, {
+              ...input,
+              files: input.files.map((file) => ({
+                ...file,
+                text:
+                  drafts.current.get(`${props.folder.id}\u0000${file.path}`)
+                    ?.text ?? file.text,
+              })),
+            })
+          : [],
+      [props.project, input, draftRevision, probePicker],
+    );
     const binding = input.circuitBindings.find(
       (b) => b.emission === "top-level",
     );
@@ -122,25 +164,18 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
           : undefined,
       [props.project, binding],
     );
-    const addPicked = (matches: readonly SimulationProbeOption[]) => {
-      if (!binding) return;
-      if (matches.length !== 1) {
-        props.onProblem(
-          inputProblem(
-            "SIMULATION_PICK_OCCURRENCE_REQUIRED",
-            "Open the desired Cell occurrence from its Testbench before picking; no output was guessed.",
-          ),
-        );
-        return;
-      }
-      const file = props.setup.input.files.find(
+    const addOutput = (
+      label: string,
+      expression: SimulationSourceExpression,
+    ) => {
+      const file = props.folder.input.files.find(
           (f) => f.path === input.configPath,
         ),
         draft = drafts.current.get(
-          `${props.setup.id}\u0000${input.configPath}`,
+          `${props.folder.id}\u0000${input.configPath}`,
         );
       const parsed = readSimulationExperimentConfig({
-        ...props.setup,
+        ...props.folder,
         input: {
           ...input,
           files: [
@@ -159,11 +194,6 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
         setPath(input.configPath);
         return;
       }
-      const match = matches[0]!,
-        expression = {
-          ...match.target,
-          circuit: { bindingId: binding.id, callPath: [] },
-        };
       if (
         parsed.config.outputs.some(
           (o) => JSON.stringify(o.expression) === JSON.stringify(expression),
@@ -172,15 +202,30 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
         return;
       parsed.config.outputs.push({
         id: `output-${crypto.randomUUID()}`,
-        label: match.label,
+        label,
         expression,
       });
-      drafts.current.set(`${props.setup.id}\u0000${input.configPath}`, {
+      drafts.current.set(`${props.folder.id}\u0000${input.configPath}`, {
         base: draft?.base ?? file?.text ?? "",
         text: JSON.stringify(parsed.config, null, 2) + "\n",
         committed: draft?.committed ?? props.project.structureRevision,
       });
+      setPath(input.configPath);
       render((v) => v + 1);
+    };
+    const addPicked = (matches: readonly SimulationProbeOption[]) => {
+      if (!binding) return;
+      props.onPickNetsChange?.(false);
+      props.onPickTerminalsChange?.(false);
+      if (matches.length !== 1) {
+        setProbePicker(props.pickTerminalsActive ? "current" : "voltage");
+        return;
+      }
+      const match = matches[0]!;
+      addOutput(match.label, {
+        ...match.target,
+        circuit: { bindingId: binding.id, callPath: [] },
+      });
     };
     useEffect(() => {
       if (!props.pickedNet || props.pickedNet.sequence === picked.current.net)
@@ -221,7 +266,7 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
     useEffect(() => {
       setPath(input.entry);
       setReveal(undefined);
-    }, [props.setup.id]);
+    }, [props.folder.id]);
     useEffect(() => {
       const selected = props.selectedCircuitObject;
       if (!selected) return;
@@ -234,7 +279,7 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
         );
         if (!instance) continue;
         const draft = drafts.current.get(
-          `${props.setup.id}\u0000${binding.path}`,
+          `${props.folder.id}\u0000${binding.path}`,
         );
         // Offsets describe the exact generated snapshot, never a changed numeric draft.
         if (draft && draft.text !== result.source.text) return;
@@ -249,7 +294,7 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
     }, [
       props.selectedCircuitObject?.documentId,
       props.selectedCircuitObject?.instanceId,
-      props.setup.id,
+      props.folder.id,
     ]);
     const sourceFiles = [
       ...input.files,
@@ -263,16 +308,16 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
       })),
     ];
     const latestSources = useRef({
-      setupId: props.setup.id,
+      folderId: props.folder.id,
       files: sourceFiles,
       drafts,
     });
     latestSources.current = {
-      setupId: props.setup.id,
+      folderId: props.folder.id,
       files: sourceFiles,
       drafts,
     };
-    const key = (filePath: string) => `${props.setup.id}\u0000${filePath}`;
+    const key = (filePath: string) => `${props.folder.id}\u0000${filePath}`;
     const selected = sourceFiles.find((file) => file.path === path);
     const originalGenerated = generated.find(
       (item) => item.binding.path === path,
@@ -290,11 +335,19 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
         current = false;
       };
     }, [text]);
-    const dirty = [...drafts.current].some(
-      ([key, value]) =>
-        key.startsWith(`${props.setup.id}\u0000`) && value.text !== value.base,
-    );
-    useEffect(() => props.onDirty(dirty), [dirty, props.setup.id]);
+    const dirty = [...drafts.current].some(([key, value]) => {
+      const owner = props.project.simulationFolders.find((folder) =>
+        key.startsWith(`${folder.id}\u0000`),
+      );
+      if (!owner || value.text === value.base) return false;
+      return !owner.input.drafts?.some(
+        (saved) =>
+          saved.path === key.slice(owner.id.length + 1) &&
+          saved.base === value.base &&
+          saved.text === value.text,
+      );
+    });
+    useEffect(() => props.onDirty(dirty), [dirty, props.folder.id]);
     useEffect(() => {
       // Clean buffers follow remote edits. A dirty buffer remains visible for explicit repair.
       for (const file of sourceFiles) {
@@ -303,16 +356,18 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
           drafts.current.delete(key(file.path));
       }
     }, [props.project]);
-    const flush = async (): Promise<SourceFlush> => {
+    const flush = async (onlyPath?: string): Promise<SourceFlush> => {
       if (savingRef.current) return { ok: false };
       savingRef.current = true;
       setSaving(true);
       try {
         let revision = current.current.project.structureRevision;
-        let setup = current.current.setup;
+        let folder = current.current.folder;
         const pending = [...drafts.current].filter(
           ([key, value]) =>
-            key.startsWith(`${setup.id}\u0000`) && value.text !== value.base,
+            key.startsWith(`${folder.id}\u0000`) &&
+            value.text !== value.base &&
+            (onlyPath === undefined || key === `${folder.id}\u0000${onlyPath}`),
         );
         const authored: Array<{ path: string; text: string }> = [];
         const circuitEdits: Array<{
@@ -321,7 +376,7 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
           text: string;
         }> = [];
         for (const [draftKey, draft] of pending) {
-          const filePath = draftKey.slice(setup.id.length + 1);
+          const filePath = draftKey.slice(folder.id.length + 1);
           if (draft.binding) {
             const regenerated = generateCircuitSource(
               current.current.project,
@@ -351,7 +406,7 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
             });
           } else {
             const existing =
-              setup.input.files.find((file) => file.path === filePath)?.text ??
+              folder.input.files.find((file) => file.path === filePath)?.text ??
               "";
             if (existing !== draft.base) {
               props.onProblem(
@@ -369,7 +424,7 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
         if (authored.length || circuitEdits.length) {
           const result = await props.files.handle({
             action: "update",
-            owner: { kind: "project-setup", setupId: setup.id },
+            owner: { kind: "project-folder", folderId: folder.id },
             expectedRevision: revision,
             writes: authored,
             circuitEdits,
@@ -383,12 +438,12 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
           const replacements = new Map(
             authored.map((file) => [file.path, file.text]),
           );
-          setup = {
-            ...setup,
+          folder = {
+            ...folder,
             input: {
-              ...setup.input,
+              ...folder.input,
               files: [
-                ...setup.input.files.filter(
+                ...folder.input.files.filter(
                   (file) => !replacements.has(file.path),
                 ),
                 ...authored,
@@ -408,7 +463,7 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
         }
         props.onProblem(undefined);
         render((value) => value + 1);
-        return { ok: true, setup, revision };
+        return { ok: true, folder, revision };
       } finally {
         savingRef.current = false;
         setSaving(false);
@@ -416,17 +471,61 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
     };
     useImperativeHandle(ref, () => ({
       flush,
+      save: async () => {
+        const applied = await flush();
+        // Preserve every folder's remaining buffer, including invalid values and
+        // concurrent-edit conflicts, without treating it as runnable source.
+        for (const folder of current.current.project.simulationFolders) {
+          const pending = [...drafts.current].filter(
+            ([key, draft]) =>
+              key.startsWith(`${folder.id}\u0000`) && draft.base !== draft.text,
+          );
+          if (!pending.length) continue;
+          const owner = {
+            kind: "project-folder" as const,
+            folderId: folder.id,
+          };
+          const listed = await props.files.handle({ action: "list", owner });
+          if (!listed.ok || !("source" in listed)) {
+            if (!listed.ok) props.onProblem(listed.error);
+            return false;
+          }
+          const reply = await props.files.handle({
+            action: "update",
+            owner,
+            expectedRevision: listed.source.revision,
+            drafts: pending.map(([key, draft]) => ({
+              path: key.slice(folder.id.length + 1),
+              base: draft.base,
+              text: draft.text,
+              ...(draft.binding ? { binding: draft.binding } : {}),
+            })),
+          });
+          if (!reply.ok) {
+            props.onProblem(reply.error);
+            return false;
+          }
+        }
+        if (!applied.ok)
+          props.onProblem(
+            inputProblem(
+              "SOURCE_DRAFT_SAVED",
+              "Saved unfinished code as a draft. Circuit values are unchanged; finish or discard the draft before Run.",
+            ),
+          );
+        return true;
+      },
       reveal: async (location) => {
-        const setupId = props.setup.id;
+        const folderId = props.folder.id;
         const captured =
           drafts.current.get(key(location.path))?.text ??
           sourceFiles.find((file) => file.path === location.path)?.text;
         if (
           captured === undefined ||
           (await sha256(captured)) !== location.textDigest ||
-          latestSources.current.setupId !== setupId ||
+          latestSources.current.folderId !== folderId ||
           (latestSources.current.drafts.current.get(
-            `${setupId}\u0000${location.path}`,
+            `${folderId}\u0000${location.path}`,
           )?.text ??
             latestSources.current.files.find(
               (file) => file.path === location.path,
@@ -470,13 +569,21 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
       ...new Set([
         ...sourceFiles.map((file) => file.path),
         ...[...drafts.current.keys()]
-          .filter((id) => id.startsWith(`${props.setup.id}\u0000`))
-          .map((id) => id.slice(props.setup.id.length + 1)),
+          .filter((id) => id.startsWith(`${props.folder.id}\u0000`))
+          .map((id) => id.slice(props.folder.id.length + 1)),
       ]),
     ];
     return (
       <SimulationCodeWorkspace
-        workspaceKey={props.setup.id}
+        workspaceKey={props.folder.id}
+        folders={props.folders}
+        additionalActions={
+          <>
+            <button type="button" onClick={props.onPrepare}>
+              View final deck
+            </button>
+          </>
+        }
         files={ownFiles.map((filePath) => ({
           path: filePath,
           kind: input.circuitBindings.some((b) => b.path === filePath)
@@ -489,6 +596,80 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
         }))}
         activePath={path}
         onSelectFile={setPath}
+        onFileAction={async (action, filePath) => {
+          if (action === "discard") {
+            const listed = await props.files.handle({
+              action: "list",
+              owner: { kind: "project-folder", folderId: props.folder.id },
+            });
+            if (!listed.ok || !("source" in listed)) return;
+            const result = await props.files.handle({
+              action: "update",
+              owner: { kind: "project-folder", folderId: props.folder.id },
+              expectedRevision: listed.source.revision,
+              drafts: (listed.source.drafts ?? []).filter(
+                (draft) => draft.path !== filePath,
+              ),
+            });
+            if (!result.ok) {
+              props.onProblem(result.error);
+              return;
+            }
+            drafts.current.delete(key(filePath));
+            cache.write(drafts.current);
+            render((v) => v + 1);
+            props.onProblem(undefined);
+            return;
+          }
+          // File management need not apply an unrelated unfinished Circuit buffer.
+          const authored = await flush(filePath);
+          if (!authored.ok) return;
+          const file = authored.folder.input.files.find(
+            (item) => item.path === filePath,
+          );
+          if (!file) return;
+          if (
+            action === "delete" &&
+            !window.confirm(
+              `Delete ${filePath}? References remain visible for repair.`,
+            )
+          )
+            return;
+          const nextPath =
+            action === "rename"
+              ? window.prompt("Relative file path", filePath)
+              : filePath;
+          if (!nextPath || (action === "rename" && nextPath === filePath))
+            return;
+          if (action === "rename" && ownFiles.includes(nextPath)) {
+            props.onProblem(
+              inputProblem(
+                "SIMULATION_FILE_EXISTS",
+                `${nextPath} already exists.`,
+              ),
+            );
+            return;
+          }
+          const result = await props.files.handle({
+            action: "update",
+            owner: { kind: "project-folder", folderId: props.folder.id },
+            expectedRevision: authored.revision,
+            ...(action === "rename"
+              ? {
+                  removes: [filePath],
+                  writes: [{ path: nextPath, text: file.text }],
+                  ...(filePath === input.entry ? { entry: nextPath } : {}),
+                  ...(filePath === input.configPath
+                    ? { configPath: nextPath }
+                    : {}),
+                }
+              : action === "delete"
+                ? { removes: [filePath] }
+                : { entry: filePath }),
+          });
+          if (!result.ok) props.onProblem(result.error);
+          else setPath(action === "delete" ? input.entry : nextPath);
+        }}
         entryPath={input.entry}
         configPath={input.configPath}
         onCopyFile={() => {
@@ -536,28 +717,6 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
               Save
             </button>
             {props.actions}
-            {binding ? (
-              <>
-                <button
-                  aria-pressed={props.pickNetsActive ?? false}
-                  onClick={() =>
-                    props.onPickNetsChange?.(!props.pickNetsActive)
-                  }
-                >
-                  {props.pickNetsActive ? "Picking Nets…" : "Pick Net"}
-                </button>
-                <button
-                  aria-pressed={props.pickTerminalsActive ?? false}
-                  onClick={() =>
-                    props.onPickTerminalsChange?.(!props.pickTerminalsActive)
-                  }
-                >
-                  {props.pickTerminalsActive
-                    ? "Picking current…"
-                    : "Pick current"}
-                </button>
-              </>
-            ) : null}
           </>
         }
         console={props.console}
@@ -587,18 +746,82 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
               </>
             ) : dirty ? (
               "Unsaved source"
+            ) : buffer && buffer.text !== buffer.base ? (
+              "Draft saved · finish or discard before Run"
             ) : (
               props.status
             )}
           </>
         }
       >
+        {probePicker && (
+          <SourceProbePicker
+            choices={probeChoices}
+            kind={probePicker}
+            onAdd={addOutput}
+            onClose={() => setProbePicker(undefined)}
+          />
+        )}
         <SimulationCodeEditor
+          relatedSources={sourceFiles.map(
+            (file) =>
+              drafts.current.get(`${props.folder.id}\u0000${file.path}`)
+                ?.text ?? file.text,
+          )}
+          helperActions={[
+            {
+              id: "observe-voltage",
+              label: "Observe voltage",
+              keywords: "probe voltage 电压 信号 看输出",
+              run: () => setProbePicker("voltage"),
+            },
+            {
+              id: "observe-difference",
+              label: "Observe differential voltage",
+              keywords: "probe 差分 两节点",
+              run: () => setProbePicker("difference"),
+            },
+            {
+              id: "observe-current",
+              label: "Observe terminal current",
+              keywords: "probe current 电流 MOS 端口",
+              run: () => setProbePicker("current"),
+            },
+            ...(binding
+              ? [
+                  {
+                    id: "pick-net",
+                    label: props.pickNetsActive
+                      ? "Stop picking Nets"
+                      : "Pick Net on Canvas",
+                    keywords: "probe 电压 画布",
+                    run: () => props.onPickNetsChange?.(!props.pickNetsActive),
+                  },
+                  {
+                    id: "pick-current",
+                    label: props.pickTerminalsActive
+                      ? "Stop picking current"
+                      : "Pick current on Canvas",
+                    keywords: "probe 电流 画布",
+                    run: () =>
+                      props.onPickTerminalsChange?.(!props.pickTerminalsActive),
+                  },
+                ]
+              : []),
+          ]}
           path={path}
           text={text}
-          historyKey={`${props.setup.id}:${buffer?.committed ?? props.project.structureRevision}`}
+          historyKey={`${props.folder.id}:${buffer?.committed ?? props.project.structureRevision}`}
           mode={path.endsWith(".json") ? "json" : "spice"}
           entry={path === input.entry}
+          generated={Boolean(originalGenerated)}
+          validateText={(text) => {
+            if (!originalGenerated?.ok) return [];
+            const plan = planCircuitSourceEdit(originalGenerated.source, text);
+            return !plan.ok && plan.range
+              ? [{ ...plan.range, message: plan.message, code: plan.code }]
+              : [];
+          }}
           reveal={reveal}
           diagnostics={props.diagnostics
             ?.filter(

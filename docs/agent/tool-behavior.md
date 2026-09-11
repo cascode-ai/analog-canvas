@@ -8,7 +8,7 @@ This page describes behavior an Agent must account for. It is not a substitute
 for the normative schemas in [`../specs/`](../specs/); schema and runtime
 validation win if this page drifts.
 
-## Agent API 2.0
+## Agent API 3.0
 
 The normal surface has four operations:
 

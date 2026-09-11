@@ -1,4 +1,4 @@
-import { createEmptyProject, createSourceSimulationSetup } from "@icm/model";
+import { createEmptyProject, createSimulationFolder } from "@icm/model";
 import { describe, expect, it, vi } from "vitest";
 
 import type { InteractionMode } from "../interaction/interaction-state";
@@ -76,11 +76,11 @@ describe("editor transaction commands", () => {
     const commands = createEditorTransactionCommands(input);
 
     expect(
-      commands.transactStructure("upsert-simulation-setup", [
+      commands.transactStructure("upsert-simulation-folder", [
         {
-          kind: "upsert_simulation_setup",
-          setup: createSourceSimulationSetup({
-            id: "setup-1",
+          kind: "upsert_simulation_folder",
+          folder: createSimulationFolder({
+            id: "folder-1",
             name: "OP",
             documentId: input.document.id,
             profileId: "profile",

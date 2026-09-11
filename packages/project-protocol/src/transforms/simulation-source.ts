@@ -1,5 +1,6 @@
 import {
   CircuitProjectSchema,
+  CURRENT_PROJECT_SCHEMA_VERSION,
   LegacyProjectSimulationSetupSchema,
 } from "@icm/model";
 import { migrateSimulationSetupToSource } from "@icm/netlist";
@@ -13,10 +14,11 @@ export function upgradeSchema48To49WithReport(raw: Record<string, unknown>) {
   raw = repairLegacyReviewedExternalReferences(
     repairBoundFormatOverrides(raw),
   ).project;
+  const { simulationSetups: oldSetups, ...circuit } = raw;
   const candidate = CircuitProjectSchema.safeParse({
-    ...raw,
-    schemaVersion: 49,
-    simulationSetups: [],
+    ...circuit,
+    schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
+    simulationFolders: [],
   });
   if (!candidate.success) {
     const issue = candidate.error.issues[0]!;
@@ -40,12 +42,17 @@ export function upgradeSchema48To49WithReport(raw: Record<string, unknown>) {
         legacy.error.issues[0]!.message,
       );
     const migrated = migrateSimulationSetupToSource(project, legacy.data);
-    project.simulationSetups.push(migrated.setup);
+    project.simulationFolders.push(migrated.folder);
     warnings.push(...migrated.warnings);
   }
+  const { simulationFolders, ...migratedProject } = project;
   return {
-    project,
-    report: { migratedSetups: project.simulationSetups.length, warnings },
+    project: {
+      ...migratedProject,
+      schemaVersion: 49,
+      simulationSetups: simulationFolders,
+    },
+    report: { migratedSetups: simulationFolders.length, warnings },
   };
 }
 

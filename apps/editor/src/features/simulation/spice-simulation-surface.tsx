@@ -1,11 +1,10 @@
 import type { SimulationFocusTarget } from "./simulation-focus-target";
 import { useEffect, useRef, useState } from "react";
 import {
-  type ProjectSimulationSetup,
-  createSourceSimulationSetup,
   readSimulationExperimentConfig,
   type SimulationRunPlanAxis,
 } from "@icm/model";
+import { createSimulationStarter } from "@icm/netlist";
 import type {
   ArtifactRef,
   Capabilities,
@@ -19,7 +18,7 @@ import { downloadTextArtifact } from "../../document/project-file-service";
 import type { SpiceSimulationSurfaceProps } from "./simulation-surface-types";
 export type {
   SpiceSimulationSurfaceProps,
-  SimulationSetupSaveResult,
+  SimulationFolderSaveResult,
 } from "./simulation-surface-types";
 import authoringProfile from "../../../../../containers/ngspice/hosted-sky130-profile.json";
 import {
@@ -102,12 +101,12 @@ function preferredResultTab(run: Run): ResultTab {
 }
 
 interface PreparedPresentation {
-  readonly setupId: string;
+  readonly folderId: string;
   readonly prepared: Prepared;
   readonly outputs: SimulationOutputSpec[];
   readonly analysisLabel: string;
   readonly rootDocumentId?: string;
-  readonly setupName: string;
+  readonly folderName: string;
 }
 
 function focusTarget(
@@ -127,16 +126,15 @@ function uiProblem(code: string, message: string): Problem {
  * The canvas remains the editor for sources, connections and DUT instances. */
 export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
   const { session, project, open } = props;
-  const selectedSetup = project.simulationSetups.find(
-    (setup) => setup.id === props.selectedSetupId,
+  const selectedFolder = project.simulationFolders.find(
+    (folder) => folder.id === props.selectedFolderId,
   );
-  const activeSetupId = useRef(props.selectedSetupId);
-  activeSetupId.current = props.selectedSetupId;
+  const activeFolderId = useRef(props.selectedFolderId);
+  activeFolderId.current = props.selectedFolderId;
   const [capabilities, setCapabilities] = useState<Capabilities>();
   const [prepared, setPrepared] = useState<Prepared>();
   const [run, setRun] = useState<Run>();
   const [batch, setBatch] = useState<SimulationBatch>();
-  const [batchSelection, setBatchSelection] = useState<readonly string[]>([]);
   const hydratedBatchRuns = useRef(new Set<string>());
   const batchRuns = useRef(new Map<string, { prepared: Prepared; run: Run }>());
   const runDetails = useRef(new SimulationRunDetails());
@@ -161,20 +159,20 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
     }
   };
   const preparedPresentations = useRef(new Map<string, PreparedPresentation>());
-  const setupResults = useRef(
+  const folderResults = useRef(
     new Map<string, { prepared?: Prepared; run?: Run }>(),
   );
   const codeRef = useRef<SourceCodeHandle>(null);
   useEffect(() => {
     props.onSourceBuffer?.({
       dirty,
-      flush: async () => !codeRef.current || (await codeRef.current.flush()).ok,
+      flush: async () => !codeRef.current || (await codeRef.current.save()),
     });
     return () => props.onSourceBuffer?.(null);
-  }, [dirty, selectedSetup?.id, props.onSourceBuffer]);
+  }, [dirty, selectedFolder?.id, props.onSourceBuffer]);
   const [resultTab, setResultTab] = useState<ResultTab>("plot");
   const [exitConfirmationOpen, setExitConfirmationOpen] = useState(false);
-  const [deleteSetupId, setDeleteSetupId] = useState<string>();
+
   const [artifactPreview, setArtifactPreview] =
     useState<SimulationArtifactContent>();
   const [artifactBusy, setArtifactBusy] = useState<string>();
@@ -194,15 +192,11 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
   const [archives, setArchives] = useState<
     readonly SimulationRunArchiveSummary[]
   >([]);
-  const setupMenuRef = useRef<HTMLDetailsElement>(null);
+
   const batchMenuRef = useRef<HTMLDetailsElement>(null);
   useEffect(() => {
     const closeTaskbarMenus = (event: PointerEvent): void => {
       const target = event.target as Node;
-      if (!setupMenuRef.current?.contains(target)) {
-        setupMenuRef.current?.removeAttribute("open");
-        setDeleteSetupId(undefined);
-      }
       if (!batchMenuRef.current?.contains(target))
         batchMenuRef.current?.removeAttribute("open");
     };
@@ -227,22 +221,19 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
     },
     [archiveStore],
   );
-  const previousSetupId = useRef<string | null>(props.selectedSetupId);
+  const previousFolderId = useRef<string | null>(props.selectedFolderId);
   useEffect(() => {
-    if (previousSetupId.current === props.selectedSetupId) return;
-    previousSetupId.current = props.selectedSetupId;
-    const previous = props.selectedSetupId
-      ? setupResults.current.get(props.selectedSetupId)
+    if (previousFolderId.current === props.selectedFolderId) return;
+    previousFolderId.current = props.selectedFolderId;
+    const previous = props.selectedFolderId
+      ? folderResults.current.get(props.selectedFolderId)
       : undefined;
     setPrepared(previous?.prepared);
     setRun(previous?.run);
     setProblem(undefined);
     setArtifactPreview(undefined);
     props.onOperatingPointProjection?.(null);
-  }, [props.selectedSetupId]);
-  useEffect(() => {
-    if (!open || selectedSetup) return;
-  }, [open, selectedSetup, props.activeDocumentId]);
+  }, [props.selectedFolderId]);
   const lock = useRef(false);
   const alive = useRef(true);
   useEffect(() => {
@@ -255,18 +246,18 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
     if (!alive.current) return;
     if (
       !(reply.ok && "batch" in reply) &&
-      (selectedSetup?.id ?? null) !== activeSetupId.current
+      (selectedFolder?.id ?? null) !== activeFolderId.current
     )
       return;
     if (reply.ok && "run" in reply) {
       const owner = preparedPresentations.current.get(
         reply.run.preparedId,
-      )?.setupId;
-      if (owner !== activeSetupId.current) return;
+      )?.folderId;
+      if (owner !== activeFolderId.current) return;
     }
     if (!reply.ok) {
       setProblem(reply.error);
-      if (selectedSetup) {
+      if (selectedFolder) {
         setResultTab("console");
       } else {
       }
@@ -274,9 +265,9 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
       setBatch(reply.batch);
       setProblem(undefined);
     } else if ("run" in reply) {
-      if (selectedSetup)
-        setupResults.current.set(selectedSetup.id, {
-          ...setupResults.current.get(selectedSetup.id),
+      if (selectedFolder)
+        folderResults.current.set(selectedFolder.id, {
+          ...folderResults.current.get(selectedFolder.id),
           run: reply.run,
         });
       setRun(reply.run);
@@ -310,9 +301,9 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
         setResultTab(preferredResultTab(reply.run));
       }
     } else if ("prepared" in reply) {
-      if (selectedSetup)
-        setupResults.current.set(selectedSetup.id, {
-          ...setupResults.current.get(selectedSetup.id),
+      if (selectedFolder)
+        folderResults.current.set(selectedFolder.id, {
+          ...folderResults.current.get(selectedFolder.id),
           prepared: reply.prepared,
         });
       setPrepared(reply.prepared);
@@ -364,13 +355,6 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
     };
   }, [run?.id, session, project]);
   useEffect(() => {
-    setBatchSelection((current) =>
-      current.filter((id) =>
-        project.simulationSetups.some((setup) => setup.id === id),
-      ),
-    );
-  }, [project.simulationSetups]);
-  useEffect(() => {
     if (!batch || !["running", "cancelling"].includes(batch.state)) return;
     let stopped = false;
     let timer: ReturnType<typeof setTimeout>;
@@ -396,11 +380,11 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
           prepared: item.prepared,
           run: runReply.run,
         });
-        setupResults.current.set(item.setupId, {
+        folderResults.current.set(item.folderId, {
           prepared: item.prepared,
           run: runReply.run,
         });
-        if (item.setupId === activeSetupId.current) {
+        if (item.folderId === activeFolderId.current) {
           setPrepared(item.prepared);
           setRun(runReply.run);
           setResultTab(preferredResultTab(runReply.run));
@@ -419,7 +403,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
     if (lock.current) return;
     const authored = await codeRef.current?.flush();
     if (!authored?.ok) return;
-    const selectedConfig = readSimulationExperimentConfig(authored.setup);
+    const selectedConfig = readSimulationExperimentConfig(authored.folder);
     if (selectedConfig.ok && selectedConfig.config.runPlan.mode === "sweep") {
       await executeSweep(selectedConfig.config.runPlan.axes, start, authored);
       return;
@@ -432,14 +416,14 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
       const reply = await session.handle({
         operation: "prepare",
         source: {
-          kind: "project-setup",
-          setupId: selectedSetup!.id,
+          kind: "project-folder",
+          folderId: selectedFolder!.id,
           expectedStructureRevision: authored.revision,
         },
       });
       if (reply.ok && "prepared" in reply) {
         preparedPresentations.current.set(reply.prepared.id, {
-          ...sourcePresentation(authored.setup),
+          ...sourcePresentation(authored.folder),
           prepared: structuredClone(reply.prepared),
         });
       }
@@ -457,18 +441,18 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
       if (alive.current) setBusy(false);
     }
   };
-  const executeBatch = async () => {
+  const executeBatch = async (selection: readonly string[]) => {
     if (lock.current) return;
     const authored = await codeRef.current?.flush();
     if (authored && !authored.ok) return;
-    const setups = project.simulationSetups.filter((setup) =>
-      batchSelection.includes(setup.id),
+    const folders = project.simulationFolders.filter((folder) =>
+      selection.includes(folder.id),
     );
-    if (setups.length < 2) {
+    if (folders.length < 2) {
       setProblem(
         uiProblem(
           "SIMULATION_BATCH_SELECTION_REQUIRED",
-          "Select at least two saved setups to run as a batch",
+          "Select at least two saved folders to run as a batch",
         ),
       );
       return;
@@ -483,22 +467,27 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
         expectedStructureRevision: authored?.ok
           ? authored.revision
           : project.structureRevision,
-        items: setups.map((setup) => ({ id: setup.id, setupId: setup.id })),
+        items: folders.map((folder) => ({
+          id: folder.id,
+          folderId: folder.id,
+        })),
       });
       receive(preparedReply);
       if (!preparedReply.ok || !("batch" in preparedReply)) return;
       for (const item of preparedReply.batch.items) {
-        const setup = setups.find((candidate) => candidate.id === item.setupId);
-        if (!setup) continue;
+        const folder = folders.find(
+          (candidate) => candidate.id === item.folderId,
+        );
+        if (!folder) continue;
         preparedPresentations.current.set(item.prepared.id, {
           ...sourcePresentation(
-            authored?.ok && authored.setup.id === setup.id
-              ? authored.setup
-              : setup,
+            authored?.ok && authored.folder.id === folder.id
+              ? authored.folder
+              : folder,
           ),
           prepared: structuredClone(item.prepared),
         });
-        setupResults.current.set(setup.id, { prepared: item.prepared });
+        folderResults.current.set(folder.id, { prepared: item.prepared });
       }
       receive(
         await session.handle({
@@ -506,7 +495,6 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
           batchId: preparedReply.batch.id,
         }),
       );
-      setupMenuRef.current?.removeAttribute("open");
     } finally {
       lock.current = false;
       if (alive.current) setBusy(false);
@@ -517,7 +505,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
     start: boolean,
     authored: Extract<SourceFlush, { ok: true }>,
   ) => {
-    if (lock.current || !selectedSetup) return;
+    if (lock.current || !selectedFolder) return;
     lock.current = true;
     setBusy(true);
     setProblem(undefined);
@@ -526,7 +514,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
     try {
       const preparedReply = await session.handle({
         operation: "prepare-sweep",
-        setupId: selectedSetup.id,
+        folderId: selectedFolder.id,
         expectedStructureRevision: authored.revision,
         axes: [...axes],
       });
@@ -534,9 +522,9 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
       if (!preparedReply.ok || !("batch" in preparedReply)) return;
       for (const item of preparedReply.batch.items) {
         preparedPresentations.current.set(item.prepared.id, {
-          ...sourcePresentation(authored.setup),
+          ...sourcePresentation(authored.folder),
           prepared: structuredClone(item.prepared),
-          setupName: item.label ?? authored.setup.name,
+          folderName: item.label ?? authored.folder.name,
         });
       }
       if (start)
@@ -550,7 +538,6 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
         const first = preparedReply.batch.items[0];
         if (first) await showBatchItem(first);
       }
-      setupMenuRef.current?.removeAttribute("open");
     } finally {
       lock.current = false;
       if (alive.current) setBusy(false);
@@ -565,7 +552,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
       setArtifactPreview(undefined);
       setResultTab("files");
       if (presentation)
-        setupResults.current.set(item.setupId, { prepared: item.prepared });
+        folderResults.current.set(item.folderId, { prepared: item.prepared });
       return;
     }
     let resolved = batchRuns.current.get(item.runId);
@@ -581,8 +568,8 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
       resolved = { prepared: item.prepared, run: reply.run };
       batchRuns.current.set(item.runId, resolved);
     }
-    if (item.setupId !== activeSetupId.current)
-      props.onSelectSetupId(item.setupId);
+    if (item.folderId !== activeFolderId.current)
+      props.onSelectFolderId(item.folderId);
     setPrepared(resolved.prepared);
     setRun(resolved.run);
     setResultTab(preferredResultTab(resolved.run));
@@ -641,17 +628,17 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
   const archiveCurrentRun = async () => {
     if (
       !run ||
-      !selectedSetup ||
+      !selectedFolder ||
       !runPresentation ||
-      selectedSetup.id !== runPresentation.setupId
+      selectedFolder.id !== runPresentation.folderId
     )
       return;
     setArtifactBusy("archive:save");
     const captured = await captureSimulationRunArchive(session.files, {
       projectId: project.id,
       presentation: {
-        setupId: runPresentation.setupId,
-        setupName: runPresentation.setupName,
+        folderId: runPresentation.folderId,
+        folderName: runPresentation.folderName,
         analysisLabel: runPresentation.analysisLabel,
         outputs: runPresentation.outputs,
         ...(runPresentation.rootDocumentId
@@ -714,17 +701,17 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
     };
     preparedPresentations.current.set(restored.value.prepared.id, presentation);
     archivedRunIds.current.add(restored.value.run.id);
-    setupResults.current.set(stored.value.presentation.setupId, {
+    folderResults.current.set(stored.value.presentation.folderId, {
       prepared: restored.value.prepared,
       run: restored.value.run,
     });
     if (
-      stored.value.presentation.setupId !== selectedSetup?.id &&
-      project.simulationSetups.some(
-        (setup) => setup.id === stored.value!.presentation.setupId,
+      stored.value.presentation.folderId !== selectedFolder?.id &&
+      project.simulationFolders.some(
+        (folder) => folder.id === stored.value!.presentation.folderId,
       )
     )
-      props.onSelectSetupId(stored.value.presentation.setupId);
+      props.onSelectFolderId(stored.value.presentation.folderId);
     setPrepared(restored.value.prepared);
     setRun(restored.value.run);
     setProblem(undefined);
@@ -805,26 +792,6 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
       ? "Result belongs to an earlier Project revision. Run again to use the current circuit."
       : "";
   const activeProblem = problem ?? run?.error;
-  const attention = activeProblem || staleMessage;
-  const problemSearchText = activeProblem
-    ? [
-        activeProblem.code,
-        activeProblem.message,
-        ...(activeProblem.diagnostics ?? []).flatMap((diagnostic) => [
-          diagnostic.code,
-          diagnostic.message,
-        ]),
-      ].join(" ")
-    : "";
-  const attentionSummary = activeProblem
-    ? activeProblem.code === "SIMULATION_CAPABILITIES_UNAVAILABLE"
-      ? "Simulation service is unavailable in this environment."
-      : /probe/i.test(problemSearchText)
-        ? "The probe selection needs attention. Open Console for details."
-        : activeProblem.stage === "input"
-          ? `${activeProblem.code}: ${activeProblem.message}`
-          : "Simulation needs attention. Open Console for details."
-    : staleMessage;
   const runPresentation = run
     ? preparedPresentations.current.get(run.preparedId)
     : undefined;
@@ -844,7 +811,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
     run?.outputData && runPresentation
       ? {
           id: run.id,
-          label: runPresentation.setupName,
+          label: runPresentation.folderName,
           inputRevision: run.inputRevision,
           environment: runPresentation.prepared.environment,
           outputData: run.outputData,
@@ -864,7 +831,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
         return [
           {
             id: resolved.run.id,
-            label: presentation.setupName,
+            label: presentation.folderName,
             inputRevision: resolved.run.inputRevision,
             environment: presentation.prepared.environment,
             outputData: resolved.run.outputData,
@@ -957,41 +924,104 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
   const presentationLabels = Object.fromEntries(
     (runPresentation?.outputs ?? []).map((output) => [output.id, output.label]),
   );
-  const createSetup = async (): Promise<void> => {
-    const authored = await codeRef.current?.flush();
-    if (authored && !authored.ok) return;
-    const baseName = "Setup";
-    let suffix = project.simulationSetups.length + 1;
-    while (
-      project.simulationSetups.some(
-        (setup) => setup.name === `${baseName} ${suffix}`,
-      )
-    )
-      suffix++;
-    const identity = {
-      id: `simulation-setup-${crypto.randomUUID()}`,
-      name: `${baseName} ${suffix}`,
-    };
-    const created: ProjectSimulationSetup = selectedSetup
-      ? {
-          ...structuredClone(authored?.ok ? authored.setup : selectedSetup),
-          ...identity,
-        }
-      : createSourceSimulationSetup({
-          ...identity,
-          documentId:
-            props.draftContext?.rootDocumentId ?? props.activeDocumentId,
-          profileId: capabilities?.profiles[0]?.id ?? authoringProfile.id,
-        });
-    const result = props.onSaveSetup(
-      created,
-      authored?.ok ? authored.revision : project.structureRevision,
-    );
-    if (result.status !== "rejected") {
-      props.onSelectSetupId(created.id);
-      setupMenuRef.current?.removeAttribute("open");
-    } else setProblem(result.problem);
+  const [requestedRun, setRequestedRun] = useState<string>();
+  useEffect(() => {
+    if (requestedRun && requestedRun === selectedFolder?.id) {
+      setRequestedRun(undefined);
+      void execute(true);
+    }
+  }, [requestedRun, selectedFolder?.id]);
+  const [newFolder, setNewFolder] = useState<{
+    id: string;
+    name: string;
+    template: "op" | "ac" | "tran";
+  }>();
+  const createStarter = async (mode: "circuit" | "dut" | "text") => {
+    if (!newFolder) return;
+    if (codeRef.current && !(await codeRef.current.save())) return;
+    const latest = session.currentProject();
+    if (!latest) return;
+    const result = createSimulationStarter(latest, {
+      ...newFolder,
+      mode,
+      documentId: props.draftContext?.rootDocumentId ?? props.activeDocumentId,
+      profileId: capabilities?.profiles[0]?.id ?? authoringProfile.id,
+    });
+    if (!result.ok) {
+      setProblem(uiProblem("SIMULATION_STARTER_INVALID", result.message));
+      return;
+    }
+    const saved = props.onSaveFolder(result.folder, latest.structureRevision);
+    if (saved.status === "rejected") setProblem(saved.problem);
+    else {
+      setNewFolder(undefined);
+      props.onSelectFolderId(result.folder.id);
+    }
   };
+  const folderAction = async (
+    action: import("./simulation-file-tree").FolderAction,
+    ids: string[],
+  ) => {
+    if (action === "batch") {
+      await executeBatch(ids);
+      return;
+    }
+    const folder = project.simulationFolders.find((item) => item.id === ids[0]);
+    if (action === "run" && folder) {
+      props.onSelectFolderId(folder.id);
+      setRequestedRun(folder.id);
+      return;
+    }
+    if (action === "delete" && folder) {
+      if (
+        window.confirm(`Delete folder "${folder.name}" and its source files?`)
+      )
+        props.onDeleteFolder(folder.id);
+      return;
+    }
+    // Folder management must preserve unfinished code, not require a runnable deck.
+    if (codeRef.current && !(await codeRef.current.save())) return;
+    const latestProject = session.currentProject();
+    if (!latestProject) return;
+    const current = latestProject.simulationFolders.find(
+      (item) => item.id === folder?.id,
+    );
+    if (action === "export" && current) {
+      downloadTextArtifact(
+        JSON.stringify(current, null, 2) + "\n",
+        `${current.name}.simulation.json`,
+      );
+      return;
+    }
+    const name = window.prompt(
+      action === "rename" ? "Folder name" : "New simulation folder name",
+      action === "rename"
+        ? current?.name
+        : action === "duplicate"
+          ? `${current?.name} copy`
+          : `Simulation ${project.simulationFolders.length + 1}`,
+    );
+    if (!name?.trim()) return;
+    const identity = {
+      id:
+        action === "rename" && current
+          ? current.id
+          : `simulation-folder-${crypto.randomUUID()}`,
+      name: name.trim(),
+    };
+    if (!current || (action !== "rename" && action !== "duplicate")) {
+      setNewFolder({
+        ...identity,
+        template: ids[0] === "ac" ? "ac" : ids[0] === "tran" ? "tran" : "op",
+      });
+      return;
+    }
+    const created = { ...structuredClone(current), ...identity };
+    const result = props.onSaveFolder(created, latestProject.structureRevision);
+    if (result.status === "rejected") setProblem(result.problem);
+    else props.onSelectFolderId(created.id);
+  };
+  const createFolder = () => void folderAction("new", []);
   const resultContent = (
     <section
       className="simulation-results-dock"
@@ -1018,8 +1048,8 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
               disabled={
                 artifactBusy !== undefined ||
                 (!run.result && !run.outputData) ||
-                !selectedSetup ||
-                selectedSetup.id !== runPresentation?.setupId
+                !selectedFolder ||
+                selectedFolder.id !== runPresentation?.folderId
               }
               onClick={() => void archiveCurrentRun()}
             >
@@ -1408,7 +1438,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
                   {archives.map((archive) => (
                     <li key={archive.id}>
                       <span>
-                        <strong>{archive.setupName}</strong>
+                        <strong>{archive.folderName}</strong>
                         <small>
                           {archive.analysisLabel} ·{" "}
                           {archive.environment.corner?.toUpperCase() ??
@@ -1425,7 +1455,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
                       </button>
                       <button
                         type="button"
-                        aria-label={`Delete archived ${archive.setupName}`}
+                        aria-label={`Delete archived ${archive.folderName}`}
                         disabled={artifactBusy !== undefined}
                         onClick={() => void deleteArchivedRun(archive.id)}
                       >
@@ -1642,14 +1672,36 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
       onKeyDown={(e) => {
         e.stopPropagation();
         if (e.key !== "Escape") return;
-        if (setupMenuRef.current?.open) {
-          setupMenuRef.current.removeAttribute("open");
-          setDeleteSetupId(undefined);
-        } else if (batchMenuRef.current?.open) {
+        if (batchMenuRef.current?.open) {
           batchMenuRef.current.removeAttribute("open");
         } else props.onMinimize();
       }}
     >
+      {newFolder && (
+        <div
+          className="simulation-starter-choices"
+          role="dialog"
+          aria-label="New experiment"
+          onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              event.stopPropagation();
+              setNewFolder(undefined);
+            }
+          }}
+        >
+          <strong>Start an experiment</strong>
+          <button onClick={() => void createStarter("circuit")}>
+            Run current Cell — use its existing sources and wiring
+          </button>
+          <button onClick={() => void createStarter("dut")}>
+            Write a text TB for this DUT — no TB Cell needed
+          </button>
+          <button onClick={() => void createStarter("text")}>
+            Start with text only — no Canvas binding
+          </button>
+          <button onClick={() => setNewFolder(undefined)}>Cancel</button>
+        </div>
+      )}
       <header className="simulation-taskbar">
         <div className="simulation-brand">
           <strong>Simulation</strong>
@@ -1661,140 +1713,6 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
           </span>
         </div>
         <div className="simulation-task-actions">
-          <details
-            ref={setupMenuRef}
-            className="simulation-setup-menu"
-            onToggle={(event) => {
-              if (!event.currentTarget.open) setDeleteSetupId(undefined);
-            }}
-          >
-            <summary aria-label="Simulation setup" title="Simulation setup">
-              <span>{selectedSetup?.name ?? "Setup"}</span>
-            </summary>
-            <div className="simulation-setup-menu-popover">
-              <button
-                type="button"
-                className="simulation-setup-menu-new"
-                disabled={busy || !!running}
-                onClick={createSetup}
-              >
-                New setup
-              </button>
-              {selectedSetup ? (
-                <button
-                  type="button"
-                  onClick={async () => {
-                    const name = window.prompt(
-                      "Experiment name",
-                      selectedSetup.name,
-                    );
-                    if (!name || name === selectedSetup.name) return;
-                    const authored = await codeRef.current?.flush();
-                    if (!authored?.ok) return;
-                    const result = props.onSaveSetup(
-                      { ...authored.setup, name },
-                      authored.revision,
-                    );
-                    if (result.status === "rejected")
-                      setProblem(result.problem);
-                    else setupMenuRef.current?.removeAttribute("open");
-                  }}
-                >
-                  Rename…
-                </button>
-              ) : null}
-              {project.simulationSetups.length > 1 && capabilities?.batch ? (
-                <button
-                  type="button"
-                  className="simulation-setup-menu-batch"
-                  disabled={busy || !!running || batchSelection.length < 2}
-                  onClick={() => void executeBatch()}
-                >
-                  Run selected ({batchSelection.length})
-                </button>
-              ) : null}
-              {project.simulationSetups.map((setup) => (
-                <div
-                  key={setup.id}
-                  className="simulation-setup-menu-row"
-                  data-selected={setup.id === selectedSetup?.id}
-                >
-                  {capabilities?.batch ? (
-                    <input
-                      type="checkbox"
-                      aria-label={`Include ${setup.name} in batch`}
-                      checked={batchSelection.includes(setup.id)}
-                      disabled={busy || !!running}
-                      onChange={(event) => {
-                        const checked = event.currentTarget.checked;
-                        setBatchSelection((current) =>
-                          checked
-                            ? [...current, setup.id]
-                            : current.filter((id) => id !== setup.id),
-                        );
-                      }}
-                    />
-                  ) : null}
-                  <button
-                    type="button"
-                    className="simulation-setup-menu-select"
-                    disabled={busy || !!running}
-                    onClick={async () => {
-                      if (
-                        codeRef.current &&
-                        !(await codeRef.current.flush()).ok
-                      )
-                        return;
-                      props.onSelectSetupId(setup.id);
-                      setupMenuRef.current?.removeAttribute("open");
-                    }}
-                  >
-                    {setup.name}
-                  </button>
-                  {deleteSetupId === setup.id ? (
-                    <span className="simulation-setup-delete-confirmation">
-                      <button
-                        type="button"
-                        className="simulation-setup-delete-confirm"
-                        disabled={busy || !!running}
-                        onClick={() => {
-                          if (props.onDeleteSetup(setup.id)) {
-                            if (setup.id === selectedSetup?.id) setDirty(false);
-                            setDeleteSetupId(undefined);
-                          }
-                        }}
-                      >
-                        Confirm
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setDeleteSetupId(undefined)}
-                      >
-                        Cancel
-                      </button>
-                    </span>
-                  ) : (
-                    <button
-                      type="button"
-                      className="simulation-setup-delete"
-                      aria-label={`Delete ${setup.name}`}
-                      title={`Delete ${setup.name}`}
-                      disabled={busy || !!running}
-                      onClick={() => setDeleteSetupId(setup.id)}
-                    >
-                      ×
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-          </details>
-          <button
-            disabled={busy || !!running || !selectedSetup}
-            onClick={() => void execute(false)}
-          >
-            Prepare deck
-          </button>
           {running ? (
             <button
               className="simulation-stop-button"
@@ -1814,7 +1732,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
             >
               {batchRunning ? "Cancel batch" : "Cancel run"}
             </button>
-          ) : selectedSetup ? (
+          ) : selectedFolder ? (
             <button
               className="simulation-primary-button simulation-run-button"
               disabled={busy}
@@ -1834,8 +1752,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
               ref={batchMenuRef}
               className="simulation-batch-menu"
               onToggle={(event) => {
-                if (event.currentTarget.open)
-                  setupMenuRef.current?.removeAttribute("open");
+                if (event.currentTarget.open) batchMenuRef.current?.focus();
               }}
             >
               <summary
@@ -1853,8 +1770,8 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
                 </header>
                 <div className="simulation-batch-menu-items">
                   {batch.items.map((item) => {
-                    const setup = project.simulationSetups.find(
-                      (candidate) => candidate.id === item.setupId,
+                    const folder = project.simulationFolders.find(
+                      (candidate) => candidate.id === item.folderId,
                     );
                     return (
                       <button
@@ -1864,7 +1781,9 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
                         disabled={item.state === "queued"}
                         onClick={() => void showBatchItem(item)}
                       >
-                        <span>{item.label ?? setup?.name ?? item.setupId}</span>
+                        <span>
+                          {item.label ?? folder?.name ?? item.folderId}
+                        </span>
                         <small>{item.state}</small>
                       </button>
                     );
@@ -1914,7 +1833,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
         </div>
       </header>
 
-      {!selectedSetup && !hasDutInstance ? (
+      {!selectedFolder && !hasDutInstance ? (
         <p className="simulation-context-hint">
           No DUT instance in this Cell · Edit → New Testbench Cell if needed.
         </p>
@@ -1944,42 +1863,12 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
         </div>
       ) : null}
 
-      {attention ? (
-        <div className="simulation-workspace-notice" role="alert">
-          <span>{attentionSummary}</span>
-          {activeProblem?.recovery === "retry-after" && !run ? (
-            <button
-              onClick={() =>
-                void session.handle({ operation: "capabilities" }).then(receive)
-              }
-            >
-              Retry connection
-            </button>
-          ) : null}
-          {activeProblem?.recovery === "retry-same-request" && run ? (
-            <button
-              onClick={() =>
-                void session
-                  .handle({ operation: "read", runId: run.id })
-                  .then(receive)
-              }
-            >
-              Refresh run status
-            </button>
-          ) : null}
-        </div>
-      ) : capabilities?.configured === false ? (
-        <div className="simulation-workspace-notice">
-          Simulator not configured. You can still edit the Project and setup.
-        </div>
-      ) : null}
-
-      {selectedSetup ? (
+      {selectedFolder ? (
         <SourceCodePane
           ref={codeRef}
           diagnostics={activeProblem?.diagnostics}
           project={project}
-          setup={selectedSetup}
+          folder={selectedFolder}
           selectedCircuitObject={props.selectedCircuitObject}
           files={session.files}
           {...{
@@ -1997,7 +1886,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
             props.onPickTerminalsChange?.(active)
           }
           actions={null}
-          status={statusLabel}
+          status={staleMessage || statusLabel}
           onDirty={setDirty}
           onProblem={setProblem}
           console={resultContent}
@@ -2015,12 +1904,22 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
           maximized={resultsMaximized}
           onToggleMaximize={toggleResultsMaximized}
           onRun={() => void execute(true)}
+          onPrepare={() => void execute(false)}
+          folders={{
+            folders: project.simulationFolders,
+            activeId: selectedFolder.id,
+            busy: busy || !!running,
+            onSelect: (id) => props.onSelectFolderId(id),
+            onAction: (action, ids) => void folderAction(action, ids),
+          }}
           onHistoryBoundary={props.onHistoryBoundary}
           onSaveProject={props.onSaveProject}
         />
       ) : (
         <div className="simulation-empty-result">
-          <button onClick={createSetup}>Create experiment for this Cell</button>
+          <button onClick={createFolder}>
+            Create experiment for this Cell
+          </button>
         </div>
       )}
     </section>

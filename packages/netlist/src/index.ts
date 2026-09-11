@@ -11,3 +11,5 @@ export * from "./simulation-circuit-source.js";
 export * from "./source-waveform.js";
 export * from "./simulation-source-map.js";
 export * from "./simulation-source-projection.js";
+export * from "./simulation-starter.js";
+export * from "./simulation-source-scopes.js";

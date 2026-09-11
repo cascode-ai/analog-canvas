@@ -4,7 +4,7 @@ import { CURRENT_PROJECT_SCHEMA_VERSION, StableIdSchema } from "./common.js";
 import { SourceManifestSchema, SymbolLibraryLockSchema } from "./source.js";
 import { SchematicDocumentSchema } from "./document.js";
 import { CellSymbolPresentationSchema } from "./presentation.js";
-import { ProjectSimulationSetupSchema } from "./simulation-source.js";
+import { ProjectSimulationFolderSchema } from "./simulation-source.js";
 import { reportDuplicateIds } from "./validation.js";
 import { projectCellInterface } from "../cell-interface-projection.js";
 
@@ -44,7 +44,7 @@ export const CircuitProjectSchema = z
       .default([]),
     /** Named authored intents. Testbench topology remains an ordinary Cell;
      * results and run receipts remain session resources. */
-    simulationSetups: z.array(ProjectSimulationSetupSchema).max(64),
+    simulationFolders: z.array(ProjectSimulationFolderSchema).max(64),
   })
   .superRefine((project, context) => {
     const cellNames = new Set<string>();
@@ -61,18 +61,18 @@ export const CircuitProjectSchema = z
       cellNames.add(name);
     }
     reportDuplicateIds(project.documents, "documents", context);
-    reportDuplicateIds(project.simulationSetups, "simulationSetups", context);
-    const simulationSetupNames = new Set<string>();
-    for (const [setupIndex, setup] of project.simulationSetups.entries()) {
-      const normalized = setup.name.toLocaleLowerCase("en-US");
-      if (simulationSetupNames.has(normalized)) {
+    reportDuplicateIds(project.simulationFolders, "simulationFolders", context);
+    const simulationFolderNames = new Set<string>();
+    for (const [folderIndex, folder] of project.simulationFolders.entries()) {
+      const normalized = folder.name.toLocaleLowerCase("en-US");
+      if (simulationFolderNames.has(normalized)) {
         context.addIssue({
           code: "custom",
-          message: `Duplicate simulation setup name: ${setup.name}`,
-          path: ["simulationSetups", setupIndex, "name"],
+          message: `Duplicate simulation folder name: ${folder.name}`,
+          path: ["simulationFolders", folderIndex, "name"],
         });
       }
-      simulationSetupNames.add(normalized);
+      simulationFolderNames.add(normalized);
     }
     const externalSubcircuitDefinitions = project.externalSubcircuitDefinitions;
     reportDuplicateIds(

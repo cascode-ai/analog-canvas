@@ -1,6 +1,6 @@
 import {
   readSimulationExperimentConfig,
-  type ProjectSimulationSetup,
+  type ProjectSimulationFolder,
 } from "@icm/model";
 import { test, expect } from "@playwright/test";
 import { parseProject } from "@icm/project-protocol";
@@ -11,7 +11,7 @@ import {
   recoveryProjectTexts,
 } from "./editor-fixtures.js";
 import { ota, profile, editSimulationFile } from "./simulation-e2e-fixtures.js";
-test("the qualified OTA setup opens unchanged and preserves all root and hierarchical outputs", async ({
+test("the qualified OTA folder opens unchanged and preserves all root and hierarchical outputs", async ({
   page,
 }) => {
   const project = parseProject(JSON.stringify(ota));
@@ -34,10 +34,10 @@ test("the qualified OTA setup opens unchanged and preserves all root and hierarc
   dut.nets
     .find((net) => net.id === "net-dut-tail")!
     .terminals.push({ instanceId: "I_INTERNAL_PROBE", pinName: "-" });
-  const savedSetup = project.simulationSetups[0];
+  const savedSetup = project.simulationFolders[0];
   expect(savedSetup?.input.kind).toBe("source");
   if (savedSetup?.input.kind !== "source")
-    throw new Error("qualified OTA fixture setup is not source");
+    throw new Error("qualified OTA fixture folder is not source");
   const parsed = readSimulationExperimentConfig(savedSetup);
   if (!parsed.ok) throw Error(parsed.message);
   const originalSetupInput = parsed.config;
@@ -99,25 +99,52 @@ test("the qualified OTA setup opens unchanged and preserves all root and hierarc
   await clickNetlistWorkflowCommand(page, "open-analog-simulation");
   const panel = page.getByRole("region", { name: "Analog simulation" });
   // Canvas picking and authored scoped expressions share the same config file.
-  await panel.getByRole("button", { name: "Pick Net", exact: true }).click();
+  const helper = async (name: string) => {
+    await panel.getByRole("button", { name: /Helper.*Ctrl\+Space/ }).click();
+    await panel.getByRole("option", { name, exact: true }).click();
+  };
+  await helper("Pick Net on Canvas");
   await page.getByTestId("route-hit-tb-vinp-route").click({ force: true });
-  await panel.getByRole("button", { name: "Picking Nets…" }).click();
-  await panel
-    .getByRole("button", { name: "Pick current", exact: true })
-    .click();
+  // One-shot Canvas picking opens the config; observations must stay reachable
+  // there without offering SPICE snippets that would corrupt the JSON file.
+  await expect(
+    panel.getByRole("tab", { name: "Configuration", exact: false }),
+  ).toHaveAttribute("aria-selected", "true");
+  await panel.getByRole("button", { name: /Helper.*Ctrl\+Space/ }).click();
+  await expect(
+    panel.getByRole("option", { name: ".include", exact: true }),
+  ).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await helper("Pick current on Canvas");
   await page.getByTestId("terminal-VINP-+").click();
   await expect(
     page.getByTestId("terminal-VINP-+-current-pick-marker"),
   ).toHaveClass(/origin/u);
   await page.getByTestId("terminal-VINP--").click();
-  await panel.getByRole("button", { name: "Picking current…" }).click();
+  await helper("Observe differential voltage");
+  const observe = panel.getByRole("dialog", { name: "Observe signal" });
+  await observe.getByRole("textbox", { name: "Search signal" }).fill("v(out)");
+  await observe
+    .getByRole("button", { name: "Use native vector: v(out)", exact: true })
+    .click();
+  await observe.getByRole("textbox", { name: "Search signal" }).fill("v(in)");
+  await observe
+    .getByRole("button", { name: "Use native vector: v(in)", exact: true })
+    .click();
   const pickedProject = parseProject(
     (await downloadBytes(page, "File", "Export Project File…")).toString(),
   );
   const pickedConfig = readSimulationExperimentConfig(
-    pickedProject.simulationSetups[0]!,
+    pickedProject.simulationFolders[0]!,
   );
-  expect(pickedConfig.ok && pickedConfig.config.outputs.length).toBe(6);
+  expect(pickedConfig.ok && pickedConfig.config.outputs.length).toBe(7);
+  expect(
+    pickedConfig.ok && pickedConfig.config.outputs.at(-1)?.expression,
+  ).toEqual({
+    kind: "subtract",
+    left: { kind: "vector", vector: "v(out)" },
+    right: { kind: "vector", vector: "v(in)" },
+  });
   const circuit = {
     bindingId: savedSetup.input.circuitBindings[0]!.id,
     callPath: [],
@@ -164,9 +191,8 @@ test("the qualified OTA setup opens unchanged and preserves all root and hierarc
     savedSetup.input.configPath,
     JSON.stringify(config, null, 2),
   );
-  await panel
-    .getByRole("button", { name: "Prepare deck", exact: true })
-    .click();
+  await panel.getByRole("button", { name: "More code actions" }).click();
+  await panel.getByRole("button", { name: "View final deck" }).click();
   await expect(panel.getByLabel("Prepare files")).toBeVisible();
   await panel
     .getByRole("button", { name: "prepared.cir", exact: true })
@@ -195,10 +221,10 @@ test("the qualified OTA setup opens unchanged and preserves all root and hierarc
   const saved = await downloadBytes(page, "File", "Export Project File…");
   const reloaded = parseProject(saved.toString());
   expect(
-    readSimulationExperimentConfig(reloaded.simulationSetups[0]!),
+    readSimulationExperimentConfig(reloaded.simulationFolders[0]!),
   ).toMatchObject({ ok: true, config: { outputs: config.outputs } });
   expect(
-    reloaded.simulationSetups[0]!.input.files.find(
+    reloaded.simulationFolders[0]!.input.files.find(
       (f) => f.path === savedSetup.input.entry,
     )?.text,
   ).toBe(
@@ -220,7 +246,7 @@ test("the qualified OTA setup opens unchanged and preserves all root and hierarc
     (await downloadBytes(page, "File", "Export Project File…")).toString(),
   );
   expect(
-    readSimulationExperimentConfig(reopened.simulationSetups[0]!),
+    readSimulationExperimentConfig(reopened.simulationFolders[0]!),
   ).toMatchObject({ ok: true, config: { outputs: config.outputs } });
 });
 
@@ -272,21 +298,21 @@ test("uncommitted source survives reload and an explicit working-copy recovery f
     (await downloadBytes(page, "File", "Export Project File…")).toString(),
   );
   expect(
-    saved.simulationSetups[0]!.input.files.some((file) =>
+    saved.simulationFolders[0]!.input.files.some((file) =>
       file.text.includes(marker),
     ),
   ).toBe(true);
 });
 
-test("one Testbench persists several independently named setups", async ({
+test("one Testbench persists several independently named folders", async ({
   page,
 }) => {
   const project = parseProject(JSON.stringify(ota));
-  const existingSetupNames = project.simulationSetups.map(
-    (setup) => setup.name,
+  const existingSetupNames = project.simulationFolders.map(
+    (folder) => folder.name,
   );
-  const activeSetup = project.simulationSetups.find(
-    (setup) => setup.id === "simulation-setup-ota-op-ac",
+  const activeSetup = project.simulationFolders.find(
+    (folder) => folder.id === "simulation-setup-ota-op-ac",
   );
   const activeTestbenchId =
     activeSetup?.input.kind === "source"
@@ -319,70 +345,83 @@ test("one Testbench persists several independently named setups", async ({
   );
   await page.goto("/editor");
   await page.getByTestId("project-file").setInputFiles({
-    name: "multiple-setups.icproj.json",
+    name: "multiple-folders.icproj.json",
     mimeType: "application/json",
     buffer: Buffer.from(JSON.stringify(project)),
   });
   await clickNetlistWorkflowCommand(page, "open-analog-simulation");
   const panel = page.getByRole("region", { name: "Analog simulation" });
-  const selector = panel.getByTitle("Simulation setup", { exact: true });
-  await expect(selector).toContainText("OTA OP, DC, AC, and TRAN");
-  await selector.click();
-  await panel.getByRole("button", { name: "New setup", exact: true }).click();
-  await expect(selector).toContainText(
-    `Setup ${existingSetupNames.length + 1}`,
-  );
-  await selector.click();
+  const folders = panel.getByLabel("Simulation folders", { exact: true });
+  await expect(
+    folders.getByRole("button", {
+      name: "Folder OTA OP, DC, AC, and TRAN",
+      exact: true,
+    }),
+  ).toBeVisible();
+  page.once("dialog", (dialog) => void dialog.accept("Bias sweep"));
+  await folders.getByRole("button", { name: "+ New folder…" }).click();
+  await panel.getByRole("button", { name: /Run current Cell/ }).click();
+  await expect(
+    folders.getByRole("button", { name: "Folder Bias sweep", exact: true }),
+  ).toBeVisible();
+  await folders
+    .getByRole("button", { name: "Folder Bias sweep", exact: true })
+    .click({ button: "right" });
   page.once(
     "dialog",
     (dialog) => void dialog.accept("OTA OP, DC, AC, and TRAN"),
   );
-  await panel.getByRole("button", { name: "Rename…", exact: true }).click();
-  await expect(panel.getByRole("alert")).toContainText("already exists");
-  page.once("dialog", (dialog) => void dialog.accept("Bias sweep"));
-  await panel.getByRole("button", { name: "Rename…", exact: true }).click();
-  await expect(selector).toContainText("Bias sweep");
+  await folders.getByRole("menuitem", { name: "Rename…" }).click();
+  await panel.getByRole("tab", { name: "Console", exact: true }).click();
+  await expect(panel.getByLabel("Simulation results")).toContainText(
+    "already exists",
+  );
   const saved = JSON.parse(
     (await downloadBytes(page, "File", "Export Project File…")).toString(),
   );
-  expect(saved.simulationSetups).toHaveLength(existingSetupNames.length + 1);
+  expect(saved.simulationFolders).toHaveLength(existingSetupNames.length + 1);
   expect(
-    saved.simulationSetups.map((setup: { name: string }) => setup.name),
+    saved.simulationFolders.map((folder: { name: string }) => folder.name),
   ).toEqual([...existingSetupNames, "Bias sweep"]);
   expect(
-    saved.simulationSetups.find(
-      (setup: { name: string }) => setup.name === "Bias sweep",
+    saved.simulationFolders.find(
+      (folder: { name: string }) => folder.name === "Bias sweep",
     )?.input.circuitBindings[0]?.documentId,
   ).toBe(activeTestbenchId);
   expect(
     new Set(
-      saved.simulationSetups.map(
-        (setup: ProjectSimulationSetup) =>
-          setup.input.circuitBindings[0]?.documentId,
+      saved.simulationFolders.map(
+        (folder: ProjectSimulationFolder) =>
+          folder.input.circuitBindings[0]?.documentId,
       ),
     ),
   ).toEqual(
     new Set(["document-ota-5t-testbench", "document-ota-5t-testbench-sin"]),
   );
 
-  await selector.click();
-  await panel.getByRole("button", { name: "Delete Bias sweep" }).click();
-  await panel.getByRole("button", { name: "Cancel", exact: true }).click();
+  await folders
+    .getByRole("button", { name: "Folder Bias sweep", exact: true })
+    .click({ button: "right" });
+  page.once("dialog", (dialog) => void dialog.dismiss());
+  await folders.getByRole("menuitem", { name: "Delete…" }).click();
   await expect(
-    panel.getByRole("button", { name: "Bias sweep", exact: true }),
+    folders.getByRole("button", { name: "Folder Bias sweep", exact: true }),
   ).toBeVisible();
-  await panel.getByRole("button", { name: "Delete Bias sweep" }).click();
-  await panel.getByRole("button", { name: "Confirm", exact: true }).click();
-  await expect(selector).toContainText("OTA OP, DC, AC, and TRAN");
-  await selector.click();
+  await folders
+    .getByRole("button", { name: "Folder Bias sweep", exact: true })
+    .click({ button: "right" });
+  page.once("dialog", (dialog) => void dialog.accept());
+  await folders.getByRole("menuitem", { name: "Delete…" }).click();
   await expect(
-    panel.getByRole("button", { name: "Bias sweep", exact: true }),
+    folders.getByRole("button", { name: "Folder Bias sweep", exact: true }),
   ).toHaveCount(0);
   const afterDelete = JSON.parse(
     (await downloadBytes(page, "File", "Export Project File…")).toString(),
   );
-  expect(afterDelete.simulationSetups).toHaveLength(existingSetupNames.length);
+  expect(afterDelete.simulationFolders).toHaveLength(existingSetupNames.length);
   expect(
-    afterDelete.simulationSetups.map((setup: { name: string }) => setup.name),
+    afterDelete.simulationFolders.map(
+      (folder: { name: string }) => folder.name,
+    ),
   ).toEqual(existingSetupNames);
 });

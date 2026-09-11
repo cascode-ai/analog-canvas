@@ -1,6 +1,6 @@
 import {
   readSimulationExperimentConfig,
-  type ProjectSimulationSetup,
+  type ProjectSimulationFolder,
   type SimulationExpression,
   type SimulationSourceExpression,
 } from "@icm/model";
@@ -14,13 +14,13 @@ export interface SimulationPresentationOutput {
   label: string;
   expression: SimulationPresentationExpression;
 }
-export function sourcePresentation(setup: ProjectSimulationSetup) {
-  const parsed = readSimulationExperimentConfig(setup);
-  const root = setup.input.circuitBindings.find(
+export function sourcePresentation(folder: ProjectSimulationFolder) {
+  const parsed = readSimulationExperimentConfig(folder);
+  const root = folder.input.circuitBindings.find(
     (binding) => binding.emission === "top-level",
   );
   const kinds = new Set(
-    inspectSimulationSourceGraph(setup.input).statements.flatMap(
+    inspectSimulationSourceGraph(folder.input).statements.flatMap(
       ({ statement }) => {
         const command =
           statement.kind === "control_command"
@@ -37,8 +37,8 @@ export function sourcePresentation(setup: ProjectSimulationSetup) {
     ),
   );
   return {
-    setupId: setup.id,
-    setupName: setup.name,
+    folderId: folder.id,
+    folderName: folder.name,
     analysisLabel: [...kinds].join(" + ") || "Native program",
     outputs: parsed.ok ? parsed.config.outputs : [],
     ...(root ? { rootDocumentId: root.documentId } : {}),

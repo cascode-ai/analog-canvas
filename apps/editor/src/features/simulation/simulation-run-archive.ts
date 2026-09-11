@@ -17,8 +17,8 @@ export const SIMULATION_ARCHIVE_VERSION = 1 as const;
 export const MAX_SIMULATION_ARCHIVE_BYTES = 32 * 1024 * 1024;
 
 export interface SimulationArchivePresentation {
-  readonly setupId: string;
-  readonly setupName: string;
+  readonly folderId: string;
+  readonly folderName: string;
   readonly analysisLabel: string;
   readonly rootDocumentId?: string;
   readonly outputs: SimulationPresentationOutput[];
@@ -58,8 +58,8 @@ export interface SimulationRunArchiveV1 {
 export interface SimulationRunArchiveSummary {
   readonly id: string;
   readonly projectId: string;
-  readonly setupId: string;
-  readonly setupName: string;
+  readonly folderId: string;
+  readonly folderName: string;
   readonly analysisLabel: string;
   readonly createdAt: string;
   readonly byteLength: number;
@@ -240,8 +240,8 @@ export function summarizeSimulationRunArchive(
   return {
     id: archive.id,
     projectId: archive.projectId,
-    setupId: archive.presentation.setupId,
-    setupName: archive.presentation.setupName,
+    folderId: archive.presentation.folderId,
+    folderName: archive.presentation.folderName,
     analysisLabel: archive.presentation.analysisLabel,
     createdAt: archive.createdAt,
     byteLength: archive.byteLength,
@@ -261,8 +261,8 @@ export function isSimulationRunArchive(
     typeof candidate.createdAt === "string" &&
     typeof candidate.byteLength === "number" &&
     Boolean(candidate.presentation) &&
-    typeof candidate.presentation?.setupId === "string" &&
-    typeof candidate.presentation?.setupName === "string" &&
+    typeof candidate.presentation?.folderId === "string" &&
+    typeof candidate.presentation?.folderName === "string" &&
     Boolean(candidate.prepared) &&
     typeof candidate.prepared?.id === "string" &&
     Boolean(candidate.run) &&
@@ -279,4 +279,31 @@ export function isSimulationRunArchive(
         typeof artifact.text === "string",
     )
   );
+}
+
+/** Read-only compatibility at the archive boundary; artifact bytes and run evidence never change. */
+export function readSimulationRunArchive(
+  value: unknown,
+): SimulationRunArchiveV1 | null {
+  if (isSimulationRunArchive(value)) return value;
+  if (!value || typeof value !== "object" || !("presentation" in value))
+    return null;
+  const presentation = value.presentation;
+  if (
+    !presentation ||
+    typeof presentation !== "object" ||
+    !("setupId" in presentation) ||
+    typeof presentation.setupId !== "string" ||
+    !("setupName" in presentation) ||
+    typeof presentation.setupName !== "string" ||
+    "folderId" in presentation ||
+    "folderName" in presentation
+  )
+    return null;
+  const { setupId, setupName, ...rest } = presentation;
+  const normalized = {
+    ...value,
+    presentation: { ...rest, folderId: setupId, folderName: setupName },
+  };
+  return isSimulationRunArchive(normalized) ? normalized : null;
 }

@@ -190,7 +190,7 @@ describe("Agent operating Kit", () => {
       },
     ];
     const request = (requestId: string, dryRun?: boolean) => ({
-      apiVersion: "2.0" as const,
+      apiVersion: "3.0" as const,
       requestId,
       operation: "transact" as const,
       documentId: document.id,
@@ -214,7 +214,7 @@ describe("Agent operating Kit", () => {
     });
 
     const snapshot = service.handle({
-      apiVersion: "2.0",
+      apiVersion: "3.0",
       requestId: "inverter-after-create",
       operation: "snapshot",
       documentId: document.id,
@@ -246,7 +246,7 @@ describe("Agent operating Kit", () => {
       toPin: string,
     ) =>
       service.handle({
-        apiVersion: "2.0",
+        apiVersion: "3.0",
         requestId,
         operation: "transact",
         documentId: document.id,
@@ -276,7 +276,7 @@ describe("Agent operating Kit", () => {
     }
     expect(
       service.handle({
-        apiVersion: "2.0",
+        apiVersion: "3.0",
         requestId: "wire-vdd-source",
         operation: "transact",
         documentId: document.id,
@@ -297,7 +297,7 @@ describe("Agent operating Kit", () => {
     ).toMatchObject({ ok: true, applied: true });
 
     const afterWiring = service.handle({
-      apiVersion: "2.0",
+      apiVersion: "3.0",
       requestId: "inverter-after-wire",
       operation: "snapshot",
       documentId: document.id,
@@ -311,7 +311,7 @@ describe("Agent operating Kit", () => {
 
     expect(
       service.handle({
-        apiVersion: "2.0",
+        apiVersion: "3.0",
         requestId: "inverter-bulk-defaults",
         operation: "transact",
         documentId: document.id,
@@ -329,7 +329,7 @@ describe("Agent operating Kit", () => {
     ).toMatchObject({ ok: true, applied: true });
 
     const finalSnapshot = service.handle({
-      apiVersion: "2.0",
+      apiVersion: "3.0",
       requestId: "inverter-final-snapshot",
       operation: "snapshot",
       documentId: document.id,
@@ -355,7 +355,7 @@ describe("Agent operating Kit", () => {
     ).toEqual([]);
     expect(
       service.handle({
-        apiVersion: "2.0",
+        apiVersion: "3.0",
         requestId: "inverter-formal-render",
         operation: "render",
         documentId: document.id,

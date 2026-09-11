@@ -1,9 +1,9 @@
 import {
   deriveStableId,
-  ProjectSourceSimulationSetupSchema,
+  ProjectSimulationFolderSchema,
   type CircuitProject,
   type LegacyProjectSimulationSetup,
-  type ProjectSourceSimulationSetup,
+  type ProjectSimulationFolder,
   type SimulationAnalysisSpec,
   type SimulationCircuitScope,
   type SimulationExperimentConfig,
@@ -16,17 +16,17 @@ import { buildSimulationPlan } from "./simulation-compile.js";
 import { inspectSimulationSourceGraph } from "./simulation-source-graph.js";
 
 export interface SimulationSourceMigration {
-  setup: ProjectSourceSimulationSetup;
+  folder: ProjectSimulationFolder;
   warnings: string[];
 }
 
 /** Offline, one-way conversion. No simulator, model files or async hashing. */
 export function migrateSimulationSetupToSource(
   project: CircuitProject,
-  setup: LegacyProjectSimulationSetup,
+  folder: LegacyProjectSimulationSetup,
 ): SimulationSourceMigration {
   const warnings: string[] = [];
-  const input = setup.input;
+  const input = folder.input;
   const { temperatureC, ...environment } = input.environment;
   const config: SimulationExperimentConfig = {
     version: 1,
@@ -48,7 +48,7 @@ export function migrateSimulationSetupToSource(
       configPath = `experiment-${index}.json`;
     if (temperatureC !== undefined)
       warnings.push(
-        `Raw setup ${setup.name} recorded environment.temperatureC=${temperatureC}, but the raw executor did not apply it. The source is preserved unchanged; author .temp explicitly to change its simulation temperature.`,
+        `Raw folder ${folder.name} recorded environment.temperatureC=${temperatureC}, but the raw executor did not apply it. The source is preserved unchanged; author .temp explicitly to change its simulation temperature.`,
       );
     // Raw input did not promise collection unless its text requested it.
     const graph = inspectSimulationSourceGraph({
@@ -80,9 +80,9 @@ export function migrateSimulationSetupToSource(
         "Raw output selection is dynamic or has multiple paths; review collection.rawfile. Authored write commands were preserved unchanged.",
       );
     return {
-      setup: ProjectSourceSimulationSetupSchema.parse({
-        id: setup.id,
-        name: setup.name,
+      folder: ProjectSimulationFolderSchema.parse({
+        id: folder.id,
+        name: folder.name,
         version: 4,
         input: {
           kind: "source",
@@ -103,7 +103,7 @@ export function migrateSimulationSetupToSource(
   const binding = {
     id: deriveStableId(
       "simulation-circuit-binding",
-      setup.id,
+      folder.id,
       input.rootDocumentId,
     ),
     documentId: input.rootDocumentId,
@@ -126,7 +126,7 @@ export function migrateSimulationSetupToSource(
     }),
   );
   config.runPlan = structuredClone(input.runPlan);
-  const planned = buildSimulationPlan(project, setup);
+  const planned = buildSimulationPlan(project, folder);
   if (!planned.ok)
     warnings.push(...planned.diagnostics.map((d) => `${d.code}: ${d.message}`));
   const commands = planned.ok
@@ -136,7 +136,7 @@ export function migrateSimulationSetupToSource(
         command: unresolvedAnalysis(analysis, project, input.rootDocumentId),
       }));
   const run = [
-    `* ${setup.name.replace(/[\r\n]/gu, " ")} — migrated authored experiment`,
+    `* ${folder.name.replace(/[\r\n]/gu, " ")} — migrated authored experiment`,
     ...input.designVariables.map(
       (variable) => `.param ${variable.name}=${variable.value}`,
     ),
@@ -156,9 +156,9 @@ export function migrateSimulationSetupToSource(
     "",
   ].join("\n");
   return {
-    setup: ProjectSourceSimulationSetupSchema.parse({
-      id: setup.id,
-      name: setup.name,
+    folder: ProjectSimulationFolderSchema.parse({
+      id: folder.id,
+      name: folder.name,
       version: 4,
       input: {
         kind: "source",

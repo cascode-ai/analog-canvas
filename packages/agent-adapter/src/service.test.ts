@@ -116,7 +116,7 @@ describe("current Agent Circuit API service", () => {
     const fixture = serviceFixture();
     const before = fixture.getDocument().revision;
     const response = fixture.service.handle({
-      apiVersion: "2.0",
+      apiVersion: "3.0",
       requestId: "invalid-variant",
       operation: "transact",
       documentId: fixture.getDocument().id,
@@ -150,7 +150,7 @@ describe("current Agent Circuit API service", () => {
   it("publishes exactly four operations and validates checked request examples", () => {
     const fixture = serviceFixture();
     const response = fixture.service.handle({
-      apiVersion: "2.0",
+      apiVersion: "3.0",
       requestId: "capabilities-test",
       operation: "capabilities",
     });
@@ -290,34 +290,34 @@ describe("current Agent Circuit API service", () => {
     const fixture = serviceFixture();
     expect(
       fixture.service.handle({
-        apiVersion: "2.0",
+        apiVersion: "3.0",
         requestId: "capabilities-current",
         operation: "capabilities",
       }),
     ).toMatchObject({
-      apiVersion: "2.0",
+      apiVersion: "3.0",
       ok: true,
       capabilities: {
         operations: ["capabilities", "snapshot", "transact", "render"],
-        apiVersions: ["2.0"],
-        snapshotVersions: ["2.0"],
+        apiVersions: ["3.0"],
+        snapshotVersions: ["3.0"],
         permissions: { snapshot: true },
       },
     });
 
     const response = fixture.service.handle({
-      apiVersion: "2.0",
+      apiVersion: "3.0",
       requestId: "snapshot-current",
       operation: "snapshot",
       documentId: "document-differential-stage",
     });
     expect(response).toMatchObject({
-      apiVersion: "2.0",
+      apiVersion: "3.0",
       operation: "snapshot",
       ok: true,
       revision: 0,
       snapshot: {
-        snapshotVersion: "2.0",
+        snapshotVersion: "3.0",
         document: {
           id: "document-differential-stage",
           instances: expect.any(Array),
@@ -349,13 +349,13 @@ describe("current Agent Circuit API service", () => {
     const fixture = serviceFixture(allPermissions, { maxSnapshotBytes: 10 });
     expect(
       fixture.service.handle({
-        apiVersion: "2.0",
+        apiVersion: "3.0",
         requestId: "snapshot-too-large",
         operation: "snapshot",
         documentId: "document-differential-stage",
       }),
     ).toMatchObject({
-      apiVersion: "2.0",
+      apiVersion: "3.0",
       ok: false,
       operation: "snapshot",
       error: { code: "SNAPSHOT_TOO_LARGE" },
@@ -372,7 +372,7 @@ describe("current Agent Circuit API service", () => {
     };
     const fixture = serviceFixture(allPermissions, {}, countingResolver);
     const snapshotRequest = (requestId: string) => ({
-      apiVersion: "2.0" as const,
+      apiVersion: "3.0" as const,
       requestId,
       operation: "snapshot" as const,
       documentId: fixture.getDocument().id,
@@ -396,7 +396,7 @@ describe("current Agent Circuit API service", () => {
     expect(second.snapshot).toEqual(first.snapshot);
 
     const committed = fixture.service.handle({
-      apiVersion: "2.0",
+      apiVersion: "3.0",
       requestId: "move-before-snapshot",
       operation: "transact",
       documentId: fixture.getDocument().id,
@@ -421,7 +421,7 @@ describe("current Agent Circuit API service", () => {
   it("keeps Agent instance authoring identical to direct Edit Engine execution", () => {
     const fixture = serviceFixture();
     const request = {
-      apiVersion: "2.0" as const,
+      apiVersion: "3.0" as const,
       requestId: "add-instance-request",
       operation: "transact" as const,
       documentId: "document-differential-stage",
@@ -467,7 +467,7 @@ describe("current Agent Circuit API service", () => {
   it("places a Cell Pin through one coordinated Agent transaction", () => {
     const fixture = serviceFixture();
     const response = fixture.service.handle({
-      apiVersion: "2.0",
+      apiVersion: "3.0",
       requestId: "place-port-symbol",
       operation: "transact",
       documentId: fixture.getDocument().id,
@@ -533,7 +533,7 @@ describe("current Agent Circuit API service", () => {
     const fixture = serviceFixture();
     const child = createEmptyDocument("document-agent-child", "Agent Child");
     const response = fixture.service.handle({
-      apiVersion: "2.0",
+      apiVersion: "3.0",
       requestId: "add-agent-child",
       operation: "transact",
       documentId: fixture.getDocument().id,
@@ -561,7 +561,7 @@ describe("current Agent Circuit API service", () => {
     const fixture = serviceFixture();
     const document = fixture.getDocument();
     const response = fixture.service.handle({
-      apiVersion: "2.0",
+      apiVersion: "3.0",
       requestId: "set-cell-symbol-presentation",
       operation: "transact",
       documentId: document.id,
@@ -604,7 +604,7 @@ describe("current Agent Circuit API service", () => {
       parameters: {},
     };
     const response = fixture.service.handle({
-      apiVersion: "2.0",
+      apiVersion: "3.0",
       requestId: "property-patch",
       operation: "transact",
       documentId: "document-differential-stage",
@@ -636,7 +636,7 @@ describe("current Agent Circuit API service", () => {
   it("accepts annotation textColor through upsert_schematic_annotation", () => {
     const fixture = serviceFixture();
     const response = fixture.service.handle({
-      apiVersion: "2.0",
+      apiVersion: "3.0",
       requestId: "annotation-text-color",
       operation: "transact",
       documentId: "document-differential-stage",
@@ -678,7 +678,7 @@ describe("current Agent Circuit API service", () => {
     });
     expect(
       fixture.service.handle({
-        apiVersion: "2.0",
+        apiVersion: "3.0",
         requestId: "snapshot-denied",
         operation: "snapshot",
         documentId: "document-differential-stage",
@@ -701,7 +701,7 @@ describe("current Agent Circuit API service", () => {
     // Two edits: the first is a valid annotation; the second targets an
     // instance that does not exist, so it must reject at edits index 1.
     const response = fixture.service.handle({
-      apiVersion: "2.0",
+      apiVersion: "3.0",
       requestId: "reject-index",
       operation: "transact",
       documentId: "document-differential-stage",
@@ -746,7 +746,7 @@ describe("current Agent Circuit API service", () => {
     const fixture = serviceFixture();
     const render = (mode: "formal" | "diagnostics") =>
       fixture.service.handle({
-        apiVersion: "2.0",
+        apiVersion: "3.0",
         requestId: `render-${mode}`,
         operation: "render",
         documentId: "document-differential-stage",

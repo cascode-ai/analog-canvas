@@ -267,11 +267,11 @@ async function qualificationProject() {
   );
 }
 
-async function prepareQualification(project, setup, timeoutMs) {
+async function prepareQualification(project, folder, timeoutMs) {
   const { prepareSourceExecutionInput, CapabilitiesSchema } =
     await import("@icm/simulation-service");
   const { readSimulationExperimentConfig } = await import("@icm/model");
-  const parsed = readSimulationExperimentConfig(setup);
+  const parsed = readSimulationExperimentConfig(folder);
   if (!parsed.ok) throw Error(parsed.message);
   if (
     parsed.config.environment.profileId !== qualification.profileId ||
@@ -305,7 +305,7 @@ async function prepareQualification(project, setup, timeoutMs) {
   });
   const compiled = await prepareSourceExecutionInput(
     project,
-    setup,
+    folder,
     capabilities,
   );
   if (!compiled.ok)
@@ -315,15 +315,15 @@ async function prepareQualification(project, setup, timeoutMs) {
   return { ...compiled, request: { ...compiled.input, timeoutMs } };
 }
 
-function setProgram(setup, commands) {
-  const entry = setup.input.files.find(
-    (file) => file.path === setup.input.entry,
+function setProgram(folder, commands) {
+  const entry = folder.input.files.find(
+    (file) => file.path === folder.input.entry,
   );
   if (!entry) throw Error("Qualification entry is missing");
   // This qualification owns its native control template; it is not a general author-code rewrite.
   entry.text = [
     "* Qualified source experiment",
-    ...setup.input.circuitBindings.map(
+    ...folder.input.circuitBindings.map(
       (binding) => `.include "${binding.path}"`,
     ),
     ".control",
@@ -338,20 +338,20 @@ function setProgram(setup, commands) {
 
 export async function compileHostedSky130Project() {
   const project = await qualificationProject(),
-    setup = project.simulationSetups[0];
-  if (!setup) throw Error("Qualification Project has no saved experiment");
-  return prepareQualification(project, setup, 110000);
+    folder = project.simulationFolders[0];
+  if (!folder) throw Error("Qualification Project has no saved experiment");
+  return prepareQualification(project, folder, 110000);
 }
 
 export async function compileHostedSky130TransientProject() {
   const project = await qualificationProject(),
-    setup = project.simulationSetups[0];
+    folder = project.simulationFolders[0];
   const expected = qualification.expectedTran;
   const source = project.documents
     .flatMap((d) => d.instances)
     .find((i) => i.id === expected.source.instanceId);
-  if (!setup || !source?.netlist)
-    throw Error("Qualification source/setup is missing");
+  if (!folder || !source?.netlist)
+    throw Error("Qualification source/folder is missing");
   source.symbolId = "pulse-voltage-source";
   source.netlist.parameters = { ...expected.source.parameters };
   const { stepSeconds, stopSeconds, startSeconds, maxStepSeconds } =
@@ -364,20 +364,20 @@ export async function compileHostedSky130TransientProject() {
       : []),
     ...(maxStepSeconds !== undefined ? [maxStepSeconds] : []),
   ];
-  setProgram(setup, [`tran ${args.join(" ")}`, "write out.raw"]);
-  return prepareQualification(project, setup, 60000);
+  setProgram(folder, [`tran ${args.join(" ")}`, "write out.raw"]);
+  return prepareQualification(project, folder, 60000);
 }
 
 export async function compileHostedSky130NoiseProject() {
   const project = await qualificationProject(),
-    setup = project.simulationSetups[0];
-  if (!setup) throw Error("Qualification source/setup is missing");
+    folder = project.simulationFolders[0];
+  if (!folder) throw Error("Qualification source/folder is missing");
   const { readSimulationExperimentConfig, replaceSimulationExperimentConfig } =
     await import("@icm/model");
-  const parsed = readSimulationExperimentConfig(setup);
+  const parsed = readSimulationExperimentConfig(folder);
   if (!parsed.ok) throw Error(parsed.message);
   // Resolve the qualified Canvas output through the same acquisition compiler, not a guessed Net ID.
-  const nominal = await prepareQualification(project, setup, 110000);
+  const nominal = await prepareQualification(project, folder, 110000);
   const expected = qualification.expectedNoise.analysis;
   const output = nominal.outputs.find((o) => o.id === expected.outputProbeId);
   const acquisition =
@@ -388,7 +388,7 @@ export async function compileHostedSky130NoiseProject() {
   const root = project.documents.find(
     (d) =>
       d.id ===
-      setup.input.circuitBindings.find((b) => b.emission === "top-level")
+      folder.input.circuitBindings.find((b) => b.emission === "top-level")
         ?.documentId,
   );
   const source = root?.instances.find(
@@ -399,7 +399,7 @@ export async function compileHostedSky130NoiseProject() {
   parsed.config.outputs = [];
   parsed.config.measurements = [];
   parsed.config.deviceOperatingPoints = [];
-  const noise = replaceSimulationExperimentConfig(setup, parsed.config);
+  const noise = replaceSimulationExperimentConfig(folder, parsed.config);
   setProgram(noise, [
     `noise ${vector} ${source} ${expected.sweep} ${expected.points} ${expected.startHz} ${expected.stopHz}`,
     "write out.raw noise1.all noise2.all",

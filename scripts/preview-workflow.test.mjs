@@ -120,7 +120,7 @@ describe("the preview deploy", () => {
     expect(crossProjectJourney).toContain('action: "list-cells"');
     expect(crossProjectJourney).toContain('action: "import-cell"');
     expect(crossProjectJourney).toContain('kind: "add_document"');
-    expect(crossProjectJourney).toContain('kind: "upsert_simulation_setup"');
+    expect(crossProjectJourney).toContain('kind: "upsert_simulation_folder"');
     expect(crossProjectJourney).toContain(
       '.filter((output) => output.id === "probe-vout")',
     );

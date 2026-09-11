@@ -25,7 +25,7 @@ import {
   ExternalSubcircuitDefinitionSchema,
   CellNetlistInterfaceSchema,
   MosBulkDefaultsSchema,
-  ProjectSimulationSetupSchema,
+  ProjectSimulationFolderSchema,
 } from "@icm/model";
 import { ObjectLocatorSchema, HierarchyFrameSchema } from "@icm/derived";
 import {
@@ -37,8 +37,8 @@ import { AgentAuthoringCommandSchema } from "./authoring-command.js";
 export { AgentAuthoringCommandSchema } from "./authoring-command.js";
 export type { AgentAuthoringCommand } from "./authoring-command.js";
 
-export const AGENT_API_VERSION = "2.0" as const;
-export const AGENT_SNAPSHOT_VERSION = "2.0" as const;
+export const AGENT_API_VERSION = "3.0" as const;
+export const AGENT_SNAPSHOT_VERSION = "3.0" as const;
 export const AgentApiVersionSchema = z.literal(AGENT_API_VERSION);
 const RequestBaseSchema = z.strictObject({
   apiVersion: AgentApiVersionSchema,
@@ -570,7 +570,7 @@ export const AgentSessionSnapshotSchema = z.strictObject({
     topDocumentId: StableIdSchema,
     documents: z.array(AgentProjectIndexDocumentSchema).min(1),
     /** Named saved intents. Prepare addresses one explicitly by stable id. */
-    simulationSetups: z.array(ProjectSimulationSetupSchema),
+    simulationFolders: z.array(ProjectSimulationFolderSchema),
   }),
   document: AgentSnapshotDocumentSchema,
 });

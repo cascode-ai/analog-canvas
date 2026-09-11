@@ -128,8 +128,10 @@ function projectText(name = "Fixture"): string {
 }
 
 function previousVersionText(): string {
-  const raw = JSON.parse(projectText()) as { schemaVersion: number };
+  const raw = JSON.parse(projectText());
   raw.schemaVersion = CURRENT_PROJECT_SCHEMA_VERSION - 1;
+  raw.simulationSetups = raw.simulationFolders;
+  delete raw.simulationFolders;
   return JSON.stringify(raw);
 }
 
@@ -174,6 +176,8 @@ function previousRouteVersionText(): string {
   });
   const raw = JSON.parse(serializeProject(project)) as any;
   raw.schemaVersion = CURRENT_PROJECT_SCHEMA_VERSION - 1;
+  raw.simulationSetups = raw.simulationFolders;
+  delete raw.simulationFolders;
   return JSON.stringify(raw);
 }
 

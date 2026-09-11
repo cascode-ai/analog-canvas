@@ -109,7 +109,7 @@ describe("Agent/Edit Engine drafting parity", () => {
       },
     });
     const agentResponse = service.handle({
-      apiVersion: "2.0",
+      apiVersion: "3.0",
       requestId: "parity-transact",
       operation: "transact",
       documentId: "document-differential-stage",

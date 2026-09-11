@@ -69,7 +69,7 @@ const demoProject = CircuitProjectSchema.parse({
       constraints: [],
     },
   ],
-  simulationSetups: [],
+  simulationFolders: [],
 });
 
 export function createDemoProject(): CircuitProject {

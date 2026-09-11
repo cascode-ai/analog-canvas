@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import {
   CircuitProjectSchema,
   SimulationExperimentConfigSchema,
-  type LegacyProjectSimulationSetup as ProjectSimulationSetup,
+  type LegacyProjectSimulationSetup as ProjectSimulationFolder,
 } from "@icm/model";
 import ota from "../../../apps/editor/src/examples/five-transistor-ota-sky130.icproj.json";
 const legacySetups = () =>
@@ -21,23 +21,25 @@ import { printSpiceNetlist, printSpiceWithLocations } from "./printers.js";
 describe("legacy experiment source migration", () => {
   it("preserves all OTA experiment identities, analyses and acquired objects offline", () => {
     const project = CircuitProjectSchema.parse({
-      ...ota,
+      ...Object.fromEntries(
+        Object.entries(ota).filter(([key]) => key !== "simulationSetups"),
+      ),
       schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
-      simulationSetups: [],
+      simulationFolders: [],
     });
     const before = JSON.stringify(project);
     expect(legacySetups().length).toBeGreaterThan(1);
     for (const original of legacySetups()) {
       const converted = migrateSimulationSetupToSource(project, original);
-      expect(converted.setup.id).toBe(original.id);
-      expect(converted.setup.name).toBe(original.name);
+      expect(converted.folder.id).toBe(original.id);
+      expect(converted.folder.name).toBe(original.name);
       expect(migrateSimulationSetupToSource(project, original)).toEqual(
         converted,
       );
       const config = SimulationExperimentConfigSchema.parse(
         JSON.parse(
-          converted.setup.input.files.find(
-            (f) => f.path === converted.setup.input.configPath,
+          converted.folder.input.files.find(
+            (f) => f.path === converted.folder.input.configPath,
           )!.text,
         ),
       );
@@ -52,9 +54,9 @@ describe("legacy experiment source migration", () => {
       if (!plan.ok) continue;
       for (const command of plan.commands)
         expect(
-          converted.setup.input.files.find((f) => f.path === "run.cir")!.text,
+          converted.folder.input.files.find((f) => f.path === "run.cir")!.text,
         ).toContain(command.command);
-      expect(converted.setup.input.circuitBindings).toMatchObject([
+      expect(converted.folder.input.circuitBindings).toMatchObject([
         { emission: "top-level", documentId: original.input.rootDocumentId },
       ]);
     }
@@ -63,31 +65,35 @@ describe("legacy experiment source migration", () => {
 
   it("retains incomplete intent instead of substituting a runnable example", () => {
     const project = CircuitProjectSchema.parse({
-      ...ota,
+      ...Object.fromEntries(
+        Object.entries(ota).filter(([key]) => key !== "simulationSetups"),
+      ),
       schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
-      simulationSetups: [],
+      simulationFolders: [],
     });
-    const setup = structuredClone(legacySetups()[0]!);
-    if (setup.input.kind !== "structured")
+    const folder = structuredClone(legacySetups()[0]!);
+    if (folder.input.kind !== "structured")
       throw Error("expected structured fixture");
-    setup.input.rootDocumentId = "removed";
-    const converted = migrateSimulationSetupToSource(project, setup);
+    folder.input.rootDocumentId = "removed";
+    const converted = migrateSimulationSetupToSource(project, folder);
     expect(converted.warnings.length).toBeGreaterThan(0);
-    expect(converted.setup.input.circuitBindings[0]!.documentId).toBe(
+    expect(converted.folder.input.circuitBindings[0]!.documentId).toBe(
       "removed",
     );
     expect(
-      converted.setup.input.files.find((f) => f.path === "run.cir")!.text,
+      converted.folder.input.files.find((f) => f.path === "run.cir")!.text,
     ).toContain("op");
   });
 
   it("preserves raw file bytes and dependency identity despite config filename collisions", () => {
     const project = CircuitProjectSchema.parse({
-      ...ota,
+      ...Object.fromEntries(
+        Object.entries(ota).filter(([key]) => key !== "simulationSetups"),
+      ),
       schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
-      simulationSetups: [],
+      simulationFolders: [],
     });
-    const setup: ProjectSimulationSetup = {
+    const folder: ProjectSimulationFolder = {
       id: "raw",
       name: "Raw",
       version: 3,
@@ -111,25 +117,29 @@ describe("legacy experiment source migration", () => {
         ],
       },
     };
-    const converted = migrateSimulationSetupToSource(project, setup);
-    expect(converted.setup.input.configPath).toBe("experiment-2.json");
-    if (setup.input.kind !== "raw") throw Error("expected raw fixture");
-    expect(converted.setup.input.files.slice(0, 2)).toEqual(setup.input.files);
-    expect(converted.setup.input.dependencies).toEqual(
-      setup.input.dependencies,
+    const converted = migrateSimulationSetupToSource(project, folder);
+    expect(converted.folder.input.configPath).toBe("experiment-2.json");
+    if (folder.input.kind !== "raw") throw Error("expected raw fixture");
+    expect(converted.folder.input.files.slice(0, 2)).toEqual(
+      folder.input.files,
+    );
+    expect(converted.folder.input.dependencies).toEqual(
+      folder.input.dependencies,
     );
     expect(converted.warnings[0]).toContain("did not apply");
   });
 
   it("shares exact planning output with the existing hashed compiler", async () => {
     const project = CircuitProjectSchema.parse({
-      ...ota,
+      ...Object.fromEntries(
+        Object.entries(ota).filter(([key]) => key !== "simulationSetups"),
+      ),
       schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
-      simulationSetups: [],
+      simulationFolders: [],
     });
-    const setup = legacySetups()[0]!;
-    const plan = buildSimulationPlan(project, setup);
-    const compiled = await compileStructuredSimulation(project, setup);
+    const folder = legacySetups()[0]!;
+    const plan = buildSimulationPlan(project, folder);
+    const compiled = await compileStructuredSimulation(project, folder);
     expect(plan.ok && compiled.ok).toBe(true);
     if (!plan.ok || !compiled.ok) return;
     const { inputRevision, ...request } = compiled.request;
@@ -141,9 +151,11 @@ describe("legacy experiment source migration", () => {
 describe("generated parameter source locations", () => {
   it("uses printer-owned exact spans without changing structural output", () => {
     const project = CircuitProjectSchema.parse({
-      ...ota,
+      ...Object.fromEntries(
+        Object.entries(ota).filter(([key]) => key !== "simulationSetups"),
+      ),
       schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
-      simulationSetups: [],
+      simulationFolders: [],
     });
     const plan = buildSimulationPlan(project, legacySetups()[0]!);
     if (!plan.ok) throw Error(JSON.stringify(plan.diagnostics));

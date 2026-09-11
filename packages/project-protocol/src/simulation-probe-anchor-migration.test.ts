@@ -92,7 +92,7 @@ describe("schema 39 to 40 simulation probe anchors", () => {
       project: { schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION },
     });
     expect(
-      readSimulationExperimentConfig(parsed.project.simulationSetups[0]!),
+      readSimulationExperimentConfig(parsed.project.simulationFolders[0]!),
     ).toMatchObject({
       ok: true,
       config: {

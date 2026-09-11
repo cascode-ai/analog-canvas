@@ -215,6 +215,8 @@ describe("reviewBrowserRecoveryProject", () => {
   it("accepts a previous-schema recovery envelope after upgrading its Project", () => {
     const previous = JSON.parse(projectText);
     previous.schemaVersion = CURRENT_PROJECT_SCHEMA_VERSION - 1;
+    previous.simulationSetups = previous.simulationFolders;
+    delete previous.simulationFolders;
     const previousText = JSON.stringify(previous);
     const review = reviewBrowserRecoveryProject(
       finalizeBrowserRecoveryRecord(

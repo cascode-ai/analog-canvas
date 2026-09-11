@@ -37,7 +37,7 @@ describe("authenticated loopback Agent HTTP adapter", () => {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          apiVersion: "2.0",
+          apiVersion: "3.0",
           requestId: "unauthorized",
           operation: "capabilities",
         }),
@@ -51,7 +51,7 @@ describe("authenticated loopback Agent HTTP adapter", () => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          apiVersion: "2.0",
+          apiVersion: "3.0",
           requestId: "authorized",
           operation: "capabilities",
         }),
@@ -70,14 +70,14 @@ describe("authenticated loopback Agent HTTP adapter", () => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          apiVersion: "2.0",
+          apiVersion: "3.0",
           requestId: "snapshot-capabilities",
           operation: "capabilities",
         }),
       });
       expect(snapshotCapabilities.status).toBe(200);
       expect(await snapshotCapabilities.json()).toMatchObject({
-        apiVersion: "2.0",
+        apiVersion: "3.0",
         ok: true,
         capabilities: {
           operations: ["capabilities", "snapshot", "transact", "render"],
@@ -91,7 +91,7 @@ describe("authenticated loopback Agent HTTP adapter", () => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          apiVersion: "2.0",
+          apiVersion: "3.0",
           requestId: "invalid-variant",
           operation: "transact",
           documentId: "doc-http",
@@ -133,7 +133,7 @@ describe("authenticated loopback Agent HTTP adapter", () => {
       });
       expect(versionMismatch.status).toBe(400);
       expect(await versionMismatch.json()).toMatchObject({
-        apiVersion: "2.0",
+        apiVersion: "3.0",
         ok: false,
         error: { code: "HTTP_API_VERSION_MISMATCH" },
       });

@@ -6,7 +6,7 @@ import {
   type DeviceParameterDefinition,
 } from "@icm/devices";
 import { parseSpiceNumber } from "@icm/spice";
-import { analyzeDesignNetlist } from "./extract.js";
+import { analyzeDesignNetlistForAuthoring } from "./extract.js";
 import {
   printSpiceWithLocations,
   type PrintedSpiceParameter,
@@ -35,13 +35,66 @@ export function generateCircuitSource(
 ):
   | { ok: true; source: GeneratedCircuitSource; warnings: NetlistDiagnostic[] }
   | { ok: false; diagnostics: NetlistDiagnostic[] } {
-  const analysis = analyzeDesignNetlist(project, {
+  const analysis = analyzeDesignNetlistForAuthoring(project, {
     format: "spice",
     rootDocumentId: binding.documentId,
   });
-  if (!analysis.ir || analysis.diagnostics.some((d) => d.severity === "error"))
+  if (
+    !analysis.ir ||
+    !analysis.ir.cells.some((cell) => cell.id === binding.documentId)
+  )
     return { ok: false, diagnostics: analysis.diagnostics };
   const ir = analysis.ir;
+  // These deliberately non-numeric slots exist only in the editing projection.
+  // Never invent an electrical default or persist generated text as circuit authority.
+  for (const cell of ir.cells) {
+    for (const card of cell.instances) {
+      // Strict extraction refuses missing targets before printing. Authoring
+      // intentionally retains those cards, so supply a visibly unresolved,
+      // protected token in this projection only, never an electrical default.
+      if (
+        !card.target &&
+        ["mos", "diode", "bjt", "switch", "hierarchical"].includes(
+          card.deviceClass,
+        )
+      )
+        card.target =
+          card.invocationKind === "subcircuit" ? "<subcircuit>" : "<model>";
+      const instance = project.documents
+        .find((d) => d.id === cell.id)
+        ?.instances.find((i) => i.id === card.id);
+      if (!instance?.netlist) continue;
+      const reviewed = reviewedExternalDeviceBindings.find(
+        (item) => item.id === card.reviewedExternalBindingId,
+      );
+      const definitions =
+        reviewed?.parameters ??
+        deviceDescriptor(instance.symbolId)?.parameters ??
+        [];
+      for (const definition of definitions) {
+        if (
+          definition.editor === "select" ||
+          definition.authoringVisibility === "compatibility"
+        )
+          continue;
+        const present = card.parameters.find(
+          (p) => p.name.toLowerCase() === definition.name.toLowerCase(),
+        );
+        const original = Object.entries(instance.netlist.parameters).find(
+          ([name]) => name.toLowerCase() === definition.name.toLowerCase(),
+        );
+        if (!present && !definition.required && !original) continue;
+        if (present?.rawValue.trim()) continue;
+        const rawValue = original?.[1].trim() || `<${definition.name}>`;
+        if (present) present.rawValue = rawValue;
+        else
+          card.parameters.push({
+            name: original?.[0] ?? definition.name,
+            rawValue,
+          });
+      }
+    }
+  }
   const printed = printSpiceWithLocations(ir, binding.emission === "top-level");
   const parameters = printed.parameters.flatMap(
     (span): EditableCircuitParameter[] => {
@@ -54,7 +107,6 @@ export function generateCircuitSource(
       const originalName = Object.keys(instance.netlist.parameters).find(
         (name) => name.toLowerCase() === span.parameter.toLowerCase(),
       );
-      if (!originalName) return [];
       const reviewed = reviewedExternalDeviceBindings.find(
         (item) => item.id === generated.reviewedExternalBindingId,
       );
@@ -64,8 +116,7 @@ export function generateCircuitSource(
       if (
         !descriptor ||
         descriptor.editor === "select" ||
-        descriptor.authoringVisibility === "compatibility" ||
-        !parseSpiceNumber(span.rawValue)
+        descriptor.authoringVisibility === "compatibility"
       )
         return [];
       const conversion =
@@ -76,10 +127,12 @@ export function generateCircuitSource(
       return [
         {
           ...span,
-          parameter: originalName,
+          parameter: originalName ?? descriptor.name,
           descriptor,
           conversion,
-          originalValue: instance.netlist.parameters[originalName]!,
+          originalValue: originalName
+            ? instance.netlist.parameters[originalName]!
+            : "",
           documentRevision: document.revision,
         },
       ];
@@ -114,16 +167,26 @@ export function planCircuitSourceEdit(
   nextText: string,
 ):
   | { ok: true; changes: CircuitParameterChange[] }
-  | { ok: false; code: string; message: string } {
+  | {
+      ok: false;
+      code: string;
+      message: string;
+      range?: { from: number; to: number };
+    } {
+  let parameterRange: { from: number; to: number } | undefined;
   const fail = (code: string, message: string) => ({
     ok: false as const,
     code,
     message,
+    ...(code === "SIMULATION_PARAMETER_INVALID" && parameterRange
+      ? { range: parameterRange }
+      : {}),
   });
   const spans = [...source.parameters].sort(
     (a, b) => a.startOffset - b.startOffset,
   );
   const changes = new Map<string, CircuitParameterChange>();
+  let invalid: ReturnType<typeof fail> | undefined;
   let originalOffset = 0;
   let nextOffset = 0;
   for (let index = 0; index < spans.length; index++) {
@@ -149,46 +212,80 @@ export function planCircuitSourceEdit(
         "The edited text changes a protected Circuit boundary",
       );
     const raw = nextText.slice(nextOffset, end);
-    const number = parseSpiceNumber(raw);
-    if (!number || !Number.isFinite(number.value) || /\s/u.test(raw))
-      return fail(
-        "SIMULATION_PARAMETER_INVALID",
-        `Finish the numeric value for ${span.descriptor.label} before applying`,
-      );
-    if (
-      ["width", "length", "multiplier", "finger-count"].includes(
-        span.descriptor.displayRole,
-      ) &&
-      number.value <= 0
-    )
-      return fail(
-        "SIMULATION_PARAMETER_INVALID",
-        `${span.descriptor.label} must be positive`,
-      );
-    if (
-      span.descriptor.displayRole === "finger-count" &&
-      !Number.isInteger(number.value)
-    )
-      return fail(
-        "SIMULATION_PARAMETER_INVALID",
-        "Finger count must be an integer",
-      );
-    let value = raw;
-    try {
-      if (span.conversion === "sky130-micrometres")
-        value = sky130MicrometresToProjectLength(raw);
-    } catch (error) {
-      return fail(
-        "SIMULATION_PARAMETER_INVALID",
-        error instanceof Error ? error.message : String(error),
-      );
-    }
+    parameterRange = { from: nextOffset, to: end };
     const key = JSON.stringify([
       span.documentId,
       span.instanceId,
       span.parameter,
     ]);
-    if (raw === span.rawValue) value = span.originalValue;
+    // Preserve repeated-appearance agreement without validating untouched slots.
+    if (raw === span.rawValue) {
+      const prior = changes.get(key);
+      if (prior && prior.value !== span.originalValue)
+        return fail(
+          "SIMULATION_PARAMETER_CONFLICT",
+          `Repeated appearances of ${span.parameter} must agree`,
+        );
+      changes.set(key, {
+        documentId: span.documentId,
+        expectedRevision: span.documentRevision,
+        instanceId: span.instanceId,
+        parameter: span.parameter,
+        value: span.originalValue,
+      });
+      originalOffset = span.endOffset;
+      nextOffset = end;
+      continue;
+    }
+    const number = parseSpiceNumber(raw);
+    if (!number || !Number.isFinite(number.value) || /\s/u.test(raw)) {
+      invalid ??= fail(
+        "SIMULATION_PARAMETER_INVALID",
+        `Finish the numeric value for ${span.descriptor.label} before applying`,
+      );
+      originalOffset = span.endOffset;
+      nextOffset = end;
+      continue;
+    }
+    if (
+      ["width", "length", "multiplier", "finger-count"].includes(
+        span.descriptor.displayRole,
+      ) &&
+      number.value <= 0
+    ) {
+      invalid ??= fail(
+        "SIMULATION_PARAMETER_INVALID",
+        `${span.descriptor.label} must be positive`,
+      );
+      originalOffset = span.endOffset;
+      nextOffset = end;
+      continue;
+    }
+    if (
+      span.descriptor.displayRole === "finger-count" &&
+      !Number.isInteger(number.value)
+    ) {
+      invalid ??= fail(
+        "SIMULATION_PARAMETER_INVALID",
+        "Finger count must be an integer",
+      );
+      originalOffset = span.endOffset;
+      nextOffset = end;
+      continue;
+    }
+    let value = raw;
+    try {
+      if (span.conversion === "sky130-micrometres")
+        value = sky130MicrometresToProjectLength(raw);
+    } catch (error) {
+      invalid ??= fail(
+        "SIMULATION_PARAMETER_INVALID",
+        error instanceof Error ? error.message : String(error),
+      );
+      originalOffset = span.endOffset;
+      nextOffset = end;
+      continue;
+    }
     const prior = changes.get(key);
     if (prior && prior.value !== value)
       return fail(
@@ -210,6 +307,7 @@ export function planCircuitSourceEdit(
       "SIMULATION_CIRCUIT_STRUCTURE_LOCKED",
       "The edited text changes protected Circuit content",
     );
+  if (invalid) return invalid;
   return {
     ok: true,
     changes: [...changes.values()].filter(

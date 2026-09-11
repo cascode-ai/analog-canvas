@@ -2,14 +2,14 @@
 
 Status: `accepted`
 
-Current Project schema: `49`
+Current Project schema: `50`
 
 Primary owners: `packages/model` (current shape) and
 `packages/project-protocol` (file boundary)
 
 An `.icproj.json` file is canonical JSON for one complete `CircuitProject`.
 `@icm/project-protocol` exposes `parseProject`. The file boundary accepts every
-schema covered by its explicit 24→47 upgrade chain. Schema 32 added optional
+schema covered by its explicit 24→50 upgrade chain. Schema 32 added optional
 presentation-only `Annotation.textColor`; schema 33 removes ownerless
 `explicit-equivalence` connectivity. The 32→33 adapter advances the version
 stamp only when that retired record is absent. If one exists, it rejects at the
@@ -56,9 +56,14 @@ Noise analysis intent with hierarchy-aware output anchors and a Testbench-root
 independent input source; the 45→46 adapter invents no analysis. Schema 47
 adds optional hierarchy-aware MOS operating-point selections; the 46→47
 adapter selects no device implicitly. The public file boundary
-supplies only schema 49 in
-memory and writes only schema 49; versions older than 24 or newer than 49
+supplies only schema 50 in
+memory and writes only schema 50; versions older than 24 or newer than 50
 are rejected.
+
+Schema 49 converts legacy simulation intent to source files. Schema 50 renames
+the source collection to `simulationFolders`, preserving IDs, files and Cell
+bindings. Optional unapplied drafts preserve unfinished numeric editing without
+changing the circuit or becoming executable overrides.
 
 ## Current authorities
 
@@ -129,7 +134,7 @@ are rejected.
   Symbol geometry remains derived and caller Instances never persist a copy.
 - MOS assets are canonical `nmos`/`pmos`; visual variant selection does not
   change persisted terminal connectivity.
-- `Project.simulationSetups` is the named setup collection defined in the
+- `Project.simulationFolders` is the named source-folder collection defined in the
   [simulation spec](simulation.md#persistence-and-compatibility). Each record
   has stable `id`, editable unique `name`, and a `version: 3` envelope around
   exactly one structured or raw input. A
@@ -158,8 +163,8 @@ are rejected.
 ## Read and write
 
 ```text
-import text -> parse JSON -> require Project schema 24 through 49
--> converge to schema 49 -> strict schema-49 validation -> install unbound
+import text -> parse JSON -> require Project schema 24 through 50
+-> converge to schema 50 -> strict schema-50 validation -> install unbound
 export -> strict validation -> canonical key ordering -> Blob download
 ```
 
@@ -183,7 +188,7 @@ open, and recovery remain exact.
 Canonical serialization ends with one newline and is byte-stable across
 serialize/parse/serialize. The current corpus is listed in
 `fixtures/projects/compatibility-corpus.json`; its accepted entries must all be
-already canonical Project schema 49. The rejected corpus names expected
+already canonical Project schema 50. The rejected corpus names expected
 validation failures.
 
 Viewport, selection, undo history, canvas overlays, Agent credentials,

@@ -185,7 +185,9 @@ function projectIndex(options: BuildAgentSessionSnapshotOptions) {
     externalSubcircuitDefinitions: structuredClone(
       options.project?.externalSubcircuitDefinitions ?? [],
     ),
-    simulationSetups: structuredClone(options.project?.simulationSetups ?? []),
+    simulationFolders: structuredClone(
+      options.project?.simulationFolders ?? [],
+    ),
     documents: [...documents]
       .sort((left, right) => left.id.localeCompare(right.id, "en"))
       .map((document) => ({

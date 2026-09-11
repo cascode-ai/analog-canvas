@@ -77,7 +77,7 @@ describe("BrowserAgentHost + Agent Circuit service", () => {
     });
 
     expect(result).toMatchObject({
-      apiVersion: "2.0",
+      apiVersion: "3.0",
       requestId: "legacy-hosted-request",
       operation: "error",
       ok: false,
@@ -91,14 +91,14 @@ describe("BrowserAgentHost + Agent Circuit service", () => {
     const documentId = controller.activeDocumentId;
 
     const capabilities = service.handle({
-      apiVersion: "2.0",
+      apiVersion: "3.0",
       requestId: "r-cap",
       operation: "capabilities",
     });
     expect(capabilities.ok).toBe(true);
 
     const snapshotBefore = service.handle({
-      apiVersion: "2.0",
+      apiVersion: "3.0",
       requestId: "r-snap",
       operation: "snapshot",
       documentId,
@@ -106,7 +106,7 @@ describe("BrowserAgentHost + Agent Circuit service", () => {
     expect(snapshotBefore.ok).toBe(true);
 
     const transact = service.handle({
-      apiVersion: "2.0",
+      apiVersion: "3.0",
       requestId: "r-tx",
       operation: "transact",
       documentId,
@@ -123,7 +123,7 @@ describe("BrowserAgentHost + Agent Circuit service", () => {
     expect(committed()).toBe(1);
 
     const render = service.handle({
-      apiVersion: "2.0",
+      apiVersion: "3.0",
       requestId: "r-render",
       operation: "render",
       documentId,
@@ -137,7 +137,7 @@ describe("BrowserAgentHost + Agent Circuit service", () => {
     const documentId = controller.activeDocumentId;
 
     service.handle({
-      apiVersion: "2.0",
+      apiVersion: "3.0",
       requestId: "r-tx",
       operation: "transact",
       documentId,
@@ -159,7 +159,7 @@ describe("BrowserAgentHost + Agent Circuit service", () => {
     const documentId = controller.activeDocumentId;
 
     const result = service.handle({
-      apiVersion: "2.0",
+      apiVersion: "3.0",
       requestId: "semantic-fit",
       operation: "transact",
       documentId,
@@ -198,7 +198,7 @@ describe("BrowserAgentHost + Agent Circuit service", () => {
     });
 
     const result = service.handle({
-      apiVersion: "2.0",
+      apiVersion: "3.0",
       requestId: "semantic-denied",
       operation: "transact",
       documentId: controller.activeDocumentId,
@@ -221,7 +221,7 @@ describe("BrowserAgentHost + Agent Circuit service", () => {
     const documentId = controller.activeDocumentId;
 
     const render = service.handle({
-      apiVersion: "2.0",
+      apiVersion: "3.0",
       requestId: "r-render",
       operation: "render",
       documentId,
@@ -252,7 +252,7 @@ describe("BrowserAgentHost + Agent Circuit service", () => {
     expect(host.getDocument(oldDocumentId)).toBeNull();
     expect(host.getDocument(replacement.topDocumentId)).toBeNull();
     const oldServiceRead = service.handle({
-      apiVersion: "2.0",
+      apiVersion: "3.0",
       requestId: "replacement-race",
       operation: "snapshot",
       documentId: replacement.topDocumentId,
@@ -269,7 +269,7 @@ describe("BrowserAgentHost + Agent Circuit service", () => {
     const { service } = setup();
 
     const result = service.handle({
-      apiVersion: "2.0",
+      apiVersion: "3.0",
       requestId: "r-snap",
       operation: "snapshot",
       documentId: "does-not-exist",

@@ -338,22 +338,26 @@ function setupWith(
 
 async function compile(
   project: CircuitProject,
-  setup: SimulationStructuredSetup,
+  folder: SimulationStructuredSetup,
   options?: { timeoutMs?: number },
 ) {
-  return compileStructuredSimulation(project, setup, options);
+  return compileStructuredSimulation(project, folder, options);
 }
 
 function codes(result: Awaited<ReturnType<typeof compile>>): string[] {
   return result.diagnostics.map((item) => item.code);
 }
 
-describe("compiling a structured simulation setup", () => {
+describe("compiling a structured simulation folder", () => {
   it("derives hierarchy-aware NMOS and PMOS terminal operating points", async () => {
     const project = CircuitProjectSchema.parse({
-      ...fiveTransistorOtaSky130,
+      ...Object.fromEntries(
+        Object.entries(fiveTransistorOtaSky130).filter(
+          ([key]) => key !== "simulationSetups",
+        ),
+      ),
       schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
-      simulationSetups: [],
+      simulationFolders: [],
     });
     const result = await compile(
       project,
@@ -421,9 +425,13 @@ describe("compiling a structured simulation setup", () => {
 
   it("refuses a selected MOS with unavailable Bulk instead of guessing", async () => {
     const project = CircuitProjectSchema.parse({
-      ...fiveTransistorOtaSky130,
+      ...Object.fromEntries(
+        Object.entries(fiveTransistorOtaSky130).filter(
+          ([key]) => key !== "simulationSetups",
+        ),
+      ),
       schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
-      simulationSetups: [],
+      simulationFolders: [],
     });
     const dut = project.documents.find(
       (document) => document.id === "document-ota-5t",
@@ -1082,7 +1090,7 @@ describe("compiling a structured simulation setup", () => {
   });
 });
 
-describe("refusing a setup that cannot be simulated", () => {
+describe("refusing a folder that cannot be simulated", () => {
   it("reports a root Document the Project does not hold", async () => {
     const result = await compile(
       dividerProject(),
@@ -1511,7 +1519,7 @@ describe("refusing a setup that cannot be simulated", () => {
 });
 
 describe("determinism", () => {
-  it("compiles the same Project and setup to byte-identical output", async () => {
+  it("compiles the same Project and folder to byte-identical output", async () => {
     const first = await compile(dividerProject(), DIVIDER_SETUP);
     const repeated = await compile(dividerProject(), DIVIDER_SETUP);
     const reopened = await compile(
@@ -1523,7 +1531,7 @@ describe("determinism", () => {
     expect(reopened).toEqual(first);
   });
 
-  it("moves the input revision when the setup changes but the deck does not", async () => {
+  it("moves the input revision when the folder changes but the deck does not", async () => {
     const first = await compile(dividerProject(), DIVIDER_SETUP);
     const relabelled = await compile(
       dividerProject(),

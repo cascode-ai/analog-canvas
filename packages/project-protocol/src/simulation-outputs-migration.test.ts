@@ -193,13 +193,13 @@ describe("schema 42 to 43 simulation outputs", () => {
     if (!result.ok) return;
     expect(result.sourceSchemaVersion).toBe(42);
     expect(result.project.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
-    expect(result.project.simulationSetups).toHaveLength(2);
-    expect(result.project.simulationSetups[0]).toMatchObject({
+    expect(result.project.simulationFolders).toHaveLength(2);
+    expect(result.project.simulationFolders[0]).toMatchObject({
       version: 4,
       input: { kind: "source" },
     });
     expect(
-      readSimulationExperimentConfig(result.project.simulationSetups[0]!),
+      readSimulationExperimentConfig(result.project.simulationFolders[0]!),
     ).toMatchObject({
       ok: true,
       config: {

@@ -201,7 +201,7 @@ describe("Agent Document Snapshot", () => {
     });
     expect(
       AgentCircuitRequestSchema.safeParse({
-        apiVersion: "2.0",
+        apiVersion: "3.0",
         requestId: "replace-document",
         operation: "transact",
         documentId: snapshot.document.id,

@@ -2,7 +2,7 @@
 
 Status: `accepted`
 
-Version: `2.0`
+Version: `3.0`
 
 Primary owner: `packages/agent-adapter`
 
@@ -14,7 +14,7 @@ POST /api/agent/sessions/{sessionId}/circuit
   capabilities | snapshot | transact | render
 ```
 
-Every request uses `apiVersion: "2.0"`, a stable `requestId`, and the
+Every request uses `apiVersion: "3.0"`, a stable `requestId`, and the
 `sessionId` returned by claim redemption. The bearer token is sent only in the
 Authorization header. There are no versioned URL aliases, query operations,
 dynamic catalog snapshots or compatibility readers. Project-structural writes
@@ -49,7 +49,7 @@ run. Agents submit only bounded formula source and display intent through the
 existing typed edit; generated SVG, glyph paths, and formula metrics are never
 accepted as mutation data and do not add an operation or endpoint.
 
-Snapshot format `2.0` reports each placed pin's read-only `connection` with
+Snapshot format `3.0` reports each placed pin's read-only `connection` with
 `contactPoint`, persistable `gridLanding`, derived `escapePath`, and `outward`.
 Route polylines and contact points may contain derived decimals. Agent
 authoring submits endpoint identity and uses `gridLanding` for any explicit
@@ -63,7 +63,11 @@ assets, whose deterministic default visual variant is
 
 ## Mutation safety
 
-MCP 0.3 / Kit 4 retain API and Snapshot version 2.0. Additive Snapshot fields
+MCP 0.7 targets API and Snapshot 3.0: saved simulation containers and their
+operations use Folder identity, with no parallel Setup writer. This breaking
+rename requires a matching client; older clients receive the existing version
+diagnostic rather than accepting an incompatible Snapshot. Project file loading
+remains independently backward-compatible. Additive Snapshot fields
 include Instance `styleOverride` and `signalFlowParameters`, Cell interfaces
 and bulk defaults, and Project external definitions. Local and production
 codecs now reference one schema rather than independently maintained copies.
@@ -97,7 +101,7 @@ inference algorithm.
   the same ID is rejected.
 - A Snapshot or whole Project is never accepted as a mutation payload;
   structural transactions contain only typed add/remove/transact operations
-  and the Project-level `upsert_simulation_setup` / `remove_simulation_setup`
+  and the Project-level `upsert_simulation_folder` / `remove_simulation_folder`
   edits.
 - GUI and Agent writes cross the same Edit Engine and permission checks.
 

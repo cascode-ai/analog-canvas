@@ -41,14 +41,17 @@ it("uses existing Project write authorization for Project-owned simulation sourc
   const scopes = (input: unknown) =>
     fileOperationScopes(
       AgentFileResourceRequestSchema.parse({
-        apiVersion: "2.0",
+        apiVersion: "3.0",
         requestId: "files",
         operation: "simulation-input",
         input,
       }),
     );
   expect(
-    scopes({ action: "list", owner: { kind: "project-setup", setupId: "s" } }),
+    scopes({
+      action: "list",
+      owner: { kind: "project-folder", folderId: "s" },
+    }),
   ).toEqual(["simulation.run"]);
   expect(
     scopes({
@@ -60,13 +63,13 @@ it("uses existing Project write authorization for Project-owned simulation sourc
   expect(
     scopes({
       action: "update",
-      owner: { kind: "project-setup", setupId: "s" },
+      owner: { kind: "project-folder", folderId: "s" },
       expectedRevision: 0,
     }),
   ).toEqual(["simulation.run", "project.import"]);
 });
 
-function setup() {
+function folder() {
   let counter = 0;
   const random = () => `rand-${counter++}`;
   let time = 1_000_000;
@@ -105,7 +108,7 @@ function tokenFor(
 
 describe("agent-session relay", () => {
   it("redeems a valid claim again by replacing the prior bearer", () => {
-    const { machine, session, now } = setup();
+    const { machine, session, now } = folder();
     const first = redeemClaimResponse(machine, session.claimCode, now());
     expect(first).toMatchObject({
       ok: true,
@@ -123,7 +126,7 @@ describe("agent-session relay", () => {
   });
 
   it("forwards an authorized request and caches its result", async () => {
-    const { machine, session, now } = setup();
+    const { machine, session, now } = folder();
     const token = tokenFor(machine, session.claimCode, now());
     const forward = vi.fn(async () => ({ revision: 9 }));
 
@@ -143,7 +146,7 @@ describe("agent-session relay", () => {
   });
 
   it("serves the cached result on retry and never calls forward again", async () => {
-    const { machine, session, now } = setup();
+    const { machine, session, now } = folder();
     const token = tokenFor(machine, session.claimCode, now());
     const forward = vi.fn(async () => ({ revision: 9 }));
 
@@ -172,7 +175,7 @@ describe("agent-session relay", () => {
   });
 
   it("does not forward a concurrent duplicate request", async () => {
-    const { machine, session, now } = setup();
+    const { machine, session, now } = folder();
     const token = tokenFor(machine, session.claimCode, now());
     let release!: () => void;
     const gate = new Promise<void>((resolve) => {
@@ -213,7 +216,7 @@ describe("agent-session relay", () => {
   });
 
   it("rejects an oversized payload before forwarding", async () => {
-    const { machine, session, now } = setup();
+    const { machine, session, now } = folder();
     const token = tokenFor(machine, session.claimCode, now());
     const forward = vi.fn(async () => "should-not-run");
 
@@ -233,7 +236,7 @@ describe("agent-session relay", () => {
   });
 
   it("rejects a bad token before forwarding", async () => {
-    const { machine, now } = setup();
+    const { machine, now } = folder();
     const forward = vi.fn(async () => "should-not-run");
 
     const result = await forwardCircuitRequest(
@@ -252,7 +255,7 @@ describe("agent-session relay", () => {
   });
 
   it("revokes the session so subsequent forwarding fails", async () => {
-    const { machine, session, now } = setup();
+    const { machine, session, now } = folder();
     const token = tokenFor(machine, session.claimCode, now());
     const forward = vi.fn(async () => ({}));
 
@@ -397,7 +400,7 @@ describe("public Agent session routes", () => {
                 kind: "simulation-response",
                 payload: {
                   ...payload,
-                  apiVersion: "2.0",
+                  apiVersion: "3.0",
                   requestId: envelope.requestId,
                   operation: envelope.payload.operation,
                 },
@@ -408,7 +411,7 @@ describe("public Agent session routes", () => {
     } as unknown as WebSocket;
     sockets.set(id, [socket]);
     const path = `/api/agent/sessions/${id}/simulation`,
-      base = { apiVersion: "2.0" };
+      base = { apiVersion: "3.0" };
     const error = await post(
       path,
       {
@@ -416,8 +419,8 @@ describe("public Agent session routes", () => {
         requestId: "bad",
         operation: "prepare",
         source: {
-          kind: "project-setup",
-          setupId: "setup-1",
+          kind: "project-folder",
+          folderId: "folder-1",
           expectedStructureRevision: 0,
         },
       },
@@ -592,7 +595,7 @@ describe("public Agent session routes", () => {
             "content-type": "application/json",
           },
           body: JSON.stringify({
-            apiVersion: "2.0",
+            apiVersion: "3.0",
             requestId: "not-visual-download",
             operation: "download",
             artifact: "svg",
@@ -873,7 +876,7 @@ describe("public Agent session routes", () => {
             "content-type": "application/json",
           },
           body: JSON.stringify({
-            apiVersion: "2.0",
+            apiVersion: "3.0",
             requestId: "snapshot-1",
             operation: "snapshot",
             documentId: "document-main",
@@ -978,7 +981,7 @@ describe("public Agent session routes", () => {
               sentAt: new Date().toISOString(),
               kind: "circuit-response",
               payload: {
-                apiVersion: "2.0",
+                apiVersion: "3.0",
                 requestId: request.requestId,
                 operation: "snapshot",
                 ok: false,
@@ -1003,7 +1006,7 @@ describe("public Agent session routes", () => {
             "content-type": "application/json",
           },
           body: JSON.stringify({
-            apiVersion: "2.0",
+            apiVersion: "3.0",
             requestId: "invalid-edit-1",
             operation: "transact",
             documentId: "document-main",
@@ -1049,7 +1052,7 @@ describe("public Agent session routes", () => {
             "content-type": "application/json",
           },
           body: JSON.stringify({
-            apiVersion: "2.0",
+            apiVersion: "3.0",
             requestId: "snapshot-1",
             operation: "snapshot",
             documentId: "document-main",
@@ -1077,7 +1080,7 @@ describe("public Agent session routes", () => {
             "content-type": "application/json",
           },
           body: JSON.stringify({
-            apiVersion: "2.0",
+            apiVersion: "3.0",
             requestId: "edit-1",
             operation: "transact",
             documentId: "document-main",
@@ -1102,7 +1105,7 @@ describe("public Agent session routes", () => {
             "content-type": "application/json",
           },
           body: JSON.stringify({
-            apiVersion: "2.0",
+            apiVersion: "3.0",
             requestId: "presentation-edit-1",
             operation: "transact",
             documentId: "document-main",
@@ -1133,7 +1136,7 @@ describe("public Agent session routes", () => {
             "content-type": "application/json",
           },
           body: JSON.stringify({
-            apiVersion: "2.0",
+            apiVersion: "3.0",
             requestId: "semantic-without-scope",
             operation: "transact",
             documentId: "document-main",

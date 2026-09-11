@@ -47,7 +47,7 @@ describe("schema 38 to 39 migration (raw SimulationSetup)", () => {
       migrated: true,
       project: {
         schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
-        simulationSetups: [
+        simulationFolders: [
           {
             id: "simulation-setup-1",
             name: "Setup 1",
@@ -64,7 +64,7 @@ describe("schema 38 to 39 migration (raw SimulationSetup)", () => {
 
   it("round-trips raw authored files byte-identically", () => {
     const project = createEmptyProject("raw", "Raw");
-    project.simulationSetups.push(
+    project.simulationFolders.push(
       migrateSimulationSetupToSource(project, {
         id: "setup-raw",
         name: "Raw",
@@ -88,14 +88,14 @@ describe("schema 38 to 39 migration (raw SimulationSetup)", () => {
           ],
           environment: { profileId: "custom-ngspice46-v1" },
         },
-      }).setup,
+      }).folder,
     );
 
     const serialized = serializeProject(project);
     const loaded = tryParseProjectWithMetadata(serialized);
     expect(loaded).toMatchObject({ ok: true, migrated: false });
     if (!loaded.ok) return;
-    expect(loaded.project.simulationSetups).toEqual(project.simulationSetups);
+    expect(loaded.project.simulationFolders).toEqual(project.simulationFolders);
     expect(serializeProject(loaded.project)).toBe(serialized);
   });
 });

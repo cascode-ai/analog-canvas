@@ -24,6 +24,7 @@ describe("Project protocol boundary", () => {
       JSON.stringify({
         ...current,
         schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION - 1,
+        simulationSetups: current.simulationFolders,
       }),
     );
     expect(result).toMatchObject({
