@@ -219,6 +219,10 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
       [props.project, input.circuitBindings],
     );
     useEffect(() => {
+      setPath(input.entry);
+      setReveal(undefined);
+    }, [props.setup.id]);
+    useEffect(() => {
       const selected = props.selectedCircuitObject;
       if (!selected) return;
       for (const { binding, result } of generated) {
@@ -245,6 +249,7 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
     }, [
       props.selectedCircuitObject?.documentId,
       props.selectedCircuitObject?.instanceId,
+      props.setup.id,
     ]);
     const sourceFiles = [
       ...input.files,
@@ -290,9 +295,6 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
         key.startsWith(`${props.setup.id}\u0000`) && value.text !== value.base,
     );
     useEffect(() => props.onDirty(dirty), [dirty, props.setup.id]);
-    useEffect(() => {
-      setPath(input.entry);
-    }, [props.setup.id]);
     useEffect(() => {
       // Clean buffers follow remote edits. A dirty buffer remains visible for explicit repair.
       for (const file of sourceFiles) {

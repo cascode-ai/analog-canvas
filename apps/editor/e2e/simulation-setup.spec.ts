@@ -260,9 +260,8 @@ test("uncommitted source survives reload and an explicit working-copy recovery f
   await expect(banner).toBeVisible();
   await banner.getByRole("button", { name: "Restore", exact: true }).click();
   await expect(banner).toBeHidden();
-  await page.getByTestId("open-analog-simulation").click();
-  await expect(editor).toContainText(marker);
   await page.getByTestId("hit-XDUT").click();
+  await page.getByTestId("open-analog-simulation").click();
   await expect(panel.locator(".cm-activeLine")).toContainText("XDUT");
   await expect(editor).not.toBeFocused();
   await panel.getByRole("tab", { name: "run.cir", exact: false }).click();

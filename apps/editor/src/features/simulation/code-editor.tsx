@@ -205,7 +205,10 @@ export default function SimulationCodeEditor(props: SimulationCodeEditorProps) {
     // An editor belongs to this mount; current props are read through the ref.
   }, []);
 
-  useEffect(() => {
+  // File identity must be reflected in the DOM before the next input/focus event.
+  // A passive effect lets fast tab switches type into the outgoing document and
+  // capture its short viewport as the returning file's scroll snapshot.
+  useLayoutEffect(() => {
     let editor = view.current;
     if (!editor) return;
     const key = `${props.path}\u0000${props.historyKey}`;
@@ -266,7 +269,7 @@ export default function SimulationCodeEditor(props: SimulationCodeEditorProps) {
     }
   }, [props.text, props.path, props.historyKey]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     view.current?.dispatch({
       effects: configuration.current.reconfigure(extensions()),
     });
