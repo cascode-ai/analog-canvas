@@ -99,33 +99,42 @@ test("the qualified OTA folder opens unchanged and preserves all root and hierar
   await clickNetlistWorkflowCommand(page, "open-analog-simulation");
   const panel = page.getByRole("region", { name: "Analog simulation" });
   // Canvas picking and authored scoped expressions share the same config file.
-  await panel.getByRole("button", { name: "More code actions" }).click();
-  await panel
-    .getByRole("button", {
-      name: "Add voltage observation from Canvas",
-      exact: true,
-    })
-    .click();
+  const helper = async (name: string) => {
+    await panel.getByRole("button", { name: /Helper.*Ctrl\+Space/ }).click();
+    await panel.getByRole("option", { name, exact: true }).click();
+  };
+  await helper("Pick Net on Canvas");
   await page.getByTestId("route-hit-tb-vinp-route").click({ force: true });
-  await panel.getByRole("button", { name: "More code actions" }).click();
-  await panel
-    .getByRole("button", {
-      name: "Add current observation from Canvas",
-      exact: true,
-    })
-    .click();
+  await helper("Pick current on Canvas");
   await page.getByTestId("terminal-VINP-+").click();
   await expect(
     page.getByTestId("terminal-VINP-+-current-pick-marker"),
   ).toHaveClass(/origin/u);
   await page.getByTestId("terminal-VINP--").click();
+  await helper("Observe differential voltage");
+  const observe = panel.getByRole("dialog", { name: "Observe signal" });
+  await observe.getByRole("textbox", { name: "Search signal" }).fill("v(out)");
+  await observe
+    .getByRole("button", { name: "Use native vector: v(out)", exact: true })
+    .click();
+  await observe.getByRole("textbox", { name: "Search signal" }).fill("v(in)");
+  await observe
+    .getByRole("button", { name: "Use native vector: v(in)", exact: true })
+    .click();
   const pickedProject = parseProject(
     (await downloadBytes(page, "File", "Export Project File…")).toString(),
   );
   const pickedConfig = readSimulationExperimentConfig(
     pickedProject.simulationFolders[0]!,
   );
-  expect(pickedConfig.ok && pickedConfig.config.outputs.length).toBe(6);
+  expect(pickedConfig.ok && pickedConfig.config.outputs.length).toBe(7);
+  expect(
+    pickedConfig.ok && pickedConfig.config.outputs.at(-1)?.expression,
+  ).toEqual({
+    kind: "subtract",
+    left: { kind: "vector", vector: "v(out)" },
+    right: { kind: "vector", vector: "v(in)" },
+  });
   const circuit = {
     bindingId: savedSetup.input.circuitBindings[0]!.id,
     callPath: [],
@@ -341,6 +350,7 @@ test("one Testbench persists several independently named folders", async ({
   ).toBeVisible();
   page.once("dialog", (dialog) => void dialog.accept("Bias sweep"));
   await folders.getByRole("button", { name: "+ New folder…" }).click();
+  await panel.getByRole("button", { name: /Run current Cell/ }).click();
   await expect(
     folders.getByRole("button", { name: "Folder Bias sweep", exact: true }),
   ).toBeVisible();

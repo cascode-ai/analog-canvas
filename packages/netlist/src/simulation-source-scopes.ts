@@ -11,6 +11,57 @@ interface AuthoredCell {
   ports: string[];
   instances: InstanceStatement[];
 }
+
+/** Enumerate only call paths that the canonical scope resolver can prove. */
+export function listAuthoredCircuitScopes(
+  graph: SimulationSourceGraph,
+  binding: SimulationCircuitBinding,
+  circuit: DesignNetlistIR,
+): SimulationCircuitScope[] {
+  if (binding.emission === "top-level")
+    return [{ bindingId: binding.id, callPath: [] }];
+  const root = circuit.cells.find((cell) => cell.id === circuit.topCellId);
+  if (!root) return [];
+  const top: AuthoredCell = { name: "", ports: [], instances: [] };
+  const definitions = new Map<string, AuthoredCell[]>();
+  const stack = [top];
+  for (const { statement } of graph.statements) {
+    if (statement.kind === "subckt_start") {
+      const cell = {
+        name: statement.name,
+        ports: statement.ports,
+        instances: [] as InstanceStatement[],
+      };
+      const key = cell.name.toLowerCase();
+      definitions.set(key, [...(definitions.get(key) ?? []), cell]);
+      stack.push(cell);
+    } else if (statement.kind === "subckt_end") {
+      if (stack.length > 1) stack.pop();
+    } else if (statement.kind === "instance")
+      stack.at(-1)!.instances.push(statement);
+  }
+  const result: SimulationCircuitScope[] = [];
+  let visits = 0;
+  function visit(cell: AuthoredCell, path: string[], ancestors: Set<string>) {
+    if (path.length >= 64 || ++visits > 4096) return;
+    for (const call of cell.instances) {
+      if (call.family !== "subcircuit") continue;
+      const callPath = [...path, call.name];
+      const master = call.master?.toLowerCase() ?? "";
+      if (master === root!.name.toLowerCase()) {
+        const scope = { bindingId: binding.id, callPath };
+        if (resolveAuthoredCircuitScope(graph, binding, circuit, scope).ok)
+          result.push(scope);
+      } else if (!ancestors.has(master)) {
+        const children = definitions.get(master);
+        if (children?.length === 1)
+          visit(children[0]!, callPath, new Set([...ancestors, master]));
+      }
+    }
+  }
+  visit(top, [], new Set());
+  return result;
+}
 export type AuthoredScope =
   | {
       ok: true;

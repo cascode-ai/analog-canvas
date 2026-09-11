@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   Annotation,
   Compartment,
@@ -32,6 +32,8 @@ import {
   closeBrackets,
   closeBracketsKeymap,
   completionKeymap,
+  startCompletion,
+  CompletionContext,
 } from "@codemirror/autocomplete";
 import { json, jsonParseLinter } from "@codemirror/lang-json";
 import { linter, lintGutter, type Diagnostic } from "@codemirror/lint";
@@ -54,6 +56,15 @@ import {
   exactSourceHistory,
   restoreExactSource,
 } from "./code-source-state";
+import {
+  controlContext,
+  insertSpiceHelp,
+  spiceParameterGuide,
+  dismissParameterGuide,
+  dismissSpiceGuide,
+  parameterGuide,
+} from "./code-parameter-guide";
+import { CodeHelperList, type CodeHelperAction } from "./code-helper-list";
 
 export interface SimulationCodeEditorProps {
   path: string;
@@ -78,6 +89,8 @@ export interface SimulationCodeEditorProps {
   onRun?(): void;
   onHistoryBoundary?(direction: "undo" | "redo"): void;
   onCursor?(sourceOffset: number): void;
+  helperActions?: readonly CodeHelperAction[];
+  relatedSources?: readonly string[];
   reveal?:
     { sourceOffset: number; requestId: string; focus?: boolean } | undefined;
 }
@@ -85,6 +98,9 @@ export interface SimulationCodeEditorProps {
 const externalChange = Annotation.define<boolean>();
 /** Loaded only by the Code workspace. It owns local text history, never Project/Run state. */
 export default function SimulationCodeEditor(props: SimulationCodeEditorProps) {
+  const [helperOpen, setHelperOpen] = useState(false);
+  const [unknownCommand, setUnknownCommand] = useState(false);
+  const [argumentHint, setArgumentHint] = useState("");
   const parent = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
   const callbacks = useRef(props);
@@ -195,6 +211,29 @@ export default function SimulationCodeEditor(props: SimulationCodeEditorProps) {
               callbacks.current.onCursor?.(
                 sourceOffset(exact.current, update.state.selection.main.head),
               );
+            if (update.selectionSet || update.docChanged) {
+              const guide =
+                callbacks.current.mode === "json"
+                  ? null
+                  : parameterGuide(update.state);
+              setArgumentHint(guide?.parameters[guide.index]?.label ?? "");
+              const line = update.state.doc.lineAt(
+                update.state.selection.main.head,
+              );
+              const word = line.text.trim();
+              setUnknownCommand(
+                /^[\p{L}]{2,}$/u.test(word) &&
+                  !spiceCompletion(
+                    new CompletionContext(
+                      update.state,
+                      update.state.selection.main.head,
+                      true,
+                    ),
+                  )?.options.some((option) =>
+                    option.label.toLowerCase().startsWith(word.toLowerCase()),
+                  ),
+              );
+            }
           }),
         ],
       });
@@ -296,11 +335,123 @@ export default function SimulationCodeEditor(props: SimulationCodeEditorProps) {
   }, [props.reveal?.requestId]);
 
   return (
-    <div
-      ref={parent}
-      className="simulation-code-editor"
-      onKeyDown={(event) => event.stopPropagation()}
-    />
+    <div className="simulation-code-editor-shell">
+      <div
+        className="simulation-code-helper-toolbar"
+        style={props.mode === "json" ? { visibility: "hidden" } : undefined}
+      >
+        <button
+          type="button"
+          title="Insert / Helper · Ctrl+Space"
+          onClick={() => setHelperOpen((open) => !open)}
+        >
+          Helper <kbd>Ctrl+Space</kbd>
+        </button>
+        {unknownCommand && !helperOpen && (
+          <button
+            className="simulation-find-helper"
+            onClick={() => setHelperOpen(true)}
+          >
+            Find a helper…
+          </button>
+        )}
+        {argumentHint && (
+          <small aria-live="polite">{argumentHint} · Tab / Shift+Tab</small>
+        )}
+      </div>
+      {helperOpen && (
+        <CodeHelperList
+          control={controlContext(
+            view.current?.state.doc.sliceString(
+              0,
+              view.current.state.selection.main.head,
+            ) ?? "",
+          )}
+          actions={props.helperActions}
+          onClose={() => {
+            setHelperOpen(false);
+            view.current?.focus();
+          }}
+          onChoose={(rule) => {
+            const editor = view.current;
+            if (!editor || props.readOnly) return;
+            const line = editor.state.doc.lineAt(
+              editor.state.selection.main.head,
+            );
+            if (
+              /^(PULSE|SIN|PWL)$/u.test(rule.name) &&
+              /^[VI]\S*\s/iu.test(line.text.trim())
+            ) {
+              insertSpiceHelp(
+                editor,
+                rule,
+                editor.state.selection.main.from,
+                editor.state.selection.main.to,
+              );
+              return;
+            }
+            // Replace an unfinished command only. Existing populated code is preserved.
+            if (/^\s*[.\p{L}\w]*$/u.test(line.text))
+              insertSpiceHelp(editor, rule);
+            else {
+              editor.dispatch({
+                changes: { from: line.to, insert: "\n" },
+                selection: { anchor: line.to + 1 },
+              });
+              insertSpiceHelp(editor, rule);
+            }
+          }}
+        />
+      )}
+      <div
+        ref={parent}
+        className="simulation-code-editor"
+        onKeyDownCapture={(event) => {
+          if (
+            event.key === "Escape" &&
+            props.mode !== "json" &&
+            view.current &&
+            dismissSpiceGuide(view.current)
+          ) {
+            event.preventDefault();
+            event.stopPropagation();
+            return;
+          }
+          if (
+            !event.ctrlKey ||
+            event.code !== "Space" ||
+            event.altKey ||
+            event.nativeEvent.isComposing ||
+            props.mode === "json"
+          )
+            return;
+          const editor = view.current;
+          if (!editor) return;
+          event.preventDefault();
+          event.stopPropagation();
+          editor.dispatch({ effects: dismissParameterGuide.of(false) });
+          const line = editor.state.doc.lineAt(
+            editor.state.selection.main.head,
+          );
+          const prefix = line.text.trim().toLowerCase();
+          if (
+            /^[.\p{L}\w]+$/u.test(prefix) &&
+            !spiceCompletion(
+              new CompletionContext(
+                editor.state,
+                editor.state.selection.main.head,
+                true,
+              ),
+            )?.options.some((option) =>
+              option.label.toLowerCase().startsWith(prefix),
+            )
+          )
+            setHelperOpen(true);
+          else startCompletion(editor);
+        }}
+        onKeyDown={(event) => event.stopPropagation()}
+      />
+    </div>
   );
 }
 
@@ -314,7 +465,14 @@ function sourceExtensions(
       ? [json()]
       : [
           spiceCodeLanguage,
-          autocompletion({ override: [spiceCompletion] }),
+          spiceParameterGuide,
+          autocompletion({
+            override: [
+              (context) =>
+                spiceCompletion(context, callbacks.current.relatedSources),
+            ],
+            activateOnTypingDelay: 350,
+          }),
           spiceHoverHelp,
         ];
   return [

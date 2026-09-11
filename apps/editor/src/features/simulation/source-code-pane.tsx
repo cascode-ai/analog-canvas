@@ -11,6 +11,7 @@ import {
   readSimulationExperimentConfig,
   type CircuitProject,
   type ProjectSimulationFolder,
+  type SimulationSourceExpression,
 } from "@icm/model";
 import type { SpiceSimulationSurfaceProps } from "./simulation-surface-types";
 import {
@@ -34,6 +35,8 @@ import {
   SimulationCodeWorkspace,
   type SimulationCodeWorkspaceProps,
 } from "./code-workspace";
+import { sourceProbeChoices } from "./source-probe-choices";
+import { SourceProbePicker } from "./source-probe-picker";
 
 export type SourceFlush =
   | { ok: true; folder: ProjectSimulationFolder; revision: number }
@@ -133,6 +136,24 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
       terminal: props.pickedTerminal?.sequence,
     });
     const input = props.folder.input;
+    const [probePicker, setProbePicker] = useState<
+      "voltage" | "current" | "difference"
+    >();
+    const probeChoices = useMemo(
+      () =>
+        probePicker
+          ? sourceProbeChoices(props.project, {
+              ...input,
+              files: input.files.map((file) => ({
+                ...file,
+                text:
+                  drafts.current.get(`${props.folder.id}\u0000${file.path}`)
+                    ?.text ?? file.text,
+              })),
+            })
+          : [],
+      [props.project, input, draftRevision, probePicker],
+    );
     const binding = input.circuitBindings.find(
       (b) => b.emission === "top-level",
     );
@@ -143,17 +164,10 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
           : undefined,
       [props.project, binding],
     );
-    const addPicked = (matches: readonly SimulationProbeOption[]) => {
-      if (!binding) return;
-      if (matches.length !== 1) {
-        props.onProblem(
-          inputProblem(
-            "SIMULATION_PICK_OCCURRENCE_REQUIRED",
-            "Open the desired Cell occurrence from its Testbench before picking; no output was guessed.",
-          ),
-        );
-        return;
-      }
+    const addOutput = (
+      label: string,
+      expression: SimulationSourceExpression,
+    ) => {
       const file = props.folder.input.files.find(
           (f) => f.path === input.configPath,
         ),
@@ -180,14 +194,6 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
         setPath(input.configPath);
         return;
       }
-      const match = matches[0]!,
-        expression = {
-          ...match.target,
-          circuit: { bindingId: binding.id, callPath: [] },
-        };
-      props.onPickNetsChange?.(false);
-      props.onPickTerminalsChange?.(false);
-      setPath(input.configPath);
       if (
         parsed.config.outputs.some(
           (o) => JSON.stringify(o.expression) === JSON.stringify(expression),
@@ -196,7 +202,7 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
         return;
       parsed.config.outputs.push({
         id: `output-${crypto.randomUUID()}`,
-        label: match.label,
+        label,
         expression,
       });
       drafts.current.set(`${props.folder.id}\u0000${input.configPath}`, {
@@ -206,6 +212,20 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
       });
       setPath(input.configPath);
       render((v) => v + 1);
+    };
+    const addPicked = (matches: readonly SimulationProbeOption[]) => {
+      if (!binding) return;
+      props.onPickNetsChange?.(false);
+      props.onPickTerminalsChange?.(false);
+      if (matches.length !== 1) {
+        setProbePicker(props.pickTerminalsActive ? "current" : "voltage");
+        return;
+      }
+      const match = matches[0]!;
+      addOutput(match.label, {
+        ...match.target,
+        circuit: { bindingId: binding.id, callPath: [] },
+      });
     };
     useEffect(() => {
       if (!props.pickedNet || props.pickedNet.sequence === picked.current.net)
@@ -562,30 +582,6 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
             <button type="button" onClick={props.onPrepare}>
               View final deck
             </button>
-            {binding ? (
-              <>
-                <button
-                  aria-pressed={props.pickNetsActive ?? false}
-                  onClick={() =>
-                    props.onPickNetsChange?.(!props.pickNetsActive)
-                  }
-                >
-                  {props.pickNetsActive
-                    ? "Picking Nets…"
-                    : "Add voltage observation from Canvas"}
-                </button>
-                <button
-                  aria-pressed={props.pickTerminalsActive ?? false}
-                  onClick={() =>
-                    props.onPickTerminalsChange?.(!props.pickTerminalsActive)
-                  }
-                >
-                  {props.pickTerminalsActive
-                    ? "Picking current…"
-                    : "Add current observation from Canvas"}
-                </button>
-              </>
-            ) : null}
           </>
         }
         files={ownFiles.map((filePath) => ({
@@ -758,7 +754,61 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
           </>
         }
       >
+        {probePicker && (
+          <SourceProbePicker
+            choices={probeChoices}
+            kind={probePicker}
+            onAdd={addOutput}
+            onClose={() => setProbePicker(undefined)}
+          />
+        )}
         <SimulationCodeEditor
+          relatedSources={sourceFiles.map(
+            (file) =>
+              drafts.current.get(`${props.folder.id}\u0000${file.path}`)
+                ?.text ?? file.text,
+          )}
+          helperActions={[
+            {
+              id: "observe-voltage",
+              label: "Observe voltage",
+              keywords: "probe voltage 电压 信号 看输出",
+              run: () => setProbePicker("voltage"),
+            },
+            {
+              id: "observe-difference",
+              label: "Observe differential voltage",
+              keywords: "probe 差分 两节点",
+              run: () => setProbePicker("difference"),
+            },
+            {
+              id: "observe-current",
+              label: "Observe terminal current",
+              keywords: "probe current 电流 MOS 端口",
+              run: () => setProbePicker("current"),
+            },
+            ...(binding
+              ? [
+                  {
+                    id: "pick-net",
+                    label: props.pickNetsActive
+                      ? "Stop picking Nets"
+                      : "Pick Net on Canvas",
+                    keywords: "probe 电压 画布",
+                    run: () => props.onPickNetsChange?.(!props.pickNetsActive),
+                  },
+                  {
+                    id: "pick-current",
+                    label: props.pickTerminalsActive
+                      ? "Stop picking current"
+                      : "Pick current on Canvas",
+                    keywords: "probe 电流 画布",
+                    run: () =>
+                      props.onPickTerminalsChange?.(!props.pickTerminalsActive),
+                  },
+                ]
+              : []),
+          ]}
           path={path}
           text={text}
           historyKey={`${props.folder.id}:${buffer?.committed ?? props.project.structureRevision}`}

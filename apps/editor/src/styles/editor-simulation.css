@@ -3,6 +3,7 @@
 /* Analog simulation is a lazy workspace layer. Only its task bar and open
    docks accept pointer input, so the testbench canvas stays fully editable. */
 .spice-simulation-surface {
+  position: relative;
   flex: 1;
   grid-area: simulation;
   display: flex;

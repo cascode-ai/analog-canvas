@@ -31,6 +31,7 @@ const FolderArgs = z.discriminatedUnion("action", [
     rootDocumentId: Id.optional(),
     profileId: Id,
     template: z.enum(["op", "ac", "tran"]).optional(),
+    dut: z.strictObject({ name: Id, ports: z.array(Id) }).optional(),
   }),
   z.strictObject({
     action: z.literal("update"),
@@ -205,7 +206,7 @@ function upsert<T extends { id: string }>(items: T[], item: T) {
 export const simulationAuthoringTools: readonly Entry[] = [
   tool(
     "simulation_folder",
-    "Manage saved source experiments: list/get/create/clone/rename/remove. create writes the same small OP source template used by Code. Omit rootDocumentId for a text-only Testbench. Native analyses, .param, .temp and control programs are edited with simulation_files; input replacement can change bindings/dependencies. There is no parallel structured analyses authority. Updates are revision-guarded; malformed code can still be saved.",
+    "Manage saved source experiments: list/get/create/clone/rename/remove. create writes the same small OP source template used by Code. Omit rootDocumentId for text only; rootDocumentId alone runs the drawn Cell directly. Add dut {name, ports} using the exported subcircuit name and ordered ports to start a text TB around that Cell without creating another Cell. Native analyses, .param, .temp and control programs are edited with simulation_files; input replacement can change bindings/dependencies. There is no parallel structured analyses authority. Updates are revision-guarded; malformed code can still be saved.",
     FolderArgs,
     async (parsed, session) => {
       const snapshot = await session.client.snapshot(parsed.documentId, {
@@ -255,17 +256,23 @@ export const simulationAuthoringTools: readonly Entry[] = [
           },
         );
       let next: ProjectSimulationFolder;
-      if (parsed.action === "create")
+      if (parsed.action === "create") {
+        if (parsed.dut && !parsed.rootDocumentId)
+          return failure(
+            "SIMULATION_DUT_CELL_REQUIRED",
+            "A DUT template needs rootDocumentId; omit dut for text-only input.",
+          );
         next = createSimulationFolder({
           id: parsed.folderId ?? crypto.randomUUID(),
           name: parsed.name,
           profileId: parsed.profileId,
+          ...(parsed.dut ? { dut: parsed.dut } : {}),
           ...(parsed.template ? { template: parsed.template } : {}),
           ...(parsed.rootDocumentId
             ? { documentId: parsed.rootDocumentId }
             : {}),
         });
-      else if (parsed.action === "clone")
+      } else if (parsed.action === "clone")
         next = {
           ...structuredClone(current!),
           id: parsed.newFolderId ?? crypto.randomUUID(),

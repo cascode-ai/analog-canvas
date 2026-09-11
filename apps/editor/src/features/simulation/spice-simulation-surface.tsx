@@ -1,10 +1,10 @@
 import type { SimulationFocusTarget } from "./simulation-focus-target";
 import { useEffect, useRef, useState } from "react";
 import {
-  createSimulationFolder,
   readSimulationExperimentConfig,
   type SimulationRunPlanAxis,
 } from "@icm/model";
+import { createSimulationStarter } from "@icm/netlist";
 import type {
   ArtifactRef,
   Capabilities,
@@ -931,6 +931,33 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
       void execute(true);
     }
   }, [requestedRun, selectedFolder?.id]);
+  const [newFolder, setNewFolder] = useState<{
+    id: string;
+    name: string;
+    template: "op" | "ac" | "tran";
+  }>();
+  const createStarter = async (mode: "circuit" | "dut" | "text") => {
+    if (!newFolder) return;
+    if (codeRef.current && !(await codeRef.current.save())) return;
+    const latest = session.currentProject();
+    if (!latest) return;
+    const result = createSimulationStarter(latest, {
+      ...newFolder,
+      mode,
+      documentId: props.draftContext?.rootDocumentId ?? props.activeDocumentId,
+      profileId: capabilities?.profiles[0]?.id ?? authoringProfile.id,
+    });
+    if (!result.ok) {
+      setProblem(uiProblem("SIMULATION_STARTER_INVALID", result.message));
+      return;
+    }
+    const saved = props.onSaveFolder(result.folder, latest.structureRevision);
+    if (saved.status === "rejected") setProblem(saved.problem);
+    else {
+      setNewFolder(undefined);
+      props.onSelectFolderId(result.folder.id);
+    }
+  };
   const folderAction = async (
     action: import("./simulation-file-tree").FolderAction,
     ids: string[],
@@ -982,17 +1009,14 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
           : `simulation-folder-${crypto.randomUUID()}`,
       name: name.trim(),
     };
-    const created =
-      current && (action === "rename" || action === "duplicate")
-        ? { ...structuredClone(current), ...identity }
-        : createSimulationFolder({
-            ...identity,
-            documentId:
-              props.draftContext?.rootDocumentId ?? props.activeDocumentId,
-            profileId: capabilities?.profiles[0]?.id ?? authoringProfile.id,
-            template:
-              ids[0] === "ac" ? "ac" : ids[0] === "tran" ? "tran" : "op",
-          });
+    if (!current || (action !== "rename" && action !== "duplicate")) {
+      setNewFolder({
+        ...identity,
+        template: ids[0] === "ac" ? "ac" : ids[0] === "tran" ? "tran" : "op",
+      });
+      return;
+    }
+    const created = { ...structuredClone(current), ...identity };
     const result = props.onSaveFolder(created, latestProject.structureRevision);
     if (result.status === "rejected") setProblem(result.problem);
     else props.onSelectFolderId(created.id);
@@ -1653,6 +1677,31 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
         } else props.onMinimize();
       }}
     >
+      {newFolder && (
+        <div
+          className="simulation-starter-choices"
+          role="dialog"
+          aria-label="New experiment"
+          onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              event.stopPropagation();
+              setNewFolder(undefined);
+            }
+          }}
+        >
+          <strong>Start an experiment</strong>
+          <button onClick={() => void createStarter("circuit")}>
+            Run current Cell — use its existing sources and wiring
+          </button>
+          <button onClick={() => void createStarter("dut")}>
+            Write a text TB for this DUT — no TB Cell needed
+          </button>
+          <button onClick={() => void createStarter("text")}>
+            Start with text only — no Canvas binding
+          </button>
+          <button onClick={() => setNewFolder(undefined)}>Cancel</button>
+        </div>
+      )}
       <header className="simulation-taskbar">
         <div className="simulation-brand">
           <strong>Simulation</strong>

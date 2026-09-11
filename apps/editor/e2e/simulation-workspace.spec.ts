@@ -354,6 +354,7 @@ test("human simulation uses saved folder, survives minimizing, recovers a bad in
   // A completed run belongs to its folder, not whichever folder is currently visible.
   page.once("dialog", (dialog) => void dialog.accept("Second folder"));
   await panel.getByRole("button", { name: "+ New folder…" }).click();
+  await panel.getByRole("button", { name: /Run current Cell/ }).click();
   await expect(panel.getByRole("status")).not.toHaveText(
     "finished · completed",
   );
@@ -1109,6 +1110,7 @@ test("Simulation creates an ordinary testbench and offers the current Cell at th
   await page
     .getByRole("button", { name: "Create experiment for this Cell" })
     .click();
+  await page.getByRole("button", { name: /Run current Cell/ }).click();
   const configured = JSON.parse(
     (await downloadBytes(page, "File", "Export Project File…")).toString(),
   );
