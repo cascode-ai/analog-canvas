@@ -129,120 +129,85 @@ operations and PVT remain separate work.
 ## Simulation
 
 Full Circuit Edit includes `simulation.run`; there is no per-run approval or
-mandatory helper-reading gate. `simulation` accepts a `request` using the
-same contract as `/api/agent/sessions/{sessionId}/simulation`:
+mandatory helper-reading gate. GUI and MCP use the same source, File and Run
+resources.
 
-1. `capabilities`: discover the selected deployment Profile and limits without
-   starting the simulator.
-2. Use `simulation_setup` to list/get/create/update/clone/remove named setups.
-   Its bounded updates preserve existing outputs, measurements, and MOS
-   operating-point selections. Full typed replacement remains available through
-   `advanced_transact` with `upsert_simulation_setup`; removal compiles to the
-   same `remove_simulation_setup` structure edit. Sources,
-   DUT instances, formal ports, and wiring remain ordinary Project edits.
-   Independent voltage/current sources accept `waveform: "pwl"` with
-   `pwlPoints` as comma-separated `time value` pairs; this is the same
-   descriptor and printer path used by GUI source Properties.
-   The structured contract supports OP, one-source linear DC sweep, AC, TRAN,
-   and Noise; discover the deployment Profile before selecting an analysis,
-   because parser support may precede hosted qualification. Noise selects a
-   hierarchy-aware differential voltage output and a Testbench-root independent
-   input source. A structured
-   setup stores named `outputs`, not a second Net namespace. Use
-   `simulation_output` with an explicit `setupId` to list, upsert, or remove
-   output expressions with recoverable validation; use the typed structure
-   edit when constructing the full AST directly. Expressions support
-   arithmetic and `mag`, `db20`, `phase`, `real`, `imag`, and `abs` over
-   existing output labels. Use `simulation_measurement` to list, upsert, or
-   remove saved scalar rules over those Outputs. It supports OP value,
-   sample-at, minimum, maximum, peak-to-peak, and time-windowed TRAN mean/RMS;
-   Noise density uses the stable output ids `noise-output-density` and
-   `noise-input-density`, while integrated totals are returned as analysis
-   scalars;
-   invalid rules return recoverable input errors rather than ending the MCP
-   session.
-   Structured setups also expose `designVariables` and `runPlan`. A variable
-   binds one nominal string value to one or more exact
-   `{documentId,instanceId,parameter}` targets. The saved Run Plan selects a
-   nominal run or a Cartesian sweep; GUI and MCP persist the same objects.
-3. `prepare` with `source:{kind:"project-setup",setupId,expectedStructureRevision}`
-   freezes the saved structured or raw setup. It returns `prepared.id`,
-   `digest`, vectors, and export references. A stale Project revision is a
-   recoverable reprepare result; no inline setup bypasses Project ownership.
-4. `start` with `preparedId` and `digest` returns `run.id` immediately. Supply
-   an explicit outer `requestId` and reuse it unchanged for a transport retry.
-5. `read` / `cancel` use `runId`. Each new poll uses a new request ID. A result
-   identifies its input revision and environment; `inputStatus` reports changes
-   since preparation. Editing the circuit does not rewrite an active run.
+1. `simulation` / `capabilities` discovers the Profile, qualified analyses,
+   parser support, declared rawfile collection and resource limits without
+   starting ngspice.
+2. `simulation_setup` lists, gets, creates, clones, renames and removes saved
+   source experiments. Omit the root Cell to create a graphless experiment.
+   A saved setup v4 owns authored files, its entry/config paths, generated
+   Circuit bindings and declared dependencies. It does not contain another
+   structured analyses list. Ordinary Project edits own DUTs, formal ports,
+   independent sources and wiring.
+3. Use `simulation_files` to read and edit source/config, or the optional
+   source-preserving helpers. Native code owns analyses, `.param`, `.temp`
+   and control. Config owns Profile/corner, output expressions, device OP,
+   measurements, value-free variable bindings, managed Run Plan and collection.
+   Output/measurement/device-OP helpers write that same config. Warnings and
+   invalid drafts remain repairable; they are not session revocations.
+4. `prepare` with
+   `source:{kind:"project-setup",setupId,expectedStructureRevision}` freezes the
+   input and returns `prepared.id`, `digest`, vectors and artifacts.
+   `prepared.json` contains the exact execution request, `prepared.cir` the
+   entry, and individual files/source maps the rest of the bundle.
+5. `start` uses `preparedId` and `digest`, returning `run.id` immediately.
+   Reuse the same outer request ID and payload for a transport retry.
+   `read` / `cancel` use `runId`; each new poll has a new request ID.
+   `inputStatus` reports later edits without rewriting that run's evidence.
 6. `export` lists artifact references. `simulation_files` with
-   `request:{action:"artifact",artifactId}` retrieves bytes; `outputPath` saves
-   them locally after verifying length and SHA-256. Deck, rawfile, JSON, log,
-   primitive-vector CSV, and named-output CSV use the same File Resource, not a
-   second filesystem. `run.outputData` is the plot-ready named-output result;
-   the simulator's primitive `run.result.data` remains raw execution evidence.
-   Large run reads set `resultPreview`; use artifact `offset`/`nextOffset` to
-   page through full evidence. Local `outputPath` exports assemble all slices.
+   `request:{action:"artifact",artifactId}` reads paged content; `outputPath`
+   saves complete bytes after length/SHA-256 verification. Deck, rawfile,
+   JSON, log and CSV share this File Resource. Large receipts set
+   `resultPreview`; full result/output artifacts remain available.
+   `export_file` with `artifact:"simulation-plot"`,
+   `simulation:{runId,analysisIndex,format:"svg"}` (or `"png"`) and
+   `outputPath` exports the existing Results renderer without opening GUI.
+   Select the index in `run.outputData.analyses`, or raw analyses if no
+   output data exists. Multiple plotted groups return a ZIP. OP is a table,
+   not a waveform.
 
-For a saved-setup batch, call `prepare-batch` once with one Project structure
-revision and 1–16 uniquely identified setup items. Every member is prepared
-before execution starts; one invalid member rejects the batch without running
-the valid members. Then use `start-batch`, `read-batch`, and `cancel-batch`.
-Members run sequentially through the same ordinary Run lifecycle and expose
-their normal `runId`, so `read` and `export` remain the only result and artifact
-interfaces. Reuse the same outer request ID when retrying `start-batch` after an
-uncertain transport response.
+### File ownership and editing
 
-Run history is not a Project object. For durable Agent evidence, use `export`
-and `simulation_files` to save the complete run artifacts (including
-`evidence-manifest.json`) to an explicit path. The Editor's **Archive** action
-is a bounded same-browser convenience over those verified artifacts, not a
-second cloud store or an Agent-only result protocol.
+For saved experiments use `owner:{kind:"project-setup",setupId}`. Updates use
+the Project structure revision and ordinary undoable transactions. `read`
+returns exact text, a SHA-256 `textDigest`, and generated instance/parameter
+spans when applicable. `update` accepts writes/removes or UTF-16 range patches
+with that digest. `circuitEdits:[{path,textDigest,text}]` maps only reported
+editable numeric fields to normal parameter transactions; topology edits go
+through Canvas APIs. Project file writes require `project.import`; mapped
+circuit changes additionally require connectivity editing authority.
 
-For a Cartesian sweep over one saved structured setup, use `prepare-sweep`
-with the setup's persisted Run Plan axes, or supply the same 1–4 axis objects
-directly. Axis kinds are `corner`, `temperature`, `variable`, and `parameter`.
-A variable axis addresses its stable `variableId`; a parameter axis addresses
-`{documentId,instanceId,parameter}` and supplies string values in the
-same units accepted by the Instance netlist property. The product is limited
-to 16 points and becomes an ordinary sequential batch; follow it with the
-same `start-batch`, `read-batch`, per-run `read`/`export`, and
-`cancel-batch` operations. Preparation starts from saved nominal variable
-values, applies variable points, then applies advanced exact parameter points.
-Sweep execution never edits the Project or the saved setup.
-
-For **graphless/raw** authoring, call `simulation_files` to `create`, then
-use `list` if a lost response left the workspace ID unknown. Continue with
+For an expiring graphless session workspace, call File `create`, then
 `update` with `owner:{kind:"session-workspace",workspaceId}`,
-`expectedRevision`, `entry`, and `writes` of
-`{path,text}`. Author a complete SPICE entry and relative include files; helpers
-are optional. Prepare with `source:{kind:"workspace",workspaceId,expectedRevision,
-environment:{profileId}}`. Raw deck text owns analyses, temperature and model
-directives; the service does not append sources, analysis commands or `.end`.
-Capabilities identifies the installed model library for an explicit `.lib`.
-Paths are workspace-relative, without traversal or overriding `.spiceinit`.
-This does not replace the Project and needs no Project import approval.
+`expectedRevision`, `entry`, and authored files including a valid config.
+Prepare using `source:{kind:"workspace",workspaceId,expectedRevision}`.
+Environment belongs to the config, not a second prepare argument. Use
+`simulation_setup` instead when this work must survive Project save/reload.
 
-The File Resource uses explicit ownership for `list`, `read`, and `update`.
-For a source-backed saved setup the owner is `{kind:"project-setup",setupId}`:
-updates use the Project structure revision and commit through normal Project
-history, not the expiring session workspace. Project writes require the existing
-`project.import` scope. An unattached host returns `PROJECT_FILES_UNAVAILABLE`;
-it never creates a session copy pretending to be persistent storage. `read`
-addresses one `path` and pages text with `offset`/`maxChars`, returning its full
-`textDigest`. `update` accepts atomic whole-file writes/removes or UTF-16 range
-patches with that digest. Invalid authored syntax is saveable; generated circuit
-and dependency paths remain protected. Revision conflicts are recoverable and
-include `currentRevision` when the Project still exists. Setup deletion uses
-the Project resource, not session `discard`.
+Files and dependencies are virtual-root-relative. Environment owners resolve
+declared dependency identities/digests; arbitrary host paths and startup
+configuration are not writable. Complete user code owns its analyses and
+capture statements; there is no hidden final write. Default snippets select
+ASCII/appendwrite and capture after each analysis. Native repeated plots stay
+separate records, never an implicit managed Batch.
 
-A persisted raw Project setup uses the same `project-setup` prepare source as
-a structured setup. Its authored files remain inside the Project. Declared
-external dependencies must be resolved by an available environment owner;
-the service never reads arbitrary host paths and reports unavailable
-dependencies as located, recoverable prepare diagnostics.
+### Batch and evidence
 
-An input error, missing model, busy executor, timeout or failed simulation
-does not revoke the session. Read `error.code`, `stage`, `recovery` and any
-located diagnostics, fix input, and continue. An uncertain accepted execution
-is `lost`, never automatically submitted again. There is no promise of durable
-jobs across browser reload: export evidence before leaving the session.
+`prepare-batch` freezes 1–16 saved-setup items at one structure revision.
+`prepare-sweep` uses saved Run Plan axes or explicit corner, temperature,
+variable or exact-parameter axes. Nominal values come from source; point
+projections do not mutate the Project. Both become an ordinary sequential
+batch consumed by `start-batch`, `read-batch`, `cancel-batch` and per-run
+`read`/`export`. Reuse start request identity after an uncertain response.
+
+Run history and rawfiles are not Project objects. Export artifacts and
+`evidence-manifest.json` for durable evidence. Browser Archive is a bounded
+convenience over those artifacts. No job durability across browser reload is
+promised.
+
+Read `error.code`, `stage`, `recovery` and located diagnostics, repair input,
+and continue. Missing models, busy executors, timeouts and failed simulations
+do not revoke the session. An uncertain accepted execution is `lost`, never
+automatically resubmitted.

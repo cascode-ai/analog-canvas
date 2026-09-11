@@ -9,6 +9,7 @@ import {
 import { openMenu } from "./editor-fixtures.js";
 import { profile } from "./simulation-e2e-fixtures.js";
 import { createSourceSimulationSetup } from "@icm/model";
+import { unzipSync, strFromU8 } from "fflate";
 test("Agent raw simulation recovers input errors, returns a run receipt and exports through Files", async ({
   page,
 }) => {
@@ -43,13 +44,19 @@ test("Agent raw simulation recovers input errors, returns a run receipt and expo
       });
     } else await route.fulfill({ json: { ok: true, status: "active" } });
   });
-  const rawfile = readFileSync(
-    new URL(
-      "../../../fixtures/ngspice-rawfile/divider-op.raw",
-      import.meta.url,
-    ),
-    "utf8",
-  );
+  const rawfile =
+    readFileSync(
+      new URL(
+        "../../../fixtures/ngspice-rawfile/divider-op.raw",
+        import.meta.url,
+      ),
+      "utf8",
+    ) +
+    "\n" +
+    readFileSync(
+      new URL("../../../fixtures/ngspice-rawfile/rc-ac.raw", import.meta.url),
+      "utf8",
+    );
   await page.route("**/api/simulate", async (route) => {
     const body = route.request().postDataJSON();
     if (body.operation === "capabilities")
@@ -191,7 +198,7 @@ test("Agent raw simulation recovers input errors, returns a run receipt and expo
       writes: [
         {
           path: "main.cir",
-          text: "divider\nV1 in 0 1\nR1 in mid 1k\nR2 mid 0 1k\n.control\nop\nwrite out.raw\n.endc\n.end",
+          text: "divider\nV1 in 0 1\nR1 in mid 1k\nR2 mid 0 1k\n.control\nset appendwrite\nop\nwrite out.raw\nac dec 10 1 1e6\nwrite out.raw\n.endc\n.end",
         },
         ...sourceSetup.input.files.filter(
           (file) => file.path === sourceSetup.input.configPath,
@@ -245,4 +252,53 @@ test("Agent raw simulation recovers input errors, returns a run receipt and expo
       })
     ).result.text,
   ).toContain("0.5");
+  const recordIndex = finished.outputData
+    ? finished.outputData.analyses.findIndex(
+        (analysis: { analysis: string }) => analysis.analysis === "ac",
+      )
+    : finished.result.data.analyses.findIndex(
+        (analysis: { analysis: string }) => analysis.analysis === "ac",
+      );
+  expect(recordIndex).toBeGreaterThanOrEqual(0);
+  const image = await send("file", {
+    operation: "download",
+    artifact: "simulation-plot",
+    simulation: { runId: run.id, analysisIndex: recordIndex, format: "svg" },
+  });
+  expect(image.ok, JSON.stringify(image)).toBe(true);
+  const imageBytes = Buffer.from(image.artifact.data, "base64");
+  const svgs =
+    image.artifact.mediaType === "application/zip"
+      ? Object.values(unzipSync(imageBytes)).map((bytes) => strFromU8(bytes))
+      : [imageBytes.toString("utf8")];
+  expect(svgs.length).toBeGreaterThan(0);
+  for (const svg of svgs) {
+    expect(svg).toContain('fill="white"');
+    expect(svg).toMatch(/<(?:path|polyline)/u);
+    expect(svg).toContain("stroke:");
+  }
+  const raster = await send("file", {
+    operation: "download",
+    artifact: "simulation-plot",
+    simulation: { runId: run.id, analysisIndex: recordIndex, format: "png" },
+  });
+  expect(raster.ok, JSON.stringify(raster)).toBe(true);
+  const rasterBytes = Buffer.from(raster.artifact.data, "base64");
+  const pngs =
+    raster.artifact.mediaType === "application/zip"
+      ? Object.values(unzipSync(rasterBytes))
+      : [rasterBytes];
+  for (const png of pngs)
+    expect([...png.slice(0, 8)]).toEqual([137, 80, 78, 71, 13, 10, 26, 10]);
+  await expect(page.locator(".simulation-file-export")).toHaveCount(0);
+  expect(
+    await send("file", {
+      operation: "download",
+      artifact: "simulation-plot",
+      simulation: { runId: run.id, analysisIndex: 999, format: "svg" },
+    }),
+  ).toMatchObject({ ok: false, error: { code: "FILE_EXPORT_FAILED" } });
+  expect(
+    (await send("simulation", { operation: "read", runId: run.id })).run.id,
+  ).toBe(run.id);
 });

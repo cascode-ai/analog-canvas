@@ -29,6 +29,50 @@ const FileRequestBaseSchema = z.strictObject({
   requestId: StableIdSchema,
 });
 
+export const AgentFileDownloadOptionsSchema = z
+  .strictObject({
+    artifact: z.enum(["project", "svg", "png", "pdf", "simulation-plot"]),
+    documentId: StableIdSchema.optional(),
+    simulation: z
+      .strictObject({
+        runId: StableIdSchema,
+        /** Index in the run's evaluated analyses (raw analyses when no evaluated output exists). */
+        analysisIndex: z.number().int().nonnegative(),
+        format: z.enum(["svg", "png"]),
+      })
+      .optional(),
+  })
+  .superRefine((value, context) => {
+    if (value.artifact === "simulation-plot") {
+      if (!value.simulation)
+        context.addIssue({
+          code: "custom",
+          path: ["simulation"],
+          message:
+            "An explicit run and analysis record are required for plot export",
+        });
+      if (value.documentId)
+        context.addIssue({
+          code: "custom",
+          path: ["documentId"],
+          message: "Simulation plots address a run, not a Canvas document",
+        });
+    } else {
+      if (value.simulation)
+        context.addIssue({
+          code: "custom",
+          path: ["simulation"],
+          message: "Simulation selection is only used for simulation-plot",
+        });
+      if (value.artifact !== "project" && !value.documentId)
+        context.addIssue({
+          code: "custom",
+          path: ["documentId"],
+          message: "documentId is required for visual export",
+        });
+    }
+  });
+
 export const AgentFileResourceRequestSchema = z.discriminatedUnion(
   "operation",
   [
@@ -36,18 +80,10 @@ export const AgentFileResourceRequestSchema = z.discriminatedUnion(
       operation: z.literal("simulation-input"),
       input: SimulationFileOperationSchema,
     }),
-    FileRequestBaseSchema.extend({
+    AgentFileDownloadOptionsSchema.safeExtend({
+      apiVersion: z.literal(AGENT_API_VERSION),
+      requestId: StableIdSchema,
       operation: z.literal("download"),
-      artifact: z.enum(["project", "svg", "png", "pdf"]),
-      documentId: StableIdSchema.optional(),
-    }).superRefine((value, context) => {
-      if (value.artifact !== "project" && value.documentId === undefined) {
-        context.addIssue({
-          code: "custom",
-          path: ["documentId"],
-          message: "documentId is required for visual export",
-        });
-      }
     }),
     FileRequestBaseSchema.extend({
       operation: z.literal("stage"),

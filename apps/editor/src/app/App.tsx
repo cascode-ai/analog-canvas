@@ -742,6 +742,9 @@ export function App({
   const [instanceTableOpen, setInstanceTableOpen] = useState(false);
   const [agentFileCandidate, setAgentFileCandidate] =
     useState<AgentFileCandidateSummary | null>(null);
+  const agentSimulationHostForFiles = useRef<BrowserAgentSimulationHost | null>(
+    null,
+  );
   const browserAgentFileHost = useMemo(
     () =>
       new BrowserAgentFileHost({
@@ -753,6 +756,25 @@ export function App({
           ) ?? null,
         getResolver: () => editorDocumentController.resolver,
         onApprovalRequested: setAgentFileCandidate,
+        readSimulationRun: async (runId) => {
+          const host = agentSimulationHostForFiles.current;
+          if (!host)
+            return {
+              ok: false,
+              error: {
+                code: "SIMULATION_HOST_UNAVAILABLE",
+                message: "Simulation host is not available",
+                stage: "read",
+                recovery: "retry-after",
+              },
+            };
+          return host.handle({
+            apiVersion: "2.0",
+            requestId: crypto.randomUUID(),
+            operation: "read",
+            runId,
+          });
+        },
         dispatchProjectTransaction: (request) =>
           browserAgentHost.dispatchProjectTransaction(request),
       }),
@@ -773,6 +795,7 @@ export function App({
       releaseChannel,
     ],
   );
+  agentSimulationHostForFiles.current = browserAgentSimulationHost;
   const browserAgentProjectHost = useMemo(
     () =>
       new BrowserAgentProjectHost({

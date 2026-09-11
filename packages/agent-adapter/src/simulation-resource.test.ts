@@ -92,6 +92,32 @@ describe("Simulation sibling contract", () => {
       }),
     ).toMatchObject({ error: { recovery: "fix-input" } });
   });
+  it("exports a specific simulation record through Files without a Canvas document", () => {
+    const request = {
+      apiVersion: "2.0",
+      requestId: "plot",
+      operation: "download",
+      artifact: "simulation-plot",
+    };
+    expect(AgentFileResourceRequestSchema.safeParse(request).success).toBe(
+      false,
+    );
+    const valid = {
+      ...request,
+      simulation: { runId: "run", analysisIndex: 1, format: "png" },
+    };
+    expect(AgentFileResourceRequestSchema.safeParse(valid).success).toBe(true);
+    expect(
+      AgentFileResourceRequestSchema.safeParse({ ...valid, documentId: "main" })
+        .success,
+    ).toBe(false);
+    expect(
+      AgentFileResourceRequestSchema.safeParse({
+        ...valid,
+        artifact: "project",
+      }).success,
+    ).toBe(false);
+  });
   it("accepts DC sweep capability and result data through the shared resource", () => {
     const response = AgentSimulationResourceResponseSchema.parse({
       apiVersion: "2.0",

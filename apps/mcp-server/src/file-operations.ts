@@ -7,11 +7,12 @@ import {
 } from "@icm/agent-adapter";
 import { AgentSessionError, type AgentSessionClient } from "@icm/agent-client";
 
-export interface ExportFileOptions {
-  artifact: "project" | "svg" | "png" | "pdf";
-  documentId?: string;
+export type ExportFileOptions = Omit<
+  Extract<AgentFileResourceRequest, { operation: "download" }>,
+  "apiVersion" | "requestId" | "operation"
+> & {
   outputPath: string;
-}
+};
 
 export async function exportSimulationArtifact(
   value: {
@@ -112,6 +113,7 @@ export async function exportFile(
     operation: "download",
     artifact: options.artifact,
     ...(options.documentId ? { documentId: options.documentId } : {}),
+    ...(options.simulation ? { simulation: options.simulation } : {}),
   });
   if (!response.ok || response.operation !== "download") {
     throw requestFailure(

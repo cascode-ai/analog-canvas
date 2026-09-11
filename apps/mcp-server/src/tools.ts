@@ -2,7 +2,10 @@ import { z } from "zod";
 import { simulationAuthoringTools } from "./simulation-authoring-tools.js";
 import { SimulationOperationSchema } from "@icm/simulation-service/contract";
 import { SimulationFileOperationSchema } from "@icm/simulation-service/files";
-import { AGENT_API_VERSION } from "@icm/agent-adapter";
+import {
+  AGENT_API_VERSION,
+  AgentFileDownloadOptionsSchema,
+} from "@icm/agent-adapter";
 import {
   AgentAuthoringCommandSchema,
   AgentSemanticIntentSchema,
@@ -72,21 +75,9 @@ const SimulationFilesArgs = z.strictObject({
   outputPath: z.string().min(1).optional(),
 });
 
-const ExportFileArgs = z
-  .strictObject({
-    artifact: z.enum(["project", "svg", "png", "pdf"]),
-    documentId: z.string().min(1).optional(),
-    outputPath: z.string().min(1),
-  })
-  .superRefine((value, context) => {
-    if (value.artifact !== "project" && !value.documentId) {
-      context.addIssue({
-        code: "custom",
-        path: ["documentId"],
-        message: "documentId is required for visual export",
-      });
-    }
-  });
+const ExportFileArgs = AgentFileDownloadOptionsSchema.safeExtend({
+  outputPath: z.string().min(1),
+});
 
 const ImportFileArgs = z
   .strictObject({
@@ -441,7 +432,7 @@ const TOOLS: readonly ToolEntry[] = [
     definition: {
       name: "export_file",
       description:
-        "Export the authoritative browser project or a rendered SVG/PNG/PDF to an explicit local path. Visual exports require documentId.",
+        "Export the browser Project, Canvas SVG/PNG/PDF, or a simulation plot to an explicit local path. Canvas exports require documentId. simulation-plot requires simulation:{runId,analysisIndex,format:svg|png}; it uses the same plot renderer/export as Results, returning a ZIP when the selected record has multiple plots. No GUI click is required.",
       inputSchema: jsonSchemaOf(ExportFileArgs),
     },
     handle: async (args, session) =>
@@ -451,6 +442,7 @@ const TOOLS: readonly ToolEntry[] = [
           artifact: parsed.artifact,
           outputPath: parsed.outputPath,
           ...(parsed.documentId ? { documentId: parsed.documentId } : {}),
+          ...(parsed.simulation ? { simulation: parsed.simulation } : {}),
         });
       })(),
   },

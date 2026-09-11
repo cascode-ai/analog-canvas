@@ -30946,27 +30946,62 @@
           {
             "type": "object",
             "properties": {
+              "artifact": {
+                "type": "string",
+                "enum": [
+                  "project",
+                  "svg",
+                  "png",
+                  "pdf",
+                  "simulation-plot"
+                ]
+              },
+              "documentId": {
+                "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema1"
+              },
+              "simulation": {
+                "type": "object",
+                "properties": {
+                  "runId": {
+                    "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema1"
+                  },
+                  "analysisIndex": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "format": {
+                    "type": "string",
+                    "enum": [
+                      "svg",
+                      "png"
+                    ]
+                  }
+                },
+                "required": [
+                  "runId",
+                  "analysisIndex",
+                  "format"
+                ],
+                "additionalProperties": false
+              },
               "apiVersion": {
-                "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema0"
+                "type": "string",
+                "const": "2.0"
               },
               "requestId": {
                 "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema1"
               },
               "operation": {
-                "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema10"
-              },
-              "artifact": {
-                "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema11"
-              },
-              "documentId": {
-                "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema12"
+                "type": "string",
+                "const": "download"
               }
             },
             "required": [
+              "artifact",
               "apiVersion",
               "requestId",
-              "operation",
-              "artifact"
+              "operation"
             ],
             "additionalProperties": false
           },
@@ -30995,7 +31030,7 @@
                 "maxItems": 24,
                 "type": "array",
                 "items": {
-                  "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema13"
+                  "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema10"
                 }
               },
               "entryPath": {
@@ -31231,22 +31266,6 @@
             "additionalProperties": false
           },
           "__schema10": {
-            "type": "string",
-            "const": "download"
-          },
-          "__schema11": {
-            "type": "string",
-            "enum": [
-              "project",
-              "svg",
-              "png",
-              "pdf"
-            ]
-          },
-          "__schema12": {
-            "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema1"
-          },
-          "__schema13": {
             "type": "object",
             "properties": {
               "name": {
