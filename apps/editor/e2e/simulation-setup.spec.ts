@@ -108,7 +108,7 @@ test("the qualified OTA folder opens unchanged and preserves all root and hierar
   // One-shot Canvas picking opens the config; observations must stay reachable
   // there without offering SPICE snippets that would corrupt the JSON file.
   await expect(
-    panel.getByRole("tab", { name: "experiment.json", exact: false }),
+    panel.getByRole("tab", { name: "Configuration", exact: false }),
   ).toHaveAttribute("aria-selected", "true");
   await panel.getByRole("button", { name: /Helper.*Ctrl\+Space/ }).click();
   await expect(
