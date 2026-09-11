@@ -22,7 +22,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     automaticMappings: [],
     manualOnlyReason:
       "Behavioral logic gate; structural SPICE realization requires an explicit subcircuit or PDK mapping.",
-    assetPath: "and-gate.symbol.json",
+    assetPath: "and-gate.json",
     assetHash:
       "107444fe03340a98e5d2f4211cbf46163953f1102a2bd25f9faa93cbcce3b620",
     visualAuthority: {
@@ -56,7 +56,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     automaticMappings: [],
     manualOnlyReason:
       "Behavioral logic symbol; structural SPICE realization requires an explicit subcircuit or PDK mapping.",
-    assetPath: "buffer.symbol.json",
+    assetPath: "buffer.json",
     assetHash:
       "37f391cf9fddc01b8005db0df0906f68d84e5df1aa3d5bacf6b4b1c58d92c988",
     visualAuthority: {
@@ -88,7 +88,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     pinOrder: ["1", "2"],
     palette: true,
     automaticMappings: ["spice:C"],
-    assetPath: "capacitor.symbol.json",
+    assetPath: "capacitor.json",
     assetHash:
       "6ccdd4cdcbbd95bd10c0a59f83edd58c1b7ace5fca39a7a485b45e7dca3fe6b2",
     visualAuthority: {
@@ -112,7 +112,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     automaticMappings: [],
     manualOnlyReason:
       "Two-terminal Razavi switch; SPICE S has a four-terminal control contract.",
-    assetPath: "closed-switch.symbol.json",
+    assetPath: "closed-switch.json",
     assetHash:
       "96208e1fc730ce7ce199df0001be3efcb20f7bb9c08e86de5af5115d8ad6dccf",
     visualAuthority: {
@@ -146,7 +146,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     automaticMappings: [],
     manualOnlyReason:
       "Textbook comparator block; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
-    assetPath: "comparator.symbol.json",
+    assetPath: "comparator.json",
     assetHash:
       "183d61c3af6b3e9e52bcf42dca74f05db737fa73942abb8e1e066121064c501e",
     visualAuthority: {
@@ -171,7 +171,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     automaticMappings: [],
     manualOnlyReason:
       "Textbook comparator block; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
-    assetPath: "comparator-inputs-swapped.symbol.json",
+    assetPath: "comparator-inputs-swapped.json",
     assetHash:
       "36f81058bf7084902ad8deef1bdb3f96a0af272ef08c26fd47eae9e1f7dc5f88",
     visualAuthority: {
@@ -202,7 +202,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     automaticMappings: [],
     manualOnlyReason:
       "Unmarked comparator block; SPICE subcircuit pin polarity and supply contracts require an explicit PDK mapping.",
-    assetPath: "comparator-unmarked.symbol.json",
+    assetPath: "comparator-unmarked.json",
     assetHash:
       "e85c804fabdc0c61a911f4cd0bbedb693d93263f8f896fc405707a870cd15d9b",
     visualAuthority: {
@@ -225,7 +225,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     pinOrder: ["+", "-"],
     palette: true,
     automaticMappings: ["spice:I"],
-    assetPath: "current-source.symbol.json",
+    assetPath: "current-source.json",
     assetHash:
       "fa00a8c4aac387e2d5531d560dabf0897df079fdbcb3cef9823f67d6a564e796",
     visualAuthority: {
@@ -258,7 +258,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     automaticMappings: [],
     manualOnlyReason:
       "Behavioral logic symbol; structural SPICE realization requires an explicit subcircuit or PDK mapping.",
-    assetPath: "d-flip-flop.symbol.json",
+    assetPath: "d-flip-flop.json",
     assetHash:
       "e39f752861f8f344b462b432a7ce0bbc58fa4174e5977377249390c5a015b629",
     visualAuthority: {
@@ -292,7 +292,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     automaticMappings: [],
     manualOnlyReason:
       "Behavioral logic symbol; structural SPICE realization requires an explicit subcircuit or PDK mapping.",
-    assetPath: "d-flip-flop-q.symbol.json",
+    assetPath: "d-flip-flop-q.json",
     assetHash:
       "ca7d19af2d62a52d470c0cf0102b66c283bdaae28b4be129852b112ecd00fd8c",
     visualAuthority: {
@@ -323,7 +323,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     automaticMappings: [],
     manualOnlyReason:
       "Visual delay-stage block; timing and structural netlist semantics require an explicit implementation mapping.",
-    assetPath: "delay-cell.symbol.json",
+    assetPath: "delay-cell.json",
     assetHash:
       "384d3be7c07eef3a8237cc2d21928b9c9df329b05b6101a1fe4184378a8a42fc",
     visualAuthority: {
@@ -357,7 +357,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     automaticMappings: [],
     manualOnlyReason:
       "Behavioral summing node; structural netlists need an explicit implementation mapping.",
-    assetPath: "adder.symbol.json",
+    assetPath: "adder.json",
     assetHash:
       "bce68bd71f7b7789b53fe474150c11b80a580d1917743f12134c07a8d524b192",
     visualAuthority: {
@@ -381,7 +381,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     automaticMappings: [],
     manualOnlyReason:
       "Behavioral mixing node; structural netlists need an explicit implementation mapping.",
-    assetPath: "multiplier.symbol.json",
+    assetPath: "multiplier.json",
     assetHash:
       "2fc0c7e6a80a91ea5613ed870457215207a0a3899445cc11b55316ff7319bf9c",
     visualAuthority: {
@@ -405,7 +405,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     automaticMappings: [],
     manualOnlyReason:
       "Behavioral transconductance block; structural netlists need an explicit implementation mapping.",
-    assetPath: "transconductance.symbol.json",
+    assetPath: "transconductance.json",
     assetHash:
       "80b329010551f1e54c6ec85c2ca9f6dab5686f3a90c5fd688a1598704d0acbe9",
     visualAuthority: {
@@ -432,9 +432,9 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     automaticMappings: [],
     manualOnlyReason:
       "Behavioral differential transconductance block; structural netlists need an explicit implementation mapping.",
-    assetPath: "differential-transconductance.symbol.json",
+    assetPath: "differential-transconductance.json",
     assetHash:
-      "a788faa770d370b7869fc1a8a4d3fa1a03c5209bd078030971c3cdf0b0ef1a74",
+      "a367064e6389a3739c3af185c097c15f3905a349a2b72efdfb9e67fc6e6a64c8",
   },
   {
     symbolId: "differential-transconductance-inputs-swapped",
@@ -449,7 +449,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     automaticMappings: [],
     manualOnlyReason:
       "Behavioral differential transconductance block; structural netlists need an explicit implementation mapping.",
-    assetPath: "differential-transconductance-inputs-swapped.symbol.json",
+    assetPath: "differential-transconductance-inputs-swapped.json",
     assetHash:
       "7aff3a7490b6de7fcf0b95e819c7f06771b719423e97c659e5247ffca27d8251",
     generation: {
@@ -469,7 +469,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     automaticMappings: [],
     manualOnlyReason:
       "Behavioral s-domain block; structural netlists need an explicit implementation mapping.",
-    assetPath: "integrator.symbol.json",
+    assetPath: "integrator.json",
     assetHash:
       "da5c0ce58b82461babadee1487f4f5ef263d7186e6ded85c67ecdd5f5014102c",
     visualAuthority: {
@@ -493,7 +493,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     automaticMappings: [],
     manualOnlyReason:
       "Behavioral z-domain block; structural netlists need an explicit implementation mapping.",
-    assetPath: "unit-delay.symbol.json",
+    assetPath: "unit-delay.json",
     assetHash:
       "581d6c08558e3cfe83d69121e4004d53c959ecbfdbf6ec38c40f600c2488b45f",
     visualAuthority: {
@@ -517,7 +517,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     automaticMappings: [],
     manualOnlyReason:
       "Behavioral z-domain block; structural netlists need an explicit implementation mapping.",
-    assetPath: "discrete-time-integrator.symbol.json",
+    assetPath: "discrete-time-integrator.json",
     assetHash:
       "814c6aaf7463c1d2c18eef6b6ee9e9c12c67b8662e178386c67d589d3b9530f3",
     visualAuthority: {
@@ -541,7 +541,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     automaticMappings: [],
     manualOnlyReason:
       "Behavioral quantization block; structural netlists need an explicit implementation mapping.",
-    assetPath: "quantizer.symbol.json",
+    assetPath: "quantizer.json",
     assetHash:
       "86e52b7909fd8bc796cf040eb71b6ef29a5e658c9ffac1c9bf06c4b30032c498",
     visualAuthority: {
@@ -563,7 +563,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     pinOrder: ["A", "K"],
     palette: true,
     automaticMappings: ["spice:D"],
-    assetPath: "diode.symbol.json",
+    assetPath: "diode.json",
     assetHash:
       "9f7b396145d285f43d3a88ff74ab75ebf9177b0bb32223dd3c9f03e353167899",
     visualAuthority: {
@@ -595,7 +595,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     pinOrder: ["0"],
     palette: true,
     automaticMappings: [],
-    assetPath: "ground.symbol.json",
+    assetPath: "ground.json",
     assetHash:
       "b2ca65ec6b08eb1395070f3442dac5374d62472ae02789121466767bd09d6a1a",
     visualAuthority: {
@@ -628,7 +628,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     automaticMappings: [],
     manualOnlyReason:
       "Two-terminal Razavi switch; SPICE S has a four-terminal control contract.",
-    assetPath: "ideal-switch.symbol.json",
+    assetPath: "ideal-switch.json",
     assetHash:
       "913c542255bf8a82b5b3d7cd0a30bfdd527b0c863c38780435d3edfcb293c6cd",
     visualAuthority: {
@@ -660,7 +660,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     pinOrder: ["1", "2"],
     palette: true,
     automaticMappings: [],
-    assetPath: "inductor.symbol.json",
+    assetPath: "inductor.json",
     assetHash:
       "11c01f2890b89fbe505252f2622e62838cd047885ad544fd862c3ae2d5821369",
     visualAuthority: {
@@ -694,7 +694,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     pinOrder: ["1", "2"],
     palette: true,
     automaticMappings: ["spice:L"],
-    assetPath: "inductor-compact.symbol.json",
+    assetPath: "inductor-compact.json",
     assetHash:
       "ea49a969428ddb0bdce0a567467e11295a1e39f15ba71d0eafd5d316a0cbc6ea",
     visualAuthority: {
@@ -729,7 +729,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     automaticMappings: [],
     manualOnlyReason:
       "A bridged T-coil is a composite L1/L2/K/CB network; structural export requires an explicit fixed-cell or subcircuit mapping.",
-    assetPath: "tcoil.symbol.json",
+    assetPath: "tcoil.json",
     assetHash:
       "edb4cde9993cc82ecfc57f32ba53bf466cefa85dd574fc4a9666de7f2c30a9ee",
     visualAuthority: {
@@ -761,7 +761,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     automaticMappings: [],
     manualOnlyReason:
       "A transformer lowers to two inductors plus mutual coupling; structural export requires an explicit compound-device or subcircuit mapping.",
-    assetPath: "xfmr.symbol.json",
+    assetPath: "xfmr.json",
     assetHash:
       "95b6f2fb48fdee7051a5fc6171ee3ea2349b7755c49a00261fddebeb33370e71",
     visualAuthority: {
@@ -793,7 +793,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     automaticMappings: [],
     manualOnlyReason:
       "Behavioral logic gate; structural SPICE realization requires an explicit subcircuit or PDK mapping.",
-    assetPath: "inverter.symbol.json",
+    assetPath: "inverter.json",
     assetHash:
       "105b863af972fc9ef27ee8d8f2db748c57e9d707d57ccd48059063ef1bb8db05",
     visualAuthority: {
@@ -827,7 +827,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     automaticMappings: [],
     manualOnlyReason:
       "Behavioral logic gate; structural SPICE realization requires an explicit subcircuit or PDK mapping.",
-    assetPath: "nand-gate.symbol.json",
+    assetPath: "nand-gate.json",
     assetHash:
       "ad69ca3fc15f902028bcc5f49d9f3c8100d8df324d8f01de2e72aa02a0b4dd56",
     visualAuthority: {
@@ -869,7 +869,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     pinOrder: ["D", "G", "S", "B"],
     palette: true,
     automaticMappings: ["spice:M:nmos", "pdk:model-type:nmos"],
-    assetPath: "nmos.symbol.json",
+    assetPath: "nmos.json",
     assetHash:
       "7bfa080f6bc6166a4ae7e0e91f8f6c058e6f6a4cc22a208818c6283fe8650953",
   },
@@ -883,7 +883,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     automaticMappings: [],
     manualOnlyReason:
       "Behavioral logic gate; structural SPICE realization requires an explicit subcircuit or PDK mapping.",
-    assetPath: "nor-gate.symbol.json",
+    assetPath: "nor-gate.json",
     assetHash:
       "bfebcab16caeccf87b08791cb57402072609b3784b599c3b88bef6fd3b54e38d",
     visualAuthority: {
@@ -915,7 +915,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     pinOrder: ["C", "B", "E"],
     palette: true,
     automaticMappings: ["spice:Q:npn", "pdk:model-type:npn"],
-    assetPath: "npn.symbol.json",
+    assetPath: "npn.json",
     assetHash:
       "2f16db20b1a6766f55d5f66e493e2e9c6230dd99052a34b65ebf254b9be57978",
     visualAuthority: {
@@ -949,7 +949,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     automaticMappings: [],
     manualOnlyReason:
       "Three-terminal textbook op-amp; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
-    assetPath: "opamp.symbol.json",
+    assetPath: "opamp.json",
     assetHash:
       "fb6b8605feb8c296edd6bf43500a02690ec4fb17c849745a67e0290ef95890d6",
     visualAuthority: {
@@ -983,7 +983,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     automaticMappings: [],
     manualOnlyReason:
       "Three-terminal textbook op-amp; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
-    assetPath: "opamp-lettered.symbol.json",
+    assetPath: "opamp-lettered.json",
     assetHash:
       "53a12caba1d472fc036044031ef0faaad92554defe84c2f541539f2b164556ff",
     visualAuthority: {
@@ -1014,7 +1014,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     automaticMappings: [],
     manualOnlyReason:
       "Three-terminal textbook op-amp; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
-    assetPath: "opamp-lettered-inputs-swapped.symbol.json",
+    assetPath: "opamp-lettered-inputs-swapped.json",
     assetHash:
       "58c63d290daf3e5d72228dd371a7b36042c67d6f2693210fe2402175d4945411",
     visualAuthority: {
@@ -1045,7 +1045,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     automaticMappings: [],
     manualOnlyReason:
       "Three-terminal textbook op-amp; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
-    assetPath: "opamp-inputs-swapped.symbol.json",
+    assetPath: "opamp-inputs-swapped.json",
     assetHash:
       "a81158cd150c72ba3b69a441dd50bc3790d779f18489116ef4d3d5d19919d165",
     visualAuthority: {
@@ -1076,7 +1076,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     automaticMappings: [],
     manualOnlyReason:
       "Fully differential textbook body; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
-    assetPath: "opamp-differential.symbol.json",
+    assetPath: "opamp-differential.json",
     assetHash:
       "fa4917dfe1c6f3b183006a104428d38bb05a51872778b00235a37d0386ef84d3",
     visualAuthority: {
@@ -1111,7 +1111,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     automaticMappings: [],
     manualOnlyReason:
       "Fully differential textbook body; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
-    assetPath: "opamp-differential-lettered.symbol.json",
+    assetPath: "opamp-differential-lettered.json",
     assetHash:
       "46495affececc8c90b6be3116f9333d7b1e74f99f1cfd9968e8cfdf9db5f717f",
     visualAuthority: {
@@ -1143,7 +1143,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     automaticMappings: [],
     manualOnlyReason:
       "Fully differential textbook body; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
-    assetPath: "opamp-differential-lettered-inputs-swapped.symbol.json",
+    assetPath: "opamp-differential-lettered-inputs-swapped.json",
     assetHash:
       "a65767af7c4ea9e755e0f8f71452fb53008f776267c96ca1c0fb1413dc777f5a",
     visualAuthority: {
@@ -1175,7 +1175,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     automaticMappings: [],
     manualOnlyReason:
       "Fully differential textbook body; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
-    assetPath: "opamp-differential-inputs-swapped.symbol.json",
+    assetPath: "opamp-differential-inputs-swapped.json",
     assetHash:
       "6d362069c9874d18f371cfae6d2ba6c435321cfa90fe8c03fd8636afae9e4dbc",
     visualAuthority: {
@@ -1207,7 +1207,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     automaticMappings: [],
     manualOnlyReason:
       "Output-polarity sibling of opamp-differential; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
-    assetPath: "opamp-differential-crossed.symbol.json",
+    assetPath: "opamp-differential-crossed.json",
     assetHash:
       "2ac3fc5c11fb99903170eff3eb41b240fad47fa1d8e59b2f0ac00865d73f45de",
     visualAuthority: {
@@ -1242,7 +1242,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     automaticMappings: [],
     manualOnlyReason:
       "Output-polarity sibling of opamp-differential; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
-    assetPath: "opamp-differential-crossed-lettered.symbol.json",
+    assetPath: "opamp-differential-crossed-lettered.json",
     assetHash:
       "9ec07bdefa2cd349a613b59dedab23cb31bf3edec1102ee44fcca1596edf3f32",
     visualAuthority: {
@@ -1274,7 +1274,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     automaticMappings: [],
     manualOnlyReason:
       "Output-polarity sibling of opamp-differential; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
-    assetPath: "opamp-differential-crossed-lettered-inputs-swapped.symbol.json",
+    assetPath: "opamp-differential-crossed-lettered-inputs-swapped.json",
     assetHash:
       "541b9b86827927457028ec04dba83ae50af40eebaa2ffde5d135329c2f8d9aca",
     visualAuthority: {
@@ -1306,7 +1306,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     automaticMappings: [],
     manualOnlyReason:
       "Output-polarity sibling of opamp-differential; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
-    assetPath: "opamp-differential-crossed-inputs-swapped.symbol.json",
+    assetPath: "opamp-differential-crossed-inputs-swapped.json",
     assetHash:
       "771c4ca11370b343eb9bccba2d06623df26e90bf9ad0297d19cd6148f20f08e1",
     visualAuthority: {
@@ -1338,7 +1338,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     automaticMappings: [],
     manualOnlyReason:
       "Behavioral logic gate; structural SPICE realization requires an explicit subcircuit or PDK mapping.",
-    assetPath: "or-gate.symbol.json",
+    assetPath: "or-gate.json",
     assetHash:
       "ed9f5c0ee5d14fff907c8033d3813fee8bd4e21f69f44b31fa6571d740dfdf70",
     visualAuthority: {
@@ -1380,7 +1380,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     pinOrder: ["D", "G", "S", "B"],
     palette: true,
     automaticMappings: ["spice:M:pmos", "pdk:model-type:pmos"],
-    assetPath: "pmos.symbol.json",
+    assetPath: "pmos.json",
     assetHash:
       "daaa6cbb9dcd9de154a9b3e4796b2e8e5b24b39161661935c91f2e078fe1af74",
   },
@@ -1392,7 +1392,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     pinOrder: ["C", "B", "E"],
     palette: true,
     automaticMappings: ["spice:Q:pnp", "pdk:model-type:pnp"],
-    assetPath: "pnp.symbol.json",
+    assetPath: "pnp.json",
     assetHash:
       "831c12896ded98badf9e75be73d1965e760044c46dcfb03dd7a0cfb598abf4fc",
     visualAuthority: {
@@ -1424,7 +1424,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     pinOrder: ["P"],
     palette: true,
     automaticMappings: [],
-    assetPath: "port.symbol.json",
+    assetPath: "port.json",
     assetHash:
       "4d17eea1df130c008fa194c65012a9d6893c7245b7d4bb78b4f37e0187c569ea",
     visualAuthority: {
@@ -1448,7 +1448,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     automaticMappings: [],
     manualOnlyReason:
       "Explicit solid endpoint style; no automatic SPICE mapping.",
-    assetPath: "port-filled.symbol.json",
+    assetPath: "port-filled.json",
     assetHash:
       "fa0159b800b6df515bfd876704b1cd448de280b63fc48df14221dcc5bb89bbcb",
     visualAuthority: {
@@ -1470,7 +1470,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     pinOrder: ["1", "2"],
     palette: true,
     automaticMappings: ["spice:R"],
-    assetPath: "resistor.symbol.json",
+    assetPath: "resistor.json",
     assetHash:
       "90ade2be2a9733fdc90c38518d6bf6be7afe8a9c4212266bc82e34c25c63adab",
     visualAuthority: {
@@ -1497,7 +1497,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     automaticMappings: [],
     manualOnlyReason:
       "Three-terminal selector; SPICE has no single-pole double-throw primitive.",
-    assetPath: "simple-spdt-switch.symbol.json",
+    assetPath: "simple-spdt-switch.json",
     assetHash:
       "c586e487e5a4f2dd6fb48f096fa9183162ea9cb02b6ad1edc7706a706f1122cf",
   },
@@ -1514,7 +1514,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     automaticMappings: [],
     manualOnlyReason:
       "Two-terminal switch; SPICE S has a four-terminal control contract.",
-    assetPath: "simple-switch.symbol.json",
+    assetPath: "simple-switch.json",
     assetHash:
       "d379bb5a1986dca82cf603c7b7721b7fe8680ccabc33b72bc0ab4bf3e5460cbe",
   },
@@ -1531,7 +1531,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     automaticMappings: [],
     manualOnlyReason:
       "Three-terminal selector; SPICE has no single-pole double-throw primitive.",
-    assetPath: "spdt-switch.symbol.json",
+    assetPath: "spdt-switch.json",
     assetHash:
       "619b00cf2fdb0a6b81830a245018425fcabb38641eec39fe2bb21fd4a285e92d",
   },
@@ -1545,7 +1545,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     automaticMappings: [],
     manualOnlyReason:
       "Manually selected adjustable presentation; structural SPICE C does not preserve a distinct variable-capacitor symbol.",
-    assetPath: "variable-capacitor.symbol.json",
+    assetPath: "variable-capacitor.json",
     assetHash:
       "feffb09d98cfeb5c5e6a29502112bb7bcfc3796f6654b7dcbb920036295f5a28",
     visualAuthority: {
@@ -1569,7 +1569,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     automaticMappings: [],
     manualOnlyReason:
       "Manually selected adjustable presentation; structural SPICE L does not preserve a distinct variable-inductor symbol.",
-    assetPath: "variable-inductor.symbol.json",
+    assetPath: "variable-inductor.json",
     assetHash:
       "ac2a1e9e7c26bb77d9bb6f698d241b751e554583aba4e55478b1b5280fe7a018",
     visualAuthority: {
@@ -1593,7 +1593,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     automaticMappings: [],
     manualOnlyReason:
       "Manually selected adjustable presentation; structural SPICE R does not preserve a distinct variable-resistor symbol.",
-    assetPath: "variable-resistor.symbol.json",
+    assetPath: "variable-resistor.json",
     assetHash:
       "b281a5d5b954430073cd2bb4374390fdc90e34d046206d86ae7bce40d1532b01",
     visualAuthority: {
@@ -1615,7 +1615,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     pinOrder: ["P"],
     palette: true,
     automaticMappings: [],
-    assetPath: "vdd-port.symbol.json",
+    assetPath: "vdd-port.json",
     assetHash:
       "4df004c2c020a7d969eca39479393980fc83fec2ecc5901d4ba1667996493320",
     visualAuthority: {
@@ -1639,7 +1639,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     automaticMappings: [],
     manualOnlyReason:
       "Textbook gain block has implicit reference nodes and no exact primitive SPICE terminal contract.",
-    assetPath: "voltage-amplifier.symbol.json",
+    assetPath: "voltage-amplifier.json",
     assetHash:
       "54a484ad99c36ef67f6774551d96d212fb17855570e545b457ea3b102da6d385",
     visualAuthority: {
@@ -1673,7 +1673,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     automaticMappings: [],
     manualOnlyReason:
       "Textbook gain block has implicit reference nodes and no exact primitive SPICE terminal contract.",
-    assetPath: "voltage-amplifier-lettered.symbol.json",
+    assetPath: "voltage-amplifier-lettered.json",
     assetHash:
       "5d07c56e7df42bf779cf172ba471477333ee042d70db4f9e86a4ebf5684fe173",
     visualAuthority: {
@@ -1704,7 +1704,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     automaticMappings: [],
     manualOnlyReason:
       "Pulse semantics require authored timing parameters and must not replace imported DC voltage sources automatically.",
-    assetPath: "pulse-voltage-source.symbol.json",
+    assetPath: "pulse-voltage-source.json",
     assetHash:
       "ed85c05f409cd66ff2d969bc84c4803a8352b5d022dcd26c7fc998715924717f",
     visualAuthority: {
@@ -1740,7 +1740,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     pinOrder: ["P", "N", "CP", "CN"],
     palette: true,
     automaticMappings: ["spice:S"],
-    assetPath: "voltage-controlled-switch.symbol.json",
+    assetPath: "voltage-controlled-switch.json",
     assetHash:
       "c7a243285745643126ab4e90220d55b82408bd63219cc2fabe6d8a53e93dd85b",
   },
@@ -1752,7 +1752,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     pinOrder: ["+", "-"],
     palette: true,
     automaticMappings: ["spice:V"],
-    assetPath: "voltage-source.symbol.json",
+    assetPath: "voltage-source.json",
     assetHash:
       "2feeef8f7e425cc38ba9de64ed9b81333ec4c53c3c553a030264c22a919e5402",
     visualAuthority: {
@@ -1785,7 +1785,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     automaticMappings: [],
     manualOnlyReason:
       "Behavioral logic gate; structural SPICE realization requires an explicit subcircuit or PDK mapping.",
-    assetPath: "xnor-gate.symbol.json",
+    assetPath: "xnor-gate.json",
     assetHash:
       "43e606d026e0907ad50be8a39d86e879158671f0ee6c124eef3a0b66f31d491a",
     visualAuthority: {
@@ -1821,7 +1821,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     automaticMappings: [],
     manualOnlyReason:
       "Behavioral logic gate; structural SPICE realization requires an explicit subcircuit or PDK mapping.",
-    assetPath: "xor-gate.symbol.json",
+    assetPath: "xor-gate.json",
     assetHash:
       "5f4b6db11eddfe87715df1177cee9ee59b8050a4084e43a4034ca40e690b4e83",
     visualAuthority: {
@@ -1855,7 +1855,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     automaticMappings: [],
     manualOnlyReason:
       "SPICE D syntax does not distinguish a Zener presentation from an ordinary diode; select this reviewed symbol manually or through an explicit PDK mapping.",
-    assetPath: "zener-diode.symbol.json",
+    assetPath: "zener-diode.json",
     assetHash:
       "01261cd11d9a03e7e457d5b0d7ab261b69ff4c28c022a087883ab6614f295772",
     visualAuthority: {
@@ -1892,7 +1892,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     automaticMappings: [],
     manualOnlyReason:
       "A converter block stands for a subsystem; SPICE has no primitive for one.",
-    assetPath: "adc.symbol.json",
+    assetPath: "adc.json",
     assetHash:
       "8ee369db66cfddbd10f3052b96dd577039f8fa37fc4f9e6f5fba1d6f3d92efc2",
   },
@@ -1909,7 +1909,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     automaticMappings: [],
     manualOnlyReason:
       "A converter block stands for a subsystem; SPICE has no primitive for one.",
-    assetPath: "dac.symbol.json",
+    assetPath: "dac.json",
     assetHash:
       "a4c4dee2f1b9c06490e8931bd8e1671e0dd8def4482e3c0393b9bd3968075d38",
   },

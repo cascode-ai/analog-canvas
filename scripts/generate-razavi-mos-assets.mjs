@@ -1,12 +1,16 @@
+import {
+  readComponentProjection,
+  writeComponentProjection,
+} from "./lib/component-library.mjs";
 import { createHash } from "node:crypto";
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { dirname, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { format } from "prettier";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const assetRoot = resolve(root, "packages/symbols/assets/razavi-v1");
+const assetRoot = resolve(root, "packages/components/definitions");
 const referenceRoot = resolve(
   root,
   "fixtures/visual-reference/razavi-reference-v1",
@@ -318,16 +322,16 @@ for (const polarity of ["nmos", "pmos"]) {
     ),
     { parser: "json" },
   );
-  const target = resolve(assetRoot, `${polarity}.symbol.json`);
+  const target = resolve(assetRoot, `${polarity}.json`);
   if (!target.startsWith(`${assetRoot}${sep}`))
     fail(`invalid output ${target}`);
   if (check) {
-    const existing = await readFile(target, "utf8");
+    const existing = await readComponentProjection(target);
     if (existing.replaceAll("\r\n", "\n") !== generated) {
       fail(`${relative(root, target)} is stale`);
     }
   } else {
-    await writeFile(target, generated, "utf8");
+    await writeComponentProjection(target, generated);
   }
 }
 

@@ -77,6 +77,13 @@ describe("validation gate planning", () => {
     expect(selected).toEqual(["test-impact", "full-delivery"]);
   });
 
+  it("keeps canonical component definitions on the shared-core delivery gate", () => {
+    expect(ids(["packages/components/definitions/nmos.json"])).toEqual([
+      "test-impact",
+      "full-delivery",
+    ]);
+  });
+
   it("maps Gallery and account changes to their dedicated browser workflow", () => {
     const selected = ids(["worker/auth.ts", "worker/gallery.ts"]);
     expect(selected).toContain("workspace-unit");

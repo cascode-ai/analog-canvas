@@ -1,11 +1,12 @@
+import { readComponentProjection } from "./lib/component-library.mjs";
 import { readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { format } from "prettier";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const assetRoot = resolve(root, "packages/symbols/assets/razavi-v1");
-const sourceCatalogPath = resolve(assetRoot, "catalog.json");
+const assetRoot = resolve(root, "packages/components/definitions");
+const sourceCatalogPath = resolve(assetRoot, "../catalog.json");
 const outputPath = resolve(
   root,
   "packages/agent-adapter/src/agent-authoring-catalog.generated.ts",
@@ -18,7 +19,9 @@ function fail(message) {
   throw new Error(`Agent authoring catalog: ${message}`);
 }
 
-const sourceCatalog = JSON.parse(await readFile(sourceCatalogPath, "utf8"));
+const sourceCatalog = JSON.parse(
+  await readComponentProjection(sourceCatalogPath),
+);
 if (
   sourceCatalog.schemaVersion !== 2 ||
   sourceCatalog.id !== "razavi-symbols" ||
@@ -43,7 +46,7 @@ for (const entry of sourceCatalog.entries) {
   if (!assetPath.startsWith(`${assetRoot}${sep}`)) {
     fail(`asset path escapes catalog root: ${entry.symbolId}`);
   }
-  const definition = JSON.parse(await readFile(assetPath, "utf8"));
+  const definition = JSON.parse(await readComponentProjection(assetPath));
   if (definition.schemaVersion !== 1 || definition.id !== entry.symbolId) {
     fail(`asset identity mismatch for ${entry.symbolId}`);
   }

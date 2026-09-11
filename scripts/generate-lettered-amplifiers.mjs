@@ -1,4 +1,8 @@
 #!/usr/bin/env node
+import {
+  readComponentProjection,
+  writeComponentProjection,
+} from "./lib/component-library.mjs";
 // Derives the lettered amplifier bodies from their plain sources.
 //
 // An amplifier drawn with a letter inside the triangle — A for a gain stage,
@@ -18,15 +22,14 @@
 // Entries are spliced next to their sources, never re-sorted: catalog.json
 // carries a curated order that the Library reads.
 import { createHash } from "node:crypto";
-import { readFile, writeFile } from "node:fs/promises";
 import { relative, resolve } from "node:path";
 import process from "node:process";
 
 import { format } from "prettier";
 
 const root = resolve(import.meta.dirname, "..");
-const assetRoot = resolve(root, "packages/symbols/assets/razavi-v1");
-const catalogPath = resolve(assetRoot, "catalog.json");
+const assetRoot = resolve(root, "packages/components/definitions");
+const catalogPath = resolve(assetRoot, "../catalog.json");
 const check = process.argv.includes("--check");
 
 function fail(message) {
@@ -92,7 +95,7 @@ function triangleCentroid(symbol) {
   };
 }
 
-const catalog = JSON.parse(await readFile(catalogPath, "utf8"));
+const catalog = JSON.parse(await readComponentProjection(catalogPath));
 const outputs = [];
 
 for (const { id, letteredId, name, palette } of SOURCES) {
@@ -101,7 +104,10 @@ for (const { id, letteredId, name, palette } of SOURCES) {
   );
   if (!sourceEntry) fail(`missing catalog entry ${id}`);
   const source = JSON.parse(
-    await readFile(resolve(assetRoot, sourceEntry.assetPath), "utf8"),
+    await readComponentProjection(
+      resolve(assetRoot, sourceEntry.assetPath),
+      "utf8",
+    ),
   );
 
   const lettered = {
@@ -119,7 +125,7 @@ for (const { id, letteredId, name, palette } of SOURCES) {
   const letteredSource = normalize(
     await format(JSON.stringify(lettered, null, 2), { parser: "json" }),
   );
-  const assetPath = `${letteredId}.symbol.json`;
+  const assetPath = `${letteredId}.json`;
   outputs.push([resolve(assetRoot, assetPath), letteredSource]);
 
   const entry = {
@@ -156,14 +162,14 @@ outputs.push([
 
 if (check) {
   for (const [path, source] of outputs) {
-    const existing = await readFile(path, "utf8").catch(() => null);
+    const existing = await readComponentProjection(path).catch(() => null);
     if (existing === null || normalize(existing) !== source) {
       fail(`${relative(root, path)} is stale`);
     }
   }
 } else {
   for (const [path, source] of outputs) {
-    await writeFile(path, source, "utf8");
+    await writeComponentProjection(path, source);
   }
 }
 

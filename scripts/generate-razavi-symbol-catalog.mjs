@@ -1,3 +1,7 @@
+import {
+  readComponentProjection,
+  writeComponentProjection,
+} from "./lib/component-library.mjs";
 import { createHash } from "node:crypto";
 import { readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve, sep } from "node:path";
@@ -7,8 +11,8 @@ import { format } from "prettier";
 import { loadRazaviReferenceAuthority } from "./lib/razavi-reference-authority.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const assetRoot = resolve(root, "packages/symbols/assets/razavi-v1");
-const catalogPath = resolve(assetRoot, "catalog.json");
+const assetRoot = resolve(root, "packages/components/definitions");
+const catalogPath = resolve(assetRoot, "../catalog.json");
 const generatedPath = resolve(
   root,
   "packages/symbols/src/razavi-catalog.generated.ts",
@@ -22,7 +26,7 @@ function fail(message) {
   throw new Error(`Razavi catalog: ${message}`);
 }
 
-const catalog = JSON.parse(await readFile(catalogPath, "utf8"));
+const catalog = JSON.parse(await readComponentProjection(catalogPath));
 if (
   catalog.schemaVersion !== 2 ||
   catalog.id !== "razavi-symbols" ||
@@ -250,7 +254,7 @@ for (const entry of catalog.entries) {
   if (!assetPath.startsWith(`${assetRoot}${sep}`)) {
     fail(`asset path escapes catalog root: ${entry.assetPath}`);
   }
-  const assetSource = normalize(await readFile(assetPath, "utf8"));
+  const assetSource = normalize(await readComponentProjection(assetPath));
   const symbol = JSON.parse(assetSource);
   if (symbol.schemaVersion !== 1 || symbol.id !== entry.symbolId) {
     fail(`asset identity mismatch for ${entry.symbolId}`);
@@ -343,7 +347,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = ${JSON.stringif
 );
 
 if (check) {
-  const checkedCatalog = normalize(await readFile(catalogPath, "utf8"));
+  const checkedCatalog = normalize(await readComponentProjection(catalogPath));
   if (checkedCatalog !== catalogSource)
     fail("catalog formatting or hashes are stale");
   const checkedGenerated = normalize(await readFile(generatedPath, "utf8"));
@@ -353,7 +357,7 @@ if (check) {
     `Validated ${symbols.length} Razavi symbol assets and ${semanticIds.size} semantic primitive`,
   );
 } else {
-  await writeFile(catalogPath, catalogSource, "utf8");
+  await writeComponentProjection(catalogPath, catalogSource);
   await writeFile(generatedPath, generatedSource, "utf8");
   console.log(
     `Generated ${symbols.length} Razavi symbol assets and ${semanticIds.size} semantic primitive`,

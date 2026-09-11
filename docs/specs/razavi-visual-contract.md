@@ -2,7 +2,7 @@
 
 Status: `accepted`
 
-Owners: `fixtures/visual-reference`, `packages/symbols`, `packages/derived`,
+Owners: `fixtures/visual-reference`, `packages/components`, `packages/symbols`, `packages/derived`,
 `packages/render-svg`, `scripts`
 
 ## Purpose
@@ -199,7 +199,7 @@ connectivity truth.
 A Razavi palette entry is eligible only when all conditions hold:
 
 1. its `SymbolDefinition` is electrically reviewed and every pin is on-grid;
-2. `catalog.json` records `reviewStatus: "reviewed"`;
+2. the component file's `catalog` section records `reviewStatus: "reviewed"`;
 3. `palette` is true and `visualAuthority.kind` is
    `"razavi-reference-v1"`;
 4. referenced evidence, raster witness, and measurements are present and

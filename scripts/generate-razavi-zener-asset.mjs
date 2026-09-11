@@ -1,5 +1,8 @@
+import {
+  readComponentProjection,
+  writeComponentProjection,
+} from "./lib/component-library.mjs";
 import { createHash } from "node:crypto";
-import { readFile, writeFile } from "node:fs/promises";
 import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -12,9 +15,9 @@ const referenceRoot = resolve(
   root,
   "fixtures/visual-reference/razavi-reference-v1",
 );
-const assetRoot = resolve(root, "packages/symbols/assets/razavi-v1");
-const catalogPath = resolve(assetRoot, "catalog.json");
-const assetPath = resolve(assetRoot, "zener-diode.symbol.json");
+const assetRoot = resolve(root, "packages/components/definitions");
+const catalogPath = resolve(assetRoot, "../catalog.json");
+const assetPath = resolve(assetRoot, "zener-diode.json");
 const check = process.argv.includes("--check");
 const normalize = (value) => `${value.replaceAll("\r\n", "\n").trimEnd()}\n`;
 const hash = (value) => createHash("sha256").update(value).digest("hex");
@@ -45,7 +48,7 @@ if (
 const assetSource = normalize(
   await format(JSON.stringify(symbol, null, 2), { parser: "json" }),
 );
-const catalog = JSON.parse(await readFile(catalogPath, "utf8"));
+const catalog = JSON.parse(await readComponentProjection(catalogPath));
 const nextEntry = {
   symbolId: "zener-diode",
   name: "Zener Diode",
@@ -56,7 +59,7 @@ const nextEntry = {
   automaticMappings: [],
   manualOnlyReason:
     "SPICE D syntax does not distinguish a Zener presentation from an ordinary diode; select this reviewed symbol manually or through an explicit PDK mapping.",
-  assetPath: "zener-diode.symbol.json",
+  assetPath: "zener-diode.json",
   assetHash: hash(assetSource),
   visualAuthority: {
     kind: "razavi-reference-v1",
@@ -89,15 +92,15 @@ const catalogSource = normalize(
 );
 
 if (check) {
-  if (normalize(await readFile(assetPath, "utf8")) !== assetSource) {
+  if (normalize(await readComponentProjection(assetPath)) !== assetSource) {
     fail(`${relative(root, assetPath)} is stale`);
   }
-  if (normalize(await readFile(catalogPath, "utf8")) !== catalogSource) {
+  if (normalize(await readComponentProjection(catalogPath)) !== catalogSource) {
     fail(`${relative(root, catalogPath)} is stale`);
   }
 } else {
-  await writeFile(assetPath, assetSource, "utf8");
-  await writeFile(catalogPath, catalogSource, "utf8");
+  await writeComponentProjection(assetPath, assetSource);
+  await writeComponentProjection(catalogPath, catalogSource);
 }
 
 console.log(

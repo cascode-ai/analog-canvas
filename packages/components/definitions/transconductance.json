@@ -1,0 +1,129 @@
+{
+  "schemaVersion": 1,
+  "symbol": {
+    "schemaVersion": 1,
+    "id": "transconductance",
+    "name": "Transconductance (gₘ)",
+    "viewBox": {
+      "x": -34,
+      "y": -39,
+      "width": 68,
+      "height": 78
+    },
+    "pins": [
+      {
+        "name": "A",
+        "role": "input",
+        "at": {
+          "x": -30,
+          "y": 0
+        },
+        "direction": "west",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      },
+      {
+        "name": "Y",
+        "role": "output",
+        "at": {
+          "x": 30,
+          "y": 0
+        },
+        "direction": "east",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      }
+    ],
+    "primitives": [
+      {
+        "kind": "line",
+        "from": {
+          "x": -30,
+          "y": 0
+        },
+        "to": {
+          "x": -20,
+          "y": 0
+        },
+        "part": "input-a-lead",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "path",
+        "part": "body",
+        "data": "M -20 -35 L 20 -17.5 L 20 17.5 L -20 35 Z",
+        "style": {
+          "strokeRole": "emphasis",
+          "lineCap": "butt",
+          "lineJoin": "miter",
+          "miterLimit": 4
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 20,
+          "y": 0
+        },
+        "to": {
+          "x": 30,
+          "y": 0
+        },
+        "part": "output-y-lead",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      }
+    ],
+    "formulaPresentation": {
+      "defaultFormula": "g_m",
+      "supportsCoefficient": true,
+      "center": {
+        "x": 0,
+        "y": 0
+      },
+      "fontSize": 12,
+      "adaptiveFrame": {
+        "shape": "right-tapered-trapezoid",
+        "minBodyWidth": 40,
+        "minBodyHeight": 70,
+        "horizontalPadding": 4,
+        "verticalPadding": 4,
+        "leadLength": 10
+      }
+    },
+    "variants": [],
+    "labelVisibility": "hidden"
+  },
+  "electrical": null,
+  "catalog": {
+    "library": "razavi",
+    "symbolId": "transconductance",
+    "name": "Transconductance (gₘ)",
+    "category": "analog-block",
+    "reviewStatus": "reviewed",
+    "pinOrder": ["A", "Y"],
+    "palette": true,
+    "automaticMappings": [],
+    "manualOnlyReason": "Behavioral transconductance block; structural netlists need an explicit implementation mapping.",
+    "assetPath": "transconductance.json",
+    "visualAuthority": {
+      "kind": "razavi-reference-v1",
+      "referenceManifestPath": "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+      "referencePaths": [
+        "fixtures/visual-reference/razavi-reference-v1/delta-sigma-geometry.json"
+      ],
+      "calibrationPath": "fixtures/visual-reference/razavi-reference-v1/delta-sigma-geometry.json"
+    }
+  }
+}

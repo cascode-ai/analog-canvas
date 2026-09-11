@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
+import { format } from "prettier";
 
 import { builtInSymbols } from "./builtins.js";
 import {
@@ -18,7 +19,7 @@ import {
 } from "./razavi-catalog.js";
 import { SymbolDefinitionSchema } from "./schema.js";
 
-const assetRoot = resolve(process.cwd(), "packages/symbols/assets/razavi-v1");
+const assetRoot = resolve(process.cwd(), "packages/components/definitions");
 const mosGeometry = JSON.parse(
   readFileSync(
     resolve(
@@ -242,9 +243,14 @@ describe("Razavi symbol catalog", () => {
     ]);
   });
 
-  it("validates every source asset, pin order, and byte hash", () => {
+  it("validates every component Symbol projection, pin order, and byte hash", async () => {
     for (const entry of razaviSymbolCatalogEntries) {
-      const source = readFileSync(resolve(assetRoot, entry.assetPath), "utf8");
+      const component = JSON.parse(
+        readFileSync(resolve(assetRoot, entry.assetPath), "utf8"),
+      );
+      const source = await format(JSON.stringify(component.symbol, null, 2), {
+        parser: "json",
+      });
       const asset = SymbolDefinitionSchema.parse(JSON.parse(source));
       expect(asset.id).toBe(entry.symbolId);
       expect(asset.pins.map((pin) => pin.name)).toEqual(entry.pinOrder);

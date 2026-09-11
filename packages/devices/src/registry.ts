@@ -1,34 +1,5 @@
 import type { DeviceDescriptor, DeviceRegistry } from "./contract.js";
-import {
-  capacitorDevice,
-  currentSourceDevice,
-  diodeDevice,
-  groundDevice,
-  inductorCompactDevice,
-  inductorDevice,
-  ndmosDevice,
-  nmosDevice,
-  npnDevice,
-  pdmosDevice,
-  pmosDevice,
-  pnpDevice,
-  pulseVoltageSourceDevice,
-  resistorDevice,
-  variableCapacitorDevice,
-  variableInductorDevice,
-  variableResistorDevice,
-  vddPortDevice,
-  voltageControlledSwitchDevice,
-  voltageSourceDevice,
-  tcoilDevice,
-  xfmrDevice,
-  zenerDiodeDevice,
-  idealSwitchDevice,
-  closedSwitchDevice,
-  simpleSwitchDevice,
-  simpleSpdtSwitchDevice,
-  spdtSwitchDevice,
-} from "./descriptors/index.js";
+import { componentDeviceDescriptors } from "./components.generated.js";
 import { validateDeviceDescriptors } from "./validation.js";
 
 export function defineDeviceRegistry(
@@ -53,36 +24,7 @@ export function defineDeviceRegistry(
   };
 }
 
-export const deviceRegistry = defineDeviceRegistry([
-  resistorDevice,
-  variableResistorDevice,
-  capacitorDevice,
-  variableCapacitorDevice,
-  inductorCompactDevice,
-  inductorDevice,
-  variableInductorDevice,
-  nmosDevice,
-  pmosDevice,
-  ndmosDevice,
-  pdmosDevice,
-  diodeDevice,
-  zenerDiodeDevice,
-  npnDevice,
-  pnpDevice,
-  voltageSourceDevice,
-  pulseVoltageSourceDevice,
-  currentSourceDevice,
-  voltageControlledSwitchDevice,
-  idealSwitchDevice,
-  closedSwitchDevice,
-  simpleSwitchDevice,
-  simpleSpdtSwitchDevice,
-  spdtSwitchDevice,
-  groundDevice,
-  vddPortDevice,
-  tcoilDevice,
-  xfmrDevice,
-]);
+export const deviceRegistry = defineDeviceRegistry(componentDeviceDescriptors);
 
 export const builtInDeviceDescriptors: readonly DeviceDescriptor[] =
   deviceRegistry.descriptors;

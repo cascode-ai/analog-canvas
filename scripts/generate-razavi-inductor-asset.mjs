@@ -1,5 +1,8 @@
+import {
+  readComponentProjection,
+  writeComponentProjection,
+} from "./lib/component-library.mjs";
 import { createHash } from "node:crypto";
-import { readFile, writeFile } from "node:fs/promises";
 import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -14,11 +17,11 @@ const referenceRoot = resolve(
 );
 const assetPath = resolve(
   root,
-  "packages/symbols/assets/razavi-v1/inductor.symbol.json",
+  "packages/components/definitions/inductor.json",
 );
 const compactAssetPath = resolve(
   root,
-  "packages/symbols/assets/razavi-v1/inductor-compact.symbol.json",
+  "packages/components/definitions/inductor-compact.json",
 );
 // The textbook figure is drawn at its own scale, so the calibrated Inductor is
 // 1.5x the pin span every other reviewed passive uses. `inductor` keeps that
@@ -26,10 +29,7 @@ const compactAssetPath = resolve(
 // to the shared passive pin span so a schematic mixing R, C, and L reads at
 // one scale.
 const PASSIVE_PIN_SPAN_LOGICAL = 40;
-const catalogPath = resolve(
-  root,
-  "packages/symbols/assets/razavi-v1/catalog.json",
-);
+const catalogPath = resolve(root, "packages/components/catalog.json");
 const check = process.argv.includes("--check");
 const normalize = (value) => `${value.replaceAll("\r\n", "\n").trimEnd()}\n`;
 const hash = (value) => createHash("sha256").update(value).digest("hex");
@@ -145,7 +145,7 @@ const compactAssetSource = normalize(
   await format(JSON.stringify(compactSymbol, null, 2), { parser: "json" }),
 );
 
-const catalog = JSON.parse(await readFile(catalogPath, "utf8"));
+const catalog = JSON.parse(await readComponentProjection(catalogPath));
 const generation = {
   kind: "razavi-pdf-vector-reference",
   referenceManifestPath:
@@ -177,14 +177,14 @@ if (check) {
     [compactAssetPath, compactAssetSource],
     [catalogPath, catalogSource],
   ]) {
-    if (normalize(await readFile(path, "utf8")) !== source) {
+    if (normalize(await readComponentProjection(path)) !== source) {
       fail(`${relative(root, path)} is stale`);
     }
   }
 } else {
-  await writeFile(assetPath, assetSource, "utf8");
-  await writeFile(compactAssetPath, compactAssetSource, "utf8");
-  await writeFile(catalogPath, catalogSource, "utf8");
+  await writeComponentProjection(assetPath, assetSource);
+  await writeComponentProjection(compactAssetPath, compactAssetSource);
+  await writeComponentProjection(catalogPath, catalogSource);
 }
 
 console.log(

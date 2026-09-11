@@ -1,0 +1,122 @@
+{
+  "schemaVersion": 1,
+  "symbol": {
+    "schemaVersion": 1,
+    "id": "simple-switch",
+    "name": "Simple Switch",
+    "viewBox": {
+      "x": -34,
+      "y": -18,
+      "width": 68,
+      "height": 30
+    },
+    "pins": [
+      {
+        "name": "1",
+        "role": "passive",
+        "at": {
+          "x": -20,
+          "y": 0
+        },
+        "direction": "west",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      },
+      {
+        "name": "2",
+        "role": "passive",
+        "at": {
+          "x": 20,
+          "y": 0
+        },
+        "direction": "east",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      }
+    ],
+    "primitives": [
+      {
+        "kind": "line",
+        "from": {
+          "x": -20,
+          "y": 0
+        },
+        "to": {
+          "x": -10,
+          "y": 0
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": -10,
+          "y": 0
+        },
+        "to": {
+          "x": 6,
+          "y": -11
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 10,
+          "y": 0
+        },
+        "to": {
+          "x": 20,
+          "y": 0
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      }
+    ],
+    "variants": []
+  },
+  "electrical": {
+    "id": "simple-switch",
+    "symbolId": "simple-switch",
+    "deviceClass": "switch",
+    "referencePrefix": "S",
+    "pinOrder": ["1", "2"],
+    "targetPolicy": "none",
+    "parameters": [],
+    "dialects": ["spice", "spectre"],
+    "capabilities": {
+      "supportsModel": false,
+      "supportsBulkBinding": false,
+      "supportsValueAnnotation": false
+    }
+  },
+  "catalog": {
+    "library": "razavi",
+    "symbolId": "simple-switch",
+    "name": "Simple Switch",
+    "category": "switch",
+    "reviewStatus": "reviewed",
+    "provenance": "house",
+    "houseReason": "The reviewed page draws its switch with contact circles. Analog schematics far more often draw the same element as one broken line with a blade, so it is drawn here rather than by removing evidence from the traced symbol.",
+    "pinOrder": ["1", "2"],
+    "palette": true,
+    "automaticMappings": [],
+    "manualOnlyReason": "Two-terminal switch; SPICE S has a four-terminal control contract.",
+    "assetPath": "simple-switch.json"
+  }
+}

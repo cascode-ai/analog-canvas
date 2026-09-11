@@ -1,0 +1,138 @@
+{
+  "schemaVersion": 1,
+  "symbol": {
+    "schemaVersion": 1,
+    "id": "ground",
+    "name": "Ground",
+    "viewBox": {
+      "x": -12,
+      "y": -14,
+      "width": 24,
+      "height": 31
+    },
+    "pins": [
+      {
+        "name": "0",
+        "role": "ground",
+        "at": {
+          "x": 0,
+          "y": -10
+        },
+        "direction": "north",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      }
+    ],
+    "primitives": [
+      {
+        "kind": "line",
+        "from": {
+          "x": 0,
+          "y": -10
+        },
+        "to": {
+          "x": 0,
+          "y": 0
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": -6.395349,
+          "y": 0
+        },
+        "to": {
+          "x": 6.395349,
+          "y": 0
+        },
+        "style": {
+          "strokeRole": "ground",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": -4.069767,
+          "y": 5.813953
+        },
+        "to": {
+          "x": 4.069767,
+          "y": 5.813953
+        },
+        "style": {
+          "strokeRole": "ground",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": -2.325581,
+          "y": 11.046512
+        },
+        "to": {
+          "x": 2.325581,
+          "y": 11.046512
+        },
+        "style": {
+          "strokeRole": "ground",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      }
+    ],
+    "variants": [],
+    "labelVisibility": "hidden"
+  },
+  "electrical": {
+    "id": "ground",
+    "symbolId": "ground",
+    "deviceClass": "net-marker",
+    "referencePrefix": null,
+    "pinOrder": ["0"],
+    "targetPolicy": "none",
+    "parameters": [],
+    "dialects": ["spice", "spectre"],
+    "capabilities": {
+      "supportsModel": false,
+      "supportsBulkBinding": false,
+      "supportsValueAnnotation": false
+    }
+  },
+  "catalog": {
+    "library": "razavi",
+    "symbolId": "ground",
+    "name": "Ground",
+    "category": "power",
+    "reviewStatus": "reviewed",
+    "pinOrder": ["0"],
+    "palette": true,
+    "automaticMappings": [],
+    "assetPath": "ground.json",
+    "visualAuthority": {
+      "kind": "razavi-reference-v1",
+      "referenceManifestPath": "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+      "referencePaths": [
+        "fixtures/visual-reference/razavi-reference-v1/razavi-six-panel.png"
+      ],
+      "calibrationPath": "fixtures/visual-reference/razavi-reference-v1/peripheral-geometry.json"
+    },
+    "generation": {
+      "kind": "razavi-raster-reference",
+      "referenceManifestPath": "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+      "referencePath": "fixtures/visual-reference/razavi-reference-v1/razavi-six-panel.png",
+      "converterPath": "scripts/generate-razavi-peripheral-assets.mjs",
+      "converterVersion": 1
+    }
+  }
+}

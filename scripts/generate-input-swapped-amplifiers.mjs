@@ -1,5 +1,8 @@
+import {
+  readComponentProjection,
+  writeComponentProjection,
+} from "./lib/component-library.mjs";
 import { createHash } from "node:crypto";
-import { readFile, writeFile } from "node:fs/promises";
 import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -22,8 +25,8 @@ import { format } from "prettier";
  * kept out of the palette: it is a state of its source, not a part to browse.
  */
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const assetRoot = resolve(root, "packages/symbols/assets/razavi-v1");
-const catalogPath = resolve(assetRoot, "catalog.json");
+const assetRoot = resolve(root, "packages/components/definitions");
+const catalogPath = resolve(assetRoot, "../catalog.json");
 const check = process.argv.includes("--check");
 const normalize = (value) => `${value.replaceAll("\r\n", "\n").trimEnd()}\n`;
 const hash = (value) => createHash("sha256").update(value).digest("hex");
@@ -119,7 +122,7 @@ function swapInputs(source) {
   };
 }
 
-const catalog = JSON.parse(await readFile(catalogPath, "utf8"));
+const catalog = JSON.parse(await readComponentProjection(catalogPath));
 const outputs = [];
 for (const sourceId of SOURCE_IDS) {
   const sourceEntry = catalog.entries.find(
@@ -127,12 +130,12 @@ for (const sourceId of SOURCE_IDS) {
   );
   if (!sourceEntry) fail(`missing catalog entry ${sourceId}`);
   const assetPath = resolve(assetRoot, sourceEntry.assetPath);
-  const source = JSON.parse(await readFile(assetPath, "utf8"));
+  const source = JSON.parse(await readComponentProjection(assetPath));
   const swapped = swapInputs(source);
   const swappedSource = normalize(
     await format(JSON.stringify(swapped, null, 2), { parser: "json" }),
   );
-  const swappedAssetPath = `${sourceId}${SWAPPED_SUFFIX}.symbol.json`;
+  const swappedAssetPath = `${sourceId}${SWAPPED_SUFFIX}.json`;
   outputs.push([resolve(assetRoot, swappedAssetPath), swappedSource]);
 
   const entry = {
@@ -167,13 +170,13 @@ outputs.push([
 
 if (check) {
   for (const [path, source] of outputs) {
-    if (normalize(await readFile(path, "utf8")) !== source) {
+    if (normalize(await readComponentProjection(path)) !== source) {
       fail(`${relative(root, path)} is stale`);
     }
   }
 } else {
   for (const [path, source] of outputs) {
-    await writeFile(path, source, "utf8");
+    await writeComponentProjection(path, source);
   }
 }
 

@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 1,
+  "symbol": {
+    "schemaVersion": 1,
+    "id": "port",
+    "name": "Port",
+    "viewBox": {
+      "x": -14,
+      "y": -7,
+      "width": 28,
+      "height": 14
+    },
+    "pins": [
+      {
+        "name": "P",
+        "role": "port",
+        "at": {
+          "x": 10,
+          "y": 0
+        },
+        "direction": "east",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      }
+    ],
+    "primitives": [
+      {
+        "kind": "circle",
+        "center": {
+          "x": -7.086614,
+          "y": 0
+        },
+        "radius": 2.47907,
+        "fill": "none",
+        "stroke": "foreground",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 10,
+          "y": 0
+        },
+        "to": {
+          "x": -4.607544,
+          "y": 0
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      }
+    ],
+    "variants": []
+  },
+  "electrical": null,
+  "catalog": {
+    "library": "razavi",
+    "symbolId": "port",
+    "name": "Port",
+    "category": "interface",
+    "reviewStatus": "reviewed",
+    "pinOrder": ["P"],
+    "palette": true,
+    "automaticMappings": [],
+    "assetPath": "port.json",
+    "visualAuthority": {
+      "kind": "razavi-reference-v1",
+      "referenceManifestPath": "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+      "referencePaths": [
+        "fixtures/visual-reference/razavi-reference-v1/current-port-reference.png"
+      ],
+      "calibrationPath": "fixtures/visual-reference/razavi-reference-v1/current-port-geometry.json"
+    }
+  }
+}

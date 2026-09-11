@@ -1,0 +1,128 @@
+{
+  "schemaVersion": 1,
+  "symbol": {
+    "schemaVersion": 1,
+    "id": "integrator",
+    "name": "Integrator (1/s)",
+    "viewBox": {
+      "x": -34,
+      "y": -24,
+      "width": 68,
+      "height": 48
+    },
+    "pins": [
+      {
+        "name": "A",
+        "role": "input",
+        "at": {
+          "x": -30,
+          "y": 0
+        },
+        "direction": "west",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      },
+      {
+        "name": "Y",
+        "role": "output",
+        "at": {
+          "x": 30,
+          "y": 0
+        },
+        "direction": "east",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      }
+    ],
+    "primitives": [
+      {
+        "kind": "line",
+        "from": {
+          "x": -30,
+          "y": 0
+        },
+        "to": {
+          "x": -20,
+          "y": 0
+        },
+        "part": "input-a-lead",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "path",
+        "part": "body",
+        "data": "M -20 -20 L 20 -20 L 20 20 L -20 20 Z",
+        "style": {
+          "strokeRole": "emphasis",
+          "lineCap": "butt",
+          "lineJoin": "miter",
+          "miterLimit": 4
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 20,
+          "y": 0
+        },
+        "to": {
+          "x": 30,
+          "y": 0
+        },
+        "part": "output-y-lead",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      }
+    ],
+    "formulaPresentation": {
+      "defaultFormula": "1/s",
+      "supportsCoefficient": true,
+      "center": {
+        "x": 0,
+        "y": 0
+      },
+      "fontSize": 12,
+      "adaptiveFrame": {
+        "minBodyWidth": 40,
+        "minBodyHeight": 30,
+        "horizontalPadding": 8,
+        "verticalPadding": 4,
+        "leadLength": 10
+      }
+    },
+    "variants": [],
+    "labelVisibility": "hidden"
+  },
+  "electrical": null,
+  "catalog": {
+    "library": "razavi",
+    "symbolId": "integrator",
+    "name": "Integrator (1/s)",
+    "category": "signal-flow",
+    "reviewStatus": "reviewed",
+    "pinOrder": ["A", "Y"],
+    "palette": true,
+    "automaticMappings": [],
+    "manualOnlyReason": "Behavioral s-domain block; structural netlists need an explicit implementation mapping.",
+    "assetPath": "integrator.json",
+    "visualAuthority": {
+      "kind": "razavi-reference-v1",
+      "referenceManifestPath": "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+      "referencePaths": [
+        "fixtures/visual-reference/razavi-reference-v1/delta-sigma-geometry.json"
+      ],
+      "calibrationPath": "fixtures/visual-reference/razavi-reference-v1/delta-sigma-geometry.json"
+    }
+  }
+}

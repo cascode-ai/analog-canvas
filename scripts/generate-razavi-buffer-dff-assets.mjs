@@ -1,5 +1,8 @@
+import {
+  readComponentProjection,
+  writeComponentProjection,
+} from "./lib/component-library.mjs";
 import { createHash } from "node:crypto";
-import { readFile, writeFile } from "node:fs/promises";
 import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -13,8 +16,8 @@ const referenceRoot = resolve(
   root,
   "fixtures/visual-reference/razavi-reference-v1",
 );
-const assetRoot = resolve(root, "packages/symbols/assets/razavi-v1");
-const catalogPath = resolve(assetRoot, "catalog.json");
+const assetRoot = resolve(root, "packages/components/definitions");
+const catalogPath = resolve(assetRoot, "../catalog.json");
 const check = process.argv.includes("--check");
 const normalize = (value) => `${value.replaceAll("\r\n", "\n").trimEnd()}\n`;
 const hash = (value) => createHash("sha256").update(value).digest("hex");
@@ -139,7 +142,7 @@ for (const symbolId of generatedIds) {
   );
 }
 
-const catalog = JSON.parse(await readFile(catalogPath, "utf8"));
+const catalog = JSON.parse(await readComponentProjection(catalogPath));
 const manualOnlyReason =
   "Behavioral logic symbol; structural SPICE realization requires an explicit subcircuit or PDK mapping.";
 for (const symbolId of generatedIds) {
@@ -157,7 +160,7 @@ for (const symbolId of generatedIds) {
       palette: true,
       automaticMappings: [],
       manualOnlyReason,
-      assetPath: `${symbolId}.symbol.json`,
+      assetPath: `${symbolId}.json`,
       assetHash: "",
       visualAuthority: {},
     };
@@ -180,7 +183,7 @@ for (const symbolId of generatedIds) {
   entry.palette = true;
   entry.automaticMappings = [];
   entry.manualOnlyReason = manualOnlyReason;
-  entry.assetPath = `${symbolId}.symbol.json`;
+  entry.assetPath = `${symbolId}.json`;
   entry.assetHash = hash(assetSources.get(symbolId));
   entry.visualAuthority = {
     kind: "razavi-reference-v1",
@@ -227,25 +230,25 @@ const catalogSource = normalize(
 
 if (check) {
   for (const symbolId of generatedIds) {
-    const path = resolve(assetRoot, `${symbolId}.symbol.json`);
+    const path = resolve(assetRoot, `${symbolId}.json`);
     if (
-      normalize(await readFile(path, "utf8")) !== assetSources.get(symbolId)
+      normalize(await readComponentProjection(path)) !==
+      assetSources.get(symbolId)
     ) {
       fail(`${relative(root, path)} is stale`);
     }
   }
-  if (normalize(await readFile(catalogPath, "utf8")) !== catalogSource) {
+  if (normalize(await readComponentProjection(catalogPath)) !== catalogSource) {
     fail(`${relative(root, catalogPath)} is stale`);
   }
 } else {
   for (const symbolId of generatedIds) {
-    await writeFile(
-      resolve(assetRoot, `${symbolId}.symbol.json`),
+    await writeComponentProjection(
+      resolve(assetRoot, `${symbolId}.json`),
       assetSources.get(symbolId),
-      "utf8",
     );
   }
-  await writeFile(catalogPath, catalogSource, "utf8");
+  await writeComponentProjection(catalogPath, catalogSource);
 }
 
 console.log(

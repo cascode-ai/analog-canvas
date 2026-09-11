@@ -1,5 +1,8 @@
+import {
+  readComponentProjection,
+  writeComponentProjection,
+} from "./lib/component-library.mjs";
 import { createHash } from "node:crypto";
-import { readFile, writeFile } from "node:fs/promises";
 import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -12,18 +15,15 @@ const referenceRoot = resolve(
   root,
   "fixtures/visual-reference/razavi-reference-v1",
 );
-const assetPath = resolve(
-  root,
-  "packages/symbols/assets/razavi-v1/opamp.symbol.json",
-);
+const assetPath = resolve(root, "packages/components/definitions/opamp.json");
 const differentialAssetPaths = {
   "opamp-differential": resolve(
     root,
-    "packages/symbols/assets/razavi-v1/opamp-differential.symbol.json",
+    "packages/components/definitions/opamp-differential.json",
   ),
   "opamp-differential-crossed": resolve(
     root,
-    "packages/symbols/assets/razavi-v1/opamp-differential-crossed.symbol.json",
+    "packages/components/definitions/opamp-differential-crossed.json",
   ),
 };
 /** Figure-derived pair height before the reviewed product-scale adjustment. */
@@ -34,10 +34,7 @@ const OUTPUT_PAIR_OFFSET = 20;
 const POLARITY_PAIR_OFFSET = 15;
 /** Add a small horizontal gap between input- and output-side glyphs. */
 const POLARITY_HORIZONTAL_SPREAD = 1;
-const catalogPath = resolve(
-  root,
-  "packages/symbols/assets/razavi-v1/catalog.json",
-);
+const catalogPath = resolve(root, "packages/components/catalog.json");
 const check = process.argv.includes("--check");
 const normalize = (value) => `${value.replaceAll("\r\n", "\n").trimEnd()}\n`;
 const hash = (value) => createHash("sha256").update(value).digest("hex");
@@ -508,7 +505,7 @@ const differentialSources = new Map(
   ),
 );
 
-const catalog = JSON.parse(await readFile(catalogPath, "utf8"));
+const catalog = JSON.parse(await readComponentProjection(catalogPath));
 const generation = {
   kind: "razavi-pdf-vector-reference",
   referenceManifestPath:
@@ -564,13 +561,13 @@ const outputs = [
 ];
 if (check) {
   for (const [path, source] of outputs) {
-    if (normalize(await readFile(path, "utf8")) !== source) {
+    if (normalize(await readComponentProjection(path)) !== source) {
       fail(`${relative(root, path)} is stale`);
     }
   }
 } else {
   for (const [path, source] of outputs) {
-    await writeFile(path, source, "utf8");
+    await writeComponentProjection(path, source);
   }
 }
 
