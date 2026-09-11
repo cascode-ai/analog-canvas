@@ -127,6 +127,28 @@ for (const symbolId of [
   });
 }
 
+for (const symbolId of ["adc", "dac", "opamp-lettered"]) {
+  test(`${symbolId} body text stays screen-upright after a left/right mirror`, async ({
+    page,
+  }) => {
+    await placeSymbol(page, symbolId);
+    await page.getByTestId("hit-X1").click();
+    await page.keyboard.press("Shift+R");
+
+    const matrix = await bodyText(page).evaluate((element) => {
+      const value = (element as SVGGraphicsElement).getScreenCTM();
+      if (!value) throw new Error("Body text has no screen transform");
+      return { a: value.a, b: value.b, c: value.c, d: value.d };
+    });
+    // The camera contributes a positive uniform scale. A formula left inside
+    // the mirrored Symbol group instead has a negative horizontal basis.
+    expect(matrix.a).toBeGreaterThan(0);
+    expect(matrix.d).toBeGreaterThan(0);
+    expect(Math.abs(matrix.b)).toBeLessThan(0.001);
+    expect(Math.abs(matrix.c)).toBeLessThan(0.001);
+  });
+}
+
 // The swapped-input sibling has no Library tile of its own: it is reached by
 // swapping a placed op-amp's inputs, so it is covered through that path.
 test("the swapped-input op-amp edits its body text too", async ({ page }) => {

@@ -5,7 +5,7 @@
   "viewBox": {
     "x": -44,
     "y": -24,
-    "width": 88,
+    "width": 98,
     "height": 48
   },
   "pins": [
@@ -26,7 +26,7 @@
       "name": "OUT",
       "role": "output",
       "at": {
-        "x": 40,
+        "x": 50,
         "y": 0
       },
       "direction": "east",
@@ -65,7 +65,7 @@
           "y": -20
         },
         {
-          "x": 30,
+          "x": 40,
           "y": 0
         },
         {
@@ -88,11 +88,11 @@
     {
       "kind": "line",
       "from": {
-        "x": 30,
+        "x": 40,
         "y": 0
       },
       "to": {
-        "x": 40,
+        "x": 50,
         "y": 0
       },
       "style": {
@@ -107,7 +107,7 @@
     "defaultFormula": "DAC",
     "supportsCoefficient": false,
     "center": {
-      "x": -2.42,
+      "x": 0.28,
       "y": 0
     },
     "fontSize": 12

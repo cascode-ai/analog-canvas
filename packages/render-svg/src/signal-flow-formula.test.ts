@@ -7,6 +7,7 @@ import {
   normalizeSignalFlowFormula,
   parseSignalFlowFraction,
   renderSignalFlowFormula,
+  renderUprightSignalFlowFormula,
   signalFlowFormulaLocalBounds,
 } from "./signal-flow-formula.js";
 
@@ -111,6 +112,28 @@ describe("Signal Flow formula renderer", () => {
     expect(fallback).not.toContain("<script>");
   });
 
+  it("moves body text with a mirrored rotation while leaving its glyphs upright", () => {
+    const presentation = {
+      ...formulaDefinition.formulaPresentation,
+      center: { x: 10, y: 5 },
+    };
+    const upright = renderUprightSignalFlowFormula(
+      presentation,
+      undefined,
+      { position: { x: 100, y: 80 }, rotation: 90, mirror: "x" },
+      { foreground: "#000000", profile },
+    );
+
+    // (10, 5) mirrors to (-10, 5), rotates to (-5, -10), then translates
+    // to (95, 70). The inner formula keeps its own (10, 5) coordinates.
+    expect(upright).toContain(
+      'data-role="upright-signal-flow-formula" transform="translate(85 65)"',
+    );
+    expect(upright).toContain('data-role="signal-flow-formula"');
+    expect(upright).not.toContain("rotate(");
+    expect(upright).not.toContain("scale(");
+  });
+
   it("uses instance presentation parameters in the formal scene without changing pin identity", () => {
     const document = createEmptyDocument("main", "Main");
     document.instances.push({
@@ -131,6 +154,9 @@ describe("Signal Flow formula renderer", () => {
     );
 
     expect(scene.formalBody).toContain('data-role="signal-flow-formula"');
+    expect(scene.formalBody).toContain(
+      'data-role="upright-signal-flow-formula" transform="translate(100 100)"',
+    );
     expect(scene.formalBody).toContain('data-role="signal-flow-frame"');
     expect(scene.formalBody).toContain('data-role="formula-fraction-bar"');
     expect(scene.formalBody).toContain('data-role="formula-coefficient"');

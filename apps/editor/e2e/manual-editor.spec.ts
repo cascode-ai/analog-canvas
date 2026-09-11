@@ -1914,6 +1914,40 @@ test("colors an electrical wire and restores the Razavi default with Auto", asyn
   await expect(page.getByTitle("Use the document ink color")).toBeDisabled();
 });
 
+test("places and clears an independent direction arrow on one wire", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await placeComponent(page, "resistor", { x: 340, y: 220 });
+  await placeComponent(page, "resistor", { x: 660, y: 220 });
+  await clickDrawTool(page, "wire");
+  await page.getByTestId("terminal-R1-2").click();
+  await page.getByTestId("terminal-R2-1").click();
+  await page.keyboard.press("Escape");
+
+  await clickRoute(page, "route-ui-1");
+  await openSelectionShelf(page);
+  const control = page.getByLabel("Wire direction arrow");
+  const arrow = page.locator(
+    '[data-layer="routes"] [data-role="route-direction-arrow"]',
+  );
+
+  await control.selectOption("middle");
+  await expect(arrow).toHaveAttribute("data-arrow-position", "middle");
+  await expect(arrow).toHaveAttribute("pointer-events", "none");
+  await expect(page.getByTestId("status")).toContainText(
+    "Placed wire arrow at middle",
+  );
+
+  await control.selectOption("end");
+  await expect(arrow).toHaveCount(1);
+  await expect(arrow).toHaveAttribute("data-arrow-position", "end");
+
+  await control.selectOption("none");
+  await expect(arrow).toHaveCount(0);
+  await expect(page.getByTestId("status")).toContainText("Removed wire arrow");
+});
+
 test("keeps Wire active for consecutive independent routes until Escape", async ({
   page,
 }) => {

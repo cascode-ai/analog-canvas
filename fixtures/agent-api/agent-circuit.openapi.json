@@ -2737,6 +2737,13 @@
             "properties": {
               "color": {
                 "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema36"
+              },
+              "arrow": {
+                "type": "string",
+                "enum": [
+                  "middle",
+                  "end"
+                ]
               }
             },
             "additionalProperties": false

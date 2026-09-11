@@ -16,10 +16,12 @@ describe("selection context actions", () => {
         netLabelInputRef={createRef<HTMLInputElement>()}
         netLabel="OUT"
         color={undefined}
+        arrow="middle"
         defaultColor="#000"
         highlightActive
         onNetLabelChange={vi.fn()}
         onColorChange={vi.fn()}
+        onArrowChange={vi.fn()}
         onDeleteNetLabel={vi.fn()}
         onAddCurrentArrow={vi.fn()}
         onToggleHighlight={vi.fn()}
@@ -34,6 +36,10 @@ describe("selection context actions", () => {
     expect(markup).toContain("Gray · #6b7280");
     expect(markup).not.toContain("Violet");
     expect(markup).toContain("Use the document ink color");
+    expect(markup).toContain('aria-label="Wire direction arrow"');
+    expect(markup).toContain('<option value="middle" selected="">');
+    expect(markup).toContain("Arrow at end");
+    expect(markup).toContain("Add current arrow");
     expect(markup).toContain("Clear Net highlight (H)");
   });
 

@@ -198,7 +198,7 @@ export const SetRoutePathEditSchema = z.strictObject({
   kind: z.literal("set_route_path"),
   route: RouteBranchSchema,
 });
-/** Replace or clear one electrical Route's visual color override. */
+/** Replace or clear one electrical Route's visual overrides. */
 export const SetRouteStyleOverrideEditSchema = z.strictObject({
   kind: z.literal("set_route_style_override"),
   routeId: StableIdSchema,

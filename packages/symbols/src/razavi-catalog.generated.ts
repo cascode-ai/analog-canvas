@@ -1894,7 +1894,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "A converter block stands for a subsystem; SPICE has no primitive for one.",
     assetPath: "adc.symbol.json",
     assetHash:
-      "7c6ab38ed2d5157ed15bba0538601a7ec96f5c9a6b0c7cf1b5ef720305130271",
+      "8ee369db66cfddbd10f3052b96dd577039f8fa37fc4f9e6f5fba1d6f3d92efc2",
   },
   {
     symbolId: "dac",
@@ -1911,7 +1911,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "A converter block stands for a subsystem; SPICE has no primitive for one.",
     assetPath: "dac.symbol.json",
     assetHash:
-      "ab663f210d9b2410090ff9ed7bf9d7c029dcbc47ec9d722a7471130a64f43dc6",
+      "a4c4dee2f1b9c06490e8931bd8e1671e0dd8def4482e3c0393b9bd3968075d38",
   },
 ];
 
@@ -11609,9 +11609,9 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
     id: "adc",
     name: "Analog-to-Digital Converter",
     viewBox: {
-      x: -44,
+      x: -54,
       y: -24,
-      width: 88,
+      width: 98,
       height: 48,
     },
     pins: [
@@ -11619,7 +11619,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         name: "IN",
         role: "input",
         at: {
-          x: -40,
+          x: -50,
           y: 0,
         },
         direction: "west",
@@ -11646,11 +11646,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -40,
+          x: -50,
           y: 0,
         },
         to: {
-          x: -30,
+          x: -40,
           y: 0,
         },
         style: {
@@ -11671,7 +11671,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
             y: -20,
           },
           {
-            x: -30,
+            x: -40,
             y: 0,
           },
           {
@@ -11713,7 +11713,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       defaultFormula: "ADC",
       supportsCoefficient: false,
       center: {
-        x: 2.42,
+        x: -0.28,
         y: 0,
       },
       fontSize: 12,
@@ -11726,7 +11726,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
     viewBox: {
       x: -44,
       y: -24,
-      width: 88,
+      width: 98,
       height: 48,
     },
     pins: [
@@ -11747,7 +11747,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         name: "OUT",
         role: "output",
         at: {
-          x: 40,
+          x: 50,
           y: 0,
         },
         direction: "east",
@@ -11786,7 +11786,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
             y: -20,
           },
           {
-            x: 30,
+            x: 40,
             y: 0,
           },
           {
@@ -11809,11 +11809,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: 30,
+          x: 40,
           y: 0,
         },
         to: {
-          x: 40,
+          x: 50,
           y: 0,
         },
         style: {
@@ -11828,7 +11828,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       defaultFormula: "DAC",
       supportsCoefficient: false,
       center: {
-        x: -2.42,
+        x: 0.28,
         y: 0,
       },
       fontSize: 12,

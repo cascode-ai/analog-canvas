@@ -71,6 +71,9 @@ export type RouteLegTarget = z.infer<typeof Schema.RouteLegTargetSchema>;
 export type RouteLeg = z.infer<typeof Schema.RouteLegSchema>;
 export type RouteBranch = z.infer<typeof Schema.RouteBranchSchema>;
 export type RoutePresentation = z.infer<typeof Schema.RoutePresentationSchema>;
+export type RouteDirectionArrow = z.infer<
+  typeof Schema.RouteDirectionArrowSchema
+>;
 export type RouteStyleOverride = z.infer<
   typeof Schema.RouteStyleOverrideSchema
 >;
