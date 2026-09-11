@@ -1,4 +1,5 @@
 import { createRoutePath } from "@icm/model";
+import type { SchematicDocument } from "@icm/model";
 import { razaviProductSymbols } from "@icm/symbols";
 import { expect, test } from "@playwright/test";
 import type { Locator, Page } from "@playwright/test";
@@ -3870,6 +3871,136 @@ test("reference and value code refreshes content after parameter edits", async (
   ).toHaveCount(0);
 });
 
+for (const symbol of ["nmos", "pmos"]) {
+  test(`${symbol} W/L numerator drags freely and retains its offset through editing and file reload`, async ({
+    page,
+  }) => {
+    await page.goto("/editor");
+    await placeComponent(page, symbol, { x: 350, y: 250 });
+    const canvas = page.getByTestId("schematic-canvas");
+    const instance = page.getByTestId("hit-M1");
+    await instance.click();
+    await openSelectionShelf(page);
+    await page.getByLabel("Component w", { exact: true }).fill("2u");
+    await page.getByLabel("Component l", { exact: true }).fill("180n");
+    await page.getByLabel("Component m", { exact: true }).fill("4");
+    await editComponentPropertyCode(page, (code) => {
+      code.display.value = true;
+    });
+    await canvas.click({ position: { x: 70, y: 70 } });
+
+    const value = page.locator('[data-object-id="instance-value-M1"]');
+    const numerator = value.locator('[data-role="fraction-numerator"]');
+    await expect(numerator).toContainText("2um");
+    const before = (await value.boundingBox())!;
+    const ownerBefore = (await instance.boundingBox())!;
+    const grip = (await numerator.boundingBox())!;
+    const start = { x: grip.x + grip.width / 2, y: grip.y + grip.height / 2 };
+    // Grab the numerator itself, not the lower hit rectangle or an Alt cycle.
+    await page.mouse.move(start.x, start.y);
+    await page.mouse.down();
+    await page.mouse.move(start.x + 180, start.y + 120, { steps: 12 });
+    await expect
+      .poll(async () => (await value.boundingBox())!.x)
+      .toBeCloseTo(before.x + 180, 0);
+    await page.mouse.up();
+    // The only allowed difference on release is annotation-grid rounding.
+    await expect
+      .poll(async () =>
+        Math.abs((await value.boundingBox())!.x - before.x - 180),
+      )
+      .toBeLessThan(3);
+    await expect
+      .poll(async () =>
+        Math.abs((await value.boundingBox())!.y - before.y - 120),
+      )
+      .toBeLessThan(3);
+    expect(await instance.boundingBox()).toEqual(ownerBefore);
+    const dropped = (await value.boundingBox())!;
+
+    await page.keyboard.press("ControlOrMeta+z");
+    await expect
+      .poll(async () => (await value.boundingBox())!.x)
+      .toBeCloseTo(before.x, 0);
+    await page.keyboard.press("ControlOrMeta+Shift+z");
+    await expect
+      .poll(async () => (await value.boundingBox())!.x)
+      .toBeCloseTo(dropped.x, 0);
+
+    const readDocument = async (): Promise<SchematicDocument> => {
+      const bytes = await downloadBytes(page, "File", "Export Project File…");
+      return JSON.parse(bytes.toString("utf8")).documents[0];
+    };
+    const valueAnchor = (document: SchematicDocument) => {
+      const anchor = document.annotations.find(
+        (annotation) => annotation.id === "instance-value-M1",
+      )!.anchor;
+      if (anchor.kind !== "object")
+        throw new Error("Value must retain its component anchor");
+      return anchor;
+    };
+    const authored = await readDocument();
+    const anchor = valueAnchor(authored);
+    expect(anchor.objectId).toBe("M1");
+    expect(
+      Math.hypot(anchor.localOffset.x, anchor.localOffset.y),
+    ).toBeGreaterThan(200);
+
+    // Updating W refreshes the fraction without restoring its default slot.
+    await instance.click();
+    await openSelectionShelf(page);
+    await page.getByLabel("Component w", { exact: true }).fill("3u");
+    await canvas.click({ position: { x: 70, y: 70 } });
+    await expect(numerator).toContainText("3um");
+    expect(valueAnchor(await readDocument())).toEqual(anchor);
+
+    // Move and rotate the host: the authored vector follows, never reflows.
+    const host = (await instance.boundingBox())!;
+    await page.mouse.move(host.x + host.width / 2, host.y + host.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(
+      host.x + host.width / 2 + 60,
+      host.y + host.height / 2 - 40,
+      { steps: 8 },
+    );
+    await page.mouse.up();
+    const moved = await readDocument();
+    const movedAnchor = valueAnchor(moved);
+    expect(movedAnchor.localOffset).toEqual(anchor.localOffset);
+    const movedPosition = moved.instances.find((item) => item.id === "M1")!
+      .placement!.position;
+    expect(movedAnchor.fallbackPosition).toEqual({
+      x: movedPosition.x + anchor.localOffset.x,
+      y: movedPosition.y + anchor.localOffset.y,
+    });
+    await instance.click();
+    await page.keyboard.press("r");
+    const rotated = await readDocument();
+    const rotatedAnchor = valueAnchor(rotated);
+    expect(
+      rotated.instances.find((item) => item.id === "M1")!.placement!.rotation,
+    ).toBe(90);
+    expect(rotatedAnchor.localOffset).toEqual({
+      x: -anchor.localOffset.y,
+      y: anchor.localOffset.x,
+    });
+    await expect(numerator).toContainText("3um");
+
+    // Reopen a real exported file, then export again to verify persisted data.
+    const saved = await downloadBytes(page, "File", "Export Project File…");
+    await page.getByTestId("project-file").setInputFiles({
+      name: `${symbol}-value-drag.icproj.json`,
+      mimeType: "application/json",
+      buffer: saved,
+    });
+    await expect(numerator).toContainText("3um");
+    const reopened = await readDocument();
+    expect(valueAnchor(reopened)).toEqual(rotatedAnchor);
+    expect(reopened.instances).toEqual(rotated.instances);
+    expect(reopened.nets).toEqual(authored.nets);
+  });
+}
+
 test("drag value annotation keeps the user offset through rotation", async ({
   page,
 }) => {
@@ -3909,8 +4040,7 @@ test("drag value annotation keeps the user offset through rotation", async ({
   ).toContainText("33kΩ");
   const rotated = await value.boundingBox();
   if (!rotated) throw new Error("Rotated value is not measurable");
-  // The user vector rotates rigidly; on the drag-clamp circle a quarter turn
-  // may keep one coordinate, so assert total displacement instead.
+  // A quarter turn may keep one coordinate, so assert total displacement.
   expect(
     Math.hypot(rotated.x - dragged.x, rotated.y - dragged.y),
   ).toBeGreaterThan(10);

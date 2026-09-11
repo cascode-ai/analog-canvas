@@ -9,7 +9,6 @@ import { InMemorySymbolResolver, builtInSymbols } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
 
 import {
-  annotationAnchor,
   annotationHitBox,
   defaultInstanceLabel,
   instanceHitBox,
@@ -115,8 +114,8 @@ function fixture(): {
   if (!instanceBounds) throw new Error("Fixture instance must resolve");
   const labelBounds = annotationHitBox(
     document,
+    resolver,
     label,
-    annotationAnchor(document, resolver, label, records, styleProfile),
     records,
     styleProfile,
   );

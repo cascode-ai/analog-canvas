@@ -84,6 +84,58 @@ describe("annotation drag model", () => {
     });
   });
 
+  it.each(["nmos", "pmos", "resistor"])(
+    "freely places a %s value while keeping its host-relative anchor",
+    (symbolId) => {
+      const document = createEmptyDocument("document", "Document");
+      document.instances.push({
+        id: "device",
+        symbolId,
+        placement: {
+          position: { x: 100, y: 100 },
+          rotation: 0,
+          mirror: "none",
+        },
+      });
+      const annotation: Annotation = {
+        id: "value",
+        kind: "instance-value",
+        binding: { kind: "instance-value", instanceId: "device" },
+        anchor: {
+          kind: "object",
+          objectId: "device",
+          localOffset: { x: 30, y: 30 },
+          fallbackPosition: { x: 130, y: 130 },
+        },
+        alignment: "start",
+        rotation: 0,
+        locked: false,
+      };
+
+      for (const candidate of [
+        { x: 1003, y: 997 },
+        { x: -503, y: -697 },
+      ]) {
+        const dragged = draggedAnnotationAtPosition(
+          context(document),
+          annotation,
+          candidate,
+        );
+        const x = Math.round(candidate.x / 10) * 10;
+        const y = Math.round(candidate.y / 10) * 10;
+        expect(dragged).toEqual({
+          ...annotation,
+          anchor: {
+            kind: "object",
+            objectId: "device",
+            localOffset: { x: x - 100, y: y - 100 },
+            fallbackPosition: { x, y },
+          },
+        });
+      }
+    },
+  );
+
   it("moves a power label anchored to its rail Junction", () => {
     // A power rail's label anchors to the Junction at the rail's end, not to
     // an Instance. Rendering resolves it as junction position + localOffset,

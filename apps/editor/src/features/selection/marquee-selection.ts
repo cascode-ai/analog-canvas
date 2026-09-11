@@ -16,7 +16,6 @@ import {
   segmentIntersectsRect,
 } from "../../canvas/canvas-geometry";
 import {
-  annotationAnchor,
   annotationHitBox,
   instanceHitBox,
   type RouteGeometryRecord,
@@ -111,14 +110,8 @@ export function marqueeSelection(
           boxSelected(
             annotationHitBox(
               document,
+              resolver,
               annotation,
-              annotationAnchor(
-                document,
-                resolver,
-                annotation,
-                routeGeometryRecords,
-                styleProfile,
-              ),
               routeGeometryRecords,
               styleProfile,
             ),

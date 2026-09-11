@@ -400,11 +400,29 @@ export function annotationAnchor(
 
 export function annotationHitBox(
   document: SchematicDocument,
+  resolver: SymbolResolver,
   annotation: Annotation,
-  anchor: Point,
   routeGeometryRecords: readonly RouteGeometryRecord[],
   styleProfile: SchematicStyleProfile,
 ): Rect {
+  // Ordinary text uses the same bounds as rendering/export, including the
+  // extra ascent of a stacked W/L numerator. Only current markers need the
+  // editor's additional arrow/route hit geometry below.
+  if (!isRoutedMarker(annotation)) {
+    return resolveAnnotationPresentation(
+      document,
+      resolver,
+      annotation,
+      styleProfile,
+    ).bounds;
+  }
+  const anchor = annotationAnchor(
+    document,
+    resolver,
+    annotation,
+    routeGeometryRecords,
+    styleProfile,
+  );
   const sizeScale = annotation.sizeScale ?? 1;
   const fontSize =
     schematicTextFontSize(annotation.kind, styleProfile) * sizeScale;

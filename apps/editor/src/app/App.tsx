@@ -2715,14 +2715,8 @@ export function App({
   const textEditingBounds = editingAnnotation
     ? annotationHitBox(
         document,
+        resolver,
         editingAnnotation,
-        annotationAnchor(
-          document,
-          resolver,
-          editingAnnotation,
-          routeGeometryRecords,
-          styleProfile,
-        ),
         routeGeometryRecords,
         styleProfile,
       )

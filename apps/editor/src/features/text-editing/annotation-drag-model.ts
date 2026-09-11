@@ -43,8 +43,9 @@ function constrainAnnotationPosition(
   candidate: DerivedPoint,
 ): Point {
   if (
-    (annotation.kind === "instance-label" ||
-      annotation.kind === "instance-value") &&
+    // Value labels are authored layout: their object anchor keeps them tied
+    // to the component without limiting how far the user can place them.
+    annotation.kind === "instance-label" &&
     annotation.anchor.kind === "object"
   ) {
     const anchor = annotation.anchor;
