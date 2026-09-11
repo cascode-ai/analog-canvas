@@ -352,8 +352,17 @@ test("human simulation uses saved folder, survives minimizing, recovers a bad in
   release();
   await clickNetlistWorkflowCommand(page, "open-analog-simulation");
   await expect(panel.getByRole("status")).toHaveText("finished · completed");
+  await expect(
+    panel
+      .locator(".simulation-code-output-tabs")
+      .getByRole("button", { name: "Archive", exact: true }),
+  ).toBeVisible();
+  await expect(panel.locator(".simulation-results-header")).toHaveCount(0);
   // A completed run belongs to its folder, not whichever folder is currently visible.
-  await panel.getByRole("button", { name: "+ New folder…" }).click();
+  await panel
+    .getByLabel("Simulation folders", { exact: true })
+    .click({ button: "right", position: { x: 3, y: 3 } });
+  await panel.getByRole("menuitem", { name: "New folder…" }).click();
   await panel
     .getByRole("textbox", { name: "Folder name" })
     .fill("Second folder");
@@ -951,7 +960,7 @@ test("human simulation uses saved folder, survives minimizing, recovers a bad in
     const surfaceBox = (await panel.boundingBox())!;
     for (const selector of [
       ".simulation-taskbar",
-      ".simulation-results-header",
+      ".simulation-code-output-tabs",
     ]) {
       const headerBox = (await panel.locator(selector).boundingBox())!;
       expect(headerBox.x).toBeCloseTo(surfaceBox.x, 0);
@@ -1026,7 +1035,7 @@ test("human simulation uses saved folder, survives minimizing, recovers a bad in
     expect(modeBox.x).toBeCloseTo(shellBox.x, 0);
     const [resultsHeaderZIndex, plotToolbarZIndex] = await Promise.all([
       panel
-        .locator(".simulation-results-header")
+        .locator(".simulation-code-output-tabs")
         .evaluate((element) => Number(getComputedStyle(element).zIndex)),
       shell
         .locator(".ac-plot-toolbar")
@@ -1134,9 +1143,7 @@ test("Simulation creates an ordinary testbench and offers the current Cell at th
   expect(saved.simulationFolders).toEqual([]);
   await clickNetlistWorkflowCommand(page, "open-analog-simulation");
   await expect(page.getByLabel("Testbench Cell")).toHaveCount(0);
-  await page
-    .getByRole("button", { name: "Create experiment for this Cell" })
-    .click();
+  await page.getByRole("button", { name: "Set up", exact: true }).click();
   await page
     .getByRole("button", { name: "Template: current Canvas Cell" })
     .click();

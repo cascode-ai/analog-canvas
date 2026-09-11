@@ -81,9 +81,6 @@ export function SimulationFolderTree(props: SimulationFolderTreeProps) {
         open(event.clientX, event.clientY);
       }}
     >
-      <button type="button" onClick={() => action("new", [])}>
-        + New folder…
-      </button>
       {naming && (
         <InlineSourceName
           label="Folder name"
@@ -97,7 +94,14 @@ export function SimulationFolderTree(props: SimulationFolderTreeProps) {
       )}
       {props.folders.map((folder) => (
         <div key={folder.id}>
-          <div className="simulation-folder-row">
+          <div
+            className="simulation-folder-row"
+            onContextMenu={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              open(event.clientX, event.clientY, folder.id);
+            }}
+          >
             <button
               type="button"
               aria-label={`Toggle ${folder.name}`}

@@ -63,6 +63,11 @@ function Harness() {
             }
             onSave={save}
             onCursor={setCursor}
+            relatedSources={["VBIAS vdd 0 DC 1.8\nR1 vdd out 1k"]}
+            signalNames={() => ({ "v(out)": "Output" })}
+            onFocusSignal={(vector) => {
+              document.body.dataset.focusedSignal = vector;
+            }}
           />
         </SimulationCodeWorkspace>
       </div>

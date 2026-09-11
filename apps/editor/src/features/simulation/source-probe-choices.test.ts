@@ -1,11 +1,45 @@
 import { describe, it, expect } from "vitest";
 import { parseProject } from "@icm/project-protocol";
-import { createSimulationStarter, simulationSignalNames } from "@icm/netlist";
+import {
+  createSimulationStarter,
+  simulationSignalNames,
+  simulationSignals,
+} from "@icm/netlist";
+import { resolveSimulationVoltageProbeNetId } from "./simulation-probe-options";
 import ota from "../../examples/five-transistor-ota-sky130.icproj.json";
 import { sourceProbeChoices } from "./source-probe-choices";
 
 const project = parseProject(JSON.stringify(ota));
 describe("source Probe discovery", () => {
+  it("maps native vectors back to valid Canvas nets through the same naming traversal", () => {
+    const input = project.simulationFolders[0]!.input;
+    const signals = simulationSignals(project, input);
+    expect(Object.keys(signals).length).toBeGreaterThan(0);
+    expect(
+      Object.fromEntries(
+        Object.entries(signals).map(([vector, signal]) => [
+          vector,
+          signal.label,
+        ]),
+      ),
+    ).toEqual(simulationSignalNames(project, input));
+    for (const signal of Object.values(signals))
+      for (const target of signal.targets) {
+        expect(
+          resolveSimulationVoltageProbeNetId(project, {
+            kind: "voltage",
+            documentId: target.documentId,
+            occurrence: target.occurrence,
+            anchor: { kind: "base-net", netId: target.netId },
+          }),
+        ).toBeDefined();
+      }
+    expect(
+      Object.values(signals).some((signal) =>
+        signal.targets.some((target) => target.occurrence.length > 0),
+      ),
+    ).toBe(true);
+  });
   it("addresses multiple DUT occurrences rather than silently choosing the first", () => {
     const result = createSimulationStarter(project, {
       id: "test",

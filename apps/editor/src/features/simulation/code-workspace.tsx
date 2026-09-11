@@ -33,6 +33,7 @@ export interface SimulationCodeWorkspaceProps {
   status?: ReactNode;
   console: ReactNode;
   results: ReactNode;
+  outputActions?: ReactNode;
   outputPane: "console" | "plot" | "operating-point" | "compare" | "files";
   onSelectOutputPane(pane: SimulationCodeWorkspaceProps["outputPane"]): void;
   maximized?: boolean;
@@ -86,14 +87,6 @@ export function SimulationCodeWorkspace(props: SimulationCodeWorkspaceProps) {
   };
   const fileList = () => (
     <ul>
-      <li>
-        <button
-          type="button"
-          onClick={() => setNaming({ initial: "untitled.spice" })}
-        >
-          + New file
-        </button>
-      </li>
       {naming && (
         <li>
           <InlineSourceName
@@ -145,6 +138,15 @@ export function SimulationCodeWorkspace(props: SimulationCodeWorkspaceProps) {
             </button>
             {fileMenu === file.path ? (
               <div role="menu" aria-label={`Actions for ${file.path}`}>
+                <button
+                  role="menuitem"
+                  onClick={() => {
+                    setNaming({ initial: "untitled.spice" });
+                    setFileMenu(undefined);
+                  }}
+                >
+                  New file…
+                </button>
                 <button
                   role="menuitem"
                   onClick={() => {
@@ -283,18 +285,6 @@ export function SimulationCodeWorkspace(props: SimulationCodeWorkspaceProps) {
                   }}
                 >
                   Export current file…
-                </button>
-              ) : null}
-              {props.onNewFile ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setFilesOpen(true);
-                    setNaming({ initial: "untitled.spice" });
-                    setMoreOpen(false);
-                  }}
-                >
-                  New file…
                 </button>
               ) : null}
               {props.additionalActions}
@@ -455,6 +445,7 @@ export function SimulationCodeWorkspace(props: SimulationCodeWorkspaceProps) {
             ))}
           </div>
           <span className="simulation-code-output-spacer" />
+          {props.outputActions}
           <button
             type="button"
             aria-label={

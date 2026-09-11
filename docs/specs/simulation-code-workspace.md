@@ -102,6 +102,9 @@ New folders default to text-only input without a questionnaire. Optional templat
 run the current Cell directly (top-level binding) or write a text TB around the
 current DUT (subcircuit binding and an authored call using exported port order).
 None creates a TB Cell or guesses stimuli.
+The empty workspace uses the top **Set up** action for templates. Folder and file
+creation live in tree context menus (also available with Shift+F10), not permanent
+New buttons. Archive and Export share the output tab bar with Console/Plot/OP.
 Existing experiments reopen unchanged; duplication is an explicit action.
 `circuit.spice`, `testbench.spice`, and `run.cir` are conventions, not mandatory
 file counts. A drawn TB does not need an additional authored TB file.
@@ -109,6 +112,10 @@ file counts. A drawn TB does not need an additional authored TB file.
 The flat **Helper** list and Ctrl+Space share the ngspice help catalog. Search
 accepts command names and purpose keywords; contextual typing completion is
 limited to commands and relevant arguments, not comments or arbitrary text.
+Argument completion opens after the space in `save`/`dc`; native vector names stay
+unchanged. Candidate selection and hover can locate mapped Canvas Nets through
+the same derived naming traversal. Text-only signals remain usable without a
+Canvas target.
 An unknown command offers a quiet Helper hint instead of opening a large list.
 Choosing a command inserts its name and presents missing arguments as display-only
 ghosts. Tab/Shift+Tab navigate arguments, Escape dismisses guidance, and no ghost
