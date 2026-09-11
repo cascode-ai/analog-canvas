@@ -6,6 +6,7 @@ import type {
   SimulationSourceExpression,
 } from "@icm/model";
 import type { Problem } from "@icm/simulation-service/contract";
+import type { SimulationSignalTarget } from "@icm/netlist";
 import type { BrowserSimulationSession } from "./browser-simulation-session";
 import type { OperatingPointCanvasProjection } from "./operating-point-projection";
 export interface SpiceSimulationSurfaceProps {
@@ -65,6 +66,8 @@ export interface SpiceSimulationSurfaceProps {
     >,
     rootDocumentId?: string,
   ): void;
+  /** Transient code preview: never changes selection, camera, or active Cell. */
+  onPreviewSignal?(target: SimulationSignalTarget | null): void;
   onFocusDiagnostic?(locator: ObjectLocator): void;
   /** Session-only OP values ready for exact object-addressed canvas display. */
   onOperatingPointProjection?(

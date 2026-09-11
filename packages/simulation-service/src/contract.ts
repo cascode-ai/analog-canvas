@@ -153,6 +153,20 @@ export const PreparedSchema = z.strictObject({
   environment: EnvironmentSchema,
   vectors: z.array(VectorSchema),
   signalNames: z.record(z.string(), z.string()).optional(),
+  /** Canvas addresses captured with the prepared input, never resolved by display label. */
+  signalTargets: z
+    .record(
+      z.string(),
+      z.array(
+        z.strictObject({
+          rootDocumentId: Id,
+          documentId: Id,
+          netId: Id,
+          occurrence: z.array(Id),
+        }),
+      ),
+    )
+    .optional(),
   outputs: z.array(CompiledOutputSchema),
   deviceOperatingPoints: z.array(CompiledDeviceOperatingPointSchema),
   measurements: z.array(SimulationMeasurementSpecSchema).optional(),

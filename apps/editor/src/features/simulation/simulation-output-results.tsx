@@ -5,7 +5,10 @@ import {
   type SimulationPresentationExpression as SimulationExpression,
   type SimulationPresentationOutput as SimulationOutputSpec,
 } from "./source-presentation";
-import type { SimulationOutputData } from "@icm/simulation-service/contract";
+import type {
+  Prepared,
+  SimulationOutputData,
+} from "@icm/simulation-service/contract";
 
 import {
   ComplexResultsExplorer,
@@ -218,11 +221,13 @@ export function SimulationOutputResults({
   resultKey,
   data,
   outputs,
+  signalTargets,
   onFocusProbe,
 }: {
   resultKey: string;
   data: SimulationOutputData;
   outputs: readonly SimulationOutputSpec[];
+  signalTargets?: Prepared["signalTargets"];
   onFocusProbe?(probe: SimulationFocusTarget): void;
 }) {
   const authored = new Map(outputs.map((output) => [output.id, output]));
@@ -231,6 +236,18 @@ export function SimulationOutputResults({
     const probe = focusProbe(output);
     return probe ? [probe] : [];
   });
+  for (const [vector, targets] of Object.entries(signalTargets ?? {})) {
+    const target = targets[0];
+    if (!target) continue;
+    probes.push({
+      id: `native:${vector.toLowerCase()}`,
+      kind: "voltage",
+      rootDocumentId: target.rootDocumentId,
+      documentId: target.documentId,
+      occurrence: target.occurrence,
+      anchor: { kind: "base-net", netId: target.netId },
+    });
+  }
   const visibleAnalyses = new Set(
     data.analyses.map((analysis) => analysis.analysis),
   );

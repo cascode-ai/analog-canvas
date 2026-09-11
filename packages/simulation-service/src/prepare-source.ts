@@ -5,7 +5,7 @@ import type {
 } from "@icm/model";
 import {
   compileSourceSimulation,
-  simulationSignalNames,
+  simulationSignals,
   inspectSimulationSourceGraph,
   insertSimulationText,
   type SimulationSourceDiagnostic,
@@ -256,6 +256,7 @@ export async function prepareSourceExecutionInput(
     (kind) => !caps.analyses.includes(kind),
   );
   const preparedDeck = files[entryIndex]!.text;
+  const signals = simulationSignals(project, folder.input);
   const input: ExecutionInput & { preparedDeck: string } = {
     mode: "raw",
     netlist: "",
@@ -273,7 +274,12 @@ export async function prepareSourceExecutionInput(
     input,
     digest: await sha256(JSON.stringify(input)),
     vectors: compiled.vectors,
-    signalNames: simulationSignalNames(project, folder.input),
+    signalNames: Object.fromEntries(
+      Object.entries(signals).map(([key, signal]) => [key, signal.label]),
+    ),
+    signalTargets: Object.fromEntries(
+      Object.entries(signals).map(([key, signal]) => [key, signal.targets]),
+    ),
     outputs: compiled.outputs,
     deviceOperatingPoints: compiled.deviceOperatingPoints,
     measurements: config.measurements,

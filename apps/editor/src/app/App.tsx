@@ -1190,6 +1190,8 @@ export function App({
   );
   const [highlightedNetOrigin, setHighlightedNetOrigin] =
     useState<HighlightedNetOrigin | null>(null);
+  const [codeNetPreview, setCodeNetPreview] =
+    useState<HighlightedNetOrigin | null>(null);
   const [simulationWindowOpen, setSimulationWindowOpen] = useState(false);
   const [simulationPickMode, setSimulationPickModeState] = useState<
     "net" | "terminal" | null
@@ -1752,6 +1754,29 @@ export function App({
       projectConnectivityIndex,
       simulationHoverNetId,
       simulationPickMode,
+    ],
+  );
+  const codeNetHighlight = useMemo(
+    () =>
+      simulationWindowOpen &&
+      codeNetPreview &&
+      codeNetPreview.documentId === document.id &&
+      JSON.stringify(codeNetPreview.hierarchyPath) ===
+        JSON.stringify(documentStack)
+        ? computeNetHighlight(
+            projectConnectivityIndex,
+            document.id,
+            codeNetPreview.netId,
+            undefined,
+            documentStack,
+          )
+        : undefined,
+    [
+      simulationWindowOpen,
+      codeNetPreview,
+      document.id,
+      documentStack,
+      projectConnectivityIndex,
     ],
   );
   const canonicalSimulationNetId = (netId: string): string | null => {
@@ -5420,7 +5445,26 @@ export function App({
                     navigateToLocator(locator, `Located ${locator.kind}`)
                   }
                   onOperatingPointProjection={setOperatingPointProjection}
+                  onPreviewSignal={(target) => {
+                    const hierarchyPath =
+                      target &&
+                      simulationProbeHierarchyPath(
+                        project,
+                        target.rootDocumentId,
+                        target.occurrence,
+                      );
+                    setCodeNetPreview(
+                      target && hierarchyPath
+                        ? {
+                            documentId: target.documentId,
+                            netId: target.netId,
+                            hierarchyPath,
+                          }
+                        : null,
+                    );
+                  }}
                   onFocusProbe={(probe, preparedRootDocumentId) => {
+                    setCodeNetPreview(null);
                     const targetDocument = project.documents.find(
                       (candidate) => candidate.id === probe.documentId,
                     );
@@ -6258,7 +6302,7 @@ export function App({
           netHighlight={{
             highlight: simulationPickNetsActive
               ? simulationPickHighlight
-              : highlightedNet,
+              : (codeNetHighlight ?? highlightedNet),
             document,
             resolver,
             routeGeometryRecords,

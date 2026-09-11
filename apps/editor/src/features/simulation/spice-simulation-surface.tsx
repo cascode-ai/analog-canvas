@@ -1129,12 +1129,14 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
                   ),
                 }}
                 outputs={runPresentation?.outputs ?? []}
+                signalTargets={runPresentation?.prepared.signalTargets}
                 {...(props.onFocusProbe
                   ? {
                       onFocusProbe: (probe: SimulationFocusTarget) =>
                         props.onFocusProbe?.(
                           probe,
-                          runPresentation?.rootDocumentId,
+                          probe.rootDocumentId ??
+                            runPresentation?.rootDocumentId,
                         ),
                     }
                   : {})}
@@ -1891,7 +1893,9 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
               : undefined
           }
           selectedCircuitObject={props.selectedCircuitObject}
-          {...(props.onFocusProbe ? { onFocusProbe: props.onFocusProbe } : {})}
+          {...(props.onPreviewSignal
+            ? { onPreviewSignal: props.onPreviewSignal }
+            : {})}
           files={session.files}
           {...{
             ...(props.pickedNet !== undefined

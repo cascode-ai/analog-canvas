@@ -83,14 +83,20 @@ export function spiceCompletion(
         parameter === "vector" || parameter === "v(out[,ref])";
       const wantsNode = parameter === "n+" || parameter === "n-";
       if (!wantsSource && !wantsVector && !wantsNode) return null;
-      const symbols = new Set<string>();
+      // SPICE identifiers are case-insensitive. Prefer the mapped spelling and
+      // annotation over a second candidate scanned from generated source text.
+      const symbols = new Map<string, string>();
+      const addSymbol = (label: string) => {
+        const key = label.toLowerCase();
+        if (!symbols.has(key)) symbols.set(key, label);
+      };
       if (
         wantsVector &&
         guide.help.name.replace(/^\./u, "").toLowerCase() === "save"
       )
-        symbols.add("all");
+        addSymbol("all");
       const mapped = wantsVector ? (signalNames?.() ?? {}) : {};
-      for (const vector of Object.keys(mapped)) symbols.add(vector);
+      for (const vector of Object.keys(mapped)) addSymbol(vector);
       for (const text of [context.state.doc.toString(), ...relatedSources]) {
         let subckt = false;
         for (const row of text.split(/\r?\n/u)) {
@@ -100,19 +106,19 @@ export function spiceCompletion(
           const instance = /^\s*([RCLVI][\w.]*)\s+(\S+)\s+(\S+)\s+/iu.exec(row);
           if (!instance) continue;
           if (wantsSource && /^[VI]/iu.test(instance[1]!))
-            symbols.add(instance[1]!);
+            addSymbol(instance[1]!);
           if (wantsNode)
-            for (const node of instance.slice(2, 4)) symbols.add(node);
+            for (const node of instance.slice(2, 4)) addSymbol(node);
           if (wantsVector) {
-            for (const node of instance.slice(2, 4)) symbols.add(`v(${node})`);
-            if (/^V/iu.test(instance[1]!)) symbols.add(`i(${instance[1]})`);
+            for (const node of instance.slice(2, 4)) addSymbol(`v(${node})`);
+            if (/^V/iu.test(instance[1]!)) addSymbol(`i(${instance[1]})`);
           }
         }
       }
       const vectorWord = context.matchBefore(/[\w().,:]+/u);
       return {
         from: vectorWord?.from ?? context.pos,
-        options: [...symbols].map((label) => ({
+        options: [...symbols.values()].map((label) => ({
           label,
           type: "variable",
           ...(mapped[label] ? { detail: mapped[label] } : {}),

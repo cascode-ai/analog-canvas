@@ -60,7 +60,7 @@ interface Props extends Pick<
   | "pickTerminalsActive"
   | "onPickNetsChange"
   | "onPickTerminalsChange"
-  | "onFocusProbe"
+  | "onPreviewSignal"
 > {
   project: CircuitProject;
   selectedCircuitObject?:
@@ -878,17 +878,11 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
             )
           }
           onFocusSignal={(vector) => {
-            const target = signals[vector.toLowerCase()]?.targets[0];
-            if (target)
-              props.onFocusProbe?.(
-                {
-                  kind: "voltage",
-                  documentId: target.documentId,
-                  occurrence: target.occurrence,
-                  anchor: { kind: "base-net", netId: target.netId },
-                },
-                target.rootDocumentId,
-              );
+            props.onPreviewSignal?.(
+              vector
+                ? (signals[vector.toLowerCase()]?.targets[0] ?? null)
+                : null,
+            );
           }}
           saveRequest={saveRequest}
           relatedSources={sourceFiles.map(

@@ -95,7 +95,7 @@ export interface SimulationCodeEditorProps {
   helperActions?: readonly CodeHelperAction[];
   relatedSources?: readonly string[];
   signalNames?: (() => Readonly<Record<string, string>>) | undefined;
-  onFocusSignal?: ((vector: string) => void) | undefined;
+  onFocusSignal?: ((vector: string | null) => void) | undefined;
   saveRequest?: { id: string; vectors: string[] } | undefined;
   reveal?:
     { sourceOffset: number; requestId: string; focus?: boolean } | undefined;
@@ -520,8 +520,13 @@ function sourceExtensions(
           EditorView.updateListener.of((update) => {
             const previous = selectedCompletion(update.startState)?.label;
             const selected = selectedCompletion(update.state)?.label;
+            if (!update.view.hasFocus) {
+              callbacks.current.onFocusSignal?.(null);
+              return;
+            }
             if (selected && selected !== previous)
               callbacks.current.onFocusSignal?.(selected);
+            if (previous && !selected) callbacks.current.onFocusSignal?.(null);
             if (!selected && update.selectionSet) {
               const cursor = update.state.selection.main.head;
               const line = update.state.doc.lineAt(cursor);
@@ -530,7 +535,7 @@ function sourceExtensions(
                   line.from + match.index <= cursor &&
                   cursor <= line.from + match.index + match[0].length,
               );
-              if (vector) callbacks.current.onFocusSignal?.(vector[0]);
+              callbacks.current.onFocusSignal?.(vector?.[0] ?? null);
             }
           }),
           ViewPlugin.define((view) => {
@@ -543,10 +548,16 @@ function sourceExtensions(
               )?.textContent;
               if (label) callbacks.current.onFocusSignal?.(label);
             };
+            const clear = () => callbacks.current.onFocusSignal?.(null);
             view.dom.addEventListener("mouseover", preview);
+            view.dom.addEventListener("mouseleave", clear);
+            view.contentDOM.addEventListener("blur", clear);
             return {
               destroy() {
                 view.dom.removeEventListener("mouseover", preview);
+                view.dom.removeEventListener("mouseleave", clear);
+                view.contentDOM.removeEventListener("blur", clear);
+                clear();
               },
             };
           }),

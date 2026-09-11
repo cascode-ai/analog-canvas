@@ -97,7 +97,14 @@ describe("source Probe discovery", () => {
     });
     if (!result.ok) throw new Error(result.message);
     result.folder.input.files.find((f) => f.path === "run.cir")!.text =
-      "* raw\nVIN in 0 1\nR1 in out 1k\nC1 out 0 1n\n.end\n";
+      "* raw\nVIN in 0 1\nR1 IN out 1k\nC1 OUT 0 1n\n.end\n";
+    const choices = sourceProbeChoices(project, result.folder.input);
+    expect(
+      choices.filter((c) => c.label.toLowerCase() === "v(out)"),
+    ).toHaveLength(1);
+    expect(
+      choices.filter((c) => c.label.toLowerCase() === "v(in)"),
+    ).toHaveLength(1);
     expect(
       sourceProbeChoices(project, result.folder.input).map((c) => c.label),
     ).toEqual(expect.arrayContaining(["v(in)", "v(out)", "i(VIN)"]));
