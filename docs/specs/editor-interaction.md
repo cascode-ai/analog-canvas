@@ -86,12 +86,26 @@ properties first as strict, editable JSON:
 
 `placement.at` is the `[x, y]` grid coordinate, rotation is restricted to
 quarter turns, and mirror is `"none"` or `"x"`. Display keys appear only for
-annotations supported by that Symbol. Colors are `"auto"` or six-digit hex
-values. Applying valid code plans the existing typed placement, annotation,
+annotations supported by that Symbol. Fixed colors are displayed as compact
+`[R, G, B]` tuples with integer channels 0–255; six-digit hex input remains
+accepted and persisted instance colors remain hex. `"auto"` inherits global
+ink for foreground and adds no independent background fill; it does not mean
+fixed black or white. Applying valid code plans the existing typed placement, annotation,
 and style edits and submits them as one transaction. Unknown keys and invalid
 values are rejected without changing the Document. Connectivity, pins, Netlist
 identity, and Placement Tray lifecycle are intentionally absent from this
 surface; their dedicated typed commands remain authoritative.
+
+The lazy JSON editor provides syntax highlighting, bracket matching, JSON
+diagnostics and local text undo. Canvas-layer field metadata owns the rotation
+and mirror options, color channel limits and per-field guidance. Inline switches,
+enum menus, color pickers and global/no-fill resets edit the same draft as typing;
+they never apply implicitly. Left/right and top/bottom actions compose the
+current draft orientation in canvas coordinates, updating rotation and the one
+local mirror bit together. Invalid drafts disable assistance, not text editing.
+Hints and widgets are editor decorations, never JSON comments or persisted data.
+Apply is one document transaction; Revert discards the draft, and switching
+components cannot carry an old draft or its local history into a new selection.
 
 The old component placement, display, and appearance button grids are not
 mounted in the composed Properties dock. Electrical parameters, Reference,

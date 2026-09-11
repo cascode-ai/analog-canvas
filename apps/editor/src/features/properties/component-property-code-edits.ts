@@ -27,6 +27,48 @@ export function planComponentPropertyCodeEdits(
   value: ComponentPropertyCodeValue,
 ): SchematicEdit[] {
   const edits: SchematicEdit[] = [];
+  if (value.reference !== undefined && value.reference !== instance.reference)
+    edits.push({
+      kind: "set_instance_reference",
+      instanceId: instance.id,
+      reference: value.reference,
+    });
+  if (value.parameters && instance.netlist) {
+    const set = Object.fromEntries(
+      Object.entries(value.parameters).filter(
+        ([key, raw]) =>
+          raw.trim() !== "" && raw !== instance.netlist!.parameters[key],
+      ),
+    );
+    const unset = Object.keys(instance.netlist.parameters).filter(
+      (key) => !(value.parameters![key] ?? "").trim(),
+    );
+    if (Object.keys(set).length || unset.length)
+      edits.push({
+        kind: "patch_instance_netlist_parameters",
+        instanceId: instance.id,
+        ...(Object.keys(set).length ? { set } : {}),
+        ...(unset.length ? { unset } : {}),
+      });
+  }
+  if (value.symbol && value.symbol !== instance.symbolId)
+    edits.push({
+      kind: "set_instance_symbol",
+      instanceId: instance.id,
+      symbolId: value.symbol,
+    });
+  if (
+    value.signalFlow &&
+    JSON.stringify(value.signalFlow) !==
+      JSON.stringify(instance.signalFlowParameters ?? {})
+  )
+    edits.push({
+      kind: "set_instance_signal_flow_parameters",
+      instanceId: instance.id,
+      parameters: Object.keys(value.signalFlow).length
+        ? value.signalFlow
+        : null,
+    });
   if (instance.placement && value.placement) {
     const position = {
       x: snapCoordinate(value.placement.at[0], document.presentation.grid),

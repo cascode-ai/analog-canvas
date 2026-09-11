@@ -29,19 +29,6 @@ function effectiveParameterValue(
   return "";
 }
 
-function displayUnit(parameter: DeviceParameterDefinition): string {
-  // `Ohm` remains the form's familiar text hint, while the existing Razavi
-  // value annotation uses its conventional glyph. This is a general display
-  // spelling rule, not a second device registry.
-  return parameter.unitHint === "Ohm" ? "Ω" : (parameter.unitHint ?? "");
-}
-
-function withUnit(raw: string, unit: string): string {
-  // Values are typed as bare SPICE numbers; append the physical unit unless
-  // the author already ended with it.
-  return raw.endsWith(unit) ? raw : `${raw}${unit}`;
-}
-
 function boldText(value: string): RichTextDocument["runs"][number] {
   return {
     kind: "span",
@@ -58,8 +45,8 @@ function boldDocument(value: string): RichTextDocument {
  * One pure authority for the optional Value annotation beside an instance.
  * Electrical truth stays in the typed netlist parameters; this only projects
  * it to display text and never
- * writes back. Display is Razavi textbook style: upright bold text with the
- * engineering unit, and a stacked fraction bar for MOS W/L.
+ * writes back. Preserve authored spelling, including any explicit unit; never
+ * append a guessed suffix. Keep upright bold text and a stacked MOS W/L fraction.
  */
 /**
  * Whether this Symbol's device can ever annotate a value.
@@ -134,10 +121,8 @@ export function displayableInstanceValue(
         runs: [
           {
             kind: "fraction",
-            numerator: boldDocument(withUnit(widthValue, displayUnit(width))),
-            denominator: boldDocument(
-              withUnit(lengthValue, displayUnit(length)),
-            ),
+            numerator: boldDocument(widthValue),
+            denominator: boldDocument(lengthValue),
           },
           ...(showsMultiplier
             ? [
@@ -172,6 +157,6 @@ export function displayableInstanceValue(
   }
   return {
     kind: "displayable",
-    content: boldDocument(withUnit(valueText, displayUnit(value))),
+    content: boldDocument(valueText),
   };
 }

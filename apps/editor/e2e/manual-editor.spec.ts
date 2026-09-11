@@ -16,10 +16,110 @@ import {
   clickNetlistWorkflowCommand,
   downloadBytes,
   editComponentPropertyCode,
+  readComponentPropertyCode,
+  setComponentParameter,
+  expectComponentCodeField,
   openMenu,
   readRecoveryRecords,
   recoveryProjectTexts,
 } from "./editor-fixtures.js";
+
+test("guided JSON properties keep controls in one draft and round-trip raw parameter strings", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await placeComponent(page, "nmos", { x: 360, y: 220 });
+  await openSelectionShelf(page);
+  const panel = page.getByRole("complementary", { name: "Properties" });
+  await expect(
+    panel.getByLabel("Component parameters and display"),
+  ).toHaveCount(0);
+  await expect(panel.getByLabel("Component actions")).toHaveCount(0);
+  await expect(panel.getByLabel("Netlist target", { exact: true })).toHaveCount(
+    0,
+  );
+  const revision = await page.getByTestId("revision").textContent();
+  await panel.getByLabel("Rotation options").selectOption("90");
+  await panel
+    .getByRole("switch", { name: "Show reference", exact: true })
+    .click();
+  await panel.getByLabel("Foreground color picker").fill("#dc2626");
+  await expect(page.getByTestId("revision")).toHaveText(revision!);
+  const draft = JSON.parse(await readComponentPropertyCode(page));
+  expect(draft.placement.rotation).toBe(90);
+  expect(draft.display.reference).toBe(false);
+  expect(draft.appearance.foreground).toEqual([220, 38, 38]);
+  draft.parameters.w = "EV";
+  draft.parameters.l = "L";
+  draft.parameters.custom = "{raw_expression}";
+  draft.display.value = true;
+  await panel
+    .getByLabel("Editable Canvas property code")
+    .fill(JSON.stringify(draft, null, 2));
+  await panel.getByRole("button", { name: "Apply code" }).click();
+  await expect(page.getByTestId("revision")).toHaveText(
+    String(Number(revision) + 1),
+  );
+  const value = page.locator(
+    '[data-layer="formal"] [data-object-id="instance-value-M1"]',
+  );
+  await expect(value).toContainText("EV");
+  await expect(value).not.toContainText("EVm");
+  const source = await readComponentPropertyCode(page);
+  expect(source).not.toContain("Clockwise");
+  expect(source).not.toContain("Enter any unit");
+  const saved = JSON.parse(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(
+      "utf8",
+    ),
+  );
+  expect(saved.documents[0].instances[0]).toMatchObject({
+    netlist: { parameters: { w: "EV", l: "L", custom: "{raw_expression}" } },
+    styleOverride: { foreground: "#dc2626" },
+    placement: { rotation: 90 },
+  });
+  await clickCommand(page, "Edit", "Undo");
+  await expectComponentCodeField(page, "parameters.w", "1u");
+  await clickCommand(page, "Edit", "Redo");
+  await expectComponentCodeField(page, "parameters.w", "EV");
+  await page
+    .getByTestId("project-file")
+    .setInputFiles({
+      name: "raw.icproj.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(JSON.stringify(saved)),
+    });
+  await page.getByTestId("hit-M1").click();
+  await openSelectionShelf(page);
+  await expectComponentCodeField(page, "parameters.w", "EV");
+});
+
+test("Defaults and Discard draft have distinct non-destructive behavior", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await placeComponent(page, "nmos", { x: 360, y: 220 });
+  await openSelectionShelf(page);
+  await setComponentParameter(page, "w", "7u");
+  const revision = await page.getByTestId("revision").textContent();
+  await page.getByRole("button", { name: "Defaults", exact: true }).click();
+  await expectComponentCodeField(page, "parameters.w", "1u");
+  await expect(page.getByTestId("revision")).toHaveText(revision!);
+  await page
+    .getByRole("button", { name: "Discard draft", exact: true })
+    .click();
+  await expectComponentCodeField(page, "parameters.w", "7u");
+  const code = page.getByLabel("Editable Canvas property code");
+  const invalid = JSON.parse(await readComponentPropertyCode(page));
+  invalid.appearance.foreground = [256, 0, 0];
+  await code.fill(JSON.stringify(invalid, null, 2));
+  await expect(page.getByRole("button", { name: "Apply code" })).toBeDisabled();
+  await expect(page.getByLabel("Rotation options")).toBeDisabled();
+  await page.getByRole("button", { name: "Discard draft" }).click();
+  await expectComponentCodeField(page, "parameters.w", "7u");
+  await expect(page.locator(".cm-json-key").first()).toBeVisible();
+  await expect(page.locator(".cm-json-string").first()).toBeVisible();
+});
 
 test("a directly connected device can move away and return with its wire, undo and redo", async ({
   page,
@@ -794,15 +894,15 @@ test("a part with no designator offers no Reference toggle", async ({
   await expect(properties).toContainText("voltage-amplifier");
   await expect(
     properties.getByLabel("Editable Canvas property code"),
-  ).not.toHaveValue(/"display"/u);
+  ).not.toContainText(/"display"/u);
 
   // The brake: a resistor designates R1 and carries a value, so its toggles
   // are untouched and still work.
   await placeComponent(page, "resistor", { x: 500, y: 200 });
   await openSelectionShelf(page);
   const code = properties.getByLabel("Editable Canvas property code");
-  await expect(code).toHaveValue(/"reference": true/u);
-  await expect(code).toHaveValue(/"value": false/u);
+  await expect(code).toContainText(/"reference": true/u);
+  await expect(code).toContainText(/"value": false/u);
   const drawnLabel = page.locator(
     '[data-layer="annotations"] [data-object-id="instance-label-R1"]',
   );
@@ -3340,7 +3440,7 @@ test("Properties offers no dead Reference controls for a schematic-only block", 
   await expect(parametersCard).toHaveCount(0);
   await expect(
     properties.getByLabel("Editable Canvas property code"),
-  ).not.toHaveValue(/"display"/u);
+  ).not.toContainText(/"display"/u);
   await expect(
     properties.locator('details[aria-label="Component appearance"]'),
   ).toHaveCount(0);
@@ -3351,7 +3451,7 @@ test("Properties offers no dead Reference controls for a schematic-only block", 
   await expect(parametersCard).toHaveCount(1);
   await expect(
     properties.getByLabel("Editable Canvas property code"),
-  ).toHaveValue(/"display"/u);
+  ).toContainText(/"display"/u);
 });
 
 test("resizes Properties and applies component presentation as editable code", async ({
@@ -3415,7 +3515,7 @@ test("resizes Properties and applies component presentation as editable code", a
     .poll(async () => (await properties.boundingBox())?.width ?? 0)
     .toBeCloseTo(compactWidth + 8, 0);
 
-  const edited = JSON.parse(await code.inputValue());
+  const edited = JSON.parse(await readComponentPropertyCode(page));
   edited.placement.at = [420, 280];
   edited.placement.rotation = 90;
   edited.placement.mirror = "x";
@@ -3805,7 +3905,7 @@ test("reference and value code refreshes content after parameter edits", async (
   await openSelectionShelf(page);
   const properties = page.getByRole("complementary", { name: "Properties" });
   const propertyCode = properties.getByLabel("Editable Canvas property code");
-  const missingValueCode = JSON.parse(await propertyCode.inputValue());
+  const missingValueCode = JSON.parse(await readComponentPropertyCode(page));
   missingValueCode.display.value = true;
   await propertyCode.fill(JSON.stringify(missingValueCode, null, 2));
   await properties.getByRole("button", { name: "Apply code" }).click();

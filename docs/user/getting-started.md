@@ -41,8 +41,12 @@ palette-first manual authoring; no Project file needs to be opened first.
   only the drawn route.
 - Select a component and press `Q` to open **Properties**. Its editable
   **Canvas properties** JSON keeps position as `"at": [x, y]`, plus quarter-turn
-  rotation, mirror, supported Reference/Value visibility, and automatic or hex
-  foreground/background colors. Edit the code and choose **Apply code** (or
+  rotation, mirror, supported Reference/Value visibility, and foreground/background
+  colors. Use the inline switches, angle/mirror menus, color swatches and field
+  hints, or type JSON directly. Fixed colors display as `[R, G, B]` (0–255);
+  hex input also works. **Global** inherits ink and **No fill** removes the
+  independent background override. Flip arrows work in canvas directions.
+  These controls change the draft: choose **Apply code** (or
   press `Ctrl`/`Cmd`+`Enter`); invalid or unknown properties are reported
   without changing the drawing. Electrical parameters and the read-only SPICE
   card remain below it. Drag the panel's left edge to set a comfortable width.

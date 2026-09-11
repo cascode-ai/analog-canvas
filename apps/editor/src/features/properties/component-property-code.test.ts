@@ -5,6 +5,7 @@ import type { SchematicDocument } from "@icm/model";
 import {
   formatComponentPropertyCode,
   parseComponentPropertyCode,
+  serializeComponentPropertyCode,
 } from "./component-property-code";
 
 type Instance = SchematicDocument["instances"][number];
@@ -34,10 +35,7 @@ describe("component property code", () => {
   it("formats placement as one coordinate and makes display/style explicit", () => {
     expect(formatComponentPropertyCode(context)).toBe(`{
   "placement": {
-    "at": [
-      360,
-      240
-    ],
+    "at": [360, 240],
     "rotation": 90,
     "mirror": "none"
   },
@@ -76,7 +74,7 @@ describe("component property code", () => {
     );
     expect(parseComponentPropertyCode(source, context)).toEqual({
       ok: false,
-      message: "placement.rotation must be 0, 90, 180, or 270",
+      message: "placement.rotation must be 0, 90, 180, 270",
     });
 
     const extra = formatComponentPropertyCode(context).replace(
@@ -109,5 +107,37 @@ describe("component property code", () => {
       ok: false,
       message: "placement cannot be changed to null here; use Return to tray",
     });
+  });
+
+  it("accepts RGB authoring, persists hex, and displays fixed colors as compact RGB", () => {
+    const decoded = JSON.parse(formatComponentPropertyCode(context));
+    decoded.appearance.foreground = [255, 0, 128];
+    decoded.appearance.background = [255, 255, 255];
+    const parsed = parseComponentPropertyCode(JSON.stringify(decoded), context);
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) throw new Error(parsed.message);
+    expect(parsed.value.appearance).toEqual({
+      foreground: "#ff0080",
+      background: "#ffffff",
+    });
+    const formatted = serializeComponentPropertyCode(parsed.value);
+    expect(formatted).toContain('"foreground": [255, 0, 128]');
+    expect(parseComponentPropertyCode(formatted, context)).toEqual(parsed);
+  });
+
+  it.each([
+    [256, 0, 0],
+    [-1, 0, 0],
+    [0.5, 0, 0],
+    ["0", 0, 0],
+    [0, 0],
+    [0, 0, 0, 0],
+    [null, 0, 0],
+  ])("rejects invalid RGB channels %j", (...channels) => {
+    const decoded = JSON.parse(formatComponentPropertyCode(context));
+    decoded.appearance.foreground = channels;
+    expect(
+      parseComponentPropertyCode(JSON.stringify(decoded), context).ok,
+    ).toBe(false);
   });
 });

@@ -186,6 +186,7 @@ export function ComponentIdentityProperties({
   onMarkerNameChange,
   onReferenceChange,
   onModelTargetChange,
+  fieldsMovedToCode = false,
 }: {
   instance: Instance;
   revision: number;
@@ -206,6 +207,7 @@ export function ComponentIdentityProperties({
   onMarkerNameChange: (value: string) => void;
   onReferenceChange: (value: string) => boolean | void;
   onModelTargetChange: (value: string) => void;
+  fieldsMovedToCode?: boolean;
 }) {
   const reference = instance.reference ?? "";
   const hasEditableIdentityControls = Boolean(
@@ -240,7 +242,7 @@ export function ComponentIdentityProperties({
                 </dd>
               </div>
             ) : null}
-            {instance.reference ? (
+            {instance.reference && !fieldsMovedToCode ? (
               <div>
                 <dt>Netlist Reference</dt>
                 <dd>
@@ -259,7 +261,7 @@ export function ComponentIdentityProperties({
                 </dd>
               </div>
             ) : null}
-            {onEditAnnotation ? (
+            {onEditAnnotation && !fieldsMovedToCode ? (
               <div>
                 <dt>Visual annotation</dt>
                 <dd>
@@ -269,7 +271,7 @@ export function ComponentIdentityProperties({
                 </dd>
               </div>
             ) : null}
-            {targetDescription ? (
+            {targetDescription && !fieldsMovedToCode ? (
               <div className="property-identity-target">
                 <dt>Target</dt>
                 <dd>{targetDescription}</dd>
@@ -325,7 +327,7 @@ export function ComponentIdentityProperties({
           </label>
         </div>
       ) : null}
-      {modelTarget ? (
+      {modelTarget && !fieldsMovedToCode ? (
         <div
           className="property-card property-target-card"
           aria-label="Netlist target"

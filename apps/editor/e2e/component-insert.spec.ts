@@ -1082,16 +1082,16 @@ test("carries a manual Value through placement and Q property editing", async ({
   );
   await expect(page.getByLabel("Component geometry")).toHaveCount(0);
   const propertyCode = page.getByLabel("Editable Canvas property code");
-  await expect(propertyCode).toHaveValue(/"at": \[/u);
-  await expect(propertyCode).toHaveValue(/"rotation": 0/u);
-  await expect(propertyCode).toHaveValue(/"mirror": "none"/u);
+  await expect(propertyCode).toContainText(/"at": \[/u);
+  await expect(propertyCode).toContainText(/"rotation": 0/u);
+  await expect(propertyCode).toContainText(/"mirror": "none"/u);
   await expect(page.locator(".selection-overview")).toHaveCount(0);
   await expect(page.getByTestId("selection-shelf")).toContainText(
     "R1 · resistor",
   );
   await expect(page.getByLabel("Component display toggles")).toHaveCount(0);
-  await expect(propertyCode).toHaveValue(/"reference": true/u);
-  await expect(propertyCode).toHaveValue(/"value": false/u);
+  await expect(propertyCode).toContainText(/"reference": true/u);
+  await expect(propertyCode).toContainText(/"value": false/u);
   await expect(page.getByText("Actions", { exact: true })).toBeVisible();
   const propertyValue = page.getByLabel("Component value");
   // Opening focuses the shelf header, never the first field: Q stays a pure
@@ -1427,7 +1427,7 @@ test("sets MOS parameters and orientation through the ghost and Properties", asy
   await expect(page.getByLabel("Component m", { exact: true })).toHaveValue(
     "4",
   );
-  await expect(page.getByLabel("Editable Canvas property code")).toHaveValue(
+  await expect(page.getByLabel("Editable Canvas property code")).toContainText(
     /"rotation": 90/u,
   );
 });

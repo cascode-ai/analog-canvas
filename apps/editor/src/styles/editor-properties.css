@@ -374,28 +374,115 @@
   white-space: nowrap;
 }
 
-.component-property-code-editor > textarea {
+.component-property-code-editor textarea,
+.component-json-editor {
   box-sizing: border-box;
   width: 100%;
   min-width: 0;
   min-height: 15.5rem;
-  resize: vertical;
-  padding: 0.65rem 0.75rem;
   border: 1px solid var(--icm-border);
   border-radius: var(--icm-radius-sm);
   color: var(--icm-text);
   background: var(--icm-surface);
   font-family: var(--icm-font-mono, ui-monospace, monospace);
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.5;
   tab-size: 2;
   white-space: pre;
 }
 
-.component-property-code-editor > textarea:focus {
+.component-json-editor:focus-within {
   border-color: var(--icm-accent);
   outline: 2px solid var(--icm-accent-soft);
   outline-offset: 0;
+}
+
+.component-json-editor .cm-editor {
+  min-height: 15.5rem;
+  border-radius: inherit;
+}
+.component-json-editor .cm-editor.cm-focused {
+  outline: none;
+}
+.component-json-editor .cm-scroller {
+  max-height: 34rem;
+  overflow: auto;
+  font-family: inherit;
+  line-height: 1.6;
+}
+.component-json-editor .cm-content {
+  padding: 0.65rem;
+  caret-color: var(--icm-text);
+}
+.component-json-editor .cm-line {
+  padding: 0;
+}
+.component-json-editor .cm-json-key {
+  color: #0550ae;
+}
+.component-json-editor .cm-json-string {
+  color: #116329;
+}
+.component-json-editor .cm-json-number {
+  color: #953800;
+}
+.component-json-editor .cm-json-boolean {
+  color: #8250df;
+  font-weight: 600;
+}
+.component-json-editor .cm-json-bracket {
+  color: #6e40a6;
+}
+.component-json-editor .cm-property-assist {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem;
+  max-width: 100%;
+  margin: 0.2rem 0 0.35rem 0.4rem;
+  font-family: var(--icm-font-sans, sans-serif);
+  font-size: 12px;
+  line-height: 1.4;
+  vertical-align: middle;
+  white-space: normal;
+}
+.component-json-editor .cm-property-assist button,
+.component-json-editor .cm-property-assist select {
+  width: auto;
+  min-height: 1.6rem;
+  padding: 0.1rem 0.4rem;
+  border: 1px solid var(--icm-border-strong);
+  border-radius: 4px;
+  background: var(--icm-surface);
+  color: var(--icm-text);
+  font: inherit;
+  cursor: pointer;
+}
+.component-json-editor .cm-property-assist :disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+.component-json-editor .cm-property-toggle[aria-checked="true"] {
+  background: var(--icm-accent);
+  border-color: var(--icm-accent);
+  color: white;
+}
+.component-json-editor .cm-property-assist input[type="color"] {
+  width: 1.8rem;
+  height: 1.6rem;
+  padding: 1px;
+  border: 1px solid var(--icm-border-strong);
+  border-radius: 4px;
+  background: var(--icm-surface);
+  cursor: pointer;
+}
+.component-json-editor .cm-property-hint {
+  flex: 1 1 100%;
+  color: var(--icm-text-muted);
+  overflow-wrap: anywhere;
+}
+.component-json-editor .cm-property-inherited {
+  color: var(--icm-text-muted);
 }
 
 .component-property-code-status {
