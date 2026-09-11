@@ -49,6 +49,17 @@ export function generateCircuitSource(
   // Never invent an electrical default or persist generated text as circuit authority.
   for (const cell of ir.cells) {
     for (const card of cell.instances) {
+      // Strict extraction refuses missing targets before printing. Authoring
+      // intentionally retains those cards, so supply a visibly unresolved,
+      // protected token in this projection only, never an electrical default.
+      if (
+        !card.target &&
+        ["mos", "diode", "bjt", "switch", "hierarchical"].includes(
+          card.deviceClass,
+        )
+      )
+        card.target =
+          card.invocationKind === "subcircuit" ? "<subcircuit>" : "<model>";
       const instance = project.documents
         .find((d) => d.id === cell.id)
         ?.instances.find((i) => i.id === card.id);

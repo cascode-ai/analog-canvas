@@ -46,6 +46,36 @@ function replace(
   return text;
 }
 describe("Circuit parameter source projection", () => {
+  it("prints an unresolved model slot without crashing or assigning a model", () => {
+    const { project, source } = fixture();
+    const width = source.parameters.find((p) => p.parameter === "w")!;
+    const instance = project.documents
+      .find((d) => d.id === width.documentId)!
+      .instances.find((i) => i.id === width.instanceId)!;
+    instance.netlist = { parameters: {} };
+    const before = JSON.stringify(project);
+    const result = generateCircuitSource(project, source.binding);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.source.text).toContain("<model>");
+    expect(result.warnings.some((d) => d.severity === "error")).toBe(true);
+    expect(planCircuitSourceEdit(result.source, result.source.text)).toEqual({
+      ok: true,
+      changes: [],
+    });
+    expect(
+      planCircuitSourceEdit(
+        result.source,
+        result.source.text.replace("<model>", "invented_model"),
+      ),
+    ).toMatchObject({ ok: false, code: "SIMULATION_CIRCUIT_STRUCTURE_LOCKED" });
+    expect(
+      analyzeDesignNetlist(project, {
+        rootDocumentId: source.binding.documentId,
+      }).ir,
+    ).toBeNull();
+    expect(JSON.stringify(project)).toBe(before);
+  });
   it("keeps incomplete circuits editable without inventing defaults or relaxing export", () => {
     const { project, source } = fixture();
     const width = source.parameters.find((p) => p.parameter === "w")!;

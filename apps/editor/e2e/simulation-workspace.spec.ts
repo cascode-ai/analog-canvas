@@ -30,6 +30,10 @@ test("incomplete circuit opens Code and saves invalid parameter drafts across re
   const cell = project.documents.find((d) => d.id === root)!;
   const capacitor = cell.instances.find((i) => i.reference === "CL")!;
   delete capacitor.netlist!.parameters.value;
+  const unconfiguredMos = project.documents
+    .flatMap((document) => document.instances)
+    .find((instance) => instance.symbolId === "nmos")!;
+  unconfiguredMos.netlist = { parameters: {} };
   const folder = createSimulationFolder({
     id: "draft-folder",
     name: "Draft",
@@ -56,6 +60,7 @@ test("incomplete circuit opens Code and saves invalid parameter drafts across re
     name: "Simulation source editor",
   });
   await expect(editor).toContainText("<value>");
+  await expect(editor).toContainText("<model>");
   await expect(panel.locator(".cm-lintRange-error").first()).toBeVisible();
   await editor.click();
   await editor.press("Control+Home");
