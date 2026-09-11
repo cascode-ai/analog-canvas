@@ -39,17 +39,17 @@ describe("canvas text editor frame", () => {
         1,
         pixelsPerUnit,
       );
-      expect(view.width * pixelsPerUnit).toBeGreaterThan(400);
-      expect(frame.width * pixelsPerUnit).toBeCloseTo(400, 10);
-      expect(frame.layoutWidth).toBeCloseTo(400, 10);
+      expect(view.width * pixelsPerUnit).toBeGreaterThan(332);
+      expect(frame.width * pixelsPerUnit).toBeCloseTo(332, 10);
+      expect(frame.layoutWidth).toBeCloseTo(332, 10);
     }
   });
 
   it("shrinks only when the canvas cannot fit the standard editor", () => {
-    const frame = resolveCanvasTextEditorFrame(target, camera(400, 640), 1, 1);
-    expect(frame.layoutWidth).toBe(384);
+    const frame = resolveCanvasTextEditorFrame(target, camera(300, 640), 1, 1);
+    expect(frame.layoutWidth).toBe(284);
     expect(frame.x).toBeGreaterThanOrEqual(8);
-    expect(frame.x + frame.width).toBeLessThanOrEqual(392);
+    expect(frame.x + frame.width).toBeLessThanOrEqual(292);
   });
 
   it("holds one apparent size however far the camera is zoomed", () => {

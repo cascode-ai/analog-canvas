@@ -235,7 +235,7 @@ test("adds formatted drafting text and undo/redo restores it", async ({
   expect(editorBounds.x + editorBounds.width).toBeLessThanOrEqual(
     canvasBounds.x + canvasBounds.width + 1,
   );
-  expect(editorBounds.width).toBeCloseTo(400, 0);
+  expect(editorBounds.width).toBeCloseTo(332, 0);
   const [boldTop, increaseTop, applyTop, cancelTop, deleteTop] =
     await Promise.all([
       controlTop(page.getByRole("button", { name: "Bold" })),
@@ -258,7 +258,7 @@ test("adds formatted drafting text and undo/redo restores it", async ({
         .boundingBox()
         .then((bounds) => bounds?.width),
     )
-    .toBeCloseTo(400, 0);
+    .toBeCloseTo(332, 0);
   const [narrowBoldTop, narrowIncreaseTop, narrowApplyTop, narrowCancelTop] =
     await Promise.all([
       controlTop(page.getByRole("button", { name: "Bold" })),

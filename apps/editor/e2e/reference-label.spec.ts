@@ -59,6 +59,15 @@ test("canvas edits one visual annotation without changing the Netlist Reference"
     actionControls.every(({ y }) => Math.abs(y - actionControls[0]!.y) < 1),
   ).toBe(true);
   expect(actionControls[0]!.y).toBeGreaterThan(sizeControl!.y);
+  const toolbarBounds = await page
+    .getByRole("toolbar", { name: "Text formatting" })
+    .boundingBox();
+  if (!toolbarBounds) throw new Error("Text toolbar is not measurable");
+  expect(
+    toolbarBounds.x +
+      toolbarBounds.width -
+      (sizeControl!.x + sizeControl!.width),
+  ).toBeLessThanOrEqual(12);
   await editor.fill("R2");
   await editor.press("End");
   await editor.press("Shift+Enter");
