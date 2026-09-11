@@ -106,9 +106,11 @@ describe("SymbolArtwork pin-name previews", () => {
 
     expect(artwork).toContain('data-role="signal-flow-formula"');
     expect(placement).toContain('data-role="signal-flow-formula"');
+    expect(placement).toContain('data-role="upright-signal-flow-formula"');
     expect(placement).toContain(
       'transform="translate(100 80) rotate(90) scale(-1 1)"',
     );
+    expect(placement).toContain('transform="translate(100 80)"');
   });
 
   it.each([

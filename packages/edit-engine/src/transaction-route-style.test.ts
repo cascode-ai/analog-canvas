@@ -72,6 +72,43 @@ describe("set_route_style_override edit", () => {
     expect(clear.document.routes[0]!.styleOverride).toBeUndefined();
   });
 
+  it("sets an independent wire arrow and preserves it across color edits", () => {
+    const document = documentWithRoute();
+    const arrow = executeTransaction(
+      document,
+      transaction(document, [
+        {
+          kind: "set_route_style_override",
+          routeId: "wire",
+          styleOverride: { arrow: "middle" },
+        },
+      ]),
+    );
+    expect(arrow.ok).toBe(true);
+    if (!arrow.ok) return;
+    expect(arrow.document.routes[0]!.styleOverride).toEqual({
+      arrow: "middle",
+    });
+
+    const colored = executeTransaction(
+      arrow.document,
+      transaction(arrow.document, [
+        {
+          kind: "set_route_style_override",
+          routeId: "wire",
+          styleOverride: { arrow: "middle", color: "#123456" },
+        },
+      ]),
+    );
+    expect(colored.ok).toBe(true);
+    if (!colored.ok) return;
+    expect(colored.document.routes[0]!.styleOverride).toEqual({
+      color: "#123456",
+      arrow: "middle",
+    });
+    expect(colored.document.routes[0]!.netId).toBe("net");
+  });
+
   it("rejects invalid colors, missing routes, and no-op changes", () => {
     const document = documentWithRoute();
     expect(
@@ -82,6 +119,18 @@ describe("set_route_style_override edit", () => {
             kind: "set_route_style_override",
             routeId: "wire",
             styleOverride: { color: "red" },
+          },
+        ],
+      }).ok,
+    ).toBe(false);
+    expect(
+      executeTransaction(document, {
+        ...transaction(document, [] as never[]),
+        edits: [
+          {
+            kind: "set_route_style_override",
+            routeId: "wire",
+            styleOverride: { arrow: "start" },
           },
         ],
       }).ok,

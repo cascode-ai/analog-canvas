@@ -26,6 +26,16 @@ describe("converter blocks", () => {
       points.find((point) => point.y === 0)!.x;
     expect(tip(adc.points)).toBeLessThan(0);
     expect(tip(dac.points)).toBeGreaterThan(0);
+    // The point advances two grid cells from the shoulder, giving the
+    // converter direction a visibly sharper tip without off-grid geometry.
+    const shoulder = (points: readonly { x: number; y: number }[]) =>
+      points.find((point) => point.y < 0 && Math.abs(point.x) === 20)!.x;
+    expect(Math.abs(tip(adc.points) - shoulder(adc.points))).toBe(
+      SYMBOL_CONNECTION_GRID * 2,
+    );
+    expect(Math.abs(tip(dac.points) - shoulder(dac.points))).toBe(
+      SYMBOL_CONNECTION_GRID * 2,
+    );
   });
 
   it("keeps the body empty, like every other symbol on the sheet", () => {

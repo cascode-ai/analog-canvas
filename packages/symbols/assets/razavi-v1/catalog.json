@@ -1588,7 +1588,7 @@
       "automaticMappings": [],
       "manualOnlyReason": "A converter block stands for a subsystem; SPICE has no primitive for one.",
       "assetPath": "adc.symbol.json",
-      "assetHash": "7c6ab38ed2d5157ed15bba0538601a7ec96f5c9a6b0c7cf1b5ef720305130271"
+      "assetHash": "8ee369db66cfddbd10f3052b96dd577039f8fa37fc4f9e6f5fba1d6f3d92efc2"
     },
     {
       "symbolId": "dac",
@@ -1602,7 +1602,7 @@
       "automaticMappings": [],
       "manualOnlyReason": "A converter block stands for a subsystem; SPICE has no primitive for one.",
       "assetPath": "dac.symbol.json",
-      "assetHash": "ab663f210d9b2410090ff9ed7bf9d7c029dcbc47ec9d722a7471130a64f43dc6"
+      "assetHash": "a4c4dee2f1b9c06490e8931bd8e1671e0dd8def4482e3c0393b9bd3968075d38"
     }
   ],
   "semanticPrimitives": [

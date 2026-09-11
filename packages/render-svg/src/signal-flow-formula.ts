@@ -1,4 +1,6 @@
 import type { SchematicStyleProfile } from "@icm/derived";
+import { transformPoint } from "@icm/model";
+import type { SchematicDocument } from "@icm/model";
 import {
   normalizeSignalFlowFormula,
   parseSignalFlowFraction,
@@ -117,6 +119,31 @@ export function renderSignalFlowFormula(
     ? `<text data-role="formula-coefficient" x="${layout.coefficientX}" y="${layout.inlineBaseline}" text-anchor="end" font-size="${layout.fontSize}">${renderSignalFlowInlineFormula(layout.coefficient)}·</text>`
     : "";
   return `<g data-role="signal-flow-formula" ${common}>${coefficientMarkup}${body}</g>`;
+}
+
+/**
+ * Render Symbol body text at its transformed centre without transforming the
+ * glyphs themselves. A mirrored or quarter-turned Symbol still moves its
+ * label with the body, while letters, signs, scripts, and fraction bars stay
+ * readable in screen coordinates.
+ */
+export function renderUprightSignalFlowFormula(
+  presentation: FormulaPresentation | undefined,
+  parameters: SignalFlowLayoutParameters | undefined,
+  placement: NonNullable<SchematicDocument["instances"][number]["placement"]>,
+  options: SignalFlowFormulaRenderOptions,
+): string {
+  if (!presentation) return "";
+  const formula = renderSignalFlowFormula(presentation, parameters, options);
+  if (!formula) return "";
+  const worldCenter = transformPoint(
+    presentation.center,
+    placement.position,
+    placement,
+  );
+  const translateX = worldCenter.x - presentation.center.x;
+  const translateY = worldCenter.y - presentation.center.y;
+  return `<g data-role="upright-signal-flow-formula" transform="translate(${translateX} ${translateY})">${formula}</g>`;
 }
 
 export { normalizeSignalFlowFormula, parseSignalFlowFraction };

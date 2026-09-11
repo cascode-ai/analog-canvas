@@ -69,7 +69,7 @@ import { renderPositionedOverbarScriptDocument } from "./positioned-rich-text.js
 import { renderRichTextDocument } from "./rich-text.js";
 import { renderFormulaDocument } from "./formula.js";
 import {
-  renderSignalFlowFormula,
+  renderUprightSignalFlowFormula,
   signalFlowFormulaLocalBounds,
 } from "./signal-flow-formula.js";
 
@@ -167,6 +167,78 @@ function escapeXml(value: string): string {
 
 function pointList(points: ReadonlyArray<{ x: number; y: number }>): string {
   return points.map((point) => `${point.x},${point.y}`).join(" ");
+}
+
+function renderRouteDirectionArrow(
+  centerline: ReadonlyArray<{ x: number; y: number }>,
+  placement: "middle" | "end" | undefined,
+  color: string,
+  profile: SchematicStyleProfile,
+): string {
+  if (!placement || centerline.length < 2) return "";
+  const segments = centerline.slice(1).flatMap((to, index) => {
+    const from = centerline[index]!;
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    const length = Math.hypot(dx, dy);
+    return length > 0 ? [{ from, to, dx, dy, length }] : [];
+  });
+  const totalLength = segments.reduce(
+    (sum, segment) => sum + segment.length,
+    0,
+  );
+  if (totalLength === 0) return "";
+  const targetDistance = placement === "end" ? totalLength : totalLength / 2;
+  let traversed = 0;
+  let selected = segments.at(-1)!;
+  for (const segment of segments) {
+    // At an exact bend, use the incoming segment so the arrow head remains
+    // entirely on the already-drawn conductor instead of projecting backward
+    // from the outgoing segment into empty space.
+    if (targetDistance <= traversed + segment.length) {
+      selected = segment;
+      break;
+    }
+    traversed += segment.length;
+  }
+  if (placement === "end") traversed = totalLength - selected.length;
+  const distanceOnSegment = Math.min(
+    selected.length,
+    Math.max(0, targetDistance - traversed),
+  );
+  const ratio = distanceOnSegment / selected.length;
+  const tip = {
+    x: selected.from.x + selected.dx * ratio,
+    y: selected.from.y + selected.dy * ratio,
+  };
+  const availableShaft = distanceOnSegment;
+  const headLength = Math.min(
+    profile.annotations.arrowHeadLength,
+    availableShaft,
+  );
+  if (headLength <= 0) return "";
+  const scale = headLength / profile.annotations.arrowHeadLength;
+  const halfWidth = (profile.annotations.arrowHeadWidth * scale) / 2;
+  const unitX = selected.dx / selected.length;
+  const unitY = selected.dy / selected.length;
+  const base = {
+    x: tip.x - unitX * headLength,
+    y: tip.y - unitY * headLength,
+  };
+  const normal = { x: -unitY, y: unitX };
+  return `<polygon data-role="route-direction-arrow" data-arrow-position="${placement}" points="${pointList(
+    [
+      tip,
+      {
+        x: base.x + normal.x * halfWidth,
+        y: base.y + normal.y * halfWidth,
+      },
+      {
+        x: base.x - normal.x * halfWidth,
+        y: base.y - normal.y * halfWidth,
+      },
+    ],
+  )}" fill="${escapeXml(color)}" stroke="none" pointer-events="none"/>`;
 }
 
 /**
@@ -630,11 +702,7 @@ function symbolBounds(
     definition,
     instance.signalFlowParameters,
   )?.bounds;
-  const formulaBounds = signalFlowFormulaLocalBounds(
-    definition.formulaPresentation,
-    instance.signalFlowParameters,
-  );
-  const localBounds = adaptiveBounds ?? formulaBounds ?? viewBox;
+  const localBounds = adaptiveBounds ?? viewBox;
   const left = Math.min(viewBox.x, localBounds.x);
   const top = Math.min(viewBox.y, localBounds.y);
   const right = Math.max(
@@ -653,13 +721,44 @@ function symbolBounds(
   ].map((point) => transformPoint(point, placement.position, placement));
   const xs = corners.map((point) => point.x);
   const ys = corners.map((point) => point.y);
-  const x = Math.min(...xs);
-  const y = Math.min(...ys);
+  const transformedBounds = {
+    x: Math.min(...xs),
+    y: Math.min(...ys),
+    width: Math.max(...xs) - Math.min(...xs),
+    height: Math.max(...ys) - Math.min(...ys),
+  };
+  const formulaBounds = signalFlowFormulaLocalBounds(
+    definition.formulaPresentation,
+    instance.signalFlowParameters,
+  );
+  const presentation = definition.formulaPresentation;
+  if (!formulaBounds || !presentation) return transformedBounds;
+  const worldCenter = transformPoint(
+    presentation.center,
+    placement.position,
+    placement,
+  );
+  const formulaWorldBounds = {
+    x: formulaBounds.x + worldCenter.x - presentation.center.x,
+    y: formulaBounds.y + worldCenter.y - presentation.center.y,
+    width: formulaBounds.width,
+    height: formulaBounds.height,
+  };
+  const unionLeft = Math.min(transformedBounds.x, formulaWorldBounds.x);
+  const unionTop = Math.min(transformedBounds.y, formulaWorldBounds.y);
+  const unionRight = Math.max(
+    transformedBounds.x + transformedBounds.width,
+    formulaWorldBounds.x + formulaWorldBounds.width,
+  );
+  const unionBottom = Math.max(
+    transformedBounds.y + transformedBounds.height,
+    formulaWorldBounds.y + formulaWorldBounds.height,
+  );
   return {
-    x,
-    y,
-    width: Math.max(...xs) - x,
-    height: Math.max(...ys) - y,
+    x: unionLeft,
+    y: unionTop,
+    width: unionRight - unionLeft,
+    height: unionBottom - unionTop,
   };
 }
 
@@ -901,7 +1000,13 @@ export function buildSvgScene(
       const strokeWidth = isPowerRail
         ? profile.strokes.powerRail
         : profile.strokes.wire;
-      return `<polyline data-object-id="${escapeXml(route.id)}" data-net-id="${escapeXml(route.netId)}"${presentationAttribute} points="${pointList(geometry.centerline)}" fill="none" stroke="${escapeXml(strokeColor)}" stroke-width="${strokeWidth}" stroke-linecap="${profile.lineCap}" stroke-linejoin="${profile.lineJoin}"${dash}${profileMiterAttribute(profile)}/>${terminalBridges}`;
+      const directionArrow = renderRouteDirectionArrow(
+        geometry.centerline,
+        route.styleOverride?.arrow,
+        strokeColor,
+        profile,
+      );
+      return `<polyline data-object-id="${escapeXml(route.id)}" data-net-id="${escapeXml(route.netId)}"${presentationAttribute} points="${pointList(geometry.centerline)}" fill="none" stroke="${escapeXml(strokeColor)}" stroke-width="${strokeWidth}" stroke-linecap="${profile.lineCap}" stroke-linejoin="${profile.lineJoin}"${dash}${profileMiterAttribute(profile)}/>${directionArrow}${terminalBridges}`;
     })
     .join("");
   const junctionBridges = renderJunctionMiterBridges(
@@ -1002,9 +1107,10 @@ export function buildSvgScene(
         profile,
         foregroundOverride,
       );
-      const formula = renderSignalFlowFormula(
+      const formula = renderUprightSignalFlowFormula(
         resolved.definition.formulaPresentation,
         instance.signalFlowParameters,
+        instance.placement!,
         { foreground: foregroundOverride ?? profile.foreground, profile },
       );
       const strokeColor = foregroundOverride ?? profile.foreground;
@@ -1030,7 +1136,7 @@ export function buildSvgScene(
             : `<rect data-role="instance-background" x="${background.x}" y="${background.y}" width="${background.width}" height="${background.height}" fill="${styleOverride.background}"/>`;
       const symbolRole =
         styleOverride === undefined ? "" : ' data-role="instance-symbol"';
-      return `<g data-object-id="${escapeXml(instance.id)}" data-symbol-id="${escapeXml(resolved.definition.id)}"><g transform="${instanceTransform(instance)}">${backgroundRect}<g${symbolRole} fill="none" stroke="${strokeColor}" stroke-width="${profile.strokes.symbol}" stroke-linecap="${profile.lineCap}" stroke-linejoin="${profile.lineJoin}"${profileMiterAttribute(profile)}>${primitives}${formula}</g></g>${pinNames}</g>`;
+      return `<g data-object-id="${escapeXml(instance.id)}" data-symbol-id="${escapeXml(resolved.definition.id)}"><g transform="${instanceTransform(instance)}">${backgroundRect}<g${symbolRole} fill="none" stroke="${strokeColor}" stroke-width="${profile.strokes.symbol}" stroke-linecap="${profile.lineCap}" stroke-linejoin="${profile.lineJoin}"${profileMiterAttribute(profile)}>${primitives}</g></g>${formula}${pinNames}</g>`;
     })
     .join("");
   const annotations = [...document.annotations]

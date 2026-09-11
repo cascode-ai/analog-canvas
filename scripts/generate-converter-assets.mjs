@@ -41,12 +41,12 @@ function fail(message) {
 const normalize = (text) => text.replace(/\r\n/gu, "\n").trimEnd() + "\n";
 const hash = (text) => createHash("sha256").update(text).digest("hex");
 
-/** Half-extents of the body, and how far a lead reaches past it. */
-const BODY_HALF_WIDTH = 30;
+/** Grid-aligned body landmarks and the one-cell external leads. */
+const BLUNT_EDGE_X = 30;
+const TIP_X = 40;
+const TIP_SHOULDER_X = 20;
 const BODY_HALF_HEIGHT = 20;
-const TIP_INSET = 10;
-const PIN_ANCHOR_X = 40;
-const LEAD_LENGTH = PIN_ANCHOR_X - BODY_HALF_WIDTH;
+const LEAD_LENGTH = 10;
 const FONT_SIZE = 12;
 
 /**
@@ -78,38 +78,42 @@ function polygonCentroid(points) {
 function bodyPoints(pointsRight) {
   const sign = pointsRight ? 1 : -1;
   return [
-    { x: -sign * BODY_HALF_WIDTH, y: -BODY_HALF_HEIGHT },
-    { x: sign * (BODY_HALF_WIDTH - TIP_INSET), y: -BODY_HALF_HEIGHT },
-    { x: sign * BODY_HALF_WIDTH, y: 0 },
-    { x: sign * (BODY_HALF_WIDTH - TIP_INSET), y: BODY_HALF_HEIGHT },
-    { x: -sign * BODY_HALF_WIDTH, y: BODY_HALF_HEIGHT },
+    { x: -sign * BLUNT_EDGE_X, y: -BODY_HALF_HEIGHT },
+    { x: sign * TIP_SHOULDER_X, y: -BODY_HALF_HEIGHT },
+    { x: sign * TIP_X, y: 0 },
+    { x: sign * TIP_SHOULDER_X, y: BODY_HALF_HEIGHT },
+    { x: -sign * BLUNT_EDGE_X, y: BODY_HALF_HEIGHT },
   ];
 }
 
 function converterSymbol({ id, name, defaultText, pointsRight }) {
   const points = bodyPoints(pointsRight);
+  const leftBodyX = pointsRight ? -BLUNT_EDGE_X : -TIP_X;
+  const rightBodyX = pointsRight ? TIP_X : BLUNT_EDGE_X;
+  const leftPinX = leftBodyX - LEAD_LENGTH;
+  const rightPinX = rightBodyX + LEAD_LENGTH;
   return {
     schemaVersion: 1,
     id,
     name,
     viewBox: {
-      x: -(PIN_ANCHOR_X + 4),
+      x: leftPinX - 4,
       y: -(BODY_HALF_HEIGHT + 4),
-      width: (PIN_ANCHOR_X + 4) * 2,
+      width: rightPinX - leftPinX + 8,
       height: (BODY_HALF_HEIGHT + 4) * 2,
     },
     pins: [
       {
         name: "IN",
         role: "input",
-        at: { x: -PIN_ANCHOR_X, y: 0 },
+        at: { x: leftPinX, y: 0 },
         direction: "west",
         presentation: { visibility: "visible", leadLength: LEAD_LENGTH },
       },
       {
         name: "OUT",
         role: "output",
-        at: { x: PIN_ANCHOR_X, y: 0 },
+        at: { x: rightPinX, y: 0 },
         direction: "east",
         presentation: { visibility: "visible", leadLength: LEAD_LENGTH },
       },
@@ -117,8 +121,8 @@ function converterSymbol({ id, name, defaultText, pointsRight }) {
     primitives: [
       {
         kind: "line",
-        from: { x: -PIN_ANCHOR_X, y: 0 },
-        to: { x: -BODY_HALF_WIDTH, y: 0 },
+        from: { x: leftPinX, y: 0 },
+        to: { x: leftBodyX, y: 0 },
         style: { strokeRole: "normal", lineCap: "butt", lineJoin: "miter" },
       },
       {
@@ -131,8 +135,8 @@ function converterSymbol({ id, name, defaultText, pointsRight }) {
       },
       {
         kind: "line",
-        from: { x: BODY_HALF_WIDTH, y: 0 },
-        to: { x: PIN_ANCHOR_X, y: 0 },
+        from: { x: rightBodyX, y: 0 },
+        to: { x: rightPinX, y: 0 },
         style: { strokeRole: "normal", lineCap: "butt", lineJoin: "miter" },
       },
     ],

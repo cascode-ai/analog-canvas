@@ -194,6 +194,49 @@ describe("render svg", () => {
     );
   });
 
+  it("renders each Route's middle or end arrow as vector geometry", () => {
+    const doc = createEmptyDocument("wire-arrows", "Wire arrows");
+    doc.nets.push({ id: "net", terminals: [] });
+    doc.junctions.push(
+      { id: "J1", netId: "net", position: { x: 0, y: 0 } },
+      { id: "J2", netId: "net", position: { x: 40, y: 0 } },
+      { id: "J3", netId: "net", position: { x: 40, y: 40 } },
+    );
+    doc.routes.push(
+      createRoutePath({
+        id: "middle-arrow",
+        netId: "net",
+        start: { kind: "junction", junctionId: "J1" },
+        end: { kind: "junction", junctionId: "J2" },
+        bends: [],
+        modes: ["manual"],
+        styleOverride: { color: "#CC2244", arrow: "middle" },
+      }),
+      createRoutePath({
+        id: "end-arrow",
+        netId: "net",
+        start: { kind: "junction", junctionId: "J2" },
+        end: { kind: "junction", junctionId: "J3" },
+        bends: [],
+        modes: ["manual"],
+        styleOverride: { arrow: "end" },
+      }),
+    );
+
+    const scene = buildSvgScene(doc, new InMemorySymbolResolver([]));
+    expect(scene.formalBody).toContain(
+      'data-role="route-direction-arrow" data-arrow-position="middle" points="20,0 ',
+    );
+    expect(scene.formalBody).toContain(
+      'data-arrow-position="middle" points="20,0',
+    );
+    expect(scene.formalBody).toContain('fill="#CC2244"');
+    expect(scene.formalBody).toContain(
+      'data-role="route-direction-arrow" data-arrow-position="end" points="40,40 ',
+    );
+    expect(scene.formalBody).not.toContain("<image");
+  });
+
   it("renders a right-tapered transconductance frame, matching background, and subscript formula", () => {
     const transconductance = {
       ...definition,

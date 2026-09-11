@@ -118,10 +118,12 @@ export function RouteActionsSection({
   netLabelInputRef,
   netLabel,
   color,
+  arrow,
   defaultColor,
   highlightActive,
   onNetLabelChange,
   onColorChange,
+  onArrowChange,
   onDeleteNetLabel,
   onAddCurrentArrow,
   onToggleHighlight,
@@ -131,10 +133,12 @@ export function RouteActionsSection({
   netLabelInputRef: Ref<HTMLInputElement>;
   netLabel: string;
   color: string | undefined;
+  arrow: "middle" | "end" | undefined;
   defaultColor: string;
   highlightActive: boolean;
   onNetLabelChange: (value: string) => void;
   onColorChange: (value: string | undefined) => void;
+  onArrowChange: (value: "middle" | "end" | undefined) => void;
   onDeleteNetLabel: () => void;
   onAddCurrentArrow: () => void;
   onToggleHighlight: () => void;
@@ -162,6 +166,24 @@ export function RouteActionsSection({
         fallback={defaultColor}
         onChange={onColorChange}
       />
+      <label>
+        Direction arrow
+        <select
+          aria-label="Wire direction arrow"
+          value={arrow ?? "none"}
+          onChange={(event) =>
+            onArrowChange(
+              event.currentTarget.value === "none"
+                ? undefined
+                : (event.currentTarget.value as "middle" | "end"),
+            )
+          }
+        >
+          <option value="none">No arrow</option>
+          <option value="middle">Arrow at middle</option>
+          <option value="end">Arrow at end</option>
+        </select>
+      </label>
       <button type="button" onClick={onAddCurrentArrow}>
         Add current arrow
       </button>

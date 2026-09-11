@@ -1564,6 +1564,13 @@
       "properties": {
         "color": {
           "$ref": "#/$defs/__schema36"
+        },
+        "arrow": {
+          "type": "string",
+          "enum": [
+            "middle",
+            "end"
+          ]
         }
       },
       "additionalProperties": false
