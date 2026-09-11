@@ -479,7 +479,7 @@ try {
   });
   assert(circuit.ok);
   const parameter = circuit.editableParameters.find(
-    (item) => item.parameter === "width",
+    (item) => item.parameter === "w",
   );
   assert(parameter, "No mapped MOS width was exposed");
   const originalNumber = Number(

@@ -323,6 +323,25 @@ export function EditorAppChrome({
                 >
                   Instance Table…
                 </button>
+                {simulationAction ? (
+                  <>
+                    <span className="command-group-label">Simulation</span>
+                    <button
+                      type="button"
+                      data-testid="open-analog-simulation"
+                      aria-label="Analog simulation"
+                      aria-pressed={
+                        simulationState === "open" ||
+                        simulationState === "maximized"
+                      }
+                      onClick={simulationAction}
+                    >
+                      {simulationState === "minimized"
+                        ? "Simulation · Minimized"
+                        : "Simulation"}
+                    </button>
+                  </>
+                ) : null}
                 <span className="command-group-label">Check</span>
                 <button
                   type="button"
@@ -331,6 +350,16 @@ export function EditorAppChrome({
                   onClick={onOpenNetlistPreflight}
                 >
                   Check Report…
+                </button>
+                <button
+                  type="button"
+                  data-testid="check-and-save"
+                  disabled={!checkAndSave.enabled}
+                  onClick={checkAndSave.execute}
+                  title={`Check ERC and visual issues, and save this ${fileCommands.projectStoreItemLabel}`}
+                >
+                  <span className="toolbar-check-glyph" aria-hidden="true" />
+                  Check and Save
                 </button>
               </div>
             </details>
@@ -345,8 +374,8 @@ export function EditorAppChrome({
               </details>
             ) : null}
             {/* Publishing is the primary narrow-window action. Keeping it
-                before optional workflow controls makes it visible before the
-                command row needs horizontal scrolling. */}
+                immediately after the compact menus makes it visible before
+                the command row needs horizontal scrolling. */}
             <button
               type="button"
               data-testid="publish-gallery-button"
@@ -356,31 +385,6 @@ export function EditorAppChrome({
               onClick={onPublishGallery}
             >
               Publish<span className="publish-label-long"> to Gallery</span>
-            </button>
-            {simulationAction ? (
-              <button
-                type="button"
-                data-testid="open-analog-simulation"
-                aria-label="Analog simulation"
-                aria-pressed={
-                  simulationState === "open" || simulationState === "maximized"
-                }
-                onClick={simulationAction}
-              >
-                {simulationState === "minimized"
-                  ? "Simulation · Minimized"
-                  : "Simulation"}
-              </button>
-            ) : null}
-            <button
-              type="button"
-              data-testid="check-and-save"
-              disabled={!checkAndSave.enabled}
-              onClick={checkAndSave.execute}
-              title={`Check ERC and visual issues, and save this ${fileCommands.projectStoreItemLabel}`}
-            >
-              <span className="toolbar-check-glyph" aria-hidden="true" />
-              Check and Save
             </button>
           </div>
         </nav>

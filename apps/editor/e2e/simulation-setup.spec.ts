@@ -5,7 +5,11 @@ import {
 import { test, expect } from "@playwright/test";
 import { parseProject } from "@icm/project-protocol";
 
-import { downloadBytes, recoveryProjectTexts } from "./editor-fixtures.js";
+import {
+  clickNetlistWorkflowCommand,
+  downloadBytes,
+  recoveryProjectTexts,
+} from "./editor-fixtures.js";
 import { ota, profile, editSimulationFile } from "./simulation-e2e-fixtures.js";
 test("the qualified OTA setup opens unchanged and preserves all root and hierarchical outputs", async ({
   page,
@@ -92,9 +96,7 @@ test("the qualified OTA setup opens unchanged and preserves all root and hierarc
     mimeType: "application/json",
     buffer: Buffer.from(JSON.stringify(project)),
   });
-  await page
-    .getByRole("button", { name: "Analog simulation", exact: true })
-    .click();
+  await clickNetlistWorkflowCommand(page, "open-analog-simulation");
   const panel = page.getByRole("region", { name: "Analog simulation" });
   // Canvas picking and authored scoped expressions share the same config file.
   await panel.getByRole("button", { name: "Pick Net", exact: true }).click();
@@ -208,7 +210,7 @@ test("the qualified OTA setup opens unchanged and preserves all root and hierarc
     mimeType: "application/json",
     buffer: saved,
   });
-  await page.getByTestId("open-analog-simulation").click();
+  await clickNetlistWorkflowCommand(page, "open-analog-simulation");
   await panel.getByRole("button", { name: "More code actions" }).click();
   await panel.getByRole("button", { name: "Advanced configuration" }).click();
   await expect(
@@ -235,7 +237,7 @@ test("uncommitted source survives reload and an explicit working-copy recovery f
     buffer: Buffer.from(JSON.stringify(ota)),
   });
   await expect.poll(() => recoveryProjectTexts(page)).toContain(ota.id);
-  await page.getByTestId("open-analog-simulation").click();
+  await clickNetlistWorkflowCommand(page, "open-analog-simulation");
   const panel = page.getByRole("region", { name: "Analog simulation" });
   const editor = panel.getByRole("textbox", {
     name: "Simulation source editor",
@@ -261,7 +263,7 @@ test("uncommitted source survives reload and an explicit working-copy recovery f
   await banner.getByRole("button", { name: "Restore", exact: true }).click();
   await expect(banner).toBeHidden();
   await page.getByTestId("hit-XDUT").click();
-  await page.getByTestId("open-analog-simulation").click();
+  await clickNetlistWorkflowCommand(page, "open-analog-simulation");
   await expect(panel.locator(".cm-activeLine")).toContainText("XDUT");
   await expect(editor).not.toBeFocused();
   await panel.getByRole("tab", { name: "run.cir", exact: false }).click();
@@ -321,9 +323,7 @@ test("one Testbench persists several independently named setups", async ({
     mimeType: "application/json",
     buffer: Buffer.from(JSON.stringify(project)),
   });
-  await page
-    .getByRole("button", { name: "Analog simulation", exact: true })
-    .click();
+  await clickNetlistWorkflowCommand(page, "open-analog-simulation");
   const panel = page.getByRole("region", { name: "Analog simulation" });
   const selector = panel.getByTitle("Simulation setup", { exact: true });
   await expect(selector).toContainText("OTA OP, DC, AC, and TRAN");

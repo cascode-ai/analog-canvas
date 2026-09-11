@@ -47,7 +47,7 @@ assert(binding);
 const generated = generateCircuitSource(project, binding);
 assert(generated.ok);
 const parameter = generated.source.parameters.find(
-  (item) => item.parameter === "width",
+  (item) => item.descriptor.displayRole === "width",
 );
 assert(parameter);
 const program =
@@ -138,16 +138,16 @@ try {
   page = await context.newPage();
   page.setDefaultTimeout(30_000);
   await page.goto(new URL("/editor", baseUrl).href);
+  await page.getByTestId("project-file").setInputFiles({
+    name: "sky130-ota-5t.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(fixtureText),
+  });
   await page
-    .getByTestId("project-file")
-    .setInputFiles({
-      name: "sky130-ota-5t.icproj.json",
-      mimeType: "application/json",
-      buffer: Buffer.from(fixtureText),
-    });
-  await page
-    .getByRole("button", { name: "Analog simulation", exact: true })
+    .locator("summary")
+    .filter({ hasText: /^Netlist$/u })
     .click();
+  await page.getByTestId("open-analog-simulation").click();
   panel = page.getByRole("region", { name: "Analog simulation" });
   await expect(
     panel.getByRole("tab", { name: "Configuration", exact: true }),
@@ -177,7 +177,9 @@ try {
     .instances.find((i) => i.id === parameter.instanceId).netlist.parameters[
     parameter.parameter
   ];
-  assert.equal(Number(restoredValue), Number(parameter.originalValue));
+  const restoredSource = generateCircuitSource(restoredProject, binding);
+  assert(restoredSource.ok);
+  assert.equal(restoredSource.source.text, source);
   report.mappedEdit = {
     documentId: parameter.documentId,
     instanceId: parameter.instanceId,
@@ -313,8 +315,10 @@ try {
     .getByRole("button", { name: "Restore", exact: true })
     .click();
   await page
-    .getByRole("button", { name: "Analog simulation", exact: true })
+    .locator("summary")
+    .filter({ hasText: /^Netlist$/u })
     .click();
+  await page.getByTestId("open-analog-simulation").click();
   await expect(
     panel.getByRole("textbox", { name: "Simulation source editor" }),
   ).toContainText("Source workspace GUI acceptance");
