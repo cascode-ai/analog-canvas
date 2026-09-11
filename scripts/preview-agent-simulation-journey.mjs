@@ -15,6 +15,7 @@ import { parseProject } from "../packages/project-protocol/dist/index.js";
 import { SimulationOutputDataSchema } from "../packages/simulation-service/dist/contract.js";
 import { SimulationResultSchema } from "../packages/spice-run/dist/index.js";
 import { materializeSimulationRunEvidence } from "./lib/simulation-run-evidence.mjs";
+import { verifyPreviewCandidate } from "./lib/preview-candidate.mjs";
 import {
   validateHostedSky130NoiseResult,
   validateHostedSky130Result,
@@ -236,6 +237,7 @@ async function startAndRead(prepared) {
 }
 
 try {
+  report.candidate = await verifyPreviewCandidate(baseUrl);
   browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({
     viewport: { width: 1_440, height: 1_000 },
@@ -469,6 +471,98 @@ try {
     assert.equal(configured.ok, true);
     configuredRevision = configured.projectStructure.toRevision;
   }
+  // Exercise mapped text edits through the public File API, then restore the
+  // qualified geometry before checking the unchanged numerical reference.
+  const owner = { kind: "project-setup", setupId: setup.id };
+  const circuit = await tool("simulation_files", {
+    request: { action: "read", owner, path: rootBinding.path },
+  });
+  assert(circuit.ok);
+  const parameter = circuit.editableParameters.find(
+    (item) => item.parameter === "width",
+  );
+  assert(parameter, "No mapped MOS width was exposed");
+  const originalNumber = Number(
+    circuit.text.slice(parameter.from, parameter.to),
+  );
+  assert(Number.isFinite(originalNumber));
+  const resized = await tool("simulation_files", {
+    request: {
+      action: "update",
+      owner,
+      expectedRevision: circuit.revision,
+      circuitEdits: [
+        {
+          path: circuit.path,
+          textDigest: circuit.textDigest,
+          text:
+            circuit.text.slice(0, parameter.from) +
+            String(originalNumber * 1.1) +
+            circuit.text.slice(parameter.to),
+        },
+      ],
+    },
+  });
+  assert(resized.ok, JSON.stringify(resized));
+  const changedCircuit = await tool("simulation_files", {
+    request: { action: "read", owner, path: circuit.path },
+  });
+  assert.notEqual(changedCircuit.textDigest, circuit.textDigest);
+  const reverted = await tool("simulation_files", {
+    request: {
+      action: "update",
+      owner,
+      expectedRevision: changedCircuit.revision,
+      circuitEdits: [
+        {
+          path: circuit.path,
+          textDigest: changedCircuit.textDigest,
+          text: circuit.text,
+        },
+      ],
+    },
+  });
+  assert(reverted.ok, JSON.stringify(reverted));
+  const entryFile = await tool("simulation_files", {
+    request: { action: "read", owner, path: qualifiedSetup.input.entry },
+  });
+  const authored = await tool("simulation_files", {
+    request: {
+      action: "update",
+      owner,
+      expectedRevision: entryFile.revision,
+      writes: [
+        {
+          path: entryFile.path,
+          text: entryFile.text + "\n* Source workspace MCP acceptance\n",
+        },
+      ],
+    },
+  });
+  assert(authored.ok, JSON.stringify(authored));
+  configuredRevision = authored.source.revision;
+  report.mappedEdit = {
+    documentId: parameter.documentId,
+    instanceId: parameter.instanceId,
+    parameter: parameter.parameter,
+    before: circuit.textDigest,
+    changed: changedCircuit.textDigest,
+    restored: true,
+  };
+  const savedPath = join(outputDirectory, "source-workspace.icproj.json");
+  const savedExport = await tool("export_file", {
+    artifact: "project",
+    outputPath: savedPath,
+  });
+  assert(savedExport.ok);
+  const savedProject = parseProject(await readFile(savedPath, "utf8"));
+  assert(
+    savedProject.simulationSetups
+      .find((item) => item.id === setup.id)
+      .input.files.some((file) =>
+        file.text.includes("Source workspace MCP acceptance"),
+      ),
+  );
   const prepared = await tool("simulation", {
     request: {
       operation: "prepare",
@@ -596,6 +690,57 @@ try {
     ),
   );
 
+  const acRecord = fullRun.outputData.analyses.findIndex(
+    (analysis) => analysis.analysis === "ac",
+  );
+  assert(acRecord >= 0);
+  for (const format of ["svg", "png"]) {
+    const exported = await tool("export_file", {
+      artifact: "simulation-plot",
+      simulation: { runId: finished.id, analysisIndex: acRecord, format },
+      outputPath: join(outputDirectory, `ac-plots-${format}.zip`),
+    });
+    assert(exported.ok, JSON.stringify(exported));
+    exports.push(exported);
+  }
+  exports.push(savedExport);
+  // Managed Batch remains separate from native loops and reuses this saved source.
+  const batchPreparation = await tool("simulation", {
+    request: {
+      operation: "prepare-batch",
+      expectedStructureRevision: configuredRevision,
+      items: [
+        { id: "first", setupId: setup.id },
+        { id: "second", setupId: setup.id },
+      ],
+    },
+  });
+  assert(batchPreparation.ok, JSON.stringify(batchPreparation));
+  const batchStart = await tool("simulation", {
+    request: { operation: "start-batch", batchId: batchPreparation.batch.id },
+  });
+  assert(batchStart.ok, JSON.stringify(batchStart));
+  let batch;
+  for (let attempt = 0; attempt < 180; attempt++) {
+    const read = await tool("simulation", {
+      request: { operation: "read-batch", batchId: batchPreparation.batch.id },
+    });
+    assert(read.ok);
+    batch = read.batch;
+    if (!["running", "cancelling"].includes(batch.state)) break;
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+  }
+  assert.equal(batch.state, "finished", JSON.stringify(batch));
+  assert.equal(batch.items.length, 2);
+  for (const item of batch.items) {
+    const read = await tool("simulation", {
+      request: { operation: "read", runId: item.runId },
+    });
+    assert.equal(read.run.result.outcome.status, "completed");
+  }
+  report.batch = batch;
+  report.savedProject = savedExport;
+
   report.status = "passed";
   report.completedAt = new Date().toISOString();
   report.connection = { mode: connection.mode };
@@ -690,6 +835,40 @@ try {
     },
   };
   report.exports = exports;
+  await tool("disconnect");
+  paired = false;
+  // Reload the actual browser owner and reclaim it; old Run IDs are intentionally
+  // session-scoped, while committed experiment files must survive recovery.
+  page.on("dialog", (dialog) => void dialog.accept());
+  await page.reload();
+  const recovery = page.getByTestId("startup-recovery-banner");
+  await recovery.waitFor({ state: "visible" });
+  await recovery.getByRole("button", { name: "Restore", exact: true }).click();
+  await page
+    .locator("summary")
+    .filter({ hasText: /^Agent$/ })
+    .click();
+  await page
+    .getByRole("button", { name: "Connect Agent", exact: true })
+    .click();
+  await page.getByTestId("agent-preset-full").click();
+  const restoredClaim = page.getByTestId("agent-claim-code");
+  await restoredClaim.waitFor({ state: "attached", timeout: 30000 });
+  const reconnected = await tool("connect", {
+    claimCode: await restoredClaim.textContent(),
+  });
+  assert(reconnected.ok);
+  paired = true;
+  await page
+    .getByTestId("agent-status")
+    .filter({ hasText: "Connected" })
+    .waitFor({ state: "visible", timeout: 30000 });
+  const reloaded = await tool("simulation_files", {
+    request: { action: "read", owner, path: qualifiedSetup.input.entry },
+  });
+  assert(reloaded.ok);
+  assert(reloaded.text.includes("Source workspace MCP acceptance"));
+  report.saveReload = { recovered: true, sourceDigest: reloaded.textDigest };
   await tool("disconnect");
   paired = false;
   console.log(

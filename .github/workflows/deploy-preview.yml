@@ -224,6 +224,8 @@ jobs:
         run: node scripts/preview-simulation-smoke.mjs "$PREVIEW_URL"
       - name: Run the public Agent/MCP simulation journey
         run: node scripts/preview-agent-simulation-journey.mjs "$PREVIEW_URL"
+      - name: Run the source workspace GUI simulation journey
+        run: node scripts/preview-source-gui-journey.mjs "$PREVIEW_URL"
       - name: Run the cross-Project Agent/MCP simulation journey
         run: node scripts/preview-cross-project-simulation-journey.mjs "$PREVIEW_URL"
         env:
@@ -242,5 +244,13 @@ jobs:
         with:
           name: preview-cross-project-simulation-${{ github.sha }}
           path: test-results/preview-cross-project-simulation/
+          if-no-files-found: error
+          retention-days: 14
+      - name: Preserve the source workspace GUI receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: preview-source-gui-${{ github.sha }}
+          path: test-results/preview-source-gui/
           if-no-files-found: error
           retention-days: 14

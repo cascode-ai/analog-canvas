@@ -82,6 +82,10 @@ describe("the preview deploy", () => {
       'node scripts/preview-agent-simulation-journey.mjs "$PREVIEW_URL"',
     );
     expect(preview).toContain(
+      'node scripts/preview-source-gui-journey.mjs "$PREVIEW_URL"',
+    );
+    expect(preview).toContain("preview-source-gui-${{ github.sha }}");
+    expect(preview).toContain(
       'node scripts/preview-cross-project-simulation-journey.mjs "$PREVIEW_URL"',
     );
     expect(preview).toContain("PREVIEW_ACCEPTANCE_TOKEN");
