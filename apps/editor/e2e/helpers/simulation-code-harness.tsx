@@ -16,6 +16,7 @@ function Harness() {
   const [path, setPath] = useState("run.cir");
   const [revision, setRevision] = useState(0);
   const [saved, setSaved] = useState(initial);
+  const [cursor, setCursor] = useState(0);
   const [pane, setPane] = useState<"console" | "results">("console");
   const [maximized, setMaximized] = useState(false);
   const save = () => {
@@ -57,6 +58,7 @@ function Harness() {
               setFiles((current) => ({ ...current, [path]: text }))
             }
             onSave={save}
+            onCursor={setCursor}
           />
         </SimulationCodeWorkspace>
       </div>
@@ -65,6 +67,9 @@ function Harness() {
       </output>
       <output data-testid="draft-source" hidden>
         {JSON.stringify(files[path])}
+      </output>
+      <output data-testid="source-cursor" hidden>
+        {cursor}
       </output>
     </>
   );

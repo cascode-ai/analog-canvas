@@ -17,7 +17,6 @@
     "@icm/devices": "workspace:*",
     "@icm/math-typesetting": "workspace:*",
     "@icm/model": "workspace:*",
-    "@icm/project-protocol": "workspace:*",
     "@icm/symbols": "workspace:*",
     "zod": "^4.3.6"
   }

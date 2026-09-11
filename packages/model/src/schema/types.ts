@@ -170,6 +170,12 @@ export type SimulationRawSetup = {
   input: SimulationRawInput;
 };
 export type SimulationSetup = z.infer<typeof Schema.SimulationSetupSchema>;
+export type LegacySimulationSetup = z.infer<
+  typeof Schema.LegacySimulationSetupSchema
+>;
+export type LegacyProjectSimulationSetup = z.infer<
+  typeof Schema.LegacyProjectSimulationSetupSchema
+>;
 export type ProjectSimulationSetup = z.infer<
   typeof Schema.ProjectSimulationSetupSchema
 >;

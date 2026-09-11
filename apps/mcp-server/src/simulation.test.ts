@@ -54,11 +54,20 @@ describe("MCP / browser Simulation Resource parity", () => {
     project.simulationSetups = ["TT", "FF"].map((name) => ({
       id: `setup-${name.toLowerCase()}`,
       name,
-      version: 3 as const,
+      version: 4 as const,
       input: {
-        kind: "raw" as const,
+        kind: "source" as const,
         entry: "main.cir",
+        configPath: "experiment.json",
+        circuitBindings: [],
         files: [
+          {
+            path: "experiment.json",
+            text: JSON.stringify({
+              version: 1,
+              environment: { profileId: profile.id },
+            }),
+          },
           {
             path: "main.cir",
             text: readFileSync(
@@ -71,7 +80,6 @@ describe("MCP / browser Simulation Resource parity", () => {
           },
         ],
         dependencies: [],
-        environment: { profileId: profile.id },
       },
     }));
     let executions = 0;
@@ -112,6 +120,9 @@ describe("MCP / browser Simulation Resource parity", () => {
                   return Response.json({
                     environment,
                     rawfile,
+                    collection: { rawfile: "out.raw" },
+                    rawfileRequested: true,
+                    rawfileName: "out.raw",
                     log: "ngspice OP",
                     durationMs: 1,
                     exitCode: 0,
@@ -166,7 +177,7 @@ describe("MCP / browser Simulation Resource parity", () => {
           operation: "read-batch",
           batchId: prepared.batch.id,
         });
-        expect(finished.batch.state).toBe("finished");
+        expect(finished.batch.state, JSON.stringify(finished)).toBe("finished");
       });
       expect(finished.batch.items).toEqual([
         expect.objectContaining({
@@ -220,6 +231,9 @@ describe("MCP / browser Simulation Resource parity", () => {
                   return Response.json({
                     environment,
                     rawfile,
+                    collection: { rawfile: "out.raw" },
+                    rawfileRequested: true,
+                    rawfileName: "out.raw",
                     log: "ngspice OP",
                     durationMs: 1,
                     exitCode: 0,
@@ -294,6 +308,13 @@ describe("MCP / browser Simulation Resource parity", () => {
           entry: "main.cir",
           writes: [
             {
+              path: "experiment.json",
+              text: JSON.stringify({
+                version: 1,
+                environment: { profileId: profile.id },
+              }),
+            },
+            {
               path: "main.cir",
               text: readFileSync(
                 new URL(
@@ -313,7 +334,6 @@ describe("MCP / browser Simulation Resource parity", () => {
             kind: "workspace",
             workspaceId,
             expectedRevision: 1,
-            environment: { profileId: profile.id },
           },
         },
       });
@@ -337,6 +357,7 @@ describe("MCP / browser Simulation Resource parity", () => {
         expect(finished.run.state).toBe("finished");
       });
       expect(executions).toBe(1);
+      expect(finished.run.state, JSON.stringify(finished)).toBe("finished");
       expect(finished.run.result.data.analyses[0].probes).toEqual(
         expect.arrayContaining([
           expect.objectContaining({ name: "v(mid)", value: 0.5 }),

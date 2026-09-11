@@ -63,7 +63,7 @@ export interface SimulationCodeEditorProps {
   mode?: "spice" | "json";
   entry?: boolean;
   readOnly?: boolean;
-  diagnostics?: readonly SimulationSourceDiagnostic[];
+  diagnostics?: readonly SimulationSourceDiagnostic[] | undefined;
   onChange(text: string): void;
   /** Generated Circuit uses its mapped-span planner here; invalid numeric drafts may remain editable. */
   acceptChange?(text: string): boolean;
@@ -72,7 +72,8 @@ export interface SimulationCodeEditorProps {
   onRun?(): void;
   onHistoryBoundary?(direction: "undo" | "redo"): void;
   onCursor?(sourceOffset: number): void;
-  reveal?: { sourceOffset: number; requestId: string };
+  reveal?:
+    { sourceOffset: number; requestId: string; focus?: boolean } | undefined;
 }
 
 const externalChange = Annotation.define<boolean>();
@@ -84,6 +85,15 @@ export default function SimulationCodeEditor(props: SimulationCodeEditorProps) {
   callbacks.current = props;
   const exact = useRef(props.text);
   const committed = useRef(`${props.path}\u0000${props.historyKey}`);
+  const documents = useRef(
+    new Map<
+      string,
+      {
+        state: EditorState;
+        scroll: ReturnType<EditorView["scrollSnapshot"]>;
+      }
+    >(),
+  );
   const createState = useRef<(text: string, selection?: number) => EditorState>(
     () => EditorState.create(),
   );
@@ -189,23 +199,55 @@ export default function SimulationCodeEditor(props: SimulationCodeEditorProps) {
     });
     view.current = editor;
     return () => {
+      view.current?.destroy();
       view.current = null;
-      editor.destroy();
     };
     // An editor belongs to this mount; current props are read through the ref.
   }, []);
 
   useEffect(() => {
-    const editor = view.current;
+    let editor = view.current;
     if (!editor) return;
     const key = `${props.path}\u0000${props.historyKey}`;
     if (key !== committed.current) {
-      const scroll = editor.scrollDOM.scrollTop;
+      documents.current.set(committed.current, {
+        state: editor.state,
+        scroll: editor.scrollSnapshot(),
+      });
       const samePath = committed.current.split("\u0000")[0] === props.path;
       const anchor = samePath ? editor.state.selection.main.head : 0;
+      const cached = documents.current.get(key);
+      const reusable = cached?.state.field(exactSourceField) === props.text;
+      const scroll = reusable
+        ? cached.scroll
+        : samePath && editor.state.field(exactSourceField) === props.text
+          ? editor.scrollSnapshot()
+          : undefined;
+      const focused = editor.hasFocus;
       exact.current = props.text;
-      editor.setState(createState.current(props.text, anchor));
-      if (samePath) editor.scrollDOM.scrollTop = scroll;
+      const state = reusable
+        ? cached.state
+        : createState.current(props.text, anchor);
+      // A new viewport can initialize its virtual height map around the restored
+      // scroll anchor; recycling a short file's viewport clamps a long file's scroll.
+      editor.destroy();
+      editor = new EditorView({
+        parent: parent.current!,
+        state,
+        ...(scroll ? { scrollTo: scroll } : {}),
+      });
+      view.current = editor;
+      editor.dispatch({
+        effects: configuration.current.reconfigure(extensions()),
+      });
+      if (focused) editor.focus();
+      callbacks.current.onCursor?.(
+        sourceOffset(props.text, editor.state.selection.main.head),
+      );
+      // Keep one revision per file. Committed history is owned by Project Undo/Redo.
+      for (const stored of documents.current.keys())
+        if (stored !== key && stored.split("\u0000")[0] === props.path)
+          documents.current.delete(stored);
       committed.current = key;
     } else if (props.text !== exact.current) {
       exact.current = props.text;
@@ -235,7 +277,7 @@ export default function SimulationCodeEditor(props: SimulationCodeEditorProps) {
     if (!editor || !props.reveal) return;
     const anchor = editorOffset(exact.current, props.reveal.sourceOffset);
     editor.dispatch({ selection: { anchor }, scrollIntoView: true });
-    editor.focus();
+    if (props.reveal.focus !== false) editor.focus();
   }, [props.reveal?.requestId]);
 
   return (

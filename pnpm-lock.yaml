@@ -242,9 +242,6 @@ importers:
       "@icm/model":
         specifier: workspace:*
         version: link:../model
-      "@icm/project-protocol":
-        specifier: workspace:*
-        version: link:../project-protocol
       "@icm/symbols":
         specifier: workspace:*
         version: link:../symbols
@@ -362,6 +359,9 @@ importers:
       "@icm/model":
         specifier: workspace:*
         version: link:../model
+      "@icm/netlist":
+        specifier: workspace:*
+        version: link:../netlist
 
   packages/render-svg:
     dependencies:
@@ -386,6 +386,9 @@ importers:
       "@icm/netlist":
         specifier: workspace:*
         version: link:../netlist
+      "@icm/spice":
+        specifier: workspace:*
+        version: link:../spice
       "@icm/spice-run":
         specifier: workspace:*
         version: link:../spice-run

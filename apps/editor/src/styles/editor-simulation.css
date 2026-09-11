@@ -3,6 +3,7 @@
 /* Analog simulation is a lazy workspace layer. Only its task bar and open
    docks accept pointer input, so the testbench canvas stays fully editable. */
 .spice-simulation-surface {
+  flex: 1;
   grid-area: simulation;
   display: flex;
   flex-direction: column;
@@ -2633,7 +2634,7 @@
 }
 
 .ac-response .ac-cursor,
-.transient-results-explorer .ac-cursor {
+.spice-ac-plot .ac-cursor {
   stroke: #101828;
   stroke-width: 1;
   stroke-dasharray: 2 2;
@@ -2660,13 +2661,13 @@
 }
 
 .ac-response .ac-grid,
-.transient-results-explorer .ac-grid {
+.spice-ac-plot .ac-grid {
   stroke: #d0d5dd;
   stroke-width: 1.1;
 }
 
 .ac-response .ac-axis-label,
-.transient-results-explorer .ac-axis-label {
+.spice-ac-plot .ac-axis-label {
   font-size: 13px;
   font-weight: 520;
   fill: #344054;
@@ -2674,7 +2675,7 @@
 }
 
 .ac-response .ac-axis-title,
-.transient-results-explorer .ac-axis-title {
+.spice-ac-plot .ac-axis-title {
   font-size: 12px;
   font-weight: 650;
   fill: #344054;

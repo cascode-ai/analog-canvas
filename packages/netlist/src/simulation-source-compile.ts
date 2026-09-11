@@ -1,12 +1,14 @@
 import {
-  SimulationExperimentConfigSchema,
+  readSimulationExperimentConfig,
+  SIMULATION_NOISE_INPUT_DENSITY_ID,
+  SIMULATION_NOISE_OUTPUT_DENSITY_ID,
   type CircuitProject,
   type ProjectSourceSimulationSetup,
   type SimulationCircuitBinding,
   type SimulationCircuitScope,
   type SimulationExperimentConfig,
   type SimulationExpression,
-  type SimulationSetup,
+  type LegacySimulationSetup as SimulationSetup,
   type SimulationSourceExpression,
   type SimulationRunVariant,
 } from "@icm/model";
@@ -84,36 +86,21 @@ export function compileSourceSimulation(
       message,
       ...(field ? { field } : {}),
     });
-  const configFile = setup.input.files.find(
-    (file) => file.path === setup.input.configPath,
-  );
-  let rawConfig: unknown;
-  try {
-    rawConfig = JSON.parse(configFile?.text ?? "");
-  } catch {
+  const parsedConfig = readSimulationExperimentConfig(setup);
+  if (!parsedConfig.ok)
     return {
       ok: false,
-      diagnostics: [
-        {
-          code: "SIMULATION_CONFIG_JSON",
-          severity: "error",
-          message:
-            "The experiment configuration must contain valid JSON before preparation",
-          path: setup.input.configPath,
-        },
-      ],
-    };
-  }
-  const parsedConfig = SimulationExperimentConfigSchema.safeParse(rawConfig);
-  if (!parsedConfig.success)
-    return {
-      ok: false,
-      diagnostics: parsedConfig.error.issues.map((issue) => ({
-        code: "SIMULATION_CONFIG_INVALID",
+      diagnostics: (parsedConfig.fields.length
+        ? parsedConfig.fields
+        : [{ message: parsedConfig.message, field: "" }]
+      ).map((issue) => ({
+        code: parsedConfig.fields.length
+          ? "SIMULATION_CONFIG_INVALID"
+          : "SIMULATION_CONFIG_JSON",
         severity: "error",
         message: issue.message,
-        path: setup.input.configPath,
-        field: issue.path.join("."),
+        path: parsedConfig.path,
+        ...(issue.field ? { field: issue.field } : {}),
       })),
     };
   const graph = inspectSimulationSourceGraph(setup.input);
@@ -121,7 +108,7 @@ export function compileSourceSimulation(
   const projection = projectSourceSimulation(
     project,
     setup,
-    parsedConfig.data,
+    parsedConfig.config,
     graph,
     variant,
   );
@@ -440,7 +427,8 @@ export function compileSourceSimulation(
   for (const measurement of config.measurements)
     if (
       !outputs.some((o) => o.id === measurement.outputId) &&
-      !measurement.outputId.startsWith("noise-")
+      measurement.outputId !== SIMULATION_NOISE_INPUT_DENSITY_ID &&
+      measurement.outputId !== SIMULATION_NOISE_OUTPUT_DENSITY_ID
     )
       fail(
         "SIMULATION_MEASUREMENT_OUTPUT_MISSING",

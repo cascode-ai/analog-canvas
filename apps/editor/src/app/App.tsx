@@ -159,8 +159,10 @@ import {
 } from "./editor-runtime-helpers";
 import { EditorDialogLayer } from "./editor-dialog-layer";
 import { EditorAppChrome } from "./editor-app-chrome";
+import { EditorRightDock } from "./editor-right-dock";
 import { EditorPropertiesDock } from "./editor-properties-dock";
 import { LazySpiceSimulationSurface } from "./lazy-editor-dialogs";
+import { recoverSourceDrafts } from "../features/simulation/source-draft-cache";
 import type { NewTestbenchRequest } from "../features/simulation/new-testbench-dialog";
 import { useProjectCheck } from "./use-project-check";
 import { summarizeVisualDiagnostics } from "../features/selection/selection-inspector-details";
@@ -750,6 +752,8 @@ export function App({
           ) ?? null,
         getResolver: () => editorDocumentController.resolver,
         onApprovalRequested: setAgentFileCandidate,
+        dispatchProjectTransaction: (request) =>
+          browserAgentHost.dispatchProjectTransaction(request),
       }),
     [editorDocumentController, projectSessionId],
   );
@@ -782,6 +786,10 @@ export function App({
     "closed" | "open" | "maximized" | "minimized"
   >("closed");
   const simulationPropertiesOpenBeforeRef = useRef(false);
+  const simulationSourceBuffer = useRef<{
+    dirty: boolean;
+    flush(): Promise<boolean>;
+  } | null>(null);
   const analogSimulationOpened = analogSimulationState !== "closed";
   const analogSimulationOpen =
     analogSimulationState === "open" || analogSimulationState === "maximized";
@@ -791,6 +799,12 @@ export function App({
       new BrowserSimulationSession({
         getProjectSessionId: () => editorDocumentController.projectSessionId,
         getProject: () => editorDocumentController.project,
+        projectFiles: createSimulationProjectFileHost({
+          getProject: () => editorDocumentController.project,
+          getProjectSessionId: () => editorDocumentController.projectSessionId,
+          dispatch: (request) => dispatchProjectTransaction(request),
+          actor: { kind: "human", id: "human-local" },
+        }),
         transport: releaseChannel === "preview" ? "managed" : "direct",
       }),
     [editorDocumentController, projectSessionId, releaseChannel],
@@ -822,6 +836,18 @@ export function App({
     setAnalogSimulationState("closed");
     setSimulationDraftContext(null);
     setSelectionOpen(simulationPropertiesOpenBeforeRef.current);
+  };
+  const captureAuthoredProject = async () => {
+    if (
+      simulationSourceBuffer.current &&
+      !(await simulationSourceBuffer.current.flush())
+    ) {
+      setStatus(
+        "Source edits need attention; open Code. No work was discarded.",
+      );
+      return null;
+    }
+    return editorDocumentController.project;
   };
   const {
     cloudBinding,
@@ -858,6 +884,9 @@ export function App({
     openProjectFile,
     openCloudProjectById,
   } = useProjectFileLifecycle({
+    hasPendingEdits: () => simulationSourceBuffer.current?.dirty === true,
+    beforeSnapshot: captureAuthoredProject,
+    onRecoverBuffers: recoverSourceDrafts,
     project,
     projectSessionId,
     viewBox,
@@ -1008,7 +1037,7 @@ export function App({
     beginSelectionMove: beginSelectionMoveInteraction,
     cancelInteraction,
   } = useInteractionState<SchematicClipboard>();
-  const { commitStructure, transactStructure, transact, transactConnectivity } =
+  const { commitStructure, transact, transactConnectivity } =
     createEditorTransactionCommands({
       project,
       document,
@@ -1556,6 +1585,7 @@ export function App({
     resolver,
     index: projectConnectivityIndex,
     save: saveProjectToCloud,
+    beforeCheck: captureAuthoredProject,
     isSaving: isSaveInFlight,
     openIssues: openIssuesPanel,
   });
@@ -1651,11 +1681,12 @@ export function App({
     return group?.baseNetIds[0] ?? null;
   };
   const simulationPickRootDocumentId =
-    activeSimulationSetup?.input.kind === "structured"
-      ? activeSimulationSetup.input.rootDocumentId
-      : simulationDraftContext?.setupId === activeSimulationSetupId
-        ? simulationDraftContext.rootDocumentId
-        : undefined;
+    activeSimulationSetup?.input.circuitBindings.find(
+      (binding) => binding.emission === "top-level",
+    )?.documentId ??
+    (simulationDraftContext?.setupId === activeSimulationSetupId
+      ? simulationDraftContext.rootDocumentId
+      : undefined);
   const simulationPickOccurrence: readonly string[] | undefined =
     documentStack.length > 0
       ? documentStack.map((frame) => frame.instanceId)
@@ -4535,8 +4566,8 @@ export function App({
             );
           },
           leftPanelMode,
-          libraryPanelOpen: !analogSimulationOpen && visibleLibraryPanelOpen,
-          leftPanelsDisabled: analogSimulationOpen,
+          libraryPanelOpen: visibleLibraryPanelOpen,
+          leftPanelsDisabled: false,
           tool,
           documentSettingsOpen,
           undo: {
@@ -4984,9 +5015,7 @@ export function App({
       <div
         className={
           analogSimulationOpen
-            ? `app-workspace simulation-mode${
-                analogSimulationMaximized ? " simulation-maximized" : ""
-              }`
+            ? `app-workspace simulation-mode${!visibleLibraryPanelOpen ? " library-collapsed" : ""}${analogSimulationMaximized ? " simulation-maximized" : ""}`
             : visibleLibraryPanelOpen
               ? "app-workspace"
               : "app-workspace library-collapsed"
@@ -4998,159 +5027,9 @@ export function App({
           } as CSSProperties
         }
       >
-        {analogSimulationOpened ? (
-          <Suspense fallback={null}>
-            <LazySpiceSimulationSurface
-              key={projectSessionId}
-              session={humanSimulationSession}
-              project={project}
-              activeDocumentId={document.id}
-              selectedSetupId={
-                simulationDraftContext?.setupId === activeSimulationSetupId
-                  ? simulationDraftContext.setupId
-                  : (activeSimulationSetup?.id ?? null)
-              }
-              onSelectSetupId={setActiveSimulationSetupId}
-              {...(simulationDraftContext
-                ? { draftContext: simulationDraftContext }
-                : {})}
-              open={analogSimulationOpen}
-              maximized={analogSimulationMaximized}
-              onToggleMaximized={toggleAnalogSimulationMaximized}
-              onMinimize={minimizeAnalogSimulation}
-              onExit={exitAnalogSimulation}
-              onSaveSetup={(setup) => {
-                const result = transactStructure("upsert-simulation-setup", [
-                  { kind: "upsert_simulation_setup", setup },
-                ]);
-                if (result.ok) {
-                  setSimulationDraftContext(null);
-                  setActiveSimulationSetupId(setup.id);
-                  setStatus(
-                    result.applied
-                      ? `Updated simulation setup ${setup.name}`
-                      : `Simulation setup ${setup.name} is already up to date`,
-                  );
-                  return {
-                    status: result.applied ? "applied" : "unchanged",
-                  };
-                }
-                const firstDiagnostic = result.diagnostics[0];
-                const message =
-                  firstDiagnostic?.message ?? result.error.message;
-                setStatus(`${result.error.code}: ${message}`);
-                return {
-                  status: "rejected",
-                  problem: {
-                    code: result.error.code,
-                    message,
-                    stage: "input",
-                    recovery: "fix-input",
-                    ...(result.diagnostics.length
-                      ? {
-                          diagnostics: result.diagnostics.map((diagnostic) => ({
-                            code: diagnostic.code,
-                            message: diagnostic.message,
-                            severity: diagnostic.severity,
-                            ...(diagnostic.path?.length
-                              ? { field: diagnostic.path.join(".") }
-                              : {}),
-                          })),
-                        }
-                      : {}),
-                  },
-                };
-              }}
-              onDeleteSetup={(setupId) => {
-                const committed = commitStructure("remove-simulation-setup", [
-                  { kind: "remove_simulation_setup", setupId },
-                ]);
-                if (committed && activeSimulationSetupId === setupId) {
-                  setActiveSimulationSetupId(null);
-                  setSimulationDraftContext(null);
-                }
-                return committed;
-              }}
-              pickNetsActive={simulationPickNetsActive}
-              pickedNet={analogPickedNet}
-              onPickNetsChange={setSimulationNetPickMode}
-              pickTerminalsActive={simulationPickTerminalsActive}
-              pickedTerminal={analogPickedTerminal}
-              onPickTerminalsChange={setSimulationTerminalPickMode}
-              onFocusDiagnostic={(locator) =>
-                navigateToLocator(locator, `Located ${locator.kind}`)
-              }
-              onOperatingPointProjection={setOperatingPointProjection}
-              onFocusProbe={(probe, preparedRootDocumentId) => {
-                const targetDocument = project.documents.find(
-                  (candidate) => candidate.id === probe.documentId,
-                );
-                const voltageNetId =
-                  probe.kind === "voltage"
-                    ? resolveSimulationVoltageProbeNetId(project, probe)
-                    : undefined;
-                const targetExists =
-                  probe.kind === "voltage"
-                    ? voltageNetId !== undefined
-                    : targetDocument?.nets.some((net) =>
-                        net.terminals.some(
-                          (terminal) =>
-                            terminal.instanceId === probe.instanceId &&
-                            terminal.pinName === probe.pinName,
-                        ),
-                      ) === true;
-                if (!targetExists) {
-                  setStatus(
-                    "This Output no longer matches the current Project; update the Setup and run again",
-                  );
-                  return;
-                }
-                const input = activeSimulationSetup?.input;
-                const rootDocumentId =
-                  preparedRootDocumentId ??
-                  (input?.kind === "structured"
-                    ? input.rootDocumentId
-                    : probe.documentId);
-                const hierarchyPath = simulationProbeHierarchyPath(
-                  project,
-                  rootDocumentId,
-                  probe.occurrence,
-                );
-                if (hierarchyPath === null) {
-                  setStatus("The Output occurrence no longer exists");
-                  return;
-                }
-                navigateToLocator(
-                  probe.kind === "voltage"
-                    ? {
-                        documentId: probe.documentId,
-                        hierarchyPath,
-                        kind: "net",
-                        objectId: voltageNetId!,
-                      }
-                    : {
-                        documentId: probe.documentId,
-                        hierarchyPath,
-                        kind: "instance",
-                        objectId: probe.instanceId,
-                        endpoint: {
-                          kind: "terminal",
-                          instanceId: probe.instanceId,
-                          pinName: probe.pinName,
-                        },
-                      },
-                  probe.kind === "voltage"
-                    ? `Located simulation Net ${voltageNetId}`
-                    : `Located simulation terminal ${probe.instanceId}.${probe.pinName}`,
-                );
-                // Back-annotation should not unexpectedly open the ordinary
-                // Properties dock over the simulation workspace.
-                setSelectionOpen(false);
-              }}
-            />
-          </Suspense>
-        ) : null}
-        {analogSimulationOpen && !analogSimulationMaximized ? (
+        {analogSimulationOpen &&
+        !selectionOpen &&
+        !analogSimulationMaximized ? (
           <div
             className="simulation-resize-handle"
             role="separator"
@@ -5173,7 +5052,7 @@ export function App({
               const origin = simulationResizeOriginRef.current;
               if (!origin) return;
               setSimulationWidth(
-                origin.width + (event.clientX - origin.pointerX),
+                origin.width - (event.clientX - origin.pointerX),
               );
             }}
             onPointerUp={(event) => {
@@ -5184,15 +5063,15 @@ export function App({
               const step = event.shiftKey ? 32 : 8;
               if (event.key === "ArrowLeft") {
                 event.preventDefault();
-                setSimulationWidth(simulationWidth - step);
+                setSimulationWidth(simulationWidth + step);
               } else if (event.key === "ArrowRight") {
                 event.preventDefault();
-                setSimulationWidth(simulationWidth + step);
+                setSimulationWidth(simulationWidth - step);
               }
             }}
           />
         ) : null}
-        {!analogSimulationOpen && leftPanelMode === "library" ? (
+        {leftPanelMode === "library" ? (
           <ShapesPanel
             styleProfileId={document.presentation.styleProfileId}
             open={visibleLibraryPanelOpen}
@@ -5200,14 +5079,14 @@ export function App({
               editorCommands.execute({ id: "insert.start", launch })
             }
           />
-        ) : !analogSimulationOpen ? (
+        ) : (
           <ExamplesPanel
             open={visibleLibraryPanelOpen}
             onOpenGalleryExample={(id) => void insertGalleryEntryById(id)}
             onOpenExample={openLibraryExample}
           />
-        ) : null}
-        {!analogSimulationOpen && visibleLibraryPanelOpen ? (
+        )}
+        {visibleLibraryPanelOpen ? (
           <div
             className="library-resize-handle"
             role="separator"
@@ -5247,583 +5126,803 @@ export function App({
             }}
           />
         ) : null}
-        <EditorPropertiesDock
-          open={selectionOpen}
-          shelfRef={selectionShelfRef}
-          onToggle={() => {
-            if (selectionOpen) exitCellSymbolLayout();
-            // Narrow layouts have room for one side panel. Whichever the user
-            // just asked for wins.
-            else if (compactLayout) setCompactLibraryPanelOpen(false);
-            setSelectionOpen((current) => !current);
-            if (selectionOpen) setImportReviewOpen(false);
-          }}
-          summary={selectionShelfSummary}
-          hasInspectableSelection={hasInspectableSelection}
-          agentIndicator={
-            publicAgentUiEnabled &&
-            agentSession.status !== "idle" &&
-            !agentStatusDismissed
-              ? {
-                  status: agentSession.status,
-                  terminal:
-                    agentSession.status === "revoked" ||
-                    agentSession.status === "expired",
-                }
-              : null
-          }
-          documentSettings={
-            documentSettingsOpen
-              ? {
-                  document,
-                  onApplyStyle: (styleOverrides) => {
-                    const result = transact([
-                      {
-                        kind: "set_presentation_style",
-                        styleProfileId: document.presentation.styleProfileId,
-                        styleOverrides,
-                      },
-                    ]);
-                    if (result.ok) {
-                      setStatus(
-                        styleOverrides
-                          ? "Updated document style"
-                          : "Reset document style to profile defaults",
-                      );
-                    }
-                  },
-                  onChangeBulkDefault: updateMosBulkDefault,
-                }
-              : null
-          }
-          mosBulk={{
-            connection:
-              selectedInstance && selectedBulkResolution
-                ? `${selectedInstance.id}.B → ${
-                    selectedBulkResolution.net
-                      ? (logicalNets.byBaseNetId.get(
-                          selectedBulkResolution.net.id,
-                        )?.name ?? selectedBulkResolution.net.id)
-                      : "unresolved"
-                  } · ${selectedBulkResolution.status}`
-                : null,
-            explicitRouteVisible: Boolean(selectedHiddenBulkNet),
-            onDraw: drawSelectedMosBulk,
-          }}
-          routingGuidance={{
-            total: flightlines.length,
-            displayed: displayedFlightlines.length,
-            view: routingGuidanceView,
-            onViewChange: setRoutingGuidanceView,
-          }}
-          groupDisplay={{
-            active: selectedIds.length > 1,
-            referencesVisible: selectedGroupLabelsAllVisible,
-            valuesVisible: selectedGroupValuesAllVisible,
-            valuesAvailable: selectedGroupValueAvailable,
-            onReferencesVisibleChange: (visible) =>
-              setReferenceLabelsVisible(selectedIds, visible),
-            onValuesVisibleChange: (visible) =>
-              setValueLabelsVisible(selectedIds, visible),
-          }}
-          component={
-            selectedInstance
-              ? {
-                  formalPort: selectedFormalTerminal
-                    ? {
-                        terminal: selectedFormalTerminal,
-                        revision: document.revision,
-                        onRename: renameSelectedFormalPort,
-                        onDirectionChange: updateCellPinDirection,
-                      }
-                    : null,
-                  cellSymbolLayout: selectedHierarchyCell
-                    ? {
-                        cell: selectedHierarchyCell,
-                        enabled: cellSymbolLayoutEnabled,
-                        onToggle: toggleCellSymbolLayout,
-                        onBodySizeChange: (width, height) =>
-                          setCellSymbolBodySize(
-                            selectedHierarchyCell,
-                            width,
-                            height,
-                          ),
-                        onPortPlacementChange: (terminalId, side, offset) =>
-                          setCellSymbolPortPlacement(
-                            selectedHierarchyCell,
-                            terminalId,
-                            side,
-                            offset,
-                          ),
-                      }
-                    : null,
-                  identity: {
-                    instance: selectedInstance,
-                    revision: document.revision,
-                    cellName: document.netlist?.name ?? document.name,
-                    formalTerminalSelected: Boolean(selectedFormalTerminal),
-                    portNet: selectedPortNet
+        <EditorRightDock
+          simulationOpen={analogSimulationOpen}
+          propertiesOpen={selectionOpen}
+          maximized={analogSimulationMaximized}
+          onSelectProperties={setSelectionOpen}
+          code={
+            analogSimulationOpened ? (
+              <Suspense fallback={null}>
+                <LazySpiceSimulationSurface
+                  key={projectSessionId}
+                  session={humanSimulationSession}
+                  project={project}
+                  activeDocumentId={document.id}
+                  selectedCircuitObject={
+                    selectedInstance
                       ? {
-                          id: selectedPortNet.id,
-                          logicalName: selectedPortLogicalName ?? "",
-                          supply: Boolean(selectedSupplyMarker),
+                          documentId: document.id,
+                          instanceId: selectedInstance.id,
                         }
-                      : null,
-                    targetDescription:
-                      selectedInstance.netlist &&
-                      !(
-                        selectedInstance.netlist.binding?.kind === "model" ||
-                        selectedDevice?.targetPolicy === "required-model" ||
-                        selectedReviewedExternalBinding
-                      )
-                        ? componentTargetDescription(
-                            selectedInstance,
-                            selectedHierarchyCell?.netlist?.name,
-                            selectedExternalSubcircuit?.name,
-                          )
-                        : null,
-                    capacitorPlateRows: selectedCapacitorPlateRows,
-                    propertyTerminal:
-                      selectedInstance && selectedPropertyOnlyTerminal
+                      : undefined
+                  }
+                  selectedSetupId={
+                    simulationDraftContext?.setupId === activeSimulationSetupId
+                      ? simulationDraftContext.setupId
+                      : (activeSimulationSetup?.id ?? null)
+                  }
+                  onSelectSetupId={setActiveSimulationSetupId}
+                  {...(simulationDraftContext
+                    ? { draftContext: simulationDraftContext }
+                    : {})}
+                  open={analogSimulationOpen}
+                  maximized={analogSimulationMaximized}
+                  onToggleMaximized={toggleAnalogSimulationMaximized}
+                  onMinimize={minimizeAnalogSimulation}
+                  onExit={exitAnalogSimulation}
+                  onHistoryBoundary={(direction) => {
+                    transact([{ kind: direction }]);
+                  }}
+                  onSourceBuffer={(buffer) => {
+                    simulationSourceBuffer.current = buffer;
+                  }}
+                  onSaveProject={() => void saveProjectToCloud()}
+                  onSaveSetup={(
+                    setup,
+                    expectedRevision = project.structureRevision,
+                  ) => {
+                    const result = dispatchProjectTransaction({
+                      transactionId: `upsert-simulation-${crypto.randomUUID()}`,
+                      projectId: project.id,
+                      expectedStructureRevision: expectedRevision,
+                      actor: { kind: "human", id: "human-local" },
+                      edits: [{ kind: "upsert_simulation_setup", setup }],
+                    });
+                    if (result.ok) {
+                      setSimulationDraftContext(null);
+                      setActiveSimulationSetupId(setup.id);
+                      setStatus(
+                        result.applied
+                          ? `Updated simulation setup ${setup.name}`
+                          : `Simulation setup ${setup.name} is already up to date`,
+                      );
+                      return {
+                        status: result.applied ? "applied" : "unchanged",
+                      };
+                    }
+                    const firstDiagnostic = result.diagnostics[0];
+                    const message =
+                      firstDiagnostic?.message ?? result.error.message;
+                    setStatus(`${result.error.code}: ${message}`);
+                    return {
+                      status: "rejected",
+                      problem: {
+                        code: result.error.code,
+                        message,
+                        stage: "input",
+                        recovery: "fix-input",
+                        ...(result.diagnostics.length
+                          ? {
+                              diagnostics: result.diagnostics.map(
+                                (diagnostic) => ({
+                                  code: diagnostic.code,
+                                  message: diagnostic.message,
+                                  severity: diagnostic.severity,
+                                  ...(diagnostic.path?.length
+                                    ? { field: diagnostic.path.join(".") }
+                                    : {}),
+                                }),
+                              ),
+                            }
+                          : {}),
+                      },
+                    };
+                  }}
+                  onDeleteSetup={(setupId) => {
+                    const committed = commitStructure(
+                      "remove-simulation-setup",
+                      [{ kind: "remove_simulation_setup", setupId }],
+                    );
+                    if (committed && activeSimulationSetupId === setupId) {
+                      setActiveSimulationSetupId(null);
+                      setSimulationDraftContext(null);
+                    }
+                    return committed;
+                  }}
+                  pickNetsActive={simulationPickNetsActive}
+                  pickedNet={analogPickedNet}
+                  onPickNetsChange={setSimulationNetPickMode}
+                  pickTerminalsActive={simulationPickTerminalsActive}
+                  pickedTerminal={analogPickedTerminal}
+                  onPickTerminalsChange={setSimulationTerminalPickMode}
+                  onFocusDiagnostic={(locator) =>
+                    navigateToLocator(locator, `Located ${locator.kind}`)
+                  }
+                  onOperatingPointProjection={setOperatingPointProjection}
+                  onFocusProbe={(probe, preparedRootDocumentId) => {
+                    const targetDocument = project.documents.find(
+                      (candidate) => candidate.id === probe.documentId,
+                    );
+                    const voltageNetId =
+                      probe.kind === "voltage"
+                        ? resolveSimulationVoltageProbeNetId(project, probe)
+                        : undefined;
+                    const targetExists =
+                      probe.kind === "voltage"
+                        ? voltageNetId !== undefined
+                        : targetDocument?.nets.some((net) =>
+                            net.terminals.some(
+                              (terminal) =>
+                                terminal.instanceId === probe.instanceId &&
+                                terminal.pinName === probe.pinName,
+                            ),
+                          ) === true;
+                    if (!targetExists) {
+                      setStatus(
+                        "This Output no longer matches the current Project; update the Setup and run again",
+                      );
+                      return;
+                    }
+                    const input = activeSimulationSetup?.input;
+                    const rootDocumentId =
+                      preparedRootDocumentId ??
+                      ("circuit" in probe
+                        ? input?.circuitBindings.find(
+                            (binding) => binding.id === probe.circuit.bindingId,
+                          )?.documentId
+                        : undefined) ??
+                      input?.circuitBindings.find(
+                        (binding) => binding.emission === "top-level",
+                      )?.documentId ??
+                      probe.documentId;
+                    const hierarchyPath = simulationProbeHierarchyPath(
+                      project,
+                      rootDocumentId,
+                      probe.occurrence,
+                    );
+                    if (hierarchyPath === null) {
+                      setStatus("The Output occurrence no longer exists");
+                      return;
+                    }
+                    navigateToLocator(
+                      probe.kind === "voltage"
                         ? {
-                            label:
-                              selectedPropertyOnlyTerminal.role === "substrate"
-                                ? "Substrate Net"
-                                : `${selectedPropertyOnlyTerminal.targetName} Net`,
-                            pinName: selectedPropertyOnlyTerminal.pinName,
-                            netId: selectedPropertyOnlyTerminalNet?.id ?? null,
-                            options: netChoices.map((logicalNet) => ({
-                              netId: logicalNet.netId,
-                              label: logicalNet.label,
-                            })),
-                            onChange: (netId) => {
+                            documentId: probe.documentId,
+                            hierarchyPath,
+                            kind: "net",
+                            objectId: voltageNetId!,
+                          }
+                        : {
+                            documentId: probe.documentId,
+                            hierarchyPath,
+                            kind: "instance",
+                            objectId: probe.instanceId,
+                            endpoint: {
+                              kind: "terminal",
+                              instanceId: probe.instanceId,
+                              pinName: probe.pinName,
+                            },
+                          },
+                      probe.kind === "voltage"
+                        ? `Located simulation Net ${voltageNetId}`
+                        : `Located simulation terminal ${probe.instanceId}.${probe.pinName}`,
+                    );
+                    // Back-annotation should not unexpectedly open the ordinary
+                    // Properties dock over the simulation workspace.
+                    setSelectionOpen(false);
+                  }}
+                />
+              </Suspense>
+            ) : null
+          }
+          properties={
+            <EditorPropertiesDock
+              open={selectionOpen}
+              shelfRef={selectionShelfRef}
+              onToggle={() => {
+                if (selectionOpen) exitCellSymbolLayout();
+                // Narrow layouts have room for one side panel. Whichever the user
+                // just asked for wins.
+                else if (compactLayout) setCompactLibraryPanelOpen(false);
+                setSelectionOpen((current) => !current);
+                if (selectionOpen) setImportReviewOpen(false);
+              }}
+              summary={selectionShelfSummary}
+              hasInspectableSelection={hasInspectableSelection}
+              agentIndicator={
+                publicAgentUiEnabled &&
+                agentSession.status !== "idle" &&
+                !agentStatusDismissed
+                  ? {
+                      status: agentSession.status,
+                      terminal:
+                        agentSession.status === "revoked" ||
+                        agentSession.status === "expired",
+                    }
+                  : null
+              }
+              documentSettings={
+                documentSettingsOpen
+                  ? {
+                      document,
+                      onApplyStyle: (styleOverrides) => {
+                        const result = transact([
+                          {
+                            kind: "set_presentation_style",
+                            styleProfileId:
+                              document.presentation.styleProfileId,
+                            styleOverrides,
+                          },
+                        ]);
+                        if (result.ok) {
+                          setStatus(
+                            styleOverrides
+                              ? "Updated document style"
+                              : "Reset document style to profile defaults",
+                          );
+                        }
+                      },
+                      onChangeBulkDefault: updateMosBulkDefault,
+                    }
+                  : null
+              }
+              mosBulk={{
+                connection:
+                  selectedInstance && selectedBulkResolution
+                    ? `${selectedInstance.id}.B → ${
+                        selectedBulkResolution.net
+                          ? (logicalNets.byBaseNetId.get(
+                              selectedBulkResolution.net.id,
+                            )?.name ?? selectedBulkResolution.net.id)
+                          : "unresolved"
+                      } · ${selectedBulkResolution.status}`
+                    : null,
+                explicitRouteVisible: Boolean(selectedHiddenBulkNet),
+                onDraw: drawSelectedMosBulk,
+              }}
+              routingGuidance={{
+                total: flightlines.length,
+                displayed: displayedFlightlines.length,
+                view: routingGuidanceView,
+                onViewChange: setRoutingGuidanceView,
+              }}
+              groupDisplay={{
+                active: selectedIds.length > 1,
+                referencesVisible: selectedGroupLabelsAllVisible,
+                valuesVisible: selectedGroupValuesAllVisible,
+                valuesAvailable: selectedGroupValueAvailable,
+                onReferencesVisibleChange: (visible) =>
+                  setReferenceLabelsVisible(selectedIds, visible),
+                onValuesVisibleChange: (visible) =>
+                  setValueLabelsVisible(selectedIds, visible),
+              }}
+              component={
+                selectedInstance
+                  ? {
+                      formalPort: selectedFormalTerminal
+                        ? {
+                            terminal: selectedFormalTerminal,
+                            revision: document.revision,
+                            onRename: renameSelectedFormalPort,
+                            onDirectionChange: updateCellPinDirection,
+                          }
+                        : null,
+                      cellSymbolLayout: selectedHierarchyCell
+                        ? {
+                            cell: selectedHierarchyCell,
+                            enabled: cellSymbolLayoutEnabled,
+                            onToggle: toggleCellSymbolLayout,
+                            onBodySizeChange: (width, height) =>
+                              setCellSymbolBodySize(
+                                selectedHierarchyCell,
+                                width,
+                                height,
+                              ),
+                            onPortPlacementChange: (terminalId, side, offset) =>
+                              setCellSymbolPortPlacement(
+                                selectedHierarchyCell,
+                                terminalId,
+                                side,
+                                offset,
+                              ),
+                          }
+                        : null,
+                      identity: {
+                        instance: selectedInstance,
+                        revision: document.revision,
+                        cellName: document.netlist?.name ?? document.name,
+                        formalTerminalSelected: Boolean(selectedFormalTerminal),
+                        portNet: selectedPortNet
+                          ? {
+                              id: selectedPortNet.id,
+                              logicalName: selectedPortLogicalName ?? "",
+                              supply: Boolean(selectedSupplyMarker),
+                            }
+                          : null,
+                        targetDescription:
+                          selectedInstance.netlist &&
+                          !(
+                            selectedInstance.netlist.binding?.kind ===
+                              "model" ||
+                            selectedDevice?.targetPolicy === "required-model" ||
+                            selectedReviewedExternalBinding
+                          )
+                            ? componentTargetDescription(
+                                selectedInstance,
+                                selectedHierarchyCell?.netlist?.name,
+                                selectedExternalSubcircuit?.name,
+                              )
+                            : null,
+                        capacitorPlateRows: selectedCapacitorPlateRows,
+                        propertyTerminal:
+                          selectedInstance && selectedPropertyOnlyTerminal
+                            ? {
+                                label:
+                                  selectedPropertyOnlyTerminal.role ===
+                                  "substrate"
+                                    ? "Substrate Net"
+                                    : `${selectedPropertyOnlyTerminal.targetName} Net`,
+                                pinName: selectedPropertyOnlyTerminal.pinName,
+                                netId:
+                                  selectedPropertyOnlyTerminalNet?.id ?? null,
+                                options: netChoices.map((logicalNet) => ({
+                                  netId: logicalNet.netId,
+                                  label: logicalNet.label,
+                                })),
+                                onChange: (netId) => {
+                                  const result = transact([
+                                    {
+                                      kind: "set_property_terminal_net",
+                                      instanceId: selectedInstance.id,
+                                      pinName:
+                                        selectedPropertyOnlyTerminal.pinName,
+                                      netId,
+                                    },
+                                  ]);
+                                  if (result.ok) {
+                                    setStatus(
+                                      netId
+                                        ? `Set ${selectedPropertyOnlyTerminal.targetName} to ${logicalNets.byBaseNetId.get(netId)?.name ?? netId}`
+                                        : `Cleared ${selectedPropertyOnlyTerminal.targetName} Net`,
+                                    );
+                                  }
+                                },
+                              }
+                            : null,
+                        modelTarget:
+                          selectedInstance.netlist &&
+                          (selectedInstance.netlist.binding?.kind === "model" ||
+                            selectedDevice?.targetPolicy === "required-model" ||
+                            reviewedExternalModelSuggestions(
+                              selectedPropertyDevice?.symbolId ?? "",
+                            ).length > 0 ||
+                            selectedReviewedExternalBinding)
+                            ? {
+                                defaultValue:
+                                  selectedInstance.netlist.binding?.kind ===
+                                  "model"
+                                    ? selectedInstance.netlist.binding.name
+                                    : selectedReviewedExternalBinding
+                                      ? (selectedExternalSubcircuit?.name ?? "")
+                                      : "",
+                                suggestions: reviewedExternalModelSuggestions(
+                                  selectedPropertyDevice?.symbolId ?? "",
+                                ),
+                                externalSubcircuit: Boolean(
+                                  selectedReviewedExternalBinding,
+                                ),
+                              }
+                            : null,
+                        onMarkerNameChange: (value) =>
+                          commitElectricalMarkerName(
+                            selectedInstance.id,
+                            value,
+                          ),
+                        onReferenceChange: updateSelectedReference,
+                        ...(selectedInstanceLabel && selectedInstance.placement
+                          ? {
+                              onEditAnnotation: () =>
+                                beginAnnotationTextEditing(
+                                  selectedInstanceLabel,
+                                ),
+                            }
+                          : {}),
+                        onModelTargetChange: updateSelectedModelTarget,
+                      },
+                      signalFlow: selectedSignalFlowPresentation
+                        ? {
+                            instance: selectedInstance,
+                            presentation: selectedSignalFlowPresentation,
+                            revision: document.revision,
+                            onChange: (parameters) => {
                               const result = transact([
                                 {
-                                  kind: "set_property_terminal_net",
+                                  kind: "set_instance_signal_flow_parameters",
                                   instanceId: selectedInstance.id,
-                                  pinName: selectedPropertyOnlyTerminal.pinName,
-                                  netId,
+                                  parameters,
                                 },
                               ]);
                               if (result.ok) {
                                 setStatus(
-                                  netId
-                                    ? `Set ${selectedPropertyOnlyTerminal.targetName} to ${logicalNets.byBaseNetId.get(netId)?.name ?? netId}`
-                                    : `Cleared ${selectedPropertyOnlyTerminal.targetName} Net`,
+                                  parameters
+                                    ? `Updated Signal Flow presentation for ${selectedInstance.id}`
+                                    : `Reset Signal Flow presentation for ${selectedInstance.id}`,
                                 );
                               }
+                              return result.ok;
                             },
                           }
                         : null,
-                    modelTarget:
-                      selectedInstance.netlist &&
-                      (selectedInstance.netlist.binding?.kind === "model" ||
-                        selectedDevice?.targetPolicy === "required-model" ||
-                        reviewedExternalModelSuggestions(
-                          selectedPropertyDevice?.symbolId ?? "",
-                        ).length > 0 ||
-                        selectedReviewedExternalBinding)
-                        ? {
-                            defaultValue:
-                              selectedInstance.netlist.binding?.kind === "model"
-                                ? selectedInstance.netlist.binding.name
-                                : selectedReviewedExternalBinding
-                                  ? (selectedExternalSubcircuit?.name ?? "")
-                                  : "",
-                            suggestions: reviewedExternalModelSuggestions(
-                              selectedPropertyDevice?.symbolId ?? "",
-                            ),
-                            externalSubcircuit: Boolean(
-                              selectedReviewedExternalBinding,
-                            ),
-                          }
-                        : null,
-                    onMarkerNameChange: (value) =>
-                      commitElectricalMarkerName(selectedInstance.id, value),
-                    onReferenceChange: updateSelectedReference,
-                    ...(selectedInstanceLabel && selectedInstance.placement
-                      ? {
-                          onEditAnnotation: () =>
-                            beginAnnotationTextEditing(selectedInstanceLabel),
-                        }
-                      : {}),
-                    onModelTargetChange: updateSelectedModelTarget,
-                  },
-                  signalFlow: selectedSignalFlowPresentation
-                    ? {
+                      electrical: {
                         instance: selectedInstance,
-                        presentation: selectedSignalFlowPresentation,
-                        revision: document.revision,
-                        onChange: (parameters) => {
+                        parameters:
+                          propertyParametersForInstance(selectedInstance),
+                        parameterValues: instancePropertyDraft.parameters,
+                        firstInputRef: instanceValueInputRef,
+                        referenceVisible:
+                          selectedInstanceLabel !== undefined &&
+                          selectedInstanceLabel.visible !== false,
+                        valueVisible:
+                          selectedInstanceValue !== null &&
+                          selectedInstanceValue.visible !== false,
+                        valueAvailable: selectedInstanceValueAvailable,
+                        valueSupported: selectedInstance
+                          ? symbolSupportsValueAnnotation(
+                              selectedInstance.symbolId,
+                            )
+                          : false,
+                        referenceAvailable: selectedInstance
+                          ? symbolCarriesReference(selectedInstance.symbolId)
+                          : false,
+                        referenceLabelRenderable: selectedLabelRenderable,
+                        additionalParameters: additionalParameterDraft,
+                        additionalParametersChanged:
+                          additionalParameterDraftChanges,
+                        onParameterChange: (key, value) =>
+                          updateInstancePropertyDraft((current) => ({
+                            ...current,
+                            parameters: updateComponentParameterValues(
+                              selectedInstance.symbolId,
+                              current.parameters,
+                              key,
+                              value,
+                            ),
+                          })),
+                        onReferenceVisibilityChange: (checked) =>
+                          setReferenceLabelsVisible(
+                            [selectedInstance.id],
+                            checked,
+                          ),
+                        onValueVisibilityChange: (checked) => {
+                          if (checked) showSelectedInstanceValue();
+                          else
+                            setValueLabelsVisible([selectedInstance.id], false);
+                        },
+                        onAdditionalParameterChange: updateAdditionalParameter,
+                        onAdditionalParameterRemove: removeAdditionalParameter,
+                        onAdditionalParameterAdd: addAdditionalParameter,
+                        onAdditionalParametersApply: applyAdditionalParameters,
+                        onAdditionalParametersCancel:
+                          cancelAdditionalParameters,
+                      },
+                      style: {
+                        instance: selectedInstance,
+                        defaultForeground: styleProfile.foreground,
+                        onChange: (styleOverride) => {
                           const result = transact([
                             {
-                              kind: "set_instance_signal_flow_parameters",
+                              kind: "set_instance_style_override",
                               instanceId: selectedInstance.id,
-                              parameters,
+                              styleOverride,
                             },
                           ]);
                           if (result.ok) {
                             setStatus(
-                              parameters
-                                ? `Updated Signal Flow presentation for ${selectedInstance.id}`
-                                : `Reset Signal Flow presentation for ${selectedInstance.id}`,
+                              styleOverride
+                                ? `Updated appearance for ${selectedInstance.id}`
+                                : `Reset appearance for ${selectedInstance.id}`,
                             );
                           }
-                          return result.ok;
                         },
-                      }
-                    : null,
-                  electrical: {
-                    instance: selectedInstance,
-                    parameters: propertyParametersForInstance(selectedInstance),
-                    parameterValues: instancePropertyDraft.parameters,
-                    firstInputRef: instanceValueInputRef,
-                    referenceVisible:
-                      selectedInstanceLabel !== undefined &&
-                      selectedInstanceLabel.visible !== false,
-                    valueVisible:
-                      selectedInstanceValue !== null &&
-                      selectedInstanceValue.visible !== false,
-                    valueAvailable: selectedInstanceValueAvailable,
-                    valueSupported: selectedInstance
-                      ? symbolSupportsValueAnnotation(selectedInstance.symbolId)
-                      : false,
-                    referenceAvailable: selectedInstance
-                      ? symbolCarriesReference(selectedInstance.symbolId)
-                      : false,
-                    referenceLabelRenderable: selectedLabelRenderable,
-                    additionalParameters: additionalParameterDraft,
-                    additionalParametersChanged:
-                      additionalParameterDraftChanges,
-                    onParameterChange: (key, value) =>
-                      updateInstancePropertyDraft((current) => ({
-                        ...current,
-                        parameters: updateComponentParameterValues(
-                          selectedInstance.symbolId,
-                          current.parameters,
-                          key,
-                          value,
-                        ),
-                      })),
-                    onReferenceVisibilityChange: (checked) =>
-                      setReferenceLabelsVisible([selectedInstance.id], checked),
-                    onValueVisibilityChange: (checked) => {
-                      if (checked) showSelectedInstanceValue();
-                      else setValueLabelsVisible([selectedInstance.id], false);
-                    },
-                    onAdditionalParameterChange: updateAdditionalParameter,
-                    onAdditionalParameterRemove: removeAdditionalParameter,
-                    onAdditionalParameterAdd: addAdditionalParameter,
-                    onAdditionalParametersApply: applyAdditionalParameters,
-                    onAdditionalParametersCancel: cancelAdditionalParameters,
-                  },
-                  style: {
-                    instance: selectedInstance,
-                    defaultForeground: styleProfile.foreground,
-                    onChange: (styleOverride) => {
-                      const result = transact([
-                        {
-                          kind: "set_instance_style_override",
-                          instanceId: selectedInstance.id,
-                          styleOverride,
-                        },
-                      ]);
-                      if (result.ok) {
-                        setStatus(
-                          styleOverride
-                            ? `Updated appearance for ${selectedInstance.id}`
-                            : `Reset appearance for ${selectedInstance.id}`,
-                        );
-                      }
-                    },
-                  },
-                  placement: {
-                    instance: selectedInstance,
-                    x: instancePropertyDraft.x,
-                    y: instancePropertyDraft.y,
-                    rotation: instancePropertyDraft.rotation,
-                    draftChanged: hasInstancePropertyDraftChanges,
-                    onXChange: (x) =>
-                      updateInstancePropertyDraft((current) => ({
-                        ...current,
-                        x,
-                      })),
-                    onYChange: (y) =>
-                      updateInstancePropertyDraft((current) => ({
-                        ...current,
-                        y,
-                      })),
-                    onRotate: () =>
-                      editorCommands.execute({ id: "transform.rotate" }),
-                    onMirror: (direction) =>
-                      editorCommands.execute({
-                        id: "transform.mirror",
-                        direction,
-                      }),
-                    onReturnToTray: () =>
-                      returnInstancesToTray([selectedInstance.id]),
-                    ...(switchContactStyleSibling(selectedInstance.symbolId)
-                      ? {
-                          onSwapContactStyle: {
-                            label: drawsContactCircles(
-                              selectedInstance.symbolId,
-                            )
-                              ? "Draw without contact circles"
-                              : "Draw with contact circles",
-                            run: () =>
-                              transact(
-                                planSwitchContactStyleSwap(
-                                  selectedInstance.id,
-                                  selectedInstance.symbolId,
-                                ),
-                              ),
-                          },
-                        }
-                      : {}),
-                    ...(differentialOutputSibling(selectedInstance.symbolId)
-                      ? {
-                          onSwapOutputs: () =>
-                            transact(
-                              planDifferentialOutputSwap(
-                                selectedInstance.id,
-                                selectedInstance.symbolId,
-                              ),
-                            ),
-                        }
-                      : {}),
-                    ...(selectedInstanceHasDifferentialInputs &&
-                    differentialInputSibling(selectedInstance.symbolId)
-                      ? {
-                          onSwapInputs: () =>
-                            transact(
-                              planDifferentialInputSwap(
-                                selectedInstance.id,
-                                selectedInstance.symbolId,
-                              ),
-                            ),
-                        }
-                      : {}),
-                    onDiscard: discardInstancePropertyDraft,
-                  },
-                }
-              : null
-          }
-          annotationText={
-            selectedAnnotation
-              ? {
-                  annotation: selectedAnnotation,
-                  inheritedColor: selectedAnnotationInheritedTextColor,
-                  onChange: (textColor) => {
-                    if (selectedAnnotation.locked) {
-                      setStatus(
-                        "Unlock this annotation before changing its text color",
-                      );
-                      return;
-                    }
-                    const annotation = { ...selectedAnnotation };
-                    if (textColor === undefined) delete annotation.textColor;
-                    else annotation.textColor = textColor;
-                    const result = transact([
-                      {
-                        kind: "upsert_schematic_annotation",
-                        annotation,
                       },
-                    ]);
-                    if (result.ok) {
-                      setStatus(
-                        textColor === undefined
-                          ? "Annotation text color set to Auto"
-                          : "Updated annotation text color",
-                      );
+                      placement: {
+                        instance: selectedInstance,
+                        x: instancePropertyDraft.x,
+                        y: instancePropertyDraft.y,
+                        rotation: instancePropertyDraft.rotation,
+                        draftChanged: hasInstancePropertyDraftChanges,
+                        onXChange: (x) =>
+                          updateInstancePropertyDraft((current) => ({
+                            ...current,
+                            x,
+                          })),
+                        onYChange: (y) =>
+                          updateInstancePropertyDraft((current) => ({
+                            ...current,
+                            y,
+                          })),
+                        onRotate: () =>
+                          editorCommands.execute({ id: "transform.rotate" }),
+                        onMirror: (direction) =>
+                          editorCommands.execute({
+                            id: "transform.mirror",
+                            direction,
+                          }),
+                        onReturnToTray: () =>
+                          returnInstancesToTray([selectedInstance.id]),
+                        ...(switchContactStyleSibling(selectedInstance.symbolId)
+                          ? {
+                              onSwapContactStyle: {
+                                label: drawsContactCircles(
+                                  selectedInstance.symbolId,
+                                )
+                                  ? "Draw without contact circles"
+                                  : "Draw with contact circles",
+                                run: () =>
+                                  transact(
+                                    planSwitchContactStyleSwap(
+                                      selectedInstance.id,
+                                      selectedInstance.symbolId,
+                                    ),
+                                  ),
+                              },
+                            }
+                          : {}),
+                        ...(differentialOutputSibling(selectedInstance.symbolId)
+                          ? {
+                              onSwapOutputs: () =>
+                                transact(
+                                  planDifferentialOutputSwap(
+                                    selectedInstance.id,
+                                    selectedInstance.symbolId,
+                                  ),
+                                ),
+                            }
+                          : {}),
+                        ...(selectedInstanceHasDifferentialInputs &&
+                        differentialInputSibling(selectedInstance.symbolId)
+                          ? {
+                              onSwapInputs: () =>
+                                transact(
+                                  planDifferentialInputSwap(
+                                    selectedInstance.id,
+                                    selectedInstance.symbolId,
+                                  ),
+                                ),
+                            }
+                          : {}),
+                        onDiscard: discardInstancePropertyDraft,
+                      },
                     }
-                  },
-                }
-              : null
-          }
-          netName={
-            selectedNetNameAnnotation &&
-            selectedNetNameClaim?.kind === "name-claim"
-              ? {
-                  annotationId: selectedNetNameAnnotation.id,
-                  authoredScope: selectedNetNameClaim.scope,
-                  editableScope: selectedNetNameAnnotation.kind === "net-label",
-                  effectiveScope:
-                    selectedNetNameLogical?.scope ?? selectedNetNameClaim.scope,
-                  ...(selectedNetPreferredSpelling
-                    ? { preferredSpelling: selectedNetPreferredSpelling }
-                    : {}),
-                  spellings:
-                    selectedNetNameProjection?.spellings ??
-                    (selectedNetNameLogical?.name
-                      ? [selectedNetNameLogical.name]
-                      : []),
-                  onScopeChange: (scope) =>
-                    commitNetLabelScope(selectedNetNameAnnotation, scope),
-                }
-              : null
-          }
-          drafting={
-            selectedDrafting
-              ? {
-                  document,
-                  resolver,
-                  object: selectedDrafting,
-                  defaultColor: styleProfile.foreground,
-                  inspectorSegment: draftingInspectorSegment,
-                  tangentInput: draftingTangentInput,
-                  bearingInput: draftingBearingInput,
-                  onInspectorSegmentChange: setDraftingInspectorSegment,
-                  onTangentInputChange: setDraftingTangentInput,
-                  onBearingInputChange: setDraftingBearingInput,
-                  onStyleChange: setDraftingStyle,
-                  onGeometryChange: setDraftingGeometry,
-                  onTangentAngleChange: setDraftingTangentAngle,
-                  onBearingChange: setDraftingBearing,
-                  onArrowPresetChange: setArrowPreset,
-                  onToggleLock: () => toggleDraftingLock(selectedDrafting),
-                }
-              : null
-          }
-          placementTray={{
-            document,
-            unplaced,
-            returnablePlaced: returnablePlacedInstances,
-            onPlaceAll: placeAllFromTray,
-            onReturnAll: returnInstancesToTray,
-            onSelect: (instance, label) => {
-              selectOnly("instance", [instance.id]);
-              setStatus(`Selected ${label}`);
-            },
-            onPlace: beginRetainedInstancePlacementFromHook,
-          }}
-          routeActions={{
-            active: selectedRouteId !== null,
-            netLabelInputRef: netLabelPropertyInputRef,
-            netLabel: netLabelDraft,
-            color: selectedRoute?.styleOverride?.color,
-            defaultColor: styleProfile.foreground,
-            highlightActive: selectedHighlightIsActive,
-            onNetLabelChange: updateNetLabelDraft,
-            onColorChange: (color) => {
-              if (!selectedRoute) return;
-              const result = transact([
-                {
-                  kind: "set_route_style_override",
-                  routeId: selectedRoute.id,
-                  styleOverride: color ? { color } : null,
-                },
-              ]);
-              if (result.ok) {
-                setStatus(
-                  color
-                    ? `Updated wire color for ${selectedRoute.id}`
-                    : `Reset wire color for ${selectedRoute.id}`,
-                );
+                  : null
               }
-            },
-            onDeleteNetLabel: deleteSelectedRouteNetLabel,
-            onAddCurrentArrow: addCurrentArrow,
-            onToggleHighlight: toggleHighlightedNet,
-            onDeleteWire: deleteSelectedRouteConnection,
-          }}
-          endpointActions={{
-            kind: selectedEndpoint
-              ? selectedEndpoint.endpoint.kind === "junction"
-                ? "junction"
-                : "terminal"
-              : null,
-            noConnect: Boolean(selectedNoConnect),
-            endpointNetId: selectedEndpointNetId,
-            onDisconnect: () => disconnectSelectedEndpoint(false),
-            onDeleteConnection: () => disconnectSelectedEndpoint(true),
-            onToggleNoConnect: toggleSelectedNoConnectFromSelection,
-            onDeleteJunction: deleteSelectedJunctionFromSelection,
-          }}
-          annotationActions={{
-            kind:
-              selectedAnnotation && isRoutedMarker(selectedAnnotation)
-                ? "current-arrow"
-                : selectedAnnotation && selectedNetLabelBinding
-                  ? "net-label"
+              annotationText={
+                selectedAnnotation
+                  ? {
+                      annotation: selectedAnnotation,
+                      inheritedColor: selectedAnnotationInheritedTextColor,
+                      onChange: (textColor) => {
+                        if (selectedAnnotation.locked) {
+                          setStatus(
+                            "Unlock this annotation before changing its text color",
+                          );
+                          return;
+                        }
+                        const annotation = { ...selectedAnnotation };
+                        if (textColor === undefined)
+                          delete annotation.textColor;
+                        else annotation.textColor = textColor;
+                        const result = transact([
+                          {
+                            kind: "upsert_schematic_annotation",
+                            annotation,
+                          },
+                        ]);
+                        if (result.ok) {
+                          setStatus(
+                            textColor === undefined
+                              ? "Annotation text color set to Auto"
+                              : "Updated annotation text color",
+                          );
+                        }
+                      },
+                    }
+                  : null
+              }
+              netName={
+                selectedNetNameAnnotation &&
+                selectedNetNameClaim?.kind === "name-claim"
+                  ? {
+                      annotationId: selectedNetNameAnnotation.id,
+                      authoredScope: selectedNetNameClaim.scope,
+                      editableScope:
+                        selectedNetNameAnnotation.kind === "net-label",
+                      effectiveScope:
+                        selectedNetNameLogical?.scope ??
+                        selectedNetNameClaim.scope,
+                      ...(selectedNetPreferredSpelling
+                        ? { preferredSpelling: selectedNetPreferredSpelling }
+                        : {}),
+                      spellings:
+                        selectedNetNameProjection?.spellings ??
+                        (selectedNetNameLogical?.name
+                          ? [selectedNetNameLogical.name]
+                          : []),
+                      onScopeChange: (scope) =>
+                        commitNetLabelScope(selectedNetNameAnnotation, scope),
+                    }
+                  : null
+              }
+              drafting={
+                selectedDrafting
+                  ? {
+                      document,
+                      resolver,
+                      object: selectedDrafting,
+                      defaultColor: styleProfile.foreground,
+                      inspectorSegment: draftingInspectorSegment,
+                      tangentInput: draftingTangentInput,
+                      bearingInput: draftingBearingInput,
+                      onInspectorSegmentChange: setDraftingInspectorSegment,
+                      onTangentInputChange: setDraftingTangentInput,
+                      onBearingInputChange: setDraftingBearingInput,
+                      onStyleChange: setDraftingStyle,
+                      onGeometryChange: setDraftingGeometry,
+                      onTangentAngleChange: setDraftingTangentAngle,
+                      onBearingChange: setDraftingBearing,
+                      onArrowPresetChange: setArrowPreset,
+                      onToggleLock: () => toggleDraftingLock(selectedDrafting),
+                    }
+                  : null
+              }
+              placementTray={{
+                document,
+                unplaced,
+                returnablePlaced: returnablePlacedInstances,
+                onPlaceAll: placeAllFromTray,
+                onReturnAll: returnInstancesToTray,
+                onSelect: (instance, label) => {
+                  selectOnly("instance", [instance.id]);
+                  setStatus(`Selected ${label}`);
+                },
+                onPlace: beginRetainedInstancePlacementFromHook,
+              }}
+              routeActions={{
+                active: selectedRouteId !== null,
+                netLabelInputRef: netLabelPropertyInputRef,
+                netLabel: netLabelDraft,
+                color: selectedRoute?.styleOverride?.color,
+                defaultColor: styleProfile.foreground,
+                highlightActive: selectedHighlightIsActive,
+                onNetLabelChange: updateNetLabelDraft,
+                onColorChange: (color) => {
+                  if (!selectedRoute) return;
+                  const result = transact([
+                    {
+                      kind: "set_route_style_override",
+                      routeId: selectedRoute.id,
+                      styleOverride: color ? { color } : null,
+                    },
+                  ]);
+                  if (result.ok) {
+                    setStatus(
+                      color
+                        ? `Updated wire color for ${selectedRoute.id}`
+                        : `Reset wire color for ${selectedRoute.id}`,
+                    );
+                  }
+                },
+                onDeleteNetLabel: deleteSelectedRouteNetLabel,
+                onAddCurrentArrow: addCurrentArrow,
+                onToggleHighlight: toggleHighlightedNet,
+                onDeleteWire: deleteSelectedRouteConnection,
+              }}
+              endpointActions={{
+                kind: selectedEndpoint
+                  ? selectedEndpoint.endpoint.kind === "junction"
+                    ? "junction"
+                    : "terminal"
                   : null,
-            highlightActive: selectedHighlightIsActive,
-            onReverseCurrentArrow: reverseSelectedCurrentArrow,
-            onDeleteCurrentArrow: deleteSelectedAnnotation,
-            onToggleHighlight: toggleHighlightedNet,
-          }}
-          diagnostics={{
-            snapshot: checkedSnapshot,
-            checkStatus: projectCheck.status,
-            checkError: projectCheck.result?.error ?? null,
-            documentLabel: (documentId) =>
-              project.documents.find((candidate) => candidate.id === documentId)
-                ?.name ?? documentId,
-            onSelectDiagnostic: jumpToProjectDiagnostic,
-            focusRequestToken: issuesFocusToken,
-            onOpenStateChange: setIssuesSectionOpen,
-          }}
-          netTrace={
-            highlightedTrace && highlightedTrace.hops.length > 0
-              ? {
-                  trace: highlightedTrace,
-                  documentLabel: (documentId) =>
-                    project.documents.find(
-                      (candidate) => candidate.id === documentId,
-                    )?.name ?? documentId,
-                  onNavigateHop: navigateTraceHop,
-                }
-              : null
-          }
-          importReview={
-            importReviewOpen
-              ? {
-                  snapshot: {
-                    selected:
-                      selectedIds.length > 0
-                        ? selectedIds.join(", ")
-                        : (selectedRouteId ?? selectedAnnotationId ?? "None"),
-                    internalRouteCount: internalSelection.internalRoutes.length,
-                    revision: document.revision,
-                    sourceStatus: document.sourceStatus,
-                    documentCount: project.documents.length,
-                    activeDocumentId: document.id,
-                    activeInstanceCount: document.instances.length,
-                    projectInstanceCount,
-                    netCount: document.nets.length,
-                    tool,
-                    flightlineCount: flightlines.length,
-                    crossingCount: crossings.length,
-                    annotationCount: document.annotations.length,
-                    status,
-                  },
-                  importReport,
-                }
-              : null
-          }
-          agent={
-            publicAgentUiEnabled &&
-            agentSession.status !== "idle" &&
-            !agentStatusDismissed
-              ? {
-                  status: agentSession.status,
-                  claimCode: agentSession.claimCode,
-                  claimExpiresAt: agentSession.claimExpiresAt,
-                  scopes: agentSession.scopes,
-                  expiresAt: agentSession.expiresAt,
-                  error: agentSession.error,
-                  onPause: agentSession.pause,
-                  onResume: agentSession.resume,
-                  onReconnect: agentSession.reconnect,
-                  onNewConnection: agentSession.newConnection,
-                  onRevoke: agentSession.revoke,
-                  expanded: agentDetailsOpen,
-                  onToggleDetails: () => setAgentDetailsOpen((open) => !open),
-                  onDismiss: () => {
-                    setAgentDetailsOpen(false);
-                    setAgentStatusDismissed(true);
-                  },
-                }
-              : null
+                noConnect: Boolean(selectedNoConnect),
+                endpointNetId: selectedEndpointNetId,
+                onDisconnect: () => disconnectSelectedEndpoint(false),
+                onDeleteConnection: () => disconnectSelectedEndpoint(true),
+                onToggleNoConnect: toggleSelectedNoConnectFromSelection,
+                onDeleteJunction: deleteSelectedJunctionFromSelection,
+              }}
+              annotationActions={{
+                kind:
+                  selectedAnnotation && isRoutedMarker(selectedAnnotation)
+                    ? "current-arrow"
+                    : selectedAnnotation && selectedNetLabelBinding
+                      ? "net-label"
+                      : null,
+                highlightActive: selectedHighlightIsActive,
+                onReverseCurrentArrow: reverseSelectedCurrentArrow,
+                onDeleteCurrentArrow: deleteSelectedAnnotation,
+                onToggleHighlight: toggleHighlightedNet,
+              }}
+              diagnostics={{
+                snapshot: checkedSnapshot,
+                checkStatus: projectCheck.status,
+                checkError: projectCheck.result?.error ?? null,
+                documentLabel: (documentId) =>
+                  project.documents.find(
+                    (candidate) => candidate.id === documentId,
+                  )?.name ?? documentId,
+                onSelectDiagnostic: jumpToProjectDiagnostic,
+                focusRequestToken: issuesFocusToken,
+                onOpenStateChange: setIssuesSectionOpen,
+              }}
+              netTrace={
+                highlightedTrace && highlightedTrace.hops.length > 0
+                  ? {
+                      trace: highlightedTrace,
+                      documentLabel: (documentId) =>
+                        project.documents.find(
+                          (candidate) => candidate.id === documentId,
+                        )?.name ?? documentId,
+                      onNavigateHop: navigateTraceHop,
+                    }
+                  : null
+              }
+              importReview={
+                importReviewOpen
+                  ? {
+                      snapshot: {
+                        selected:
+                          selectedIds.length > 0
+                            ? selectedIds.join(", ")
+                            : (selectedRouteId ??
+                              selectedAnnotationId ??
+                              "None"),
+                        internalRouteCount:
+                          internalSelection.internalRoutes.length,
+                        revision: document.revision,
+                        sourceStatus: document.sourceStatus,
+                        documentCount: project.documents.length,
+                        activeDocumentId: document.id,
+                        activeInstanceCount: document.instances.length,
+                        projectInstanceCount,
+                        netCount: document.nets.length,
+                        tool,
+                        flightlineCount: flightlines.length,
+                        crossingCount: crossings.length,
+                        annotationCount: document.annotations.length,
+                        status,
+                      },
+                      importReport,
+                    }
+                  : null
+              }
+              agent={
+                publicAgentUiEnabled &&
+                agentSession.status !== "idle" &&
+                !agentStatusDismissed
+                  ? {
+                      status: agentSession.status,
+                      claimCode: agentSession.claimCode,
+                      claimExpiresAt: agentSession.claimExpiresAt,
+                      scopes: agentSession.scopes,
+                      expiresAt: agentSession.expiresAt,
+                      error: agentSession.error,
+                      onPause: agentSession.pause,
+                      onResume: agentSession.resume,
+                      onReconnect: agentSession.reconnect,
+                      onNewConnection: agentSession.newConnection,
+                      onRevoke: agentSession.revoke,
+                      expanded: agentDetailsOpen,
+                      onToggleDetails: () =>
+                        setAgentDetailsOpen((open) => !open),
+                      onDismiss: () => {
+                        setAgentDetailsOpen(false);
+                        setAgentStatusDismissed(true);
+                      },
+                    }
+                  : null
+              }
+            />
           }
         />
         <EditorCanvasSurface
@@ -6420,3 +6519,4 @@ export function App({
     </main>
   );
 }
+import { createSimulationProjectFileHost } from "../features/simulation/project-file-host";

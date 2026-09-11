@@ -195,3 +195,7 @@ export type {
   Schema47To48MigrationReport,
   Schema47To48MigrationResult,
 } from "./transforms/simulation-design-variables.js";
+export {
+  upgradeSchema48To49,
+  upgradeSchema48To49WithReport,
+} from "./transforms/simulation-source.js";

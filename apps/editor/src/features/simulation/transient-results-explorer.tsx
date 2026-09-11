@@ -1,10 +1,10 @@
+import { createPortal } from "react-dom";
 import { useEffect, useId, useState, type SetStateAction } from "react";
 import {
   WaveformInteraction,
-  responsiveWaveformHeight,
+  WaveformPlotSlot,
   waveformTicks,
   waveformAxisLabels,
-  useWaveformWidth,
 } from "./waveform-interaction";
 import { useWaveformView } from "./waveform-view";
 import { WaveformTools, WaveformMeasurements } from "./waveform-tools";
@@ -238,7 +238,6 @@ export function ScalarResultsExplorer({
   logarithmicX = false,
   analysisLabel = "Transient",
 }: ScalarResultsExplorerProps) {
-  const measured = useWaveformWidth();
   const clipPrefix = useId();
   const controller = useWaveformView(resultKey);
   const { hidden, selected, markers } = controller.state;
@@ -291,17 +290,9 @@ export function ScalarResultsExplorer({
     quantity: PlotQuantity,
     quantityTraces: readonly ScalarTrace[],
     expanded = false,
+    slotSize: { width: number; height: number } = PLOT,
   ) => {
-    const geometry = expanded
-      ? EXPANDED_PLOT
-      : {
-          ...PLOT,
-          width: Math.max(280, measured.width - 116),
-          height: responsiveWaveformHeight(
-            Math.max(280, measured.width - 116),
-            measured.viewportHeight,
-          ),
-        };
+    const geometry = expanded ? EXPANDED_PLOT : { ...PLOT, ...slotSize };
     const range = timeRange ?? fullRange;
     const clipId = `${clipPrefix}-${quantity}-${expanded}`;
     const visibleValues = quantityTraces.flatMap((trace) =>
@@ -688,10 +679,7 @@ export function ScalarResultsExplorer({
   );
 
   return (
-    <div
-      ref={measured.ref}
-      className="transient-results-explorer ac-results-explorer"
-    >
+    <div className="transient-results-explorer ac-results-explorer">
       <header>
         <div>
           <strong>{plotName}</strong>
@@ -728,7 +716,11 @@ export function ScalarResultsExplorer({
               <div className="simulation-plot-stack">
                 {visibleQuantityTraces.length ? (
                   <div className="ac-plot-row">
-                    {plot(quantity, visibleQuantityTraces)}
+                    <WaveformPlotSlot>
+                      {(size) =>
+                        plot(quantity, visibleQuantityTraces, false, size)
+                      }
+                    </WaveformPlotSlot>
                   </div>
                 ) : (
                   <p className="simulation-empty-plot">Outputs hidden</p>
@@ -738,67 +730,72 @@ export function ScalarResultsExplorer({
           </section>
         );
       })}
-      {expandedQuantity ? (
-        <div
-          className="ac-plot-dialog-backdrop"
-          onMouseDown={(event) =>
-            event.currentTarget === event.target && setExpandedQuantity(null)
-          }
-        >
-          <section
-            className="ac-plot-dialog"
-            role="dialog"
-            aria-modal="true"
-            aria-label={`${analysisLabel} ${expandedQuantity} plot`}
-          >
-            <header>
-              <div>
-                <strong>{plotName}</strong>
-                <span>
-                  {expandedQuantity} · {analysisLabel.toLowerCase()} waveform
-                </span>
-              </div>
-              <button
-                type="button"
-                aria-label="Close plot"
-                onClick={() => setExpandedQuantity(null)}
+      {expandedQuantity
+        ? createPortal(
+            <div
+              className="ac-plot-dialog-backdrop"
+              onMouseDown={(event) =>
+                event.currentTarget === event.target &&
+                setExpandedQuantity(null)
+              }
+            >
+              <section
+                className="ac-plot-dialog"
+                role="dialog"
+                aria-modal="true"
+                aria-label={`${analysisLabel} ${expandedQuantity} plot`}
               >
-                ×
-              </button>
-            </header>
-            <div className="simulation-plot-layout expanded">
-              <WaveformTraceList
-                label={`${analysisLabel} ${expandedQuantity} outputs`}
-                traces={traces
-                  .filter((trace) => trace.quantity === expandedQuantity)
-                  .map((trace) => ({
-                    id: trace.id,
-                    label: trace.label,
-                    colorIndex: trace.colorIndex,
-                    visible: !hidden.has(trace.id),
-                  }))}
-                onToggle={toggleTrace}
-              />
-              <div className="simulation-plot-stack">
-                {visible.some(
-                  (trace) => trace.quantity === expandedQuantity,
-                ) ? (
-                  plot(
-                    expandedQuantity,
-                    visible.filter(
+                <header>
+                  <div>
+                    <strong>{plotName}</strong>
+                    <span>
+                      {expandedQuantity} · {analysisLabel.toLowerCase()}{" "}
+                      waveform
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    aria-label="Close plot"
+                    onClick={() => setExpandedQuantity(null)}
+                  >
+                    ×
+                  </button>
+                </header>
+                <div className="simulation-plot-layout expanded">
+                  <WaveformTraceList
+                    label={`${analysisLabel} ${expandedQuantity} outputs`}
+                    traces={traces
+                      .filter((trace) => trace.quantity === expandedQuantity)
+                      .map((trace) => ({
+                        id: trace.id,
+                        label: trace.label,
+                        colorIndex: trace.colorIndex,
+                        visible: !hidden.has(trace.id),
+                      }))}
+                    onToggle={toggleTrace}
+                  />
+                  <div className="simulation-plot-stack">
+                    {visible.some(
                       (trace) => trace.quantity === expandedQuantity,
-                    ),
-                    true,
-                  )
-                ) : (
-                  <p className="simulation-empty-plot">Outputs hidden</p>
-                )}
-              </div>
-            </div>
-            {measurement(expandedQuantity)}
-          </section>
-        </div>
-      ) : null}
+                    ) ? (
+                      plot(
+                        expandedQuantity,
+                        visible.filter(
+                          (trace) => trace.quantity === expandedQuantity,
+                        ),
+                        true,
+                      )
+                    ) : (
+                      <p className="simulation-empty-plot">Outputs hidden</p>
+                    )}
+                  </div>
+                </div>
+                {measurement(expandedQuantity)}
+              </section>
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }

@@ -13,6 +13,8 @@ export interface SimulationCodeWorkspaceProps {
   activePath: string;
   onSelectFile(path: string): void;
   onNewFile?(): void;
+  onCopyFile?(): void;
+  onExportFile?(): void;
   children: ReactNode;
   actions: ReactNode;
   status?: ReactNode;
@@ -99,6 +101,28 @@ export function SimulationCodeWorkspace(props: SimulationCodeWorkspaceProps) {
               <button type="button" onClick={() => openFile(props.configPath)}>
                 Advanced configuration
               </button>
+              {props.onCopyFile ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    props.onCopyFile?.();
+                    setMoreOpen(false);
+                  }}
+                >
+                  Copy current file
+                </button>
+              ) : null}
+              {props.onExportFile ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    props.onExportFile?.();
+                    setMoreOpen(false);
+                  }}
+                >
+                  Export current file…
+                </button>
+              ) : null}
               {props.onNewFile ? (
                 <button
                   type="button"

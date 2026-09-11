@@ -134,6 +134,7 @@ describe("simulation File Resource evidence", () => {
           revision: 0,
           entry: null,
           expiresAt: created.workspace.expiresAt,
+          configPath: "experiment.json",
         },
       ],
     });

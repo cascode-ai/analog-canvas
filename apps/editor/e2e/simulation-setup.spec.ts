@@ -1,8 +1,12 @@
+import {
+  readSimulationExperimentConfig,
+  type ProjectSimulationSetup,
+} from "@icm/model";
 import { test, expect } from "@playwright/test";
 import { parseProject } from "@icm/project-protocol";
 
-import { downloadBytes } from "./editor-fixtures.js";
-import { ota, profile } from "./simulation-e2e-fixtures.js";
+import { downloadBytes, recoveryProjectTexts } from "./editor-fixtures.js";
+import { ota, profile, editSimulationFile } from "./simulation-e2e-fixtures.js";
 test("the qualified OTA setup opens unchanged and preserves all root and hierarchical outputs", async ({
   page,
 }) => {
@@ -27,10 +31,13 @@ test("the qualified OTA setup opens unchanged and preserves all root and hierarc
     .find((net) => net.id === "net-dut-tail")!
     .terminals.push({ instanceId: "I_INTERNAL_PROBE", pinName: "-" });
   const savedSetup = project.simulationSetups[0];
-  expect(savedSetup?.input.kind).toBe("structured");
-  if (savedSetup?.input.kind !== "structured")
-    throw new Error("qualified OTA fixture setup is not structured");
-  const originalSetupInput = savedSetup.input;
+  expect(savedSetup?.input.kind).toBe("source");
+  if (savedSetup?.input.kind !== "source")
+    throw new Error("qualified OTA fixture setup is not source");
+  const parsed = readSimulationExperimentConfig(savedSetup);
+  if (!parsed.ok) throw Error(parsed.message);
+  const originalSetupInput = parsed.config;
+  const config = structuredClone(originalSetupInput);
   expect(originalSetupInput.outputs).toHaveLength(4);
   expect(
     originalSetupInput.outputs.filter(
@@ -49,7 +56,9 @@ test("the qualified OTA setup opens unchanged and preserves all root and hierarc
     return route.fulfill({
       json: {
         configured: true,
-        inputs: ["structured", "raw"],
+        rawfileCollection: "declared-single-ascii",
+        maxOutputBytes: 1048576,
+        inputs: ["source", "raw"],
         analyses: ["op", "dc", "ac", "tran"],
         parsedAnalyses: ["op", "dc", "ac", "tran"],
         profiles: [
@@ -57,6 +66,9 @@ test("the qualified OTA setup opens unchanged and preserves all root and hierarc
             id: profile.id,
             label: profile.displayName,
             corners: ["tt", "ff", "ss", "fs", "sf"],
+            dependencies: [
+              { id: profile.models.id, sha256: profile.models.contentSha256 },
+            ],
           },
         ],
         modelLibrary: {
@@ -84,84 +96,83 @@ test("the qualified OTA setup opens unchanged and preserves all root and hierarc
     .getByRole("button", { name: "Analog simulation", exact: true })
     .click();
   const panel = page.getByRole("region", { name: "Analog simulation" });
-  await panel
-    .locator('details[aria-label="Run Plan settings"] > summary')
-    .click();
-  await panel.getByRole("radio", { name: "Sweep" }).check();
-  await panel.getByLabel("Run Plan corner ff").check();
-  await panel.getByLabel("Run Plan corner ss").check();
-  await expect(panel).toContainText("3 points");
-  await expect(
-    page.getByText("The editor hit an unexpected problem"),
-  ).toHaveCount(0);
-  await panel.getByRole("radio", { name: "Nominal" }).check();
-  await panel.getByRole("button", { name: "Settings" }).click();
-  await panel
-    .locator('details[aria-label="Analyses settings"] > summary')
-    .click();
-  await panel
-    .locator('details[aria-label="Output probes settings"] > summary')
-    .click();
-  await panel
-    .locator('details[aria-label="Output signals settings"] > summary')
-    .click();
-  await expect(panel.getByLabel("Testbench Cell")).toHaveCount(0);
-  await expect(panel.getByLabel("Stop (Hz)")).toHaveValue("1000000000");
-  await expect(panel.getByLabel("DC sweep source")).toHaveValue("VINP");
-  await expect(panel.getByLabel("TRAN stop (s)")).toHaveValue("0.000004");
-  await expect(
-    panel.getByText(profile.displayName, { exact: true }),
-  ).toBeVisible();
-  await expect(panel.getByLabel("Process corner")).toHaveValue("tt");
-  await panel.getByLabel("Process corner").selectOption("ff");
-  await expect(panel.getByLabel("Process corner")).toHaveValue("ff");
-  await panel.getByLabel("Process corner").selectOption("tt");
-  await expect(
-    panel.getByRole("button", { name: "Remove output" }),
-  ).toHaveCount(4);
-  await expect(
-    panel.locator("li").filter({ hasText: "XDUT · ota_5t · tail" }),
-  ).toBeVisible();
-  await panel.getByRole("button", { name: "Pick on canvas" }).click();
+  // Canvas picking and authored scoped expressions share the same config file.
+  await panel.getByRole("button", { name: "Pick Net", exact: true }).click();
   await page.getByTestId("route-hit-tb-vinp-route").click({ force: true });
-  await expect(
-    panel.getByRole("button", { name: "Remove output" }),
-  ).toHaveCount(5);
-  await panel.getByRole("button", { name: "Remove output" }).last().click();
   await panel.getByRole("button", { name: "Picking Nets…" }).click();
   await panel
-    .getByLabel("Add voltage probe")
-    .selectOption({ label: "XDUT · ota_5t · vinp" });
-  await panel.getByRole("button", { name: "Pick current" }).click();
-  await expect(page.locator(".schematic-canvas")).toHaveClass(
-    /simulation-terminal-pick-active/u,
-  );
+    .getByRole("button", { name: "Pick current", exact: true })
+    .click();
   await page.getByTestId("terminal-VINP-+").click();
   await expect(
     page.getByTestId("terminal-VINP-+-current-pick-marker"),
   ).toHaveClass(/origin/u);
-  await expect(
-    page.getByTestId("terminal-VINP---current-pick-marker"),
-  ).toHaveClass(/partner/u);
   await page.getByTestId("terminal-VINP--").click();
   await panel.getByRole("button", { name: "Picking current…" }).click();
+  const pickedProject = parseProject(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(),
+  );
+  const pickedConfig = readSimulationExperimentConfig(
+    pickedProject.simulationSetups[0]!,
+  );
+  expect(pickedConfig.ok && pickedConfig.config.outputs.length).toBe(6);
+  const circuit = {
+    bindingId: savedSetup.input.circuitBindings[0]!.id,
+    callPath: [],
+  };
+  config.outputs.push(
+    {
+      id: "child-voltage",
+      label: "Child input",
+      expression: {
+        kind: "voltage",
+        circuit,
+        documentId: "document-ota-5t",
+        anchor: { kind: "terminal", instanceId: "PVINP", pinName: "P" },
+        occurrence: ["XDUT"],
+      },
+    },
+    {
+      id: "supply-current",
+      label: "Input current",
+      expression: {
+        kind: "current",
+        circuit,
+        documentId: "document-ota-5t-testbench",
+        instanceId: "VINP",
+        pinName: "+",
+        occurrence: [],
+      },
+    },
+    {
+      id: "child-current",
+      label: "Child current",
+      expression: {
+        kind: "current",
+        circuit,
+        documentId: "document-ota-5t",
+        instanceId: "I_INTERNAL_PROBE",
+        pinName: "+",
+        occurrence: ["XDUT"],
+      },
+    },
+  );
+  await editSimulationFile(
+    page,
+    savedSetup.input.configPath,
+    JSON.stringify(config, null, 2),
+  );
   await panel
-    .getByLabel("Add current output")
-    .selectOption({ label: "XDUT · ota_5t · I1.+ current" });
-  await expect(
-    panel.getByRole("button", { name: "Remove output" }),
-  ).toHaveCount(7);
-  await panel.getByRole("button", { name: "Apply setup" }).click();
-  await panel.getByRole("button", { name: "Prepare deck" }).click();
+    .getByRole("button", { name: "Prepare deck", exact: true })
+    .click();
   await expect(panel.getByLabel("Prepare files")).toBeVisible();
   await panel
     .getByRole("button", { name: "prepared.cir", exact: true })
     .click();
-  const filePreview = panel.getByRole("region", { name: "File preview" });
-  await expect(filePreview).toContainText("prepared.cir");
-  const deckDownload = page.waitForEvent("download");
-  await filePreview.getByRole("button", { name: "Download" }).click();
-  const stream = await (await deckDownload).createReadStream();
+  const preview = panel.getByRole("region", { name: "File preview" });
+  const download = page.waitForEvent("download");
+  await preview.getByRole("button", { name: "Download", exact: true }).click();
+  const stream = await (await download).createReadStream();
   let deck = "";
   for await (const chunk of stream!) deck += chunk.toString();
   for (const vector of [
@@ -176,73 +187,94 @@ test("the qualified OTA setup opens unchanged and preserves all root and hierarc
   expect(deck).toMatch(/i\(v\.xdut\.vicmprb\d+\)/u);
   expect(deck).toMatch(/ac dec 10 1 (?:1000000000|1e\+?9)/i);
   expect(deck).toContain("dc VINP 0.88 0.92 0.005");
-  expect(deck).toContain(`.lib "${profile.models.library.runtimePath}" tt`);
+  expect(deck).toContain('.lib "icm-models.lib" tt');
   expect(deck).toContain("tran 2e-8 0.000004");
   expect(executions).toBe(0);
-  await panel.getByRole("button", { name: "Minimize simulation" }).click();
-  const saved = JSON.parse(
-    (await downloadBytes(page, "File", "Export Project File…")).toString(),
+  const saved = await downloadBytes(page, "File", "Export Project File…");
+  const reloaded = parseProject(saved.toString());
+  expect(
+    readSimulationExperimentConfig(reloaded.simulationSetups[0]!),
+  ).toMatchObject({ ok: true, config: { outputs: config.outputs } });
+  expect(
+    reloaded.simulationSetups[0]!.input.files.find(
+      (f) => f.path === savedSetup.input.entry,
+    )?.text,
+  ).toBe(
+    savedSetup.input.files.find((f) => f.path === savedSetup.input.entry)?.text,
   );
-  const { outputs: savedOutputs, ...savedInput } =
-    saved.simulationSetups[0].input;
-  const { outputs: originalOutputs, ...originalInput } = originalSetupInput;
-  expect(savedInput).toEqual(originalInput);
-  expect(savedOutputs.slice(0, 4)).toEqual(originalOutputs);
-  expect(savedOutputs.slice(4)).toMatchObject([
-    {
-      expression: {
-        kind: "voltage",
-        documentId: "document-ota-5t",
-        anchor: {
-          kind: "terminal",
-          instanceId: "PVINP",
-          pinName: "P",
-        },
-        occurrence: ["XDUT"],
-      },
-    },
-    {
-      expression: {
-        kind: "current",
-        documentId: "document-ota-5t-testbench",
-        instanceId: "VINP",
-        pinName: "+",
-        occurrence: [],
-      },
-    },
-    {
-      expression: {
-        kind: "current",
-        documentId: "document-ota-5t",
-        instanceId: "I_INTERNAL_PROBE",
-        pinName: "+",
-        occurrence: ["XDUT"],
-      },
-    },
-  ]);
   await page.reload();
   await page.getByTestId("project-file").setInputFiles({
     name: "reopened.icproj.json",
     mimeType: "application/json",
-    buffer: Buffer.from(JSON.stringify(saved)),
+    buffer: saved,
   });
-  await page
-    .getByRole("button", { name: "Analog simulation", exact: true })
-    .click();
-  await panel.getByRole("button", { name: "Settings" }).click();
-  await panel
-    .locator('details[aria-label="Analyses settings"] > summary')
-    .click();
-  await panel
-    .locator('details[aria-label="Output signals settings"] > summary')
-    .click();
+  await page.getByTestId("open-analog-simulation").click();
+  await panel.getByRole("button", { name: "More code actions" }).click();
+  await panel.getByRole("button", { name: "Advanced configuration" }).click();
   await expect(
-    panel.getByRole("button", { name: "Remove output" }),
-  ).toHaveCount(7);
-  await expect(panel.getByLabel("Stop (Hz)")).toHaveValue("1000000000");
-  await panel.getByRole("button", { name: "Apply setup" }).click();
-  await expect(panel.getByRole("alert")).toHaveCount(0);
-  await expect(panel.getByRole("status")).not.toHaveText("Setup changed");
+    panel.getByRole("textbox", { name: "Simulation source editor" }),
+  ).toContainText(profile.id);
+  const reopened = parseProject(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(),
+  );
+  expect(
+    readSimulationExperimentConfig(reopened.simulationSetups[0]!),
+  ).toMatchObject({ ok: true, config: { outputs: config.outputs } });
+});
+
+test("uncommitted source survives reload and an explicit working-copy recovery fork", async ({
+  page,
+}) => {
+  await page.route("**/api/simulate", (route) =>
+    route.fulfill({ json: { configured: false } }),
+  );
+  await page.goto("/editor");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "source-recovery.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(ota)),
+  });
+  await expect.poll(() => recoveryProjectTexts(page)).toContain(ota.id);
+  await page.getByTestId("open-analog-simulation").click();
+  const panel = page.getByRole("region", { name: "Analog simulation" });
+  const editor = panel.getByRole("textbox", {
+    name: "Simulation source editor",
+  });
+  const marker = "* unsaved recovery 🧪";
+  await editor.click();
+  await editor.press("Control+End");
+  await page.keyboard.insertText(`\n${marker}`);
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        Object.keys(sessionStorage)
+          .filter((key) => key.startsWith("icm.code-drafts:"))
+          .map((key) => sessionStorage.getItem(key))
+          .join("\n"),
+      ),
+    )
+    .toContain(marker);
+  page.on("dialog", (dialog) => void dialog.accept());
+  await page.reload();
+  const banner = page.getByTestId("startup-recovery-banner");
+  await expect(banner).toBeVisible();
+  await banner.getByRole("button", { name: "Restore", exact: true }).click();
+  await expect(banner).toBeHidden();
+  await page.getByTestId("open-analog-simulation").click();
+  await expect(editor).toContainText(marker);
+  await page.getByTestId("hit-XDUT").click();
+  await expect(panel.locator(".cm-activeLine")).toContainText("XDUT");
+  await expect(editor).not.toBeFocused();
+  await panel.getByRole("tab", { name: "run.cir", exact: false }).click();
+  await expect(editor).toContainText(marker);
+  const saved = parseProject(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(),
+  );
+  expect(
+    saved.simulationSetups[0]!.input.files.some((file) =>
+      file.text.includes(marker),
+    ),
+  ).toBe(true);
 });
 
 test("one Testbench persists several independently named setups", async ({
@@ -256,18 +288,28 @@ test("one Testbench persists several independently named setups", async ({
     (setup) => setup.id === "simulation-setup-ota-op-ac",
   );
   const activeTestbenchId =
-    activeSetup?.input.kind === "structured"
-      ? activeSetup.input.rootDocumentId
+    activeSetup?.input.kind === "source"
+      ? activeSetup.input.circuitBindings[0]?.documentId
       : undefined;
   expect(activeTestbenchId).toBe("document-ota-5t-testbench");
   await page.route("**/api/simulate", async (route) =>
     route.fulfill({
       json: {
         configured: true,
-        inputs: ["structured", "raw"],
+        rawfileCollection: "declared-single-ascii",
+        maxOutputBytes: 1048576,
+        inputs: ["source", "raw"],
         analyses: ["op", "dc", "ac", "tran"],
         parsedAnalyses: ["op", "dc", "ac", "tran"],
-        profiles: [{ id: profile.id, corners: ["tt"] }],
+        profiles: [
+          {
+            id: profile.id,
+            corners: ["tt"],
+            dependencies: [
+              { id: profile.models.id, sha256: profile.models.contentSha256 },
+            ],
+          },
+        ],
         maxTimeoutMs: 120000,
         maxInputBytes: 1048576,
         cancel: true,
@@ -291,17 +333,16 @@ test("one Testbench persists several independently named setups", async ({
   await expect(selector).toContainText(
     `Setup ${existingSetupNames.length + 1}`,
   );
-  await panel.getByLabel("Setup name").fill("OTA OP, DC, AC, and TRAN");
-  await panel.getByLabel("Setup name").press("Tab");
-  await expect(panel.getByRole("alert")).toContainText(
-    "EDIT_PRECONDITION: Simulation setup name already exists: OTA OP, DC, AC, and TRAN",
+  await selector.click();
+  page.once(
+    "dialog",
+    (dialog) => void dialog.accept("OTA OP, DC, AC, and TRAN"),
   );
-  await panel.getByLabel("Setup name").fill("Bias search");
-  await panel.getByRole("button", { name: "Apply setup" }).click();
-  await panel.getByLabel("Setup name").fill("Bias sweep");
-  await panel.getByLabel("Setup name").press("Tab");
-  await expect(panel.getByRole("status")).not.toHaveText("Setup changed");
-
+  await panel.getByRole("button", { name: "Rename…", exact: true }).click();
+  await expect(panel.getByRole("alert")).toContainText("already exists");
+  page.once("dialog", (dialog) => void dialog.accept("Bias sweep"));
+  await panel.getByRole("button", { name: "Rename…", exact: true }).click();
+  await expect(selector).toContainText("Bias sweep");
   const saved = JSON.parse(
     (await downloadBytes(page, "File", "Export Project File…")).toString(),
   );
@@ -312,13 +353,13 @@ test("one Testbench persists several independently named setups", async ({
   expect(
     saved.simulationSetups.find(
       (setup: { name: string }) => setup.name === "Bias sweep",
-    )?.input.rootDocumentId,
+    )?.input.circuitBindings[0]?.documentId,
   ).toBe(activeTestbenchId);
   expect(
     new Set(
       saved.simulationSetups.map(
-        (setup: { input: { rootDocumentId: string } }) =>
-          setup.input.rootDocumentId,
+        (setup: ProjectSimulationSetup) =>
+          setup.input.circuitBindings[0]?.documentId,
       ),
     ),
   ).toEqual(

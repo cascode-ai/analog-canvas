@@ -103,6 +103,7 @@ export class SimulationFiles {
         id: crypto.randomUUID(),
         revision: 0,
         entry: null,
+        configPath: "experiment.json",
         files: [],
         expiresAt: this.now() + TTL,
       };
@@ -183,10 +184,10 @@ export class SimulationFiles {
         nextOffset: end < file.text.length ? end : null,
       };
     }
-    if (op.configPath !== undefined)
+    if (op.circuitEdits.length)
       return problem(
-        "SIMULATION_FILE_INVALID",
-        "Session entry files do not have a Project configuration path",
+        "SIMULATION_CIRCUIT_OWNER_REQUIRED",
+        "Generated Circuit edits require a Project setup owner",
         "input",
       );
     if (op.expectedRevision !== workspace.revision)
@@ -218,10 +219,11 @@ export class SimulationFiles {
       );
     const files = new Map(planned.files.map((file) => [file.path, file.text]));
     const entry = op.entry ?? workspace.entry;
-    if (entry !== null && !files.has(entry))
+    const configPath = op.configPath ?? workspace.configPath;
+    if (entry === configPath)
       return problem(
-        "ENTRY_NOT_FOUND",
-        "The entry must name a file in this workspace",
+        "SIMULATION_FILE_INVALID",
+        "The SPICE entry and configuration require distinct paths",
         "input",
       );
     const size = [...files.values()].reduce(
@@ -241,6 +243,7 @@ export class SimulationFiles {
       ...workspace,
       revision: workspace.revision + 1,
       entry,
+      configPath,
       files: [...files]
         .sort(([a], [b]) => a.localeCompare(b))
         .map(([path, text]) => ({ path, text })),
@@ -256,6 +259,7 @@ export class SimulationFiles {
         owner: { kind: "session-workspace", workspaceId: workspace.id },
         revision: workspace.revision,
         entry: workspace.entry,
+        configPath: workspace.configPath,
         files: workspace.files.map((file) => ({
           path: file.path,
           kind: "authored",

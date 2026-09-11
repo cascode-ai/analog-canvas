@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   CircuitProjectSchema,
+  CURRENT_PROJECT_SCHEMA_VERSION,
   createEmptyDocument,
   createEmptyProject,
   deriveStableId,
@@ -349,7 +350,11 @@ function codes(result: Awaited<ReturnType<typeof compile>>): string[] {
 
 describe("compiling a structured simulation setup", () => {
   it("derives hierarchy-aware NMOS and PMOS terminal operating points", async () => {
-    const project = CircuitProjectSchema.parse(fiveTransistorOtaSky130);
+    const project = CircuitProjectSchema.parse({
+      ...fiveTransistorOtaSky130,
+      schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
+      simulationSetups: [],
+    });
     const result = await compile(
       project,
       setupWith({
@@ -415,7 +420,11 @@ describe("compiling a structured simulation setup", () => {
   });
 
   it("refuses a selected MOS with unavailable Bulk instead of guessing", async () => {
-    const project = CircuitProjectSchema.parse(fiveTransistorOtaSky130);
+    const project = CircuitProjectSchema.parse({
+      ...fiveTransistorOtaSky130,
+      schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
+      simulationSetups: [],
+    });
     const dut = project.documents.find(
       (document) => document.id === "document-ota-5t",
     )!;

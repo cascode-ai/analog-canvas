@@ -1,30 +1,31 @@
-import type { CircuitProject } from "@icm/model";
-import { compileStructuredSimulation } from "@icm/netlist";
-import { sha256 } from "./files.js";
-import {
-  projectSimulationVariant,
-  type SimulationProjectVariant,
-} from "./project-variant.js";
+import type {
+  CircuitProject,
+  ProjectSimulationSetup,
+  SimulationRunVariant,
+} from "@icm/model";
+import { compileSourceSimulation } from "@icm/netlist";
+import { sha256 } from "./content-digest.js";
 
-type RawSimulationInput = Extract<
-  CircuitProject["simulationSetups"][number]["input"],
-  { kind: "raw" }
->;
-export async function rawInputRevision(input: RawSimulationInput) {
+/** Authored/electrical identity is separate from the resolved runtime's prepared digest. */
+export function sourceInputRevision(
+  setup: ProjectSimulationSetup,
+  compiled: Extract<ReturnType<typeof compileSourceSimulation>, { ok: true }>,
+) {
   return sha256(
     JSON.stringify({
-      kind: input.kind,
-      entry: input.entry,
-      files: input.files,
-      dependencies: input.dependencies,
-      environment: input.environment,
+      source: setup.input,
+      electricalHash: compiled.electricalHash,
+      files: compiled.files,
+      outputs: compiled.outputs,
+      deviceOperatingPoints: compiled.deviceOperatingPoints,
+      environment: compiled.config.environment,
     }),
   );
 }
 
-/** One session, one revision cache. Layout-only changes do not compile again. */
+/** One session, one Project revision cache; pure compilation, never an executor call. */
 export class ProjectInputIdentity {
-  private revision: number | undefined;
+  private revision: string | undefined;
   private pending = new Map<string, Promise<string | null>>();
   clear() {
     this.revision = undefined;
@@ -33,30 +34,30 @@ export class ProjectInputIdentity {
   read(
     project: CircuitProject,
     setupId: string,
-    variant?: SimulationProjectVariant,
+    variant?: SimulationRunVariant,
   ): Promise<string | null> {
-    if (project.structureRevision !== this.revision) {
+    // Document edits (including W/L) need not advance structureRevision.
+    const revision = JSON.stringify([
+      project.id,
+      project.structureRevision,
+      project.documents.map((d) => [d.id, d.revision]),
+    ]);
+    if (revision !== this.revision) {
       this.pending.clear();
-      this.revision = project.structureRevision;
+      this.revision = revision;
     }
-    const cacheKey = `${setupId}:${JSON.stringify(variant ?? null)}`;
-    const existing = this.pending.get(cacheKey);
+    const key = JSON.stringify([setupId, variant ?? null]);
+    const existing = this.pending.get(key);
     if (existing) return existing;
-    const snapshot = structuredClone(project);
-    const reading = (async () => {
-      const projected = projectSimulationVariant(snapshot, setupId, variant);
-      if (!projected.ok) return null;
-      const { project: projectedProject, setup } = projected;
-      if (setup.input.kind === "raw") return rawInputRevision(setup.input);
-      const compiled = await compileStructuredSimulation(
-        projectedProject,
-        setup,
-      );
-      return compiled.ok ? (compiled.request.inputRevision ?? null) : null;
-    })();
-    this.pending.set(cacheKey, reading);
+    const setup = project.simulationSetups.find((item) => item.id === setupId);
+    if (!setup) return Promise.resolve(null);
+    const compiled = compileSourceSimulation(project, setup, variant);
+    const reading = compiled.ok
+      ? sourceInputRevision(setup, compiled)
+      : Promise.resolve(null);
+    this.pending.set(key, reading);
     void reading.catch(() => {
-      if (this.pending.get(cacheKey) === reading) this.pending.delete(cacheKey);
+      if (this.pending.get(key) === reading) this.pending.delete(key);
     });
     return reading;
   }

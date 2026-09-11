@@ -1,3 +1,7 @@
+import {
+  CURRENT_PROJECT_SCHEMA_VERSION,
+  LegacyProjectSimulationSetupSchema,
+} from "@icm/model";
 import { describe, expect, it } from "vitest";
 import {
   CircuitProjectSchema,
@@ -6,11 +10,18 @@ import {
   type ProjectSourceSimulationSetup,
 } from "@icm/model";
 import ota from "../../../apps/editor/src/examples/five-transistor-ota-sky130.icproj.json";
+const legacySetups = () =>
+  ota.simulationSetups.map((s) => LegacyProjectSimulationSetupSchema.parse(s));
 import { migrateSimulationSetupToSource } from "./simulation-source-migration.js";
 import { compileSourceSimulation } from "./simulation-source-compile.js";
 import { buildSimulationPlan } from "./simulation-compile.js";
 
-const project = () => CircuitProjectSchema.parse(ota);
+const project = () =>
+  CircuitProjectSchema.parse({
+    ...ota,
+    schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
+    simulationSetups: [],
+  });
 function config(setup: ProjectSourceSimulationSetup) {
   return SimulationExperimentConfigSchema.parse(
     JSON.parse(
@@ -50,6 +61,37 @@ function raw(text: string) {
   });
 }
 describe("source simulation compiler", () => {
+  it("accepts only known intrinsic Noise outputs, not arbitrary missing ids", () => {
+    const setup = raw("* test\n.control\nop\nwrite out.raw\n.endc\n.end\n");
+    const settings = config(setup);
+    const file = setup.input.files.find(
+      (f) => f.path === setup.input.configPath,
+    )!;
+    for (const outputId of [
+      "noise-output-density",
+      "noise-input-density",
+      "noise-typo",
+    ]) {
+      settings.measurements = [
+        {
+          id: "m",
+          label: "Peak",
+          outputId,
+          analysis: "noise",
+          method: { kind: "maximum" },
+        },
+      ];
+      file.text = JSON.stringify(settings);
+      const result = compileSourceSimulation(project(), setup);
+      expect(result.ok).toBe(outputId !== "noise-typo");
+      if (!result.ok)
+        expect(
+          result.diagnostics.some(
+            (d) => d.code === "SIMULATION_MEASUREMENT_OUTPUT_MISSING",
+          ),
+        ).toBe(true);
+    }
+  });
   it("preserves native code and native vector ownership without requiring a Canvas", () => {
     const text =
       "* native\r\nV1 in 0 1\r\nR1 in out 1k\r\nR2 out 0 1k\r\n.control\r\nop\r\nwrite out.raw\r\n.endc\r\n.end\r\n";
@@ -66,7 +108,7 @@ describe("source simulation compiler", () => {
   });
   it("keeps each migrated OTA experiment compilable with the same acquisition identities", () => {
     const before = project();
-    for (const setup of before.simulationSetups) {
+    for (const setup of legacySetups()) {
       if (setup.input.kind !== "structured") continue;
       const migrated = migrateSimulationSetupToSource(before, setup).setup;
       const compiled = compileSourceSimulation(before, migrated);
@@ -96,7 +138,7 @@ describe("source simulation compiler", () => {
   });
   it("distinguishes two authored DUT calls and maps formal ports to actual top-level nodes", () => {
     const before = project();
-    const original = before.simulationSetups.find(
+    const original = legacySetups().find(
       (s) => s.input.kind === "structured" && s.input.outputs.length,
     )!;
     const setup = migrateSimulationSetupToSource(before, original).setup;

@@ -10,6 +10,7 @@ import { analyzeDesignNetlist } from "./extract.js";
 import {
   printSpiceWithLocations,
   type PrintedSpiceParameter,
+  type PrintedSpiceInstance,
 } from "./printers.js";
 import type { NetlistDiagnostic } from "./ir.js";
 
@@ -23,6 +24,7 @@ export interface GeneratedCircuitSource {
   binding: SimulationCircuitBinding;
   text: string;
   parameters: EditableCircuitParameter[];
+  instances: PrintedSpiceInstance[];
   reachedDocuments: { id: string; revision: number }[];
 }
 
@@ -89,6 +91,7 @@ export function generateCircuitSource(
       binding: { ...binding },
       text: printed.text,
       parameters,
+      instances: printed.instances,
       reachedDocuments: ir.cells.map((cell) => ({
         id: cell.id,
         revision: project.documents.find((d) => d.id === cell.id)!.revision,

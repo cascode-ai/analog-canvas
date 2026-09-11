@@ -8,7 +8,15 @@
   color: var(--icm-text);
   font-size: 12px;
 }
-.simulation-code-workspace button {
+.simulation-code-workspace
+  :is(
+    .simulation-code-toolbar,
+    .simulation-code-tabs,
+    .simulation-code-output-tabs,
+    .simulation-code-files,
+    .simulation-code-status
+  )
+  button {
   border: 0;
   background: transparent;
   color: inherit;
@@ -17,14 +25,38 @@
   white-space: nowrap;
   padding: 6px 9px;
 }
-.simulation-code-workspace button:hover:not(:disabled) {
+.simulation-code-workspace
+  :is(
+    .simulation-code-toolbar,
+    .simulation-code-tabs,
+    .simulation-code-output-tabs,
+    .simulation-code-files,
+    .simulation-code-status
+  )
+  button:hover:not(:disabled) {
   background: var(--icm-surface-muted);
 }
-.simulation-code-workspace button:disabled {
+.simulation-code-workspace
+  :is(
+    .simulation-code-toolbar,
+    .simulation-code-tabs,
+    .simulation-code-output-tabs,
+    .simulation-code-files,
+    .simulation-code-status
+  )
+  button:disabled {
   cursor: default;
   opacity: 0.46;
 }
-.simulation-code-workspace button:focus-visible {
+.simulation-code-workspace
+  :is(
+    .simulation-code-toolbar,
+    .simulation-code-tabs,
+    .simulation-code-output-tabs,
+    .simulation-code-files,
+    .simulation-code-status
+  )
+  button:focus-visible {
   outline: 2px solid #328ab0;
   outline-offset: -2px;
 }
@@ -176,7 +208,7 @@
   overflow: auto;
   min-height: 0;
   flex: 1;
-  padding: 8px;
+  padding: 0;
 }
 .simulation-code-status {
   flex: none;

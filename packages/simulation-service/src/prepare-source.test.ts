@@ -1,3 +1,7 @@
+import {
+  CURRENT_PROJECT_SCHEMA_VERSION,
+  LegacyProjectSimulationSetupSchema,
+} from "@icm/model";
 import { describe, expect, it } from "vitest";
 import {
   CircuitProjectSchema,
@@ -9,11 +13,18 @@ import {
   locateSimulationText,
 } from "@icm/netlist";
 import ota from "../../../apps/editor/src/examples/five-transistor-ota-sky130.icproj.json";
+const legacySetups = () =>
+  ota.simulationSetups.map((s) => LegacyProjectSimulationSetupSchema.parse(s));
 import profile from "../../../containers/ngspice/hosted-sky130-profile.json";
 import { CapabilitiesSchema, ProblemSchema } from "./contract.js";
 import { prepareSourceExecutionInput } from "./prepare-source.js";
 
-const project = () => CircuitProjectSchema.parse(ota);
+const project = () =>
+  CircuitProjectSchema.parse({
+    ...ota,
+    schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
+    simulationSetups: [],
+  });
 const caps = CapabilitiesSchema.parse({
   configured: true,
   rawfileCollection: "declared-single-ascii",
@@ -70,11 +81,36 @@ function setConfig(setup: ProjectSourceSimulationSetup, changes: object) {
   file.text = JSON.stringify({ ...JSON.parse(file.text), ...changes });
 }
 describe("source execution preparation", () => {
+  it("returns source locations tied to exact authored bytes, shared by GUI and MCP", async () => {
+    const setup = native();
+    setup.input.files[0]!.text =
+      '* error 🧪\r\n.include "missing.cir"\r\n.end\r\n';
+    const result = await prepareSourceExecutionInput(project(), setup, caps);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    const diagnostic = result.error.diagnostics!.find(
+      (d) => d.code === "SIMULATION_FILE_MISSING",
+    )!;
+    expect(diagnostic.source).toMatchObject({
+      scope: "authored",
+      path: "run.cir",
+      line: 2,
+      column: 1,
+    });
+    expect(diagnostic.source?.textDigest).toMatch(/^[0-9a-f]{64}$/u);
+    expect(
+      setup.input.files[0]!.text.slice(
+        diagnostic.source!.startOffset,
+        diagnostic.source!.endOffset,
+      ),
+    ).toContain('.include "missing.cir"');
+    expect(ProblemSchema.safeParse(result.error).success).toBe(true);
+  });
   it("includes actual managed corner/temperature/parameter projection in run identity, not nominal source storage", async () => {
     const circuit = project();
     const setup = migrateSimulationSetupToSource(
       circuit,
-      circuit.simulationSetups[0]!,
+      legacySetups()[0]!,
     ).setup;
     const before = structuredClone(setup);
     const nominal = await prepareSourceExecutionInput(circuit, setup, caps);
@@ -117,7 +153,7 @@ describe("source execution preparation", () => {
   });
   it("prepares the saved OTA sources with digest-addressed models and complete text mappings", async () => {
     const circuit = project();
-    for (const original of circuit.simulationSetups) {
+    for (const original of legacySetups()) {
       const setup = migrateSimulationSetupToSource(circuit, original).setup;
       const result = await prepareSourceExecutionInput(circuit, setup, caps);
       expect(result.ok, JSON.stringify(result.ok ? [] : result.error)).toBe(
@@ -157,7 +193,7 @@ describe("source execution preparation", () => {
     const circuit = project();
     const setup = migrateSimulationSetupToSource(
       circuit,
-      circuit.simulationSetups[0]!,
+      legacySetups()[0]!,
     ).setup;
     const a = await prepareSourceExecutionInput(circuit, setup, caps);
     if (!a.ok) throw Error(a.error.message);
@@ -182,7 +218,7 @@ describe("source execution preparation", () => {
     const circuit = project();
     const setup = migrateSimulationSetupToSource(
       circuit,
-      circuit.simulationSetups[0]!,
+      legacySetups()[0]!,
     ).setup;
     const entry = setup.input.files.find(
       (file) => file.path === setup.input.entry,

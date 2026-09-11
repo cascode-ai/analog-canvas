@@ -15,18 +15,17 @@
 }
 
 .app-workspace.simulation-mode {
-  grid-template-columns: var(--icm-simulation-width) minmax(0, 1fr) auto;
-  grid-template-areas: "simulation canvas props";
   transition: none;
 }
 
 .app-workspace.simulation-mode.simulation-maximized {
   grid-template-columns: minmax(0, 1fr);
-  grid-template-areas: "simulation";
+  grid-template-areas: "props";
 }
 
 .app-workspace.simulation-maximized .canvas-panel,
-.app-workspace.simulation-maximized .selection-dock,
+.app-workspace.simulation-maximized .shapes-panel,
+.app-workspace.simulation-maximized .library-resize-handle,
 .app-workspace.simulation-maximized .simulation-resize-handle {
   display: none;
 }
@@ -56,13 +55,58 @@
 }
 
 .simulation-resize-handle {
-  grid-area: canvas;
-  z-index: 3;
+  grid-area: props;
+  z-index: 13;
   width: 9px;
   margin-left: -5px;
   cursor: col-resize;
   touch-action: none;
   background: transparent;
+}
+
+.editor-right-dock {
+  grid-area: props;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  z-index: 12;
+  background: var(--icm-surface);
+}
+.editor-right-dock.showing-code {
+  width: min(var(--icm-simulation-width), 70vw);
+  border-left: 1px solid var(--icm-border);
+}
+.editor-right-dock-code,
+.editor-right-dock-properties {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+}
+.editor-right-dock [hidden] {
+  display: none;
+}
+.editor-right-dock .selection-dock {
+  height: 100%;
+}
+.editor-right-dock-tabs {
+  display: flex;
+  flex: none;
+  border-bottom: 1px solid var(--icm-border);
+}
+.editor-right-dock-tabs button {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 8px 14px;
+}
+.editor-right-dock-tabs button[aria-pressed="true"] {
+  box-shadow: inset 0 -2px var(--icm-accent);
+}
+.app-workspace.simulation-maximized .editor-right-dock {
+  width: 100%;
 }
 
 .simulation-resize-handle:hover,
@@ -632,16 +676,9 @@
       auto;
   }
 
-  .app-workspace.simulation-mode {
-    grid-template-columns:
-      min(var(--icm-simulation-width), 52vw) minmax(0, 1fr)
-      auto;
-    grid-template-areas: "simulation canvas props";
-  }
-
   .app-workspace.simulation-mode.simulation-maximized {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-areas: "simulation";
+    grid-template-areas: "props";
   }
 }
 
@@ -662,13 +699,13 @@
   }
 
   .app-workspace.simulation-mode {
-    grid-template-columns: min(var(--icm-simulation-width), 62vw) minmax(0, 1fr);
-    grid-template-areas: "simulation canvas";
+    grid-template-columns: 0 minmax(0, 1fr) auto;
+    grid-template-areas: "shapes canvas props";
   }
 
   .app-workspace.simulation-mode.simulation-maximized {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-areas: "simulation";
+    grid-template-areas: "props";
   }
 
   .app-workspace.library-collapsed .shapes-panel {

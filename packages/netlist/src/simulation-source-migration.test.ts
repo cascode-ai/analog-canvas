@@ -1,10 +1,16 @@
+import {
+  CURRENT_PROJECT_SCHEMA_VERSION,
+  LegacyProjectSimulationSetupSchema,
+} from "@icm/model";
 import { describe, expect, it } from "vitest";
 import {
   CircuitProjectSchema,
   SimulationExperimentConfigSchema,
-  type ProjectSimulationSetup,
+  type LegacyProjectSimulationSetup as ProjectSimulationSetup,
 } from "@icm/model";
 import ota from "../../../apps/editor/src/examples/five-transistor-ota-sky130.icproj.json";
+const legacySetups = () =>
+  ota.simulationSetups.map((s) => LegacyProjectSimulationSetupSchema.parse(s));
 import { migrateSimulationSetupToSource } from "./simulation-source-migration.js";
 import {
   buildSimulationPlan,
@@ -14,10 +20,14 @@ import { printSpiceNetlist, printSpiceWithLocations } from "./printers.js";
 
 describe("legacy experiment source migration", () => {
   it("preserves all OTA experiment identities, analyses and acquired objects offline", () => {
-    const project = CircuitProjectSchema.parse(ota);
+    const project = CircuitProjectSchema.parse({
+      ...ota,
+      schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
+      simulationSetups: [],
+    });
     const before = JSON.stringify(project);
-    expect(project.simulationSetups.length).toBeGreaterThan(1);
-    for (const original of project.simulationSetups) {
+    expect(legacySetups().length).toBeGreaterThan(1);
+    for (const original of legacySetups()) {
       const converted = migrateSimulationSetupToSource(project, original);
       expect(converted.setup.id).toBe(original.id);
       expect(converted.setup.name).toBe(original.name);
@@ -52,8 +62,12 @@ describe("legacy experiment source migration", () => {
   });
 
   it("retains incomplete intent instead of substituting a runnable example", () => {
-    const project = CircuitProjectSchema.parse(ota);
-    const setup = structuredClone(project.simulationSetups[0]!);
+    const project = CircuitProjectSchema.parse({
+      ...ota,
+      schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
+      simulationSetups: [],
+    });
+    const setup = structuredClone(legacySetups()[0]!);
     if (setup.input.kind !== "structured")
       throw Error("expected structured fixture");
     setup.input.rootDocumentId = "removed";
@@ -68,7 +82,11 @@ describe("legacy experiment source migration", () => {
   });
 
   it("preserves raw file bytes and dependency identity despite config filename collisions", () => {
-    const project = CircuitProjectSchema.parse(ota);
+    const project = CircuitProjectSchema.parse({
+      ...ota,
+      schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
+      simulationSetups: [],
+    });
     const setup: ProjectSimulationSetup = {
       id: "raw",
       name: "Raw",
@@ -104,8 +122,12 @@ describe("legacy experiment source migration", () => {
   });
 
   it("shares exact planning output with the existing hashed compiler", async () => {
-    const project = CircuitProjectSchema.parse(ota);
-    const setup = project.simulationSetups[0]!;
+    const project = CircuitProjectSchema.parse({
+      ...ota,
+      schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
+      simulationSetups: [],
+    });
+    const setup = legacySetups()[0]!;
     const plan = buildSimulationPlan(project, setup);
     const compiled = await compileStructuredSimulation(project, setup);
     expect(plan.ok && compiled.ok).toBe(true);
@@ -118,8 +140,12 @@ describe("legacy experiment source migration", () => {
 
 describe("generated parameter source locations", () => {
   it("uses printer-owned exact spans without changing structural output", () => {
-    const project = CircuitProjectSchema.parse(ota);
-    const plan = buildSimulationPlan(project, project.simulationSetups[0]!);
+    const project = CircuitProjectSchema.parse({
+      ...ota,
+      schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
+      simulationSetups: [],
+    });
+    const plan = buildSimulationPlan(project, legacySetups()[0]!);
     if (!plan.ok) throw Error(JSON.stringify(plan.diagnostics));
     for (const topLevel of [true, false]) {
       const printed = printSpiceWithLocations(plan.circuit, topLevel);

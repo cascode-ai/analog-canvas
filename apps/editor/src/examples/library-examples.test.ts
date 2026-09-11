@@ -1,3 +1,4 @@
+import { sourcePresentation } from "../features/simulation/source-presentation";
 import { readFileSync } from "node:fs";
 
 import {
@@ -6,11 +7,14 @@ import {
   resolveDocumentLogicalNets,
   runErcChecks,
 } from "@icm/derived";
-import { CURRENT_PROJECT_SCHEMA_VERSION } from "@icm/model";
+import {
+  CURRENT_PROJECT_SCHEMA_VERSION,
+  readSimulationExperimentConfig,
+} from "@icm/model";
 import type { CircuitProject } from "@icm/model";
 import {
   analyzeDesignNetlist,
-  compileStructuredSimulation,
+  compileSourceSimulation,
   printSpiceNetlist,
 } from "@icm/netlist";
 import { serializeProject } from "@icm/project-protocol";
@@ -294,36 +298,52 @@ describe("the bundled five-transistor Sky130 OTA", () => {
       (candidate) => candidate.id === "simulation-setup-ota-op-ac",
     );
     expect(setup).toBeDefined();
-    expect(setup?.input.kind).toBe("structured");
-    if (setup?.input.kind !== "structured") return;
-    const compiled = await compileStructuredSimulation(project, setup);
+    expect(setup?.input.kind).toBe("source");
+    if (setup?.input.kind !== "source") return;
+    const compiled = await compileSourceSimulation(project, setup);
     expect(compiled.ok).toBe(true);
     if (!compiled.ok) return;
 
-    expect(compiled.request.analyses).toEqual(["op", "dc", "ac", "tran"]);
-    expect(compiled.request.testbench).toContain("VINP");
-    expect(compiled.request.testbench).toContain("AC 1 0");
-    expect(compiled.request.testbench).toContain("op");
-    expect(compiled.request.testbench).toContain("ac dec 10 1 1000000000");
-    expect(compiled.request.testbench).toContain("dc VINP 0.88 0.92 0.005");
-    expect(compiled.request.testbench).toContain("tran 2e-8 0.000004");
-    expect(compiled.request.testbench).toContain("set appendwrite");
-    expect(compiled.vectors).toEqual([
-      { probeId: "probe-vout", vector: "v(vout)", quantity: "voltage" },
-      { probeId: "probe-ibias", vector: "v(ibias)", quantity: "voltage" },
+    expect(sourcePresentation(setup).analysisLabel).toBe("OP + DC + AC + TRAN");
+    expect(compiled.files.map((file) => file.text).join("\n")).toContain(
+      "VINP",
+    );
+    expect(compiled.files.map((file) => file.text).join("\n")).toContain(
+      "AC 1 0",
+    );
+    expect(compiled.files.map((file) => file.text).join("\n")).toContain("op");
+    expect(compiled.files.map((file) => file.text).join("\n")).toContain(
+      "ac dec 10 1 1000000000",
+    );
+    expect(compiled.files.map((file) => file.text).join("\n")).toContain(
+      "dc VINP 0.88 0.92 0.005",
+    );
+    expect(compiled.files.map((file) => file.text).join("\n")).toContain(
+      "tran 2e-8 0.000004",
+    );
+    expect(compiled.files.map((file) => file.text).join("\n")).toContain(
+      "set appendwrite",
+    );
+    expect(compiled.config.outputs.map((o) => o.id)).toEqual([
+      "probe-vout",
+      "probe-ibias",
+      "probe-tail",
+      "probe-nleft",
+    ]);
+    expect(compiled.vectors.map(({ probeId, ...vector }) => vector)).toEqual([
+      { vector: "v(vout)", quantity: "voltage" },
+      { vector: "v(ibias)", quantity: "voltage" },
       {
-        probeId: "probe-tail",
         vector: "v(xdut.tail)",
         quantity: "voltage",
       },
       {
-        probeId: "probe-nleft",
         vector: "v(xdut.nleft)",
         quantity: "voltage",
       },
     ]);
     expect(compiled.deviceOperatingPoints).toEqual([]);
-    expect(compiled.measurements).toEqual([]);
+    expect(compiled.config.measurements).toEqual([]);
   });
 
   it("ships independently runnable bias, transfer, five-corner AC, transient, and Noise setups", async () => {
@@ -345,33 +365,55 @@ describe("the bundled five-transistor Sky130 OTA", () => {
     expect(
       project.simulationSetups.map((setup) => [
         setup.id,
-        setup.input.kind === "structured"
-          ? setup.input.analyses.map((analysis) => analysis.kind).join(",")
+        setup.input.kind === "source"
+          ? sourcePresentation(setup)
+              .analysisLabel.toLowerCase()
+              .split(" + ")
+              .join(",")
           : setup.input.kind,
-        setup.input.environment.corner,
+        readSimulationExperimentConfig(setup).ok
+          ? JSON.parse(
+              setup.input.files.find((f) => f.path === setup.input.configPath)!
+                .text,
+            ).environment.corner
+          : null,
       ]),
     ).toEqual(expected);
 
     for (const setup of project.simulationSetups) {
-      expect(setup.input.kind, setup.name).toBe("structured");
-      if (setup.input.kind !== "structured") continue;
-      expect(setup.input.rootDocumentId, setup.name).toBe(
+      expect(setup.input.kind, setup.name).toBe("source");
+      if (setup.input.kind !== "source") continue;
+      expect(
+        setup.input.circuitBindings.find((b) => b.emission === "top-level")
+          ?.documentId,
+        setup.name,
+      ).toBe(
         setup.id === "simulation-setup-ota-tran-sin-tt"
           ? "document-ota-5t-testbench-sin"
           : testbench.id,
       );
-      const compiled = await compileStructuredSimulation(project, setup);
+      const compiled = await compileSourceSimulation(project, setup);
       expect(compiled.ok, setup.name).toBe(true);
       if (compiled.ok && setup.id === "simulation-setup-ota-tran-sin-tt") {
-        expect(compiled.request.testbench).toContain("SIN(0.9 10m 1Meg 0 0 0)");
+        expect(compiled.files.map((file) => file.text).join("\n")).toContain(
+          "SIN(0.9 10m 1Meg 0 0 0)",
+        );
       }
     }
   });
 
   it("covers the complete structured simulation feature matrix", () => {
-    const inputs = project.simulationSetups.flatMap((setup) =>
-      setup.input.kind === "structured" ? [setup.input] : [],
-    );
+    const inputs = project.simulationSetups.map((setup) => {
+      const parsed = readSimulationExperimentConfig(setup);
+      if (!parsed.ok) throw Error(parsed.message);
+      return {
+        ...parsed.config,
+        analyses: sourcePresentation(setup)
+          .analysisLabel.toLowerCase()
+          .split(" + ")
+          .map((kind) => ({ kind })),
+      };
+    });
     expect(
       new Set(
         inputs.flatMap((input) =>

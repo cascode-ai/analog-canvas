@@ -1,6 +1,12 @@
+import {
+  CURRENT_PROJECT_SCHEMA_VERSION,
+  LegacyProjectSimulationSetupSchema,
+} from "@icm/model";
 import { describe, expect, it } from "vitest";
 import { CircuitProjectSchema } from "@icm/model";
 import ota from "../../../apps/editor/src/examples/five-transistor-ota-sky130.icproj.json";
+const legacySetups = () =>
+  ota.simulationSetups.map((s) => LegacyProjectSimulationSetupSchema.parse(s));
 import {
   generateCircuitSource,
   planCircuitSourceEdit,
@@ -8,10 +14,12 @@ import {
 } from "./simulation-circuit-source.js";
 
 function fixture() {
-  const project = CircuitProjectSchema.parse(ota);
-  const setup = project.simulationSetups.find(
-    (s) => s.input.kind === "structured",
-  )!;
+  const project = CircuitProjectSchema.parse({
+    ...ota,
+    schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
+    simulationSetups: [],
+  });
+  const setup = legacySetups().find((s) => s.input.kind === "structured")!;
   if (setup.input.kind !== "structured") throw Error("expected Canvas setup");
   const result = generateCircuitSource(project, {
     id: "b",
@@ -35,6 +43,25 @@ function replace(
   return text;
 }
 describe("Circuit parameter source projection", () => {
+  it("maps all printed instance cards, including a parameterless DUT call, to Canvas identities", () => {
+    const { source } = fixture();
+    const dut = source.instances.find((card) => card.instanceId === "XDUT");
+    expect(dut).toBeDefined();
+    expect(source.text.slice(dut!.startOffset, dut!.endOffset)).toMatch(
+      /^XDUT\s/i,
+    );
+    for (const parameter of source.parameters) {
+      expect(
+        source.instances.some(
+          (card) =>
+            card.documentId === parameter.documentId &&
+            card.instanceId === parameter.instanceId &&
+            card.startOffset <= parameter.startOffset &&
+            card.endOffset >= parameter.endOffset,
+        ),
+      ).toBe(true);
+    }
+  });
   it("locates persisted numeric parameters and maps reviewed micrometres back to canonical SI", () => {
     const { project, source } = fixture();
     expect(planCircuitSourceEdit(source, source.text)).toEqual({
@@ -60,7 +87,13 @@ describe("Circuit parameter source projection", () => {
         },
       ],
     });
-    expect(project).toEqual(CircuitProjectSchema.parse(ota));
+    expect(project).toEqual(
+      CircuitProjectSchema.parse({
+        ...ota,
+        schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
+        simulationSetups: [],
+      }),
+    );
     for (const span of source.parameters)
       expect(source.text.slice(span.startOffset, span.endOffset)).toBe(
         span.rawValue,

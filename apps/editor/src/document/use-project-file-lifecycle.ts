@@ -93,6 +93,15 @@ export interface UseProjectFileLifecycleOptions {
   setStatus(message: string): void;
   onCloudProjectSaved(project: CloudProjectSummary): void;
   projectStoreCopy: ProjectStoreCopy;
+  /** Commit feature-owned text buffers before taking a durable Project snapshot. */
+  beforeSnapshot?(): Promise<CircuitProject | null>;
+  hasPendingEdits?(): boolean;
+  /** Feature-local drafts follow an explicit recovery fork, never an arbitrary import. */
+  onRecoverBuffers?(
+    from: string,
+    to: string,
+    projectId: string,
+  ): string | undefined;
 }
 
 export function useProjectFileLifecycle({
@@ -105,6 +114,9 @@ export function useProjectFileLifecycle({
   setStatus,
   onCloudProjectSaved,
   projectStoreCopy,
+  beforeSnapshot,
+  hasPendingEdits,
+  onRecoverBuffers,
 }: UseProjectFileLifecycleOptions) {
   // Read-only initializer: consuming the one-shot flag here would be a render
   // side effect, and a discarded render (StrictMode's double pass, a Suspense
@@ -151,6 +163,7 @@ export function useProjectFileLifecycle({
 
   function isDirtyWork(): boolean {
     return (
+      hasPendingEdits?.() === true ||
       persistenceState === "dirty" ||
       persistenceState === "saving" ||
       persistenceState === "offline" ||
@@ -168,6 +181,7 @@ export function useProjectFileLifecycle({
    * prompting again would be crying wolf.
    */
   function hasUnsafeWork(): boolean {
+    if (hasPendingEdits?.()) return true;
     if (!isDirtyWork()) return false;
     const live = liveProjectRef.current;
     if (!projectHasMeaningfulContent(live)) return false;
@@ -177,8 +191,8 @@ export function useProjectFileLifecycle({
     );
   }
 
-  function noteProjectSnapshotSafe(): void {
-    safeSnapshotTokenRef.current = projectChangeToken(liveProjectRef.current);
+  function noteProjectSnapshotSafe(snapshot = liveProjectRef.current): void {
+    safeSnapshotTokenRef.current = projectChangeToken(snapshot);
   }
 
   function replaceActiveProject(
@@ -295,20 +309,28 @@ export function useProjectFileLifecycle({
   }
 
   function saveProjectToCloud(
-    candidate: CircuitProject = project,
+    candidate?: CircuitProject,
   ): Promise<CloudProjectSaveOutcome> {
     const inFlight = saveInFlightRef.current;
     if (inFlight) return inFlight;
-    const operation = performProjectSaveToCloud(candidate).catch(
-      (error: unknown): CloudProjectSaveOutcome => {
-        const message = error instanceof Error ? error.message : "Save failed";
-        if (liveSessionRef.current === projectSessionId) {
-          setPersistenceState("failed");
-          setStatus(`Save failed; work remains local (${message})`);
-        }
-        return { status: "rejected", message };
-      },
-    );
+    const operation = (async (): Promise<CloudProjectSaveOutcome> => {
+      const snapshot =
+        candidate ??
+        (beforeSnapshot ? await beforeSnapshot() : liveProjectRef.current);
+      if (!snapshot)
+        return {
+          status: "rejected",
+          message: "Source edits need attention; no work was discarded",
+        };
+      return performProjectSaveToCloud(snapshot);
+    })().catch((error: unknown): CloudProjectSaveOutcome => {
+      const message = error instanceof Error ? error.message : "Save failed";
+      if (liveSessionRef.current === projectSessionId) {
+        setPersistenceState("failed");
+        setStatus(`Save failed; work remains local (${message})`);
+      }
+      return { status: "rejected", message };
+    });
     saveInFlightRef.current = operation;
     const clear = () => {
       if (saveInFlightRef.current === operation) saveInFlightRef.current = null;
@@ -317,14 +339,18 @@ export function useProjectFileLifecycle({
     return operation;
   }
 
-  function exportProjectFile(): void {
-    const outcome = requestProjectDownload(project);
+  async function exportProjectFile(): Promise<void> {
+    const snapshot = beforeSnapshot
+      ? await beforeSnapshot()
+      : liveProjectRef.current;
+    if (!snapshot) return;
+    const outcome = requestProjectDownload(snapshot);
     if (outcome.status !== "download-requested") {
       setStatus(`Export failed: ${outcome.message}`);
       return;
     }
     // The bytes now live in a local file: leaving no longer loses them.
-    noteProjectSnapshotSafe();
+    noteProjectSnapshotSafe(snapshot);
     recovery.noteFormalFileHint({
       name: outcome.fileName,
       lastDownloadRequestedAt: new Date().toISOString(),
@@ -332,10 +358,14 @@ export function useProjectFileLifecycle({
     setStatus(`Export requested: ${outcome.fileName}`);
   }
 
-  function downloadCurrentProjectBackup(): void {
+  async function downloadCurrentProjectBackup(): Promise<void> {
+    const snapshot = beforeSnapshot
+      ? await beforeSnapshot()
+      : liveProjectRef.current;
+    if (!snapshot) return;
     let projectText: string;
     try {
-      projectText = serializeProject(project);
+      projectText = serializeProject(snapshot);
     } catch (error) {
       setStatus(
         `Backup failed: ${error instanceof Error ? error.message : "serialization failed"}`,
@@ -355,11 +385,15 @@ export function useProjectFileLifecycle({
     intent: string,
     perform: () => void | Promise<void>,
   ): Promise<void> {
+    const snapshot = beforeSnapshot
+      ? await beforeSnapshot()
+      : liveProjectRef.current;
+    if (!snapshot) return;
     if (!hasUnsafeWork()) {
       await perform();
       return;
     }
-    recovery.stage(project, { unsavedAtSnapshot: true, cloudBinding });
+    recovery.stage(snapshot, { unsavedAtSnapshot: true, cloudBinding });
     await recovery.flushNow();
     setReplaceGuard({
       intent,
@@ -466,18 +500,27 @@ export function useProjectFileLifecycle({
       await guardDirtyReplacement(
         `Restore recovered Project ${read.project.name}`,
         async () => {
+          const nextWorkingCopy = recovery.beginWorkingCopy("recovered");
+          const bufferNotice = onRecoverBuffers?.(
+            workingCopyId,
+            nextWorkingCopy,
+            read.project.id,
+          );
           const recoveredDocument = replaceActiveProject(
             read.project,
             defaultViewBox,
             {
               source: "recovered",
+              keepWorkingCopy: true,
               persistenceState: "dirty",
               cloudBinding: read.record.cloudBinding ?? null,
             },
           );
           setRecoveryDialogOpen(false);
           await recovery.discover();
-          setStatus(`Restored recovery revision ${recoveredDocument.revision}`);
+          setStatus(
+            `Restored recovery revision ${recoveredDocument.revision}${bufferNotice ? `. ${bufferNotice}` : ""}`,
+          );
         },
       );
     })();

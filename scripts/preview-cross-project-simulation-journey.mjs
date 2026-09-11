@@ -6,7 +6,11 @@ import { join, resolve } from "node:path";
 import { createInterface } from "node:readline";
 
 import { chromium } from "@playwright/test";
-import { createEmptyProject } from "../packages/model/dist/index.js";
+import {
+  createEmptyProject,
+  readSimulationExperimentConfig,
+  replaceSimulationExperimentConfig,
+} from "../packages/model/dist/index.js";
 import {
   parseProject,
   serializeProject,
@@ -329,13 +333,22 @@ try {
   assert.equal(dutInstance?.netlist?.binding?.kind, "subcircuit");
   dutInstance.netlist.binding.childDocumentId = imported.rootDocumentId;
 
-  const opSetup = structuredClone(referenceSetup);
+  let opSetup = structuredClone(referenceSetup);
   opSetup.id = importedSetupId;
   opSetup.name = "Cross-Project OTA OP";
-  opSetup.input.rootDocumentId = importedTestbenchId;
-  opSetup.input.analyses = [{ kind: "op" }];
-  delete opSetup.input.deviceOperatingPoints;
-  opSetup.input.outputs = opSetup.input.outputs
+  const binding = opSetup.input.circuitBindings.find(
+    (item) => item.emission === "top-level",
+  );
+  assert(binding, "The qualification requires a drawn Testbench binding");
+  binding.documentId = importedTestbenchId;
+  const parsedConfig = readSimulationExperimentConfig(opSetup);
+  assert(parsedConfig.ok, "Invalid qualification configuration");
+  const opConfig = parsedConfig.config;
+  opConfig.deviceOperatingPoints = [];
+  opConfig.measurements = [];
+  opConfig.variables = [];
+  opConfig.runPlan = { mode: "nominal" };
+  opConfig.outputs = opConfig.outputs
     .filter((output) => output.id === "probe-vout")
     .map((output) => {
       const mapped = structuredClone(output);
@@ -347,10 +360,27 @@ try {
       return mapped;
     });
   assert.deepEqual(
-    opSetup.input.outputs.map((output) => output.id),
+    opConfig.outputs.map((output) => output.id),
     ["probe-vout"],
     "The cross-Project baseline must probe only the DUT formal output",
   );
+  opSetup = replaceSimulationExperimentConfig(opSetup, opConfig);
+  const program = opSetup.input.files.find(
+    (file) => file.path === opSetup.input.entry,
+  );
+  assert(program, "The qualification has no entry");
+  // This acceptance owns its small native program, not arbitrary user source.
+  program.text = [
+    "* Cross-Project OTA OP",
+    `.include "${binding.path}"`,
+    ".control",
+    "set filetype=ascii",
+    "op",
+    "write out.raw",
+    ".endc",
+    ".end",
+    "",
+  ].join("\n");
 
   const authored = await tool("advanced_transact", {
     structureEdits: [

@@ -2,7 +2,7 @@ import {
   deriveStableId,
   ProjectSourceSimulationSetupSchema,
   type CircuitProject,
-  type ProjectSimulationSetup,
+  type LegacyProjectSimulationSetup,
   type ProjectSourceSimulationSetup,
   type SimulationAnalysisSpec,
   type SimulationCircuitScope,
@@ -23,7 +23,7 @@ export interface SimulationSourceMigration {
 /** Offline, one-way conversion. No simulator, model files or async hashing. */
 export function migrateSimulationSetupToSource(
   project: CircuitProject,
-  setup: ProjectSimulationSetup,
+  setup: LegacyProjectSimulationSetup,
 ): SimulationSourceMigration {
   const warnings: string[] = [];
   const input = setup.input;

@@ -104,9 +104,11 @@ describe("the preview deploy", () => {
   });
 
   it("injects its recoverable failure through the current authored-output contract", () => {
-    expect(agentJourney).toContain("invalidSetup.input.outputs[0]");
+    expect(agentJourney).toContain("invalidConfig.outputs[0]");
+    expect(agentJourney).toContain("replaceSimulationExperimentConfig(");
     expect(agentJourney).toContain("firstOutput.expression.anchor");
     expect(agentJourney).not.toContain("invalidSetup.input.probes");
+    expect(agentJourney).not.toContain("invalidSetup.input.outputs");
   });
 
   it("imports a Cloud Project Cell before compiling the cross-Project Testbench", () => {

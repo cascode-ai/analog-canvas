@@ -1,3 +1,4 @@
+import { readSimulationExperimentConfig } from "@icm/model";
 import { describe, expect, it } from "vitest";
 import { CURRENT_PROJECT_SCHEMA_VERSION, createEmptyProject } from "@icm/model";
 
@@ -194,10 +195,15 @@ describe("schema 42 to 43 simulation outputs", () => {
     expect(result.project.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
     expect(result.project.simulationSetups).toHaveLength(2);
     expect(result.project.simulationSetups[0]).toMatchObject({
-      version: 3,
-      input: {
-        kind: "structured",
-        designVariables: [],
+      version: 4,
+      input: { kind: "source" },
+    });
+    expect(
+      readSimulationExperimentConfig(result.project.simulationSetups[0]!),
+    ).toMatchObject({
+      ok: true,
+      config: {
+        variables: [],
         runPlan: { mode: "nominal" },
         outputs: [
           { label: "VOUT_P" },

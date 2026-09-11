@@ -103,3 +103,40 @@ test("invalid text stays editable and saveable and known command errors are inli
   await editor.fill("* test\n.control\ntran 1n 10u\n.endc\n.end\n");
   await expect(page.locator(".cm-lintRange-error")).toHaveCount(0);
 });
+
+test("file switching preserves caret, selection, scroll and local Undo history", async ({
+  page,
+}) => {
+  const editor = page.getByRole("textbox", {
+    name: "Simulation source editor",
+  });
+  const long =
+    "* file navigation\n" +
+    Array.from({ length: 90 }, (_, i) => `* line ${i}\n`).join("");
+  await editor.fill(long);
+  const beforeEdit = (await page.getByTestId("draft-source").textContent())!;
+  await page.keyboard.press("Control+End");
+  await page.keyboard.insertText("* preserve this selection");
+  await page.keyboard.press("Control+Shift+ArrowLeft");
+  const position = await page.getByTestId("source-cursor").textContent();
+  const selection = await page.evaluate(() =>
+    window.getSelection()?.toString(),
+  );
+  const scroller = page.locator(".cm-scroller");
+  const scroll = await scroller.evaluate((el) => el.scrollTop);
+  expect(scroll).toBeGreaterThan(100);
+  await page.getByRole("button", { name: "More code actions" }).click();
+  await page.getByRole("button", { name: "Advanced configuration" }).click();
+  await editor.fill('{"version":1,"different":true}');
+  await page.getByRole("tab", { name: "run.cir" }).click();
+  await editor.focus();
+  await expect
+    .poll(() => scroller.evaluate((el) => el.scrollTop))
+    .toBeCloseTo(scroll, 0);
+  expect(await page.getByTestId("source-cursor").textContent()).toBe(position);
+  expect(await page.evaluate(() => window.getSelection()?.toString())).toBe(
+    selection,
+  );
+  await page.keyboard.press("Control+z");
+  await expect(page.getByTestId("draft-source")).toHaveText(beforeEdit);
+});

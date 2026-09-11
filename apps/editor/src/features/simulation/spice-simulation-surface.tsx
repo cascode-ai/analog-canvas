@@ -2,9 +2,9 @@ import type { SimulationFocusTarget } from "./simulation-focus-target";
 import { useEffect, useRef, useState } from "react";
 import {
   type ProjectSimulationSetup,
-  type SimulationOutputSpec,
+  createSourceSimulationSetup,
+  readSimulationExperimentConfig,
   type SimulationRunPlanAxis,
-  type SimulationStructuredInput,
 } from "@icm/model";
 import type {
   ArtifactRef,
@@ -21,7 +21,16 @@ export type {
   SpiceSimulationSurfaceProps,
   SimulationSetupSaveResult,
 } from "./simulation-surface-types";
-import { SetupEditor, DEVELOPMENT_PROFILE_ID } from "./simulation-setup-editor";
+import authoringProfile from "../../../../../containers/ngspice/hosted-sky130-profile.json";
+import {
+  SourceCodePane,
+  type SourceCodeHandle,
+  type SourceFlush,
+} from "./source-code-pane";
+import {
+  sourcePresentation,
+  type SimulationPresentationOutput as SimulationOutputSpec,
+} from "./source-presentation";
 import { SimulationProblemView } from "./simulation-problem-view";
 import { SimulationRunDetails } from "./simulation-run-details";
 import { AcResultsExplorer } from "./ac-results-explorer";
@@ -32,6 +41,11 @@ import {
   SimulationOutputResults,
 } from "./simulation-output-results";
 import { deriveOperatingPointCanvasProjection } from "./operating-point-projection";
+import {
+  resultRecordGroups,
+  resultRecordLabel,
+  type RecordSelection,
+} from "./simulation-result-records";
 import type { OperatingPointDisplay } from "./operating-point-labels";
 import { DeviceOperatingPointResults } from "./device-operating-point-results";
 
@@ -90,7 +104,7 @@ function preferredResultTab(run: Run): ResultTab {
 interface PreparedPresentation {
   readonly setupId: string;
   readonly prepared: Prepared;
-  readonly outputs: SimulationStructuredInput["outputs"];
+  readonly outputs: SimulationOutputSpec[];
   readonly analysisLabel: string;
   readonly rootDocumentId?: string;
   readonly setupName: string;
@@ -129,12 +143,35 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
   const [problem, setProblem] = useState<Problem>();
   const [busy, setBusy] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [resultsMaximized, setResultsMaximized] = useState(false);
+  const restoreDockAfterResults = useRef(false);
+  useEffect(() => {
+    if (!props.maximized) setResultsMaximized(false);
+  }, [props.maximized]);
+  const toggleResultsMaximized = () => {
+    if (resultsMaximized) {
+      setResultsMaximized(false);
+      if (restoreDockAfterResults.current && props.maximized)
+        props.onToggleMaximized();
+      restoreDockAfterResults.current = false;
+    } else {
+      restoreDockAfterResults.current = !props.maximized;
+      if (!props.maximized) props.onToggleMaximized();
+      setResultsMaximized(true);
+    }
+  };
   const preparedPresentations = useRef(new Map<string, PreparedPresentation>());
   const setupResults = useRef(
     new Map<string, { prepared?: Prepared; run?: Run }>(),
   );
-  const [setupOpen, setSetupOpen] = useState(true);
-  const [resultsOpen, setResultsOpen] = useState(false);
+  const codeRef = useRef<SourceCodeHandle>(null);
+  useEffect(() => {
+    props.onSourceBuffer?.({
+      dirty,
+      flush: async () => !codeRef.current || (await codeRef.current.flush()).ok,
+    });
+    return () => props.onSourceBuffer?.(null);
+  }, [dirty, selectedSetup?.id, props.onSourceBuffer]);
   const [resultTab, setResultTab] = useState<ResultTab>("plot");
   const [exitConfirmationOpen, setExitConfirmationOpen] = useState(false);
   const [deleteSetupId, setDeleteSetupId] = useState<string>();
@@ -142,6 +179,10 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
     useState<SimulationArtifactContent>();
   const [artifactBusy, setArtifactBusy] = useState<string>();
   const [canvasOpEnabled, setCanvasOpEnabled] = useState(false);
+  const [opRecord, setOpRecord] = useState<{ runId: string; index: number }>();
+  const [comparisonRecords, setComparisonRecords] = useState<
+    Record<string, RecordSelection>
+  >({});
   const [canvasOpDisplay, setCanvasOpDisplay] =
     useState<OperatingPointDisplay>("named");
   const resultsBodyRef = useRef<HTMLDivElement>(null);
@@ -198,13 +239,9 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
     setProblem(undefined);
     setArtifactPreview(undefined);
     props.onOperatingPointProjection?.(null);
-    setResultsOpen(!!previous?.run || !!previous?.prepared);
-    setSetupOpen(!previous?.run && !previous?.prepared);
   }, [props.selectedSetupId]);
   useEffect(() => {
     if (!open || selectedSetup) return;
-    setResultsOpen(false);
-    setSetupOpen(true);
   }, [open, selectedSetup, props.activeDocumentId]);
   const lock = useRef(false);
   const alive = useRef(true);
@@ -230,12 +267,8 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
     if (!reply.ok) {
       setProblem(reply.error);
       if (selectedSetup) {
-        setSetupOpen(false);
-        setResultsOpen(true);
         setResultTab("console");
       } else {
-        setSetupOpen(true);
-        setResultsOpen(false);
       }
     } else if ("batch" in reply) {
       setBatch(reply.batch);
@@ -265,6 +298,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
             reply.run.outputData,
             presentation.outputs,
             canvasOpDisplay,
+            opRecord?.runId === reply.run.id ? opRecord.index : undefined,
           ),
         );
       } else props.onOperatingPointProjection?.(null);
@@ -273,8 +307,6 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
         reply.run.error ||
         ["finished", "cancelled", "lost"].includes(reply.run.state)
       ) {
-        setSetupOpen(false);
-        setResultsOpen(true);
         setResultTab(preferredResultTab(reply.run));
       }
     } else if ("prepared" in reply) {
@@ -286,8 +318,6 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
       setPrepared(reply.prepared);
       setProblem(undefined);
       setArtifactPreview(undefined);
-      setSetupOpen(false);
-      setResultsOpen(true);
       setResultTab("files");
     } else if ("capabilities" in reply) {
       setCapabilities(reply.capabilities);
@@ -373,8 +403,6 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
         if (item.setupId === activeSetupId.current) {
           setPrepared(item.prepared);
           setRun(runReply.run);
-          setResultsOpen(true);
-          setSetupOpen(false);
           setResultTab(preferredResultTab(runReply.run));
         }
       }
@@ -389,11 +417,11 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
   }, [batch?.id, batch?.state, session, project]);
   const execute = async (start: boolean) => {
     if (lock.current) return;
-    if (
-      selectedSetup?.input.kind === "structured" &&
-      selectedSetup.input.runPlan.mode === "sweep"
-    ) {
-      await executeSweep(selectedSetup.input.runPlan.axes, start);
+    const authored = await codeRef.current?.flush();
+    if (!authored?.ok) return;
+    const selectedConfig = readSimulationExperimentConfig(authored.setup);
+    if (selectedConfig.ok && selectedConfig.config.runPlan.mode === "sweep") {
+      await executeSweep(selectedConfig.config.runPlan.axes, start, authored);
       return;
     }
     lock.current = true;
@@ -406,28 +434,13 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
         source: {
           kind: "project-setup",
           setupId: selectedSetup!.id,
-          expectedStructureRevision: project.structureRevision,
+          expectedStructureRevision: authored.revision,
         },
       });
       if (reply.ok && "prepared" in reply) {
-        const input = selectedSetup?.input;
         preparedPresentations.current.set(reply.prepared.id, {
-          setupId: selectedSetup!.id,
+          ...sourcePresentation(authored.setup),
           prepared: structuredClone(reply.prepared),
-          outputs:
-            input?.kind === "structured" ? structuredClone(input.outputs) : [],
-          analysisLabel:
-            input?.kind === "structured"
-              ? input.analyses
-                  .map((analysis) => analysis.kind.toUpperCase())
-                  .join(" + ")
-              : input?.kind === "raw"
-                ? "RAW"
-                : "",
-          setupName: selectedSetup?.name ?? "Simulation",
-          ...(input?.kind === "structured"
-            ? { rootDocumentId: input.rootDocumentId }
-            : {}),
         });
       }
       receive(reply);
@@ -446,6 +459,8 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
   };
   const executeBatch = async () => {
     if (lock.current) return;
+    const authored = await codeRef.current?.flush();
+    if (authored && !authored.ok) return;
     const setups = project.simulationSetups.filter((setup) =>
       batchSelection.includes(setup.id),
     );
@@ -465,7 +480,9 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
     try {
       const preparedReply = await session.handle({
         operation: "prepare-batch",
-        expectedStructureRevision: project.structureRevision,
+        expectedStructureRevision: authored?.ok
+          ? authored.revision
+          : project.structureRevision,
         items: setups.map((setup) => ({ id: setup.id, setupId: setup.id })),
       });
       receive(preparedReply);
@@ -473,22 +490,13 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
       for (const item of preparedReply.batch.items) {
         const setup = setups.find((candidate) => candidate.id === item.setupId);
         if (!setup) continue;
-        const input = setup.input;
         preparedPresentations.current.set(item.prepared.id, {
-          setupId: setup.id,
+          ...sourcePresentation(
+            authored?.ok && authored.setup.id === setup.id
+              ? authored.setup
+              : setup,
+          ),
           prepared: structuredClone(item.prepared),
-          outputs:
-            input.kind === "structured" ? structuredClone(input.outputs) : [],
-          analysisLabel:
-            input.kind === "structured"
-              ? input.analyses
-                  .map((analysis) => analysis.kind.toUpperCase())
-                  .join(" + ")
-              : "RAW",
-          setupName: setup.name,
-          ...(input.kind === "structured"
-            ? { rootDocumentId: input.rootDocumentId }
-            : {}),
         });
         setupResults.current.set(setup.id, { prepared: item.prepared });
       }
@@ -507,13 +515,9 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
   const executeSweep = async (
     axes: readonly SimulationRunPlanAxis[],
     start: boolean,
+    authored: Extract<SourceFlush, { ok: true }>,
   ) => {
-    if (
-      lock.current ||
-      !selectedSetup ||
-      selectedSetup.input.kind !== "structured"
-    )
-      return;
+    if (lock.current || !selectedSetup) return;
     lock.current = true;
     setBusy(true);
     setProblem(undefined);
@@ -523,21 +527,16 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
       const preparedReply = await session.handle({
         operation: "prepare-sweep",
         setupId: selectedSetup.id,
-        expectedStructureRevision: project.structureRevision,
+        expectedStructureRevision: authored.revision,
         axes: [...axes],
       });
       receive(preparedReply);
       if (!preparedReply.ok || !("batch" in preparedReply)) return;
       for (const item of preparedReply.batch.items) {
         preparedPresentations.current.set(item.prepared.id, {
-          setupId: selectedSetup.id,
+          ...sourcePresentation(authored.setup),
           prepared: structuredClone(item.prepared),
-          outputs: structuredClone(selectedSetup.input.outputs),
-          analysisLabel: selectedSetup.input.analyses
-            .map((analysis) => analysis.kind.toUpperCase())
-            .join(" + "),
-          setupName: item.label ?? selectedSetup.name,
-          rootDocumentId: selectedSetup.input.rootDocumentId,
+          setupName: item.label ?? authored.setup.name,
         });
       }
       if (start)
@@ -564,8 +563,6 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
       setRun(undefined);
       setProblem(undefined);
       setArtifactPreview(undefined);
-      setSetupOpen(false);
-      setResultsOpen(true);
       setResultTab("files");
       if (presentation)
         setupResults.current.set(item.setupId, { prepared: item.prepared });
@@ -588,8 +585,6 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
       props.onSelectSetupId(item.setupId);
     setPrepared(resolved.prepared);
     setRun(resolved.run);
-    setSetupOpen(false);
-    setResultsOpen(true);
     setResultTab(preferredResultTab(resolved.run));
   };
   const download = async (artifact: ArtifactRef) => {
@@ -654,7 +649,15 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
     setArtifactBusy("archive:save");
     const captured = await captureSimulationRunArchive(session.files, {
       projectId: project.id,
-      setup: selectedSetup,
+      presentation: {
+        setupId: runPresentation.setupId,
+        setupName: runPresentation.setupName,
+        analysisLabel: runPresentation.analysisLabel,
+        outputs: runPresentation.outputs,
+        ...(runPresentation.rootDocumentId
+          ? { rootDocumentId: runPresentation.rootDocumentId }
+          : {}),
+      },
       prepared: runPresentation.prepared,
       run,
     });
@@ -725,8 +728,6 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
     setPrepared(restored.value.prepared);
     setRun(restored.value.run);
     setProblem(undefined);
-    setSetupOpen(false);
-    setResultsOpen(true);
     setResultTab(preferredResultTab(restored.value.run));
   };
   const deleteArchivedRun = async (archiveId: string) => {
@@ -836,6 +837,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
           run.outputData,
           runPresentation.outputs,
           canvasOpDisplay,
+          opRecord?.runId === run.id ? opRecord.index : undefined,
         )
       : undefined;
   const currentComparisonRun: SimulationComparisonRun | undefined =
@@ -886,7 +888,12 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
     !automaticComparisonIds.has(currentComparisonRun.id)
       ? [currentComparisonRun]
       : []),
-  ].slice(-MAX_COMPARISON_RUNS);
+  ]
+    .slice(-MAX_COMPARISON_RUNS)
+    .map((candidate) => ({
+      ...candidate,
+      records: comparisonRecords[candidate.id] ?? {},
+    }));
   const retainCurrentComparison = (): void => {
     if (!currentComparisonRun) return;
     setRetainedComparisonRuns((current) => {
@@ -950,7 +957,9 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
   const presentationLabels = Object.fromEntries(
     (runPresentation?.outputs ?? []).map((output) => [output.id, output.label]),
   );
-  const createSetup = (): void => {
+  const createSetup = async (): Promise<void> => {
+    const authored = await codeRef.current?.flush();
+    if (authored && !authored.ok) return;
     const baseName = "Setup";
     let suffix = project.simulationSetups.length + 1;
     while (
@@ -959,31 +968,672 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
       )
     )
       suffix++;
-    const created: ProjectSimulationSetup = {
+    const identity = {
       id: `simulation-setup-${crypto.randomUUID()}`,
       name: `${baseName} ${suffix}`,
-      version: 3,
-      input: selectedSetup
-        ? structuredClone(selectedSetup.input)
-        : {
-            kind: "structured",
-            rootDocumentId: props.activeDocumentId,
-            analyses: [{ kind: "op" }],
-            outputs: [],
-            designVariables: [],
-            runPlan: { mode: "nominal" },
-            environment: {
-              profileId:
-                capabilities?.profiles[0]?.id ?? DEVELOPMENT_PROFILE_ID,
-            },
-          },
     };
-    const result = props.onSaveSetup(created);
+    const created: ProjectSimulationSetup = selectedSetup
+      ? {
+          ...structuredClone(authored?.ok ? authored.setup : selectedSetup),
+          ...identity,
+        }
+      : createSourceSimulationSetup({
+          ...identity,
+          documentId:
+            props.draftContext?.rootDocumentId ?? props.activeDocumentId,
+          profileId: capabilities?.profiles[0]?.id ?? authoringProfile.id,
+        });
+    const result = props.onSaveSetup(
+      created,
+      authored?.ok ? authored.revision : project.structureRevision,
+    );
     if (result.status !== "rejected") {
       props.onSelectSetupId(created.id);
       setupMenuRef.current?.removeAttribute("open");
     } else setProblem(result.problem);
   };
+  const resultContent = (
+    <section
+      className="simulation-results-dock"
+      aria-label="Simulation results"
+    >
+      <header className="simulation-results-header">
+        <div role="tablist" aria-label="Result views">
+          {RESULT_TABS.filter(([id]) => id !== "console").map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              aria-selected={resultTab === id}
+              onClick={() => setResultTab(id)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        {run ? (
+          <div className="simulation-result-actions">
+            <button
+              type="button"
+              disabled={
+                artifactBusy !== undefined ||
+                (!run.result && !run.outputData) ||
+                !selectedSetup ||
+                selectedSetup.id !== runPresentation?.setupId
+              }
+              onClick={() => void archiveCurrentRun()}
+            >
+              {artifactBusy === "archive:save" ? "Archiving…" : "Archive"}
+            </button>
+            <details className="simulation-result-export">
+              <summary>Export</summary>
+              <div>
+                {resultTab === "plot" ? (
+                  <>
+                    <button
+                      type="button"
+                      disabled={artifactBusy !== undefined}
+                      onClick={() => void exportVisiblePlots("svg")}
+                    >
+                      {artifactBusy === "plots:svg"
+                        ? "Preparing SVG…"
+                        : "Visible plots · SVG"}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={artifactBusy !== undefined}
+                      onClick={() => void exportVisiblePlots("png")}
+                    >
+                      {artifactBusy === "plots:png"
+                        ? "Preparing PNG…"
+                        : "Visible plots · PNG"}
+                    </button>
+                  </>
+                ) : null}
+                {resultCsvArtifacts.length ? (
+                  <section>
+                    <small>Complete result data</small>
+                    {resultCsvArtifacts.map((artifact) => (
+                      <button
+                        key={artifact.id}
+                        type="button"
+                        disabled={artifactBusy !== undefined}
+                        onClick={() => void download(artifact)}
+                      >
+                        {artifact.name}
+                      </button>
+                    ))}
+                  </section>
+                ) : null}
+                <button
+                  type="button"
+                  disabled={
+                    artifactBusy !== undefined || run.artifacts.length === 0
+                  }
+                  onClick={() => void downloadBundle("run", run.artifacts)}
+                >
+                  Complete run · ZIP
+                </button>
+              </div>
+            </details>
+          </div>
+        ) : null}
+      </header>
+      <div ref={resultsBodyRef} className="simulation-results-body">
+        {resultTab === "plot" ? (
+          <div className="simulation-analysis-view simulation-plot-view">
+            {run?.outputData ? (
+              <SimulationOutputResults
+                resultKey={run.id}
+                data={{
+                  ...run.outputData,
+                  analyses: run.outputData.analyses.filter(
+                    (analysis) => analysis.analysis !== "op",
+                  ),
+                }}
+                outputs={runPresentation?.outputs ?? []}
+                {...(props.onFocusProbe
+                  ? {
+                      onFocusProbe: (probe: SimulationFocusTarget) =>
+                        props.onFocusProbe?.(
+                          probe,
+                          runPresentation?.rootDocumentId,
+                        ),
+                    }
+                  : {})}
+              />
+            ) : null}
+            {!run?.outputData &&
+              run?.result?.data?.analyses
+                .filter((analysis) => analysis.analysis === "dc")
+                .map((analysis, index) => (
+                  <SimulationAnalysisCard key={`dc-${index}`} kind="dc">
+                    <DcResultsExplorer
+                      analysis={analysis}
+                      vectors={runPresentation?.prepared.vectors ?? []}
+                      probes={presentationProbes}
+                      labels={presentationLabels}
+                      {...(props.onFocusProbe
+                        ? {
+                            onFocusProbe: (probe: SimulationFocusTarget) =>
+                              props.onFocusProbe?.(
+                                probe,
+                                runPresentation?.rootDocumentId,
+                              ),
+                          }
+                        : {})}
+                    />
+                  </SimulationAnalysisCard>
+                ))}
+            {!run?.outputData &&
+              run?.result?.data?.analyses
+                .filter((analysis) => analysis.analysis === "ac")
+                .map((analysis, index) => (
+                  <SimulationAnalysisCard
+                    key={`${run.id}:ac:${index}`}
+                    kind="ac"
+                  >
+                    <AcResultsExplorer
+                      resultKey={`${run.id}:ac:${index}`}
+                      analysis={analysis}
+                      vectors={runPresentation?.prepared.vectors ?? []}
+                      probes={presentationProbes}
+                      labels={presentationLabels}
+                      {...(props.onFocusProbe
+                        ? {
+                            onFocusProbe: (probe: SimulationFocusTarget) =>
+                              props.onFocusProbe?.(
+                                probe,
+                                runPresentation?.rootDocumentId,
+                              ),
+                          }
+                        : {})}
+                    />
+                  </SimulationAnalysisCard>
+                ))}
+            {!run?.outputData &&
+              run?.result?.data?.analyses
+                .filter((analysis) => analysis.analysis === "tran")
+                .map((analysis, index) => (
+                  <SimulationAnalysisCard
+                    key={`${run.id}:tran:${index}`}
+                    kind="tran"
+                  >
+                    <TransientResultsExplorer
+                      resultKey={`${run.id}:tran:${index}`}
+                      analysis={analysis}
+                      vectors={runPresentation?.prepared.vectors ?? []}
+                      probes={presentationProbes}
+                      labels={presentationLabels}
+                      {...(props.onFocusProbe
+                        ? {
+                            onFocusProbe: (probe: SimulationFocusTarget) =>
+                              props.onFocusProbe?.(
+                                probe,
+                                runPresentation?.rootDocumentId,
+                              ),
+                          }
+                        : {})}
+                    />
+                  </SimulationAnalysisCard>
+                ))}
+            {!run?.result?.data?.analyses.some(
+              (analysis) =>
+                analysis.analysis === "dc" ||
+                analysis.analysis === "ac" ||
+                analysis.analysis === "tran",
+            ) ? (
+              <p className="simulation-empty-result">
+                Run a DC, AC, or transient analysis to see a plot.
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+
+        {resultTab === "operating-point" ? (
+          <div className="simulation-analysis-view simulation-operating-point-view">
+            <div className="simulation-op-canvas-controls">
+              {run?.outputData &&
+              (resultRecordGroups(run.outputData).get("op")?.length ?? 0) >
+                1 ? (
+                <label>
+                  Canvas OP record
+                  <select
+                    value={opRecord?.runId === run.id ? opRecord.index : ""}
+                    onChange={(event) => {
+                      const value = event.currentTarget.value;
+                      setOpRecord(
+                        value === ""
+                          ? undefined
+                          : { runId: run.id, index: Number(value) },
+                      );
+                      setCanvasOpEnabled(false);
+                      props.onOperatingPointProjection?.(null);
+                    }}
+                  >
+                    <option value="">Choose a record…</option>
+                    {resultRecordGroups(run.outputData)
+                      .get("op")!
+                      .map(({ index, analysis }) => (
+                        <option key={index} value={index}>
+                          {resultRecordLabel(index, analysis)}
+                        </option>
+                      ))}
+                  </select>
+                </label>
+              ) : null}
+              <button
+                type="button"
+                aria-pressed={canvasOpEnabled}
+                disabled={
+                  !canvasOpProjection?.values.length ||
+                  run?.inputStatus === "changed"
+                }
+                onClick={() => {
+                  const enabled = !canvasOpEnabled;
+                  setCanvasOpEnabled(enabled);
+                  props.onOperatingPointProjection?.(
+                    enabled && canvasOpProjection ? canvasOpProjection : null,
+                  );
+                }}
+              >
+                {canvasOpEnabled ? "Hide canvas values" : "Show on canvas"}
+              </button>
+              <label>
+                Canvas labels
+                <select
+                  value={canvasOpDisplay}
+                  disabled={!canvasOpEnabled}
+                  onChange={(event) => {
+                    const display = event.currentTarget
+                      .value as OperatingPointDisplay;
+                    setCanvasOpDisplay(display);
+                    if (canvasOpEnabled && canvasOpProjection)
+                      props.onOperatingPointProjection?.({
+                        ...canvasOpProjection,
+                        display,
+                      });
+                  }}
+                >
+                  <option value="named">Named and focused</option>
+                  <option value="all">All collected</option>
+                </select>
+              </label>
+              <span>
+                {run?.inputStatus === "changed"
+                  ? "Paused: the circuit changed"
+                  : `${canvasOpProjection?.values.length ?? 0} direct Net voltage${canvasOpProjection?.values.length === 1 ? "" : "s"}`}
+              </span>
+            </div>
+            {run?.outputData ? (
+              <>
+                <DeviceOperatingPointResults
+                  devices={run.outputData.deviceOperatingPoints ?? []}
+                />
+                <SimulationOutputResults
+                  resultKey={`${run.id}:op`}
+                  data={{
+                    ...run.outputData,
+                    analyses: run.outputData.analyses.filter(
+                      (analysis) => analysis.analysis === "op",
+                    ),
+                  }}
+                  outputs={runPresentation?.outputs ?? []}
+                />
+              </>
+            ) : null}
+            {!run?.outputData &&
+              run?.result?.data?.analyses
+                .filter((analysis) => analysis.analysis === "op")
+                .map((analysis, index) => (
+                  <SimulationAnalysisCard key={index} kind="op">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Vector</th>
+                          <th>Value</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {analysis.probes.map((probe) => (
+                          <tr key={probe.name}>
+                            <td>{probe.name}</td>
+                            <td>
+                              {probe.value.toPrecision(6)} {probe.unit}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </SimulationAnalysisCard>
+                ))}
+            {!run?.result?.data?.analyses.some(
+              (analysis) => analysis.analysis === "op",
+            ) ? (
+              <p className="simulation-empty-result">
+                Run an operating-point analysis to see values.
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+
+        {resultTab === "compare" ? (
+          <div className="simulation-comparison-view">
+            {comparisonRuns.flatMap((candidate) =>
+              [...resultRecordGroups(candidate.outputData)]
+                .filter(([, records]) => records.length > 1)
+                .map(([kind, records]) => (
+                  <label key={`${candidate.id}:${kind}`}>
+                    {candidate.label} · {kind.toUpperCase()} record
+                    <select
+                      aria-label={`${candidate.id} ${kind} comparison record`}
+                      value={comparisonRecords[candidate.id]?.[kind] ?? ""}
+                      onChange={(event) => {
+                        const value = event.currentTarget.value;
+                        setComparisonRecords((current) => ({
+                          ...current,
+                          [candidate.id]: {
+                            ...current[candidate.id],
+                            [kind]: value === "" ? undefined : Number(value),
+                          },
+                        }));
+                      }}
+                    >
+                      <option value="">Choose before comparing…</option>
+                      {records.map(({ index, analysis }) => (
+                        <option key={index} value={index}>
+                          {resultRecordLabel(index, analysis)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )),
+            )}
+            <SimulationWaveformComparison
+              runs={comparisonRuns}
+              actions={
+                <div className="simulation-comparison-actions">
+                  <button
+                    type="button"
+                    disabled={
+                      !currentComparisonRun ||
+                      retainedComparisonRuns.some(
+                        (candidate) => candidate.id === currentComparisonRun.id,
+                      ) ||
+                      retainedComparisonRuns.length >= MAX_COMPARISON_RUNS - 1
+                    }
+                    onClick={retainCurrentComparison}
+                  >
+                    {retainedComparisonRuns.some(
+                      (candidate) => candidate.id === currentComparisonRun?.id,
+                    )
+                      ? "Current kept"
+                      : "Keep current"}
+                  </button>
+                  {retainedComparisonRuns.length ? (
+                    <button
+                      type="button"
+                      onClick={() => setRetainedComparisonRuns([])}
+                    >
+                      Clear kept
+                    </button>
+                  ) : null}
+                </div>
+              }
+            />
+            {comparisonRuns.length < 2 && currentComparisonRun ? (
+              <p className="simulation-comparison-hint">
+                Keep this result, change the circuit or conditions, then run
+                again to compare.
+              </p>
+            ) : null}
+            <SimulationRunComparison
+              runs={comparisonRuns}
+              onRemove={(runId) =>
+                setRetainedComparisonRuns((current) =>
+                  current.filter((candidate) => candidate.id !== runId),
+                )
+              }
+            />
+            {archives.length ? (
+              <section
+                className="simulation-archive-list"
+                aria-label="Saved result archives"
+              >
+                <header>
+                  <strong>Browser archives</strong>
+                  <small>Local to this browser · {archives.length}/10</small>
+                </header>
+                <ul>
+                  {archives.map((archive) => (
+                    <li key={archive.id}>
+                      <span>
+                        <strong>{archive.setupName}</strong>
+                        <small>
+                          {archive.analysisLabel} ·{" "}
+                          {archive.environment.corner?.toUpperCase() ??
+                            archive.environment.profileId}{" "}
+                          · {new Date(archive.createdAt).toLocaleString()}
+                        </small>
+                      </span>
+                      <button
+                        type="button"
+                        disabled={artifactBusy !== undefined}
+                        onClick={() => void openArchivedRun(archive.id)}
+                      >
+                        Open
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={`Delete archived ${archive.setupName}`}
+                        disabled={artifactBusy !== undefined}
+                        onClick={() => void deleteArchivedRun(archive.id)}
+                      >
+                        ×
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ) : null}
+          </div>
+        ) : null}
+
+        {resultTab === "console" ? (
+          <div className="simulation-console-view">
+            <div className="simulation-console-summary">
+              <span>
+                <small>Run</small>
+                <strong>{statusLabel}</strong>
+              </span>
+              <span>
+                <small>Input</small>
+                <strong>{run?.inputStatus ?? "current"}</strong>
+              </span>
+              <span>
+                <small>Analyses</small>
+                <strong>{analysisLabel || "Not configured"}</strong>
+              </span>
+            </div>
+            {run?.state === "lost" ? (
+              <p>
+                The executor response is unknown. Inspect its evidence before
+                starting another run.
+              </p>
+            ) : null}
+            {runPresentation?.prepared.warnings.map((warning, index) => (
+              <p key={index}>{warning}</p>
+            ))}
+            {run?.resultPreview ? (
+              <p>
+                The on-screen result is bounded; exported artifacts contain the
+                complete data.
+              </p>
+            ) : null}
+            {activeProblem ? (
+              <SimulationProblemView
+                problem={activeProblem}
+                onSource={(source) => {
+                  setResultsMaximized(false);
+                  void codeRef.current?.reveal(source);
+                }}
+                {...(props.onFocusDiagnostic
+                  ? { onFocus: props.onFocusDiagnostic }
+                  : {})}
+              />
+            ) : null}
+            {run?.result ? (
+              <pre>
+                {run.result.diagnostics
+                  .map((diagnostic) => diagnostic.text)
+                  .join("\n")}
+                {"\n"}
+                {run.result.log}
+              </pre>
+            ) : null}
+            {!activeProblem && !run?.result ? (
+              <p className="simulation-empty-result">
+                Simulator diagnostics will appear here.
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+
+        {resultTab === "files" ? (
+          <div
+            className={`simulation-files-view${artifactPreview ? " preview-open" : ""}`}
+          >
+            <div className="simulation-file-browser">
+              {artifactGroups.map((group) => (
+                <section
+                  key={group.key}
+                  className="simulation-artifact-group"
+                  aria-label={`${group.label} files`}
+                >
+                  <header>
+                    <span>
+                      <strong>{group.label}</strong>
+                      <small>{group.description}</small>
+                    </span>
+                    <button
+                      type="button"
+                      disabled={artifactBusy !== undefined}
+                      onClick={() =>
+                        void downloadBundle(group.key, group.artifacts)
+                      }
+                    >
+                      {artifactBusy === `bundle:${group.key}`
+                        ? "Packing…"
+                        : "Download ZIP"}
+                    </button>
+                  </header>
+                  {artifactCategories.map((category) => {
+                    const artifacts = group.artifacts.filter(
+                      (artifact) =>
+                        simulationArtifactCategory(artifact) === category,
+                    );
+                    return artifacts.length ? (
+                      <details
+                        key={category}
+                        className="simulation-artifact-category"
+                        aria-label={`${group.label} ${category}`}
+                        open={category === "Results" || category === "Netlist"}
+                      >
+                        <summary>
+                          <strong>{category}</strong>
+                          <small>{artifacts.length}</small>
+                        </summary>
+                        <ul className="simulation-artifact-list">
+                          {artifacts.map((artifact) => (
+                            <li
+                              key={artifact.id}
+                              className={
+                                artifactPreview?.artifact.id === artifact.id
+                                  ? "selected"
+                                  : undefined
+                              }
+                            >
+                              <button
+                                type="button"
+                                title={`Preview ${artifact.name}`}
+                                disabled={artifactBusy !== undefined}
+                                onClick={() => void preview(artifact)}
+                              >
+                                {artifactBusy === `preview:${artifact.id}`
+                                  ? "Opening…"
+                                  : artifact.name}
+                              </button>
+                              <small>
+                                {formatArtifactSize(artifact.byteLength)}
+                              </small>
+                              <button
+                                type="button"
+                                className="simulation-artifact-download"
+                                aria-label={`Download ${artifact.name}`}
+                                title={`Download ${artifact.name}`}
+                                disabled={artifactBusy !== undefined}
+                                onClick={() => void download(artifact)}
+                              >
+                                ↓
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
+                    ) : null;
+                  })}
+                </section>
+              ))}
+            </div>
+            {artifactPreview ? (
+              <section
+                className="simulation-artifact-preview"
+                aria-label="File preview"
+              >
+                <header>
+                  <span>
+                    <strong>{artifactPreview.artifact.name}</strong>
+                    <small>
+                      {formatArtifactSize(artifactPreview.artifact.byteLength)}
+                    </small>
+                  </span>
+                  <span>
+                    <button
+                      type="button"
+                      disabled={artifactBusy !== undefined}
+                      onClick={() => void download(artifactPreview.artifact)}
+                    >
+                      Download
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Close file preview"
+                      onClick={() => setArtifactPreview(undefined)}
+                    >
+                      ×
+                    </button>
+                  </span>
+                </header>
+                <pre>{formatSimulationArtifactPreview(artifactPreview)}</pre>
+                {artifactPreview.truncated ? (
+                  <footer>
+                    Preview limited to the first 64 KB. Download for the
+                    complete file.
+                  </footer>
+                ) : null}
+              </section>
+            ) : null}
+            {artifactGroups.length === 0 ? (
+              <p className="simulation-empty-result">
+                Prepare a deck or run the simulation to create files.
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+    </section>
+  );
+
   return (
     <section
       hidden={!open}
@@ -1007,7 +1657,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
             className={`simulation-status-chip simulation-status-${batch?.state ?? run?.state ?? (prepared ? "prepared" : "idle")}`}
             role="status"
           >
-            {dirty ? "Setup changed" : statusLabel}
+            {dirty ? "Source changed" : statusLabel}
           </span>
         </div>
         <div className="simulation-task-actions">
@@ -1025,18 +1675,39 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
               <button
                 type="button"
                 className="simulation-setup-menu-new"
-                disabled={dirty || busy || !!running}
+                disabled={busy || !!running}
                 onClick={createSetup}
               >
                 New setup
               </button>
+              {selectedSetup ? (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const name = window.prompt(
+                      "Experiment name",
+                      selectedSetup.name,
+                    );
+                    if (!name || name === selectedSetup.name) return;
+                    const authored = await codeRef.current?.flush();
+                    if (!authored?.ok) return;
+                    const result = props.onSaveSetup(
+                      { ...authored.setup, name },
+                      authored.revision,
+                    );
+                    if (result.status === "rejected")
+                      setProblem(result.problem);
+                    else setupMenuRef.current?.removeAttribute("open");
+                  }}
+                >
+                  Rename…
+                </button>
+              ) : null}
               {project.simulationSetups.length > 1 && capabilities?.batch ? (
                 <button
                   type="button"
                   className="simulation-setup-menu-batch"
-                  disabled={
-                    dirty || busy || !!running || batchSelection.length < 2
-                  }
+                  disabled={busy || !!running || batchSelection.length < 2}
                   onClick={() => void executeBatch()}
                 >
                   Run selected ({batchSelection.length})
@@ -1053,7 +1724,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
                       type="checkbox"
                       aria-label={`Include ${setup.name} in batch`}
                       checked={batchSelection.includes(setup.id)}
-                      disabled={dirty || busy || !!running}
+                      disabled={busy || !!running}
                       onChange={(event) => {
                         const checked = event.currentTarget.checked;
                         setBatchSelection((current) =>
@@ -1067,8 +1738,13 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
                   <button
                     type="button"
                     className="simulation-setup-menu-select"
-                    disabled={dirty || busy || !!running}
-                    onClick={() => {
+                    disabled={busy || !!running}
+                    onClick={async () => {
+                      if (
+                        codeRef.current &&
+                        !(await codeRef.current.flush()).ok
+                      )
+                        return;
                       props.onSelectSetupId(setup.id);
                       setupMenuRef.current?.removeAttribute("open");
                     }}
@@ -1114,28 +1790,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
             </div>
           </details>
           <button
-            type="button"
-            className="simulation-settings-button"
-            aria-pressed={setupOpen}
-            onClick={() => {
-              setResultsOpen(false);
-              setSetupOpen(true);
-            }}
-          >
-            Settings
-          </button>
-          <button
-            type="button"
-            aria-pressed={resultsOpen}
-            onClick={() => {
-              setSetupOpen(false);
-              setResultsOpen(true);
-            }}
-          >
-            Results
-          </button>
-          <button
-            disabled={busy || !!running || dirty || !selectedSetup}
+            disabled={busy || !!running || !selectedSetup}
             onClick={() => void execute(false)}
           >
             Prepare deck
@@ -1162,7 +1817,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
           ) : selectedSetup ? (
             <button
               className="simulation-primary-button simulation-run-button"
-              disabled={busy || dirty}
+              disabled={busy}
               onClick={() => void execute(true)}
               aria-label="Run"
               title="Run"
@@ -1170,13 +1825,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
               ▶
             </button>
           ) : (
-            <button
-              className="simulation-primary-button"
-              onClick={() => {
-                setResultsOpen(false);
-                setSetupOpen(true);
-              }}
-            >
+            <button className="simulation-primary-button" onClick={() => {}}>
               Set up
             </button>
           )}
@@ -1275,14 +1924,20 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
         <div className="simulation-exit-confirmation" role="alertdialog">
           <strong>Exit Simulation?</strong>
           <p>
-            Unapplied setup changes and temporary run files will be discarded.
-            An active run will be cancelled.
+            Unsaved source drafts and temporary run files will be discarded. An
+            active run will be cancelled.
           </p>
           <div>
             <button onClick={() => setExitConfirmationOpen(false)}>
               Keep working
             </button>
-            <button className="simulation-stop-button" onClick={props.onExit}>
+            <button
+              className="simulation-stop-button"
+              onClick={() => {
+                codeRef.current?.discard();
+                props.onExit();
+              }}
+            >
               Exit Simulation
             </button>
           </div>
@@ -1319,610 +1974,55 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
         </div>
       ) : null}
 
-      {setupOpen ? (
-        <SetupEditor
-          key={selectedSetup?.id ?? `unsaved:${props.activeDocumentId}`}
-          {...props}
+      {selectedSetup ? (
+        <SourceCodePane
+          ref={codeRef}
+          diagnostics={activeProblem?.diagnostics}
+          project={project}
           setup={selectedSetup}
-          capabilities={capabilities}
+          selectedCircuitObject={props.selectedCircuitObject}
+          files={session.files}
+          {...{
+            ...(props.pickedNet !== undefined
+              ? { pickedNet: props.pickedNet }
+              : {}),
+            ...(props.pickedTerminal !== undefined
+              ? { pickedTerminal: props.pickedTerminal }
+              : {}),
+          }}
+          pickNetsActive={props.pickNetsActive ?? false}
+          pickTerminalsActive={props.pickTerminalsActive ?? false}
+          onPickNetsChange={(active) => props.onPickNetsChange?.(active)}
+          onPickTerminalsChange={(active) =>
+            props.onPickTerminalsChange?.(active)
+          }
+          actions={null}
+          status={statusLabel}
           onDirty={setDirty}
           onProblem={setProblem}
+          console={resultContent}
+          results={resultContent}
+          outputPane={resultTab === "console" ? "console" : "results"}
+          onSelectOutputPane={(pane) =>
+            setResultTab(
+              pane === "console"
+                ? "console"
+                : resultTab === "console"
+                  ? "plot"
+                  : resultTab,
+            )
+          }
+          maximized={resultsMaximized}
+          onToggleMaximize={toggleResultsMaximized}
+          onRun={() => void execute(true)}
+          onHistoryBoundary={props.onHistoryBoundary}
+          onSaveProject={props.onSaveProject}
         />
-      ) : null}
-
-      {resultsOpen ? (
-        <section
-          className="simulation-results-dock"
-          aria-label="Simulation results"
-        >
-          <header className="simulation-results-header">
-            <div role="tablist" aria-label="Result views">
-              {RESULT_TABS.map(([id, label]) => (
-                <button
-                  key={id}
-                  type="button"
-                  role="tab"
-                  aria-selected={resultTab === id}
-                  onClick={() => setResultTab(id)}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-            {run ? (
-              <div className="simulation-result-actions">
-                <button
-                  type="button"
-                  disabled={
-                    artifactBusy !== undefined ||
-                    (!run.result && !run.outputData) ||
-                    !selectedSetup ||
-                    selectedSetup.id !== runPresentation?.setupId
-                  }
-                  onClick={() => void archiveCurrentRun()}
-                >
-                  {artifactBusy === "archive:save" ? "Archiving…" : "Archive"}
-                </button>
-                <details className="simulation-result-export">
-                  <summary>Export</summary>
-                  <div>
-                    {resultTab === "plot" ? (
-                      <>
-                        <button
-                          type="button"
-                          disabled={artifactBusy !== undefined}
-                          onClick={() => void exportVisiblePlots("svg")}
-                        >
-                          {artifactBusy === "plots:svg"
-                            ? "Preparing SVG…"
-                            : "Visible plots · SVG"}
-                        </button>
-                        <button
-                          type="button"
-                          disabled={artifactBusy !== undefined}
-                          onClick={() => void exportVisiblePlots("png")}
-                        >
-                          {artifactBusy === "plots:png"
-                            ? "Preparing PNG…"
-                            : "Visible plots · PNG"}
-                        </button>
-                      </>
-                    ) : null}
-                    {resultCsvArtifacts.length ? (
-                      <section>
-                        <small>Complete result data</small>
-                        {resultCsvArtifacts.map((artifact) => (
-                          <button
-                            key={artifact.id}
-                            type="button"
-                            disabled={artifactBusy !== undefined}
-                            onClick={() => void download(artifact)}
-                          >
-                            {artifact.name}
-                          </button>
-                        ))}
-                      </section>
-                    ) : null}
-                    <button
-                      type="button"
-                      disabled={
-                        artifactBusy !== undefined || run.artifacts.length === 0
-                      }
-                      onClick={() => void downloadBundle("run", run.artifacts)}
-                    >
-                      Complete run · ZIP
-                    </button>
-                  </div>
-                </details>
-              </div>
-            ) : null}
-          </header>
-          <div ref={resultsBodyRef} className="simulation-results-body">
-            {resultTab === "plot" ? (
-              <div className="simulation-analysis-view simulation-plot-view">
-                {run?.outputData ? (
-                  <SimulationOutputResults
-                    resultKey={run.id}
-                    data={{
-                      ...run.outputData,
-                      analyses: run.outputData.analyses.filter(
-                        (analysis) => analysis.analysis !== "op",
-                      ),
-                    }}
-                    outputs={runPresentation?.outputs ?? []}
-                    {...(props.onFocusProbe
-                      ? {
-                          onFocusProbe: (probe: SimulationFocusTarget) =>
-                            props.onFocusProbe?.(
-                              probe,
-                              runPresentation?.rootDocumentId,
-                            ),
-                        }
-                      : {})}
-                  />
-                ) : null}
-                {!run?.outputData &&
-                  run?.result?.data?.analyses
-                    .filter((analysis) => analysis.analysis === "dc")
-                    .map((analysis, index) => (
-                      <SimulationAnalysisCard key={`dc-${index}`} kind="dc">
-                        <DcResultsExplorer
-                          analysis={analysis}
-                          vectors={runPresentation?.prepared.vectors ?? []}
-                          probes={presentationProbes}
-                          labels={presentationLabels}
-                          {...(props.onFocusProbe
-                            ? {
-                                onFocusProbe: (probe: SimulationFocusTarget) =>
-                                  props.onFocusProbe?.(
-                                    probe,
-                                    runPresentation?.rootDocumentId,
-                                  ),
-                              }
-                            : {})}
-                        />
-                      </SimulationAnalysisCard>
-                    ))}
-                {!run?.outputData &&
-                  run?.result?.data?.analyses
-                    .filter((analysis) => analysis.analysis === "ac")
-                    .map((analysis, index) => (
-                      <SimulationAnalysisCard
-                        key={`${run.id}:ac:${index}`}
-                        kind="ac"
-                      >
-                        <AcResultsExplorer
-                          resultKey={`${run.id}:ac:${index}`}
-                          analysis={analysis}
-                          vectors={runPresentation?.prepared.vectors ?? []}
-                          probes={presentationProbes}
-                          labels={presentationLabels}
-                          {...(props.onFocusProbe
-                            ? {
-                                onFocusProbe: (probe: SimulationFocusTarget) =>
-                                  props.onFocusProbe?.(
-                                    probe,
-                                    runPresentation?.rootDocumentId,
-                                  ),
-                              }
-                            : {})}
-                        />
-                      </SimulationAnalysisCard>
-                    ))}
-                {!run?.outputData &&
-                  run?.result?.data?.analyses
-                    .filter((analysis) => analysis.analysis === "tran")
-                    .map((analysis, index) => (
-                      <SimulationAnalysisCard
-                        key={`${run.id}:tran:${index}`}
-                        kind="tran"
-                      >
-                        <TransientResultsExplorer
-                          resultKey={`${run.id}:tran:${index}`}
-                          analysis={analysis}
-                          vectors={runPresentation?.prepared.vectors ?? []}
-                          probes={presentationProbes}
-                          labels={presentationLabels}
-                          {...(props.onFocusProbe
-                            ? {
-                                onFocusProbe: (probe: SimulationFocusTarget) =>
-                                  props.onFocusProbe?.(
-                                    probe,
-                                    runPresentation?.rootDocumentId,
-                                  ),
-                              }
-                            : {})}
-                        />
-                      </SimulationAnalysisCard>
-                    ))}
-                {!run?.result?.data?.analyses.some(
-                  (analysis) =>
-                    analysis.analysis === "dc" ||
-                    analysis.analysis === "ac" ||
-                    analysis.analysis === "tran",
-                ) ? (
-                  <p className="simulation-empty-result">
-                    Run a DC, AC, or transient analysis to see a plot.
-                  </p>
-                ) : null}
-              </div>
-            ) : null}
-
-            {resultTab === "operating-point" ? (
-              <div className="simulation-analysis-view simulation-operating-point-view">
-                <div className="simulation-op-canvas-controls">
-                  <button
-                    type="button"
-                    aria-pressed={canvasOpEnabled}
-                    disabled={
-                      !canvasOpProjection?.values.length ||
-                      run?.inputStatus === "changed"
-                    }
-                    onClick={() => {
-                      const enabled = !canvasOpEnabled;
-                      setCanvasOpEnabled(enabled);
-                      props.onOperatingPointProjection?.(
-                        enabled && canvasOpProjection
-                          ? canvasOpProjection
-                          : null,
-                      );
-                    }}
-                  >
-                    {canvasOpEnabled ? "Hide canvas values" : "Show on canvas"}
-                  </button>
-                  <label>
-                    Canvas labels
-                    <select
-                      value={canvasOpDisplay}
-                      disabled={!canvasOpEnabled}
-                      onChange={(event) => {
-                        const display = event.currentTarget
-                          .value as OperatingPointDisplay;
-                        setCanvasOpDisplay(display);
-                        if (canvasOpEnabled && canvasOpProjection)
-                          props.onOperatingPointProjection?.({
-                            ...canvasOpProjection,
-                            display,
-                          });
-                      }}
-                    >
-                      <option value="named">Named and focused</option>
-                      <option value="all">All collected</option>
-                    </select>
-                  </label>
-                  <span>
-                    {run?.inputStatus === "changed"
-                      ? "Paused: the circuit changed"
-                      : `${canvasOpProjection?.values.length ?? 0} direct Net voltage${canvasOpProjection?.values.length === 1 ? "" : "s"}`}
-                  </span>
-                </div>
-                {run?.outputData ? (
-                  <>
-                    <DeviceOperatingPointResults
-                      devices={run.outputData.deviceOperatingPoints ?? []}
-                    />
-                    <SimulationOutputResults
-                      resultKey={`${run.id}:op`}
-                      data={{
-                        ...run.outputData,
-                        analyses: run.outputData.analyses.filter(
-                          (analysis) => analysis.analysis === "op",
-                        ),
-                      }}
-                      outputs={runPresentation?.outputs ?? []}
-                    />
-                  </>
-                ) : null}
-                {!run?.outputData &&
-                  run?.result?.data?.analyses
-                    .filter((analysis) => analysis.analysis === "op")
-                    .map((analysis, index) => (
-                      <SimulationAnalysisCard key={index} kind="op">
-                        <table>
-                          <thead>
-                            <tr>
-                              <th>Vector</th>
-                              <th>Value</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {analysis.probes.map((probe) => (
-                              <tr key={probe.name}>
-                                <td>{probe.name}</td>
-                                <td>
-                                  {probe.value.toPrecision(6)} {probe.unit}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </SimulationAnalysisCard>
-                    ))}
-                {!run?.result?.data?.analyses.some(
-                  (analysis) => analysis.analysis === "op",
-                ) ? (
-                  <p className="simulation-empty-result">
-                    Run an operating-point analysis to see values.
-                  </p>
-                ) : null}
-              </div>
-            ) : null}
-
-            {resultTab === "compare" ? (
-              <div className="simulation-comparison-view">
-                <SimulationWaveformComparison
-                  runs={comparisonRuns}
-                  actions={
-                    <div className="simulation-comparison-actions">
-                      <button
-                        type="button"
-                        disabled={
-                          !currentComparisonRun ||
-                          retainedComparisonRuns.some(
-                            (candidate) =>
-                              candidate.id === currentComparisonRun.id,
-                          ) ||
-                          retainedComparisonRuns.length >=
-                            MAX_COMPARISON_RUNS - 1
-                        }
-                        onClick={retainCurrentComparison}
-                      >
-                        {retainedComparisonRuns.some(
-                          (candidate) =>
-                            candidate.id === currentComparisonRun?.id,
-                        )
-                          ? "Current kept"
-                          : "Keep current"}
-                      </button>
-                      {retainedComparisonRuns.length ? (
-                        <button
-                          type="button"
-                          onClick={() => setRetainedComparisonRuns([])}
-                        >
-                          Clear kept
-                        </button>
-                      ) : null}
-                    </div>
-                  }
-                />
-                {comparisonRuns.length < 2 && currentComparisonRun ? (
-                  <p className="simulation-comparison-hint">
-                    Keep this result, change the circuit or conditions, then run
-                    again to compare.
-                  </p>
-                ) : null}
-                <SimulationRunComparison
-                  runs={comparisonRuns}
-                  onRemove={(runId) =>
-                    setRetainedComparisonRuns((current) =>
-                      current.filter((candidate) => candidate.id !== runId),
-                    )
-                  }
-                />
-                {archives.length ? (
-                  <section
-                    className="simulation-archive-list"
-                    aria-label="Saved result archives"
-                  >
-                    <header>
-                      <strong>Browser archives</strong>
-                      <small>
-                        Local to this browser · {archives.length}/10
-                      </small>
-                    </header>
-                    <ul>
-                      {archives.map((archive) => (
-                        <li key={archive.id}>
-                          <span>
-                            <strong>{archive.setupName}</strong>
-                            <small>
-                              {archive.analysisLabel} ·{" "}
-                              {archive.environment.corner?.toUpperCase() ??
-                                archive.environment.profileId}{" "}
-                              · {new Date(archive.createdAt).toLocaleString()}
-                            </small>
-                          </span>
-                          <button
-                            type="button"
-                            disabled={artifactBusy !== undefined}
-                            onClick={() => void openArchivedRun(archive.id)}
-                          >
-                            Open
-                          </button>
-                          <button
-                            type="button"
-                            aria-label={`Delete archived ${archive.setupName}`}
-                            disabled={artifactBusy !== undefined}
-                            onClick={() => void deleteArchivedRun(archive.id)}
-                          >
-                            ×
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  </section>
-                ) : null}
-              </div>
-            ) : null}
-
-            {resultTab === "console" ? (
-              <div className="simulation-console-view">
-                <div className="simulation-console-summary">
-                  <span>
-                    <small>Run</small>
-                    <strong>{statusLabel}</strong>
-                  </span>
-                  <span>
-                    <small>Input</small>
-                    <strong>{run?.inputStatus ?? "current"}</strong>
-                  </span>
-                  <span>
-                    <small>Analyses</small>
-                    <strong>{analysisLabel || "Not configured"}</strong>
-                  </span>
-                </div>
-                {run?.state === "lost" ? (
-                  <p>
-                    The executor response is unknown. Inspect its evidence
-                    before starting another run.
-                  </p>
-                ) : null}
-                {runPresentation?.prepared.warnings.map((warning, index) => (
-                  <p key={index}>{warning}</p>
-                ))}
-                {run?.resultPreview ? (
-                  <p>
-                    The on-screen result is bounded; exported artifacts contain
-                    the complete data.
-                  </p>
-                ) : null}
-                {activeProblem ? (
-                  <SimulationProblemView
-                    problem={activeProblem}
-                    {...(props.onFocusDiagnostic
-                      ? { onFocus: props.onFocusDiagnostic }
-                      : {})}
-                  />
-                ) : null}
-                {run?.result ? (
-                  <pre>
-                    {run.result.diagnostics
-                      .map((diagnostic) => diagnostic.text)
-                      .join("\n")}
-                    {"\n"}
-                    {run.result.log}
-                  </pre>
-                ) : null}
-                {!activeProblem && !run?.result ? (
-                  <p className="simulation-empty-result">
-                    Simulator diagnostics will appear here.
-                  </p>
-                ) : null}
-              </div>
-            ) : null}
-
-            {resultTab === "files" ? (
-              <div
-                className={`simulation-files-view${artifactPreview ? " preview-open" : ""}`}
-              >
-                <div className="simulation-file-browser">
-                  {artifactGroups.map((group) => (
-                    <section
-                      key={group.key}
-                      className="simulation-artifact-group"
-                      aria-label={`${group.label} files`}
-                    >
-                      <header>
-                        <span>
-                          <strong>{group.label}</strong>
-                          <small>{group.description}</small>
-                        </span>
-                        <button
-                          type="button"
-                          disabled={artifactBusy !== undefined}
-                          onClick={() =>
-                            void downloadBundle(group.key, group.artifacts)
-                          }
-                        >
-                          {artifactBusy === `bundle:${group.key}`
-                            ? "Packing…"
-                            : "Download ZIP"}
-                        </button>
-                      </header>
-                      {artifactCategories.map((category) => {
-                        const artifacts = group.artifacts.filter(
-                          (artifact) =>
-                            simulationArtifactCategory(artifact) === category,
-                        );
-                        return artifacts.length ? (
-                          <details
-                            key={category}
-                            className="simulation-artifact-category"
-                            aria-label={`${group.label} ${category}`}
-                            open={
-                              category === "Results" || category === "Netlist"
-                            }
-                          >
-                            <summary>
-                              <strong>{category}</strong>
-                              <small>{artifacts.length}</small>
-                            </summary>
-                            <ul className="simulation-artifact-list">
-                              {artifacts.map((artifact) => (
-                                <li
-                                  key={artifact.id}
-                                  className={
-                                    artifactPreview?.artifact.id === artifact.id
-                                      ? "selected"
-                                      : undefined
-                                  }
-                                >
-                                  <button
-                                    type="button"
-                                    title={`Preview ${artifact.name}`}
-                                    disabled={artifactBusy !== undefined}
-                                    onClick={() => void preview(artifact)}
-                                  >
-                                    {artifactBusy === `preview:${artifact.id}`
-                                      ? "Opening…"
-                                      : artifact.name}
-                                  </button>
-                                  <small>
-                                    {formatArtifactSize(artifact.byteLength)}
-                                  </small>
-                                  <button
-                                    type="button"
-                                    className="simulation-artifact-download"
-                                    aria-label={`Download ${artifact.name}`}
-                                    title={`Download ${artifact.name}`}
-                                    disabled={artifactBusy !== undefined}
-                                    onClick={() => void download(artifact)}
-                                  >
-                                    ↓
-                                  </button>
-                                </li>
-                              ))}
-                            </ul>
-                          </details>
-                        ) : null;
-                      })}
-                    </section>
-                  ))}
-                </div>
-                {artifactPreview ? (
-                  <section
-                    className="simulation-artifact-preview"
-                    aria-label="File preview"
-                  >
-                    <header>
-                      <span>
-                        <strong>{artifactPreview.artifact.name}</strong>
-                        <small>
-                          {formatArtifactSize(
-                            artifactPreview.artifact.byteLength,
-                          )}
-                        </small>
-                      </span>
-                      <span>
-                        <button
-                          type="button"
-                          disabled={artifactBusy !== undefined}
-                          onClick={() =>
-                            void download(artifactPreview.artifact)
-                          }
-                        >
-                          Download
-                        </button>
-                        <button
-                          type="button"
-                          aria-label="Close file preview"
-                          onClick={() => setArtifactPreview(undefined)}
-                        >
-                          ×
-                        </button>
-                      </span>
-                    </header>
-                    <pre>
-                      {formatSimulationArtifactPreview(artifactPreview)}
-                    </pre>
-                    {artifactPreview.truncated ? (
-                      <footer>
-                        Preview limited to the first 64 KB. Download for the
-                        complete file.
-                      </footer>
-                    ) : null}
-                  </section>
-                ) : null}
-                {artifactGroups.length === 0 ? (
-                  <p className="simulation-empty-result">
-                    Prepare a deck or run the simulation to create files.
-                  </p>
-                ) : null}
-              </div>
-            ) : null}
-          </div>
-        </section>
-      ) : null}
+      ) : (
+        <div className="simulation-empty-result">
+          <button onClick={createSetup}>Create experiment for this Cell</button>
+        </div>
+      )}
     </section>
   );
 }

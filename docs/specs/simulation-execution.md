@@ -13,8 +13,8 @@ Owners: `packages/simulation-service`, `packages/spice-run`, `worker`,
 The implementation has these boundaries:
 
 - Model owns saved setups and canonical voltage/current expressions.
-- Netlist compiles structured intent. The service's preparation module resolves
-  raw/structured inputs, capabilities and immutable deck identity.
+- Netlist compiles source intent and generated Canvas bindings. The service's
+  preparation module resolves capabilities and immutable input identity.
 - SimulationService owns preparation and the session-facing run presentation.
   Its Executor is the execution port; GUI and MCP use the same service and File
   Resource. On Preview, the managed control plane owns authoritative hosted run
@@ -48,8 +48,9 @@ durability. Lost responses never trigger an automatic second execution.
   environment, because the author cannot know container-local paths.
 - Stimulus sources and loads are ordinary Instances in the author's Testbench
   Cell. Their connectivity and source parameters remain authoritative on those
-  Instances. Analyses, sweeps, named outputs, and the environment selection
-  belong to the structured `SimulationSetup`.
+  Instances. Native analysis/control text and the one experiment configuration
+  belong to the source `SimulationSetup`; purely textual experiments own their
+  stimuli in source instead. Neither form duplicates a drawn source's values.
 - The deck builder appends `.end` only when the author's testbench did not
   already close the deck.
 
@@ -351,10 +352,11 @@ snapshot and never changes the run or its timers.
 ## Run lifecycle
 
 The capability response does not maintain a second analysis allow-list. Its
-structured `analyses` are read from the selected hosted Profile's qualified
-scope; `parsedAnalyses` is reported separately because the rawfile reader may
-understand results which structured preparation is not yet qualified to
-author. The response also advertises the execution harness' `maxOutputBytes`.
+qualified `analyses` are read from the selected hosted Profile;
+`parsedAnalyses` is reported separately because parsing may cover more than
+qualified execution. Source authoring may also be broader: unknown native
+programs are not blocked merely for missing a static analysis classification.
+The response also advertises the execution harness' `maxOutputBytes`.
 Preparation estimates ASCII rawfile size from analysis points and compiled
 probe vectors. Exceeding that estimate adds a truncation warning but never
 blocks an Agent or human from starting the run.
@@ -379,7 +381,7 @@ continue. Cancellation terminates the active member and marks queued members
 cancelled. Batch start follows the same request-ID idempotency rule as a normal
 start.
 
-`prepare-sweep` is the structured execution primitive used by a saved Run Plan
+`prepare-sweep` is the shared execution primitive used by a saved Run Plan
 over corner, temperature, Design Variable, or one or more exact
 instance-parameter axes. It
 expands the Cartesian product into the same bounded 1–16 member batch before

@@ -18,6 +18,18 @@ import type {
 export const Id = z.string().min(1).max(256);
 export const Digest = z.string().regex(/^[a-f0-9]{64}$/u);
 export const EnvironmentSchema = SimulationEnvironmentSelectionSchema;
+export const SimulationSourceLocationSchema = z.strictObject({
+  scope: z.enum(["authored", "generated", "prepared"]),
+  path: z.string(),
+  textDigest: Digest,
+  startOffset: z.number().int().nonnegative(),
+  endOffset: z.number().int().nonnegative(),
+  line: z.number().int().positive(),
+  column: z.number().int().positive(),
+});
+export type SimulationSourceLocation = z.infer<
+  typeof SimulationSourceLocationSchema
+>;
 export const ProblemSchema = z.strictObject({
   code: Id,
   message: z.string(),
@@ -43,6 +55,7 @@ export const ProblemSchema = z.strictObject({
         field: z.string().optional(),
         path: z.string().optional(),
         sourceRef: SourceSpanSchema.optional(),
+        source: SimulationSourceLocationSchema.optional(),
       }),
     )
     .optional(),
@@ -135,7 +148,8 @@ export const PreparedSchema = z.strictObject({
   digest: Digest,
   inputRevision: z.string(),
   expiresAt: z.number(),
-  mode: z.enum(["structured", "raw"]),
+  // Historical receipts may still be read; new preparations always use source.
+  mode: z.enum(["source", "structured", "raw"]),
   environment: EnvironmentSchema,
   vectors: z.array(VectorSchema),
   outputs: z.array(CompiledOutputSchema),
@@ -302,7 +316,6 @@ export const InputSourceSchema = z.discriminatedUnion("kind", [
     kind: z.literal("workspace"),
     workspaceId: Id,
     expectedRevision: z.number().int().nonnegative(),
-    environment: EnvironmentSchema.pick({ profileId: true }),
   }),
 ]);
 export const SimulationBatchItemRequestSchema = z.strictObject({
@@ -398,7 +411,7 @@ export const CapabilitiesSchema = z.strictObject({
   /** Explicit collection protocol; absent on pre-source deployments. */
   rawfileCollection: z.literal("declared-single-ascii").optional(),
   maxInputFiles: z.number().int().positive().optional(),
-  inputs: z.array(z.enum(["structured", "raw"])),
+  inputs: z.array(z.enum(["source", "structured", "raw"])),
   analyses: z.array(z.enum(["op", "dc", "ac", "tran", "noise"])),
   parsedAnalyses: z.array(z.enum(["op", "dc", "ac", "tran", "noise"])),
   profiles: z.array(

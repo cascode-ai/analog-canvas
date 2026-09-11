@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { CircuitProjectSchema, createEmptyProject } from "@icm/model";
+import { parseProject } from "@icm/project-protocol";
+import { createEmptyProject } from "@icm/model";
 
 import fiveTransistorOtaSky130 from "../../examples/five-transistor-ota-sky130.icproj.json";
 import {
@@ -14,7 +15,7 @@ import {
 
 describe("simulation probe choices", () => {
   it("keeps hierarchy occurrences and terminal currents addressable", () => {
-    const project = CircuitProjectSchema.parse(fiveTransistorOtaSky130);
+    const project = parseProject(JSON.stringify(fiveTransistorOtaSky130));
     const dut = project.documents.find(
       (document) => document.id === "document-ota-5t",
     )!;
@@ -106,7 +107,7 @@ describe("simulation probe choices", () => {
   });
 
   it("names an unnamed hierarchical Net by its terminal aliases", () => {
-    const project = CircuitProjectSchema.parse(fiveTransistorOtaSky130);
+    const project = parseProject(JSON.stringify(fiveTransistorOtaSky130));
     const dut = project.documents.find(
       (document) => document.id === "document-ota-5t",
     )!;
@@ -130,7 +131,7 @@ describe("simulation probe choices", () => {
   });
 
   it("prefers a formal Cell port name over internal endpoint aliases", () => {
-    const project = CircuitProjectSchema.parse(fiveTransistorOtaSky130);
+    const project = parseProject(JSON.stringify(fiveTransistorOtaSky130));
     const dut = project.documents.find(
       (document) => document.id === "document-ota-5t",
     )!;
@@ -152,7 +153,7 @@ describe("simulation probe choices", () => {
   });
 
   it("gives repeated calls of the same Cell different target identities", () => {
-    const project = CircuitProjectSchema.parse(fiveTransistorOtaSky130);
+    const project = parseProject(JSON.stringify(fiveTransistorOtaSky130));
     const testbench = project.documents.find(
       (document) => document.id === "document-ota-5t-testbench",
     )!;
@@ -201,7 +202,7 @@ describe("simulation probe choices", () => {
   });
 
   it("gives a hierarchical current source one choice per occurrence", () => {
-    const project = CircuitProjectSchema.parse(fiveTransistorOtaSky130);
+    const project = parseProject(JSON.stringify(fiveTransistorOtaSky130));
     const testbench = project.documents.find(
       (document) => document.id === "document-ota-5t-testbench",
     )!;
@@ -261,7 +262,7 @@ describe("simulation probe choices", () => {
   });
 
   it("resolves an object anchor for canvas focus and matches its whole Logical Net", () => {
-    const project = CircuitProjectSchema.parse(fiveTransistorOtaSky130);
+    const project = parseProject(JSON.stringify(fiveTransistorOtaSky130));
     const target = deriveSimulationProbeOptions(
       project,
       "document-ota-5t-testbench",
@@ -284,7 +285,7 @@ describe("simulation probe choices", () => {
   });
 
   it("resolves a probe occurrence to the canvas hierarchy path", () => {
-    const project = CircuitProjectSchema.parse(fiveTransistorOtaSky130);
+    const project = parseProject(JSON.stringify(fiveTransistorOtaSky130));
 
     expect(
       simulationProbeHierarchyPath(project, "document-ota-5t-testbench", [

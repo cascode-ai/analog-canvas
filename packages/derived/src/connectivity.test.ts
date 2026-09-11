@@ -7,8 +7,11 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-import { createEmptyDocument, createRoutePath } from "@icm/model";
-import { parseProject } from "@icm/project-protocol";
+import {
+  createEmptyDocument,
+  createRoutePath,
+  SchematicDocumentSchema,
+} from "@icm/model";
 import { InMemorySymbolResolver, builtInSymbols } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
 
@@ -53,15 +56,17 @@ describe("shared connectivity context (#17)", () => {
     expect(deriveImportedRoutingGuidance(document, resolver)).toHaveLength(1);
   });
   it("context-shared derivation matches the per-net derivation exactly", () => {
-    const document = parseProject(
-      readFileSync(
-        resolve(
-          process.cwd(),
-          "fixtures/projects/phase-3-routing/project.icproj.json",
+    const document = SchematicDocumentSchema.parse(
+      JSON.parse(
+        readFileSync(
+          resolve(
+            process.cwd(),
+            "fixtures/projects/phase-3-routing/project.icproj.json",
+          ),
+          "utf8",
         ),
-        "utf8",
-      ),
-    ).documents[0]!;
+      ).documents[0],
+    );
     const context = deriveNetConnectivityContext(document, resolver);
     expect(document.nets.length).toBeGreaterThan(0);
     for (const net of document.nets) {

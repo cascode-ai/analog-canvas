@@ -88,7 +88,7 @@ describe("schema migrations through hidden Net-name retirement", () => {
     expect(v45.schemaVersion).toBe(45);
     expect(v46.schemaVersion).toBe(46);
     expect(v47.schemaVersion).toBe(47);
-    expect(v48.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
+    expect(v48.schemaVersion).toBe(48);
   });
 
   it("reports non-rewriting 28→29 through 32→33 upgrades as unchanged", () => {

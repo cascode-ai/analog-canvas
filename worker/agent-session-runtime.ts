@@ -473,7 +473,13 @@ export function fileOperationScopes(
     case "simulation-input":
       return request.input.action === "update" &&
         request.input.owner.kind === "project-setup"
-        ? ["simulation.run", "project.import"]
+        ? [
+            "simulation.run",
+            "project.import",
+            ...(request.input.circuitEdits.length
+              ? ["circuit.edit.connectivity" as const]
+              : []),
+          ]
         : ["simulation.run"];
     case "download":
       return [

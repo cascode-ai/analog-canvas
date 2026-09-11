@@ -5,6 +5,7 @@ import type {
 } from "@icm/model";
 import {
   compileSourceSimulation,
+  inspectSimulationSourceGraph,
   insertSimulationText,
   type SimulationSourceDiagnostic,
 } from "@icm/netlist";
@@ -15,11 +16,17 @@ import {
 import { problem, type Capabilities, type Problem } from "./contract.js";
 import type { ExecutionInput } from "./executor.js";
 import { sha256 } from "./content-digest.js";
+import { sourceInputRevision } from "./input-identity.js";
+import { literalSourceAnalyses } from "./source-analysis.js";
+import { outputVolumeWarning } from "./result-volume.js";
 
-function compilationProblem(diagnostics: SimulationSourceDiagnostic[]): {
+async function sourceCompilationProblem(
+  diagnostics: SimulationSourceDiagnostic[],
+  setup: ProjectSourceSimulationSetup,
+): Promise<{
   ok: false;
   error: Problem;
-} {
+}> {
   return {
     ok: false,
     error: {
@@ -27,7 +34,28 @@ function compilationProblem(diagnostics: SimulationSourceDiagnostic[]): {
       message: "Correct the located input and prepare again",
       stage: "prepare",
       recovery: "fix-input",
-      diagnostics,
+      diagnostics: await Promise.all(
+        diagnostics.map(async (diagnostic) => {
+          const file = setup.input.files.find(
+            (file) =>
+              file.path === (diagnostic.sourceRef?.fileId ?? diagnostic.path),
+          );
+          if (!file) return diagnostic;
+          const start = diagnostic.sourceRef?.start;
+          return {
+            ...diagnostic,
+            source: {
+              scope: "authored" as const,
+              path: file.path,
+              textDigest: await sha256(file.text),
+              startOffset: start?.offset ?? 0,
+              endOffset: diagnostic.sourceRef?.end.offset ?? 0,
+              line: start?.line ?? 1,
+              column: start?.column ?? 1,
+            },
+          };
+        }),
+      ),
     },
   };
 }
@@ -39,6 +67,8 @@ export async function prepareSourceExecutionInput(
   caps: Capabilities,
   variant?: SimulationRunVariant,
 ) {
+  const compilationProblem = (diagnostics: SimulationSourceDiagnostic[]) =>
+    sourceCompilationProblem(diagnostics, setup);
   const compiled = compileSourceSimulation(project, setup, variant);
   if (!compiled.ok) return compilationProblem(compiled.diagnostics);
   const { config } = compiled;
@@ -212,16 +242,17 @@ export async function prepareSourceExecutionInput(
       `Prepared input is ${bytes} bytes; this executor accepts ${caps.maxInputBytes}. The Project can still be saved.`,
       "prepare",
     );
-  const inputRevision = await sha256(
-    JSON.stringify({
-      source: setup.input,
-      electricalHash: compiled.electricalHash,
-      profile,
-      files,
-      dependencies,
-      outputs: compiled.outputs,
-      deviceOperatingPoints: compiled.deviceOperatingPoints,
-    }),
+  const inputRevision = await sourceInputRevision(setup, compiled);
+  const analyses = literalSourceAnalyses(
+    inspectSimulationSourceGraph({ ...setup.input, files: compiled.files }),
+  );
+  const volume = outputVolumeWarning(
+    analyses,
+    Math.max(1, compiled.vectors.length),
+    caps.maxOutputBytes,
+  );
+  const unqualified = [...new Set(analyses.map((a) => a.kind))].filter(
+    (kind) => !caps.analyses.includes(kind),
   );
   const preparedDeck = files[entryIndex]!.text;
   const input: ExecutionInput & { preparedDeck: string } = {
@@ -244,7 +275,15 @@ export async function prepareSourceExecutionInput(
     outputs: compiled.outputs,
     deviceOperatingPoints: compiled.deviceOperatingPoints,
     measurements: config.measurements,
-    warnings: compiled.warnings.map((item) => item.message),
+    warnings: [
+      ...compiled.warnings.map((item) => item.message),
+      ...(volume ? [volume] : []),
+      ...(unqualified.length
+        ? [
+            `Native analyses ${unqualified.join(", ")} are outside this Profile's qualified scope; the run remains allowed.`,
+          ]
+        : []),
+    ],
     authoredFiles: compiled.authoredFiles,
     generated: compiled.generated,
     sourceMaps,

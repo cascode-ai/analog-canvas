@@ -2,7 +2,8 @@
 
 Status: accepted
 
-Delivery: C0 target contract only; implementation and UI acceptance pending.
+Delivery: source-input cutover candidate; layout approved. Full delivery and
+same-candidate Preview numerical acceptance must pass before claiming C5 complete.
 
 Owners: `packages/model` / `packages/edit-engine` (saved input and edits),
 `packages/spice` / `packages/netlist` (language and compilation),
@@ -12,9 +13,9 @@ Related decision: [ADR 0055](../adr/0055-simulation-is-part-of-the-product.md).
 
 ## Applicability
 
-This is the frozen replacement contract for simulation authoring, not a claim
-that the replacement has shipped. The current v3 structured/raw setup remains
-described by [Simulation Setup and Compilation](simulation.md) until cutover.
+This is the source-authoring contract. [Simulation Setup and Compilation](simulation.md)
+describes its integration with the existing electrical compiler and device facts.
+It is not a claim that this branch has shipped to Preview or Production.
 The execution and numeric contracts remain in
 [execution](simulation-execution.md) and [results](simulation-results.md).
 Only the changes explicitly identified here amend those boundaries.
@@ -68,9 +69,8 @@ interface ProjectSimulationSetup {
 }
 ```
 
-Version 4 is the target **setup** format. The implementation assigns the next
-Project schema version through the existing upgrader; this document does not
-pre-allocate a global schema number. No new setup sidecar store is introduced.
+Version 4 is the **setup** format in Project schema 49. The existing upgrader
+performs the one-way schema-48 migration. No new setup sidecar store is introduced.
 
 - `subcircuit` emits the bound Cell and its closure as definitions, with the
   normal printer's interface order. Author text owns the actual DUT call(s).
@@ -552,9 +552,8 @@ captures, invalid config, concurrent drafts, structural paste, changed DUT
 interfaces, two DUT calls and unbound input. A screenshot or HTTP 200 is not
 electrical evidence.
 
-The disposable layout prototype and the user's width/focus/maximize acceptance
-are still pending; they are required before C4 replaces the default UI, not
-before C1/C2 can implement these contracts. No language tooling or runtime
-conformance execution is claimed by this C0 documentation change. Actual editor
-dependency versions/bundle budget are selected in C4; actual code/API changes
-receive the repository's risk-proportional gates and required delivery checks.
+The user approved the disposable layout prototype: Files expands beside code,
+configuration stays hidden by default, Code/Properties have independent widths,
+and Console/Results stay beneath code with reversible maximization. Browser
+regressions verify those interactions. That approval does not replace language,
+runtime, numerical or delivery acceptance.

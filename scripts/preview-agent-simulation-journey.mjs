@@ -6,7 +6,11 @@ import { join, resolve } from "node:path";
 import { createInterface } from "node:readline";
 
 import { chromium } from "@playwright/test";
-import { compileStructuredSimulation } from "../packages/netlist/dist/index.js";
+import { compileSourceSimulation } from "../packages/netlist/dist/index.js";
+import {
+  readSimulationExperimentConfig,
+  replaceSimulationExperimentConfig,
+} from "../packages/model/dist/index.js";
 import { parseProject } from "../packages/project-protocol/dist/index.js";
 import { SimulationOutputDataSchema } from "../packages/simulation-service/dist/contract.js";
 import { SimulationResultSchema } from "../packages/spice-run/dist/index.js";
@@ -33,37 +37,50 @@ const projectText = await readFile(
 const project = parseProject(projectText);
 const setup = project.simulationSetups[0];
 assert(setup, "The acceptance Project has no saved setup");
-assert.equal(setup.input.kind, "structured");
-const qualifiedSetup = structuredClone(setup);
-const noiseOutput = qualifiedSetup.input.outputs.find(
+assert.equal(setup.input.kind, "source");
+const parsedConfig = readSimulationExperimentConfig(setup);
+assert(parsedConfig.ok, "The acceptance experiment configuration is invalid");
+const qualifiedConfig = parsedConfig.config;
+const noiseOutput = qualifiedConfig.outputs.find(
   (output) => output.id === "probe-vout",
 );
 assert.equal(noiseOutput?.expression.kind, "voltage");
-const { kind: _noiseExpressionKind, ...noisePositive } = noiseOutput.expression;
-qualifiedSetup.input.analyses.push({
-  kind: "noise",
-  output: { positive: noisePositive },
-  inputSourceInstanceId: "VINP",
-  sweep: "dec",
-  points: 20,
-  startHz: 1,
-  stopHz: 1e9,
-});
-qualifiedSetup.input.deviceOperatingPoints = [
+const rootBinding = setup.input.circuitBindings.find(
+  (binding) => binding.emission === "top-level",
+);
+assert(
+  rootBinding,
+  "The OTA qualification must keep its drawn Testbench binding",
+);
+qualifiedConfig.deviceOperatingPoints = [
   {
     id: "acceptance-op-m1",
     documentId: "document-ota-5t",
     instanceId: "M1",
     occurrence: ["XDUT"],
+    circuit: { bindingId: rootBinding.id, callPath: [] },
   },
   {
     id: "acceptance-op-m3",
     documentId: "document-ota-5t",
     instanceId: "M3",
     occurrence: ["XDUT"],
+    circuit: { bindingId: rootBinding.id, callPath: [] },
   },
 ];
-const compiled = await compileStructuredSimulation(project, qualifiedSetup);
+const qualifiedSetup = replaceSimulationExperimentConfig(
+  setup,
+  qualifiedConfig,
+);
+const program = qualifiedSetup.input.files.find(
+  (file) => file.path === qualifiedSetup.input.entry,
+);
+assert(program);
+program.text = program.text.replace(
+  ".endc",
+  "noise v(vout) VINP dec 20 1 1000000000\nwrite out.raw noise1.all noise2.all\n.endc",
+);
+const compiled = compileSourceSimulation(project, qualifiedSetup);
 assert(compiled.ok, "The acceptance Project no longer compiles");
 
 await mkdir(outputDirectory, { recursive: true });
@@ -271,7 +288,7 @@ try {
     "Agent inspection did not expose the complete authored Simulation setup",
   );
   const sourceReport = await tool("inspect", {
-    documentId: discoveredSetup.input.rootDocumentId,
+    documentId: rootBinding.documentId,
     target: { kind: "object", id: "VINP" },
   });
   assert.equal(
@@ -288,7 +305,7 @@ try {
 
   // A bad model is a recoverable run result, not an MCP-session failure. Fix
   // the same graphless workspace and prove a second run can complete before
-  // the full Project-owned structured journey continues.
+  // the full Project-owned source journey continues.
   const rawWorkspace = await tool("simulation_files", {
     request: { action: "create" },
   });
@@ -301,6 +318,15 @@ try {
       expectedRevision: 0,
       entry: "main.cir",
       writes: [
+        {
+          path: "experiment.json",
+          text: JSON.stringify({
+            version: 1,
+            environment: {
+              profileId: capabilityReply.capabilities.profiles[0].id,
+            },
+          }),
+        },
         {
           path: "main.cir",
           text: [
@@ -326,7 +352,6 @@ try {
         kind: "workspace",
         workspaceId,
         expectedRevision: badRaw.source.revision,
-        environment: { profileId: capabilityReply.capabilities.profiles[0].id },
       },
     },
   });
@@ -368,7 +393,6 @@ try {
         kind: "workspace",
         workspaceId,
         expectedRevision: fixedRaw.source.revision,
-        environment: { profileId: capabilityReply.capabilities.profiles[0].id },
       },
     },
   });
@@ -381,13 +405,8 @@ try {
     `Recovered raw run failed: ${JSON.stringify(fixedRun.result?.outcome)}`,
   );
 
-  const invalidSetup = structuredClone(qualifiedSetup);
-  assert.equal(
-    invalidSetup.input.kind,
-    "structured",
-    "The acceptance setup must use structured simulation input",
-  );
-  const firstOutput = invalidSetup.input.outputs[0];
+  const invalidConfig = structuredClone(qualifiedConfig);
+  const firstOutput = invalidConfig.outputs[0];
   assert(firstOutput, "The acceptance setup has no authored output");
   assert(
     ["voltage", "current"].includes(firstOutput.expression.kind),
@@ -398,6 +417,10 @@ try {
     instanceId: "missing-acceptance-instance",
     pinName: "out",
   };
+  const invalidSetup = replaceSimulationExperimentConfig(
+    qualifiedSetup,
+    invalidConfig,
+  );
   const invalidEdit = await tool("advanced_transact", {
     structureEdits: [{ kind: "upsert_simulation_setup", setup: invalidSetup }],
   });
@@ -419,8 +442,10 @@ try {
   assert.equal(refused.ok, false);
   assert.equal(refused.error.recovery, "fix-input");
 
-  const setupWithoutDeviceOperatingPoints = structuredClone(qualifiedSetup);
-  delete setupWithoutDeviceOperatingPoints.input.deviceOperatingPoints;
+  const setupWithoutDeviceOperatingPoints = replaceSimulationExperimentConfig(
+    qualifiedSetup,
+    { ...qualifiedConfig, deviceOperatingPoints: [] },
+  );
   const restored = await tool("advanced_transact", {
     structureEdits: [
       {
@@ -431,7 +456,7 @@ try {
   });
   assert.equal(restored.ok, true);
   let configuredRevision = restored.projectStructure.toRevision;
-  for (const selection of qualifiedSetup.input.deviceOperatingPoints) {
+  for (const selection of qualifiedConfig.deviceOperatingPoints) {
     const configured = await tool("simulation_device_operating_point", {
       action: "upsert",
       setupId: setup.id,
@@ -439,6 +464,7 @@ try {
       targetDocumentId: selection.documentId,
       instanceId: selection.instanceId,
       occurrence: selection.occurrence,
+      circuit: selection.circuit,
     });
     assert.equal(configured.ok, true);
     configuredRevision = configured.projectStructure.toRevision;
@@ -569,14 +595,14 @@ try {
     setup: {
       id: discoveredSetup.id,
       name: discoveredSetup.name,
-      rootDocumentId: discoveredSetup.input.rootDocumentId,
-      analyses: qualifiedSetup.input.analyses,
-      outputs: qualifiedSetup.input.outputs.map((output) => ({
+      circuitBindings: discoveredSetup.input.circuitBindings,
+      entry: qualifiedSetup.input.entry,
+      outputs: qualifiedConfig.outputs.map((output) => ({
         id: output.id,
         label: output.label,
         expressionKind: output.expression.kind,
       })),
-      deviceOperatingPoints: qualifiedSetup.input.deviceOperatingPoints,
+      deviceOperatingPoints: qualifiedConfig.deviceOperatingPoints,
     },
     source: {
       id: sourceReport.id,

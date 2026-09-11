@@ -9,6 +9,11 @@ import {
   type AgentFileResourceResponse,
 } from "@icm/agent-adapter";
 import { SimulationFiles } from "@icm/simulation-service/files";
+import type {
+  ProjectTransaction,
+  ProjectTransactionResult,
+} from "@icm/edit-engine";
+import { createSimulationProjectFileHost } from "../features/simulation/project-file-host";
 import { createFormalExportSource } from "@icm/exporters";
 import { parseProject, serializeProject } from "@icm/project-protocol";
 import type { CircuitProject, SchematicDocument } from "@icm/model";
@@ -28,6 +33,9 @@ export interface BrowserAgentFileHostOptions {
   getDocument: (documentId: string) => SchematicDocument | null;
   getResolver: () => SymbolResolver;
   onApprovalRequested: (candidate: AgentFileCandidateSummary) => void;
+  dispatchProjectTransaction?: (
+    request: ProjectTransaction,
+  ) => ProjectTransactionResult;
 }
 
 /**
@@ -36,12 +44,23 @@ export interface BrowserAgentFileHostOptions {
  * A staged candidate has no authority to replace the live project by itself.
  */
 export class BrowserAgentFileHost {
-  readonly simulationFiles = new SimulationFiles();
+  readonly simulationFiles: SimulationFiles;
   private readonly candidates = new Map<string, StoredCandidate>();
   private readonly boundProjectSessionId: string;
 
   constructor(private readonly options: BrowserAgentFileHostOptions) {
     this.boundProjectSessionId = options.getProjectSessionId();
+    this.simulationFiles = new SimulationFiles(
+      Date.now,
+      options.dispatchProjectTransaction
+        ? createSimulationProjectFileHost({
+            getProject: options.getProject,
+            getProjectSessionId: options.getProjectSessionId,
+            dispatch: options.dispatchProjectTransaction,
+            actor: { kind: "agent", id: "simulation-file-resource" },
+          })
+        : undefined,
+    );
   }
 
   async handle(

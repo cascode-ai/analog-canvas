@@ -1,5 +1,8 @@
 import type { ObjectLocator } from "@icm/model";
-import type { Problem } from "@icm/simulation-service/contract";
+import type {
+  Problem,
+  SimulationSourceLocation,
+} from "@icm/simulation-service/contract";
 const RECOVERY_LABELS: Record<Problem["recovery"], string> = {
   "fix-input": "Review the highlighted input and apply the correction.",
   reprepare: "The input changed. Prepare it again before running.",
@@ -16,9 +19,11 @@ const RECOVERY_LABELS: Record<Problem["recovery"], string> = {
 export function SimulationProblemView({
   problem,
   onFocus,
+  onSource,
 }: {
   problem: Problem;
   onFocus?: (locator: ObjectLocator) => void;
+  onSource?: (source: SimulationSourceLocation) => void;
 }) {
   const locator = (
     value: NonNullable<NonNullable<Problem["diagnostics"]>[number]["primary"]>,
@@ -59,6 +64,14 @@ export function SimulationProblemView({
                   onClick={() => onFocus(locator(diagnostic.primary!))}
                 >
                   Show
+                </button>
+              ) : null}
+              {diagnostic.source && onSource ? (
+                <button
+                  type="button"
+                  onClick={() => onSource(diagnostic.source!)}
+                >
+                  Show code
                 </button>
               ) : null}
             </li>

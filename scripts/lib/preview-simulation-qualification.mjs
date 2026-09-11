@@ -257,130 +257,152 @@ export function hostedSky130ExtendedDeviceRequest(corner) {
   };
 }
 
-export async function compileHostedSky130Project() {
-  const [{ compileStructuredSimulation }, { parseProject }] = await Promise.all(
-    [import("@icm/netlist"), import("@icm/project-protocol")],
-  );
-  const project = parseProject(
+async function qualificationProject() {
+  const { parseProject } = await import("@icm/project-protocol");
+  return parseProject(
     readFileSync(
       new URL(`../../${qualification.inputs.project}`, import.meta.url),
       "utf8",
     ),
   );
-  const setup = project.simulationSetups[0];
-  if (!setup) {
-    throw new Error(
-      `Qualification ${qualification.fixtureId} Project has no persisted SimulationSetup.`,
-    );
-  }
-  const selection = setup.input.environment;
+}
+
+async function prepareQualification(project, setup, timeoutMs) {
+  const { prepareSourceExecutionInput, CapabilitiesSchema } =
+    await import("@icm/simulation-service");
+  const { readSimulationExperimentConfig } = await import("@icm/model");
+  const parsed = readSimulationExperimentConfig(setup);
+  if (!parsed.ok) throw Error(parsed.message);
   if (
-    selection.profileId !== qualification.profileId ||
-    selection.corner !== qualification.modelLibrary.section
-  ) {
-    throw new Error(
-      `Qualification ${qualification.fixtureId} Project does not select its declared Profile and corner.`,
+    parsed.config.environment.profileId !== qualification.profileId ||
+    parsed.config.environment.corner !== qualification.modelLibrary.section
+  )
+    throw Error(
+      `Qualification ${qualification.fixtureId} does not select its declared Profile/corner`,
     );
-  }
-  const compiled = await compileStructuredSimulation(project, setup, {
-    timeoutMs: 110_000,
+  const capabilities = CapabilitiesSchema.parse({
+    configured: true,
+    rawfileCollection: "declared-single-ascii",
+    inputs: ["source"],
+    analyses: profile.qualifiedScope.analyses,
+    parsedAnalyses: profile.qualifiedScope.analyses,
+    profiles: [
+      {
+        id: profile.id,
+        corners: profile.qualifiedScope.sections,
+        dependencies: [
+          { id: profile.models.id, sha256: profile.models.contentSha256 },
+        ],
+      },
+    ],
+    modelLibrary: {
+      path: profile.models.library.runtimePath,
+      section: qualification.modelLibrary.section,
+    },
+    maxInputBytes: 1048576,
+    maxTimeoutMs: 120000,
+    cancel: true,
   });
-  if (!compiled.ok) {
-    throw new Error(
-      `Qualification ${qualification.fixtureId} did not compile: ${compiled.diagnostics
-        .map((diagnostic) => `${diagnostic.code}: ${diagnostic.message}`)
-        .join(" | ")}`,
+  const compiled = await prepareSourceExecutionInput(
+    project,
+    setup,
+    capabilities,
+  );
+  if (!compiled.ok)
+    throw Error(
+      `Qualification ${qualification.fixtureId} did not compile: ${JSON.stringify(compiled.error)}`,
     );
-  }
-  return compiled;
+  return { ...compiled, request: { ...compiled.input, timeoutMs } };
+}
+
+function setProgram(setup, commands) {
+  const entry = setup.input.files.find(
+    (file) => file.path === setup.input.entry,
+  );
+  if (!entry) throw Error("Qualification entry is missing");
+  // This qualification owns its native control template; it is not a general author-code rewrite.
+  entry.text = [
+    "* Qualified source experiment",
+    ...setup.input.circuitBindings.map(
+      (binding) => `.include "${binding.path}"`,
+    ),
+    ".control",
+    "set filetype=ascii",
+    "set appendwrite",
+    ...commands,
+    ".endc",
+    ".end",
+    "",
+  ].join("\n");
+}
+
+export async function compileHostedSky130Project() {
+  const project = await qualificationProject(),
+    setup = project.simulationSetups[0];
+  if (!setup) throw Error("Qualification Project has no saved experiment");
+  return prepareQualification(project, setup, 110000);
 }
 
 export async function compileHostedSky130TransientProject() {
-  const [{ compileStructuredSimulation }, { parseProject }] = await Promise.all(
-    [import("@icm/netlist"), import("@icm/project-protocol")],
-  );
-  const project = parseProject(
-    readFileSync(
-      new URL(`../../${qualification.inputs.project}`, import.meta.url),
-      "utf8",
-    ),
-  );
+  const project = await qualificationProject(),
+    setup = project.simulationSetups[0];
   const expected = qualification.expectedTran;
   const source = project.documents
-    .flatMap((document) => document.instances)
-    .find((instance) => instance.id === expected.source.instanceId);
-  const setup = project.simulationSetups[0];
-  if (!source?.netlist || !setup) {
-    throw new Error(
-      `Qualification ${qualification.fixtureId} has no transient source or setup.`,
-    );
-  }
+    .flatMap((d) => d.instances)
+    .find((i) => i.id === expected.source.instanceId);
+  if (!setup || !source?.netlist)
+    throw Error("Qualification source/setup is missing");
   source.symbolId = "pulse-voltage-source";
   source.netlist.parameters = { ...expected.source.parameters };
-  setup.input.analyses = [{ ...expected.analysis }];
-  const compiled = await compileStructuredSimulation(project, setup, {
-    timeoutMs: 60_000,
-  });
-  if (!compiled.ok) {
-    throw new Error(
-      `Qualification ${qualification.fixtureId} TRAN did not compile: ${compiled.diagnostics
-        .map((diagnostic) => `${diagnostic.code}: ${diagnostic.message}`)
-        .join(" | ")}`,
-    );
-  }
-  return compiled;
+  const { stepSeconds, stopSeconds, startSeconds, maxStepSeconds } =
+    expected.analysis;
+  const args = [
+    stepSeconds,
+    stopSeconds,
+    ...(startSeconds !== undefined || maxStepSeconds !== undefined
+      ? [startSeconds ?? 0]
+      : []),
+    ...(maxStepSeconds !== undefined ? [maxStepSeconds] : []),
+  ];
+  setProgram(setup, [`tran ${args.join(" ")}`, "write out.raw"]);
+  return prepareQualification(project, setup, 60000);
 }
 
 export async function compileHostedSky130NoiseProject() {
-  const [{ compileStructuredSimulation }, { parseProject }] = await Promise.all(
-    [import("@icm/netlist"), import("@icm/project-protocol")],
-  );
-  const project = parseProject(
-    readFileSync(
-      new URL(`../../${qualification.inputs.project}`, import.meta.url),
-      "utf8",
-    ),
-  );
-  const expected = qualification.expectedNoise;
-  const setup = project.simulationSetups[0];
-  const output =
-    setup?.input.kind === "structured"
-      ? setup.input.outputs.find(
-          (candidate) => candidate.id === expected.analysis.outputProbeId,
-        )
+  const project = await qualificationProject(),
+    setup = project.simulationSetups[0];
+  if (!setup) throw Error("Qualification source/setup is missing");
+  const { readSimulationExperimentConfig, replaceSimulationExperimentConfig } =
+    await import("@icm/model");
+  const parsed = readSimulationExperimentConfig(setup);
+  if (!parsed.ok) throw Error(parsed.message);
+  // Resolve the qualified Canvas output through the same acquisition compiler, not a guessed Net ID.
+  const nominal = await prepareQualification(project, setup, 110000);
+  const expected = qualification.expectedNoise.analysis;
+  const output = nominal.outputs.find((o) => o.id === expected.outputProbeId);
+  const acquisition =
+    output?.expression.kind === "acquisition"
+      ? output.expression.acquisitionId
       : undefined;
-  if (
-    !setup ||
-    setup.input.kind !== "structured" ||
-    !output ||
-    output.expression.kind !== "voltage"
-  ) {
-    throw new Error(
-      `Qualification ${qualification.fixtureId} has no Noise output probe.`,
-    );
-  }
-  const { kind: _kind, ...positive } = output.expression;
-  setup.input.analyses = [
-    {
-      kind: "noise",
-      output: { positive },
-      inputSourceInstanceId: expected.analysis.inputSourceInstanceId,
-      sweep: expected.analysis.sweep,
-      points: expected.analysis.points,
-      startHz: expected.analysis.startHz,
-      stopHz: expected.analysis.stopHz,
-    },
-  ];
-  setup.input.outputs = [];
-  const compiled = await compileStructuredSimulation(project, setup, {
-    timeoutMs: 110_000,
-  });
-  if (!compiled.ok) {
-    throw new Error(
-      `Qualification ${qualification.fixtureId} Noise did not compile: ${compiled.diagnostics
-        .map((diagnostic) => `${diagnostic.code}: ${diagnostic.message}`)
-        .join(" | ")}`,
-    );
-  }
-  return compiled;
+  const vector = nominal.vectors.find((v) => v.probeId === acquisition)?.vector;
+  const root = project.documents.find(
+    (d) =>
+      d.id ===
+      setup.input.circuitBindings.find((b) => b.emission === "top-level")
+        ?.documentId,
+  );
+  const source = root?.instances.find(
+    (i) => i.id === expected.inputSourceInstanceId,
+  )?.reference;
+  if (!vector || !source)
+    throw Error("Qualification Noise acquisition is unresolved");
+  parsed.config.outputs = [];
+  parsed.config.measurements = [];
+  parsed.config.deviceOperatingPoints = [];
+  const noise = replaceSimulationExperimentConfig(setup, parsed.config);
+  setProgram(noise, [
+    `noise ${vector} ${source} ${expected.sweep} ${expected.points} ${expected.startHz} ${expected.stopHz}`,
+    "write out.raw noise1.all noise2.all",
+  ]);
+  return prepareQualification(project, noise, 110000);
 }

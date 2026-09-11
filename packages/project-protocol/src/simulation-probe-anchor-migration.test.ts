@@ -1,3 +1,4 @@
+import { readSimulationExperimentConfig } from "@icm/model";
 import { describe, expect, it } from "vitest";
 
 import { CURRENT_PROJECT_SCHEMA_VERSION, createEmptyProject } from "@icm/model";
@@ -88,27 +89,21 @@ describe("schema 39 to 40 simulation probe anchors", () => {
     expect(parsed).toMatchObject({
       sourceSchemaVersion: 39,
       migrated: true,
-      project: {
-        schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
-        simulationSetups: [
+      project: { schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION },
+    });
+    expect(
+      readSimulationExperimentConfig(parsed.project.simulationSetups[0]!),
+    ).toMatchObject({
+      ok: true,
+      config: {
+        outputs: [
           {
-            input: {
-              outputs: [
-                {
-                  expression: {
-                    anchor: {
-                      kind: "junction",
-                      junctionId: "probe-junction",
-                    },
-                  },
-                },
-                {
-                  expression: {
-                    anchor: { kind: "base-net", netId: "already-lost" },
-                  },
-                },
-              ],
+            expression: {
+              anchor: { kind: "junction", junctionId: "probe-junction" },
             },
+          },
+          {
+            expression: { anchor: { kind: "base-net", netId: "already-lost" } },
           },
         ],
       },

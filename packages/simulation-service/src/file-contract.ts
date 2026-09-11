@@ -13,6 +13,7 @@ export const WorkspaceSchema = z.strictObject({
   id: Id,
   revision: z.number().int().nonnegative(),
   entry: z.string().nullable(),
+  configPath: SimulationInputPathSchema,
   files: z.array(z.strictObject({ path: z.string(), text: z.string() })),
   expiresAt: z.number(),
 });
@@ -42,6 +43,17 @@ export const SimulationFileOperationSchema = z.discriminatedUnion("action", [
     expectedRevision: Revision,
     entry: SimulationInputPathSchema.optional(),
     configPath: SimulationInputPathSchema.optional(),
+    /** Exact generated Circuit edits are mapped to typed numeric parameter transactions. */
+    circuitEdits: z
+      .array(
+        z.strictObject({
+          path: SimulationInputPathSchema,
+          textDigest: Digest,
+          text: z.string(),
+        }),
+      )
+      .max(64)
+      .default([]),
   }),
   z.strictObject({
     action: z.literal("artifact"),
@@ -86,6 +98,28 @@ export const SimulationFileResultSchema = z.union([
     text: z.string(),
     offset: Revision,
     nextOffset: Revision.nullable(),
+    instances: z
+      .array(
+        z.strictObject({
+          documentId: Id,
+          instanceId: Id,
+          startOffset: Revision,
+          endOffset: Revision,
+        }),
+      )
+      .optional(),
+    editableParameters: z
+      .array(
+        z.strictObject({
+          from: Revision,
+          to: Revision,
+          label: z.string(),
+          documentId: Id,
+          instanceId: Id,
+          parameter: z.string(),
+        }),
+      )
+      .optional(),
   }),
   z.strictObject({
     ok: z.literal(true),

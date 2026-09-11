@@ -65,7 +65,7 @@ import type {
   SimulationDeviceOperatingPointSpec,
   SimulationExpression,
   SimulationMeasurementSpec,
-  SimulationSetup,
+  LegacySimulationSetup as SimulationSetup,
   SimulationStructuredInput,
   SimulationVoltageProbe,
   StableId,

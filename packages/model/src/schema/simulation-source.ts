@@ -85,12 +85,15 @@ export const SimulationSourceInputSchema = z
     }
   });
 
-export const ProjectSourceSimulationSetupSchema = z.strictObject({
-  id: StableIdSchema,
-  name: z.string().trim().min(1).max(128),
+export const SimulationSetupSchema = z.strictObject({
   version: z.literal(4),
   input: SimulationSourceInputSchema,
 });
+export const ProjectSimulationSetupSchema = SimulationSetupSchema.extend({
+  id: StableIdSchema,
+  name: z.string().trim().min(1).max(128),
+});
+export const ProjectSourceSimulationSetupSchema = ProjectSimulationSetupSchema;
 
 /** Execution-only point override, shared by compiler, service and Agent; never saved as nominal intent. */
 export const SimulationRunVariantSchema = z.strictObject({

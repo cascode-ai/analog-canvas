@@ -1,5 +1,6 @@
 import { prepareExecutionInput } from "./prepare-input.js";
 import type { CircuitProject } from "@icm/model";
+import { readSimulationExperimentConfig } from "@icm/model";
 import { simulationAnalysisToCsv } from "@icm/spice-run";
 import {
   SimulationOperationSchema,
@@ -99,6 +100,7 @@ export class SimulationService {
           ok: true,
           capabilities: {
             ...(await this.executor.capabilities()),
+            inputs: ["source"],
             batch: {
               maxItems: 16,
               execution: "sequential",
@@ -242,9 +244,10 @@ export class SimulationService {
     const setup = this.getProject().simulationSetups.find(
       ({ id }) => id === op.setupId,
     );
+    const config = setup ? readSimulationExperimentConfig(setup) : undefined;
     const variableNames = new Map(
-      setup?.input.kind === "structured"
-        ? setup.input.designVariables.map(({ id, name }) => [id, name])
+      config?.ok
+        ? config.config.variables.map(({ id, name }) => [id, name])
         : [],
     );
     type Variant = NonNullable<
@@ -604,28 +607,18 @@ export class SimulationService {
         input.preparedDeck,
       ),
     );
-    if (input.mode === "structured") {
+    for (const f of input.files)
       artifacts.push(
-        await this.publishArtifact(
-          epoch,
-          "design.spi",
-          "text/plain",
-          input.netlist,
-        ),
+        await this.publishArtifact(epoch, f.path, "text/plain", f.text),
       );
-      artifacts.push(
-        await this.publishArtifact(
-          epoch,
-          "testbench.cir",
-          "text/plain",
-          input.testbench,
-        ),
-      );
-    } else
-      for (const f of input.files)
-        artifacts.push(
-          await this.publishArtifact(epoch, f.path, "text/plain", f.text),
-        );
+    artifacts.push(
+      await this.publishArtifact(
+        epoch,
+        "source-map.json",
+        "application/json",
+        JSON.stringify(preparation.sourceMaps, null, 2),
+      ),
+    );
     artifacts.push(
       await this.publishArtifact(
         epoch,
@@ -646,7 +639,7 @@ export class SimulationService {
       digest,
       inputRevision: input.inputRevision,
       expiresAt: this.now() + TTL,
-      mode: input.mode,
+      mode: "source",
       environment: input.environment,
       vectors,
       outputs,

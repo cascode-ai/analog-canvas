@@ -1,3 +1,7 @@
+import {
+  CURRENT_PROJECT_SCHEMA_VERSION,
+  LegacyProjectSimulationSetupSchema,
+} from "@icm/model";
 import { describe, expect, it } from "vitest";
 import {
   CircuitProjectSchema,
@@ -6,6 +10,8 @@ import {
   type ProjectSourceSimulationSetup,
 } from "@icm/model";
 import ota from "../../../apps/editor/src/examples/five-transistor-ota-sky130.icproj.json";
+const legacySetups = () =>
+  ota.simulationSetups.map((s) => LegacyProjectSimulationSetupSchema.parse(s));
 import { migrateSimulationSetupToSource } from "./simulation-source-migration.js";
 import { projectSourceSimulation } from "./simulation-source-projection.js";
 import { inspectSimulationSourceGraph } from "./simulation-source-graph.js";
@@ -13,10 +19,14 @@ import { compileSourceSimulation } from "./simulation-source-compile.js";
 import { locateSimulationText } from "./simulation-source-map.js";
 
 function fixture() {
-  const project = CircuitProjectSchema.parse(ota);
+  const project = CircuitProjectSchema.parse({
+    ...ota,
+    schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
+    simulationSetups: [],
+  });
   const setup = migrateSimulationSetupToSource(
     project,
-    project.simulationSetups[0]!,
+    legacySetups()[0]!,
   ).setup;
   const document = project.documents.find((d) =>
     d.instances.some((i) => i.netlist?.parameters.w),
@@ -69,6 +79,22 @@ function projectPoint(
 }
 
 describe("native source run projection", () => {
+  it("reports stale variable binding parameters without mutating the saved input", () => {
+    const f = fixture();
+    const instance = f.document.instances.find(
+      (i) => i.id === f.target.instanceId,
+    )!;
+    delete instance.netlist!.parameters.w;
+    const before = structuredClone(f.project);
+    expect(projectPoint(f).diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "SIMULATION_VARIABLE_BINDING_PARAMETER_MISSING",
+        }),
+      ]),
+    );
+    expect(f.project).toEqual(before);
+  });
   it("resolves nominal -> variable point -> exact instance point without mutating any saved input", () => {
     const f = fixture(),
       original = structuredClone(f);
@@ -138,7 +164,13 @@ describe("native source run projection", () => {
         (d) => d.severity === "error",
       ),
     ).toBe(true);
-    expect(f.project).toEqual(CircuitProjectSchema.parse(ota));
+    expect(f.project).toEqual(
+      CircuitProjectSchema.parse({
+        ...ota,
+        schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
+        simulationSetups: [],
+      }),
+    );
   });
   it("leaves unbound native expressions to ngspice and only requires finite values for managed projection", () => {
     const f = fixture();

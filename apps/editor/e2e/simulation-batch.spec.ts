@@ -1,3 +1,8 @@
+import {
+  createSourceSimulationSetup,
+  readSimulationExperimentConfig,
+  replaceSimulationExperimentConfig,
+} from "@icm/model";
 import { test, expect } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import {
@@ -6,7 +11,7 @@ import {
 } from "@icm/spice-run";
 import { parseProject } from "@icm/project-protocol";
 
-import { ota, profile } from "./simulation-e2e-fixtures.js";
+import { ota, profile, editSimulationFile } from "./simulation-e2e-fixtures.js";
 test("a saved-setup batch prepares first and exposes each ordinary run", async ({
   page,
 }) => {
@@ -25,18 +30,15 @@ test("a saved-setup batch prepares first and exposes each ordinary run", async (
     ),
     "utf8",
   );
-  project.simulationSetups = ["TT", "FF"].map((name) => ({
-    id: `setup-${name.toLowerCase()}`,
-    name,
-    version: 3,
-    input: {
-      kind: "raw",
-      entry: "main.cir",
-      files: [{ path: "main.cir", text: deck }],
-      dependencies: [],
-      environment: { profileId: profile.id },
-    },
-  }));
+  project.simulationSetups = ["TT", "FF"].map((name) => {
+    const setup = createSourceSimulationSetup({
+      id: "setup-" + name.toLowerCase(),
+      name,
+      profileId: profile.id,
+    });
+    setup.input.files.find((f) => f.path === setup.input.entry)!.text = deck;
+    return setup;
+  });
   let executions = 0;
   await page.route("**/api/simulate", async (route) => {
     const body = route.request().postDataJSON();
@@ -44,10 +46,20 @@ test("a saved-setup batch prepares first and exposes each ordinary run", async (
       return route.fulfill({
         json: {
           configured: true,
+          rawfileCollection: "declared-single-ascii",
+          maxOutputBytes: 1048576,
           inputs: ["structured", "raw"],
           analyses: ["op", "dc", "ac", "tran", "noise"],
           parsedAnalyses: ["op", "dc", "ac", "tran", "noise"],
-          profiles: [{ id: profile.id, corners: ["tt"] }],
+          profiles: [
+            {
+              id: profile.id,
+              corners: ["tt"],
+              dependencies: [
+                { id: profile.models.id, sha256: profile.models.contentSha256 },
+              ],
+            },
+          ],
           maxTimeoutMs: 120000,
           maxInputBytes: 1048576,
           cancel: true,
@@ -125,37 +137,34 @@ test("a saved Run Plan prepares without executing and Run starts its ordinary ba
   page,
 }) => {
   const project = parseProject(JSON.stringify(ota));
-  const setup = project.simulationSetups.find(
-    ({ input }) => input.kind === "structured",
-  );
-  if (!setup || setup.input.kind !== "structured") throw new Error("setup");
-  const setupInput = setup.input;
-  const root = project.documents.find(
-    ({ id }) => id === setupInput.rootDocumentId,
-  )!;
-  const source = root.instances.find(({ id }) => id === "VINP")!;
-  setupInput.analyses = [{ kind: "op" }];
-  setupInput.outputs = [];
-  setupInput.designVariables = [
-    {
-      id: "input-level",
-      name: "VIN",
-      value: "0.9",
-      bindings: [
-        {
-          documentId: root.id,
-          instanceId: source.id,
-          parameter: "low",
-        },
-      ],
-    },
-  ];
-  setupInput.runPlan = {
+  let setup = project.simulationSetups[0]!;
+  const parsed = readSimulationExperimentConfig(setup);
+  if (!parsed.ok) throw Error(parsed.message);
+  const config = parsed.config;
+  config.outputs = [];
+  config.runPlan = {
     mode: "sweep",
     axes: [
       { kind: "variable", variableId: "input-level", values: ["0.89", "0.9"] },
     ],
   };
+  config.variables = [
+    {
+      id: "input-level",
+      name: "VIN",
+      sourcePath: setup.input.entry,
+      bindings: [
+        {
+          documentId: project.topDocumentId,
+          instanceId: "VINP",
+          parameter: "low",
+        },
+      ],
+    },
+  ];
+  setup = replaceSimulationExperimentConfig(setup, config);
+  setup.input.files.find((f) => f.path === setup.input.entry)!.text =
+    '* Run plan\n.param VIN=0.9\n.include "circuit.spice"\n.control\nset filetype=ascii\nop\nwrite out.raw\n.endc\n.end\n';
   project.simulationSetups = [setup];
   const rawfile = readFileSync(
     new URL(
@@ -171,10 +180,20 @@ test("a saved Run Plan prepares without executing and Run starts its ordinary ba
       return route.fulfill({
         json: {
           configured: true,
+          rawfileCollection: "declared-single-ascii",
+          maxOutputBytes: 1048576,
           inputs: ["structured", "raw"],
           analyses: ["op"],
           parsedAnalyses: ["op"],
-          profiles: [{ id: profile.id, corners: ["tt"] }],
+          profiles: [
+            {
+              id: profile.id,
+              corners: ["tt"],
+              dependencies: [
+                { id: profile.models.id, sha256: profile.models.contentSha256 },
+              ],
+            },
+          ],
           maxTimeoutMs: 120000,
           maxInputBytes: 1048576,
           cancel: true,
@@ -225,25 +244,18 @@ test("a saved Run Plan prepares without executing and Run starts its ordinary ba
     .getByRole("button", { name: "Analog simulation", exact: true })
     .click();
   const panel = page.getByRole("region", { name: "Analog simulation" });
-  const runPlan = panel.getByLabel("Run Plan settings");
-  await runPlan.locator(":scope > summary").click();
-  await runPlan
-    .getByRole("button", { name: "Temperature", exact: true })
-    .click();
-  const temperatures = runPlan.getByLabel("Run Plan temperatures");
-  await expect(temperatures).toHaveValue("-40, 27, 125");
-  await temperatures.press("Control+A");
-  await temperatures.press("Backspace");
-  await expect(temperatures).toHaveValue("");
-  await temperatures.type("-20, nope");
-  await temperatures.press("Enter");
-  await expect(temperatures).toHaveValue("-20, nope");
-  await expect(runPlan.getByRole("alert")).toContainText("finite number");
-  await temperatures.press("Control+A");
-  await temperatures.type("-20, 0, 25.5");
-  await temperatures.press("Enter");
-  await expect(temperatures).toHaveValue("-20, 0, 25.5");
-  await panel.getByRole("button", { name: "Apply setup" }).click();
+  config.runPlan = {
+    mode: "sweep",
+    axes: [
+      { kind: "variable", variableId: "input-level", values: ["0.89", "0.9"] },
+      { kind: "temperature", values: [-20, 0, 25.5] },
+    ],
+  };
+  await editSimulationFile(
+    page,
+    "experiment.json",
+    JSON.stringify(config, null, 2),
+  );
   await panel.getByRole("button", { name: "Prepare deck" }).click();
   await panel.getByTitle("Batch queue", { exact: true }).click();
   await expect(panel.locator(".simulation-batch-menu-popover")).toContainText(

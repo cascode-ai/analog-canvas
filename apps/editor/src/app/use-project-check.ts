@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import type { ProjectConnectivityIndex } from "@icm/derived";
+import {
+  buildProjectConnectivityIndex,
+  type ProjectConnectivityIndex,
+} from "@icm/derived";
 import type { CircuitProject } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
@@ -19,6 +22,7 @@ export function useProjectCheck({
   save,
   isSaving,
   openIssues,
+  beforeCheck,
 }: {
   project: CircuitProject;
   sessionId: string;
@@ -27,6 +31,7 @@ export function useProjectCheck({
   save(candidate: CircuitProject): Promise<CloudProjectSaveOutcome>;
   isSaving(): boolean;
   openIssues(): void;
+  beforeCheck?(): Promise<CircuitProject | null>;
 }) {
   const [result, setResult] = useState<ProjectCheckResult | null>(null);
   const [busy, setBusy] = useState(false);
@@ -46,21 +51,34 @@ export function useProjectCheck({
     setBusy(true);
     setChecking(true);
     openIssues();
-    // Save captures this immutable candidate before its first await. Checking
-    // is independent of the Cloud outcome, including offline and signed out.
-    const pendingSave = save(project);
     try {
+      const candidate = beforeCheck ? await beforeCheck() : project;
+      if (!candidate || latestSession.current !== sessionId) return;
+      const candidateIndex =
+        candidate === project
+          ? index
+          : buildProjectConnectivityIndex(candidate, resolver);
+      const candidateIdentity = projectCheckIdentity(
+        candidate,
+        sessionId,
+        resolver,
+      );
+      // Source buffers join the normal Project transaction before both check and save.
+      const pendingSave = save(candidate);
       // Yield once so the command's busy state can paint before a large check.
       // This is an explicit operation, never a background edit subscription.
       await new Promise<void>((resolve) => setTimeout(resolve, 0));
       if (latestSession.current === sessionId) {
-        setResult(runProjectCheck(project, identity, index));
+        setResult(
+          runProjectCheck(candidate, candidateIdentity, candidateIndex),
+        );
         setChecking(false);
       }
       await pendingSave;
     } finally {
       inFlight.current = false;
       setBusy(false);
+      setChecking(false);
     }
   }
 

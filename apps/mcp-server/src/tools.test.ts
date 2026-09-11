@@ -1,3 +1,7 @@
+import {
+  createSourceSimulationSetup,
+  readSimulationExperimentConfig,
+} from "@icm/model";
 import { describe, expect, it } from "vitest";
 import { AgentSessionClient } from "@icm/agent-client";
 import {
@@ -119,56 +123,26 @@ describe("mcp tool surface", () => {
     });
   });
 
-  it("manages named Simulation setups without replacing nested authored state", async () => {
-    const http = new FakeAgentHttp();
-    const { session } = await toolSession(http);
+  it("manages source experiments without replacing authored bytes during rename/clone", async () => {
+    const http = new FakeAgentHttp(),
+      { session } = await toolSession(http);
     await callTool("connect", { claimCode: "session-1.code" }, session);
     const snapshot = testSnapshot();
-    snapshot.project.simulationSetups = [
-      {
-        id: "setup-op",
-        name: "Operating point",
-        version: 3,
-        input: {
-          kind: "structured",
-          designVariables: [],
-          runPlan: { mode: "nominal" },
-          rootDocumentId: "main",
-          analyses: [{ kind: "op" }],
-          outputs: [
-            {
-              id: "vout",
-              label: "Vout",
-              expression: {
-                kind: "voltage",
-                documentId: "main",
-                anchor: { kind: "base-net", netId: "net-vout" },
-                occurrence: [],
-              },
-            },
-          ],
-          measurements: [
-            {
-              id: "measure-vout",
-              label: "Vout bias",
-              analysis: "op",
-              outputId: "vout",
-              method: { kind: "value" },
-            },
-          ],
-          environment: { profileId: "test", corner: "tt" },
-        },
-      },
-    ];
-    const transacts: Extract<
-      (typeof http.circuitCalls)[number]["request"],
-      { operation: "transact" }
-    >[] = [];
+    const setup = createSourceSimulationSetup({
+      id: "s",
+      name: "OP",
+      profileId: "test",
+      documentId: "main",
+    });
+    setup.input.files[0]!.text =
+      "* custom 🧪\r\n.control\r\nrepeat 2\r\nop\r\nend\r\n.endc\r\n.end";
+    snapshot.project.simulationSetups = [setup];
+    const writes: unknown[] = [];
     http.circuitHandler = async ({ request }) => {
       if (request.operation === "snapshot")
         return snapshotResponse(request.requestId, snapshot);
       if (request.operation === "transact") {
-        transacts.push(request);
+        writes.push(request);
         return transactSuccessResponse(
           request.requestId,
           request.expectedRevision,
@@ -176,25 +150,37 @@ describe("mcp tool surface", () => {
       }
       return capabilitiesResponse(request.requestId);
     };
-
     expect(
       parseText(
         await callTool(
           "simulation_setup",
-          { action: "list", rootDocumentId: "main" },
+          { action: "update", setupId: "s", name: "Bias" },
           session,
         ),
       ),
-    ).toMatchObject({
-      ok: true,
-      setups: [
+    ).toMatchObject({ ok: true });
+    expect(
+      parseText(
+        await callTool(
+          "simulation_setup",
+          { action: "clone", setupId: "s", newSetupId: "copy", name: "AC" },
+          session,
+        ),
+      ),
+    ).toMatchObject({ ok: true });
+    expect(writes[0]).toMatchObject({
+      structureEdits: [
         {
-          id: "setup-op",
-          kind: "structured",
-          outputCount: 1,
-          measurementCount: 1,
-          designVariableCount: 0,
-          runPlan: { mode: "nominal" },
+          kind: "upsert_simulation_setup",
+          setup: { id: "s", name: "Bias", input: setup.input },
+        },
+      ],
+    });
+    expect(writes[1]).toMatchObject({
+      structureEdits: [
+        {
+          kind: "upsert_simulation_setup",
+          setup: { id: "copy", input: setup.input },
         },
       ],
     });
@@ -202,187 +188,59 @@ describe("mcp tool surface", () => {
       parseText(
         await callTool(
           "simulation_setup",
-          { action: "get", setupId: "setup-op" },
+          {
+            action: "create",
+            setupId: "text",
+            name: "Native",
+            profileId: "test",
+          },
           session,
         ),
       ),
-    ).toMatchObject({ ok: true, setup: { id: "setup-op" } });
-
-    await callTool(
-      "simulation_setup",
-      {
-        action: "update",
-        setupId: "setup-op",
-        name: "OP and AC",
-        analyses: [
-          { kind: "op" },
-          {
-            kind: "ac",
-            sweep: "dec",
-            points: 20,
-            startHz: 1,
-            stopHz: 1e9,
-          },
-        ],
-        designVariables: [
-          {
-            id: "bias",
-            name: "BIAS",
-            value: "0.9",
-            bindings: [
-              {
-                documentId: "main",
-                instanceId: "instance-1",
-                parameter: "w",
-              },
-            ],
-          },
-        ],
-        runPlan: {
-          mode: "sweep",
-          axes: [
-            { kind: "variable", variableId: "bias", values: ["0.8", "0.9"] },
-          ],
+    ).toMatchObject({ ok: true });
+    expect(writes[2]).toMatchObject({
+      structureEdits: [
+        {
+          setup: { version: 4, input: { kind: "source", circuitBindings: [] } },
         },
-      },
-      session,
-    );
-    await callTool(
-      "simulation_setup",
-      {
-        action: "clone",
-        setupId: "setup-op",
-        newSetupId: "setup-copy",
-        name: "Operating point copy",
-      },
-      session,
-    );
-    await callTool(
-      "simulation_setup",
-      {
-        action: "create",
-        setupId: "setup-new",
-        name: "Transient",
-        rootDocumentId: "main",
-        analyses: [{ kind: "tran", stepSeconds: 1e-9, stopSeconds: 1e-6 }],
-        environment: { profileId: "test", corner: "ff" },
-      },
-      session,
-    );
-    await callTool(
-      "simulation_setup",
-      { action: "remove", setupId: "setup-op" },
-      session,
-    );
-
-    expect(transacts).toHaveLength(4);
-    expect(transacts[0]?.structureEdits?.[0]).toMatchObject({
-      kind: "upsert_simulation_setup",
-      setup: {
-        id: "setup-op",
-        name: "OP and AC",
-        input: {
-          outputs: [{ id: "vout" }],
-          measurements: [{ id: "measure-vout" }],
-          analyses: [{ kind: "op" }, { kind: "ac" }],
-          designVariables: [{ id: "bias", name: "BIAS" }],
-          runPlan: { mode: "sweep", axes: [{ kind: "variable" }] },
-        },
-      },
+      ],
     });
-    expect(transacts[1]?.structureEdits?.[0]).toMatchObject({
-      kind: "upsert_simulation_setup",
-      setup: { id: "setup-copy", name: "Operating point copy" },
-    });
-    expect(transacts[2]?.structureEdits?.[0]).toMatchObject({
-      kind: "upsert_simulation_setup",
-      setup: {
-        id: "setup-new",
-        name: "Transient",
-        input: { outputs: [], analyses: [{ kind: "tran" }] },
-      },
-    });
-    expect(transacts[3]?.structureEdits?.[0]).toEqual({
-      kind: "remove_simulation_setup",
-      setupId: "setup-op",
-    });
-
     expect(
       parseText(
         await callTool(
           "simulation_setup",
-          { action: "update", setupId: "setup-op" },
+          { action: "update", setupId: "s" },
           session,
         ),
       ),
     ).toMatchObject({
       ok: false,
-      error: { code: "SIMULATION_SETUP_UPDATE_EMPTY", recovery: "fix-input" },
+      error: { code: "SIMULATION_SETUP_UPDATE_EMPTY" },
     });
   });
-
-  it("authors a derived simulation output through the shared setup transaction", async () => {
-    const http = new FakeAgentHttp();
-    const { session } = await toolSession(http);
+  it("writes output, measurement and MOS helpers into the one config source, preserving native programs", async () => {
+    const http = new FakeAgentHttp(),
+      { session } = await toolSession(http);
     await callTool("connect", { claimCode: "session-1.code" }, session);
     const snapshot = testSnapshot();
     snapshot.project.simulationSetups = [
-      {
-        id: "setup-op",
-        name: "Operating point",
-        version: 3,
-        input: {
-          kind: "structured",
-          designVariables: [],
-          runPlan: { mode: "nominal" },
-          rootDocumentId: "main",
-          analyses: [
-            { kind: "op" },
-            {
-              kind: "noise",
-              output: {
-                positive: {
-                  documentId: "main",
-                  anchor: { kind: "base-net", netId: "net-vout" },
-                  occurrence: [],
-                },
-              },
-              inputSourceInstanceId: "source-1",
-              sweep: "dec",
-              points: 10,
-              startHz: 1,
-              stopHz: 1e6,
-            },
-          ],
-          outputs: [
-            {
-              id: "vin",
-              label: "Vin",
-              expression: {
-                kind: "voltage",
-                documentId: "main",
-                anchor: {
-                  kind: "terminal",
-                  instanceId: "instance-1",
-                  pinName: "G",
-                },
-                occurrence: [],
-              },
-            },
-          ],
-          environment: { profileId: "test" },
-        },
-      },
+      createSourceSimulationSetup({
+        id: "s",
+        name: "Program",
+        profileId: "test",
+        documentId: "main",
+      }),
     ];
-    const transacts: Extract<
-      (typeof http.circuitCalls)[number]["request"],
-      { operation: "transact" }
-    >[] = [];
+    const native = snapshot.project.simulationSetups[0]!.input.files[0]!.text;
     http.circuitHandler = async ({ request }) => {
       if (request.operation === "snapshot")
         return snapshotResponse(request.requestId, snapshot);
       if (request.operation === "transact") {
-        transacts.push(request);
+        const edit = request.structureEdits?.[0];
+        if (edit?.kind === "upsert_simulation_setup") {
+          snapshot.project.simulationSetups = [edit.setup];
+          snapshot.project.structureRevision++;
+        }
         return transactSuccessResponse(
           request.requestId,
           request.expectedRevision,
@@ -390,221 +248,144 @@ describe("mcp tool surface", () => {
       }
       return capabilitiesResponse(request.requestId);
     };
-
-    const result = parseText(
-      await callTool(
-        "simulation_output",
-        {
-          action: "upsert",
-          setupId: "setup-op",
-          label: "Gain",
-          expression: "db20(Vin / Vin)",
-        },
-        session,
-      ),
-    ) as { ok: boolean };
-
-    expect(result.ok).toBe(true);
-    expect(transacts).toHaveLength(1);
-    expect(transacts[0]?.structureEdits?.[0]).toMatchObject({
-      kind: "upsert_simulation_setup",
-      setup: {
-        id: "setup-op",
-        name: "Operating point",
-        version: 3,
-        input: {
-          outputs: [
-            { id: "vin", label: "Vin" },
-            {
-              label: "Gain",
-              expression: { kind: "db20" },
-            },
-          ],
-        },
-      },
-    });
-
-    const noise = parseText(
-      await callTool(
-        "simulation_measurement",
-        {
-          action: "upsert",
-          setupId: "setup-op",
-          label: "Output noise at 1 kHz",
-          analysis: "noise",
-          outputId: "noise-output-density",
-          method: { kind: "sample-at", coordinate: 1_000 },
-        },
-        session,
-      ),
-    ) as { ok: boolean };
-    expect(noise.ok).toBe(true);
-    expect(transacts[1]?.structureEdits?.[0]).toMatchObject({
-      setup: {
-        input: {
-          measurements: [
-            {
-              analysis: "noise",
-              outputId: "noise-output-density",
-              method: { kind: "sample-at", coordinate: 1_000 },
-            },
-          ],
-        },
-      },
-    });
-  });
-
-  it("authors a saved simulation measurement through the shared setup transaction", async () => {
-    const http = new FakeAgentHttp();
-    const { session } = await toolSession(http);
-    await callTool("connect", { claimCode: "session-1.code" }, session);
-    const snapshot = testSnapshot();
-    snapshot.project.simulationSetups = [
-      {
-        id: "setup-op",
-        name: "Operating point",
-        version: 3,
-        input: {
-          kind: "structured",
-          designVariables: [],
-          runPlan: { mode: "nominal" },
-          rootDocumentId: "main",
-          analyses: [{ kind: "op" }],
-          outputs: [
-            {
-              id: "vout",
-              label: "Vout",
-              expression: {
-                kind: "voltage",
-                documentId: "main",
-                anchor: { kind: "base-net", netId: "net-vout" },
-                occurrence: [],
-              },
-            },
-          ],
-          environment: { profileId: "test" },
-        },
-      },
-    ];
-    const transacts: Extract<
-      (typeof http.circuitCalls)[number]["request"],
-      { operation: "transact" }
-    >[] = [];
-    http.circuitHandler = async ({ request }) => {
-      if (request.operation === "snapshot")
-        return snapshotResponse(request.requestId, snapshot);
-      if (request.operation === "transact") {
-        transacts.push(request);
-        return transactSuccessResponse(
-          request.requestId,
-          request.expectedRevision,
-        );
-      }
-      return capabilitiesResponse(request.requestId);
+    const cfg = () => {
+      const result = readSimulationExperimentConfig(
+        snapshot.project.simulationSetups[0]!,
+      );
+      if (!result.ok) throw Error(result.message);
+      return result.config;
     };
-
-    const value = parseText(
-      await callTool(
-        "simulation_measurement",
-        {
-          action: "upsert",
-          setupId: "setup-op",
-          label: "Output voltage",
-          analysis: "op",
-          outputId: "vout",
-          method: { kind: "value" },
-        },
-        session,
-      ),
-    ) as { ok: boolean };
-
-    expect(value.ok).toBe(true);
-    expect(transacts).toHaveLength(1);
-    expect(transacts[0]?.structureEdits?.[0]).toMatchObject({
-      kind: "upsert_simulation_setup",
-      setup: {
-        input: {
-          measurements: [
-            {
-              label: "Output voltage",
-              analysis: "op",
-              outputId: "vout",
-              method: { kind: "value" },
+    expect(
+      parseText(
+        await callTool(
+          "simulation_output",
+          {
+            action: "upsert",
+            setupId: "s",
+            outputId: "gain",
+            label: "Gain",
+            expression: {
+              kind: "db20",
+              operand: { kind: "vector", vector: "v(out)" },
             },
-          ],
-        },
-      },
+          },
+          session,
+        ),
+      ),
+    ).toMatchObject({ ok: true });
+    expect(
+      parseText(
+        await callTool(
+          "simulation_measurement",
+          {
+            action: "upsert",
+            setupId: "s",
+            measurementId: "gain-at-1k",
+            label: "Gain at 1 kHz",
+            analysis: "ac",
+            outputId: "gain",
+            method: { kind: "sample-at", coordinate: 1000 },
+          },
+          session,
+        ),
+      ),
+    ).toMatchObject({ ok: true });
+    expect(
+      parseText(
+        await callTool(
+          "simulation_device_operating_point",
+          {
+            action: "upsert",
+            setupId: "s",
+            deviceOperatingPointId: "m1",
+            targetDocumentId: "main",
+            instanceId: "instance-1",
+            occurrence: [],
+            circuit: { bindingId: "circuit", callPath: [] },
+          },
+          session,
+        ),
+      ),
+    ).toMatchObject({ ok: true });
+    expect(cfg()).toMatchObject({
+      outputs: [{ id: "gain" }],
+      measurements: [{ id: "gain-at-1k" }],
+      deviceOperatingPoints: [
+        { id: "m1", circuit: { bindingId: "circuit", callPath: [] } },
+      ],
     });
+    expect(
+      snapshot.project.simulationSetups[0]!.input.files.find(
+        (f) => f.path === "run.cir",
+      )!.text,
+    ).toBe(native);
+    expect(snapshot.project.simulationSetups[0]!.input).not.toHaveProperty(
+      "analyses",
+    );
   });
-
-  it("authors a hierarchy-aware MOS operating-point selection", async () => {
-    const http = new FakeAgentHttp();
-    const { session } = await toolSession(http);
+  it("returns recoverable errors for broken configuration and lets the same session repair it", async () => {
+    const http = new FakeAgentHttp(),
+      { session } = await toolSession(http);
     await callTool("connect", { claimCode: "session-1.code" }, session);
-    const snapshot = testSnapshot();
-    snapshot.project.simulationSetups = [
-      {
-        id: "setup-op",
-        name: "Operating point",
-        version: 3,
-        input: {
-          kind: "structured",
-          designVariables: [],
-          runPlan: { mode: "nominal" },
-          rootDocumentId: "main",
-          analyses: [{ kind: "op" }],
-          outputs: [],
-          environment: { profileId: "test" },
-        },
-      },
-    ];
-    const transacts: Extract<
-      (typeof http.circuitCalls)[number]["request"],
-      { operation: "transact" }
-    >[] = [];
-    http.circuitHandler = async ({ request }) => {
-      if (request.operation === "snapshot")
-        return snapshotResponse(request.requestId, snapshot);
-      if (request.operation === "transact") {
-        transacts.push(request);
-        return transactSuccessResponse(
-          request.requestId,
-          request.expectedRevision,
-        );
-      }
-      return capabilitiesResponse(request.requestId);
-    };
-
-    const value = parseText(
-      await callTool(
-        "simulation_device_operating_point",
-        {
-          action: "upsert",
-          setupId: "setup-op",
-          targetDocumentId: "main",
-          instanceId: "instance-1",
-          occurrence: [],
-        },
-        session,
+    const snapshot = testSnapshot(),
+      setup = createSourceSimulationSetup({
+        id: "s",
+        name: "Draft",
+        profileId: "test",
+      });
+    setup.input.files.find((f) => f.path === setup.input.configPath)!.text =
+      "{";
+    snapshot.project.simulationSetups = [setup];
+    http.circuitHandler = async ({ request }) =>
+      request.operation === "snapshot"
+        ? snapshotResponse(request.requestId, snapshot)
+        : capabilitiesResponse(request.requestId);
+    expect(
+      parseText(
+        await callTool(
+          "simulation_output",
+          { action: "list", setupId: "s" },
+          session,
+        ),
       ),
-    ) as { ok: boolean };
-
-    expect(value.ok).toBe(true);
-    expect(transacts).toHaveLength(1);
-    expect(transacts[0]?.structureEdits?.[0]).toMatchObject({
-      kind: "upsert_simulation_setup",
+    ).toMatchObject({
+      ok: false,
+      error: { code: "SIMULATION_CONFIG_INVALID", recovery: "fix-input" },
+    });
+    expect(
+      parseText(
+        await callTool(
+          "simulation_setup",
+          { action: "get", setupId: "s" },
+          session,
+        ),
+      ),
+    ).toMatchObject({
+      ok: true,
       setup: {
         input: {
-          deviceOperatingPoints: [
-            {
-              documentId: "main",
-              instanceId: "instance-1",
-              occurrence: [],
-            },
-          ],
+          files: expect.arrayContaining([
+            { path: "experiment.json", text: "{" },
+          ]),
         },
       },
     });
+    snapshot.project.simulationSetups = [
+      createSourceSimulationSetup({
+        id: "s",
+        name: "Repaired",
+        profileId: "test",
+      }),
+    ];
+    expect(
+      parseText(
+        await callTool(
+          "simulation_output",
+          { action: "list", setupId: "s" },
+          session,
+        ),
+      ),
+    ).toMatchObject({ ok: true, outputs: [] });
   });
 
   it("inspect and search refresh by default so human edits are visible", async () => {
