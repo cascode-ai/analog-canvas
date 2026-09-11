@@ -38,6 +38,43 @@ describe("component placement properties", () => {
     );
     expect(markup).toContain('aria-label="Component geometry"');
     expect(markup).toContain("Swap + / − outputs");
+    expect(markup).not.toContain("Return to tray");
     expect(markup).toContain("Discard changes");
+  });
+
+  it("offers return to tray only for a netlist-imported instance", () => {
+    const document = createEmptyDocument("cell", "Cell");
+    const instance: (typeof document.instances)[number] = {
+      id: "M1",
+      symbolId: "nmos",
+      placement: {
+        position: { x: 10, y: 20 },
+        rotation: 0,
+        mirror: "none",
+      },
+      importProvenance: {
+        kind: "model",
+        sourceMasterName: "nmos",
+        sourceTarget: "model:nmos",
+      },
+    };
+    const markup = renderToStaticMarkup(
+      <ComponentPlacementProperties
+        instance={instance}
+        x="10"
+        y="20"
+        rotation="0"
+        draftChanged={false}
+        onXChange={vi.fn()}
+        onYChange={vi.fn()}
+        onRotate={vi.fn()}
+        onMirror={vi.fn()}
+        onReturnToTray={vi.fn()}
+        onDiscard={vi.fn()}
+      />,
+    );
+
+    expect(markup).toContain("Imported source evidence");
+    expect(markup).toContain("Return to tray");
   });
 });

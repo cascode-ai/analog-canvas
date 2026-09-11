@@ -1461,10 +1461,10 @@ export function App({
       })`
     : undefined;
   const unplaced = document.instances.filter(
-    (instance) => instance.placement === null,
+    (instance) => instance.importProvenance && instance.placement === null,
   );
   const returnablePlacedInstances = document.instances.filter(
-    (instance) => instance.placement !== null,
+    (instance) => instance.importProvenance && instance.placement !== null,
   );
   const styleProfile = resolveDocumentStyleProfile(document.presentation);
   const {

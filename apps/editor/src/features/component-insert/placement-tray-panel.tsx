@@ -32,6 +32,10 @@ export function PlacementTrayPanel({
   onSelect: (instance: Instance, label: string) => void;
   onPlace: (instanceId: string) => void;
 }) {
+  if (unplaced.length === 0 && returnablePlaced.length === 0) {
+    return null;
+  }
+
   return (
     <PropertyDisclosure
       title="Placement Tray"

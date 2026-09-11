@@ -194,6 +194,19 @@
   align-items: end;
 }
 
+.property-placement-controls .property-coordinate-field {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.3rem;
+  font-size: var(--icm-font-xs);
+}
+
+.property-placement-controls .property-coordinate-field input {
+  min-width: 0;
+  font-size: var(--icm-font-sm);
+}
+
 .property-placement-controls .property-placement-icon-button {
   display: inline-grid;
   place-items: center;

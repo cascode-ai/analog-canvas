@@ -166,7 +166,7 @@ test("writes an Instance Reference through post-placement Properties", async ({
     .toContain('"reference": "R7"');
 });
 
-test("returns a component to the Placement Tray and places the retained Instance again", async ({
+test("keeps the Placement Tray out of the manual component workflow", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -177,56 +177,14 @@ test("returns a component to the Placement Tray and places the retained Instance
   await page.getByTestId("hit-R1").click();
   await page.getByTestId("selection-shelf").click();
 
-  await page
-    .getByRole("button", { name: "Return component to Placement Tray" })
-    .click();
   await expect(
-    page
-      .getByRole("region", { name: "Placement Tray" })
-      .getByLabel("1 retained Instance"),
-  ).toBeVisible();
+    page.getByRole("button", { name: "Return component to Placement Tray" }),
+  ).toHaveCount(0);
   await expect(
     page.getByRole("region", { name: "Placement Tray" }),
-  ).not.toContainText("drag to the canvas");
-  await expect(page.getByTestId("unplaced-R1")).toContainText("R1 · resistor");
-  await expect(page.getByTestId("hit-R1")).toHaveCount(0);
-  await expect(
-    page.getByTestId("annotation-hit-instance-label-R1"),
   ).toHaveCount(0);
-
-  await page
-    .getByRole("region", { name: "Placement Tray" })
-    .locator(":scope > summary")
-    .click();
-  await page
-    .getByRole("button", { name: "Place R1 · resistor from tray" })
-    .click();
-  await canvas.hover({ position: { x: 480, y: 260 } });
-  await expect(page.getByTestId("component-placement-preview")).toBeVisible();
-  await canvas.click({ position: { x: 480, y: 260 } });
-
   await expect(page.getByTestId("hit-R1")).toBeVisible();
-  await expect(
-    page.getByTestId("annotation-hit-instance-label-R1"),
-  ).toBeVisible();
-  await expect(
-    page
-      .getByRole("region", { name: "Placement Tray" })
-      .getByLabel("0 retained Instances"),
-  ).toBeVisible();
-  await expect(page.getByTestId("revision")).toHaveText("3");
-
-  await page.getByTestId("hit-R1").click();
-  await page
-    .getByRole("button", { name: "Return component to Placement Tray" })
-    .click();
-  await page
-    .getByRole("region", { name: "Placement Tray" })
-    .getByRole("button", { name: "Place all" })
-    .click();
-
-  await expect(page.getByTestId("hit-R1")).toBeVisible();
-  await expect(page.getByTestId("revision")).toHaveText("5");
+  await expect(page.getByTestId("revision")).toHaveText("1");
 });
 
 test("refreshes explicitly only after flushing and automatically restoring recovery", async ({
@@ -1282,7 +1240,7 @@ test("keeps differential amplifier swaps in a dedicated placement row", async ({
   ).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Return component to Placement Tray" }),
-  ).toBeVisible();
+  ).toHaveCount(0);
 });
 
 test("keeps the workspace inside the viewport and exposes low-interference zoom controls", async ({

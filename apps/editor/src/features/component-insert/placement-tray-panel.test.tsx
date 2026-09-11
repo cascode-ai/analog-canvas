@@ -12,6 +12,11 @@ describe("placement tray panel", () => {
       symbolId: "resistor",
       placement: null,
       reference: "R1",
+      importProvenance: {
+        kind: "primitive",
+        sourceMasterName: "R",
+        sourceTarget: "primitive:R",
+      },
     };
     const markup = renderToStaticMarkup(
       <PlacementTrayPanel
@@ -33,5 +38,22 @@ describe("placement tray panel", () => {
     expect(tray).not.toContain('open=""');
     expect(markup).toContain('aria-label="1 retained Instance"');
     expect(markup).toContain("R1 · resistor");
+  });
+
+  it("does not render outside an imported placement workflow", () => {
+    const document = createEmptyDocument("cell", "Cell");
+    const markup = renderToStaticMarkup(
+      <PlacementTrayPanel
+        document={document}
+        unplaced={[]}
+        returnablePlaced={[]}
+        onPlaceAll={vi.fn()}
+        onReturnAll={vi.fn()}
+        onSelect={vi.fn()}
+        onPlace={vi.fn()}
+      />,
+    );
+
+    expect(markup).toBe("");
   });
 });
