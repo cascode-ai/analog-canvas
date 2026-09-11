@@ -12,11 +12,13 @@ export interface CodeHelperAction {
 }
 export function CodeHelperList({
   control,
+  language = "spice",
   actions = [],
   onChoose,
   onClose,
 }: {
   control: boolean;
+  language?: "spice" | "json";
   actions?: readonly CodeHelperAction[] | undefined;
   onChoose(rule: SimulationLanguageHelp): void;
   onClose(): void;
@@ -28,6 +30,7 @@ export function CodeHelperList({
   const matches = (text: string) =>
     terms.every((term) => text.toLowerCase().includes(term));
   const rules = simulationLanguageHelp
+    .filter(() => language === "spice")
     .filter((rule) => rule.context === (control ? "control" : "deck"))
     .filter((rule) => matches(`${rule.name} ${rule.summary} ${rule.keywords}`))
     .toSorted((a, b) => (a.priority ?? 90) - (b.priority ?? 90));

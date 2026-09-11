@@ -338,7 +338,11 @@ export default function SimulationCodeEditor(props: SimulationCodeEditorProps) {
     <div className="simulation-code-editor-shell">
       <div
         className="simulation-code-helper-toolbar"
-        style={props.mode === "json" ? { visibility: "hidden" } : undefined}
+        style={
+          props.mode === "json" && !props.helperActions?.length
+            ? { visibility: "hidden" }
+            : undefined
+        }
       >
         <button
           type="button"
@@ -361,6 +365,7 @@ export default function SimulationCodeEditor(props: SimulationCodeEditorProps) {
       </div>
       {helperOpen && (
         <CodeHelperList
+          language={props.mode ?? "spice"}
           control={controlContext(
             view.current?.state.doc.sliceString(
               0,
@@ -374,7 +379,7 @@ export default function SimulationCodeEditor(props: SimulationCodeEditorProps) {
           }}
           onChoose={(rule) => {
             const editor = view.current;
-            if (!editor || props.readOnly) return;
+            if (!editor || props.readOnly || props.mode === "json") return;
             const line = editor.state.doc.lineAt(
               editor.state.selection.main.head,
             );
@@ -421,14 +426,18 @@ export default function SimulationCodeEditor(props: SimulationCodeEditorProps) {
             !event.ctrlKey ||
             event.code !== "Space" ||
             event.altKey ||
-            event.nativeEvent.isComposing ||
-            props.mode === "json"
+            event.nativeEvent.isComposing
           )
             return;
           const editor = view.current;
           if (!editor) return;
           event.preventDefault();
           event.stopPropagation();
+          if (props.mode === "json") {
+            if (props.helperActions?.length) setHelperOpen(true);
+            else startCompletion(editor);
+            return;
+          }
           editor.dispatch({ effects: dismissParameterGuide.of(false) });
           const line = editor.state.doc.lineAt(
             editor.state.selection.main.head,

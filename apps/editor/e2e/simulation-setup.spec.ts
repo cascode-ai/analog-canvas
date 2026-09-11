@@ -105,6 +105,16 @@ test("the qualified OTA folder opens unchanged and preserves all root and hierar
   };
   await helper("Pick Net on Canvas");
   await page.getByTestId("route-hit-tb-vinp-route").click({ force: true });
+  // One-shot Canvas picking opens the config; observations must stay reachable
+  // there without offering SPICE snippets that would corrupt the JSON file.
+  await expect(
+    panel.getByRole("tab", { name: "experiment.json", exact: false }),
+  ).toHaveAttribute("aria-selected", "true");
+  await panel.getByRole("button", { name: /Helper.*Ctrl\+Space/ }).click();
+  await expect(
+    panel.getByRole("option", { name: ".include", exact: true }),
+  ).toHaveCount(0);
+  await page.keyboard.press("Escape");
   await helper("Pick current on Canvas");
   await page.getByTestId("terminal-VINP-+").click();
   await expect(
