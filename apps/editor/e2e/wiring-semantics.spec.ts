@@ -1,7 +1,11 @@
 import { createEmptyProject } from "@icm/model";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
-import { chooseComponent, clickDrawTool } from "./editor-fixtures";
+import {
+  chooseComponent,
+  clickDrawTool,
+  clickNetlistWorkflowCommand,
+} from "./editor-fixtures";
 
 async function placeComponent(
   page: Page,
@@ -199,7 +203,7 @@ test("dragging a wire's end onto another wire joins them into one net", async ({
   await page.keyboard.press("Escape");
   await expect(page.locator('[data-canvas-hit-kind="route"]')).toHaveCount(2);
   await expect(page.getByTestId("statusbar-issues")).toHaveText("Not checked");
-  await page.getByTestId("check-and-save").click();
+  await clickNetlistWorkflowCommand(page, "check-and-save");
   await expect(page.getByTestId("statusbar-issues")).toHaveText(
     "No issues found",
   );
@@ -258,7 +262,7 @@ test("dragging a wire's end onto another wire joins them into one net", async ({
   await expect(page.getByTestId("statusbar-issues")).toHaveText(
     "Check out of date",
   );
-  await page.getByTestId("check-and-save").click();
+  await clickNetlistWorkflowCommand(page, "check-and-save");
   await expect(page.getByTestId("statusbar-issues")).toHaveText(
     "No issues found",
   );
@@ -294,7 +298,7 @@ test("a power rail drawn across the tops of wires connects to them", async ({
   // over them as one unconnected conductor.
   await expect(page.locator('[data-canvas-hit-kind="route"]')).toHaveCount(5);
   await page.keyboard.press("Escape");
-  await page.getByTestId("check-and-save").click();
+  await clickNetlistWorkflowCommand(page, "check-and-save");
   await expect(page.getByTestId("statusbar-issues")).toHaveText(
     "No issues found",
   );
@@ -341,7 +345,7 @@ test("a component dragged onto a wire lands and connects", async ({ page }) => {
   // The pin became a real endpoint on the conductor, so the wire is now two
   // pieces meeting at it.
   await expect(page.locator('[data-canvas-hit-kind="route"]')).toHaveCount(2);
-  await page.getByTestId("check-and-save").click();
+  await clickNetlistWorkflowCommand(page, "check-and-save");
   await expect(page.getByTestId("statusbar-issues")).toHaveText(
     "No issues found",
   );

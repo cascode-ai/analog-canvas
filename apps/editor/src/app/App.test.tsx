@@ -106,20 +106,19 @@ describe("editor shell", () => {
     expect(markup).not.toContain('data-testid="cell-command-menu"');
     expect(markup).toContain("Manage Cells…");
     expect(markup).toContain("Instance Table…");
-    expect(markup).toContain("<summary>Netlist</summary>");
+    const netlistStart = markup.indexOf("<summary>Netlist</summary>");
+    const netlistEnd = markup.indexOf("</details>", netlistStart);
+    const netlistMenu = markup.slice(netlistStart, netlistEnd);
+    expect(netlistStart).toBeGreaterThan(-1);
     expect(markup).toContain("Check Report…");
-    expect(markup).toContain('data-testid="check-and-save"');
+    expect(netlistMenu).toContain('data-testid="open-analog-simulation"');
+    expect(netlistMenu).toContain('data-testid="check-and-save"');
+    expect(markup).not.toContain("<summary>Run</summary>");
     const agentEnd =
       markup.indexOf("</details>", markup.indexOf("<summary>Agent</summary>")) +
       "</details>".length;
     expect(markup.slice(agentEnd)).toMatch(
       /^<button[^>]*data-testid="publish-gallery-button"/u,
-    );
-    expect(markup.indexOf('data-testid="publish-gallery-button"')).toBeLessThan(
-      markup.indexOf('data-testid="open-analog-simulation"'),
-    );
-    expect(markup.indexOf('data-testid="open-analog-simulation"')).toBeLessThan(
-      markup.indexOf('data-testid="check-and-save"'),
     );
     expect(markup).toContain("Not checked");
     expect(erc).not.toHaveBeenCalled();
@@ -127,7 +126,7 @@ describe("editor shell", () => {
     erc.mockRestore();
     checks.mockRestore();
     // "Preflight" named a stage of a netlist pipeline, not the question the
-    // person is asking; the toolbar carries the plain action.
+    // person is asking; the Netlist menu carries the plain action.
     expect(markup).not.toContain("Preflight…");
     // Formal Cloud Save has one File-menu entry; the retired snapshot action
     // cannot return as a second control source.

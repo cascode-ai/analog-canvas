@@ -10,6 +10,7 @@ import {
 import { CLOUD_PROJECT_LIMIT } from "../src/features/editor-shell/cloud-projects";
 import {
   chooseComponent,
+  clickNetlistWorkflowCommand,
   downloadBytes,
   openMenu,
   recoveryProjectTexts,
@@ -114,7 +115,7 @@ for (const duringSave of ["edit", "replace"] as const) {
       .click({ position: { x: 360, y: 230 } });
     await page.keyboard.press("Escape");
     const check = page.getByTestId("check-and-save");
-    await check.click();
+    await clickNetlistWorkflowCommand(page, "check-and-save");
     await expect.poll(() => captured?.documents[0]?.instances.length).toBe(1);
     await expect(page.getByTestId("statusbar-issues")).toHaveAttribute(
       "data-check-status",

@@ -9,7 +9,10 @@ import {
 } from "@icm/spice-run";
 import { parseProject } from "@icm/project-protocol";
 
-import { downloadBytes } from "./editor-fixtures.js";
+import {
+  clickNetlistWorkflowCommand,
+  downloadBytes,
+} from "./editor-fixtures.js";
 import { ota, profile } from "./simulation-e2e-fixtures.js";
 
 const loadModule = createRequire(import.meta.url);
@@ -205,9 +208,7 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
   });
   await expect(page.getByTestId("schematic-canvas")).toBeVisible();
   expect(calls).toBe(0);
-  await page
-    .getByRole("button", { name: "Analog simulation", exact: true })
-    .click();
+  await clickNetlistWorkflowCommand(page, "open-analog-simulation");
   const panel = page.getByRole("region", { name: "Analog simulation" });
   await panel.getByRole("button", { name: "Run", exact: true }).click();
   await expect(panel.getByRole("alert")).toContainText(/PROBE|probe/);
@@ -290,7 +291,7 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
   await panel.getByRole("button", { name: "Minimize simulation" }).click();
   expect(cancellations).toBe(0);
   release();
-  await page.getByTestId("open-analog-simulation").click();
+  await clickNetlistWorkflowCommand(page, "open-analog-simulation");
   await expect(panel.getByRole("status")).toHaveText("finished · completed");
   // A completed run belongs to its setup, not whichever setup is currently visible.
   await panel.getByTitle("Simulation setup", { exact: true }).click();
@@ -988,7 +989,7 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
     mimeType: "application/json",
     buffer: saved,
   });
-  await page.getByTestId("open-analog-simulation").click();
+  await clickNetlistWorkflowCommand(page, "open-analog-simulation");
   await panel.getByRole("button", { name: "Settings" }).click();
   await expect(panel.getByLabel("Temperature (°C)")).toHaveValue("30");
   await expect(panel.getByLabel("TRAN", { exact: true })).toBeChecked();
@@ -1034,7 +1035,7 @@ test("Simulation creates an ordinary testbench and offers the current Cell at th
   });
   expect(saved.topDocumentId).toBe("document-main");
   expect(saved.simulationSetups).toEqual([]);
-  await page.getByTestId("open-analog-simulation").click();
+  await clickNetlistWorkflowCommand(page, "open-analog-simulation");
   await expect(page.getByLabel("Testbench Cell")).toHaveCount(0);
   await page.getByRole("button", { name: "Apply setup" }).click();
   const configured = JSON.parse(
@@ -1074,7 +1075,7 @@ test("Simulation creates an ordinary testbench and offers the current Cell at th
   await expect(page.getByTestId("open-analog-simulation")).toContainText(
     "Minimized",
   );
-  await page.getByTestId("open-analog-simulation").click();
+  await clickNetlistWorkflowCommand(page, "open-analog-simulation");
   await page.getByRole("button", { name: "Exit simulation" }).click();
   const exitConfirmation = page.getByRole("alertdialog");
   await expect(exitConfirmation).toContainText("temporary run files");
