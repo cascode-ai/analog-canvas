@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import SimulationCodeEditor from "../../src/features/simulation/code-editor";
+import { SimulationOutputResults } from "../../src/features/simulation/simulation-output-results";
 import {
   SimulationCodeWorkspace,
   type SimulationCodeWorkspaceProps,
@@ -46,7 +47,49 @@ function Harness() {
           outputPane={pane}
           onSelectOutputPane={setPane}
           console={<div>Component console — no simulator attached</div>}
-          results={<div>Component results</div>}
+          results={
+            <SimulationOutputResults
+              resultKey="native-run"
+              outputs={[]}
+              signalTargets={{
+                "v(out)": [
+                  {
+                    rootDocumentId: "root",
+                    documentId: "child",
+                    netId: "output-net",
+                    occurrence: ["dut"],
+                  },
+                ],
+              }}
+              onFocusProbe={(probe) => {
+                document.body.dataset.chartTarget = JSON.stringify(probe);
+              }}
+              data={{
+                schemaVersion: 1,
+                diagnostics: [],
+                analyses: [
+                  {
+                    analysis: "ac",
+                    plotName: "AC",
+                    domain: {
+                      name: "Frequency",
+                      unit: "Hz",
+                      values: [1, 10, 100],
+                    },
+                    outputs: [
+                      {
+                        id: "native:v(out)",
+                        label: "Output",
+                        unit: "V",
+                        values: [1, 0.9, 0.1],
+                        imaginary: [0, -0.1, -0.2],
+                      },
+                    ],
+                  },
+                ],
+              }}
+            />
+          }
           status={`Revision ${revision}`}
           maximized={maximized}
           onToggleMaximize={() => setMaximized((value) => !value)}
@@ -63,10 +106,10 @@ function Harness() {
             }
             onSave={save}
             onCursor={setCursor}
-            relatedSources={["VBIAS vdd 0 DC 1.8\nR1 vdd out 1k"]}
+            relatedSources={["VBIAS vdd 0 DC 1.8\nR1 vdd OUT 1k"]}
             signalNames={() => ({ "v(out)": "Output" })}
             onFocusSignal={(vector) => {
-              document.body.dataset.focusedSignal = vector;
+              document.body.dataset.focusedSignal = vector ?? "";
             }}
           />
         </SimulationCodeWorkspace>

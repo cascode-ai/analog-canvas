@@ -1,5 +1,35 @@
 import { expect, test } from "@playwright/test";
 
+test("native save result focuses its captured Canvas address after code preview ends", async ({
+  page,
+}) => {
+  const editor = page.getByRole("textbox", {
+    name: "Simulation source editor",
+  });
+  await editor.fill("* test\n.control\nsave v(out)");
+  await page.keyboard.press("End");
+  await page.keyboard.press("ArrowLeft");
+  await expect(page.locator("body")).toHaveAttribute(
+    "data-focused-signal",
+    "v(out)",
+  );
+  await page.getByRole("tab", { name: "Plot", exact: true }).click();
+  await expect(page.locator("body")).toHaveAttribute("data-focused-signal", "");
+  await page.getByRole("button", { name: "Hide Output", exact: true }).click();
+  await page.getByRole("button", { name: "Show Output", exact: true }).click();
+  await expect(page.locator("body")).toHaveAttribute(
+    "data-chart-target",
+    JSON.stringify({
+      id: "native:v(out)",
+      kind: "voltage",
+      rootDocumentId: "root",
+      documentId: "child",
+      occurrence: ["dut"],
+      anchor: { kind: "base-net", netId: "output-net" },
+    }),
+  );
+});
+
 test("native save and dc arguments open automatically and preview their Canvas target", async ({
   page,
 }) => {
@@ -11,6 +41,9 @@ test("native save and dc arguments open automatically and preview their Canvas t
   await page.keyboard.type(" ");
   const output = page.getByRole("option").filter({ hasText: "v(out)" });
   await expect(output).toBeVisible();
+  await expect(
+    page.getByRole("option").filter({ hasText: /v\(out\)/i }),
+  ).toHaveCount(1);
   await page.keyboard.press("ArrowDown");
   const selected = await page
     .locator(
@@ -27,6 +60,16 @@ test("native save and dc arguments open automatically and preview their Canvas t
     "v(out)",
   );
   await page.keyboard.press("Escape");
+  await expect(page.locator("body")).toHaveAttribute("data-focused-signal", "");
+  await editor.fill("* test\n.control\nsave v(out)");
+  await page.keyboard.press("End");
+  await page.keyboard.press("ArrowLeft");
+  await expect(page.locator("body")).toHaveAttribute(
+    "data-focused-signal",
+    "v(out)",
+  );
+  await editor.blur();
+  await expect(page.locator("body")).toHaveAttribute("data-focused-signal", "");
   await editor.fill("* test\n.control\ndc");
   await page.keyboard.press("End");
   await page.keyboard.type(" ");
@@ -134,9 +177,7 @@ test("Files opens sideways, configuration is advanced, and results maximize/rest
   await page.getByRole("tab", { name: "Plot", exact: true }).click();
   await page.getByRole("button", { name: "Maximize results" }).click();
   await expect(editor).not.toBeVisible();
-  await expect(
-    page.getByText("Component results", { exact: true }),
-  ).toBeVisible();
+  await expect(page.locator(".simulation-output-results")).toBeVisible();
   await page.getByRole("button", { name: "Restore results" }).click();
   await expect(editor).toBeVisible();
   await expect(

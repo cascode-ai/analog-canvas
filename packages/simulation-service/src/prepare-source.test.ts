@@ -162,6 +162,21 @@ describe("source execution preparation", () => {
         true,
       );
       if (!result.ok) continue;
+      expect(Object.keys(result.signalTargets).length).toBeGreaterThan(0);
+      expect(Object.keys(result.signalTargets)).toEqual(
+        Object.keys(result.signalNames),
+      );
+      for (const targets of Object.values(result.signalTargets)) {
+        expect(targets.length).toBeGreaterThan(0);
+        for (const target of targets) {
+          const document = circuit.documents.find(
+            (d) => d.id === target.documentId,
+          );
+          expect(document?.nets.some((net) => net.id === target.netId)).toBe(
+            true,
+          );
+        }
+      }
       expect(result.input.dependencies).toContainEqual({
         id: profile.models.id,
         sha256: profile.models.contentSha256,

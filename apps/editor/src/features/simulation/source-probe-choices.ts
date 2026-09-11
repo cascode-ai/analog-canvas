@@ -44,7 +44,11 @@ export function sourceProbeChoices(
     }
   }
   // Native top-level nodes and independent voltage-source currents need no Canvas mapping.
-  const vectors = new Set<string>();
+  const vectors = new Map<string, string>();
+  const addVector = (vector: string) => {
+    const key = vector.toLowerCase();
+    if (!vectors.has(key)) vectors.set(key, vector);
+  };
   const names = simulationSignalNames(project, input);
   for (const [vector, name] of Object.entries(names)) {
     choices.push({
@@ -52,18 +56,18 @@ export function sourceProbeChoices(
       label: `${name.replaceAll("/", " · ")} — ${vector}`,
       expression: { kind: "vector", vector },
     });
-    vectors.add(vector);
+    addVector(vector);
   }
   let depth = 0;
   for (const { statement } of graph.statements) {
     if (statement.kind === "subckt_start") depth++;
     else if (statement.kind === "subckt_end") depth = Math.max(0, depth - 1);
     if (depth || statement.kind !== "instance") continue;
-    for (const node of statement.nodes) vectors.add(`v(${node})`);
+    for (const node of statement.nodes) addVector(`v(${node})`);
     if (statement.family === "voltage-source")
-      vectors.add(`i(${statement.name})`);
+      addVector(`i(${statement.name})`);
   }
-  for (const vector of vectors)
+  for (const vector of vectors.values())
     if (!names[vector.toLowerCase()])
       choices.push({
         kind: vector.startsWith("v(") ? "voltage" : "current",

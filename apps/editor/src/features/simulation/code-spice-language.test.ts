@@ -5,6 +5,24 @@ import { spiceCodeLanguage, spiceCompletion } from "./code-spice-language";
 import { parameterGuide } from "./code-parameter-guide";
 
 describe("SPICE editor assistance", () => {
+  it("deduplicates SPICE names case-insensitively while retaining Canvas labels", () => {
+    const doc = "* test\n.control\nsave ";
+    const state = EditorState.create({
+      doc,
+      selection: { anchor: doc.length },
+    });
+    const options = spiceCompletion(
+      new CompletionContext(state, doc.length, true),
+      ["V1 N0003 0 1\nR1 n0003 OUT 1k\nR2 out 0 1k"],
+      () => ({ "v(n0003)": "Input" }),
+    )!.options;
+    expect(options.filter((o) => o.label.toLowerCase() === "v(n0003)")).toEqual(
+      [{ label: "v(n0003)", type: "variable", detail: "Input" }],
+    );
+    expect(
+      options.filter((o) => o.label.toLowerCase() === "v(out)"),
+    ).toHaveLength(1);
+  });
   it("suggests real source names and vectors without leaking local subcircuit nodes", () => {
     const text = "* test\n.control\ndc ";
     const state = EditorState.create({
