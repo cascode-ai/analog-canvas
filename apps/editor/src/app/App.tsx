@@ -5687,8 +5687,14 @@ export function App({
                                 instanceId: selectedInstance.id,
                                 placement: {
                                   position: {
-                                    x: value.placement.at[0],
-                                    y: value.placement.at[1],
+                                    x: snapCoordinate(
+                                      value.placement.at[0],
+                                      document.presentation.grid,
+                                    ),
+                                    y: snapCoordinate(
+                                      value.placement.at[1],
+                                      document.presentation.grid,
+                                    ),
                                   },
                                   rotation: value.placement.rotation,
                                   mirror: value.placement.mirror,

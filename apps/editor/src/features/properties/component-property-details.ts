@@ -195,7 +195,7 @@ export function componentDetailFields(
       label: parameter.label,
       kind: parameter.options ? ("choice" as const) : ("text" as const),
       ...(parameter.options ? { options: parameter.options } : {}),
-      description: `${parameter.help}${parameter.defaultValue ? ` Default: ${parameter.defaultValue}.` : ""} Enter any unit suffix yourself.`,
+      description: `${parameter.help}${parameter.defaultValue ? ` Default: ${parameter.defaultValue}.` : ""}${parameter.unit ? " Enter any unit suffix yourself." : ""}`,
     })),
     {
       path: "netlistTarget",

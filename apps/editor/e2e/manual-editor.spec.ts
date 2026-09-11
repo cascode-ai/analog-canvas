@@ -120,6 +120,70 @@ test("Defaults and Discard draft have distinct non-destructive behavior", async 
   await expect(page.locator(".cm-json-string").first()).toBeVisible();
 });
 
+test("one JSON Apply combines model, dimensions and appearance in one undo boundary", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await placeComponent(page, "nmos", { x: 360, y: 220 });
+  await openSelectionShelf(page);
+  await editComponentPropertyCode(page, (code) => {
+    code.netlistTarget = "sky130_fd_pr__nfet_01v8";
+    code.parameters.w = "5u";
+    code.appearance.foreground = [20, 30, 40];
+  });
+  await expectComponentCodeField(page, "reference", "XM1");
+  await expectComponentCodeField(page, "parameters.w", "5u");
+  await expectComponentCodeField(page, "appearance.foreground", [20, 30, 40]);
+  await clickCommand(page, "Edit", "Undo");
+  await expectComponentCodeField(page, "reference", "M1");
+  await expectComponentCodeField(page, "parameters.w", "1u");
+  await expectComponentCodeField(page, "appearance.foreground", "auto");
+  await clickCommand(page, "Edit", "Redo");
+  await expectComponentCodeField(page, "reference", "XM1");
+  await expectComponentCodeField(page, "parameters.w", "5u");
+});
+
+test("property placement null retains a wired instance and re-places it with grid snapping", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await placeComponent(page, "resistor", { x: 360, y: 220 });
+  const canvas = page.getByTestId("schematic-canvas");
+  await clickDrawTool(page, "wire");
+  await page.getByTestId("terminal-R1-2").click();
+  await canvas.dblclick({ position: { x: 500, y: 350 } });
+  await page.keyboard.press("Escape");
+  await page.getByTestId("hit-R1").click();
+  await openSelectionShelf(page);
+  const before = JSON.parse(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(
+      "utf8",
+    ),
+  );
+  await setComponentCodeField(page, "placement", null);
+  await expect(page.getByTestId("hit-R1")).toHaveCount(0);
+  await expectComponentCodeField(page, "placement", null);
+  const saved = JSON.parse(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(
+      "utf8",
+    ),
+  );
+  expect(saved.documents[0].instances).toHaveLength(1);
+  expect(saved.documents[0].nets).toEqual(before.documents[0].nets);
+  expect(saved.documents[0].routes).toHaveLength(
+    before.documents[0].routes.length,
+  );
+  await setComponentCodeField(page, "placement", {
+    at: [421, 281],
+    rotation: 90,
+    mirror: "x",
+  });
+  await expect(page.getByTestId("hit-R1")).toHaveCount(1);
+  await expectComponentCodeField(page, "placement.at", [420, 280]);
+  await clickCommand(page, "Edit", "Undo");
+  await expect(page.getByTestId("hit-R1")).toHaveCount(0);
+});
+
 test("a directly connected device can move away and return with its wire, undo and redo", async ({
   page,
 }) => {
