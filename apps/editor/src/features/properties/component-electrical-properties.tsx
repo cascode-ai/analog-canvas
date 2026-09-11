@@ -10,7 +10,6 @@ import { derivedFingerWidth } from "./finger-width";
 import { PropertyDisclosure } from "./property-disclosure";
 
 type Instance = SchematicDocument["instances"][number];
-const COMPACT_PARAMETER_LABELS = new Set(["W", "L", "NF"]);
 
 const SOURCE_BASE_PARAMETER_ROWS = [
   ["dc", "waveform"],
@@ -32,7 +31,11 @@ function parameterRows(
   waveform: string | undefined,
 ): readonly (readonly ComponentParameter[])[] {
   if (!parameters.some(({ key }) => key === "waveform")) {
-    return parameters.map((parameter) => [parameter]);
+    const rows: ComponentParameter[][] = [];
+    for (let index = 0; index < parameters.length; index += 2) {
+      rows.push(parameters.slice(index, index + 2));
+    }
+    return rows;
   }
 
   const byKey = new Map(
@@ -147,7 +150,7 @@ export function ComponentElectricalProperties({
   const referenceToggleable = referenceLabelRenderable && referenceAvailable;
   const displayable = referenceToggleable || valueSupported;
   const renderedDisplayable = displayControls && displayable;
-  const isMos = descriptor?.deviceClass === "mos";
+  const compactParameterLabels = primaryParameters.length > 1;
   if (
     primaryParameters.length === 0 &&
     !renderedDisplayable &&
@@ -177,9 +180,7 @@ export function ComponentElectricalProperties({
                 <span className="property-parameter-name">
                   {parameter.label}
                   {parameter.unit ? ` / ${parameter.unit}` : ""}
-                  {isIndependentSource ||
-                  (isMos &&
-                    COMPACT_PARAMETER_LABELS.has(parameter.label)) ? null : (
+                  {isIndependentSource || compactParameterLabels ? null : (
                     <em>({parameter.help})</em>
                   )}
                 </span>

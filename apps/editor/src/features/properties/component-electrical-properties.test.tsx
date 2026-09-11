@@ -67,7 +67,7 @@ describe("component electrical properties", () => {
     expect(markup).not.toContain("Component compatibility field");
   });
 
-  it("keeps W, L, and NF labels compact while retaining other device guidance", () => {
+  it("packs multi-parameter devices into pairs and keeps their labels compact", () => {
     const document = createEmptyDocument("cell", "Cell");
     const instance: (typeof document.instances)[number] = {
       id: "M1",
@@ -108,7 +108,9 @@ describe("component electrical properties", () => {
     expect(markup).not.toContain("(Total width)");
     expect(markup).not.toContain("(Length)");
     expect(markup).not.toContain("(Finger count)");
-    expect(markup).toContain("(Multiplier)");
+    expect(markup).not.toContain("(Multiplier)");
+    expect(markup).toContain('data-parameter-row="w-l"');
+    expect(markup).toContain('data-parameter-row="nf-m"');
     expect(markup).toContain('title="Total width"');
   });
 

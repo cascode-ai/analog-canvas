@@ -66,8 +66,8 @@ export function ComponentPlacementProperties({
               className="component-geometry-row property-placement-controls"
               aria-label="Component geometry"
             >
-              <label>
-                X
+              <label className="property-coordinate-field">
+                <span>X</span>
                 <input
                   aria-label="Component X position"
                   inputMode="decimal"
@@ -75,8 +75,8 @@ export function ComponentPlacementProperties({
                   onChange={(event) => onXChange(event.currentTarget.value)}
                 />
               </label>
-              <label>
-                Y
+              <label className="property-coordinate-field">
+                <span>Y</span>
                 <input
                   aria-label="Component Y position"
                   inputMode="decimal"
@@ -113,14 +113,16 @@ export function ComponentPlacementProperties({
               </button>
             </div>
           ) : null}
-          <button
-            type="button"
-            className="property-return-to-tray"
-            aria-label="Return component to Placement Tray"
-            onClick={onReturnToTray}
-          >
-            Return to tray
-          </button>
+          {instance.importProvenance ? (
+            <button
+              type="button"
+              className="property-return-to-tray"
+              aria-label="Return component to Placement Tray"
+              onClick={onReturnToTray}
+            >
+              Return to tray
+            </button>
+          ) : null}
           {onSwapContactStyle ? (
             <div className="component-mirror-row" aria-label="Switch drawing">
               <button
