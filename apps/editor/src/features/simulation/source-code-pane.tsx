@@ -20,7 +20,12 @@ import {
   matchSimulationTerminalCurrentProbeOptions,
   type SimulationProbeOption,
 } from "./simulation-probe-options";
-import { generateCircuitSource, planCircuitSourceEdit } from "@icm/netlist";
+import {
+  generateCircuitSource,
+  planCircuitSourceEdit,
+  compileSourceSimulation,
+  simulationSignalNames,
+} from "@icm/netlist";
 import type { SimulationFiles } from "@icm/simulation-service/files";
 import { sha256 } from "@icm/simulation-service/files";
 import type {
@@ -60,6 +65,8 @@ interface Props extends Pick<
   selectedCircuitObject?:
     { documentId: string; instanceId: string } | undefined;
   folder: ProjectSimulationFolder;
+  selectedFile?: { folderId: string; path: string } | undefined;
+  newFileRequest?: string | undefined;
   files: SimulationFiles;
   actions: ReactNode;
   folders?: SimulationCodeWorkspaceProps["folders"];
@@ -67,11 +74,12 @@ interface Props extends Pick<
   console: ReactNode;
   results: ReactNode;
   status?: ReactNode;
-  outputPane: "console" | "results";
-  onSelectOutputPane(pane: "console" | "results"): void;
+  outputPane: SimulationCodeWorkspaceProps["outputPane"];
+  onSelectOutputPane: SimulationCodeWorkspaceProps["onSelectOutputPane"];
   maximized: boolean;
   onToggleMaximize(): void;
   onDirty(dirty: boolean): void;
+  onActiveDirty(dirty: boolean): void;
   onProblem(problem: Problem | undefined): void;
   diagnostics?: Problem["diagnostics"];
   onRun(): void;
@@ -123,6 +131,13 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
       setRecoveryAvailable(cache.write(drafts.current));
     }, [cache, draftRevision]);
     const [path, setPath] = useState(props.folder.input.entry);
+    useEffect(() => {
+      setPath(
+        props.selectedFile?.folderId === props.folder.id
+          ? props.selectedFile.path
+          : props.folder.input.entry,
+      );
+    }, [props.folder.id, props.selectedFile]);
     const [saving, setSaving] = useState(false);
     const [reveal, setReveal] = useState<{
       sourceOffset: number;
@@ -130,15 +145,17 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
       focus?: boolean;
     }>();
     const [sourceDigest, setSourceDigest] = useState("");
+    const [saveRequest, setSaveRequest] = useState<{
+      id: string;
+      vectors: string[];
+    }>();
     const savingRef = useRef(false);
     const picked = useRef({
       net: props.pickedNet?.sequence,
       terminal: props.pickedTerminal?.sequence,
     });
     const input = props.folder.input;
-    const [probePicker, setProbePicker] = useState<
-      "voltage" | "current" | "difference"
-    >();
+    const [probePicker, setProbePicker] = useState<"voltage" | "current">();
     const probeChoices = useMemo(
       () =>
         probePicker
@@ -164,10 +181,31 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
           : undefined,
       [props.project, binding],
     );
-    const addOutput = (
+    const saveSignal = (
       label: string,
       expression: SimulationSourceExpression,
     ) => {
+      const insert = (vectors: string[]) => {
+        if (
+          input.circuitBindings.some((b) => b.path === path) ||
+          path.endsWith(".json")
+        )
+          setPath(input.entry);
+        setSaveRequest({ id: crypto.randomUUID(), vectors });
+      };
+      if (expression.kind === "vector") {
+        if (/[\r\n;]/u.test(expression.vector)) {
+          props.onProblem(
+            inputProblem(
+              "SIMULATION_VECTOR_INVALID",
+              "Enter a vector, not a command.",
+            ),
+          );
+          return;
+        }
+        insert([expression.vector]);
+        return;
+      }
       const file = props.folder.input.files.find(
           (f) => f.path === input.configPath,
         ),
@@ -194,23 +232,70 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
         setPath(input.configPath);
         return;
       }
-      if (
-        parsed.config.outputs.some(
-          (o) => JSON.stringify(o.expression) === JSON.stringify(expression),
-        )
-      )
-        return;
+      const previousOutputs = [...parsed.config.outputs];
       parsed.config.outputs.push({
         id: `output-${crypto.randomUUID()}`,
         label,
         expression,
       });
-      drafts.current.set(`${props.folder.id}\u0000${input.configPath}`, {
-        base: draft?.base ?? file?.text ?? "",
-        text: JSON.stringify(parsed.config, null, 2) + "\n",
-        committed: draft?.committed ?? props.project.structureRevision,
-      });
-      setPath(input.configPath);
+      const projected = {
+        ...props.folder,
+        input: {
+          ...input,
+          drafts: [],
+          files: input.files.map((source) => ({
+            ...source,
+            text:
+              source.path === input.configPath
+                ? JSON.stringify(parsed.config)
+                : (drafts.current.get(`${props.folder.id}\u0000${source.path}`)
+                    ?.text ?? source.text),
+          })),
+        },
+      };
+      const resolved = compileSourceSimulation(props.project, projected);
+      if (!resolved.ok) {
+        props.onProblem(
+          inputProblem(
+            "SIMULATION_SIGNAL_UNRESOLVED",
+            resolved.diagnostics.map((d) => d.message).join("; "),
+          ),
+        );
+        return;
+      }
+      const output = resolved.outputs.at(-1)!;
+      const acquisitionIds = new Set<string>();
+      const visit = (value: typeof output.expression) => {
+        if (value.kind === "acquisition")
+          acquisitionIds.add(value.acquisitionId);
+        if ("operand" in value) visit(value.operand);
+        if ("left" in value) {
+          visit(value.left);
+          visit(value.right);
+        }
+      };
+      visit(output.expression);
+      const nativeVectors = resolved.vectors
+        .filter((v) => acquisitionIds.has(v.probeId))
+        .map((v) => v.vector);
+      // Only terminal-current targets require a durable instrumentation owner.
+      // Ordinary voltage picks are native save text, not a second output setup.
+      if (expression.kind !== "current")
+        parsed.config.outputs = previousOutputs;
+      else if (
+        previousOutputs.some(
+          (o) => JSON.stringify(o.expression) === JSON.stringify(expression),
+        )
+      )
+        parsed.config.outputs = previousOutputs;
+      if (expression.kind === "current") {
+        drafts.current.set(`${props.folder.id}\u0000${input.configPath}`, {
+          base: draft?.base ?? file?.text ?? "",
+          text: JSON.stringify(parsed.config, null, 2) + "\n",
+          committed: draft?.committed ?? props.project.structureRevision,
+        });
+      }
+      insert(nativeVectors.length ? nativeVectors : ["v(0)"]);
       render((v) => v + 1);
     };
     const addPicked = (matches: readonly SimulationProbeOption[]) => {
@@ -222,7 +307,7 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
         return;
       }
       const match = matches[0]!;
-      addOutput(match.label, {
+      saveSignal(match.label, {
         ...match.target,
         circuit: { bindingId: binding.id, callPath: [] },
       });
@@ -264,11 +349,11 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
       [props.project, input.circuitBindings],
     );
     useEffect(() => {
-      setPath(input.entry);
       setReveal(undefined);
     }, [props.folder.id]);
     useEffect(() => {
       const selected = props.selectedCircuitObject;
+      if (props.selectedFile?.folderId === props.folder.id) return;
       if (!selected) return;
       for (const { binding, result } of generated) {
         if (!result.ok) continue;
@@ -335,7 +420,7 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
         current = false;
       };
     }, [text]);
-    const dirty = [...drafts.current].some(([key, value]) => {
+    const unsaved = [...drafts.current].filter(([key, value]) => {
       const owner = props.project.simulationFolders.find((folder) =>
         key.startsWith(`${folder.id}\u0000`),
       );
@@ -347,7 +432,15 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
           saved.text === value.text,
       );
     });
+    const dirty = unsaved.length > 0;
+    const activeDirty = unsaved.some(([key]) =>
+      key.startsWith(`${props.folder.id}\u0000`),
+    );
     useEffect(() => props.onDirty(dirty), [dirty, props.folder.id]);
+    useEffect(
+      () => props.onActiveDirty(activeDirty),
+      [activeDirty, props.folder.id],
+    );
     useEffect(() => {
       // Clean buffers follow remote edits. A dirty buffer remains visible for explicit repair.
       for (const file of sourceFiles) {
@@ -596,7 +689,7 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
         }))}
         activePath={path}
         onSelectFile={setPath}
-        onFileAction={async (action, filePath) => {
+        onFileAction={async (action, filePath, newPath) => {
           if (action === "discard") {
             const listed = await props.files.handle({
               action: "list",
@@ -635,10 +728,7 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
             )
           )
             return;
-          const nextPath =
-            action === "rename"
-              ? window.prompt("Relative file path", filePath)
-              : filePath;
+          const nextPath = action === "rename" ? newPath : filePath;
           if (!nextPath || (action === "rename" && nextPath === filePath))
             return;
           if (action === "rename" && ownFiles.includes(nextPath)) {
@@ -691,8 +781,7 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
               inputProblem("SOURCE_EXPORT_FAILED", result.message),
             );
         }}
-        onNewFile={() => {
-          const path = window.prompt("Relative file path", "stimulus.cir");
+        onNewFile={(path) => {
           if (!path) return;
           if (ownFiles.includes(path)) {
             setPath(path);
@@ -706,6 +795,7 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
           setPath(path);
           render((value) => value + 1);
         }}
+        newFileRequest={props.newFileRequest}
         actions={
           <>
             <button
@@ -744,7 +834,7 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
                   Discard local draft
                 </button>
               </>
-            ) : dirty ? (
+            ) : activeDirty ? (
               "Unsaved source"
             ) : buffer && buffer.text !== buffer.base ? (
               "Draft saved · finish or discard before Run"
@@ -758,11 +848,21 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
           <SourceProbePicker
             choices={probeChoices}
             kind={probePicker}
-            onAdd={addOutput}
+            onAdd={saveSignal}
             onClose={() => setProbePicker(undefined)}
           />
         )}
         <SimulationCodeEditor
+          signalNames={() =>
+            simulationSignalNames(props.project, {
+              ...input,
+              files: input.files.map((file) => ({
+                ...file,
+                text: drafts.current.get(key(file.path))?.text ?? file.text,
+              })),
+            })
+          }
+          saveRequest={saveRequest}
           relatedSources={sourceFiles.map(
             (file) =>
               drafts.current.get(`${props.folder.id}\u0000${file.path}`)
@@ -770,20 +870,14 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
           )}
           helperActions={[
             {
-              id: "observe-voltage",
-              label: "Observe voltage",
+              id: "save-voltage",
+              label: "Save voltage…",
               keywords: "probe voltage 电压 信号 看输出",
               run: () => setProbePicker("voltage"),
             },
             {
-              id: "observe-difference",
-              label: "Observe differential voltage",
-              keywords: "probe 差分 两节点",
-              run: () => setProbePicker("difference"),
-            },
-            {
-              id: "observe-current",
-              label: "Observe terminal current",
+              id: "save-current",
+              label: "Save terminal current…",
               keywords: "probe current 电流 MOS 端口",
               run: () => setProbePicker("current"),
             },

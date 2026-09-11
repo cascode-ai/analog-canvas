@@ -9,52 +9,31 @@ export function SourceProbePicker({
   onClose,
 }: {
   choices: readonly SourceProbeChoice[];
-  kind: "voltage" | "current" | "difference";
+  kind: "voltage" | "current";
   onAdd(label: string, expression: SimulationSourceExpression): void;
   onClose(): void;
 }) {
   const [query, setQuery] = useState("");
-  const [positive, setPositive] = useState<SourceProbeChoice>();
   const filtered = choices.filter(
     (c) =>
       c.kind === (kind === "current" ? "current" : "voltage") &&
       c.label.toLowerCase().includes(query.toLowerCase()),
   );
   const add = (choice: SourceProbeChoice) => {
-    if (kind === "difference" && !positive) {
-      setPositive(choice);
-      setQuery("");
-      return;
-    }
-    onAdd(
-      positive ? `${positive.label} − ${choice.label}` : choice.label,
-      positive
-        ? {
-            kind: "subtract",
-            left: positive.expression,
-            right: choice.expression,
-          }
-        : choice.expression,
-    );
+    onAdd(choice.label, choice.expression);
     onClose();
   };
   return (
     <div
       className="simulation-probe-picker"
       role="dialog"
-      aria-label="Observe signal"
+      aria-label="Save signal"
       onKeyDown={(e) => {
         e.stopPropagation();
         if (e.key === "Escape") onClose();
       }}
     >
-      <strong>
-        {kind === "difference"
-          ? positive
-            ? `Negative node (positive: ${positive.label})`
-            : "Choose positive node"
-          : `Observe ${kind}`}
-      </strong>
+      <strong>Save {kind}</strong>
       <input
         autoFocus
         value={query}
@@ -83,8 +62,8 @@ export function SourceProbePicker({
         </button>
       )}
       <small>
-        New outputs are collected on the next Run. Existing results stay
-        unchanged.
+        Inserts a native save statement. Terminal currents may require generated
+        measurement wiring.
       </small>
       <button onClick={onClose}>Cancel</button>
     </div>

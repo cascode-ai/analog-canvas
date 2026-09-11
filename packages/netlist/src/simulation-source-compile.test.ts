@@ -158,6 +158,25 @@ describe("source simulation compiler", () => {
     }
     expect(before).toEqual(project());
   });
+  it("does not widen an explicit native save list to all when adding Canvas captures", () => {
+    const before = project();
+    const original = legacySetups().find(
+      (s) => s.input.kind === "structured" && s.input.outputs.length,
+    )!;
+    const folder = migrateSimulationSetupToSource(before, original).folder;
+    const entry = folder.input.files.find(
+      (f) => f.path === folder.input.entry,
+    )!;
+    entry.text = entry.text.replace(".control", ".control\nsave v(0)");
+    const compiled = compileSourceSimulation(before, folder);
+    expect(compiled.ok).toBe(true);
+    if (!compiled.ok) return;
+    const prepared = compiled.files.find(
+      (f) => f.path === folder.input.entry,
+    )!.text;
+    expect(prepared).toContain("save v(0)");
+    expect(prepared).not.toContain(".save all");
+  });
   it("distinguishes two authored DUT calls and maps formal ports to actual top-level nodes", () => {
     const before = project();
     const original = legacySetups().find(

@@ -20,8 +20,8 @@ The execution and numeric contracts remain in
 [execution](simulation-execution.md) and [results](simulation-results.md).
 Only the changes explicitly identified here amend those boundaries.
 
-The goal is ordinary Canvas editing plus a right-hand code dock, with Console
-and Results beneath the code. It is not a general IDE, a second circuit model,
+The goal is ordinary Canvas editing plus a right-hand code dock, with flat
+Console/Plot/OP/Compare/Files tabs beneath code. It is not a general IDE, a second circuit model,
 a new executor, or unrestricted remote shell access. Timing/Digital Simulation,
 new model qualification, live cross-Project libraries, and Production promotion
 are outside this work.
@@ -98,10 +98,10 @@ IDs and exact files. Older data is read only at that compatibility boundary.
   otherwise retain the now-unresolved entry/reference for diagnosis. Deleting
   a binding is explicit, not a side effect of editing its displayed filename.
 
-New experiments explicitly choose one of three starting points: run the current
-Cell directly (top-level binding), write a text TB around the current DUT
-(subcircuit binding and an authored call using the exported port order), or
-start with text only (no binding). None creates a TB Cell or guesses stimuli.
+New folders default to text-only input without a questionnaire. Optional templates
+run the current Cell directly (top-level binding) or write a text TB around the
+current DUT (subcircuit binding and an authored call using exported port order).
+None creates a TB Cell or guesses stimuli.
 Existing experiments reopen unchanged; duplication is an explicit action.
 `circuit.spice`, `testbench.spice`, and `run.cir` are conventions, not mandatory
 file counts. A drawn TB does not need an additional authored TB file.
@@ -115,12 +115,21 @@ ghosts. Tab/Shift+Tab navigate arguments, Escape dismisses guidance, and no ghos
 or implicit default enters saved/exported/executed text. Parameter guidance is
 advisory: users and Agents may continue writing native syntax beyond the catalog.
 
-Helper's Observe actions add ordinary output expressions to the configuration:
-voltage, differential voltage, or terminal current. Canvas targets include the
-proven authored DUT call path, so two calls to one Cell remain distinct; native
-vectors remain available for text-only or statically unresolvable scopes.
-Discovery runs when the picker opens, not on every ordinary keystroke.
+Helper signal actions insert native `save`/`.save` statements, not a parallel
+voltage-output configuration. Terminal-current picks retain their existing
+configuration owner when generated measurement wiring is required. An explicit
+save list is never silently widened to `all` by that instrumentation.
+Discovery and completion use the compiler's authored call-path mapping; they
+show the Canvas name alongside the executable native vector. Native vectors
+remain available for text-only or statically unresolvable scopes.
 `experiment.json` is available through Files, not a compulsory fourth panel.
+
+Folder expansion is independent of active execution and batch selection. New
+files/folders and renames use inline text input (Enter accepts, Escape cancels),
+not browser prompts or an obligatory analysis/TB questionnaire. A new file is
+ordinary authored text; entry/includes determine whether it executes. Optional
+Canvas templates produce protected generated bindings, not a writable copy of
+the circuit. All persistence still uses the shared folder/file operations.
 
 ### Experiment configuration
 
@@ -449,7 +458,7 @@ Ordinary Canvas                 | Code | Properties           x
                                 | Circuit / TB / Run file tabs
                                 |   code editor with line numbers
                                 |------------------------------
-                                | Console | Results    expand
+                                | Console | Plot | OP | Compare | Files    expand
                                 | selected run / plot / OP
                                 | history, compare, export on demand
 ```
@@ -473,8 +482,8 @@ Ordinary Canvas                 | Code | Properties           x
 - No permanent Setup/Settings/AC-response selection bar. Multiple experiments
   retain IDs and lifecycle under Files. Run always targets the explicit entry
   of the active experiment; viewing its Circuit or TB does not change entry.
-- Console/Results occupy only the code dock below the editor. Results contains
-  Plot, OP, measurements, history, comparison and export as needed. Maximize
+- Console/Plot/OP/Compare/Files occupy one tab row below the code editor;
+  measurements, history and export remain within these views. Maximize
   temporarily uses the main workspace, then restores the exact previous split.
 - Canvas selection highlights related code without forcibly opening Properties.
   Switching tabs preserves draft, caret, selection, scroll and result state.

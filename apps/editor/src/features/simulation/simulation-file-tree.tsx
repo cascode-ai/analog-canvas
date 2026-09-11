@@ -1,16 +1,19 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { InlineSourceName } from "./inline-source-name";
 
 export interface SimulationFolderNode {
   id: string;
   name: string;
+  paths?: readonly string[];
 }
 export type FolderAction =
   "new" | "duplicate" | "rename" | "delete" | "run" | "export" | "batch";
 export interface SimulationFolderTreeProps {
   folders: readonly SimulationFolderNode[];
   activeId: string;
-  onSelect(id: string): void;
-  onAction(action: FolderAction, ids: string[]): void;
+  onSelect(id: string, path?: string): void;
+  onAction(action: FolderAction, ids: string[], name?: string): void;
+  onNewFile?(id: string): void;
   children: ReactNode;
   busy?: boolean;
 }
@@ -18,6 +21,17 @@ export interface SimulationFolderTreeProps {
 /** One execution root per folder. The tree owns selection, never source or run state. */
 export function SimulationFolderTree(props: SimulationFolderTreeProps) {
   const [selected, setSelected] = useState<string[]>([]);
+  const [expanded, setExpanded] = useState<string[]>([props.activeId]);
+  const [naming, setNaming] = useState<{
+    action: "new" | "rename" | "duplicate";
+    ids: string[];
+    initial: string;
+  }>();
+  useEffect(() => {
+    setExpanded((ids) =>
+      ids.includes(props.activeId) ? ids : [...ids, props.activeId],
+    );
+  }, [props.activeId]);
   const [menu, setMenu] = useState<{ x: number; y: number; ids: string[] }>();
   const menuRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -44,7 +58,17 @@ export function SimulationFolderTree(props: SimulationFolderTreeProps) {
     });
   };
   const action = (name: FolderAction, ids = menu?.ids ?? []) => {
-    props.onAction(name, ids);
+    if (name === "new" || name === "rename" || name === "duplicate") {
+      const folder = props.folders.find((f) => f.id === ids[0]);
+      setNaming({
+        action: name,
+        ids,
+        initial:
+          name === "new"
+            ? "Untitled"
+            : `${folder?.name ?? "Untitled"}${name === "duplicate" ? " copy" : ""}`,
+      });
+    } else props.onAction(name, ids);
     setMenu(undefined);
   };
   return (
@@ -57,47 +81,91 @@ export function SimulationFolderTree(props: SimulationFolderTreeProps) {
         open(event.clientX, event.clientY);
       }}
     >
-      <button type="button" onClick={() => props.onAction("new", [])}>
+      <button type="button" onClick={() => action("new", [])}>
         + New folder…
       </button>
+      {naming && (
+        <InlineSourceName
+          label="Folder name"
+          initial={naming.initial}
+          onCancel={() => setNaming(undefined)}
+          onSubmit={(name) => {
+            props.onAction(naming.action, naming.ids, name);
+            setNaming(undefined);
+          }}
+        />
+      )}
       {props.folders.map((folder) => (
         <div key={folder.id}>
-          <button
-            type="button"
-            className={folder.id === props.activeId ? "is-active" : ""}
-            aria-label={`Folder ${folder.name}`}
-            aria-pressed={selected.includes(folder.id)}
-            onClick={(event) => {
-              if (event.ctrlKey || event.metaKey)
-                setSelected((ids) =>
+          <div className="simulation-folder-row">
+            <button
+              type="button"
+              aria-label={`Toggle ${folder.name}`}
+              aria-expanded={expanded.includes(folder.id)}
+              onClick={() =>
+                setExpanded((ids) =>
                   ids.includes(folder.id)
                     ? ids.filter((id) => id !== folder.id)
                     : [...ids, folder.id],
-                );
-              else {
-                setSelected([folder.id]);
-                props.onSelect(folder.id);
+                )
               }
-            }}
-            onContextMenu={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              open(event.clientX, event.clientY, folder.id);
-            }}
-            onKeyDown={(event) => {
-              if (
-                event.key === "ContextMenu" ||
-                (event.shiftKey && event.key === "F10")
-              ) {
+            >
+              {expanded.includes(folder.id) ? "▾" : "▸"}
+            </button>
+            <button
+              type="button"
+              className={folder.id === props.activeId ? "is-active" : ""}
+              aria-label={`Folder ${folder.name}`}
+              aria-pressed={selected.includes(folder.id)}
+              onClick={(event) => {
+                if (event.ctrlKey || event.metaKey)
+                  setSelected((ids) =>
+                    ids.includes(folder.id)
+                      ? ids.filter((id) => id !== folder.id)
+                      : [...ids, folder.id],
+                  );
+                else {
+                  setSelected([folder.id]);
+                  props.onSelect(folder.id);
+                }
+              }}
+              onContextMenu={(event) => {
                 event.preventDefault();
-                const rect = event.currentTarget.getBoundingClientRect();
-                open(rect.left, rect.bottom, folder.id);
-              }
-            }}
-          >
-            {folder.id === props.activeId ? "▾" : "▸"} {folder.name}
-          </button>
-          {folder.id === props.activeId ? props.children : null}
+                event.stopPropagation();
+                open(event.clientX, event.clientY, folder.id);
+              }}
+              onKeyDown={(event) => {
+                if (
+                  event.key === "ContextMenu" ||
+                  (event.shiftKey && event.key === "F10")
+                ) {
+                  event.preventDefault();
+                  const rect = event.currentTarget.getBoundingClientRect();
+                  open(rect.left, rect.bottom, folder.id);
+                }
+              }}
+            >
+              {folder.name}
+            </button>
+          </div>
+          {expanded.includes(folder.id) ? (
+            folder.id === props.activeId ? (
+              props.children
+            ) : (
+              <ul>
+                {folder.paths?.map((path) => (
+                  <li key={path}>
+                    <button
+                      type="button"
+                      onClick={() => props.onSelect(folder.id, path)}
+                    >
+                      {path}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )
+          ) : null}
         </div>
       ))}
       {menu ? (
@@ -115,17 +183,21 @@ export function SimulationFolderTree(props: SimulationFolderTreeProps) {
             }
           }}
         >
-          <button role="menuitem" onClick={() => action("new", ["op"])}>
-            New OP folder…
-          </button>
-          <button role="menuitem" onClick={() => action("new", ["ac"])}>
-            New AC folder…
-          </button>
-          <button role="menuitem" onClick={() => action("new", ["tran"])}>
-            New transient folder…
+          <button role="menuitem" onClick={() => action("new", [])}>
+            New folder…
           </button>
           {menu.ids.length === 1 ? (
             <>
+              <button
+                role="menuitem"
+                onClick={() => {
+                  props.onSelect(menu.ids[0]!);
+                  props.onNewFile?.(menu.ids[0]!);
+                  setMenu(undefined);
+                }}
+              >
+                New file…
+              </button>
               <button
                 role="menuitem"
                 disabled={props.busy}

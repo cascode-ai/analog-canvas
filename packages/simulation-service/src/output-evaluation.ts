@@ -242,6 +242,8 @@ export function evaluateSimulationOutputs(
   outputs: readonly CompiledSimulationOutput[],
   measurementSpecs: readonly SimulationMeasurementSpec[] = [],
   deviceOperatingPointSpecs: readonly CompiledSimulationDeviceOperatingPoint[] = [],
+  includeNative = false,
+  signalNames: Readonly<Record<string, string>> = {},
 ): SimulationOutputData {
   const diagnostics: SimulationOutputData["diagnostics"] = [];
   const analyses: SimulationOutputData["analyses"] = data.analyses.map(
@@ -322,6 +324,34 @@ export function evaluateSimulationOutputs(
           return [];
         }
       });
+      if (includeNative) {
+        const represented = new Set(
+          outputs.flatMap(({ expression }) =>
+            expression.kind === "acquisition"
+              ? vectors
+                  .filter((v) => v.probeId === expression.acquisitionId)
+                  .map((v) => v.vector.toLowerCase())
+              : [],
+          ),
+        );
+        for (const probe of analysis.probes) {
+          if (represented.has(probe.name.toLowerCase())) continue;
+          const native = {
+            probeId: `native:${probe.name.toLowerCase()}`,
+            vector: probe.name,
+            quantity: "native" as const,
+          };
+          const series = sourceSeries(analysis, [native]).get(native.probeId)!;
+          const friendly = signalNames[probe.name.toLowerCase()];
+          evaluated.push({
+            id: native.probeId,
+            label: friendly ? `${friendly} — ${probe.name}` : probe.name,
+            unit: series.unit,
+            values: [...series.real],
+            ...(series.complex ? { imaginary: [...series.imaginary] } : {}),
+          });
+        }
+      }
       const domain =
         analysis.analysis === "ac"
           ? {

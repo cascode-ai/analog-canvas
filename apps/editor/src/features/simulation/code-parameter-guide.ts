@@ -102,6 +102,10 @@ export function parameterGuide(state: EditorState) {
     else if (excitation !== "DC")
       parameters = [...parameters.slice(0, 2), { label: "value" }];
   }
+  const repeated = parameters.at(-1);
+  if (repeated?.repeat) {
+    while (parameters.length <= index) parameters.push({ ...repeated });
+  }
   return { line, help, tokens, index, parameters };
 }
 

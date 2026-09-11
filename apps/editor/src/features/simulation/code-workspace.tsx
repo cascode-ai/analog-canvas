@@ -1,4 +1,5 @@
 import { useEffect, useId, useState, type ReactNode } from "react";
+import { InlineSourceName } from "./inline-source-name";
 import {
   SimulationFolderTree,
   type SimulationFolderTreeProps,
@@ -16,12 +17,14 @@ export interface SimulationCodeWorkspaceProps {
   configPath: string;
   activePath: string;
   onSelectFile(path: string): void;
-  onNewFile?(): void;
+  onNewFile?(path: string): void;
+  newFileRequest?: string | undefined;
   onCopyFile?(): void;
   onExportFile?(): void;
   onFileAction?(
     action: "rename" | "delete" | "entry" | "discard",
     path: string,
+    newPath?: string,
   ): void;
   folders?: Omit<SimulationFolderTreeProps, "children"> | undefined;
   additionalActions?: ReactNode;
@@ -30,8 +33,8 @@ export interface SimulationCodeWorkspaceProps {
   status?: ReactNode;
   console: ReactNode;
   results: ReactNode;
-  outputPane: "console" | "results";
-  onSelectOutputPane(pane: "console" | "results"): void;
+  outputPane: "console" | "plot" | "operating-point" | "compare" | "files";
+  onSelectOutputPane(pane: SimulationCodeWorkspaceProps["outputPane"]): void;
   maximized?: boolean;
   onToggleMaximize?(): void;
 }
@@ -50,8 +53,16 @@ export function SimulationCodeWorkspace(props: SimulationCodeWorkspaceProps) {
   const [resultsHeight, setResultsHeight] = useState(38);
   const [collapsed, setCollapsed] = useState(false);
   const [fileMenu, setFileMenu] = useState<string>();
+  const [naming, setNaming] = useState<{ path?: string; initial: string }>();
+  useEffect(() => {
+    if (props.newFileRequest) {
+      setFilesOpen(true);
+      setNaming({ initial: "untitled.spice" });
+    }
+  }, [props.newFileRequest]);
   useEffect(() => {
     setOpened(defaults());
+    setFileMenu(undefined);
     setMoreOpen(false);
   }, [props.workspaceKey]);
   useEffect(() => {
@@ -75,6 +86,29 @@ export function SimulationCodeWorkspace(props: SimulationCodeWorkspaceProps) {
   };
   const fileList = () => (
     <ul>
+      <li>
+        <button
+          type="button"
+          onClick={() => setNaming({ initial: "untitled.spice" })}
+        >
+          + New file
+        </button>
+      </li>
+      {naming && (
+        <li>
+          <InlineSourceName
+            label="File name"
+            initial={naming.initial}
+            onCancel={() => setNaming(undefined)}
+            onSubmit={(name) => {
+              if (naming.path)
+                props.onFileAction?.("rename", naming.path, name);
+              else props.onNewFile?.(name);
+              setNaming(undefined);
+            }}
+          />
+        </li>
+      )}
       {props.files
         .filter((file) => file.path !== props.configPath)
         .map((file) => (
@@ -134,7 +168,7 @@ export function SimulationCodeWorkspace(props: SimulationCodeWorkspaceProps) {
                     <button
                       role="menuitem"
                       onClick={() => {
-                        props.onFileAction?.("rename", file.path);
+                        setNaming({ path: file.path, initial: file.path });
                         setFileMenu(undefined);
                       }}
                     >
@@ -255,7 +289,8 @@ export function SimulationCodeWorkspace(props: SimulationCodeWorkspaceProps) {
                 <button
                   type="button"
                   onClick={() => {
-                    props.onNewFile?.();
+                    setFilesOpen(true);
+                    setNaming({ initial: "untitled.spice" });
                     setMoreOpen(false);
                   }}
                 >
@@ -385,18 +420,37 @@ export function SimulationCodeWorkspace(props: SimulationCodeWorkspaceProps) {
       >
         <header className="simulation-code-output-tabs">
           <div role="tablist" aria-label="Code output view">
-            {(["console", "results"] as const).map((pane) => (
+            {(
+              [
+                "console",
+                "plot",
+                "operating-point",
+                "compare",
+                "files",
+              ] as const
+            ).map((pane) => (
               <button
                 key={pane}
                 type="button"
                 role="tab"
                 aria-selected={pane === props.outputPane}
+                aria-label={
+                  pane === "operating-point" ? "Operating Point" : undefined
+                }
                 onClick={() => {
                   props.onSelectOutputPane(pane);
                   setCollapsed(false);
                 }}
               >
-                {pane === "console" ? "Console" : "Results"}
+                {
+                  {
+                    console: "Console",
+                    plot: "Plot",
+                    "operating-point": "OP",
+                    compare: "Compare",
+                    files: "Files",
+                  }[pane]
+                }
               </button>
             ))}
           </div>

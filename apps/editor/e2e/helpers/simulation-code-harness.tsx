@@ -2,7 +2,10 @@
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import SimulationCodeEditor from "../../src/features/simulation/code-editor";
-import { SimulationCodeWorkspace } from "../../src/features/simulation/code-workspace";
+import {
+  SimulationCodeWorkspace,
+  type SimulationCodeWorkspaceProps,
+} from "../../src/features/simulation/code-workspace";
 import "../../src/styles/editor-entry.css";
 
 const initial =
@@ -17,7 +20,8 @@ function Harness() {
   const [revision, setRevision] = useState(0);
   const [saved, setSaved] = useState(initial);
   const [cursor, setCursor] = useState(0);
-  const [pane, setPane] = useState<"console" | "results">("console");
+  const [pane, setPane] =
+    useState<SimulationCodeWorkspaceProps["outputPane"]>("console");
   const [maximized, setMaximized] = useState(false);
   const save = () => {
     setSaved(files[path]!);

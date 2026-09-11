@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { parseProject } from "@icm/project-protocol";
-import { createSimulationStarter } from "@icm/netlist";
+import { createSimulationStarter, simulationSignalNames } from "@icm/netlist";
 import ota from "../../examples/five-transistor-ota-sky130.icproj.json";
 import { sourceProbeChoices } from "./source-probe-choices";
 
@@ -24,6 +24,27 @@ describe("source Probe discovery", () => {
         .find((line) => line.startsWith("XDUT "))!
         .replace("XDUT ", "XSECOND ");
     const choices = sourceProbeChoices(project, input);
+    const names = simulationSignalNames(project, input);
+    expect(Object.keys(names).every((name) => name.startsWith("v("))).toBe(
+      true,
+    );
+    expect(Object.values(names).some((name) => name.includes("XDUT/"))).toBe(
+      true,
+    );
+    const callNodes = tb.text
+      .split("\n")
+      .find((line) => line.startsWith("XDUT "))!
+      .trim()
+      .split(/\s+/u)
+      .slice(1, -1);
+    for (const node of callNodes)
+      expect(names[`v(${node.toLowerCase()})`]).toBeDefined();
+    expect(names["v(xdut.0)"]).toBeUndefined();
+    expect(
+      choices
+        .filter((c) => c.kind === "voltage")
+        .every((c) => c.expression.kind === "vector"),
+    ).toBe(true);
     expect(
       choices.some((c) => c.kind === "voltage" && c.label.startsWith("XDUT ·")),
     ).toBe(true);

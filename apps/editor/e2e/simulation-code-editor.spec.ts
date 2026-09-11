@@ -96,7 +96,7 @@ test("Files opens sideways, configuration is advanced, and results maximize/rest
     page.getByRole("tab", { name: "Configuration" }),
   ).toHaveAttribute("aria-selected", "true");
   await expect(editor).toContainText('"version"');
-  await page.getByRole("tab", { name: "Results", exact: true }).click();
+  await page.getByRole("tab", { name: "Plot", exact: true }).click();
   await page.getByRole("button", { name: "Maximize results" }).click();
   await expect(editor).not.toBeVisible();
   await expect(
@@ -156,6 +156,19 @@ test("invalid text stays editable and saveable and known command errors are inli
   await expect(page.getByTestId("saved-source")).toContainText("tran");
   await editor.fill("* test\n.control\ntran 1n 10u\n.endc\n.end\n");
   await expect(page.locator(".cm-lintRange-error")).toHaveCount(0);
+});
+
+test("Helper trigger toggles closed and stays compact", async ({ page }) => {
+  const trigger = page.getByRole("button", { name: /Helper/ }).first();
+  await trigger.click();
+  const popup = page.getByRole("dialog", { name: "Insert / Helper" });
+  await expect(popup).toBeVisible();
+  expect((await popup.boundingBox())!.width).toBeLessThanOrEqual(400);
+  await trigger.click();
+  await expect(popup).toHaveCount(0);
+  await trigger.click();
+  await page.keyboard.press("Escape");
+  await expect(popup).toHaveCount(0);
 });
 
 test("file switching preserves caret, selection, scroll and local Undo history", async ({

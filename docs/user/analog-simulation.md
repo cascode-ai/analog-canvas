@@ -121,8 +121,8 @@ refuse a run with a repairable explanation.
 
 ## Results, history and exports
 
-Console and Results sit below code. Results includes plots, OP, measurements,
-comparison, history and files. Maximize results temporarily uses the workspace;
+Console, Plot, OP, Compare and Files share one tab row below code. Measurements,
+history and exports stay inside these views. Maximize results temporarily uses the workspace;
 Restore returns to the previous dock size. Maximize Code keeps the editor.
 
 Friendly output labels, complex AC values, solver-recorded DC/time axes and

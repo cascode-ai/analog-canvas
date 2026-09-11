@@ -5,6 +5,7 @@ import type {
 } from "@icm/model";
 import {
   compileSourceSimulation,
+  simulationSignalNames,
   inspectSimulationSourceGraph,
   insertSimulationText,
   type SimulationSourceDiagnostic,
@@ -272,6 +273,7 @@ export async function prepareSourceExecutionInput(
     input,
     digest: await sha256(JSON.stringify(input)),
     vectors: compiled.vectors,
+    signalNames: simulationSignalNames(project, folder.input),
     outputs: compiled.outputs,
     deviceOperatingPoints: compiled.deviceOperatingPoints,
     measurements: config.measurements,
