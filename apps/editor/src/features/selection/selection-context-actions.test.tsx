@@ -4,11 +4,60 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   EndpointActionsSection,
+  MosBulkConnectionSection,
   RouteActionsSection,
   RoutingGuidanceSection,
 } from "./selection-context-actions";
 
 describe("selection context actions", () => {
+  it.each([
+    ["unresolved", null, "Unconnected", "Choose a net"],
+    ["no-connect", null, "No Connect", "Intentionally left unconnected"],
+    ["cell-default", "VDD", "VDD", "Cell default"],
+    ["supply-default", "0", "0", "Supply default"],
+    ["instance-override", "VB", "VB", "Instance override"],
+    ["explicit", "VSS", "VSS", "Explicit connection"],
+  ] as const)(
+    "explains %s bulk state without repeating unresolved text",
+    (status, netName, label, origin) => {
+      const markup = renderToStaticMarkup(
+        <MosBulkConnectionSection
+          connection={{ terminal: "M1.B", netName, status }}
+          explicitRouteVisible={status === "explicit"}
+          canDraw
+          onDraw={vi.fn()}
+        />,
+      );
+      expect(markup).toContain(`>${label}</span>`);
+      expect(markup).toContain(origin);
+      expect(markup).toContain('aria-label="Draw bulk connection"');
+      expect(markup).not.toContain("→ unresolved");
+      if (status === "explicit")
+        expect(markup).toContain("Dashed bulk route shown");
+    },
+  );
+
+  it("keeps unplaced bulk routing disabled and hides the bar for non-MOS selections", () => {
+    const props = {
+      explicitRouteVisible: false,
+      canDraw: false,
+      onDraw: vi.fn(),
+    };
+    expect(
+      renderToStaticMarkup(
+        <MosBulkConnectionSection connection={null} {...props} />,
+      ),
+    ).toBe("");
+    const markup = renderToStaticMarkup(
+      <MosBulkConnectionSection
+        connection={{ terminal: "M1.B", netName: null, status: "unresolved" }}
+        {...props}
+      />,
+    );
+    expect(markup).toContain('disabled=""');
+    expect(markup).toContain("Place the component on the canvas");
+  });
+
   it("renders route label and highlight actions", () => {
     const markup = renderToStaticMarkup(
       <RouteActionsSection

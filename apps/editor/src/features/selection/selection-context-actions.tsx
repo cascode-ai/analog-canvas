@@ -1,34 +1,71 @@
 import type { Ref } from "react";
+import type { MosBulkResolution } from "@icm/derived";
 
 import { ColorOverrideControl } from "../properties/color-override-control";
+import { ToolIcon } from "../editor-shell/tool-icon";
 
 import { DisplayToggle } from "../component-insert/display-toggle";
 
 export function MosBulkConnectionSection({
   connection,
   explicitRouteVisible,
+  canDraw,
   onDraw,
 }: {
-  connection: string | null;
+  connection: {
+    terminal: string;
+    netName: string | null;
+    status: MosBulkResolution["status"];
+  } | null;
   explicitRouteVisible: boolean;
+  canDraw: boolean;
   onDraw: () => void;
 }) {
   if (connection === null) return null;
+  const { terminal, netName, status } = connection;
+  const label =
+    netName ?? (status === "no-connect" ? "No Connect" : "Unconnected");
+  const origin = {
+    explicit: "Explicit connection",
+    "cell-default": "Cell default",
+    "instance-override": "Instance override",
+    "supply-default": "Supply default",
+    "no-connect": "Intentionally left unconnected",
+    unresolved: "Choose a net for the bulk terminal",
+  }[status];
+  const description = `${terminal} → ${label} · ${origin}${
+    explicitRouteVisible ? " · Dashed bulk route shown" : ""
+  }`;
   return (
-    <section className="context-actions" aria-label="MOS bulk connection">
+    <section
+      className="mos-bulk-bar"
+      aria-label="MOS bulk connection"
+      data-state={status}
+    >
       <h2>Bulk</h2>
+      <span
+        className="mos-bulk-status"
+        title={description}
+        aria-label={description}
+      >
+        {label}
+      </span>
       <button
         type="button"
         className="bulk-draw-action"
         data-testid="draw-bulk-connection"
+        aria-label="Draw bulk connection"
+        disabled={!canDraw}
+        title={
+          canDraw
+            ? `Draw a connection from ${terminal} on the canvas`
+            : "Place the component on the canvas before drawing its bulk connection"
+        }
         onClick={onDraw}
       >
-        Draw bulk connection
+        <ToolIcon name="wire" />
+        {status === "unresolved" ? "Connect" : "Draw"}
       </button>
-      <p>{connection}</p>
-      {explicitRouteVisible ? (
-        <p>Explicit bulk is shown with a Razavi dashed route.</p>
-      ) : null}
     </section>
   );
 }
