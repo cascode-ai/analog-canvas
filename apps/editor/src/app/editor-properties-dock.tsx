@@ -8,9 +8,9 @@ import {
   FormalPortProperties,
 } from "../features/properties/component-structure-properties";
 import { ComponentIdentityProperties } from "../features/properties/component-identity-properties";
-import { ComponentElectricalProperties } from "../features/properties/component-electrical-properties";
-import { ComponentSignalFlowProperties } from "../features/properties/component-signal-flow-properties";
-import { ComponentPlacementProperties } from "../features/properties/component-placement-properties";
+import type { ComponentElectricalProperties } from "../features/properties/component-electrical-properties";
+import type { ComponentSignalFlowProperties } from "../features/properties/component-signal-flow-properties";
+import type { ComponentPlacementProperties } from "../features/properties/component-placement-properties";
 import { ComponentPropertyCodeEditor } from "../features/properties/component-property-code-editor";
 import { AnnotationColorProperties } from "../features/properties/annotation-color-properties";
 import { NetNameProperties } from "../features/properties/net-name-properties";
@@ -144,6 +144,13 @@ export function EditorPropertiesDock({
               <ComponentPropertyCodeEditor
                 key={component.code.instance.id}
                 {...component.code}
+                details={{
+                  parameters: component.electrical.parameters,
+                  ...(component.identity.modelTarget
+                    ? { modelTarget: component.identity.modelTarget }
+                    : {}),
+                  signalFlow: component.signalFlow !== null,
+                }}
               />
               {component.formalPort ? (
                 <FormalPortProperties {...component.formalPort} />
@@ -151,18 +158,14 @@ export function EditorPropertiesDock({
               {component.cellSymbolLayout ? (
                 <CellSymbolLayoutProperties {...component.cellSymbolLayout} />
               ) : null}
-              {component.signalFlow ? (
-                <ComponentSignalFlowProperties {...component.signalFlow} />
+              {component.identity.portNet ||
+              component.identity.propertyTerminal ||
+              component.identity.capacitorPlateRows ? (
+                <ComponentIdentityProperties
+                  {...component.identity}
+                  fieldsMovedToCode
+                />
               ) : null}
-              <ComponentElectricalProperties
-                {...component.electrical}
-                displayControls={false}
-              />
-              <ComponentPlacementProperties
-                {...component.placement}
-                geometryControls={false}
-              />
-              <ComponentIdentityProperties {...component.identity} />
             </section>
           ) : null}
           {annotationText ? (

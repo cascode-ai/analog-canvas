@@ -1,4 +1,17 @@
 import type { SchematicDocument } from "@icm/model";
+import {
+  componentPropertyDetailsValue,
+  parseComponentPropertyDetails,
+  type ComponentPropertyDetailsContext,
+  type ComponentPropertyDetailsValue,
+} from "./component-property-details";
+import {
+  CANVAS_PROPERTY_FIELDS,
+  ROTATION_OPTIONS,
+  MIRROR_OPTIONS,
+  colorToRgb,
+  parseCanvasColor,
+} from "./component-property-fields";
 
 type Instance = SchematicDocument["instances"][number];
 
@@ -15,7 +28,7 @@ export interface ComponentPropertyDisplayCode {
   value?: boolean;
 }
 
-export interface ComponentPropertyCodeValue {
+export interface ComponentPropertyCodeValue extends ComponentPropertyDetailsValue {
   placement: ComponentPropertyPlacementCode | null;
   display?: ComponentPropertyDisplayCode;
   appearance: {
@@ -28,16 +41,31 @@ export interface ComponentPropertyCodeContext {
   instance: Instance;
   referenceVisible: boolean | null;
   valueVisible: boolean | null;
+  details?: ComponentPropertyDetailsContext;
 }
 
 export type ComponentPropertyCodeParseResult =
   | { ok: true; value: ComponentPropertyCodeValue }
   | { ok: false; message: string };
 
-const COLOR_PATTERN = /^#[0-9A-Fa-f]{6}$/u;
-const ROOT_KEYS = new Set(["placement", "display", "appearance"]);
-const PLACEMENT_KEYS = new Set(["at", "rotation", "mirror"]);
-const APPEARANCE_KEYS = new Set(["foreground", "background"]);
+const ROOT_KEYS = new Set([
+  "placement",
+  "display",
+  "appearance",
+  "reference",
+  "parameters",
+  "netlistTarget",
+  "symbol",
+  "signalFlow",
+]);
+const fieldKeys = (group: string) =>
+  new Set(
+    CANVAS_PROPERTY_FIELDS.filter((field) =>
+      field.path.startsWith(`${group}.`),
+    ).map((field) => field.path.split(".")[1]!),
+  );
+const PLACEMENT_KEYS = fieldKeys("placement");
+const APPEARANCE_KEYS = fieldKeys("appearance");
 
 function formattedColor(value: string | undefined): ComponentPropertyColor {
   return (value ?? "auto") as ComponentPropertyColor;
@@ -56,27 +84,20 @@ function unexpectedKey(
   return key ? `${path}.${key} is not a supported property` : null;
 }
 
-function parseColor(value: unknown, path: string): ComponentPropertyColor {
-  if (value === "auto") return value;
-  if (typeof value === "string" && COLOR_PATTERN.test(value)) {
-    return value as `#${string}`;
-  }
-  throw new Error(`${path} must be "auto" or a #RRGGBB color`);
-}
-
 function parsePlacement(
   value: unknown,
   currentlyPlaced: boolean,
+  editableLifecycle = false,
 ): ComponentPropertyPlacementCode | null {
   if (value === null) {
-    if (currentlyPlaced) {
+    if (currentlyPlaced && !editableLifecycle) {
       throw new Error(
         "placement cannot be changed to null here; use Return to tray",
       );
     }
     return null;
   }
-  if (!currentlyPlaced) {
+  if (!currentlyPlaced && !editableLifecycle) {
     throw new Error(
       "placement is read-only while this component is in the Placement Tray",
     );
@@ -95,17 +116,21 @@ function parsePlacement(
     throw new Error("placement.at must be a finite [x, y] coordinate");
   }
   const rotation = value.rotation;
-  if (![0, 90, 180, 270].includes(rotation as number)) {
-    throw new Error("placement.rotation must be 0, 90, 180, or 270");
+  if (!ROTATION_OPTIONS.some((option) => option.value === rotation)) {
+    throw new Error(
+      `placement.rotation must be ${ROTATION_OPTIONS.map((option) => option.value).join(", ")}`,
+    );
   }
   const mirror = value.mirror;
-  if (mirror !== "none" && mirror !== "x") {
-    throw new Error('placement.mirror must be "none" or "x"');
+  if (!MIRROR_OPTIONS.some((option) => option.value === mirror)) {
+    throw new Error(
+      `placement.mirror must be ${MIRROR_OPTIONS.map((option) => JSON.stringify(option.value)).join(" or ")}`,
+    );
   }
   return {
     at: [at[0] as number, at[1] as number],
     rotation: rotation as 0 | 90 | 180 | 270,
-    mirror,
+    mirror: mirror as ComponentPropertyPlacementCode["mirror"],
   };
 }
 
@@ -145,6 +170,7 @@ export function componentPropertyCodeValue(
   }
   if (context.valueVisible !== null) display.value = context.valueVisible;
   return {
+    ...componentPropertyDetailsValue(instance, context.details),
     placement: instance.placement
       ? {
           at: [instance.placement.position.x, instance.placement.position.y],
@@ -163,7 +189,31 @@ export function componentPropertyCodeValue(
 export function serializeComponentPropertyCode(
   value: ComponentPropertyCodeValue,
 ): string {
-  return JSON.stringify(value, null, 2);
+  const source = JSON.stringify(
+    {
+      ...value,
+      appearance: {
+        foreground:
+          value.appearance.foreground === "auto"
+            ? "auto"
+            : colorToRgb(value.appearance.foreground),
+        background:
+          value.appearance.background === "auto"
+            ? "auto"
+            : colorToRgb(value.appearance.background),
+      },
+    },
+    null,
+    2,
+  );
+  // Keep coordinate and RGB tuples readable on one line; this remains strict JSON.
+  return source.replace(
+    /"(?:\\.|[^"\\])*"|\[\s*(-?\d+(?:\.\d+)?(?:e[+-]?\d+)?)\s*,\s*(-?\d+(?:\.\d+)?(?:e[+-]?\d+)?)(?:\s*,\s*(\d+))?\s*\]/giu,
+    (match, first?: string, second?: string, third?: string) =>
+      first === undefined
+        ? match
+        : `[${first}, ${second}${third === undefined ? "" : `, ${third}`}]`,
+  );
 }
 
 export function formatComponentPropertyCode(
@@ -205,17 +255,23 @@ export function parseComponentPropertyCode(
     return {
       ok: true,
       value: {
+        ...parseComponentPropertyDetails(
+          decoded,
+          context.instance,
+          context.details,
+        ),
         placement: parsePlacement(
           decoded.placement,
           context.instance.placement !== null,
+          context.details !== undefined,
         ),
         ...(display ? { display } : {}),
         appearance: {
-          foreground: parseColor(
+          foreground: parseCanvasColor(
             decoded.appearance.foreground,
             "appearance.foreground",
           ),
-          background: parseColor(
+          background: parseCanvasColor(
             decoded.appearance.background,
             "appearance.background",
           ),
@@ -229,4 +285,21 @@ export function parseComponentPropertyCode(
         error instanceof Error ? error.message : "Property code is invalid",
     };
   }
+}
+
+/** Reset authored defaults in the draft without moving, renaming, or rebinding the device. */
+export function defaultComponentPropertyCode(
+  context: ComponentPropertyCodeContext,
+): string {
+  const value = componentPropertyCodeValue(context);
+  if (value.placement)
+    value.placement = { ...value.placement, rotation: 0, mirror: "none" };
+  value.appearance = { foreground: "auto", background: "auto" };
+  if (value.parameters && context.details) {
+    // Preserve unknown model overrides; only descriptor-owned defaults are known.
+    for (const parameter of context.details.parameters)
+      value.parameters[parameter.key] = parameter.defaultValue ?? "";
+  }
+  if (value.signalFlow) value.signalFlow = {};
+  return serializeComponentPropertyCode(value);
 }

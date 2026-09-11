@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 
 import type { SchematicDocument } from "@icm/model";
 
@@ -6,17 +6,24 @@ import {
   formatComponentPropertyCode,
   parseComponentPropertyCode,
   serializeComponentPropertyCode,
+  defaultComponentPropertyCode,
   type ComponentPropertyCodeContext,
   type ComponentPropertyCodeValue,
 } from "./component-property-code";
 
 type Instance = SchematicDocument["instances"][number];
+const PropertyJsonEditor = lazy(
+  () => import("./component-property-json-editor"),
+);
 
 export interface ComponentPropertyCodeEditorProps {
   instance: Instance;
   revision: number;
   referenceVisible: boolean | null;
   valueVisible: boolean | null;
+  defaultForeground?: string;
+  details?: ComponentPropertyCodeContext["details"];
+  focusRequest?: number;
   onApply: (
     value: ComponentPropertyCodeValue,
   ) => { ok: true } | { ok: false; message: string };
@@ -28,11 +35,19 @@ export function ComponentPropertyCodeEditor({
   revision,
   referenceVisible,
   valueVisible,
+  defaultForeground = "#000000",
+  details,
+  focusRequest = 0,
   onApply,
 }: ComponentPropertyCodeEditorProps) {
   const context = useMemo<ComponentPropertyCodeContext>(
-    () => ({ instance, referenceVisible, valueVisible }),
-    [instance, referenceVisible, valueVisible],
+    () => ({
+      instance,
+      referenceVisible,
+      valueVisible,
+      ...(details ? { details } : {}),
+    }),
+    [instance, referenceVisible, valueVisible, details],
   );
   const baseline = useMemo(
     () => formatComponentPropertyCode(context),
@@ -43,10 +58,11 @@ export function ComponentPropertyCodeEditor({
   const [applyMessage, setApplyMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    setDraft((current) =>
-      current === previousBaseline.current ? baseline : current,
-    );
+    // Capture before enqueueing: React may run the updater after the ref has
+    // advanced. Reading the ref inside it leaves normalized target edits stale.
+    const previous = previousBaseline.current;
     previousBaseline.current = baseline;
+    setDraft((current) => (current === previous ? baseline : current));
   }, [baseline]);
 
   const parsed = useMemo(
@@ -79,34 +95,69 @@ export function ComponentPropertyCodeEditor({
     >
       <header>
         <div>
-          <strong>Canvas properties</strong>
+          <strong>Component properties</strong>
           <span>{instance.reference ?? instance.id}</span>
         </div>
         <code>{instance.symbolId}</code>
       </header>
-      <textarea
-        aria-label="Editable Canvas property code"
-        value={draft}
-        rows={15}
-        spellCheck={false}
-        onChange={(event) => {
-          setDraft(event.currentTarget.value);
-          setApplyMessage(null);
-        }}
-        onKeyDown={(event) => {
-          if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
-            event.preventDefault();
-            apply();
-          }
-        }}
-      />
+      <Suspense
+        fallback={
+          <textarea
+            aria-label="Loading Canvas property code"
+            value={draft}
+            readOnly
+            rows={15}
+          />
+        }
+      >
+        <PropertyJsonEditor
+          value={draft}
+          historyKey={baseline}
+          context={context}
+          defaultForeground={defaultForeground}
+          focusRequest={focusRequest}
+          onChange={(source) => {
+            setDraft(source);
+            setApplyMessage(null);
+          }}
+          onApply={apply}
+        />
+      </Suspense>
       <div className="component-property-code-status" aria-live="polite">
         <span>
           {parsed.ok
-            ? (applyMessage ?? "JSON · Ctrl/⌘ + Enter to apply")
+            ? (applyMessage ??
+              (changed
+                ? "Changes pending · Apply or Ctrl/⌘ + Enter"
+                : "JSON · hints and controls are not saved"))
             : parsed.message}
         </span>
         <div>
+          <button
+            type="button"
+            onClick={() => {
+              void navigator.clipboard.writeText(draft).then(
+                () =>
+                  setApplyMessage("JSON copied · hints and controls excluded"),
+                () =>
+                  setApplyMessage(
+                    "Clipboard unavailable; select the code and copy it",
+                  ),
+              );
+            }}
+          >
+            Copy JSON
+          </button>
+          <button
+            type="button"
+            title="Reset parameter and appearance defaults in the draft; keep position, identity, target, display flags, and unknown overrides. Apply to commit."
+            onClick={() => {
+              setDraft(defaultComponentPropertyCode(context));
+              setApplyMessage("Defaults loaded into draft · Apply to commit");
+            }}
+          >
+            Defaults
+          </button>
           <button
             type="button"
             disabled={!changed}
@@ -115,7 +166,7 @@ export function ComponentPropertyCodeEditor({
               setApplyMessage(null);
             }}
           >
-            Revert
+            Discard draft
           </button>
           <button
             type="button"

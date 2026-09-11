@@ -1,4 +1,4 @@
-import type { Locator, Page } from "@playwright/test";
+import { expect, type Locator, type Page } from "@playwright/test";
 
 /** Wait until the route-split editor shell is ready to receive shortcuts. */
 export async function awaitEditorReady(page: Page): Promise<void> {
@@ -105,10 +105,66 @@ export async function editComponentPropertyCode(
   update: (value: Record<string, any>) => void,
 ): Promise<void> {
   const input = page.getByLabel("Editable Canvas property code");
-  const value = JSON.parse(await input.inputValue()) as Record<string, any>;
+  const value = JSON.parse(await readComponentPropertyCode(page)) as Record<
+    string,
+    any
+  >;
   update(value);
   await input.fill(JSON.stringify(value, null, 2));
   await page.getByRole("button", { name: "Apply code" }).click();
+}
+
+/** Read rendered JSON lines only; the inline controls/help are not source text. */
+export async function readComponentPropertyCode(page: Page): Promise<string> {
+  await expect(page.getByLabel("Editable Canvas property code")).toBeVisible();
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.getByRole("button", { name: "Copy JSON", exact: true }).click();
+  await expect(
+    page.getByText("JSON copied · hints and controls excluded", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  return page.evaluate(() => navigator.clipboard.readText());
+}
+
+export async function setComponentParameter(
+  page: Page,
+  key: string,
+  value: string,
+): Promise<void> {
+  await editComponentPropertyCode(page, (code) => {
+    code.parameters[key] = value;
+  });
+}
+
+export async function setComponentCodeField(
+  page: Page,
+  path: string,
+  value: unknown,
+): Promise<void> {
+  await editComponentPropertyCode(page, (code) => {
+    const parts = path.split(".");
+    const key = parts.pop()!;
+    const target = parts.reduce((target, part) => (target[part] ??= {}), code);
+    target[key] = value;
+  });
+}
+
+export async function expectComponentCodeField(
+  page: Page,
+  path: string,
+  expected: unknown,
+): Promise<void> {
+  await expect
+    .poll(async () =>
+      path
+        .split(".")
+        .reduce(
+          (value, key) => value?.[key],
+          JSON.parse(await readComponentPropertyCode(page)),
+        ),
+    )
+    .toEqual(expected);
 }
 
 export async function downloadBytes(

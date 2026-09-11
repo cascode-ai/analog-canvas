@@ -21,6 +21,9 @@ import {
   planCreateCell,
   planProjectCellImport,
   planSetCellSymbolPresentation,
+  planSetDeviceModelTarget,
+  planInstanceUnplacement,
+  type ProjectStructureEdit,
   type CellResetPlan,
   type SchematicEdit,
   type WireSource,
@@ -1287,6 +1290,7 @@ export function App({
   const projectInputRef = useRef<HTMLInputElement>(null);
   const selectionShelfRef = useRef<HTMLButtonElement>(null);
   const instanceValueInputRef = useRef<HTMLInputElement>(null);
+  const [propertyCodeFocusRequest, setPropertyCodeFocusRequest] = useState(0);
   const netLabelPropertyInputRef = useRef<HTMLInputElement>(null);
   const netLabelEditorInputRef = useRef<HTMLInputElement>(null);
   const documentViewBoxes = useRef(new Map<string, GridRect>());
@@ -3324,9 +3328,7 @@ export function App({
     setImportReviewOpen(false);
     setSelectionOpen(true);
     setStatus(`Properties for ${instanceId}`);
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => instanceValueInputRef.current?.focus());
-    });
+    setPropertyCodeFocusRequest((current) => current + 1);
   }
 
   function toggleExamplesPanel(): void {
@@ -5640,7 +5642,9 @@ export function App({
                 selectedInstance
                   ? {
                       code: {
+                        focusRequest: propertyCodeFocusRequest,
                         instance: selectedInstance,
+                        defaultForeground: styleProfile.foreground,
                         revision: document.revision,
                         referenceVisible:
                           selectedLabelRenderable &&
@@ -5655,70 +5659,182 @@ export function App({
                             selectedInstanceValue.visible !== false
                           : null,
                         onApply: (value: ComponentPropertyCodeValue) => {
-                          const edits: SchematicEdit[] =
-                            planComponentPropertyCodeEdits(
-                              document,
-                              selectedInstance,
-                              value,
-                            );
-                          const desiredReference = value.display?.reference;
-                          const currentReference =
-                            selectedInstanceLabel !== undefined &&
-                            selectedInstanceLabel.visible !== false;
-                          if (
-                            typeof desiredReference === "boolean" &&
-                            desiredReference !== currentReference
-                          ) {
-                            edits.push(
-                              ...referenceLabelVisibilityEdits(
-                                [selectedInstance.id],
-                                desiredReference,
-                              ),
-                            );
-                          }
-                          const desiredValue = value.display?.value;
-                          const currentValue =
-                            selectedInstanceValue !== null &&
-                            selectedInstanceValue.visible !== false;
-                          if (
-                            typeof desiredValue === "boolean" &&
-                            desiredValue !== currentValue
-                          ) {
+                          try {
+                            const edits: SchematicEdit[] =
+                              planComponentPropertyCodeEdits(
+                                document,
+                                selectedInstance,
+                                value,
+                              );
                             if (
-                              desiredValue &&
-                              !selectedInstanceValueAvailable
+                              selectedInstance.placement &&
+                              value.placement === null
                             ) {
+                              edits.push(
+                                ...planInstanceUnplacement(
+                                  document,
+                                  resolver,
+                                  [selectedInstance.id],
+                                  document.revision,
+                                ),
+                              );
+                            } else if (
+                              !selectedInstance.placement &&
+                              value.placement
+                            ) {
+                              edits.push({
+                                kind: "place_instance",
+                                instanceId: selectedInstance.id,
+                                placement: {
+                                  position: {
+                                    x: snapCoordinate(
+                                      value.placement.at[0],
+                                      document.presentation.grid,
+                                    ),
+                                    y: snapCoordinate(
+                                      value.placement.at[1],
+                                      document.presentation.grid,
+                                    ),
+                                  },
+                                  rotation: value.placement.rotation,
+                                  mirror: value.placement.mirror,
+                                },
+                              });
+                            }
+                            const candidateInstance = {
+                              ...selectedInstance,
+                              ...(value.parameters && selectedInstance.netlist
+                                ? {
+                                    netlist: {
+                                      ...selectedInstance.netlist,
+                                      parameters: Object.fromEntries(
+                                        Object.entries(value.parameters).filter(
+                                          ([, raw]) => raw.trim() !== "",
+                                        ),
+                                      ),
+                                    },
+                                  }
+                                : {}),
+                            };
+                            const candidateDocument = {
+                              ...document,
+                              instances: document.instances.map((instance) =>
+                                instance.id === selectedInstance.id
+                                  ? candidateInstance
+                                  : instance,
+                              ),
+                            };
+                            const desiredReference = value.display?.reference;
+                            const currentReference =
+                              selectedInstanceLabel !== undefined &&
+                              selectedInstanceLabel.visible !== false;
+                            if (
+                              typeof desiredReference === "boolean" &&
+                              desiredReference !== currentReference
+                            ) {
+                              edits.push(
+                                ...referenceLabelVisibilityEdits(
+                                  [selectedInstance.id],
+                                  desiredReference,
+                                ),
+                              );
+                            }
+                            const desiredValue = value.display?.value;
+                            const currentValue =
+                              selectedInstanceValue !== null &&
+                              selectedInstanceValue.visible !== false;
+                            if (
+                              typeof desiredValue === "boolean" &&
+                              desiredValue !== currentValue
+                            ) {
+                              if (
+                                desiredValue &&
+                                displayableInstanceValue(candidateInstance)
+                                  .kind !== "displayable"
+                              ) {
+                                return {
+                                  ok: false as const,
+                                  message:
+                                    "Set a valid component value before enabling its display",
+                                };
+                              }
+                              edits.push(
+                                ...valueVisibilityEdits(
+                                  candidateDocument,
+                                  [selectedInstance.id],
+                                  desiredValue,
+                                ),
+                              );
+                            }
+                            const currentTarget =
+                              selectedInstance.netlist?.binding?.kind ===
+                              "model"
+                                ? selectedInstance.netlist.binding.name
+                                : selectedReviewedExternalBinding
+                                  ? (selectedExternalSubcircuit?.name ?? "")
+                                  : "";
+                            const targetEdits: ProjectStructureEdit[] =
+                              value.netlistTarget !== undefined &&
+                              value.netlistTarget !== currentTarget
+                                ? planSetDeviceModelTarget(
+                                    project,
+                                    document.id,
+                                    selectedInstance.id,
+                                    value.netlistTarget,
+                                  )
+                                : [];
+                            if (
+                              edits.length === 0 &&
+                              targetEdits.length === 0
+                            ) {
+                              setStatus(
+                                `Canvas properties for ${selectedInstance.id} are already up to date`,
+                              );
+                              return { ok: true as const };
+                            }
+                            let applied: boolean;
+                            if (targetEdits.length > 0) {
+                              // Merge the target planner's document edits with the draft into
+                              // one project transaction and one undo boundary.
+                              const documentEdit = targetEdits.find(
+                                (edit) =>
+                                  edit.kind === "transact_document" &&
+                                  edit.documentId === document.id,
+                              );
+                              if (documentEdit?.kind === "transact_document")
+                                documentEdit.edits.push(...edits);
+                              else if (edits.length)
+                                targetEdits.push({
+                                  kind: "transact_document",
+                                  documentId: document.id,
+                                  expectedRevision: document.revision,
+                                  edits,
+                                });
+                              applied = commitStructure(
+                                "apply-component-property-code",
+                                targetEdits,
+                              );
+                            } else applied = transact(edits).ok;
+                            if (!applied) {
                               return {
                                 ok: false as const,
                                 message:
-                                  "Set a valid component value before enabling its display",
+                                  "Canvas property code was rejected; see the status bar",
                               };
                             }
-                            edits.push(
-                              ...valueVisibilityEdits(
-                                document,
-                                [selectedInstance.id],
-                                desiredValue,
-                              ),
-                            );
-                          }
-                          if (edits.length === 0) {
                             setStatus(
-                              `Canvas properties for ${selectedInstance.id} are already up to date`,
+                              `Applied Canvas property code to ${selectedInstance.id}`,
                             );
                             return { ok: true as const };
-                          }
-                          if (!transact(edits).ok) {
+                          } catch (error) {
                             return {
                               ok: false as const,
                               message:
-                                "Canvas property code was rejected; see the status bar",
+                                error instanceof Error
+                                  ? error.message
+                                  : "Could not apply component properties",
                             };
                           }
-                          setStatus(
-                            `Applied Canvas property code to ${selectedInstance.id}`,
-                          );
-                          return { ok: true as const };
                         },
                       },
                       formalPort: selectedFormalTerminal

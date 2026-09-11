@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { ComponentPropertyCodeEditor } from "./component-property-code-editor";
 
 describe("ComponentPropertyCodeEditor", () => {
-  it("renders one editable code surface without coordinate or style widgets", () => {
+  it("keeps a readable loading fallback for the lazily loaded code surface", () => {
     const markup = renderToStaticMarkup(
       <ComponentPropertyCodeEditor
         instance={{
@@ -23,7 +23,7 @@ describe("ComponentPropertyCodeEditor", () => {
         onApply={vi.fn(() => ({ ok: true as const }))}
       />,
     );
-    expect(markup).toContain('aria-label="Editable Canvas property code"');
+    expect(markup).toContain('aria-label="Loading Canvas property code"');
     expect(markup).toContain("&quot;at&quot;");
     expect(markup).toContain("Apply code");
     expect(markup).not.toContain('inputMode="decimal"');

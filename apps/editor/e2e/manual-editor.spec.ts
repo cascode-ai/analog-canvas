@@ -16,10 +16,173 @@ import {
   clickNetlistWorkflowCommand,
   downloadBytes,
   editComponentPropertyCode,
+  readComponentPropertyCode,
+  setComponentParameter,
+  setComponentCodeField,
+  expectComponentCodeField,
   openMenu,
   readRecoveryRecords,
   recoveryProjectTexts,
 } from "./editor-fixtures.js";
+
+test("guided JSON properties keep controls in one draft and round-trip raw parameter strings", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await placeComponent(page, "nmos", { x: 360, y: 220 });
+  await openSelectionShelf(page);
+  const panel = page.getByRole("complementary", { name: "Properties" });
+  await expect(
+    panel.getByLabel("Component parameters and display"),
+  ).toHaveCount(0);
+  await expect(panel.getByLabel("Component actions")).toHaveCount(0);
+  await expect(panel.getByLabel("Netlist target", { exact: true })).toHaveCount(
+    0,
+  );
+  const revision = await page.getByTestId("revision").textContent();
+  await panel.getByLabel("Rotation options").selectOption("90");
+  await panel
+    .getByRole("switch", { name: "Show reference", exact: true })
+    .click();
+  await panel.getByLabel("Foreground color picker").fill("#dc2626");
+  await expect(page.getByTestId("revision")).toHaveText(revision!);
+  const draft = JSON.parse(await readComponentPropertyCode(page));
+  expect(draft.placement.rotation).toBe(90);
+  expect(draft.display.reference).toBe(false);
+  expect(draft.appearance.foreground).toEqual([220, 38, 38]);
+  draft.parameters.w = "EV";
+  draft.parameters.l = "L";
+  draft.parameters.custom = "{raw_expression}";
+  draft.display.value = true;
+  await panel
+    .getByLabel("Editable Canvas property code")
+    .fill(JSON.stringify(draft, null, 2));
+  await panel.getByRole("button", { name: "Apply code" }).click();
+  await expect(page.getByTestId("revision")).toHaveText(
+    String(Number(revision) + 1),
+  );
+  const value = page.locator(
+    '[data-layer="formal"] [data-object-id="instance-value-M1"]',
+  );
+  await expect(value).toContainText("EV");
+  await expect(value).not.toContainText("EVm");
+  const source = await readComponentPropertyCode(page);
+  expect(source).not.toContain("Clockwise");
+  expect(source).not.toContain("Enter any unit");
+  const saved = JSON.parse(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(
+      "utf8",
+    ),
+  );
+  expect(saved.documents[0].instances[0]).toMatchObject({
+    netlist: { parameters: { w: "EV", l: "L", custom: "{raw_expression}" } },
+    styleOverride: { foreground: "#dc2626" },
+    placement: { rotation: 90 },
+  });
+  await clickCommand(page, "Edit", "Undo");
+  await expectComponentCodeField(page, "parameters.w", "1u");
+  await clickCommand(page, "Edit", "Redo");
+  await expectComponentCodeField(page, "parameters.w", "EV");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "raw.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(saved)),
+  });
+  await page.getByTestId("hit-M1").click();
+  await openSelectionShelf(page);
+  await expectComponentCodeField(page, "parameters.w", "EV");
+});
+
+test("Defaults and Discard draft have distinct non-destructive behavior", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await placeComponent(page, "nmos", { x: 360, y: 220 });
+  await openSelectionShelf(page);
+  await setComponentParameter(page, "w", "7u");
+  const revision = await page.getByTestId("revision").textContent();
+  await page.getByRole("button", { name: "Defaults", exact: true }).click();
+  await expectComponentCodeField(page, "parameters.w", "1u");
+  await expect(page.getByTestId("revision")).toHaveText(revision!);
+  await page
+    .getByRole("button", { name: "Discard draft", exact: true })
+    .click();
+  await expectComponentCodeField(page, "parameters.w", "7u");
+  const code = page.getByLabel("Editable Canvas property code");
+  const invalid = JSON.parse(await readComponentPropertyCode(page));
+  invalid.appearance.foreground = [256, 0, 0];
+  await code.fill(JSON.stringify(invalid, null, 2));
+  await expect(page.getByRole("button", { name: "Apply code" })).toBeDisabled();
+  await expect(page.getByLabel("Rotation options")).toBeDisabled();
+  await page.getByRole("button", { name: "Discard draft" }).click();
+  await expectComponentCodeField(page, "parameters.w", "7u");
+  await expect(page.locator(".cm-json-key").first()).toBeVisible();
+  await expect(page.locator(".cm-json-string").first()).toBeVisible();
+});
+
+test("one JSON Apply combines model, dimensions and appearance in one undo boundary", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await placeComponent(page, "nmos", { x: 360, y: 220 });
+  await openSelectionShelf(page);
+  await editComponentPropertyCode(page, (code) => {
+    code.netlistTarget = "sky130_fd_pr__nfet_01v8";
+    code.parameters.w = "5u";
+    code.appearance.foreground = [20, 30, 40];
+  });
+  await expectComponentCodeField(page, "reference", "XM1");
+  await expectComponentCodeField(page, "parameters.w", "5u");
+  await expectComponentCodeField(page, "appearance.foreground", [20, 30, 40]);
+  await clickCommand(page, "Edit", "Undo");
+  await expectComponentCodeField(page, "reference", "M1");
+  await expectComponentCodeField(page, "parameters.w", "1u");
+  await expectComponentCodeField(page, "appearance.foreground", "auto");
+  await clickCommand(page, "Edit", "Redo");
+  await expectComponentCodeField(page, "reference", "XM1");
+  await expectComponentCodeField(page, "parameters.w", "5u");
+});
+
+test("property placement null retains a wired instance and re-places it with grid snapping", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await placeComponent(page, "resistor", { x: 360, y: 220 });
+  const canvas = page.getByTestId("schematic-canvas");
+  await clickDrawTool(page, "wire");
+  await page.getByTestId("terminal-R1-2").click();
+  await canvas.dblclick({ position: { x: 500, y: 350 } });
+  await page.keyboard.press("Escape");
+  await page.getByTestId("hit-R1").click();
+  await openSelectionShelf(page);
+  const before = JSON.parse(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(
+      "utf8",
+    ),
+  );
+  await setComponentCodeField(page, "placement", null);
+  await expect(page.getByTestId("hit-R1")).toHaveCount(0);
+  await expectComponentCodeField(page, "placement", null);
+  const saved = JSON.parse(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(
+      "utf8",
+    ),
+  );
+  expect(saved.documents[0].instances).toHaveLength(1);
+  expect(saved.documents[0].nets).toEqual(before.documents[0].nets);
+  expect(saved.documents[0].routes).toHaveLength(
+    before.documents[0].routes.length,
+  );
+  await setComponentCodeField(page, "placement", {
+    at: [421, 281],
+    rotation: 90,
+    mirror: "x",
+  });
+  await expect(page.getByTestId("hit-R1")).toHaveCount(1);
+  await expectComponentCodeField(page, "placement.at", [420, 280]);
+  await clickCommand(page, "Edit", "Undo");
+  await expect(page.getByTestId("hit-R1")).toHaveCount(0);
+});
 
 test("a directly connected device can move away and return with its wire, undo and redo", async ({
   page,
@@ -794,15 +957,15 @@ test("a part with no designator offers no Reference toggle", async ({
   await expect(properties).toContainText("voltage-amplifier");
   await expect(
     properties.getByLabel("Editable Canvas property code"),
-  ).not.toHaveValue(/"display"/u);
+  ).not.toContainText(/"display"/u);
 
   // The brake: a resistor designates R1 and carries a value, so its toggles
   // are untouched and still work.
   await placeComponent(page, "resistor", { x: 500, y: 200 });
   await openSelectionShelf(page);
   const code = properties.getByLabel("Editable Canvas property code");
-  await expect(code).toHaveValue(/"reference": true/u);
-  await expect(code).toHaveValue(/"value": false/u);
+  await expect(code).toContainText(/"reference": true/u);
+  await expect(code).toContainText(/"value": false/u);
   const drawnLabel = page.locator(
     '[data-layer="annotations"] [data-object-id="instance-label-R1"]',
   );
@@ -836,7 +999,7 @@ test("a switch changes contact style in place, keeping its wires", async ({
 
   await page.locator('[data-canvas-hit-kind="instance"]').first().click();
   await page.getByTestId("selection-shelf").click();
-  const toggle = page.getByTestId("swap-switch-contact-style");
+  const toggle = page.getByLabel("Drawing variant options");
   await expect(toggle).toBeVisible();
 
   // The plain drawing is a state of this component, not a second part: the
@@ -845,7 +1008,8 @@ test("a switch changes contact style in place, keeping its wires", async ({
     0,
   );
 
-  await toggle.click();
+  await toggle.selectOption("simple-spdt-switch");
+  await page.getByRole("button", { name: "Apply code" }).click();
   await expect(page.locator("[data-symbol-id]").first()).toHaveAttribute(
     "data-symbol-id",
     "simple-spdt-switch",
@@ -855,7 +1019,8 @@ test("a switch changes contact style in place, keeping its wires", async ({
   await expect(page.getByTestId("hit-S1")).toHaveCount(1);
   await expect(page.locator('[data-layer="routes"] polyline')).toHaveCount(1);
 
-  await toggle.click();
+  await toggle.selectOption("spdt-switch");
+  await page.getByRole("button", { name: "Apply code" }).click();
   await expect(page.locator("[data-symbol-id]").first()).toHaveAttribute(
     "data-symbol-id",
     "spdt-switch",
@@ -3334,24 +3499,25 @@ test("Properties offers no dead Reference controls for a schematic-only block", 
   // change the drawing. Its Canvas property code still owns placement/style.
   await page.locator('[data-canvas-hit-kind="instance"]').first().click();
   await expect(
-    properties.locator('[aria-label="SPICE component code"]'),
-  ).toContainText("<subcircuit-model>");
+    properties.getByLabel("Editable Canvas property code"),
+  ).toBeVisible();
   await expect(referenceField).toHaveCount(0);
   await expect(parametersCard).toHaveCount(0);
   await expect(
     properties.getByLabel("Editable Canvas property code"),
-  ).not.toHaveValue(/"display"/u);
+  ).not.toContainText(/"display"/u);
   await expect(
     properties.locator('details[aria-label="Component appearance"]'),
   ).toHaveCount(0);
 
-  // An ordinary device keeps both.
+  // An ordinary device exposes both in the single code editor, not forms.
   await page.getByTestId("hit-R1").click();
-  await expect(referenceField).toHaveCount(1);
-  await expect(parametersCard).toHaveCount(1);
+  await expect(referenceField).toHaveCount(0);
+  await expect(parametersCard).toHaveCount(0);
+  await expectComponentCodeField(page, "reference", "R1");
   await expect(
     properties.getByLabel("Editable Canvas property code"),
-  ).toHaveValue(/"display"/u);
+  ).toContainText(/"display"/u);
 });
 
 test("resizes Properties and applies component presentation as editable code", async ({
@@ -3415,7 +3581,7 @@ test("resizes Properties and applies component presentation as editable code", a
     .poll(async () => (await properties.boundingBox())?.width ?? 0)
     .toBeCloseTo(compactWidth + 8, 0);
 
-  const edited = JSON.parse(await code.inputValue());
+  const edited = JSON.parse(await readComponentPropertyCode(page));
   edited.placement.at = [420, 280];
   edited.placement.rotation = 90;
   edited.placement.mirror = "x";
@@ -3461,25 +3627,17 @@ test("Properties toggles reference label visibility for one or many components",
   for (const sectionName of ["Parameters", "Netlist overrides", "Actions"]) {
     await expect(
       properties.getByText(sectionName, { exact: true }),
-    ).toBeVisible();
+    ).toHaveCount(0);
   }
   const componentProperties = properties.getByRole("region", {
     name: "Component properties",
   });
   await expect(
     componentProperties.locator(":scope > .property-disclosure"),
-  ).toHaveCount(2);
-  expect(
-    await componentProperties
-      .locator(":scope > .property-disclosure > summary > span")
-      .allTextContents(),
-  ).toEqual(["Parameters", "Actions"]);
-  await expect(componentProperties.locator(":scope > :last-child")).toHaveText(
-    /R1.*<unconnected:1>.*<unconnected:2>.*<value>/u,
-  );
+  ).toHaveCount(0);
   await expect(
     componentProperties.locator(":scope > :last-child"),
-  ).toHaveAttribute("aria-label", "SPICE component code");
+  ).toHaveAttribute("aria-label", "Canvas property code");
   await expect(
     componentProperties.locator(
       ':scope > details[aria-label="Component appearance"]',
@@ -3492,10 +3650,11 @@ test("Properties toggles reference label visibility for one or many components",
   ).toHaveCount(0);
   await expect(
     componentProperties.getByText("Netlist target", { exact: true }),
-  ).toBeVisible();
+  ).toHaveCount(0);
   await expect(
     componentProperties.getByLabel("Component model target"),
-  ).toBeVisible();
+  ).toHaveCount(0);
+  await expectComponentCodeField(page, "netlistTarget", "");
   await editComponentPropertyCode(page, (value) => {
     value.display.reference = false;
   });
@@ -3726,9 +3885,9 @@ test("value display projects MOS W/L and passive values beside the reference", a
   // Geometry and the Value display are Properties decisions after placement.
   await page.getByTestId("hit-M1").click();
   await openSelectionShelf(page);
-  await page.getByLabel("Component w", { exact: true }).fill("2u");
-  await page.getByLabel("Component l", { exact: true }).fill("180n");
-  await page.getByLabel("Component m", { exact: true }).fill("4");
+  await setComponentParameter(page, "w", "2u");
+  await setComponentParameter(page, "l", "180n");
+  await setComponentParameter(page, "m", "4");
   await editComponentPropertyCode(page, (propertyCode) => {
     propertyCode.display.value = true;
   });
@@ -3739,8 +3898,8 @@ test("value display projects MOS W/L and passive values beside the reference", a
   await expect(reference).toContainText("M1");
   // MOS values render as a stacked fraction with engineering units: the
   // numerator and denominator are separate part texts around a fraction bar.
-  await expect(value).toContainText("2um");
-  await expect(value).toContainText("180nm");
+  await expect(value).toContainText("2u");
+  await expect(value).toContainText("180n");
   await expect(value).toContainText("×4");
   await expect(page.locator('[data-role="fraction-bar"]')).toHaveCount(1);
   const multiplierGap = await value.evaluate((element) => {
@@ -3770,14 +3929,14 @@ test("value display projects MOS W/L and passive values beside the reference", a
   await page.keyboard.press("Escape");
   await page.getByTestId("hit-R1").click();
   await openSelectionShelf(page);
-  await page.getByLabel("Component value", { exact: true }).fill("33k");
+  await setComponentParameter(page, "value", "33k");
   await editComponentPropertyCode(page, (propertyCode) => {
     propertyCode.display.value = true;
   });
   await canvas.click({ position: { x: 80, y: 80 } });
   await expect(
     page.locator('[data-object-id="instance-value-R1"]'),
-  ).toContainText("33kΩ");
+  ).toContainText("33k");
 
   // The formal SVG export carries the fraction bar and unit text through the
   // shared annotation path.
@@ -3786,10 +3945,10 @@ test("value display projects MOS W/L and passive values beside the reference", a
   );
   expect(svg).toContain('data-kind="instance-value"');
   expect(svg).toContain('data-role="fraction-bar"');
-  expect(svg).toContain("2um");
-  expect(svg).toContain("180nm");
+  expect(svg).toContain("2u");
+  expect(svg).toContain("180n");
   expect(svg).toContain("×4");
-  expect(svg).toContain("33kΩ");
+  expect(svg).toContain("33k");
 });
 
 test("reference and value code refreshes content after parameter edits", async ({
@@ -3805,7 +3964,7 @@ test("reference and value code refreshes content after parameter edits", async (
   await openSelectionShelf(page);
   const properties = page.getByRole("complementary", { name: "Properties" });
   const propertyCode = properties.getByLabel("Editable Canvas property code");
-  const missingValueCode = JSON.parse(await propertyCode.inputValue());
+  const missingValueCode = JSON.parse(await readComponentPropertyCode(page));
   missingValueCode.display.value = true;
   await propertyCode.fill(JSON.stringify(missingValueCode, null, 2));
   await properties.getByRole("button", { name: "Apply code" }).click();
@@ -3818,23 +3977,22 @@ test("reference and value code refreshes content after parameter edits", async (
 
   // Typing a value makes the same pending code applicable without closing and
   // reopening Properties.
-  await page.getByLabel("Component value").click();
-  await page.getByLabel("Component value").fill("33k");
-  await page.getByLabel("Component value").press("Tab");
-  await properties.getByRole("button", { name: "Apply code" }).click();
+
+  await setComponentParameter(page, "value", "33k");
+
   await expect(
     page.locator('[data-object-id="instance-value-R1"]'),
-  ).toContainText("33kΩ");
+  ).toContainText("33k");
 
   // A later parameter edit re-projects the visible value text.
-  await page.getByLabel("Component value").click();
-  await page.getByLabel("Component value").fill("47k");
+
+  await setComponentParameter(page, "value", "47k");
   await page
     .getByTestId("schematic-canvas")
     .click({ position: { x: 60, y: 60 } });
   await expect(
     page.locator('[data-object-id="instance-value-R1"]'),
-  ).toContainText("47kΩ");
+  ).toContainText("47k");
 
   // Hiding keeps the annotation recoverable.
   await page.getByTestId("hit-R1").click();
@@ -3865,7 +4023,7 @@ test("reference and value code refreshes content after parameter edits", async (
     .click();
   await expect(
     page.locator('[data-object-id="instance-value-R1"]'),
-  ).toContainText("47kΩ");
+  ).toContainText("47k");
   await expect(
     page.locator('[data-object-id="instance-value-R2"]'),
   ).toHaveCount(0);
@@ -3881,9 +4039,9 @@ for (const symbol of ["nmos", "pmos"]) {
     const instance = page.getByTestId("hit-M1");
     await instance.click();
     await openSelectionShelf(page);
-    await page.getByLabel("Component w", { exact: true }).fill("2u");
-    await page.getByLabel("Component l", { exact: true }).fill("180n");
-    await page.getByLabel("Component m", { exact: true }).fill("4");
+    await setComponentParameter(page, "w", "2u");
+    await setComponentParameter(page, "l", "180n");
+    await setComponentParameter(page, "m", "4");
     await editComponentPropertyCode(page, (code) => {
       code.display.value = true;
     });
@@ -3891,7 +4049,7 @@ for (const symbol of ["nmos", "pmos"]) {
 
     const value = page.locator('[data-object-id="instance-value-M1"]');
     const numerator = value.locator('[data-role="fraction-numerator"]');
-    await expect(numerator).toContainText("2um");
+    await expect(numerator).toContainText("2u");
     const before = (await value.boundingBox())!;
     const ownerBefore = (await instance.boundingBox())!;
     const grip = (await numerator.boundingBox())!;
@@ -3949,9 +4107,9 @@ for (const symbol of ["nmos", "pmos"]) {
     // Updating W refreshes the fraction without restoring its default slot.
     await instance.click();
     await openSelectionShelf(page);
-    await page.getByLabel("Component w", { exact: true }).fill("3u");
+    await setComponentParameter(page, "w", "3u");
     await canvas.click({ position: { x: 70, y: 70 } });
-    await expect(numerator).toContainText("3um");
+    await expect(numerator).toContainText("3u");
     expect(valueAnchor(await readDocument())).toEqual(anchor);
 
     // Move and rotate the host: the authored vector follows, never reflows.
@@ -3984,7 +4142,7 @@ for (const symbol of ["nmos", "pmos"]) {
       x: -anchor.localOffset.y,
       y: anchor.localOffset.x,
     });
-    await expect(numerator).toContainText("3um");
+    await expect(numerator).toContainText("3u");
 
     // Reopen a real exported file, then export again to verify persisted data.
     const saved = await downloadBytes(page, "File", "Export Project File…");
@@ -3993,7 +4151,7 @@ for (const symbol of ["nmos", "pmos"]) {
       mimeType: "application/json",
       buffer: saved,
     });
-    await expect(numerator).toContainText("3um");
+    await expect(numerator).toContainText("3u");
     const reopened = await readDocument();
     expect(valueAnchor(reopened)).toEqual(rotatedAnchor);
     expect(reopened.instances).toEqual(rotated.instances);
@@ -4008,8 +4166,8 @@ test("drag value annotation keeps the user offset through rotation", async ({
   await placeComponent(page, "resistor", { x: 360, y: 220 });
   await page.getByTestId("hit-R1").click();
   await openSelectionShelf(page);
-  await page.getByLabel("Component value").click();
-  await page.getByLabel("Component value").fill("33k");
+
+  await setComponentParameter(page, "value", "33k");
   await page
     .getByTestId("schematic-canvas")
     .click({ position: { x: 60, y: 60 } });
@@ -4020,7 +4178,7 @@ test("drag value annotation keeps the user offset through rotation", async ({
   });
   await expect(
     page.locator('[data-object-id="instance-value-R1"]'),
-  ).toContainText("33kΩ");
+  ).toContainText("33k");
 
   // Drag the value away from its canonical slot.
   const value = page.getByTestId("annotation-hit-instance-value-R1");
@@ -4037,7 +4195,7 @@ test("drag value annotation keeps the user offset through rotation", async ({
   await page.keyboard.press("r");
   await expect(
     page.locator('[data-object-id="instance-value-R1"]'),
-  ).toContainText("33kΩ");
+  ).toContainText("33k");
   const rotated = await value.boundingBox();
   if (!rotated) throw new Error("Rotated value is not measurable");
   // A quarter turn may keep one coordinate, so assert total displacement.
@@ -4046,7 +4204,7 @@ test("drag value annotation keeps the user offset through rotation", async ({
   ).toBeGreaterThan(10);
 });
 
-test("property edits commit on blank click and Escape instead of vanishing", async ({
+test("applied property drafts survive blank click and Escape", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -4055,25 +4213,22 @@ test("property edits commit on blank click and Escape instead of vanishing", asy
 
   await page.getByTestId("hit-R1").click();
   await openSelectionShelf(page);
-  const value = page.getByLabel("Component value");
-  await value.click();
-  await value.fill("33k");
+  await setComponentParameter(page, "value", "33k");
   await canvas.click({ position: { x: 60, y: 60 } });
   await expect(page.getByTestId("revision")).toHaveText("2");
 
   await page.getByTestId("hit-R1").click();
   await openSelectionShelf(page);
-  await expect(page.getByLabel("Component value")).toHaveValue("33k");
+  await expectComponentCodeField(page, "parameters.value", "33k");
 
-  await page.getByLabel("Component value").click();
-  await page.getByLabel("Component value").fill("47k");
+  await setComponentParameter(page, "value", "47k");
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("revision")).toHaveText("3");
 
   await canvas.click({ position: { x: 60, y: 60 } });
   await page.getByTestId("hit-R1").click();
   await openSelectionShelf(page);
-  await expect(page.getByLabel("Component value")).toHaveValue("47k");
+  await expectComponentCodeField(page, "parameters.value", "47k");
 });
 
 test("canvas text editor cancels explicitly and commits on Escape or outside click", async ({
@@ -5087,8 +5242,8 @@ test("exports structural SPICE and Spectre netlists while exposing instance auth
   const properties = page.getByRole("complementary", { name: "Properties" });
   await expect(properties.getByLabel("Cell netlist name")).toHaveCount(0);
   await expect(properties.getByLabel("Cell netlist port order")).toHaveCount(0);
-  await expect(properties.getByLabel("Netlist Reference")).toBeVisible();
-  await expect(properties.getByLabel("Component model target")).toBeVisible();
+  await expectComponentCodeField(page, "reference", "M1");
+  await expectComponentCodeField(page, "netlistTarget", "");
   await expect(properties.getByText(/^Model:/u)).toHaveCount(0);
 });
 
@@ -5099,7 +5254,6 @@ test("edits the transconductance trapezoid from gm to -gmL", async ({
   await placeComponent(page, "transconductance", { x: 360, y: 240 });
   await openSelectionShelf(page);
   const properties = page.getByRole("complementary", { name: "Properties" });
-  const formula = properties.getByLabel("Signal flow formula");
   const componentProperties = properties.locator(
     '[aria-label="Component properties"]',
   );
@@ -5109,13 +5263,10 @@ test("edits the transconductance trapezoid from gm to -gmL", async ({
   await expect(properties.getByText("Identity", { exact: true })).toHaveCount(
     0,
   );
-  await expect(componentProperties.locator(":scope > :last-child")).toHaveText(
-    /X1.*<subcircuit-model>/u,
-  );
   await expect(
     componentProperties.locator(":scope > :last-child"),
-  ).toHaveAttribute("aria-label", "SPICE component code");
-  await expect(formula).toHaveValue("g_m");
+  ).toHaveAttribute("aria-label", "Canvas property code");
+  await expectComponentCodeField(page, "signalFlow", {});
   await expect(frame).toHaveCount(1);
   await expect(frame).toHaveAttribute(
     "points",
@@ -5125,16 +5276,15 @@ test("edits the transconductance trapezoid from gm to -gmL", async ({
     formalScene.locator('[data-role="formula-subscript"]'),
   ).toHaveText("m");
 
-  await formula.fill("−gₘL");
-  await formula.press("Tab");
+  await setComponentCodeField(page, "signalFlow.formula", "−gₘL");
   await expect(
     formalScene.locator('[data-role="formula-subscript"]'),
   ).toHaveText("mL");
 
   await clickCommand(page, "Edit", "Undo");
-  await expect(formula).toHaveValue("g_m");
+  await expectComponentCodeField(page, "signalFlow", {});
   await clickCommand(page, "Edit", "Redo");
-  await expect(formula).toHaveValue("−gₘL");
+  await expectComponentCodeField(page, "signalFlow.formula", "−gₘL");
 });
 
 test("edits a formula-capable Signal Flow block with undo, redo, and Reset defaults", async ({
@@ -5158,17 +5308,8 @@ test("edits a formula-capable Signal Flow block with undo, redo, and Reset defau
   await placeComponent(page, symbol.id, { x: 360, y: 240 });
   await openSelectionShelf(page);
   const properties = page.getByRole("complementary", { name: "Properties" });
-  const formula = properties.getByLabel("Signal flow formula");
-  const coefficient = properties.getByLabel("Signal flow coefficient");
-
-  await expect(properties.getByText("Transfer function")).toBeVisible();
-  const minimumWidth = properties.getByLabel("Signal flow minimum width");
-  const minimumHeight = properties.getByLabel("Signal flow minimum height");
-  await expect(minimumWidth).toHaveAttribute("placeholder", "Auto");
-  await expect(minimumHeight).toHaveAttribute("placeholder", "Auto");
-  // A freshly placed block carries its own formula in the field, ready to
-  // be edited in place instead of retyped.
-  await expect(formula).toHaveValue(symbol.formulaPresentation!.defaultFormula);
+  // Empty presentation code inherits the canonical symbol's own formula.
+  await expectComponentCodeField(page, "signalFlow", {});
 
   const formalScene = page.locator('[data-layer="formal"]');
   const renderedFormula = formalScene.locator(
@@ -5180,8 +5321,7 @@ test("edits a formula-capable Signal Flow block with undo, redo, and Reset defau
     0,
   );
 
-  await formula.fill("z⁻¹/(1−z⁻¹)");
-  await formula.press("Tab");
+  await setComponentCodeField(page, "signalFlow.formula", "z⁻¹/(1−z⁻¹)");
   await expect(
     formalScene.locator('[data-role="formula-fraction-bar"]'),
   ).toHaveCount(1);
@@ -5193,17 +5333,14 @@ test("edits a formula-capable Signal Flow block with undo, redo, and Reset defau
   // expands to 50 units so superscript denominators clear the fraction bar.
   await expect(frame).toHaveAttribute("height", "50");
 
-  await coefficient.fill("K");
-  await coefficient.press("Tab");
+  await setComponentCodeField(page, "signalFlow.coefficient", "K");
   await expect(
     formalScene.locator('[data-role="formula-coefficient"]'),
   ).toHaveText("K·");
   await expect(frame).toHaveAttribute("width", "80");
 
-  await minimumWidth.fill("160");
-  await minimumWidth.press("Tab");
-  await minimumHeight.fill("80");
-  await minimumHeight.press("Tab");
+  await setComponentCodeField(page, "signalFlow.bodyWidth", 160);
+  await setComponentCodeField(page, "signalFlow.bodyHeight", 80);
   await expect(frame).toHaveAttribute("width", "160");
   await expect(frame).toHaveAttribute("height", "80");
 
@@ -5212,13 +5349,13 @@ test("edits a formula-capable Signal Flow block with undo, redo, and Reset defau
   await clickCommand(page, "Edit", "Redo");
   await expect(frame).toHaveAttribute("height", "80");
 
-  await properties.getByRole("button", { name: "Reset defaults" }).click();
+  await properties
+    .getByRole("button", { name: "Defaults", exact: true })
+    .click();
+  await properties.getByRole("button", { name: "Apply code" }).click();
   // Reset restores the Symbol's own formula as editable text, not an empty
   // box: the default is the starting point for the next edit.
-  await expect(formula).toHaveValue(symbol.formulaPresentation!.defaultFormula);
-  await expect(coefficient).toHaveValue("");
-  await expect(minimumWidth).toHaveValue("");
-  await expect(minimumHeight).toHaveValue("");
+  await expectComponentCodeField(page, "signalFlow", {});
   await expect(
     formalScene.locator('[data-role="formula-coefficient"]'),
   ).toHaveCount(0);
@@ -5231,43 +5368,33 @@ test("selects a reviewed SKY130 MOS through the existing Model field", async ({
   await placeComponent(page, "nmos", { x: 360, y: 220 });
   await openSelectionShelf(page);
   const properties = page.getByRole("complementary", { name: "Properties" });
-  const model = properties.getByLabel("Component model target", {
-    exact: true,
-  });
 
-  await expect(
-    model.locator('option[value="sky130_fd_pr__nfet_01v8"]'),
-  ).toHaveCount(1);
-  await model.selectOption("sky130_fd_pr__nfet_01v8");
+  await expect(properties).toContainText("sky130_fd_pr__nfet_01v8");
+  await setComponentCodeField(page, "netlistTarget", "sky130_fd_pr__nfet_01v8");
 
-  await expect(properties).toContainText(
-    "External subcircuit · SPICE emits an X card",
+  await expectComponentCodeField(
+    page,
+    "netlistTarget",
+    "sky130_fd_pr__nfet_01v8",
   );
-  await expect(properties.getByLabel("Netlist Reference")).toHaveValue("XM1");
-  await expect(properties.getByLabel("Component nf")).toBeVisible();
-  await expect(
-    properties.getByLabel("Component m", { exact: true }),
-  ).toBeVisible();
+  await expectComponentCodeField(page, "reference", "XM1");
+  await expectComponentCodeField(page, "parameters.nf", "1");
+  await expectComponentCodeField(page, "parameters.m", "1");
 
-  await model.selectOption("");
-  await expect(model).toHaveValue("");
-  await expect(properties.getByLabel("Netlist Reference")).toHaveValue("M1");
-  await expect(properties).not.toContainText(
-    "External subcircuit · SPICE emits an X card",
+  await setComponentCodeField(page, "netlistTarget", "");
+  await expectComponentCodeField(page, "netlistTarget", "");
+  await expectComponentCodeField(page, "reference", "M1");
+  await setComponentCodeField(page, "netlistTarget", "generic_nmos");
+  await expectComponentCodeField(page, "netlistTarget", "generic_nmos");
+  await expectComponentCodeField(page, "reference", "M1");
+
+  await setComponentCodeField(page, "netlistTarget", "sky130_fd_pr__nfet_01v8");
+  await expectComponentCodeField(
+    page,
+    "netlistTarget",
+    "sky130_fd_pr__nfet_01v8",
   );
-
-  await model.selectOption({ label: "Custom…" });
-  const customModel = properties.getByLabel("Custom model name");
-  await customModel.fill("generic_nmos");
-  await customModel.press("Enter");
-  await expect(customModel).toHaveValue("generic_nmos");
-  await expect(properties.getByLabel("Netlist Reference")).toHaveValue("M1");
-
-  await model.selectOption("sky130_fd_pr__nfet_01v8");
-  await expect(properties).toContainText(
-    "External subcircuit · SPICE emits an X card",
-  );
-  await expect(properties.getByLabel("Netlist Reference")).toHaveValue("XM1");
+  await expectComponentCodeField(page, "reference", "XM1");
 
   const saved = JSON.parse(
     (await downloadBytes(page, "File", "Export Project File…")).toString(
@@ -5305,14 +5432,15 @@ test("keeps the exact SKY130 PNP on its three-terminal model interface", async (
   const properties = page.getByRole("complementary", {
     name: "Properties",
   });
-  const model = properties.getByLabel("Component model target", {
-    exact: true,
-  });
 
   await expect(properties.getByLabel("Substrate Net")).toHaveCount(0);
-  await model.selectOption("sky130_fd_pr__pnp_05v5_W0p68L0p68");
+  await setComponentCodeField(
+    page,
+    "netlistTarget",
+    "sky130_fd_pr__pnp_05v5_W0p68L0p68",
+  );
   await expect(properties.getByLabel("Substrate Net")).toHaveCount(0);
-  await expect(properties.getByLabel("Netlist Reference")).toHaveValue("XQ1");
+  await expectComponentCodeField(page, "reference", "XQ1");
 
   const saved = JSON.parse(
     (await downloadBytes(page, "File", "Export Project File…")).toString(
@@ -5324,9 +5452,9 @@ test("keeps the exact SKY130 PNP on its three-terminal model interface", async (
     terminals: [{ name: "C" }, { name: "B" }, { name: "E" }],
   });
 
-  await model.selectOption("");
+  await setComponentCodeField(page, "netlistTarget", "");
   await expect(properties.getByLabel("Substrate Net")).toHaveCount(0);
-  await expect(properties.getByLabel("Netlist Reference")).toHaveValue("Q1");
+  await expectComponentCodeField(page, "reference", "Q1");
 });
 
 test("derives NPN substrate from its exact Model", async ({ page }) => {
@@ -5336,14 +5464,15 @@ test("derives NPN substrate from its exact Model", async ({ page }) => {
   const properties = page.getByRole("complementary", {
     name: "Properties",
   });
-  const model = properties.getByLabel("Component model target", {
-    exact: true,
-  });
 
   await expect(properties.getByLabel("Substrate Net")).toHaveCount(0);
-  await model.selectOption("sky130_fd_pr__npn_05v5_W1p00L1p00");
+  await setComponentCodeField(
+    page,
+    "netlistTarget",
+    "sky130_fd_pr__npn_05v5_W1p00L1p00",
+  );
   await expect(properties.getByLabel("Substrate Net")).toBeVisible();
-  await expect(properties.getByLabel("Netlist Reference")).toHaveValue("XQ1");
+  await expectComponentCodeField(page, "reference", "XQ1");
 
   const saved = JSON.parse(
     (await downloadBytes(page, "File", "Export Project File…")).toString(
@@ -5355,25 +5484,25 @@ test("derives NPN substrate from its exact Model", async ({ page }) => {
     terminals: [{ name: "C" }, { name: "B" }, { name: "E" }, { name: "S" }],
   });
 
-  await model.selectOption("");
+  await setComponentCodeField(page, "netlistTarget", "");
   await expect(properties.getByLabel("Substrate Net")).toHaveCount(0);
-  await expect(properties.getByLabel("Netlist Reference")).toHaveValue("Q1");
+  await expectComponentCodeField(page, "reference", "Q1");
 });
 
 for (const fixture of [
   {
     symbolId: "resistor",
     model: "sky130_fd_pr__res_high_po",
-    externalParameter: "Component mult",
-    primitiveParameter: "Component value",
+    externalParameter: "mult",
+    primitiveParameter: "value",
     nativeReference: "R1",
     externalReference: "XR1",
   },
   {
     symbolId: "capacitor",
     model: "sky130_fd_pr__cap_mim_m3_1",
-    externalParameter: "Component mf",
-    primitiveParameter: "Component value",
+    externalParameter: "mf",
+    primitiveParameter: "value",
     nativeReference: "C1",
     externalReference: "XC1",
   },
@@ -5384,34 +5513,34 @@ for (const fixture of [
     await page.goto("/editor");
     await placeComponent(page, fixture.symbolId, { x: 360, y: 220 });
     await openSelectionShelf(page);
-    const properties = page.getByRole("complementary", {
-      name: "Properties",
-    });
-    const model = properties.getByLabel("Component model target", {
-      exact: true,
-    });
 
-    await model.selectOption(fixture.model);
-    await expect(properties.getByLabel("Netlist Reference")).toHaveValue(
+    await setComponentCodeField(page, "netlistTarget", fixture.model);
+    await expectComponentCodeField(
+      page,
+      "reference",
       fixture.externalReference,
     );
-    await expect(
-      properties.getByLabel(fixture.externalParameter),
-    ).toBeVisible();
-    await expect(properties.getByLabel(fixture.primitiveParameter)).toHaveCount(
-      0,
+    expect(
+      JSON.parse(await readComponentPropertyCode(page)).parameters,
+    ).toHaveProperty(fixture.externalParameter);
+    await expectComponentCodeField(
+      page,
+      `parameters.${fixture.primitiveParameter}`,
+      undefined,
     );
 
-    await model.selectOption("");
-    await expect(model).toHaveValue("");
-    await expect(properties.getByLabel("Netlist Reference")).toHaveValue(
-      fixture.nativeReference,
+    await setComponentCodeField(page, "netlistTarget", "");
+    await expectComponentCodeField(page, "netlistTarget", "");
+    await expectComponentCodeField(page, "reference", fixture.nativeReference);
+    await expectComponentCodeField(
+      page,
+      `parameters.${fixture.primitiveParameter}`,
+      "",
     );
-    await expect(
-      properties.getByLabel(fixture.primitiveParameter),
-    ).toBeVisible();
-    await expect(properties.getByLabel(fixture.externalParameter)).toHaveCount(
-      0,
+    await expectComponentCodeField(
+      page,
+      `parameters.${fixture.externalParameter}`,
+      undefined,
     );
   });
 }
@@ -6602,7 +6731,7 @@ test("swaps a comparator's + and - without turning the body over", async ({
   expect(before.plusMarkY).toHaveLength(1);
   expect(before.plusMarkY[0]!).toBeGreaterThan(0);
 
-  await page.getByTestId("swap-differential-inputs").click();
+  await setComponentCodeField(page, "symbol", "comparator-inputs-swapped");
 
   const after = await readBody();
   // The + crossed to the other input.

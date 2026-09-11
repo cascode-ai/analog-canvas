@@ -6,6 +6,9 @@ import {
   clickCommand,
   downloadBytes,
   editComponentPropertyCode,
+  setComponentParameter,
+  expectComponentCodeField,
+  readComponentPropertyCode,
   recoveryProjectTexts,
 } from "./editor-fixtures.js";
 
@@ -157,9 +160,9 @@ test("writes an Instance Reference through post-placement Properties", async ({
   // The quick pick carries no reference field; naming happens in Properties.
   await page.getByTestId("hit-R1").click();
   await page.getByTestId("selection-shelf").click();
-  const instanceReference = page.getByLabel("Netlist Reference");
-  await instanceReference.fill("R7");
-  await instanceReference.press("Tab");
+  await editComponentPropertyCode(page, (code) => {
+    code.reference = "R7";
+  });
 
   await expect
     .poll(() => recoveryProjectTexts(page))
@@ -1082,24 +1085,24 @@ test("carries a manual Value through placement and Q property editing", async ({
   );
   await expect(page.getByLabel("Component geometry")).toHaveCount(0);
   const propertyCode = page.getByLabel("Editable Canvas property code");
-  await expect(propertyCode).toHaveValue(/"at": \[/u);
-  await expect(propertyCode).toHaveValue(/"rotation": 0/u);
-  await expect(propertyCode).toHaveValue(/"mirror": "none"/u);
+  await expect(propertyCode).toContainText(/"at": \[/u);
+  await expect(propertyCode).toContainText(/"rotation": 0/u);
+  await expect(propertyCode).toContainText(/"mirror": "none"/u);
   await expect(page.locator(".selection-overview")).toHaveCount(0);
   await expect(page.getByTestId("selection-shelf")).toContainText(
     "R1 · resistor",
   );
   await expect(page.getByLabel("Component display toggles")).toHaveCount(0);
-  await expect(propertyCode).toHaveValue(/"reference": true/u);
-  await expect(propertyCode).toHaveValue(/"value": false/u);
-  await expect(page.getByText("Actions", { exact: true })).toBeVisible();
-  const propertyValue = page.getByLabel("Component value");
+  await expect(propertyCode).toContainText(/"reference": true/u);
+  await expect(propertyCode).toContainText(/"value": false/u);
+  await expect(page.getByText("Actions", { exact: true })).toHaveCount(0);
   // Opening focuses the shelf header, never the first field: Q stays a pure
   // toggle and editing starts only when the user clicks an input.
   await expect(page.getByTestId("selection-shelf")).toBeFocused();
-  await expect(propertyValue).not.toBeFocused();
+  await expect(propertyCode).not.toBeFocused();
   // Quick placement leaves the value blank; it arrives through Q editing.
-  await expect(propertyValue).toHaveValue("");
+  await expectComponentCodeField(page, "parameters.value", "");
+  await page.getByTestId("selection-shelf").focus();
   await page.keyboard.press("q");
   await expect(page.getByTestId("selection-shelf")).toHaveAttribute(
     "aria-expanded",
@@ -1110,62 +1113,36 @@ test("carries a manual Value through placement and Q property editing", async ({
     "aria-expanded",
     "true",
   );
-  await expect(propertyValue).not.toBeFocused();
-  await expect(propertyValue).toHaveValue("");
-  await propertyValue.click();
-  await expect(propertyValue).toBeFocused();
-  await propertyValue.fill("10k");
-  await expect(propertyValue).toHaveValue("10k");
-  await expect(page.getByTestId("revision")).toHaveText("2");
+  await expect(propertyCode).not.toBeFocused();
+  const draft = JSON.parse(await readComponentPropertyCode(page));
+  draft.parameters.value = "10k";
+  await propertyCode.fill(JSON.stringify(draft, null, 2));
+  await expect(page.getByTestId("revision")).toHaveText("1");
   await expect(
     page.getByRole("button", { name: "Apply component properties" }),
   ).toHaveCount(0);
-  await page.getByRole("button", { name: "Discard changes" }).click();
-  await expect(page.getByTestId("revision")).toHaveText("3");
-  await expect(propertyValue).toHaveValue("");
-  await expect(
-    page.getByRole("button", { name: "Discard changes" }),
-  ).toHaveCount(0);
+  await page.getByRole("button", { name: "Discard draft" }).click();
+  await expect(page.getByTestId("revision")).toHaveText("1");
+  await expectComponentCodeField(page, "parameters.value", "");
   // Electrical renaming and the shared visual editor are distinct actions;
   // there is no second, plain-text Label field or heavyweight Identity card.
   await expect(page.getByText("Identity", { exact: true })).toHaveCount(0);
-  await expect(page.getByLabel("Component controls")).toContainText(
-    "Netlist ReferenceVisual annotationEdit annotation",
-  );
-  await expect(page.getByLabel("Component controls")).not.toContainText(
-    "Device class",
-  );
+  await expect(page.getByLabel("Component controls")).toHaveCount(0);
   const componentCode = page.locator(
     '[aria-label="Component properties"] > :last-child',
   );
   await expect(componentCode).toHaveAttribute(
     "aria-label",
-    "SPICE component code",
+    "Canvas property code",
   );
-  await expect(componentCode).toHaveText(
-    /R1.*<unconnected:1>.*<unconnected:2>.*<value>/u,
-  );
-  const instanceReference = page.getByLabel("Netlist Reference");
-  await expect(instanceReference).toHaveValue("R1");
-  await instanceReference.fill("R7");
-  await instanceReference.press("Tab");
-  await expect(page.getByTestId("revision")).toHaveText("4");
-  await expect(instanceReference).toHaveValue("R7");
-  await page
-    .locator("summary")
-    .filter({ hasText: "Netlist overrides" })
-    .click();
-  await page.getByRole("button", { name: "Add parameter" }).click();
-  await page.getByLabel("Additional parameter name 1").fill("tc");
-  await page.getByLabel("Additional parameter value 1").fill("0.1");
-  await page.getByRole("button", { name: "Apply parameters" }).click();
-  await expect(page.getByTestId("revision")).toHaveText("5");
-  await expect(page.getByLabel("Additional parameter name 1")).toHaveValue(
-    "tc",
-  );
-  await expect(page.getByLabel("Additional parameter value 1")).toHaveValue(
-    "0.1",
-  );
+  await expectComponentCodeField(page, "reference", "R1");
+  await editComponentPropertyCode(page, (code) => {
+    code.reference = "R7";
+    code.parameters.tc = "0.1";
+  });
+  await expect(page.getByTestId("revision")).toHaveText("2");
+  await expectComponentCodeField(page, "reference", "R7");
+  await expectComponentCodeField(page, "parameters.tc", "0.1");
 });
 
 test("ordinary source Properties switch waveforms without erasing inactive values", async ({
@@ -1181,45 +1158,38 @@ test("ordinary source Properties switch waveforms without erasing inactive value
   await page.getByTestId("hit-V1").click();
   await page.keyboard.press("q");
 
-  const waveform = page.getByLabel("Component transient");
+  const waveform = page.getByLabel("Transient options");
   await expect(waveform).toHaveValue("dc");
   await expect(waveform.locator('option[value="dc"]')).toHaveText("None");
-  const parameters = page.getByLabel("Component parameters and display");
-  await expect(parameters).toContainText("AC phase / deg");
-  await expect(parameters).not.toContainText("Small-signal phase");
-  await expect(page.getByLabel("Component low")).toHaveCount(0);
-  await expect(page.getByLabel("Component amplitude")).toHaveCount(0);
+  await expect(page.getByLabel("Component parameters and display")).toHaveCount(
+    0,
+  );
 
   await waveform.selectOption("pulse");
-  const low = page.getByLabel("Component low");
-  const high = page.getByLabel("Component high");
-  const rise = page.getByLabel("Component rise time");
-  const fall = page.getByLabel("Component fall time");
-  const [lowBox, highBox, riseBox, fallBox] = await Promise.all([
-    low.boundingBox(),
-    high.boundingBox(),
-    rise.boundingBox(),
-    fall.boundingBox(),
-  ]);
-  expect(lowBox?.y).toBe(highBox?.y);
-  expect(riseBox?.y).toBe(fallBox?.y);
-  expect(lowBox!.x).toBeLessThan(highBox!.x);
-  expect(riseBox!.x).toBeLessThan(fallBox!.x);
-  await expect(high).toHaveValue("1");
-  await high.fill("2.5");
+  await page.getByRole("button", { name: "Apply code" }).click();
+  await expectComponentCodeField(page, "parameters.high", "1");
+  await setComponentParameter(page, "high", "2.5");
 
+  await page
+    .getByLabel("Editable Canvas property code")
+    .press("ControlOrMeta+Home");
   await waveform.selectOption("sin");
-  await expect(page.getByLabel("Component amplitude")).toHaveValue("1");
-  await expect(page.getByLabel("Component high")).toHaveCount(0);
+  await page.getByRole("button", { name: "Apply code" }).click();
+  await expectComponentCodeField(page, "parameters.amplitude", "1");
+  await expectComponentCodeField(page, "parameters.high", "2.5");
 
+  await page
+    .getByLabel("Editable Canvas property code")
+    .press("ControlOrMeta+Home");
   await waveform.selectOption("pulse");
-  await expect(page.getByLabel("Component high")).toHaveValue("2.5");
+  await page.getByRole("button", { name: "Apply code" }).click();
+  await expectComponentCodeField(page, "parameters.high", "2.5");
   await expect
     .poll(() => recoveryProjectTexts(page))
     .toContain('"waveform": "pulse"');
 });
 
-test("keeps differential amplifier swaps in a dedicated placement row", async ({
+test("exposes pin-compatible amplifier variants inside the property code", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -1232,12 +1202,14 @@ test("keeps differential amplifier swaps in a dedicated placement row", async ({
   await page.getByTestId("selection-shelf").click();
 
   const amplifierActions = page.getByLabel("Amplifier placement actions");
+  await expect(amplifierActions).toHaveCount(0);
+  const variants = page.getByLabel("Drawing variant options");
   await expect(
-    amplifierActions.getByRole("button", { name: "Swap the + and - outputs" }),
-  ).toBeVisible();
+    variants.locator('option[value="opamp-differential-crossed"]'),
+  ).toHaveCount(1);
   await expect(
-    amplifierActions.getByRole("button", { name: "Swap the + and - inputs" }),
-  ).toBeVisible();
+    variants.locator('option[value="opamp-differential-inputs-swapped"]'),
+  ).toHaveCount(1);
   await expect(
     page.getByRole("button", { name: "Return component to Placement Tray" }),
   ).toHaveCount(0);
@@ -1405,29 +1377,21 @@ test("sets MOS parameters and orientation through the ghost and Properties", asy
   // Parameters and label visibility are Properties decisions.
   await page.getByTestId("hit-M1").click();
   await page.keyboard.press("q");
-  await expect(page.getByLabel("Component w", { exact: true })).toHaveValue(
-    "1u",
-  );
-  await page.getByLabel("Component w", { exact: true }).fill("2u");
-  await page.getByLabel("Component l", { exact: true }).fill("180n");
-  await page.getByLabel("Component m", { exact: true }).fill("4");
-  await page.getByLabel("Component m", { exact: true }).press("Tab");
+  await expectComponentCodeField(page, "parameters.w", "1u");
+  await setComponentParameter(page, "w", "2u");
+  await setComponentParameter(page, "l", "180n");
+  await setComponentParameter(page, "m", "4");
+
   await editComponentPropertyCode(page, (value) => {
     value.display.reference = false;
   });
   await expect(
     page.locator('[data-object-id="instance-label-M1"]'),
   ).toHaveCount(0);
-  await expect(page.getByLabel("Component w", { exact: true })).toHaveValue(
-    "2u",
-  );
-  await expect(page.getByLabel("Component l", { exact: true })).toHaveValue(
-    "180n",
-  );
-  await expect(page.getByLabel("Component m", { exact: true })).toHaveValue(
-    "4",
-  );
-  await expect(page.getByLabel("Editable Canvas property code")).toHaveValue(
+  await expectComponentCodeField(page, "parameters.w", "2u");
+  await expectComponentCodeField(page, "parameters.l", "180n");
+  await expectComponentCodeField(page, "parameters.m", "4");
+  await expect(page.getByLabel("Editable Canvas property code")).toContainText(
     /"rotation": 90/u,
   );
 });
@@ -1665,7 +1629,7 @@ test("shows the complete foldable categorized Library, quick-places a device, an
   await expect(page.getByTestId("shapes-chip-nmos")).toBeVisible();
 
   await page.keyboard.press("q");
-  await expect(page.getByLabel("Component value")).toHaveValue("");
+  await expectComponentCodeField(page, "parameters.value", "");
   await page.getByTestId("library-toggle").click();
   await expect(panel).toHaveAttribute("data-open", "false");
   await expect
@@ -1891,7 +1855,7 @@ test("double-clicking a placed device opens Properties for editing", async ({
     "aria-expanded",
     "true",
   );
-  const propertyValue = page.getByLabel("Component value");
+  const propertyValue = page.getByLabel("Editable Canvas property code");
   await expect(propertyValue).toBeVisible();
   await expect(propertyValue).toBeFocused();
 });

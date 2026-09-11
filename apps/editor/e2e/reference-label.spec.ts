@@ -4,6 +4,7 @@ import {
   chooseComponent,
   downloadBytes,
   editComponentPropertyCode,
+  expectComponentCodeField,
 } from "./editor-fixtures.js";
 
 async function placeResistor(page: Page) {
@@ -118,17 +119,20 @@ test("Properties renames the electrical identity explicitly; restore is an in-pl
   await page.getByTestId("hit-R1").click();
   await page.getByTestId("selection-shelf").click();
   const properties = page.getByRole("complementary", { name: "Properties" });
-  const reference = properties.getByLabel("Netlist Reference");
-  await expect(reference).toHaveValue("R1");
+  await expectComponentCodeField(page, "reference", "R1");
   await expect(properties.getByLabel("Component label")).toHaveCount(0);
-  await reference.fill("R7");
-  await reference.press("Enter");
-  await expect(reference).toHaveValue("R7");
+  await editComponentPropertyCode(page, (code) => {
+    code.reference = "R7";
+  });
+  await expectComponentCodeField(page, "reference", "R7");
   await expect(visual(page)).toContainText("load");
   // Prefix validation still applies to this explicitly electrical field.
-  await reference.fill("gm");
-  await reference.press("Enter");
-  await expect(reference).toHaveValue("R7");
+  await editComponentPropertyCode(page, (code) => {
+    code.reference = "gm";
+  });
+  await expect(properties).toContainText("Canvas property code was rejected");
+  await properties.getByRole("button", { name: "Discard draft" }).click();
+  await expectComponentCodeField(page, "reference", "R7");
   await editComponentPropertyCode(page, (value) => {
     value.display.reference = false;
   });
@@ -138,7 +142,7 @@ test("Properties renames the electrical identity explicitly; restore is an in-pl
   });
   await expect(visual(page)).toContainText("load");
 
-  await properties.getByRole("button", { name: "Edit annotation" }).click();
+  await page.getByTestId("annotation-hit-instance-label-R1").dblclick();
   const restore = page.getByRole("button", {
     name: "Use netlist name",
     exact: true,
