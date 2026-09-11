@@ -91,13 +91,15 @@ const digest = (value) => createHash("sha256").update(value).digest("hex");
 async function edit(path, text) {
   if (path === folder.input.configPath) {
     await panel.getByRole("button", { name: "More code actions" }).click();
-    await panel.getByRole("button", { name: "Advanced configuration" }).click();
+    await page
+      .getByRole("menuitem", { name: "Advanced configuration" })
+      .click();
   } else await panel.getByRole("tab", { name: path, exact: false }).click();
   const editor = panel.getByRole("textbox", {
     name: "Simulation source editor",
   });
   await editor.click();
-  await editor.press("Control+A");
+  await editor.press("ControlOrMeta+A");
   await page.keyboard.insertText(text);
 }
 async function download(button, name) {
@@ -204,7 +206,7 @@ try {
     ),
   );
   await panel.getByRole("button", { name: "More code actions" }).click();
-  await panel.getByRole("button", { name: "View final deck" }).click();
+  await page.getByRole("menuitem", { name: "View final deck" }).click();
   await expect(panel).toContainText("missing-gui-acceptance.spice", {
     timeout: 30_000,
   });
@@ -299,7 +301,7 @@ try {
   };
   await edit(folder.input.configPath, JSON.stringify(config, null, 2));
   await panel.getByRole("button", { name: "More code actions" }).click();
-  await panel.getByRole("button", { name: "View final deck" }).click();
+  await page.getByRole("menuitem", { name: "View final deck" }).click();
   await panel.getByTitle("Batch queue", { exact: true }).click();
   await expect(panel.locator(".simulation-batch-menu-popover")).toContainText(
     "Batch · prepared",
