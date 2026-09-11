@@ -54,10 +54,16 @@ palette-first manual authoring; no Project file needs to be opened first.
   yourself; `EV` remains `EV`, and `2u` is not changed to `2um`.
   **Discard draft** cancels unapplied edits. **Defaults** loads known defaults
   into the draft without moving, renaming or rebinding the component; Apply
-  commits them. **Copy JSON** excludes hints and controls. Compatible drawing
+  commits them. The small **Copy JSON** icon at the text area's top right copies
+  the whole draft, excluding hints and controls. Compatible drawing
   variants and formula overrides are in the same editor, with no duplicate
   Parameters/Actions/Netlist Target forms. Drag the panel's left edge to set a
   comfortable width.
+- For a MOS device, the compact **Bulk** row shows its current Net or
+  **Unconnected** beside **Connect**. Click the button to draw from the bulk
+  terminal on the canvas. Hover the status for the terminal name and connection
+  source. A configured default connection shows its Net rather than a warning;
+  **Draw** lets you make an explicit route. Place an unplaced device first.
 - Right-click an endpoint for the distinct **Disconnect endpoint** and
   **Delete connection** actions.
 - `Delete` on a connected component now removes the component while preserving

@@ -2297,22 +2297,31 @@ test("keeps a selected MOS in its fixed Razavi three-terminal view", async ({
   ).toHaveCount(0);
 });
 
-test("leads the Bulk section with its draw action", async ({ page }) => {
+test("keeps Bulk status and its prominent draw action on one compact row", async ({
+  page,
+}) => {
   await page.goto("/editor");
   await placeComponent(page, "nmos", { x: 360, y: 220 });
   await page.getByTestId("hit-M1").click();
   await openSelectionShelf(page);
 
   const bulk = page.getByLabel("MOS bulk connection");
-  await expect(bulk.getByTestId("draw-bulk-connection")).toBeVisible();
-  // The action is the reason the section is open, so it must precede the
-  // default-Net selects rather than trail them.
-  const order = await bulk.evaluate((section) =>
-    [...section.querySelectorAll("button, select")].map(
-      (element) => element.getAttribute("data-testid") ?? element.tagName,
-    ),
-  );
-  expect(order[0]).toBe("draw-bulk-connection");
+  const draw = bulk.getByRole("button", { name: "Draw bulk connection" });
+  await expect(draw).toBeVisible();
+  await expect(draw).toHaveText("Connect");
+  await expect(bulk.locator(".mos-bulk-status")).toHaveText("Unconnected");
+  await expect(bulk).not.toContainText("unresolved");
+  const layout = await bulk.evaluate((section) => {
+    const heading = section.querySelector("h2")!.getBoundingClientRect();
+    const action = section.querySelector("button")!.getBoundingClientRect();
+    return {
+      height: section.getBoundingClientRect().height,
+      headingY: heading.y + heading.height / 2,
+      actionY: action.y + action.height / 2,
+    };
+  });
+  expect(layout.height).toBeLessThan(58);
+  expect(Math.abs(layout.headingY - layout.actionY)).toBeLessThan(2);
 
   // Bulk is the first section in the panel, not buried under the tray.
   const firstSection = await page
@@ -2320,6 +2329,63 @@ test("leads the Bulk section with its draw action", async ({ page }) => {
     .first()
     .getAttribute("aria-label");
   expect(firstSection).toBe("MOS bulk connection");
+  await draw.click();
+  await expect(page.getByTestId("status")).toContainText(
+    "Drawing M1.B bulk connection",
+  );
+  await expect(page.getByTestId("terminal-M1-B")).toBeVisible();
+});
+
+test("Q opens a text-first Properties editor with one-click exact draft copy", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await placeComponent(page, "pmos", { x: 360, y: 220 });
+  const shelf = page.getByTestId("selection-shelf");
+  if ((await shelf.getAttribute("aria-expanded")) === "true")
+    await shelf.click();
+  await page.keyboard.press("q");
+  const code = page.getByLabel("Editable Canvas property code");
+  await expect(code).toBeVisible();
+  await page.keyboard.press("q");
+  await expect(code).not.toBeVisible();
+  await page.keyboard.press("q");
+  await expect(code).toBeVisible();
+  const draft = JSON.parse(await readComponentPropertyCode(page));
+  draft.parameters.w = "EV";
+  const raw = JSON.stringify(draft, null, 2) + "\n\n";
+  await code.fill(raw);
+  await code.press("ControlOrMeta+End");
+  const copy = page.getByRole("button", { name: "Copy JSON", exact: true });
+  await expect(copy).toHaveCount(1);
+  await expect(copy.locator("svg")).toBeVisible();
+  await copy.click();
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(raw);
+  await expect(
+    page.getByText("JSON copied · hints and controls excluded", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  const positions = await page
+    .getByTestId("component-property-code-editor")
+    .evaluate((section) => {
+      const copy = section
+        .querySelector(".component-property-copy")!
+        .getBoundingClientRect();
+      const editor = section
+        .querySelector(".cm-scroller")!
+        .getBoundingClientRect();
+      return {
+        copyBottom: copy.bottom,
+        editorTop: editor.top,
+        editorHeight: editor.height,
+        panelHeight: section.getBoundingClientRect().height,
+      };
+    });
+  expect(positions.copyBottom).toBeLessThanOrEqual(positions.editorTop);
+  expect(positions.editorHeight).toBeGreaterThan(positions.panelHeight * 0.65);
+  await page.getByRole("button", { name: "Discard draft" }).click();
+  await expectComponentCodeField(page, "parameters.w", "1u");
 });
 
 test("keeps DMOS bulk hidden until drawing an explicit bulk route", async ({
@@ -2360,9 +2426,15 @@ test("initializes NMOS bulk from the first explicitly placed Ground", async ({
 
   await page.getByTestId("hit-M1").click();
   await openSelectionShelf(page);
-  await expect(page.getByLabel("MOS bulk connection")).toContainText(
-    "M1.B → 0 · cell-default",
+  const bulk = page.getByLabel("MOS bulk connection");
+  await expect(bulk.locator(".mos-bulk-status")).toHaveText("0");
+  await expect(bulk.locator(".mos-bulk-status")).toHaveAttribute(
+    "title",
+    "M1.B → 0 · Cell default",
   );
+  await expect(
+    bulk.getByRole("button", { name: "Draw bulk connection" }),
+  ).toHaveText("Draw");
 
   const saved = JSON.parse(
     (await downloadBytes(page, "File", "Export Project File…")).toString(

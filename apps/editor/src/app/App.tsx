@@ -5611,15 +5611,18 @@ export function App({
               mosBulk={{
                 connection:
                   selectedInstance && selectedBulkResolution
-                    ? `${selectedInstance.id}.B → ${
-                        selectedBulkResolution.net
+                    ? {
+                        terminal: `${selectedInstance.reference ?? selectedInstance.id}.B`,
+                        netName: selectedBulkResolution.net
                           ? (logicalNets.byBaseNetId.get(
                               selectedBulkResolution.net.id,
                             )?.name ?? selectedBulkResolution.net.id)
-                          : "unresolved"
-                      } · ${selectedBulkResolution.status}`
+                          : null,
+                        status: selectedBulkResolution.status,
+                      }
                     : null,
                 explicitRouteVisible: Boolean(selectedHiddenBulkNet),
+                canDraw: Boolean(selectedInstance?.placement),
                 onDraw: drawSelectedMosBulk,
               }}
               routingGuidance={{

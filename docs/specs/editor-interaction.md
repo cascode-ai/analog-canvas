@@ -122,7 +122,10 @@ Hints and widgets are editor decorations, never JSON comments or persisted data.
 **Defaults** loads known parameter, orientation, color, and formula defaults
 into the draft; it preserves coordinates, reference, model target, display
 flags, and unknown overrides. It still requires Apply. **Copy JSON** copies
-the complete raw draft without decorations. Switching components cannot carry
+the complete raw draft without decorations from the copy icon at the editor's
+top right, including unapplied whitespace and invalid drafts. The text area
+is the dominant, viewport-sized surface; instance identity stays in the dock
+header rather than being repeated around the code. Switching components cannot carry
 an old draft or its local history into a new selection.
 
 The old component placement, display, and appearance button grids are not
@@ -151,6 +154,11 @@ membership first, then an explicitly configured cell default; otherwise bulk
 remains unresolved. Drawing the visible `bulk-dashed` connection clears that
 default binding and connects B to the selected Net in the same transaction.
 Imported MOS instances do not receive a guessed fourth node.
+Properties shows Bulk as one compact row: its current Net or an explicit
+Unconnected/No Connect state sits beside the draw action. Hovering the status
+reveals the terminal and binding source; a drawn route's dashed presentation
+is described there too. Unresolved bulk is not repeated as a second message.
+Drawing is disabled for retained-unplaced instances until they are placed.
 
 ## Formula-capable behavioral blocks
 

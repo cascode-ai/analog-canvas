@@ -341,23 +341,13 @@
   display: grid;
   gap: 0.5rem;
   min-width: 0;
-  padding: 0.65rem;
-  border: 1px solid var(--icm-border-strong);
-  border-radius: var(--icm-radius-md);
-  background: var(--icm-surface-muted);
+  padding: 0;
 }
 
 .component-property-code-editor > header {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
-  gap: var(--icm-space-2);
-}
-
-.component-property-code-editor > header > div {
-  display: flex;
-  align-items: baseline;
-  min-width: 0;
   gap: var(--icm-space-2);
 }
 
@@ -365,13 +355,85 @@
   font-size: var(--icm-font-sm);
 }
 
-.component-property-code-editor > header span,
-.component-property-code-editor > header code {
+.component-property-copy {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  min-height: 2rem;
+  padding: 0.35rem;
+  border-color: transparent;
+  background: transparent;
+  color: var(--icm-text-muted);
+  box-shadow: none;
+}
+
+.component-property-copy:hover {
+  border-color: var(--icm-border);
+  background: var(--icm-surface-muted);
+  color: var(--icm-text);
+}
+
+.component-property-copy svg {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+.mos-bulk-bar {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+  margin-bottom: 0.7rem;
+  padding: 0.4rem 0.5rem 0.4rem 0.65rem;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-sm);
+  background: var(--icm-surface-muted);
+}
+
+.selection-panel .mos-bulk-bar h2 {
+  margin: 0;
+  font-size: var(--icm-font-sm);
+}
+
+.mos-bulk-status {
+  min-width: 0;
   overflow: hidden;
   color: var(--icm-text-muted);
-  font-size: var(--icm-font-xs);
+  font-size: var(--icm-font-sm);
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.mos-bulk-bar[data-state="unresolved"] .mos-bulk-status {
+  color: #946200;
+}
+
+.mos-bulk-bar .bulk-draw-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  min-height: 2rem;
+  padding: 0.25rem 0.6rem;
+  border-color: var(--icm-accent);
+  background: var(--icm-accent);
+  color: white;
+  font-size: var(--icm-font-sm);
+  font-weight: 600;
+  white-space: nowrap;
+  box-shadow: none;
+}
+
+.mos-bulk-bar .bulk-draw-action:hover {
+  background: color-mix(in srgb, var(--icm-accent) 85%, black);
+}
+
+.mos-bulk-bar .bulk-draw-action .tool-icon {
+  width: 1rem;
+  height: 1rem;
 }
 
 .component-property-code-editor textarea,
@@ -405,7 +467,7 @@
   outline: none;
 }
 .component-json-editor .cm-scroller {
-  max-height: 34rem;
+  height: clamp(18rem, calc(100dvh - 22rem), 48rem);
   overflow: auto;
   font-family: inherit;
   line-height: 1.6;

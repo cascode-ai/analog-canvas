@@ -71,6 +71,15 @@ export function ComponentPropertyCodeEditor({
   );
   const changed = draft !== baseline;
 
+  const copy = async (): Promise<void> => {
+    try {
+      await navigator.clipboard.writeText(draft);
+      setApplyMessage("JSON copied · hints and controls excluded");
+    } catch {
+      setApplyMessage("Clipboard unavailable; select the code and copy it");
+    }
+  };
+
   const apply = (): void => {
     if (!parsed.ok) {
       setApplyMessage(parsed.message);
@@ -94,11 +103,25 @@ export function ComponentPropertyCodeEditor({
       data-testid="component-property-code-editor"
     >
       <header>
-        <div>
-          <strong>Component properties</strong>
-          <span>{instance.reference ?? instance.id}</span>
-        </div>
-        <code>{instance.symbolId}</code>
+        <strong>Component properties</strong>
+        <button
+          type="button"
+          className="component-property-copy"
+          aria-label="Copy JSON"
+          title="Copy JSON"
+          onClick={() => void copy()}
+        >
+          <svg
+            viewBox="0 0 20 20"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.6"
+            aria-hidden="true"
+          >
+            <rect x="7" y="7" width="10" height="10" rx="1.5" />
+            <path d="M13 7V4.5A1.5 1.5 0 0 0 11.5 3h-7A1.5 1.5 0 0 0 3 4.5v7A1.5 1.5 0 0 0 4.5 13H7" />
+          </svg>
+        </button>
       </header>
       <Suspense
         fallback={
@@ -133,21 +156,6 @@ export function ComponentPropertyCodeEditor({
             : parsed.message}
         </span>
         <div>
-          <button
-            type="button"
-            onClick={() => {
-              void navigator.clipboard.writeText(draft).then(
-                () =>
-                  setApplyMessage("JSON copied · hints and controls excluded"),
-                () =>
-                  setApplyMessage(
-                    "Clipboard unavailable; select the code and copy it",
-                  ),
-              );
-            }}
-          >
-            Copy JSON
-          </button>
           <button
             type="button"
             title="Reset parameter and appearance defaults in the draft; keep position, identity, target, display flags, and unknown overrides. Apply to commit."
