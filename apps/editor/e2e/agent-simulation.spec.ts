@@ -147,6 +147,21 @@ test("Agent raw simulation recovers input errors, returns a run receipt and expo
   };
   expect(
     await send("simulation", {
+      operation: "start",
+      preparedId: "missing-digest",
+    }),
+  ).toMatchObject({
+    ok: false,
+    error: { code: "SIMULATION_REQUEST_INVALID", recovery: "fix-input" },
+  });
+  expect(
+    await send("file", {
+      operation: "simulation-input",
+      input: { action: "read" },
+    }),
+  ).toMatchObject({ ok: false, error: { code: "FILE_REQUEST_INVALID" } });
+  expect(
+    await send("simulation", {
       operation: "prepare",
       source: {
         kind: "project-setup",

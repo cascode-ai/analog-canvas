@@ -535,12 +535,12 @@ export function useAgentSession(
               const fileRequest = parseAgentFileResourceRequest(
                 parsed.data.payload,
               );
-              if (!fileRequest.success || !options.fileHost) return;
               const payloadHash = sha256Hex(
                 JSON.stringify(parsed.data.payload),
               );
               const knownHash = live.requestHashes.get(parsed.data.requestId);
               const sendFileResponse = (payload: unknown) => {
+                if (socket.readyState !== WebSocket.OPEN) return;
                 socket.send(
                   JSON.stringify({
                     protocolVersion: AGENT_SESSION_PROTOCOL_VERSION,
@@ -553,6 +553,23 @@ export function useAgentSession(
                   }),
                 );
               };
+              if (!fileRequest.success || !options.fileHost) {
+                sendFileResponse({
+                  apiVersion: AGENT_API_VERSION,
+                  requestId: parsed.data.requestId,
+                  operation: "error",
+                  ok: false,
+                  error: {
+                    code: fileRequest.success
+                      ? "FILE_HOST_UNAVAILABLE"
+                      : "FILE_REQUEST_INVALID",
+                    message: fileRequest.success
+                      ? "The File host is not available; retry after reconnecting"
+                      : "The File request does not match the current contract; read capabilities and correct the request",
+                  },
+                });
+                return;
+              }
               if (knownHash) {
                 sendFileResponse({
                   apiVersion: AGENT_API_VERSION,
@@ -577,6 +594,19 @@ export function useAgentSession(
               void options.fileHost
                 .handle(fileRequest.data)
                 .then(sendFileResponse)
+                .catch(() =>
+                  sendFileResponse({
+                    apiVersion: AGENT_API_VERSION,
+                    requestId: parsed.data.requestId,
+                    operation: fileRequest.data.operation,
+                    ok: false,
+                    error: {
+                      code: "FILE_HOST_ERROR",
+                      message:
+                        "The File operation failed without revoking the session; inspect current state before retrying",
+                    },
+                  }),
+                )
                 .finally(() => update({ status: "connected" }));
               return;
             }
@@ -584,7 +614,6 @@ export function useAgentSession(
               const simulationRequest = parseAgentSimulationResourceRequest(
                 parsed.data.payload,
               );
-              if (!simulationRequest.success || !options.simulationHost) return;
               const payloadHash = sha256Hex(
                 JSON.stringify(parsed.data.payload),
               );
@@ -603,6 +632,27 @@ export function useAgentSession(
                   }),
                 );
               };
+              if (!simulationRequest.success || !options.simulationHost) {
+                sendSimulationResponse({
+                  apiVersion: AGENT_API_VERSION,
+                  requestId: parsed.data.requestId,
+                  operation: "error",
+                  ok: false,
+                  error: {
+                    code: simulationRequest.success
+                      ? "SIMULATION_HOST_UNAVAILABLE"
+                      : "SIMULATION_REQUEST_INVALID",
+                    message: simulationRequest.success
+                      ? "The simulation host is not available; retry after reconnecting"
+                      : "The simulation request does not match the current contract; read capabilities and correct the request",
+                    stage: "input",
+                    recovery: simulationRequest.success
+                      ? "retry-after"
+                      : "fix-input",
+                  },
+                });
+                return;
+              }
               if (knownHash && knownHash !== payloadHash) {
                 sendSimulationResponse({
                   apiVersion: AGENT_API_VERSION,
