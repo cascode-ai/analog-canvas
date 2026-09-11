@@ -8,6 +8,7 @@ import {
 
 import { openMenu } from "./editor-fixtures.js";
 import { profile } from "./simulation-e2e-fixtures.js";
+import { createSourceSimulationSetup } from "@icm/model";
 test("Agent raw simulation recovers input errors, returns a run receipt and exports through Files", async ({
   page,
 }) => {
@@ -55,6 +56,7 @@ test("Agent raw simulation recovers input errors, returns a run receipt and expo
       return route.fulfill({
         json: {
           configured: true,
+          rawfileCollection: "declared-single-ascii",
           inputs: ["structured", "raw"],
           analyses: ["op", "ac"],
           parsedAnalyses: ["op", "ac", "tran"],
@@ -159,18 +161,26 @@ test("Agent raw simulation recovers input errors, returns a run receipt and expo
       input: { action: "create" },
     })
   ).result.workspace;
+  const sourceSetup = createSourceSimulationSetup({
+    id: "e2e",
+    name: "Divider",
+    profileId: profile.id,
+  });
   await send("file", {
     operation: "simulation-input",
     input: {
       action: "update",
-      workspaceId: workspace.id,
+      owner: { kind: "session-workspace", workspaceId: workspace.id },
       expectedRevision: 0,
       entry: "main.cir",
       writes: [
         {
           path: "main.cir",
-          text: "divider\nV1 in 0 1\nR1 in mid 1k\nR2 mid 0 1k\n.op\n.end",
+          text: "divider\nV1 in 0 1\nR1 in mid 1k\nR2 mid 0 1k\n.control\nop\nwrite out.raw\n.endc\n.end",
         },
+        ...sourceSetup.input.files.filter(
+          (file) => file.path === sourceSetup.input.configPath,
+        ),
       ],
     },
   });
@@ -181,7 +191,6 @@ test("Agent raw simulation recovers input errors, returns a run receipt and expo
         kind: "workspace",
         workspaceId: workspace.id,
         expectedRevision: 1,
-        environment: { profileId: profile.id },
       },
     })
   ).prepared;

@@ -485,6 +485,14 @@ try {
     prepared.prepared.deviceOperatingPoints,
     compiled.deviceOperatingPoints,
   );
+  const inputArtifact = prepared.prepared.artifacts.find(
+    (artifact) => artifact.name === "prepared.json",
+  );
+  assert(inputArtifact, "Prepared input evidence is missing");
+  await exportArtifact(inputArtifact, "prepared.json");
+  const sourceInput = JSON.parse(
+    await readFile(join(outputDirectory, "prepared.json"), "utf8"),
+  );
   const finished = await startAndRead(prepared.prepared);
   assert.equal(finished.state, "finished");
   const exports = [];
@@ -512,11 +520,14 @@ try {
     "operator-host",
     prepared.prepared.inputRevision,
     prepared.prepared.vectors,
+    sourceInput,
   );
   const acceptedNoise = validateHostedSky130NoiseResult(
     fullRun.result,
     "operator-host",
     prepared.prepared.inputRevision,
+    prepared.prepared.vectors,
+    sourceInput,
   );
   assert(
     fullRun.outputData?.analyses.length,

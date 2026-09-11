@@ -75,6 +75,7 @@ describe.skipIf(!endpoint)("candidate ngspice46 source qualification", () => {
           "operator-host",
           compiled.input.inputRevision,
           compiled.vectors,
+          compiled.request,
         );
       },
       160_000,
@@ -109,7 +110,7 @@ describe.skipIf(!endpoint)("candidate ngspice46 source qualification", () => {
     ].join("\n");
     setup.input.files.push({
       path: "sections.spice",
-      text: ".lib tt\nV1 in 0 1\nR1 in out 1k\nR2 out 0 1k\n.endl tt\n.lib unused\n.include missing.spice\n.endl unused\n",
+      text: ".lib tt\nV1 in 0 1\nR1 in out 1k\nR2 out 0 1k\n.endl tt\n.lib unused\nV1 in 0 99\n.endl unused\n",
     });
     const project = createEmptyProject(
       "native-acceptance",
@@ -119,7 +120,7 @@ describe.skipIf(!endpoint)("candidate ngspice46 source qualification", () => {
     const compiled = await prepareSourceExecutionInput(project, setup, caps);
     expect(compiled.ok, JSON.stringify(compiled)).toBe(true);
     const result = await run(compiled.input, "native-records");
-    expect(result.outcome.status).toBe("completed");
+    expect(result.outcome.status, JSON.stringify(result)).toBe("completed");
     const ops = result.data.analyses.filter(
       (analysis) => analysis.analysis === "op",
     );
@@ -129,6 +130,20 @@ describe.skipIf(!endpoint)("candidate ngspice46 source qualification", () => {
     );
     expect(values[0]).toBeCloseTo(0.5, 9);
     expect(values[1]).toBeCloseTo(1, 9);
+
+    // ngspice46 preloads includes even in an unselected .lib section. Preserve
+    // that native error rather than claiming the inspector executes the language.
+    const missingInclude = structuredClone(compiled.input);
+    missingInclude.files.find((file) => file.path === "sections.spice").text +=
+      ".lib absent\n.include missing.spice\n.endl absent\n";
+    const missingResult = await run(
+      missingInclude,
+      "native-unselected-include",
+    );
+    expect(missingResult.outcome.status).toBe("failed");
+    expect(missingResult.log).toContain(
+      "Could not find include file missing.spice",
+    );
 
     entry.text =
       "* missing model\nD1 n 0 MODEL_DOES_NOT_EXIST\nV1 n 0 1\n.control\nop\nwrite out.raw\n.endc\n.end\n";

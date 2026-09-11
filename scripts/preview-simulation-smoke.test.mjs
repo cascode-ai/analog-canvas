@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { createHash } from "node:crypto";
+import { validateQualifiedModelSelection } from "./lib/preview-simulation-sky130-validation.mjs";
 
 import {
   compileHostedSky130Project,
@@ -648,6 +650,36 @@ describe("the hosted SKY130 qualification", () => {
       ),
     ).toThrow(/qualified model-library section/u);
   });
+
+  it("verifies source model selection against the executed input hash and pinned dependency", async () => {
+    const { request } = await compileHostedSky130Project();
+    const candidate = modelResult("operator-host", {}, request.inputRevision);
+    candidate.metadata.configuration.modelLibrary = null;
+    candidate.metadata.input.testbenchSha256 = createHash("sha256")
+      .update(request.testbench)
+      .digest("hex");
+    expect(() =>
+      validateQualifiedModelSelection(candidate, "operator-host", request),
+    ).not.toThrow();
+    expect(() =>
+      validateQualifiedModelSelection(candidate, "operator-host"),
+    ).toThrow(/verified input evidence/u);
+    const wrongCorner = structuredClone(request);
+    wrongCorner.environment.corner = "ff";
+    expect(() =>
+      validateQualifiedModelSelection(candidate, "operator-host", wrongCorner),
+    ).toThrow(/qualified model-library/u);
+    const changed = structuredClone(request);
+    changed.testbench += "\n* changed after execution\n";
+    expect(() =>
+      validateQualifiedModelSelection(candidate, "operator-host", changed),
+    ).toThrow(/verified input evidence/u);
+    const wrongModel = structuredClone(request);
+    wrongModel.dependencies[0].sha256 = SHA;
+    expect(() =>
+      validateQualifiedModelSelection(candidate, "operator-host", wrongModel),
+    ).toThrow(/verified input evidence/u);
+  }, 15_000);
 
   it("sends the model fixture through the selected executor", async () => {
     let submitted;
