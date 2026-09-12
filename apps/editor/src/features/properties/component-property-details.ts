@@ -201,7 +201,7 @@ export function componentDetailFields(
     })),
     {
       path: "netlistTarget",
-      label: "Netlist target",
+      label: "Model",
       kind: context.modelTarget?.suggestions.length ? "choice" : "text",
       options: [
         ...new Set([

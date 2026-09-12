@@ -25,7 +25,7 @@ import {
   recoveryProjectTexts,
 } from "./editor-fixtures.js";
 
-test("guided JSON properties keep controls in one draft and round-trip raw parameter strings", async ({
+test("live JSON properties update controls immediately and round-trip raw parameter strings", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -40,12 +40,23 @@ test("guided JSON properties keep controls in one draft and round-trip raw param
     0,
   );
   const revision = await page.getByTestId("revision").textContent();
-  await panel.getByLabel("Rotation options").selectOption("90");
+  await expect(panel.getByRole("button", { name: "Apply code" })).toHaveCount(
+    0,
+  );
+  await expect(panel.locator(".cm-property-hint").first()).toBeVisible();
+  await panel
+    .getByRole("button", { name: "Rotate 90° clockwise", exact: true })
+    .click();
+  await expect(page.getByTestId("revision")).toHaveText(
+    String(Number(revision) + 1),
+  );
   await panel
     .getByRole("switch", { name: "Show reference", exact: true })
     .click();
   await panel.getByLabel("Foreground color picker").fill("#dc2626");
-  await expect(page.getByTestId("revision")).toHaveText(revision!);
+  await expect(page.getByTestId("revision")).toHaveText(
+    String(Number(revision) + 3),
+  );
   const draft = JSON.parse(await readComponentPropertyCode(page));
   expect(draft.placement.rotation).toBe(90);
   expect(draft.display.reference).toBe(false);
@@ -57,9 +68,8 @@ test("guided JSON properties keep controls in one draft and round-trip raw param
   await panel
     .getByLabel("Editable Canvas property code")
     .fill(JSON.stringify(draft, null, 2));
-  await panel.getByRole("button", { name: "Apply code" }).click();
   await expect(page.getByTestId("revision")).toHaveText(
-    String(Number(revision) + 1),
+    String(Number(revision) + 4),
   );
   const value = page.locator(
     '[data-layer="formal"] [data-object-id="instance-value-M1"]',
@@ -93,7 +103,7 @@ test("guided JSON properties keep controls in one draft and round-trip raw param
   await expectComponentCodeField(page, "parameters.w", "EV");
 });
 
-test("Defaults and Discard draft have distinct non-destructive behavior", async ({
+test("live Defaults are undoable and invalid drafts never change the canvas", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -103,28 +113,30 @@ test("Defaults and Discard draft have distinct non-destructive behavior", async 
   const revision = await page.getByTestId("revision").textContent();
   await page.getByRole("button", { name: "Defaults", exact: true }).click();
   await expectComponentCodeField(page, "parameters.w", "1u");
-  await expect(page.getByTestId("revision")).toHaveText(revision!);
-  await page
-    .getByRole("button", { name: "Discard draft", exact: true })
-    .click();
+  await expect(page.getByTestId("revision")).toHaveText(
+    String(Number(revision) + 1),
+  );
+  await clickCommand(page, "Edit", "Undo");
   await expectComponentCodeField(page, "parameters.w", "7u");
   const code = page.getByLabel("Editable Canvas property code");
   const invalid = JSON.parse(await readComponentPropertyCode(page));
+  const lastValidRevision = await page.getByTestId("revision").textContent();
   invalid.appearance.foreground = [256, 0, 0];
   await code.fill(JSON.stringify(invalid, null, 2));
-  await expect(page.getByRole("button", { name: "Apply code" })).toBeDisabled();
-  await expect(page.getByLabel("Rotation options")).toBeEnabled();
-  await page.getByLabel("Rotation options").selectOption("90");
-  expect(
-    JSON.parse(await readComponentPropertyCode(page)).appearance.foreground,
-  ).toEqual([256, 0, 0]);
+  await expect(
+    page.getByText(/Canvas keeps the last valid edit/u),
+  ).toBeVisible();
+  await expect(page.getByTestId("revision")).toHaveText(lastValidRevision!);
+  await expect(
+    page.getByRole("button", { name: "Rotate 90° clockwise", exact: true }),
+  ).toBeEnabled();
   await page.getByRole("button", { name: "Discard draft" }).click();
   await expectComponentCodeField(page, "parameters.w", "7u");
   await expect(page.locator(".cm-json-key").first()).toBeVisible();
   await expect(page.locator(".cm-json-string").first()).toBeVisible();
 });
 
-test("one JSON Apply combines model, dimensions and appearance in one undo boundary", async ({
+test("one live JSON edit combines model, dimensions and appearance in one undo boundary", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -187,6 +199,173 @@ test("property placement null retains a wired instance and re-places it with gri
   await clickCommand(page, "Edit", "Undo");
   await expect(page.getByTestId("hit-R1")).toHaveCount(0);
 });
+
+for (const platform of ["native", "Win32", "Linux x86_64"])
+  test(`live typing preserves the caret, local undo and incomplete JSON (${platform})`, async ({
+    page,
+  }) => {
+    if (platform !== "native")
+      await page.addInitScript(
+        (name) =>
+          Object.defineProperty(navigator, "platform", { get: () => name }),
+        platform,
+      );
+    const modifier = platform === "native" ? "ControlOrMeta" : "Control";
+    await page.goto("/editor");
+    await placeComponent(page, "nmos", { x: 360, y: 220 });
+    await openSelectionShelf(page);
+    const code = page.getByLabel("Editable Canvas property code");
+    await editComponentPropertyCode(page, (value) => {
+      value.display.value = true;
+    });
+    // Locate the width string through the actual editable DOM, then type normally.
+    await code
+      .locator(".cm-line")
+      .filter({ hasText: '"w":' })
+      .evaluate((line) => {
+        const token = line.querySelector(".cm-json-string")!;
+        const text = document
+          .createTreeWalker(token, NodeFilter.SHOW_TEXT)
+          .nextNode()!;
+        const range = document.createRange();
+        range.setStart(text, 1);
+        range.setEnd(text, 3);
+        const selection = window.getSelection()!;
+        selection.removeAllRanges();
+        selection.addRange(range);
+        (line.closest('[contenteditable="true"]') as HTMLElement).focus();
+      });
+    await page.keyboard.type("EV", { delay: 80 });
+    const value = page.locator(
+      '[data-layer="formal"] [data-object-id="instance-value-M1"]',
+    );
+    await expect(value).toContainText("EV");
+    await page.keyboard.type("x", { delay: 80 });
+    await expect(value).toContainText("EVx");
+    await code.press(`${modifier}+z`);
+    await expect(value).toContainText("1u");
+    // Emit the actual shifted letter, not lowercase z with Shift held: the
+    // latter is a synthetic layout event that CodeMirror interprets as Undo.
+    await code.press(`${modifier}+Shift+Z`);
+    await expect(value).toContainText("EVx");
+    const raw = await readComponentPropertyCode(page);
+    const revision = await page.getByTestId("revision").textContent();
+    await code.fill(raw.slice(0, -1));
+    await expect(
+      page.getByText(/Canvas keeps the last valid edit/u),
+    ).toBeVisible();
+    await expect(value).toContainText("EVx");
+    await expect(page.getByTestId("revision")).toHaveText(revision!);
+    await code.press("Escape");
+    await expect(code).not.toBeFocused();
+    await expect(
+      page.getByText(/Canvas keeps the last valid edit/u),
+    ).toBeVisible();
+    await expect(page.getByTestId("revision")).toHaveText(revision!);
+    await code.press(`${modifier}+End`);
+    await code.press("}");
+    await expect(page.getByText("Live", { exact: true })).toBeVisible();
+    await expect(page.getByTestId("revision")).toHaveText(revision!);
+  });
+
+for (const width of [300, 540]) {
+  test(`compact property controls and expanded JSON at ${width}px`, async ({
+    page,
+  }) => {
+    await page.addInitScript(
+      (size) =>
+        localStorage.setItem("icm.properties-panel-width.v1", String(size)),
+      width,
+    );
+    await page.goto("/editor");
+    await placeComponent(page, "pmos", { x: 360, y: 220 });
+    await openSelectionShelf(page);
+    const editor = page.getByTestId("component-property-code-editor");
+    const controls = page.getByRole("group", {
+      name: "Property controls",
+      exact: true,
+    });
+    await expect(controls.getByLabel("Model options")).toBeVisible();
+    await expect(
+      controls.getByRole("button", {
+        name: "Rotate 90° clockwise",
+        exact: true,
+      }),
+    ).toBeVisible();
+    await expect(
+      editor.getByRole("button", { name: "Apply code" }),
+    ).toHaveCount(0);
+    await expect(
+      editor
+        .locator("header")
+        .getByRole("button", { name: "Defaults", exact: true }),
+    ).toBeVisible();
+    await expect(
+      editor.locator(".cm-content button, .cm-content select"),
+    ).toHaveCount(0);
+    const layout = await editor.evaluate((section) => {
+      const controls = section.querySelector(".component-property-controls")!;
+      const rows = [...controls.querySelectorAll('[data-kind="boolean"]')].map(
+        (row) => {
+          const label = row
+            .querySelector(".component-property-control-label")!
+            .getBoundingClientRect();
+          const button = row.querySelector("button")!.getBoundingClientRect();
+          return Math.abs(
+            (label.top + label.bottom - button.top - button.bottom) / 2,
+          );
+        },
+      );
+      const icons = [
+        ...controls.querySelectorAll('[data-kind="rotation"] button'),
+      ].map((button) => button.getBoundingClientRect().top);
+      const scroll = section.querySelector(".cm-scroller")!;
+      return {
+        overflow: section.scrollWidth > section.clientWidth,
+        rows,
+        icons,
+        scrollable: scroll.scrollHeight > scroll.clientHeight + 1,
+        overflowY: getComputedStyle(scroll).overflowY,
+      };
+    });
+    expect(layout.overflow).toBe(false);
+    expect(Math.max(...layout.rows)).toBeLessThan(3);
+    expect(layout.icons).toHaveLength(3);
+    expect(Math.max(...layout.icons) - Math.min(...layout.icons)).toBeLessThan(
+      2,
+    );
+    expect(layout.scrollable).toBe(false);
+    expect(layout.overflowY).toBe("visible");
+    await controls
+      .getByRole("button", { name: "Use Red for foreground", exact: true })
+      .click();
+    await expectComponentCodeField(
+      page,
+      "appearance.foreground",
+      [220, 38, 38],
+    );
+    await controls
+      .getByRole("button", { name: "Flip left/right", exact: true })
+      .click();
+    await expectComponentCodeField(page, "placement.mirror", "x");
+    await page
+      .getByLabel("Editable Canvas property code")
+      .fill('{"placement":');
+    await expect(
+      editor
+        .locator("header")
+        .getByRole("button", { name: "Discard draft", exact: true }),
+    ).toBeVisible();
+    await editor
+      .getByRole("button", { name: "Discard draft", exact: true })
+      .click();
+    await expectComponentCodeField(
+      page,
+      "appearance.foreground",
+      [220, 38, 38],
+    );
+  });
+}
 
 test("a directly connected device can move away and return with its wire, undo and redo", async ({
   page,
@@ -1013,7 +1192,6 @@ test("a switch changes contact style in place, keeping its wires", async ({
   );
 
   await toggle.selectOption("simple-spdt-switch");
-  await page.getByRole("button", { name: "Apply code" }).click();
   await expect(page.locator("[data-symbol-id]").first()).toHaveAttribute(
     "data-symbol-id",
     "simple-spdt-switch",
@@ -1024,7 +1202,6 @@ test("a switch changes contact style in place, keeping its wires", async ({
   await expect(page.locator('[data-layer="routes"] polyline')).toHaveCount(1);
 
   await toggle.selectOption("spdt-switch");
-  await page.getByRole("button", { name: "Apply code" }).click();
   await expect(page.locator("[data-symbol-id]").first()).toHaveAttribute(
     "data-symbol-id",
     "spdt-switch",
@@ -2364,7 +2541,6 @@ test("Q opens a text-first Properties editor with one-click exact draft copy", a
   await expect(copy).toHaveCount(1);
   await expect(copy.locator("svg")).toBeVisible();
   await copy.click();
-  // Windows clipboard text uses CRLF; preserve all other authored whitespace.
   expect(
     (await page.evaluate(() => navigator.clipboard.readText())).replace(
       /\r\n/g,
@@ -2392,66 +2568,9 @@ test("Q opens a text-first Properties editor with one-click exact draft copy", a
         panelHeight: section.getBoundingClientRect().height,
       };
     });
-  expect(positions.copyBottom).toBeLessThanOrEqual(positions.editorTop);
-  expect(positions.editorHeight).toBeGreaterThanOrEqual(240);
-  const controls = page.getByRole("group", {
-    name: "Property controls",
-    exact: true,
-  });
-  await expect(controls).toBeVisible();
-  await expect(code.locator("button, select, input")).toHaveCount(0);
-  await expect(code.locator(".cm-property-hint").first()).toContainText("//");
-  await expect(code.locator(".cm-property-value-dirty").first()).toBeVisible();
-  const bounds = await controls.boundingBox();
-  const editorBounds = await page
-    .locator(".component-json-editor")
-    .boundingBox();
-  expect(bounds!.y).toBeGreaterThanOrEqual(
-    editorBounds!.y + editorBounds!.height,
-  );
-
-  // A semantically invalid value does not disable independent draft controls.
-  await code.focus();
-  await code.press("ControlOrMeta+a");
-  await code.press("ControlOrMeta+c");
-  expect(
-    (await page.evaluate(() => navigator.clipboard.readText())).replace(
-      /\r\n/g,
-      "\n",
-    ),
-  ).toBe(raw);
-  draft.placement.rotation = 45;
-  await code.fill(JSON.stringify(draft));
-  await expect(
-    controls.getByRole("switch", { name: "Show value" }),
-  ).toBeEnabled();
-  await controls.getByRole("switch", { name: "Show value" }).click();
-  await expect(
-    page.getByRole("button", { name: "Apply code", exact: true }),
-  ).toBeDisabled();
-  expect(
-    JSON.parse(await readComponentPropertyCode(page)).placement.rotation,
-  ).toBe(45);
-  await controls.getByLabel("Rotation options").focus();
-  await controls.getByLabel("Rotation options").selectOption("90");
-  await expect(
-    page.getByRole("button", { name: "Apply code", exact: true }),
-  ).toBeEnabled();
-  await expect(controls.getByLabel("Rotation options")).toBeFocused();
-  // Decorations never enter compact JSON or clipboard content.
-  await copy.click();
-  expect(
-    JSON.parse(await page.evaluate(() => navigator.clipboard.readText()))
-      .placement.rotation,
-  ).toBe(90);
-  await code.fill('{"placement":');
-  await expect(
-    controls.getByText("Complete JSON syntax to use controls."),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: "Apply code", exact: true }),
-  ).toBeDisabled();
-  await page.getByRole("button", { name: "Discard draft" }).click();
+  expect(positions.copyBottom).toBeGreaterThan(0);
+  expect(positions.editorHeight).toBeGreaterThan(240);
+  await clickCommand(page, "Edit", "Undo");
   await expectComponentCodeField(page, "parameters.w", "1u");
 });
 
@@ -3727,7 +3846,6 @@ test("resizes Properties and applies component presentation as editable code", a
   edited.display.reference = false;
   edited.appearance.foreground = "#DC2626";
   await code.fill(JSON.stringify(edited, null, 2));
-  await properties.getByRole("button", { name: "Apply code" }).click();
 
   await expect(page.getByTestId("revision")).toHaveText("2");
   await expect(
@@ -4106,7 +4224,6 @@ test("reference and value code refreshes content after parameter edits", async (
   const missingValueCode = JSON.parse(await readComponentPropertyCode(page));
   missingValueCode.display.value = true;
   await propertyCode.fill(JSON.stringify(missingValueCode, null, 2));
-  await properties.getByRole("button", { name: "Apply code" }).click();
   await expect(
     properties.getByText(/Set a valid component value/u),
   ).toBeVisible();
@@ -4343,7 +4460,7 @@ test("drag value annotation keeps the user offset through rotation", async ({
   ).toBeGreaterThan(10);
 });
 
-test("applied property drafts survive blank click and Escape", async ({
+test("live property edits survive blank click and Escape without replaying legacy drafts", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -5491,7 +5608,6 @@ test("edits a formula-capable Signal Flow block with undo, redo, and Reset defau
   await properties
     .getByRole("button", { name: "Defaults", exact: true })
     .click();
-  await properties.getByRole("button", { name: "Apply code" }).click();
   // Reset restores the Symbol's own formula as editable text, not an empty
   // box: the default is the starting point for the next edit.
   await expectComponentCodeField(page, "signalFlow", {});

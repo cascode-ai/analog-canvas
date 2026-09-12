@@ -25,7 +25,10 @@ describe("ComponentPropertyCodeEditor", () => {
     );
     expect(markup).toContain('aria-label="Loading Canvas property code"');
     expect(markup).toContain("&quot;at&quot;");
-    expect(markup).toContain("Apply code");
+    expect(markup).not.toContain("Apply code");
+    expect(markup).not.toContain("Component properties");
+    expect(markup).toContain('aria-label="Defaults"');
+    expect(markup).toContain("Live");
     expect(markup).toContain('aria-label="Copy JSON"');
     expect(markup).toContain('title="Copy JSON"');
     expect(markup.indexOf('aria-label="Copy JSON"')).toBeLessThan(

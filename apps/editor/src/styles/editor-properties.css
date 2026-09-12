@@ -345,10 +345,19 @@
 }
 
 .component-property-code-editor > header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--icm-surface);
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--icm-space-2);
+}
+.component-property-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
 }
 
 .component-property-code-editor > header strong {
@@ -467,8 +476,8 @@
   outline: none;
 }
 .component-json-editor .cm-scroller {
-  height: clamp(15.5rem, calc(100dvh - 36rem), 38rem);
-  overflow: auto;
+  height: auto;
+  overflow: visible;
   font-family: inherit;
   line-height: 1.6;
 }
@@ -498,7 +507,7 @@
 .component-property-controls {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.5rem;
+  gap: 0.35rem;
   padding: 0.5rem;
   border: 1px solid var(--icm-border);
   border-radius: var(--icm-radius-sm);
@@ -517,9 +526,51 @@
   white-space: normal;
 }
 .component-property-control-label {
-  flex-basis: 100%;
+  flex: 0 0 auto;
   color: var(--icm-text-muted);
   font-size: 11px;
+}
+.component-property-controls [data-kind="rotation"] {
+  flex-wrap: nowrap;
+  align-self: center;
+}
+.component-property-controls [data-kind="boolean"] {
+  flex-wrap: nowrap;
+  justify-content: space-between;
+}
+.component-property-controls [data-kind="choice"] {
+  flex-wrap: nowrap;
+}
+.component-property-controls [data-kind="choice"] select {
+  flex: 1;
+  min-width: 0;
+}
+.component-property-controls [data-kind="color"] {
+  grid-column: 1 / -1;
+}
+.component-property-controls .tool-icon {
+  display: block;
+  width: 1rem;
+  height: 1rem;
+}
+.component-property-controls [data-kind="rotation"] button {
+  padding: 0.2rem;
+}
+.component-property-swatches {
+  display: flex;
+  gap: 0.25rem;
+  flex-wrap: wrap;
+}
+.component-property-controls .cm-property-assist .component-property-swatch {
+  width: 1rem;
+  height: 1rem;
+  min-height: 1rem;
+  padding: 0;
+  border-radius: 50%;
+}
+.component-property-swatch[aria-pressed="true"] {
+  outline: 2px solid var(--icm-accent);
+  outline-offset: 1px;
 }
 .component-property-controls-note {
   grid-column: 1 / -1;
@@ -584,9 +635,6 @@
 }
 
 .component-property-code-status {
-  position: sticky;
-  bottom: 0;
-  z-index: 1;
   padding: 0.5rem 0;
   background: var(--icm-surface);
   display: flex;

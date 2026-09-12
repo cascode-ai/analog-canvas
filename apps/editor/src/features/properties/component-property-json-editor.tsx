@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef } from "react";
 import {
   EditorState,
+  Annotation,
   StateEffect,
   StateField,
   Transaction,
@@ -15,7 +16,12 @@ import {
   highlightActiveLine,
   type DecorationSet,
 } from "@codemirror/view";
-import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
+import {
+  defaultKeymap,
+  history,
+  historyKeymap,
+  redo,
+} from "@codemirror/commands";
 import {
   bracketMatching,
   defaultHighlightStyle,
@@ -33,9 +39,9 @@ import {
 import {
   colorToRgb,
   parseCanvasColor,
-  MIRROR_OPTIONS,
   ROTATION_OPTIONS,
 } from "./component-property-fields";
+import { COLOR_PRESETS } from "./color-override-control";
 import {
   propertyCodeSpans,
   propertyCodeChanges,
@@ -45,7 +51,8 @@ import {
 
 interface Props {
   value: string;
-  historyKey: string;
+  historyKey: number;
+  baselineCode: string;
   context: ComponentPropertyCodeContext;
   defaultForeground: string;
   focusRequest: number;
@@ -53,6 +60,7 @@ interface Props {
   onApply(): void;
 }
 const refreshAssists = StateEffect.define<null>();
+const externalUpdate = Annotation.define<boolean>();
 
 /** Lazy loaded: selecting a component does not make the canvas shell depend on CodeMirror. */
 export default function ComponentPropertyJsonEditor(props: Props) {
@@ -80,9 +88,7 @@ export default function ComponentPropertyJsonEditor(props: Props) {
       }
       const rows = propertyCodeSpans(source, read().context)
         .filter(({ field }) =>
-          ["boolean", "rotation", "mirror", "choice", "color"].includes(
-            field.kind,
-          ),
+          ["boolean", "rotation", "choice", "color"].includes(field.kind),
         )
         .map((span) =>
           new PropertyAssist(
@@ -158,6 +164,7 @@ export default function ComponentPropertyJsonEditor(props: Props) {
             spellcheck: "false",
           }),
           keymap.of([
+            { key: "Mod-Shift-z", run: redo, preventDefault: true },
             {
               key: "Mod-Enter",
               run: () => {
@@ -177,7 +184,13 @@ export default function ComponentPropertyJsonEditor(props: Props) {
             ...defaultKeymap,
           ]),
           EditorView.updateListener.of((update) => {
-            if (update.docChanged) read().onChange(update.state.doc.toString());
+            if (
+              update.docChanged &&
+              !update.transactions.some((transaction) =>
+                transaction.annotation(externalUpdate),
+              )
+            )
+              read().onChange(update.state.doc.toString());
             if (
               update.docChanged ||
               update.transactions.some((transaction) =>
@@ -210,7 +223,10 @@ export default function ComponentPropertyJsonEditor(props: Props) {
     } else if (view.state.doc.toString() !== props.value) {
       view.dispatch({
         changes: { from: 0, to: view.state.doc.length, insert: props.value },
-        annotations: Transaction.addToHistory.of(false),
+        annotations: [
+          Transaction.addToHistory.of(false),
+          externalUpdate.of(true),
+        ],
       });
     } else view.dispatch({ effects: refreshAssists.of(null) });
   }, [props.value, props.historyKey, props.context, props.defaultForeground]);
@@ -221,13 +237,13 @@ export default function ComponentPropertyJsonEditor(props: Props) {
 
   return (
     <>
-      <div className="component-json-editor" ref={parent} />
       <div
         className="component-property-controls"
         role="group"
         aria-label="Property controls"
         ref={controls}
       />
+      <div className="component-json-editor" ref={parent} />
     </>
   );
 }
@@ -261,7 +277,7 @@ function decorations(state: EditorState, read: () => Props): DecorationSet {
   });
   const source = state.doc.toString();
   const baseline = new Map(
-    propertyCodeSpans(read().historyKey, read().context).map((span) => [
+    propertyCodeSpans(read().baselineCode, read().context).map((span) => [
       span.field.path,
       span.value,
     ]),
@@ -345,6 +361,7 @@ class PropertyAssist extends WidgetType {
     const { field, value } = this.span;
     const dom = document.createElement("div");
     dom.className = "cm-property-assist";
+    dom.dataset.kind = field.kind;
     dom.setAttribute("data-property-assist", field.path);
     dom.contentEditable = "false";
     const label = document.createElement("span");
@@ -354,6 +371,7 @@ class PropertyAssist extends WidgetType {
         ? `Show ${field.label.toLowerCase()}`
         : field.label;
     dom.append(label);
+    if (field.kind === "rotation") label.hidden = true;
     dom.addEventListener("keydown", (event) => {
       if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
         event.preventDefault();
@@ -391,21 +409,42 @@ class PropertyAssist extends WidgetType {
       toggle.setAttribute("aria-checked", String(value));
       toggle.className = "cm-property-toggle";
     }
-    if (
-      field.kind === "rotation" ||
-      field.kind === "mirror" ||
-      field.kind === "choice"
-    ) {
+    if (field.kind === "rotation") {
+      const rotate = button("Rotate 90° clockwise", "", () =>
+        change({ [field.path]: (Number(value) + 90) % 360 }),
+      );
+      rotate.append(orientationIcon("rotate"));
+      rotate.disabled =
+        !this.enabled ||
+        !ROTATION_OPTIONS.some((option) => option.value === value);
+      for (const direction of ["left-right", "top-bottom"] as const) {
+        const flip = button(
+          `Flip ${direction === "left-right" ? "left/right" : "top/bottom"}`,
+          "",
+          () => {
+            const changes = reflectedPropertyCode(
+              view.state.doc.toString(),
+              this.read().context,
+              direction,
+            );
+            if (changes.length)
+              view.dispatch({ changes, userEvent: "input.property-control" });
+          },
+        );
+        flip.append(orientationIcon(direction));
+        flip.disabled = !reflectedPropertyCode(
+          view.state.doc.toString(),
+          this.read().context,
+          direction,
+        ).length;
+      }
+    }
+    if (field.kind === "choice") {
       const select = document.createElement("select");
       select.setAttribute("aria-label", `${field.label} options`);
       select.title = field.description;
       select.disabled = !this.enabled;
-      const options =
-        field.kind === "rotation"
-          ? ROTATION_OPTIONS
-          : field.kind === "mirror"
-            ? MIRROR_OPTIONS
-            : (field.options ?? []);
+      const options = field.options ?? [];
       for (const option of options) {
         const element = document.createElement("option");
         element.value = String(option.value);
@@ -425,34 +464,9 @@ class PropertyAssist extends WidgetType {
       select.value = String(value);
       select.onchange = () =>
         change({
-          [field.path]:
-            field.kind === "rotation" ? Number(select.value) : select.value,
+          [field.path]: select.value,
         });
       dom.append(select);
-      if (field.kind === "mirror")
-        for (const [direction, label] of [
-          ["left-right", "Flip left/right"],
-          ["top-bottom", "Flip top/bottom"],
-        ] as const) {
-          const flip = button(
-            label,
-            direction === "left-right" ? "↔" : "↕",
-            () => {
-              const changes = reflectedPropertyCode(
-                view.state.doc.toString(),
-                this.read().context,
-                direction,
-              );
-              if (changes.length)
-                view.dispatch({ changes, userEvent: "input.property-control" });
-            },
-          );
-          flip.disabled = !reflectedPropertyCode(
-            view.state.doc.toString(),
-            this.read().context,
-            direction,
-          ).length;
-        }
     }
     if (field.kind === "color") {
       let color: string;
@@ -487,7 +501,63 @@ class PropertyAssist extends WidgetType {
         () => change({ [field.path]: "auto" }),
       );
       reset.disabled = !this.enabled || inherited;
+      const presets = document.createElement("div");
+      presets.className = "component-property-swatches";
+      presets.setAttribute("aria-label", `${field.label} presets`);
+      for (const preset of COLOR_PRESETS) {
+        const swatch = button(
+          `Use ${preset.label} for ${field.label.toLowerCase()}`,
+          "",
+          () => change({ [field.path]: colorToRgb(preset.value) }),
+        );
+        swatch.className = "component-property-swatch";
+        swatch.style.backgroundColor = preset.value;
+        swatch.setAttribute(
+          "aria-pressed",
+          String(!inherited && color === preset.value),
+        );
+        presets.append(swatch);
+      }
+      dom.append(presets);
     }
     return dom;
   }
+}
+
+/** Same three silhouettes as the existing placement toolbar. */
+function orientationIcon(kind: "rotate" | "left-right" | "top-bottom") {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 20 20");
+  svg.setAttribute("class", "tool-icon");
+  svg.setAttribute("aria-hidden", "true");
+  const paths =
+    kind === "rotate"
+      ? ["M15.5 7A6 6 0 1 0 16 12", "M12.5 3.5H16v3.5"]
+      : kind === "left-right"
+        ? [
+            "M10 3v14",
+            "M3.5 6.5L8 4.5v11l-4.5-2z",
+            "M16.5 6.5L12 4.5v11l4.5-2z",
+          ]
+        : [
+            "M3 10h14",
+            "M6.5 3.5L4.5 8h11l-2-4.5z",
+            "M6.5 16.5L4.5 12h11l-2 4.5z",
+          ];
+  paths.forEach((d, index) => {
+    const path = document.createElementNS(svg.namespaceURI, "path");
+    for (const [name, value] of Object.entries({
+      d,
+      fill: "none",
+      stroke: "currentColor",
+      "stroke-width": "1.7",
+      "stroke-linecap": "round",
+      "stroke-linejoin": "round",
+    }))
+      path.setAttribute(name, value);
+    if (kind !== "rotate" && index === 0)
+      path.setAttribute("stroke-dasharray", "1.6 2");
+    svg.append(path);
+  });
+  return svg;
 }

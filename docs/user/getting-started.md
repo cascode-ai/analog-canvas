@@ -40,25 +40,26 @@ palette-first manual authoring; no Project file needs to be opened first.
   **Remove route geometry** action to keep logical membership while deleting
   only the drawn route.
 - Select a component and press `Q` to open **Properties**. Its editable
-  **Component properties** JSON keeps raw parameters (W/L/NF/M and additional
+  JSON keeps raw parameters (W/L/NF/M and additional
   netlist overrides), reference and model target together with position as
   `"at": [x, y]`, plus quarter-turn
   rotation, mirror, supported Reference/Value visibility, and foreground/background
-  colors. Use the inline switches, angle/mirror menus, color swatches and field
-  hints, or type JSON directly. Fixed colors display as `[R, G, B]` (0–255);
+  colors. Use the compact rotation/mirror icons, **Model** selector, visibility
+  switches and color presets above the JSON, or type directly. Short gray
+  comments explain fields without becoming part of the data. Fixed colors display as `[R, G, B]` (0–255);
   hex input also works. **Global** inherits ink and **No fill** removes the
   independent background override. Flip arrows work in canvas directions.
-  These controls change the draft: choose **Apply code** (or
-  press `Ctrl`/`Cmd`+`Enter`); invalid or unknown properties are reported
-  without changing the drawing. Parameter values are strings: type unit suffixes
+  Valid edits update the drawing immediately; invalid or rejected edits keep
+  the last accepted drawing. Undo restores prior edits. Parameter values are strings: type unit suffixes
   yourself; `EV` remains `EV`, and `2u` is not changed to `2um`.
-  **Discard draft** cancels unapplied edits. **Defaults** loads known defaults
-  into the draft without moving, renaming or rebinding the component; Apply
-  commits them. The small **Copy JSON** icon at the text area's top right copies
+  The Properties header contains **Defaults**, **Copy JSON**, and **Discard draft**
+  when text is invalid or rejected. Defaults restores known defaults immediately
+  without moving, renaming or rebinding the component. Copy JSON copies
   the whole draft, excluding hints and controls. Compatible drawing
   variants and formula overrides are in the same editor, with no duplicate
   Parameters/Actions/Netlist Target forms. Drag the panel's left edge to set a
-  comfortable width.
+  comfortable width. JSON expands completely; scroll the panel rather than a
+  nested text area. Escape leaves the editor without discarding incomplete text.
 - For a MOS device, the compact **Bulk** row shows its current Net or
   **Unconnected** beside **Connect**. Click the button to draw from the bulk
   terminal on the canvas. Hover the status for the terminal name and connection

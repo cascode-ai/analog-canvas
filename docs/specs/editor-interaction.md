@@ -112,19 +112,29 @@ authoring surfaces; removing a component remains an explicit Delete action.
 
 The lazy JSON editor provides syntax highlighting, bracket matching, JSON
 diagnostics and local text undo. Canvas-layer field metadata owns the rotation
-and mirror options, color channel limits and per-field guidance. Inline switches,
-enum menus, color pickers and global/no-fill resets edit the same draft as typing;
-they never apply implicitly. Left/right and top/bottom actions compose the
+and mirror options, color channel limits and per-field guidance. Compact controls
+sit outside the JSON: three orientation icons, Model, inline visibility switches,
+color pickers, existing presets and global/no-fill resets. They edit the same
+draft as typing; valid edits transact immediately through the existing planner.
+Left/right and top/bottom actions compose the
 current draft orientation in canvas coordinates, updating rotation and the one
-local mirror bit together. Invalid drafts disable assistance, not text editing.
-Hints and widgets are editor decorations, never JSON comments or persisted data.
-**Discard draft** restores the last applied state without changing the circuit.
+local mirror bit together. Incomplete syntax pauses controls with an explanation;
+independent controls remain usable when another field has an invalid value.
+Invalid or rejected drafts preserve the last accepted canvas state. External
+undo/redo synchronizes the editor without replaying edits; Escape blurs this
+editor without applying legacy form drafts or discarding incomplete text.
+Short permanent line-end hints are read-only decorations, never JSON comments
+or persisted data. **Discard draft** restores the last accepted state when
+the draft is invalid or rejected, without changing the circuit.
 **Defaults** loads known parameter, orientation, color, and formula defaults
-into the draft; it preserves coordinates, reference, model target, display
-flags, and unknown overrides. It still requires Apply. **Copy JSON** copies
+immediately and remains undoable; it preserves coordinates, reference, model
+target, display flags, and unknown overrides. Defaults and conditional Discard
+are icons beside Copy in the Properties header; there is no Apply button.
+**Copy JSON** copies
 the complete raw draft without decorations from the copy icon at the editor's
 top right, including unapplied whitespace and invalid drafts. The text area
-is the dominant, viewport-sized surface; instance identity stays in the dock
+expands fully without its own scrollbar; only the surrounding panel scrolls.
+Instance identity stays in the dock
 header rather than being repeated around the code. Switching components cannot carry
 an old draft or its local history into a new selection.
 

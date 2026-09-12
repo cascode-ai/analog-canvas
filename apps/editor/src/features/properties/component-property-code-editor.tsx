@@ -1,4 +1,11 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import {
+  lazy,
+  Suspense,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import type { SchematicDocument } from "@icm/model";
 
@@ -54,22 +61,30 @@ export function ComponentPropertyCodeEditor({
     [context, revision],
   );
   const previousBaseline = useRef(baseline);
+  const appliedCode = useRef<string | null>(null);
+  const [historyKey, setHistoryKey] = useState(0);
   const [draft, setDraft] = useState(baseline);
   const [applyMessage, setApplyMessage] = useState<string | null>(null);
+  const [rejected, setRejected] = useState(false);
 
-  useEffect(() => {
-    // Capture before enqueueing: React may run the updater after the ref has
-    // advanced. Reading the ref inside it leaves normalized target edits stale.
-    const previous = previousBaseline.current;
+  useLayoutEffect(() => {
+    const ownEdit = appliedCode.current;
+    appliedCode.current = null;
+    if (previousBaseline.current === baseline && ownEdit === null) return;
     previousBaseline.current = baseline;
-    setDraft((current) => (current === previous ? baseline : current));
-  }, [baseline]);
+    // Preserve the user's whitespace, caret and local undo history on a live
+    // acknowledgement. Only planner normalization or an external edit replaces
+    // text; external undo/redo must never be replayed back into the model.
+    if (ownEdit !== baseline) setDraft(baseline);
+    if (ownEdit === null) setHistoryKey((key) => key + 1);
+    setApplyMessage(null);
+    setRejected(false);
+  }, [baseline, draft]);
 
   const parsed = useMemo(
     () => parseComponentPropertyCode(draft, context),
     [context, draft],
   );
-  const changed = draft !== baseline;
 
   const copy = async (): Promise<void> => {
     try {
@@ -80,20 +95,21 @@ export function ComponentPropertyCodeEditor({
     }
   };
 
-  const apply = (): void => {
-    if (!parsed.ok) {
-      setApplyMessage(parsed.message);
-      return;
-    }
-    const result = onApply(parsed.value);
+  const change = (source: string): void => {
+    setDraft(source);
+    setApplyMessage(null);
+    setRejected(false);
+    const next = parseComponentPropertyCode(source, context);
+    if (!next.ok) return;
+    const normalized = serializeComponentPropertyCode(next.value);
+    if (normalized === baseline) return;
+    const result = onApply(next.value);
     if (!result.ok) {
       setApplyMessage(result.message);
+      setRejected(true);
       return;
     }
-    const normalized = serializeComponentPropertyCode(parsed.value);
-    previousBaseline.current = normalized;
-    setDraft(normalized);
-    setApplyMessage("Applied");
+    appliedCode.current = normalized;
   };
 
   return (
@@ -103,25 +119,51 @@ export function ComponentPropertyCodeEditor({
       data-testid="component-property-code-editor"
     >
       <header>
-        <strong>Component properties</strong>
-        <button
-          type="button"
-          className="component-property-copy"
-          aria-label="Copy JSON"
-          title="Copy JSON"
-          onClick={() => void copy()}
-        >
-          <svg
-            viewBox="0 0 20 20"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.6"
-            aria-hidden="true"
+        <strong>Properties</strong>
+        <div className="component-property-header-actions">
+          <button
+            type="button"
+            className="component-property-copy"
+            aria-label="Defaults"
+            title="Restore parameter and color defaults"
+            onClick={() => change(defaultComponentPropertyCode(context))}
           >
-            <rect x="7" y="7" width="10" height="10" rx="1.5" />
-            <path d="M13 7V4.5A1.5 1.5 0 0 0 11.5 3h-7A1.5 1.5 0 0 0 3 4.5v7A1.5 1.5 0 0 0 4.5 13H7" />
-          </svg>
-        </button>
+            <span aria-hidden="true">↺</span>
+          </button>
+          {(!parsed.ok || rejected) && (
+            <button
+              type="button"
+              className="component-property-copy"
+              aria-label="Discard draft"
+              title="Discard invalid draft"
+              onClick={() => {
+                setDraft(baseline);
+                setApplyMessage(null);
+                setRejected(false);
+              }}
+            >
+              <span aria-hidden="true">×</span>
+            </button>
+          )}
+          <button
+            type="button"
+            className="component-property-copy"
+            aria-label="Copy JSON"
+            title="Copy JSON"
+            onClick={() => void copy()}
+          >
+            <svg
+              viewBox="0 0 20 20"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              aria-hidden="true"
+            >
+              <rect x="7" y="7" width="10" height="10" rx="1.5" />
+              <path d="M13 7V4.5A1.5 1.5 0 0 0 11.5 3h-7A1.5 1.5 0 0 0 3 4.5v7A1.5 1.5 0 0 0 4.5 13H7" />
+            </svg>
+          </button>
+        </div>
       </header>
       <Suspense
         fallback={
@@ -135,55 +177,22 @@ export function ComponentPropertyCodeEditor({
       >
         <PropertyJsonEditor
           value={draft}
-          historyKey={baseline}
+          historyKey={historyKey}
           context={context}
           defaultForeground={defaultForeground}
           focusRequest={focusRequest}
-          onChange={(source) => {
-            setDraft(source);
-            setApplyMessage(null);
-          }}
-          onApply={apply}
+          baselineCode={baseline}
+          onApply={() => change(draft)}
+          onChange={change}
         />
       </Suspense>
       <div className="component-property-code-status" aria-live="polite">
         <span>
           {applyMessage ??
             (parsed.ok
-              ? changed
-                ? "Pending · Ctrl/⌘ + Enter to apply"
-                : "Unchanged"
-              : parsed.message)}
+              ? "Live"
+              : `${parsed.message} · Canvas keeps the last valid edit`)}
         </span>
-        <div>
-          <button
-            type="button"
-            title="Load parameter and appearance defaults into draft"
-            onClick={() => {
-              setDraft(defaultComponentPropertyCode(context));
-              setApplyMessage("Defaults loaded · pending");
-            }}
-          >
-            Defaults
-          </button>
-          <button
-            type="button"
-            disabled={!changed}
-            onClick={() => {
-              setDraft(baseline);
-              setApplyMessage(null);
-            }}
-          >
-            Discard draft
-          </button>
-          <button
-            type="button"
-            disabled={!changed || !parsed.ok}
-            onClick={apply}
-          >
-            Apply code
-          </button>
-        </div>
       </div>
     </section>
   );
