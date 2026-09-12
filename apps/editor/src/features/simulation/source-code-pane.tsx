@@ -40,7 +40,12 @@ import { useWorkspaceInteractions } from "./workspace-interactions";
 import {
   SimulationCodeWorkspace,
   type SimulationCodeWorkspaceProps,
+  type SimulationExplorerSelection,
 } from "./code-workspace";
+import {
+  buildSimulationWorkspaceArchive,
+  simulationArtifactCategory,
+} from "./simulation-artifact-files";
 import { sourceProbeChoices } from "./source-probe-choices";
 import { SourceProbePicker } from "./source-probe-picker";
 
@@ -74,6 +79,12 @@ interface Props extends Pick<
   console: ReactNode;
   results: ReactNode;
   outputActions?: ReactNode;
+  artifactGroups?: SimulationCodeWorkspaceProps["artifactGroups"];
+  artifactPreview?: SimulationCodeWorkspaceProps["artifactPreview"];
+  artifactBusy?: string | undefined;
+  onSelectArtifact?: SimulationCodeWorkspaceProps["onSelectArtifact"];
+  onCloseArtifact?: SimulationCodeWorkspaceProps["onCloseArtifact"];
+  onDownloadArtifact?: SimulationCodeWorkspaceProps["onDownloadArtifact"];
   status?: ReactNode;
   outputPane: SimulationCodeWorkspaceProps["outputPane"];
   onSelectOutputPane: SimulationCodeWorkspaceProps["onSelectOutputPane"];
@@ -750,6 +761,55 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
         setSaveRequested(false);
       }
     };
+    const downloadSelection = async (
+      selection: readonly SimulationExplorerSelection[],
+    ) => {
+      if (selection.length === 1) {
+        const item = selection[0]!;
+        if (item.kind === "source") {
+          const result = downloadTextArtifact(
+            fileText(item.folderId, item.path),
+            item.path.split("/").at(-1)!,
+          );
+          if (result.status === "failed")
+            props.onProblem(
+              inputProblem("SOURCE_EXPORT_FAILED", result.message),
+            );
+        } else props.onDownloadArtifact?.(item.artifact);
+        return;
+      }
+      const archive = await buildSimulationWorkspaceArchive(
+        props.files,
+        selection.map((item) => {
+          if (item.kind === "artifact")
+            return {
+              kind: "artifact" as const,
+              path: `${item.groupKey}/${simulationArtifactCategory(item.artifact).toLowerCase()}/${item.artifact.name}`,
+              artifact: item.artifact,
+            };
+          const folder = props.project.simulationFolders.find(
+            (candidate) => candidate.id === item.folderId,
+          );
+          return {
+            kind: "text" as const,
+            path: `${folder?.name ?? item.folderId}/source/${item.path}`,
+            text: fileText(item.folderId, item.path),
+          };
+        }),
+      );
+      if (!archive.ok) {
+        props.onProblem(archive.error);
+        return;
+      }
+      const url = URL.createObjectURL(
+        new Blob([archive.bytes as BlobPart], { type: "application/zip" }),
+      );
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `${props.folder.name}-selected-files.zip`;
+      anchor.click();
+      setTimeout(() => URL.revokeObjectURL(url), 0);
+    };
     return (
       <SimulationCodeWorkspace
         workspaceKey={props.folder.id}
@@ -800,6 +860,23 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
         additionalActions={[
           { label: "View final deck", run: () => props.onPrepare?.() },
         ]}
+        {...(props.artifactGroups
+          ? { artifactGroups: props.artifactGroups }
+          : {})}
+        {...(props.artifactPreview
+          ? { artifactPreview: props.artifactPreview }
+          : {})}
+        {...(props.artifactBusy ? { artifactBusy: props.artifactBusy } : {})}
+        {...(props.onSelectArtifact
+          ? { onSelectArtifact: props.onSelectArtifact }
+          : {})}
+        {...(props.onCloseArtifact
+          ? { onCloseArtifact: props.onCloseArtifact }
+          : {})}
+        {...(props.onDownloadArtifact
+          ? { onDownloadArtifact: props.onDownloadArtifact }
+          : {})}
+        onDownloadSelection={(selection) => void downloadSelection(selection)}
         files={ownFiles.map((filePath) => ({
           path: filePath,
           kind: input.circuitBindings.some((b) => b.path === filePath)
@@ -988,6 +1065,16 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
           <>
             <button
               data-workspace-save="true"
+              data-save-state={
+                saveRequested || saving || props.projectSaveState === "saving"
+                  ? "saving"
+                  : props.projectSaveState === "failed" ||
+                      props.projectSaveState === "offline"
+                    ? "failed"
+                    : props.projectSaveState === "clean" && !dirty
+                      ? "saved"
+                      : "dirty"
+              }
               aria-label="Save project"
               title={
                 props.projectSaveState === "failed" ||
@@ -1009,7 +1096,7 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
               {saveRequested || saving || props.projectSaveState === "saving"
                 ? "Saving…"
                 : props.projectSaveState === "clean" && !dirty
-                  ? "Saved"
+                  ? "✓ Saved"
                   : props.projectSaveState === "failed" ||
                       props.projectSaveState === "offline"
                     ? "Retry save"
@@ -1084,6 +1171,15 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
               drafts.current.get(`${props.folder.id}\u0000${file.path}`)
                 ?.text ?? file.text,
           )}
+          {...(selected?.path === input.entry
+            ? {
+                ghostHints: [
+                  "ac dec 20 1 1G",
+                  "tran 1n 1u",
+                  "dc VIN 0 1.8 0.01",
+                ],
+              }
+            : {})}
           helperActions={[
             {
               id: "save-voltage",

@@ -153,7 +153,7 @@ test.beforeEach(async ({ page }) => {
   ).toBeVisible();
 });
 
-test("Files opens sideways, configuration is advanced, and results maximize/restore without a new fixed panel", async ({
+test("Explorer opens sideways, configuration is advanced, and results maximize/restore without a new fixed panel", async ({
   page,
 }) => {
   const editor = page.getByRole("textbox", {
@@ -161,7 +161,7 @@ test("Files opens sideways, configuration is advanced, and results maximize/rest
   });
   const before = await editor.boundingBox();
   await expect(page.getByRole("tab", { name: "Configuration" })).toHaveCount(0);
-  await page.getByRole("button", { name: "Files", exact: true }).click();
+  await page.getByRole("button", { name: "Explorer", exact: true }).click();
   await expect(
     page.getByRole("complementary", { name: "Simulation files" }),
   ).toBeVisible();

@@ -20,9 +20,10 @@ The execution and numeric contracts remain in
 [execution](simulation-execution.md) and [results](simulation-results.md).
 Only the changes explicitly identified here amend those boundaries.
 
-The goal is ordinary Canvas editing plus a right-hand code dock, with flat
-Console/Plot/OP/Compare/Files tabs beneath code. It is not a general IDE, a second circuit model,
-a new executor, or unrestricted remote shell access. Timing/Digital Simulation,
+The goal is ordinary Canvas editing plus a right-hand code dock, with a unified
+Explorer beside code and flat Console/Plot/OP/Compare tabs beneath it. It is not
+a general IDE, a second circuit model, a new executor, or unrestricted remote
+shell access. Timing/Digital Simulation,
 new model qualification, live cross-Project libraries, and Production promotion
 are outside this work.
 
@@ -98,13 +99,16 @@ IDs and exact files. Older data is read only at that compatibility boundary.
   otherwise retain the now-unresolved entry/reference for diagnosis. Deleting
   a binding is explicit, not a side effect of editing its displayed filename.
 
-New folders default to text-only input without a questionnaire. Optional templates
-run the current Cell directly (top-level binding) or write a text TB around the
-current DUT (subcircuit binding and an authored call using exported port order).
-None creates a TB Cell or guesses stimuli.
-The empty workspace uses the top **Set up** action for templates. Folder and file
-creation live in tree context menus (also available with Shift+F10), not permanent
-New buttons. Archive and Export share the output tab bar with Console/Plot/OP.
+New experiments require only a name. They bind the current Cell as the top-level
+circuit and create a small `op` starter; they do not ask for OP/AC/TRAN or source
+mode. AC, TRAN and DC examples appear as non-persisted editor hints, and helpers
+can insert them without making another form state authoritative. The source API
+retains text-only and text-DUT creation for import, Agent and compatibility flows,
+but those are not choices in the normal new-experiment interaction. No starter
+creates a TB Cell or guesses stimuli.
+The empty workspace uses the top **Set up** action. Explorer also keeps a permanent
+**New experiment** command; file and folder context commands remain available with
+Shift+F10. Archive and Export share the output tab bar with Console/Plot/OP.
 Existing experiments reopen unchanged; duplication is an explicit action.
 `circuit.spice`, `testbench.spice`, and `run.cir` are conventions, not mandatory
 file counts. A drawn TB does not need an additional authored TB file.
@@ -129,7 +133,8 @@ save list is never silently widened to `all` by that instrumentation.
 Discovery and completion use the compiler's authored call-path mapping; they
 show the Canvas name alongside the executable native vector. Native vectors
 remain available for text-only or statically unresolvable scopes.
-`experiment.json` is available through Files, not a compulsory fourth panel.
+`experiment.json` is available through the Explorer's advanced configuration
+command, not a compulsory fourth panel.
 
 Folder expansion is independent of active execution and batch selection. New
 files/folders and renames use inline text input (Enter accepts, Escape cancels),
@@ -461,11 +466,15 @@ the declared runtime/Profile and retain a minimal reproducible test.
 Existing application navigation / editing toolbar
 ---------------------------------------------------------------
 Ordinary Canvas                 | Code | Properties           x
-                                | Files / entry    Run Stop ...
-                                | Circuit / TB / Run file tabs
+                                | Explorer          Run Stop ...
+                                | Experiment
+                                |   Source (open) / files
+                                |   Prepare · Temporary (closed)
+                                |   Run · Temporary (closed)
+                                | Circuit / TB / Run / artifact tabs
                                 |   code editor with line numbers
                                 |------------------------------
-                                | Console | Plot | OP | Compare | Files    expand
+                                | Console | Plot | OP | Compare          expand
                                 | selected run / plot / OP
                                 | history, compare, export on demand
 ```
@@ -475,9 +484,14 @@ Ordinary Canvas                 | Code | Properties           x
 - Simulation has its own top-level command, outside Netlist. Missing circuit
   parameters do not prevent opening Code. An authoring-only IR keeps device
   cards with explicit missing-value slots; export and execution stay strict.
-- Files displays execution folders. Right-click offers creation from OP/AC/TRAN
-  templates, duplicate, rename, delete, export and Run. Multi-select runs a Batch.
-  File actions use the shared File Resource; generated topology remains locked.
+- Explorer displays every experiment and its source files. The active experiment
+  also exposes Prepare and Run artifact groups, each explicitly marked Temporary.
+  Source starts expanded; artifact groups start collapsed. Right-click offers
+  duplicate, rename, delete, export and Run. Multi-select runs a Batch. File
+  actions use the shared File Resource; generated topology remains locked.
+- Source and artifact rows support Ctrl/Cmd multi-selection. One selected file
+  downloads directly; multiple authored/generated/temporary files download as one
+  hierarchy-preserving ZIP. Selecting a temporary artifact opens a read-only tab.
 - There is no permanent Prepare or Pick toolbar. Run prepares automatically;
   final-deck inspection and Canvas observation helpers are available on demand.
   Observation helpers reveal the configuration they change rather than silently
@@ -487,9 +501,9 @@ Ordinary Canvas                 | Code | Properties           x
   around 40% and 22% respectively, not hard-coded accepted dimensions. Narrow
   windows use a temporary overlay/maximized view instead of crushing Canvas.
 - No permanent Setup/Settings/AC-response selection bar. Multiple experiments
-  retain IDs and lifecycle under Files. Run always targets the explicit entry
+  retain IDs and lifecycle under Explorer. Run always targets the explicit entry
   of the active experiment; viewing its Circuit or TB does not change entry.
-- Console/Plot/OP/Compare/Files occupy one tab row below the code editor;
+- Console/Plot/OP/Compare occupy one tab row below the code editor;
   measurements, history and export remain within these views. Maximize
   temporarily uses the main workspace, then restores the exact previous split.
 - Canvas selection highlights related code without forcibly opening Properties.
@@ -527,12 +541,12 @@ never execute Canvas editing commands.
 
 New/rename uses one inline naming interaction: Enter and valid blur commit exactly
 once; Escape or empty blur cancels. Invalid names show local feedback without
-trapping focus. New folders offer OP/AC/TRAN templates and the existing text-only,
-Canvas Cell or text-DUT starters in this same row. Delete
+trapping focus. New experiments ask only for a name and create the current-Cell OP
+starter described above. Delete
 uses the product's small modal confirmation with Cancel initially focused and
 Escape cancelling. File/Project transactions remain the mutation and Undo owner.
 
-Files has a bounded draggable/keyboard-adjustable splitter; double-click restores
+Explorer has a bounded draggable/keyboard-adjustable splitter; double-click restores
 the default. Width is an optional local preference, not Project data. Buttons
 share hover, pressed, focus-visible, disabled and in-flight styling. Save reflects
 the existing Project persistence lifecycle, not merely buffer flush. An unsaved
@@ -643,7 +657,9 @@ captures, invalid config, concurrent drafts, structural paste, changed DUT
 interfaces, two DUT calls and unbound input. A screenshot or HTTP 200 is not
 electrical evidence.
 
-The user approved the disposable layout prototype: Files expands beside code,
+The user approved the disposable layout prototype and subsequent Explorer
+consolidation: files expand beside code, Source opens by default, temporary
+Prepare/Run groups start collapsed,
 configuration stays hidden by default, Code/Properties have independent widths,
 and Console/Results stay beneath code with reversible maximization. Browser
 regressions verify those interactions. That approval does not replace language,

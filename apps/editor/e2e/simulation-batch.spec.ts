@@ -265,7 +265,7 @@ test("a saved Run Plan prepares without executing and Run starts its ordinary ba
   await expect(panel.locator(".simulation-batch-menu-popover")).toContainText(
     "Batch · prepared",
   );
-  await expect(panel.getByLabel("Prepare files")).toBeVisible();
+  await expect(panel.getByLabel("Prepare temporary files")).toBeVisible();
   expect(executions).toBe(0);
   await panel.getByRole("button", { name: "Run", exact: true }).click();
   await expect(panel.locator(".simulation-batch-menu-popover")).toContainText(

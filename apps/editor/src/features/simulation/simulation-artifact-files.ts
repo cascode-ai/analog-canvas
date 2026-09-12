@@ -10,6 +10,14 @@ export interface SimulationArtifactContent {
   readonly truncated: boolean;
 }
 
+export type SimulationWorkspaceArchiveEntry =
+  | { readonly kind: "text"; readonly path: string; readonly text: string }
+  | {
+      readonly kind: "artifact";
+      readonly path: string;
+      readonly artifact: ArtifactRef;
+    };
+
 type ArtifactReadResult =
   | { readonly ok: true; readonly content: SimulationArtifactContent }
   | { readonly ok: false; readonly error: Problem };
@@ -114,6 +122,58 @@ export async function buildSimulationArtifactArchive(
       },
     };
   }
+}
+
+export async function buildSimulationWorkspaceArchive(
+  files: SimulationFiles,
+  items: readonly SimulationWorkspaceArchiveEntry[],
+): Promise<
+  | { readonly ok: true; readonly bytes: Uint8Array }
+  | { readonly ok: false; readonly error: Problem }
+> {
+  try {
+    const entries: Record<string, Uint8Array> = {};
+    for (const item of items) {
+      let text: string;
+      if (item.kind === "text") text = item.text;
+      else {
+        const result = await readSimulationArtifact(files, item.artifact);
+        if (!result.ok) return result;
+        text = result.content.text;
+      }
+      entries[archivePath(item.path)] = strToU8(text);
+    }
+    return {
+      ok: true,
+      bytes: await new Promise<Uint8Array>((resolve, reject) =>
+        zip(
+          entries,
+          { level: 6, mtime: new Date("1980-01-01T00:00:00.000Z") },
+          (error, bytes) => (error ? reject(error) : resolve(bytes)),
+        ),
+      ),
+    };
+  } catch {
+    return {
+      ok: false,
+      error: {
+        code: "ARTIFACT_ARCHIVE_FAILED",
+        message:
+          "The selected file bundle could not be created in this browser",
+        stage: "export",
+        recovery: "retry-after",
+      },
+    };
+  }
+}
+
+function archivePath(path: string): string {
+  const safe = path
+    .replaceAll("\\", "/")
+    .split("/")
+    .filter((part) => part && part !== "." && part !== "..")
+    .join("/");
+  return safe || "file.txt";
 }
 
 export function simulationArtifactCategory(artifact: ArtifactRef): string {
