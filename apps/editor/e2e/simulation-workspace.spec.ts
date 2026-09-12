@@ -69,6 +69,11 @@ test("native save completion previews its mapped Net on the real Canvas", async 
     (file) => file.path === folder.input.entry,
   )!.text;
   await editor.fill(`${source.slice(0, source.indexOf(".endc"))}save`);
+  await expect(page.locator(".simulation-code-status")).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Save project", exact: true }),
+  ).toBeEnabled();
+  await expect(page.getByRole("tab", { name: /run\.cir/ })).toContainText("●");
   await page.keyboard.type(" ");
   const option = page.getByRole("option").filter({ hasText: vector });
   await expect(option).toBeVisible();
@@ -1218,6 +1223,11 @@ test("Simulation creates an ordinary testbench and defaults a new experiment to 
   await clickNetlistWorkflowCommand(page, "open-analog-simulation");
   await expect(page.getByLabel("Testbench Cell")).toHaveCount(0);
   const taskbar = page.locator(".simulation-taskbar");
+  await expect(taskbar).toHaveCount(1);
+  await expect(
+    page.getByRole("button", { name: "Sim Code", exact: true }),
+  ).toBeVisible();
+  await expect(page.locator(".simulation-brand")).toHaveCount(0);
   const setupBox = await page
     .getByRole("button", { name: "Set up", exact: true })
     .boundingBox();
@@ -1236,6 +1246,15 @@ test("Simulation creates an ordinary testbench and defaults a new experiment to 
   expect(runBox!.height).toBe(setupBox!.height);
   expect(statusBox!.x).toBeGreaterThanOrEqual(runBox!.x + runBox!.width);
   expect(Math.abs(statusBox!.y - runBox!.y)).toBeLessThanOrEqual(2);
+  await expect(taskbar).toHaveCount(1);
+  for (const name of ["Explorer", "Save project"]) {
+    const box = await taskbar
+      .getByRole("button", { name, exact: true })
+      .boundingBox();
+    expect(Math.abs(box!.y - runBox!.y)).toBeLessThanOrEqual(2);
+    expect(box!.height).toBeLessThanOrEqual(24);
+  }
+  expect((await taskbar.boundingBox())!.height).toBeLessThanOrEqual(32);
   await page
     .getByRole("treeitem", { name: "run.cir", exact: true })
     .first()

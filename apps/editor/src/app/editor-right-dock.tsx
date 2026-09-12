@@ -22,7 +22,7 @@ export function EditorRightDock(props: {
             aria-pressed={showCode}
             onClick={() => props.onSelectProperties(false)}
           >
-            Code
+            Sim Code
           </button>
           <button
             type="button"

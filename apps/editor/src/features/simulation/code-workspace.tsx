@@ -58,6 +58,7 @@ export interface SimulationCodeWorkspaceProps {
   additionalActions?: WorkspaceMenuItem[];
   children: ReactNode;
   actions: ReactNode;
+  toolbarEnd?: ReactNode;
   status?: ReactNode;
   console: ReactNode;
   results: ReactNode;
@@ -159,7 +160,7 @@ export function SimulationCodeWorkspace(props: SimulationCodeWorkspaceProps) {
         }
       }}
     >
-      <header className="simulation-code-toolbar">
+      <header className="simulation-code-toolbar simulation-taskbar">
         <button
           type="button"
           aria-expanded={filesOpen}
@@ -209,6 +210,7 @@ export function SimulationCodeWorkspace(props: SimulationCodeWorkspaceProps) {
             ···
           </button>
         </div>
+        {props.toolbarEnd}
       </header>
       <div className="simulation-code-source-area">
         {filesOpen ? (
@@ -486,7 +488,9 @@ export function SimulationCodeWorkspace(props: SimulationCodeWorkspaceProps) {
           </div>
         ) : null}
       </section>
-      <footer className="simulation-code-status">{props.status}</footer>
+      {props.status ? (
+        <footer className="simulation-code-status">{props.status}</footer>
+      ) : null}
     </section>
   );
 }

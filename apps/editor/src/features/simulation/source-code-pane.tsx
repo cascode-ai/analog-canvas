@@ -74,6 +74,7 @@ interface Props extends Pick<
   folder: ProjectSimulationFolder;
   files: SimulationFiles;
   actions: ReactNode;
+  toolbarEnd?: ReactNode;
   folders?: SimulationCodeWorkspaceProps["folders"];
   onPrepare?(): void;
   console: ReactNode;
@@ -1108,6 +1109,7 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
             {props.actions}
           </>
         }
+        toolbarEnd={props.toolbarEnd}
         console={props.console}
         results={props.results}
         outputActions={props.outputActions}
@@ -1116,32 +1118,30 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
         maximized={props.maximized}
         onToggleMaximize={props.onToggleMaximize}
         status={
-          <>
-            {!recoveryAvailable ? (
-              <span role="alert">
-                Draft recovery unavailable — save or export before leaving.
-              </span>
-            ) : null}
-            {conflict ? (
-              <>
-                <span role="alert">Changed elsewhere — draft retained.</span>
-                <button
-                  onClick={() => {
-                    drafts.current.delete(key(path));
-                    render((value) => value + 1);
-                  }}
-                >
-                  Discard local draft
-                </button>
-              </>
-            ) : activeDirty ? (
-              "Unsaved source"
-            ) : buffer && buffer.text !== buffer.base ? (
-              "Draft saved · finish or discard before Run"
-            ) : (
-              props.status
-            )}
-          </>
+          !recoveryAvailable || conflict || props.status ? (
+            <>
+              {!recoveryAvailable ? (
+                <span role="alert">
+                  Draft recovery unavailable — save or export before leaving.
+                </span>
+              ) : null}
+              {conflict ? (
+                <>
+                  <span role="alert">Changed elsewhere — draft retained.</span>
+                  <button
+                    onClick={() => {
+                      drafts.current.delete(key(path));
+                      render((value) => value + 1);
+                    }}
+                  >
+                    Discard local draft
+                  </button>
+                </>
+              ) : (
+                props.status
+              )}
+            </>
+          ) : null
         }
       >
         {probePicker && (

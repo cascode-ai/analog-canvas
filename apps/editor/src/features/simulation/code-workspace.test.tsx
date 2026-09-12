@@ -41,6 +41,7 @@ describe("approved simulation Code layout", () => {
     expect(markup).not.toContain("Run target");
     expect(markup).not.toContain("New file");
     expect(markup).not.toContain("Setup");
+    expect(markup).not.toContain('class="simulation-code-status"');
   });
   it("opens only circuit/run tabs by default, with output below the editor and configuration on demand", () => {
     const markup = renderToStaticMarkup(

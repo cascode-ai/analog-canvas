@@ -43,8 +43,8 @@
 
 .simulation-taskbar {
   position: relative;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  display: flex;
+  flex: none;
   align-items: center;
   gap: 6px;
   min-height: 30px;
@@ -52,17 +52,9 @@
   border-bottom: 1px solid var(--icm-border);
   background: var(--icm-surface);
 }
-.simulation-brand {
-  display: flex;
-  align-items: center;
-  min-width: 68px;
-  line-height: 1.05;
-}
-.simulation-brand strong {
-  font-size: var(--icm-font-md);
-}
 .simulation-task-actions {
   display: flex;
+  flex: 1;
   align-items: center;
   gap: 4px;
   min-width: 0;
@@ -343,7 +335,6 @@
 }
 
 .spice-simulation-surface.maximized .simulation-taskbar {
-  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
   padding: 2px 12px;
@@ -351,7 +342,7 @@
 
 .spice-simulation-surface.maximized .simulation-task-actions {
   justify-self: stretch;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 8px;
 }
 
@@ -2157,15 +2148,6 @@
 }
 
 @media (max-width: 700px) {
-  .simulation-taskbar {
-    grid-template-columns: auto minmax(0, 1fr) auto;
-  }
-  .simulation-brand {
-    min-width: 68px;
-  }
-  .simulation-brand strong {
-    font-size: var(--icm-font-sm);
-  }
   .simulation-plot-layout {
     grid-template-columns: 1fr;
   }

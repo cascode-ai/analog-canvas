@@ -1530,6 +1530,145 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
     </section>
   );
 
+  const simulationActions = (
+    <div className="simulation-task-actions">
+      {running ? (
+        <button
+          className="simulation-stop-button"
+          disabled={
+            batch?.state === "cancelling" || run?.state === "cancelling"
+          }
+          onClick={() => {
+            if (batchRunning)
+              void session
+                .handle({ operation: "cancel-batch", batchId: batch.id })
+                .then(receive);
+            else if (run)
+              void session
+                .handle({ operation: "cancel", runId: run.id })
+                .then(receive);
+          }}
+        >
+          {batchRunning ? "Cancel batch" : "Cancel run"}
+        </button>
+      ) : selectedFolder ? (
+        <button
+          className="simulation-primary-button simulation-run-button"
+          disabled={busy}
+          onClick={() => void execute(true)}
+          aria-label="Run"
+          title={`Run ${selectedFolder.name}`}
+        >
+          ▶
+        </button>
+      ) : (
+        <button
+          className="simulation-primary-button simulation-setup-button"
+          onClick={createFolder}
+        >
+          Set up
+        </button>
+      )}
+      <span
+        className={`simulation-status-chip simulation-status-${batch?.state ?? run?.state ?? (prepared ? "prepared" : "idle")}`}
+        role="status"
+      >
+        {activeDirty ? "Source changed" : statusLabel}
+      </span>
+      {batch ? (
+        <details
+          ref={batchMenuRef}
+          className="simulation-batch-menu"
+          onToggle={(event) => {
+            if (event.currentTarget.open) batchMenuRef.current?.focus();
+          }}
+        >
+          <summary
+            aria-label={`Batch queue: ${batch.state}, ${finishedBatchItems} of ${batch.items.length} finished`}
+            title="Batch queue"
+          >
+            <span aria-hidden="true">≡</span>
+          </summary>
+          <div className="simulation-batch-menu-popover">
+            <header>
+              <strong>Batch · {batch.state}</strong>
+              <span>
+                {finishedBatchItems}/{batch.items.length}
+              </span>
+            </header>
+            <div className="simulation-batch-menu-items">
+              {batch.items.map((item) => {
+                const folder = project.simulationFolders.find(
+                  (candidate) => candidate.id === item.folderId,
+                );
+                return (
+                  <button
+                    type="button"
+                    key={item.id}
+                    data-state={item.state}
+                    disabled={item.state === "queued"}
+                    onClick={() => void showBatchItem(item)}
+                  >
+                    <span>{item.label ?? folder?.name ?? item.folderId}</span>
+                    <small>{item.state}</small>
+                  </button>
+                );
+              })}
+            </div>
+            {!batchRunning ? (
+              <button type="button" onClick={() => setBatch(undefined)}>
+                Dismiss
+              </button>
+            ) : null}
+          </div>
+        </details>
+      ) : null}
+    </div>
+  );
+  const windowActions = (
+    <div className="simulation-window-actions">
+      <button
+        className="simulation-minimize-button"
+        onClick={props.onMinimize}
+        aria-label="Minimize simulation"
+        title="Minimize simulation"
+      >
+        <span className="simulation-minimize-glyph" aria-hidden="true" />
+      </button>
+      <button
+        className="simulation-maximize-button"
+        onClick={props.onToggleMaximized}
+        aria-label={
+          props.maximized ? "Restore simulation panel" : "Maximize simulation"
+        }
+        title={
+          props.maximized ? "Restore simulation panel" : "Maximize simulation"
+        }
+      >
+        {props.maximized ? "↙" : "□"}
+      </button>
+      <button
+        className="simulation-close-button"
+        onClick={async () => {
+          if (
+            await interaction.confirm({
+              title: "Exit Simulation?",
+              message:
+                "Unsaved source drafts and temporary run files will be discarded. An active run will be cancelled.",
+              acceptLabel: "Exit Simulation",
+            })
+          ) {
+            codeRef.current?.discard();
+            props.onExit();
+          }
+        }}
+        aria-label="Exit simulation"
+      >
+        ×
+      </button>
+    </div>
+  );
+
   return (
     <section
       hidden={!open}
@@ -1543,151 +1682,12 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
         }
       }}
     >
-      <header className="simulation-taskbar">
-        <div className="simulation-brand">
-          <strong>Simulation</strong>
-        </div>
-        <div className="simulation-task-actions">
-          {running ? (
-            <button
-              className="simulation-stop-button"
-              disabled={
-                batch?.state === "cancelling" || run?.state === "cancelling"
-              }
-              onClick={() => {
-                if (batchRunning)
-                  void session
-                    .handle({ operation: "cancel-batch", batchId: batch.id })
-                    .then(receive);
-                else if (run)
-                  void session
-                    .handle({ operation: "cancel", runId: run.id })
-                    .then(receive);
-              }}
-            >
-              {batchRunning ? "Cancel batch" : "Cancel run"}
-            </button>
-          ) : selectedFolder ? (
-            <button
-              className="simulation-primary-button simulation-run-button"
-              disabled={busy}
-              onClick={() => void execute(true)}
-              aria-label="Run"
-              title={`Run ${selectedFolder.name}`}
-            >
-              ▶
-            </button>
-          ) : (
-            <button
-              className="simulation-primary-button simulation-setup-button"
-              onClick={createFolder}
-            >
-              Set up
-            </button>
-          )}
-          <span
-            className={`simulation-status-chip simulation-status-${batch?.state ?? run?.state ?? (prepared ? "prepared" : "idle")}`}
-            role="status"
-          >
-            {activeDirty ? "Source changed" : statusLabel}
-          </span>
-          {batch ? (
-            <details
-              ref={batchMenuRef}
-              className="simulation-batch-menu"
-              onToggle={(event) => {
-                if (event.currentTarget.open) batchMenuRef.current?.focus();
-              }}
-            >
-              <summary
-                aria-label={`Batch queue: ${batch.state}, ${finishedBatchItems} of ${batch.items.length} finished`}
-                title="Batch queue"
-              >
-                <span aria-hidden="true">≡</span>
-              </summary>
-              <div className="simulation-batch-menu-popover">
-                <header>
-                  <strong>Batch · {batch.state}</strong>
-                  <span>
-                    {finishedBatchItems}/{batch.items.length}
-                  </span>
-                </header>
-                <div className="simulation-batch-menu-items">
-                  {batch.items.map((item) => {
-                    const folder = project.simulationFolders.find(
-                      (candidate) => candidate.id === item.folderId,
-                    );
-                    return (
-                      <button
-                        type="button"
-                        key={item.id}
-                        data-state={item.state}
-                        disabled={item.state === "queued"}
-                        onClick={() => void showBatchItem(item)}
-                      >
-                        <span>
-                          {item.label ?? folder?.name ?? item.folderId}
-                        </span>
-                        <small>{item.state}</small>
-                      </button>
-                    );
-                  })}
-                </div>
-                {!batchRunning ? (
-                  <button type="button" onClick={() => setBatch(undefined)}>
-                    Dismiss
-                  </button>
-                ) : null}
-              </div>
-            </details>
-          ) : null}
-        </div>
-        <div className="simulation-window-actions">
-          <button
-            className="simulation-minimize-button"
-            onClick={props.onMinimize}
-            aria-label="Minimize simulation"
-            title="Minimize simulation"
-          >
-            <span className="simulation-minimize-glyph" aria-hidden="true" />
-          </button>
-          <button
-            className="simulation-maximize-button"
-            onClick={props.onToggleMaximized}
-            aria-label={
-              props.maximized
-                ? "Restore simulation panel"
-                : "Maximize simulation"
-            }
-            title={
-              props.maximized
-                ? "Restore simulation panel"
-                : "Maximize simulation"
-            }
-          >
-            {props.maximized ? "↙" : "□"}
-          </button>
-          <button
-            className="simulation-close-button"
-            onClick={async () => {
-              if (
-                await interaction.confirm({
-                  title: "Exit Simulation?",
-                  message:
-                    "Unsaved source drafts and temporary run files will be discarded. An active run will be cancelled.",
-                  acceptLabel: "Exit Simulation",
-                })
-              ) {
-                codeRef.current?.discard();
-                props.onExit();
-              }
-            }}
-            aria-label="Exit simulation"
-          >
-            ×
-          </button>
-        </div>
-      </header>
+      {!selectedFolder ? (
+        <header className="simulation-taskbar">
+          {simulationActions}
+          {windowActions}
+        </header>
+      ) : null}
 
       {!selectedFolder && !hasDutInstance ? (
         <p className="simulation-context-hint">
@@ -1720,7 +1720,8 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
           onPickTerminalsChange={(active) =>
             props.onPickTerminalsChange?.(active)
           }
-          actions={null}
+          actions={simulationActions}
+          toolbarEnd={windowActions}
           status={staleMessage}
           onDirty={setDirty}
           onActiveDirty={setActiveDirty}

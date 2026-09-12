@@ -80,6 +80,27 @@
 .simulation-code-more {
   position: relative;
 }
+.simulation-code-workspace .simulation-code-toolbar {
+  min-height: 30px;
+  gap: 4px;
+  padding: 2px 5px;
+}
+.simulation-code-workspace .simulation-code-toolbar > button,
+.simulation-code-workspace .simulation-code-actions > button,
+.simulation-code-workspace .simulation-task-actions > button,
+.simulation-code-workspace .simulation-code-more > button {
+  height: 22px;
+  min-height: 22px;
+  padding: 0 5px;
+  font-size: 11px;
+}
+.simulation-code-workspace .simulation-run-button {
+  width: 20px;
+}
+.simulation-code-toolbar .simulation-window-actions,
+.simulation-code-toolbar .simulation-code-more {
+  flex: none;
+}
 .workspace-context-menu {
   position: fixed;
   z-index: 1200;
