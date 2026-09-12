@@ -74,7 +74,15 @@ describe.skipIf(!endpoint)("candidate ngspice46 source qualification", () => {
     const devices = nativeSimulationDevices(circuit, folder.input).filter(
       (device) => device.polarity,
     );
-    expect(devices).toHaveLength(5);
+    // The fixture includes the five-transistor core plus its bias device XM6.
+    expect(devices.map((device) => device.reference).sort()).toEqual([
+      "xdut.xm1",
+      "xdut.xm2",
+      "xdut.xm3",
+      "xdut.xm4",
+      "xdut.xm5",
+      "xdut.xm6",
+    ]);
     const entry = folder.input.files.find(
       (file) => file.path === folder.input.entry,
     );
