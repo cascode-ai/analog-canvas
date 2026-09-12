@@ -295,7 +295,9 @@ for (const width of [300, 540]) {
     const selected = await code.evaluate(() =>
       window.getSelection()?.toString(),
     );
-    expect(selected).toBe(raw);
+    // Selection serialization uses LF even when innerText uses the Windows
+    // CRLF convention. Compare all selected content, not OS line separators.
+    expect(selected?.replace(/\r\n/gu, "\n")).toBe(raw.replace(/\r\n/gu, "\n"));
 
     const layout = await editor.evaluate((section) => ({
       overflow: section.scrollWidth > section.clientWidth,
