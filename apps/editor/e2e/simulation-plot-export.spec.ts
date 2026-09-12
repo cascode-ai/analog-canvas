@@ -91,6 +91,21 @@ test("native multi-unit results preserve signs and link only one record", async 
               values: [10, 1000, 1000000],
             },
             outputs,
+            scalars: [
+              {
+                id: "native:peak_gain_db",
+                label: "peak_gain_db",
+                value: index === 0 ? 4.43515 : -2,
+                unit: "dB",
+              },
+              {
+                id: "native:phasor",
+                label: "scalar_phasor",
+                value: 3,
+                imaginary: 4,
+                unit: "",
+              },
+            ],
           })),
         },
       }),
@@ -101,6 +116,19 @@ test("native multi-unit results preserve signs and link only one record", async 
   await expect(records).toHaveCount(2);
   const first = records.nth(0),
     second = records.nth(1);
+  await expect(
+    first.getByRole("region", { name: "Captured scalars record 1" }),
+  ).toContainText("4.43515");
+  await expect(
+    second.getByRole("region", { name: "Captured scalars record 2" }),
+  ).toContainText("-2");
+  await expect(
+    first.getByRole("region", { name: "Captured scalars record 1" }),
+  ).toContainText("Unknown");
+  for (const svg of await root.locator("svg").all()) {
+    await expect(svg).not.toContainText("peak_gain_db");
+    await expect(svg).not.toContainText("scalar_phasor");
+  }
   await expect(first.locator(".simulation-plot-layout")).toHaveCount(3);
   await expect(
     first.getByRole("button", { name: "Magnitude", exact: true }),

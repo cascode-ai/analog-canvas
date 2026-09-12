@@ -26,11 +26,21 @@ const SimulationProbeShape = {
   quantity: z.string(),
   unit: z.string().nullable(),
 };
+const CapturedScalarsSchema = z
+  .array(
+    z.strictObject({
+      ...SimulationProbeShape,
+      value: z.number().finite(),
+      imaginary: z.number().finite().optional(),
+    }),
+  )
+  .optional();
 
 const SimulationAnalysisResultSchema = z.discriminatedUnion("analysis", [
   z.strictObject({
     rawPlotOrdinals: SimulationRawPlotOrdinalsSchema.optional(),
     analysis: z.literal("op"),
+    scalars: CapturedScalarsSchema,
     plotName: z.string(),
     probes: z.array(
       z.strictObject({ ...SimulationProbeShape, value: z.number() }),
@@ -38,6 +48,7 @@ const SimulationAnalysisResultSchema = z.discriminatedUnion("analysis", [
   }),
   z.strictObject({
     analysis: z.literal("ac"),
+    scalars: CapturedScalarsSchema,
     rawPlotOrdinals: SimulationRawPlotOrdinalsSchema.optional(),
     plotName: z.string(),
     frequencyHz: z.array(z.number()),
@@ -54,6 +65,7 @@ const SimulationAnalysisResultSchema = z.discriminatedUnion("analysis", [
   }),
   z.strictObject({
     analysis: z.literal("dc"),
+    scalars: CapturedScalarsSchema,
     rawPlotOrdinals: SimulationRawPlotOrdinalsSchema.optional(),
     plotName: z.string(),
     sweep: z.strictObject({
@@ -66,6 +78,7 @@ const SimulationAnalysisResultSchema = z.discriminatedUnion("analysis", [
   }),
   z.strictObject({
     analysis: z.literal("tran"),
+    scalars: CapturedScalarsSchema,
     rawPlotOrdinals: SimulationRawPlotOrdinalsSchema.optional(),
     plotName: z.string(),
     timeSeconds: z.array(z.number()),
@@ -75,6 +88,7 @@ const SimulationAnalysisResultSchema = z.discriminatedUnion("analysis", [
   }),
   z.strictObject({
     analysis: z.literal("noise"),
+    scalars: CapturedScalarsSchema,
     rawPlotOrdinals: SimulationRawPlotOrdinalsSchema.optional(),
     plotName: z.literal("Noise Analysis"),
     frequencyHz: z.array(z.number()),

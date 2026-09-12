@@ -53,6 +53,12 @@ export interface OperatingPointProbe extends SimulationProbe {
 export interface SimulationRawPlotOrigin {
   /** Optional only for archived results created before native multi-record support. */
   readonly rawPlotOrdinals?: readonly number[] | undefined;
+  /** Explicit short vectors of length one, never inferred from a flat waveform. */
+  readonly scalars?: readonly CapturedScalar[] | undefined;
+}
+export interface CapturedScalar extends SimulationProbe {
+  readonly value: number;
+  readonly imaginary?: number | undefined;
 }
 export interface OperatingPointResult extends SimulationRawPlotOrigin {
   readonly analysis: "op";
@@ -317,6 +323,74 @@ export function readSimulationData(rawfile: string): SimulationDataReading {
 }
 
 function readPlot(plot: RawfilePlot): PlotReading {
+  if (
+    [
+      "ac analysis",
+      "transient analysis",
+      "dc transfer characteristic",
+    ].includes(plot.plotName.trim().toLowerCase())
+  ) {
+    const scalars: CapturedScalar[] = [];
+    const vectors: RawfileVector[] = [];
+    for (const vector of plot.vectors) {
+      const dimensions = vector.variable.qualifiers.filter((q) =>
+        q.startsWith("dims="),
+      );
+      if (!dimensions.length) {
+        vectors.push(vector);
+        continue;
+      }
+      const spelling = dimensions[0]!.slice(5);
+      if (
+        dimensions.length !== 1 ||
+        !/^[1-9]\d*(?:,[1-9]\d*)*$/u.test(spelling)
+      )
+        return {
+          diagnostic: error(
+            `Invalid dimensions for "${vector.variable.name}": ${dimensions.join(" ")}.`,
+          ),
+        };
+      if (spelling.includes(","))
+        return {
+          diagnostic: error(
+            `"${vector.variable.name}" declares multidimensional data (${spelling}); it cannot be flattened onto a one-dimensional sweep axis. Inspect the rawfile.`,
+          ),
+        };
+      const length = Number(spelling);
+      if (!Number.isSafeInteger(length) || length > plot.pointCount)
+        return {
+          diagnostic: error(
+            `Dimensions for "${vector.variable.name}" exceed the recorded point count.`,
+          ),
+        };
+      if (
+        length === 1 &&
+        (plot.pointCount > 1 ||
+          (!["frequency", "time"].includes(
+            vector.variable.quantity.toLowerCase(),
+          ) &&
+            !vector.variable.name.toLowerCase().endsWith("-sweep")))
+      ) {
+        scalars.push({
+          ...probeOf(vector),
+          value: vector.real[0]!,
+          ...(vector.imag ? { imaginary: vector.imag[0]! } : {}),
+        });
+      } else if (length === plot.pointCount) vectors.push(vector);
+      else
+        return {
+          diagnostic: error(
+            `"${vector.variable.name}" has ${length} valid values, not ${plot.pointCount} sweep samples. A shorter vector cannot be placed on this axis; inspect the rawfile.`,
+          ),
+        };
+    }
+    if (scalars.length) {
+      const reading = readPlot({ ...plot, vectors });
+      return "analysis" in reading
+        ? { analysis: { ...reading.analysis, scalars } }
+        : reading;
+    }
+  }
   const name = plot.plotName.trim().toLowerCase();
   if (plot.vectors.length === 0 || plot.pointCount === 0) {
     return {
@@ -663,6 +737,17 @@ export function simulationAnalysisToCsv(
           : analysis.analysis === "tran"
             ? transientRows(analysis)
             : noiseRows(analysis);
+  if (analysis.scalars?.length)
+    rows.push(
+      [],
+      ["Captured scalar", "Real value", "Imaginary value", "Unit"],
+      ...analysis.scalars.map((s) => [
+        s.name,
+        String(s.value),
+        s.imaginary === undefined ? "" : String(s.imaginary),
+        s.unit ?? "",
+      ]),
+    );
   return rows.map((row) => row.map(csvField).join(",")).join("\n") + "\n";
 }
 

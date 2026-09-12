@@ -203,6 +203,34 @@ and Preview checks:
 Preview qualification may additionally require a named environment, probes,
 and numeric tolerances. It does not reclassify the underlying run.
 
+### Captured native scalars
+
+AC, DC and transient plots may include short vectors declared by ngspice's
+`dims=1` variable qualifier. Their first real/imaginary value is captured in
+the record's optional `scalars` array; the remaining rawfile padding is not
+sweep data. Constant waveforms and single-point sweeps without that declaration
+remain waveforms. Unsupported short arrays and malformed dimensions produce
+diagnostics instead of being plotted against the wrong axis.
+
+The evaluated record also carries `scalars`, separate from curve `outputs`.
+Results shows these in a **Captured values** table per record, preserving signed
+and complex numbers. They do not generate curve min/max/span/RMS summaries and
+are not image-export traces. Both raw and evaluated CSV append a separately
+headed scalar table. Unknown units stay explicitly unknown; a variable suffix
+such as `_db` does not establish a unit.
+
+Console measurement reports remain separate evidence: only declarations reached
+from the executed entry/include graph participate, and repeated report names
+retain Console order. The UI does not invent an association between Console
+lines and raw records. A value may therefore appear as both a captured scalar
+and a Console report, with their different provenance made explicit.
+
+Hosted responses with numeric data and explicit rawfile dimensions are re-read
+by the same canonical reader to handle executor-image version skew. Missing
+numeric data is not resurrected. Archives without retained dimension evidence
+cannot be safely repaired from names or zero padding; rerun them to capture
+the corrected result.
+
 ### Authored measurements
 
 An authored measurement references one enabled analysis and one named Output.

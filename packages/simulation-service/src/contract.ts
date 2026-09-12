@@ -206,6 +206,8 @@ export const EvaluatedScalarSchema = z.strictObject({
   label: z.string(),
   unit: z.string(),
   value: z.number().finite(),
+  imaginary: z.number().finite().optional(),
+  semantics: OutputSemanticsSchema.optional(),
 });
 export const EvaluatedAnalysisSchema = z.strictObject({
   rawPlotOrdinals: SimulationRawPlotOrdinalsSchema.optional(),
@@ -219,6 +221,8 @@ export const EvaluatedAnalysisSchema = z.strictObject({
     })
     .optional(),
   outputs: z.array(EvaluatedOutputSchema),
+  /** Captured single values, not sweep samples or automatic waveform measurements. */
+  scalars: z.array(EvaluatedScalarSchema).optional(),
   /** Analysis-owned scalar results, such as integrated input/output noise. */
   integrated: z.array(EvaluatedScalarSchema).optional(),
 });

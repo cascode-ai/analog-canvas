@@ -18,6 +18,7 @@ import {
 import { ScalarResultsExplorer } from "./transient-results-explorer";
 import { SimulationMeasurementResults } from "./simulation-measurement-results";
 import { NativeMeasurementResults } from "./native-measurement-results";
+import { CapturedScalarResults } from "./captured-scalar-results";
 import { NoiseResultsExplorer } from "./noise-results-explorer";
 import { planResultOutput } from "./result-plot-plan";
 import { ResultRecordView, ResultPlotControls } from "./result-plot-controls";
@@ -355,6 +356,10 @@ export function SimulationOutputResults({
                   key={`${analysis.analysis}-${analysisIndex}`}
                   kind={analysis.analysis}
                 >
+                  <CapturedScalarResults
+                    scalars={analysis.scalars ?? []}
+                    record={analysisIndex + 1}
+                  />
                   {data.analyses.filter((a) => a.analysis === analysis.analysis)
                     .length > 1 ? (
                     <p>

@@ -4,6 +4,47 @@ import { describe, expect, it } from "vitest";
 import { SimulationOutputResults } from "./simulation-output-results";
 
 describe("Simulation Output Results", () => {
+  it("shows captured singletons as record-local table values without rendering a waveform", () => {
+    const markup = renderToStaticMarkup(
+      <SimulationOutputResults
+        outputs={[]}
+        data={{
+          schemaVersion: 1,
+          diagnostics: [],
+          analyses: [
+            {
+              analysis: "ac",
+              plotName: "AC",
+              rawPlotOrdinals: [0],
+              domain: { name: "Frequency", unit: "Hz", values: [100, 200] },
+              outputs: [],
+              scalars: [
+                {
+                  id: "native:peak",
+                  label: "peak_gain_db",
+                  unit: "",
+                  value: 4.43515,
+                },
+                {
+                  id: "native:z",
+                  label: "phasor",
+                  unit: "V",
+                  value: 3,
+                  imaginary: -4,
+                },
+              ],
+            },
+          ],
+        }}
+      />,
+    );
+    expect(markup).toContain('aria-label="Captured scalars record 1"');
+    expect(markup).toContain("4.435150");
+    expect(markup).toContain("Unknown");
+    expect(markup).toContain("− j4.000000");
+    expect(markup).not.toContain("<svg");
+    expect(markup).not.toContain("waveform-trace-list");
+  });
   it("renders signed native dB and phase in independent unit-labelled plots", () => {
     const markup = renderToStaticMarkup(
       <SimulationOutputResults

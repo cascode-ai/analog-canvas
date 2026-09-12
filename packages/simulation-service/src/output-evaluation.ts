@@ -423,6 +423,38 @@ export function evaluateSimulationOutputs(
         plotName: analysis.plotName,
         ...(domain ? { domain } : {}),
         outputs: evaluated,
+        ...(includeNative && analysis.scalars?.length
+          ? {
+              scalars: analysis.scalars.map((scalar) => {
+                const meaning = nativeProbeMeaning(
+                  scalar,
+                  [...analysis.probes, ...analysis.scalars!],
+                  analysis.analysis === "ac",
+                  declarations,
+                );
+                return {
+                  id: `native:${scalar.name.toLowerCase()}`,
+                  label: scalar.name,
+                  unit: meaning.unit,
+                  value: scalar.value,
+                  ...(scalar.imaginary !== undefined &&
+                  (meaning.semantics.valueKind !== "real" ||
+                    scalar.imaginary !== 0)
+                    ? { imaginary: scalar.imaginary }
+                    : {}),
+                  semantics: {
+                    ...meaning.semantics,
+                    valueKind:
+                      meaning.semantics.valueKind === "real" &&
+                      scalar.imaginary !== undefined &&
+                      scalar.imaginary !== 0
+                        ? "unknown"
+                        : meaning.semantics.valueKind,
+                  },
+                };
+              }),
+            }
+          : {}),
       };
     },
   );
@@ -573,8 +605,23 @@ export function simulationOutputAnalysisToCsv(
         : [output.values[index] ?? null],
     ),
   ]);
-  const series =
+  let series =
     [headers, ...rows].map((row) => row.map(quote).join(",")).join("\n") + "\n";
+  if (analysis.scalars?.length)
+    series +=
+      "\n" +
+      [
+        ["Captured scalar", "Real value", "Imaginary value", "Unit"],
+        ...analysis.scalars.map((s) => [
+          s.label,
+          s.value,
+          s.imaginary ?? null,
+          s.unit,
+        ]),
+      ]
+        .map((row) => row.map(quote).join(","))
+        .join("\n") +
+      "\n";
   if (!analysis.integrated?.length) return series;
   return (
     series +
