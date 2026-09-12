@@ -254,7 +254,7 @@ describe("mcp tool surface", () => {
       error: { code: "SIMULATION_FOLDER_UPDATE_EMPTY" },
     });
   });
-  it("writes output, measurement and MOS helpers into the one config source, preserving native programs", async () => {
+  it("retains legacy JSON helpers without permitting native experiments to downgrade", async () => {
     const http = new FakeAgentHttp(),
       { session } = await toolSession(http);
     await callTool("connect", { claimCode: "session-1.code" }, session);
@@ -284,6 +284,46 @@ describe("mcp tool surface", () => {
       }
       return capabilitiesResponse(request.requestId);
     };
+    const original = JSON.stringify(snapshot.project.simulationFolders);
+    for (const name of [
+      "simulation_output",
+      "simulation_measurement",
+      "simulation_device_operating_point",
+    ]) {
+      expect(
+        parseText(
+          await callTool(name, { action: "list", folderId: "s" }, session),
+        ),
+      ).toMatchObject({
+        ok: false,
+        error: { code: "SIMULATION_NATIVE_CODE_REQUIRED" },
+      });
+    }
+    expect(
+      parseText(
+        await callTool(
+          "simulation_output",
+          {
+            action: "upsert",
+            folderId: "s",
+            label: "Vout",
+            expression: { kind: "vector", vector: "v(out)" },
+          },
+          session,
+        ),
+      ),
+    ).toMatchObject({
+      ok: false,
+      error: { code: "SIMULATION_NATIVE_CODE_REQUIRED" },
+    });
+    expect(JSON.stringify(snapshot.project.simulationFolders)).toBe(original);
+    // Explicit fixture for the retained v1 compatibility lane.
+    snapshot.project.simulationFolders[0]!.input.files.find(
+      (f) => f.path === "experiment.json",
+    )!.text = JSON.stringify({
+      version: 1,
+      environment: { profileId: "test" },
+    });
     const cfg = () => {
       const result = readSimulationExperimentConfig(
         snapshot.project.simulationFolders[0]!,
@@ -421,7 +461,10 @@ describe("mcp tool surface", () => {
           session,
         ),
       ),
-    ).toMatchObject({ ok: true, outputs: [] });
+    ).toMatchObject({
+      ok: false,
+      error: { code: "SIMULATION_NATIVE_CODE_REQUIRED" },
+    });
   });
 
   it("inspect and search refresh by default so human edits are visible", async () => {

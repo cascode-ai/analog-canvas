@@ -12,6 +12,7 @@ on:
       - "containers/ngspice/**"
       - ".github/workflows/container.yml"
       - ".dockerignore"
+      - "scripts/simulation-source-native.test.mjs"
   workflow_dispatch:
 
 permissions:

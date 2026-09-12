@@ -190,7 +190,7 @@ describe("Circuit parameter source projection", () => {
       planCircuitSourceEdit(source, replace(source, [{ index, text: "-1" }])),
     ).toMatchObject({ ok: false, code: "SIMULATION_PARAMETER_INVALID" });
     expect(
-      planCircuitSourceEdit(source, replace(source, [{ index, text: "{W}" }])),
+      planCircuitSourceEdit(source, replace(source, [{ index, text: "{W+}" }])),
     ).toMatchObject({ ok: false, code: "SIMULATION_PARAMETER_INVALID" });
     expect(
       planCircuitSourceEdit(source, replace(source, [{ index, text: "25u" }])),
@@ -212,4 +212,41 @@ describe("Circuit parameter source projection", () => {
     const plan = planCircuitSourceEdit(source, replace(source, widths));
     expect(plan.ok && plan.changes.length).toBe(2);
   });
+  it("round-trips native parameter references through Canvas and reviewed PDK units", () => {
+    const { project, source } = fixture();
+    const index = source.parameters.findIndex((p) => p.parameter === "w");
+    const edited = replace(source, [{ index, text: "{WIDTH * 2}" }]);
+    const plan = planCircuitSourceEdit(source, edited);
+    expect(plan.ok).toBe(true);
+    if (!plan.ok) return;
+    expect(plan.changes[0]!.value).toBe("{(WIDTH * 2) * 1u}");
+    for (const change of plan.changes)
+      project.documents
+        .find((d) => d.id === change.documentId)!
+        .instances.find((i) => i.id === change.instanceId)!.netlist!.parameters[
+        change.parameter
+      ] = change.value;
+    const regenerated = generateCircuitSource(project, source.binding);
+    expect(regenerated.ok).toBe(true);
+    if (!regenerated.ok) return;
+    expect(regenerated.source.text).toBe(edited);
+    expect(planCircuitSourceEdit(regenerated.source, edited)).toEqual({
+      ok: true,
+      changes: [],
+    });
+    const exported = analyzeDesignNetlist(project, {
+      rootDocumentId: source.binding.documentId,
+    });
+    expect(exported.ir).not.toBeNull();
+  });
+  it.each(["{}", "{W", "{W;quit}", "{W}\nRnew out 0 1", "{W) + 1}"])(
+    "does not let an expression escape its Circuit slot: %s",
+    (text) => {
+      const { source } = fixture();
+      const index = source.parameters.findIndex((p) => p.parameter === "w");
+      expect(
+        planCircuitSourceEdit(source, replace(source, [{ index, text }])).ok,
+      ).toBe(false);
+    },
+  );
 });

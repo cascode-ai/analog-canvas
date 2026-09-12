@@ -181,6 +181,10 @@ export type SimulationDataReading =
 const UNIT_BY_QUANTITY = new Map<string, string>([
   ["voltage", "V"],
   ["current", "A"],
+  ["admittance", "S"],
+  ["conductance", "S"],
+  ["capacitance", "F"],
+  ["resistance", "Ω"],
   ["time", "s"],
   ["frequency", "Hz"],
   ["temp-sweep", "°C"],

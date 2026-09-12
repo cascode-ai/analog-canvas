@@ -25,6 +25,9 @@ import {
   planCircuitSourceEdit,
   compileSourceSimulation,
   simulationSignals,
+  nativeSimulationDevices,
+  nativeTerminalCurrent,
+  migrateSimulationConfigToNative,
 } from "@icm/netlist";
 import type { SimulationFiles } from "@icm/simulation-service/files";
 import { sha256 } from "@icm/simulation-service/files";
@@ -50,12 +53,14 @@ import {
 import { sourceProbeChoices } from "./source-probe-choices";
 import { SourceProbePicker } from "./source-probe-picker";
 import { SimulationActionIcon } from "./simulation-action-icon";
+import { flushSelectedFolders } from "./flush-selected-folders";
 
 export type SourceFlush =
   | { ok: true; folder: ProjectSimulationFolder; revision: number }
   | { ok: false };
 export interface SourceCodeHandle {
   flush(): Promise<SourceFlush>;
+  flushFolders(ids: readonly string[]): ReturnType<typeof flushSelectedFolders>;
   save(): Promise<boolean>;
   discard(): void;
   reveal(location: SimulationSourceLocation): Promise<void>;
@@ -165,6 +170,7 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
       id: string;
       session: string;
       vectors: string[];
+      directives?: string[];
     }>();
     const saveSession = useRef(crypto.randomUUID());
     const beginSignalSelection = () => {
@@ -179,6 +185,9 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
       terminal: props.pickedTerminal?.sequence,
     });
     const input = props.folder.input;
+    const configState = readSimulationExperimentConfig(props.folder);
+    const legacyConfig =
+      configState.ok && configState.authority === "legacy-config";
     const signals = useMemo(
       () =>
         simulationSignals(props.project, {
@@ -192,7 +201,9 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
         }),
       [props.project, input, draftRevision],
     );
-    const [probePicker, setProbePicker] = useState<"voltage" | "current">();
+    const [probePicker, setProbePicker] = useState<
+      "voltage" | "current" | "device-op"
+    >();
     const probeChoices = useMemo(
       () =>
         probePicker
@@ -222,7 +233,7 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
       label: string,
       expression: SimulationSourceExpression,
     ): boolean => {
-      const insert = (vectors: string[]) => {
+      const insert = (vectors: string[], directives?: string[]) => {
         if (
           input.circuitBindings.some((b) => b.path === path) ||
           path.endsWith(".json")
@@ -232,6 +243,7 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
           id: crypto.randomUUID(),
           session: saveSession.current,
           vectors,
+          ...(directives ? { directives } : {}),
         });
       };
       if (expression.kind === "vector") {
@@ -245,6 +257,45 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
           return false;
         }
         insert([expression.vector]);
+        return true;
+      }
+      if (expression.kind === "current") {
+        const sourceInput = {
+          ...input,
+          files: input.files.map((f) => ({
+            ...f,
+            text:
+              drafts.current.get(`${props.folder.id}\u0000${f.path}`)?.text ??
+              f.text,
+          })),
+        };
+        const device = nativeSimulationDevices(props.project, sourceInput).find(
+          (item) =>
+            item.documentId === expression.documentId &&
+            item.instanceId === expression.instanceId &&
+            JSON.stringify(item.occurrence) ===
+              JSON.stringify(expression.occurrence) &&
+            item.circuit.bindingId === expression.circuit.bindingId &&
+            item.circuit.callPath.join(".").toLowerCase() ===
+              expression.circuit.callPath.join(".").toLowerCase(),
+        );
+        const result = device
+          ? nativeTerminalCurrent(device, expression.pinName)
+          : {
+              ok: false as const,
+              message:
+                "The selected device no longer has a reachable native occurrence",
+            };
+        if (!result.ok) {
+          props.onProblem(
+            inputProblem(
+              "SIMULATION_NATIVE_CURRENT_UNAVAILABLE",
+              result.message,
+            ),
+          );
+          return false;
+        }
+        insert(result.vectors, result.directives);
         return true;
       }
       const file = props.folder.input.files.find(
@@ -272,7 +323,6 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
         );
         return false;
       }
-      const previousOutputs = [...parsed.config.outputs];
       parsed.config.outputs.push({
         id: `output-${crypto.randomUUID()}`,
         label,
@@ -318,23 +368,6 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
       const nativeVectors = resolved.vectors
         .filter((v) => acquisitionIds.has(v.probeId))
         .map((v) => v.vector);
-      // Only terminal-current targets require a durable instrumentation owner.
-      // Ordinary voltage picks are native save text, not a second output setup.
-      if (expression.kind !== "current")
-        parsed.config.outputs = previousOutputs;
-      else if (
-        previousOutputs.some(
-          (o) => JSON.stringify(o.expression) === JSON.stringify(expression),
-        )
-      )
-        parsed.config.outputs = previousOutputs;
-      if (expression.kind === "current") {
-        drafts.current.set(`${props.folder.id}\u0000${input.configPath}`, {
-          base: draft?.base ?? file?.text ?? "",
-          text: JSON.stringify(parsed.config, null, 2) + "\n",
-          committed: draft?.committed ?? props.project.structureRevision,
-        });
-      }
       insert(nativeVectors.length ? nativeVectors : ["v(0)"]);
       render((v) => v + 1);
       return true;
@@ -510,18 +543,38 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
           drafts.current.delete(key(file.path));
       }
     }, [props.project]);
-    const flush = async (onlyPath?: string): Promise<SourceFlush> => {
+    const flush = async (
+      onlyPath?: string,
+      folderId?: string,
+      expectedRevision?: number,
+    ): Promise<SourceFlush> => {
       if (savingRef.current) return { ok: false };
       savingRef.current = true;
       setSaving(true);
       try {
-        let revision = current.current.project.structureRevision;
-        let folder = current.current.folder;
+        let revision =
+          expectedRevision ?? current.current.project.structureRevision;
+        let folder = folderId
+          ? current.current.project.simulationFolders.find(
+              (item) => item.id === folderId,
+            )
+          : current.current.folder;
+        if (!folder) {
+          props.onProblem(
+            inputProblem(
+              "SIMULATION_FOLDER_MISSING",
+              `Selected folder ${folderId} no longer exists`,
+            ),
+          );
+          return { ok: false };
+        }
+        const selectedFolderId = folder.id;
         const pending = [...drafts.current].filter(
           ([key, value]) =>
-            key.startsWith(`${folder.id}\u0000`) &&
+            key.startsWith(`${selectedFolderId}\u0000`) &&
             value.text !== value.base &&
-            (onlyPath === undefined || key === `${folder.id}\u0000${onlyPath}`),
+            (onlyPath === undefined ||
+              key === `${selectedFolderId}\u0000${onlyPath}`),
         );
         const authored: Array<{ path: string; text: string }> = [];
         const circuitEdits: Array<{
@@ -625,6 +678,12 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
     };
     useImperativeHandle(ref, () => ({
       flush,
+      flushFolders: (ids) =>
+        flushSelectedFolders(
+          ids,
+          current.current.project.structureRevision,
+          (id, revision) => flush(undefined, id, revision),
+        ),
       save: async () => {
         const applied = await flush();
         // Preserve every folder's remaining buffer, including invalid values and
@@ -1134,8 +1193,14 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
         maximized={props.maximized}
         onToggleMaximize={props.onToggleMaximize}
         status={
-          !recoveryAvailable || conflict || props.status ? (
+          !recoveryAvailable || conflict || props.status || legacyConfig ? (
             <>
+              {legacyConfig ? (
+                <span title="This existing experiment still uses version-1 JSON bindings and measurements. Convert through Helper after moving its electrical intent into Code.">
+                  Legacy configuration · migration required for Code-only
+                  execution
+                </span>
+              ) : null}
               {!recoveryAvailable ? (
                 <span role="alert">
                   Draft recovery unavailable — save or export before leaving.
@@ -1208,6 +1273,54 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
                 ?.text ?? file.text,
           )}
           helperActions={[
+            ...(legacyConfig
+              ? [
+                  {
+                    id: "convert-native",
+                    label: "Convert legacy experiment to native Code…",
+                    keywords: "migrate configuration experiment.json 迁移",
+                    run: async () => {
+                      const applied = await flush();
+                      if (!applied.ok) return;
+                      const converted = migrateSimulationConfigToNative(
+                        current.current.project,
+                        applied.folder,
+                      );
+                      if (!converted.ok) {
+                        props.onProblem(
+                          inputProblem(
+                            "SIMULATION_NATIVE_MIGRATION_REQUIRED",
+                            converted.message,
+                          ),
+                        );
+                        return;
+                      }
+                      const result = await props.files.handle({
+                        action: "update",
+                        owner: {
+                          kind: "project-folder",
+                          folderId: applied.folder.id,
+                        },
+                        expectedRevision: applied.revision,
+                        writes: converted.folder.input.files.filter(
+                          (file) =>
+                            file.path === converted.folder.input.configPath,
+                        ),
+                      });
+                      if (!result.ok) props.onProblem(result.error);
+                    },
+                  },
+                ]
+              : []),
+            {
+              id: "save-device-op",
+              label: "Save device operating point…",
+              keywords: "MOS gm gds vth id 工作点",
+              run: () => {
+                beginSignalSelection();
+                setProbePicker("device-op");
+              },
+            },
             {
               id: "save-voltage",
               label: "Save voltage…",

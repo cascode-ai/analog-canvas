@@ -1,6 +1,7 @@
 import {
   ProjectSimulationFolderSchema,
   SimulationExperimentConfigSchema,
+  NativeSimulationExperimentConfigSchema,
   type ProjectSimulationFolder,
   type SimulationExperimentConfig,
 } from "./schema.js";
@@ -15,8 +16,8 @@ export function createSimulationFolder(options: {
   /** Supplied from the canonical netlist interface when authoring a textual TB. */
   dut?: { name: string; ports: string[] };
 }): ProjectSimulationFolder {
-  const config = SimulationExperimentConfigSchema.parse({
-    version: 1,
+  const config = NativeSimulationExperimentConfigSchema.parse({
+    version: 2,
     environment: { profileId: options.profileId },
   });
   return ProjectSimulationFolderSchema.parse({
@@ -86,7 +87,11 @@ export function createSimulationFolder(options: {
 export function readSimulationExperimentConfig(
   folder: ProjectSimulationFolder,
 ):
-  | { ok: true; config: SimulationExperimentConfig }
+  | {
+      ok: true;
+      config: SimulationExperimentConfig;
+      authority: "code" | "legacy-config";
+    }
   | {
       ok: false;
       message: string;
@@ -106,9 +111,26 @@ export function readSimulationExperimentConfig(
       fields: [],
     };
   }
-  const parsed = SimulationExperimentConfigSchema.safeParse(value);
+  const native =
+    typeof value === "object" &&
+    value !== null &&
+    "version" in value &&
+    value.version === 2;
+  const parsed = native
+    ? NativeSimulationExperimentConfigSchema.safeParse(value)
+    : SimulationExperimentConfigSchema.safeParse(value);
   return parsed.success
-    ? { ok: true, config: parsed.data }
+    ? {
+        ok: true,
+        authority: native ? "code" : "legacy-config",
+        // Compatibility-shaped execution metadata is derived, never persisted beside Code.
+        config: native
+          ? SimulationExperimentConfigSchema.parse({
+              version: 1,
+              environment: parsed.data.environment,
+            })
+          : (parsed.data as SimulationExperimentConfig),
+      }
     : {
         ok: false,
         message: "Correct the experiment configuration",

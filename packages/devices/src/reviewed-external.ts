@@ -1,4 +1,5 @@
 import type { DeviceParameterDefinition } from "./contract.js";
+import { parameterExpressionBody } from "./parameter-expression.js";
 
 export type ReviewedExternalBindingId =
   | "sky130-nfet-01v8"
@@ -312,12 +313,22 @@ function parseSpiceNumber(value: string): number {
 
 /** Canonical Project length (metres) to the reviewed SKY130 plain-um form. */
 export function projectLengthToSky130Micrometres(value: string): string {
+  const expression = parameterExpressionBody(value);
+  if (expression !== undefined) {
+    const inverse = /^\((.*)\) \* 1u$/u.exec(expression);
+    return inverse ? `{${inverse[1]}}` : `{(${expression}) / 1u}`;
+  }
   return `${Number((parseSpiceNumber(value) / 1e-6).toPrecision(12))}`;
 }
 
 /** Reviewed SKY130 plain-um input to the canonical Project length spelling. */
 export function sky130MicrometresToProjectLength(value: string): string {
   const text = value.trim();
+  const expression = parameterExpressionBody(text);
+  if (expression !== undefined) {
+    const inverse = /^\((.*)\) \/ 1u$/u.exec(expression);
+    return inverse ? `{${inverse[1]}}` : `{(${expression}) * 1u}`;
+  }
   if (!/^[+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?$/iu.test(text)) {
     throw new Error(
       `Reviewed SKY130 geometry must be a plain micrometre number: ${value}`,

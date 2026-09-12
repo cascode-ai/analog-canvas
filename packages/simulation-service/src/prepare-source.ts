@@ -147,17 +147,19 @@ export async function prepareSourceExecutionInput(
       dependency = { ...library, mountPath };
       dependencies.push(dependency);
     }
+    const existingLoads = compiled.includes.filter(
+      (include) => include.target === dependency.mountPath,
+    );
     const selectedCorner =
-      config.environment.corner ?? caps.modelLibrary?.section;
+      compiled.authority === "code" && existingLoads.length
+        ? existingLoads[0]!.section
+        : (config.environment.corner ?? caps.modelLibrary?.section);
     if (!selectedCorner || !profile.corners.includes(selectedCorner))
       return problem(
         "SIMULATION_CORNER_UNSUPPORTED",
         "Select a qualified model corner before preparation",
         "prepare",
       );
-    const existingLoads = compiled.includes.filter(
-      (include) => include.target === dependency.mountPath,
-    );
     if (
       existingLoads.some(
         (load) => load.section?.toLowerCase() !== selectedCorner.toLowerCase(),
@@ -202,6 +204,9 @@ export async function prepareSourceExecutionInput(
       files[entryIndex] = { path: mapped.path, text: mapped.text };
       sourceMaps[entryIndex] = { path: mapped.path, segments: mapped.segments };
     }
+    // Record the actual native model selection in the execution receipt only.
+    if (compiled.authority === "code")
+      config.environment.corner = selectedCorner;
   }
   const output = config.collection.rawfile;
   if (

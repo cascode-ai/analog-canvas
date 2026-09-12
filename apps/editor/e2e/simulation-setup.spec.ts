@@ -99,7 +99,7 @@ test("the qualified OTA folder opens unchanged and preserves all root and hierar
   });
   await clickNetlistWorkflowCommand(page, "open-analog-simulation");
   const panel = page.getByRole("region", { name: "Analog simulation" });
-  // Ordinary picks write native save text; current instrumentation keeps its owner.
+  // New Helper picks write native Code even in a retained legacy experiment.
   const helper = async (name: string) => {
     await panel.getByRole("button", { name: "Helper", exact: true }).click();
     await panel.getByRole("option", { name, exact: true }).click();
@@ -121,7 +121,7 @@ test("the qualified OTA folder opens unchanged and preserves all root and hierar
   await expect(
     panel.getByRole("textbox", { name: "Simulation source editor" }),
   ).not.toBeFocused();
-  // Repeated current picks stay active without duplicating instrumentation.
+  // Repeated current picks stay active without duplicating native acquisition.
   await page.getByTestId("terminal-VINP-+").click();
   await page.getByTestId("terminal-VINP--").click();
   await expect(page.getByTestId("schematic-canvas")).toHaveClass(
@@ -143,10 +143,11 @@ test("the qualified OTA folder opens unchanged and preserves all root and hierar
   const pickedConfig = readSimulationExperimentConfig(
     pickedProject.simulationFolders[0]!,
   );
-  expect(pickedConfig.ok && pickedConfig.config.outputs.length).toBe(5);
-  expect(
-    pickedConfig.ok && pickedConfig.config.outputs.at(-1)?.expression,
-  ).toMatchObject({ kind: "current" });
+  expect(pickedConfig.ok && pickedConfig.config).toEqual(originalSetupInput);
+  const pickedSource = pickedProject.simulationFolders[0]!.input.files.find(
+    (file) => file.path === savedSetup.input.entry,
+  )!.text;
+  expect(pickedSource).toContain("i(vinp)");
   const circuit = {
     bindingId: savedSetup.input.circuitBindings[0]!.id,
     callPath: [],

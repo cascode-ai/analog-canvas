@@ -206,7 +206,14 @@ function sourceSeries(
   );
   const result = new Map<string, ComplexSeries>();
   for (const vector of vectors) {
-    const source = byName.get(vector.vector.toLowerCase());
+    const name = vector.vector.toLowerCase();
+    // ngspice 46 writes saved device parameters as i(@m[id]) / v(@m[vgs]),
+    // but admittance parameters retain @m[gm]. Keep raw names as evidence.
+    const source =
+      byName.get(name) ??
+      (name.startsWith("@")
+        ? (byName.get(`i(${name})`) ?? byName.get(`v(${name})`))
+        : undefined);
     if (!source) continue;
     const unit =
       vector.quantity === "native"
@@ -382,11 +389,20 @@ export function evaluateSimulationOutputs(
   );
   const records = operatingPoints.length ? operatingPoints : [undefined];
   const deviceOperatingPoints = records.flatMap((record) =>
-    deviceOperatingPointSpecs.map((device) => {
+    deviceOperatingPointSpecs.flatMap((device) => {
       const operatingPoint = record?.analysis;
       const acquisitions = operatingPoint
         ? sourceSeries(operatingPoint, vectors)
         : new Map();
+      const native = device.id.startsWith("native-op:");
+      const values = native
+        ? device.values.filter(
+            (value) =>
+              value.expression.kind === "acquisition" &&
+              acquisitions.has(value.expression.acquisitionId),
+          )
+        : device.values;
+      if (native && !values.length) return [];
       return {
         id: device.id,
         ...(record ? { analysisIndex: record.index } : {}),
@@ -398,7 +414,7 @@ export function evaluateSimulationOutputs(
         occurrence: [...device.occurrence],
         reference: device.reference,
         polarity: device.polarity,
-        values: device.values.map((parameter) => {
+        values: values.map((parameter) => {
           if (!operatingPoint)
             return {
               parameter: parameter.parameter,

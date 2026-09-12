@@ -14,3 +14,5 @@ export * from "./simulation-source-projection.js";
 export * from "./simulation-starter.js";
 export * from "./simulation-source-scopes.js";
 export * from "./simulation-signal-names.js";
+export * from "./simulation-native-devices.js";
+export * from "./simulation-native-migration.js";
