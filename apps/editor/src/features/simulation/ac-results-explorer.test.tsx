@@ -9,6 +9,42 @@ import {
 } from "./ac-results-explorer";
 
 describe("AC Results Explorer", () => {
+  it("keeps raw-only archive expressions signed without guessing units from their names", () => {
+    const markup = renderToStaticMarkup(
+      <AcResultsExplorer
+        vectors={[]}
+        probes={[]}
+        analysis={{
+          analysis: "ac",
+          plotName: "Archived RC",
+          frequencyHz: [10, 1000],
+          probes: [
+            {
+              name: "gain_db",
+              quantity: "decibel",
+              unit: null,
+              real: [-0.1, -3],
+              imag: [0, 0],
+            },
+            {
+              name: "phase_deg",
+              quantity: "notype",
+              unit: null,
+              real: [-1, -45],
+              imag: [0, 0],
+            },
+          ],
+        }}
+      />,
+    );
+    expect(markup).toContain('aria-label="AC Decibels"');
+    expect(markup).toContain('aria-label="AC phase_deg — Unknown unit"');
+    expect(markup).not.toContain(">Magnitude</button>");
+    expect(markup).toContain("dB");
+    expect(markup).toContain("unknown");
+    expect(markup).not.toContain("/deg");
+    expect(markup.match(/class="simulation-plot-layout"/gu)).toHaveLength(2);
+  });
   it("unwraps phase without inventing 360-degree discontinuities", () => {
     expect(unwrapPhaseDegrees([170, 179, -178, -165])).toEqual([
       170, 179, 182, 195,

@@ -9,6 +9,14 @@ import {
 } from "./transient-results-explorer";
 
 describe("Transient Results Explorer", () => {
+  it("fits a log-frequency window to the same line intersections it draws", () => {
+    const values = transientVisibleValues([1, 1000], [0, -90], [10, 100], true);
+    expect(values[0]).toBeCloseTo(-30);
+    expect(values[1]).toBeCloseTo(-60);
+    expect(transientVisibleValues([0, 100], [0, -90], [10, 50], true)).toEqual(
+      [],
+    );
+  });
   it("maps the simulator's actual time coordinates rather than point indices", () => {
     const points = transientPolylinePoints([0, 1e-9, 10e-9], [0, 0.5, 1]);
     const x = points.split(" ").map((point) => Number(point.split(",")[0]));
