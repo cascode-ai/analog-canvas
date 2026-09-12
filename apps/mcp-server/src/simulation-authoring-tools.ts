@@ -170,6 +170,14 @@ async function read(
         `${parsed.path}: ${parsed.message}. Source files remain editable through simulation_files.`,
       ),
     };
+  if (parsed.authority === "code")
+    return {
+      ok: false as const,
+      result: failure(
+        "SIMULATION_NATIVE_CODE_REQUIRED",
+        "This experiment is Code-authoritative. Read/edit save, .probe, let and meas through simulation_files; Device OP uses save @device[parameter] followed by op. Legacy JSON helpers cannot downgrade it or add another electrical authority.",
+      ),
+    };
   return {
     ok: true as const,
     folder,
@@ -295,7 +303,7 @@ export const simulationAuthoringTools: readonly Entry[] = [
   ),
   tool(
     "simulation_output",
-    "Manage experiment output ASTs in the one configuration source file. Use {kind:'vector',vector:'v(out)'} for native vectors, circuit-qualified voltage/current for Canvas anchors, and unary/binary math ASTs. Native SPICE expressions in run.cir remain freely editable. Missing runtime vectors diagnose at prepare/result time, never end the session.",
+    "Legacy version-1 experiments only: manage output ASTs in their configuration file. Code-authoritative version-2 experiments require simulation_files to edit save/.probe/let and cannot be downgraded by this helper. Missing runtime vectors diagnose at prepare/result time.",
     OutputArgs,
     async (parsed, session) => {
       const result = await read(session, parsed.folderId, parsed.documentId);
@@ -329,7 +337,7 @@ export const simulationAuthoringTools: readonly Entry[] = [
   ),
   tool(
     "simulation_measurement",
-    "Manage saved per-record scalar measurements in the experiment configuration source. value, sample-at, minimum, maximum, peak-to-peak, mean and RMS share the runtime schema. A measurement may be authored before its analysis or output exists; prepare and result diagnostics identify unresolved references without blocking file editing.",
+    "Legacy version-1 experiments only: manage saved per-record scalar measurements. Code-authoritative version-2 experiments use native meas through simulation_files; ngspice evaluates them and the app displays reported evidence. This helper cannot add JSON measurement rules to version 2.",
     MeasurementArgs,
     async (parsed, session) => {
       const result = await read(session, parsed.folderId, parsed.documentId);
@@ -364,7 +372,7 @@ export const simulationAuthoringTools: readonly Entry[] = [
   ),
   tool(
     "simulation_device_operating_point",
-    "Select MOS occurrences for terminal-derived VGS, VDS, VBS and drain-entering ID. circuit names the generated binding and authored X callPath; occurrence addresses hierarchy inside that binding. This edits the same experiment configuration used by Code, not a second folder object. OP may be added to the native program before or after this helper.",
+    "Legacy version-1 experiments only: select MOS occurrences for terminal-derived VGS/VDS/VBS/ID. Code-authoritative version-2 experiments use simulation_files to write native save @device[parameter], then op and write. This helper cannot create JSON selections in version 2.",
     DeviceArgs,
     async (parsed, session) => {
       const result = await read(session, parsed.folderId, parsed.documentId);

@@ -1,6 +1,9 @@
 import { mkdir, writeFile } from "node:fs/promises";
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { createEmptyProject, createSimulationFolder } from "@icm/model";
+import { parseProject } from "@icm/project-protocol";
+import { nativeSimulationDevices, nativeDeviceOpVectors } from "@icm/netlist";
 import {
   prepareSourceExecutionInput,
   CapabilitiesSchema,
@@ -52,6 +55,55 @@ async function run(request, name) {
 }
 
 describe.skipIf(!endpoint)("candidate ngspice46 source qualification", () => {
+  it("reads the reviewed SKY130 wrapper's native OP parameters", async () => {
+    const circuit = parseProject(
+      readFileSync(
+        new URL(
+          "../apps/editor/src/examples/five-transistor-ota-sky130.icproj.json",
+          import.meta.url,
+        ),
+        "utf8",
+      ),
+    );
+    const folder = createSimulationFolder({
+      id: "native-sky130",
+      name: "Native SKY130",
+      profileId: profile.id,
+      documentId: "document-ota-5t-testbench",
+    });
+    const devices = nativeSimulationDevices(circuit, folder.input).filter(
+      (device) => device.polarity,
+    );
+    expect(devices).toHaveLength(5);
+    const entry = folder.input.files.find(
+      (file) => file.path === folder.input.entry,
+    );
+    entry.text = entry.text.replace(
+      "\nop\n",
+      `\nsave ${devices.flatMap(nativeDeviceOpVectors).join(" ")}\nop\n`,
+    );
+    const response = await post({ operation: "capabilities" });
+    const compiled = await prepareSourceExecutionInput(
+      circuit,
+      folder,
+      CapabilitiesSchema.parse(await response.json()),
+    );
+    expect(compiled.ok, JSON.stringify(compiled)).toBe(true);
+    const result = await run(compiled.input, "native-sky130-op");
+    expect(result.outcome.status, JSON.stringify(result)).toBe("completed");
+    const probes = result.data.analyses.find(
+      (analysis) => analysis.analysis === "op",
+    ).probes;
+    // Acquisition availability/identity, not a new electrical golden or an
+    // invented threshold. Numeric OTA qualification remains the existing tests.
+    for (const vector of devices.flatMap(nativeDeviceOpVectors)) {
+      const probe = probes.find((candidate) =>
+        [vector, `i(${vector})`, `v(${vector})`].includes(candidate.name),
+      );
+      expect(probe, vector).toBeDefined();
+      expect(Number.isFinite(probe.value), vector).toBe(true);
+    }
+  }, 160_000);
   it("collects native hierarchical Device OP and top-level terminal probes", async () => {
     const response = await post({ operation: "capabilities" });
     const caps = CapabilitiesSchema.parse(await response.json());

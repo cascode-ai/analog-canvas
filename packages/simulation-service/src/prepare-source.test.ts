@@ -274,6 +274,24 @@ describe("source execution preparation", () => {
         ],
       },
     });
+    folder.input.files.find(
+      (file) => file.path === folder.input.configPath,
+    )!.text = JSON.stringify({
+      version: 2,
+      environment: { profileId: profile.id },
+    });
+    const nativeBefore = JSON.stringify(folder);
+    const nativeCorner = await prepareSourceExecutionInput(
+      circuit,
+      folder,
+      caps,
+    );
+    expect(nativeCorner.ok, JSON.stringify(nativeCorner)).toBe(true);
+    if (nativeCorner.ok) {
+      expect(nativeCorner.input.environment?.corner).toBe("ff");
+      expect(nativeCorner.input.preparedDeck.match(/\.lib /gu)).toHaveLength(1);
+    }
+    expect(JSON.stringify(folder)).toBe(nativeBefore);
   });
   it("returns located diagnostics for invalid drafts and capability problems without mutating them", async () => {
     const folder = native();
