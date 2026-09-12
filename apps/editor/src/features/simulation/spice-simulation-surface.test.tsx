@@ -64,7 +64,7 @@ describe("source workspace default cutover", () => {
     expect(markup).toContain('aria-label="Open simulation files"');
     expect(markup).toContain("circuit.spice");
     expect(markup).toContain("run.cir");
-    expect(markup).toContain("experiment.json");
+    expect(markup).not.toContain("experiment.json");
     expect(markup).toContain('aria-label="Simulation folders"');
     expect(markup).not.toContain('aria-label="Simulation setup"');
     expect(markup).not.toContain("Prepare deck");
@@ -75,6 +75,7 @@ describe("source workspace default cutover", () => {
   });
   it("retains the editor for invalid authored configuration rather than crashing or restoring a second form", () => {
     const markup = render(true, true);
+    expect(markup).toContain("experiment.json");
     expect(markup).toContain('aria-label="Simulation Code workspace"');
     expect(markup).toContain("run.cir");
     expect(markup).not.toContain('aria-label="Measurements settings"');

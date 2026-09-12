@@ -156,7 +156,8 @@ New experiments ask for a name and an explicit Cell selection, defaulting to the
 current Canvas Cell. They bind the selected Cell as the top-level circuit and
 create a small `op` starter; they do not ask for OP/AC/TRAN or TB/DUT/source mode.
 Any Cell can be the simulation root, not only a dedicated Testbench. The Explorer
-shows the bound Cell name (or a missing-Cell marker); changing the active Canvas
+shows the bound Cell name (or a missing-Cell marker) in a non-focusing folder
+hover hint, not inline beside the folder name; changing the active Canvas
 does not rebind an existing experiment. The existing circuit binding is the sole
 source mapping, with no duplicate Cell setting in `experiment.json`. Creation
 does not wrap the Cell in an invented DUT call or guess stimuli. Helpers can
@@ -201,8 +202,11 @@ an explicit save list to `all`.
 Discovery and completion use the compiler's authored call-path mapping; they
 show the Canvas name alongside the executable native vector. Native vectors
 remain available for text-only or statically unresolvable scopes.
-`experiment.json` is available through the Explorer's advanced configuration
-command, not a compulsory fourth panel.
+Valid version-2 `experiment.json` is internal hosted-environment metadata, hidden
+from the Explorer and file tabs. It remains in Project persistence and complete
+backups. Legacy, malformed and pending-draft configuration remains visible for
+repair; ordinary authored JSON files are not hidden. No environment picker is
+provided in the normal Code workspace.
 
 Folder expansion is independent of active execution and batch selection. New
 files/folders and renames use inline text input (Enter accepts, Escape cancels),

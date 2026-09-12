@@ -206,12 +206,6 @@
   background: var(--icm-surface);
   color: var(--icm-text);
 }
-.simulation-folder-cell {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 50%;
-}
 .workspace-editor-content {
   height: 100%;
 }

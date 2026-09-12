@@ -23,6 +23,82 @@ import {
 import { ota, profile, editSimulationFile } from "./simulation-e2e-fixtures.js";
 
 const loadModule = createRequire(import.meta.url);
+test("native metadata is hidden per folder while damaged configuration stays repairable", async ({
+  page,
+}) => {
+  const project = parseProject(JSON.stringify(ota));
+  const native = createSimulationFolder({
+    id: "native",
+    name: "Native",
+    documentId: project.topDocumentId,
+    profileId: profile.id,
+  });
+  const repair = createSimulationFolder({
+    id: "repair",
+    name: "Repair",
+    documentId: project.topDocumentId,
+    profileId: profile.id,
+  });
+  const config = repair.input.files.find(
+    (file) => file.path === repair.input.configPath,
+  )!;
+  const original = config.text;
+  config.text = "{";
+  project.simulationFolders = [native, repair];
+  await page.route("**/api/simulate", (route) =>
+    route.fulfill({
+      status: 503,
+      json: { error: "Offline authoring fixture" },
+    }),
+  );
+  await page.goto("/editor");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "metadata.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  await page.getByTestId("open-analog-simulation").click();
+  const panel = page.getByRole("region", { name: "Analog simulation" });
+  await expect(
+    panel.locator(
+      '[data-folder-id="native"][data-file-path="experiment.json"]',
+    ),
+  ).toHaveCount(0);
+  await panel
+    .getByRole("treeitem", { name: "Folder Repair", exact: true })
+    .click();
+  await panel
+    .getByRole("button", { name: "Toggle Repair", exact: true })
+    .click();
+  await panel
+    .getByRole("treeitem", { name: "experiment.json", exact: true })
+    .click();
+  const editor = panel.getByRole("textbox", {
+    name: "Simulation source editor",
+  });
+  await expect(editor).toHaveText("{");
+  await editor.fill(original);
+  await panel.getByRole("button", { name: "Save source", exact: true }).click();
+  await expect(
+    panel.getByRole("treeitem", { name: "experiment.json", exact: true }),
+  ).toHaveCount(0);
+  await expect(panel.getByRole("tab", { name: "Configuration" })).toHaveCount(
+    0,
+  );
+  await expect(panel.getByRole("tab", { name: /run\.cir/ })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  const saved = parseProject(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(),
+  );
+  for (const folder of saved.simulationFolders)
+    expect(
+      folder.input.files.find((file) => file.path === folder.input.configPath)!
+        .text,
+    ).toBe(original);
+});
+
 test("Code adds and removes source AC clauses and routes parameter declarations to authored Code", async ({
   page,
 }) => {
@@ -171,12 +247,22 @@ test("new experiments explicitly bind the selected Cell without requiring a Test
     name: "Folder OTA direct",
     exact: true,
   });
-  await expect(folderRow).toContainText("Cell: ota_5t");
+  await expect(folderRow).toHaveText("OTA direct");
+  await expect(folderRow).toHaveAttribute("title", "Cell: ota_5t");
+  await expect(folderRow).toHaveAttribute("aria-description", "Cell: ota_5t");
   const editor = page.getByRole("textbox", {
     name: "Simulation source editor",
   });
   await expect(editor).toContainText('.include "circuit.spice"');
   await expect(editor).toContainText("op");
+  await expect(
+    page.getByRole("treeitem", { name: "experiment.json", exact: true }),
+  ).toHaveCount(0);
+  await editor.focus();
+  const folderWidth = (await folderRow.boundingBox())!.width;
+  await folderRow.hover();
+  await expect(editor).toBeFocused();
+  expect((await folderRow.boundingBox())!.width).toBe(folderWidth);
   await page.getByRole("tab", { name: /circuit\.spice/ }).click();
   await expect(editor).toContainText("XM1");
   await expect(editor).not.toContainText("XDUT");
@@ -222,7 +308,7 @@ test("new experiments explicitly bind the selected Cell without requiring a Test
     .click();
   await expect(cell).toHaveValue(project.topDocumentId);
   await cell.press("Escape");
-  await expect(folderRow).toContainText("Cell: ota_5t");
+  await expect(folderRow).toHaveAttribute("title", "Cell: ota_5t");
   const unchanged = parseProject(
     (await downloadBytes(page, "File", "Export Project File…")).toString(),
   );
@@ -233,7 +319,7 @@ test("new experiments explicitly bind the selected Cell without requiring a Test
     mimeType: "application/json",
     buffer: Buffer.from(JSON.stringify(unchanged)),
   });
-  await expect(folderRow).toContainText("Cell: ota_5t");
+  await expect(folderRow).toHaveAttribute("title", "Cell: ota_5t");
 });
 
 test("tab context menus replace workspace more actions without discarding source", async ({
@@ -246,6 +332,7 @@ test("tab context menus replace workspace more actions without discarding source
     documentId: project.topDocumentId,
     profileId: profile.id,
   });
+  folder.input.files.push({ path: "notes.json", text: "{}\n" });
   project.simulationFolders = [folder];
   await page.route("**/api/simulate", (route) =>
     route.fulfill({
@@ -279,11 +366,12 @@ test("tab context menus replace workspace more actions without discarding source
     .getByRole("treeitem", { name: "circuit.spice", exact: true })
     .click();
   await panel
-    .getByRole("treeitem", { name: "experiment.json", exact: true })
+    .getByRole("treeitem", { name: "notes.json", exact: true })
     .click();
-  await expect(
-    panel.getByRole("tab", { name: "Configuration" }),
-  ).toHaveAttribute("aria-selected", "true");
+  await expect(panel.getByRole("tab", { name: "notes.json" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
   await circuitTab.click({ button: "right" });
   await page
     .getByRole("menuitem", { name: "Close others", exact: true })
@@ -2045,7 +2133,7 @@ test("Explorer context downloads preserve multi-selection and directory contents
   await run.click({ modifiers: ["Shift"] });
   await expect(
     alphaFiles.getByRole("treeitem", { selected: true }),
-  ).toHaveCount(3);
+  ).toHaveCount(2);
   await expect(
     workspace.getByRole("tab", { name: /circuit\.spice/ }),
   ).toHaveAttribute("aria-selected", "true");
@@ -2096,7 +2184,7 @@ test("Explorer context downloads preserve multi-selection and directory contents
   expect(
     names.filter((path) => path.endsWith("models/bias/local.cir")),
   ).toHaveLength(1);
-  expect(names).toContain("Alpha/source/experiment.json");
+  expect(names).not.toContain("Alpha/source/experiment.json");
   await workspace.screenshot({
     path: test.info().outputPath("compact-explorer.png"),
   });
