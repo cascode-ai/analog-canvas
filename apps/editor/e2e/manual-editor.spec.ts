@@ -246,6 +246,12 @@ test("live typing preserves the caret, local undo and incomplete JSON", async ({
   ).toBeVisible();
   await expect(value).toContainText("EVx");
   await expect(page.getByTestId("revision")).toHaveText(revision!);
+  await code.press("Escape");
+  await expect(code).not.toBeFocused();
+  await expect(
+    page.getByText(/Canvas keeps the last valid edit/u),
+  ).toBeVisible();
+  await expect(page.getByTestId("revision")).toHaveText(revision!);
   await code.press("ControlOrMeta+End");
   await code.press("}");
   await expect(page.getByText(/Live · valid edits/u)).toBeVisible();
@@ -4398,7 +4404,7 @@ test("drag value annotation keeps the user offset through rotation", async ({
   ).toBeGreaterThan(10);
 });
 
-test("applied property drafts survive blank click and Escape", async ({
+test("live property edits survive blank click and Escape without replaying legacy drafts", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -5562,6 +5568,9 @@ test("selects a reviewed SKY130 MOS through the existing Model field", async ({
   await openSelectionShelf(page);
   const properties = page.getByRole("complementary", { name: "Properties" });
 
+  await properties
+    .getByRole("button", { name: "Need help?", exact: true })
+    .click();
   await expect(properties).toContainText("sky130_fd_pr__nfet_01v8");
   await setComponentCodeField(page, "netlistTarget", "sky130_fd_pr__nfet_01v8");
 
