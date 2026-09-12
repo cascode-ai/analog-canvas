@@ -38,6 +38,7 @@ import {
 } from "./source-presentation";
 import { SimulationProblemView } from "./simulation-problem-view";
 import { SimulationRunDetails } from "./simulation-run-details";
+import { SimulationActionIcon } from "./simulation-action-icon";
 import { AcResultsExplorer } from "./ac-results-explorer";
 import { DcResultsExplorer } from "./dc-results-explorer";
 import { TransientResultsExplorer } from "./transient-results-explorer";
@@ -411,13 +412,18 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
       clearTimeout(timer);
     };
   }, [batch?.id, batch?.state, session, project]);
-  const execute = async (start: boolean) => {
+  const execute = async (start: boolean, inspect = false) => {
     if (lock.current) return;
     const authored = await codeRef.current?.flush();
     if (!authored?.ok) return;
     const selectedConfig = readSimulationExperimentConfig(authored.folder);
     if (selectedConfig.ok && selectedConfig.config.runPlan.mode === "sweep") {
-      await executeSweep(selectedConfig.config.runPlan.axes, start, authored);
+      await executeSweep(
+        selectedConfig.config.runPlan.axes,
+        start,
+        authored,
+        inspect,
+      );
       return;
     }
     lock.current = true;
@@ -440,6 +446,18 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
         });
       }
       receive(reply);
+      if (
+        inspect &&
+        reply.ok &&
+        "prepared" in reply &&
+        alive.current &&
+        activeFolderId.current === authored.folder.id
+      ) {
+        const deck = reply.prepared.artifacts.find(
+          (artifact) => artifact.name === "prepared.cir",
+        );
+        if (deck) await preview(deck);
+      }
       if (start && reply.ok && "prepared" in reply && alive.current)
         receive(
           await session.handle({
@@ -516,6 +534,7 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
     axes: readonly SimulationRunPlanAxis[],
     start: boolean,
     authored: Extract<SourceFlush, { ok: true }>,
+    inspect = false,
   ) => {
     if (lock.current || !selectedFolder) return;
     lock.current = true;
@@ -548,7 +567,19 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
         );
       else {
         const first = preparedReply.batch.items[0];
-        if (first) await showBatchItem(first);
+        if (first) {
+          await showBatchItem(first);
+          if (
+            inspect &&
+            alive.current &&
+            activeFolderId.current === authored.folder.id
+          ) {
+            const deck = first.prepared.artifacts.find(
+              (artifact) => artifact.name === "prepared.cir",
+            );
+            if (deck) await preview(deck);
+          }
+        }
       }
     } finally {
       lock.current = false;
@@ -619,7 +650,7 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
     setArtifactPreview(result.content);
   };
   const downloadBundle = async (
-    key: "prepare" | "run",
+    key: "diagnostics" | "run",
     artifacts: readonly ArtifactRef[],
   ) => {
     setArtifactBusy(`bundle:${key}`);
@@ -897,12 +928,6 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
   );
   const artifactGroups = [
     {
-      key: "prepare" as const,
-      label: "Prepare",
-      description: "Compiled input",
-      artifacts: prepared?.artifacts ?? [],
-    },
-    {
       key: "run" as const,
       label: "Run",
       description: "Execution output",
@@ -910,6 +935,30 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
         run?.artifacts.filter(
           (artifact) => !runPreparedArtifactIds.has(artifact.id),
         ) ?? [],
+    },
+  ];
+  // A run's diagnostics must stay tied to that run, never a newer prepared input.
+  const diagnosticArtifacts = run?.artifacts ?? prepared?.artifacts ?? [];
+  const executedDeck = run?.artifacts.find(
+    (artifact) => artifact.name === "executed.cir",
+  );
+  const diagnosticActions = [
+    {
+      label: "Preview input netlist…",
+      disabled: busy || running,
+      run: () => void execute(false, true),
+    },
+    {
+      label: "View executed netlist…",
+      disabled: !executedDeck || artifactBusy !== undefined,
+      run: () => {
+        if (executedDeck) void preview(executedDeck);
+      },
+    },
+    {
+      label: "Export diagnostic bundle…",
+      disabled: diagnosticArtifacts.length === 0 || artifactBusy !== undefined,
+      run: () => void downloadBundle("diagnostics", diagnosticArtifacts),
     },
   ];
   const resultCsvArtifacts = run
@@ -1534,7 +1583,9 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
     <div className="simulation-task-actions">
       {running ? (
         <button
-          className="simulation-stop-button"
+          className="simulation-stop-button simulation-action-button"
+          aria-label={batchRunning ? "Cancel batch" : "Cancel run"}
+          title={batchRunning ? "Cancel batch" : "Cancel run"}
           disabled={
             batch?.state === "cancelling" || run?.state === "cancelling"
           }
@@ -1549,17 +1600,18 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
                 .then(receive);
           }}
         >
-          {batchRunning ? "Cancel batch" : "Cancel run"}
+          <SimulationActionIcon kind="stop" />
         </button>
       ) : selectedFolder ? (
         <button
-          className="simulation-primary-button simulation-run-button"
+          className="simulation-action-button simulation-run-button"
+          aria-busy={busy}
           disabled={busy}
           onClick={() => void execute(true)}
           aria-label="Run"
           title={`Run ${selectedFolder.name}`}
         >
-          ▶
+          <SimulationActionIcon kind={busy ? "saving" : "run"} />
         </button>
       ) : (
         <button
@@ -1740,7 +1792,7 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
           maximized={resultsMaximized}
           onToggleMaximize={toggleResultsMaximized}
           onRun={() => void execute(true)}
-          onPrepare={() => void execute(false)}
+          additionalActions={diagnosticActions}
           folders={{
             folders: project.simulationFolders.map((folder) => ({
               ...folder,

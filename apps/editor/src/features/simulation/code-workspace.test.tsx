@@ -81,7 +81,7 @@ describe("approved simulation Code layout", () => {
     expect(markup).not.toContain(">Results</button>");
     expect(markup).toContain('aria-label="Close run.cir"');
   });
-  it("defaults Source open and temporary Prepare/Run files closed in Explorer", () => {
+  it("defaults Source open and Run outputs closed without exposing preparation", () => {
     const artifact = {
       id: "artifact-1",
       name: "prepared.cir",
@@ -99,9 +99,9 @@ describe("approved simulation Code layout", () => {
           files={[{ path: "run.cir", kind: "authored" }]}
           artifactGroups={[
             {
-              key: "prepare",
-              label: "Prepare",
-              description: "Compiled input",
+              key: "run",
+              label: "Run",
+              description: "Execution output",
               artifacts: [artifact],
             },
           ]}
@@ -124,7 +124,8 @@ describe("approved simulation Code layout", () => {
     );
     expect(markup).toContain('aria-label="Source"');
     expect(markup).toContain('aria-expanded="true"');
-    expect(markup).toContain('aria-label="Prepare"');
+    expect(markup).not.toContain('aria-label="Prepare"');
+    expect(markup).toContain('aria-label="Run"');
     expect(markup).toContain('aria-expanded="false"');
     expect(markup).toContain(">tmp</small>");
     expect(markup).not.toContain("prepared.cir");

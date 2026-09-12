@@ -10,7 +10,7 @@ import type {
   SimulationExplorerSelection,
   SimulationCodeFile,
 } from "./code-workspace";
-import { simulationArtifactCategory } from "./simulation-artifact-files";
+import { simulationExplorerArtifactCategory } from "./simulation-artifact-files";
 import {
   useWorkspaceInteractions,
   WorkspaceNameInput,
@@ -131,7 +131,8 @@ export function SimulationFileTree(props: SimulationCodeWorkspaceProps) {
           tmp: true,
         };
         for (const artifact of group.artifacts) {
-          const category = simulationArtifactCategory(artifact);
+          const category = simulationExplorerArtifactCategory(artifact);
+          if (!category) continue;
           let categoryNode = directory.children!.find(
             (node) => node.name === category,
           );
@@ -260,6 +261,12 @@ export function SimulationFileTree(props: SimulationCodeWorkspaceProps) {
             targets.some((target) => Boolean(target.children)),
           ),
       });
+    if (
+      targets.length === 1 &&
+      node?.folderId === activeId &&
+      (node.kind === "folder" || node.id === activeId + "/run")
+    )
+      items.push(...(props.additionalActions ?? []));
     if (targets.length === 1 && node?.file) {
       items.push(
         { label: "Open", run: () => openFile(node) },

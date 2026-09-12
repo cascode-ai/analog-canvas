@@ -4,6 +4,7 @@ import {
 } from "@icm/model";
 import { test, expect } from "@playwright/test";
 import { parseProject } from "@icm/project-protocol";
+import { unzipSync } from "fflate";
 
 import {
   clickNetlistWorkflowCommand,
@@ -193,16 +194,8 @@ test("the qualified OTA folder opens unchanged and preserves all root and hierar
     JSON.stringify(config, null, 2),
   );
   await panel.getByRole("button", { name: "More code actions" }).click();
-  await page.getByRole("menuitem", { name: "View final deck" }).click();
-  const prepareFiles = panel.getByLabel("Prepare temporary files");
-  await expect(prepareFiles).toBeVisible();
-  await prepareFiles
-    .getByRole("button", { name: "Toggle Prepare", exact: true })
-    .click();
-  await prepareFiles
-    .getByRole("button", { name: "Toggle Netlist", exact: true })
-    .click();
-  await panel.getByRole("treeitem", { name: /prepared\.cir/ }).click();
+  await page.getByRole("menuitem", { name: "Preview input netlist…" }).click();
+  await expect(panel.getByLabel("Prepare temporary files")).toHaveCount(0);
   const preview = panel.getByRole("region", { name: "File preview" });
   const download = page.waitForEvent("download");
   await preview.getByRole("button", { name: "Download", exact: true }).click();
@@ -224,6 +217,24 @@ test("the qualified OTA folder opens unchanged and preserves all root and hierar
   expect(deck).toContain('.lib "icm-models.lib" tt');
   expect(deck).toContain("tran 2e-8 0.000004");
   expect(executions).toBe(0);
+  await panel.getByRole("button", { name: "More code actions" }).click();
+  await expect(
+    page.getByRole("menuitem", { name: "View executed netlist…" }),
+  ).toBeDisabled();
+  const diagnosticDownload = page.waitForEvent("download");
+  await page
+    .getByRole("menuitem", { name: "Export diagnostic bundle…" })
+    .click();
+  const diagnosticStream = await (await diagnosticDownload).createReadStream();
+  const diagnosticChunks: Buffer[] = [];
+  for await (const chunk of diagnosticStream!)
+    diagnosticChunks.push(Buffer.from(chunk));
+  const diagnosticPaths = Object.keys(
+    unzipSync(Buffer.concat(diagnosticChunks)),
+  );
+  expect(diagnosticPaths).toContain("netlist/prepared.cir");
+  expect(diagnosticPaths).toContain("evidence/source-map.json");
+  expect(diagnosticPaths).not.toContain("netlist/executed.cir");
   const saved = await downloadBytes(page, "File", "Export Project File…");
   const reloaded = parseProject(saved.toString());
   expect(

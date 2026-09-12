@@ -992,50 +992,82 @@ test("human simulation uses saved folder, survives minimizing, recovers a bad in
   await waveformDialog.getByRole("button", { name: "Close plot" }).click();
   await panel.getByRole("button", { name: "Restore results" }).click();
   const runFiles = panel.getByLabel("Run temporary files");
+  await expect(panel.getByLabel("Prepare temporary files")).toHaveCount(0);
   await runFiles
     .getByRole("button", { name: "Toggle Run", exact: true })
     .click();
   await runFiles
     .getByRole("button", { name: "Toggle Results", exact: true })
     .click();
-  await runFiles
-    .getByRole("button", { name: "Toggle Evidence", exact: true })
-    .click();
   await expect(
-    panel.getByRole("treeitem", {
-      name: /evidence-manifest\.json/,
-    }),
+    runFiles.getByRole("treeitem", { name: "Logs", exact: true }),
   ).toBeVisible();
-  const download = page.waitForEvent("download");
-  await runFiles
+  await expect(
+    runFiles.getByRole("treeitem", {
+      name: /Evidence|Netlist|Other|[.]json|[.]cir/,
+    }),
+  ).toHaveCount(0);
+  const csvFile = runFiles
     .locator('button[data-tree-row="artifact"]')
-    .filter({ hasText: /\.csv/ })
-    .first()
-    .click();
+    .filter({ hasText: /[.]csv/ })
+    .first();
+  const download = page.waitForEvent("download");
+  await csvFile.click();
   await panel
     .getByLabel("File preview")
     .getByRole("button", { name: "Download", exact: true })
     .click();
-  expect((await download).suggestedFilename()).toMatch(/\.csv$/);
-  await expect(runFiles).toBeVisible();
+  expect((await download).suggestedFilename()).toMatch(/[.]csv$/);
+  const rawFile = runFiles.getByRole("treeitem", {
+    name: "out.raw",
+    exact: true,
+  });
+  await rawFile.click({ modifiers: ["Control"] });
+  await rawFile.click({ button: "right" });
+  const menuZip = async (name: string) => {
+    const pending = page.waitForEvent("download");
+    await page.getByRole("menuitem", { name, exact: true }).click();
+    const stream = await (await pending).createReadStream();
+    const chunks: Buffer[] = [];
+    for await (const chunk of stream!) chunks.push(Buffer.from(chunk));
+    return unzipSync(Buffer.concat(chunks));
+  };
+  const selectedEntries = await menuZip("Download selected (2)…");
+  expect(Object.keys(selectedEntries)).toHaveLength(2);
   await runFiles
-    .getByRole("treeitem", { name: /evidence-manifest\.json/ })
-    .click({ modifiers: ["Control"] });
-  await runFiles
-    .getByRole("treeitem", { name: /evidence-manifest\.json/ })
+    .getByRole("treeitem", { name: "Run", exact: true })
     .click({ button: "right" });
-  const bundleDownload = page.waitForEvent("download");
-  await page.getByRole("menuitem", { name: "Download selected (2)…" }).click();
-  expect((await bundleDownload).suggestedFilename()).toMatch(
-    /-selected-files\.zip$/,
-  );
+  const visibleEntries = await menuZip("Download…");
+  expect(
+    Object.keys(visibleEntries).some((path) => path.startsWith("run/logs/")),
+  ).toBe(true);
+  expect(
+    Object.keys(visibleEntries).every((path) =>
+      /[.](raw|csv|log|txt)$/.test(path),
+    ),
+  ).toBe(true);
+  await runFiles
+    .getByRole("treeitem", { name: "Run", exact: true })
+    .click({ button: "right" });
+  const diagnostics = await menuZip("Export diagnostic bundle…");
+  for (const path of [
+    "netlist/prepared.cir",
+    "netlist/executed.cir",
+    "evidence/source-map.json",
+    "evidence/prepared.json",
+    "evidence/result.json",
+    "evidence/evidence-manifest.json",
+  ])
+    expect(diagnostics[path]).toBeDefined();
   await panel.getByRole("button", { name: "More code actions" }).click();
-  await page.getByRole("menuitem", { name: "View final deck" }).click();
-  await expect(panel.getByLabel("Prepare temporary files")).toBeVisible();
-  await expect(panel.getByLabel("Run temporary files")).toBeVisible();
-  await expect(panel.getByText("Input identity", { exact: true })).toHaveCount(
-    0,
-  );
+  await page.getByRole("menuitem", { name: "View executed netlist…" }).click();
+  await expect(
+    panel.getByRole("tab", { name: /executed[.]cir/ }),
+  ).toBeVisible();
+  const executedBeforeEdit = await panel
+    .getByLabel("File preview")
+    .locator("pre")
+    .innerText();
   expect(executions).toBe(1);
   config.outputs[0]!.label = "new-output";
   await editSimulationFile(
@@ -1052,6 +1084,23 @@ test("human simulation uses saved folder, survives minimizing, recovers a bad in
   await expect(panel.locator(".simulation-code-status")).toContainText(
     "earlier Project revision",
   );
+  await panel.getByRole("button", { name: "More code actions" }).click();
+  await page.getByRole("menuitem", { name: "Preview input netlist…" }).click();
+  await expect(panel.getByLabel("File preview").locator("pre")).toContainText(
+    ".temp 30",
+  );
+  await panel.getByRole("button", { name: "More code actions" }).click();
+  await page.getByRole("menuitem", { name: "View executed netlist…" }).click();
+  await expect(panel.getByLabel("File preview").locator("pre")).toHaveText(
+    executedBeforeEdit,
+  );
+  await runFiles
+    .getByRole("treeitem", { name: "Run", exact: true })
+    .click({ button: "right" });
+  const oldRunDiagnostics = await menuZip("Export diagnostic bundle…");
+  expect(
+    Buffer.from(oldRunDiagnostics["netlist/prepared.cir"]!).toString(),
+  ).toBe(Buffer.from(diagnostics["netlist/prepared.cir"]!).toString());
   await panel.getByRole("tab", { name: "Plot", exact: true }).click();
   await panel.getByRole("button", { name: "Maximize results" }).click();
   await panel.getByRole("tab", { name: "Plot" }).click();
@@ -1340,6 +1389,26 @@ test("Simulation creates an ordinary testbench and defaults a new experiment to 
     expect(box!.height).toBeLessThanOrEqual(24);
   }
   expect((await taskbar.boundingBox())!.height).toBeLessThanOrEqual(32);
+  const saveButton = taskbar.getByRole("button", {
+    name: "Save project",
+    exact: true,
+  });
+  const runButton = taskbar.getByRole("button", { name: "Run", exact: true });
+  expect((await saveButton.boundingBox())!.width).toBe(runBox!.width);
+  expect(runBox!.width).toBe(22);
+  await expect(saveButton).toHaveText("");
+  await expect(runButton).toHaveText("");
+  await expect(saveButton).toHaveAttribute("title", /Save project.*Ctrl\+S/);
+  await expect(saveButton).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+  await expect(runButton).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+  await taskbar.getByRole("button", { name: "More code actions" }).click();
+  await expect(
+    page.getByRole("menuitem", { name: "View executed netlist…" }),
+  ).toBeDisabled();
+  await expect(
+    page.getByRole("menuitem", { name: "Export diagnostic bundle…" }),
+  ).toBeDisabled();
+  await page.keyboard.press("Escape");
   await page
     .getByRole("treeitem", { name: "run.cir", exact: true })
     .first()
