@@ -21,12 +21,17 @@ export function tidyRouteTerminalApproaches(
   route: RouteBranch,
   input: readonly Point[],
   inputModes: readonly SegmentMode[],
+  originalDocument: SchematicDocument = document,
 ): { points: Point[]; segmentModes: SegmentMode[] } {
   let points = input.map((point) => ({ ...point }));
   let modes = [...inputModes];
   if (modes.some((mode) => mode === "locked" || mode === "trunk"))
     return { points, segmentModes: modes };
-  const original = resolveRouteGeometry(document, resolver, route)?.centerline;
+  const original = resolveRouteGeometry(
+    originalDocument,
+    resolver,
+    route,
+  )?.centerline;
   for (const [endpoint, reverse] of [
     [route.start, false],
     [routeEnd(route), true],
@@ -34,6 +39,11 @@ export function tidyRouteTerminalApproaches(
     if (endpoint.kind !== "terminal") continue;
     const connection = resolveEndpointConnection(document, resolver, endpoint);
     if (!connection?.outward) continue;
+    const originalOutward = resolveEndpointConnection(
+      originalDocument,
+      resolver,
+      endpoint,
+    )?.outward;
     const originalEnd = reverse ? original?.at(-1) : original?.[0];
     const originalNeighbor = reverse ? original?.at(-2) : original?.[1];
     // Explicit slanted-line repair is a different authoring intent: retain
@@ -43,6 +53,19 @@ export function tidyRouteTerminalApproaches(
       originalNeighbor &&
       originalEnd.x !== originalNeighbor.x &&
       originalEnd.y !== originalNeighbor.y
+    )
+      continue;
+    // Repair a reversal introduced by THIS drag, not an authored approach
+    // that already came from the opposite side. Tidying that existing path
+    // can erase the dragged crossbar and even push a different arm through
+    // the other device. Use pre-transform geometry, including its orientation.
+    if (
+      originalEnd &&
+      originalNeighbor &&
+      originalOutward &&
+      (originalNeighbor.x - originalEnd.x) * originalOutward.x +
+        (originalNeighbor.y - originalEnd.y) * originalOutward.y <
+        0
     )
       continue;
     if (reverse) {

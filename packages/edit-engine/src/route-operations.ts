@@ -279,16 +279,13 @@ function normalizeProposal(
   };
 }
 
-/**
- * A rail must stay one straight axis-aligned conductor; a boundary stretch
- * that would bend it fails here with a named plan-time error instead of a
- * raw geometry rejection at commit.
- */
+/** Apply the same endpoint cleanup to every public stretch planner. */
 function tidyTerminalProposal(
   document: SchematicDocument,
   resolver: SymbolResolver,
   route: SchematicDocument["routes"][number],
   proposal: RouteStretchProposal,
+  originalDocument: SchematicDocument = document,
 ): RouteStretchProposal {
   if (proposal.collapsedToContact || route.presentation === "power-rail")
     return proposal;
@@ -301,6 +298,7 @@ function tidyTerminalProposal(
     route,
     [from.contactPoint, ...proposal.waypoints, to.contactPoint],
     proposal.segmentModes,
+    originalDocument,
   );
   return normalizeProposal(route.id, tidy.points, tidy.segmentModes);
 }
@@ -330,11 +328,12 @@ function tidyDragProposal(
       const route = document.routes.find(
         (candidate) => candidate.id === item.routeId,
       )!;
-      return tidyTerminalProposal(projected, resolver, route, item);
+      return tidyTerminalProposal(projected, resolver, route, item, document);
     }),
   };
 }
 
+/** A rail must stay straight; fail at plan time rather than during commit. */
 function assertPowerRailStaysStraight(
   route: SchematicDocument["routes"][number],
   first: Point,
@@ -356,6 +355,7 @@ function assertPowerRailStaysStraight(
  * transformed placement applied, plus the world bounds of the moved bodies.
  */
 interface BoundarySmoothing {
+  originalDocument: SchematicDocument;
   movedDocument: SchematicDocument;
   movedBodies: readonly Rect[];
 }
@@ -468,6 +468,7 @@ function smoothedBoundaryProposal(
     resolver,
     route,
     proposal,
+    smoothing.originalDocument,
   );
 }
 
@@ -1060,6 +1061,7 @@ export function proposeLocalStretch(
   )!;
   movedInstance.placement!.position = { ...newPosition };
   const smoothing: BoundarySmoothing = {
+    originalDocument: document,
     movedDocument,
     movedBodies: movedInstanceBodies(
       movedDocument,
@@ -1214,6 +1216,7 @@ export function proposeGroupMove(
     }
   }
   const smoothing: BoundarySmoothing = {
+    originalDocument: document,
     movedDocument,
     movedBodies: movedInstanceBodies(
       movedDocument,
@@ -1558,6 +1561,7 @@ function proposeRigidBodyMove(
     }
   }
   const smoothing: BoundarySmoothing = {
+    originalDocument: document,
     movedDocument,
     movedBodies: movedInstanceBodies(movedDocument, resolver, selected),
   };

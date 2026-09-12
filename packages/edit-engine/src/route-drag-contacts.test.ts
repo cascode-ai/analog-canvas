@@ -183,6 +183,59 @@ describe("atomic endpoint landing", () => {
 });
 
 describe("terminal-aware shortening", () => {
+  it("preserves an existing opposite-side approach when dragging a two-pin crossbar", () => {
+    const d = createEmptyDocument("existing-detour", "Existing detour");
+    d.instances.push(
+      {
+        id: "R1",
+        symbolId: "resistor",
+        placement: {
+          position: { x: 270, y: 230 },
+          rotation: 0,
+          mirror: "none",
+        },
+      },
+      {
+        id: "R2",
+        symbolId: "resistor",
+        placement: {
+          position: { x: 530, y: 230 },
+          rotation: 0,
+          mirror: "none",
+        },
+      },
+    );
+    d.nets.push({
+      id: "n",
+      terminals: [
+        { instanceId: "R1", pinName: "2" },
+        { instanceId: "R2", pinName: "1" },
+      ],
+    });
+    d.routes.push(
+      createRoutePath({
+        id: "r",
+        netId: "n",
+        start: { kind: "terminal", instanceId: "R1", pinName: "2" },
+        end: { kind: "terminal", instanceId: "R2", pinName: "1" },
+        bends: [{ x: 530, y: 250 }],
+        modes: ["manual", "manual"],
+      }),
+    );
+    const p = proposeWireSegmentMove(d, resolver, "r", 0, { x: 400, y: 330 });
+    const final = commit(d, p.edits);
+    const points = resolveRouteGeometry(
+      final,
+      resolver,
+      final.routes[0]!,
+    )!.centerline;
+    expect(points).toEqual([
+      { x: 270, y: 250 },
+      { x: 270, y: 330 },
+      { x: 530, y: 330 },
+      { x: 530, y: 210 },
+    ]);
+  });
   it.each([0, 90, 180, 270] as const)(
     "does not fold wire over a Port lead at rotation %s",
     (rotation) => {
