@@ -1410,7 +1410,7 @@ export function buildSvgScene(
 
   return {
     viewBox,
-    formalBody: `<g data-layer="formal"><g data-layer="routes">${routes}${junctionBridges}</g><g data-layer="junctions">${junctions}</g><g data-layer="symbols">${symbols}</g>${noConnectLayer}<g data-layer="annotations">${annotations}</g>${renderDraftingLayer(document, resolver, profile, objectIds)}</g>`,
+    formalBody: `<g data-layer="formal">${renderDraftingLayer(document, resolver, profile, "background", objectIds)}<g data-layer="routes">${routes}${junctionBridges}</g><g data-layer="junctions">${junctions}</g><g data-layer="symbols">${symbols}</g>${noConnectLayer}<g data-layer="annotations">${annotations}</g>${renderDraftingLayer(document, resolver, profile, "foreground", objectIds)}</g>`,
   };
 }
 
@@ -1467,13 +1467,21 @@ function renderDraftingLayer(
   document: SchematicDocument,
   resolver: SymbolResolver,
   profile: SchematicStyleProfile,
+  layer: "background" | "foreground",
   objectIds?: ReadonlySet<string>,
 ): string {
   const objects = document.drafting?.objects ?? [];
   if (objects.length === 0) return "";
   const sorted = [...objects].sort((left, right) => left.zIndex - right.zIndex);
   const body = sorted
-    .filter((object) => !objectIds || objectIds.has(object.id))
+    .filter(
+      (object) =>
+        (!objectIds || objectIds.has(object.id)) &&
+        ((object.kind === "rectangle" || object.kind === "circle") &&
+        object.layer === "background"
+          ? layer === "background"
+          : layer === "foreground"),
+    )
     .map((object) => {
       const geometry = resolveDraftingObjectGeometry(
         document,
@@ -1543,7 +1551,9 @@ function renderDraftingLayer(
       }
     })
     .join("");
-  return `<g data-layer="drafting">${body}</g>`;
+  return body
+    ? `<g data-layer="drafting" data-drafting-layer="${layer}">${body}</g>`
+    : "";
 }
 
 function renderDraftText(
@@ -1698,10 +1708,11 @@ function renderDraftRectangle(
   const strokeWidth =
     profile.strokes.annotation * (object.styleOverride?.strokeScale ?? 1);
   const stroke = object.styleOverride?.color ?? profile.foreground;
+  const fill = object.styleOverride?.fillColor ?? "none";
   const points = geometry.corners
     .map((point) => `${point.x},${point.y}`)
     .join(" ");
-  return `<polygon data-object-id="${object.id}" data-kind="draft-rectangle" points="${points}" fill="none" stroke="${stroke}" stroke-width="${strokeWidth}" stroke-linecap="${profile.lineCap}" stroke-linejoin="${profile.lineJoin}"${dash}/>`;
+  return `<polygon data-object-id="${object.id}" data-kind="draft-rectangle" points="${points}" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}" stroke-linecap="${profile.lineCap}" stroke-linejoin="${profile.lineJoin}"${dash}/>`;
 }
 
 function renderDraftCircle(
@@ -1719,7 +1730,8 @@ function renderDraftCircle(
   const strokeWidth =
     profile.strokes.annotation * (object.styleOverride?.strokeScale ?? 1);
   const stroke = object.styleOverride?.color ?? profile.foreground;
-  return `<circle data-object-id="${object.id}" data-kind="draft-circle" cx="${geometry.center.x}" cy="${geometry.center.y}" r="${geometry.radius}" fill="none" stroke="${stroke}" stroke-width="${strokeWidth}" stroke-linecap="${profile.lineCap}" stroke-linejoin="${profile.lineJoin}"${dash}/>`;
+  const fill = object.styleOverride?.fillColor ?? "none";
+  return `<circle data-object-id="${object.id}" data-kind="draft-circle" cx="${geometry.center.x}" cy="${geometry.center.y}" r="${geometry.radius}" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}" stroke-linecap="${profile.lineCap}" stroke-linejoin="${profile.lineJoin}"${dash}/>`;
 }
 
 function draftingPathData(

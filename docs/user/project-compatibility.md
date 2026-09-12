@@ -1,6 +1,6 @@
 # Project File Compatibility
 
-The current Project schema version is `50`. It retains schematic-only
+The current Project schema version is `51`. It retains schematic-only
 hierarchy integrity, a Project structural revision, stable formal Cell ports,
 and definition-level Cell symbol presentation. It also has one typed Instance
 netlist authority, formal Cell parameters, and Project-local external
@@ -19,21 +19,25 @@ text may also carry one of three polarity-label forms while its editable RichTex
 content remains independent from the fixed vector marks. Annotations and
 drafting objects position at 1-unit integer precision, while Instance
 placements, route bends, and Junctions stay aligned to the Document grid. An
-Instance may carry an optional `styleOverride` with independent foreground and
-background colors; when absent, document style defaults remain authoritative.
+Instance may carry an optional `styleOverride.foreground`; when absent,
+document style defaults remain authoritative. Historical instance background
+overrides remain readable for compatibility but are no longer editable.
 Each Annotation may independently carry an optional presentation-only
 `textColor`. An Instance Reference or value with Automatic text color inherits
 its owning Instance foreground; other annotations inherit the document
 foreground. Drafting text keeps its separate drawing-object color override.
+Rectangles and circles may additionally carry independent border and opaque
+fill colors plus a `background` or `foreground` drafting plane. Missing plane
+data preserves the historical foreground behavior.
 An Instance may also carry optional schematic-only `signalFlowParameters`
 (`formula`, `coefficient`, `bodyWidth`, `bodyHeight`) that are independent from
 netlist/SPICE parameters. Width and height are optional 10-unit-grid minimums:
 the shared Transfer Function renderer expands beyond them when 12-unit formula
 text, a fraction, or a coefficient needs more room, and never clips or shrinks
-the formula to satisfy an undersized request. A canonical v47 file can be
+the formula to satisfy an undersized request. A canonical v51 file can be
 opened, saved, reopened, and saved again without byte drift.
 
-Schemas v24 through v47 are accepted through the explicit chained upgrades.
+Schemas v24 through v51 are accepted through the explicit chained upgrades.
 Schema v32 adds optional `Annotation.textColor`; schema v33 removes the
 ownerless `explicit-equivalence` record. A v32 file without that record changes
 only its version stamp. A file containing it is rejected at the exact evidence
@@ -58,9 +62,13 @@ bounded output expressions while preserving every previous measurement target.
 Schema v44 makes terminal-current targets explicit, schema v45 adds saved
 scalar measurement rules, schema v46 adds structured Noise analysis intent,
 and schema v47 adds selected hierarchy-aware MOS operating-point details.
+Schema v48 adds design variables, v49 converts saved simulation intent to
+source files, and v50 names those collections simulation folders. Schema v51
+adds rectangle/circle fill and front/background drafting planes; a v50 Project
+is advanced without changing any authored object.
 These additions do not invent intent while upgrading an older Project.
 The original file is never overwritten silently. Schemas older than v24 and
-versions newer than v47 are rejected by the project-file boundary.
+versions newer than v51 are rejected by the project-file boundary.
 
 The canonical-current corpus at
 [`fixtures/projects/compatibility-corpus.json`](../../fixtures/projects/compatibility-corpus.json)
@@ -72,7 +80,7 @@ Retired fields such as first-class
 
 An incompatible Project is rejected before it can replace the current browser
 Project. Conversion, when needed, is an explicit external operation that must
-produce and validate a complete v47 candidate before a human chooses to load it.
+produce and validate a complete v51 candidate before a human chooses to load it.
 
 Equal visible Label, Port, power-marker, and explicit global-declaration names
 resolve to one Logical Net without erasing their separate Base Net identities.

@@ -100,9 +100,6 @@ export function planComponentPropertyCodeEdits(
     ...(value.appearance.foreground === "auto"
       ? {}
       : { foreground: value.appearance.foreground }),
-    ...(value.appearance.background === "auto"
-      ? {}
-      : { background: value.appearance.background }),
   };
   const nextStyle = Object.keys(styleOverride).length ? styleOverride : null;
   if (!sameStyle(instance.styleOverride ?? null, nextStyle)) {

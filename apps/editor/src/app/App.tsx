@@ -2797,6 +2797,7 @@ export function App({
     deleteConstructionVertex,
     setDraftingStyle,
     setDraftingGeometry,
+    setDraftingStacking,
     setArrowPreset,
     setDraftingTangentAngle,
     setDraftingBearing,
@@ -6195,6 +6196,7 @@ export function App({
                       onTangentAngleChange: setDraftingTangentAngle,
                       onBearingChange: setDraftingBearing,
                       onArrowPresetChange: setArrowPreset,
+                      onStackingChange: setDraftingStacking,
                       onToggleLock: () => toggleDraftingLock(selectedDrafting),
                     }
                   : null

@@ -5,7 +5,7 @@ Status: `accepted`
 Primary owner: `packages/model`
 
 The Project contains Documents; each Document owns revisioned electrical,
-geometric, and presentation facts. The current model is strict schema 50 and has
+geometric, and presentation facts. The current model is strict schema 51 and has
 no compatibility shape.
 
 ## Coordinate domains
@@ -131,6 +131,11 @@ Renderers never derive visible Instance text from IDs,
 master bindings, provenance, or copied properties. Drafting objects are
 visual-only and cannot create connectivity.
 
+Rectangle and circle drafting objects may independently override border and
+opaque fill paint. Their optional `layer` selects the background plane below
+circuit artwork or the foreground plane above annotations; an absent layer is
+foreground for compatibility. `zIndex` orders objects within each plane.
+
 An Annotation may independently persist presentation-only `textColor`. With
 that field absent, an `instance-label` or `instance-value` inherits the owning
 Instance's effective foreground; all other annotation kinds use the Document
@@ -198,8 +203,8 @@ ordinary Schematic edits inside one Project structural transaction. The
 Project's `structureRevision` protects this cross-Document boundary and the
 editor records it as one undoable structural commit.
 
-Persistence writes only schema 49. The reader carries every schema in its
-explicit 24→47 upgrade chain forward, then supplies the current model only; no
+Persistence writes only schema 51. The reader carries every schema in its
+explicit 24→51 upgrade chain forward, then supplies the current model only; no
 compatibility shape enters runtime electrical derivation. The 32→33 step
 rejects ownerless equivalence rather than guessing replacement connectivity.
 The 33→34 step converts hidden imported names into non-electrical hints or
@@ -228,5 +233,9 @@ preserving every acquisition target. Output labels are presentation and result
 identity only; they never name or join circuit Nets.
 The 43→44 step makes terminal-current identity explicit, the 44→45 step admits
 saved scalar measurements, and the 45→46 step admits structured Noise. The
-46→47 step admits selected MOS operating-point details. These additive steps
-invent no authored intent for an existing Project.
+46→47 step admits selected MOS operating-point details, 47→48 adds design
+variables, 48→49 converts simulation intent to source files, and 49→50 renames
+the source collection to simulation folders. Schema 51 adds optional fill and
+front/background plane fields to rectangles and circles; its adapter changes
+only the version stamp. These additive steps invent no authored intent for an
+existing Project.

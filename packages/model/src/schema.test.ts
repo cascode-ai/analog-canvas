@@ -18,6 +18,43 @@ import type {
 } from "./schema.js";
 
 describe("CircuitProject schema", () => {
+  it("accepts closed-shape fill and circuit-relative stacking planes", () => {
+    const document = createEmptyDocument("document", "Shapes");
+    document.drafting = {
+      objects: [
+        {
+          id: "shape",
+          kind: "rectangle",
+          locked: false,
+          zIndex: 0,
+          layer: "background",
+          anchor: { kind: "free", position: { x: 50, y: 50 } },
+          center: { x: 50, y: 50 },
+          width: 40,
+          height: 20,
+          rotation: 0,
+          lineStyle: "solid",
+          styleOverride: { color: "#2563eb", fillColor: "#9ca3af" },
+        },
+      ],
+    };
+    expect(SchematicDocumentSchema.safeParse(document).success).toBe(true);
+    document.drafting.objects[0] = {
+      id: "line",
+      kind: "construction-line",
+      locked: false,
+      zIndex: 0,
+      anchor: { kind: "free", position: { x: 0, y: 0 } },
+      points: [
+        { x: 0, y: 0 },
+        { x: 10, y: 10 },
+      ],
+      lineStyle: "solid",
+      styleOverride: { fillColor: "#9ca3af" },
+    };
+    expect(SchematicDocumentSchema.safeParse(document).success).toBe(false);
+  });
+
   it("accepts only the three persisted polarity-label forms", () => {
     const text = {
       id: "polarity-1",

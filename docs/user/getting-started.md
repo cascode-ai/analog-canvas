@@ -43,21 +43,19 @@ palette-first manual authoring; no Project file needs to be opened first.
   JSON keeps raw parameters (W/L/NF/M and additional
   netlist overrides), reference and model target together with position as
   `"at": [x, y]`, plus quarter-turn
-  rotation, mirror, supported Reference/Value visibility, and foreground/background
-  colors. Rotation and **Model** selectors, two mirror icons, visibility switches
-  and color swatches follow their JSON values. Click a swatch to open color
-  presets and custom settings, or type directly. Short gray comments explain
-  fields without becoming part of the data. **Need help?** replaces the comments
-  with expanded help until closed. Fixed colors display as `[R, G, B]` (0–255);
-  hex input also works. **Global** inherits ink and **No fill** removes the
-  independent background override. Flip arrows work in canvas directions.
+  rotation, mirror, supported Reference/Value visibility, and line color.
+  The code area is ordinary selectable text with no injected comments or
+  controls. Type values directly, or use the separate Line shortcuts for light
+  gray, red, green, blue, and custom RGB. Fixed colors display as `[R, G, B]`
+  (0–255); hex input also works. **Auto** inherits document ink. Component
+  background color is not authored.
   Valid edits update the drawing immediately; invalid or rejected edits keep
   the last accepted drawing. Undo restores prior edits. Parameter values are strings: type unit suffixes
   yourself; `EV` remains `EV`, and `2u` is not changed to `2um`.
-  The Properties header contains **Defaults** beside **Need help?**, **Copy JSON**, and **Discard draft**
+  The Properties header contains **Defaults**, **Copy JSON**, and **Discard draft**
   when text is invalid or rejected. Defaults restores known defaults immediately
   without moving, renaming or rebinding the component. Copy JSON copies
-  the whole draft, excluding hints and controls. Compatible drawing
+  the whole draft. Compatible drawing
   variants and formula overrides are in the same editor, with no duplicate
   Parameters/Actions/Netlist Target forms. Drag the panel's left edge to set a
   comfortable width. JSON expands completely; scroll the panel rather than a

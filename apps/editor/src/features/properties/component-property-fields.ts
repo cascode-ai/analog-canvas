@@ -1,4 +1,4 @@
-/** Canvas-layer authoring metadata shared by validation and inline assistance. */
+/** Canvas-layer authoring metadata shared by validation and external controls. */
 export const ROTATION_OPTIONS = [
   { value: 0, label: "0°" },
   { value: 90, label: "90°" },
@@ -27,7 +27,7 @@ export interface CanvasPropertyField {
     | "choice";
   options?: readonly { value: string; label: string }[];
   description: string;
-  /** Expanded help only; short descriptions remain the default line comments. */
+  /** Guidance metadata for callers that present help outside the code editor. */
   help?: string;
 }
 
@@ -36,7 +36,7 @@ export const CANVAS_PROPERTY_FIELDS: readonly CanvasPropertyField[] = [
     path: "placement.at",
     label: "Position",
     kind: "coordinate",
-    description: "[x,y]",
+    description: "",
     help: "Canvas coordinates [x, y]. Valid changes update immediately and snap to the grid.",
   },
   {
@@ -71,21 +71,14 @@ export const CANVAS_PROPERTY_FIELDS: readonly CanvasPropertyField[] = [
     path: "appearance",
     label: "Appearance",
     kind: "text",
-    description: "RGB visualization",
+    description: "",
   },
   {
     path: "appearance.foreground",
-    label: "Foreground",
+    label: "Line",
     kind: "color",
     description: "",
     help: "Use the swatch to open presets and a custom color picker. RGB channels are 0–255; hex is accepted. Global inherits document ink.",
-  },
-  {
-    path: "appearance.background",
-    label: "Background",
-    kind: "color",
-    description: "",
-    help: "Use the swatch to choose a background preset or custom color. No fill removes only the independent background override.",
   },
 ];
 

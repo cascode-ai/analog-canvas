@@ -43,20 +43,18 @@ test("live JSON properties update controls immediately and round-trip raw parame
   await expect(panel.getByRole("button", { name: "Apply code" })).toHaveCount(
     0,
   );
-  await expect(panel.locator(".cm-property-hint").first()).toBeVisible();
-  await panel.getByLabel("Rotation options").selectOption("90");
+  await expect(panel.locator(".cm-property-hint")).toHaveCount(0);
+  await expect(panel.locator(".cm-property-assist")).toHaveCount(0);
+  await editComponentPropertyCode(page, (code) => {
+    code.placement.rotation = 90;
+    code.display.reference = false;
+  });
   await expect(page.getByTestId("revision")).toHaveText(
     String(Number(revision) + 1),
   );
-  await panel
-    .getByRole("switch", { name: "Show reference", exact: true })
-    .click();
-  await panel
-    .getByRole("button", { name: "Open foreground colors", exact: true })
-    .click();
-  await panel.getByLabel("Foreground color picker").fill("#dc2626");
+  await panel.getByRole("button", { name: "Use Red for line" }).click();
   await expect(page.getByTestId("revision")).toHaveText(
-    String(Number(revision) + 3),
+    String(Number(revision) + 2),
   );
   const draft = JSON.parse(await readComponentPropertyCode(page));
   expect(draft.placement.rotation).toBe(90);
@@ -70,7 +68,7 @@ test("live JSON properties update controls immediately and round-trip raw parame
     .getByLabel("Editable Canvas property code")
     .fill(JSON.stringify(draft, null, 2));
   await expect(page.getByTestId("revision")).toHaveText(
-    String(Number(revision) + 4),
+    String(Number(revision) + 3),
   );
   const value = page.locator(
     '[data-layer="formal"] [data-object-id="instance-value-M1"]',
@@ -128,7 +126,9 @@ test("live Defaults are undoable and invalid drafts never change the canvas", as
     page.getByText(/Canvas keeps the last valid edit/u),
   ).toBeVisible();
   await expect(page.getByTestId("revision")).toHaveText(lastValidRevision!);
-  await expect(page.getByLabel("Rotation options")).toBeEnabled();
+  await expect(
+    page.getByRole("button", { name: "Use Red for line" }),
+  ).toBeDisabled();
   await page.getByRole("button", { name: "Discard draft" }).click();
   await expectComponentCodeField(page, "parameters.w", "7u");
   await expect(page.locator(".cm-json-key").first()).toBeVisible();
@@ -268,7 +268,7 @@ for (const platform of ["native", "Win32", "Linux x86_64"])
   });
 
 for (const width of [300, 540]) {
-  test(`inline property controls and exclusive help at ${width}px`, async ({
+  test(`plain selectable property code and external color shortcuts at ${width}px`, async ({
     page,
   }) => {
     await page.addInitScript(
@@ -281,96 +281,45 @@ for (const width of [300, 540]) {
     await openSelectionShelf(page);
     const editor = page.getByTestId("component-property-code-editor");
     const code = page.getByLabel("Editable Canvas property code");
-    await expect(editor.getByLabel("Model options")).toBeVisible();
-    await expect(editor.getByLabel("Rotation options")).toBeVisible();
-    await expect(editor.getByLabel("Mirror options")).toHaveCount(0);
-    await expect(
-      editor.locator('[data-property-assist="placement.mirror"] button'),
-    ).toHaveCount(2);
-    await expect(
-      editor.getByRole("button", { name: "Apply code" }),
-    ).toHaveCount(0);
-    const header = editor.locator("header");
-    await expect(
-      header.getByRole("button", { name: "Defaults", exact: true }),
-    ).toBeVisible();
-    await expect(code.locator(".cm-property-hint").first()).toBeVisible();
     const raw = await readComponentPropertyCode(page);
-    await header
-      .getByRole("button", { name: "Need help?", exact: true })
-      .click();
-    await expect(code.locator(".cm-property-hint")).toHaveCount(0);
-    await expect(code.locator(".cm-property-help-block").first()).toBeVisible();
-    expect(await readComponentPropertyCode(page)).toBe(raw);
-    await header
-      .getByRole("button", { name: "Hide help", exact: true })
-      .click();
-    await expect(code.locator(".cm-property-help-block")).toHaveCount(0);
-    await expect(code.locator(".cm-property-hint").first()).toBeVisible();
-    const layout = await editor.evaluate((section) => {
-      const rows = [...section.querySelectorAll(".cm-property-assist")];
-      const scroll = section.querySelector(".cm-scroller")!;
-      return {
-        overflow: section.scrollWidth > section.clientWidth,
-        attachedToLine: rows.every((row) => row.closest(".cm-line")),
-        scrollable: scroll.scrollHeight > scroll.clientHeight + 1,
-        overflowY: getComputedStyle(scroll).overflowY,
-      };
-    });
-    expect(layout).toMatchObject({
-      overflow: false,
-      attachedToLine: true,
-      scrollable: false,
-      overflowY: "visible",
-    });
-    const swatch = editor.getByRole("button", {
-      name: "Open foreground colors",
-      exact: true,
-    });
+
+    await expect(editor.locator(".cm-property-assist")).toHaveCount(0);
+    await expect(editor.locator(".cm-property-hint")).toHaveCount(0);
     await expect(
-      editor.getByRole("button", {
-        name: "Use Red for foreground",
-        exact: true,
-      }),
-    ).toBeHidden();
-    await swatch.click();
-    const colors = page.getByRole("dialog", {
-      name: "Foreground color settings",
-      exact: true,
-    });
-    await expect(colors).toBeVisible();
-    await colors
-      .getByRole("button", { name: "Use Red for foreground", exact: true })
-      .click();
-    await expectComponentCodeField(
-      page,
-      "appearance.foreground",
-      [220, 38, 38],
+      editor.getByRole("button", { name: "Need help?", exact: true }),
+    ).toHaveCount(0);
+    expect(raw).not.toContain("//");
+
+    await code.click();
+    await page.keyboard.press("ControlOrMeta+a");
+    const selected = await code.evaluate(() =>
+      window.getSelection()?.toString(),
     );
-    await swatch.click();
-    await colors.getByLabel("Foreground color picker").focus();
-    await page.keyboard.press("Escape");
-    await expect(colors).toBeHidden();
-    await expect(swatch).toBeFocused();
-    const flip = editor.getByRole("button", {
-      name: "Flip left/right",
-      exact: true,
-    });
-    await flip.click();
-    await expect(flip).toBeFocused();
-    await expectComponentCodeField(page, "placement.mirror", "x");
-    await code.fill('{"placement":');
+    expect(selected).toBe(raw);
+
+    const layout = await editor.evaluate((section) => ({
+      overflow: section.scrollWidth > section.clientWidth,
+      editable: Boolean(section.querySelector('[contenteditable="true"]')),
+    }));
+    expect(layout).toEqual({ overflow: false, editable: true });
+
     await expect(
-      header.getByRole("button", { name: "Discard draft", exact: true }),
+      editor.getByRole("button", { name: "Use Light gray for line" }),
     ).toBeVisible();
-    await header
-      .getByRole("button", { name: "Discard draft", exact: true })
+    await editor
+      .getByRole("button", { name: "Use Red for line", exact: true })
       .click();
     await expectComponentCodeField(
       page,
       "appearance.foreground",
       [220, 38, 38],
     );
+
+    await editor.locator("summary", { hasText: "RGB" }).click();
+    await expect(editor.getByLabel("Line red")).toHaveValue("220");
+    await editor.getByLabel("Line red").fill("12");
+    await editor.getByLabel("Line red").press("Enter");
+    await expectComponentCodeField(page, "appearance.foreground", [12, 38, 38]);
   });
 }
 
@@ -1189,8 +1138,6 @@ test("a switch changes contact style in place, keeping its wires", async ({
 
   await page.locator('[data-canvas-hit-kind="instance"]').first().click();
   await page.getByTestId("selection-shelf").click();
-  const toggle = page.getByLabel("Drawing variant options");
-  await expect(toggle).toBeVisible();
 
   // The plain drawing is a state of this component, not a second part: the
   // Library never grew a tile for it.
@@ -1198,7 +1145,7 @@ test("a switch changes contact style in place, keeping its wires", async ({
     0,
   );
 
-  await toggle.selectOption("simple-spdt-switch");
+  await setComponentCodeField(page, "symbol", "simple-spdt-switch");
   await expect(page.locator("[data-symbol-id]").first()).toHaveAttribute(
     "data-symbol-id",
     "simple-spdt-switch",
@@ -1208,7 +1155,7 @@ test("a switch changes contact style in place, keeping its wires", async ({
   await expect(page.getByTestId("hit-S1")).toHaveCount(1);
   await expect(page.locator('[data-layer="routes"] polyline')).toHaveCount(1);
 
-  await toggle.selectOption("spdt-switch");
+  await setComponentCodeField(page, "symbol", "spdt-switch");
   await expect(page.locator("[data-symbol-id]").first()).toHaveAttribute(
     "data-symbol-id",
     "spdt-switch",
@@ -2234,8 +2181,7 @@ test("colors an electrical wire and restores the Razavi default with Auto", asyn
   const wire = page.locator(
     '[data-layer="routes"] [data-object-id="route-ui-1"]',
   );
-  const color = page.getByLabel("Wire color picker");
-  await expect(color).toHaveValue("#000000");
+  await expect(page.getByLabel("Wire color hex value")).toHaveText("Automatic");
   const presets = page.getByLabel("Wire color presets");
   await expect
     .poll(async () => (await presets.boundingBox())?.width ?? 0)
@@ -2245,18 +2191,11 @@ test("colors an electrical wire and restores the Razavi default with Auto", asyn
     .evaluateAll((swatches) =>
       swatches.map((swatch) => swatch.getBoundingClientRect().width),
     );
-  expect(swatchWidths).toHaveLength(8);
+  expect(swatchWidths).toHaveLength(4);
   expect(Math.min(...swatchWidths)).toBeGreaterThanOrEqual(16);
-  await color.evaluate((input, value) => {
-    const element = input as HTMLInputElement;
-    const setter = Object.getOwnPropertyDescriptor(
-      HTMLInputElement.prototype,
-      "value",
-    )!.set!;
-    setter.call(element, value);
-    element.dispatchEvent(new Event("input", { bubbles: true }));
-    element.dispatchEvent(new Event("change", { bubbles: true }));
-  }, "#cc2200");
+  await page.locator("summary", { hasText: /^RGB$/u }).click();
+  await page.getByLabel("Wire color red").fill("204");
+  await page.getByLabel("Wire color green").fill("34");
   await expect(wire).toHaveAttribute("stroke", "#cc2200");
   await expect(page.getByTestId("status")).toContainText(
     "Updated wire color for route-ui-1",
@@ -2264,8 +2203,84 @@ test("colors an electrical wire and restores the Razavi default with Auto", asyn
 
   await page.getByTitle("Use the document ink color").click();
   await expect(wire).toHaveAttribute("stroke", "#000");
-  await expect(color).toHaveValue("#000000");
+  await expect(page.getByLabel("Wire color hex value")).toHaveText("Automatic");
   await expect(page.getByTitle("Use the document ink color")).toBeDisabled();
+});
+
+test("fills a closed shape and moves it behind or in front of circuit artwork", async ({
+  page,
+}) => {
+  const project = createEmptyProject("shape-layers", "Shape layers");
+  const document = project.documents[0]!;
+  document.instances.push({
+    id: "R1",
+    symbolId: "resistor",
+    placement: {
+      position: { x: 100, y: 100 },
+      rotation: 0,
+      mirror: "none",
+    },
+  });
+  document.drafting = {
+    objects: [
+      {
+        id: "box",
+        kind: "rectangle",
+        locked: false,
+        zIndex: 0,
+        anchor: { kind: "free", position: { x: 100, y: 100 } },
+        center: { x: 100, y: 100 },
+        width: 100,
+        height: 60,
+        rotation: 0,
+        lineStyle: "solid",
+        styleOverride: { fillColor: "#9ca3af" },
+      },
+    ],
+  };
+  await page.goto("/editor");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "shape-layers.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  const shapeHit = page.getByTestId("drafting-hit-box");
+  await shapeHit.click({ force: true, modifiers: ["Alt"] });
+  await openSelectionShelf(page);
+
+  const properties = page.getByRole("complementary", { name: "Properties" });
+  await expect(
+    properties.getByText("Bring to front", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    properties.getByText("Send to back", { exact: true }),
+  ).toBeVisible();
+  await properties.getByRole("button", { name: "Use Blue for fill" }).click();
+  await expect(
+    page.locator('[data-kind="draft-rectangle"][data-object-id="box"]'),
+  ).toHaveAttribute("fill", "#2563eb");
+
+  await properties.getByRole("button", { name: "Send to back" }).click();
+  await expect(
+    page.locator('[data-drafting-layer="background"] [data-object-id="box"]'),
+  ).toHaveCount(1);
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  await expect(
+    page.locator('[data-drafting-layer="foreground"] [data-object-id="box"]'),
+  ).toHaveCount(1);
+
+  await properties.getByRole("button", { name: "Bring to front" }).click();
+  const saved = JSON.parse(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(
+      "utf8",
+    ),
+  );
+  expect(saved.documents[0].drafting.objects[0]).toMatchObject({
+    id: "box",
+    layer: "foreground",
+    zIndex: 1,
+    styleOverride: { fillColor: "#2563eb" },
+  });
 });
 
 test("places and clears an independent direction arrow on one wire", async ({
@@ -3989,12 +4004,11 @@ test("Properties keeps component and Annotation text colors independent", async 
 
   await editComponentPropertyCode(page, (value) => {
     value.appearance.foreground = "#dc2626";
-    value.appearance.background = "#2563eb";
   });
   await expect(symbol).toHaveAttribute("stroke", "#dc2626");
   await expect(
     component.locator('[data-role="instance-background"]'),
-  ).toHaveAttribute("fill", "#2563eb");
+  ).toHaveCount(0);
   await expect(label).toHaveAttribute("fill", "#dc2626");
 
   await page
@@ -4010,9 +4024,6 @@ test("Properties keeps component and Annotation text colors independent", async 
   await expect(properties.getByLabel("Text color hex value")).toHaveText(
     "Automatic",
   );
-  await expect(properties.getByLabel("Text color picker")).toHaveValue(
-    "#dc2626",
-  );
 
   await properties
     .getByRole("button", { name: "Use Blue for text color" })
@@ -4021,7 +4032,7 @@ test("Properties keeps component and Annotation text colors independent", async 
   await expect(symbol).toHaveAttribute("stroke", "#dc2626");
   await expect(
     component.locator('[data-role="instance-background"]'),
-  ).toHaveAttribute("fill", "#2563eb");
+  ).toHaveCount(0);
 
   // A pending RGB draft belongs to this Annotation only. Selecting another
   // Annotation remounts the keyed Text properties before the deferred blur
@@ -4086,10 +4097,7 @@ test("Properties keeps component and Annotation text colors independent", async 
   const savedLabel = project.documents[0].annotations.find(
     (annotation: { id: string }) => annotation.id === "instance-label-R1",
   );
-  expect(savedR1.styleOverride).toEqual({
-    foreground: "#dc2626",
-    background: "#2563eb",
-  });
+  expect(savedR1.styleOverride).toEqual({ foreground: "#dc2626" });
   expect(savedR1.styleOverride).not.toHaveProperty("labelColor");
   expect(savedLabel).not.toHaveProperty("textColor");
 });
@@ -5631,10 +5639,9 @@ test("selects a reviewed SKY130 MOS through the existing Model field", async ({
   await openSelectionShelf(page);
   const properties = page.getByRole("complementary", { name: "Properties" });
 
-  await properties
-    .getByRole("button", { name: "Need help?", exact: true })
-    .click();
-  await expect(properties).toContainText("sky130_fd_pr__nfet_01v8");
+  await expect(
+    properties.getByRole("button", { name: "Need help?", exact: true }),
+  ).toHaveCount(0);
   await setComponentCodeField(page, "netlistTarget", "sky130_fd_pr__nfet_01v8");
 
   await expectComponentCodeField(

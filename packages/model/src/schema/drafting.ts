@@ -43,6 +43,11 @@ const DraftingObjectBaseSchema = z.strictObject({
         .string()
         .regex(/^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/u)
         .optional(),
+      /** Opaque fill for closed rectangle/circle shapes only. */
+      fillColor: z
+        .string()
+        .regex(/^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/u)
+        .optional(),
       arrowHeadScale: z
         .union([z.literal(0.75), z.literal(1), z.literal(1.25), z.literal(1.5)])
         .optional(),
@@ -106,33 +111,50 @@ export const DraftRectangleSchema = DraftingObjectBaseSchema.extend({
   height: z.number().int().positive(),
   rotation: z.number().finite().min(0).lt(360),
   lineStyle: z.enum(["solid", "dashed", "dotted"]),
+  /** Missing preserves the historical foreground drafting plane. */
+  layer: z.enum(["background", "foreground"]).optional(),
 });
 /**
- * A circle is a stroke-only drafting primitive.  Unlike a rectangle it is
- * intentionally orientation-free: its center/radius are the complete
- * persistent geometry, which avoids a meaningless rotation property.
+ * A circle is orientation-free: its center/radius are the complete persistent
+ * geometry, which avoids a meaningless rotation property.
  */
 export const DraftCircleSchema = DraftingObjectBaseSchema.extend({
   kind: z.literal("circle"),
   center: PointSchema,
   radius: z.number().int().positive(),
   lineStyle: z.enum(["solid", "dashed", "dotted"]),
+  /** Missing preserves the historical foreground drafting plane. */
+  layer: z.enum(["background", "foreground"]).optional(),
 });
 export const DraftFloatingSymbolSchema = DraftingObjectBaseSchema.extend({
   kind: z.literal("floating-symbol"),
   symbolId: StableIdSchema,
   transform: OrientationSchema,
 });
-export const DraftingObjectSchema = z.discriminatedUnion("kind", [
-  DraftTextSchema,
-  DraftArrowSchema,
-  DraftLeaderSchema,
-  DraftCalloutSchema,
-  DraftConstructionLineSchema,
-  DraftRectangleSchema,
-  DraftCircleSchema,
-  DraftFloatingSymbolSchema,
-]);
+export const DraftingObjectSchema = z
+  .discriminatedUnion("kind", [
+    DraftTextSchema,
+    DraftArrowSchema,
+    DraftLeaderSchema,
+    DraftCalloutSchema,
+    DraftConstructionLineSchema,
+    DraftRectangleSchema,
+    DraftCircleSchema,
+    DraftFloatingSymbolSchema,
+  ])
+  .superRefine((object, ctx) => {
+    if (
+      object.kind !== "rectangle" &&
+      object.kind !== "circle" &&
+      object.styleOverride?.fillColor !== undefined
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["styleOverride", "fillColor"],
+        message: "fillColor is available only for rectangles and circles",
+      });
+    }
+  });
 export const DraftingLayerSchema = z.strictObject({
   objects: z.array(DraftingObjectSchema),
 });

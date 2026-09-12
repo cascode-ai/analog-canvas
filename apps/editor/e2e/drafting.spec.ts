@@ -374,9 +374,10 @@ test("drafting text owns an independent color override with Auto inheritance", a
   );
   await expect(properties).toHaveClass(/property-section/u);
   await expect(properties.locator(":scope > .property-card")).toBeVisible();
-  const colorPicker = properties.getByLabel("Text color picker");
-  await expect(colorPicker).toHaveCSS("width", "32px");
-  await expect(colorPicker).toHaveCSS("height", "32px");
+  await expect(properties.getByLabel("Text color presets")).toBeVisible();
+  await expect(properties.locator(".component-color-swatch")).toHaveCount(4);
+  await expect(properties.getByLabel("Text color custom RGB")).toBeAttached();
+  await expect(properties.locator('input[type="color"]')).toHaveCount(0);
   await expect(properties.getByLabel("Text color hex value")).toHaveText(
     "Automatic",
   );
@@ -1760,19 +1761,8 @@ test("Properties sets precise size, stroke width, and color per shape", async ({
   expect(size).toEqual({ width: 120, height: 48 });
 
   await properties.getByLabel("Stroke width").fill("2.5");
-  await properties
-    .getByLabel("Stroke color picker")
-    .evaluate((input, value) => {
-      const element = input as HTMLInputElement;
-      const setter = Object.getOwnPropertyDescriptor(
-        HTMLInputElement.prototype,
-        "value",
-      )!.set!;
-      setter.call(element, value);
-      element.dispatchEvent(new Event("input", { bubbles: true }));
-      element.dispatchEvent(new Event("change", { bubbles: true }));
-    }, "#cc2200");
-  await expect(rectangle).toHaveAttribute("stroke", "#cc2200");
+  await properties.getByRole("button", { name: "Use Red for border" }).click();
+  await expect(rectangle).toHaveAttribute("stroke", "#dc2626");
   const rectangleStroke = Number(await rectangle.getAttribute("stroke-width"));
 
   // Circle: precise radius; its stroke stays at the profile default and is
@@ -1818,9 +1808,9 @@ test("Properties sets precise size, stroke width, and color per shape", async ({
   });
   if (!resizedEdge) throw new Error("resized rectangle is not measurable");
   await page.mouse.click(resizedEdge.x, resizedEdge.y);
-  await properties.getByRole("button", { name: "Reset stroke color" }).click();
+  await properties.getByRole("button", { name: "Reset border" }).click();
   const stroke = await rectangle.getAttribute("stroke");
-  expect(stroke).not.toBe("#cc2200");
+  expect(stroke).not.toBe("#dc2626");
 });
 
 test("annotation grid pitch frees drawings from the device grid", async ({

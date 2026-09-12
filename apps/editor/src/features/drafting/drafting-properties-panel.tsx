@@ -17,6 +17,7 @@ import { ToolIcon } from "../editor-shell/tool-icon";
 import { ColorOverrideControl } from "../properties/color-override-control";
 import type {
   DraftingGeometryPatch,
+  DraftingStackingTarget,
   DraftingStylePatch,
 } from "./drafting-manipulation";
 import { quadraticTangentAngle } from "./drafting-path";
@@ -87,6 +88,7 @@ export interface DraftingPropertiesPanelProps {
   onTangentAngleChange: (angle: number) => void;
   onBearingChange: (bearing: number) => void;
   onArrowPresetChange?: (preset: ArrowPreset) => void;
+  onStackingChange: (target: DraftingStackingTarget) => void;
   onToggleLock: () => void;
 }
 
@@ -107,6 +109,7 @@ export function DraftingPropertiesPanel({
   onTangentAngleChange,
   onBearingChange,
   onArrowPresetChange,
+  onStackingChange,
   onToggleLock,
 }: DraftingPropertiesPanelProps) {
   const geometry = resolveDraftingObjectGeometry(document, resolver, object);
@@ -157,6 +160,7 @@ export function DraftingPropertiesPanel({
       : "solid");
   const isRectangle = geometry.kind === "rectangle";
   const isCircle = geometry.kind === "circle";
+  const isClosedShape = isRectangle || isCircle;
   const isOutline = object.kind === "arrow" && Boolean(object.outline);
   const points = isRectangle
     ? geometry.corners
@@ -260,12 +264,42 @@ export function DraftingPropertiesPanel({
         />
       </label>
       <ColorOverrideControl
-        label="Stroke color"
+        label={isClosedShape ? "Border" : "Stroke color"}
         value={object.styleOverride?.color}
         fallback={defaultColor}
         disabled={object.locked}
         onChange={(color) => onStyleChange({ color })}
       />
+      {isClosedShape ? (
+        <>
+          <ColorOverrideControl
+            label="Fill"
+            value={object.styleOverride?.fillColor}
+            fallback="#ffffff"
+            transparentDefault
+            disabled={object.locked}
+            autoTitle="Remove the shape fill"
+            onChange={(fillColor) => onStyleChange({ fillColor })}
+          />
+          <fieldset
+            className="drawing-stacking-control"
+            disabled={object.locked}
+          >
+            <legend>Layer</legend>
+            <div>
+              <button type="button" onClick={() => onStackingChange("front")}>
+                Bring to front
+              </button>
+              <button type="button" onClick={() => onStackingChange("back")}>
+                Send to back
+              </button>
+            </div>
+            <small>
+              Front covers circuit artwork; back stays behind the circuit.
+            </small>
+          </fieldset>
+        </>
+      ) : null}
       {isCircle && object.kind === "circle" ? (
         <label>
           Radius

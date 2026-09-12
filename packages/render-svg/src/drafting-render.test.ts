@@ -394,7 +394,7 @@ describe("drafting layer rendering", () => {
     expect(svg).toContain('stroke-dasharray="6 4"');
   });
 
-  it("honors an explicit color and a precise stroke multiplier", () => {
+  it("honors independent border/fill colors and a precise stroke multiplier", () => {
     const document = createEmptyDocument("doc", "Styled");
     document.drafting = {
       objects: [
@@ -407,7 +407,11 @@ describe("drafting layer rendering", () => {
           center: { x: 50, y: 50 },
           radius: 20,
           lineStyle: "solid",
-          styleOverride: { strokeScale: 1.35, color: "#cc2200" },
+          styleOverride: {
+            strokeScale: 1.35,
+            color: "#cc2200",
+            fillColor: "#9ca3af",
+          },
         },
         {
           id: "rect-blue",
@@ -420,13 +424,15 @@ describe("drafting layer rendering", () => {
           height: 20,
           rotation: 0,
           lineStyle: "solid",
-          styleOverride: { color: "#0044cc" },
+          styleOverride: { color: "#0044cc", fillColor: "#dc2626" },
         },
       ],
     };
     const svg = renderDocumentSvg(document, resolver);
     expect(svg).toContain('stroke="#cc2200"');
     expect(svg).toContain('stroke="#0044cc"');
+    expect(svg).toContain('fill="#9ca3af"');
+    expect(svg).toContain('fill="#dc2626"');
     const circle = svg.match(
       /<circle[^>]*data-kind="draft-circle"[^>]*\/>/u,
     )![0];
@@ -436,6 +442,59 @@ describe("drafting layer rendering", () => {
     )![0];
     const base = Number(rect.match(/stroke-width="([\d.]+)"/u)![1]);
     expect(width).toBeCloseTo(base * 1.35, 5);
+  });
+
+  it("renders background shapes before the circuit and foreground shapes after it", () => {
+    const document = createEmptyDocument("doc", "Shape planes");
+    document.instances.push({
+      id: "R1",
+      symbolId: "resistor",
+      placement: {
+        position: { x: 100, y: 100 },
+        rotation: 0,
+        mirror: "none",
+      },
+    });
+    document.drafting = {
+      objects: [
+        {
+          id: "back",
+          kind: "rectangle",
+          locked: false,
+          zIndex: 0,
+          layer: "background",
+          anchor: { kind: "free", position: { x: 100, y: 100 } },
+          center: { x: 100, y: 100 },
+          width: 80,
+          height: 40,
+          rotation: 0,
+          lineStyle: "solid",
+          styleOverride: { fillColor: "#9ca3af" },
+        },
+        {
+          id: "front",
+          kind: "circle",
+          locked: false,
+          zIndex: 10,
+          layer: "foreground",
+          anchor: { kind: "free", position: { x: 100, y: 100 } },
+          center: { x: 100, y: 100 },
+          radius: 30,
+          lineStyle: "solid",
+          styleOverride: { fillColor: "#2563eb" },
+        },
+      ],
+    };
+
+    const svg = renderDocumentSvg(document, resolver);
+    const background = svg.indexOf('data-drafting-layer="background"');
+    const symbol = svg.indexOf('data-layer="symbols"');
+    const foreground = svg.indexOf('data-drafting-layer="foreground"');
+    expect(background).toBeGreaterThan(-1);
+    expect(background).toBeLessThan(symbol);
+    expect(foreground).toBeGreaterThan(symbol);
+    expect(svg).toContain('data-object-id="back"');
+    expect(svg).toContain('data-object-id="front"');
   });
 
   it("composes object stroke over the document scale multiplicatively", () => {

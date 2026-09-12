@@ -81,8 +81,7 @@ properties together as strict, editable JSON. For example, a resistor:
     "value": false
   },
   "appearance": {
-    "foreground": "auto",
-    "background": "auto"
+    "foreground": "auto"
   }
 }
 ```
@@ -91,9 +90,12 @@ properties together as strict, editable JSON. For example, a resistor:
 quarter turns, and mirror is `"none"` or `"x"`. Display keys appear only for
 annotations supported by that Symbol. Fixed colors are displayed as compact
 `[R, G, B]` tuples with integer channels 0–255; six-digit hex input remains
-accepted and persisted instance colors remain hex. `"auto"` inherits global
-ink for foreground and adds no independent background fill; it does not mean
-fixed black or white. Applying valid code plans the existing typed placement,
+accepted and persisted instance colors remain hex. Four direct line-color
+controls provide light gray, red, green, and blue, while three bounded RGB
+inputs allow any custom value. `"auto"` inherits global foreground ink;
+component background editing is not exposed. Historical background overrides
+remain readable so old Projects do not fail to open, and the next accepted
+Appearance edit retires that field. Applying valid code plans the existing typed placement,
 annotation, parameter, identity, and style edits as one transaction. Unknown
 root keys and invalid values are rejected without changing the Document.
 `parameters` contains descriptor-owned values and arbitrary model/dialect
@@ -111,31 +113,25 @@ and Cell-level interface/layout operations retain their existing typed
 authoring surfaces; removing a component remains an explicit Delete action.
 
 The lazy JSON editor provides syntax highlighting, bracket matching, JSON
-diagnostics and local text undo. Canvas-layer field metadata owns the rotation
-and mirror options, color channel limits and per-field guidance. Compact controls
-follow their own JSON values: Rotation and Model selectors, two Mirror icons,
-Reference/Value On/Off switches and color swatches. Color settings, including
-existing presets, a custom picker and global/no-fill reset, open from each swatch
-in a dismissible popover rather than occupying the normal text flow. They edit the same
-draft as typing; valid edits transact immediately through the existing planner.
-Left/right and top/bottom actions compose the
-current draft orientation in canvas coordinates, updating rotation and the one
-local mirror bit together. Incomplete syntax pauses controls with an explanation;
-independent controls remain usable when another field has an invalid value.
+diagnostics and local text undo. The content is ordinary selectable text: it
+contains no injected comments, value chips, selectors, switches, or other DOM
+widgets. Canvas-layer field metadata still owns validation of rotation, mirror,
+color channels, and other bounded values. A separate Line fieldset below the
+editor offers light gray, red, green, and blue shortcuts plus custom RGB and an
+Auto reset. It edits the same draft as typing; valid edits transact immediately
+through the existing planner. Incomplete syntax disables that external color
+control until the code is valid again.
 Invalid or rejected drafts preserve the last accepted canvas state. External
 undo/redo synchronizes the editor without replaying edits; Escape blurs this
 editor without applying legacy form drafts or discarding incomplete text.
-Short line-end hints are read-only decorations, never JSON comments
-or persisted data. **Need help?** replaces these hints with expanded field help;
-closing help restores the short hints without changing the draft.
 **Discard draft** restores the last accepted state when
 the draft is invalid or rejected, without changing the circuit.
 **Defaults** loads known parameter, orientation, color, and formula defaults
 immediately and remains undoable; it preserves coordinates, reference, model
-target, display flags, and unknown overrides. Defaults sits beside Need help in
-the Properties header, along with Copy and conditional Discard; there is no Apply button.
+target, display flags, and unknown overrides. Defaults sits in the Properties
+header with Copy and conditional Discard; there is no Apply button.
 **Copy JSON** copies
-the complete raw draft without decorations from the copy icon at the editor's
+the complete raw draft from the copy icon at the editor's
 top right, including unapplied whitespace and invalid drafts. The text area
 expands fully without its own scrollbar; only the surrounding panel scrolls.
 Instance identity stays in the dock
@@ -150,6 +146,14 @@ their distinct connectivity/definition ownership. The left edge of
 Properties is draggable and keyboard-adjustable in both docked and compact
 overlay layouts; its independent width is retained locally without becoming
 Project data.
+
+Rectangle and circle Properties expose independent **Border** and **Fill**
+colors. Removing Fill restores a transparent interior. **Bring to front** moves
+the shape to the foreground drafting plane above circuit and annotation
+artwork; **Send to back** moves it behind circuit artwork. Both are undoable
+document edits. Filled foreground interiors remain selectable, while a
+background shape uses its border as the hit target so it cannot block circuit
+editing above it.
 
 The **Placement Tray** is the only retained-unplaced presentation surface. A
 tray item may be dragged, entered into the ordinary placement cursor, or placed
@@ -565,8 +569,8 @@ Open, demo load, restore, and human-approved staged import replace the entire
 Project through one replacement boundary; they are not Edit Engine
 transactions. Replacement cancels pending recovery for the outgoing Project
 and terminates its Agent session. A complete Project covered by the schema
-24→47 upgrade chain may be upgraded at the read boundary and then enters the
-editor only as schema-50; migrated files are marked as needing save.
+24→51 upgrade chain may be upgraded at the read boundary and then enters the
+editor only as schema-51; migrated files are marked as needing save.
 
 Selection, viewport, active tool, previews, Agent tokens, and approval UI are
 transient and never enter Project JSON. Recovery is scheduled only after a

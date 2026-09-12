@@ -36,9 +36,10 @@ describe("annotation color properties", () => {
     expect(appearance).toBeDefined();
     expect(appearance).not.toContain('open=""');
     expect(markup).toContain('aria-label="Text color hex value">Automatic');
-    expect(markup).toContain(
-      'aria-label="Text color picker" type="color" value="#dc2626"',
-    );
+    expect(markup).toContain('aria-label="Text color custom RGB"');
+    expect(markup).toContain('aria-label="Use Red for text color"');
+    expect(markup).not.toContain('type="color"');
+    expect(markup.match(/component-color-swatch/gu)).toHaveLength(4);
     expect(markup).toContain("Auto uses the inherited text color.");
   });
 
@@ -63,8 +64,7 @@ describe("annotation color properties", () => {
     );
 
     expect(markup).toContain('aria-label="Text color hex value">#2563eb');
-    expect(markup).toContain(
-      'aria-label="Text color picker" type="color" value="#2563eb"',
-    );
+    expect(markup).toContain('aria-label="Use Blue for text color"');
+    expect(markup).toContain('aria-pressed="true"');
   });
 });

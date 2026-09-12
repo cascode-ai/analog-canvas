@@ -59,7 +59,17 @@ export function EditorDraftingHitTargets({
     clientY: number,
   ) => void;
 }) {
-  return (document.drafting?.objects ?? []).map((object) => {
+  const draftingObjects = [...(document.drafting?.objects ?? [])].sort(
+    (left, right) => {
+      const plane = (object: DraftingObject) =>
+        (object.kind === "rectangle" || object.kind === "circle") &&
+        object.layer === "background"
+          ? 0
+          : 1;
+      return plane(left) - plane(right) || left.zIndex - right.zIndex;
+    },
+  );
+  return draftingObjects.map((object) => {
     const drawingThroughScene =
       tool === "wire" ||
       tool === "arrow" ||
@@ -186,22 +196,32 @@ export function EditorDraftingHitTargets({
       );
     }
     if (object.kind === "rectangle" && geometry.kind === "rectangle") {
+      const fillClass = object.styleOverride?.fillColor
+        ? object.layer === "background"
+          ? " drafting-shape-background-hit"
+          : " drafting-shape-filled-hit"
+        : "";
       return (
         <polygon
           key={object.id}
           {...common}
-          className={`${selectedClass} drafting-rectangle-hit`}
+          className={`${selectedClass} drafting-rectangle-hit${fillClass}`}
           points={serializePolylinePoints(geometry.corners)}
           fill="none"
         />
       );
     }
     if (object.kind === "circle" && geometry.kind === "circle") {
+      const fillClass = object.styleOverride?.fillColor
+        ? object.layer === "background"
+          ? " drafting-shape-background-hit"
+          : " drafting-shape-filled-hit"
+        : "";
       return (
         <circle
           key={object.id}
           {...common}
-          className={`${selectedClass} drafting-circle-hit`}
+          className={`${selectedClass} drafting-circle-hit${fillClass}`}
           cx={geometry.center.x}
           cy={geometry.center.y}
           r={geometry.radius}

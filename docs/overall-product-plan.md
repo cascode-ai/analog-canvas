@@ -29,7 +29,7 @@ Preview and Production availability follow [deployment](deployment.md).
 | Portable file compatibility                      | Parse/upgrade/serialize boundary in `@icm/project-protocol`                      |
 | Device semantics and parameters                  | Component definition `electrical` section, projected into `@icm/devices`         |
 | Human and Agent Project mutations                | `@icm/edit-engine` transactions                                                  |
-| Symbol geometry and pin anchors                  | Component definition `symbol` section, projected into `@icm/symbols`              |
+| Symbol geometry and pin anchors                  | Component definition `symbol` section, projected into `@icm/symbols`             |
 | Visual construction and acceptance               | Razavi reference manifest and [visual contract](specs/razavi-visual-contract.md) |
 | Electrical read model                            | `@icm/derived` Base-Net/Logical-Net projections and connectivity index           |
 | Structural SPICE import                          | `@icm/spice` transient Circuit IR                                                |
@@ -81,7 +81,7 @@ source-value override.
   explicit cut partitions physical connectivity.
 - Cell Pins are ordered hierarchy interfaces. Visual variants never delete
   electrical terminal semantics or invent MOS bulk connections.
-- Canonical Project content is schema-50, governed by the
+- Canonical Project content is schema-51, governed by the
   [file-format contract](specs/project-file-format.md).
   Cloud Save, portable file export, browser recovery, and public Gallery
   publication are distinct operations.

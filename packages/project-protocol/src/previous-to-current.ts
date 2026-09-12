@@ -199,3 +199,5 @@ export {
   upgradeSchema48To49,
   upgradeSchema48To49WithReport,
 } from "./transforms/simulation-source.js";
+export { upgradeSchema49To50 } from "./transforms/simulation-folders.js";
+export { upgradeSchema50To51 } from "./transforms/drafting-shape-paint.js";
