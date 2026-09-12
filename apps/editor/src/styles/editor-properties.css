@@ -353,6 +353,15 @@
 
 .component-property-code-editor > header strong {
   font-size: var(--icm-font-sm);
+  margin-right: auto;
+}
+
+.component-property-help {
+  flex: 0 0 auto;
+  padding: 0.2rem 0.4rem;
+  min-height: 2rem;
+  font-size: var(--icm-font-xs);
+  white-space: nowrap;
 }
 
 .component-property-copy {
@@ -459,6 +468,11 @@
   outline-offset: 0;
 }
 
+.component-json-editor {
+  container-type: inline-size;
+  overflow: hidden;
+}
+
 .component-json-editor .cm-editor {
   min-height: 15.5rem;
   border-radius: inherit;
@@ -497,16 +511,15 @@
 }
 .component-json-editor .cm-property-assist {
   display: inline-flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 0.3rem;
-  max-width: 100%;
-  margin: 0.2rem 0 0.35rem 0.4rem;
+  margin: 0.1rem 0 0.1rem 0.65rem;
   font-family: var(--icm-font-sans, sans-serif);
   font-size: 12px;
   line-height: 1.4;
   vertical-align: middle;
-  white-space: normal;
+  white-space: nowrap;
 }
 .component-json-editor .cm-property-assist button,
 .component-json-editor .cm-property-assist select {
@@ -539,12 +552,15 @@
   cursor: pointer;
 }
 .component-json-editor .cm-property-hint {
-  flex: 1 1 100%;
+  box-sizing: border-box;
+  width: calc(100cqw - 2rem);
+  margin: 0.15rem 0 0.5rem 1rem;
+  padding-left: 0.6rem;
+  border-left: 2px solid var(--icm-border);
+  font: 12px/1.5 var(--icm-font-sans, sans-serif);
+  white-space: normal;
   color: var(--icm-text-muted);
   overflow-wrap: anywhere;
-}
-.component-json-editor .cm-property-inherited {
-  color: var(--icm-text-muted);
 }
 
 .component-property-code-status {

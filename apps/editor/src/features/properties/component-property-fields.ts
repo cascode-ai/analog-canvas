@@ -34,7 +34,8 @@ export const CANVAS_PROPERTY_FIELDS: readonly CanvasPropertyField[] = [
     path: "placement.at",
     label: "Position",
     kind: "coordinate",
-    description: "[x, y] · canvas coordinates; snapped to the grid on Apply.",
+    description:
+      "[x, y] · canvas coordinates; snapped to the grid when updated.",
   },
   {
     path: "placement.rotation",
@@ -76,8 +77,11 @@ export const CANVAS_PROPERTY_FIELDS: readonly CanvasPropertyField[] = [
 ];
 
 export function colorToRgb(value: string): [number, number, number] {
+  const expanded = /^#[0-9a-f]{3}$/iu.test(value)
+    ? `#${[...value.slice(1)].map((channel) => channel + channel).join("")}`
+    : value;
   return [1, 3, 5].map((offset) =>
-    Number.parseInt(value.slice(offset, offset + 2), 16),
+    Number.parseInt(expanded.slice(offset, offset + 2), 16),
   ) as [number, number, number];
 }
 

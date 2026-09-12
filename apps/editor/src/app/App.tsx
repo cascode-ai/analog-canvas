@@ -4086,11 +4086,14 @@ export function App({
         event.target instanceof Element &&
         event.target.closest(".selection-dock") !== null
       ) {
-        // Escape inside Properties commits pending drafts instead of losing
-        // them; a second Escape resumes normal canvas cancel behavior.
+        // JSON properties already commit live. Do not replay the legacy form
+        // draft over them when leaving the editor (or discard incomplete JSON).
+        // Other property forms retain their explicit Escape commit behavior.
         event.preventDefault();
-        commitInstancePropertyDraft();
-        commitPendingNetLabelDraft();
+        if (!event.target.closest(".component-property-code-editor")) {
+          commitInstancePropertyDraft();
+          commitPendingNetLabelDraft();
+        }
         if (event.target instanceof HTMLElement) event.target.blur();
         return;
       }

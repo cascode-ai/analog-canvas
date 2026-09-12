@@ -48,13 +48,15 @@ palette-first manual authoring; no Project file needs to be opened first.
   hints, or type JSON directly. Fixed colors display as `[R, G, B]` (0–255);
   hex input also works. **Global** inherits ink and **No fill** removes the
   independent background override. Flip arrows work in canvas directions.
-  These controls change the draft: choose **Apply code** (or
-  press `Ctrl`/`Cmd`+`Enter`); invalid or unknown properties are reported
-  without changing the drawing. Parameter values are strings: type unit suffixes
+  Valid edits update the drawing immediately, with no Apply step. **Need help?**
+  expands field explanations; they are hidden by default. Controls stay on the
+  same line as their values; narrow panels scroll horizontally instead of splitting
+  buttons across lines. Invalid or unknown properties are reported while the
+  drawing keeps its last valid state. Parameter values are strings: type unit suffixes
   yourself; `EV` remains `EV`, and `2u` is not changed to `2um`.
-  **Discard draft** cancels unapplied edits. **Defaults** loads known defaults
-  into the draft without moving, renaming or rebinding the component; Apply
-  commits them. The small **Copy JSON** icon at the text area's top right copies
+  **Discard draft** clears an invalid or rejected edit. **Defaults** restores known
+  defaults immediately without moving, renaming or rebinding the component;
+  use Undo to restore previous values. The small **Copy JSON** icon at the text area's top right copies
   the whole draft, excluding hints and controls. Compatible drawing
   variants and formula overrides are in the same editor, with no duplicate
   Parameters/Actions/Netlist Target forms. Drag the panel's left edge to set a

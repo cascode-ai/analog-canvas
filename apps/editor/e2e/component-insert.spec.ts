@@ -1117,12 +1117,11 @@ test("carries a manual Value through placement and Q property editing", async ({
   const draft = JSON.parse(await readComponentPropertyCode(page));
   draft.parameters.value = "10k";
   await propertyCode.fill(JSON.stringify(draft, null, 2));
-  await expect(page.getByTestId("revision")).toHaveText("1");
+  await expect(page.getByTestId("revision")).toHaveText("2");
   await expect(
     page.getByRole("button", { name: "Apply component properties" }),
   ).toHaveCount(0);
-  await page.getByRole("button", { name: "Discard draft" }).click();
-  await expect(page.getByTestId("revision")).toHaveText("1");
+  await clickCommand(page, "Edit", "Undo");
   await expectComponentCodeField(page, "parameters.value", "");
   // Electrical renaming and the shared visual editor are distinct actions;
   // there is no second, plain-text Label field or heavyweight Identity card.
@@ -1140,7 +1139,7 @@ test("carries a manual Value through placement and Q property editing", async ({
     code.reference = "R7";
     code.parameters.tc = "0.1";
   });
-  await expect(page.getByTestId("revision")).toHaveText("2");
+  await expect(page.getByTestId("revision")).toHaveText("4");
   await expectComponentCodeField(page, "reference", "R7");
   await expectComponentCodeField(page, "parameters.tc", "0.1");
 });
@@ -1166,7 +1165,6 @@ test("ordinary source Properties switch waveforms without erasing inactive value
   );
 
   await waveform.selectOption("pulse");
-  await page.getByRole("button", { name: "Apply code" }).click();
   await expectComponentCodeField(page, "parameters.high", "1");
   await setComponentParameter(page, "high", "2.5");
 
@@ -1174,7 +1172,6 @@ test("ordinary source Properties switch waveforms without erasing inactive value
     .getByLabel("Editable Canvas property code")
     .press("ControlOrMeta+Home");
   await waveform.selectOption("sin");
-  await page.getByRole("button", { name: "Apply code" }).click();
   await expectComponentCodeField(page, "parameters.amplitude", "1");
   await expectComponentCodeField(page, "parameters.high", "2.5");
 
@@ -1182,7 +1179,6 @@ test("ordinary source Properties switch waveforms without erasing inactive value
     .getByLabel("Editable Canvas property code")
     .press("ControlOrMeta+Home");
   await waveform.selectOption("pulse");
-  await page.getByRole("button", { name: "Apply code" }).click();
   await expectComponentCodeField(page, "parameters.high", "2.5");
   await expect
     .poll(() => recoveryProjectTexts(page))
