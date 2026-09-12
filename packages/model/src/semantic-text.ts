@@ -87,13 +87,23 @@ export function plainNameDocument(value: string): RichTextDocument {
 /** Construct current-authoring RichText for a conventional semantic label. */
 export function semanticTextDocument(
   value: string,
-  _kind: SemanticTextKind,
+  kind: SemanticTextKind,
 ): RichTextDocument {
   if (value.length === 0) return { runs: [{ kind: "line-break" }] };
-  // Every authored label follows one styling rule: leading symbol, then the
-  // remainder as its subscript. A trailing polarity sign stays outside the
-  // subscript because it qualifies the whole identifier.
+  // A Net Label is a complete authored name, not an instance designator or a
+  // symbolic variable with an implicit index. Keep the Razavi bold-italic
+  // face, but require an explicit RichText edit for subscript semantics.
+  // A trailing polarity sign still qualifies the whole name.
   const signed = /^(.+?)([+-])$/u.exec(value);
+  if (kind === "net-label") {
+    return {
+      runs: signed
+        ? [mathBase(signed[1]!), { kind: "text", value: signed[2]! }]
+        : [mathBase(value)],
+    };
+  }
+  // Other semantic identifiers retain the established leading-symbol and
+  // subscript convention.
   if (!signed) return { runs: symbolRuns(value) };
   return {
     runs: [

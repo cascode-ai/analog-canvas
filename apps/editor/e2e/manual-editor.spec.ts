@@ -3707,7 +3707,7 @@ test("stacks complementary scripts under one uninterrupted overbar", async ({
   ).toEqual([]);
 });
 
-test("L names first, previews a floating Net Label, then places it on a wire", async ({
+test("L labels a selected wire or snaps near an unselectable wire", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -3718,18 +3718,23 @@ test("L names first, previews a floating Net Label, then places it on a wire", a
   await page.getByTestId("terminal-R2-1").click();
   await page.keyboard.press("Escape");
 
+  // The selection-first flow remains a one-step edit after naming.
+  await clickRoute(page, "route-ui-1", 0.7, 0);
   await page.keyboard.press("l");
   const editor = page.getByTestId("net-label-editor");
   await expect(editor).toBeVisible();
   await editor.getByRole("textbox", { name: "Net Label" }).fill("SIGNAL");
   await editor.getByRole("textbox", { name: "Net Label" }).press("Enter");
   const preview = page.getByTestId("net-label-placement-preview");
-  await expect(preview).toContainText("SIGNAL");
-  await clickRoute(page, "route-ui-1", 0.7, 0);
   await expect(preview).toHaveCount(0);
   await expect(page.locator('[data-layer="annotations"]')).toContainText(
     "SIGNAL",
   );
+  await expect(
+    page.locator(
+      '[data-object-id="net-label-route-ui-1"] [data-text-run="subscript"]',
+    ),
+  ).toHaveCount(0);
   await expect(page.getByTestId("flightline")).toHaveCount(0);
   await page.keyboard.press("Delete");
   await expect(
@@ -3737,12 +3742,42 @@ test("L names first, previews a floating Net Label, then places it on a wire", a
   ).toHaveCount(0);
   await expect(page.getByTestId("flightline")).toHaveCount(0);
 
+  // Selection Filter must not disable an electrical creation target.
+  await page.keyboard.press("Control+f");
+  const filter = page.getByTestId("selection-filter-popover");
+  await filter.getByRole("button", { name: "None" }).click();
+  await filter.getByRole("button", { name: "Close" }).click();
+
   await page.keyboard.press("l");
   await editor.getByRole("textbox", { name: "Net Label" }).fill("VREF");
   await editor.getByRole("textbox", { name: "Net Label" }).press("Enter");
-  await clickRoute(page, "route-ui-1", 0.25, 0);
+  await expect(preview).toContainText("VREF");
+  const routePoint = await page
+    .getByTestId("route-hit-route-ui-1")
+    .evaluate((element) => {
+      const polyline = element as SVGPolylineElement;
+      const first = polyline.points.getItem(0);
+      const second = polyline.points.getItem(1);
+      const matrix = polyline.getScreenCTM();
+      if (!first || !second || !matrix) return null;
+      const point = new DOMPoint(
+        first.x + (second.x - first.x) * 0.25,
+        first.y + (second.y - first.y) * 0.25,
+      ).matrixTransform(matrix);
+      return { x: point.x, y: point.y };
+    });
+  if (!routePoint) throw new Error("Route is not measurable");
+  await page.mouse.move(routePoint.x, routePoint.y + 9);
+  // An SVG line has zero CSS width/height, so assert its rendered presence
+  // rather than Playwright's box-based visibility heuristic.
+  await expect(page.locator(".smart-snap-guide")).toHaveCount(1);
+  await page.mouse.click(routePoint.x, routePoint.y + 9);
+  await expect(preview).toHaveCount(0);
   await expect(page.locator('[data-layer="annotations"]')).toContainText(
     "VREF",
+  );
+  await expect(page.getByTestId("route-hit-route-ui-1")).not.toHaveClass(
+    /selected/,
   );
 
   await page.keyboard.press("l");

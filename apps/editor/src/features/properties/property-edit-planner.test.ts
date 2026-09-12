@@ -103,9 +103,10 @@ describe("property edit planner", () => {
     );
   });
 
-  it("places a new L-command label at the explicit canvas point", () => {
+  it("commits the same route attachment resolved by the L-command preview", () => {
     const input = routedFixture();
     const planner = createPropertyEditPlanner(input);
+    const legId = input.document.routes[0]!.legs[0]!.id;
 
     const edits = planner.netLabelEditsForRoute(
       input.document.routes[0]!,
@@ -113,7 +114,14 @@ describe("property edit planner", () => {
       {
         alignment: "start",
         sizeScale: 1,
-        position: { x: 73, y: 14 },
+        position: { x: 70, y: -8 },
+        routeAttachment: {
+          routeId: "route",
+          legId,
+          t: 0.7,
+          normalOffset: -8,
+          direction: "forward",
+        },
       },
     );
 
@@ -125,8 +133,14 @@ describe("property edit planner", () => {
             id: "net-label-route",
             alignment: "start",
             anchor: {
-              kind: "free",
-              position: { x: 70, y: 10 },
+              kind: "route",
+              routeId: "route",
+              legId,
+              t: 0.7,
+              normalOffset: -8,
+              direction: "forward",
+              orientation: "follow",
+              fallbackPosition: { x: 70, y: -8 },
             },
           }),
         }),

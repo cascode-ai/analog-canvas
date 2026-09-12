@@ -31,7 +31,7 @@ describe("Razavi schematic typography", () => {
 
   it("draws an ordinary subscript upright", () => {
     const rendered = renderRichTextDocument(
-      semanticTextDocument("Vin", "net-label"),
+      semanticTextDocument("Vin", "formal-port"),
       razaviTextbookProfile,
       {
         fontSize: schematicTextFontSize("net-label", razaviTextbookProfile),
@@ -40,6 +40,20 @@ describe("Razavi schematic typography", () => {
     expect(rendered).toContain(
       '<tspan data-text-run="span" style="font-style:normal;font-weight:700">in</tspan>',
     );
+  });
+
+  it("keeps a default Net Label bold italic without an implicit subscript", () => {
+    const rendered = renderRichTextDocument(
+      semanticTextDocument("Vin", "net-label"),
+      razaviTextbookProfile,
+      {
+        fontSize: schematicTextFontSize("net-label", razaviTextbookProfile),
+      },
+    );
+    expect(rendered).toContain(
+      '<tspan data-text-run="span" style="font-style:italic;font-weight:700">Vin</tspan>',
+    );
+    expect(rendered).not.toContain('data-text-run="subscript"');
   });
 
   it("uses semantic profile sizes", () => {
