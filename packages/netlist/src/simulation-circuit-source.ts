@@ -1,6 +1,7 @@
 import type { CircuitProject, SimulationCircuitBinding } from "@icm/model";
 import {
   deviceDescriptor,
+  parameterExpressionBody,
   reviewedExternalDeviceBindings,
   sky130MicrometresToProjectLength,
   type DeviceParameterDefinition,
@@ -195,7 +196,7 @@ export function planCircuitSourceEdit(
     if (!nextText.startsWith(fixed, nextOffset))
       return fail(
         "SIMULATION_CIRCUIT_STRUCTURE_LOCKED",
-        "Only highlighted numeric parameters can change; edit topology, references and model identity on Canvas",
+        "Only highlighted parameter values or expressions can change; edit topology, references and model identity on Canvas",
       );
     nextOffset += fixed.length;
     const nextStart = spans[index + 1]?.startOffset ?? source.text.length;
@@ -238,10 +239,14 @@ export function planCircuitSourceEdit(
       continue;
     }
     const number = parseSpiceNumber(raw);
-    if (!number || !Number.isFinite(number.value) || /\s/u.test(raw)) {
+    const expression = parameterExpressionBody(raw);
+    if (
+      expression === undefined &&
+      (!number || !Number.isFinite(number.value) || /\s/u.test(raw))
+    ) {
       invalid ??= fail(
         "SIMULATION_PARAMETER_INVALID",
-        `Finish the numeric value for ${span.descriptor.label} before applying`,
+        `Finish the number or braced parameter expression for ${span.descriptor.label} before applying`,
       );
       originalOffset = span.endOffset;
       nextOffset = end;
@@ -251,6 +256,7 @@ export function planCircuitSourceEdit(
       ["width", "length", "multiplier", "finger-count"].includes(
         span.descriptor.displayRole,
       ) &&
+      number &&
       number.value <= 0
     ) {
       invalid ??= fail(
@@ -263,6 +269,7 @@ export function planCircuitSourceEdit(
     }
     if (
       span.descriptor.displayRole === "finger-count" &&
+      number &&
       !Number.isInteger(number.value)
     ) {
       invalid ??= fail(

@@ -154,12 +154,12 @@ export interface CompiledSimulationOutput {
 }
 
 export type SimulationDeviceOperatingPointParameter =
-  "vgs" | "vds" | "vbs" | "id";
+  "vgs" | "vds" | "vbs" | "id" | "gm" | "gds" | "gmbs" | "vth" | "vdsat";
 
 export interface CompiledSimulationDeviceOperatingPointValue {
   readonly parameter: SimulationDeviceOperatingPointParameter;
-  readonly label: "VGS" | "VDS" | "VBS" | "ID";
-  readonly unit: "V" | "A";
+  readonly label: string;
+  readonly unit: "V" | "A" | "S";
   readonly expression: CompiledSimulationExpression;
 }
 

@@ -233,7 +233,16 @@ export const SimulationSourceDeviceOperatingPointSchema =
     circuit: SimulationCircuitScopeSchema,
   });
 
-/** Parse on prepare/helper invocation; persist only the JSON source text. */
+/** Native experiments define all electrical behavior in SPICE, not a sidecar. */
+export const NativeSimulationExperimentConfigSchema = z.strictObject({
+  version: z.literal(2),
+  environment: z.strictObject({ profileId: z.string().min(1).max(256) }),
+});
+export type NativeSimulationExperimentConfig = z.infer<
+  typeof NativeSimulationExperimentConfigSchema
+>;
+
+/** Version-1 compatibility reader. New experiments use the native version-2 contract. */
 export const SimulationExperimentConfigSchema = z
   .strictObject({
     version: z.literal(1),

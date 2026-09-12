@@ -8,12 +8,14 @@ import {
   inspectSimulationSourceGraph,
   listAuthoredCircuitScopes,
   simulationSignalNames,
+  nativeSimulationDevices,
+  nativeDeviceOpVectors,
 } from "@icm/netlist";
 import { deriveSimulationProbeOptions } from "./simulation-probe-options";
 
 export interface SourceProbeChoice {
   label: string;
-  kind: "voltage" | "current";
+  kind: "voltage" | "current" | "device-op";
   expression: SimulationSourceExpression;
 }
 export function sourceProbeChoices(
@@ -22,6 +24,13 @@ export function sourceProbeChoices(
 ): SourceProbeChoice[] {
   const graph = inspectSimulationSourceGraph(input);
   const choices: SourceProbeChoice[] = [];
+  for (const device of nativeSimulationDevices(project, input))
+    for (const vector of nativeDeviceOpVectors(device))
+      choices.push({
+        kind: "device-op",
+        label: `${device.reference} · ${vector.slice(vector.lastIndexOf("[") + 1, -1).toUpperCase()} — ${vector}`,
+        expression: { kind: "vector", vector },
+      });
   for (const binding of input.circuitBindings) {
     if (!graph.paths.includes(binding.path)) continue;
     const analysis = analyzeDesignNetlist(project, {

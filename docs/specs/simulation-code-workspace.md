@@ -29,13 +29,66 @@ are outside this work.
 
 ## 1. One owner for each fact
 
+### Native Code authority (configuration version 2)
+
+New experiments use a strict minimal sidecar:
+
+```json
+{ "version": 2, "environment": { "profileId": "hosted-sky130-v1" } }
+```
+
+The profile ID above is illustrative; use the ID advertised by the executor.
+SPICE owns `.param`, parameter references, `.temp`, `.lib` selection, analyses,
+`save`/`.probe`, `let`, `meas`, and control loops. None has an editable JSON
+counterpart. Generated Circuit parameter slots accept numeric literals or braced
+and single-quoted parameter expressions. They still map back to the same Canvas
+Instance through one transaction; topology remains protected. Reviewed SKY130
+Code dimensions are in micrometres and Canvas dimensions in metres; expression
+wrappers explicitly preserve that conversion, including round trips.
+
+Batch is a queue of selected experiment folders, invoked by **Run selected
+folders** in the Explorer context menu. All selected folders' drafts are applied
+before preparation, not just the active folder. Native loops remain one native
+program, not an app-expanded sweep. Execution variants are rejected for version 2.
+
+Device OP is derived from vectors actually collected by Code. `op` takes no
+parameters: request e.g. `save @m1[id] @m1[gm]`, then `op`, then `write result.raw`.
+Helper resolves Canvas and authored hierarchy identities, including reviewed
+SKY130 wrapper primitives. It never adds JSON selections or hidden Canvas sense
+sources. Top-level terminal picks use native `.probe`; hierarchical picks support
+only model-native readable drain currents and voltage-source branch currents.
+Unsupported internal terminals report the limitation without modifying the project.
+Native raw names and model values remain evidence; there is no reconstructed
+`gm`, threshold or saturation-region algorithm.
+
+Native `meas` results are finite scalar reports read from the simulator log, with
+report order and Console line retained. Missing results are unavailable, not zero.
+Repeated names are not guessed to belong to particular raw plots, and units are
+not inferred. Existing automatic result summaries remain app-derived views.
+
+The one-rawfile executor derives its collector from reachable literal `write`
+paths. Repeated writes may use one path with `set appendwrite`; dynamic paths and
+multiple distinct paths are diagnosed. No `write` means a console/artifact-only
+run, not an invented `out.raw`. The profile and safe dependency manifests remain
+application responsibilities; an explicit native `.lib` selects its corner.
+
+Version-1 experiments are a **legacy compatibility lane**, not Code-only
+experiments. They retain their original JSON behavior and show a visible legacy
+notice. Helper can explicitly convert sidecars with no remaining advanced intent
+and a matching collector. Bindings, sweep plans, named outputs, Device OP selections,
+measurements and corners that need translation block that conversion and list the
+required work; no intent is silently erased. Automated translation of arbitrary
+legacy advanced experiments is not implemented. The version-1 descriptions below
+document that compatibility lane only and do not authorize new sidecar features.
+
 | Fact                                                                  | Authority                                | Permitted editor                                              |
 | --------------------------------------------------------------------- | ---------------------------------------- | ------------------------------------------------------------- |
 | Canvas circuit topology, interfaces, model/device identity            | Existing Project Cells and Instances     | Existing Project edits                                        |
 | Persistent circuit dimensions and exposed instance values             | Instance netlist parameters              | Properties or mapped code edits, through the same transaction |
 | Text-authored Testbench, sources, loads, analyses and control flow    | Authored SPICE files                     | Human, Agent, template or helper                              |
 | Drawn Testbench topology and source values                            | Its ordinary Cell                        | Canvas/Properties or mapped parameter edits                   |
-| Profile, managed Run Plan, output bindings and saved measurements     | Authored experiment configuration file   | Human, Agent or helper                                        |
+| Runtime Profile ID                                                  | Authored minimal experiment configuration | Human or Agent                                                |
+| Variables, acquisition, analysis, loops and native measurements       | Authored SPICE (version 2)                | Human, Agent or Helper                                        |
 | Generated text, ASTs, effective parameters and object/vector mappings | Derived from one captured input          | Read-only projections                                         |
 | Prepared artifacts, run state and results                             | Existing simulation service and executor | Existing lifecycle and artifact resources                     |
 
@@ -136,9 +189,9 @@ added choices are marked and cannot insert duplicates within that selection sess
 Canvas picking continues until Done or Escape. Successive picks extend the session's
 save statement without focusing the editor; the file row exposes picking status
 and Done. Failed additions keep the selection available and report their cause.
-Terminal-current picks retain their existing configuration owner when generated
-measurement wiring is required. An explicit
-save list is never silently widened to `all` by that instrumentation.
+Terminal-current picks write native `.probe` or a model-native `save` vector.
+They never create new legacy configuration instrumentation or silently widen
+an explicit save list to `all`.
 Discovery and completion use the compiler's authored call-path mapping; they
 show the Canvas name alongside the executable native vector. Native vectors
 remain available for text-only or statically unresolvable scopes.
@@ -152,7 +205,7 @@ ordinary authored text; entry/includes determine whether it executes. Optional
 Canvas templates produce protected generated bindings, not a writable copy of
 the circuit. All persistence still uses the shared folder/file operations.
 
-### Experiment configuration
+### Legacy experiment configuration (version 1 only)
 
 The JSON text at `configPath` is the sole configuration authority. Its version-1
 object has these fields; bounded leaves reuse the existing model schemas:
@@ -196,7 +249,7 @@ structural evaluator into a purported complete ngspice evaluator. A binding
 whose descriptor cannot faithfully project an expression receives a located
 binding diagnostic; unrelated free SPICE expressions do not become illegal.
 
-### Acquisition scope
+### Legacy acquisition scope
 
 Canvas voltage/current expression leaves and device-OP selections add:
 

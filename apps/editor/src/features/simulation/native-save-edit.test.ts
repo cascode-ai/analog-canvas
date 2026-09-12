@@ -1,9 +1,29 @@
 import { describe, expect, it } from "vitest";
 import { EditorState } from "@codemirror/state";
-import { nativeSaveEdit } from "./native-save-edit";
+import { nativeSaveEdit, nativeAcquisitionEdit } from "./native-save-edit";
 import { parameterGuide } from "./code-parameter-guide";
 
 describe("native save authoring", () => {
+  it("keeps a title-only entry before native probe cards", () => {
+    expect(
+      nativeAcquisitionEdit("My deck", 7, [], true, [".probe i(r1,1)"]).text,
+    ).toBe("My deck\n.probe i(r1,1)\n");
+  });
+  it("places native terminal probes outside control and never creates an empty save", () => {
+    const text = "* title\n.control\nop\nwrite out.raw\n.endc\n.end\n";
+    const first = nativeAcquisitionEdit(text, text.length, [], true, [
+      ".probe i(r1,2)",
+    ]);
+    expect(first.text).toBe(
+      text.replace(".control", ".probe i(r1,2)\n.control"),
+    );
+    expect(
+      nativeAcquisitionEdit(first.text, first.anchor, [], true, [
+        ".probe i(r1,2)",
+      ]).text,
+    ).toBe(first.text);
+    expect(first.text).not.toContain("save ");
+  });
   it("inserts before control analyses rather than after their write", () => {
     const text = "* title\n.control\nop\nwrite out.raw\n.endc\n.end\n";
     const edit = nativeSaveEdit(text, text.length, ["v(out)"], true);

@@ -39,6 +39,11 @@ import {
   type SimulationSourceGraph,
 } from "./simulation-source-graph.js";
 import { resolveAuthoredCircuitScope } from "./simulation-source-scopes.js";
+import { nativeSourceCollection } from "./simulation-native-collection.js";
+import {
+  nativeSimulationDevices,
+  NATIVE_MOS_OP_PARAMETERS,
+} from "./simulation-native-devices.js";
 
 type Plan = Extract<CompiledSimulation, { ok: true }>;
 type BoundLeaf = Extract<
@@ -56,6 +61,7 @@ export type SourceSimulationCompilation =
   | {
       ok: true;
       config: SimulationExperimentConfig;
+      authority: "code" | "legacy-config";
       /** Original source bytes remain separate from the execution projection. */
       authoredFiles: { path: string; text: string }[];
       files: { path: string; text: string }[];
@@ -125,6 +131,16 @@ export function compileSourceSimulation(
   );
   const effective = projection.project;
   const config = projection.config;
+  if (parsedConfig.authority === "code") {
+    const native = nativeSourceCollection(graph);
+    config.collection = native.collection;
+    diagnostics.push(...native.diagnostics);
+    if (variant && Object.values(variant).some((value) => value !== undefined))
+      fail(
+        "SIMULATION_NATIVE_VARIANT_UNSUPPORTED",
+        "Native experiments define sweeps and overrides in Code. Batch selects folders; it does not override their parameters.",
+      );
+  }
   diagnostics.push(...projection.diagnostics);
   const reachable = new Set(graph.paths);
   const bindings = folder.input.circuitBindings.filter((b) =>
@@ -435,6 +451,32 @@ export function compileSourceSimulation(
       })),
     };
   });
+  // Discover mappings, but do not request any acquisition here. Only vectors
+  // actually returned by the native program become Device OP rows.
+  if (parsedConfig.authority === "code") {
+    for (const device of nativeSimulationDevices(project, folder.input)) {
+      if (!device.polarity || !device.nativeDevice) continue;
+      deviceOperatingPoints.push({
+        id: `native-op:${device.nativeDevice}`,
+        documentId: device.documentId,
+        instanceId: device.instanceId,
+        occurrence: device.occurrence,
+        reference: device.reference,
+        polarity: device.polarity,
+        values: NATIVE_MOS_OP_PARAMETERS.map((parameter) => ({
+          parameter,
+          label: parameter.toUpperCase(),
+          unit:
+            parameter === "id" ? "A" : parameter.startsWith("g") ? "S" : "V",
+          expression: acquisition(
+            `@${device.nativeDevice}[${parameter}]`,
+            "native",
+            false,
+          ),
+        })),
+      });
+    }
+  }
   for (const measurement of config.measurements)
     if (
       !outputs.some((o) => o.id === measurement.outputId) &&
@@ -479,6 +521,7 @@ export function compileSourceSimulation(
   return {
     ok: true,
     config,
+    authority: parsedConfig.authority,
     authoredFiles: structuredClone(folder.input.files),
     files: mappedFiles.map(({ path, text }) => ({ path, text })),
     sourceMaps: mappedFiles.map(({ path, segments }) => ({ path, segments })),

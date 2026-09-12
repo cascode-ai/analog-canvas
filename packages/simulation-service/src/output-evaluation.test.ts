@@ -7,6 +7,132 @@ import {
 import { SimulationOutputDataSchema } from "./contract.js";
 
 describe("simulation output evaluation", () => {
+  it("resolves ngspice46 typed raw names for hierarchical device parameters", () => {
+    const result = evaluateSimulationOutputs(
+      {
+        schemaVersion: 1,
+        analyses: [
+          {
+            analysis: "op",
+            plotName: "OP",
+            probes: [
+              {
+                name: "i(@m.x1.m2[id])",
+                quantity: "current",
+                unit: "A",
+                value: 0.000125,
+              },
+              {
+                name: "v(@m.x1.m2[vgs])",
+                quantity: "voltage",
+                unit: "V",
+                value: 1,
+              },
+            ],
+          },
+        ],
+      },
+      [
+        { probeId: "id", vector: "@m.x1.m2[id]", quantity: "native" },
+        { probeId: "vgs", vector: "@m.x1.m2[vgs]", quantity: "native" },
+      ],
+      [
+        {
+          id: "id",
+          label: "ID",
+          expression: {
+            kind: "acquisition",
+            acquisitionId: "id",
+            quantity: "native",
+          },
+        },
+        {
+          id: "vgs",
+          label: "VGS",
+          expression: {
+            kind: "acquisition",
+            acquisitionId: "vgs",
+            quantity: "native",
+          },
+        },
+      ],
+    );
+    expect(result.analyses[0]?.outputs).toMatchObject([
+      { unit: "A", values: [0.000125] },
+      { unit: "V", values: [1] },
+    ]);
+    expect(result.diagnostics).toEqual([]);
+  });
+  it("only shows native Device OP quantities that the Code actually collected", () => {
+    const result = evaluateSimulationOutputs(
+      {
+        schemaVersion: 1,
+        analyses: [
+          {
+            analysis: "op",
+            plotName: "OP",
+            probes: [
+              {
+                name: "@m1[gm]",
+                quantity: "admittance",
+                unit: "S",
+                value: 0.002,
+              },
+            ],
+          },
+        ],
+      },
+      [
+        { probeId: "gm", vector: "@m1[gm]", quantity: "native" },
+        { probeId: "id", vector: "@m1[id]", quantity: "native" },
+      ],
+      [],
+      [],
+      [
+        {
+          id: "native-op:m1",
+          documentId: "dut",
+          instanceId: "M1",
+          occurrence: [],
+          reference: "M1",
+          polarity: "nmos",
+          values: [
+            {
+              parameter: "gm",
+              label: "GM",
+              unit: "S",
+              expression: {
+                kind: "acquisition",
+                acquisitionId: "gm",
+                quantity: "native",
+              },
+            },
+            {
+              parameter: "id",
+              label: "ID",
+              unit: "A",
+              expression: {
+                kind: "acquisition",
+                acquisitionId: "id",
+                quantity: "native",
+              },
+            },
+          ],
+        },
+      ],
+      true,
+    );
+    expect(result.deviceOperatingPoints?.[0]?.values).toEqual([
+      {
+        parameter: "gm",
+        label: "GM",
+        unit: "S",
+        status: "available",
+        value: 0.002,
+      },
+    ]);
+    expect(SimulationOutputDataSchema.safeParse(result).success).toBe(true);
+  });
   it("exposes saved native vectors alongside configured outputs with run-local names", () => {
     const result = evaluateSimulationOutputs(
       {

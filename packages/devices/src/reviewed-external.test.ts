@@ -74,6 +74,18 @@ describe("reviewed external device bindings", () => {
 
   it("converts reviewed geometry in both directions without aliasing counts", () => {
     expect(projectLengthToSky130Micrometres("150n")).toBe("0.15");
+    expect(projectLengthToSky130Micrometres("{WIDTH}")).toBe("{(WIDTH) / 1u}");
+    expect(sky130MicrometresToProjectLength("{WIDTH}")).toBe("{(WIDTH) * 1u}");
+    expect(
+      projectLengthToSky130Micrometres(
+        sky130MicrometresToProjectLength("{WIDTH * 2}"),
+      ),
+    ).toBe("{WIDTH * 2}");
+    expect(
+      sky130MicrometresToProjectLength(
+        projectLengthToSky130Micrometres("{WIDTH * 2}"),
+      ),
+    ).toBe("{WIDTH * 2}");
     expect(projectLengthToSky130Micrometres("5.5u")).toBe("5.5");
     expect(sky130MicrometresToProjectLength("0.15")).toBe("150n");
     expect(sky130MicrometresToProjectLength("5.5")).toBe("5.5u");

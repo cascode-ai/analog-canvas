@@ -136,9 +136,19 @@ export const CompiledDeviceOperatingPointSchema: z.ZodType<CompiledSimulationDev
     polarity: z.enum(["nmos", "pmos"]),
     values: z.array(
       z.strictObject({
-        parameter: z.enum(["vgs", "vds", "vbs", "id"]),
-        label: z.enum(["VGS", "VDS", "VBS", "ID"]),
-        unit: z.enum(["V", "A"]),
+        parameter: z.enum([
+          "vgs",
+          "vds",
+          "vbs",
+          "id",
+          "gm",
+          "gds",
+          "gmbs",
+          "vth",
+          "vdsat",
+        ]),
+        label: z.string(),
+        unit: z.enum(["V", "A", "S"]),
         expression: CompiledOutputExpressionSchema,
       }),
     ),
@@ -275,6 +285,26 @@ export const AutomaticMeasurementSchema = z.discriminatedUnion("status", [
 ]);
 export const SimulationOutputDataSchema = z.strictObject({
   schemaVersion: z.literal(1),
+  nativeMeasurements: z
+    .array(
+      z.discriminatedUnion("status", [
+        z.strictObject({
+          name: z.string(),
+          occurrence: z.number().int().positive(),
+          status: z.literal("available"),
+          value: z.number().finite(),
+          logLine: z.number().int().positive(),
+          detail: z.string(),
+        }),
+        z.strictObject({
+          name: z.string(),
+          occurrence: z.literal(0),
+          status: z.literal("unavailable"),
+          detail: z.string(),
+        }),
+      ]),
+    )
+    .optional(),
   analyses: z.array(EvaluatedAnalysisSchema),
   measurements: z.array(AutomaticMeasurementSchema).optional(),
   deviceOperatingPoints: z

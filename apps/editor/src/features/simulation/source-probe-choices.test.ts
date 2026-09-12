@@ -4,6 +4,8 @@ import {
   createSimulationStarter,
   simulationSignalNames,
   simulationSignals,
+  nativeSimulationDevices,
+  nativeTerminalCurrent,
 } from "@icm/netlist";
 import { resolveSimulationVoltageProbeNetId } from "./simulation-probe-options";
 import ota from "../../examples/five-transistor-ota-sky130.icproj.json";
@@ -11,6 +13,34 @@ import { sourceProbeChoices } from "./source-probe-choices";
 
 const project = parseProject(JSON.stringify(ota));
 describe("source Probe discovery", () => {
+  it("uses native device identities for hierarchical OP and refuses hidden current instrumentation", () => {
+    const before = JSON.stringify(project);
+    const devices = nativeSimulationDevices(
+      project,
+      project.simulationFolders[0]!.input,
+    );
+    const mos = devices.find(
+      (device) => device.polarity && device.reference.includes("."),
+    )!;
+    expect(mos.nativeDevice).toMatch(/^m\..*\.msky130_fd_pr__/u);
+    expect(nativeTerminalCurrent(mos, "D")).toMatchObject({
+      ok: true,
+      vectors: [`@${mos.nativeDevice}[id]`],
+      directives: [],
+    });
+    expect(nativeTerminalCurrent(mos, "G")).toMatchObject({ ok: false });
+    const choices = sourceProbeChoices(
+      project,
+      project.simulationFolders[0]!.input,
+    );
+    expect(
+      choices.some(
+        (choice) =>
+          choice.kind === "device-op" && choice.label.includes("[gm]"),
+      ),
+    ).toBe(true);
+    expect(JSON.stringify(project)).toBe(before);
+  });
   it("maps native vectors back to valid Canvas nets through the same naming traversal", () => {
     const input = project.simulationFolders[0]!.input;
     const signals = simulationSignals(project, input);

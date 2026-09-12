@@ -76,7 +76,7 @@ import {
   parameterGuide,
 } from "./code-parameter-guide";
 import { CodeHelperList, type CodeHelperAction } from "./code-helper-list";
-import { nativeSaveEdit } from "./native-save-edit";
+import { nativeAcquisitionEdit } from "./native-save-edit";
 
 export interface SimulationCodeEditorProps {
   path: string;
@@ -108,7 +108,9 @@ export interface SimulationCodeEditorProps {
   relatedSources?: readonly string[];
   signalNames?: (() => Readonly<Record<string, string>>) | undefined;
   onFocusSignal?: ((vector: string | null) => void) | undefined;
-  saveRequest?: { id: string; session: string; vectors: string[] } | undefined;
+  saveRequest?:
+    | { id: string; session: string; vectors: string[]; directives?: string[] }
+    | undefined;
   reveal?:
     { sourceOffset: number; requestId: string; focus?: boolean } | undefined;
 }
@@ -378,7 +380,7 @@ export default function SimulationCodeEditor(props: SimulationCodeEditorProps) {
       props.mode === "json"
     )
       return;
-    const edit = nativeSaveEdit(
+    const edit = nativeAcquisitionEdit(
       editor.state.doc.toString(),
       saveAnchor.current?.session === props.saveRequest.session &&
         saveAnchor.current.path === props.path
@@ -386,10 +388,11 @@ export default function SimulationCodeEditor(props: SimulationCodeEditorProps) {
         : editor.state.selection.main.head,
       props.saveRequest.vectors,
       !!props.entry,
+      props.saveRequest.directives,
     );
-    const anchor = edit.from + edit.insert.replace(/[\r\n]+$/u, "").length;
+    const anchor = edit.anchor;
     editor.dispatch({
-      changes: { from: edit.from, insert: edit.insert },
+      changes: { from: 0, to: editor.state.doc.length, insert: edit.text },
       selection: { anchor },
       scrollIntoView: true,
     });

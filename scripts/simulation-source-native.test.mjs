@@ -52,6 +52,59 @@ async function run(request, name) {
 }
 
 describe.skipIf(!endpoint)("candidate ngspice46 source qualification", () => {
+  it("collects native hierarchical Device OP and top-level terminal probes", async () => {
+    const response = await post({ operation: "capabilities" });
+    const caps = CapabilitiesSchema.parse(await response.json());
+    const folder = createSimulationFolder({
+      id: "native-device",
+      name: "Native device",
+      profileId: profile.id,
+    });
+    folder.input.files.find((file) => file.path === folder.input.entry).text = [
+      "Native naming contract; illustrative MOS1, not a PDK qualification",
+      ".model NM NMOS level=1 vto=0.5 kp=100u",
+      "V1 d 0 1",
+      "V2 g 0 1",
+      "R1 d 0 1k",
+      "X1 d g inner",
+      ".subckt inner d g",
+      "M2 d g 0 0 NM w=10u l=1u",
+      ".ends",
+      ".probe i(r1,2)",
+      ".control",
+      "set filetype=ascii",
+      "save @m.x1.m2[id] @m.x1.m2[gm] @m.x1.m2[vgs]",
+      "op",
+      "write native.raw",
+      ".endc",
+      ".end",
+      "",
+    ].join("\n");
+    const compiled = await prepareSourceExecutionInput(
+      createEmptyProject("native-device", "Native"),
+      folder,
+      caps,
+    );
+    expect(compiled.ok, JSON.stringify(compiled)).toBe(true);
+    const result = await run(compiled.input, "native-device");
+    expect(result.outcome.status, JSON.stringify(result)).toBe("completed");
+    const probes = result.data.analyses.find(
+      (analysis) => analysis.analysis === "op",
+    ).probes;
+    expect(
+      probes.find((probe) => probe.name === "i(@m.x1.m2[id])").value,
+    ).toBeCloseTo(0.000125, 8);
+    expect(
+      probes.find((probe) => probe.name === "@m.x1.m2[gm]").value,
+    ).toBeCloseTo(0.0005, 8);
+    expect(
+      probes.find((probe) => probe.name === "v(@m.x1.m2[vgs])").value,
+    ).toBeCloseTo(1, 8);
+    expect(probes.find((probe) => probe.name === "i(r1:n2)").value).toBeCloseTo(
+      -0.001,
+      8,
+    );
+  });
   for (const [name, compile, validate] of [
     ["ota-op-dc-ac", compileHostedSky130Project, validateHostedSky130Result],
     [

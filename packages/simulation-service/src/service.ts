@@ -17,6 +17,7 @@ import {
   simulationOutputAnalysisToCsv,
 } from "./output-evaluation.js";
 import { automaticMeasurementsToCsv } from "./automatic-measurements.js";
+import { nativeMeasurementResults } from "./native-measurements.js";
 
 import {
   ExecutionFailure,
@@ -770,11 +771,30 @@ export class SimulationService {
           run.prepared.signalNames,
         );
       }
+      const nativeMeasurements = nativeMeasurementResults(
+        input.files,
+        input.entryPath ?? "run.cir",
+        output.result.log,
+      );
+      if (nativeMeasurements.length) {
+        run.view.outputData ??= {
+          schemaVersion: 1,
+          analyses: [],
+          diagnostics: [],
+        };
+        run.view.outputData.nativeMeasurements = nativeMeasurements;
+      }
       const artifact = async (name: string, type: string, text: string) =>
         run.view.artifacts.push(
           await this.publishArtifact(epoch, name, type, text),
         );
       await artifact("log.txt", "text/plain", output.result.log);
+      if (nativeMeasurements.length)
+        await artifact(
+          "native-measurements.json",
+          "application/json",
+          JSON.stringify(nativeMeasurements, null, 2),
+        );
       if (output.rawfile !== undefined)
         await artifact("out.raw", "text/plain", output.rawfile);
       if (output.executedDeck !== undefined)

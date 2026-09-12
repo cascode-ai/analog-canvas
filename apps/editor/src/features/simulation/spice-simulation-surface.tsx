@@ -473,12 +473,7 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
   };
   const executeBatch = async (selection: readonly string[]) => {
     if (lock.current) return;
-    const authored = await codeRef.current?.flush();
-    if (authored && !authored.ok) return;
-    const folders = project.simulationFolders.filter((folder) =>
-      selection.includes(folder.id),
-    );
-    if (folders.length < 2) {
+    if (new Set(selection).size < 2) {
       setProblem(
         uiProblem(
           "SIMULATION_BATCH_SELECTION_REQUIRED",
@@ -492,11 +487,12 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
     setProblem(undefined);
     hydratedBatchRuns.current.clear();
     try {
+      const authored = await codeRef.current?.flushFolders(selection);
+      if (!authored?.ok) return;
+      const folders = authored.folders;
       const preparedReply = await session.handle({
         operation: "prepare-batch",
-        expectedStructureRevision: authored?.ok
-          ? authored.revision
-          : project.structureRevision,
+        expectedStructureRevision: authored.revision,
         items: folders.map((folder) => ({
           id: folder.id,
           folderId: folder.id,
@@ -510,11 +506,7 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
         );
         if (!folder) continue;
         preparedPresentations.current.set(item.prepared.id, {
-          ...sourcePresentation(
-            authored?.ok && authored.folder.id === folder.id
-              ? authored.folder
-              : folder,
-          ),
+          ...sourcePresentation(folder),
           prepared: structuredClone(item.prepared),
         });
         folderResults.current.set(folder.id, { prepared: item.prepared });
