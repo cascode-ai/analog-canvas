@@ -152,9 +152,15 @@ IDs and exact files. Older data is read only at that compatibility boundary.
   otherwise retain the now-unresolved entry/reference for diagnosis. Deleting
   a binding is explicit, not a side effect of editing its displayed filename.
 
-New experiments require only a name. They bind the current Cell as the top-level
-circuit and create a small `op` starter; they do not ask for OP/AC/TRAN or source
-mode. Helpers can insert AC, TRAN and DC commands without making another form
+New experiments ask for a name and an explicit Cell selection, defaulting to the
+current Canvas Cell. They bind the selected Cell as the top-level circuit and
+create a small `op` starter; they do not ask for OP/AC/TRAN or TB/DUT/source mode.
+Any Cell can be the simulation root, not only a dedicated Testbench. The Explorer
+shows the bound Cell name (or a missing-Cell marker); changing the active Canvas
+does not rebind an existing experiment. The existing circuit binding is the sole
+source mapping, with no duplicate Cell setting in `experiment.json`. Creation
+does not wrap the Cell in an invented DUT call or guess stimuli. Helpers can
+insert AC, TRAN and DC commands without making another form
 state authoritative; the editor has no permanent analysis-example footer. The source API
 retains text-only and text-DUT creation for import, Agent and compatibility flows,
 but those are not choices in the normal new-experiment interaction. No starter

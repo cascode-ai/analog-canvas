@@ -1047,15 +1047,17 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
             return;
           const nextPath =
             action === "rename"
-              ? await ui.name({
-                  kind: "file",
-                  folderId: targetFolderId,
-                  path: filePath,
-                  label: "Relative file path",
-                  initial: filePath,
-                  validate: (name) =>
-                    validateFileName(name, targetFolderId, filePath),
-                })
+              ? (
+                  await ui.name({
+                    kind: "file",
+                    folderId: targetFolderId,
+                    path: filePath,
+                    label: "Relative file path",
+                    initial: filePath,
+                    validate: (name) =>
+                      validateFileName(name, targetFolderId, filePath),
+                  })
+                )?.name
               : filePath;
           if (!nextPath || (action === "rename" && nextPath === filePath))
             return;
@@ -1138,13 +1140,15 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
             );
         }}
         onNewFile={async (folderId = props.folder.id) => {
-          const path = await ui.name({
-            kind: "file",
-            folderId,
-            label: "Relative file path",
-            initial: "stimulus.cir",
-            validate: (name) => validateFileName(name, folderId),
-          });
+          const path = (
+            await ui.name({
+              kind: "file",
+              folderId,
+              label: "Relative file path",
+              initial: "stimulus.cir",
+              validate: (name) => validateFileName(name, folderId),
+            })
+          )?.name;
           if (!path) return;
           drafts.current.set(`${folderId}\u0000${path}`, {
             base: "",

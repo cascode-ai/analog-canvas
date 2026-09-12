@@ -23,6 +23,108 @@ import {
 import { ota, profile, editSimulationFile } from "./simulation-e2e-fixtures.js";
 
 const loadModule = createRequire(import.meta.url);
+test("new experiments explicitly bind the selected Cell without requiring a Testbench", async ({
+  page,
+}) => {
+  const project = parseProject(JSON.stringify(ota));
+  project.simulationFolders = [];
+  const dut = project.documents.find((cell) => cell.name === "ota_5t")!;
+  await page.route("**/api/simulate", (route) =>
+    route.fulfill({
+      status: 503,
+      json: { error: "Offline authoring fixture" },
+    }),
+  );
+  await page.goto("/editor");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "cell-selection.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  await page.getByTestId("open-analog-simulation").click();
+  await page.getByRole("button", { name: "Set up", exact: true }).click();
+  const name = page.getByLabel("New simulation folder name");
+  const cell = page.getByRole("combobox", {
+    name: "Simulation Cell",
+    exact: true,
+  });
+  await expect(cell).toHaveValue(project.topDocumentId);
+  await name.fill("OTA direct");
+  await name.press("Tab");
+  await expect(cell).toBeFocused();
+  await cell.selectOption(dut.id);
+  // Moving between fields must not prematurely create the folder.
+  await expect(name).toBeVisible();
+  await page.getByRole("button", { name: "Create", exact: true }).click();
+  const folderRow = page.getByRole("treeitem", {
+    name: "Folder OTA direct",
+    exact: true,
+  });
+  await expect(folderRow).toContainText("Cell: ota_5t");
+  const editor = page.getByRole("textbox", {
+    name: "Simulation source editor",
+  });
+  await expect(editor).toContainText('.include "circuit.spice"');
+  await expect(editor).toContainText("op");
+  await page.getByRole("tab", { name: /circuit\.spice/ }).click();
+  await expect(editor).toContainText("XM1");
+  await expect(editor).not.toContainText("XDUT");
+  const saved = parseProject(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(),
+  );
+  const folder = saved.simulationFolders[0]!;
+  expect(folder.input.circuitBindings).toEqual([
+    {
+      id: "circuit",
+      path: "circuit.spice",
+      documentId: dut.id,
+      emission: "top-level",
+    },
+  ]);
+  expect(folder.input.files.map((file) => file.path)).toEqual([
+    "run.cir",
+    "experiment.json",
+  ]);
+  expect(saved.topDocumentId).toBe(project.topDocumentId);
+  expect(saved.documents).toEqual(project.documents);
+  const generated = generateCircuitSource(
+    saved,
+    folder.input.circuitBindings[0]!,
+  );
+  expect(generated.ok).toBe(true);
+  if (!generated.ok) throw new Error("Expected generated Cell source");
+  expect((await editor.innerText()).trim()).toBe(generated.source.text.trim());
+
+  // The next default follows Canvas, not the existing experiment's root.
+  await page.getByTestId("document-selector").selectOption(dut.id);
+  await page
+    .getByRole("button", { name: "+ New experiment", exact: true })
+    .click();
+  await expect(cell).toHaveValue(dut.id);
+  await cell.press("Escape");
+  await expect(name).toHaveCount(0);
+  await page
+    .getByTestId("document-selector")
+    .selectOption(project.topDocumentId);
+  await page
+    .getByRole("button", { name: "+ New experiment", exact: true })
+    .click();
+  await expect(cell).toHaveValue(project.topDocumentId);
+  await cell.press("Escape");
+  await expect(folderRow).toContainText("Cell: ota_5t");
+  const unchanged = parseProject(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(),
+  );
+  expect(unchanged.simulationFolders).toEqual(saved.simulationFolders);
+  // Binding and label survive reopening the saved Project.
+  await page.getByTestId("project-file").setInputFiles({
+    name: "reopen.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(unchanged)),
+  });
+  await expect(folderRow).toContainText("Cell: ota_5t");
+});
+
 test("tab context menus replace workspace more actions without discarding source", async ({
   page,
 }) => {

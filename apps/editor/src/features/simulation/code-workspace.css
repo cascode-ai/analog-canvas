@@ -193,6 +193,25 @@
   margin-top: 4px;
   font: inherit;
 }
+.workspace-cell-selection {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+.workspace-cell-selection select {
+  flex: 1;
+  min-width: 0;
+  margin-top: 0;
+  background: var(--icm-surface);
+  color: var(--icm-text);
+}
+.simulation-folder-cell {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 50%;
+}
 .workspace-editor-content {
   height: 100%;
 }
