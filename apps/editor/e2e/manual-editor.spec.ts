@@ -4365,7 +4365,7 @@ test("Properties keeps component and Annotation text colors independent", async 
   expect(savedLabel).not.toHaveProperty("textColor");
 });
 
-test("shows fixed and variable capacitor plate terminals as read-only Properties", async ({
+test("keeps fixed and variable capacitor Properties on the shared code surface", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -4375,33 +4375,26 @@ test("shows fixed and variable capacitor plate terminals as read-only Properties
   await page.getByTestId("hit-C1").click();
   await openSelectionShelf(page);
   const properties = page.getByRole("complementary", { name: "Properties" });
-  let plateCard = properties.getByRole("group", {
-    name: "Capacitor plate terminals",
+  const componentProperties = properties.getByRole("region", {
+    name: "Component properties",
   });
   await expect(
-    plateCard.getByText("Electrical terminals", { exact: true }),
+    componentProperties.getByLabel("Editable Canvas property code"),
   ).toBeVisible();
-  await expect(plateCard.getByLabel("Top plate terminal")).toHaveText(
-    "Pin 1 · Unconnected",
-  );
-  await expect(plateCard.getByLabel("Bottom plate terminal")).toHaveText(
-    "Pin 2 · Unconnected",
-  );
-  await expect(plateCard.locator("input, select, button")).toHaveCount(0);
-  await expect(plateCard).not.toContainText(
-    "Plate roles are defined by the device",
-  );
+  await expect(componentProperties.locator(":scope > *")).toHaveCount(1);
+  await expect(
+    properties.getByRole("group", { name: "Capacitor plate terminals" }),
+  ).toHaveCount(0);
 
   await page.getByTestId("hit-C2").click();
-  plateCard = properties.getByRole("group", {
-    name: "Capacitor plate terminals",
-  });
-  await expect(plateCard.getByLabel("Top plate terminal")).toHaveText(
-    "Pin P1 · Unconnected",
-  );
-  await expect(plateCard.getByLabel("Bottom plate terminal")).toHaveText(
-    "Pin P2 · Unconnected",
-  );
+  await expect(properties).toContainText("C2 · variable-capacitor");
+  await expect(
+    componentProperties.getByLabel("Editable Canvas property code"),
+  ).toBeVisible();
+  await expect(componentProperties.locator(":scope > *")).toHaveCount(1);
+  await expect(
+    properties.getByRole("group", { name: "Capacitor plate terminals" }),
+  ).toHaveCount(0);
 });
 
 test("value display projects MOS W/L and passive values beside the reference", async ({
