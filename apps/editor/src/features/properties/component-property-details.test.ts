@@ -8,7 +8,10 @@ import {
 } from "./component-property-code";
 import { planComponentPropertyCodeEdits } from "./component-property-code-edits";
 import { createEmptyDocument } from "@icm/model";
-import { componentSymbolOptions } from "./component-property-details";
+import {
+  componentSymbolOptions,
+  componentDetailFields,
+} from "./component-property-details";
 
 const instance: Instance = {
   id: "M1",
@@ -30,6 +33,17 @@ const context = {
 };
 
 describe("unified component property details", () => {
+  it("retains reviewed model choices outside the short comment", () => {
+    const field = componentDetailFields(instance, context.details).find(
+      (item) => item.path === "netlistTarget",
+    )!;
+    expect(field.kind).toBe("choice");
+    expect(field.options).toEqual([
+      { value: "", label: "None" },
+      { value: "model_a", label: "model_a" },
+    ]);
+    expect(field.description).not.toContain("model_a");
+  });
   it("round-trips authored strings, overrides, and model target without unit conversion", () => {
     const source = formatComponentPropertyCode(context);
     expect(JSON.parse(source)).toMatchObject({

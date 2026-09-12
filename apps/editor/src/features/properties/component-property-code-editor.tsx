@@ -74,7 +74,7 @@ export function ComponentPropertyCodeEditor({
   const copy = async (): Promise<void> => {
     try {
       await navigator.clipboard.writeText(draft);
-      setApplyMessage("JSON copied · hints and controls excluded");
+      setApplyMessage("JSON copied");
     } catch {
       setApplyMessage("Clipboard unavailable; select the code and copy it");
     }
@@ -148,20 +148,20 @@ export function ComponentPropertyCodeEditor({
       </Suspense>
       <div className="component-property-code-status" aria-live="polite">
         <span>
-          {parsed.ok
-            ? (applyMessage ??
-              (changed
-                ? "Changes pending · Apply or Ctrl/⌘ + Enter"
-                : "JSON · hints and controls are not saved"))
-            : parsed.message}
+          {applyMessage ??
+            (parsed.ok
+              ? changed
+                ? "Pending · Ctrl/⌘ + Enter to apply"
+                : "Unchanged"
+              : parsed.message)}
         </span>
         <div>
           <button
             type="button"
-            title="Reset parameter and appearance defaults in the draft; keep position, identity, target, display flags, and unknown overrides. Apply to commit."
+            title="Load parameter and appearance defaults into draft"
             onClick={() => {
               setDraft(defaultComponentPropertyCode(context));
-              setApplyMessage("Defaults loaded into draft · Apply to commit");
+              setApplyMessage("Defaults loaded · pending");
             }}
           >
             Defaults

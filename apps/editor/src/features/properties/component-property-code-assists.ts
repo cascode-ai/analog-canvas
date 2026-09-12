@@ -3,6 +3,7 @@ import { reflectOrientation } from "@icm/model";
 import { componentDetailFields } from "./component-property-details";
 import {
   parseComponentPropertyCode,
+  formatComponentPropertyCode,
   type ComponentPropertyCodeContext,
 } from "./component-property-code";
 import {
@@ -64,10 +65,17 @@ export function propertyCodeChanges(
   context: ComponentPropertyCodeContext,
   values: Readonly<Record<string, unknown>>,
 ) {
-  if (!parseComponentPropertyCode(source, context).ok) return [];
+  // Do not guess boundaries in malformed JSON. Independent semantic errors,
+  // however, must not lock unrelated controls or be silently repaired.
+  try {
+    JSON.parse(source);
+  } catch {
+    return [];
+  }
   const spans = propertyCodeSpans(source, context);
   const changes = Object.entries(values).map(([path, value]) => {
-    const span = spans.find((item) => item.field.path === path);
+    const matches = spans.filter((item) => item.field.path === path);
+    const span = matches.length === 1 ? matches[0] : undefined;
     return span
       ? { from: span.from, to: span.to, insert: JSON.stringify(value) }
       : null;
@@ -76,8 +84,18 @@ export function propertyCodeChanges(
   const sorted = changes
     .filter((change) => change !== null)
     .sort((a, b) => a.from - b.from);
-  let candidate = source;
-  for (const change of [...sorted].reverse())
+  // Validate requested values against the committed context, without committing
+  // or replacing any other draft bytes (which may contain invalid values).
+  let candidate = formatComponentPropertyCode(context);
+  const baselineSpans = propertyCodeSpans(candidate, context);
+  const validationChanges = Object.entries(values).map(([path, value]) => {
+    const span = baselineSpans.find((item) => item.field.path === path);
+    return span ? { ...span, insert: JSON.stringify(value) } : null;
+  });
+  if (validationChanges.some((change) => !change)) return [];
+  for (const change of validationChanges
+    .filter((item) => item !== null)
+    .sort((a, b) => b.from - a.from))
     candidate =
       candidate.slice(0, change.from) +
       change.insert +
@@ -90,7 +108,24 @@ export function reflectedPropertyCode(
   context: ComponentPropertyCodeContext,
   direction: "left-right" | "top-bottom",
 ) {
-  const parsed = parseComponentPropertyCode(source, context);
+  // Flipping depends on orientation, not on unrelated draft parameters/colors.
+  const spans = propertyCodeSpans(source, context);
+  const baseline = formatComponentPropertyCode(context);
+  const orientation = Object.fromEntries(
+    ["placement.rotation", "placement.mirror"].map((path) => [
+      path,
+      spans.find((span) => span.field.path === path)?.value,
+    ]),
+  );
+  const changes = propertyCodeChanges(baseline, context, orientation);
+  if (changes.length !== 2) return [];
+  let candidate = baseline;
+  for (const change of [...changes].reverse())
+    candidate =
+      candidate.slice(0, change.from) +
+      change.insert +
+      candidate.slice(change.to);
+  const parsed = parseComponentPropertyCode(candidate, context);
   if (!parsed.ok || !parsed.value.placement) return [];
   const next = reflectOrientation(parsed.value.placement, direction);
   return propertyCodeChanges(source, context, {

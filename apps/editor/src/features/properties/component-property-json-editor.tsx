@@ -12,6 +12,7 @@ import {
   WidgetType,
   keymap,
   drawSelection,
+  highlightActiveLine,
   type DecorationSet,
 } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
@@ -56,6 +57,7 @@ const refreshAssists = StateEffect.define<null>();
 /** Lazy loaded: selecting a component does not make the canvas shell depend on CodeMirror. */
 export default function ComponentPropertyJsonEditor(props: Props) {
   const parent = useRef<HTMLDivElement>(null);
+  const controls = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const latest = useRef(props);
   latest.current = props;
@@ -67,10 +69,52 @@ export default function ComponentPropertyJsonEditor(props: Props) {
   useLayoutEffect(() => {
     if (!parent.current) return;
     const read = () => latest.current;
+    const renderControls = (view: EditorView) => {
+      if (!controls.current) return;
+      const source = view.state.doc.toString();
+      let enabled = true;
+      try {
+        JSON.parse(source);
+      } catch {
+        enabled = false;
+      }
+      const rows = propertyCodeSpans(source, read().context)
+        .filter(({ field }) =>
+          ["boolean", "rotation", "mirror", "choice", "color"].includes(
+            field.kind,
+          ),
+        )
+        .map((span) =>
+          new PropertyAssist(
+            span,
+            enabled,
+            read().defaultForeground,
+            read,
+          ).toDOM(view),
+        );
+      if (!enabled) {
+        const note = document.createElement("p");
+        note.className = "component-property-controls-note";
+        note.textContent = "Complete JSON syntax to use controls.";
+        rows.push(note);
+      }
+      // Keep keyboard focus when a control updates the shared draft.
+      const activeLabel = controls.current.contains(document.activeElement)
+        ? document.activeElement?.getAttribute("aria-label")
+        : null;
+      controls.current.replaceChildren(...rows);
+      if (activeLabel) {
+        const target = Array.from(
+          controls.current.querySelectorAll<HTMLElement>("[aria-label]"),
+        ).find((element) => element.getAttribute("aria-label") === activeLabel);
+        target?.focus({ preventScroll: true });
+      }
+    };
     const assistField = StateField.define<DecorationSet>({
       create: (state) => decorations(state, read),
       update: (value, transaction) =>
         transaction.docChanged ||
+        transaction.selection ||
         transaction.effects.some((effect) => effect.is(refreshAssists)) ||
         syntaxTree(transaction.startState) !== syntaxTree(transaction.state)
           ? decorations(transaction.state, read)
@@ -85,10 +129,28 @@ export default function ComponentPropertyJsonEditor(props: Props) {
           indentUnit.of("  "),
           history(),
           drawSelection(),
+          highlightActiveLine(),
           bracketMatching(),
           closeBrackets(),
           syntaxHighlighting(defaultHighlightStyle),
-          linter(jsonParseLinter()),
+          linter((view) => {
+            const syntax = jsonParseLinter()(view);
+            if (syntax.length) return syntax;
+            const source = view.state.doc.toString();
+            const parsed = parseComponentPropertyCode(source, read().context);
+            if (parsed.ok) return [];
+            const span = propertyCodeSpans(source, read().context)
+              .sort((a, b) => b.field.path.length - a.field.path.length)
+              .find(({ field }) => parsed.message.includes(field.path));
+            return [
+              {
+                from: span?.from ?? 0,
+                to: span?.to ?? Math.min(1, source.length),
+                severity: "error" as const,
+                message: parsed.message,
+              },
+            ];
+          }),
           assistField,
           EditorView.lineWrapping,
           EditorView.contentAttributes.of({
@@ -116,6 +178,13 @@ export default function ComponentPropertyJsonEditor(props: Props) {
           ]),
           EditorView.updateListener.of((update) => {
             if (update.docChanged) read().onChange(update.state.doc.toString());
+            if (
+              update.docChanged ||
+              update.transactions.some((transaction) =>
+                transaction.effects.some((effect) => effect.is(refreshAssists)),
+              )
+            )
+              renderControls(update.view);
           }),
         ],
       });
@@ -124,6 +193,7 @@ export default function ComponentPropertyJsonEditor(props: Props) {
       state: createState.current(read().value),
     });
     viewRef.current = view;
+    renderControls(view);
     return () => {
       viewRef.current = null;
       view.destroy();
@@ -136,6 +206,7 @@ export default function ComponentPropertyJsonEditor(props: Props) {
     if (historyKey.current !== props.historyKey) {
       historyKey.current = props.historyKey;
       view.setState(createState.current(props.value));
+      view.dispatch({ effects: refreshAssists.of(null) });
     } else if (view.state.doc.toString() !== props.value) {
       view.dispatch({
         changes: { from: 0, to: view.state.doc.length, insert: props.value },
@@ -148,7 +219,17 @@ export default function ComponentPropertyJsonEditor(props: Props) {
     if (props.focusRequest > 0) viewRef.current?.focus();
   }, [props.focusRequest]);
 
-  return <div className="component-json-editor" ref={parent} />;
+  return (
+    <>
+      <div className="component-json-editor" ref={parent} />
+      <div
+        className="component-property-controls"
+        role="group"
+        aria-label="Property controls"
+        ref={controls}
+      />
+    </>
+  );
 }
 
 function decorations(state: EditorState, read: () => Props): DecorationSet {
@@ -179,21 +260,63 @@ function decorations(state: EditorState, read: () => Props): DecorationSet {
     },
   });
   const source = state.doc.toString();
-  const enabled = parseComponentPropertyCode(source, read().context).ok;
+  const baseline = new Map(
+    propertyCodeSpans(read().historyKey, read().context).map((span) => [
+      span.field.path,
+      span.value,
+    ]),
+  );
   for (const span of propertyCodeSpans(source, read().context)) {
+    // Object containers are not value chips. Their children own editing marks.
+    if (
+      span.value !== null &&
+      typeof span.value === "object" &&
+      !Array.isArray(span.value)
+    )
+      continue;
+    const active =
+      state.selection.main.head >= span.from &&
+      state.selection.main.head <= span.to;
+    const dirty =
+      JSON.stringify(baseline.get(span.field.path)) !==
+      JSON.stringify(span.value);
     ranges.push(
-      Decoration.widget({
-        widget: new PropertyAssist(
-          span,
-          enabled,
-          read().defaultForeground,
-          read,
-        ),
-        side: 1,
-      }).range(state.doc.lineAt(span.to).to),
+      Decoration.mark({
+        class: `cm-property-value${active ? " cm-property-value-active" : ""}${dirty ? " cm-property-value-dirty" : ""}`,
+      }).range(span.from, span.to),
     );
+    if (span.field.description) {
+      // Attach to this value, never a shared physical line end. Include its
+      // comma so formatted JSON reads naturally; compact JSON stays unambiguous.
+      const at = source[span.to] === "," ? span.to + 1 : span.to;
+      ranges.push(
+        Decoration.widget({
+          widget: new PropertyComment(span.field.description),
+          side: 1,
+        }).range(at),
+      );
+    }
   }
   return Decoration.set(ranges, true);
+}
+
+class PropertyComment extends WidgetType {
+  constructor(readonly text: string) {
+    super();
+  }
+  override eq(other: PropertyComment) {
+    return this.text === other.text;
+  }
+  toDOM() {
+    const dom = document.createElement("span");
+    dom.className = "cm-property-hint";
+    dom.contentEditable = "false";
+    dom.textContent = ` // ${this.text}`;
+    return dom;
+  }
+  override ignoreEvent() {
+    return true;
+  }
 }
 
 class PropertyAssist extends WidgetType {
@@ -220,10 +343,17 @@ class PropertyAssist extends WidgetType {
   }
   toDOM(view: EditorView) {
     const { field, value } = this.span;
-    const dom = document.createElement("span");
+    const dom = document.createElement("div");
     dom.className = "cm-property-assist";
     dom.setAttribute("data-property-assist", field.path);
     dom.contentEditable = "false";
+    const label = document.createElement("span");
+    label.className = "component-property-control-label";
+    label.textContent =
+      field.kind === "boolean"
+        ? `Show ${field.label.toLowerCase()}`
+        : field.label;
+    dom.append(label);
     dom.addEventListener("keydown", (event) => {
       if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
         event.preventDefault();
@@ -282,6 +412,16 @@ class PropertyAssist extends WidgetType {
         element.textContent = option.label;
         select.append(element);
       }
+      if (
+        field.path === "netlistTarget" &&
+        typeof value === "string" &&
+        !options.some((option) => String(option.value) === value)
+      ) {
+        const authored = document.createElement("option");
+        authored.value = value;
+        authored.textContent = value;
+        select.append(authored);
+      }
       select.value = String(value);
       select.onchange = () =>
         change({
@@ -294,15 +434,24 @@ class PropertyAssist extends WidgetType {
           ["left-right", "Flip left/right"],
           ["top-bottom", "Flip top/bottom"],
         ] as const) {
-          button(label, direction === "left-right" ? "↔" : "↕", () => {
-            const changes = reflectedPropertyCode(
-              view.state.doc.toString(),
-              this.read().context,
-              direction,
-            );
-            if (changes.length)
-              view.dispatch({ changes, userEvent: "input.property-control" });
-          });
+          const flip = button(
+            label,
+            direction === "left-right" ? "↔" : "↕",
+            () => {
+              const changes = reflectedPropertyCode(
+                view.state.doc.toString(),
+                this.read().context,
+                direction,
+              );
+              if (changes.length)
+                view.dispatch({ changes, userEvent: "input.property-control" });
+            },
+          );
+          flip.disabled = !reflectedPropertyCode(
+            view.state.doc.toString(),
+            this.read().context,
+            direction,
+          ).length;
         }
     }
     if (field.kind === "color") {
@@ -338,19 +487,7 @@ class PropertyAssist extends WidgetType {
         () => change({ [field.path]: "auto" }),
       );
       reset.disabled = !this.enabled || inherited;
-      if (inherited) {
-        const resolved = document.createElement("span");
-        resolved.className = "cm-property-inherited";
-        resolved.textContent = isForeground
-          ? `RGB ${JSON.stringify(colorToRgb(effective))}`
-          : "No independent fill";
-        dom.append(resolved);
-      }
     }
-    const hint = document.createElement("span");
-    hint.className = "cm-property-hint";
-    hint.textContent = field.description;
-    dom.append(hint);
     return dom;
   }
 }

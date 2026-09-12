@@ -42,6 +42,47 @@ function apply(
 }
 
 describe("Canvas property assistance", () => {
+  it("edits an independent field without repairing another invalid value", () => {
+    const source = formatComponentPropertyCode(context).replace(
+      '"rotation": 0',
+      '"rotation": 45',
+    );
+    const changed = apply(
+      source,
+      propertyCodeChanges(source, context, { "display.value": true }),
+    );
+    expect(changed).toBe(source.replace('"value": false', '"value": true'));
+    expect(parseComponentPropertyCode(changed, context).ok).toBe(false);
+    const repaired = apply(
+      changed,
+      propertyCodeChanges(changed, context, { "placement.rotation": 90 }),
+    );
+    expect(parseComponentPropertyCode(repaired, context).ok).toBe(true);
+  });
+  it("rejects ambiguous duplicate field controls", () => {
+    const source = formatComponentPropertyCode(context).replace(
+      '"rotation": 0',
+      '"rotation": 0, "rotation": 90',
+    );
+    expect(
+      propertyCodeChanges(source, context, { "placement.rotation": 180 }),
+    ).toEqual([]);
+  });
+  it("flips a valid orientation while preserving an invalid color", () => {
+    const source = formatComponentPropertyCode(context).replace(
+      '"foreground": "auto"',
+      '"foreground": [256, 0, 0]',
+    );
+    const changed = apply(
+      source,
+      reflectedPropertyCode(source, context, "left-right"),
+    );
+    expect(JSON.parse(changed).appearance.foreground).toEqual([256, 0, 0]);
+    expect(JSON.parse(changed).placement).not.toEqual(
+      JSON.parse(source).placement,
+    );
+    expect(parseComponentPropertyCode(changed, context).ok).toBe(false);
+  });
   it("addresses all available fields by syntax path and preserves unrelated draft bytes", () => {
     const source = formatComponentPropertyCode(context);
     expect(propertyCodeSpans(source).map((span) => span.field.path)).toEqual(

@@ -467,7 +467,7 @@
   outline: none;
 }
 .component-json-editor .cm-scroller {
-  height: clamp(18rem, calc(100dvh - 22rem), 48rem);
+  height: clamp(15.5rem, calc(100dvh - 36rem), 38rem);
   overflow: auto;
   font-family: inherit;
   line-height: 1.6;
@@ -495,22 +495,42 @@
 .component-json-editor .cm-json-bracket {
   color: #6e40a6;
 }
-.component-json-editor .cm-property-assist {
-  display: inline-flex;
+.component-property-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+  padding: 0.5rem;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-sm);
+  background: var(--icm-surface-muted);
+}
+.component-property-controls .cm-property-assist {
+  display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 0.3rem;
-  max-width: 100%;
-  margin: 0.2rem 0 0.35rem 0.4rem;
+  min-width: 0;
   font-family: var(--icm-font-sans, sans-serif);
   font-size: 12px;
   line-height: 1.4;
   vertical-align: middle;
   white-space: normal;
 }
-.component-json-editor .cm-property-assist button,
-.component-json-editor .cm-property-assist select {
+.component-property-control-label {
+  flex-basis: 100%;
+  color: var(--icm-text-muted);
+  font-size: 11px;
+}
+.component-property-controls-note {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 12px;
+  color: var(--icm-text-muted);
+}
+.component-property-controls .cm-property-assist button,
+.component-property-controls .cm-property-assist select {
   width: auto;
+  max-width: 100%;
   min-height: 1.6rem;
   padding: 0.1rem 0.4rem;
   border: 1px solid var(--icm-border-strong);
@@ -520,16 +540,16 @@
   font: inherit;
   cursor: pointer;
 }
-.component-json-editor .cm-property-assist :disabled {
+.component-property-controls .cm-property-assist :disabled {
   cursor: default;
   opacity: 0.55;
 }
-.component-json-editor .cm-property-toggle[aria-checked="true"] {
+.component-property-controls .cm-property-toggle[aria-checked="true"] {
   background: var(--icm-accent);
   border-color: var(--icm-accent);
   color: white;
 }
-.component-json-editor .cm-property-assist input[type="color"] {
+.component-property-controls .cm-property-assist input[type="color"] {
   width: 1.8rem;
   height: 1.6rem;
   padding: 1px;
@@ -539,15 +559,36 @@
   cursor: pointer;
 }
 .component-json-editor .cm-property-hint {
-  flex: 1 1 100%;
+  display: inline-block;
+  max-width: 100%;
+  margin-left: 0.65rem;
   color: var(--icm-text-muted);
+  font-size: 11px;
+  white-space: normal;
   overflow-wrap: anywhere;
+  user-select: none;
 }
-.component-json-editor .cm-property-inherited {
-  color: var(--icm-text-muted);
+.component-json-editor .cm-property-value {
+  border-bottom: 1px dotted var(--icm-border-strong);
+  border-radius: 2px;
+}
+.component-json-editor .cm-property-value-active {
+  background: var(--icm-accent-soft);
+  outline: 1px solid var(--icm-accent);
+}
+.component-json-editor .cm-property-value-dirty {
+  border-bottom: 2px solid var(--icm-accent);
+}
+.component-json-editor .cm-activeLine {
+  background: var(--icm-surface-muted);
 }
 
 .component-property-code-status {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  padding: 0.5rem 0;
+  background: var(--icm-surface);
   display: flex;
   flex-direction: column;
   align-items: stretch;

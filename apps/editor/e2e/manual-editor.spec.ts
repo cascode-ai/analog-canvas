@@ -113,7 +113,11 @@ test("Defaults and Discard draft have distinct non-destructive behavior", async 
   invalid.appearance.foreground = [256, 0, 0];
   await code.fill(JSON.stringify(invalid, null, 2));
   await expect(page.getByRole("button", { name: "Apply code" })).toBeDisabled();
-  await expect(page.getByLabel("Rotation options")).toBeDisabled();
+  await expect(page.getByLabel("Rotation options")).toBeEnabled();
+  await page.getByLabel("Rotation options").selectOption("90");
+  expect(
+    JSON.parse(await readComponentPropertyCode(page)).appearance.foreground,
+  ).toEqual([256, 0, 0]);
   await page.getByRole("button", { name: "Discard draft" }).click();
   await expectComponentCodeField(page, "parameters.w", "7u");
   await expect(page.locator(".cm-json-key").first()).toBeVisible();
@@ -2360,9 +2364,15 @@ test("Q opens a text-first Properties editor with one-click exact draft copy", a
   await expect(copy).toHaveCount(1);
   await expect(copy.locator("svg")).toBeVisible();
   await copy.click();
-  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(raw);
+  // Windows clipboard text uses CRLF; preserve all other authored whitespace.
+  expect(
+    (await page.evaluate(() => navigator.clipboard.readText())).replace(
+      /\r\n/g,
+      "\n",
+    ),
+  ).toBe(raw);
   await expect(
-    page.getByText("JSON copied · hints and controls excluded", {
+    page.getByText("JSON copied", {
       exact: true,
     }),
   ).toBeVisible();
@@ -2383,7 +2393,64 @@ test("Q opens a text-first Properties editor with one-click exact draft copy", a
       };
     });
   expect(positions.copyBottom).toBeLessThanOrEqual(positions.editorTop);
-  expect(positions.editorHeight).toBeGreaterThan(positions.panelHeight * 0.65);
+  expect(positions.editorHeight).toBeGreaterThanOrEqual(240);
+  const controls = page.getByRole("group", {
+    name: "Property controls",
+    exact: true,
+  });
+  await expect(controls).toBeVisible();
+  await expect(code.locator("button, select, input")).toHaveCount(0);
+  await expect(code.locator(".cm-property-hint").first()).toContainText("//");
+  await expect(code.locator(".cm-property-value-dirty").first()).toBeVisible();
+  const bounds = await controls.boundingBox();
+  const editorBounds = await page
+    .locator(".component-json-editor")
+    .boundingBox();
+  expect(bounds!.y).toBeGreaterThanOrEqual(
+    editorBounds!.y + editorBounds!.height,
+  );
+
+  // A semantically invalid value does not disable independent draft controls.
+  await code.focus();
+  await code.press("ControlOrMeta+a");
+  await code.press("ControlOrMeta+c");
+  expect(
+    (await page.evaluate(() => navigator.clipboard.readText())).replace(
+      /\r\n/g,
+      "\n",
+    ),
+  ).toBe(raw);
+  draft.placement.rotation = 45;
+  await code.fill(JSON.stringify(draft));
+  await expect(
+    controls.getByRole("switch", { name: "Show value" }),
+  ).toBeEnabled();
+  await controls.getByRole("switch", { name: "Show value" }).click();
+  await expect(
+    page.getByRole("button", { name: "Apply code", exact: true }),
+  ).toBeDisabled();
+  expect(
+    JSON.parse(await readComponentPropertyCode(page)).placement.rotation,
+  ).toBe(45);
+  await controls.getByLabel("Rotation options").focus();
+  await controls.getByLabel("Rotation options").selectOption("90");
+  await expect(
+    page.getByRole("button", { name: "Apply code", exact: true }),
+  ).toBeEnabled();
+  await expect(controls.getByLabel("Rotation options")).toBeFocused();
+  // Decorations never enter compact JSON or clipboard content.
+  await copy.click();
+  expect(
+    JSON.parse(await page.evaluate(() => navigator.clipboard.readText()))
+      .placement.rotation,
+  ).toBe(90);
+  await code.fill('{"placement":');
+  await expect(
+    controls.getByText("Complete JSON syntax to use controls."),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Apply code", exact: true }),
+  ).toBeDisabled();
   await page.getByRole("button", { name: "Discard draft" }).click();
   await expectComponentCodeField(page, "parameters.w", "1u");
 });

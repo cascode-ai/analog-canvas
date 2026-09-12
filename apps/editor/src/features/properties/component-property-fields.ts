@@ -34,44 +34,43 @@ export const CANVAS_PROPERTY_FIELDS: readonly CanvasPropertyField[] = [
     path: "placement.at",
     label: "Position",
     kind: "coordinate",
-    description: "[x, y] · canvas coordinates; snapped to the grid on Apply.",
+    description: "[x, y] · grid snapped",
   },
   {
     path: "placement.rotation",
     label: "Rotation",
     kind: "rotation",
-    description: `Clockwise · ${ROTATION_OPTIONS.map((option) => option.label).join(" / ")}.`,
+    description: "Clockwise degrees",
   },
   {
     path: "placement.mirror",
     label: "Mirror",
     kind: "mirror",
-    description:
-      '"none": unchanged; "x": local X flip before rotation. Buttons flip in canvas directions.',
+    description: "Local-axis flip",
   },
   {
     path: "display.reference",
     label: "Reference",
     kind: "boolean",
-    description: "Show or hide the component name (for example, M1).",
+    description: "Show name",
   },
   {
     path: "display.value",
     label: "Value",
     kind: "boolean",
-    description: "Show or hide the value / W/L label.",
+    description: "Show value",
   },
   {
     path: "appearance.foreground",
     label: "Foreground",
     kind: "color",
-    description: `[R, G, B] · each 0–${RGB_CHANNEL_MAX}; #RRGGBB also accepted. Auto follows global ink.`,
+    description: "RGB / hex · auto: global ink",
   },
   {
     path: "appearance.background",
     label: "Background",
     kind: "color",
-    description: `[R, G, B] · each 0–${RGB_CHANNEL_MAX}; #RRGGBB also accepted. Auto adds no independent fill.`,
+    description: "RGB / hex · auto: no fill",
   },
 ];
 
