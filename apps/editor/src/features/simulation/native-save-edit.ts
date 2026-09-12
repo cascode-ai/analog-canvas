@@ -52,6 +52,7 @@ export function nativeAcquisitionEdit(
   );
   let next = text;
   let anchor = cursor;
+  const changes: { from: number; insert: string }[] = [];
   if (missing.length) {
     const from = entry
       ? text.indexOf("\n") < 0
@@ -62,14 +63,16 @@ export function nativeAcquisitionEdit(
       (from > 0 && text[from - 1] !== "\n" ? eol : "") +
       missing.join(eol) +
       eol;
+    changes.push({ from, insert });
     next = text.slice(0, from) + insert + text.slice(from);
     anchor = cursor >= from ? cursor + insert.length : cursor;
     if (!vectors.length) anchor = from + insert.length;
   }
   if (vectors.length) {
     const edit = nativeSaveEdit(next, anchor, vectors, entry);
+    if (edit.insert) changes.push(edit);
     next = next.slice(0, edit.from) + edit.insert + next.slice(edit.from);
     anchor = edit.from + edit.insert.replace(/[\r\n]+$/u, "").length;
   }
-  return { text: next, anchor };
+  return { text: next, anchor, changes };
 }

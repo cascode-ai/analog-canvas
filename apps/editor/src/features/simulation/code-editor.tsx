@@ -391,11 +391,12 @@ export default function SimulationCodeEditor(props: SimulationCodeEditorProps) {
       props.saveRequest.directives,
     );
     const anchor = edit.anchor;
-    editor.dispatch({
-      changes: { from: 0, to: editor.state.doc.length, insert: edit.text },
-      selection: { anchor },
-      scrollIntoView: true,
-    });
+    // Compose insertions into one undoable transaction. Replacing the whole
+    // document would normalize untouched mixed newlines in the exact-source field.
+    editor.dispatch(
+      ...edit.changes.map((changes) => ({ changes, sequential: true })),
+      { selection: { anchor }, scrollIntoView: true, sequential: true },
+    );
     saveAnchor.current = {
       session: props.saveRequest.session,
       path: props.path,

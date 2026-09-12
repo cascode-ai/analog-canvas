@@ -2,8 +2,37 @@ import { describe, expect, it } from "vitest";
 import { EditorState } from "@codemirror/state";
 import { nativeSaveEdit, nativeAcquisitionEdit } from "./native-save-edit";
 import { parameterGuide } from "./code-parameter-guide";
+import { editorText } from "./code-text-coordinates";
+import { exactSourceField } from "./code-source-state";
 
 describe("native save authoring", () => {
+  it("preserves untouched mixed newlines when composing probe and save insertions", () => {
+    const text = "* title\r\nR1 a 0 1k\n.control\r\nop\n.endc\r\n.end\n";
+    const state = EditorState.create({
+      doc: editorText(text),
+      extensions: [exactSourceField.init(() => text)],
+    });
+    const edit = nativeAcquisitionEdit(
+      state.doc.toString(),
+      0,
+      ["v(a)"],
+      true,
+      [".probe i(r1,1)"],
+    );
+    const next = state.update(
+      ...edit.changes.map((changes) => ({ changes, sequential: true })),
+    ).state;
+    expect(next.field(exactSourceField)).toBe(
+      text
+        .replace("R1 a", ".probe i(r1,1)\r\nR1 a")
+        .replace(".control\r\n", ".control\r\nsave v(a)\r\n"),
+    );
+    expect(
+      nativeAcquisitionEdit(edit.text, edit.anchor, ["v(a)"], true, [
+        ".probe i(r1,1)",
+      ]).changes,
+    ).toEqual([]);
+  });
   it("keeps a title-only entry before native probe cards", () => {
     expect(
       nativeAcquisitionEdit("My deck", 7, [], true, [".probe i(r1,1)"]).text,
