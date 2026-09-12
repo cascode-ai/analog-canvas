@@ -137,6 +137,34 @@ function entryFromZip(entries, name) {
   assert(value, `Missing exported ${name}`);
   return Buffer.from(value).toString();
 }
+async function downloadArtifactGroup(label, name) {
+  const explorer = panel.getByRole("complementary", {
+    name: "Simulation files",
+  });
+  const group = explorer.getByLabel(`${label} temporary files`, {
+    exact: true,
+  });
+  await expect(group).toBeVisible();
+  if ((await group.getAttribute("open")) === null)
+    await group.locator("summary").click();
+  const artifacts = group.locator('button[data-tree-row="artifact"]');
+  const count = await artifacts.count();
+  assert(count > 1, `${label} must expose a downloadable artifact bundle`);
+  for (let index = 0; index < count; index += 1) {
+    const artifact = artifacts.nth(index);
+    await expect(artifact).toBeEnabled();
+    await artifact.click(index ? { modifiers: ["Control"] } : undefined);
+  }
+  return unzipSync(
+    await download(
+      explorer.getByRole("button", {
+        name: `Download selected files (${count})`,
+        exact: true,
+      }),
+      name,
+    ),
+  );
+}
 try {
   report.candidate = await verifyPreviewCandidate(baseUrl);
   browser = await chromium.launch({ headless: true });
@@ -221,24 +249,13 @@ try {
   await expect(
     panel.getByRole("tab", { name: "Results", exact: true }),
   ).toHaveCount(0);
-  await panel.getByRole("tab", { name: "Files", exact: true }).click();
+  const preparedEntries = await downloadArtifactGroup("Prepare", "prepare.zip");
+  const runEntries = await downloadArtifactGroup("Run", "run.zip");
+  await panel
+    .locator(".simulation-artifact-tab")
+    .getByRole("button", { name: /^Close /u })
+    .click();
   await panel.getByRole("button", { name: "Maximize results" }).click();
-  const preparedEntries = unzipSync(
-    await download(
-      panel
-        .getByLabel("Prepare files", { exact: true })
-        .getByRole("button", { name: "Download ZIP" }),
-      "prepare.zip",
-    ),
-  );
-  const runEntries = unzipSync(
-    await download(
-      panel
-        .getByLabel("Run files", { exact: true })
-        .getByRole("button", { name: "Download ZIP" }),
-      "run.zip",
-    ),
-  );
   const input = JSON.parse(entryFromZip(preparedEntries, "prepared.json"));
   const result = JSON.parse(entryFromZip(runEntries, "result.json"));
   const outputs = JSON.parse(entryFromZip(runEntries, "outputs.json"));
