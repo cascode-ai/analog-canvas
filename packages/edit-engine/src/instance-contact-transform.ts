@@ -14,6 +14,7 @@ import {
   type RoutingOperationPlan,
 } from "./routing-operation-plan.js";
 import type { WireSource } from "./routing-planner.js";
+import { projectRoutingEditGeometry } from "./routing-geometry-projection.js";
 
 /** Transient geometry from the same typed plan, before transaction normalization.
  * This is not a committed Document and must never be persisted.
@@ -22,30 +23,7 @@ export function projectRoutingTransformGeometry(
   document: SchematicDocument,
   plan: RoutingOperationPlan,
 ): SchematicDocument {
-  const projected = structuredClone(document);
-  for (const edit of plan.edits) {
-    if (edit.kind === "move_instance") {
-      const instance = projected.instances.find(
-        (i) => i.id === edit.instanceId,
-      );
-      if (instance?.placement)
-        instance.placement.position = { ...edit.position };
-    } else if (edit.kind === "move_junction") {
-      const junction = projected.junctions.find(
-        (j) => j.id === edit.junctionId,
-      );
-      if (junction) junction.position = { ...edit.position };
-    } else if (edit.kind === "set_route_path") {
-      projected.routes = projected.routes.map((r) =>
-        r.id === edit.route.id ? structuredClone(edit.route) : r,
-      );
-    } else if (edit.kind === "remove_route_geometry") {
-      projected.routes = projected.routes.filter((r) => r.id !== edit.routeId);
-    } else {
-      throw new Error(`Not a transform geometry edit: ${edit.kind}`);
-    }
-  }
-  return projected;
+  return projectRoutingEditGeometry(document, plan.edits);
 }
 
 /** One final-position plan for moving geometry and an explicit snapped pin drop.

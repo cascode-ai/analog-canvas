@@ -295,7 +295,9 @@ for (const width of [300, 540]) {
     const selected = await code.evaluate(() =>
       window.getSelection()?.toString(),
     );
-    expect(selected).toBe(raw);
+    // Selection serialization uses LF even when innerText uses the Windows
+    // CRLF convention. Compare all selected content, not OS line separators.
+    expect(selected?.replace(/\r\n/gu, "\n")).toBe(raw.replace(/\r\n/gu, "\n"));
 
     const layout = await editor.evaluate((section) => ({
       overflow: section.scrollWidth > section.clientWidth,
@@ -7345,9 +7347,11 @@ test("dragging a wire previews the orthogonal path it will commit", async ({
   );
   // While the pointer is down the preview used to close back at the old free
   // end, drawing a triangle the editor never commits.
-  expect(everyLegAxisAligned(await drawnPoints())).toBe(true);
+  const previewPoints = await drawnPoints();
+  expect(everyLegAxisAligned(previewPoints)).toBe(true);
   await page.mouse.up();
   expect(everyLegAxisAligned(await drawnPoints())).toBe(true);
+  expect(await drawnPoints()).toEqual(previewPoints);
 });
 
 test("the copy ghost shows the wires it is about to place", async ({

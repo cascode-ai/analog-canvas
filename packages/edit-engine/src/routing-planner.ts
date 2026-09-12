@@ -46,7 +46,8 @@ import type { SymbolResolver } from "@icm/symbols";
 
 import type { SchematicEdit } from "./transaction.js";
 import { endpointOwnerNetId } from "./transaction-routing.js";
-import { planDirectEndpointConnection } from "./direct-contact-planner.js";
+import { createContactPlanningDraft } from "./contact-planning-draft.js";
+import { projectRoutingEditGeometry } from "./routing-geometry-projection.js";
 import { routeHasExternalOwner } from "./direct-contact-route-normalization.js";
 import { rebuildRoutePath } from "./route-leg-mutation.js";
 
@@ -591,143 +592,154 @@ type EndpointLanding =
   | { kind: "span"; routeId: string; segmentIndex: number }
   | { kind: "contact"; targetEndpoint: RouteEndpoint };
 
-/** The endpoint of `candidate` that sits exactly at `point`, if either does. */
-function routeEndpointAt(
-  document: SchematicDocument,
-  candidate: RouteBranch,
-  point: Point,
-): RouteEndpoint | null {
-  for (const endpoint of routeEndpoints(candidate)) {
-    if (endpoint.kind !== "junction") continue;
-    const junction = document.junctions.find(
-      (record) => record.id === endpoint.junctionId,
-    );
-    if (!junction) continue;
-    if (junction.position.x === point.x && junction.position.y === point.y) {
-      return endpoint;
-    }
-  }
-  return null;
-}
-
-/** The visible pin whose exact contact point is `point`, if one is there. */
-function terminalEndpointAt(
+/**
+ * Collect all contacts at a deliberately moved endpoint, not the first object
+ * in document order. Endpoint identity wins over a split for THAT route; a
+ * different conductor passing through the same point is still a real target.
+ * Geometric crossings away from the moved endpoint are never considered.
+ */
+function endpointLandingsAt(
   document: SchematicDocument,
   resolver: SymbolResolver,
   point: Point,
-): RouteEndpoint | null {
+  movedEndpoint: RouteEndpoint,
+  travellingRouteIds: ReadonlySet<string>,
+): EndpointLanding[] {
+  const movedNetId = endpointOwnerNetId(document, movedEndpoint);
+  const contacts = new Map<string, EndpointLanding>();
+  const spans: EndpointLanding[] = [];
+  const consider = (endpoint: RouteEndpoint): boolean => {
+    const connection = resolveEndpointConnection(document, resolver, endpoint);
+    if (
+      !connection ||
+      connection.contactPoint.x !== point.x ||
+      connection.contactPoint.y !== point.y
+    )
+      return false;
+    if (
+      endpointKey(endpoint) !== endpointKey(movedEndpoint) &&
+      endpointOwnerNetId(document, endpoint) !== movedNetId
+    ) {
+      contacts.set(endpointKey(endpoint), {
+        kind: "contact",
+        targetEndpoint: endpoint,
+      });
+    }
+    return true;
+  };
   for (const instance of document.instances) {
     if (!instance.placement) continue;
     const resolved = resolver.resolve(
       instance.symbolId,
       instance.symbolVariantId,
     );
-    if (!resolved) continue;
-    for (const pin of resolved.definition.pins) {
+    for (const pin of resolved?.definition.pins ?? []) {
       const endpoint: RouteEndpoint = {
         kind: "terminal",
         instanceId: instance.id,
         pinName: pin.name,
       };
-      if (!isVisibleEndpoint(document, resolver, endpoint)) continue;
-      const connection = resolveEndpointConnection(
-        document,
-        resolver,
-        endpoint,
-      );
-      if (!connection) continue;
-      if (
-        connection.contactPoint.x === point.x &&
-        connection.contactPoint.y === point.y
-      ) {
-        return endpoint;
-      }
+      if (isVisibleEndpoint(document, resolver, endpoint)) consider(endpoint);
     }
   }
-  return null;
-}
-
-/**
- * What one moved end comes to rest on, once it is let go of at `point`.
- *
- * Only the moved END is considered. A wire whose middle crosses another wire
- * touches it at an interior point of both and connects nothing — a Crossing is
- * not a Junction, and that invariant is the reason this looks at the released
- * end rather than at the whole translated path.
- *
- * Conductors already on `movedNetId` are skipped because there is nothing to
- * merge, as are the ones travelling with the gesture: their coincidence is
- * geometry moving together, not an end being put somewhere.
- */
-function endpointLandingAt(
-  document: SchematicDocument,
-  resolver: SymbolResolver,
-  point: Point,
-  movedNetId: string | null,
-  travellingRouteIds: ReadonlySet<string>,
-): EndpointLanding | null {
-  const terminal = terminalEndpointAt(document, resolver, point);
-  if (terminal && endpointOwnerNetId(document, terminal) !== movedNetId) {
-    return { kind: "contact", targetEndpoint: terminal };
+  for (const junction of document.junctions) {
+    consider({ kind: "junction", junctionId: junction.id });
   }
   for (const candidate of document.routes) {
     if (travellingRouteIds.has(candidate.id)) continue;
-    if (candidate.netId === movedNetId) continue;
-    // An end resting on the other wire's end is checked first: such a point
-    // also satisfies "on the segment", and taking it as a span landing is
-    // exactly the splice that cannot be made.
-    const targetEndpoint = routeEndpointAt(document, candidate, point);
-    if (targetEndpoint) return { kind: "contact", targetEndpoint };
+    // Check BOTH endpoint kinds even when the terminal has no visible handle.
+    // An existing route end is never an interior point that can be split.
+    const atEndpoint = routeEndpoints(candidate).map(consider).some(Boolean);
+    if (atEndpoint || candidate.netId === movedNetId) continue;
     const geometry = resolveRouteGeometry(document, resolver, candidate);
     const segmentIndex = geometry?.segments.findIndex((segment) =>
       pointOnSegment(point, segment.from, segment.to),
     );
     if (segmentIndex === undefined || segmentIndex < 0) continue;
-    return { kind: "span", routeId: candidate.id, segmentIndex };
+    spans.push({ kind: "span", routeId: candidate.id, segmentIndex });
   }
-  return null;
+  return [
+    ...[...contacts.entries()]
+      .sort(([a], [b]) => a.localeCompare(b, "en"))
+      .map(([, value]) => value),
+    ...spans.sort((a, b) =>
+      a.kind === "span" && b.kind === "span"
+        ? a.routeId.localeCompare(b.routeId, "en")
+        : 0,
+    ),
+  ];
 }
 
 /**
- * Turn one landing into the edits that state it.
- *
- * The two shapes need different primitives and must not be collapsed into
- * one: a contact is an explicit zero-length bond between two real endpoints,
- * while a span landing makes the moved end the common node of two Route
- * halves. Both are primitives the routing gate reads for itself, so no
- * expected-effect declaration is written here and none is needed.
+ * One membership draft for ALL ends and ALL conductors in a drop. Geometry is
+ * already projected to the final position; only after every compatible Net
+ * has been folded do we compile far-to-near splits against the stable legs.
  */
-function landingEdits(
+function endpointLandingEdits(
   document: SchematicDocument,
-  movedEndpoint: RouteEndpoint,
-  movedNetId: string | null,
-  landing: EndpointLanding,
-  point: Point,
+  resolver: SymbolResolver,
+  endpoints: readonly RouteEndpoint[],
+  travellingRouteIds: ReadonlySet<string>,
   suffix: string,
 ): SchematicEdit[] {
-  if (landing.kind === "contact") {
-    const direct = planDirectEndpointConnection(document, {
-      from: movedEndpoint,
-      to: landing.targetEndpoint,
-      newNetId: `net-${suffix}`,
-    });
-    // Incompatible power domains are the one case this gesture cannot settle:
-    // joining a VDD conductor to a ground one is not something a drag should
-    // decide. The move still happens and the ends still touch, leaving the
-    // existing finding standing for the author to resolve deliberately.
-    return direct.ok ? [...direct.edits] : [];
-  }
-  return [
-    ...proposeEndpointRouteAttachment(
+  const draft = createContactPlanningDraft(document, resolver);
+  const spanRequests = new Map<string, EndpointRouteAttachmentRequest[]>();
+  for (const endpoint of endpoints) {
+    const point = resolveEndpointConnection(
       document,
-      movedEndpoint,
-      movedNetId,
-      landing.routeId,
+      resolver,
+      endpoint,
+    )?.contactPoint;
+    if (!point) continue;
+    for (const landing of endpointLandingsAt(
+      document,
+      resolver,
       point,
-      landing.segmentIndex,
-      suffix,
-    ).edits,
-  ];
+      endpoint,
+      travellingRouteIds,
+    )) {
+      const target =
+        landing.kind === "contact"
+          ? landing.targetEndpoint
+          : draft.document.routes.find((route) => route.id === landing.routeId)!
+              .start;
+      const connection = draft.connect(endpoint, target, `net-${suffix}`);
+      // Preserve the existing move-without-joining policy for incompatible
+      // power domains; never weaken the transaction's electrical validation.
+      if (!connection.ok) continue;
+      if (landing.kind !== "span") continue;
+      const requests = spanRequests.get(landing.routeId) ?? [];
+      const existing = requests.find(
+        (request) => request.point.x === point.x && request.point.y === point.y,
+      );
+      // Coincident moved endpoints have just been electrically joined by the
+      // draft. One geometric split suffices; duplicate splits would be zero length.
+      if (!existing)
+        requests.push({
+          endpoint,
+          endpointNetId: connection.netId,
+          point,
+          segmentIndex: landing.segmentIndex,
+        });
+      spanRequests.set(landing.routeId, requests);
+    }
+  }
+  const edits = [...draft.edits];
+  for (const [routeId, requests] of spanRequests) {
+    const netId = draft.document.routes.find(
+      (route) => route.id === routeId,
+    )!.netId;
+    edits.push(
+      ...proposeEndpointsRouteAttachment(
+        draft.document,
+        resolver,
+        routeId,
+        requests.map((request) => ({ ...request, endpointNetId: netId })),
+        suffix,
+      ).edits,
+    );
+  }
+  return edits;
 }
 
 /**
@@ -785,61 +797,16 @@ export function proposeLooseRouteTranslation(
   ];
   if (!landing) return { routeId, edits };
 
-  // Both anchors may land, and two landings on one target Route have to be
-  // spliced together so the second addresses the leg identity the first left
-  // behind. Contacts carry no such ordering and are emitted as they are found.
-  const spanRequests = new Map<string, EndpointRouteAttachmentRequest[]>();
-  for (const junctionId of anchors) {
-    const junction = document.junctions.find(
-      (candidate) => candidate.id === junctionId,
-    );
-    if (!junction) continue;
-    const movedEndpoint: RouteEndpoint = { kind: "junction", junctionId };
-    const point = {
-      x: junction.position.x + delta.x,
-      y: junction.position.y + delta.y,
-    };
-    const landed = endpointLandingAt(
-      document,
+  const projected = projectRoutingEditGeometry(document, edits);
+  edits.push(
+    ...endpointLandingEdits(
+      projected,
       landing.resolver,
-      point,
-      route.netId,
+      anchors.map((junctionId) => ({ kind: "junction", junctionId })),
       new Set([route.id]),
-    );
-    if (!landed) continue;
-    if (landed.kind === "contact") {
-      edits.push(
-        ...landingEdits(
-          document,
-          movedEndpoint,
-          route.netId,
-          landed,
-          point,
-          landing.suffix,
-        ),
-      );
-      continue;
-    }
-    const requests = spanRequests.get(landed.routeId) ?? [];
-    requests.push({
-      endpoint: movedEndpoint,
-      endpointNetId: route.netId,
-      point,
-      segmentIndex: landed.segmentIndex,
-    });
-    spanRequests.set(landed.routeId, requests);
-  }
-  for (const [targetRouteId, requests] of spanRequests) {
-    edits.push(
-      ...proposeEndpointsRouteAttachment(
-        document,
-        landing.resolver,
-        targetRouteId,
-        requests,
-        landing.suffix,
-      ).edits,
-    );
-  }
+      landing.suffix,
+    ),
+  );
   return { routeId, edits };
 }
 
@@ -1025,23 +992,18 @@ export function proposeRouteEndpointMove(
     // Route against its persisted endpoint would put the end back on the pin.
     ...routeEdits(base, proposal.routes),
   ];
-  const landing = suffix
-    ? endpointLandingAt(
-        base,
-        resolver,
-        point,
-        route.netId,
-        new Set(proposal.routes.map((moved) => moved.routeId)),
-      )
-    : null;
-  if (landing && suffix) {
+  if (suffix) {
+    // Detachment is already represented in base; project only the stretch.
+    const projected = projectRoutingEditGeometry(
+      base,
+      edits.slice(detachEdits.length),
+    );
     edits.push(
-      ...landingEdits(
-        base,
-        { kind: "junction", junctionId },
-        route.netId,
-        landing,
-        point,
+      ...endpointLandingEdits(
+        projected,
+        resolver,
+        [{ kind: "junction", junctionId }],
+        new Set(proposal.routes.map((moved) => moved.routeId)),
         suffix,
       ),
     );
