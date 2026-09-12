@@ -99,7 +99,7 @@ export async function chooseComponent(
   await dialog.getByTestId(`insert-component-${symbolId}`).click();
 }
 
-/** Edit the selected component's strict Canvas-property JSON and apply it. */
+/** Edit the selected component's strict JSON; valid changes update live. */
 export async function editComponentPropertyCode(
   page: Page,
   update: (value: Record<string, any>) => void,
@@ -111,7 +111,6 @@ export async function editComponentPropertyCode(
   >;
   update(value);
   await input.fill(JSON.stringify(value, null, 2));
-  await page.getByRole("button", { name: "Apply code" }).click();
 }
 
 /** Read rendered JSON lines only; the inline controls/help are not source text. */
