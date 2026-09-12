@@ -1528,6 +1528,16 @@ test("Explorer context downloads preserve multi-selection and directory contents
   await page.screenshot({
     path: test.info().outputPath("simulation-header.png"),
   });
+  // Workspace shortcuts still work while focus is in the file tree.
+  await run.focus();
+  await run.press("Control+w");
+  await expect(workspace.getByRole("tab", { name: /local\.cir/ })).toHaveCount(
+    0,
+  );
+  await models.press("ArrowRight");
+  await expect(
+    alphaFiles.getByRole("treeitem", { name: "local.cir", exact: true }),
+  ).toBeVisible();
 });
 
 test("inline naming commits once on blur, cancels on Escape, and deletion uses a local dialog", async ({

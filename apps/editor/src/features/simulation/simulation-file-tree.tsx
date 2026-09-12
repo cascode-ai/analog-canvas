@@ -509,6 +509,11 @@ export function SimulationFileTree(props: SimulationCodeWorkspaceProps) {
         if (event.target === event.currentTarget) setSelected([]);
       }}
       onKeyDown={(event) => {
+        if (
+          (event.ctrlKey || event.metaKey) &&
+          ["s", "w"].includes(event.key.toLowerCase())
+        )
+          return;
         event.stopPropagation();
         if (event.target instanceof HTMLInputElement) return;
         if (
