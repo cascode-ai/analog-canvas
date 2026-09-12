@@ -579,6 +579,21 @@
   pointer-events: stroke;
 }
 
+/* An opaque foreground shape behaves like the visible object it represents.
+   Background shapes remain edge-selectable so circuit artwork above them
+   stays interactive. */
+.annotation-hit.drafting-shape-filled-hit,
+.annotation-hit.drafting-shape-filled-hit.selected {
+  fill: transparent;
+  pointer-events: all;
+}
+
+.annotation-hit.drafting-shape-background-hit,
+.annotation-hit.drafting-shape-background-hit.selected {
+  fill: none;
+  pointer-events: stroke;
+}
+
 /* Editor-only HTML inside the SVG foreignObject. It is deliberately separate
    from formal SVG/export, but uses the same RichText AST as formal rendering. */
 .rich-text-editor-shell {

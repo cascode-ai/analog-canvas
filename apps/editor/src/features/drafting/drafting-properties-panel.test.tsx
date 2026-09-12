@@ -44,6 +44,7 @@ function render(object: DraftingObject): string {
       onTangentAngleChange={noop}
       onBearingChange={noop}
       onArrowPresetChange={noop}
+      onStackingChange={noop}
       onToggleLock={noop}
     />,
   );
@@ -110,5 +111,30 @@ describe("unified arrow styles", () => {
     const markup = render(object);
     expect(markup).toContain('aria-label="Arrow width"');
     expect(markup).not.toContain('aria-label="Tangent angle"');
+  });
+});
+
+describe("closed-shape paint and layer", () => {
+  const rectangle: DraftingObject = {
+    id: "rect-1",
+    kind: "rectangle",
+    locked: false,
+    zIndex: 0,
+    anchor: { kind: "free", position: { x: 50, y: 50 } },
+    center: { x: 50, y: 50 },
+    width: 80,
+    height: 40,
+    rotation: 0,
+    lineStyle: "solid",
+  };
+
+  it("offers independent border/fill paint and front/back actions", () => {
+    const markup = render(rectangle);
+    expect(markup).toContain("<legend>Border</legend>");
+    expect(markup).toContain("<legend>Fill</legend>");
+    expect(markup).toContain(">Bring to front</button>");
+    expect(markup).toContain(">Send to back</button>");
+    expect(markup.match(/component-color-swatch/gu)).toHaveLength(8);
+    expect(markup).not.toContain('type="color"');
   });
 });

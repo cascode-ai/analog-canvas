@@ -33,7 +33,6 @@ export interface ComponentPropertyCodeValue extends ComponentPropertyDetailsValu
   display?: ComponentPropertyDisplayCode;
   appearance: {
     foreground: ComponentPropertyColor;
-    background: ComponentPropertyColor;
   };
 }
 
@@ -181,7 +180,6 @@ export function componentPropertyCodeValue(
     ...(Object.keys(display).length > 0 ? { display } : {}),
     appearance: {
       foreground: formattedColor(instance.styleOverride?.foreground),
-      background: formattedColor(instance.styleOverride?.background),
     },
   };
 }
@@ -197,10 +195,6 @@ export function serializeComponentPropertyCode(
           value.appearance.foreground === "auto"
             ? "auto"
             : colorToRgb(value.appearance.foreground),
-        background:
-          value.appearance.background === "auto"
-            ? "auto"
-            : colorToRgb(value.appearance.background),
       },
     },
     null,
@@ -248,9 +242,6 @@ export function parseComponentPropertyCode(
     if (!("foreground" in decoded.appearance)) {
       throw new Error("appearance.foreground is required");
     }
-    if (!("background" in decoded.appearance)) {
-      throw new Error("appearance.background is required");
-    }
     const display = parseDisplay(decoded.display, context);
     return {
       ok: true,
@@ -271,10 +262,6 @@ export function parseComponentPropertyCode(
             decoded.appearance.foreground,
             "appearance.foreground",
           ),
-          background: parseCanvasColor(
-            decoded.appearance.background,
-            "appearance.background",
-          ),
         },
       },
     };
@@ -294,7 +281,7 @@ export function defaultComponentPropertyCode(
   const value = componentPropertyCodeValue(context);
   if (value.placement)
     value.placement = { ...value.placement, rotation: 0, mirror: "none" };
-  value.appearance = { foreground: "auto", background: "auto" };
+  value.appearance = { foreground: "auto" };
   if (value.parameters && context.details) {
     // Preserve unknown model overrides; only descriptor-owned defaults are known.
     for (const parameter of context.details.parameters)

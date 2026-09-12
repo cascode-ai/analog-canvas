@@ -79,11 +79,11 @@ describe("selection context actions", () => {
     );
     expect(markup).toContain('aria-label="Electrical Net label"');
     expect(markup).toContain('value="OUT"');
-    expect(markup).toContain('aria-label="Wire color picker"');
-    expect(markup).toContain('value="#000000"');
+    expect(markup).not.toContain('type="color"');
     expect(markup).toContain('aria-label="Wire color custom RGB"');
-    expect(markup).toContain("Gray · #6b7280");
-    expect(markup).not.toContain("Violet");
+    expect(markup).toContain("Light gray · #9ca3af");
+    expect(markup.match(/component-color-swatch/gu)).toHaveLength(4);
+    expect(markup).not.toContain("Orange");
     expect(markup).toContain("Use the document ink color");
     expect(markup).toContain('aria-label="Wire direction arrow"');
     expect(markup).toContain('<option value="middle" selected="">');

@@ -7,6 +7,7 @@ import {
   downloadBytes,
   editComponentPropertyCode,
   setComponentParameter,
+  setComponentCodeField,
   expectComponentCodeField,
   readComponentPropertyCode,
   recoveryProjectTexts,
@@ -1144,7 +1145,7 @@ test("carries a manual Value through placement and Q property editing", async ({
   await expectComponentCodeField(page, "parameters.tc", "0.1");
 });
 
-test("ordinary source Properties switch waveforms without erasing inactive values", async ({
+test("ordinary source property code switches waveforms without erasing inactive values", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -1157,35 +1158,27 @@ test("ordinary source Properties switch waveforms without erasing inactive value
   await page.getByTestId("hit-V1").click();
   await page.keyboard.press("q");
 
-  const waveform = page.getByLabel("Transient options");
-  await expect(waveform).toHaveValue("dc");
-  await expect(waveform.locator('option[value="dc"]')).toHaveText("None");
+  await expectComponentCodeField(page, "parameters.waveform", "dc");
   await expect(page.getByLabel("Component parameters and display")).toHaveCount(
     0,
   );
 
-  await waveform.selectOption("pulse");
+  await setComponentCodeField(page, "parameters.waveform", "pulse");
   await expectComponentCodeField(page, "parameters.high", "1");
   await setComponentParameter(page, "high", "2.5");
 
-  await page
-    .getByLabel("Editable Canvas property code")
-    .press("ControlOrMeta+Home");
-  await waveform.selectOption("sin");
+  await setComponentCodeField(page, "parameters.waveform", "sin");
   await expectComponentCodeField(page, "parameters.amplitude", "1");
   await expectComponentCodeField(page, "parameters.high", "2.5");
 
-  await page
-    .getByLabel("Editable Canvas property code")
-    .press("ControlOrMeta+Home");
-  await waveform.selectOption("pulse");
+  await setComponentCodeField(page, "parameters.waveform", "pulse");
   await expectComponentCodeField(page, "parameters.high", "2.5");
   await expect
     .poll(() => recoveryProjectTexts(page))
     .toContain('"waveform": "pulse"');
 });
 
-test("exposes pin-compatible amplifier variants inside the property code", async ({
+test("accepts pin-compatible amplifier variants through the property code", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -1199,13 +1192,17 @@ test("exposes pin-compatible amplifier variants inside the property code", async
 
   const amplifierActions = page.getByLabel("Amplifier placement actions");
   await expect(amplifierActions).toHaveCount(0);
-  const variants = page.getByLabel("Drawing variant options");
-  await expect(
-    variants.locator('option[value="opamp-differential-crossed"]'),
-  ).toHaveCount(1);
-  await expect(
-    variants.locator('option[value="opamp-differential-inputs-swapped"]'),
-  ).toHaveCount(1);
+  for (const symbol of [
+    "opamp-differential-crossed",
+    "opamp-differential-inputs-swapped",
+  ]) {
+    await setComponentCodeField(page, "symbol", symbol);
+    await expectComponentCodeField(page, "symbol", symbol);
+    await expect(page.locator("[data-symbol-id]").first()).toHaveAttribute(
+      "data-symbol-id",
+      symbol,
+    );
+  }
   await expect(
     page.getByRole("button", { name: "Return component to Placement Tray" }),
   ).toHaveCount(0);

@@ -22,7 +22,7 @@ describe("planComponentPropertyCodeEdits", () => {
       planComponentPropertyCodeEdits(document, instance, {
         placement: { at: [123, 177], rotation: 90, mirror: "x" },
         display: { reference: true, value: false },
-        appearance: { foreground: "#DC2626", background: "auto" },
+        appearance: { foreground: "#DC2626" },
       }),
     ).toEqual([
       {
@@ -57,8 +57,35 @@ describe("planComponentPropertyCodeEdits", () => {
       planComponentPropertyCodeEdits(document, instance, {
         placement: { at: [100, 100], rotation: 0, mirror: "none" },
         display: { reference: true, value: false },
-        appearance: { foreground: "auto", background: "auto" },
+        appearance: { foreground: "auto" },
       }),
     ).toEqual([]);
+  });
+
+  it("clears a retired component background on the next appearance edit", () => {
+    const document = createEmptyDocument("main", "Main");
+    const instance = {
+      id: "R1",
+      symbolId: "resistor",
+      placement: {
+        position: { x: 100, y: 100 },
+        rotation: 0 as const,
+        mirror: "none" as const,
+      },
+      styleOverride: { background: "#ffffff" },
+    };
+    document.instances.push(instance);
+    expect(
+      planComponentPropertyCodeEdits(document, instance, {
+        placement: { at: [100, 100], rotation: 0, mirror: "none" },
+        appearance: { foreground: "auto" },
+      }),
+    ).toEqual([
+      {
+        kind: "set_instance_style_override",
+        instanceId: "R1",
+        styleOverride: null,
+      },
+    ]);
   });
 });

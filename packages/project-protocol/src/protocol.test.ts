@@ -20,13 +20,16 @@ describe("Project protocol boundary", () => {
     const current = JSON.parse(
       serializeProject(createEmptyProject("protocol-project", "Protocol")),
     ) as Record<string, unknown>;
-    const result = tryParseProjectWithMetadata(
-      JSON.stringify({
-        ...current,
-        schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION - 1,
-        simulationSetups: current.simulationFolders,
-      }),
-    );
+    const previousSchemaVersion = CURRENT_PROJECT_SCHEMA_VERSION - 1;
+    const previous: Record<string, unknown> = {
+      ...current,
+      schemaVersion: previousSchemaVersion,
+    };
+    if (previousSchemaVersion < 50) {
+      previous.simulationSetups = previous.simulationFolders;
+      delete previous.simulationFolders;
+    }
+    const result = tryParseProjectWithMetadata(JSON.stringify(previous));
     expect(result).toMatchObject({
       ok: true,
       sourceSchemaVersion: CURRENT_PROJECT_SCHEMA_VERSION - 1,

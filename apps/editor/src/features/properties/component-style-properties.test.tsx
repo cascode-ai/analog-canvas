@@ -9,7 +9,7 @@ import {
 } from "./component-style-properties";
 
 describe("component style properties", () => {
-  it("renders concise color sections with collapsible RGB controls", () => {
+  it("offers the four common line colors plus custom RGB, without component fill", () => {
     const document = createEmptyDocument("cell", "Cell");
     const instance: (typeof document.instances)[number] = {
       id: "R1",
@@ -39,19 +39,17 @@ describe("component style properties", () => {
     expect(appearance).toBeDefined();
     expect(appearance).not.toContain('open=""');
     expect(markup).toContain("<legend>Line</legend>");
-    expect(markup).toContain("<legend>Background</legend>");
-    expect(markup).not.toContain("Line / foreground");
-    expect(markup).not.toContain("Background / fill");
+    expect(markup).not.toContain("<legend>Background</legend>");
     expect(markup).toContain('aria-label="Line custom RGB"');
-    expect(markup).toContain('aria-label="Background color picker"');
+    expect(markup).not.toContain('type="color"');
     expect(
       markup.match(/<details class="component-rgb-details">/gu),
-    ).toHaveLength(2);
-    expect(markup.match(/<summary>RGB<\/summary>/gu)).toHaveLength(2);
+    ).toHaveLength(1);
+    expect(markup.match(/<summary>RGB<\/summary>/gu)).toHaveLength(1);
     expect(markup).toContain('aria-pressed="true"');
-    expect(markup).toContain("Gray · #6b7280");
-    expect(markup).not.toContain("Violet");
-    expect(markup).toContain("Colors apply to this component only.");
+    expect(markup).toContain("Light gray · #9ca3af");
+    expect(markup.match(/component-color-swatch/gu)).toHaveLength(4);
+    expect(markup).toContain("Line color applies to this component only.");
   });
 
   it("converts custom RGB values to canonical six-digit hex", () => {

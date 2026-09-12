@@ -20,9 +20,11 @@ import {
   deleteConstructionVertex as deleteConstructionVertexObject,
   insertArrowWaypoint as insertArrowWaypointObject,
   insertConstructionVertex as insertConstructionVertexObject,
+  planDraftingStacking,
   setDraftingBearing as setDraftingObjectBearing,
   setDraftingTangentAngle as setDraftingObjectTangentAngle,
   type DraftingGeometryPatch,
+  type DraftingStackingTarget,
   type DraftingStylePatch,
 } from "./drafting-manipulation";
 
@@ -139,6 +141,31 @@ export function createDraftingCommands({
       if (transact(edits).ok) setStatus("Updated drawing geometry");
     } else {
       setStatus("Drawing is locked; unlock it before editing its geometry");
+    }
+  };
+
+  const setDraftingStacking = (target: DraftingStackingTarget): void => {
+    if (!selectedDrafting) return;
+    const nextObjects = planDraftingStacking(
+      document.drafting?.objects ?? [],
+      selectedDrafting.id,
+      target,
+    );
+    if (!nextObjects) {
+      setStatus("Only unlocked rectangles and circles can change layer");
+      return;
+    }
+    if (
+      transact(
+        nextObjects.map((object) => ({
+          kind: "upsert_drafting_object" as const,
+          object,
+        })),
+      ).ok
+    ) {
+      setStatus(
+        target === "front" ? "Brought shape to front" : "Sent shape to back",
+      );
     }
   };
 
@@ -334,6 +361,7 @@ export function createDraftingCommands({
     deleteConstructionVertex,
     setDraftingStyle,
     setDraftingGeometry,
+    setDraftingStacking,
     setArrowPreset,
     setDraftingTangentAngle,
     setDraftingBearing,

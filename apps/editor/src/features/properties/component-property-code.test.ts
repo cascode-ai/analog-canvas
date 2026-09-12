@@ -44,8 +44,7 @@ describe("component property code", () => {
     "value": false
   },
   "appearance": {
-    "foreground": "auto",
-    "background": "auto"
+    "foreground": "auto"
   }
 }`);
   });
@@ -62,7 +61,7 @@ describe("component property code", () => {
       value: {
         placement: { at: [420, 240], rotation: 180, mirror: "x" },
         display: { reference: true, value: true },
-        appearance: { foreground: "#DC2626", background: "auto" },
+        appearance: { foreground: "#DC2626" },
       },
     });
   });
@@ -78,12 +77,12 @@ describe("component property code", () => {
     });
 
     const extra = formatComponentPropertyCode(context).replace(
-      '"background": "auto"',
-      '"background": "auto", "opacity": 0.5',
+      '"foreground": "auto"',
+      '"foreground": "auto", "background": "#ffffff"',
     );
     expect(parseComponentPropertyCode(extra, context)).toEqual({
       ok: false,
-      message: "appearance.opacity is not a supported property",
+      message: "appearance.background is not a supported property",
     });
   });
 
@@ -112,14 +111,10 @@ describe("component property code", () => {
   it("accepts RGB authoring, persists hex, and displays fixed colors as compact RGB", () => {
     const decoded = JSON.parse(formatComponentPropertyCode(context));
     decoded.appearance.foreground = [255, 0, 128];
-    decoded.appearance.background = [255, 255, 255];
     const parsed = parseComponentPropertyCode(JSON.stringify(decoded), context);
     expect(parsed.ok).toBe(true);
     if (!parsed.ok) throw new Error(parsed.message);
-    expect(parsed.value.appearance).toEqual({
-      foreground: "#ff0080",
-      background: "#ffffff",
-    });
+    expect(parsed.value.appearance).toEqual({ foreground: "#ff0080" });
     const formatted = serializeComponentPropertyCode(parsed.value);
     expect(formatted).toContain('"foreground": [255, 0, 128]');
     expect(parseComponentPropertyCode(formatted, context)).toEqual(parsed);

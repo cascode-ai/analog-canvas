@@ -13,7 +13,8 @@ import { SourceSpanSchema } from "./source.js";
  * Optional per-instance visual style override. When absent, the instance
  * renders with the document style profile defaults — preserving the exact
  * appearance of pre-existing projects. Each field is independently optional
- * so an editor can set each color independently.
+ * so an older Project's paint remains readable. Current authoring exposes
+ * foreground only; `background` is retained as a compatibility field.
  *
  * - `foreground`: replaces the profile foreground for this instance's
  *   symbol strokes (lines, polylines, paths, polygon strokes, circle
@@ -151,9 +152,9 @@ export const InstanceSchema = z
     netlist: InstanceNetlistDataSchema.optional(),
     /**
      * Optional per-instance color override. When absent, the instance renders
-     * with document profile defaults (backward compatible). `foreground`
-     * replaces stroke/line color; `background` paints a fill behind the
-     * symbol artwork without hiding strokes.
+     * with document profile defaults (backward compatible). Current authoring
+     * writes `foreground`; historical `background` paint stays readable until
+     * the next appearance edit retires it.
      */
     styleOverride: InstanceStyleOverrideSchema.optional(),
     /**

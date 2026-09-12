@@ -42,6 +42,7 @@ import { repairBoundFormatOverrides } from "./transforms/bound-format-override.j
 import { repairLegacyReviewedExternalReferences } from "./transforms/reviewed-external-reference.js";
 import { OLDEST_SUPPORTED_PROJECT_SCHEMA_VERSION } from "./version.js";
 import { upgradeSchema49To50 } from "./transforms/simulation-folders.js";
+import { upgradeSchema50To51 } from "./transforms/drafting-shape-paint.js";
 
 /**
  * One upgrade step per historical version, oldest first: entry N carries a
@@ -78,6 +79,7 @@ const UPGRADE_CHAIN: ReadonlyArray<
   upgradeSchema47To48,
   upgradeSchema48To49,
   upgradeSchema49To50,
+  upgradeSchema50To51,
 ];
 
 function isRecord(value: unknown): value is Record<string, unknown> {

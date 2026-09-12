@@ -119,4 +119,72 @@ describe("drafting commands", () => {
       expect.objectContaining({ id: "note-1", kind: "text" }),
     );
   });
+
+  it("moves an unlocked shape behind or in front of the circuit", () => {
+    const document = createEmptyDocument("cell", "Cell");
+    const shape: Extract<DraftingObject, { kind: "rectangle" }> = {
+      id: "box",
+      kind: "rectangle",
+      locked: false,
+      zIndex: 2,
+      anchor: { kind: "free", position: { x: 50, y: 50 } },
+      center: { x: 50, y: 50 },
+      width: 40,
+      height: 20,
+      rotation: 0,
+      lineStyle: "solid",
+    };
+    const backgroundPeer: Extract<DraftingObject, { kind: "circle" }> = {
+      id: "peer",
+      kind: "circle",
+      locked: false,
+      zIndex: 0,
+      layer: "background",
+      anchor: { kind: "free", position: { x: 80, y: 50 } },
+      center: { x: 80, y: 50 },
+      radius: 10,
+      lineStyle: "solid",
+    };
+    document.drafting = { objects: [backgroundPeer, shape] };
+    const transact = vi.fn(() => ({ ok: true }));
+    const commands = createDraftingCommands({
+      document,
+      annotationGrid: 1,
+      resolver: new InMemorySymbolResolver(builtInSymbols),
+      viewBox: { x: 0, y: 0, width: 400, height: 300 },
+      selection: {
+        instanceIds: [],
+        routeIds: [],
+        junctionIds: [],
+        annotationIds: [],
+        draftingIds: ["box"],
+      },
+      selectedDrafting: shape,
+      inspectorSegment: null,
+      selectedRoute: undefined,
+      selectedRouteSegmentIndex: null,
+      routeGeometryRecords: [],
+      transact,
+      setStatus: vi.fn(),
+      nextId: () => "unused",
+      beginTextEditing: vi.fn(),
+      selectAnnotation: vi.fn(),
+    });
+
+    commands.setDraftingStacking("back");
+    expect(transact).toHaveBeenLastCalledWith([
+      expect.objectContaining({
+        object: expect.objectContaining({ layer: "background", zIndex: 0 }),
+      }),
+      expect.objectContaining({
+        object: expect.objectContaining({ id: "peer", zIndex: 1 }),
+      }),
+    ]);
+    commands.setDraftingStacking("front");
+    expect(transact).toHaveBeenLastCalledWith([
+      expect.objectContaining({
+        object: expect.objectContaining({ layer: "foreground", zIndex: 3 }),
+      }),
+    ]);
+  });
 });

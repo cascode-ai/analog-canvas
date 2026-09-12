@@ -1,18 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 
-export const COLOR_PRESETS = [
-  { label: "Black", value: "#000000" },
-  { label: "Red", value: "#dc2626" },
-  { label: "Orange", value: "#d97706" },
-  { label: "Yellow", value: "#facc15" },
-  { label: "Green", value: "#059669" },
-  { label: "Blue", value: "#2563eb" },
-  { label: "Gray", value: "#6b7280" },
-  { label: "White", value: "#ffffff" },
-] as const;
+import { COMMON_COLOR_PRESETS } from "./color-presets";
 
-/** Collapse a continuous picker/RGB interaction into one undoable edit. */
+/** Collapse a continuous RGB interaction into one undoable edit. */
 const COLOR_SETTLE_MS = 250;
 
 export interface RgbColor {
@@ -134,13 +125,6 @@ export function ColorOverrideControl({
     <fieldset className="component-color-control" disabled={disabled}>
       <legend>{label}</legend>
       <div className="component-color-primary-row">
-        <input
-          aria-label={`${colorLabel} picker`}
-          type="color"
-          value={shown}
-          onChange={(event) => setPending(event.currentTarget.value)}
-          onBlur={(event) => commitOnBlur(event.relatedTarget)}
-        />
         <output aria-label={`${colorLabel} hex value`}>
           {draft ?? value ?? (transparentDefault ? "Transparent" : "Automatic")}
         </output>
@@ -162,7 +146,7 @@ export function ColorOverrideControl({
         </button>
       </div>
       <div className="component-color-presets" aria-label={`${label} presets`}>
-        {COLOR_PRESETS.map((preset) => (
+        {COMMON_COLOR_PRESETS.map((preset) => (
           <button
             key={preset.value}
             type="button"

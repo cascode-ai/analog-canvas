@@ -32,6 +32,8 @@ export type DraftingStylePatch = Partial<{
   /** Explicit stroke color; an explicit undefined restores the profile
    * foreground (the patch application deletes the key). */
   color: string | undefined;
+  /** Explicit closed-shape fill; undefined restores transparency. */
+  fillColor: string | undefined;
   arrowHead: "none" | "filled" | "open";
   /** Which ends carry the head; absent means the trailing end alone. */
   arrowHeadAt: "end" | "start" | "both";
@@ -43,6 +45,63 @@ export type DraftingGeometryPatch = Partial<{
   width: number;
   height: number;
 }>;
+
+export type DraftingStackingTarget = "front" | "back";
+
+function isBackgroundShape(object: DraftingObject): boolean {
+  return (
+    (object.kind === "rectangle" || object.kind === "circle") &&
+    object.layer === "background"
+  );
+}
+
+/**
+ * Plan one atomic stacking edit. Sending a shape behind the circuit also
+ * normalizes its background peers so repeated commands cannot accumulate
+ * unbounded z-index values and the selected shape is unambiguously last.
+ */
+export function planDraftingStacking(
+  objects: readonly DraftingObject[],
+  objectId: string,
+  target: DraftingStackingTarget,
+): DraftingObject[] | null {
+  const object = objects.find((candidate) => candidate.id === objectId);
+  if (
+    !object ||
+    object.locked ||
+    (object.kind !== "rectangle" && object.kind !== "circle")
+  ) {
+    return null;
+  }
+  if (target === "front") {
+    const frontZIndex =
+      Math.max(
+        0,
+        ...objects
+          .filter((candidate) => !isBackgroundShape(candidate))
+          .map((candidate) => candidate.zIndex),
+      ) + 1;
+    return [{ ...object, layer: "foreground", zIndex: frontZIndex }];
+  }
+  const stableOrder = new Map(
+    objects.map((candidate, index) => [candidate.id, index]),
+  );
+  const peers = objects
+    .filter(
+      (candidate) => candidate.id !== object.id && isBackgroundShape(candidate),
+    )
+    .sort(
+      (left, right) =>
+        left.zIndex - right.zIndex ||
+        stableOrder.get(left.id)! - stableOrder.get(right.id)!,
+    );
+  return [
+    { ...object, layer: "background", zIndex: 0 },
+    ...peers
+      .map((peer, index) => ({ ...peer, zIndex: index + 1 }))
+      .filter((peer, index) => peer.zIndex !== peers[index]!.zIndex),
+  ];
+}
 
 /**
  * Precise geometry from the Properties dock: a circle takes a radius, a
@@ -349,11 +408,23 @@ export function applyDraftingStylePatch(
   }
   const nextOverride = { ...(object.styleOverride ?? {}) };
   for (const [key, value] of Object.entries(patch)) {
+    if (
+      key === "fillColor" &&
+      object.kind !== "rectangle" &&
+      object.kind !== "circle"
+    ) {
+      continue;
+    }
     if (value === undefined) {
       delete (nextOverride as Record<string, unknown>)[key];
     } else {
       (nextOverride as Record<string, unknown>)[key] = value;
     }
+  }
+  if (
+    JSON.stringify(nextOverride) === JSON.stringify(object.styleOverride ?? {})
+  ) {
+    return null;
   }
   return {
     ...object,

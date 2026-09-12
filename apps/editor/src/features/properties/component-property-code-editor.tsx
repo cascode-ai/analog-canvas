@@ -17,6 +17,8 @@ import {
   type ComponentPropertyCodeContext,
   type ComponentPropertyCodeValue,
 } from "./component-property-code";
+import { ColorOverrideControl } from "./color-override-control";
+import { parseCanvasColor } from "./component-property-fields";
 
 type Instance = SchematicDocument["instances"][number];
 const PropertyJsonEditor = lazy(
@@ -66,7 +68,6 @@ export function ComponentPropertyCodeEditor({
   const [draft, setDraft] = useState(baseline);
   const [applyMessage, setApplyMessage] = useState<string | null>(null);
   const [rejected, setRejected] = useState(false);
-  const [showHelp, setShowHelp] = useState(false);
 
   useLayoutEffect(() => {
     const ownEdit = appliedCode.current;
@@ -113,6 +114,24 @@ export function ComponentPropertyCodeEditor({
     appliedCode.current = normalized;
   };
 
+  const lineColor =
+    parsed.ok && parsed.value.appearance.foreground !== "auto"
+      ? parsed.value.appearance.foreground
+      : undefined;
+  const changeLineColor = (foreground: string | undefined): void => {
+    if (!parsed.ok) return;
+    change(
+      serializeComponentPropertyCode({
+        ...parsed.value,
+        appearance: {
+          foreground: foreground
+            ? parseCanvasColor(foreground, "appearance.foreground")
+            : "auto",
+        },
+      }),
+    );
+  };
+
   return (
     <section
       className="component-property-code-editor"
@@ -122,14 +141,6 @@ export function ComponentPropertyCodeEditor({
       <header>
         <strong>Properties</strong>
         <div className="component-property-header-actions">
-          <button
-            type="button"
-            className="component-property-help"
-            aria-expanded={showHelp}
-            onClick={() => setShowHelp((value) => !value)}
-          >
-            {showHelp ? "Hide help" : "Need help?"}
-          </button>
           <button
             type="button"
             className="component-property-help"
@@ -188,13 +199,17 @@ export function ComponentPropertyCodeEditor({
           value={draft}
           historyKey={historyKey}
           context={context}
-          defaultForeground={defaultForeground}
           focusRequest={focusRequest}
-          baselineCode={baseline}
-          showHelp={showHelp}
           onChange={change}
         />
       </Suspense>
+      <ColorOverrideControl
+        label="Line"
+        value={lineColor}
+        fallback={defaultForeground}
+        disabled={!parsed.ok}
+        onChange={changeLineColor}
+      />
       <div className="component-property-code-status" aria-live="polite">
         <span>
           {applyMessage ??
