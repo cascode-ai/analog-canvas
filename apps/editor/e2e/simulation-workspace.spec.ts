@@ -23,6 +23,117 @@ import {
 import { ota, profile, editSimulationFile } from "./simulation-e2e-fixtures.js";
 
 const loadModule = createRequire(import.meta.url);
+test("Code adds and removes source AC clauses and routes parameter declarations to authored Code", async ({
+  page,
+}) => {
+  const project = parseProject(JSON.stringify(ota));
+  const folder = createSimulationFolder({
+    id: "source-parameters",
+    name: "Source parameters",
+    documentId: project.topDocumentId,
+    profileId: profile.id,
+  });
+  project.simulationFolders = [folder];
+  await page.route("**/api/simulate", (route) =>
+    route.fulfill({
+      status: 503,
+      json: { error: "Offline authoring fixture" },
+    }),
+  );
+  await page.goto("/editor");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "source-parameters.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  await page.getByTestId("open-analog-simulation").click();
+  await page.getByRole("tab", { name: /circuit\.spice/ }).click();
+  const editor = page.getByRole("textbox", {
+    name: "Simulation source editor",
+  });
+  const generated = generateCircuitSource(
+    project,
+    folder.input.circuitBindings[0]!,
+  );
+  if (!generated.ok) throw Error("Expected generated source");
+  // DOM innerText can omit the final newline and includes display-only ghosts.
+  const source = generated.source.text;
+  const edited = source.replace(
+    "VDD vdd 0 DC 1.8",
+    "VDD vdd 0 DC 1.8 AC 1 -90",
+  );
+  expect(edited).not.toBe(source);
+  await editor.fill(edited);
+  await page.getByRole("button", { name: "Save source", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Save source", exact: true }),
+  ).toHaveAttribute("data-save-state", "saved");
+  const saved = parseProject(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(),
+  );
+  const sourceParameters = (p: typeof saved) =>
+    p.documents
+      .find((d) => d.id === project.topDocumentId)!
+      .instances.find((i) => i.id === "VDD")!.netlist!.parameters;
+  expect(sourceParameters(saved)).toMatchObject({
+    acMagnitude: "1",
+    acPhase: "-90",
+  });
+  const applied = generateCircuitSource(
+    saved,
+    folder.input.circuitBindings[0]!,
+  );
+  if (!applied.ok) throw Error("Expected applied source");
+  await editor.fill(
+    applied.source.text.replace(
+      "VDD vdd 0 DC 1.8 AC 1 -90",
+      "VDD vdd 0 DC {VBIAS}",
+    ),
+  );
+  await page.getByRole("button", { name: "Helper", exact: true }).click();
+  await page
+    .getByRole("option", { name: "Design variable (.param)…", exact: true })
+    .click();
+  await expect(page.getByRole("tab", { name: /run\.cir/ })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await expect(editor).toContainText(".param");
+  await expect(page.locator(".simulation-parameter-ghost")).toContainText(
+    "name=expression",
+  );
+  await editor.press("ControlOrMeta+z");
+  await expect(editor).not.toContainText(".param");
+  await editor.press("ControlOrMeta+y");
+  await expect(editor).toContainText(".param");
+  await editor.fill(
+    folder.input.files
+      .find((file) => file.path === "run.cir")!
+      .text.replace(".control", ".param VBIAS=1.8\n.control"),
+  );
+  await page.getByRole("button", { name: "Save source", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Save source", exact: true }),
+  ).toHaveAttribute("data-save-state", "saved");
+  const final = parseProject(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(),
+  );
+  expect(sourceParameters(final)).toMatchObject({ dc: "{VBIAS}" });
+  expect(sourceParameters(final)).not.toHaveProperty("acMagnitude");
+  expect(sourceParameters(final)).not.toHaveProperty("acPhase");
+  expect(
+    final.simulationFolders[0]!.input.files.find((f) => f.path === "run.cir")!
+      .text,
+  ).toContain(".param VBIAS=1.8");
+  expect(
+    JSON.parse(
+      final.simulationFolders[0]!.input.files.find(
+        (f) => f.path === "experiment.json",
+      )!.text,
+    ),
+  ).toEqual({ version: 2, environment: { profileId: profile.id } });
+});
+
 test("new experiments explicitly bind the selected Cell without requiring a Testbench", async ({
   page,
 }) => {

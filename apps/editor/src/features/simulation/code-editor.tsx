@@ -97,6 +97,8 @@ export interface SimulationCodeEditorProps {
   /** Generated Circuit uses its mapped-span planner here; invalid numeric drafts may remain editable. */
   acceptChange?(text: string): boolean;
   onRejectedChange?(): void;
+  onParameterDeclaration?(): void;
+  declarationRequest?: string | undefined;
   onSave?(): void;
   onRun?(): void;
   onHistoryBoundary?(direction: "undo" | "redo"): void;
@@ -371,6 +373,39 @@ export default function SimulationCodeEditor(props: SimulationCodeEditorProps) {
     if (props.reveal.focus !== false) editor.focus();
   }, [props.reveal?.requestId]);
 
+  const handledDeclaration = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    const editor = view.current;
+    if (
+      !editor ||
+      !props.declarationRequest ||
+      props.generated ||
+      !props.entry ||
+      handledDeclaration.current === props.declarationRequest
+    )
+      return;
+    handledDeclaration.current = props.declarationRequest;
+    const text = editor.state.field(exactSourceField);
+    const eol = text.includes("\r\n") ? "\r\n" : "\n";
+    const control = /^[ \t]*\.control\b/imu.exec(text);
+    const end = /^[ \t]*\.end\b/imu.exec(text);
+    const from = control?.index ?? end?.index ?? text.length;
+    const prefix = !text
+      ? `* Simulation${eol}`
+      : from > 0 && text[from - 1] !== "\n"
+        ? eol
+        : "";
+    const insert = `${prefix}.param ${eol}`;
+    const next = text.slice(0, from) + insert + text.slice(from);
+    editor.dispatch({
+      changes: { from: editorOffset(text, from), insert },
+      selection: { anchor: editorOffset(next, from + prefix.length + 7) },
+      effects: [restoreExactSource.of(next), dismissParameterGuide.of(false)],
+      userEvent: "input.complete",
+    });
+    editor.focus();
+  }, [props.declarationRequest, props.path]);
+
   useEffect(() => {
     const editor = view.current;
     if (
@@ -415,7 +450,11 @@ export default function SimulationCodeEditor(props: SimulationCodeEditorProps) {
     >
       <button
         type="button"
-        title="Insert / Helper · Ctrl+Space"
+        title={
+          props.generated
+            ? "Shared Cell parameters: edit DC/AC/waveforms and mapped expressions. Changes affect every Folder using this Cell. Use Design variable (.param) for Folder-local declarations. · Ctrl+Space"
+            : "Insert / Helper · Ctrl+Space"
+        }
         data-simulation-helper-trigger
         aria-expanded={helperOpen || Boolean(props.helperContent)}
         onClick={() => {
@@ -467,6 +506,10 @@ export default function SimulationCodeEditor(props: SimulationCodeEditorProps) {
             onChoose={(rule) => {
               const editor = view.current;
               if (!editor || props.readOnly || props.mode === "json") return;
+              if (rule.name === ".param" && props.onParameterDeclaration) {
+                props.onParameterDeclaration();
+                return;
+              }
               const line = editor.state.doc.lineAt(
                 editor.state.selection.main.head,
               );

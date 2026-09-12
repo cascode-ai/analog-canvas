@@ -225,7 +225,10 @@ export async function handleProjectSourceFiles(
         change.parameter,
       ]);
       const existing = parameters.get(key);
-      if (existing && existing.value !== change.value)
+      if (
+        existing &&
+        (existing.value !== change.value || existing.unset !== change.unset)
+      )
         return problem(
           "SIMULATION_PARAMETER_CONFLICT",
           "Repeated Circuit appearances must assign the same parameter value",

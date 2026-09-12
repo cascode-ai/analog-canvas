@@ -328,9 +328,14 @@ digest. These spans are derived, never persisted. The digest covers every
 reached Document revision and folder state needed for that generation.
 
 - Editable fields are MOS W/L and existing descriptor-backed
-  dimension/multiplicity fields, R/C/L value, and V/I DC, AC and selected
-  waveform fields **where a reversible printer mapping exists**. Model identity,
-  pin order, nodes, references, source kind and arbitrary model text are locked.
+  dimension/multiplicity fields and R/C/L value **where a reversible printer
+  mapping exists**. V/I source bodies additionally support reversible DC, AC
+  magnitude/phase, and PULSE/SIN/PWL clause edits, including adding/removing AC
+  and changing the transient waveform. Removing a clause unsets its mapped
+  parameters through the same atomic transaction, not an empty-string override.
+  This Canvas subset retains explicit DC and complete seven-argument PULSE
+  waveforms; arbitrary native source syntax belongs in authored files. Model identity,
+  pin order, nodes, references, device class and arbitrary model text are locked.
   Numeric literals and delimited native parameter expressions share those spans.
 - Descriptor-backed does not imply reversibility. The compiler must report the
   exact editable fields and conversions; a new unsupported field remains
@@ -349,6 +354,14 @@ reached Document revision and folder state needed for that generation.
   The UI/helper explains this once at the edit target. Experiment-only changes
   use source parameters/control Code; only legacy experiments retain prepared
   Run Plan projections.
+- Helper → Design variable (`.param`) opens the authored run entry and inserts
+  a declaration before `.control` (or `.end`), outside the generated Circuit.
+  The edit preserves existing text and is one undoable operation. Expressions
+  in Circuit still update the shared Cell; every calling experiment must supply
+  its dependencies. Root Cell formal defaults are emitted as `.param` when the
+  Cell runs top-level, rather than lost with the omitted `.subckt` wrapper.
+- Source ghost guidance treats DC, AC and transient clauses independently.
+  Missing optional AC/waveform clauses remain display-only, not saved defaults.
 
 The editable Circuit view shows persistent Instance values, not a projected
 Batch member disguised as an editable circuit. When a legacy variable binding masks

@@ -14,6 +14,18 @@ import {
   type PrintedSpiceInstance,
 } from "./printers.js";
 import type { NetlistDiagnostic } from "./ir.js";
+import { normalizeIndependentSource } from "./source-waveform.js";
+import { parseEditableSourceParameters } from "./simulation-source-parameters.js";
+
+interface EditableSourceBody {
+  documentId: string;
+  instanceId: string;
+  documentRevision: number;
+  startOffset: number;
+  endOffset: number;
+  rawValue: string;
+  sourceParameters: Record<string, string>;
+}
 
 export interface EditableCircuitParameter extends PrintedSpiceParameter {
   descriptor: DeviceParameterDefinition;
@@ -25,6 +37,7 @@ export interface GeneratedCircuitSource {
   binding: SimulationCircuitBinding;
   text: string;
   parameters: EditableCircuitParameter[];
+  sourceBodies?: EditableSourceBody[];
   instances: PrintedSpiceInstance[];
   reachedDocuments: { id: string; revision: number }[];
 }
@@ -145,6 +158,35 @@ export function generateCircuitSource(
       binding: { ...binding },
       text: printed.text,
       parameters,
+      sourceBodies: printed.instances.flatMap((span): EditableSourceBody[] => {
+        const cell = ir.cells.find((cell) => cell.id === span.documentId)!;
+        const card = cell.instances.find(
+          (card) => card.id === span.instanceId,
+        )!;
+        if (
+          !["voltage-source", "current-source"].includes(card.deviceClass) ||
+          normalizeIndependentSource(card.parameters).extraParameters.length
+        )
+          return [];
+        const text = printed.text.slice(span.startOffset, span.endOffset);
+        const prefix = /^\S+[ \t]+\S+[ \t]+\S+/u.exec(text);
+        if (!prefix) return [];
+        const document = project.documents.find(
+          (d) => d.id === span.documentId,
+        )!;
+        const instance = document.instances.find(
+          (i) => i.id === span.instanceId,
+        )!;
+        return [
+          {
+            ...span,
+            startOffset: span.startOffset + prefix[0].length,
+            rawValue: text.slice(prefix[0].length),
+            documentRevision: document.revision,
+            sourceParameters: { ...instance.netlist!.parameters },
+          },
+        ];
+      }),
       instances: printed.instances,
       reachedDocuments: ir.cells.map((cell) => ({
         id: cell.id,
@@ -161,6 +203,7 @@ export interface CircuitParameterChange {
   instanceId: string;
   parameter: string;
   value: string;
+  unset?: true;
 }
 /** Plan exact parameter-only changes. The service checks the generation digest and commits typed edits atomically. */
 export function planCircuitSourceEdit(
@@ -183,10 +226,19 @@ export function planCircuitSourceEdit(
       ? { range: parameterRange }
       : {}),
   });
-  const spans = [...source.parameters].sort(
-    (a, b) => a.startOffset - b.startOffset,
-  );
+  const bodies = source.sourceBodies ?? [];
+  const spans = [
+    ...source.parameters.filter(
+      (p) =>
+        !bodies.some(
+          (body) =>
+            p.startOffset >= body.startOffset && p.endOffset <= body.endOffset,
+        ),
+    ),
+    ...bodies,
+  ].sort((a, b) => a.startOffset - b.startOffset);
   const changes = new Map<string, CircuitParameterChange>();
+  const sourceAppearances = new Map<string, string>();
   let invalid: ReturnType<typeof fail> | undefined;
   let originalOffset = 0;
   let nextOffset = 0;
@@ -214,6 +266,69 @@ export function planCircuitSourceEdit(
       );
     const raw = nextText.slice(nextOffset, end);
     parameterRange = { from: nextOffset, to: end };
+    if ("sourceParameters" in span) {
+      if (raw && !/^\s/u.test(raw))
+        return fail(
+          "SIMULATION_CIRCUIT_STRUCTURE_LOCKED",
+          "Keep source nodes separate from their parameter clauses.",
+        );
+      const identity = JSON.stringify([span.documentId, span.instanceId]);
+      const priorText = sourceAppearances.get(identity);
+      if (priorText !== undefined && priorText !== raw)
+        return fail(
+          "SIMULATION_PARAMETER_CONFLICT",
+          "Repeated appearances of a source must agree.",
+        );
+      sourceAppearances.set(identity, raw);
+      if (raw !== span.rawValue) {
+        const parsed = parseEditableSourceParameters(raw);
+        if (!parsed.ok)
+          invalid ??= fail("SIMULATION_PARAMETER_INVALID", parsed.message);
+        else {
+          const previous = parseEditableSourceParameters(span.rawValue);
+          const names = new Set([
+            ...Object.keys(
+              previous.ok ? previous.parameters : span.sourceParameters,
+            ),
+            ...Object.keys(parsed.parameters),
+          ]);
+          for (const name of names) {
+            const originalName =
+              Object.keys(span.sourceParameters).find(
+                (key) => key.toLowerCase() === name.toLowerCase(),
+              ) ?? name;
+            const value = parsed.parameters[name];
+            if (span.sourceParameters[originalName] === value) continue;
+            const key = JSON.stringify([
+              span.documentId,
+              span.instanceId,
+              originalName,
+            ]);
+            const change: CircuitParameterChange = {
+              documentId: span.documentId,
+              expectedRevision: span.documentRevision,
+              instanceId: span.instanceId,
+              parameter: originalName,
+              value: value ?? "",
+              ...(value === undefined ? { unset: true as const } : {}),
+            };
+            const prior = changes.get(key);
+            if (
+              prior &&
+              (prior.value !== change.value || prior.unset !== change.unset)
+            )
+              return fail(
+                "SIMULATION_PARAMETER_CONFLICT",
+                `Repeated appearances of ${originalName} must agree`,
+              );
+            changes.set(key, change);
+          }
+        }
+      }
+      originalOffset = span.endOffset;
+      nextOffset = end;
+      continue;
+    }
     const key = JSON.stringify([
       span.documentId,
       span.instanceId,
@@ -319,12 +434,14 @@ export function planCircuitSourceEdit(
     ok: true,
     changes: [...changes.values()].filter(
       (change) =>
-        spans.find(
+        !source.parameters.some(
           (s) =>
             s.documentId === change.documentId &&
             s.instanceId === change.instanceId &&
-            s.parameter === change.parameter,
-        )!.originalValue !== change.value,
+            s.parameter === change.parameter &&
+            s.originalValue === change.value &&
+            !change.unset,
+        ),
     ),
   };
 }

@@ -5,6 +5,31 @@ import { spiceCodeLanguage, spiceCompletion } from "./code-spice-language";
 import { parameterGuide } from "./code-parameter-guide";
 
 describe("SPICE editor assistance", () => {
+  it.each(["V1 in 0 DC 1.8 AC ", "I1 in 0 DC 0 SIN(0 1 1k) AC "])(
+    "guides AC following other source clauses: %s",
+    (doc) => {
+      const guide = parameterGuide(
+        EditorState.create({ doc, selection: { anchor: doc.length } }),
+      )!;
+      expect(guide.parameters[guide.tokens.length]!.label).toBe("magnitude");
+      expect(guide.parameters[guide.tokens.length + 1]!.label).toBe(
+        "phase / deg",
+      );
+    },
+  );
+  it("suggests optional AC on a complete DC source without inserting it", () => {
+    const doc = "V1 in 0 DC 1.8";
+    const state = EditorState.create({
+      doc,
+      selection: { anchor: doc.length },
+    });
+    const guide = parameterGuide(state)!;
+    expect(guide.parameters.slice(guide.tokens.length)).toContainEqual({
+      label: "AC magnitude [phase / deg]",
+      optional: true,
+    });
+    expect(state.doc.toString()).toBe(doc);
+  });
   it("deduplicates SPICE names case-insensitively while retaining Canvas labels", () => {
     const doc = "* test\n.control\nsave ";
     const state = EditorState.create({
@@ -87,7 +112,9 @@ describe("SPICE editor assistance", () => {
         selection: { anchor: completed.length },
       }),
     )!;
-    expect(outer.parameters.slice(outer.tokens.length)).toEqual([]);
+    expect(outer.parameters.slice(outer.tokens.length)).toEqual([
+      { label: "AC magnitude [phase / deg]", optional: true },
+    ]);
     const noise = "* test\n.control\nnoise v(out, ref) VIN ";
     expect(
       parameterGuide(

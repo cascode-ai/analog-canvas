@@ -166,6 +166,12 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
       focus?: boolean;
     }>();
     const [sourceDigest, setSourceDigest] = useState("");
+    const [declarationRequest, setDeclarationRequest] = useState<string>();
+    const addParameterDeclaration = () => {
+      setPath(props.folder.input.entry);
+      setDeclarationRequest(crypto.randomUUID());
+      props.onProblem(undefined);
+    };
     const [saveRequest, setSaveRequest] = useState<{
       id: string;
       session: string;
@@ -1261,12 +1267,20 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
             );
           }}
           saveRequest={saveRequest}
+          declarationRequest={declarationRequest}
+          onParameterDeclaration={addParameterDeclaration}
           relatedSources={sourceFiles.map(
             (file) =>
               drafts.current.get(`${props.folder.id}\u0000${file.path}`)
                 ?.text ?? file.text,
           )}
           helperActions={[
+            {
+              id: "design-variable",
+              label: "Design variable (.param)…",
+              keywords: "parameter declaration 参数 变量",
+              run: addParameterDeclaration,
+            },
             ...(legacyConfig
               ? [
                   {
@@ -1413,7 +1427,7 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
             props.onProblem(
               inputProblem(
                 "SIMULATION_CIRCUIT_STRUCTURE_LOCKED",
-                "Circuit topology is Canvas-owned; only mapped numeric parameter values are editable here.",
+                `Circuit topology, references and model identity are Canvas-owned. Edit mapped values/expressions and DC/AC/waveform clauses here. Use Helper → Design variable (.param) to add declarations in ${input.entry}; those declarations belong to this Folder, while Circuit parameter edits affect every Folder using this Cell.`,
               ),
             )
           }

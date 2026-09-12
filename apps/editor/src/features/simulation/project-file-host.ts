@@ -77,7 +77,7 @@ export function createSimulationProjectFileHost(options: {
             "The mapped Circuit changed; reload its generated source",
           );
         const set = Object.fromEntries(
-          group.map((p) => [p.parameter, p.value]),
+          group.filter((p) => !p.unset).map((p) => [p.parameter, p.value]),
         );
         let edit: SchematicEdit;
         if (instance.netlist)
@@ -85,6 +85,7 @@ export function createSimulationProjectFileHost(options: {
             kind: "patch_instance_netlist_parameters",
             instanceId: instance.id,
             set,
+            unset: group.filter((p) => p.unset).map((p) => p.parameter),
           };
         else {
           const initial = initialInstanceNetlist(instance.symbolId, {});

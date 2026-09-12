@@ -90,17 +90,36 @@ export function parameterGuide(state: EditorState) {
       : p,
   );
   if (/^[VI]$/u.test(help.name) && tokens[2]) {
-    const excitation = tokens[2].value.toUpperCase();
-    if (/^(PULSE|SIN|PWL)\(/u.test(excitation))
-      parameters = parameters.slice(0, 3);
-    else if (excitation === "AC")
-      parameters = [
-        ...parameters.slice(0, 3),
-        { label: "magnitude" },
-        { label: "phase / deg", optional: true },
-      ];
-    else if (excitation !== "DC")
-      parameters = [...parameters.slice(0, 2), { label: "value" }];
+    parameters = parameters.slice(0, 2);
+    let ac = false,
+      waveform = false;
+    const clause = (value: string | undefined) =>
+      /^(?:DC|AC|PULSE|SIN|PWL)(?:\(|$)/iu.test(value ?? "");
+    for (let i = 2; i < tokens.length; i++) {
+      const value = tokens[i]!.value.toUpperCase();
+      if (value === "DC") {
+        parameters.push({ label: "DC" }, { label: "DC value" });
+        i++;
+      } else if (value === "AC") {
+        ac = true;
+        parameters.push({ label: "AC" }, { label: "magnitude" });
+        i++;
+        if (!clause(tokens[i + 1]?.value)) {
+          parameters.push({ label: "phase / deg", optional: true });
+          if (tokens[i + 1]) i++;
+        }
+      } else if (/^(PULSE|SIN|PWL)\(/u.test(value)) {
+        waveform = true;
+        parameters.push({ label: "transient waveform" });
+      } else parameters.push({ label: i === 2 ? "DC value" : "excitation" });
+    }
+    if (!ac)
+      parameters.push({ label: "AC magnitude [phase / deg]", optional: true });
+    if (!waveform)
+      parameters.push({
+        label: "PULSE(...) | SIN(...) | PWL(...)",
+        optional: true,
+      });
   }
   const repeated = parameters.at(-1);
   if (repeated?.repeat) {
