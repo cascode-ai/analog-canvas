@@ -8,9 +8,39 @@ import {
   formatSimulationArtifactPreview,
   readSimulationArtifactPreview,
   simulationArtifactCategory,
+  simulationExplorerArtifactCategory,
 } from "./simulation-artifact-files";
 
 describe("simulation artifact files", () => {
+  it("keeps diagnostic bytes exportable without classifying them as Explorer outputs", async () => {
+    const files = new SimulationFiles();
+    const entries = await Promise.all(
+      [
+        ["out.raw", "Results"],
+        ["outputs-ac-0.csv", "Results"],
+        ["simulator.log", "Logs"],
+        ["prepared.cir", null],
+        ["executed.cir", null],
+        ["prepared.json", null],
+        ["source-map.json", null],
+        ["evidence-manifest.json", null],
+        ["result.json", null],
+        ["outputs.json", null],
+        ["circuit.spice", null],
+      ].map(async ([name, category]) => {
+        const artifact = await files.put(name!, "text/plain", name!);
+        expect(simulationExplorerArtifactCategory(artifact)).toBe(category);
+        return artifact;
+      }),
+    );
+    const archive = await buildSimulationArtifactArchive(files, entries);
+    expect(archive.ok).toBe(true);
+    if (!archive.ok) return;
+    const contents = Object.values(unzipSync(archive.bytes)).map((bytes) =>
+      strFromU8(bytes),
+    );
+    expect(contents.sort()).toEqual(entries.map((entry) => entry.name).sort());
+  });
   it("previews bounded text and formats complete JSON", async () => {
     const files = new SimulationFiles();
     const json = await files.put(

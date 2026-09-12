@@ -6,10 +6,11 @@ workspace is separate from the development-only Digital tool.
 
 ## Circuit, source and files
 
-Code and Properties share the right dock but remember independent widths.
+Sim Code and Properties share the right dock but remember independent widths.
 **Explorer** opens a narrow project tree beside the code. Each experiment puts
-Source first, expanded by default. Prepared and Run artifacts appear beneath it,
-marked **tmp** and collapsed by default, with expandable artifact categories.
+Source first, expanded by default. **Run · tmp** is collapsed by default and
+contains expandable **Results** (raw/CSV) and **Logs** groups. Preparation
+snapshots and internal evidence are not shown in the everyday file tree.
 Source paths also form expandable directories. Choose an experiment there, or
 create, clone, rename or delete one. Multiple experiments can use the same drawn
 Testbench; a different topology is an ordinary separate Cell.
@@ -26,8 +27,12 @@ is the Run target even while viewing another file. Invalid SPICE or JSON can
 be saved; preparation reports what needs repair rather than losing the draft.
 
 **New experiment** asks only for a name. It uses the current Canvas Cell and an
-OP starter. Muted AC, TRAN and DC examples below the editor show what to try next;
-they are hints and never enter the saved file until you type or insert them.
+OP starter. Helper offers analysis commands and argument hints without adding
+text to the saved file until you explicitly insert or type it.
+
+The compact Save and Run icons share the toolbar with Explorer. Save's tooltip
+and icon distinguish unsaved, saving, saved and failed states; Ctrl+S remains
+available. A failed save retains the draft and can be retried.
 
 **More code actions** opens advanced configuration, copies/exports the current
 file, or creates a source file. Configuration is not a default tab. It owns
@@ -107,7 +112,9 @@ qualification before making that claim.
 
 ## Prepare, run and recover
 
-**Prepare** compiles without executing. **Run** captures source and starts the
+**Preview input netlist…**, in More code actions or the active experiment's
+context menu, compiles without executing and opens the prepared input read-only.
+**Run** captures source and starts the
 ordinary run, or the sequential batch for a saved Run Plan. **Stop / Cancel
 run** requests cancellation; closing/minimizing a presentation is not cancel.
 Input errors affect that operation, not the Project or Agent session. Correct
@@ -117,7 +124,7 @@ it does not block editing or saving.
 Managed sweeps live in configuration `runPlan`: corner, temperature, named
 variable or exact Instance parameter axes. Nominal values are native `.param`
 and `.temp` source; config variable bindings do not duplicate those values.
-Prepare shows combinations before execution. Multi-experiment batch selection,
+Input preview shows combinations before execution. Multi-experiment batch selection,
 cancel/retry and ordinary per-item results reuse the same Run service.
 
 The current qualified analysis/corner set comes from capabilities/Profile.
@@ -126,6 +133,15 @@ Agent merely for a large estimate. An actual safety/capacity limit can still
 refuse a run with a repairable explanation.
 
 ## Results, history and exports
+
+**View executed netlist…** opens the actual deck captured for the selected run,
+not a newly compiled version of the current source. **Export diagnostic bundle…**
+exports that run's complete evidence, including preparation snapshots, source
+maps, environment/result metadata and execution artifacts. These commands are
+available from More code actions and the active experiment/Run context menus.
+Before any run, the diagnostic export uses the latest prepared input instead.
+Ordinary file-tree downloads contain only the selected visible source/output
+files; hiding diagnostics does not delete them or remove Agent access.
 
 Console, Plot, OP and Compare share one tab row below code. Measurements,
 history and exports stay inside these views. Maximize results temporarily uses the workspace;

@@ -137,7 +137,7 @@ function entryFromZip(entries, name) {
   assert(value, `Missing exported ${name}`);
   return Buffer.from(value).toString();
 }
-async function downloadArtifactGroup(label, name) {
+async function downloadArtifactGroup(label, name, action = "Download…") {
   const explorer = panel.getByRole("complementary", {
     name: "Simulation files",
   });
@@ -151,7 +151,7 @@ async function downloadArtifactGroup(label, name) {
     .click({ button: "right" });
   return unzipSync(
     await download(
-      page.getByRole("menuitem", { name: "Download…", exact: true }),
+      page.getByRole("menuitem", { name: action, exact: true }),
       name,
     ),
   );
@@ -225,7 +225,7 @@ try {
     ),
   );
   await panel.getByRole("button", { name: "More code actions" }).click();
-  await page.getByRole("menuitem", { name: "View final deck" }).click();
+  await page.getByRole("menuitem", { name: "Preview input netlist…" }).click();
   await expect(panel).toContainText("missing-gui-acceptance.spice", {
     timeout: 30_000,
   });
@@ -240,12 +240,20 @@ try {
   await expect(
     panel.getByRole("tab", { name: "Results", exact: true }),
   ).toHaveCount(0);
-  const preparedEntries = await downloadArtifactGroup("Prepare", "prepare.zip");
+  await expect(panel.getByLabel("Prepare temporary files")).toHaveCount(0);
+  const diagnosticEntries = await downloadArtifactGroup(
+    "Run",
+    "diagnostics.zip",
+    "Export diagnostic bundle…",
+  );
   const runEntries = await downloadArtifactGroup("Run", "run.zip");
+  assert(
+    Object.keys(runEntries).every((path) => /\.(raw|csv|log|txt)$/.test(path)),
+  );
   await panel.getByRole("button", { name: "Maximize results" }).click();
-  const input = JSON.parse(entryFromZip(preparedEntries, "prepared.json"));
-  const result = JSON.parse(entryFromZip(runEntries, "result.json"));
-  const outputs = JSON.parse(entryFromZip(runEntries, "outputs.json"));
+  const input = JSON.parse(entryFromZip(diagnosticEntries, "prepared.json"));
+  const result = JSON.parse(entryFromZip(diagnosticEntries, "result.json"));
+  const outputs = JSON.parse(entryFromZip(diagnosticEntries, "outputs.json"));
   assert.equal(
     result.outcome.status,
     "completed",
@@ -273,7 +281,7 @@ try {
     ),
   );
   assert(
-    entryFromZip(preparedEntries, "prepared.cir").includes("noise v(vout)"),
+    entryFromZip(diagnosticEntries, "prepared.cir").includes("noise v(vout)"),
   );
   assert(entryFromZip(runEntries, "out.raw").includes("Plotname:"));
   assert(Object.keys(runEntries).some((path) => path.endsWith(".csv")));
@@ -305,7 +313,7 @@ try {
   };
   await edit(folder.input.configPath, JSON.stringify(config, null, 2));
   await panel.getByRole("button", { name: "More code actions" }).click();
-  await page.getByRole("menuitem", { name: "View final deck" }).click();
+  await page.getByRole("menuitem", { name: "Preview input netlist…" }).click();
   await panel.getByTitle("Batch queue", { exact: true }).click();
   await expect(panel.locator(".simulation-batch-menu-popover")).toContainText(
     "Batch · prepared",

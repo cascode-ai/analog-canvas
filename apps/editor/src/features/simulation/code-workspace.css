@@ -94,9 +94,6 @@
   padding: 0 5px;
   font-size: 11px;
 }
-.simulation-code-workspace .simulation-run-button {
-  width: 20px;
-}
 .simulation-code-toolbar .simulation-window-actions,
 .simulation-code-toolbar .simulation-code-more {
   flex: none;
@@ -520,35 +517,59 @@
 .simulation-code-status:empty {
   display: none;
 }
-.simulation-code-actions [data-workspace-save] {
-  min-width: 68px;
+.simulation-code-workspace .simulation-code-toolbar .simulation-action-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 22px;
+  width: 22px;
+  min-width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
   border-radius: 3px;
-  transition:
-    background 120ms ease,
-    color 120ms ease,
-    box-shadow 120ms ease;
+  background: transparent;
+  color: var(--icm-text-muted);
 }
-.simulation-code-actions [data-workspace-save][data-save-state="dirty"] {
-  background: var(--icm-accent);
-  color: white;
-  box-shadow: 0 1px 2px #0002;
-}
-.simulation-code-actions [data-workspace-save][data-save-state="saving"] {
-  opacity: 1;
-  background: color-mix(in srgb, var(--icm-accent) 16%, var(--icm-surface));
+.simulation-code-workspace
+  .simulation-code-toolbar
+  .simulation-action-button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--icm-text) 8%, transparent);
   color: var(--icm-text);
 }
-.simulation-code-actions [data-workspace-save][data-save-state="saved"],
-.simulation-code-actions
-  [data-workspace-save][data-save-state="saved"]:disabled {
+.simulation-code-workspace
+  .simulation-action-button[data-save-state="dirty"]::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.simulation-code-workspace
+  .simulation-code-toolbar
+  .simulation-action-button[data-save-state="saved"] {
   opacity: 1;
   color: #26734d;
-  background: color-mix(in srgb, #38a169 12%, var(--icm-surface));
 }
-.simulation-code-actions [data-workspace-save][data-save-state="failed"] {
-  opacity: 1;
+.simulation-code-workspace .simulation-action-button[data-save-state="failed"] {
   color: #b42318;
-  background: color-mix(in srgb, #b42318 10%, var(--icm-surface));
+}
+.simulation-action-button[aria-busy="true"] svg {
+  animation: simulation-action-spin 1s linear infinite;
+}
+@keyframes simulation-action-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .simulation-action-button[aria-busy="true"] svg {
+    animation: none;
+  }
 }
 .simulation-code-workspace.is-maximized .simulation-code-source-area,
 .simulation-code-workspace.is-maximized .simulation-code-output-resizer {

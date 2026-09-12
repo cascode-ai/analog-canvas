@@ -28,14 +28,14 @@ export interface SimulationCodeFile {
   draft?: boolean;
 }
 export interface SimulationExplorerArtifactGroup {
-  key: "prepare" | "run";
+  key: "run";
   label: string;
   description: string;
   artifacts: readonly ArtifactRef[];
 }
 export type SimulationExplorerSelection =
   | { kind: "source"; folderId: string; path: string }
-  | { kind: "artifact"; groupKey: "prepare" | "run"; artifact: ArtifactRef };
+  | { kind: "artifact"; groupKey: "run"; artifact: ArtifactRef };
 export interface SimulationCodeWorkspaceProps {
   workspaceKey: string;
   files: readonly SimulationCodeFile[];

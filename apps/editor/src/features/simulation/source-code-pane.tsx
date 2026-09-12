@@ -45,9 +45,11 @@ import {
 import {
   buildSimulationWorkspaceArchive,
   simulationArtifactCategory,
+  simulationExplorerArtifactCategory,
 } from "./simulation-artifact-files";
 import { sourceProbeChoices } from "./source-probe-choices";
 import { SourceProbePicker } from "./source-probe-picker";
+import { SimulationActionIcon } from "./simulation-action-icon";
 
 export type SourceFlush =
   | { ok: true; folder: ProjectSimulationFolder; revision: number }
@@ -76,7 +78,7 @@ interface Props extends Pick<
   actions: ReactNode;
   toolbarEnd?: ReactNode;
   folders?: SimulationCodeWorkspaceProps["folders"];
-  onPrepare?(): void;
+  additionalActions?: SimulationCodeWorkspaceProps["additionalActions"];
   console: ReactNode;
   results: ReactNode;
   outputActions?: ReactNode;
@@ -803,7 +805,7 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
           if (item.kind === "artifact")
             return {
               kind: "artifact" as const,
-              path: `${item.groupKey}/${simulationArtifactCategory(item.artifact).toLowerCase()}/${item.artifact.name}`,
+              path: `${item.groupKey}/${(simulationExplorerArtifactCategory(item.artifact) ?? simulationArtifactCategory(item.artifact)).toLowerCase()}/${item.artifact.name}`,
               artifact: item.artifact,
             };
           const folder = props.project.simulationFolders.find(
@@ -829,6 +831,23 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
       anchor.click();
       setTimeout(() => URL.revokeObjectURL(url), 0);
     };
+    const saveState =
+      saveRequested || saving || props.projectSaveState === "saving"
+        ? "saving"
+        : props.projectSaveState === "failed" ||
+            props.projectSaveState === "offline"
+          ? "failed"
+          : props.projectSaveState === "clean" && !dirty
+            ? "saved"
+            : "dirty";
+    const saveFeedback =
+      saveState === "saving"
+        ? "Saving project…"
+        : saveState === "saved"
+          ? "Project saved"
+          : saveState === "failed"
+            ? "Save failed; drafts remain local. Retry save."
+            : "Save project";
     return (
       <SimulationCodeWorkspace
         workspaceKey={props.folder.id}
@@ -876,9 +895,7 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
               }
             : undefined
         }
-        additionalActions={[
-          { label: "View final deck", run: () => props.onPrepare?.() },
-        ]}
+        additionalActions={props.additionalActions ?? []}
         {...(props.artifactGroups
           ? { artifactGroups: props.artifactGroups }
           : {})}
@@ -1085,43 +1102,19 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
         actions={
           <>
             <button
+              className="simulation-action-button"
               data-workspace-save="true"
-              data-save-state={
-                saveRequested || saving || props.projectSaveState === "saving"
-                  ? "saving"
-                  : props.projectSaveState === "failed" ||
-                      props.projectSaveState === "offline"
-                    ? "failed"
-                    : props.projectSaveState === "clean" && !dirty
-                      ? "saved"
-                      : "dirty"
-              }
+              data-save-state={saveState}
               aria-label="Save project"
-              title={
-                props.projectSaveState === "failed" ||
-                props.projectSaveState === "offline"
-                  ? "Save failed; drafts remain local. Retry save."
-                  : "Save Project · Ctrl+S"
-              }
-              disabled={
-                saveRequested ||
-                saving ||
-                props.projectSaveState === "saving" ||
-                (props.projectSaveState === "clean" && !dirty)
-              }
-              aria-busy={
-                saveRequested || saving || props.projectSaveState === "saving"
-              }
+              aria-description={saveFeedback}
+              title={`${saveFeedback} · Ctrl+S`}
+              disabled={saveState === "saving" || saveState === "saved"}
+              aria-busy={saveState === "saving"}
               onClick={() => void requestSave()}
             >
-              {saveRequested || saving || props.projectSaveState === "saving"
-                ? "Saving…"
-                : props.projectSaveState === "clean" && !dirty
-                  ? "✓ Saved"
-                  : props.projectSaveState === "failed" ||
-                      props.projectSaveState === "offline"
-                    ? "Retry save"
-                    : "Save"}
+              <SimulationActionIcon
+                kind={saveState === "dirty" ? "save" : saveState}
+              />
             </button>
             {props.actions}
           </>

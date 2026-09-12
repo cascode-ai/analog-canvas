@@ -119,18 +119,20 @@ describe("the preview deploy", () => {
     expect(agentJourney).not.toContain("invalidSetup.input.outputs");
   });
 
-  it("exports GUI simulation evidence through the unified Explorer", () => {
+  it("separates GUI output downloads from complete diagnostic exports", () => {
     expect(sourceGuiJourney).toContain('name: "Simulation files"');
-    expect(sourceGuiJourney).toContain(
-      'getByRole("menuitem", { name: "Download…"',
-    );
-    expect(sourceGuiJourney).toContain(
-      'downloadArtifactGroup("Prepare", "prepare.zip")',
-    );
+    expect(sourceGuiJourney).toContain('getByRole("menuitem", { name: action');
+    expect(sourceGuiJourney).toContain('"Export diagnostic bundle…"');
     expect(sourceGuiJourney).toContain(
       'downloadArtifactGroup("Run", "run.zip")',
     );
     expect(sourceGuiJourney).not.toContain('getByRole("tab", { name: "Files"');
+    expect(sourceGuiJourney).toContain(
+      'entryFromZip(diagnosticEntries, "prepared.json")',
+    );
+    expect(sourceGuiJourney).toContain(
+      'entryFromZip(diagnosticEntries, "result.json")',
+    );
   });
 
   it("imports a Cloud Project Cell before compiling the cross-Project Testbench", () => {

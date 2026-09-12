@@ -263,12 +263,13 @@ test("a saved Run Plan prepares without executing and Run starts its ordinary ba
     JSON.stringify(config, null, 2),
   );
   await panel.getByRole("button", { name: "More code actions" }).click();
-  await page.getByRole("menuitem", { name: "View final deck" }).click();
+  await page.getByRole("menuitem", { name: "Preview input netlist…" }).click();
   await panel.getByTitle("Batch queue", { exact: true }).click();
   await expect(panel.locator(".simulation-batch-menu-popover")).toContainText(
     "Batch · prepared",
   );
-  await expect(panel.getByLabel("Prepare temporary files")).toBeVisible();
+  await expect(panel.getByLabel("Prepare temporary files")).toHaveCount(0);
+  await expect(panel.getByRole("tab", { name: /prepared\.cir/ })).toBeVisible();
   expect(executions).toBe(0);
   await panel.getByRole("button", { name: "Run", exact: true }).click();
   await expect(panel.locator(".simulation-batch-menu-popover")).toContainText(

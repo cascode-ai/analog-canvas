@@ -185,6 +185,18 @@ export function simulationArtifactCategory(artifact: ArtifactRef): string {
   return "Other";
 }
 
+/** Explorer shows usable outputs, while diagnostic exports retain every artifact. */
+export function simulationExplorerArtifactCategory(
+  artifact: ArtifactRef,
+): "Results" | "Logs" | null {
+  const category = simulationArtifactCategory(artifact);
+  return category === "Results"
+    ? "Results"
+    : category === "Log"
+      ? "Logs"
+      : null;
+}
+
 export function formatSimulationArtifactPreview(
   content: SimulationArtifactContent,
 ): string {
