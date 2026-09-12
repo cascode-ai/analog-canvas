@@ -15,7 +15,12 @@ import {
   drawSelection,
   type DecorationSet,
 } from "@codemirror/view";
-import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
+import {
+  defaultKeymap,
+  history,
+  historyKeymap,
+  redo,
+} from "@codemirror/commands";
 import {
   bracketMatching,
   defaultHighlightStyle,
@@ -97,6 +102,9 @@ export default function ComponentPropertyJsonEditor(props: Props) {
             spellcheck: "false",
           }),
           keymap.of([
+            // Match the canvas redo chord on Windows too (CodeMirror defaults
+            // to Ctrl+Y there). Ctrl+Y remains available through historyKeymap.
+            { key: "Mod-Shift-z", run: redo, preventDefault: true },
             ...historyKeymap,
             ...closeBracketsKeymap,
             ...defaultKeymap,

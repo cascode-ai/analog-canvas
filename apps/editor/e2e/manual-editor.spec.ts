@@ -200,63 +200,73 @@ test("property placement null retains a wired instance and re-places it with gri
   await expect(page.getByTestId("hit-R1")).toHaveCount(0);
 });
 
-test("live typing preserves the caret, local undo and incomplete JSON", async ({
-  page,
-}) => {
-  await page.goto("/editor");
-  await placeComponent(page, "nmos", { x: 360, y: 220 });
-  await openSelectionShelf(page);
-  const code = page.getByLabel("Editable Canvas property code");
-  await editComponentPropertyCode(page, (value) => {
-    value.display.value = true;
-  });
-  // Locate the width string through the actual editable DOM, then type normally.
-  await code
-    .locator(".cm-line")
-    .filter({ hasText: '"w":' })
-    .evaluate((line) => {
-      const token = line.querySelector(".cm-json-string")!;
-      const text = document
-        .createTreeWalker(token, NodeFilter.SHOW_TEXT)
-        .nextNode()!;
-      const range = document.createRange();
-      range.setStart(text, 1);
-      range.setEnd(text, 3);
-      const selection = window.getSelection()!;
-      selection.removeAllRanges();
-      selection.addRange(range);
-      (line.closest('[contenteditable="true"]') as HTMLElement).focus();
+for (const platform of ["native", "Win32", "Linux x86_64"])
+  test(`live typing preserves the caret, local undo and incomplete JSON (${platform})`, async ({
+    page,
+  }) => {
+    if (platform !== "native")
+      await page.addInitScript(
+        (name) =>
+          Object.defineProperty(navigator, "platform", { get: () => name }),
+        platform,
+      );
+    const modifier = platform === "native" ? "ControlOrMeta" : "Control";
+    await page.goto("/editor");
+    await placeComponent(page, "nmos", { x: 360, y: 220 });
+    await openSelectionShelf(page);
+    const code = page.getByLabel("Editable Canvas property code");
+    await editComponentPropertyCode(page, (value) => {
+      value.display.value = true;
     });
-  await page.keyboard.type("EV", { delay: 80 });
-  const value = page.locator(
-    '[data-layer="formal"] [data-object-id="instance-value-M1"]',
-  );
-  await expect(value).toContainText("EV");
-  await page.keyboard.type("x", { delay: 80 });
-  await expect(value).toContainText("EVx");
-  await code.press("ControlOrMeta+z");
-  await expect(value).toContainText("1u");
-  await code.press("ControlOrMeta+Shift+z");
-  await expect(value).toContainText("EVx");
-  const raw = await readComponentPropertyCode(page);
-  const revision = await page.getByTestId("revision").textContent();
-  await code.fill(raw.slice(0, -1));
-  await expect(
-    page.getByText(/Canvas keeps the last valid edit/u),
-  ).toBeVisible();
-  await expect(value).toContainText("EVx");
-  await expect(page.getByTestId("revision")).toHaveText(revision!);
-  await code.press("Escape");
-  await expect(code).not.toBeFocused();
-  await expect(
-    page.getByText(/Canvas keeps the last valid edit/u),
-  ).toBeVisible();
-  await expect(page.getByTestId("revision")).toHaveText(revision!);
-  await code.press("ControlOrMeta+End");
-  await code.press("}");
-  await expect(page.getByText(/Live · valid edits/u)).toBeVisible();
-  await expect(page.getByTestId("revision")).toHaveText(revision!);
-});
+    // Locate the width string through the actual editable DOM, then type normally.
+    await code
+      .locator(".cm-line")
+      .filter({ hasText: '"w":' })
+      .evaluate((line) => {
+        const token = line.querySelector(".cm-json-string")!;
+        const text = document
+          .createTreeWalker(token, NodeFilter.SHOW_TEXT)
+          .nextNode()!;
+        const range = document.createRange();
+        range.setStart(text, 1);
+        range.setEnd(text, 3);
+        const selection = window.getSelection()!;
+        selection.removeAllRanges();
+        selection.addRange(range);
+        (line.closest('[contenteditable="true"]') as HTMLElement).focus();
+      });
+    await page.keyboard.type("EV", { delay: 80 });
+    const value = page.locator(
+      '[data-layer="formal"] [data-object-id="instance-value-M1"]',
+    );
+    await expect(value).toContainText("EV");
+    await page.keyboard.type("x", { delay: 80 });
+    await expect(value).toContainText("EVx");
+    await code.press(`${modifier}+z`);
+    await expect(value).toContainText("1u");
+    // Emit the actual shifted letter, not lowercase z with Shift held: the
+    // latter is a synthetic layout event that CodeMirror interprets as Undo.
+    await code.press(`${modifier}+Shift+Z`);
+    await expect(value).toContainText("EVx");
+    const raw = await readComponentPropertyCode(page);
+    const revision = await page.getByTestId("revision").textContent();
+    await code.fill(raw.slice(0, -1));
+    await expect(
+      page.getByText(/Canvas keeps the last valid edit/u),
+    ).toBeVisible();
+    await expect(value).toContainText("EVx");
+    await expect(page.getByTestId("revision")).toHaveText(revision!);
+    await code.press("Escape");
+    await expect(code).not.toBeFocused();
+    await expect(
+      page.getByText(/Canvas keeps the last valid edit/u),
+    ).toBeVisible();
+    await expect(page.getByTestId("revision")).toHaveText(revision!);
+    await code.press(`${modifier}+End`);
+    await code.press("}");
+    await expect(page.getByText(/Live · valid edits/u)).toBeVisible();
+    await expect(page.getByTestId("revision")).toHaveText(revision!);
+  });
 
 for (const width of [300, 540]) {
   test(`property controls stay on their value line at ${width}px with optional help`, async ({
