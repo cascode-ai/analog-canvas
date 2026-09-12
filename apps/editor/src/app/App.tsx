@@ -304,7 +304,9 @@ import {
   effectiveRouteAttachment,
   instanceValueAnnotation,
   isRoutedMarker,
+  netLabelPlacementTargetAtPoint,
 } from "../features/wiring/route-interaction-geometry";
+import type { NetLabelPlacementTarget } from "../features/wiring/route-interaction-geometry";
 import { useWireCanvasController } from "../features/wiring/use-wire-canvas-controller";
 import {
   EMPTY_WIRE_DRAFT_PREVIEW,
@@ -354,6 +356,7 @@ function defaultPropertiesWidth(viewportWidth: number): number {
 const COMPACT_LAYOUT_MEDIA_QUERY = "(max-width: 860px)";
 const DRAG_START_DISTANCE_PX = 4;
 const SNAP_CAPTURE_RADIUS_PX = 4;
+const NET_LABEL_SNAP_CAPTURE_RADIUS_PX = 12;
 
 /** Persisted Junctions are grid points, including on ±45° Route segments. */
 
@@ -3108,9 +3111,16 @@ export function App({
       setPanPreview,
       getInteractionKind: () => getCurrentInteractionState().kind,
       paintSnapGuides,
-      noteCanvasPoint: (point) => {
+      noteCanvasPoint: (point, rawPoint, svg) => {
         lastCanvasPointRef.current = point;
-        updateNetLabelPlacementPosition(point);
+        if (netLabelPlacement?.phase === "placing") {
+          const target = resolveNetLabelPlacementTarget(rawPoint, svg);
+          updateNetLabelPlacementPosition(
+            target?.labelPosition ?? rawPoint,
+            target,
+          );
+          paintSnapGuides(netLabelSnapGuides(target));
+        }
       },
       setStatus,
       measureCanvasView,
@@ -3769,6 +3779,45 @@ export function App({
     replaceCanvasSnapGuides(snapGuideLayerRef.current, guides);
   }
 
+  function resolveNetLabelPlacementTarget(
+    point: Point,
+    svg?: SVGSVGElement,
+    preferredRouteId?: string,
+  ): NetLabelPlacementTarget | null {
+    return netLabelPlacementTargetAtPoint(
+      routeGeometryRecords,
+      point,
+      svg ? logicalRadiusForPixels(svg, NET_LABEL_SNAP_CAPTURE_RADIUS_PX) : 0,
+      preferredRouteId,
+    );
+  }
+
+  function netLabelSnapGuides(
+    target: NetLabelPlacementTarget | null,
+  ): readonly SnapGuideLine[] {
+    if (!target) return [];
+    const horizontalOffset =
+      Math.abs(target.labelPosition.x - target.conductorPoint.x) >=
+      Math.abs(target.labelPosition.y - target.conductorPoint.y);
+    return [
+      horizontalOffset
+        ? {
+            axis: "y",
+            coordinate: target.conductorPoint.y,
+            from: Math.min(target.labelPosition.x, target.conductorPoint.x),
+            to: Math.max(target.labelPosition.x, target.conductorPoint.x),
+            kind: "route",
+          }
+        : {
+            axis: "x",
+            coordinate: target.conductorPoint.x,
+            from: Math.min(target.labelPosition.y, target.conductorPoint.y),
+            to: Math.max(target.labelPosition.y, target.conductorPoint.y),
+            kind: "route",
+          },
+    ];
+  }
+
   /**
    * Editor-only visual state must never outlive the interaction that produced
    * it. In particular, Smart Snap guides are imperative SVG children so React
@@ -4036,6 +4085,7 @@ export function App({
       if (event.key === "Escape" && netLabelPlacement) {
         event.preventDefault();
         cancelNetLabelEditing();
+        paintSnapGuides([]);
         return;
       }
       if (event.key === "Escape" && simulationPickActive) {
@@ -4156,12 +4206,22 @@ export function App({
           return;
         case "edit-net-label":
           activateTool("pointer");
-          beginNetLabelEditing(
-            lastCanvasPointRef.current ?? {
+          {
+            const position = lastCanvasPointRef.current ?? {
               x: viewBox.x + viewBox.width / 2,
               y: viewBox.y + viewBox.height / 2,
-            },
-          );
+            };
+            beginNetLabelEditing(
+              position,
+              selectedRoute
+                ? resolveNetLabelPlacementTarget(
+                    position,
+                    undefined,
+                    selectedRoute.id,
+                  )
+                : null,
+            );
+          }
           return;
         case "toggle-display-settings":
           activateTool("pointer");
@@ -4480,7 +4540,17 @@ export function App({
     },
     netLabelPlacement: {
       active: netLabelPlacement?.phase === "placing",
-      place: placeNetLabel,
+      placeAt: (position, svg) => {
+        const target = resolveNetLabelPlacementTarget(position, svg);
+        placeNetLabel(target);
+        if (target) paintSnapGuides([]);
+      },
+      clearHover: () => {
+        if (netLabelPlacement?.phase === "placing") {
+          updateNetLabelPlacementPosition(netLabelPlacement.position, null);
+        }
+        paintSnapGuides([]);
+      },
     },
     report: setStatus,
     consumePickupClick: () => {
@@ -6486,7 +6556,10 @@ export function App({
             netLabelEditorInputRef,
             onNetLabelDraftChange: updateNetLabelPlacementDraft,
             onNetLabelSubmit: commitNetLabelEditing,
-            onNetLabelEscape: cancelNetLabelEditing,
+            onNetLabelEscape: () => {
+              cancelNetLabelEditing();
+              paintSnapGuides([]);
+            },
             flightlines: displayedFlightlines,
             onFlightlineClick: handleFlightline,
             wireDraftPreview,

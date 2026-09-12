@@ -124,7 +124,8 @@ interface CanvasEventHandlerDependencies {
   };
   netLabelPlacement: {
     active: boolean;
-    place: (routeId: string | null, position: Point) => void;
+    placeAt: (position: Point, svg: SVGSVGElement) => void;
+    clearHover: () => void;
   };
   report: (status: string) => void;
   /**
@@ -201,18 +202,14 @@ export function createEditorCanvasEventHandlers({
       if (netLabelPlacement.active) {
         event.preventDefault();
         event.stopPropagation();
-        const routeHit = rankCanvasHits(
-          event.currentTarget.ownerDocument.elementsFromPoint(
+        netLabelPlacement.placeAt(
+          pointFromClient(
             event.clientX,
             event.clientY,
+            event.currentTarget,
+            false,
           ),
-          (hit) =>
-            hit.kind === "route" &&
-            selectionPolicy.allowsCanvasHit(hit, "edit"),
-        ).find((hit) => hit.kind === "route");
-        netLabelPlacement.place(
-          routeHit?.id ?? null,
-          pointFromClient(event.clientX, event.clientY, event.currentTarget),
+          event.currentTarget,
         );
         return;
       }
@@ -343,6 +340,7 @@ export function createEditorCanvasEventHandlers({
     onPointerMove: continueCanvasGesture,
     onPointerLeave() {
       const kind = interactionKind();
+      if (netLabelPlacement.active) netLabelPlacement.clearHover();
       if (pendingSymbolId) clearComponentPreview();
       if (vddRailMode) clearVddRailPreview();
       if (kind === "copy-placement") clearCopyPreview();

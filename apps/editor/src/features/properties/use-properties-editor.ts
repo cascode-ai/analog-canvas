@@ -13,6 +13,7 @@ import type {
   DraftingObject,
   Point,
   RichTextDocument,
+  RouteAnnotationAttachment,
   SchematicDocument,
 } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
@@ -35,6 +36,7 @@ import {
 } from "../text-editing/text-editing";
 import type { TextEditingSession } from "../text-editing/text-editing";
 import { planElectricalMarkerName } from "./electrical-marker-name";
+import type { NetLabelPlacementTarget } from "../wiring/route-interaction-geometry";
 
 export interface InstancePropertyDraft {
   instanceId: string | null;
@@ -118,6 +120,7 @@ export interface UsePropertiesEditorOptions {
       sizeScale: number;
       formatOverride?: RichTextDocument;
       position?: Point;
+      routeAttachment?: RouteAnnotationAttachment;
     },
   ) => SchematicEdit[] | null;
   netLabelScopeEdit: (
@@ -154,6 +157,8 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
     phase: "naming" | "placing";
     draft: string;
     position: Point;
+    target: NetLabelPlacementTarget | null;
+    commitAfterNaming: boolean;
   } | null>(null);
   const [instancePropertyDraft, setInstancePropertyDraft] =
     useState<InstancePropertyDraft>(EMPTY_INSTANCE_PROPERTY_DRAFT);
@@ -164,6 +169,7 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
     null,
   );
   const netLabelDraftRouteRef = useRef<string | null>(null);
+  const netLabelDraftDirtyRef = useRef(false);
   const lastSelectedInstanceKeyRef = useRef<string | null>(null);
   const instancePropertyDraftRef = useRef<InstancePropertyDraft>(
     EMPTY_INSTANCE_PROPERTY_DRAFT,
@@ -236,7 +242,9 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
   const commitPendingNetLabelDraft = (): void => {
     const routeId = netLabelDraftRouteRef.current;
     netLabelDraftRouteRef.current = null;
-    if (!routeId) return;
+    const dirty = netLabelDraftDirtyRef.current;
+    netLabelDraftDirtyRef.current = false;
+    if (!routeId || !dirty) return;
     const route = options.document.routes.find(
       (candidate) => candidate.id === routeId,
     );
@@ -274,6 +282,7 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
           )
         : "",
     );
+    netLabelDraftDirtyRef.current = false;
     netLabelDraftRouteRef.current = options.selectedRoute.id;
   }, [options.selectedRoute, options.selectedRouteNetLabel]);
 
@@ -401,6 +410,7 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
     const edits = options.netLabelEditsForRoute(route, netLabelDraft);
     if (!edits || !transactNamedNet(edits)) return;
     netLabelDraftRouteRef.current = null;
+    netLabelDraftDirtyRef.current = false;
     if (!name) {
       options.replaceSelectionKind("annotation", []);
       options.setStatus(
@@ -429,9 +439,14 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
           resolveAnnotationText(options.document, existing),
         ).trim()
       : "";
-    if (nextName === currentName || (!nextName && !existing)) return;
+    if (nextName === currentName || (!nextName && !existing)) {
+      netLabelDraftDirtyRef.current = false;
+      return;
+    }
+    netLabelDraftDirtyRef.current = true;
     const edits = options.netLabelEditsForRoute(route, draft);
     if (!edits || !transactNamedNet(edits)) return;
+    netLabelDraftDirtyRef.current = false;
     options.setStatus(
       nextName ? `Saved Net Label ${nextName}` : "Removed Net Label",
     );
@@ -454,6 +469,7 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
     ) {
       options.replaceSelectionKind("annotation", []);
       setNetLabelDraft("");
+      netLabelDraftDirtyRef.current = false;
       options.setStatus(
         `Deleted Net Label ${flattenRichText(resolveAnnotationText(options.document, label))}`,
       );
@@ -580,28 +596,66 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
     }
   };
 
-  const beginNetLabelEditing = (position: Point): void => {
-    setNetLabelPlacement({ phase: "naming", draft: "", position });
+  const beginNetLabelEditing = (
+    position: Point,
+    target: NetLabelPlacementTarget | null = null,
+  ): void => {
+    setNetLabelPlacement({
+      phase: "naming",
+      draft: "",
+      position,
+      target,
+      commitAfterNaming: target !== null,
+    });
     options.setStatus("Type a Net Label name, then press Enter to place it");
     requestAnimationFrame(() =>
       options.netLabelEditorInputRef.current?.focus(),
     );
   };
 
-  const commitNetLabelEditing = (): void => {
-    setNetLabelPlacement((current) => {
-      if (!current) return null;
-      const draft = current.draft.trim();
-      if (!draft) {
-        options.setStatus("Net Label name cannot be empty");
-        requestAnimationFrame(() =>
-          options.netLabelEditorInputRef.current?.focus(),
-        );
-        return current;
-      }
-      options.setStatus(`Place Net Label ${draft} on a wire · Esc cancels`);
-      return { ...current, draft, phase: "placing" };
+  const commitNetLabelAtTarget = (
+    placement: NonNullable<typeof netLabelPlacement>,
+    target: NetLabelPlacementTarget,
+  ): boolean => {
+    const route = options.document.routes.find(
+      (candidate) => candidate.id === target.routeId,
+    );
+    if (!route) {
+      options.setStatus("The target wire is no longer available");
+      return false;
+    }
+    const existingLabel = options.netLabelForRoute(route);
+    const edits = options.netLabelEditsForRoute(route, placement.draft, {
+      alignment: "start",
+      sizeScale: 1,
+      position: target.labelPosition,
+      routeAttachment: target.routeAttachment,
     });
+    if (!edits || !transactNamedNet(edits)) return false;
+    const labelId = existingLabel?.id ?? `net-label-${route.id}`;
+    options.selectOnly("annotation", [labelId]);
+    setNetLabelPlacement(null);
+    options.setStatus(`Placed Net Label ${placement.draft}`);
+    return true;
+  };
+
+  const commitNetLabelEditing = (): void => {
+    if (!netLabelPlacement) return;
+    const draft = netLabelPlacement.draft.trim();
+    if (!draft) {
+      options.setStatus("Net Label name cannot be empty");
+      requestAnimationFrame(() =>
+        options.netLabelEditorInputRef.current?.focus(),
+      );
+      return;
+    }
+    const ready = { ...netLabelPlacement, draft, phase: "placing" as const };
+    if (ready.commitAfterNaming && ready.target) {
+      commitNetLabelAtTarget(ready, ready.target);
+      return;
+    }
+    options.setStatus(`Place Net Label ${draft} near a wire · Esc cancels`);
+    setNetLabelPlacement(ready);
   };
 
   const updateNetLabelPlacementDraft = (draft: string): void => {
@@ -610,36 +664,22 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
     );
   };
 
-  const updateNetLabelPlacementPosition = (position: Point): void => {
+  const updateNetLabelPlacementPosition = (
+    position: Point,
+    target: NetLabelPlacementTarget | null,
+  ): void => {
     setNetLabelPlacement((current) =>
-      current?.phase === "placing" ? { ...current, position } : current,
+      current?.phase === "placing" ? { ...current, position, target } : current,
     );
   };
 
-  const placeNetLabel = (routeId: string | null, position: Point): void => {
+  const placeNetLabel = (target: NetLabelPlacementTarget | null): void => {
     if (!netLabelPlacement || netLabelPlacement.phase !== "placing") return;
-    if (!routeId) {
-      options.setStatus("Place the Net Label on a wire · Esc cancels");
+    if (!target) {
+      options.setStatus("Move closer to a wire before placing the Net Label");
       return;
     }
-    const route = options.document.routes.find(
-      (candidate) => candidate.id === routeId,
-    );
-    if (!route) {
-      options.setStatus("The target wire is no longer available");
-      return;
-    }
-    const existingLabel = options.netLabelForRoute(route);
-    const edits = options.netLabelEditsForRoute(
-      route,
-      netLabelPlacement.draft,
-      { alignment: "start", sizeScale: 1, position },
-    );
-    if (!edits || !transactNamedNet(edits)) return;
-    const labelId = existingLabel?.id ?? `net-label-${route.id}`;
-    options.selectOnly("annotation", [labelId]);
-    setNetLabelPlacement(null);
-    options.setStatus(`Placed Net Label ${netLabelPlacement.draft}`);
+    commitNetLabelAtTarget(netLabelPlacement, target);
   };
 
   const cancelNetLabelEditing = (): void => {

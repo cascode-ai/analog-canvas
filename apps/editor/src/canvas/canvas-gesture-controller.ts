@@ -95,7 +95,11 @@ export interface CanvasGestureControllerDependencies {
     setPanPreview: (preview: PanPreview | null) => void;
     getInteractionKind: () => string;
     paintSnapGuides: (guides: readonly SnapGuideLine[]) => void;
-    noteCanvasPoint: (point: Point) => void;
+    noteCanvasPoint: (
+      point: Point,
+      rawPoint: Point,
+      svg: SVGSVGElement,
+    ) => void;
     setStatus: (status: string) => void;
     /** A completed right-button frame consumes that gesture's context menu. */
     setContextMenuSuppressed: (suppressed: boolean) => void;
@@ -534,7 +538,11 @@ export function createCanvasGestureController({
       event.clientY,
       event.currentTarget,
     );
-    noteCanvasPoint(point);
+    noteCanvasPoint(
+      point,
+      rawPointFromClient(event.clientX, event.clientY, event.currentTarget),
+      event.currentTarget,
+    );
     if (waveformPlacementPending) {
       setWaveformPreviewPoint(point);
       return;

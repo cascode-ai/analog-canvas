@@ -76,6 +76,13 @@ export interface RouteGeometryRecord {
   geometry: ResolvedRouteGeometry;
 }
 
+export interface NetLabelPlacementTarget {
+  routeId: string;
+  routeAttachment: RouteAnnotationAttachment;
+  conductorPoint: Point;
+  labelPosition: Point;
+}
+
 export const ROUTED_MARKER_MIN_NORMAL_OFFSET = 12;
 export const ROUTED_MARKER_MAX_NORMAL_OFFSET = 40;
 // Net labels keep their electrical binding to the route but may be placed in
@@ -194,6 +201,59 @@ export function attachmentAtPoint(
         position: closest.position,
       }
     : null;
+}
+
+/**
+ * Resolve the temporary target used while creating a Net Label.
+ *
+ * Label creation is an electrical pick mode, not Selection. It therefore
+ * resolves directly from current Route geometry and remains available when
+ * Wires are disabled in the Selection Filter. The returned position and
+ * attachment are one projection consumed by both preview and commit.
+ */
+export function netLabelPlacementTargetAtPoint(
+  routeGeometryRecords: readonly RouteGeometryRecord[],
+  candidate: Point,
+  captureTolerance: number,
+  preferredRouteId?: string,
+): NetLabelPlacementTarget | null {
+  const attached = attachmentAtPoint(
+    routeGeometryRecords,
+    candidate,
+    preferredRouteId,
+    -NET_LABEL_MIN_NORMAL_OFFSET,
+  );
+  if (!attached) return null;
+  if (
+    !preferredRouteId &&
+    Math.hypot(
+      attached.position.x - candidate.x,
+      attached.position.y - candidate.y,
+    ) > captureTolerance
+  ) {
+    return null;
+  }
+  const record = routeGeometryRecords.find(
+    ({ route }) => route.id === attached.routeAttachment.routeId,
+  );
+  const placement = record
+    ? resolveRouteAttachment(record.geometry, attached.routeAttachment)
+    : null;
+  if (!placement) return null;
+  const conductorPoint = {
+    x: Math.round(attached.position.x),
+    y: Math.round(attached.position.y),
+  };
+  const labelPosition = {
+    x: Math.round(placement.labelPoint.x),
+    y: Math.round(placement.labelPoint.y),
+  };
+  return {
+    routeId: attached.routeAttachment.routeId,
+    routeAttachment: attached.routeAttachment,
+    conductorPoint,
+    labelPosition,
+  };
 }
 
 /**
