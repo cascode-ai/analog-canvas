@@ -321,10 +321,11 @@ exact object/parameter target, descriptor, original value and generation input
 digest. These spans are derived, never persisted. The digest covers every
 reached Document revision and folder state needed for that generation.
 
-- Initial editable fields are MOS W/L and existing descriptor-backed numeric
-  dimension/multiplicity fields, R/C/L value, and numeric V/I DC, AC and selected
+- Editable fields are MOS W/L and existing descriptor-backed
+  dimension/multiplicity fields, R/C/L value, and V/I DC, AC and selected
   waveform fields **where a reversible printer mapping exists**. Model identity,
   pin order, nodes, references, source kind and arbitrary model text are locked.
+  Numeric literals and delimited native parameter expressions share those spans.
 - Descriptor-backed does not imply reversibility. The compiler must report the
   exact editable fields and conversions; a new unsupported field remains
   read-only. W/L, `nf`, `m`, SI units and PDK scaling use existing semantics,
@@ -340,10 +341,11 @@ reached Document revision and folder state needed for that generation.
   retains that draft; an exported Project must not claim it contains the edit.
 - Definition edits affect all occurrences and experiments sharing the Cell.
   The UI/helper explains this once at the edit target. Experiment-only changes
-  use source parameters or the prepared Run Plan projection instead.
+  use source parameters/control Code; only legacy experiments retain prepared
+  Run Plan projections.
 
 The editable Circuit view shows persistent Instance values, not a projected
-Batch member disguised as an editable circuit. When a variable binding masks
+Batch member disguised as an editable circuit. When a legacy variable binding masks
 such a value, expose that binding and link to its authored declaration. The
 read-only Prepared view shows the effective projection used for execution.
 
@@ -379,15 +381,16 @@ Profile paths resolve through the existing dependency resolver, never through
 client machine paths. Known model-backed acquisition and execution eligibility
 remain Profile-governed; unknown static syntax is not a new analysis blacklist.
 
-Terminal-current sense sources stay in prepared IR, with the existing positive
-current-entering-terminal rule. Keep hierarchy aliases, MOS operating points
-and exact object mappings. Do not replace this path with today's unbound raw
-adapter or guess MOS currents from `i(m1)`.
+Legacy terminal-current sense sources stay in prepared IR for compatibility.
+Native Helper acquisition is defined in source (`.probe` or model vectors), not
+in that legacy IR instrumentation path. Keep hierarchy aliases and exact object
+mappings; never guess MOS currents from `i(m1)`.
 
 ### Frozen first collection boundary
 
-One Run has at most one declared ASCII rawfile, default `out.raw`, matching the
-current executor artifact boundary. Do not add a host filesystem or arbitrary
+One Run has at most one declared ASCII rawfile, matching the
+current executor artifact boundary. Version 2 derives the path from Code; version 1
+retains its JSON collector and `out.raw` default. Do not add a host filesystem or arbitrary
 output directory collector in this refactor. Retain other artifacts already
 supported by the executor, but do not promise arbitrary user-written files are
 downloadable. A different safe rawfile name requires collection support from
@@ -399,7 +402,7 @@ A provable mismatch with authored capture is a located, repairable diagnostic.
 
 The default template sets `filetype=ascii` and `appendwrite` in a fresh run
 directory and writes immediately after each analysis. The compiler emits the
-Canvas acquisition `.save` declarations in an inspectable generated preamble;
+legacy Canvas acquisition `.save` declarations in an inspectable generated preamble;
 they are regenerated with the binding map, not pasted as another editable
 vector list into author text. Default capture uses bare `write out.raw` to
 write the current saved plot. Without configured acquisitions, preserve native
@@ -628,14 +631,8 @@ and this `experiment.json`:
 
 ```json
 {
-  "version": 1,
-  "environment": { "profileId": "sky130-core-continuous-ngspice46-v1" },
-  "runPlan": { "mode": "nominal" },
-  "variables": [],
-  "outputs": [],
-  "deviceOperatingPoints": [],
-  "measurements": [],
-  "collection": { "rawfile": "out.raw" }
+  "version": 2,
+  "environment": { "profileId": "sky130-core-continuous-ngspice46-v1" }
 }
 ```
 
