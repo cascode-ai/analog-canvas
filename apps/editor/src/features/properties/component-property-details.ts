@@ -174,7 +174,7 @@ export function componentDetailFields(
       path: "placement",
       label: "Placement",
       kind: "text",
-      description: "null: unplaced",
+      description: "",
     },
     {
       path: "reference",

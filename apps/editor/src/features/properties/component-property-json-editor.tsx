@@ -228,8 +228,16 @@ function decorations(state: EditorState, read: () => Props): DecorationSet {
       span.value !== null &&
       typeof span.value === "object" &&
       !Array.isArray(span.value)
-    )
+    ) {
+      if (!read().showHelp && span.field.description)
+        ranges.push(
+          Decoration.widget({
+            widget: new PropertyComment(span.field.description),
+            side: 2,
+          }).range(span.from + 1),
+        );
       continue;
+    }
     const active =
       state.selection.main.head >= span.from &&
       state.selection.main.head <= span.to;

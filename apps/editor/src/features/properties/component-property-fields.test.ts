@@ -7,7 +7,12 @@ import {
 
 describe("property color picker transport", () => {
   it("keeps default comments minimal without removing expanded help", () => {
-    for (const path of ["placement.rotation", "placement.mirror"]) {
+    for (const path of [
+      "placement.rotation",
+      "placement.mirror",
+      "display.reference",
+      "display.value",
+    ]) {
       const field = CANVAS_PROPERTY_FIELDS.find((item) => item.path === path)!;
       expect(field.description).toBe("");
       expect(field.help).toBeTruthy();
@@ -15,7 +20,15 @@ describe("property color picker transport", () => {
     for (const path of ["appearance.foreground", "appearance.background"])
       expect(
         CANVAS_PROPERTY_FIELDS.find((item) => item.path === path)?.description,
-      ).toBe("RGB visualization");
+      ).toBe("");
+    expect(
+      CANVAS_PROPERTY_FIELDS.find((item) => item.path === "appearance")
+        ?.description,
+    ).toBe("RGB visualization");
+    expect(
+      CANVAS_PROPERTY_FIELDS.find((item) => item.path === "placement.at")
+        ?.description,
+    ).toBe("[x,y]");
   });
   it("expands inherited short hex colors before populating a native picker", () => {
     expect(colorToRgb("#0aF")).toEqual([0, 170, 255]);
