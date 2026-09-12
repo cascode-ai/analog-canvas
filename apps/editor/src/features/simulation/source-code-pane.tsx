@@ -161,8 +161,16 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
     const [sourceDigest, setSourceDigest] = useState("");
     const [saveRequest, setSaveRequest] = useState<{
       id: string;
+      session: string;
       vectors: string[];
     }>();
+    const saveSession = useRef(crypto.randomUUID());
+    const beginSignalSelection = () => {
+      saveSession.current = crypto.randomUUID();
+      if (props.pickNetsActive) props.onPickNetsChange?.(false);
+      if (props.pickTerminalsActive) props.onPickTerminalsChange?.(false);
+      setProbePicker(undefined);
+    };
     const savingRef = useRef(false);
     const picked = useRef({
       net: props.pickedNet?.sequence,
@@ -211,14 +219,18 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
     const saveSignal = (
       label: string,
       expression: SimulationSourceExpression,
-    ) => {
+    ): boolean => {
       const insert = (vectors: string[]) => {
         if (
           input.circuitBindings.some((b) => b.path === path) ||
           path.endsWith(".json")
         )
           setPath(input.entry);
-        setSaveRequest({ id: crypto.randomUUID(), vectors });
+        setSaveRequest({
+          id: crypto.randomUUID(),
+          session: saveSession.current,
+          vectors,
+        });
       };
       if (expression.kind === "vector") {
         if (/[\r\n;]/u.test(expression.vector)) {
@@ -228,10 +240,10 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
               "Enter a vector, not a command.",
             ),
           );
-          return;
+          return false;
         }
         insert([expression.vector]);
-        return;
+        return true;
       }
       const file = props.folder.input.files.find(
           (f) => f.path === input.configPath,
@@ -256,8 +268,7 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
             `${parsed.path}: ${parsed.message}`,
           ),
         );
-        setPath(input.configPath);
-        return;
+        return false;
       }
       const previousOutputs = [...parsed.config.outputs];
       parsed.config.outputs.push({
@@ -288,7 +299,7 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
             resolved.diagnostics.map((d) => d.message).join("; "),
           ),
         );
-        return;
+        return false;
       }
       const output = resolved.outputs.at(-1)!;
       const acquisitionIds = new Set<string>();
@@ -324,13 +335,17 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
       }
       insert(nativeVectors.length ? nativeVectors : ["v(0)"]);
       render((v) => v + 1);
+      return true;
     };
     const addPicked = (matches: readonly SimulationProbeOption[]) => {
       if (!binding) return;
-      props.onPickNetsChange?.(false);
-      props.onPickTerminalsChange?.(false);
       if (matches.length !== 1) {
-        setProbePicker(props.pickTerminalsActive ? "current" : "voltage");
+        props.onProblem(
+          inputProblem(
+            "SIMULATION_SIGNAL_UNRESOLVED",
+            "This pick has no unique signal. Choose a mapped Net or terminal, or select the signal from Helper.",
+          ),
+        );
         return;
       }
       const match = matches[0]!;
@@ -377,6 +392,8 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
     );
     useEffect(() => {
       setReveal(undefined);
+      setProbePicker(undefined);
+      saveSession.current = crypto.randomUUID();
     }, [props.folder.id]);
     const lastCanvasSelection = useRef<string | undefined>(undefined);
     useEffect(() => {
@@ -1141,15 +1158,32 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
           </>
         }
       >
-        {probePicker && (
-          <SourceProbePicker
-            choices={probeChoices}
-            kind={probePicker}
-            onAdd={saveSignal}
-            onClose={() => setProbePicker(undefined)}
-          />
-        )}
         <SimulationCodeEditor
+          helperContent={
+            probePicker ? (
+              <SourceProbePicker
+                key={`${props.folder.id}:${probePicker}`}
+                choices={probeChoices}
+                kind={probePicker}
+                onAdd={saveSignal}
+                onClose={() => setProbePicker(undefined)}
+              />
+            ) : undefined
+          }
+          onCloseHelperContent={() => setProbePicker(undefined)}
+          picking={
+            props.pickNetsActive || props.pickTerminalsActive
+              ? {
+                  label: props.pickNetsActive
+                    ? "Picking voltage"
+                    : "Picking current",
+                  onStop: () => {
+                    props.onPickNetsChange?.(false);
+                    props.onPickTerminalsChange?.(false);
+                  },
+                }
+              : undefined
+          }
           signalNames={() =>
             Object.fromEntries(
               Object.entries(signals).map(([vector, signal]) => [
@@ -1171,27 +1205,24 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
               drafts.current.get(`${props.folder.id}\u0000${file.path}`)
                 ?.text ?? file.text,
           )}
-          {...(selected?.path === input.entry
-            ? {
-                ghostHints: [
-                  "ac dec 20 1 1G",
-                  "tran 1n 1u",
-                  "dc VIN 0 1.8 0.01",
-                ],
-              }
-            : {})}
           helperActions={[
             {
               id: "save-voltage",
               label: "Save voltage…",
               keywords: "probe voltage 电压 信号 看输出",
-              run: () => setProbePicker("voltage"),
+              run: () => {
+                beginSignalSelection();
+                setProbePicker("voltage");
+              },
             },
             {
               id: "save-current",
               label: "Save terminal current…",
               keywords: "probe current 电流 MOS 端口",
-              run: () => setProbePicker("current"),
+              run: () => {
+                beginSignalSelection();
+                setProbePicker("current");
+              },
             },
             ...(binding
               ? [
@@ -1201,7 +1232,10 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
                       ? "Stop picking Nets"
                       : "Pick Net on Canvas",
                     keywords: "probe 电压 画布",
-                    run: () => props.onPickNetsChange?.(!props.pickNetsActive),
+                    run: () => {
+                      beginSignalSelection();
+                      props.onPickNetsChange?.(!props.pickNetsActive);
+                    },
                   },
                   {
                     id: "pick-current",
@@ -1209,8 +1243,10 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
                       ? "Stop picking current"
                       : "Pick current on Canvas",
                     keywords: "probe 电流 画布",
-                    run: () =>
-                      props.onPickTerminalsChange?.(!props.pickTerminalsActive),
+                    run: () => {
+                      beginSignalSelection();
+                      props.onPickTerminalsChange?.(!props.pickTerminalsActive);
+                    },
                   },
                 ]
               : []),

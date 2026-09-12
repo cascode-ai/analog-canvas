@@ -1,4 +1,5 @@
 import {
+  createContext,
   useEffect,
   useId,
   useState,
@@ -20,6 +21,8 @@ import {
   simulationArtifactCategory,
   type SimulationArtifactContent,
 } from "./simulation-artifact-files";
+
+export const CodeDocumentActions = createContext<HTMLElement | null>(null);
 
 export interface SimulationCodeFile {
   path: string;
@@ -75,6 +78,9 @@ export interface SimulationCodeWorkspaceProps {
 
 /** Approved Code layout only; Project, drafts and Run ownership remain in their controllers. */
 export function SimulationCodeWorkspace(props: SimulationCodeWorkspaceProps) {
+  const [documentActions, setDocumentActions] = useState<HTMLDivElement | null>(
+    null,
+  );
   const ui = useWorkspaceInteractions();
   const filesId = useId();
   const defaults = () =>
@@ -549,67 +555,76 @@ export function SimulationCodeWorkspace(props: SimulationCodeWorkspaceProps) {
           />
         ) : null}
         <div className="simulation-code-document">
-          <div
-            className="simulation-code-tabs"
-            role="tablist"
-            aria-label="Open simulation files"
-          >
-            {props.artifactPreview ? (
-              <div className="simulation-code-tab simulation-artifact-tab">
-                <button type="button" role="tab" aria-selected="true">
-                  {props.artifactPreview.artifact.name}
-                  <span> Temporary</span>
-                </button>
-                <button
-                  type="button"
-                  aria-label={`Close ${props.artifactPreview.artifact.name}`}
-                  onClick={props.onCloseArtifact}
-                >
-                  ×
-                </button>
-              </div>
-            ) : null}
-            {tabs.map((path) => {
-              const file = props.files.find((f) => f.path === path)!;
-              return (
-                <div className="simulation-code-tab" key={path}>
+          <div className="simulation-code-document-header">
+            <div
+              className="simulation-code-tabs"
+              role="tablist"
+              aria-label="Open simulation files"
+            >
+              {props.artifactPreview ? (
+                <div className="simulation-code-tab simulation-artifact-tab">
+                  <button type="button" role="tab" aria-selected="true">
+                    {props.artifactPreview.artifact.name}
+                    <span> Temporary</span>
+                  </button>
                   <button
                     type="button"
-                    role="tab"
-                    aria-selected={
-                      !props.artifactPreview && props.activePath === path
-                    }
-                    onClick={() => {
-                      props.onCloseArtifact?.();
-                      props.onSelectFile(path);
-                    }}
-                    title={path}
+                    aria-label={`Close ${props.artifactPreview.artifact.name}`}
+                    onClick={props.onCloseArtifact}
                   >
-                    {path === props.configPath
-                      ? "Configuration"
-                      : path.split("/").at(-1)}
-                    {file.kind === "generated" ? " ◇" : ""}
-                    {file.dirty ? " ●" : file.draft ? " ◌" : ""}
+                    ×
                   </button>
-                  {
+                </div>
+              ) : null}
+              {tabs.map((path) => {
+                const file = props.files.find((f) => f.path === path)!;
+                return (
+                  <div className="simulation-code-tab" key={path}>
                     <button
                       type="button"
-                      aria-label={`Close ${path}`}
-                      onClick={() => closeFile(path)}
+                      role="tab"
+                      aria-selected={
+                        !props.artifactPreview && props.activePath === path
+                      }
+                      onClick={() => {
+                        props.onCloseArtifact?.();
+                        props.onSelectFile(path);
+                      }}
+                      title={path}
                     >
-                      ×
+                      {path === props.configPath
+                        ? "Configuration"
+                        : path.split("/").at(-1)}
+                      {file.kind === "generated" ? " ◇" : ""}
+                      {file.dirty ? " ●" : file.draft ? " ◌" : ""}
                     </button>
-                  }
-                </div>
-              );
-            })}
+                    {
+                      <button
+                        type="button"
+                        aria-label={`Close ${path}`}
+                        onClick={() => closeFile(path)}
+                      >
+                        ×
+                      </button>
+                    }
+                  </div>
+                );
+              })}
+            </div>
+            <div
+              className="simulation-code-document-actions"
+              hidden={!props.activePath || Boolean(props.artifactPreview)}
+              ref={setDocumentActions}
+            />
           </div>
           <div className="simulation-code-document-content">
             <div
               hidden={!props.activePath || Boolean(props.artifactPreview)}
               className="workspace-editor-content"
             >
-              {props.children}
+              <CodeDocumentActions.Provider value={documentActions}>
+                {props.children}
+              </CodeDocumentActions.Provider>
             </div>
             {props.artifactPreview ? (
               <section

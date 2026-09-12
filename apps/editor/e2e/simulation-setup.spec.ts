@@ -100,7 +100,7 @@ test("the qualified OTA folder opens unchanged and preserves all root and hierar
   const panel = page.getByRole("region", { name: "Analog simulation" });
   // Ordinary picks write native save text; current instrumentation keeps its owner.
   const helper = async (name: string) => {
-    await panel.getByRole("button", { name: /Helper.*Ctrl\+Space/ }).click();
+    await panel.getByRole("button", { name: "Helper", exact: true }).click();
     await panel.getByRole("option", { name, exact: true }).click();
   };
   await helper("Pick Net on Canvas");
@@ -114,6 +114,22 @@ test("the qualified OTA folder opens unchanged and preserves all root and hierar
     page.getByTestId("terminal-VINP-+-current-pick-marker"),
   ).toHaveClass(/origin/u);
   await page.getByTestId("terminal-VINP--").click();
+  await expect(page.getByTestId("schematic-canvas")).toHaveClass(
+    /simulation-terminal-pick-active/,
+  );
+  await expect(
+    panel.getByRole("textbox", { name: "Simulation source editor" }),
+  ).not.toBeFocused();
+  // Repeated current picks stay active without duplicating instrumentation.
+  await page.getByTestId("terminal-VINP-+").click();
+  await page.getByTestId("terminal-VINP--").click();
+  await expect(page.getByTestId("schematic-canvas")).toHaveClass(
+    /simulation-terminal-pick-active/,
+  );
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("schematic-canvas")).not.toHaveClass(
+    /simulation-terminal-pick-active/,
+  );
   await helper("Save voltage…");
   const observe = panel.getByRole("dialog", { name: "Save signal" });
   await observe.getByRole("textbox", { name: "Search signal" }).fill("v(out)");

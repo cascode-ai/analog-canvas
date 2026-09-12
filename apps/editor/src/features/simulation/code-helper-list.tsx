@@ -21,7 +21,7 @@ export function CodeHelperList({
   language?: "spice" | "json";
   actions?: readonly CodeHelperAction[] | undefined;
   onChoose(rule: SimulationLanguageHelp): void;
-  onClose(): void;
+  onClose(restoreFocus?: boolean): void;
 }) {
   const [query, setQuery] = useState("");
   const [selected, select] = useState(0);
@@ -58,7 +58,7 @@ export function CodeHelperList({
         !root.current?.contains(event.target as Node) &&
         !(event.target as Element).closest?.("[data-simulation-helper-trigger]")
       )
-        onClose();
+        onClose(false);
     };
     document.addEventListener("pointerdown", close);
     return () => document.removeEventListener("pointerdown", close);
@@ -66,7 +66,7 @@ export function CodeHelperList({
   const choose = (index: number) => {
     if (!entries[index]) return;
     entries[index].run();
-    onClose();
+    onClose(false);
   };
   useEffect(() => {
     root.current

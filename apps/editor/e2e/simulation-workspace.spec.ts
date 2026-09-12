@@ -22,6 +22,91 @@ import {
 import { ota, profile, editSimulationFile } from "./simulation-e2e-fixtures.js";
 
 const loadModule = createRequire(import.meta.url);
+test("Helper keeps signal selection continuous and shares the file row without stealing focus", async ({
+  page,
+}) => {
+  const project = parseProject(JSON.stringify(ota));
+  const folder = createSimulationFolder({
+    id: "continuous-signals",
+    name: "Continuous signals",
+    documentId: project.topDocumentId,
+    profileId: profile.id,
+  });
+  project.simulationFolders = [folder];
+  await page.route("**/api/simulate", (route) =>
+    route.fulfill({
+      status: 503,
+      json: { error: "Offline authoring fixture" },
+    }),
+  );
+  await page.goto("/editor");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "continuous.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  await page.getByTestId("open-analog-simulation").click();
+  await page.getByRole("button", { name: "Explorer", exact: true }).click();
+  const editor = page.getByRole("textbox", {
+    name: "Simulation source editor",
+  });
+  const helper = page.getByRole("button", { name: "Helper", exact: true });
+  const tab = page.getByRole("tab", { name: /run.cir/ });
+  const helperBox = (await helper.boundingBox())!;
+  const tabBox = (await tab.boundingBox())!;
+  expect(Math.abs(helperBox.y - tabBox.y)).toBeLessThan(10);
+  expect(helperBox.x).toBeGreaterThan(tabBox.x + tabBox.width);
+  await expect(
+    page.getByText("Try another analysis", { exact: true }),
+  ).toHaveCount(0);
+  await helper.click();
+  const helperPopup = page.getByRole("dialog", { name: "Insert / Helper" });
+  const popupBox = (await helperPopup.boundingBox())!;
+  await page
+    .getByRole("option", { name: "Save voltage…", exact: true })
+    .click();
+  const picker = page.getByRole("dialog", { name: "Save signal" });
+  const search = picker.getByRole("textbox", { name: "Search signal" });
+  await expect(search).toBeFocused();
+  const pickerBox = (await picker.boundingBox())!;
+  expect(Math.abs(pickerBox.x - popupBox.x)).toBeLessThan(2);
+  expect(Math.abs(pickerBox.height - popupBox.height)).toBeLessThan(2);
+  const output = picker.getByRole("button", { name: /— v\(vout\)/ });
+  await output.click();
+  await expect(search).toBeFocused();
+  await expect(output).toContainText("Added");
+  await picker.getByRole("button", { name: /— v\(vinp\)/ }).click();
+  await expect(search).toBeFocused();
+  await expect(editor).toContainText("save v(vout) v(vinp)");
+  await expect(output).toBeDisabled();
+  await output.click({ force: true });
+  expect((await editor.innerText()).match(/v\(vout\)/g)).toHaveLength(1);
+  await search.press("Escape");
+  await expect(picker).toHaveCount(0);
+  // Dismissing the helper by clicking code must leave focus at that click.
+  await helper.click();
+  await editor.click({ position: { x: 2, y: 8 } });
+  await expect(helperPopup).toHaveCount(0);
+  await expect(editor).toBeFocused();
+  await editor.fill(
+    folder.input.files.find((file) => file.path === folder.input.entry)!.text,
+  );
+  await helper.click();
+  await page
+    .getByRole("option", { name: "Pick Net on Canvas", exact: true })
+    .click();
+  const canvas = page.getByTestId("schematic-canvas");
+  await page.getByTestId("route-hit-tb-vinp-route").click({ force: true });
+  await expect(canvas).toHaveClass(/simulation-net-pick-active/);
+  await expect(editor).not.toBeFocused();
+  await page.getByTestId("route-hit-tb-vout-route").click({ force: true });
+  await expect(editor).toContainText("save v(vinp) v(vout)");
+  await expect(canvas).toHaveClass(/simulation-net-pick-active/);
+  await expect(editor).not.toBeFocused();
+  await page.getByRole("button", { name: "Done", exact: true }).click();
+  await expect(canvas).not.toHaveClass(/simulation-net-pick-active/);
+});
+
 test("native save completion previews its mapped Net on the real Canvas", async ({
   page,
 }) => {
@@ -441,7 +526,7 @@ test("human simulation uses saved folder, survives minimizing, recovers a bad in
     .getByRole("textbox", { name: "Relative file path" })
     .press("Enter");
   await expect(panel.getByRole("tab", { name: /bias.spice/ })).toBeVisible();
-  await panel.getByRole("button", { name: /Helper.*Ctrl\+Space/ }).click();
+  await panel.getByRole("button", { name: "Helper", exact: true }).click();
   await panel
     .getByRole("textbox", { name: "Search commands or purpose" })
     .fill("Save voltage");
@@ -1221,9 +1306,7 @@ test("Simulation creates an ordinary testbench and defaults a new experiment to 
     .getByRole("button", { name: "run.cir", exact: true })
     .first()
     .click();
-  await expect(page.getByLabel("Analysis examples")).toContainText(
-    "ac dec 20 1 1G",
-  );
+  await expect(page.getByLabel("Analysis examples")).toHaveCount(0);
   const configured = JSON.parse(
     (await downloadBytes(page, "File", "Export Project File…")).toString(),
   );

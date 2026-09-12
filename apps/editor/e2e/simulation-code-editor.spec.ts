@@ -85,7 +85,7 @@ test("flat Helper finds an analysis by purpose and ghost arguments never enter s
     name: "Simulation source editor",
   });
   await editor.fill("* test\n.control\n");
-  await page.getByRole("button", { name: /Helper.*Ctrl\+Space/ }).click();
+  await page.getByRole("button", { name: "Helper", exact: true }).click();
   await page
     .getByRole("textbox", { name: "Search commands or purpose" })
     .fill("频响");
