@@ -938,7 +938,6 @@ export function App({
     saveProjectToCloud,
     isSaveInFlight,
     saveBusy,
-    persistenceState,
     exportProjectFile,
     downloadCurrentProjectBackup,
     guardDirtyReplacement,
@@ -5381,8 +5380,6 @@ export function App({
                   onSourceBuffer={(buffer) => {
                     simulationSourceBuffer.current = buffer;
                   }}
-                  onSaveProject={() => saveProjectToCloud()}
-                  projectSaveState={persistenceState}
                   onSaveFolder={(
                     folder,
                     expectedRevision = project.structureRevision,

@@ -1814,8 +1814,6 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
             onAction: (action, ids) => void folderAction(action, ids),
           }}
           onHistoryBoundary={props.onHistoryBoundary}
-          onSaveProject={props.onSaveProject}
-          projectSaveState={props.projectSaveState}
         />
       ) : (
         <div className="simulation-empty-result">

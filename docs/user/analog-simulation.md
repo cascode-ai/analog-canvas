@@ -30,9 +30,14 @@ be saved; preparation reports what needs repair rather than losing the draft.
 OP starter. Helper offers analysis commands and argument hints without adding
 text to the saved file until you explicitly insert or type it.
 
-The compact Save and Run icons share the toolbar with Explorer. Save's tooltip
-and icon distinguish unsaved, saving, saved and failed states; Ctrl+S remains
-available. A failed save retains the draft and can be retried.
+The compact Save and Run icons share the toolbar with Explorer. **Save source**
+applies pending files in the current simulation folder to the current Project,
+without signing in or making a cloud request. Ctrl+S inside the code editor does
+the same. Its icon and tooltip distinguish pending, applying, applied and failed
+states; a failed apply retains the draft for repair and retry. Applied source is
+covered by the Project's browser recovery, not a cloud backup. **File → Save**
+(or the project-level shortcut outside code) still saves the entire Project to
+the signed-in cloud account.
 
 **More code actions** opens advanced configuration, copies/exports the current
 file, or creates a source file. Configuration is not a default tab. It owns
