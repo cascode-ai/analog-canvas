@@ -98,8 +98,6 @@ interface Props extends Pick<
   onProblem(problem: Problem | undefined): void;
   diagnostics?: Problem["diagnostics"];
   onRun(): void;
-  onSaveProject?: (() => void | Promise<unknown>) | undefined;
-  projectSaveState?: SpiceSimulationSurfaceProps["projectSaveState"];
   onHistoryBoundary(direction: "undo" | "redo"): void;
 }
 const inputProblem = (code: string, message: string): Problem => ({
@@ -155,7 +153,8 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
     };
     const [saving, setSaving] = useState(false);
     const [saveRequested, setSaveRequested] = useState(false);
-    const projectSaveRequest = useRef(false);
+    const [saveFailed, setSaveFailed] = useState(false);
+    const sourceSaveRequest = useRef(false);
     const [reveal, setReveal] = useState<{
       sourceOffset: number;
       requestId: string;
@@ -488,6 +487,13 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
       );
     });
     const dirty = unsaved.length > 0;
+    // Persisted repair drafts still need applying; cloud/recovery state is not
+    // evidence that the current folder's source has been applied.
+    const pendingSource = [...drafts.current].some(
+      ([key, draft]) =>
+        key.startsWith(`${props.folder.id}\u0000`) && draft.text !== draft.base,
+    );
+    useEffect(() => setSaveFailed(false), [text, props.folder.id]);
     const activeDirty = unsaved.some(([key]) =>
       key.startsWith(`${props.folder.id}\u0000`),
     );
@@ -761,23 +767,24 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
         : generated.diagnostics.map((d) => `* ${d.message}`).join("\n");
     };
     const requestSave = async () => {
-      if (projectSaveRequest.current) return;
-      projectSaveRequest.current = true;
+      if (sourceSaveRequest.current) return;
+      sourceSaveRequest.current = true;
       setSaveRequested(true);
       try {
-        if (props.onSaveProject) await props.onSaveProject();
-        else await flush();
+        const result = await flush();
+        setSaveFailed(!result.ok);
       } catch (error) {
+        setSaveFailed(true);
         props.onProblem(
           inputProblem(
-            "PROJECT_SAVE_FAILED",
+            "SOURCE_APPLY_FAILED",
             error instanceof Error
               ? error.message
               : "Save failed; drafts retained.",
           ),
         );
       } finally {
-        projectSaveRequest.current = false;
+        sourceSaveRequest.current = false;
         setSaveRequested(false);
       }
     };
@@ -832,22 +839,21 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
       setTimeout(() => URL.revokeObjectURL(url), 0);
     };
     const saveState =
-      saveRequested || saving || props.projectSaveState === "saving"
+      saveRequested || saving
         ? "saving"
-        : props.projectSaveState === "failed" ||
-            props.projectSaveState === "offline"
+        : saveFailed
           ? "failed"
-          : props.projectSaveState === "clean" && !dirty
+          : !pendingSource
             ? "saved"
             : "dirty";
     const saveFeedback =
       saveState === "saving"
-        ? "Saving project…"
+        ? "Applying source…"
         : saveState === "saved"
-          ? "Project saved"
+          ? "Source applied to current project; not a cloud save"
           : saveState === "failed"
-            ? "Save failed; drafts remain local. Retry save."
-            : "Save project";
+            ? "Apply failed; drafts retained. Retry save."
+            : "Save source to current project";
     return (
       <SimulationCodeWorkspace
         workspaceKey={props.folder.id}
@@ -1105,7 +1111,7 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
               className="simulation-action-button"
               data-workspace-save="true"
               data-save-state={saveState}
-              aria-label="Save project"
+              aria-label="Save source"
               aria-description={saveFeedback}
               title={`${saveFeedback} · Ctrl+S`}
               disabled={saveState === "saving" || saveState === "saved"}

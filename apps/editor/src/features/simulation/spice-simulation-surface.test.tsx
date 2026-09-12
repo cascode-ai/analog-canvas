@@ -4,11 +4,7 @@ import { describe, expect, it } from "vitest";
 import { BrowserSimulationSession } from "./browser-simulation-session";
 import { SpiceSimulationSurface } from "./spice-simulation-surface";
 
-function render(
-  saved: boolean,
-  broken = false,
-  projectSaveState?: "saving" | "clean" | "failed",
-) {
+function render(saved: boolean, broken = false) {
   const project = createEmptyProject("code", "Code");
   if (saved) {
     const folder = createSimulationFolder({
@@ -42,25 +38,18 @@ function render(
       onSaveFolder={() => ({ status: "applied" })}
       onDeleteFolder={() => true}
       onHistoryBoundary={() => {}}
-      projectSaveState={projectSaveState}
     />,
   );
 }
 describe("source workspace default cutover", () => {
-  it("projects the Project save lifecycle instead of claiming a buffer flush saved to cloud", () => {
-    expect(render(true, false, "saving")).toContain(
-      'aria-description="Saving project…"',
+  it("describes source application without claiming a cloud save", () => {
+    const markup = render(true);
+    expect(markup).toContain('aria-label="Save source"');
+    expect(markup).toContain(
+      'aria-description="Source applied to current project; not a cloud save"',
     );
-    expect(render(true, false, "saving")).toContain('aria-busy="true"');
-    expect(render(true, false, "clean")).toContain(
-      'aria-description="Project saved"',
-    );
-    expect(render(true, false, "clean")).toContain('data-save-state="saved"');
-    expect(render(true, false, "failed")).toContain("Retry save");
-    expect(render(true, false, "clean")).not.toContain(">✓ Saved</button>");
-    expect(render(true, false, "saving")).toContain(
-      'class="simulation-action-button"',
-    );
+    expect(markup).toContain('data-save-state="saved"');
+    expect(markup).not.toContain('aria-label="Save project"');
   });
   it("offers creation without restoring the retired Settings form", () => {
     const markup = render(false);

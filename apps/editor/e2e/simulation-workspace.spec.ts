@@ -18,10 +18,84 @@ import { generateCircuitSource, simulationSignals } from "@icm/netlist";
 import {
   clickNetlistWorkflowCommand,
   downloadBytes,
+  readRecoveryRecords,
 } from "./editor-fixtures.js";
 import { ota, profile, editSimulationFile } from "./simulation-e2e-fixtures.js";
 
 const loadModule = createRequire(import.meta.url);
+test("source save applies locally while signed out and leaves File Save cloud-owned", async ({
+  page,
+}) => {
+  const project = parseProject(JSON.stringify(ota));
+  const folder = createSimulationFolder({
+    id: "local-save",
+    name: "Local save",
+    documentId: project.topDocumentId,
+    profileId: profile.id,
+  });
+  project.simulationFolders = [folder];
+  let cloudWrites = 0;
+  await page.route("**/api/projects**", (route) => {
+    if (["POST", "PUT"].includes(route.request().method())) cloudWrites++;
+    return route.fulfill({ status: 401, json: { error: "Sign in" } });
+  });
+  await page.route("**/api/simulate", (route) =>
+    route.fulfill({
+      status: 503,
+      json: { error: "Offline authoring fixture" },
+    }),
+  );
+  await page.goto("/editor");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "local-save.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  await page.getByTestId("open-analog-simulation").click();
+  const editor = page.getByRole("textbox", {
+    name: "Simulation source editor",
+  });
+  const save = page.getByRole("button", { name: "Save source", exact: true });
+  const source = folder.input.files.find(
+    (file) => file.path === folder.input.entry,
+  )!.text;
+  await editor.fill(`${source}\n* local button save\n`);
+  await expect(save).toHaveAttribute("data-save-state", "dirty");
+  await save.click();
+  await expect(save).toHaveAttribute("data-save-state", "saved");
+  await expect(save).toBeDisabled();
+  await expect(page.getByRole("tab", { name: /run\.cir/ })).not.toContainText(
+    "●",
+  );
+  await editor.fill(`${source}\n* local keyboard save\n`);
+  await editor.press("ControlOrMeta+s");
+  await expect(save).toHaveAttribute("data-save-state", "saved");
+  expect(cloudWrites).toBe(0);
+  await expect(page.getByTestId("status")).not.toContainText("Sign in to save");
+  await expect
+    .poll(async () =>
+      (await readRecoveryRecords(page)).some((record) =>
+        record.projectText.includes("* local keyboard save"),
+      ),
+    )
+    .toBe(true);
+  const bytes = await downloadBytes(page, "File", "Export Project File…");
+  const applied = parseProject(bytes.toString());
+  expect(
+    applied.simulationFolders[0]!.input.files.find(
+      (file) => file.path === folder.input.entry,
+    )!.text,
+  ).toContain("* local keyboard save");
+  await page
+    .locator("summary")
+    .filter({ hasText: /^File$/ })
+    .click();
+  await page.getByTestId("save-cloud-project").click();
+  await expect(page.getByTestId("status")).toContainText("Sign in to save");
+  expect(cloudWrites).toBe(1);
+  await expect(save).toHaveAttribute("data-save-state", "saved");
+});
+
 test("Helper keeps signal selection continuous and shares the file row without stealing focus", async ({
   page,
 }) => {
@@ -156,7 +230,7 @@ test("native save completion previews its mapped Net on the real Canvas", async 
   await editor.fill(`${source.slice(0, source.indexOf(".endc"))}save`);
   await expect(page.locator(".simulation-code-status")).toHaveCount(0);
   await expect(
-    page.getByRole("button", { name: "Save project", exact: true }),
+    page.getByRole("button", { name: "Save source", exact: true }),
   ).toBeEnabled();
   await expect(page.getByRole("tab", { name: /run\.cir/ })).toContainText("●");
   await page.keyboard.type(" ");
@@ -222,6 +296,13 @@ test("incomplete circuit opens Code and saves invalid parameter drafts across re
   const original = source.source.text;
   await editor.press("Control+A");
   await page.keyboard.insertText(original.replace("<value>", "bad-value"));
+  await expect(editor).toContainText("bad-value");
+  const saveSource = panel.getByRole("button", {
+    name: "Save source",
+    exact: true,
+  });
+  await saveSource.click();
+  await expect(saveSource).toHaveAttribute("data-save-state", "failed");
   await expect(editor).toContainText("bad-value");
   const bytes = await downloadBytes(page, "File", "Export Project File…");
   const saved = parseProject(bytes.toString());
@@ -1381,7 +1462,7 @@ test("Simulation creates an ordinary testbench and defaults a new experiment to 
   expect(statusBox!.x).toBeGreaterThanOrEqual(runBox!.x + runBox!.width);
   expect(Math.abs(statusBox!.y - runBox!.y)).toBeLessThanOrEqual(2);
   await expect(taskbar).toHaveCount(1);
-  for (const name of ["Explorer", "Save project"]) {
+  for (const name of ["Explorer", "Save source"]) {
     const box = await taskbar
       .getByRole("button", { name, exact: true })
       .boundingBox();
@@ -1390,7 +1471,7 @@ test("Simulation creates an ordinary testbench and defaults a new experiment to 
   }
   expect((await taskbar.boundingBox())!.height).toBeLessThanOrEqual(32);
   const saveButton = taskbar.getByRole("button", {
-    name: "Save project",
+    name: "Save source",
     exact: true,
   });
   const runButton = taskbar.getByRole("button", { name: "Run", exact: true });
@@ -1398,7 +1479,10 @@ test("Simulation creates an ordinary testbench and defaults a new experiment to 
   expect(runBox!.width).toBe(22);
   await expect(saveButton).toHaveText("");
   await expect(runButton).toHaveText("");
-  await expect(saveButton).toHaveAttribute("title", /Save project.*Ctrl\+S/);
+  await expect(saveButton).toHaveAttribute(
+    "title",
+    /not a cloud save.*Ctrl\+S/,
+  );
   await expect(saveButton).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
   await expect(runButton).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
   await taskbar.getByRole("button", { name: "More code actions" }).click();
