@@ -16,6 +16,7 @@ import {
   routeTapPoint,
   defaultInstanceLabel,
   dragNetLabelAttachmentAtPoint,
+  netLabelPlacementTargetAtPoint,
   dragRouteAttachmentAtPoint,
   effectiveRouteAttachment,
   looseRouteAnchorIds,
@@ -185,6 +186,35 @@ describe("route interaction geometry", () => {
         normalOffset: -24,
       },
       position: { x: 80, y: 0 },
+    });
+  });
+
+  it("uses one tolerant Route projection for Net Label preview and commit", () => {
+    const document = looseRouteDocument();
+    const record = routeRecord(document);
+
+    expect(
+      netLabelPlacementTargetAtPoint([record], { x: 70, y: 6 }, 7),
+    ).toEqual({
+      routeId: "route-1",
+      routeAttachment: {
+        routeId: "route-1",
+        legId: document.routes[0]!.legs[0]!.id,
+        t: 0.7,
+        direction: "forward",
+        normalOffset: -8,
+      },
+      conductorPoint: { x: 70, y: 0 },
+      labelPosition: { x: 70, y: -8 },
+    });
+    expect(
+      netLabelPlacementTargetAtPoint([record], { x: 70, y: 8 }, 7),
+    ).toBeNull();
+    expect(
+      netLabelPlacementTargetAtPoint([record], { x: 70, y: 30 }, 0, "route-1"),
+    ).toMatchObject({
+      routeId: "route-1",
+      conductorPoint: { x: 70, y: 0 },
     });
   });
 

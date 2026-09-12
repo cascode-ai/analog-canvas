@@ -25,20 +25,34 @@ describe("semantic formal-Port text", () => {
     });
   });
 
-  it("preserves punctuation instead of interpreting it as subscript markup", () => {
+  it("preserves punctuation without applying implicit Net Label markup", () => {
     const port = semanticTextDocument("V_{in,cm}", "formal-port");
     const net = semanticTextDocument("V_{in,cm}", "net-label");
 
-    expect(port).toEqual(net);
+    expect(port).not.toEqual(net);
     expect(flattenRichText(port)).toBe("V_{in,cm}");
+    expect(flattenRichText(net)).toBe("V_{in,cm}");
     expect(port.runs[1]).toMatchObject({
       kind: "span",
       style: "subscript",
       children: [{ children: [{ value: "_{in,cm}" }] }],
     });
+    expect(net.runs).toEqual([
+      {
+        kind: "span",
+        style: "italic",
+        children: [
+          {
+            kind: "span",
+            style: "bold",
+            children: [{ kind: "text", value: "V_{in,cm}" }],
+          },
+        ],
+      },
+    ]);
   });
 
-  it("splits every Port and Net name into a symbol and its subscript", () => {
+  it("keeps the Port convention but gives a Net Label no implicit subscript", () => {
     const port = semanticTextDocument("CLK", "formal-port");
     const net = semanticTextDocument("NET1", "net-label");
 
@@ -68,20 +82,27 @@ describe("semantic formal-Port text", () => {
         },
       ],
     });
-    expect(net).toMatchObject({
-      runs: [
-        { kind: "span", style: "italic" },
-        { kind: "span", style: "subscript" },
-      ],
-    });
+    expect(net.runs).toEqual([
+      {
+        kind: "span",
+        style: "italic",
+        children: [
+          {
+            kind: "span",
+            style: "bold",
+            children: [{ kind: "text", value: "NET1" }],
+          },
+        ],
+      },
+    ]);
     expect(flattenRichText(net)).toBe("NET1");
   });
 });
 
 describe("house text style", () => {
   it("keeps a supply subscript italic while ordinary subscripts stay upright", () => {
-    const supply = semanticTextDocument("VDD", "net-label");
-    const signal = semanticTextDocument("Vin", "net-label");
+    const supply = semanticTextDocument("VDD", "power-label");
+    const signal = semanticTextDocument("Vin", "formal-port");
 
     expect(flattenRichText(supply)).toBe("VDD");
     // Scripts render upright by default, so the supply exception is carried
@@ -98,8 +119,8 @@ describe("house text style", () => {
     });
   });
 
-  it("preserves the leading symbol case while subscripting the remainder", () => {
-    const content = semanticTextDocument("vout", "net-label");
+  it("preserves the leading symbol case while subscripting a Formal Port", () => {
+    const content = semanticTextDocument("vout", "formal-port");
 
     expect(flattenRichText(content)).toBe("vout");
     expect(content.runs[0]).toMatchObject({

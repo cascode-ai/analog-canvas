@@ -63,7 +63,8 @@
 .net-label-placement-preview {
   fill: var(--icm-accent);
   font-size: 12px;
-  font-weight: 500;
+  font-style: italic;
+  font-weight: 700;
   paint-order: stroke;
   stroke: var(--icm-surface);
   stroke-width: 3px;

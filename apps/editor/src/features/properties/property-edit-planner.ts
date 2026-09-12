@@ -9,6 +9,7 @@ import {
   type CircuitProject,
   type ConnectivityEvidence,
   type RichTextDocument,
+  type RouteAnnotationAttachment,
   type RouteBranch,
   type SchematicDocument,
 } from "@icm/model";
@@ -76,6 +77,8 @@ export function createPropertyEditPlanner({
       formatOverride?: RichTextDocument;
       /** Explicit canvas placement from the Cadence-style L workflow. */
       position?: { x: number; y: number };
+      /** Projection shared by the Label preview and its committed anchor. */
+      routeAttachment?: RouteAnnotationAttachment;
     },
   ): SchematicEdit[] | null => {
     const net = document.nets.find((candidate) => candidate.id === route.netId);
@@ -136,18 +139,18 @@ export function createPropertyEditPlanner({
     );
     const from = geometry.centerline[segment]!;
     const to = geometry.centerline[segment + 1] ?? from;
-    const position = snapGridPoint(
-      presentation?.position ??
-        (existingLabel
-          ? existingLabel.anchor.kind === "free"
-            ? existingLabel.anchor.position
-            : existingLabel.anchor.fallbackPosition
-          : undefined) ?? {
-          x: (from.x + to.x) / 2,
-          y: (from.y + to.y) / 2 - 8,
-        },
-      document.presentation.grid,
-    );
+    const requestedPosition = presentation?.position ??
+      (existingLabel
+        ? existingLabel.anchor.kind === "free"
+          ? existingLabel.anchor.position
+          : existingLabel.anchor.fallbackPosition
+        : undefined) ?? {
+        x: (from.x + to.x) / 2,
+        y: (from.y + to.y) / 2 - 8,
+      };
+    const position = presentation?.routeAttachment
+      ? requestedPosition
+      : snapGridPoint(requestedPosition, document.presentation.grid);
     const previousAnchor =
       existingLabel?.anchor.kind === "route" &&
       existingLabel.anchor.routeId === route.id
@@ -161,20 +164,27 @@ export function createPropertyEditPlanner({
         kind: "net-label",
         binding: { kind: "net-name", netId: targetNetId },
         netId: targetNetId,
-        anchor: presentation?.position
-          ? { kind: "free", position }
-          : previousAnchor
-            ? { ...previousAnchor, fallbackPosition: position }
-            : {
-                kind: "route",
-                routeId: route.id,
-                legId: route.legs[segment]!.id,
-                t: 0.5,
-                normalOffset: -8,
-                direction: "forward",
-                orientation: "follow",
-                fallbackPosition: position,
-              },
+        anchor: presentation?.routeAttachment
+          ? {
+              kind: "route",
+              ...presentation.routeAttachment,
+              orientation: "follow",
+              fallbackPosition: position,
+            }
+          : presentation?.position
+            ? { kind: "free", position }
+            : previousAnchor
+              ? { ...previousAnchor, fallbackPosition: position }
+              : {
+                  kind: "route",
+                  routeId: route.id,
+                  legId: route.legs[segment]!.id,
+                  t: 0.5,
+                  normalOffset: -8,
+                  direction: "forward",
+                  orientation: "follow",
+                  fallbackPosition: position,
+                },
         alignment:
           presentation?.alignment ?? existingLabel?.alignment ?? "middle",
         rotation: 0,
