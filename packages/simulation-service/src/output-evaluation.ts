@@ -14,6 +14,10 @@ import type { SimulationMeasurementSpec } from "@icm/model";
 import type { SimulationOutputData } from "./contract.js";
 import { deriveAutomaticMeasurements } from "./automatic-measurements.js";
 import { deriveAuthoredMeasurements } from "./authored-measurements.js";
+import {
+  nativeProbeMeaning,
+  type NativeDeclarations,
+} from "./native-output-semantics.js";
 
 interface ComplexSeries {
   readonly real: readonly (number | null)[];
@@ -200,6 +204,7 @@ function sourceSeries(
     { analysis: "noise" }
   >,
   vectors: readonly CompiledSimulationVector[],
+  declarations: NativeDeclarations = new Map(),
 ): Map<string, ComplexSeries> {
   const byName = new Map(
     analysis.probes.map((probe) => [probe.name.toLowerCase(), probe]),
@@ -215,9 +220,15 @@ function sourceSeries(
         ? (byName.get(`i(${name})`) ?? byName.get(`v(${name})`))
         : undefined);
     if (!source) continue;
+    const meaning = nativeProbeMeaning(
+      source,
+      analysis.probes,
+      analysis.analysis === "ac",
+      declarations,
+    );
     const unit =
       vector.quantity === "native"
-        ? (source.unit ?? "")
+        ? meaning.unit
         : vector.quantity === "voltage"
           ? "V"
           : "A";
@@ -226,7 +237,10 @@ function sourceSeries(
         unit,
         real: source.real,
         imaginary: source.imag,
-        complex: true,
+        complex:
+          vector.quantity !== "native" ||
+          meaning.semantics.valueKind !== "real" ||
+          source.imag.some((v) => v !== 0),
       });
     } else {
       const value = "value" in source ? source.value : [];
@@ -251,6 +265,7 @@ export function evaluateSimulationOutputs(
   deviceOperatingPointSpecs: readonly CompiledSimulationDeviceOperatingPoint[] = [],
   includeNative = false,
   signalNames: Readonly<Record<string, string>> = {},
+  declarations: NativeDeclarations = new Map(),
 ): SimulationOutputData {
   const diagnostics: SimulationOutputData["diagnostics"] = [];
   const analyses: SimulationOutputData["analyses"] = data.analyses.map(
@@ -298,7 +313,7 @@ export function evaluateSimulationOutputs(
           ],
         };
       }
-      const acquisitions = sourceSeries(analysis, vectors);
+      const acquisitions = sourceSeries(analysis, vectors, declarations);
       const pointCount =
         analysis.analysis === "op"
           ? 1
@@ -307,30 +322,42 @@ export function evaluateSimulationOutputs(
             : analysis.analysis === "tran"
               ? analysis.timeSeconds.length
               : analysis.sweep.values.length;
-      const evaluated = outputs.flatMap((output) => {
-        try {
-          const series = evaluate(output.expression, acquisitions, pointCount);
-          return [
-            {
-              id: output.id,
-              label: output.label,
-              unit: series.unit,
-              values: [...series.real],
-              ...(series.complex ? { imaginary: [...series.imaginary] } : {}),
-            },
-          ];
-        } catch (error) {
-          diagnostics.push({
-            analysisIndex,
-            ...rawOrigin,
-            outputId: output.id,
-            code: "SIMULATION_OUTPUT_EVALUATION_FAILED",
-            message:
-              error instanceof Error ? error.message : "Evaluation failed",
-          });
-          return [];
-        }
-      });
+      const evaluated: SimulationOutputData["analyses"][number]["outputs"] =
+        outputs.flatMap((output) => {
+          try {
+            const series = evaluate(
+              output.expression,
+              acquisitions,
+              pointCount,
+            );
+            return [
+              {
+                id: output.id,
+                label: output.label,
+                unit: series.unit,
+                values: [...series.real],
+                ...(series.complex ? { imaginary: [...series.imaginary] } : {}),
+                semantics: {
+                  valueKind: series.complex
+                    ? ("complex" as const)
+                    : ("real" as const),
+                  quantity: series.unit,
+                  origin: "expression" as const,
+                },
+              },
+            ];
+          } catch (error) {
+            diagnostics.push({
+              analysisIndex,
+              ...rawOrigin,
+              outputId: output.id,
+              code: "SIMULATION_OUTPUT_EVALUATION_FAILED",
+              message:
+                error instanceof Error ? error.message : "Evaluation failed",
+            });
+            return [];
+          }
+        });
       if (includeNative) {
         const represented = new Set(
           outputs.flatMap(({ expression }) =>
@@ -348,7 +375,15 @@ export function evaluateSimulationOutputs(
             vector: probe.name,
             quantity: "native" as const,
           };
-          const series = sourceSeries(analysis, [native]).get(native.probeId)!;
+          const meaning = nativeProbeMeaning(
+            probe,
+            analysis.probes,
+            analysis.analysis === "ac",
+            declarations,
+          );
+          const series = sourceSeries(analysis, [native], declarations).get(
+            native.probeId,
+          )!;
           const friendly = signalNames[probe.name.toLowerCase()];
           evaluated.push({
             id: native.probeId,
@@ -356,6 +391,13 @@ export function evaluateSimulationOutputs(
             unit: series.unit,
             values: [...series.real],
             ...(series.complex ? { imaginary: [...series.imaginary] } : {}),
+            semantics: {
+              ...meaning.semantics,
+              valueKind:
+                meaning.semantics.valueKind === "real" && series.complex
+                  ? "unknown"
+                  : meaning.semantics.valueKind,
+            },
           });
         }
       }
@@ -381,6 +423,44 @@ export function evaluateSimulationOutputs(
         plotName: analysis.plotName,
         ...(domain ? { domain } : {}),
         outputs: evaluated,
+        ...(includeNative && analysis.scalars?.length
+          ? {
+              scalars: analysis.scalars.map((scalar) => {
+                const meaning = nativeProbeMeaning(
+                  scalar,
+                  [...analysis.probes, ...analysis.scalars!],
+                  analysis.analysis === "ac",
+                  declarations,
+                );
+                return {
+                  id: `native:${scalar.name.toLowerCase()}`,
+                  label: scalar.name,
+                  // Cardinality and complex interpretation do not erase a
+                  // declared raw unit. Unsupported expressions remain unknown.
+                  unit:
+                    meaning.unit ||
+                    (meaning.semantics.origin === "raw"
+                      ? (scalar.unit ?? "")
+                      : ""),
+                  value: scalar.value,
+                  ...(scalar.imaginary !== undefined &&
+                  (meaning.semantics.valueKind !== "real" ||
+                    scalar.imaginary !== 0)
+                    ? { imaginary: scalar.imaginary }
+                    : {}),
+                  semantics: {
+                    ...meaning.semantics,
+                    valueKind:
+                      meaning.semantics.valueKind === "real" &&
+                      scalar.imaginary !== undefined &&
+                      scalar.imaginary !== 0
+                        ? "unknown"
+                        : meaning.semantics.valueKind,
+                  },
+                };
+              }),
+            }
+          : {}),
       };
     },
   );
@@ -392,7 +472,7 @@ export function evaluateSimulationOutputs(
     deviceOperatingPointSpecs.flatMap((device) => {
       const operatingPoint = record?.analysis;
       const acquisitions = operatingPoint
-        ? sourceSeries(operatingPoint, vectors)
+        ? sourceSeries(operatingPoint, vectors, declarations)
         : new Map();
       const native = device.id.startsWith("native-op:");
       const values = native
@@ -531,8 +611,23 @@ export function simulationOutputAnalysisToCsv(
         : [output.values[index] ?? null],
     ),
   ]);
-  const series =
+  let series =
     [headers, ...rows].map((row) => row.map(quote).join(",")).join("\n") + "\n";
+  if (analysis.scalars?.length)
+    series +=
+      "\n" +
+      [
+        ["Captured scalar", "Real value", "Imaginary value", "Unit"],
+        ...analysis.scalars.map((s) => [
+          s.label,
+          s.value,
+          s.imaginary ?? null,
+          s.unit,
+        ]),
+      ]
+        .map((row) => row.map(quote).join(","))
+        .join("\n") +
+      "\n";
   if (!analysis.integrated?.length) return series;
   return (
     series +

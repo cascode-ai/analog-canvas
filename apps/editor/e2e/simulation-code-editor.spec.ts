@@ -44,6 +44,10 @@ test("native save and dc arguments open automatically and preview their Canvas t
   await expect(
     page.getByRole("option").filter({ hasText: /v\(out\)/i }),
   ).toHaveCount(1);
+  // CodeMirror deliberately ignores completion navigation for 75ms after
+  // opening. Visibility alone does not mean keyboard navigation is armed.
+  // Exercise the post-open interaction, preserving the library's safety delay.
+  await page.waitForTimeout(100);
   await page.keyboard.press("ArrowDown");
   const selected = await page
     .locator(

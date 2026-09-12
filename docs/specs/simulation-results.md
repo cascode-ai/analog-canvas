@@ -203,6 +203,34 @@ and Preview checks:
 Preview qualification may additionally require a named environment, probes,
 and numeric tolerances. It does not reclassify the underlying run.
 
+### Captured native scalars
+
+AC, DC and transient plots may include short vectors declared by ngspice's
+`dims=1` variable qualifier. Their first real/imaginary value is captured in
+the record's optional `scalars` array; the remaining rawfile padding is not
+sweep data. Constant waveforms and single-point sweeps without that declaration
+remain waveforms. Unsupported short arrays and malformed dimensions produce
+diagnostics instead of being plotted against the wrong axis.
+
+The evaluated record also carries `scalars`, separate from curve `outputs`.
+Results shows these in a **Captured values** table per record, preserving signed
+and complex numbers. They do not generate curve min/max/span/RMS summaries and
+are not image-export traces. Both raw and evaluated CSV append a separately
+headed scalar table. Unknown units stay explicitly unknown; a variable suffix
+such as `_db` does not establish a unit.
+
+Console measurement reports remain separate evidence: only declarations reached
+from the executed entry/include graph participate, and repeated report names
+retain Console order. The UI does not invent an association between Console
+lines and raw records. A value may therefore appear as both a captured scalar
+and a Console report, with their different provenance made explicit.
+
+Hosted responses with numeric data and explicit rawfile dimensions are re-read
+by the same canonical reader to handle executor-image version skew. Missing
+numeric data is not resurrected. Archives without retained dimension evidence
+cannot be safely repaired from names or zero padding; rerun them to capture
+the corrected result.
+
 ### Authored measurements
 
 An authored measurement references one enabled analysis and one named Output.
@@ -239,7 +267,35 @@ crossing or insufficient sample window must not become zero and must not change
 an otherwise completed Run into a failed Run. The service is the sole numerical
 owner: GUI, Agent responses, and `measurements.csv` consume the same rows.
 
-## Validation
+## Plot semantics and grouping
+
+Evaluated outputs may carry `semantics`: `valueKind` (`real`, `complex`, or
+`unknown`), the raw `quantity`, `origin` (`raw` or `expression`), and the
+captured native `expression` when available. This metadata is derived from
+the executed source snapshot, never from later editor text or variable-name
+suffixes. Existing archives without it remain readable.
+
+Complex rawfile storage is not an instruction to take magnitude. Physical AC
+acquisitions remain complex even when every imaginary sample is zero. Native
+`db`, `ph`/`cph`, and supported explicit degree conversions are already real
+results: their signs are preserved without applying another magnitude, logarithm,
+or phase transformation. Source inference is deliberately bounded; conflicting
+assignments, dynamic control programs and unsupported expressions stay unknown.
+It does not execute ngspice or replace its numeric results.
+
+Waveform views group compatible units and representations, with independent
+vertical axes. Unknown outputs are isolated, not labelled dimensionless.
+Users may separate each trace for scale differences and declare an unknown
+display unit; declarations label existing values rather than converting them.
+Within one analysis record, plots share horizontal range, history and cursors.
+Repeated records remain separate, with independent view state. These preferences
+are session-only and do not modify Code, the Project, or the simulation input.
+Image exports use the same renderer; raw numeric exports retain recorded values.
+Older archives without sufficient semantics use conservative raw/real display
+for unknown values instead of guessing from names. XY plots, cross-run alignment
+and persisted plot templates are outside this contract.
+
+## Validation evidence
 
 Rawfile, result-data, expression, and measurement tests protect parsing and
 numerical meaning. Closed-form fixtures and model-backed hosted qualification

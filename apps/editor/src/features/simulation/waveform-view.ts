@@ -1,4 +1,9 @@
-import { useEffect, useState, type SetStateAction } from "react";
+import {
+  useCallback,
+  useState,
+  useSyncExternalStore,
+  type SetStateAction,
+} from "react";
 
 export type WaveformRange = readonly [number, number];
 export type WaveformAxes = "xy" | "x" | "y";
@@ -15,6 +20,8 @@ export interface WaveformState {
   activeMarker: MarkerName;
   hidden: ReadonlySet<string>;
   selected: string | null;
+  plotLayout: "units" | "separate";
+  unitOverrides: Readonly<Record<string, string>>;
 }
 export function initialWaveformState(): WaveformState {
   return {
@@ -25,6 +32,8 @@ export function initialWaveformState(): WaveformState {
     activeMarker: "A",
     hidden: new Set(),
     selected: null,
+    plotLayout: "units",
+    unitOverrides: {},
   };
 }
 
@@ -60,23 +69,49 @@ export function travelWaveformView(
 /** Session-only result views. Unique run/analysis keys prevent reuse on a new run.
  * Bounded storage survives tab/panel unmounts without retaining numeric results.
  */
-const resultViews = new Map<string, WaveformState>();
+const resultViews = new Map<
+  string,
+  { state: WaveformState; listeners: Set<() => void> }
+>();
+function resultView(key: string) {
+  let entry = resultViews.get(key);
+  if (!entry) {
+    entry = { state: initialWaveformState(), listeners: new Set() };
+    resultViews.set(key, entry);
+  }
+  for (const [oldKey, old] of resultViews) {
+    if (resultViews.size <= 24) break;
+    if (oldKey !== key && !old.listeners.size) resultViews.delete(oldKey);
+  }
+  return entry;
+}
 export function useWaveformView(resultKey?: string) {
-  const [state, setState] = useState(
-    () =>
-      (resultKey ? resultViews.get(resultKey) : undefined) ??
-      initialWaveformState(),
+  const [local, setLocal] = useState(initialWaveformState);
+  const subscribe = useCallback(
+    (listener: () => void) => {
+      if (!resultKey) return () => {};
+      const entry = resultView(resultKey);
+      entry.listeners.add(listener);
+      return () => {
+        entry.listeners.delete(listener);
+      };
+    },
+    [resultKey],
   );
-  useEffect(() => {
-    if (resultKey) {
-      resultViews.delete(resultKey);
-      resultViews.set(resultKey, state);
-      if (resultViews.size > 24)
-        resultViews.delete(resultViews.keys().next().value!);
+  const snapshot = useCallback(
+    () => (resultKey ? resultView(resultKey).state : local),
+    [resultKey, local],
+  );
+  const state = useSyncExternalStore(subscribe, snapshot, snapshot);
+  const update = (apply: (current: WaveformState) => WaveformState) => {
+    if (!resultKey) {
+      setLocal(apply);
+      return;
     }
-  }, [resultKey, state]);
-  const update = (apply: (current: WaveformState) => WaveformState) =>
-    setState(apply);
+    const entry = resultView(resultKey);
+    entry.state = apply(entry.state);
+    for (const listener of entry.listeners) listener();
+  };
   const set = <K extends keyof WaveformState>(
     key: K,
     value: SetStateAction<WaveformState[K]>,

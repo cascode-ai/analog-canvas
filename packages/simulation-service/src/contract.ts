@@ -185,18 +185,29 @@ export const PreparedSchema = z.strictObject({
 });
 export type Prepared = z.infer<typeof PreparedSchema>;
 export const OutputPointSchema = z.number().finite().nullable();
+/** Meaning is distinct from raw AC storage (a real expression may have zero imaginary samples). */
+export const OutputSemanticsSchema = z.strictObject({
+  valueKind: z.enum(["real", "complex", "unknown"]),
+  quantity: z.string(),
+  origin: z.enum(["raw", "expression"]),
+  expression: z.string().optional(),
+});
+export type OutputSemantics = z.infer<typeof OutputSemanticsSchema>;
 export const EvaluatedOutputSchema = z.strictObject({
   id: Id,
   label: z.string(),
   unit: z.string(),
   values: z.array(OutputPointSchema),
   imaginary: z.array(OutputPointSchema).optional(),
+  semantics: OutputSemanticsSchema.optional(),
 });
 export const EvaluatedScalarSchema = z.strictObject({
   id: Id,
   label: z.string(),
   unit: z.string(),
   value: z.number().finite(),
+  imaginary: z.number().finite().optional(),
+  semantics: OutputSemanticsSchema.optional(),
 });
 export const EvaluatedAnalysisSchema = z.strictObject({
   rawPlotOrdinals: SimulationRawPlotOrdinalsSchema.optional(),
@@ -210,6 +221,8 @@ export const EvaluatedAnalysisSchema = z.strictObject({
     })
     .optional(),
   outputs: z.array(EvaluatedOutputSchema),
+  /** Captured single values, not sweep samples or automatic waveform measurements. */
+  scalars: z.array(EvaluatedScalarSchema).optional(),
   /** Analysis-owned scalar results, such as integrated input/output noise. */
   integrated: z.array(EvaluatedScalarSchema).optional(),
 });

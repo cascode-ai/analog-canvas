@@ -18,6 +18,7 @@ export interface ScalarTrace {
   readonly label: string;
   readonly colorIndex: number;
   readonly quantity: string;
+  readonly groupLabel?: string;
   readonly unit: string | null;
   readonly values: readonly number[];
   readonly probe?: SimulationFocusTarget;
@@ -97,20 +98,29 @@ export function transientVisibleValues(
   times: readonly number[],
   values: readonly number[],
   range: readonly [number, number],
+  logarithmicX = false,
 ): number[] {
   const result: number[] = [];
   for (let i = 0; i < Math.min(times.length, values.length); i++) {
     const x = times[i]!,
       y = values[i]!;
-    if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+    if (!Number.isFinite(x) || !Number.isFinite(y) || (logarithmicX && x <= 0))
+      continue;
     if (x >= range[0] && x <= range[1]) result.push(y);
     if (i === 0) continue;
     const prevX = times[i - 1]!,
       prevY = values[i - 1]!;
-    if (!Number.isFinite(prevY) || x <= prevX) continue;
+    if (!Number.isFinite(prevY) || x <= prevX || (logarithmicX && prevX <= 0))
+      continue;
     for (const edge of range)
       if (prevX < edge && x > edge)
-        result.push(prevY + ((y - prevY) * (edge - prevX)) / (x - prevX));
+        result.push(
+          prevY +
+            (y - prevY) *
+              (logarithmicX
+                ? Math.log(edge / prevX) / Math.log(x / prevX)
+                : (edge - prevX) / (x - prevX)),
+        );
   }
   return result;
 }
@@ -247,6 +257,9 @@ export function ScalarResultsExplorer({
   const timeRange = controller.view.x;
   const valueRanges = controller.view.y;
   const [expandedQuantity, setExpandedQuantity] = useState<string | null>(null);
+  const expandedLabel =
+    traces.find((trace) => trace.quantity === expandedQuantity)?.groupLabel ??
+    expandedQuantity;
   const visible = traces.filter((trace) => !hidden.has(trace.id));
   const fullRange = finiteExtent(domain);
   const xFraction = (value: number, range: readonly [number, number]) =>
@@ -294,9 +307,9 @@ export function ScalarResultsExplorer({
   ) => {
     const geometry = expanded ? EXPANDED_PLOT : { ...PLOT, ...slotSize };
     const range = timeRange ?? fullRange;
-    const clipId = `${clipPrefix}-${quantity}-${expanded}`;
+    const clipId = `${clipPrefix}-${[...quantity].map((c) => c.codePointAt(0)!.toString(16)).join("-")}-${expanded}`;
     const visibleValues = quantityTraces.flatMap((trace) =>
-      transientVisibleValues(domain, trace.values, range),
+      transientVisibleValues(domain, trace.values, range, logarithmicX),
     );
     const automaticExtent = transientValueExtent(visibleValues);
     const extent = valueRanges[quantity] ?? automaticExtent;
@@ -383,7 +396,7 @@ export function ScalarResultsExplorer({
         >
           <svg
             role="img"
-            aria-label={`${analysisLabel} ${quantity}`}
+            aria-label={`${analysisLabel} ${quantityTraces[0]?.groupLabel ?? quantity}`}
             viewBox={`0 0 ${geometry.width} ${geometry.height}`}
           >
             <line
@@ -469,7 +482,7 @@ export function ScalarResultsExplorer({
               x={geometry.left}
               y={geometry.top - 5}
             >
-              {quantity}
+              {quantityTraces[0]?.groupLabel ?? quantity}
               {yLabels.unit ? `/${yLabels.unit}` : ""}
             </text>
             {waveformTicks(
@@ -704,7 +717,7 @@ export function ScalarResultsExplorer({
           >
             <div className="simulation-plot-layout">
               <WaveformTraceList
-                label={`${analysisLabel} ${quantity} outputs`}
+                label={`${analysisLabel} ${quantityTraces[0]?.groupLabel ?? quantity} outputs`}
                 traces={quantityTraces.map((trace) => ({
                   id: trace.id,
                   label: trace.label,
@@ -743,14 +756,13 @@ export function ScalarResultsExplorer({
                 className="ac-plot-dialog"
                 role="dialog"
                 aria-modal="true"
-                aria-label={`${analysisLabel} ${expandedQuantity} plot`}
+                aria-label={`${analysisLabel} ${expandedLabel} plot`}
               >
                 <header>
                   <div>
                     <strong>{plotName}</strong>
                     <span>
-                      {expandedQuantity} · {analysisLabel.toLowerCase()}{" "}
-                      waveform
+                      {expandedLabel} · {analysisLabel.toLowerCase()} waveform
                     </span>
                   </div>
                   <button
@@ -763,7 +775,7 @@ export function ScalarResultsExplorer({
                 </header>
                 <div className="simulation-plot-layout expanded">
                   <WaveformTraceList
-                    label={`${analysisLabel} ${expandedQuantity} outputs`}
+                    label={`${analysisLabel} ${expandedLabel} outputs`}
                     traces={traces
                       .filter((trace) => trace.quantity === expandedQuantity)
                       .map((trace) => ({

@@ -18,6 +18,7 @@ import {
 } from "./output-evaluation.js";
 import { automaticMeasurementsToCsv } from "./automatic-measurements.js";
 import { nativeMeasurementResults } from "./native-measurements.js";
+import { nativeOutputDeclarations } from "./native-output-semantics.js";
 
 import {
   ExecutionFailure,
@@ -769,6 +770,7 @@ export class SimulationService {
           run.prepared.deviceOperatingPoints,
           true,
           run.prepared.signalNames,
+          nativeOutputDeclarations(input.files, input.entryPath ?? "run.cir"),
         );
       }
       const nativeMeasurements = nativeMeasurementResults(

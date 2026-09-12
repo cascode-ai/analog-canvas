@@ -1,4 +1,4 @@
-import { parseSpiceSource } from "@icm/spice";
+import { inspectSimulationSourceGraph } from "@icm/netlist";
 import type { SimulationOutputData } from "./contract.js";
 
 /**
@@ -11,30 +11,26 @@ export function nativeMeasurementResults(
   log: string,
 ): NonNullable<SimulationOutputData["nativeMeasurements"]> {
   const declarations = new Map<string, string>();
-  for (const file of files) {
-    if (file.path.endsWith(".json")) continue;
-    for (const statement of parseSpiceSource(
-      {
-        id: file.path,
-        path: file.path,
-        text: file.text,
-        hash: "",
-        encoding: "utf-8",
-      },
-      { titleLine: file.path === entry },
-    ).statements) {
-      const command =
-        statement.kind === "control_command"
-          ? statement.command
-          : statement.kind === "directive"
-            ? statement.name
-            : "";
-      if (!["meas", "measure"].includes(command.toLowerCase())) continue;
-      const args = "arguments" in statement ? statement.arguments : [];
-      const name = args[1];
-      if (name && /^[A-Za-z_][A-Za-z0-9_]*$/u.test(name))
-        declarations.set(name.toLowerCase(), name);
-    }
+  const graph = inspectSimulationSourceGraph({
+    kind: "source",
+    entry,
+    configPath: "experiment.json",
+    files: [...files],
+    circuitBindings: [],
+    dependencies: [],
+  });
+  for (const { statement } of graph.statements) {
+    const command =
+      statement.kind === "control_command"
+        ? statement.command
+        : statement.kind === "directive"
+          ? statement.name
+          : "";
+    if (!["meas", "measure"].includes(command.toLowerCase())) continue;
+    const args = "arguments" in statement ? statement.arguments : [];
+    const name = args[1];
+    if (name && /^[A-Za-z_][A-Za-z0-9_]*$/u.test(name))
+      declarations.set(name.toLowerCase(), name);
   }
   const result: NonNullable<SimulationOutputData["nativeMeasurements"]> = [];
   const counts = new Map<string, number>();

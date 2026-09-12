@@ -14,6 +14,187 @@ const { PNG } = loadModule("pngjs") as {
     };
   };
 };
+test("native multi-unit results preserve signs and link only one record", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await expect(page.getByTestId("schematic-canvas")).toBeVisible();
+  await page.evaluate(async () => {
+    const reactPath = "/node_modules/.vite/deps/react.js";
+    const domPath = "/node_modules/.vite/deps/react-dom_client.js";
+    const resultPath = "/src/features/simulation/simulation-output-results.tsx";
+    const { createElement } = (await import(reactPath)).default;
+    const { createRoot } = (await import(domPath)).default;
+    const { SimulationOutputResults } = await import(resultPath);
+    const host = document.createElement("div");
+    host.id = "native-result-regression";
+    host.style.cssText =
+      "position:fixed;inset:0;overflow:auto;background:white;z-index:99999;padding:20px";
+    document.body.append(host);
+    const outputs = [
+      {
+        id: "gain",
+        label: "gain_db",
+        unit: "dB",
+        values: [0, -3, -56],
+        semantics: {
+          valueKind: "real",
+          quantity: "decibel",
+          origin: "expression",
+        },
+      },
+      {
+        id: "gain2",
+        label: "gain_small",
+        unit: "dB",
+        values: [0, -1, -20],
+        semantics: {
+          valueKind: "real",
+          quantity: "decibel",
+          origin: "expression",
+        },
+      },
+      {
+        id: "phase",
+        label: "phase_deg",
+        unit: "deg",
+        values: [0, -45, -90],
+        semantics: {
+          valueKind: "real",
+          quantity: "notype",
+          origin: "expression",
+        },
+      },
+      {
+        id: "unknown",
+        label: "mystery",
+        unit: "",
+        values: [-1, -2, -3],
+        imaginary: [0, 0, 0],
+        semantics: { valueKind: "unknown", quantity: "notype", origin: "raw" },
+      },
+    ];
+    createRoot(host).render(
+      createElement(SimulationOutputResults, {
+        resultKey: "browser-native-rc",
+        outputs: [],
+        data: {
+          schemaVersion: 1,
+          diagnostics: [],
+          analyses: [0, 1].map((index) => ({
+            analysis: "ac",
+            plotName: "RC",
+            rawPlotOrdinals: [index],
+            domain: {
+              name: "Frequency",
+              unit: "Hz",
+              values: [10, 1000, 1000000],
+            },
+            outputs,
+            scalars: [
+              {
+                id: "native:peak_gain_db",
+                label: "peak_gain_db",
+                value: index === 0 ? 4.43515 : -2,
+                unit: "dB",
+              },
+              {
+                id: "native:phasor",
+                label: "scalar_phasor",
+                value: 3,
+                imaginary: 4,
+                unit: "",
+              },
+            ],
+          })),
+        },
+      }),
+    );
+  });
+  const root = page.locator("#native-result-regression");
+  const records = root.locator(".simulation-analysis-card");
+  await expect(records).toHaveCount(2);
+  const first = records.nth(0),
+    second = records.nth(1);
+  await expect(
+    first.getByRole("region", { name: "Captured scalars record 1" }),
+  ).toContainText("4.43515");
+  await expect(
+    second.getByRole("region", { name: "Captured scalars record 2" }),
+  ).toContainText("-2");
+  await expect(
+    first.getByRole("region", { name: "Captured scalars record 1" }),
+  ).toContainText("Unknown");
+  for (const svg of await root.locator("svg").all()) {
+    await expect(svg).not.toContainText("peak_gain_db");
+    await expect(svg).not.toContainText("scalar_phasor");
+  }
+  await expect(first.locator(".simulation-plot-layout")).toHaveCount(3);
+  await expect(
+    first.getByRole("button", { name: "Magnitude", exact: true }),
+  ).toHaveCount(0);
+  await expect(first.locator('svg[aria-label="AC Decibels"]')).toContainText(
+    "dB",
+  );
+  await expect(first.locator('svg[aria-label="AC Decibels"]')).toContainText(
+    "-",
+  );
+  await expect(first.locator('svg[aria-label="AC Phase"]')).toContainText(
+    "deg",
+  );
+  await first.locator("summary").click();
+  await first
+    .getByLabel("Plot layout", { exact: true })
+    .selectOption("separate");
+  await expect(first.locator(".simulation-plot-layout")).toHaveCount(4);
+  await expect(second.locator(".simulation-plot-layout")).toHaveCount(3);
+  await first.getByLabel("mystery display unit").selectOption("deg");
+  await expect(
+    first.locator('svg[aria-label="AC mystery — Phase"]'),
+  ).toContainText("deg");
+  await first.getByLabel("Plot layout", { exact: true }).selectOption("units");
+  const tools = first.getByLabel("Plot tools", { exact: true });
+  await tools.first().focus();
+  await first
+    .getByRole("button", { name: "Control X axes", exact: true })
+    .first()
+    .click();
+  await first
+    .getByRole("button", { name: "Zoom in", exact: true })
+    .first()
+    .click();
+  for (const button of await first
+    .getByRole("button", { name: "Previous view", exact: true })
+    .all())
+    await expect(button).toBeEnabled();
+  for (const button of await second
+    .getByRole("button", { name: "Previous view", exact: true })
+    .all())
+    await expect(button).toBeDisabled();
+  const interaction = first
+    .getByLabel("Waveform: drag to zoom, click to measure, Shift-drag to pan")
+    .first();
+  await interaction.click({ position: { x: 200, y: 100 } });
+  await expect(
+    first.getByLabel("Marker measurements", { exact: true }),
+  ).toHaveCount(3);
+  await expect(
+    second.getByLabel("Marker measurements", { exact: true }),
+  ).toHaveCount(0);
+  for (const table of await first
+    .getByLabel("Marker measurements", { exact: true })
+    .all())
+    await expect(table).toContainText("A");
+  // Capture the whole record, not the clipped portion of a fixed scroll host.
+  await page.setViewportSize({ width: 1280, height: 2000 });
+  await test.info().attach("native-multi-unit-results.png", {
+    body: await first.screenshot({
+      path: test.info().outputPath("native-results.png"),
+    }),
+    contentType: "image/png",
+  });
+});
+
 test("plot PNG export retains every curve when the source charts rerender", async ({
   page,
 }) => {

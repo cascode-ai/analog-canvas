@@ -1,5 +1,5 @@
 import { CapabilitiesSchema } from "./contract.js";
-import { SimulationResultSchema } from "@icm/spice-run";
+import { SimulationResultSchema, readSimulationData } from "@icm/spice-run";
 import {
   ExecutionFailure,
   type Executor,
@@ -36,6 +36,30 @@ export function decodeHostedExecutionPayload(
       stage: "read",
       recovery: "not-retryable",
     });
+  // Older executor images projected padded short vectors as sweep samples.
+  // Re-read explicit dimension declarations with the shared reader, without
+  // promoting a result the executor withheld (for example a truncated file).
+  if (
+    parsed.data.data &&
+    typeof rawfile === "string" &&
+    /^\s*\d+\s+\S+\s+\S+[^\r\n]*\bdims=/mu.test(rawfile)
+  ) {
+    const reading = readSimulationData(rawfile);
+    parsed.data.diagnostics.push(
+      ...reading.diagnostics.filter(
+        (d) =>
+          !parsed.data.diagnostics.some((existing) => existing.text === d.text),
+      ),
+    );
+    if (reading.status === "read")
+      parsed.data.data = SimulationResultSchema.shape.data.parse(reading.data);
+    else delete parsed.data.data;
+    if (
+      reading.diagnostics.some((d) => d.severity === "error") &&
+      parsed.data.outcome.status !== "timed-out"
+    )
+      parsed.data.outcome = { status: "failed" };
+  }
   return {
     result: parsed.data,
     cancelled: cancelled === true,

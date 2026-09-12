@@ -6,7 +6,8 @@
     "fixtures/projects/phase-1-manual/project.icproj.json",
     "fixtures/projects/phase-3-routing/project.icproj.json",
     "fixtures/projects/phase-5-dense-analog/project.icproj.json",
-    "fixtures/projects/instance-value-display/project.icproj.json"
+    "fixtures/projects/instance-value-display/project.icproj.json",
+    "netlists/native-ota/source.icproj.json"
   ],
   "rejected": [
     {
