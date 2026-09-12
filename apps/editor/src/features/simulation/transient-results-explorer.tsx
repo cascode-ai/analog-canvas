@@ -98,20 +98,29 @@ export function transientVisibleValues(
   times: readonly number[],
   values: readonly number[],
   range: readonly [number, number],
+  logarithmicX = false,
 ): number[] {
   const result: number[] = [];
   for (let i = 0; i < Math.min(times.length, values.length); i++) {
     const x = times[i]!,
       y = values[i]!;
-    if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+    if (!Number.isFinite(x) || !Number.isFinite(y) || (logarithmicX && x <= 0))
+      continue;
     if (x >= range[0] && x <= range[1]) result.push(y);
     if (i === 0) continue;
     const prevX = times[i - 1]!,
       prevY = values[i - 1]!;
-    if (!Number.isFinite(prevY) || x <= prevX) continue;
+    if (!Number.isFinite(prevY) || x <= prevX || (logarithmicX && prevX <= 0))
+      continue;
     for (const edge of range)
       if (prevX < edge && x > edge)
-        result.push(prevY + ((y - prevY) * (edge - prevX)) / (x - prevX));
+        result.push(
+          prevY +
+            (y - prevY) *
+              (logarithmicX
+                ? Math.log(edge / prevX) / Math.log(x / prevX)
+                : (edge - prevX) / (x - prevX)),
+        );
   }
   return result;
 }
@@ -300,7 +309,7 @@ export function ScalarResultsExplorer({
     const range = timeRange ?? fullRange;
     const clipId = `${clipPrefix}-${[...quantity].map((c) => c.codePointAt(0)!.toString(16)).join("-")}-${expanded}`;
     const visibleValues = quantityTraces.flatMap((trace) =>
-      transientVisibleValues(domain, trace.values, range),
+      transientVisibleValues(domain, trace.values, range, logarithmicX),
     );
     const automaticExtent = transientValueExtent(visibleValues);
     const extent = valueRanges[quantity] ?? automaticExtent;

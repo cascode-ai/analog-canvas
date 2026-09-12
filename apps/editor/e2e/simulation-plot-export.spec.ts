@@ -185,6 +185,8 @@ test("native multi-unit results preserve signs and link only one record", async 
     .getByLabel("Marker measurements", { exact: true })
     .all())
     await expect(table).toContainText("A");
+  // Capture the whole record, not the clipped portion of a fixed scroll host.
+  await page.setViewportSize({ width: 1280, height: 2000 });
   await test.info().attach("native-multi-unit-results.png", {
     body: await first.screenshot({
       path: test.info().outputPath("native-results.png"),

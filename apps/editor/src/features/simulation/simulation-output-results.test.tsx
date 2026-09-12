@@ -44,6 +44,10 @@ describe("Simulation Output Results", () => {
     expect(markup).toContain("− j4.000000");
     expect(markup).not.toContain("<svg");
     expect(markup).not.toContain("waveform-trace-list");
+    expect(markup).not.toContain('aria-label="Plot layout"');
+    expect(
+      markup.indexOf('aria-label="Captured scalars record 1"'),
+    ).toBeLessThan(markup.indexOf('class="simulation-analysis-card-body"'));
   });
   it("renders signed native dB and phase in independent unit-labelled plots", () => {
     const markup = renderToStaticMarkup(

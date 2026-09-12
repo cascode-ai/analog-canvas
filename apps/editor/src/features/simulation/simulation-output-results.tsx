@@ -196,9 +196,11 @@ function simulationAnalysisTitle(kind: SimulationAnalysisKind): string {
 export function SimulationAnalysisCard({
   kind,
   children,
+  toolbar,
 }: {
   kind: SimulationAnalysisKind;
   children: ReactNode;
+  toolbar?: ReactNode;
 }) {
   const title = simulationAnalysisTitle(kind);
   return (
@@ -209,6 +211,7 @@ export function SimulationAnalysisCard({
       <header className="simulation-analysis-card-header">
         <h3>{title}</h3>
       </header>
+      {toolbar}
       <div className="simulation-analysis-card-body">{children}</div>
     </section>
   );
@@ -355,20 +358,31 @@ export function SimulationOutputResults({
                 <SimulationAnalysisCard
                   key={`${analysis.analysis}-${analysisIndex}`}
                   kind={analysis.analysis}
+                  toolbar={
+                    <>
+                      {data.analyses.filter(
+                        (a) => a.analysis === analysis.analysis,
+                      ).length > 1 ? (
+                        <p>
+                          Record {analysisIndex + 1} · {analysis.plotName} · raw
+                          plots{" "}
+                          {analysis.rawPlotOrdinals?.join(", ") ??
+                            "unavailable"}
+                        </p>
+                      ) : null}
+                      {analysis.outputs.length > 0 ? (
+                        <ResultPlotControls
+                          view={view}
+                          outputs={analysis.outputs}
+                        />
+                      ) : null}
+                      <CapturedScalarResults
+                        scalars={analysis.scalars ?? []}
+                        record={analysisIndex + 1}
+                      />
+                    </>
+                  }
                 >
-                  <CapturedScalarResults
-                    scalars={analysis.scalars ?? []}
-                    record={analysisIndex + 1}
-                  />
-                  {data.analyses.filter((a) => a.analysis === analysis.analysis)
-                    .length > 1 ? (
-                    <p>
-                      Record {analysisIndex + 1} · {analysis.plotName} · raw
-                      plots{" "}
-                      {analysis.rawPlotOrdinals?.join(", ") ?? "unavailable"}
-                    </p>
-                  ) : null}
-                  <ResultPlotControls view={view} outputs={analysis.outputs} />
                   {analysis.analysis === "ac" && complex.length > 0 ? (
                     <ComplexResultsExplorer
                       resultKey={recordKey}
