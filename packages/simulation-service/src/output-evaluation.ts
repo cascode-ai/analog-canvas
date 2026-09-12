@@ -435,7 +435,13 @@ export function evaluateSimulationOutputs(
                 return {
                   id: `native:${scalar.name.toLowerCase()}`,
                   label: scalar.name,
-                  unit: meaning.unit,
+                  // Cardinality and complex interpretation do not erase a
+                  // declared raw unit. Unsupported expressions remain unknown.
+                  unit:
+                    meaning.unit ||
+                    (meaning.semantics.origin === "raw"
+                      ? (scalar.unit ?? "")
+                      : ""),
                   value: scalar.value,
                   ...(scalar.imaginary !== undefined &&
                   (meaning.semantics.valueKind !== "real" ||

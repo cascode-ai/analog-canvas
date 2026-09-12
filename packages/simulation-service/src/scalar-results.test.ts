@@ -7,6 +7,27 @@ import {
 } from "./output-evaluation.js";
 import { SimulationOutputDataSchema } from "./contract.js";
 describe("scalar output projection", () => {
+  it("retains an explicit captured Hz unit through evaluation and CSV without guessing a complex view", () => {
+    const raw = readFileSync(
+      new URL(
+        "../../../fixtures/ngspice-rawfile/native-scalars-ac.raw",
+        import.meta.url,
+      ),
+      "utf8",
+    ).replace("peak_gain_db notype", "peak_frequency frequency");
+    const r = readSimulationData(raw);
+    if (r.status !== "read") throw Error("read expected");
+    const data = evaluateSimulationOutputs(r.data, [], [], [], [], true);
+    expect(data.analyses[0]?.scalars?.[0]).toMatchObject({
+      label: "peak_frequency",
+      value: 4,
+      unit: "Hz",
+      semantics: { valueKind: "unknown", origin: "raw" },
+    });
+    expect(simulationOutputAnalysisToCsv(data.analyses[0]!)).toContain(
+      '"peak_frequency","4","0","Hz"',
+    );
+  });
   it("never derives curve measurements from raw scalar padding and preserves scalars in export", () => {
     const raw = readFileSync(
       new URL(
