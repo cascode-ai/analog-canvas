@@ -113,15 +113,22 @@ authoring surfaces; removing a component remains an explicit Delete action.
 The lazy JSON editor provides syntax highlighting, bracket matching, JSON
 diagnostics and local text undo. Canvas-layer field metadata owns the rotation
 and mirror options, color channel limits and per-field guidance. Inline switches,
-enum menus, color pickers and global/no-fill resets edit the same draft as typing;
-they never apply implicitly. Left/right and top/bottom actions compose the
+enum menus, color pickers and global/no-fill resets edit the same source as typing;
+valid changes update the canvas immediately, with no Apply step. Left/right and top/bottom actions compose the
 current draft orientation in canvas coordinates, updating rotation and the one
 local mirror bit together. Invalid drafts disable assistance, not text editing.
-Hints and widgets are editor decorations, never JSON comments or persisted data.
-**Discard draft** restores the last applied state without changing the circuit.
-**Defaults** loads known parameter, orientation, color, and formula defaults
-into the draft; it preserves coordinates, reference, model target, display
-flags, and unknown overrides. It still requires Apply. **Copy JSON** copies
+Hints are hidden by default and expand through **Need help?**. Hints and widgets
+are editor decorations, never JSON comments or persisted data. Controls stay
+on their value line; a narrow text area scrolls horizontally without wrapping
+button groups. Help occupies separate, wrapping rows.
+**Discard draft** clears invalid or rejected source back to the last accepted
+state without changing the circuit. **Defaults** immediately restores known
+parameter, orientation, color, and formula defaults; it preserves coordinates,
+reference, model target, display flags, and unknown overrides and remains undoable.
+Live acknowledgements preserve source formatting, caret, and local text history;
+external undo/redo synchronizes without replaying edits. Escape leaves the JSON
+editor without committing legacy form drafts or dropping incomplete source.
+**Copy JSON** copies
 the complete raw draft without decorations from the copy icon at the editor's
 top right, including unapplied whitespace and invalid drafts. The text area
 is the dominant, viewport-sized surface; instance identity stays in the dock
