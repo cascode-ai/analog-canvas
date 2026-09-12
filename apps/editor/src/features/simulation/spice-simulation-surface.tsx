@@ -1025,10 +1025,27 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
       );
       return;
     }
-    const name = await interaction.name({
+    const selection = await interaction.name({
       kind: "folder",
       ...(action === "rename" && current ? { folderId: current.id } : {}),
       label: action === "rename" ? "Folder name" : "New simulation folder name",
+      ...(action === "new"
+        ? {
+            cellSelection: {
+              initial: props.activeDocumentId,
+              options: latestProject.documents.map(({ id, name }) => ({
+                id,
+                name,
+              })),
+              validate: (documentId: string) =>
+                session
+                  .currentProject()
+                  ?.documents.some((cell) => cell.id === documentId)
+                  ? undefined
+                  : "Select an existing Cell for this experiment.",
+            },
+          }
+        : {}),
       validate: (value) =>
         session
           .currentProject()
@@ -1047,13 +1064,13 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
             ? `${current?.name} copy`
             : `Simulation ${latestProject.simulationFolders.length + 1}`,
     });
-    if (!name?.trim()) return;
+    if (!selection) return;
     const identity = {
       id:
         action === "rename" && current
           ? current.id
           : `simulation-folder-${crypto.randomUUID()}`,
-      name: name.trim(),
+      name: selection.name,
     };
     // Naming is non-modal: refresh the revision and source after the user finishes.
     const namingProject = session.currentProject();
@@ -1065,11 +1082,26 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
     let created: typeof current;
     if (newest) created = { ...structuredClone(newest), ...identity };
     else {
+      // Creation is non-modal: never silently substitute a different Cell if
+      // the selected one disappeared while the user was naming the folder.
+      if (
+        !selection.documentId ||
+        !namingProject.documents.some(
+          (cell) => cell.id === selection.documentId,
+        )
+      ) {
+        setProblem(
+          uiProblem(
+            "SIMULATION_STARTER_INVALID",
+            "The selected Cell no longer exists. Select a Cell and create the experiment again.",
+          ),
+        );
+        return;
+      }
       const result = createSimulationStarter(namingProject, {
         ...identity,
         mode: "circuit",
-        documentId:
-          props.draftContext?.rootDocumentId ?? props.activeDocumentId,
+        documentId: selection.documentId,
         profileId: capabilities?.profiles[0]?.id ?? authoringProfile.id,
         template: "op",
       });
@@ -1789,6 +1821,19 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
             folders: project.simulationFolders.map((folder) => ({
               ...folder,
               configPath: folder.input.configPath,
+              cellLabel: folder.input.circuitBindings.length
+                ? "Cell: " +
+                  [
+                    ...new Set(
+                      folder.input.circuitBindings.map(
+                        (binding) =>
+                          project.documents.find(
+                            (cell) => cell.id === binding.documentId,
+                          )?.name ?? `Missing (${binding.documentId})`,
+                      ),
+                    ),
+                  ].join(", ")
+                : "No Canvas Cell",
               files: [
                 ...folder.input.files.map((file) => ({
                   path: file.path,
