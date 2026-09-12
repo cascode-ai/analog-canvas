@@ -1,0 +1,7 @@
+* Resistor-loaded SKY130 common-source amplifier; model supplied by hosted Profile.
+VDD vdd 0 1.8
+VIN in 0 0.7
+RD vdd out 10k
+XM1 out in 0 0 sky130_fd_pr__nfet_01v8 W=10 L=1 nf=1
+CL out 0 1p
+.end

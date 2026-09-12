@@ -1,0 +1,6 @@
+* Series RLC, output across C. f0 = 5032.921 Hz; Rcrit = 632.456 ohm.
+V1 in 0 0
+R1 in mid 200
+L1 mid out 10m
+C1 out 0 100n
+.end

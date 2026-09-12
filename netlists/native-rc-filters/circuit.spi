@@ -1,0 +1,5 @@
+* First-order RC low-pass. High-pass is the complementary C-series/R-shunt Cell.
+V1 in 0 0
+R1 in out 10k
+C1 out 0 10n
+.end
