@@ -28,6 +28,7 @@ export interface ComponentPropertyCodeEditorProps {
   revision: number;
   referenceVisible: boolean | null;
   valueVisible: boolean | null;
+  netName?: string | null;
   defaultForeground?: string;
   details?: ComponentPropertyCodeContext["details"];
   focusRequest?: number;
@@ -42,6 +43,7 @@ export function ComponentPropertyCodeEditor({
   revision,
   referenceVisible,
   valueVisible,
+  netName,
   defaultForeground = "#000000",
   details,
   focusRequest = 0,
@@ -52,9 +54,10 @@ export function ComponentPropertyCodeEditor({
       instance,
       referenceVisible,
       valueVisible,
+      ...(netName !== undefined ? { netName } : {}),
       ...(details ? { details } : {}),
     }),
-    [instance, referenceVisible, valueVisible, details],
+    [instance, referenceVisible, valueVisible, netName, details],
   );
   const baseline = useMemo(
     () => formatComponentPropertyCode(context),

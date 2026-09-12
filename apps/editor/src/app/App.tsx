@@ -23,6 +23,7 @@ import {
   planSetCellSymbolPresentation,
   planSetDeviceModelTarget,
   planInstanceUnplacement,
+  gateRoutingOperationPlan,
   type ProjectStructureEdit,
   type CellResetPlan,
   type SchematicEdit,
@@ -146,6 +147,7 @@ import { deriveWireUnderSymbolWarnings } from "../canvas/wire-under-symbol";
 import { createPlacementTrayCommands } from "../features/component-insert/placement-tray-commands";
 import { componentTargetDescription } from "../features/properties/component-identity-properties";
 import { componentSourceCode } from "../features/properties/component-source-code";
+import { planElectricalMarkerName } from "../features/properties/electrical-marker-name";
 import {
   endpointTestId,
   instanceLabelAnnotationFor,
@@ -5737,6 +5739,9 @@ export function App({
                           ? selectedInstanceValue !== null &&
                             selectedInstanceValue.visible !== false
                           : null,
+                        netName: selectedSupplyMarker
+                          ? (selectedPortLogicalName ?? "")
+                          : null,
                         onApply: (value: ComponentPropertyCodeValue) => {
                           try {
                             const edits: SchematicEdit[] =
@@ -5844,6 +5849,36 @@ export function App({
                                   desiredValue,
                                 ),
                               );
+                            }
+                            if (
+                              value.netName !== undefined &&
+                              value.netName !== selectedPortLogicalName
+                            ) {
+                              const markerPlan = planElectricalMarkerName(
+                                document,
+                                selectedInstance.id,
+                                value.netName,
+                              );
+                              if (markerPlan.status === "rejected") {
+                                return {
+                                  ok: false as const,
+                                  message: markerPlan.message,
+                                };
+                              }
+                              if (markerPlan.status === "ready") {
+                                const gate = gateRoutingOperationPlan(
+                                  document,
+                                  markerPlan.operationPlan,
+                                  { symbolResolver: resolver },
+                                );
+                                if (!gate.ok) {
+                                  return {
+                                    ok: false as const,
+                                    message: gate.message,
+                                  };
+                                }
+                                edits.push(...gate.edits);
+                              }
                             }
                             const currentTarget =
                               selectedInstance.netlist?.binding?.kind ===

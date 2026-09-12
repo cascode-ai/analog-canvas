@@ -97,6 +97,29 @@ describe("component property code", () => {
     expect(parseComponentPropertyCode(source, noDisplayContext).ok).toBe(true);
   });
 
+  it("keeps a supply marker's Net name in the same editable code surface", () => {
+    const supplyContext = {
+      instance: { ...instance, symbolId: "vdd-port", reference: undefined },
+      referenceVisible: null,
+      valueVisible: null,
+      netName: "VDD",
+    };
+    const decoded = JSON.parse(formatComponentPropertyCode(supplyContext));
+    expect(decoded.netName).toBe("VDD");
+    decoded.netName = " AVDD ";
+    expect(
+      parseComponentPropertyCode(JSON.stringify(decoded), supplyContext),
+    ).toMatchObject({ ok: true, value: { netName: "AVDD" } });
+
+    delete decoded.netName;
+    expect(
+      parseComponentPropertyCode(JSON.stringify(decoded), supplyContext),
+    ).toEqual({
+      ok: false,
+      message: "netName is required for this component",
+    });
+  });
+
   it("keeps tray membership outside free-form property edits", () => {
     const source = formatComponentPropertyCode(context).replace(
       /"placement": \{[\s\S]*?\n  \},\n  "appearance"/u,
