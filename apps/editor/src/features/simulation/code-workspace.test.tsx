@@ -38,7 +38,7 @@ describe("approved simulation Code layout", () => {
     expect(markup).toContain('data-workspace-new-folder="true"');
     expect(markup).toContain("+ New experiment");
     expect(markup).toContain("Source");
-    expect(markup).toContain("Run target");
+    expect(markup).not.toContain("Run target");
     expect(markup).not.toContain("New file");
     expect(markup).not.toContain("Setup");
   });
@@ -121,14 +121,12 @@ describe("approved simulation Code layout", () => {
         </SimulationCodeWorkspace>
       </WorkspaceInteractions>,
     );
-    expect(markup).toMatch(
-      /class="simulation-explorer-section is-source" open=""/,
-    );
-    expect(markup).toContain(
-      'class="simulation-explorer-section is-temporary" aria-label="Prepare temporary files"',
-    );
-    expect(markup).toContain("Temporary");
-    expect(markup).toContain("prepared.cir");
-    expect(markup).toContain('aria-label="Download selected files"');
+    expect(markup).toContain('aria-label="Source"');
+    expect(markup).toContain('aria-expanded="true"');
+    expect(markup).toContain('aria-label="Prepare"');
+    expect(markup).toContain('aria-expanded="false"');
+    expect(markup).toContain(">tmp</small>");
+    expect(markup).not.toContain("prepared.cir");
+    expect(markup).not.toContain('aria-label="Download selected files"');
   });
 });

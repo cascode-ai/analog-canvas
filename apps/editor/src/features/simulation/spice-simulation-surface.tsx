@@ -180,6 +180,14 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
   const [artifactPreview, setArtifactPreview] =
     useState<SimulationArtifactContent>();
   const [artifactBusy, setArtifactBusy] = useState<string>();
+  const artifactRequest = useRef(0);
+  const closeArtifact = () => {
+    artifactRequest.current += 1;
+    setArtifactPreview(undefined);
+    setArtifactBusy((busy) =>
+      busy?.startsWith("preview:") ? undefined : busy,
+    );
+  };
   const [canvasOpEnabled, setCanvasOpEnabled] = useState(false);
   const [opRecord, setOpRecord] = useState<{ runId: string; index: number }>();
   const [comparisonRecords, setComparisonRecords] = useState<
@@ -235,7 +243,7 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
     setPrepared(previous?.prepared);
     setRun(previous?.run);
     setProblem(undefined);
-    setArtifactPreview(undefined);
+    closeArtifact();
     props.onOperatingPointProjection?.(null);
   }, [props.selectedFolderId]);
   const lock = useRef(false);
@@ -312,7 +320,7 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
         });
       setPrepared(reply.prepared);
       setProblem(undefined);
-      setArtifactPreview(undefined);
+      closeArtifact();
       setResultTab("console");
     } else if ("capabilities" in reply) {
       setCapabilities(reply.capabilities);
@@ -553,7 +561,7 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
       setPrepared(item.prepared);
       setRun(undefined);
       setProblem(undefined);
-      setArtifactPreview(undefined);
+      closeArtifact();
       setResultTab("console");
       if (presentation)
         folderResults.current.set(item.folderId, { prepared: item.prepared });
@@ -597,9 +605,13 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
       setProblem(uiProblem("ARTIFACT_DOWNLOAD_FAILED", result.message));
   };
   const preview = async (artifact: ArtifactRef) => {
+    const request = ++artifactRequest.current;
     setArtifactBusy(`preview:${artifact.id}`);
     const result = await readSimulationArtifactPreview(session.files, artifact);
-    setArtifactBusy(undefined);
+    if (request !== artifactRequest.current) return;
+    setArtifactBusy((busy) =>
+      busy === `preview:${artifact.id}` ? undefined : busy,
+    );
     if (!result.ok) {
       setProblem(result.error);
       return;
@@ -787,7 +799,9 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
     : batch
       ? `Batch ${batch.state} · ${finishedBatchItems}/${batch.items.length}`
       : run
-        ? `${run.state}${run.result ? ` · ${run.result.outcome.status}` : ""}`
+        ? run.state === "finished"
+          ? (run.result?.outcome.status ?? run.state)
+          : run.state
         : prepared
           ? "Deck prepared"
           : "No run yet";
@@ -911,7 +925,6 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
         return evaluated.length ? evaluated : csv;
       })()
     : [];
-  const analysisLabel = runPresentation?.analysisLabel;
   const presentationProbes =
     runPresentation?.outputs.flatMap((output) => {
       const probe = focusTarget(output);
@@ -1470,20 +1483,6 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
 
         {resultTab === "console" ? (
           <div className="simulation-console-view">
-            <div className="simulation-console-summary">
-              <span>
-                <small>Run</small>
-                <strong>{statusLabel}</strong>
-              </span>
-              <span>
-                <small>Input</small>
-                <strong>{run?.inputStatus ?? "current"}</strong>
-              </span>
-              <span>
-                <small>Analyses</small>
-                <strong>{analysisLabel || "Not configured"}</strong>
-              </span>
-            </div>
             {run?.state === "lost" ? (
               <p>
                 The executor response is unknown. Inspect its evidence before
@@ -1547,12 +1546,6 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
       <header className="simulation-taskbar">
         <div className="simulation-brand">
           <strong>Simulation</strong>
-          <span
-            className={`simulation-status-chip simulation-status-${batch?.state ?? run?.state ?? (prepared ? "prepared" : "idle")}`}
-            role="status"
-          >
-            {activeDirty ? "Source changed" : statusLabel}
-          </span>
         </div>
         <div className="simulation-task-actions">
           {running ? (
@@ -1586,12 +1579,18 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
             </button>
           ) : (
             <button
-              className="simulation-primary-button"
+              className="simulation-primary-button simulation-setup-button"
               onClick={createFolder}
             >
               Set up
             </button>
           )}
+          <span
+            className={`simulation-status-chip simulation-status-${batch?.state ?? run?.state ?? (prepared ? "prepared" : "idle")}`}
+            role="status"
+          >
+            {activeDirty ? "Source changed" : statusLabel}
+          </span>
           {batch ? (
             <details
               ref={batchMenuRef}
@@ -1722,7 +1721,7 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
             props.onPickTerminalsChange?.(active)
           }
           actions={null}
-          status={staleMessage || statusLabel}
+          status={staleMessage}
           onDirty={setDirty}
           onActiveDirty={setActiveDirty}
           onProblem={setProblem}
@@ -1733,7 +1732,7 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
           artifactPreview={artifactPreview}
           artifactBusy={artifactBusy}
           onSelectArtifact={(artifact) => void preview(artifact)}
-          onCloseArtifact={() => setArtifactPreview(undefined)}
+          onCloseArtifact={closeArtifact}
           onDownloadArtifact={(artifact) => void download(artifact)}
           outputPane={resultTab}
           onSelectOutputPane={setResultTab}

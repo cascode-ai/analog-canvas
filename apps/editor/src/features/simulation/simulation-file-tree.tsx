@@ -1,4 +1,16 @@
-import { useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
+import type {
+  SimulationCodeWorkspaceProps,
+  SimulationExplorerSelection,
+  SimulationCodeFile,
+} from "./code-workspace";
+import { simulationArtifactCategory } from "./simulation-artifact-files";
 import {
   useWorkspaceInteractions,
   WorkspaceNameInput,
@@ -26,89 +38,501 @@ export interface SimulationFolderTreeProps {
   onNewFile(id: string): void;
   busy?: boolean;
 }
-/** Selection and expansion do not change execution context. Opening a file does. */
-export function SimulationFolderTree(props: SimulationFolderTreeProps) {
+
+interface TreeNode {
+  id: string;
+  name: string;
+  folderId: string;
+  kind: "folder" | "directory" | "file" | "artifact";
+  children?: TreeNode[];
+  entry?: SimulationExplorerSelection;
+  file?: SimulationCodeFile;
+  expanded?: boolean;
+  tmp?: boolean;
+}
+const collect = (node: TreeNode): SimulationExplorerSelection[] =>
+  node.entry ? [node.entry] : (node.children ?? []).flatMap(collect);
+
+/** One selection owner for directories, source and immutable execution files. */
+export function SimulationFileTree(props: SimulationCodeWorkspaceProps) {
   const ui = useWorkspaceInteractions();
+  const anchor = useRef<string | undefined>(undefined);
   const [selected, setSelected] = useState<string[]>([]);
-  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
-  const action = (name: FolderAction, ids: string[]) =>
-    props.onAction(name, ids);
-  const open = (x: number, y: number, id?: string) => {
-    const ids = id
-      ? selected.includes(id)
-        ? selected.filter((key) => props.folders.some((f) => f.id === key))
-        : [id]
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const folders = props.folders?.folders ?? [
+    { id: props.workspaceKey, name: props.workspaceKey, files: props.files },
+  ];
+  const activeId = props.folders?.activeId ?? props.workspaceKey;
+  useEffect(() => {
+    if (!props.activePath) {
+      setSelected([]);
+      return;
+    }
+    setSelected([activeId + "/file/" + props.activePath]);
+    const parts = props.activePath.split("/").slice(0, -1);
+    setExpanded((state) => {
+      const next = { ...state, [activeId]: true, [activeId + "/source"]: true };
+      let path = activeId + "/source";
+      for (const part of parts) {
+        path += "/" + part;
+        next[path] = true;
+      }
+      return next;
+    });
+  }, [activeId, props.activePath]);
+  const nodes: TreeNode[] = folders.map((folder) => {
+    const files = folder.id === activeId ? props.files : (folder.files ?? []);
+    const source: TreeNode = {
+      id: folder.id + "/source",
+      name: "Source",
+      folderId: folder.id,
+      kind: "directory",
+      children: [],
+      expanded: true,
+    };
+    for (const file of files) {
+      let parent = source;
+      const parts = file.path.split("/");
+      for (const part of parts.slice(0, -1)) {
+        const id = parent.id + "/" + part;
+        let child = parent.children!.find(
+          (node) => node.id === id && node.children,
+        );
+        if (!child) {
+          child = {
+            id,
+            name: part,
+            folderId: folder.id,
+            kind: "directory",
+            children: [],
+          };
+          parent.children!.push(child);
+        }
+        parent = child;
+      }
+      parent.children!.push({
+        id: folder.id + "/file/" + file.path,
+        name: parts.at(-1)!,
+        folderId: folder.id,
+        kind: "file",
+        file,
+        entry: { kind: "source", folderId: folder.id, path: file.path },
+      });
+    }
+    const children = [source];
+    if (folder.id === activeId)
+      for (const group of props.artifactGroups ?? []) {
+        const directory: TreeNode = {
+          id: folder.id + "/" + group.key,
+          name: group.label,
+          folderId: folder.id,
+          kind: "directory",
+          children: [],
+          tmp: true,
+        };
+        for (const artifact of group.artifacts) {
+          const category = simulationArtifactCategory(artifact);
+          let categoryNode = directory.children!.find(
+            (node) => node.name === category,
+          );
+          if (!categoryNode) {
+            categoryNode = {
+              id: directory.id + "/" + category,
+              name: category,
+              folderId: folder.id,
+              kind: "directory",
+              children: [],
+            };
+            directory.children!.push(categoryNode);
+          }
+          categoryNode.children!.push({
+            id: folder.id + "/" + group.key + "/" + artifact.id,
+            name: artifact.name,
+            folderId: folder.id,
+            kind: "artifact",
+            entry: { kind: "artifact", groupKey: group.key, artifact },
+          });
+        }
+        children.push(directory);
+      }
+    return {
+      id: folder.id,
+      name: folder.name,
+      folderId: folder.id,
+      kind: "folder",
+      children,
+      expanded: true,
+    };
+  });
+  const all = new Map<string, TreeNode>();
+  const visit = (items: TreeNode[]) =>
+    items.forEach((node) => {
+      all.set(node.id, node);
+      if (node.children) {
+        if (node.kind !== "folder")
+          node.children.sort(
+            (a, b) =>
+              Number(Boolean(b.children)) - Number(Boolean(a.children)) ||
+              a.name.localeCompare(b.name),
+          );
+        visit(node.children);
+      }
+    });
+  visit(nodes);
+  const isOpen = (node: TreeNode) =>
+    expanded[node.id] ?? node.expanded ?? false;
+  const visible: TreeNode[] = [];
+  const flatten = (items: TreeNode[]) =>
+    items.forEach((node) => {
+      visible.push(node);
+      if (node.children && isOpen(node)) flatten(node.children);
+    });
+  flatten(nodes);
+  const validSelection = selected.filter((id) => all.has(id));
+  const choose = (
+    node: TreeNode,
+    event: { ctrlKey: boolean; metaKey: boolean; shiftKey: boolean },
+  ) => {
+    if (event.shiftKey && anchor.current) {
+      const start = visible.findIndex((item) => item.id === anchor.current);
+      const end = visible.indexOf(node);
+      if (start >= 0) {
+        const range = visible
+          .slice(Math.min(start, end), Math.max(start, end) + 1)
+          .map((item) => item.id);
+        setSelected(
+          event.ctrlKey || event.metaKey
+            ? [...new Set([...validSelection, ...range])]
+            : range,
+        );
+        return;
+      }
+    }
+    anchor.current = node.id;
+    setSelected(
+      event.ctrlKey || event.metaKey
+        ? validSelection.includes(node.id)
+          ? validSelection.filter((id) => id !== node.id)
+          : [...validSelection, node.id]
+        : [node.id],
+    );
+  };
+  const toggle = (node: TreeNode, open = !isOpen(node)) =>
+    setExpanded((state) => ({ ...state, [node.id]: open }));
+  const openFile = (node: TreeNode) => {
+    if (node.entry?.kind === "source") {
+      props.onCloseArtifact?.();
+      props.onSelectFile(node.entry.path, node.folderId);
+    } else if (node.entry?.kind === "artifact")
+      props.onSelectArtifact?.(node.entry.artifact);
+  };
+  const menu = (node: TreeNode | undefined, x: number, y: number) => {
+    const ids = node
+      ? validSelection.includes(node.id)
+        ? validSelection
+        : [node.id]
       : [];
     setSelected(ids);
-    const target = id ?? props.activeId;
-    const items: WorkspaceMenuItem[] = [
-      { label: "New experiment…", run: () => action("new", []) },
-      {
-        label: "New file…",
-        disabled: !target,
-        run: () => {
-          setCollapsed(
-            (set) => new Set([...set].filter((key) => key !== target)),
-          );
-          props.onNewFile(target);
-        },
-      },
+    const targets = ids.map((id) => all.get(id)!);
+    const entries = [
+      ...new Map(
+        targets
+          .flatMap(collect)
+          .map((entry) => [
+            entry.kind === "source"
+              ? "source/" + entry.folderId + "/" + entry.path
+              : "artifact/" + entry.artifact.id,
+            entry,
+          ]),
+      ).values(),
     ];
-    if (ids.length === 1)
-      items.push(
-        {
-          label: "Run folder",
-          disabled: props.busy,
-          run: () => action("run", ids),
-        },
-        { label: "Duplicate…", run: () => action("duplicate", ids) },
-        { label: "Rename…", run: () => action("rename", ids) },
-        { label: "Export folder…", run: () => action("export", ids) },
-        { label: "Delete…", run: () => action("delete", ids) },
-      );
-    if (ids.length > 1)
+    const items: WorkspaceMenuItem[] = [];
+    if (entries.length)
       items.push({
-        label: `Run selected folders (${ids.length})`,
-        disabled: props.busy,
-        run: () => action("batch", ids),
+        label:
+          targets.length > 1
+            ? "Download selected (" + targets.length + ")…"
+            : "Download…",
+        disabled: !props.onDownloadSelection,
+        run: () =>
+          props.onDownloadSelection?.(
+            entries,
+            targets.some((target) => Boolean(target.children)),
+          ),
       });
+    if (targets.length === 1 && node?.file) {
+      items.push(
+        { label: "Open", run: () => openFile(node) },
+        {
+          label: "Copy contents",
+          run: () => props.onCopyFile?.(node.file!.path, node.folderId),
+        },
+      );
+      if (node.file.kind === "authored")
+        for (const [action, label] of [
+          ["rename", "Rename…"],
+          ["delete", "Delete…"],
+          ["entry", "Use as run entry"],
+        ] as const)
+          items.push({
+            label,
+            run: () =>
+              props.onFileAction?.(action, node.file!.path, node.folderId),
+          });
+      if (node.file.draft)
+        items.push({
+          label: "Discard draft",
+          run: () =>
+            props.onFileAction?.("discard", node.file!.path, node.folderId),
+        });
+    }
+    if (props.folders) {
+      if (
+        targets.length <= 1 &&
+        (!node || node.kind === "folder" || node.id.includes("/source"))
+      ) {
+        items.push({
+          label: "New file…",
+          run: () => {
+            const id = node?.folderId ?? activeId;
+            setExpanded((state) => ({
+              ...state,
+              [id]: true,
+              [id + "/source"]: true,
+            }));
+            props.onNewFile?.(id);
+          },
+        });
+      }
+      if (targets.length === 1 && node?.kind === "folder")
+        for (const [action, label] of [
+          ["run", "Run folder"],
+          ["duplicate", "Duplicate…"],
+          ["rename", "Rename…"],
+          ["delete", "Delete…"],
+        ] as const)
+          items.push({
+            label,
+            disabled: action === "run" && props.folders.busy,
+            run: () => props.folders?.onAction(action, [node.folderId]),
+          });
+      if (targets.length > 1 && targets.every((item) => item.kind === "folder"))
+        items.push({
+          label: "Run selected folders (" + targets.length + ")",
+          disabled: props.folders.busy,
+          run: () => props.folders?.onAction("batch", ids),
+        });
+      items.push({
+        label: "New experiment…",
+        run: () => props.folders?.onAction("new", []),
+      });
+    }
     items.push({
       label: "Collapse all",
-      run: () => setCollapsed(new Set(props.folders.map((f) => f.id))),
+      run: () =>
+        setExpanded(
+          Object.fromEntries([...all.keys()].map((id) => [id, false])),
+        ),
     });
-    ui.menu(x, y, items, "Folder actions");
+    ui.menu(
+      x,
+      y,
+      items,
+      node?.file ? "Actions for " + node.file.path : "Folder actions",
+    );
   };
-  const naming = ui.edit?.kind === "folder";
+  const render = (node: TreeNode, level: number): ReactNode => {
+    const naming =
+      ui.edit?.folderId === node.folderId &&
+      (node.kind === "folder"
+        ? ui.edit.kind === "folder"
+        : node.file &&
+          ui.edit.kind === "file" &&
+          ui.edit.path === node.file.path);
+    const active =
+      node.entry?.kind === "source"
+        ? node.folderId === activeId &&
+          node.entry.path === props.activePath &&
+          !props.artifactPreview
+        : node.entry?.kind === "artifact" &&
+          node.entry.artifact.id === props.artifactPreview?.artifact.id;
+    return (
+      <div
+        key={node.id}
+        className="simulation-tree-node"
+        role="none"
+        aria-label={node.tmp ? node.name + " temporary files" : undefined}
+      >
+        <div
+          className={
+            "simulation-tree-row" +
+            (validSelection.includes(node.id) ? " is-selected" : "") +
+            (active ? " is-active" : "")
+          }
+          style={{ "--tree-depth": level } as CSSProperties}
+          onContextMenu={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            menu(node, event.clientX, event.clientY);
+          }}
+        >
+          {node.children ? (
+            <button
+              type="button"
+              className="simulation-tree-chevron"
+              tabIndex={-1}
+              aria-label={"Toggle " + node.name}
+              aria-expanded={isOpen(node)}
+              onClick={(event) => {
+                event.stopPropagation();
+                toggle(node);
+              }}
+            >
+              <svg viewBox="0 0 16 16" aria-hidden="true">
+                <path d={isOpen(node) ? "m4 6 4 4 4-4" : "m6 4 4 4-4 4"} />
+              </svg>
+            </button>
+          ) : (
+            <span className="simulation-tree-chevron" />
+          )}
+          {naming ? (
+            <WorkspaceNameInput />
+          ) : (
+            <button
+              type="button"
+              role="treeitem"
+              aria-level={level + 1}
+              aria-selected={validSelection.includes(node.id)}
+              aria-expanded={node.children ? isOpen(node) : undefined}
+              data-tree-row={node.kind}
+              data-node-id={node.id}
+              data-folder-id={node.folderId}
+              data-file-path={node.file?.path}
+              aria-label={
+                node.kind === "folder" ? "Folder " + node.name : node.name
+              }
+              aria-current={active ? "page" : undefined}
+              title={node.file?.path ?? node.name}
+              onClick={(event) => {
+                choose(node, event);
+                if (!event.ctrlKey && !event.metaKey && !event.shiftKey) {
+                  if (node.children) toggle(node);
+                  else openFile(node);
+                }
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+                  event.preventDefault();
+                  if (node.children) toggle(node, event.key === "ArrowRight");
+                }
+                if (event.key === "F2" || event.key === "Delete") {
+                  event.preventDefault();
+                  if (node.kind === "folder")
+                    props.folders?.onAction(
+                      event.key === "F2" ? "rename" : "delete",
+                      [node.folderId],
+                    );
+                  else if (node.file?.kind === "authored")
+                    props.onFileAction?.(
+                      event.key === "F2" ? "rename" : "delete",
+                      node.file.path,
+                      node.folderId,
+                    );
+                }
+                if (
+                  event.key === "ContextMenu" ||
+                  (event.shiftKey && event.key === "F10")
+                ) {
+                  event.preventDefault();
+                  const rect = event.currentTarget.getBoundingClientRect();
+                  menu(node, rect.left, rect.bottom);
+                }
+              }}
+            >
+              <span className="simulation-tree-icon" aria-hidden="true">
+                <svg viewBox="0 0 16 16">
+                  <path
+                    d={
+                      node.children
+                        ? "M2 4h4l2 2h6v7H2z"
+                        : node.file?.kind === "generated"
+                          ? "m8 2 5 6-5 6-5-6z"
+                          : "M4 2h5l3 3v9H4z M9 2v4h3"
+                    }
+                  />
+                </svg>
+              </span>
+              <span className="simulation-file-name">{node.name}</span>
+              {node.tmp ? <small>tmp</small> : null}
+              {node.file?.dirty ? (
+                <span className="simulation-file-state" title="Unsaved">
+                  ●
+                </span>
+              ) : node.file?.draft ? (
+                <span className="simulation-file-state" title="Saved draft">
+                  ◌
+                </span>
+              ) : null}
+            </button>
+          )}
+        </div>
+        {node.children && isOpen(node) ? (
+          <div role="group" aria-label={node.name + " files"}>
+            {node.id.endsWith("/source") &&
+            ui.edit?.kind === "file" &&
+            ui.edit.folderId === node.folderId &&
+            !ui.edit.path ? (
+              <div
+                className="simulation-tree-row"
+                style={{ "--tree-depth": level + 1 } as CSSProperties}
+              >
+                <WorkspaceNameInput />
+              </div>
+            ) : null}
+            {node.children.map((child) => render(child, level + 1))}
+          </div>
+        ) : null}
+      </div>
+    );
+  };
   return (
     <div
       className="simulation-folder-tree"
+      role="tree"
       aria-label="Simulation folders"
-      onClick={(event) => {
-        if (
-          event.target === event.currentTarget ||
-          (event.target instanceof Element &&
-            event.target.closest('[data-tree-row="file"]'))
-        )
-          setSelected([]);
-      }}
+      aria-multiselectable="true"
       onContextMenu={(event) => {
         event.preventDefault();
-        event.stopPropagation();
-        open(event.clientX, event.clientY);
+        menu(undefined, event.clientX, event.clientY);
+      }}
+      onClick={(event) => {
+        if (event.target === event.currentTarget) setSelected([]);
       }}
       onKeyDown={(event) => {
         event.stopPropagation();
         if (event.target instanceof HTMLInputElement) return;
+        if (
+          (event.ctrlKey || event.metaKey) &&
+          event.key.toLowerCase() === "a"
+        ) {
+          event.preventDefault();
+          setSelected(visible.map((node) => node.id));
+        }
+        if (event.key === "Escape") {
+          event.preventDefault();
+          setSelected([]);
+        }
         if (["ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)) {
+          event.preventDefault();
           const rows = [
             ...event.currentTarget.querySelectorAll<HTMLButtonElement>(
-              "button[data-tree-row]",
+              "[data-node-id]",
             ),
           ];
-          const current = rows.indexOf(
+          const index = rows.indexOf(
             document.activeElement as HTMLButtonElement,
           );
-          const index =
+          const next =
             event.key === "Home"
               ? 0
               : event.key === "End"
@@ -117,112 +541,28 @@ export function SimulationFolderTree(props: SimulationFolderTreeProps) {
                     0,
                     Math.min(
                       rows.length - 1,
-                      current + (event.key === "ArrowDown" ? 1 : -1),
+                      index + (event.key === "ArrowDown" ? 1 : -1),
                     ),
                   );
-          event.preventDefault();
-          rows[index]?.focus();
+          rows[next]?.focus();
+          const node = all.get(rows[next]?.dataset.nodeId ?? "");
+          if (node) choose(node, event);
         }
       }}
     >
-      <button
-        type="button"
-        data-workspace-new-folder="true"
-        onClick={() => action("new", [])}
-      >
-        + New experiment
-      </button>
-      {naming && !ui.edit?.folderId ? (
-        <WorkspaceNameInput key="new-folder" />
+      {props.folders ? (
+        <button
+          type="button"
+          data-workspace-new-folder="true"
+          onClick={() => props.folders?.onAction("new", [])}
+        >
+          + New experiment
+        </button>
       ) : null}
-      {props.folders.map((folder) => (
-        <div key={folder.id}>
-          {naming && ui.edit?.folderId === folder.id ? (
-            <WorkspaceNameInput key={folder.id} />
-          ) : (
-            <div
-              className="workspace-folder-row"
-              onContextMenu={(event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                open(event.clientX, event.clientY, folder.id);
-              }}
-            >
-              <button
-                type="button"
-                className="workspace-folder-toggle"
-                aria-label={`Toggle ${folder.name}`}
-                aria-expanded={!collapsed.has(folder.id)}
-                onClick={() =>
-                  setCollapsed((set) => {
-                    const next = new Set(set);
-                    if (next.has(folder.id)) next.delete(folder.id);
-                    else next.add(folder.id);
-                    return next;
-                  })
-                }
-              >
-                {collapsed.has(folder.id) ? "▸" : "▾"}
-              </button>
-              <button
-                type="button"
-                data-tree-row="folder"
-                data-folder-id={folder.id}
-                aria-label={`Folder ${folder.name}`}
-                aria-pressed={selected.includes(folder.id)}
-                title={
-                  folder.id === props.activeId
-                    ? `${folder.name} · Run target`
-                    : folder.name
-                }
-                className={folder.id === props.activeId ? "is-active" : ""}
-                onClick={(event) =>
-                  setSelected((ids) =>
-                    event.ctrlKey || event.metaKey
-                      ? ids.includes(folder.id)
-                        ? ids.filter((id) => id !== folder.id)
-                        : [...ids, folder.id]
-                      : [folder.id],
-                  )
-                }
-                onKeyDown={(event) => {
-                  if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
-                    event.preventDefault();
-                    setCollapsed((set) => {
-                      const next = new Set(set);
-                      if (event.key === "ArrowLeft") next.add(folder.id);
-                      else next.delete(folder.id);
-                      return next;
-                    });
-                  }
-                  if (event.key === "F2" || event.key === "Delete") {
-                    event.preventDefault();
-                    action(event.key === "F2" ? "rename" : "delete", [
-                      folder.id,
-                    ]);
-                  }
-                  if (
-                    event.key === "ContextMenu" ||
-                    (event.shiftKey && event.key === "F10")
-                  ) {
-                    event.preventDefault();
-                    const rect = event.currentTarget.getBoundingClientRect();
-                    open(rect.left, rect.bottom, folder.id);
-                  }
-                }}
-              >
-                <span>{folder.name}</span>
-                {folder.id === props.activeId ? (
-                  <small className="simulation-run-target-badge">
-                    Run target
-                  </small>
-                ) : null}
-              </button>
-            </div>
-          )}
-          {!collapsed.has(folder.id) ? props.renderFiles(folder.id) : null}
-        </div>
-      ))}
+      {ui.edit?.kind === "folder" && !ui.edit.folderId ? (
+        <WorkspaceNameInput />
+      ) : null}
+      {nodes.map((node) => render(node, 0))}
     </div>
   );
 }

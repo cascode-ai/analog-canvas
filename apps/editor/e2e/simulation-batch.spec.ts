@@ -109,12 +109,12 @@ test("a saved-folder batch prepares first and exposes each ordinary run", async 
   });
   await clickNetlistWorkflowCommand(page, "open-analog-simulation");
   const panel = page.getByRole("region", { name: "Analog simulation" });
-  await panel.getByRole("button", { name: "Folder TT", exact: true }).click();
+  await panel.getByRole("treeitem", { name: "Folder TT", exact: true }).click();
   await panel
-    .getByRole("button", { name: "Folder FF", exact: true })
+    .getByRole("treeitem", { name: "Folder FF", exact: true })
     .click({ modifiers: ["Control"] });
   await panel
-    .getByRole("button", { name: "Folder FF", exact: true })
+    .getByRole("treeitem", { name: "Folder FF", exact: true })
     .click({ button: "right" });
   await page
     .getByRole("menuitem", { name: "Run selected folders (2)" })
@@ -131,8 +131,11 @@ test("a saved-folder batch prepares first and exposes each ordinary run", async 
   expect(executions).toBe(2);
   await batch.getByRole("button", { name: /FF finished/ }).click();
   await expect(
-    panel.getByRole("button", { name: "Folder FF", exact: true }),
-  ).toHaveClass(/is-active/);
+    panel.getByRole("treeitem", { name: "Folder FF", exact: true }),
+  ).toBeVisible();
+  await expect(
+    panel.getByRole("button", { name: "Run", exact: true }),
+  ).toHaveAttribute("title", "Run FF");
   await expect(panel.getByRole("status").first()).toContainText(
     "Batch finished",
   );

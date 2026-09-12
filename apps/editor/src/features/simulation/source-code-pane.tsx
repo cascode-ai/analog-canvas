@@ -763,8 +763,9 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
     };
     const downloadSelection = async (
       selection: readonly SimulationExplorerSelection[],
+      archive = false,
     ) => {
-      if (selection.length === 1) {
+      if (selection.length === 1 && !archive) {
         const item = selection[0]!;
         if (item.kind === "source") {
           const result = downloadTextArtifact(
@@ -778,7 +779,7 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
         } else props.onDownloadArtifact?.(item.artifact);
         return;
       }
-      const archive = await buildSimulationWorkspaceArchive(
+      const bundle = await buildSimulationWorkspaceArchive(
         props.files,
         selection.map((item) => {
           if (item.kind === "artifact")
@@ -797,12 +798,12 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
           };
         }),
       );
-      if (!archive.ok) {
-        props.onProblem(archive.error);
+      if (!bundle.ok) {
+        props.onProblem(bundle.error);
         return;
       }
       const url = URL.createObjectURL(
-        new Blob([archive.bytes as BlobPart], { type: "application/zip" }),
+        new Blob([bundle.bytes as BlobPart], { type: "application/zip" }),
       );
       const anchor = document.createElement("a");
       anchor.href = url;
@@ -876,7 +877,9 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
         {...(props.onDownloadArtifact
           ? { onDownloadArtifact: props.onDownloadArtifact }
           : {})}
-        onDownloadSelection={(selection) => void downloadSelection(selection)}
+        onDownloadSelection={(selection, archive) =>
+          void downloadSelection(selection, archive)
+        }
         files={ownFiles.map((filePath) => ({
           path: filePath,
           kind: input.circuitBindings.some((b) => b.path === filePath)

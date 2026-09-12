@@ -153,13 +153,13 @@ test("incomplete circuit opens Code and saves invalid parameter drafts across re
   await panel.getByRole("tab", { name: "circuit.spice", exact: false }).click();
   await expect(editor).toContainText("bad-value");
   await panel
-    .getByRole("button", { name: "Folder Draft", exact: true })
+    .getByRole("treeitem", { name: "Folder Draft", exact: true })
     .click({ button: "right" });
   await page.getByRole("menuitem", { name: "Duplicate…" }).click();
   await panel.getByLabel("New simulation folder name").fill("Draft copy");
   await panel.getByLabel("New simulation folder name").press("Enter");
   await expect(
-    panel.getByRole("button", { name: "Folder Draft copy", exact: true }),
+    panel.getByRole("treeitem", { name: "Folder Draft copy", exact: true }),
   ).toBeVisible();
 });
 
@@ -410,7 +410,7 @@ test("human simulation uses saved folder, survives minimizing, recovers a bad in
   expect(cancellations).toBe(0);
   release();
   await clickNetlistWorkflowCommand(page, "open-analog-simulation");
-  await expect(panel.getByRole("status")).toHaveText("finished · completed");
+  await expect(panel.getByRole("status")).toHaveText("completed");
   await expect(
     panel
       .locator(".simulation-code-output-tabs")
@@ -421,9 +421,7 @@ test("human simulation uses saved folder, survives minimizing, recovers a bad in
   await panel.getByRole("button", { name: "+ New experiment" }).click();
   await panel.getByLabel("New simulation folder name").fill("Second folder");
   await panel.getByLabel("New simulation folder name").press("Enter");
-  await expect(panel.getByRole("status")).not.toHaveText(
-    "finished · completed",
-  );
+  await expect(panel.getByRole("status")).not.toHaveText("completed");
   await expect(
     panel.getByRole("button", { name: "Toggle E2E folder" }),
   ).toHaveAttribute("aria-expanded", "true");
@@ -431,7 +429,7 @@ test("human simulation uses saved folder, survives minimizing, recovers a bad in
     panel.getByRole("button", { name: "Toggle Second folder" }),
   ).toHaveAttribute("aria-expanded", "true");
   await panel
-    .getByRole("button", { name: "Folder Second folder", exact: true })
+    .getByRole("treeitem", { name: "Folder Second folder", exact: true })
     .click({ button: "right" });
   await page.getByRole("menuitem", { name: "New file…", exact: true }).click();
   await panel
@@ -454,18 +452,16 @@ test("human simulation uses saved folder, survives minimizing, recovers a bad in
     panel.getByRole("textbox", { name: "Simulation source editor" }),
   ).toContainText(".save v(out)");
   await panel
-    .getByRole("button", { name: "Folder E2E folder", exact: true })
+    .getByRole("treeitem", { name: "Folder E2E folder", exact: true })
     .locator("..")
     .locator("..")
-    .getByRole("button", { name: "run.cir", exact: true })
+    .getByRole("treeitem", { name: "run.cir", exact: true })
     .click();
-  await expect(panel.getByRole("status")).toHaveText("finished · completed");
+  await expect(panel.getByRole("status")).toHaveText("completed");
   expect(executions).toBe(1);
   await expect(panel.getByRole("tab", { name: "Summary" })).toHaveCount(0);
   await panel.getByRole("tab", { name: "Console" }).click();
-  await expect(panel.locator(".simulation-console-summary")).toContainText(
-    "finished · completed",
-  );
+  await expect(panel.locator(".simulation-console-summary")).toHaveCount(0);
   await expect(panel.locator(".simulation-console-view > pre")).toBeVisible();
   await panel.getByRole("tab", { name: "Plot", exact: true }).click();
   await panel.getByRole("tab", { name: "Operating Point" }).click();
@@ -906,9 +902,17 @@ test("human simulation uses saved folder, survives minimizing, recovers a bad in
   await waveformDialog.getByRole("button", { name: "Close plot" }).click();
   await panel.getByRole("button", { name: "Restore results" }).click();
   const runFiles = panel.getByLabel("Run temporary files");
-  await runFiles.locator("summary").click();
+  await runFiles
+    .getByRole("button", { name: "Toggle Run", exact: true })
+    .click();
+  await runFiles
+    .getByRole("button", { name: "Toggle Results", exact: true })
+    .click();
+  await runFiles
+    .getByRole("button", { name: "Toggle Evidence", exact: true })
+    .click();
   await expect(
-    panel.getByRole("button", {
+    panel.getByRole("treeitem", {
       name: /evidence-manifest\.json/,
     }),
   ).toBeVisible();
@@ -925,12 +929,13 @@ test("human simulation uses saved folder, survives minimizing, recovers a bad in
   expect((await download).suggestedFilename()).toMatch(/\.csv$/);
   await expect(runFiles).toBeVisible();
   await runFiles
-    .getByRole("button", { name: /evidence-manifest\.json/ })
+    .getByRole("treeitem", { name: /evidence-manifest\.json/ })
     .click({ modifiers: ["Control"] });
+  await runFiles
+    .getByRole("treeitem", { name: /evidence-manifest\.json/ })
+    .click({ button: "right" });
   const bundleDownload = page.waitForEvent("download");
-  await panel
-    .getByRole("button", { name: "Download selected files (2)" })
-    .click();
+  await page.getByRole("menuitem", { name: "Download selected (2)…" }).click();
   expect((await bundleDownload).suggestedFilename()).toMatch(
     /-selected-files\.zip$/,
   );
@@ -968,7 +973,7 @@ test("human simulation uses saved folder, survives minimizing, recovers a bad in
   ).toHaveCount(0);
   await panel.getByRole("button", { name: "Run", exact: true }).click();
   await expect.poll(() => executions).toBe(2);
-  await expect(panel.getByRole("status")).toHaveText("finished · completed");
+  await expect(panel.getByRole("status")).toHaveText("completed");
   await panel.getByRole("tab", { name: "Plot" }).click();
   await expect(panel.locator(".ac-cursor-readout")).toHaveCount(0);
   await transientToolbar.hover();
@@ -1177,7 +1182,7 @@ test("human simulation uses saved folder, survives minimizing, recovers a bad in
   });
   await expect(savedArchives).toContainText("E2E folder");
   await savedArchives.getByRole("button", { name: "Open" }).click();
-  await expect(panel.getByRole("status")).toHaveText("finished · completed");
+  await expect(panel.getByRole("status")).toHaveText("completed");
   expect(executions).toBe(3);
 });
 
@@ -1212,13 +1217,27 @@ test("Simulation creates an ordinary testbench and defaults a new experiment to 
   expect(saved.simulationFolders).toEqual([]);
   await clickNetlistWorkflowCommand(page, "open-analog-simulation");
   await expect(page.getByLabel("Testbench Cell")).toHaveCount(0);
+  const taskbar = page.locator(".simulation-taskbar");
+  const setupBox = await page
+    .getByRole("button", { name: "Set up", exact: true })
+    .boundingBox();
+  const initialBar = await taskbar.boundingBox();
+  expect(setupBox!.height).toBeLessThanOrEqual(24);
+  expect(initialBar!.height).toBeLessThanOrEqual(36);
   await page.getByRole("button", { name: "Set up", exact: true }).click();
   await page.getByLabel("New simulation folder name").fill("Main experiment");
   await expect(page.getByLabel("Folder template")).toHaveCount(0);
   await expect(page.getByLabel("Folder source")).toHaveCount(0);
   await page.getByLabel("New simulation folder name").press("Enter");
+  const runBox = await page
+    .getByRole("button", { name: "Run", exact: true })
+    .boundingBox();
+  const statusBox = await taskbar.getByRole("status").boundingBox();
+  expect(runBox!.height).toBe(setupBox!.height);
+  expect(statusBox!.x).toBeGreaterThanOrEqual(runBox!.x + runBox!.width);
+  expect(Math.abs(statusBox!.y - runBox!.y)).toBeLessThanOrEqual(2);
   await page
-    .getByRole("button", { name: "run.cir", exact: true })
+    .getByRole("treeitem", { name: "run.cir", exact: true })
     .first()
     .click();
   await expect(page.getByLabel("Analysis examples")).toContainText(
@@ -1310,17 +1329,20 @@ test("workspace menus, selection, empty editors and resizing share non-destructi
   const files = workspace.getByRole("complementary", {
     name: "Simulation files",
   });
-  const alpha = files.getByRole("button", {
+  const alpha = files.getByRole("treeitem", {
     name: "Folder Alpha",
     exact: true,
   });
-  const beta = files.getByRole("button", { name: "Folder Beta", exact: true });
+  const beta = files.getByRole("treeitem", {
+    name: "Folder Beta",
+    exact: true,
+  });
   await expect(
     workspace.getByRole("tab", { name: "run.cir", exact: true }),
   ).toHaveAttribute("aria-selected", "true");
   const before = await files.boundingBox();
   await files
-    .getByRole("button", { name: "circuit.spice", exact: true })
+    .getByRole("treeitem", { name: "circuit.spice", exact: true })
     .first()
     .click({ button: "right" });
   await expect(
@@ -1333,7 +1355,7 @@ test("workspace menus, selection, empty editors and resizing share non-destructi
   // One outside click both dismisses the menu and activates its intended target.
   await beta.click({ position: { x: 2, y: 2 } });
   await expect(page.getByRole("menu")).toHaveCount(0);
-  await expect(beta).toHaveAttribute("aria-pressed", "true");
+  await expect(beta).toHaveAttribute("aria-selected", "true");
   await expect(
     page.getByRole("button", { name: "Run", exact: true }),
   ).toHaveAttribute("title", "Run Alpha");
@@ -1358,11 +1380,9 @@ test("workspace menus, selection, empty editors and resizing share non-destructi
   await expect(
     workspace.getByText("Select a file to edit.", { exact: false }),
   ).toBeVisible();
+  await alpha.press("ArrowRight");
   await files
-    .getByRole("button", { name: "Toggle Alpha", exact: true })
-    .click();
-  await files
-    .getByRole("button", { name: "run.cir", exact: true })
+    .getByRole("treeitem", { name: "run.cir", exact: true })
     .first()
     .click();
   await expect(
@@ -1389,10 +1409,11 @@ test("workspace menus, selection, empty editors and resizing share non-destructi
   await expect(
     workspace.getByRole("tab", { name: /circuit\.spice/ }),
   ).toHaveAttribute("aria-selected", "true");
+  await files.getByRole("button", { name: "Toggle Beta", exact: true }).click();
   await beta
     .locator("..")
     .locator("..")
-    .getByRole("button", { name: "run.cir", exact: true })
+    .getByRole("treeitem", { name: "run.cir", exact: true })
     .click();
   await expect(
     workspace.getByRole("tab", { name: "run.cir", exact: true }),
@@ -1400,6 +1421,113 @@ test("workspace menus, selection, empty editors and resizing share non-destructi
   await expect(
     page.getByRole("button", { name: "Run", exact: true }),
   ).toHaveAttribute("title", "Run Beta");
+});
+
+test("Explorer context downloads preserve multi-selection and directory contents without resizing rename rows", async ({
+  page,
+}) => {
+  const workspace = await openWorkspace(page);
+  const tree = workspace.getByRole("tree", { name: "Simulation folders" });
+  const alpha = tree.getByRole("treeitem", {
+    name: "Folder Alpha",
+    exact: true,
+  });
+  const beta = tree.getByRole("treeitem", { name: "Folder Beta", exact: true });
+  const alphaFiles = alpha.locator("../..");
+  const circuit = alphaFiles.getByRole("treeitem", {
+    name: "circuit.spice",
+    exact: true,
+  });
+  const run = alphaFiles.getByRole("treeitem", {
+    name: "run.cir",
+    exact: true,
+  });
+  await expect(
+    workspace.getByRole("button", { name: "Explorer", exact: true }),
+  ).toHaveCount(1);
+  await expect(
+    workspace.getByRole("button", { name: /Download selected/ }),
+  ).toHaveCount(0);
+  await expect(
+    alphaFiles.getByRole("treeitem", { name: "Source", exact: true }),
+  ).toHaveAttribute("aria-expanded", "true");
+  await run.click();
+  await circuit.click({ modifiers: ["Control"] });
+  await expect(
+    workspace.getByRole("tab", { name: "run.cir", exact: true }),
+  ).toHaveAttribute("aria-selected", "true");
+  await run.click({ button: "right" });
+  const pending = page.waitForEvent("download");
+  await page.getByRole("menuitem", { name: "Download selected (2)…" }).click();
+  const stream = await (await pending).createReadStream();
+  const chunks: Buffer[] = [];
+  for await (const chunk of stream!) chunks.push(Buffer.from(chunk));
+  expect(Object.keys(unzipSync(Buffer.concat(chunks))).sort()).toEqual([
+    "Alpha/source/circuit.spice",
+    "Alpha/source/run.cir",
+  ]);
+  await circuit.click();
+  await run.click({ modifiers: ["Shift"] });
+  await expect(
+    alphaFiles.getByRole("treeitem", { selected: true }),
+  ).toHaveCount(3);
+  await expect(
+    workspace.getByRole("tab", { name: /circuit\.spice/ }),
+  ).toHaveAttribute("aria-selected", "true");
+  await beta.click({ button: "right" });
+  await expect(
+    page.getByRole("menuitem", { name: "Download…", exact: true }),
+  ).toBeVisible();
+  await expect(run).toHaveAttribute("aria-selected", "false");
+  await page.keyboard.press("Escape");
+  const bounds = await run.locator("..").boundingBox();
+  await run.focus();
+  await run.press("F2");
+  const name = tree.getByRole("textbox", { name: "Relative file path" });
+  const editingBounds = await name.locator("../..").boundingBox();
+  expect(editingBounds!.height).toBe(bounds!.height);
+  expect(editingBounds!.width).toBe(bounds!.width);
+  await name.press("Escape");
+  await alpha.click({ button: "right" });
+  await page.getByRole("menuitem", { name: "New file…", exact: true }).click();
+  await name.fill("models/bias/local.cir");
+  await name.press("Enter");
+  const models = alphaFiles.getByRole("treeitem", {
+    name: "models",
+    exact: true,
+  });
+  await expect(models).toHaveAttribute("aria-expanded", "true");
+  await expect(
+    alphaFiles.getByRole("treeitem", { name: "local.cir", exact: true }),
+  ).toBeVisible();
+  await models.click();
+  await expect(
+    alphaFiles.getByRole("treeitem", { name: "local.cir", exact: true }),
+  ).toHaveCount(0);
+  await models.click({ button: "right" });
+  const nestedDownload = page.waitForEvent("download");
+  await page.getByRole("menuitem", { name: "Download…", exact: true }).click();
+  expect((await nestedDownload).suggestedFilename()).toMatch(/\.zip$/);
+  // Selecting the parent and one descendant must not duplicate ZIP entries.
+  await alpha.click({ modifiers: ["Control"] });
+  await alpha.click({ button: "right" });
+  const folderDownload = page.waitForEvent("download");
+  await page.getByRole("menuitem", { name: "Download selected (2)…" }).click();
+  const folderStream = await (await folderDownload).createReadStream();
+  const folderChunks: Buffer[] = [];
+  for await (const chunk of folderStream!)
+    folderChunks.push(Buffer.from(chunk));
+  const names = Object.keys(unzipSync(Buffer.concat(folderChunks)));
+  expect(
+    names.filter((path) => path.endsWith("models/bias/local.cir")),
+  ).toHaveLength(1);
+  expect(names).toContain("Alpha/source/experiment.json");
+  await workspace.screenshot({
+    path: test.info().outputPath("compact-explorer.png"),
+  });
+  await page.screenshot({
+    path: test.info().outputPath("simulation-header.png"),
+  });
 });
 
 test("inline naming commits once on blur, cancels on Escape, and deletion uses a local dialog", async ({
@@ -1420,10 +1548,10 @@ test("inline naming commits once on blur, cancels on Escape, and deletion uses a
   await input.fill("Gamma");
   // The destination click is not eaten by the naming transaction.
   await workspace
-    .getByRole("button", { name: "Folder Beta", exact: true })
+    .getByRole("treeitem", { name: "Folder Beta", exact: true })
     .click();
   await expect(
-    workspace.getByRole("button", { name: "Folder Gamma", exact: true }),
+    workspace.getByRole("treeitem", { name: "Folder Gamma", exact: true }),
   ).toHaveCount(1);
   await expect(
     workspace.getByRole("textbox", { name: "Simulation source editor" }),
@@ -1436,9 +1564,9 @@ test("inline naming commits once on blur, cancels on Escape, and deletion uses a
     .fill("Cancelled");
   await page.keyboard.press("Escape");
   await expect(
-    workspace.getByRole("button", { name: "Folder Cancelled", exact: true }),
+    workspace.getByRole("treeitem", { name: "Folder Cancelled", exact: true }),
   ).toHaveCount(0);
-  const gamma = workspace.getByRole("button", {
+  const gamma = workspace.getByRole("treeitem", {
     name: "Folder Gamma",
     exact: true,
   });
@@ -1448,7 +1576,7 @@ test("inline naming commits once on blur, cancels on Escape, and deletion uses a
     .getByRole("textbox", { name: "Folder name", exact: true })
     .fill("Renamed");
   await page.keyboard.press("Enter");
-  const renamed = workspace.getByRole("button", {
+  const renamed = workspace.getByRole("treeitem", {
     name: "Folder Renamed",
     exact: true,
   });
@@ -1490,7 +1618,7 @@ test("inline naming commits once on blur, cancels on Escape, and deletion uses a
   await renamed
     .locator("..")
     .locator("..")
-    .getByRole("button", { name: "stimulus.cir", exact: true })
+    .getByRole("treeitem", { name: "stimulus.cir", exact: true })
     .click();
   await expect(editor).toContainText("Editable new file");
   expect(nativeDialogs).toEqual([]);
