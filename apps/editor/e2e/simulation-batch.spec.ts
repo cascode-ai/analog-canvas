@@ -111,13 +111,29 @@ test("a saved-folder batch prepares first and exposes each ordinary run", async 
   });
   await clickNetlistWorkflowCommand(page, "open-analog-simulation");
   const panel = page.getByRole("region", { name: "Analog simulation" });
-  await panel.getByRole("treeitem", { name: "Folder TT", exact: true }).click();
+  const openEntry = async (name: string, folderId: string) => {
+    const folder = panel.getByRole("treeitem", {
+      name: `Folder ${name}`,
+      exact: true,
+    });
+    if ((await folder.getAttribute("aria-expanded")) !== "true")
+      await folder.click();
+    await panel
+      .locator(
+        `[role="treeitem"][data-folder-id="${folderId}"][data-file-path="run.cir"]`,
+      )
+      .click();
+    await expect(
+      panel.getByRole("button", { name: "Run", exact: true }),
+    ).toHaveAttribute("title", `Run ${name}`);
+  };
+  await openEntry("TT", "folder-tt");
   await editSimulationFile(
     page,
     "run.cir",
     deck.replace("divider", "divider TT draft"),
   );
-  await panel.getByRole("treeitem", { name: "Folder FF", exact: true }).click();
+  await openEntry("FF", "folder-ff");
   await editSimulationFile(
     page,
     "run.cir",
