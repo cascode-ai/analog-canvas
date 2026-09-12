@@ -121,7 +121,9 @@ describe("the preview deploy", () => {
 
   it("exports GUI simulation evidence through the unified Explorer", () => {
     expect(sourceGuiJourney).toContain('name: "Simulation files"');
-    expect(sourceGuiJourney).toContain("Download selected files (${count})");
+    expect(sourceGuiJourney).toContain(
+      'getByRole("menuitem", { name: "Download…"',
+    );
     expect(sourceGuiJourney).toContain(
       'downloadArtifactGroup("Prepare", "prepare.zip")',
     );

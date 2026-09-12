@@ -196,8 +196,13 @@ test("the qualified OTA folder opens unchanged and preserves all root and hierar
   await page.getByRole("menuitem", { name: "View final deck" }).click();
   const prepareFiles = panel.getByLabel("Prepare temporary files");
   await expect(prepareFiles).toBeVisible();
-  await prepareFiles.locator("summary").click();
-  await panel.getByRole("button", { name: /prepared\.cir/ }).click();
+  await prepareFiles
+    .getByRole("button", { name: "Toggle Prepare", exact: true })
+    .click();
+  await prepareFiles
+    .getByRole("button", { name: "Toggle Netlist", exact: true })
+    .click();
+  await panel.getByRole("treeitem", { name: /prepared\.cir/ }).click();
   const preview = panel.getByRole("region", { name: "File preview" });
   const download = page.waitForEvent("download");
   await preview.getByRole("button", { name: "Download", exact: true }).click();
@@ -356,7 +361,7 @@ test("one Testbench persists several independently named folders", async ({
   const panel = page.getByRole("region", { name: "Analog simulation" });
   const folders = panel.getByLabel("Simulation folders", { exact: true });
   await expect(
-    folders.getByRole("button", {
+    folders.getByRole("treeitem", {
       name: "Folder OTA OP, DC, AC, and TRAN",
       exact: true,
     }),
@@ -365,10 +370,10 @@ test("one Testbench persists several independently named folders", async ({
   await folders.getByLabel("New simulation folder name").fill("Bias sweep");
   await folders.getByLabel("New simulation folder name").press("Enter");
   await expect(
-    folders.getByRole("button", { name: "Folder Bias sweep", exact: true }),
+    folders.getByRole("treeitem", { name: "Folder Bias sweep", exact: true }),
   ).toBeVisible();
   await folders
-    .getByRole("button", { name: "Folder Bias sweep", exact: true })
+    .getByRole("treeitem", { name: "Folder Bias sweep", exact: true })
     .click({ button: "right" });
   await page.getByRole("menuitem", { name: "Rename…" }).click();
   await folders
@@ -404,7 +409,7 @@ test("one Testbench persists several independently named folders", async ({
   );
 
   await folders
-    .getByRole("button", { name: "Folder Bias sweep", exact: true })
+    .getByRole("treeitem", { name: "Folder Bias sweep", exact: true })
     .click({ button: "right" });
   await page.getByRole("menuitem", { name: "Delete…" }).click();
   await page
@@ -412,10 +417,10 @@ test("one Testbench persists several independently named folders", async ({
     .getByRole("button", { name: "Cancel" })
     .click();
   await expect(
-    folders.getByRole("button", { name: "Folder Bias sweep", exact: true }),
+    folders.getByRole("treeitem", { name: "Folder Bias sweep", exact: true }),
   ).toBeVisible();
   await folders
-    .getByRole("button", { name: "Folder Bias sweep", exact: true })
+    .getByRole("treeitem", { name: "Folder Bias sweep", exact: true })
     .click({ button: "right" });
   await page.getByRole("menuitem", { name: "Delete…" }).click();
   await page
@@ -423,7 +428,7 @@ test("one Testbench persists several independently named folders", async ({
     .getByRole("button", { name: "Delete", exact: true })
     .click();
   await expect(
-    folders.getByRole("button", { name: "Folder Bias sweep", exact: true }),
+    folders.getByRole("treeitem", { name: "Folder Bias sweep", exact: true }),
   ).toHaveCount(0);
   const afterDelete = JSON.parse(
     (await downloadBytes(page, "File", "Export Project File…")).toString(),

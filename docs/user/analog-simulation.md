@@ -9,7 +9,8 @@ workspace is separate from the development-only Digital tool.
 Code and Properties share the right dock but remember independent widths.
 **Explorer** opens a narrow project tree beside the code. Each experiment puts
 Source first, expanded by default. Prepared and Run artifacts appear beneath it,
-marked **Temporary** and collapsed by default. Choose an experiment there, or
+marked **tmp** and collapsed by default, with expandable artifact categories.
+Source paths also form expandable directories. Choose an experiment there, or
 create, clone, rename or delete one. Multiple experiments can use the same drawn
 Testbench; a different topology is an ordinary separate Cell.
 
@@ -145,9 +146,11 @@ Automatic summaries are separate from authored rules. Both export through
 
 **Export** downloads visible plots as SVG or PNG, complete output CSV, or a
 complete run ZIP. Explorer exposes authored/generated input, prepared deck,
-rawfile and existing result artifacts. Ctrl/Cmd-select any combination of rows,
-then use the Explorer download control; one file downloads directly and several
-download as a hierarchy-preserving ZIP. Image export follows the visible plot;
+rawfile and existing result artifacts. Ctrl/Cmd-select individual rows or use
+Shift for a range, then right-click and choose **Download**. Directories include
+their collapsed descendants; overlapping selections export each file once.
+One file downloads directly and several download as a hierarchy-preserving ZIP.
+Image export follows the visible plot;
 CSV retains full collected numbers. Restricted model data is not bundled.
 
 **Compare** keeps completed results within the session and overlays compatible

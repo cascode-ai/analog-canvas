@@ -43,27 +43,18 @@
 
 .simulation-taskbar {
   position: relative;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: start;
+  display: flex;
+  flex: none;
+  align-items: center;
   gap: 6px;
-  min-height: 44px;
-  padding: 6px 7px;
+  min-height: 30px;
+  padding: 2px 7px;
   border-bottom: 1px solid var(--icm-border);
   background: var(--icm-surface);
 }
-.simulation-brand {
-  display: grid;
-  align-content: start;
-  gap: 2px;
-  min-width: 68px;
-  line-height: 1.05;
-}
-.simulation-brand strong {
-  font-size: var(--icm-font-md);
-}
 .simulation-task-actions {
   display: flex;
+  flex: 1;
   align-items: center;
   gap: 4px;
   min-width: 0;
@@ -72,22 +63,23 @@
 .simulation-task-actions > button {
   flex: 0 0 auto;
   min-width: 0;
-  min-height: 28px;
-  padding: 3px 5px;
+  min-height: 22px;
+  height: 22px;
+  padding: 0 5px;
   border-color: var(--icm-border);
   font-size: var(--icm-font-xs);
 }
 .simulation-status-chip {
   justify-self: start;
-  max-width: 84px;
+  min-width: 0;
+  max-width: none;
   overflow: hidden;
-  padding: 2px 6px;
-  border-radius: 999px;
-  border: 1px solid var(--icm-border);
+  padding: 0 3px;
+  border: 0;
   color: var(--icm-text-muted);
-  background: var(--icm-surface-muted);
-  font-size: 9px;
-  line-height: 1.15;
+  background: transparent;
+  font-size: 10px;
+  line-height: 22px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -211,7 +203,7 @@
 .simulation-status-finished {
   color: #067647;
   border-color: #75e0a7;
-  background: #ecfdf3;
+  background: transparent;
 }
 .simulation-batch-menu {
   position: relative;
@@ -301,7 +293,7 @@
   font-weight: 650;
 }
 .simulation-run-button {
-  width: 30px;
+  width: 22px;
   padding: 0 !important;
 }
 .simulation-stop-button {
@@ -343,15 +335,14 @@
 }
 
 .spice-simulation-surface.maximized .simulation-taskbar {
-  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 24px;
-  padding: 10px 24px;
+  gap: 8px;
+  padding: 2px 12px;
 }
 
 .spice-simulation-surface.maximized .simulation-task-actions {
   justify-self: stretch;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 8px;
 }
 
@@ -360,8 +351,8 @@
 }
 
 .spice-simulation-surface.maximized .simulation-task-actions > button {
-  min-height: 30px;
-  padding-inline: 10px;
+  min-height: 22px;
+  padding-inline: 5px;
 }
 
 .spice-simulation-surface.maximized .simulation-window-actions {
@@ -2157,15 +2148,6 @@
 }
 
 @media (max-width: 700px) {
-  .simulation-taskbar {
-    grid-template-columns: auto minmax(0, 1fr) auto;
-  }
-  .simulation-brand {
-    min-width: 68px;
-  }
-  .simulation-brand strong {
-    font-size: var(--icm-font-sm);
-  }
   .simulation-plot-layout {
     grid-template-columns: 1fr;
   }

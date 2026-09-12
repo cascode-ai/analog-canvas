@@ -145,22 +145,13 @@ async function downloadArtifactGroup(label, name) {
     exact: true,
   });
   await expect(group).toBeVisible();
-  if ((await group.getAttribute("open")) === null)
-    await group.locator("summary").click();
-  const artifacts = group.locator('button[data-tree-row="artifact"]');
-  const count = await artifacts.count();
-  assert(count > 1, `${label} must expose a downloadable artifact bundle`);
-  for (let index = 0; index < count; index += 1) {
-    const artifact = artifacts.nth(index);
-    await expect(artifact).toBeEnabled();
-    await artifact.click(index ? { modifiers: ["Control"] } : undefined);
-  }
+  // A directory context action includes its collapsed descendants.
+  await group
+    .getByRole("treeitem", { name: label, exact: true })
+    .click({ button: "right" });
   return unzipSync(
     await download(
-      explorer.getByRole("button", {
-        name: `Download selected files (${count})`,
-        exact: true,
-      }),
+      page.getByRole("menuitem", { name: "Download…", exact: true }),
       name,
     ),
   );
@@ -251,10 +242,6 @@ try {
   ).toHaveCount(0);
   const preparedEntries = await downloadArtifactGroup("Prepare", "prepare.zip");
   const runEntries = await downloadArtifactGroup("Run", "run.zip");
-  await panel
-    .locator(".simulation-artifact-tab")
-    .getByRole("button", { name: /^Close /u })
-    .click();
   await panel.getByRole("button", { name: "Maximize results" }).click();
   const input = JSON.parse(entryFromZip(preparedEntries, "prepared.json"));
   const result = JSON.parse(entryFromZip(runEntries, "result.json"));
