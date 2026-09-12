@@ -21,6 +21,15 @@ interface NameRequest {
   label: string;
   initial: string;
   validate?(name: string): string | undefined;
+  cellSelection?: {
+    initial: string;
+    options: readonly { id: string; name: string }[];
+    validate(documentId: string): string | undefined;
+  };
+}
+interface NameResult {
+  name: string;
+  documentId?: string;
 }
 interface Confirmation {
   title: string;
@@ -29,8 +38,8 @@ interface Confirmation {
 }
 interface Interactions {
   edit: (NameRequest & { requestId: number }) | undefined;
-  name(request: NameRequest): Promise<string | null>;
-  finishName(value: string | null, restoreFocus?: boolean): void;
+  name(request: NameRequest): Promise<NameResult | null>;
+  finishName(value: NameResult | null, restoreFocus?: boolean): void;
   confirm(request: Confirmation): Promise<boolean>;
   menu(x: number, y: number, items: WorkspaceMenuItem[], label?: string): void;
   closeMenu(restore?: boolean): void;
@@ -46,7 +55,7 @@ export function useWorkspaceInteractions() {
 export function WorkspaceInteractions({ children }: { children: ReactNode }) {
   const [edit, setEdit] = useState<NameRequest & { requestId: number }>();
   const nameSequence = useRef(0);
-  const nameResolver = useRef<((value: string | null) => void) | undefined>(
+  const nameResolver = useRef<((value: NameResult | null) => void) | undefined>(
     undefined,
   );
   const [confirmation, setConfirmation] = useState<Confirmation>();
@@ -69,7 +78,7 @@ export function WorkspaceInteractions({ children }: { children: ReactNode }) {
     setMenu(undefined);
     if (focus) restore();
   };
-  const finishName = (value: string | null, restoreFocus = false) => {
+  const finishName = (value: NameResult | null, restoreFocus = false) => {
     const resolve = nameResolver.current;
     nameResolver.current = undefined;
     setEdit(undefined);
@@ -80,13 +89,13 @@ export function WorkspaceInteractions({ children }: { children: ReactNode }) {
           edit.kind === "folder"
             ? value
               ? document.querySelector<HTMLElement>(
-                  `[aria-label="${CSS.escape(`Folder ${value}`)}"]`,
+                  `[aria-label="${CSS.escape(`Folder ${value.name}`)}"]`,
                 )
               : document.querySelector<HTMLElement>(
                   `[data-folder-id="${CSS.escape(edit.folderId ?? "")}"][data-tree-row="folder"]`,
                 )
             : document.querySelector<HTMLElement>(
-                `[data-folder-id="${CSS.escape(edit.folderId ?? "")}"][data-file-path="${CSS.escape(value ?? edit.path ?? "")}"]`,
+                `[data-folder-id="${CSS.escape(edit.folderId ?? "")}"][data-file-path="${CSS.escape(value?.name ?? edit.path ?? "")}"]`,
               );
         (
           row ??
@@ -269,6 +278,9 @@ function NameInput() {
   const interaction = useWorkspaceInteractions();
   const request = interaction.edit!;
   const [value, setValue] = useState(request.initial);
+  const [documentId, setDocumentId] = useState(
+    request.cellSelection?.initial ?? "",
+  );
   const [error, setError] = useState<string>();
   const input = useRef<HTMLInputElement>(null);
   const finished = useRef(false);
@@ -279,13 +291,25 @@ function NameInput() {
   const finish = (cancel = false, restoreFocus = false) => {
     if (finished.current) return;
     const name = value.trim();
-    const problem = !cancel && name ? request.validate?.(name) : undefined;
+    const problem =
+      !cancel && name
+        ? (request.validate?.(name) ??
+          request.cellSelection?.validate(documentId))
+        : undefined;
     if (problem) {
       setError(problem);
       return;
     }
     finished.current = true;
-    interaction.finishName(cancel || !name ? null : name, restoreFocus);
+    interaction.finishName(
+      cancel || !name
+        ? null
+        : {
+            name,
+            ...(request.cellSelection ? { documentId } : {}),
+          },
+      restoreFocus,
+    );
   };
   return (
     <div
@@ -316,6 +340,39 @@ function NameInput() {
           }
         }}
       />
+      {request.cellSelection ? (
+        <div className="workspace-cell-selection">
+          <label htmlFor={`simulation-cell-${request.requestId}`}>Cell</label>
+          <select
+            id={`simulation-cell-${request.requestId}`}
+            aria-label="Simulation Cell"
+            value={documentId}
+            onChange={(event) => {
+              setDocumentId(event.currentTarget.value);
+              setError(undefined);
+            }}
+            onKeyDown={(event) => {
+              event.stopPropagation();
+              if (event.key === "Escape") {
+                event.preventDefault();
+                finish(true, true);
+              }
+            }}
+          >
+            <option value="" disabled>
+              Select a Cell
+            </option>
+            {request.cellSelection.options.map((cell) => (
+              <option key={cell.id} value={cell.id}>
+                {cell.name}
+              </option>
+            ))}
+          </select>
+          <button type="button" onClick={() => finish(false, true)}>
+            Create
+          </button>
+        </div>
+      ) : null}
       {error ? <small role="status">{error}</small> : null}
     </div>
   );

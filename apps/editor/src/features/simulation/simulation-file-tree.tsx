@@ -26,6 +26,7 @@ export interface SimulationFolderNode {
     draft?: boolean;
   }[];
   configPath?: string;
+  cellLabel?: string;
 }
 export type FolderAction =
   "new" | "duplicate" | "rename" | "delete" | "run" | "export" | "batch";
@@ -49,6 +50,7 @@ interface TreeNode {
   file?: SimulationCodeFile;
   expanded?: boolean;
   tmp?: boolean;
+  cellLabel?: string;
 }
 const collect = (node: TreeNode): SimulationExplorerSelection[] =>
   node.entry ? [node.entry] : (node.children ?? []).flatMap(collect);
@@ -159,6 +161,7 @@ export function SimulationFileTree(props: SimulationCodeWorkspaceProps) {
     return {
       id: folder.id,
       name: folder.name,
+      ...(folder.cellLabel ? { cellLabel: folder.cellLabel } : {}),
       folderId: folder.id,
       kind: "folder",
       children,
@@ -470,6 +473,14 @@ export function SimulationFileTree(props: SimulationCodeWorkspaceProps) {
                 </svg>
               </span>
               <span className="simulation-file-name">{node.name}</span>
+              {node.cellLabel ? (
+                <small
+                  className="simulation-folder-cell"
+                  title={node.cellLabel}
+                >
+                  {node.cellLabel}
+                </small>
+              ) : null}
               {node.tmp ? <small>tmp</small> : null}
               {node.file?.dirty ? (
                 <span className="simulation-file-state" title="Unsaved">
@@ -522,7 +533,11 @@ export function SimulationFileTree(props: SimulationCodeWorkspaceProps) {
         )
           return;
         event.stopPropagation();
-        if (event.target instanceof HTMLInputElement) return;
+        if (
+          event.target instanceof HTMLInputElement ||
+          event.target instanceof HTMLSelectElement
+        )
+          return;
         if (
           (event.ctrlKey || event.metaKey) &&
           event.key.toLowerCase() === "a"
