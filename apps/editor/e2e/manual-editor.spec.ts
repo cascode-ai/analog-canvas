@@ -44,14 +44,15 @@ test("live JSON properties update controls immediately and round-trip raw parame
     0,
   );
   await expect(panel.locator(".cm-property-hint").first()).toBeVisible();
-  await panel
-    .getByRole("button", { name: "Rotate 90° clockwise", exact: true })
-    .click();
+  await panel.getByLabel("Rotation options").selectOption("90");
   await expect(page.getByTestId("revision")).toHaveText(
     String(Number(revision) + 1),
   );
   await panel
     .getByRole("switch", { name: "Show reference", exact: true })
+    .click();
+  await panel
+    .getByRole("button", { name: "Open foreground colors", exact: true })
     .click();
   await panel.getByLabel("Foreground color picker").fill("#dc2626");
   await expect(page.getByTestId("revision")).toHaveText(
@@ -127,9 +128,7 @@ test("live Defaults are undoable and invalid drafts never change the canvas", as
     page.getByText(/Canvas keeps the last valid edit/u),
   ).toBeVisible();
   await expect(page.getByTestId("revision")).toHaveText(lastValidRevision!);
-  await expect(
-    page.getByRole("button", { name: "Rotate 90° clockwise", exact: true }),
-  ).toBeEnabled();
+  await expect(page.getByLabel("Rotation options")).toBeEnabled();
   await page.getByRole("button", { name: "Discard draft" }).click();
   await expectComponentCodeField(page, "parameters.w", "7u");
   await expect(page.locator(".cm-json-key").first()).toBeVisible();
@@ -269,7 +268,7 @@ for (const platform of ["native", "Win32", "Linux x86_64"])
   });
 
 for (const width of [300, 540]) {
-  test(`compact property controls and expanded JSON at ${width}px`, async ({
+  test(`inline property controls and exclusive help at ${width}px`, async ({
     page,
   }) => {
     await page.addInitScript(
@@ -281,62 +280,66 @@ for (const width of [300, 540]) {
     await placeComponent(page, "pmos", { x: 360, y: 220 });
     await openSelectionShelf(page);
     const editor = page.getByTestId("component-property-code-editor");
-    const controls = page.getByRole("group", {
-      name: "Property controls",
-      exact: true,
-    });
-    await expect(controls.getByLabel("Model options")).toBeVisible();
+    const code = page.getByLabel("Editable Canvas property code");
+    await expect(editor.getByLabel("Model options")).toBeVisible();
+    await expect(editor.getByLabel("Rotation options")).toBeVisible();
+    await expect(editor.getByLabel("Mirror options")).toHaveCount(0);
     await expect(
-      controls.getByRole("button", {
-        name: "Rotate 90° clockwise",
-        exact: true,
-      }),
-    ).toBeVisible();
+      editor.locator('[data-property-assist="placement.mirror"] button'),
+    ).toHaveCount(2);
     await expect(
       editor.getByRole("button", { name: "Apply code" }),
     ).toHaveCount(0);
+    const header = editor.locator("header");
     await expect(
-      editor
-        .locator("header")
-        .getByRole("button", { name: "Defaults", exact: true }),
+      header.getByRole("button", { name: "Defaults", exact: true }),
     ).toBeVisible();
-    await expect(
-      editor.locator(".cm-content button, .cm-content select"),
-    ).toHaveCount(0);
+    await expect(code.locator(".cm-property-hint").first()).toBeVisible();
+    const raw = await readComponentPropertyCode(page);
+    await header
+      .getByRole("button", { name: "Need help?", exact: true })
+      .click();
+    await expect(code.locator(".cm-property-hint")).toHaveCount(0);
+    await expect(code.locator(".cm-property-help-block").first()).toBeVisible();
+    expect(await readComponentPropertyCode(page)).toBe(raw);
+    await header
+      .getByRole("button", { name: "Hide help", exact: true })
+      .click();
+    await expect(code.locator(".cm-property-help-block")).toHaveCount(0);
+    await expect(code.locator(".cm-property-hint").first()).toBeVisible();
     const layout = await editor.evaluate((section) => {
-      const controls = section.querySelector(".component-property-controls")!;
-      const rows = [...controls.querySelectorAll('[data-kind="boolean"]')].map(
-        (row) => {
-          const label = row
-            .querySelector(".component-property-control-label")!
-            .getBoundingClientRect();
-          const button = row.querySelector("button")!.getBoundingClientRect();
-          return Math.abs(
-            (label.top + label.bottom - button.top - button.bottom) / 2,
-          );
-        },
-      );
-      const icons = [
-        ...controls.querySelectorAll('[data-kind="rotation"] button'),
-      ].map((button) => button.getBoundingClientRect().top);
+      const rows = [...section.querySelectorAll(".cm-property-assist")];
       const scroll = section.querySelector(".cm-scroller")!;
       return {
         overflow: section.scrollWidth > section.clientWidth,
-        rows,
-        icons,
+        attachedToLine: rows.every((row) => row.closest(".cm-line")),
         scrollable: scroll.scrollHeight > scroll.clientHeight + 1,
         overflowY: getComputedStyle(scroll).overflowY,
       };
     });
-    expect(layout.overflow).toBe(false);
-    expect(Math.max(...layout.rows)).toBeLessThan(3);
-    expect(layout.icons).toHaveLength(3);
-    expect(Math.max(...layout.icons) - Math.min(...layout.icons)).toBeLessThan(
-      2,
-    );
-    expect(layout.scrollable).toBe(false);
-    expect(layout.overflowY).toBe("visible");
-    await controls
+    expect(layout).toMatchObject({
+      overflow: false,
+      attachedToLine: true,
+      scrollable: false,
+      overflowY: "visible",
+    });
+    const swatch = editor.getByRole("button", {
+      name: "Open foreground colors",
+      exact: true,
+    });
+    await expect(
+      editor.getByRole("button", {
+        name: "Use Red for foreground",
+        exact: true,
+      }),
+    ).toBeHidden();
+    await swatch.click();
+    const colors = page.getByRole("dialog", {
+      name: "Foreground color settings",
+      exact: true,
+    });
+    await expect(colors).toBeVisible();
+    await colors
       .getByRole("button", { name: "Use Red for foreground", exact: true })
       .click();
     await expectComponentCodeField(
@@ -344,19 +347,23 @@ for (const width of [300, 540]) {
       "appearance.foreground",
       [220, 38, 38],
     );
-    await controls
-      .getByRole("button", { name: "Flip left/right", exact: true })
-      .click();
+    await swatch.click();
+    await colors.getByLabel("Foreground color picker").focus();
+    await page.keyboard.press("Escape");
+    await expect(colors).toBeHidden();
+    await expect(swatch).toBeFocused();
+    const flip = editor.getByRole("button", {
+      name: "Flip left/right",
+      exact: true,
+    });
+    await flip.click();
+    await expect(flip).toBeFocused();
     await expectComponentCodeField(page, "placement.mirror", "x");
-    await page
-      .getByLabel("Editable Canvas property code")
-      .fill('{"placement":');
+    await code.fill('{"placement":');
     await expect(
-      editor
-        .locator("header")
-        .getByRole("button", { name: "Discard draft", exact: true }),
+      header.getByRole("button", { name: "Discard draft", exact: true }),
     ).toBeVisible();
-    await editor
+    await header
       .getByRole("button", { name: "Discard draft", exact: true })
       .click();
     await expectComponentCodeField(

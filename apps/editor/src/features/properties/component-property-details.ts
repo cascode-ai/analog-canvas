@@ -198,6 +198,7 @@ export function componentDetailFields(
         : parameter.key.toLowerCase() === "nf"
           ? "Gate fingers"
           : parameter.label,
+      help: `${parameter.help}${parameter.defaultValue ? ` Default: ${parameter.defaultValue}.` : ""}${parameter.unit ? " Include any unit suffix in the value." : ""}`,
     })),
     {
       path: "netlistTarget",
@@ -211,6 +212,7 @@ export function componentDetailFields(
         ]),
       ].map((value) => ({ value, label: value || "None" })),
       description: 'Model name · "": clear',
+      help: "Choose a suggested model or type a custom model name in JSON. An empty string clears the target; model compatibility checks still apply.",
     },
     {
       path: "symbol",

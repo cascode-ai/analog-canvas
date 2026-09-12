@@ -113,8 +113,10 @@ authoring surfaces; removing a component remains an explicit Delete action.
 The lazy JSON editor provides syntax highlighting, bracket matching, JSON
 diagnostics and local text undo. Canvas-layer field metadata owns the rotation
 and mirror options, color channel limits and per-field guidance. Compact controls
-sit outside the JSON: three orientation icons, Model, inline visibility switches,
-color pickers, existing presets and global/no-fill resets. They edit the same
+follow their own JSON values: Rotation and Model selectors, two Mirror icons,
+Reference/Value On/Off switches and color swatches. Color settings, including
+existing presets, a custom picker and global/no-fill reset, open from each swatch
+in a dismissible popover rather than occupying the normal text flow. They edit the same
 draft as typing; valid edits transact immediately through the existing planner.
 Left/right and top/bottom actions compose the
 current draft orientation in canvas coordinates, updating rotation and the one
@@ -123,13 +125,15 @@ independent controls remain usable when another field has an invalid value.
 Invalid or rejected drafts preserve the last accepted canvas state. External
 undo/redo synchronizes the editor without replaying edits; Escape blurs this
 editor without applying legacy form drafts or discarding incomplete text.
-Short permanent line-end hints are read-only decorations, never JSON comments
-or persisted data. **Discard draft** restores the last accepted state when
+Short line-end hints are read-only decorations, never JSON comments
+or persisted data. **Need help?** replaces these hints with expanded field help;
+closing help restores the short hints without changing the draft.
+**Discard draft** restores the last accepted state when
 the draft is invalid or rejected, without changing the circuit.
 **Defaults** loads known parameter, orientation, color, and formula defaults
 immediately and remains undoable; it preserves coordinates, reference, model
-target, display flags, and unknown overrides. Defaults and conditional Discard
-are icons beside Copy in the Properties header; there is no Apply button.
+target, display flags, and unknown overrides. Defaults sits beside Need help in
+the Properties header, along with Copy and conditional Discard; there is no Apply button.
 **Copy JSON** copies
 the complete raw draft without decorations from the copy icon at the editor's
 top right, including unapplied whitespace and invalid drafts. The text area

@@ -44,15 +44,17 @@ palette-first manual authoring; no Project file needs to be opened first.
   netlist overrides), reference and model target together with position as
   `"at": [x, y]`, plus quarter-turn
   rotation, mirror, supported Reference/Value visibility, and foreground/background
-  colors. Use the compact rotation/mirror icons, **Model** selector, visibility
-  switches and color presets above the JSON, or type directly. Short gray
-  comments explain fields without becoming part of the data. Fixed colors display as `[R, G, B]` (0–255);
+  colors. Rotation and **Model** selectors, two mirror icons, visibility switches
+  and color swatches follow their JSON values. Click a swatch to open color
+  presets and custom settings, or type directly. Short gray comments explain
+  fields without becoming part of the data. **Need help?** replaces the comments
+  with expanded help until closed. Fixed colors display as `[R, G, B]` (0–255);
   hex input also works. **Global** inherits ink and **No fill** removes the
   independent background override. Flip arrows work in canvas directions.
   Valid edits update the drawing immediately; invalid or rejected edits keep
   the last accepted drawing. Undo restores prior edits. Parameter values are strings: type unit suffixes
   yourself; `EV` remains `EV`, and `2u` is not changed to `2um`.
-  The Properties header contains **Defaults**, **Copy JSON**, and **Discard draft**
+  The Properties header contains **Defaults** beside **Need help?**, **Copy JSON**, and **Discard draft**
   when text is invalid or rejected. Defaults restores known defaults immediately
   without moving, renaming or rebinding the component. Copy JSON copies
   the whole draft, excluding hints and controls. Compatible drawing

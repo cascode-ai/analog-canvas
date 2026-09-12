@@ -57,7 +57,7 @@ interface Props {
   defaultForeground: string;
   focusRequest: number;
   onChange(source: string): void;
-  onApply(): void;
+  showHelp: boolean;
 }
 const refreshAssists = StateEffect.define<null>();
 const externalUpdate = Annotation.define<boolean>();
@@ -65,7 +65,6 @@ const externalUpdate = Annotation.define<boolean>();
 /** Lazy loaded: selecting a component does not make the canvas shell depend on CodeMirror. */
 export default function ComponentPropertyJsonEditor(props: Props) {
   const parent = useRef<HTMLDivElement>(null);
-  const controls = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const latest = useRef(props);
   latest.current = props;
@@ -77,45 +76,6 @@ export default function ComponentPropertyJsonEditor(props: Props) {
   useLayoutEffect(() => {
     if (!parent.current) return;
     const read = () => latest.current;
-    const renderControls = (view: EditorView) => {
-      if (!controls.current) return;
-      const source = view.state.doc.toString();
-      let enabled = true;
-      try {
-        JSON.parse(source);
-      } catch {
-        enabled = false;
-      }
-      const rows = propertyCodeSpans(source, read().context)
-        .filter(({ field }) =>
-          ["boolean", "rotation", "choice", "color"].includes(field.kind),
-        )
-        .map((span) =>
-          new PropertyAssist(
-            span,
-            enabled,
-            read().defaultForeground,
-            read,
-          ).toDOM(view),
-        );
-      if (!enabled) {
-        const note = document.createElement("p");
-        note.className = "component-property-controls-note";
-        note.textContent = "Complete JSON syntax to use controls.";
-        rows.push(note);
-      }
-      // Keep keyboard focus when a control updates the shared draft.
-      const activeLabel = controls.current.contains(document.activeElement)
-        ? document.activeElement?.getAttribute("aria-label")
-        : null;
-      controls.current.replaceChildren(...rows);
-      if (activeLabel) {
-        const target = Array.from(
-          controls.current.querySelectorAll<HTMLElement>("[aria-label]"),
-        ).find((element) => element.getAttribute("aria-label") === activeLabel);
-        target?.focus({ preventScroll: true });
-      }
-    };
     const assistField = StateField.define<DecorationSet>({
       create: (state) => decorations(state, read),
       update: (value, transaction) =>
@@ -165,20 +125,6 @@ export default function ComponentPropertyJsonEditor(props: Props) {
           }),
           keymap.of([
             { key: "Mod-Shift-z", run: redo, preventDefault: true },
-            {
-              key: "Mod-Enter",
-              run: () => {
-                read().onApply();
-                return true;
-              },
-            },
-            {
-              key: "Ctrl-Enter",
-              run: () => {
-                read().onApply();
-                return true;
-              },
-            },
             ...historyKeymap,
             ...closeBracketsKeymap,
             ...defaultKeymap,
@@ -191,13 +137,6 @@ export default function ComponentPropertyJsonEditor(props: Props) {
               )
             )
               read().onChange(update.state.doc.toString());
-            if (
-              update.docChanged ||
-              update.transactions.some((transaction) =>
-                transaction.effects.some((effect) => effect.is(refreshAssists)),
-              )
-            )
-              renderControls(update.view);
           }),
         ],
       });
@@ -206,7 +145,6 @@ export default function ComponentPropertyJsonEditor(props: Props) {
       state: createState.current(read().value),
     });
     viewRef.current = view;
-    renderControls(view);
     return () => {
       viewRef.current = null;
       view.destroy();
@@ -229,23 +167,19 @@ export default function ComponentPropertyJsonEditor(props: Props) {
         ],
       });
     } else view.dispatch({ effects: refreshAssists.of(null) });
-  }, [props.value, props.historyKey, props.context, props.defaultForeground]);
+  }, [
+    props.value,
+    props.historyKey,
+    props.context,
+    props.defaultForeground,
+    props.showHelp,
+  ]);
 
   useLayoutEffect(() => {
     if (props.focusRequest > 0) viewRef.current?.focus();
   }, [props.focusRequest]);
 
-  return (
-    <>
-      <div
-        className="component-property-controls"
-        role="group"
-        aria-label="Property controls"
-        ref={controls}
-      />
-      <div className="component-json-editor" ref={parent} />
-    </>
-  );
+  return <div className="component-json-editor" ref={parent} />;
 }
 
 function decorations(state: EditorState, read: () => Props): DecorationSet {
@@ -276,6 +210,12 @@ function decorations(state: EditorState, read: () => Props): DecorationSet {
     },
   });
   const source = state.doc.toString();
+  let enabled = true;
+  try {
+    JSON.parse(source);
+  } catch {
+    enabled = false;
+  }
   const baseline = new Map(
     propertyCodeSpans(read().baselineCode, read().context).map((span) => [
       span.field.path,
@@ -301,19 +241,61 @@ function decorations(state: EditorState, read: () => Props): DecorationSet {
         class: `cm-property-value${active ? " cm-property-value-active" : ""}${dirty ? " cm-property-value-dirty" : ""}`,
       }).range(span.from, span.to),
     );
-    if (span.field.description) {
+    const at = source[span.to] === "," ? span.to + 1 : span.to;
+    if (!["text", "coordinate"].includes(span.field.kind)) {
+      ranges.push(
+        Decoration.widget({
+          widget: new PropertyAssist(
+            span,
+            enabled,
+            read().defaultForeground,
+            read,
+          ),
+          side: 1,
+        }).range(at),
+      );
+    }
+    if (read().showHelp) {
+      const help = span.field.help || span.field.description;
+      if (help)
+        ranges.push(
+          Decoration.widget({
+            widget: new PropertyHelp(`${span.field.label}: ${help}`),
+            block: true,
+            side: 3,
+          }).range(state.doc.lineAt(span.to).to),
+        );
+    } else if (span.field.description) {
       // Attach to this value, never a shared physical line end. Include its
       // comma so formatted JSON reads naturally; compact JSON stays unambiguous.
-      const at = source[span.to] === "," ? span.to + 1 : span.to;
       ranges.push(
         Decoration.widget({
           widget: new PropertyComment(span.field.description),
-          side: 1,
+          side: 2,
         }).range(at),
       );
     }
   }
   return Decoration.set(ranges, true);
+}
+
+class PropertyHelp extends WidgetType {
+  constructor(readonly text: string) {
+    super();
+  }
+  override eq(other: PropertyHelp) {
+    return this.text === other.text;
+  }
+  toDOM() {
+    const dom = document.createElement("div");
+    dom.className = "cm-property-help-block";
+    dom.contentEditable = "false";
+    dom.textContent = this.text;
+    return dom;
+  }
+  override ignoreEvent() {
+    return true;
+  }
 }
 
 class PropertyComment extends WidgetType {
@@ -359,35 +341,46 @@ class PropertyAssist extends WidgetType {
   }
   toDOM(view: EditorView) {
     const { field, value } = this.span;
-    const dom = document.createElement("div");
+    const dom = document.createElement("span");
     dom.className = "cm-property-assist";
     dom.dataset.kind = field.kind;
     dom.setAttribute("data-property-assist", field.path);
     dom.contentEditable = "false";
-    const label = document.createElement("span");
-    label.className = "component-property-control-label";
-    label.textContent =
-      field.kind === "boolean"
-        ? `Show ${field.label.toLowerCase()}`
-        : field.label;
-    dom.append(label);
-    if (field.kind === "rotation") label.hidden = true;
     dom.addEventListener("keydown", (event) => {
-      if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
-        event.preventDefault();
-        this.read().onApply();
-      }
       event.stopPropagation();
     });
-    const change = (values: Record<string, unknown>) => {
-      const changes = propertyCodeChanges(
-        view.state.doc.toString(),
-        this.read().context,
-        values,
-      );
-      if (changes.length)
+    const dispatchChanges = (
+      changes: ReturnType<typeof propertyCodeChanges>,
+    ) => {
+      if (changes.length) {
+        const previousFocus = document.activeElement;
+        const focusedLabel = previousFocus?.getAttribute("aria-label");
         view.dispatch({ changes, userEvent: "input.property-control" });
+        queueMicrotask(() => {
+          if (!focusedLabel || previousFocus?.isConnected) return;
+          const row = [
+            ...view.dom.querySelectorAll<HTMLElement>("[data-property-assist]"),
+          ].find((node) => node.dataset.propertyAssist === field.path);
+          const next = [
+            ...(row?.querySelectorAll<HTMLElement>("[aria-label]") ?? []),
+          ].find((node) => node.getAttribute("aria-label") === focusedLabel);
+          if (next?.getClientRects().length)
+            next.focus({ preventScroll: true });
+          else
+            row
+              ?.querySelector<HTMLButtonElement>(".cm-property-color-trigger")
+              ?.focus({ preventScroll: true });
+        });
+      }
     };
+    const change = (values: Record<string, unknown>) =>
+      dispatchChanges(
+        propertyCodeChanges(
+          view.state.doc.toString(),
+          this.read().context,
+          values,
+        ),
+      );
     const button = (label: string, text: string, run: () => void) => {
       const control = document.createElement("button");
       control.type = "button";
@@ -409,14 +402,7 @@ class PropertyAssist extends WidgetType {
       toggle.setAttribute("aria-checked", String(value));
       toggle.className = "cm-property-toggle";
     }
-    if (field.kind === "rotation") {
-      const rotate = button("Rotate 90° clockwise", "", () =>
-        change({ [field.path]: (Number(value) + 90) % 360 }),
-      );
-      rotate.append(orientationIcon("rotate"));
-      rotate.disabled =
-        !this.enabled ||
-        !ROTATION_OPTIONS.some((option) => option.value === value);
+    if (field.kind === "mirror") {
       for (const direction of ["left-right", "top-bottom"] as const) {
         const flip = button(
           `Flip ${direction === "left-right" ? "left/right" : "top/bottom"}`,
@@ -427,8 +413,7 @@ class PropertyAssist extends WidgetType {
               this.read().context,
               direction,
             );
-            if (changes.length)
-              view.dispatch({ changes, userEvent: "input.property-control" });
+            dispatchChanges(changes);
           },
         );
         flip.append(orientationIcon(direction));
@@ -439,12 +424,13 @@ class PropertyAssist extends WidgetType {
         ).length;
       }
     }
-    if (field.kind === "choice") {
+    if (field.kind === "choice" || field.kind === "rotation") {
       const select = document.createElement("select");
       select.setAttribute("aria-label", `${field.label} options`);
       select.title = field.description;
       select.disabled = !this.enabled;
-      const options = field.options ?? [];
+      const options =
+        field.kind === "rotation" ? ROTATION_OPTIONS : (field.options ?? []);
       for (const option of options) {
         const element = document.createElement("option");
         element.value = String(option.value);
@@ -464,7 +450,8 @@ class PropertyAssist extends WidgetType {
       select.value = String(value);
       select.onchange = () =>
         change({
-          [field.path]: select.value,
+          [field.path]:
+            field.kind === "rotation" ? Number(select.value) : select.value,
         });
       dom.append(select);
     }
@@ -482,9 +469,44 @@ class PropertyAssist extends WidgetType {
           ? this.foreground
           : "#ffffff"
         : color;
+      const settings = document.createElement("div");
+      settings.className = "component-property-color-popover";
+      settings.setAttribute("popover", "auto");
+      settings.setAttribute("role", "dialog");
+      settings.setAttribute("aria-label", `${field.label} color settings`);
+      const trigger = button(
+        `Open ${field.label.toLowerCase()} colors`,
+        "",
+        () => {
+          const bounds = trigger.getBoundingClientRect();
+          settings.style.left = `${Math.max(8, Math.min(bounds.left, window.innerWidth - 244))}px`;
+          settings.style.top = `${Math.max(8, Math.min(bounds.bottom + 4, window.innerHeight - 152))}px`;
+          settings.togglePopover();
+        },
+      );
+      trigger.className = "cm-property-color-trigger";
+      trigger.style.backgroundColor = effective;
+      trigger.setAttribute("aria-haspopup", "dialog");
+      trigger.setAttribute("aria-expanded", "false");
+      settings.addEventListener("toggle", () =>
+        trigger.setAttribute(
+          "aria-expanded",
+          String(settings.matches(":popover-open")),
+        ),
+      );
+      settings.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") {
+          settings.hidePopover();
+          trigger.focus();
+          event.preventDefault();
+        }
+      });
+      const heading = document.createElement("strong");
+      heading.textContent = field.label;
+      settings.append(heading);
       const picker = document.createElement("input");
       picker.type = "color";
-      picker.value = effective;
+      picker.value = parseCanvasColor(colorToRgb(effective), field.path);
       picker.setAttribute("aria-label", `${field.label} color picker`);
       picker.title = inherited
         ? isForeground
@@ -494,13 +516,14 @@ class PropertyAssist extends WidgetType {
       picker.disabled = !this.enabled;
       picker.onchange = () =>
         change({ [field.path]: colorToRgb(picker.value) });
-      dom.append(picker);
+      settings.append(picker);
       const reset = button(
         isForeground ? "Use global foreground" : "Use no background fill",
         isForeground ? "Global" : "No fill",
         () => change({ [field.path]: "auto" }),
       );
       reset.disabled = !this.enabled || inherited;
+      settings.append(reset);
       const presets = document.createElement("div");
       presets.className = "component-property-swatches";
       presets.setAttribute("aria-label", `${field.label} presets`);
@@ -518,7 +541,8 @@ class PropertyAssist extends WidgetType {
         );
         presets.append(swatch);
       }
-      dom.append(presets);
+      settings.append(presets);
+      dom.append(settings);
     }
     return dom;
   }

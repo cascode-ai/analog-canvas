@@ -66,6 +66,7 @@ export function ComponentPropertyCodeEditor({
   const [draft, setDraft] = useState(baseline);
   const [applyMessage, setApplyMessage] = useState<string | null>(null);
   const [rejected, setRejected] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
 
   useLayoutEffect(() => {
     const ownEdit = appliedCode.current;
@@ -123,12 +124,20 @@ export function ComponentPropertyCodeEditor({
         <div className="component-property-header-actions">
           <button
             type="button"
-            className="component-property-copy"
+            className="component-property-help"
+            aria-expanded={showHelp}
+            onClick={() => setShowHelp((value) => !value)}
+          >
+            {showHelp ? "Hide help" : "Need help?"}
+          </button>
+          <button
+            type="button"
+            className="component-property-help"
             aria-label="Defaults"
             title="Restore parameter and color defaults"
             onClick={() => change(defaultComponentPropertyCode(context))}
           >
-            <span aria-hidden="true">↺</span>
+            Defaults
           </button>
           {(!parsed.ok || rejected) && (
             <button
@@ -182,7 +191,7 @@ export function ComponentPropertyCodeEditor({
           defaultForeground={defaultForeground}
           focusRequest={focusRequest}
           baselineCode={baseline}
-          onApply={() => change(draft)}
+          showHelp={showHelp}
           onChange={change}
         />
       </Suspense>
