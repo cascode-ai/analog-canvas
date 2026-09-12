@@ -180,25 +180,21 @@ export function componentDetailFields(
       path: "reference",
       label: "Reference",
       kind: "text",
-      description: "Unique in Cell",
+      description: "Netlist name",
+      help: "Unique electrical instance name in this Cell. Double-click the drawing label to edit its visual text independently.",
     },
     {
       path: "parameters",
       label: "Parameters",
       kind: "text",
-      description: "Strings · include units",
+      description: "",
     },
     ...context.parameters.map((parameter) => ({
       path: `parameters.${parameter.key}`,
       label: parameter.label,
       kind: parameter.options ? ("choice" as const) : ("text" as const),
       ...(parameter.options ? { options: parameter.options } : {}),
-      description: ["w", "l"].includes(parameter.key.toLowerCase())
-        ? ""
-        : parameter.key.toLowerCase() === "nf"
-          ? "Gate fingers"
-          : parameter.label,
-      help: `${parameter.help}${parameter.defaultValue ? ` Default: ${parameter.defaultValue}.` : ""}${parameter.unit ? " Include any unit suffix in the value." : ""}`,
+      description: parameter.unit ?? "",
     })),
     {
       path: "netlistTarget",

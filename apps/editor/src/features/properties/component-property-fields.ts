@@ -43,14 +43,14 @@ export const CANVAS_PROPERTY_FIELDS: readonly CanvasPropertyField[] = [
     path: "placement.rotation",
     label: "Rotation",
     kind: "rotation",
-    description: "Clockwise degrees",
+    description: "",
     help: "Clockwise rotation: 0°, 90°, 180° or 270°.",
   },
   {
     path: "placement.mirror",
     label: "Mirror",
     kind: "mirror",
-    description: "Local-axis flip",
+    description: "",
     help: "The two icons flip left/right or top/bottom in canvas coordinates. The stored mirror is applied before rotation.",
   },
   {
@@ -71,14 +71,14 @@ export const CANVAS_PROPERTY_FIELDS: readonly CanvasPropertyField[] = [
     path: "appearance.foreground",
     label: "Foreground",
     kind: "color",
-    description: "RGB / hex · auto: global ink",
+    description: "RGB visualization",
     help: "Use the swatch to open presets and a custom color picker. RGB channels are 0–255; hex is accepted. Global inherits document ink.",
   },
   {
     path: "appearance.background",
     label: "Background",
     kind: "color",
-    description: "RGB / hex · auto: no fill",
+    description: "RGB visualization",
     help: "Use the swatch to choose a background preset or custom color. No fill removes only the independent background override.",
   },
 ];

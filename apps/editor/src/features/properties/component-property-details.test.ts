@@ -33,6 +33,20 @@ const context = {
 };
 
 describe("unified component property details", () => {
+  it("uses only declared units for parameters and distinguishes the netlist name", () => {
+    const fields = componentDetailFields(instance, context.details);
+    for (const key of ["m", "nf"])
+      expect(
+        fields.find((field) => field.path === `parameters.${key}`)?.description,
+      ).toBe("");
+    for (const key of ["w", "l"])
+      expect(
+        fields.find((field) => field.path === `parameters.${key}`)?.description,
+      ).toBe("m");
+    expect(
+      fields.find((field) => field.path === "reference")?.description,
+    ).toBe("Netlist name");
+  });
   it("retains reviewed model choices outside the short comment", () => {
     const field = componentDetailFields(instance, context.details).find(
       (item) => item.path === "netlistTarget",
