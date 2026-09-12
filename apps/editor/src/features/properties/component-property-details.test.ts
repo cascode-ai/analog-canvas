@@ -17,7 +17,11 @@ const instance: Instance = {
   id: "M1",
   reference: "M1",
   symbolId: "nmos",
-  placement: { position: { x: 200, y: 160 }, rotation: 90, mirror: "x" },
+  placement: {
+    position: { x: 200, y: 160 },
+    rotation: 90,
+    mirror: "horizontal",
+  },
   netlist: {
     parameters: { w: "EV", l: "L", nf: "2", m: "1", custom: "{x+1}" },
   },

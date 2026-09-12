@@ -13,6 +13,7 @@ import { differentialInputSibling } from "../editor-shell/differential-input-swa
 import { differentialOutputSibling } from "../editor-shell/differential-output-swap";
 import { switchContactStyleSibling } from "../editor-shell/switch-contact-style";
 import type { CanvasPropertyField } from "./component-property-fields";
+import { componentInternalMark } from "./component-visual-variants";
 
 export interface ComponentPropertyDetailsContext {
   parameters: readonly ComponentParameter[];
@@ -70,7 +71,7 @@ export function componentPropertyDetailsValue(
     ...(componentSymbolOptions(instance.symbolId).length > 1
       ? { symbol: instance.symbolId }
       : {}),
-    ...(context.signalFlow
+    ...(context.signalFlow && componentInternalMark(instance) === undefined
       ? { signalFlow: instance.signalFlowParameters ?? {} }
       : {}),
   };
@@ -220,11 +221,15 @@ export function componentDetailFields(
       })),
       description: "Pin-compatible variant",
     },
-    {
-      path: "signalFlow",
-      label: "Signal flow",
-      kind: "text",
-      description: "Presentation only",
-    },
+    ...(componentInternalMark(instance) === undefined
+      ? [
+          {
+            path: "signalFlow",
+            label: "Signal flow",
+            kind: "text" as const,
+            description: "Presentation only",
+          },
+        ]
+      : []),
   ];
 }

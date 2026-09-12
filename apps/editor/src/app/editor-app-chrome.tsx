@@ -22,6 +22,10 @@ interface ResetAction {
   execute: () => void;
 }
 
+interface LabeledCommandAction extends CommandAction {
+  label: string;
+}
+
 interface AlignmentAction extends CommandAction {
   mode: EdgeAlignmentMode;
   label: string;
@@ -48,6 +52,7 @@ export interface EditorAppChromeProps {
   undo: CommandAction;
   redo: CommandAction;
   deleteSelection: CommandAction;
+  copySelectionImages: readonly LabeledCommandAction[];
   resets: readonly ResetAction[];
   rotate: CommandAction;
   mirrorLeftRight: CommandAction;
@@ -107,6 +112,7 @@ export function EditorAppChrome({
   undo,
   redo,
   deleteSelection,
+  copySelectionImages,
   resets,
   rotate,
   mirrorLeftRight,
@@ -262,6 +268,17 @@ export function EditorAppChrome({
                 >
                   Delete
                 </button>
+                <span className="command-group-label">Selection image</span>
+                {copySelectionImages.map((action) => (
+                  <button
+                    key={action.label}
+                    type="button"
+                    onClick={action.execute}
+                    disabled={!action.enabled}
+                  >
+                    {action.label}
+                  </button>
+                ))}
                 {resets.map((action) => (
                   <button
                     key={action.label}

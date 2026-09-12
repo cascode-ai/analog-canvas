@@ -1,7 +1,4 @@
-import {
-  CURRENT_PROJECT_SCHEMA_VERSION,
-  LegacyProjectSimulationSetupSchema,
-} from "@icm/model";
+import { LegacyProjectSimulationSetupSchema } from "@icm/model";
 import { describe, expect, it } from "vitest";
 import {
   CircuitProjectSchema,
@@ -9,7 +6,10 @@ import {
   ProjectSimulationFolderSchema,
   type ProjectSimulationFolder,
 } from "@icm/model";
-import ota from "../../../apps/editor/src/examples/five-transistor-ota-sky130.icproj.json";
+import {
+  currentFiveTransistorOtaCircuitSource,
+  legacyFiveTransistorOta as ota,
+} from "../../../apps/editor/src/examples/five-transistor-ota.test-support.js";
 const legacySetups = () =>
   ota.simulationSetups.map((s) => LegacyProjectSimulationSetupSchema.parse(s));
 import { migrateSimulationSetupToSource } from "./simulation-source-migration.js";
@@ -17,13 +17,7 @@ import { compileSourceSimulation } from "./simulation-source-compile.js";
 import { buildSimulationPlan } from "./simulation-compile.js";
 
 const project = () =>
-  CircuitProjectSchema.parse({
-    ...Object.fromEntries(
-      Object.entries(ota).filter(([key]) => key !== "simulationSetups"),
-    ),
-    schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
-    simulationFolders: [],
-  });
+  CircuitProjectSchema.parse(currentFiveTransistorOtaCircuitSource());
 function config(folder: ProjectSimulationFolder) {
   return SimulationExperimentConfigSchema.parse(
     JSON.parse(

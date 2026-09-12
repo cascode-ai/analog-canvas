@@ -5,10 +5,12 @@ import {
   CircuitProjectSchema,
   type CircuitProject,
   type LegacySimulationSetup as SimulationFolderInput,
-  CURRENT_PROJECT_SCHEMA_VERSION,
   LegacyProjectSimulationSetupSchema,
 } from "@icm/model";
-import ota from "../../../apps/editor/src/examples/five-transistor-ota-sky130.icproj.json";
+import {
+  currentFiveTransistorOtaCircuitSource,
+  legacyFiveTransistorOta as ota,
+} from "../../../apps/editor/src/examples/five-transistor-ota.test-support.js";
 import {
   createSimulationEnvironmentMetadata,
   createSimulationInputMetadata,
@@ -261,13 +263,9 @@ describe("shared simulation lifecycle", () => {
   });
 
   it("expands corner, Design Variable and instance parameter axes into one batch", async () => {
-    const project = CircuitProjectSchema.parse({
-      ...Object.fromEntries(
-        Object.entries(ota).filter(([key]) => key !== "simulationSetups"),
-      ),
-      schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
-      simulationFolders: [],
-    });
+    const project = CircuitProjectSchema.parse(
+      currentFiveTransistorOtaCircuitSource(),
+    );
     const folder = ota.simulationSetups
       .map((s) => LegacyProjectSimulationSetupSchema.parse(s))
       .find((s) => s.input.kind === "structured");
@@ -429,13 +427,9 @@ describe("shared simulation lifecycle", () => {
   });
 
   it("prepares the corner selected by a structured folder", async () => {
-    const project = CircuitProjectSchema.parse({
-      ...Object.fromEntries(
-        Object.entries(ota).filter(([key]) => key !== "simulationSetups"),
-      ),
-      schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
-      simulationFolders: [],
-    });
+    const project = CircuitProjectSchema.parse(
+      currentFiveTransistorOtaCircuitSource(),
+    );
     const folder = LegacyProjectSimulationSetupSchema.parse(
       ota.simulationSetups[0],
     );
@@ -964,13 +958,9 @@ describe("shared simulation lifecycle", () => {
     );
   });
   it("compiles the shipped hierarchical OTA through the public structured prepare path", async () => {
-    const project = CircuitProjectSchema.parse({
-      ...Object.fromEntries(
-        Object.entries(ota).filter(([key]) => key !== "simulationSetups"),
-      ),
-      schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
-      simulationFolders: [],
-    });
+    const project = CircuitProjectSchema.parse(
+      currentFiveTransistorOtaCircuitSource(),
+    );
     const profileId = "test";
     saveSetup(project, {
       version: 3,
@@ -1085,13 +1075,9 @@ describe("shared simulation lifecycle", () => {
   });
 
   it("prepares qualified TRAN and keeps an oversized estimate advisory", async () => {
-    const project = CircuitProjectSchema.parse({
-      ...Object.fromEntries(
-        Object.entries(ota).filter(([key]) => key !== "simulationSetups"),
-      ),
-      schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
-      simulationFolders: [],
-    });
+    const project = CircuitProjectSchema.parse(
+      currentFiveTransistorOtaCircuitSource(),
+    );
     const folder = LegacyProjectSimulationSetupSchema.parse(
       ota.simulationSetups[0],
     );

@@ -382,7 +382,7 @@ describe("authoring helper compilation", () => {
       {
         kind: "mirror",
         target: { kind: "instance", reference: "M1" },
-        mirror: "x",
+        mirror: "horizontal",
       },
     ]);
     expect(transaction?.edits).toEqual([
@@ -397,7 +397,11 @@ describe("authoring helper compilation", () => {
         position: { x: 1, y: 2 },
       },
       { kind: "rotate_instance", instanceId: "instance-2", rotation: 90 },
-      { kind: "mirror_instance", instanceId: "instance-1", mirror: "x" },
+      {
+        kind: "mirror_instance",
+        instanceId: "instance-1",
+        mirror: "horizontal",
+      },
     ]);
   });
 

@@ -567,7 +567,15 @@
         },
         {
           "type": "number",
+          "const": 45
+        },
+        {
+          "type": "number",
           "const": 90
+        },
+        {
+          "type": "number",
+          "const": 135
         },
         {
           "type": "number",
@@ -575,7 +583,15 @@
         },
         {
           "type": "number",
+          "const": 225
+        },
+        {
+          "type": "number",
           "const": 270
+        },
+        {
+          "type": "number",
+          "const": 315
         }
       ]
     },
@@ -583,7 +599,9 @@
       "type": "string",
       "enum": [
         "none",
-        "x"
+        "horizontal",
+        "vertical",
+        "both"
       ]
     },
     "__schema27": {
@@ -14255,7 +14273,15 @@
                       "anyOf": [
                         {
                           "type": "number",
+                          "const": 45
+                        },
+                        {
+                          "type": "number",
                           "const": 90
+                        },
+                        {
+                          "type": "number",
+                          "const": 135
                         },
                         {
                           "type": "number",
@@ -14263,7 +14289,15 @@
                         },
                         {
                           "type": "number",
+                          "const": 225
+                        },
+                        {
+                          "type": "number",
                           "const": 270
+                        },
+                        {
+                          "type": "number",
+                          "const": 315
                         }
                       ]
                     },

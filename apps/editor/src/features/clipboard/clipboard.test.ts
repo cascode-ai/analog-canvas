@@ -705,7 +705,7 @@ describe("schematic clipboard", () => {
     expect(mirroredPreview.instances[0]?.placement).toMatchObject({
       position: { x: 140, y: 80 },
       rotation: 0,
-      mirror: "x",
+      mirror: "horizontal",
     });
   });
 
@@ -831,8 +831,8 @@ describe("schematic clipboard", () => {
       { kind: "reflect", direction: "left-right" },
     ]);
     expect(mirrored.instances.map((instance) => instance.placement)).toEqual([
-      { position: { x: 100, y: 100 }, rotation: 0, mirror: "x" },
-      { position: { x: 0, y: 140 }, rotation: 0, mirror: "x" },
+      { position: { x: 100, y: 100 }, rotation: 0, mirror: "horizontal" },
+      { position: { x: 0, y: 140 }, rotation: 0, mirror: "horizontal" },
     ]);
 
     // A quarter turn orbits R2 around the anchor while both parts turn.
@@ -867,7 +867,11 @@ describe("schematic clipboard", () => {
       ),
     ).toEqual([
       { kind: "rotate_instance", instanceId: "R1-copy-1", rotation: 180 },
-      { kind: "mirror_instance", instanceId: "R1-copy-1", mirror: "x" },
+      {
+        kind: "mirror_instance",
+        instanceId: "R1-copy-1",
+        mirror: "horizontal",
+      },
       { kind: "rotate_instance", instanceId: "R1-copy-1", rotation: 270 },
     ]);
   });

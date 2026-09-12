@@ -16,6 +16,30 @@ async function placeSymbol(page: Page, symbolId: string): Promise<void> {
   await page.keyboard.press("Escape");
 }
 
+async function placeMarkedSymbol(page: Page, symbolId: string): Promise<void> {
+  await placeSymbol(page, symbolId);
+  await page.getByTestId("hit-X1").click();
+  const shelf = page.getByTestId("selection-shelf");
+  if ((await shelf.getAttribute("aria-expanded")) !== "true")
+    await shelf.click();
+  await setComponentCodeField(page, "appearance.internalMark", "A");
+}
+
+async function placeBodyTextSymbol(
+  page: Page,
+  symbolId: string,
+): Promise<void> {
+  if (symbolId === "opamp-lettered") {
+    await placeMarkedSymbol(page, "opamp");
+    return;
+  }
+  if (symbolId === "voltage-amplifier-lettered") {
+    await placeMarkedSymbol(page, "voltage-amplifier");
+    return;
+  }
+  await placeSymbol(page, symbolId);
+}
+
 function bodyText(page: Page) {
   // Scoped to the drawing: the Library chips draw the same body text.
   return page.locator(
@@ -126,7 +150,7 @@ for (const symbolId of [
   "discrete-time-integrator",
 ]) {
   test(`${symbolId} edits its body text on the canvas`, async ({ page }) => {
-    await placeSymbol(page, symbolId);
+    await placeBodyTextSymbol(page, symbolId);
 
     await page.getByTestId("hit-X1").dblclick();
     const editor = page.getByRole("textbox", { name: "Canvas text editor" });
@@ -143,7 +167,7 @@ for (const symbolId of ["adc", "dac", "opamp-lettered"]) {
   test(`${symbolId} body text stays screen-upright after a left/right mirror`, async ({
     page,
   }) => {
-    await placeSymbol(page, symbolId);
+    await placeBodyTextSymbol(page, symbolId);
     await page.getByTestId("hit-X1").click();
     await page.keyboard.press("Shift+R");
 
@@ -164,9 +188,8 @@ for (const symbolId of ["adc", "dac", "opamp-lettered"]) {
 // The swapped-input sibling has no Library tile of its own: it is reached by
 // swapping a placed op-amp's inputs, so it is covered through that path.
 test("the swapped-input op-amp edits its body text too", async ({ page }) => {
-  await placeSymbol(page, "opamp-lettered");
+  await placeMarkedSymbol(page, "opamp");
   await page.getByTestId("hit-X1").click();
-  await page.getByTestId("selection-shelf").click();
   await setComponentCodeField(page, "symbol", "opamp-lettered-inputs-swapped");
 
   await page.getByTestId("hit-X1").dblclick();

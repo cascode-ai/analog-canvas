@@ -1,6 +1,7 @@
 import type {
   DerivedPoint,
   GridPoint,
+  Rotation,
   SchematicDocument,
   VisualAnchor,
 } from "@icm/model";
@@ -20,7 +21,7 @@ import { resolveRouteAttachment } from "./route-attachment.js";
 
 export interface ResolvedAnchor {
   position: DerivedPoint;
-  rotation: 0 | 90 | 180 | 270;
+  rotation: Rotation;
   resolved: boolean;
   /**
    * Present only when the anchor could not be resolved (deleted Route/object,

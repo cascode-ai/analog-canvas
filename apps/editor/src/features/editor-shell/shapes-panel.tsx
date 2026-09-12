@@ -29,6 +29,7 @@ const COMPACT_LIBRARY_LABELS: Readonly<Record<string, string>> = {
   "closed-switch": "Closed",
   "current-source": "I Src",
   "d-flip-flop": "DFF",
+  "d-flip-flop-reset": "DFF R",
   "d-flip-flop-q": "DFQ",
   "ideal-switch": "Open",
   "simple-switch": "Simple",

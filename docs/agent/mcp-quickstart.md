@@ -11,7 +11,7 @@ Use `inspect` and `search` for IDs and pins, not screenshot coordinates.
 Production hides the Agent UI intentionally. Development/staging enables it
 with `VITE_ICM_AGENT_UI=enabled`.
 
-MCP 0.7.0 is the source-folder candidate for API 3.0 and Project schema 51.
+MCP 0.7.0 is the source-folder candidate for API 3.0 and Project schema 53.
 It authors setup v4 source/config files; do not pair older setup-writing helpers
 with this cutover. The distribution manifest continues to identify the last
 published 0.5.0 artifact until a separately verified release is authorized.
@@ -41,7 +41,7 @@ all resulting edits use the existing controller, revision and permission checks.
 
 `selection` accepts `instanceIds`, `routeIds`, `junctionIds`,
 `annotationIds` and `draftingIds`; omitted lists are empty.
-Drafting quarter-turns match the GUI's in-place rotation; other drafting
+Drafting rotations in 45-degree steps match the GUI's in-place rotation; other drafting
 transforms use canonical `upsert_drafting_object` geometry rather than silently
 partially transforming a mixed selection.
 

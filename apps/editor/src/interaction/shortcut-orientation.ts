@@ -14,7 +14,7 @@ export type { ScreenFlip };
  * when the user commits the preview.
  */
 export type PlacementOrientationOperation =
-  | { kind: "rotate"; deltaDegrees: 90 | -90 }
+  | { kind: "rotate"; deltaDegrees: 45 | -45 | 90 | -90 | 180 }
   | { kind: "reflect"; direction: ScreenFlip };
 
 export function applyOrientationOperations(

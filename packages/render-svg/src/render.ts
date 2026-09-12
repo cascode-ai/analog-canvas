@@ -3,6 +3,7 @@ import {
   RectSchema,
   SchematicDocumentSchema,
   inverseTransformPoint,
+  mirrorScale,
   semanticTextDocument,
   transformPoint,
 } from "@icm/model";
@@ -11,7 +12,7 @@ import {
   deriveDocumentContactEvidence,
   fractionGeometry,
   fractionPartScale,
-  isMosBulkRoute,
+  deriveMosBulkRouteFamily,
   resolvePrimitiveStrokeWidth,
   resolveDraftingObjectGeometry,
   resolveEndpointPoint,
@@ -47,6 +48,7 @@ import type {
   Point,
   RichTextDocument,
   RichTextRun,
+  Rotation,
   RouteEndpoint,
   SchematicDocument,
 } from "@icm/model";
@@ -574,8 +576,10 @@ function instanceTransform(
   if (!placement) {
     throw new Error(`Cannot render unplaced instance: ${instance.id}`);
   }
-  const mirror = placement.mirror === "x" ? " scale(-1 1)" : "";
-  return `translate(${placement.position.x} ${placement.position.y}) rotate(${placement.rotation})${mirror}`;
+  const scale = mirrorScale(placement.mirror);
+  const mirror =
+    scale.x === 1 && scale.y === 1 ? "" : ` scale(${scale.x} ${scale.y})`;
+  return `translate(${placement.position.x} ${placement.position.y})${mirror} rotate(${placement.rotation})`;
 }
 
 /**
@@ -631,21 +635,7 @@ function transformedDirection(
     south: { x: 0, y: 1 },
     west: { x: -1, y: 0 },
   } as const;
-  const source = vectors[direction];
-  const mirrored = {
-    x: placement.mirror === "x" ? -source.x : source.x,
-    y: source.y,
-  };
-  switch (placement.rotation) {
-    case 0:
-      return mirrored;
-    case 90:
-      return { x: -mirrored.y, y: mirrored.x };
-    case 180:
-      return { x: -mirrored.x, y: -mirrored.y };
-    case 270:
-      return { x: mirrored.y, y: -mirrored.x };
-  }
+  return transformPoint(vectors[direction], { x: 0, y: 0 }, placement);
 }
 
 function rotateOffset(
@@ -661,6 +651,15 @@ function rotateOffset(
       return { x: -offset.x, y: -offset.y };
     case 270:
       return { x: offset.y, y: -offset.x };
+    default: {
+      const radians = (rotation * Math.PI) / 180;
+      const cosine = Math.cos(radians);
+      const sine = Math.sin(radians);
+      return {
+        x: offset.x * cosine - offset.y * sine,
+        y: offset.x * sine + offset.y * cosine,
+      };
+    }
   }
 }
 
@@ -1028,9 +1027,35 @@ export function buildSvgScene(
       join.kind === "junction-miter" ? [join.junctionId] : [],
     ),
   );
+  const bulkRouteIds = new Set<string>();
+  const bulkRouteColors = new Map<string, string>();
+  for (const route of document.routes) {
+    if (bulkRouteIds.has(route.id)) continue;
+    const family = deriveMosBulkRouteFamily(document, route);
+    if (!family) continue;
+    const ownerColors = new Set(
+      family.instanceIds.map(
+        (instanceId) =>
+          document.instances.find((instance) => instance.id === instanceId)
+            ?.styleOverride?.foreground ?? profile.foreground,
+      ),
+    );
+    const color =
+      ownerColors.size === 1 ? [...ownerColors][0]! : profile.foreground;
+    for (const routeId of family.routeIds) {
+      bulkRouteIds.add(routeId);
+      bulkRouteColors.set(routeId, color);
+    }
+  }
+  const routeStrokeColor = (
+    route: SchematicDocument["routes"][number],
+  ): string =>
+    bulkRouteColors.get(route.id) ??
+    route.styleOverride?.color ??
+    profile.foreground;
   const junctionColorSets = new Map<string, Set<string>>();
   for (const route of document.routes) {
-    const color = route.styleOverride?.color ?? profile.foreground;
+    const color = routeStrokeColor(route);
     const end = route.legs.at(-1)?.to;
     const endpointJunctionIds = [
       ...(route.start.kind === "junction" ? [route.start.junctionId] : []),
@@ -1059,13 +1084,13 @@ export function buildSvgScene(
       if (!geometry) {
         throw new Error(`Cannot render unresolved route: ${route.id}`);
       }
-      const strokeColor = route.styleOverride?.color ?? profile.foreground;
+      const strokeColor = routeStrokeColor(route);
       const terminalBridges = renderTerminalMiterBridges(
         geometry.endpointJoins,
         profile,
         strokeColor,
       );
-      const presentation = isMosBulkRoute(document, route)
+      const presentation = bulkRouteIds.has(route.id)
         ? "bulk-dashed"
         : route.presentation === "bulk-dashed"
           ? "wire"
@@ -1424,7 +1449,7 @@ function resolveRouteMarkerPlacement(
 ): {
   position: Point;
   labelPosition: Point;
-  rotation: 0 | 90 | 180 | 270;
+  rotation: Rotation;
 } | null {
   const route = routingGeometry.routes.get(anchor.routeId);
   if (!route)
@@ -1844,7 +1869,9 @@ function renderFloatingSymbol(
   if (!resolved) return "";
   const position = geometry.position;
   const rotation = object.transform.rotation;
-  const mirror = object.transform.mirror === "x" ? " scale(-1 1)" : "";
+  const scale = mirrorScale(object.transform.mirror);
+  const mirror =
+    scale.x === 1 && scale.y === 1 ? "" : ` scale(${scale.x} ${scale.y})`;
   const hidden = resolved.variant?.hiddenPinNames ?? [];
   const additional = resolved.variant?.additionalPrimitives ?? [];
   const body = renderSymbolDefinitionBody(
@@ -1856,7 +1883,7 @@ function renderFloatingSymbol(
     undefined,
     object.transform,
   );
-  return `<g data-object-id="${object.id}" data-kind="draft-floating-symbol"${unresolved} data-symbol-id="${escapeXml(object.symbolId)}"><g transform="translate(${position.x} ${position.y}) rotate(${rotation})${mirror}">${body}</g></g>`;
+  return `<g data-object-id="${object.id}" data-kind="draft-floating-symbol"${unresolved} data-symbol-id="${escapeXml(object.symbolId)}"><g transform="translate(${position.x} ${position.y})${mirror} rotate(${rotation})">${body}</g></g>`;
 }
 
 function typographyFontSize(

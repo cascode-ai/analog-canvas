@@ -119,9 +119,11 @@ export interface UseComponentPlacementOptions {
     object: Extract<DraftingObject, { kind: "text" }>,
   ) => void;
   nextId: (prefix: string) => string;
-  rotateComponentPlacement: (delta: 90 | -90) => void;
+  rotateComponentPlacement: (delta: 45 | -45 | 90 | -90) => void;
   mirrorComponentPlacement: (direction: ScreenFlip) => void;
-  componentPlacementRotation: 0 | 90 | 180 | 270;
+  componentPlacementRotation: NonNullable<
+    SchematicDocument["instances"][number]["placement"]
+  >["rotation"];
   componentPlacementMirror: NonNullable<
     SchematicDocument["instances"][number]["placement"]
   >["mirror"];
@@ -826,9 +828,11 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
     setInsertInitialSelectionId(null);
   };
 
-  const rotatePendingComponent = (delta: 90 | -90): void => {
+  const rotatePendingComponent = (delta: 45 | -45 | 90 | -90): void => {
     options.rotateComponentPlacement(delta);
-    options.setStatus(`Component rotation ${delta > 0 ? "+90°" : "−90°"}`);
+    options.setStatus(
+      `Component rotation ${delta > 0 ? `+${delta}°` : `${delta}°`}`,
+    );
   };
 
   const mirrorPendingComponent = (direction: ScreenFlip): void => {

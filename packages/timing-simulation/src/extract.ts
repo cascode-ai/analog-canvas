@@ -21,6 +21,7 @@ export interface DigitalDff {
   readonly instanceId: string;
   readonly dNetId: string;
   readonly clockNetId: string;
+  readonly resetNetId?: string;
   readonly qNetId: string;
   readonly qBarNetId?: string;
   readonly initialQ: LogicValue;
@@ -160,12 +161,17 @@ function extractDff(
   netIdByTerminal: ReadonlyMap<string, string>,
   diagnostics: SimulationDiagnostic[],
 ): DigitalDff | null {
-  if (instance.symbolId !== "d-flip-flop") return null;
+  const resettable = instance.symbolId === "d-flip-flop-reset";
+  if (instance.symbolId !== "d-flip-flop" && !resettable) return null;
   const dNetId = pinNet(instance, "D", netIdByTerminal, diagnostics);
   const clockNetId = pinNet(instance, "CK", netIdByTerminal, diagnostics);
+  const resetNetId = resettable
+    ? pinNet(instance, "RST", netIdByTerminal, diagnostics)
+    : null;
   const qNetId = pinNet(instance, "Q", netIdByTerminal, diagnostics);
   const qBarNetId = netIdByTerminal.get(`${instance.id}\u0000QBAR`);
-  if (!dNetId || !clockNetId || !qNetId) return null;
+  if (!dNetId || !clockNetId || !qNetId || (resettable && !resetNetId))
+    return null;
   const authoredInitial = instance.netlist?.parameters.initialQ?.trim();
   const profileInitial = profile.initialStateByInstanceId?.[instance.id];
   const initialQ =
@@ -177,6 +183,7 @@ function extractDff(
     instanceId: instance.id,
     dNetId,
     clockNetId,
+    ...(resetNetId ? { resetNetId } : {}),
     qNetId,
     ...(qBarNetId ? { qBarNetId } : {}),
     initialQ,
@@ -339,6 +346,7 @@ export function extractDigitalCircuit(
     if (
       !GATE_BY_SYMBOL_ID[instance.symbolId] &&
       instance.symbolId !== "d-flip-flop" &&
+      instance.symbolId !== "d-flip-flop-reset" &&
       instance.symbolId !== "pulse-voltage-source" &&
       !IGNORED_SYMBOL_IDS.has(instance.symbolId)
     ) {

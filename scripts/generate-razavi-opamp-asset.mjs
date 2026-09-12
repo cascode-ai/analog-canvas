@@ -28,10 +28,10 @@ const differentialAssetPaths = {
 };
 /** Figure-derived pair height before the reviewed product-scale adjustment. */
 const SOURCE_PAIR_OFFSET = 10;
-/** Keep both input and output pairs one connection grid farther apart. */
-const OUTPUT_PAIR_OFFSET = 20;
-/** Polarity glyphs sit half a grid inward from their associated pin pairs. */
-const POLARITY_PAIR_OFFSET = 15;
+/** Every differential input/output pair uses the ordinary Op Amp's ±10 grid. */
+const OUTPUT_PAIR_OFFSET = 10;
+/** Polarity glyphs stay associated with that same shared pair spacing. */
+const POLARITY_PAIR_OFFSET = 10;
 /** Add a small horizontal gap between input- and output-side glyphs. */
 const POLARITY_HORIZONTAL_SPREAD = 1;
 const catalogPath = resolve(root, "packages/components/catalog.json");
@@ -40,8 +40,10 @@ const normalize = (value) => `${value.replaceAll("\r\n", "\n").trimEnd()}\n`;
 const hash = (value) => createHash("sha256").update(value).digest("hex");
 const normal = { strokeRole: "normal", lineCap: "butt", lineJoin: "miter" };
 const ANALOG_BLOCK_LEAD_LENGTH = 10;
-const OPAMP_INPUT_PIN_X = -30;
-const OPAMP_OUTPUT_PIN_X = 30;
+const OPAMP_INPUT_PIN_X = -40;
+const OPAMP_OUTPUT_PIN_X = 40;
+const OPAMP_BODY_LEFT_X = -26.7979;
+const OPAMP_BODY_APEX_X = 23.2021;
 
 function fail(message) {
   throw new Error(`Razavi op-amp generation: ${message}`);
@@ -80,7 +82,7 @@ const symbol = {
   schemaVersion: 1,
   id: "opamp",
   name: "Operational Amplifier",
-  viewBox: { x: -34, y: -28, width: 68, height: 56 },
+  viewBox: { x: -44, y: -28, width: 88, height: 56 },
   pins: [
     {
       name: "IN+",
@@ -117,13 +119,16 @@ const symbol = {
     line({
       ...geometry.inputMinus,
       from: { ...geometry.inputMinus.from, x: OPAMP_INPUT_PIN_X },
+      to: { ...geometry.inputMinus.to, x: OPAMP_BODY_LEFT_X },
     }),
     line({
       ...geometry.inputPlus,
       from: { ...geometry.inputPlus.from, x: OPAMP_INPUT_PIN_X },
+      to: { ...geometry.inputPlus.to, x: OPAMP_BODY_LEFT_X },
     }),
     line({
       ...geometry.output,
+      from: { ...geometry.output.from, x: OPAMP_BODY_APEX_X },
       to: { ...geometry.output.to, x: OPAMP_OUTPUT_PIN_X },
     }),
     {
@@ -152,9 +157,9 @@ const assetSource = normalize(
 /**
  * Figure 13.48 supplies the fully differential polarity layout and dual-output
  * topology. Its printed triangle is compact, whereas the product contract is
- * that FD Amp uses the same triangle body as the ordinary Razavi Op Amp
- * (Figure 8.26). Scale only the Figure 13.48 polarity layout into that shared
- * body; retain pin semantics and derive only marks needed for each state.
+ * that every triangular Analog Block uses the ordinary Razavi Op Amp body
+ * (Figure 8.26). Scale only Figure 13.48's polarity layout into that exact
+ * shared body; retain pin semantics and derive only marks needed per state.
  */
 const differentialAuthority = manifest.vectorEvidence?.find(
   (candidate) =>
@@ -200,71 +205,23 @@ const compactDifferentialTriangle = {
   topY: -15.0002,
   bottomY: 14.9993,
 };
-const FD_AMP_SIZE_SCALE = 1.4;
-const BASE_FD_AMP_BODY_SCALE =
-  (opampTriangle.apexX - opampTriangle.leftX) /
-  (compactDifferentialTriangle.apexX - compactDifferentialTriangle.leftX);
-const FD_AMP_BODY_SCALE = BASE_FD_AMP_BODY_SCALE * FD_AMP_SIZE_SCALE;
 const opampCenterX = (opampTriangle.leftX + opampTriangle.apexX) / 2;
 const opampCenterY = (opampTriangle.topY + opampTriangle.bottomY) / 2;
-const compactDifferentialCenterX =
-  (compactDifferentialTriangle.leftX + compactDifferentialTriangle.apexX) / 2;
-const compactDifferentialCenterY =
-  (compactDifferentialTriangle.topY + compactDifferentialTriangle.bottomY) / 2;
-const scaleDifferentialPointBy = ({ x, y }, scale) => ({
-  x: opampCenterX + (x - compactDifferentialCenterX) * scale,
-  y: opampCenterY + (y - compactDifferentialCenterY) * scale,
+const scaleDifferentialMarkPoint = ({ x, y }) => ({
+  x:
+    opampTriangle.leftX +
+    ((x - compactDifferentialTriangle.leftX) *
+      (opampTriangle.apexX - opampTriangle.leftX)) /
+      (compactDifferentialTriangle.apexX - compactDifferentialTriangle.leftX),
+  y:
+    opampTriangle.topY +
+    ((y - compactDifferentialTriangle.topY) *
+      (opampTriangle.bottomY - opampTriangle.topY)) /
+      (compactDifferentialTriangle.bottomY - compactDifferentialTriangle.topY),
 });
-const scaleDifferentialPoint = (point) =>
-  scaleDifferentialPointBy(point, FD_AMP_BODY_SCALE);
-const scaleDifferentialMarkPoint = (point) =>
-  scaleDifferentialPointBy(point, BASE_FD_AMP_BODY_SCALE);
-const scaledDifferentialTriangle = {
-  leftX: scaleDifferentialPoint({
-    x: compactDifferentialTriangle.leftX,
-    y: compactDifferentialCenterY,
-  }).x,
-  apexX: scaleDifferentialPoint({
-    x: compactDifferentialTriangle.apexX,
-    y: compactDifferentialCenterY,
-  }).x,
-  topY: scaleDifferentialPoint({
-    x: compactDifferentialTriangle.leftX,
-    y: compactDifferentialTriangle.topY,
-  }).y,
-  bottomY: scaleDifferentialPoint({
-    x: compactDifferentialTriangle.leftX,
-    y: compactDifferentialTriangle.bottomY,
-  }).y,
-  apexY: scaleDifferentialPoint({
-    x: compactDifferentialTriangle.apexX,
-    y: 0.000436,
-  }).y,
-};
-const baseDifferentialTriangle = {
-  leftX: opampTriangle.leftX,
-  apexX: opampTriangle.apexX,
-  topY: scaleDifferentialMarkPoint({
-    x: compactDifferentialTriangle.leftX,
-    y: compactDifferentialTriangle.topY,
-  }).y,
-  bottomY: scaleDifferentialMarkPoint({
-    x: compactDifferentialTriangle.leftX,
-    y: compactDifferentialTriangle.bottomY,
-  }).y,
-  apexY: scaleDifferentialMarkPoint({
-    x: compactDifferentialTriangle.apexX,
-    y: 0.000436,
-  }).y,
-};
-const coordinate = (value) => Number(value.toFixed(6));
-const differentialTrianglePathData =
-  `M ${coordinate(scaledDifferentialTriangle.leftX)} ` +
-  `${coordinate(scaledDifferentialTriangle.topY)} ` +
-  `L ${coordinate(scaledDifferentialTriangle.leftX)} ` +
-  `${coordinate(scaledDifferentialTriangle.bottomY)} ` +
-  `L ${coordinate(scaledDifferentialTriangle.apexX)} ` +
-  `${coordinate(scaledDifferentialTriangle.apexY)} Z`;
+const scaledDifferentialTriangle = { ...opampTriangle, apexY: 0 };
+const baseDifferentialTriangle = scaledDifferentialTriangle;
+const differentialTrianglePathData = geometry.trianglePathData;
 const triangleEdgeXAtY = (triangle, y) => {
   const reachesApexFromTop = y <= triangle.apexY;
   const edgeY = reachesApexFromTop ? triangle.topY : triangle.bottomY;
@@ -322,13 +279,15 @@ const acrossAxis = (primitive) => ({
   to: { ...primitive.to, y: -primitive.to.y },
 });
 const CONNECTION_GRID = 10;
-const pinOnGridOutsideBody = (contact, pin, direction) => ({
+const pinOneGridOutsideBody = (contact, pin, direction) => ({
   ...pin,
   at: {
     x:
       (direction === "west" ? Math.floor : Math.ceil)(
         contact.x / CONNECTION_GRID,
-      ) * CONNECTION_GRID,
+      ) *
+        CONNECTION_GRID +
+      (direction === "west" ? -CONNECTION_GRID : CONNECTION_GRID),
     y: contact.y,
   },
   presentation: {
@@ -336,9 +295,6 @@ const pinOnGridOutsideBody = (contact, pin, direction) => ({
     leadLength: ANALOG_BLOCK_LEAD_LENGTH,
   },
 });
-const TRIANGLE_STROKE_WIDTH = 2.4;
-const TRIANGLE_HALF_STROKE = TRIANGLE_STROKE_WIDTH / 2;
-const LEAD_JOIN_EPSILON = 0.05;
 const outputContact = (y) => {
   const reachesApexFromTop = y <= 0;
   const edgeY = reachesApexFromTop
@@ -357,8 +313,7 @@ const outputContact = (y) => {
   };
 };
 const inputLeadContact = (y) => ({
-  x:
-    scaledDifferentialTriangle.leftX - TRIANGLE_HALF_STROKE + LEAD_JOIN_EPSILON,
+  x: scaledDifferentialTriangle.leftX,
   y,
 });
 const outputLeadContact = (y) => {
@@ -413,17 +368,17 @@ const sourceOutputMarks = [
   ),
 ];
 const differentialSymbol = (id, name, plusOutputAtBottom) => {
-  const topInput = pinOnGridOutsideBody(
+  const topInput = pinOneGridOutsideBody(
     inputLeadContact(-OUTPUT_PAIR_OFFSET),
     symbol.pins[1],
     "west",
   );
-  const bottomInput = pinOnGridOutsideBody(
+  const bottomInput = pinOneGridOutsideBody(
     inputLeadContact(OUTPUT_PAIR_OFFSET),
     symbol.pins[0],
     "west",
   );
-  const topOutput = pinOnGridOutsideBody(
+  const topOutput = pinOneGridOutsideBody(
     outputLeadContact(-OUTPUT_PAIR_OFFSET),
     {
       name: "OUT-",
@@ -434,7 +389,7 @@ const differentialSymbol = (id, name, plusOutputAtBottom) => {
     },
     "east",
   );
-  const bottomOutput = pinOnGridOutsideBody(
+  const bottomOutput = pinOneGridOutsideBody(
     outputLeadContact(OUTPUT_PAIR_OFFSET),
     {
       name: "OUT+",
@@ -455,7 +410,7 @@ const differentialSymbol = (id, name, plusOutputAtBottom) => {
     schemaVersion: 1,
     id,
     name,
-    viewBox: { x: -44, y: -34, width: 82, height: 68 },
+    viewBox: symbol.viewBox,
     pins: [bottomInput, topInput, ...outputPins],
     primitives: [
       inputLead(topInput, inputLeadContact(-OUTPUT_PAIR_OFFSET)),

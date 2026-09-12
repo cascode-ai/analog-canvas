@@ -1,6 +1,7 @@
 import { deviceDescriptor, resolveReviewedExternalBinding } from "@icm/devices";
 import {
   endpointKey,
+  deriveMosBulkRouteFamily,
   hasDifferentialInputs,
   resolveDocumentLogicalNets,
   resolveNetLabelBinding,
@@ -94,6 +95,12 @@ export function deriveSelectionInspectionModel({
   const selectedRoute = selectedRouteId
     ? document.routes.find((route) => route.id === selectedRouteId)
     : undefined;
+  const selectedMosBulkRouteFamily = selectedRoute
+    ? deriveMosBulkRouteFamily(document, selectedRoute)
+    : undefined;
+  const selectedMosBulkOwnerLabel = selectedMosBulkRouteFamily
+    ? selectedMosBulkRouteFamily.instanceIds.join(", ")
+    : null;
   const selectedRouteNetLabels = selectedRoute
     ? document.annotations.filter(
         (annotation) =>
@@ -160,11 +167,13 @@ export function deriveSelectionInspectionModel({
     : selectedIds.length > 1
       ? `${selectedIds.length} components`
       : selectedRoute
-        ? `Route · ${
-            resolveDocumentLogicalNets(document).byBaseNetId.get(
-              selectedRoute.netId,
-            )?.name ?? selectedRoute.netId
-          }`
+        ? selectedMosBulkOwnerLabel
+          ? `Bulk · ${selectedMosBulkOwnerLabel}`
+          : `Route · ${
+              resolveDocumentLogicalNets(document).byBaseNetId.get(
+                selectedRoute.netId,
+              )?.name ?? selectedRoute.netId
+            }`
         : selectedAnnotation
           ? `Annotation · ${selectedAnnotation.kind}`
           : selectedDrafting
@@ -210,6 +219,7 @@ export function deriveSelectionInspectionModel({
     selectedReviewedExternalBinding,
     selectedPropertyDevice,
     selectedRoute,
+    selectedMosBulkOwnerLabel,
     selectedRouteNetLabels,
     selectedRouteNetLabel,
     selectedAnnotation,

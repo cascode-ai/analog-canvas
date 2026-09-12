@@ -264,6 +264,8 @@ export function EditorDraftingHitTargets({
         {...geometry.bounds}
         onDoubleClick={(event) => {
           if (object.kind !== "text") return;
+          if (object.polarity === "positive" || object.polarity === "negative")
+            return;
           if (!selectionPolicy.allowsDrafting(object, "edit")) return;
           event.stopPropagation();
           onTextEdit(object);

@@ -221,7 +221,7 @@ describe("EndpointConnection transform lifecycle", () => {
         placement: {
           position: { x: 260, y: 190 },
           rotation: 0,
-          mirror: "x",
+          mirror: "horizontal",
         },
         mosBulkBinding: {
           netId: "net-vdd",
@@ -325,7 +325,7 @@ describe("EndpointConnection transform lifecycle", () => {
     ],
     [
       "mirror",
-      { kind: "mirror_instance", instanceId: "M1", mirror: "x" },
+      { kind: "mirror_instance", instanceId: "M1", mirror: "horizontal" },
       { x: 100, y: 100 },
     ],
   ] as const)(

@@ -239,7 +239,12 @@ describe("terminal-aware shortening", () => {
   it.each([0, 90, 180, 270] as const)(
     "does not fold wire over a Port lead at rotation %s",
     (rotation) => {
-      for (const mirror of ["none", "x"] as const) {
+      for (const mirror of [
+        "none",
+        "horizontal",
+        "vertical",
+        "both",
+      ] as const) {
         for (const reverse of [false, true]) {
           const d = looseWires();
           d.routes = [];

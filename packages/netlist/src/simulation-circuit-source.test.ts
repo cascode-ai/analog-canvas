@@ -1,10 +1,10 @@
-import {
-  CURRENT_PROJECT_SCHEMA_VERSION,
-  LegacyProjectSimulationSetupSchema,
-} from "@icm/model";
+import { LegacyProjectSimulationSetupSchema } from "@icm/model";
 import { describe, expect, it } from "vitest";
 import { CircuitProjectSchema } from "@icm/model";
-import ota from "../../../apps/editor/src/examples/five-transistor-ota-sky130.icproj.json";
+import {
+  currentFiveTransistorOtaCircuitSource,
+  legacyFiveTransistorOta as ota,
+} from "../../../apps/editor/src/examples/five-transistor-ota.test-support.js";
 import { analyzeDesignNetlist } from "./extract.js";
 const legacySetups = () =>
   ota.simulationSetups.map((s) => LegacyProjectSimulationSetupSchema.parse(s));
@@ -15,13 +15,9 @@ import {
 } from "./simulation-circuit-source.js";
 
 function fixture() {
-  const project = CircuitProjectSchema.parse({
-    ...Object.fromEntries(
-      Object.entries(ota).filter(([key]) => key !== "simulationSetups"),
-    ),
-    schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
-    simulationFolders: [],
-  });
+  const project = CircuitProjectSchema.parse(
+    currentFiveTransistorOtaCircuitSource(),
+  );
   const folder = legacySetups().find((s) => s.input.kind === "structured")!;
   if (folder.input.kind !== "structured") throw Error("expected Canvas folder");
   const result = generateCircuitSource(project, {
@@ -224,13 +220,7 @@ describe("Circuit parameter source projection", () => {
       ],
     });
     expect(project).toEqual(
-      CircuitProjectSchema.parse({
-        ...Object.fromEntries(
-          Object.entries(ota).filter(([key]) => key !== "simulationSetups"),
-        ),
-        schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
-        simulationFolders: [],
-      }),
+      CircuitProjectSchema.parse(currentFiveTransistorOtaCircuitSource()),
     );
     for (const span of source.parameters)
       expect(source.text.slice(span.startOffset, span.endOffset)).toBe(

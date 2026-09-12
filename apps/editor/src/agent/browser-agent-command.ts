@@ -330,10 +330,10 @@ export function planBrowserAgentCommand(
       const input = command.transform;
       if (
         command.selection.draftingIds.length &&
-        !(input.kind === "rotate" && !input.center && input.degrees !== 180)
+        !(input.kind === "rotate" && !input.center)
       ) {
         throw new Error(
-          "Drafting objects support in-place quarter turns here. For other drafting transforms, submit upsert_drafting_object with the desired geometry.",
+          "Drafting objects support in-place 45-degree rotation here. For other drafting transforms, submit upsert_drafting_object with the desired geometry.",
         );
       }
       const transform: TransformOperation =
@@ -368,20 +368,12 @@ export function planBrowserAgentCommand(
           controller.mirror(
             transform.axis === "y" ? "left-right" : "top-bottom",
           );
-        else if (transform.degrees === 180) {
-          // A 180-degree group turn is one shared planner operation.
-          const plan = planRoutingTransform(
-            document,
-            resolver,
-            command.selection,
-            transform,
+        else
+          controller.rotate(
+            (transform.degrees > 180
+              ? transform.degrees - 360
+              : transform.degrees) as 45 | -45 | 90 | -90 | 135 | -135 | 180,
           );
-          const error = plan.diagnostics.find(
-            (item) => item.severity === "error",
-          );
-          if (error) throw new Error(error.message);
-          edits = [...plan.edits];
-        } else controller.rotate(transform.degrees === 270 ? -90 : 90);
         if (!edits.length && message) throw new Error(message);
         return { edits };
       }

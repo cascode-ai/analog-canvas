@@ -30,7 +30,7 @@ function placedInstance(symbolId: "nmos" | "npn" | "pnp", rotation = 0) {
 function placedDefaultLabel(
   symbolId: string,
   rotation: 0 | 90 | 180 | 270 = 0,
-  mirror: "none" | "x" = "none",
+  mirror: "none" | "horizontal" | "vertical" | "both" = "none",
   symbolVariantId?: string,
   slot: InstanceLabelSlot = "reference",
 ) {
@@ -183,7 +183,7 @@ describe("instance label placement", () => {
       position: { x: 110, y: 70 },
       alignment: "middle",
     });
-    expect(placedDefaultLabel("nmos", 0, "x")).toMatchObject({
+    expect(placedDefaultLabel("nmos", 0, "horizontal")).toMatchObject({
       position: { x: 80, y: 110 },
       alignment: "end",
     });
@@ -212,8 +212,14 @@ describe("instance label placement", () => {
   });
 
   it("keeps a mirrored MOS value slot beside the mirrored channel side", () => {
-    const reference = placedDefaultLabel("nmos", 0, "x");
-    const value = placedDefaultLabel("nmos", 0, "x", undefined, "value");
+    const reference = placedDefaultLabel("nmos", 0, "horizontal");
+    const value = placedDefaultLabel(
+      "nmos",
+      0,
+      "horizontal",
+      undefined,
+      "value",
+    );
     expect(value.alignment).toBe("end");
     expect(value.position.x).toBe(reference.position.x);
     expect(value.position.y - reference.position.y).toBe(30);

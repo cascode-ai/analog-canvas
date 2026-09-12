@@ -44,7 +44,9 @@ export function createSelectionTransformController({
       ),
     );
 
-  const rotate = (deltaDegrees: 90 | -90 = 90): void => {
+  const rotate = (
+    deltaDegrees: 45 | -45 | 90 | -90 | 135 | -135 | 180 = 45,
+  ): void => {
     const placedSelection = placedInstanceIds();
     const routingPlan = planRoutingTransform(
       document,
@@ -55,7 +57,17 @@ export function createSelectionTransformController({
         junctionIds: selection.junctionIds,
         annotationIds: selection.annotationIds,
       },
-      { kind: "rotate", degrees: deltaDegrees === -90 ? 270 : 90 },
+      {
+        kind: "rotate",
+        degrees:
+          deltaDegrees === -45
+            ? 315
+            : deltaDegrees === -90
+              ? 270
+              : deltaDegrees === -135
+                ? 225
+                : deltaDegrees,
+      },
     );
     const blocking = routingPlan.diagnostics.find(
       (item) => item.severity === "error",

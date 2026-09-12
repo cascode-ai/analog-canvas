@@ -3,10 +3,7 @@ import { Suspense, type ComponentProps, type RefObject } from "react";
 import { ToolIcon } from "../features/editor-shell/tool-icon";
 import { DocumentSettingsSection } from "../features/editor-shell/document-settings-section";
 import { PlacementTrayPanel } from "../features/component-insert/placement-tray-panel";
-import {
-  CellSymbolLayoutProperties,
-  FormalPortProperties,
-} from "../features/properties/component-structure-properties";
+import { CellSymbolLayoutProperties } from "../features/properties/component-structure-properties";
 import { ComponentIdentityProperties } from "../features/properties/component-identity-properties";
 import type { ComponentElectricalProperties } from "../features/properties/component-electrical-properties";
 import type { ComponentSignalFlowProperties } from "../features/properties/component-signal-flow-properties";
@@ -18,7 +15,7 @@ import { DraftingPropertiesPanel } from "../features/drafting/drafting-propertie
 import {
   AnnotationActionsSection,
   EndpointActionsSection,
-  GroupDisplayToggles,
+  GroupPropertiesSection,
   MosBulkConnectionSection,
   RouteActionsSection,
   RoutingGuidanceSection,
@@ -32,7 +29,6 @@ import { LazyAgentPropertiesSection } from "./lazy-editor-dialogs";
 
 interface ComponentPropertiesModel {
   code: ComponentProps<typeof ComponentPropertyCodeEditor>;
-  formalPort: ComponentProps<typeof FormalPortProperties> | null;
   cellSymbolLayout: ComponentProps<typeof CellSymbolLayoutProperties> | null;
   identity: ComponentProps<typeof ComponentIdentityProperties>;
   signalFlow: ComponentProps<typeof ComponentSignalFlowProperties> | null;
@@ -50,7 +46,7 @@ export interface EditorPropertiesDockProps {
   documentSettings: ComponentProps<typeof DocumentSettingsSection> | null;
   mosBulk: ComponentProps<typeof MosBulkConnectionSection>;
   routingGuidance: ComponentProps<typeof RoutingGuidanceSection>;
-  groupDisplay: ComponentProps<typeof GroupDisplayToggles>;
+  groupProperties: ComponentProps<typeof GroupPropertiesSection>;
   component: ComponentPropertiesModel | null;
   annotationText: ComponentProps<typeof AnnotationColorProperties> | null;
   netName: ComponentProps<typeof NetNameProperties> | null;
@@ -76,7 +72,7 @@ export function EditorPropertiesDock({
   documentSettings,
   mosBulk,
   routingGuidance,
-  groupDisplay,
+  groupProperties,
   component,
   annotationText,
   netName,
@@ -135,7 +131,7 @@ export function EditorPropertiesDock({
           {!hasInspectableSelection ? (
             <p className="inspect-empty">Select an object to inspect.</p>
           ) : null}
-          <GroupDisplayToggles {...groupDisplay} />
+          <GroupPropertiesSection {...groupProperties} />
           {component ? (
             <section
               className="property-section component-properties"
@@ -152,9 +148,6 @@ export function EditorPropertiesDock({
                   signalFlow: component.signalFlow !== null,
                 }}
               />
-              {component.formalPort ? (
-                <FormalPortProperties {...component.formalPort} />
-              ) : null}
               {component.cellSymbolLayout ? (
                 <CellSymbolLayoutProperties {...component.cellSymbolLayout} />
               ) : null}
@@ -168,20 +161,26 @@ export function EditorPropertiesDock({
               ) : null}
             </section>
           ) : null}
-          {annotationText ? (
+          {!groupProperties.active && annotationText ? (
             <AnnotationColorProperties
               key={annotationText.annotation.id}
               {...annotationText}
             />
           ) : null}
-          {netName ? <NetNameProperties {...netName} /> : null}
-          {drafting ? (
+          {!groupProperties.active && netName ? (
+            <NetNameProperties {...netName} />
+          ) : null}
+          {!groupProperties.active && drafting ? (
             <DraftingPropertiesPanel key={drafting.object.id} {...drafting} />
           ) : null}
           <PlacementTrayPanel {...placementTray} />
-          <RouteActionsSection {...routeActions} />
-          <EndpointActionsSection {...endpointActions} />
-          <AnnotationActionsSection {...annotationActions} />
+          {!groupProperties.active ? (
+            <>
+              <RouteActionsSection {...routeActions} />
+              <EndpointActionsSection {...endpointActions} />
+              <AnnotationActionsSection {...annotationActions} />
+            </>
+          ) : null}
           <ProjectDiagnosticsSection {...diagnostics} />
           {netTrace ? <NetTraceSection {...netTrace} /> : null}
           {importReview ? (

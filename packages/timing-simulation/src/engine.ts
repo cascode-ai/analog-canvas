@@ -256,9 +256,13 @@ export function simulateDigitalDocument({
     if (!completed) break;
 
     const captures = circuit.dffs.flatMap((dff) => {
+      const reset = dff.resetNetId ? (states.get(dff.resetNetId) ?? "Z") : "0";
+      // Reset is asynchronous and wins over a simultaneous clock edge.
+      if (reset === "1") return [{ dff, q: "0" as const }];
       const previous = previousClockValues.get(dff.instanceId);
       const current = states.get(dff.clockNetId) ?? "Z";
       if (previous !== "0" || current !== "1") return [];
+      if (reset !== "0") return [{ dff, q: "X" as const }];
       const d = states.get(dff.dNetId) ?? "Z";
       return [{ dff, q: d === "0" || d === "1" ? d : ("X" as const) }];
     });

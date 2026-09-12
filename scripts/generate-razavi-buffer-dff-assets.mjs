@@ -34,6 +34,13 @@ const symbolIds = ["buffer", "d-flip-flop"];
  * would only dangle.
  */
 const Q_ONLY_ID = "d-flip-flop-q";
+/**
+ * The resettable sibling keeps the reviewed D/CK/Q/Q-bar body and adds one
+ * active-high asynchronous reset terminal. A reset changes the electrical
+ * interface, so this is a separate palette part rather than a visual variant
+ * of the four-pin flip-flop.
+ */
+const RESET_ID = "d-flip-flop-reset";
 
 function fail(message) {
   throw new Error(`Razavi Buffer/DFF generation: ${message}`);
@@ -84,6 +91,47 @@ dff.primitives = dff.primitives.filter(
 // stroke-safe clearance around the +/-40 pins and +/-25 body.
 dff.viewBox = { x: -42, y: -27, width: 84, height: 54 };
 
+const resettable = structuredClone(dff);
+resettable.id = RESET_ID;
+resettable.name = "D Flip-Flop (Reset)";
+// Leave the reviewed top edge and every D/CK/Q/Q-bar coordinate untouched,
+// but give the reset label a full extra grid step below them. Only the bottom
+// edge grows; the reset lead keeps the same 15-unit length outside the body.
+const resetBodyBottom = 35;
+const resetPinY = resetBodyBottom + 15;
+resettable.viewBox = { x: -42, y: -27, width: 84, height: 79 };
+resettable.pins.splice(2, 0, {
+  name: "RST",
+  role: "reset",
+  at: { x: 0, y: resetPinY },
+  direction: "south",
+  presentation: {
+    visibility: "visible",
+    leadLength: 15,
+    showName: true,
+    textStyle: "math-symbol",
+    textSizeScale: 0.68,
+  },
+});
+const resetBody = resettable.primitives.find(
+  (primitive) => primitive.kind === "path",
+);
+if (!resetBody) fail("d-flip-flop-reset lost its body path");
+resetBody.data =
+  "M -25.000855 -25.0 L 25.000855 -25.0 L 25.000855 35.0 L -25.000855 35.0 Z";
+resettable.primitives.push({
+  kind: "line",
+  from: { x: 0, y: resetBodyBottom },
+  to: { x: 0, y: resetPinY },
+  part: "reset-lead",
+  style: {
+    strokeRole: "normal",
+    lineCap: "butt",
+    lineJoin: "miter",
+  },
+});
+definitions.set(RESET_ID, resettable);
+
 const qOnly = structuredClone(dff);
 qOnly.id = Q_ONLY_ID;
 qOnly.name = "D Flip-Flop (Q)";
@@ -128,7 +176,7 @@ output.at = { ...output.at, y: 0 };
 // The body is unchanged, so the frame stays identical to its source: the two
 // parts must read as the same block with one fewer wire, not as two drawings.
 definitions.set(Q_ONLY_ID, qOnly);
-const generatedIds = [...symbolIds, Q_ONLY_ID];
+const generatedIds = [...symbolIds, RESET_ID, Q_ONLY_ID];
 
 const assetSources = new Map();
 for (const symbolId of generatedIds) {
@@ -167,12 +215,17 @@ for (const symbolId of generatedIds) {
     // A derived sibling belongs beside the part it varies, the way the
     // input-swapped amplifiers sit beside theirs; appending would scatter the
     // pair across the catalog.
-    const sourceIndex =
-      symbolId === Q_ONLY_ID
-        ? catalog.entries.findIndex(
-            (candidate) => candidate.symbolId === "d-flip-flop",
-          )
-        : -1;
+    const siblingAnchor =
+      symbolId === RESET_ID
+        ? "d-flip-flop"
+        : symbolId === Q_ONLY_ID
+          ? RESET_ID
+          : null;
+    const sourceIndex = siblingAnchor
+      ? catalog.entries.findIndex(
+          (candidate) => candidate.symbolId === siblingAnchor,
+        )
+      : -1;
     if (sourceIndex >= 0) catalog.entries.splice(sourceIndex + 1, 0, entry);
     else catalog.entries.push(entry);
   }
@@ -204,7 +257,7 @@ for (const symbolId of generatedIds) {
     converterPath: "scripts/generate-razavi-buffer-dff-assets.mjs",
     converterVersion: symbolId === "d-flip-flop" ? 3 : 2,
   };
-  if (symbolId === Q_ONLY_ID) {
+  if (symbolId === Q_ONLY_ID || symbolId === RESET_ID) {
     // The body is the reviewed flip-flop's, so it inherits that figure's
     // authority — the same convention the input-swapped siblings follow. What
     // is not inherited is the claim to have been extracted: `generation` says
@@ -217,7 +270,7 @@ for (const symbolId of generatedIds) {
       ],
     };
     entry.generation = {
-      kind: "derived-output-drop",
+      kind: symbolId === RESET_ID ? "derived-reset-pin" : "derived-output-drop",
       sourceSymbolId: "d-flip-flop",
       converterPath: "scripts/generate-razavi-buffer-dff-assets.mjs",
       converterVersion: 1,

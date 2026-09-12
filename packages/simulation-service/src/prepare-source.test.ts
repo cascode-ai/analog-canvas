@@ -1,7 +1,4 @@
-import {
-  CURRENT_PROJECT_SCHEMA_VERSION,
-  LegacyProjectSimulationSetupSchema,
-} from "@icm/model";
+import { LegacyProjectSimulationSetupSchema } from "@icm/model";
 import { describe, expect, it } from "vitest";
 import {
   CircuitProjectSchema,
@@ -12,7 +9,10 @@ import {
   migrateSimulationSetupToSource,
   locateSimulationText,
 } from "@icm/netlist";
-import ota from "../../../apps/editor/src/examples/five-transistor-ota-sky130.icproj.json";
+import {
+  currentFiveTransistorOtaCircuitSource,
+  legacyFiveTransistorOta as ota,
+} from "../../../apps/editor/src/examples/five-transistor-ota.test-support.js";
 const legacySetups = () =>
   ota.simulationSetups.map((s) => LegacyProjectSimulationSetupSchema.parse(s));
 import profile from "../../../containers/ngspice/hosted-sky130-profile.json";
@@ -20,13 +20,7 @@ import { CapabilitiesSchema, ProblemSchema } from "./contract.js";
 import { prepareSourceExecutionInput } from "./prepare-source.js";
 
 const project = () =>
-  CircuitProjectSchema.parse({
-    ...Object.fromEntries(
-      Object.entries(ota).filter(([key]) => key !== "simulationSetups"),
-    ),
-    schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
-    simulationFolders: [],
-  });
+  CircuitProjectSchema.parse(currentFiveTransistorOtaCircuitSource());
 const caps = CapabilitiesSchema.parse({
   configured: true,
   rawfileCollection: "declared-single-ascii",

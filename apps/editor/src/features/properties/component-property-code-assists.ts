@@ -129,7 +129,6 @@ export function reflectedPropertyCode(
   if (!parsed.ok || !parsed.value.placement) return [];
   const next = reflectOrientation(parsed.value.placement, direction);
   return propertyCodeChanges(source, context, {
-    "placement.rotation": next.rotation,
     "placement.mirror": next.mirror,
   });
 }

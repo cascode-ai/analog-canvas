@@ -11,6 +11,7 @@ const SIMULATION_PARAMETER_NAMES: Readonly<Record<string, readonly string[]>> =
       "width",
     ],
     "d-flip-flop": ["initialQ"],
+    "d-flip-flop-reset": ["initialQ"],
   };
 
 function simulationParameters(

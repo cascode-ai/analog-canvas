@@ -10,6 +10,7 @@ import {
   type ConnectivityEvidence,
   type RichTextDocument,
   type RouteAnnotationAttachment,
+  type Rotation,
   type RouteBranch,
   type SchematicDocument,
 } from "@icm/model";
@@ -38,7 +39,7 @@ export interface InstancePropertyDraft {
   parameters: Record<string, string>;
   x: string;
   y: string;
-  rotation: "0" | "90" | "180" | "270";
+  rotation: `${Rotation}`;
 }
 
 /** Pure edit planning plus user-facing planner diagnostics for Properties. */
@@ -436,7 +437,7 @@ export function createPropertyEditPlanner({
           });
         }
       }
-      const rotation = Number(draft.rotation) as 0 | 90 | 180 | 270;
+      const rotation = Number(draft.rotation) as Rotation;
       if (rotation !== instance.placement.rotation) {
         edits.push({
           kind: "rotate_instance",

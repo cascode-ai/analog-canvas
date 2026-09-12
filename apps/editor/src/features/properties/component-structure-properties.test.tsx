@@ -2,10 +2,7 @@ import { createEmptyDocument } from "@icm/model";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
-import {
-  CellSymbolLayoutProperties,
-  FormalPortProperties,
-} from "./component-structure-properties";
+import { CellSymbolLayoutProperties } from "./component-structure-properties";
 
 function cell() {
   const document = createEmptyDocument("cell", "Amplifier");
@@ -26,22 +23,6 @@ function cell() {
 }
 
 describe("component structure properties", () => {
-  it("renders the formal Cell Pin contract", () => {
-    const document = cell();
-    const markup = renderToStaticMarkup(
-      <FormalPortProperties
-        terminal={document.netlist!.terminals[0]!}
-        revision={document.revision}
-        onRename={vi.fn()}
-        onDirectionChange={vi.fn()}
-      />,
-    );
-
-    expect(markup).toContain('aria-label="Cell Pin name"');
-    expect(markup).toContain("VIN");
-    expect(markup).toContain('value="input" selected=""');
-  });
-
   it("renders definition-level symbol layout controls", () => {
     const markup = renderToStaticMarkup(
       <CellSymbolLayoutProperties

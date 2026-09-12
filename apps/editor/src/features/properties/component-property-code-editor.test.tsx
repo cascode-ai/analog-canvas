@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { ComponentPropertyCodeEditor } from "./component-property-code-editor";
 
 describe("ComponentPropertyCodeEditor", () => {
-  it("keeps component color controls inside the lazily loaded editor frame", () => {
+  it("keeps a readable loading fallback for the lazily loaded code surface", () => {
     const markup = renderToStaticMarkup(
       <ComponentPropertyCodeEditor
         instance={{
@@ -23,7 +23,6 @@ describe("ComponentPropertyCodeEditor", () => {
         onApply={vi.fn(() => ({ ok: true as const }))}
       />,
     );
-    expect(markup).toContain('class="component-property-editor-frame"');
     expect(markup).toContain('aria-label="Loading Canvas property code"');
     expect(markup).toContain("&quot;at&quot;");
     expect(markup).not.toContain("Apply code");
@@ -31,13 +30,10 @@ describe("ComponentPropertyCodeEditor", () => {
     expect(markup).toContain('aria-label="Defaults"');
     expect(markup).not.toContain("Need help?");
     expect(markup).not.toContain("<legend>Line</legend>");
-    expect(markup).toContain('class="component-editor-color-control"');
-    expect(markup).toContain('aria-label="Line color controls"');
-    expect(markup).toContain('aria-expanded="false"');
     expect(markup).not.toContain('aria-label="Line presets"');
     expect(markup).not.toContain('aria-label="Line custom RGB"');
     expect(markup).not.toContain("Background");
-    expect(markup).toContain("Live");
+    expect(markup).not.toContain("Live");
     expect(markup).toContain('aria-label="Copy JSON"');
     expect(markup).toContain('title="Copy JSON"');
     expect(markup.indexOf('aria-label="Copy JSON"')).toBeLessThan(

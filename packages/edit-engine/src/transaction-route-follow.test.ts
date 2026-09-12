@@ -125,7 +125,7 @@ describe("Route follow after an instance moves", () => {
     const document = branchFixture();
     expect(centerline(document, "w-collector")).toEqual([
       { x: 400, y: 320 },
-      { x: 400, y: 390 },
+      { x: 400, y: 400 },
     ]);
 
     const moved = executeTransaction(
@@ -150,10 +150,10 @@ describe("Route follow after an instance moves", () => {
       { x: 400, y: 320 },
       { x: 400, y: 360 },
       { x: 520, y: 360 },
-      { x: 520, y: 390 },
+      { x: 520, y: 400 },
     ]);
     expect(centerline(moved.document, "w-emitter")).toEqual([
-      { x: 520, y: 450 },
+      { x: 520, y: 440 },
       { x: 520, y: 480 },
       { x: 400, y: 480 },
       { x: 400, y: 510 },
@@ -178,7 +178,7 @@ describe("Route follow after an instance moves", () => {
     // The base wire already turns down into the ground, so following the base
     // pin only stretches its own leg and the ground keeps its approach.
     expect(centerline(moved.document, "w-base")).toEqual([
-      { x: 480, y: 420 },
+      { x: 490, y: 420 },
       { x: 280, y: 420 },
       { x: 280, y: 460 },
     ]);
@@ -203,7 +203,7 @@ describe("Route follow after an instance moves", () => {
     expect(moved.ok).toBe(true);
     if (!moved.ok) return;
     const points = centerline(moved.document, "w-emitter");
-    expect(points[0]).toEqual({ x: 400, y: 450 });
+    expect(points[0]).toEqual({ x: 400, y: 440 });
     expect(points.at(-1)).toEqual({ x: 300, y: 390 });
     for (let index = 1; index < points.length; index += 1) {
       const previous = points[index - 1]!;
@@ -238,16 +238,16 @@ describe("Route follow after a canvas drag", () => {
       { x: 400, y: 320 },
       { x: 400, y: 360 },
       { x: 520, y: 360 },
-      { x: 520, y: 390 },
+      { x: 520, y: 400 },
     ]);
     expect(centerline(dragged.document, "w-emitter")).toEqual([
-      { x: 520, y: 450 },
+      { x: 520, y: 440 },
       { x: 520, y: 480 },
       { x: 400, y: 480 },
       { x: 400, y: 510 },
     ]);
     expect(centerline(dragged.document, "w-base")).toEqual([
-      { x: 480, y: 420 },
+      { x: 490, y: 420 },
       { x: 280, y: 420 },
       { x: 280, y: 460 },
     ]);

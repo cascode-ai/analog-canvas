@@ -14,6 +14,7 @@ import type {
   Point,
   RichTextDocument,
   RouteAnnotationAttachment,
+  Rotation,
   SchematicDocument,
 } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
@@ -43,7 +44,7 @@ export interface InstancePropertyDraft {
   parameters: Record<string, string>;
   x: string;
   y: string;
-  rotation: "0" | "90" | "180" | "270";
+  rotation: `${Rotation}`;
 }
 
 const EMPTY_INSTANCE_PROPERTY_DRAFT: InstancePropertyDraft = {
@@ -235,8 +236,7 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
     ),
     x: instance.placement ? String(instance.placement.position.x) : "",
     y: instance.placement ? String(instance.placement.position.y) : "",
-    rotation: String(instance.placement?.rotation ?? 0) as
-      "0" | "90" | "180" | "270",
+    rotation: String(instance.placement?.rotation ?? 0) as `${Rotation}`,
   });
 
   const commitPendingNetLabelDraft = (): void => {
@@ -702,6 +702,10 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
     object: Extract<DraftingObject, { kind: "text" }>,
   ): void => {
     options.selectDraftingObject(object.id);
+    if (object.polarity === "positive" || object.polarity === "negative") {
+      options.setStatus("A standalone polarity mark has no editable text");
+      return;
+    }
     setTextEditing(createTextEditingSession({ owner: "drafting", object }));
   };
 

@@ -451,7 +451,7 @@ function rotateFreeAnchor(
 export function rotateDraftingObject(
   object: DraftingObject,
   geometry: ResolvedDraftingGeometry,
-  deltaDegrees: 90 | -90,
+  deltaDegrees: 45 | -45 | 90 | -90 | 135 | -135 | 180,
   grid: number,
 ): DraftingObject | null {
   if (object.locked) return null;

@@ -185,7 +185,40 @@
     "referencePrefix": "X",
     "pinOrder": ["P-", "P+", "S-", "S+"],
     "targetPolicy": "none",
-    "parameters": [],
+    "parameters": [
+      {
+        "name": "lp",
+        "label": "Lp",
+        "required": true,
+        "editor": "text",
+        "unitHint": "H",
+        "placeholder": "1n",
+        "defaultValue": "1n",
+        "help": "Primary winding inductance",
+        "displayRole": "none"
+      },
+      {
+        "name": "ls",
+        "label": "Ls",
+        "required": true,
+        "editor": "text",
+        "unitHint": "H",
+        "placeholder": "1n",
+        "defaultValue": "1n",
+        "help": "Secondary winding inductance",
+        "displayRole": "none"
+      },
+      {
+        "name": "k",
+        "label": "K",
+        "required": true,
+        "editor": "decimal",
+        "placeholder": "1",
+        "defaultValue": "1",
+        "help": "Winding coupling coefficient",
+        "displayRole": "none"
+      }
+    ],
     "dialects": ["spice", "spectre"],
     "capabilities": {
       "supportsModel": false,

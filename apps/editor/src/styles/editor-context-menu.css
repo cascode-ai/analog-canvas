@@ -55,33 +55,3 @@
   opacity: 0.45;
   cursor: default;
 }
-
-.canvas-context-menu .context-menu-variants {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  padding: 0 4px 2px;
-}
-
-.canvas-context-menu .context-menu-variant {
-  width: 44px;
-  height: 44px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 2px;
-  border: 1px solid var(--icm-border);
-  border-radius: 6px;
-  background: var(--icm-surface);
-  cursor: pointer;
-}
-
-.canvas-context-menu .context-menu-variant:hover {
-  border-color: var(--icm-accent);
-  background: var(--icm-hover);
-}
-
-.canvas-context-menu .context-menu-variant svg {
-  max-width: 100%;
-  max-height: 100%;
-}

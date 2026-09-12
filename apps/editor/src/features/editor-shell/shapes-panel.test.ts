@@ -20,7 +20,7 @@ describe("shapes quick-place", () => {
       }),
     );
 
-    expect(symbols).toHaveLength(67);
+    expect(symbols).toHaveLength(64);
     expect(markup).toContain("All devices");
     expect(markup.match(/data-testid="shapes-chip-/g)).toHaveLength(
       symbols.length,
@@ -37,8 +37,8 @@ describe("shapes quick-place", () => {
       ["Power and Ports", 5],
       ["Sources", 3],
       ["Switches", 5],
-      ["Analog Blocks", 12],
-      ["Logic Gates", 11],
+      ["Analog Blocks", 8],
+      ["Logic Gates", 12],
       ["Signal Flow", 6],
       ["Annotations", 8],
       ["Extended Devices", 9],
@@ -79,8 +79,9 @@ describe("shapes quick-place", () => {
     expect(markup).toContain('aria-label="Place Buffer"');
     expect(markup).toContain('aria-label="Place Delay Cell"');
     expect(markup).toContain('aria-label="Place D Flip-Flop"');
+    expect(markup).toContain('aria-label="Place D Flip-Flop (Reset)"');
     expect(markup).toContain('aria-label="Place Comparator"');
-    expect(markup).toContain('aria-label="Place Comparator (unmarked)"');
+    expect(markup).not.toContain('aria-label="Place Comparator (unmarked)"');
     expect(markup).toContain(
       'aria-label="Place Differential Transconductance (gₘ)"',
     );
@@ -95,7 +96,7 @@ describe("shapes quick-place", () => {
     expect(markup).toContain(">Cap</span>");
     expect(markup).toContain(">Var Res</span>");
     expect(markup).toContain(">Inv</span>");
-    expect(markup).toContain(">Comp U</span>");
+    expect(markup).not.toContain(">Comp U</span>");
     expect(markup).toContain(">NOR</span>");
     expect(markup).toContain(">DT Int</span>");
     expect(markup).not.toContain('data-testid="shapes-example-');
@@ -112,8 +113,24 @@ describe("shapes quick-place", () => {
       referenceText: null,
     });
     expect(request?.kind === "symbol" ? request.parameters.value : null).toBe(
-      "",
+      "1k",
     );
+  });
+
+  it("quick-places adjustable and compound passives with authored defaults", () => {
+    for (const [symbolId, parameters] of [
+      ["variable-resistor", { value: "1k" }],
+      ["variable-capacitor", { value: "1p" }],
+      ["variable-inductor", { value: "1n" }],
+      ["tcoil", { l1: "1n", l2: "1n", k: "1", cb: "1p" }],
+      ["xfmr", { lp: "1n", ls: "1n", k: "1" }],
+    ] as const) {
+      expect(quickPlaceRequest("razavi", symbolId)).toMatchObject({
+        kind: "symbol",
+        symbolId,
+        parameters,
+      });
+    }
   });
 
   it("exposes VDD rail as a virtual Library placement", () => {

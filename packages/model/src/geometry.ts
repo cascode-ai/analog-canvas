@@ -6,12 +6,14 @@ import type {
   Rotation,
   SymbolLocalPoint,
 } from "./schema.js";
+import { mirrorScale } from "./orientation-reflect.js";
 
 function mirrorLocal(
   point: GridPoint | SymbolLocalPoint,
   mirror: Mirror,
 ): DerivedPoint {
-  return mirror === "x" ? { x: -point.x, y: point.y } : point;
+  const scale = mirrorScale(mirror);
+  return { x: point.x * scale.x, y: point.y * scale.y };
 }
 
 function rotateLocal(point: DerivedPoint, rotation: Rotation): DerivedPoint {
@@ -24,6 +26,15 @@ function rotateLocal(point: DerivedPoint, rotation: Rotation): DerivedPoint {
       return { x: -point.x, y: -point.y };
     case 270:
       return { x: point.y, y: -point.x };
+    default: {
+      const radians = (rotation * Math.PI) / 180;
+      const cosine = Math.cos(radians);
+      const sine = Math.sin(radians);
+      return {
+        x: point.x * cosine - point.y * sine,
+        y: point.x * sine + point.y * cosine,
+      };
+    }
   }
 }
 
@@ -39,9 +50,9 @@ export function transformPoint(
   origin: GridPoint,
   orientation: Orientation,
 ): DerivedPoint {
-  const transformed = rotateLocal(
-    mirrorLocal(localPoint, orientation.mirror),
-    orientation.rotation,
+  const transformed = mirrorLocal(
+    rotateLocal(localPoint, orientation.rotation),
+    orientation.mirror,
   );
   return {
     x: origin.x + transformed.x,
@@ -58,8 +69,8 @@ export function inverseTransformPoint(
     x: worldPoint.x - origin.x,
     y: worldPoint.y - origin.y,
   };
-  const rotated = inverseRotateLocal(translated, orientation.rotation);
-  return mirrorLocal(rotated, orientation.mirror);
+  const mirrored = mirrorLocal(translated, orientation.mirror);
+  return inverseRotateLocal(mirrored, orientation.rotation);
 }
 
 export function manhattanDistance(

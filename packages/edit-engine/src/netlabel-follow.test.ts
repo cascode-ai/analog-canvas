@@ -23,7 +23,11 @@ function fixture(): SchematicDocument {
     {
       id: "P2",
       symbolId: "port",
-      placement: { position: { x: 460, y: 300 }, rotation: 0, mirror: "x" },
+      placement: {
+        position: { x: 460, y: 300 },
+        rotation: 0,
+        mirror: "horizontal",
+      },
     },
   );
   document.nets.push({

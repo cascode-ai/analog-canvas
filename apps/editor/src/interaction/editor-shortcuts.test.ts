@@ -135,7 +135,7 @@ describe("editor shortcut contract", () => {
     // key did two unrelated things depending on state.
     expect(resolve("r")).toEqual(command({ id: "transform.rotate-next" }));
     expect(resolve("r", { canRotate: true })).toEqual(
-      command({ id: "transform.rotate", deltaDegrees: 90 }),
+      command({ id: "transform.rotate", deltaDegrees: 45 }),
     );
     expect(resolve("r", { canMirror: true }, { shiftKey: true })).toEqual(
       command({ id: "transform.mirror", direction: "left-right" }),
@@ -169,13 +169,13 @@ describe("editor shortcut contract", () => {
         interactionMode: "placing-component",
         canRotate: true,
       }),
-    ).toEqual(command({ id: "transform.rotate", deltaDegrees: 90 }));
+    ).toEqual(command({ id: "transform.rotate", deltaDegrees: 45 }));
     expect(
       resolve("r", {
         interactionMode: "copy-placement",
         canRotate: true,
       }),
-    ).toEqual(command({ id: "transform.rotate", deltaDegrees: 90 }));
+    ).toEqual(command({ id: "transform.rotate", deltaDegrees: 45 }));
     expect(
       resolve(
         "r",
@@ -403,7 +403,7 @@ describe("editor shortcut contract", () => {
         interactionMode: "placing-component",
         canRotate: true,
       }),
-    ).toEqual(command({ id: "transform.rotate", deltaDegrees: 90 }));
+    ).toEqual(command({ id: "transform.rotate", deltaDegrees: 45 }));
   });
 
   it("routes Move secondary transforms without falling through to Rectangle", () => {
@@ -412,7 +412,7 @@ describe("editor shortcut contract", () => {
         interactionMode: "moving-selection",
         canRotate: true,
       }),
-    ).toEqual(command({ id: "transform.rotate", deltaDegrees: 90 }));
+    ).toEqual(command({ id: "transform.rotate", deltaDegrees: 45 }));
     expect(
       resolve(
         "r",

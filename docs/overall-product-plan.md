@@ -81,7 +81,7 @@ source-value override.
   explicit cut partitions physical connectivity.
 - Cell Pins are ordered hierarchy interfaces. Visual variants never delete
   electrical terminal semantics or invent MOS bulk connections.
-- Canonical Project content is schema-51, governed by the
+- Canonical Project content is schema-53, governed by the
   [file-format contract](specs/project-file-format.md).
   Cloud Save, portable file export, browser recovery, and public Gallery
   publication are distinct operations.

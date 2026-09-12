@@ -9,11 +9,7 @@ import {
   propertyCodeChanges,
   reflectedPropertyCode,
 } from "./component-property-code-assists";
-import {
-  CANVAS_PROPERTY_FIELDS,
-  ROTATION_OPTIONS,
-  MIRROR_OPTIONS,
-} from "./component-property-fields";
+import { ROTATION_OPTIONS, MIRROR_OPTIONS } from "./component-property-fields";
 
 const context = {
   instance: {
@@ -45,7 +41,7 @@ describe("Canvas property assistance", () => {
   it("edits an independent field without repairing another invalid value", () => {
     const source = formatComponentPropertyCode(context).replace(
       '"rotation": 0',
-      '"rotation": 45',
+      '"rotation": 30',
     );
     const changed = apply(
       source,
@@ -55,7 +51,7 @@ describe("Canvas property assistance", () => {
     expect(parseComponentPropertyCode(changed, context).ok).toBe(false);
     const repaired = apply(
       changed,
-      propertyCodeChanges(changed, context, { "placement.rotation": 90 }),
+      propertyCodeChanges(changed, context, { "placement.rotation": 45 }),
     );
     expect(parseComponentPropertyCode(repaired, context).ok).toBe(true);
   });
@@ -85,9 +81,15 @@ describe("Canvas property assistance", () => {
   });
   it("addresses all available fields by syntax path and preserves unrelated draft bytes", () => {
     const source = formatComponentPropertyCode(context);
-    expect(propertyCodeSpans(source).map((span) => span.field.path)).toEqual(
-      CANVAS_PROPERTY_FIELDS.map((field) => field.path),
-    );
+    expect(propertyCodeSpans(source).map((span) => span.field.path)).toEqual([
+      "display.reference",
+      "display.value",
+      "placement.at",
+      "placement.rotation",
+      "placement.mirror",
+      "appearance",
+      "appearance.foreground",
+    ]);
     const changed = apply(
       source,
       propertyCodeChanges(source, context, { "display.value": true }),
@@ -115,7 +117,7 @@ describe("Canvas property assistance", () => {
         ).toBe(true);
       }
     expect(
-      propertyCodeChanges(source, context, { "placement.rotation": 45 }),
+      propertyCodeChanges(source, context, { "placement.rotation": 30 }),
     ).toEqual([]);
     expect(
       propertyCodeChanges(source, context, { "placement.mirror": "y" }),
@@ -146,6 +148,41 @@ describe("Canvas property assistance", () => {
       propertyCodeChanges(unavailable, noDisplay, { "display.value": true }),
     ).toEqual([]);
   });
+  it("edits merged internal-mark and polarity controls by syntax path", () => {
+    const opampContext = {
+      ...context,
+      instance: { ...context.instance, symbolId: "opamp" },
+    };
+    const opampSource = formatComponentPropertyCode(opampContext);
+    expect(
+      propertyCodeSpans(opampSource, opampContext).map(
+        (span) => span.field.path,
+      ),
+    ).toContain("appearance.internalMark");
+    expect(
+      JSON.parse(
+        apply(
+          opampSource,
+          propertyCodeChanges(opampSource, opampContext, {
+            "appearance.internalMark": "A",
+          }),
+        ),
+      ).appearance.internalMark,
+    ).toBe("A");
+
+    const comparatorContext = {
+      ...context,
+      instance: { ...context.instance, symbolId: "comparator" },
+    };
+    const comparatorSource = formatComponentPropertyCode(comparatorContext);
+    const changed = apply(
+      comparatorSource,
+      propertyCodeChanges(comparatorSource, comparatorContext, {
+        "appearance.inputPolarity": false,
+      }),
+    );
+    expect(JSON.parse(changed).appearance.inputPolarity).toBe(false);
+  });
   it("reflects in canvas directions at every rotation/mirror state without moving the origin", () => {
     for (const rotation of ROTATION_OPTIONS)
       for (const mirror of MIRROR_OPTIONS)
@@ -158,6 +195,7 @@ describe("Canvas property assistance", () => {
             apply(source, reflectedPropertyCode(source, context, direction)),
           );
           expect(changed.placement.at).toEqual([210, 140]);
+          expect(changed.placement.rotation).toBe(code.placement.rotation);
           const before = transformPoint(
             { x: 10, y: 20 },
             { x: 0, y: 0 },

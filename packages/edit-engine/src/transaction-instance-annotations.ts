@@ -1,6 +1,7 @@
 import {
   inverseTransformPoint,
   rewriteRichTextPlainText,
+  snapGridPoint,
   transformPoint,
 } from "@icm/model";
 import type {
@@ -395,22 +396,13 @@ export function followAttachedAnnotations(
   }
 
   const directionForRotation = (rotation: Rotation): Point => {
-    switch (rotation) {
-      case 0:
-        return { x: 1, y: 0 };
-      case 90:
-        return { x: 0, y: 1 };
-      case 180:
-        return { x: -1, y: 0 };
-      case 270:
-        return { x: 0, y: -1 };
-    }
+    const radians = (rotation * Math.PI) / 180;
+    return { x: Math.cos(radians), y: Math.sin(radians) };
   };
   const rotationForDirection = (direction: Point): Rotation => {
-    if (direction.x > 0) return 0;
-    if (direction.y > 0) return 90;
-    if (direction.x < 0) return 180;
-    return 270;
+    const degrees = (Math.atan2(direction.y, direction.x) * 180) / Math.PI;
+    const normalized = ((degrees % 360) + 360) % 360;
+    return ((Math.round(normalized / 45) * 45) % 360) as Rotation;
   };
   const origin = { x: 0, y: 0 };
   const instance = draft.instances.find(
@@ -570,17 +562,22 @@ export function followAttachedAnnotations(
         }
       }
     }
+    // A 45-degree transform produces fractional derived geometry. Document
+    // anchors intentionally persist integer coordinates, so cross that
+    // boundary once at single-pixel precision instead of snapping the label
+    // back to the coarser schematic connection grid.
+    const persistedPosition = snapGridPoint(position, 1);
     annotation.anchor = {
       ...annotation.anchor,
       // Object anchors resolve localOffset directly in world space. Persist
-      // the reflowed upright glyph baseline without a second grid snap. The
-      // label placer already performed the one authoritative grid snap;
-      // re-snapping a recovered anchor is what previously accumulated drift.
+      // the reflowed upright glyph baseline with only the integer precision
+      // required by the Document schema. The label placer already performs
+      // the one authoritative schematic-grid snap for canonical labels.
       localOffset: {
-        x: position.x - newPosition.x,
-        y: position.y - newPosition.y,
+        x: persistedPosition.x - newPosition.x,
+        y: persistedPosition.y - newPosition.y,
       },
-      fallbackPosition: position,
+      fallbackPosition: persistedPosition,
     };
     if (slot !== null) {
       annotation.rotation = 0;

@@ -46,7 +46,15 @@ export const AgentAuthoringCommandSchema = z.discriminatedUnion("kind", [
       z.strictObject({ kind: z.literal("translate"), delta: PointSchema }),
       z.strictObject({
         kind: z.literal("rotate"),
-        degrees: z.union([z.literal(90), z.literal(180), z.literal(270)]),
+        degrees: z.union([
+          z.literal(45),
+          z.literal(90),
+          z.literal(135),
+          z.literal(180),
+          z.literal(225),
+          z.literal(270),
+          z.literal(315),
+        ]),
         center: PointSchema.optional(),
       }),
       z.strictObject({

@@ -60,7 +60,7 @@ function fixture(): SchematicDocument {
   document.instances.find((instance) => instance.id === "B")!.placement = {
     position: { x: 160, y: 300 },
     rotation: 0,
-    mirror: "x",
+    mirror: "horizontal",
   };
   return document;
 }
@@ -243,7 +243,7 @@ describe("direct-contact transform lifecycle", () => {
     },
     {
       label: "mirror",
-      edit: { kind: "mirror_instance", instanceId: "A", mirror: "x" },
+      edit: { kind: "mirror_instance", instanceId: "A", mirror: "horizontal" },
     },
   ])("materializes a Route after $label separates the pins", ({ edit }) => {
     const document = fixture();
@@ -387,7 +387,7 @@ describe("direct-contact transform lifecycle", () => {
     document.instances.find((instance) => instance.id === "B")!.placement = {
       position: { x: 460, y: 300 },
       rotation: 0,
-      mirror: "x",
+      mirror: "horizontal",
     };
     document.nets = [
       {
@@ -442,7 +442,7 @@ describe("direct-contact transform lifecycle", () => {
     document.instances.find((instance) => instance.id === "B")!.placement = {
       position: { x: 460, y: 300 },
       rotation: 0,
-      mirror: "x",
+      mirror: "horizontal",
     };
     document.nets = [
       {
@@ -866,7 +866,11 @@ describe("signal-flow resize direct contacts", () => {
       {
         id: "P1",
         symbolId: "port",
-        placement: { position: { x: 0, y: 0 }, rotation: 0, mirror: "x" },
+        placement: {
+          position: { x: 0, y: 0 },
+          rotation: 0,
+          mirror: "horizontal",
+        },
       },
     );
     const output = resolveEndpointConnection(document, resolver, {

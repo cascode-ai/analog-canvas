@@ -38,6 +38,39 @@ function document(id: string): SchematicDocument {
 }
 
 describe("resolved route geometry", () => {
+  it("resolves a 45-degree route attachment", () => {
+    const schematic = document("diagonal-route");
+    schematic.nets.push({ id: "n", terminals: [] });
+    schematic.junctions.push(
+      { id: "j1", netId: "n", position: { x: 0, y: 0 } },
+      { id: "j2", netId: "n", position: { x: 100, y: 100 } },
+    );
+    schematic.routes.push(
+      createRoutePath({
+        id: "diagonal",
+        netId: "n",
+        start: { kind: "junction", junctionId: "j1" },
+        end: { kind: "junction", junctionId: "j2" },
+        bends: [],
+        modes: ["manual"],
+      }),
+    );
+    const geometry = resolveRouteGeometry(
+      schematic,
+      resolver,
+      schematic.routes[0]!,
+    )!;
+    expect(
+      resolveRouteAttachment(geometry, {
+        routeId: "diagonal",
+        legId: schematic.routes[0]!.legs[0]!.id,
+        t: 0.5,
+        direction: "forward",
+        normalOffset: 0,
+      }),
+    ).toMatchObject({ conductorPoint: { x: 50, y: 50 }, rotation: 45 });
+  });
+
   it("characterizes the canonical stable-leg route contract", () => {
     const project = createEmptyProject(
       "route-contract",

@@ -24,6 +24,14 @@ function pinNameY(markup: string, pinName: string): number {
   return Number(match[1]);
 }
 
+function pinNameFontSize(markup: string, pinName: string): number {
+  const match = markup.match(
+    new RegExp(`data-pin-name="${pinName}"[^>]* font-size="([^"]+)"`, "u"),
+  );
+  if (!match?.[1]) throw new Error(`Missing ${pinName} pin-name font size`);
+  return Number(match[1]);
+}
+
 describe("SymbolArtwork pin-name previews", () => {
   const dff = requireRazaviCatalogSymbol("d-flip-flop");
   const formulaSymbol = [
@@ -44,6 +52,18 @@ describe("SymbolArtwork pin-name previews", () => {
     );
 
     expectDffPinNames(markup);
+  });
+
+  it("renders the reset terminal inside the resettable DFF body", () => {
+    const resettable = requireRazaviCatalogSymbol("d-flip-flop-reset");
+    const markup = renderToStaticMarkup(
+      <SymbolArtwork symbol={resettable} className="test-artwork" />,
+    );
+
+    expectDffPinNames(markup);
+    expect(markup).toContain('data-pin-name="RST"');
+    expect(markup).toContain('x1="0" y1="35" x2="0" y2="50"');
+    expect(pinNameFontSize(markup, "RST")).toBe(pinNameFontSize(markup, "D"));
   });
 
   it("renders the transconductance trapezoid and subscript formula in Library and placement previews", () => {
@@ -99,7 +119,7 @@ describe("SymbolArtwork pin-name previews", () => {
           symbol={symbol}
           position={{ x: 100, y: 80 }}
           rotation={90}
-          mirror="x"
+          mirror="horizontal"
         />
       </svg>,
     );
@@ -108,7 +128,7 @@ describe("SymbolArtwork pin-name previews", () => {
     expect(placement).toContain('data-role="signal-flow-formula"');
     expect(placement).toContain('data-role="upright-signal-flow-formula"');
     expect(placement).toContain(
-      'transform="translate(100 80) rotate(90) scale(-1 1)"',
+      'transform="translate(100 80) scale(-1 1) rotate(90)"',
     );
     expect(placement).toContain('transform="translate(100 80)"');
   });
@@ -132,13 +152,13 @@ describe("SymbolArtwork pin-name previews", () => {
             symbol={symbol}
             position={{ x: 100, y: 80 }}
             rotation={90}
-            mirror="x"
+            mirror="horizontal"
           />
         </svg>,
       );
 
       expect(markup).toContain(
-        'transform="translate(100 80) rotate(90) scale(-1 1)"',
+        'transform="translate(100 80) scale(-1 1) rotate(90)"',
       );
       const negative = markup.match(
         /data-part="upright-[^"]*polarity-negative" x1="([^"]+)" y1="[^"]+" x2="([^"]+)"/u,

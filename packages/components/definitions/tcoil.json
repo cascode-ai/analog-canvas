@@ -319,7 +319,51 @@
     "referencePrefix": "X",
     "pinOrder": ["1", "2", "3"],
     "targetPolicy": "none",
-    "parameters": [],
+    "parameters": [
+      {
+        "name": "l1",
+        "label": "L1",
+        "required": true,
+        "editor": "text",
+        "unitHint": "H",
+        "placeholder": "1n",
+        "defaultValue": "1n",
+        "help": "First winding inductance",
+        "displayRole": "none"
+      },
+      {
+        "name": "l2",
+        "label": "L2",
+        "required": true,
+        "editor": "text",
+        "unitHint": "H",
+        "placeholder": "1n",
+        "defaultValue": "1n",
+        "help": "Second winding inductance",
+        "displayRole": "none"
+      },
+      {
+        "name": "k",
+        "label": "K",
+        "required": true,
+        "editor": "decimal",
+        "placeholder": "1",
+        "defaultValue": "1",
+        "help": "Winding coupling coefficient",
+        "displayRole": "none"
+      },
+      {
+        "name": "cb",
+        "label": "CB",
+        "required": true,
+        "editor": "text",
+        "unitHint": "F",
+        "placeholder": "1p",
+        "defaultValue": "1p",
+        "help": "Bridge capacitance",
+        "displayRole": "none"
+      }
+    ],
     "dialects": ["spice", "spectre"],
     "capabilities": {
       "supportsModel": false,

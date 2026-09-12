@@ -13,6 +13,13 @@ Imported instances begin unplaced so that the user can decide the presentation.
 A normal launch starts with a genuinely empty `New Circuit` Document for
 palette-first manual authoring; no Project file needs to be opened first.
 
+New Resistor, Capacitor, and Inductor instances—including their adjustable
+variants—start with `1k`, `1p`, and `1n` respectively. T-coil starts with
+`L1=1n`, `L2=1n`, `K=1`, and `CB=1p`; XFMR starts with `Lp=1n`, `Ls=1n`, and
+`K=1`. These are authored parameter values rather than placeholders. T-coil
+and XFMR remain manual-only compound devices until structural netlist lowering
+is defined.
+
 ## Edit and connect
 
 - Use **+ Component** to search the categorized built-in library, choose a
@@ -42,13 +49,21 @@ palette-first manual authoring; no Project file needs to be opened first.
 - Select a component and press `Q` to open **Properties**. Its editable
   JSON keeps raw parameters (W/L/NF/M and additional
   netlist overrides), reference and model target together with position as
-  `"at": [x, y]`, plus quarter-turn
+  `"at": [x, y]`, plus 45-degree-step
   rotation, mirror, supported Reference/Value visibility, and line color.
-  The code area is ordinary selectable text with no injected comments or
-  controls. Type values directly, or expand the compact **Line color** shelf
-  inside the editor frame for light gray, red, green, blue, custom RGB, and
-  **Auto**. Fixed colors display as `[R, G, B]` (0–255); hex input also works.
-  **Auto** inherits document ink. Component background color is not authored.
+  The `display` block appears first for quick access. The code area is ordinary
+  selectable text with no injected comments. Type
+  values directly, use the small switches after `display.reference` and
+  `display.value` to toggle label visibility, click the buttons after
+  `placement.rotation` and `placement.mirror` to rotate clockwise, mirror
+  left/right, or mirror top/bottom. Mirror is written as `"horizontal"`,
+  `"vertical"`, or `"both"` and never changes the rotation value. Use the color button after
+  `appearance.foreground` for light gray, red, green, blue, black, and one RGB
+  tuple input such as `[220,38,38]`.
+  These controls are visual only and are absent from selected, copied, and
+  saved JSON. Fixed colors display as
+  `[R, G, B]` (0–255); hex input also works. Type `"auto"` directly to inherit
+  document ink. Component background color is not authored.
   Valid edits update the drawing immediately; invalid or rejected edits keep
   the last accepted drawing. Undo restores prior edits. Parameter values are strings: type unit suffixes
   yourself; `EV` remains `EV`, and `2u` is not changed to `2um`.
@@ -64,7 +79,9 @@ palette-first manual authoring; no Project file needs to be opened first.
   **Unconnected** beside **Connect**. Click the button to draw from the bulk
   terminal on the canvas. Hover the status for the terminal name and connection
   source. A configured default connection shows its Net rather than a warning;
-  **Draw** lets you make an explicit route. Place an unplaced device first.
+  **Draw** lets you make an explicit route. The dashed route follows the MOS
+  line color; selecting it shows a Bulk-specific action instead of ordinary
+  wire styling controls. Place an unplaced device first.
 - Right-click an endpoint for the distinct **Disconnect endpoint** and
   **Delete connection** actions.
 - `Delete` on a connected component now removes the component while preserving
@@ -160,18 +177,16 @@ layers. PNG uses 3x raster scale. Browser PDF converts the same formal SVG to
 vector paths and text on a page matching the SVG viewBox, so circuit geometry
 stays sharp when enlarged.
 
-To reuse only selected content, right-click a selected object and choose
-**Copy as PNG** or **Copy as SVG**, then paste into another application.
-Existing multi-selection is retained; right-clicking a different object selects
-that object. On empty canvas the menu uses the existing selection, never the whole
-drawing. Attached visible labels travel with their selected objects, but remote
-objects sharing a Net do not. Clipboard copies omit editor overlays, use a
-transparent page background, and do not change the circuit or Undo history.
-PNG is rendered at 3x with a bounded image size. SVG stays vector; formula glyphs
-remain paths, and the receiving application determines paste/editing support.
-Clipboard writes require HTTPS or localhost and browser permission. Failures are
-reported without silently downloading a file or substituting a different format.
-These commands do not change the existing **C** copy-placement workflow.
+To reuse only selected content as an image, choose **Edit / Copy selection as
+PNG** or **Edit / Copy selection as SVG**, then paste into another application.
+Attached visible labels travel with their selected objects, but remote objects
+sharing a Net do not. Clipboard copies omit editor overlays, use a transparent
+page background, and do not change the circuit or Undo history. PNG is rendered
+at 3x with a bounded image size. SVG stays vector; formula glyphs remain paths,
+and the receiving application determines paste/editing support. Clipboard writes
+require HTTPS or localhost and browser permission. Failures are reported without
+silently downloading a file or substituting a different format. These commands
+do not change the existing **C** copy-placement workflow.
 
 Use the toolbar's **Check and Save** to check the whole Project for ERC and
 visual issues and save it through the existing private Cloud Project service.

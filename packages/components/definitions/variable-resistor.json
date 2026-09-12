@@ -104,6 +104,7 @@
         "editor": "text",
         "unitHint": "Ohm",
         "placeholder": "10k",
+        "defaultValue": "1k",
         "help": "Resistance",
         "displayRole": "value"
       }

@@ -1,5 +1,5 @@
 import { z } from "zod";
-export const CURRENT_PROJECT_SCHEMA_VERSION = 51;
+export const CURRENT_PROJECT_SCHEMA_VERSION = 53;
 
 export const StableIdSchema = z.string().min(1).max(256);
 /** Strict persisted/presentation hex color token. Format: `#RRGGBB`. */
@@ -47,11 +47,16 @@ export const PointSchema = GridPointSchema;
 export const RectSchema = GridRectSchema;
 export const RotationSchema = z.union([
   z.literal(0),
+  z.literal(45),
   z.literal(90),
+  z.literal(135),
   z.literal(180),
+  z.literal(225),
   z.literal(270),
+  z.literal(315),
 ]);
-export const MirrorSchema = z.enum(["none", "x"]);
+/** Independent screen-space reflection axes; `both` composes the two. */
+export const MirrorSchema = z.enum(["none", "horizontal", "vertical", "both"]);
 export const OrientationSchema = z.strictObject({
   rotation: RotationSchema,
   mirror: MirrorSchema,

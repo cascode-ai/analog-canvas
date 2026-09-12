@@ -375,7 +375,7 @@ describe("a drawn rail meeting an existing wire", () => {
     document.instances.find((instance) => instance.id === "B")!.placement = {
       position: { x: 120, y: 300 },
       rotation: 0,
-      mirror: "x",
+      mirror: "horizontal",
     };
     const wired = executeTransaction(
       document,

@@ -1,5 +1,4 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import type { ReactNode } from "react";
 
 import {
   EDGE_ALIGNMENT_MODES,
@@ -12,17 +11,8 @@ export interface ContextMenuAction {
   execute: () => void;
 }
 
-export interface ContextMenuVariant {
-  symbolId: string;
-  name: string;
-}
-
 export interface CanvasContextMenuProps {
   position: { x: number; y: number };
-  /** Same-shape symbols the single selected device can swap into. */
-  variants: readonly ContextMenuVariant[];
-  renderVariantArtwork: (symbolId: string) => ReactNode;
-  onSwapVariant: (symbolId: string) => void;
   /** Enabled when two or more alignable visual objects are selected. */
   alignmentEnabled: boolean;
   onAlign: (mode: EdgeAlignmentMode) => void;
@@ -31,15 +21,11 @@ export interface CanvasContextMenuProps {
 }
 
 /**
- * Shared right-click menu for visual selection. Device-only variant tiles are
- * supplied only for a single selected instance; alignment and everyday
- * commands apply to the full mixed visual selection.
+ * Shared right-click menu for visual selection. It stays deliberately small:
+ * only operations that act directly on the current selection belong here.
  */
 export function CanvasContextMenu({
   position,
-  variants,
-  renderVariantArtwork,
-  onSwapVariant,
   alignmentEnabled,
   onAlign,
   actions,
@@ -47,6 +33,7 @@ export function CanvasContextMenu({
 }: CanvasContextMenuProps) {
   const menuRef = useRef<HTMLDivElement | null>(null);
   const [placed, setPlaced] = useState(position);
+  const availableActions = actions.filter((action) => action.enabled);
 
   useLayoutEffect(() => {
     const menu = menuRef.current;
@@ -95,29 +82,6 @@ export function CanvasContextMenu({
       onPointerDown={(event) => event.stopPropagation()}
       onContextMenu={(event) => event.preventDefault()}
     >
-      {variants.length > 0 ? (
-        <div className="context-menu-section">
-          <div className="context-menu-heading">Swap device</div>
-          <div className="context-menu-variants" role="group">
-            {variants.map((variant) => (
-              <button
-                key={variant.symbolId}
-                type="button"
-                role="menuitem"
-                className="context-menu-variant"
-                title={variant.name}
-                data-testid={`context-swap-${variant.symbolId}`}
-                onClick={() => {
-                  onSwapVariant(variant.symbolId);
-                  onClose();
-                }}
-              >
-                {renderVariantArtwork(variant.symbolId)}
-              </button>
-            ))}
-          </div>
-        </div>
-      ) : null}
       {alignmentEnabled ? (
         <div className="context-menu-section">
           <div className="context-menu-heading">Align</div>
@@ -138,15 +102,14 @@ export function CanvasContextMenu({
           ))}
         </div>
       ) : null}
-      {actions.length > 0 ? (
+      {availableActions.length > 0 ? (
         <div className="context-menu-section">
-          {actions.map((action) => (
+          {availableActions.map((action) => (
             <button
               key={action.label}
               type="button"
               role="menuitem"
               className="context-menu-item"
-              disabled={!action.enabled}
               onClick={() => {
                 action.execute();
                 onClose();
