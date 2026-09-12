@@ -422,7 +422,8 @@ export function SimulationFileTree(props: SimulationCodeWorkspaceProps) {
                 node.kind === "folder" ? "Folder " + node.name : node.name
               }
               aria-current={active ? "page" : undefined}
-              title={node.file?.path ?? node.name}
+              title={node.cellLabel ?? node.file?.path ?? node.name}
+              aria-description={node.cellLabel}
               onClick={(event) => {
                 choose(node, event);
                 if (!event.ctrlKey && !event.metaKey && !event.shiftKey) {
@@ -473,14 +474,6 @@ export function SimulationFileTree(props: SimulationCodeWorkspaceProps) {
                 </svg>
               </span>
               <span className="simulation-file-name">{node.name}</span>
-              {node.cellLabel ? (
-                <small
-                  className="simulation-folder-cell"
-                  title={node.cellLabel}
-                >
-                  {node.cellLabel}
-                </small>
-              ) : null}
               {node.tmp ? <small>tmp</small> : null}
               {node.file?.dirty ? (
                 <span className="simulation-file-state" title="Unsaved">

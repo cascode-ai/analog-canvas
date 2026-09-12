@@ -39,13 +39,17 @@ covered by the Project's browser recovery, not a cloud backup. **File → Save**
 (or the project-level shortcut outside code) still saves the entire Project to
 the signed-in cloud account.
 
-Open **experiment.json** from Source for configuration; it is not a default tab.
+New experiments use the hosted environment automatically. Their internal
+`experiment.json` is hidden from Source and file tabs, but retained in Project
+backups. Legacy or damaged configurations and pending configuration drafts stay
+visible for compatibility and repair; they are not a new environment picker.
+Hover a folder to see its bound Cell without adding text to the file row.
 Use file/folder context menus to copy, download or create files. Right-click a
 file tab (or press Shift+F10 while it is focused) to close it, close other tabs,
-or close all tabs. Closing tabs retains files and pending drafts. Configuration owns
-Profile/corner, output labels and bindings, measurements and the managed Run
-Plan. Native analyses and nominal temperature belong in SPICE, not hidden
-Settings fields. This example runs OP and AC and retains both plots:
+or close all tabs. Closing tabs retains files and pending drafts. Native analyses,
+acquisition, measurements and nominal temperature belong in SPICE. Older
+experiments retain their legacy configuration until explicitly migrated through
+Helper. This example runs OP and AC and retains both plots:
 
 ```spice
 .control

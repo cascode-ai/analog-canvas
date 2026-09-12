@@ -54,6 +54,7 @@ import { sourceProbeChoices } from "./source-probe-choices";
 import { SourceProbePicker } from "./source-probe-picker";
 import { SimulationActionIcon } from "./simulation-action-icon";
 import { flushSelectedFolders } from "./flush-selected-folders";
+import { isVisibleSimulationSource } from "./simulation-source-visibility";
 
 export type SourceFlush =
   | { ok: true; folder: ProjectSimulationFolder; revision: number }
@@ -151,7 +152,18 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
       setRecoveryAvailable(cache.write(drafts.current));
     }, [cache, draftRevision]);
     const [paths, setPaths] = useState<Record<string, string>>({});
-    const path = paths[props.folder.id] ?? props.folder.input.entry;
+    const visibleSource = (folder: ProjectSimulationFolder, path: string) => {
+      const draft = drafts.current.get(`${folder.id}\u0000${path}`);
+      return isVisibleSimulationSource(
+        folder,
+        path,
+        !!draft && draft.text !== draft.base,
+      );
+    };
+    const requestedPath = paths[props.folder.id] ?? props.folder.input.entry;
+    const path = visibleSource(props.folder, requestedPath)
+      ? requestedPath
+      : props.folder.input.entry;
     const setPath = (value: string, folderId = props.folder.id) => {
       setPaths((current) => ({ ...current, [folderId]: value }));
       if (folderId !== props.folder.id) props.folders?.onSelect(folderId);
@@ -938,29 +950,31 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
                   ]);
                   return {
                     ...node,
-                    files: [...names].map((path) => {
-                      const draft = drafts.current.get(
-                        `${node.id}\u0000${path}`,
-                      );
-                      const modified = !!draft && draft.text !== draft.base;
-                      return {
-                        path,
-                        kind: folder.input.circuitBindings.some(
-                          (b) => b.path === path,
-                        )
-                          ? ("generated" as const)
-                          : ("authored" as const),
-                        draft: modified,
-                        dirty:
-                          modified &&
-                          !folder.input.drafts?.some(
-                            (saved) =>
-                              saved.path === path &&
-                              saved.base === draft.base &&
-                              saved.text === draft.text,
-                          ),
-                      };
-                    }),
+                    files: [...names]
+                      .filter((path) => visibleSource(folder, path))
+                      .map((path) => {
+                        const draft = drafts.current.get(
+                          `${node.id}\u0000${path}`,
+                        );
+                        const modified = !!draft && draft.text !== draft.base;
+                        return {
+                          path,
+                          kind: folder.input.circuitBindings.some(
+                            (b) => b.path === path,
+                          )
+                            ? ("generated" as const)
+                            : ("authored" as const),
+                          draft: modified,
+                          dirty:
+                            modified &&
+                            !folder.input.drafts?.some(
+                              (saved) =>
+                                saved.path === path &&
+                                saved.base === draft.base &&
+                                saved.text === draft.text,
+                            ),
+                        };
+                      }),
                   };
                 }),
               }
@@ -986,26 +1000,28 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
         onDownloadSelection={(selection, archive) =>
           void downloadSelection(selection, archive)
         }
-        files={ownFiles.map((filePath) => ({
-          path: filePath,
-          kind: input.circuitBindings.some((b) => b.path === filePath)
-            ? "generated"
-            : "authored",
-          dirty:
-            !!drafts.current.get(key(filePath)) &&
-            drafts.current.get(key(filePath))!.text !==
-              drafts.current.get(key(filePath))!.base &&
-            !input.drafts?.some(
-              (saved) =>
-                saved.path === filePath &&
-                saved.text === drafts.current.get(key(filePath))!.text &&
-                saved.base === drafts.current.get(key(filePath))!.base,
-            ),
-          draft:
-            !!drafts.current.get(key(filePath)) &&
-            drafts.current.get(key(filePath))!.text !==
-              drafts.current.get(key(filePath))!.base,
-        }))}
+        files={ownFiles
+          .filter((filePath) => visibleSource(props.folder, filePath))
+          .map((filePath) => ({
+            path: filePath,
+            kind: input.circuitBindings.some((b) => b.path === filePath)
+              ? "generated"
+              : "authored",
+            dirty:
+              !!drafts.current.get(key(filePath)) &&
+              drafts.current.get(key(filePath))!.text !==
+                drafts.current.get(key(filePath))!.base &&
+              !input.drafts?.some(
+                (saved) =>
+                  saved.path === filePath &&
+                  saved.text === drafts.current.get(key(filePath))!.text &&
+                  saved.base === drafts.current.get(key(filePath))!.base,
+              ),
+            draft:
+              !!drafts.current.get(key(filePath)) &&
+              drafts.current.get(key(filePath))!.text !==
+                drafts.current.get(key(filePath))!.base,
+          }))}
         activePath={path}
         onSelectFile={setPath}
         onFileAction={async (
