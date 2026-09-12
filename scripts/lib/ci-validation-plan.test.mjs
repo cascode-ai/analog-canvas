@@ -58,6 +58,7 @@ describe("CI validation planning", () => {
       mode: "focused",
       e2eArgs: [
         "apps/editor/e2e/component-insert.spec.ts",
+        "apps/editor/e2e/component-properties-catalog.spec.ts",
         "apps/editor/e2e/gallery.spec.ts",
       ],
     });

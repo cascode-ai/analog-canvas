@@ -101,7 +101,8 @@
     ],
     "componentInsert": [
       "apps/editor/src/features/component-insert/**",
-      "apps/editor/e2e/component-insert.spec.ts"
+      "apps/editor/e2e/component-insert.spec.ts",
+      "apps/editor/e2e/component-properties-catalog.spec.ts"
     ],
     "hierarchy": [
       "apps/editor/src/features/hierarchy/**",
@@ -249,9 +250,15 @@
       "command": [
         "pnpm",
         "test:e2e:local",
-        "apps/editor/e2e/component-insert.spec.ts"
+        "apps/editor/e2e/component-insert.spec.ts",
+        "apps/editor/e2e/component-properties-catalog.spec.ts"
       ],
-      "ci": { "e2eArgs": ["apps/editor/e2e/component-insert.spec.ts"] }
+      "ci": {
+        "e2eArgs": [
+          "apps/editor/e2e/component-insert.spec.ts",
+          "apps/editor/e2e/component-properties-catalog.spec.ts"
+        ]
+      }
     },
     {
       "id": "hierarchy-browser",
