@@ -367,6 +367,19 @@
 .simulation-code-tabs {
   overflow-x: auto;
   align-items: stretch;
+  min-width: 0;
+  flex: 1;
+}
+.simulation-code-document-header {
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+  flex: none;
+  border-bottom: 1px solid var(--icm-border);
+}
+.simulation-code-document-actions {
+  flex: none;
+  align-self: center;
 }
 .simulation-code-tab {
   display: flex;
@@ -573,26 +586,6 @@
   min-height: 0;
   flex: 1;
 }
-.simulation-code-ghost-hints {
-  flex: none;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 26px;
-  padding: 3px 9px;
-  overflow-x: auto;
-  border-top: 1px solid var(--icm-border);
-  color: var(--icm-text-muted);
-  background: color-mix(in srgb, var(--icm-surface-muted) 78%, transparent);
-  white-space: nowrap;
-}
-.simulation-code-ghost-hints code {
-  opacity: 0.72;
-  font:
-    10px "Google Sans Code Variable",
-    Consolas,
-    monospace;
-}
 .simulation-code-helper-toolbar {
   height: 28px;
   box-sizing: border-box;
@@ -603,7 +596,16 @@
   display: flex;
   gap: 12px;
   padding: 3px 8px;
-  border-bottom: 1px solid var(--icm-border);
+}
+.simulation-code-argument-hint {
+  position: absolute;
+  bottom: 4px;
+  right: 12px;
+  max-width: calc(100% - 24px);
+  background: var(--icm-surface);
+  color: var(--icm-text-muted);
+  z-index: 2;
+  pointer-events: none;
 }
 .simulation-code-helper-toolbar button {
   background: transparent;
@@ -618,10 +620,12 @@
 }
 .simulation-helper-list {
   position: absolute;
-  top: 32px;
-  left: 8px;
+  top: 4px;
+  right: 8px;
   width: min(380px, calc(100% - 16px));
-  max-height: 80%;
+  height: 320px;
+  max-height: calc(100% - 8px);
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   z-index: 30;
@@ -685,15 +689,13 @@
   }
 }
 .simulation-probe-picker {
-  position: absolute;
-  z-index: 40;
-  inset: 45px 12px auto;
-  max-height: 70%;
-  display: flex;
-  flex-direction: column;
   gap: 8px;
-  padding: 12px;
-  background: var(--icm-surface);
-  border: 1px solid var(--icm-border);
-  box-shadow: 0 8px 24px #0002;
+}
+.simulation-probe-picker-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.simulation-helper-options {
+  flex: 1;
 }

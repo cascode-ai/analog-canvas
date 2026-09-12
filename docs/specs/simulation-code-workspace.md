@@ -101,8 +101,8 @@ IDs and exact files. Older data is read only at that compatibility boundary.
 
 New experiments require only a name. They bind the current Cell as the top-level
 circuit and create a small `op` starter; they do not ask for OP/AC/TRAN or source
-mode. AC, TRAN and DC examples appear as non-persisted editor hints, and helpers
-can insert them without making another form state authoritative. The source API
+mode. Helpers can insert AC, TRAN and DC commands without making another form
+state authoritative; the editor has no permanent analysis-example footer. The source API
 retains text-only and text-DUT creation for import, Agent and compatibility flows,
 but those are not choices in the normal new-experiment interaction. No starter
 creates a TB Cell or guesses stimuli.
@@ -113,8 +113,11 @@ Existing experiments reopen unchanged; duplication is an explicit action.
 `circuit.spice`, `testbench.spice`, and `run.cir` are conventions, not mandatory
 file counts. A drawn TB does not need an additional authored TB file.
 
-The flat **Helper** list and Ctrl+Space share the ngspice help catalog. Search
-accepts command names and purpose keywords; contextual typing completion is
+The flat **Helper** list and Ctrl+Space share the ngspice help catalog. The
+Helper button stays fixed at the right of the open-file tab row.
+Helper and signal selection use the same anchored popup footprint without resizing
+the editor. Closing by clicking outside preserves focus at the clicked destination.
+Search accepts command names and purpose keywords; contextual typing completion is
 limited to commands and relevant arguments, not comments or arbitrary text.
 Argument completion opens after the space in `save`/`dc`; native vector names stay
 unchanged. Candidate selection and hover can locate mapped Canvas Nets through
@@ -125,10 +128,16 @@ Choosing a command inserts its name and presents missing arguments as display-on
 ghosts. Tab/Shift+Tab navigate arguments, Escape dismisses guidance, and no ghost
 or implicit default enters saved/exported/executed text. Parameter guidance is
 advisory: users and Agents may continue writing native syntax beyond the catalog.
+Parameter descriptions remain visible without a permanent Tab/Shift+Tab legend.
 
 Helper signal actions insert native `save`/`.save` statements, not a parallel
-voltage-output configuration. Terminal-current picks retain their existing
-configuration owner when generated measurement wiring is required. An explicit
+voltage-output configuration. Signal selection stays open for successive additions;
+added choices are marked and cannot insert duplicates within that selection session.
+Canvas picking continues until Done or Escape. Successive picks extend the session's
+save statement without focusing the editor; the file row exposes picking status
+and Done. Failed additions keep the selection available and report their cause.
+Terminal-current picks retain their existing configuration owner when generated
+measurement wiring is required. An explicit
 save list is never silently widened to `all` by that instrumentation.
 Discovery and completion use the compiler's authored call-path mapping; they
 show the Canvas name alongside the executable native vector. Native vectors
