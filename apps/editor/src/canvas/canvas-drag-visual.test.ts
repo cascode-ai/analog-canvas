@@ -25,6 +25,32 @@ class FakeElement {
 }
 
 describe("startCanvasDragVisual", () => {
+  it("moves a junction independently of its stretched incident wires and restores both", () => {
+    const junction = new FakeElement({
+      "data-object-id": "J",
+      transform: "translate(10 20)",
+    });
+    const route = new FakeElement({
+      "data-object-id": "R",
+      points: "10,20 100,20",
+    });
+    const root = {
+      querySelectorAll: () => [junction, route],
+    } as unknown as ParentNode;
+    const visual = startCanvasDragVisual(root, ["J", "R"]);
+    visual.translateObject("J", { x: 0, y: -10 });
+    visual.setObjectPolyline("R", [
+      { x: 10, y: 10 },
+      { x: 100, y: 10 },
+    ]);
+    expect(junction.getAttribute("transform")).toBe(
+      "translate(0 -10) translate(10 20)",
+    );
+    expect(route.getAttribute("transform")).toBeNull();
+    visual.restore();
+    expect(junction.getAttribute("transform")).toBe("translate(10 20)");
+    expect(route.getAttribute("points")).toBe("10,20 100,20");
+  });
   it("composes translation with existing transforms and restores exactly", () => {
     const formal = new FakeElement({
       "data-object-id": "M1",

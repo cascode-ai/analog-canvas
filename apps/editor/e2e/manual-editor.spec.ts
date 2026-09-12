@@ -7345,9 +7345,11 @@ test("dragging a wire previews the orthogonal path it will commit", async ({
   );
   // While the pointer is down the preview used to close back at the old free
   // end, drawing a triangle the editor never commits.
-  expect(everyLegAxisAligned(await drawnPoints())).toBe(true);
+  const previewPoints = await drawnPoints();
+  expect(everyLegAxisAligned(previewPoints)).toBe(true);
   await page.mouse.up();
   expect(everyLegAxisAligned(await drawnPoints())).toBe(true);
+  expect(await drawnPoints()).toEqual(previewPoints);
 });
 
 test("the copy ghost shows the wires it is about to place", async ({

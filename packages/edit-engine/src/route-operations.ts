@@ -1,5 +1,6 @@
 import { cancelDoubledBackLegs } from "./routing-planner.js";
 import { stretchRouteEndpoint } from "./route-endpoint-stretch.js";
+import { tidyRouteTerminalApproaches } from "./route-terminal-approach.js";
 import {
   reflectOrientation,
   routeBends,
@@ -283,6 +284,57 @@ function normalizeProposal(
  * that would bend it fails here with a named plan-time error instead of a
  * raw geometry rejection at commit.
  */
+function tidyTerminalProposal(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  route: SchematicDocument["routes"][number],
+  proposal: RouteStretchProposal,
+): RouteStretchProposal {
+  if (proposal.collapsedToContact || route.presentation === "power-rail")
+    return proposal;
+  const from = resolveEndpointConnection(document, resolver, route.start);
+  const to = resolveEndpointConnection(document, resolver, routeEnd(route));
+  if (!from || !to) return proposal;
+  const tidy = tidyRouteTerminalApproaches(
+    document,
+    resolver,
+    route,
+    [from.contactPoint, ...proposal.waypoints, to.contactPoint],
+    proposal.segmentModes,
+  );
+  return normalizeProposal(route.id, tidy.points, tidy.segmentModes);
+}
+
+function tidyDragProposal(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  proposal: WireSegmentDragProposal,
+): WireSegmentDragProposal {
+  const moved = new Map(
+    proposal.junctions.map((junction) => [
+      junction.junctionId,
+      junction.position,
+    ]),
+  );
+  const projected = {
+    ...document,
+    junctions: document.junctions.map((junction) =>
+      moved.has(junction.id)
+        ? { ...junction, position: moved.get(junction.id)! }
+        : junction,
+    ),
+  };
+  return {
+    ...proposal,
+    routes: proposal.routes.map((item) => {
+      const route = document.routes.find(
+        (candidate) => candidate.id === item.routeId,
+      )!;
+      return tidyTerminalProposal(projected, resolver, route, item);
+    }),
+  };
+}
+
 function assertPowerRailStaysStraight(
   route: SchematicDocument["routes"][number],
   first: Point,
@@ -396,6 +448,30 @@ function axisOf(a: Point, b: Point): "x" | "y" | null {
  * identity never change: this is presentation geometry only.
  */
 function smoothedBoundaryProposal(
+  route: SchematicDocument["routes"][number],
+  originalBendCount: number,
+  stretched: RouteStretchProposal,
+  smoothing: BoundarySmoothing,
+  resolver: SymbolResolver,
+  stretchedRawBendCount: number = stretched.waypoints.length,
+): RouteStretchProposal {
+  const proposal = smoothedBoundaryGeometry(
+    route,
+    originalBendCount,
+    stretched,
+    smoothing,
+    resolver,
+    stretchedRawBendCount,
+  );
+  return tidyTerminalProposal(
+    smoothing.movedDocument,
+    resolver,
+    route,
+    proposal,
+  );
+}
+
+function smoothedBoundaryGeometry(
   route: SchematicDocument["routes"][number],
   originalBendCount: number,
   stretched: RouteStretchProposal,
@@ -565,6 +641,18 @@ export function proposeJunctionGroupTranslation(
   resolver: SymbolResolver,
   moves: readonly JunctionMoveProposal[],
 ): WireSegmentDragProposal {
+  return tidyDragProposal(
+    document,
+    resolver,
+    proposeJunctionTranslationGeometry(document, resolver, moves),
+  );
+}
+
+function proposeJunctionTranslationGeometry(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  moves: readonly JunctionMoveProposal[],
+): WireSegmentDragProposal {
   const movedJunctions = new Map(
     moves.map((move) => [move.junctionId, move.position] as const),
   );
@@ -660,6 +748,26 @@ export function proposeJunctionGroupTranslation(
  * returned Junction and Route edits together in one transaction.
  */
 export function proposeWireSegmentDrag(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  routeId: string,
+  segmentIndex: number,
+  target: Point,
+): WireSegmentDragProposal {
+  return tidyDragProposal(
+    document,
+    resolver,
+    proposeWireSegmentDragGeometry(
+      document,
+      resolver,
+      routeId,
+      segmentIndex,
+      target,
+    ),
+  );
+}
+
+function proposeWireSegmentDragGeometry(
   document: SchematicDocument,
   resolver: SymbolResolver,
   routeId: string,

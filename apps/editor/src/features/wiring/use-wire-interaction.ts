@@ -652,11 +652,42 @@ export function useWireInteraction(capabilities: UseWireInteractionOptions) {
           ? routeEndpointRouteIds
           : [routeId];
     let visual: ReturnType<typeof startCanvasDragVisual> | null = null;
+    const segmentJunctionIds = new Set(
+      [record.route.start, routeEnd(record.route)].flatMap((endpoint) =>
+        endpoint.kind === "junction" ? [endpoint.junctionId] : [],
+      ),
+    );
+    const segmentRouteIds = options.document.routes
+      .filter((route) =>
+        [route.start, routeEnd(route)].some(
+          (endpoint) =>
+            endpoint.kind === "junction" &&
+            segmentJunctionIds.has(endpoint.junctionId),
+        ),
+      )
+      .map((route) => route.id);
     const dragVisual = () =>
       (visual ??= startCanvasDragVisual(svg, [
         ...translatedRouteIds,
         ...anchorIds,
+        ...(intent === "stretch-segment"
+          ? [...segmentRouteIds, ...segmentJunctionIds]
+          : []),
       ]));
+    const previewJunctions = (
+      moves: readonly { junctionId: string; position: Point }[],
+    ) => {
+      for (const move of moves) {
+        const original = options.document.junctions.find(
+          (j) => j.id === move.junctionId,
+        );
+        if (!original) continue;
+        dragVisual().translateObject(move.junctionId, {
+          x: move.position.x - original.position.x,
+          y: move.position.y - original.position.y,
+        });
+      }
+    };
     const resizesRouteEnd =
       intent === "resize-route-start" || intent === "resize-route-end";
     const preview: RouteStretchPreview = {
@@ -755,18 +786,24 @@ export function useWireInteraction(capabilities: UseWireInteractionOptions) {
                 to,
               ]);
             }
+            previewJunctions(plan.preview?.junctions ?? []);
           } catch {
             // Keep the last valid endpoint preview; commit reports the error.
           }
           return;
         }
         try {
+          const grid = options.document.presentation.grid;
+          const snapped = {
+            x: snapCoordinate(point.x, grid),
+            y: snapCoordinate(point.y, grid),
+          };
           const plan = proposeWireSegmentMove(
             options.document,
             options.resolver,
             routeId,
             segmentIndex,
-            point,
+            snapped,
           );
           const proposal = plan.preview?.routes.find(
             (candidate) => candidate.routeId === routeId,
@@ -775,18 +812,29 @@ export function useWireInteraction(capabilities: UseWireInteractionOptions) {
           // Remember how far the drag actually planned. Releasing past that
           // point used to plan once more, fail, and snap the wire back to
           // where it started, discarding everything the preview had shown.
-          preview.point = point;
+          preview.point = snapped;
           // Draw what the plan will commit. Pinning the Route's original
           // endpoints here left a moved free end behind, so the closing leg
           // cut across at an angle and the drag read as a triangle.
-          dragVisual().setPolyline(
-            segmentDragPreviewPolyline(
-              record.route,
-              record.geometry.centerline,
-              proposal.waypoints,
-              plan.preview?.junctions ?? [],
-            ),
-          );
+          // Restore arms no longer affected by this plan (for example after
+          // returning from a carried Junction to a fixed-end dogleg).
+          dragVisual().restore();
+          for (const item of plan.preview?.routes ?? []) {
+            const affected = options.routeGeometryRecords.find(
+              (r) => r.route.id === item.routeId,
+            );
+            if (!affected) continue;
+            dragVisual().setObjectPolyline(
+              item.routeId,
+              segmentDragPreviewPolyline(
+                affected.route,
+                affected.geometry.centerline,
+                item.waypoints,
+                plan.preview?.junctions ?? [],
+              ),
+            );
+          }
+          previewJunctions(plan.preview?.junctions ?? []);
         } catch {
           // Keep the last valid preview; commit lands on it instead.
         }

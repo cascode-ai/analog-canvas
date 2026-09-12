@@ -2,10 +2,7 @@ import {
   isEligibleSeriesInsertionPinPair,
   planSeriesInstanceSplice,
 } from "./series-splice-planner.js";
-import { planDirectEndpointConnection } from "./direct-contact-planner.js";
-import { applyNetPowerEdit } from "./transaction-net-power.js";
-import { applyRouteTopologyEdit } from "./transaction-route-topology.js";
-import { applyPresentationLayoutEdit } from "./transaction-presentation-layout.js";
+import { createContactPlanningDraft } from "./contact-planning-draft.js";
 import { planElectricalMarkerRename } from "./net-name-operation-planner.js";
 import { planEnsurePowerNet } from "./power-net-planner.js";
 import {
@@ -368,21 +365,12 @@ export function proposePlacementContact(
   // Fold all contact membership edits through the transaction's own mutations
   // before compiling any split. Later contacts must see prior Net merges, but
   // Route leg identities must remain unchanged until every split is planned.
-  const connected = structuredClone(document);
+  const contactDraft = createContactPlanningDraft(document, resolver);
+  const connected = contactDraft.document;
   for (const item of options.instances ?? [instance]) {
     connected.instances = connected.instances.filter((i) => i.id !== item.id);
     connected.instances.push(structuredClone(item));
   }
-  const mutationContext = {
-    draft: connected,
-    resolver,
-    changedObjectIds: new Set<string>(),
-    explicitlyAuthoredRouteIds: new Set<string>(),
-    deferNetPrune: (_netId: string) => {},
-    reject: (_code: unknown, message: string): never => {
-      throw new Error(message);
-    },
-  };
   const connections = new Map<
     WireSource,
     { netId: string; newNetId: string }
@@ -396,11 +384,7 @@ export function proposePlacementContact(
       const to =
         target.endpoint?.endpoint ??
         connected.routes.find((r) => r.id === target.route!.routeId)!.start;
-      const connection = planDirectEndpointConnection(connected, {
-        from: source.endpoint,
-        to,
-        newNetId,
-      });
+      const connection = contactDraft.connect(source.endpoint, to, newNetId);
       if (!connection.ok)
         return {
           edits: [],
@@ -408,19 +392,6 @@ export function proposePlacementContact(
           ambiguous: false,
           rejected: connection.message,
         };
-      for (const edit of connection.edits) {
-        if (edit.kind === "connect_endpoints")
-          applyRouteTopologyEdit(edit, mutationContext);
-        else if (
-          edit.kind === "merge_nets" ||
-          edit.kind === "remove_connectivity_evidence"
-        )
-          applyNetPowerEdit(edit, mutationContext);
-        else if (edit.kind === "remove_schematic_annotation")
-          applyPresentationLayoutEdit(edit, mutationContext);
-        else throw new Error(`Unexpected contact edit: ${edit.kind}`);
-        edits.push(edit);
-      }
       connections.set(source, { netId: connection.netId, newNetId });
     }
   } catch (error) {
@@ -431,6 +402,7 @@ export function proposePlacementContact(
       rejected: error instanceof Error ? error.message : String(error),
     };
   }
+  edits.push(...contactDraft.edits);
   let powerNetId: string | undefined;
   let powerCandidateState: "existing" | "pending-connection" | undefined;
   let powerEndpoint: RouteEndpoint | undefined;
