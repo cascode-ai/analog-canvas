@@ -13,6 +13,7 @@ import {
   WidgetType,
   keymap,
   drawSelection,
+  highlightActiveLine,
   type DecorationSet,
 } from "@codemirror/view";
 import {
@@ -38,9 +39,9 @@ import {
 import {
   colorToRgb,
   parseCanvasColor,
-  MIRROR_OPTIONS,
   ROTATION_OPTIONS,
 } from "./component-property-fields";
+import { COLOR_PRESETS } from "./color-override-control";
 import {
   propertyCodeSpans,
   propertyCodeChanges,
@@ -51,11 +52,12 @@ import {
 interface Props {
   value: string;
   historyKey: number;
+  baselineCode: string;
   context: ComponentPropertyCodeContext;
   defaultForeground: string;
   focusRequest: number;
-  showHelp: boolean;
   onChange(source: string): void;
+  showHelp: boolean;
 }
 const refreshAssists = StateEffect.define<null>();
 const externalUpdate = Annotation.define<boolean>();
@@ -78,6 +80,7 @@ export default function ComponentPropertyJsonEditor(props: Props) {
       create: (state) => decorations(state, read),
       update: (value, transaction) =>
         transaction.docChanged ||
+        transaction.selection ||
         transaction.effects.some((effect) => effect.is(refreshAssists)) ||
         syntaxTree(transaction.startState) !== syntaxTree(transaction.state)
           ? decorations(transaction.state, read)
@@ -92,18 +95,35 @@ export default function ComponentPropertyJsonEditor(props: Props) {
           indentUnit.of("  "),
           history(),
           drawSelection(),
+          highlightActiveLine(),
           bracketMatching(),
           closeBrackets(),
           syntaxHighlighting(defaultHighlightStyle),
-          linter(jsonParseLinter()),
+          linter((view) => {
+            const syntax = jsonParseLinter()(view);
+            if (syntax.length) return syntax;
+            const source = view.state.doc.toString();
+            const parsed = parseComponentPropertyCode(source, read().context);
+            if (parsed.ok) return [];
+            const span = propertyCodeSpans(source, read().context)
+              .sort((a, b) => b.field.path.length - a.field.path.length)
+              .find(({ field }) => parsed.message.includes(field.path));
+            return [
+              {
+                from: span?.from ?? 0,
+                to: span?.to ?? Math.min(1, source.length),
+                severity: "error" as const,
+                message: parsed.message,
+              },
+            ];
+          }),
           assistField,
+          EditorView.lineWrapping,
           EditorView.contentAttributes.of({
             "aria-label": "Editable Canvas property code",
             spellcheck: "false",
           }),
           keymap.of([
-            // Match the canvas redo chord on Windows too (CodeMirror defaults
-            // to Ctrl+Y there). Ctrl+Y remains available through historyKeymap.
             { key: "Mod-Shift-z", run: redo, preventDefault: true },
             ...historyKeymap,
             ...closeBracketsKeymap,
@@ -137,6 +157,7 @@ export default function ComponentPropertyJsonEditor(props: Props) {
     if (historyKey.current !== props.historyKey) {
       historyKey.current = props.historyKey;
       view.setState(createState.current(props.value));
+      view.dispatch({ effects: refreshAssists.of(null) });
     } else if (view.state.doc.toString() !== props.value) {
       const current = view.state.doc.toString();
       let from = 0;
@@ -207,9 +228,47 @@ function decorations(state: EditorState, read: () => Props): DecorationSet {
     },
   });
   const source = state.doc.toString();
-  const enabled = parseComponentPropertyCode(source, read().context).ok;
+  let enabled = true;
+  try {
+    JSON.parse(source);
+  } catch {
+    enabled = false;
+  }
+  const baseline = new Map(
+    propertyCodeSpans(read().baselineCode, read().context).map((span) => [
+      span.field.path,
+      span.value,
+    ]),
+  );
   for (const span of propertyCodeSpans(source, read().context)) {
-    if (span.field.kind !== "text" && span.field.kind !== "coordinate")
+    // Object containers are not value chips. Their children own editing marks.
+    if (
+      span.value !== null &&
+      typeof span.value === "object" &&
+      !Array.isArray(span.value)
+    ) {
+      if (!read().showHelp && span.field.description)
+        ranges.push(
+          Decoration.widget({
+            widget: new PropertyComment(span.field.description),
+            side: 2,
+          }).range(span.from + 1),
+        );
+      continue;
+    }
+    const active =
+      state.selection.main.head >= span.from &&
+      state.selection.main.head <= span.to;
+    const dirty =
+      JSON.stringify(baseline.get(span.field.path)) !==
+      JSON.stringify(span.value);
+    ranges.push(
+      Decoration.mark({
+        class: `cm-property-value${active ? " cm-property-value-active" : ""}${dirty ? " cm-property-value-dirty" : ""}`,
+      }).range(span.from, span.to),
+    );
+    const at = source[span.to] === "," ? span.to + 1 : span.to;
+    if (!["text", "coordinate"].includes(span.field.kind)) {
       ranges.push(
         Decoration.widget({
           widget: new PropertyAssist(
@@ -219,32 +278,68 @@ function decorations(state: EditorState, read: () => Props): DecorationSet {
             read,
           ),
           side: 1,
-        }).range(state.doc.lineAt(span.to).to),
+        }).range(at),
       );
-    if (read().showHelp)
+    }
+    if (read().showHelp) {
+      const help = span.field.help || span.field.description;
+      if (help)
+        ranges.push(
+          Decoration.widget({
+            widget: new PropertyHelp(`${span.field.label}: ${help}`),
+            block: true,
+            side: 3,
+          }).range(state.doc.lineAt(span.to).to),
+        );
+    } else if (span.field.description) {
+      // Attach to this value, never a shared physical line end. Include its
+      // comma so formatted JSON reads naturally; compact JSON stays unambiguous.
       ranges.push(
         Decoration.widget({
-          widget: new PropertyHelp(span.field.description),
-          block: true,
+          widget: new PropertyComment(span.field.description),
           side: 2,
-        }).range(state.doc.lineAt(span.to).to),
+        }).range(at),
       );
+    }
   }
   return Decoration.set(ranges, true);
 }
 
 class PropertyHelp extends WidgetType {
-  constructor(readonly description: string) {
+  constructor(readonly text: string) {
     super();
   }
   override eq(other: PropertyHelp) {
-    return this.description === other.description;
+    return this.text === other.text;
   }
   toDOM() {
     const dom = document.createElement("div");
-    dom.className = "cm-property-hint";
-    dom.textContent = this.description;
+    dom.className = "cm-property-help-block";
+    dom.contentEditable = "false";
+    dom.textContent = this.text;
     return dom;
+  }
+  override ignoreEvent() {
+    return true;
+  }
+}
+
+class PropertyComment extends WidgetType {
+  constructor(readonly text: string) {
+    super();
+  }
+  override eq(other: PropertyComment) {
+    return this.text === other.text;
+  }
+  toDOM() {
+    const dom = document.createElement("span");
+    dom.className = "cm-property-hint";
+    dom.contentEditable = "false";
+    dom.textContent = ` // ${this.text}`;
+    return dom;
+  }
+  override ignoreEvent() {
+    return true;
   }
 }
 
@@ -274,20 +369,44 @@ class PropertyAssist extends WidgetType {
     const { field, value } = this.span;
     const dom = document.createElement("span");
     dom.className = "cm-property-assist";
+    dom.dataset.kind = field.kind;
     dom.setAttribute("data-property-assist", field.path);
     dom.contentEditable = "false";
     dom.addEventListener("keydown", (event) => {
       event.stopPropagation();
     });
-    const change = (values: Record<string, unknown>) => {
-      const changes = propertyCodeChanges(
-        view.state.doc.toString(),
-        this.read().context,
-        values,
-      );
-      if (changes.length)
+    const dispatchChanges = (
+      changes: ReturnType<typeof propertyCodeChanges>,
+    ) => {
+      if (changes.length) {
+        const previousFocus = document.activeElement;
+        const focusedLabel = previousFocus?.getAttribute("aria-label");
         view.dispatch({ changes, userEvent: "input.property-control" });
+        queueMicrotask(() => {
+          if (!focusedLabel || previousFocus?.isConnected) return;
+          const row = [
+            ...view.dom.querySelectorAll<HTMLElement>("[data-property-assist]"),
+          ].find((node) => node.dataset.propertyAssist === field.path);
+          const next = [
+            ...(row?.querySelectorAll<HTMLElement>("[aria-label]") ?? []),
+          ].find((node) => node.getAttribute("aria-label") === focusedLabel);
+          if (next?.getClientRects().length)
+            next.focus({ preventScroll: true });
+          else
+            row
+              ?.querySelector<HTMLButtonElement>(".cm-property-color-trigger")
+              ?.focus({ preventScroll: true });
+        });
+      }
     };
+    const change = (values: Record<string, unknown>) =>
+      dispatchChanges(
+        propertyCodeChanges(
+          view.state.doc.toString(),
+          this.read().context,
+          values,
+        ),
+      );
     const button = (label: string, text: string, run: () => void) => {
       const control = document.createElement("button");
       control.type = "button";
@@ -309,26 +428,50 @@ class PropertyAssist extends WidgetType {
       toggle.setAttribute("aria-checked", String(value));
       toggle.className = "cm-property-toggle";
     }
-    if (
-      field.kind === "rotation" ||
-      field.kind === "mirror" ||
-      field.kind === "choice"
-    ) {
+    if (field.kind === "mirror") {
+      for (const direction of ["left-right", "top-bottom"] as const) {
+        const flip = button(
+          `Flip ${direction === "left-right" ? "left/right" : "top/bottom"}`,
+          "",
+          () => {
+            const changes = reflectedPropertyCode(
+              view.state.doc.toString(),
+              this.read().context,
+              direction,
+            );
+            dispatchChanges(changes);
+          },
+        );
+        flip.append(orientationIcon(direction));
+        flip.disabled = !reflectedPropertyCode(
+          view.state.doc.toString(),
+          this.read().context,
+          direction,
+        ).length;
+      }
+    }
+    if (field.kind === "choice" || field.kind === "rotation") {
       const select = document.createElement("select");
       select.setAttribute("aria-label", `${field.label} options`);
       select.title = field.description;
       select.disabled = !this.enabled;
       const options =
-        field.kind === "rotation"
-          ? ROTATION_OPTIONS
-          : field.kind === "mirror"
-            ? MIRROR_OPTIONS
-            : (field.options ?? []);
+        field.kind === "rotation" ? ROTATION_OPTIONS : (field.options ?? []);
       for (const option of options) {
         const element = document.createElement("option");
         element.value = String(option.value);
         element.textContent = option.label;
         select.append(element);
+      }
+      if (
+        field.path === "netlistTarget" &&
+        typeof value === "string" &&
+        !options.some((option) => String(option.value) === value)
+      ) {
+        const authored = document.createElement("option");
+        authored.value = value;
+        authored.textContent = value;
+        select.append(authored);
       }
       select.value = String(value);
       select.onchange = () =>
@@ -337,21 +480,6 @@ class PropertyAssist extends WidgetType {
             field.kind === "rotation" ? Number(select.value) : select.value,
         });
       dom.append(select);
-      if (field.kind === "mirror")
-        for (const [direction, label] of [
-          ["left-right", "Flip left/right"],
-          ["top-bottom", "Flip top/bottom"],
-        ] as const) {
-          button(label, direction === "left-right" ? "↔" : "↕", () => {
-            const changes = reflectedPropertyCode(
-              view.state.doc.toString(),
-              this.read().context,
-              direction,
-            );
-            if (changes.length)
-              view.dispatch({ changes, userEvent: "input.property-control" });
-          });
-        }
     }
     if (field.kind === "color") {
       let color: string;
@@ -367,6 +495,41 @@ class PropertyAssist extends WidgetType {
           ? this.foreground
           : "#ffffff"
         : color;
+      const settings = document.createElement("div");
+      settings.className = "component-property-color-popover";
+      settings.setAttribute("popover", "auto");
+      settings.setAttribute("role", "dialog");
+      settings.setAttribute("aria-label", `${field.label} color settings`);
+      const trigger = button(
+        `Open ${field.label.toLowerCase()} colors`,
+        "",
+        () => {
+          const bounds = trigger.getBoundingClientRect();
+          settings.style.left = `${Math.max(8, Math.min(bounds.left, window.innerWidth - 244))}px`;
+          settings.style.top = `${Math.max(8, Math.min(bounds.bottom + 4, window.innerHeight - 152))}px`;
+          settings.togglePopover();
+        },
+      );
+      trigger.className = "cm-property-color-trigger";
+      trigger.style.backgroundColor = effective;
+      trigger.setAttribute("aria-haspopup", "dialog");
+      trigger.setAttribute("aria-expanded", "false");
+      settings.addEventListener("toggle", () =>
+        trigger.setAttribute(
+          "aria-expanded",
+          String(settings.matches(":popover-open")),
+        ),
+      );
+      settings.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") {
+          settings.hidePopover();
+          trigger.focus();
+          event.preventDefault();
+        }
+      });
+      const heading = document.createElement("strong");
+      heading.textContent = field.label;
+      settings.append(heading);
       const picker = document.createElement("input");
       picker.type = "color";
       picker.value = parseCanvasColor(colorToRgb(effective), field.path);
@@ -379,14 +542,72 @@ class PropertyAssist extends WidgetType {
       picker.disabled = !this.enabled;
       picker.onchange = () =>
         change({ [field.path]: colorToRgb(picker.value) });
-      dom.append(picker);
+      settings.append(picker);
       const reset = button(
         isForeground ? "Use global foreground" : "Use no background fill",
         isForeground ? "Global" : "No fill",
         () => change({ [field.path]: "auto" }),
       );
       reset.disabled = !this.enabled || inherited;
+      settings.append(reset);
+      const presets = document.createElement("div");
+      presets.className = "component-property-swatches";
+      presets.setAttribute("aria-label", `${field.label} presets`);
+      for (const preset of COLOR_PRESETS) {
+        const swatch = button(
+          `Use ${preset.label} for ${field.label.toLowerCase()}`,
+          "",
+          () => change({ [field.path]: colorToRgb(preset.value) }),
+        );
+        swatch.className = "component-property-swatch";
+        swatch.style.backgroundColor = preset.value;
+        swatch.setAttribute(
+          "aria-pressed",
+          String(!inherited && color === preset.value),
+        );
+        presets.append(swatch);
+      }
+      settings.append(presets);
+      dom.append(settings);
     }
     return dom;
   }
+}
+
+/** Same three silhouettes as the existing placement toolbar. */
+function orientationIcon(kind: "rotate" | "left-right" | "top-bottom") {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 20 20");
+  svg.setAttribute("class", "tool-icon");
+  svg.setAttribute("aria-hidden", "true");
+  const paths =
+    kind === "rotate"
+      ? ["M15.5 7A6 6 0 1 0 16 12", "M12.5 3.5H16v3.5"]
+      : kind === "left-right"
+        ? [
+            "M10 3v14",
+            "M3.5 6.5L8 4.5v11l-4.5-2z",
+            "M16.5 6.5L12 4.5v11l4.5-2z",
+          ]
+        : [
+            "M3 10h14",
+            "M6.5 3.5L4.5 8h11l-2-4.5z",
+            "M6.5 16.5L4.5 12h11l-2 4.5z",
+          ];
+  paths.forEach((d, index) => {
+    const path = document.createElementNS(svg.namespaceURI, "path");
+    for (const [name, value] of Object.entries({
+      d,
+      fill: "none",
+      stroke: "currentColor",
+      "stroke-width": "1.7",
+      "stroke-linecap": "round",
+      "stroke-linejoin": "round",
+    }))
+      path.setAttribute(name, value);
+    if (kind !== "rotate" && index === 0)
+      path.setAttribute("stroke-dasharray", "1.6 2");
+    svg.append(path);
+  });
+  return svg;
 }

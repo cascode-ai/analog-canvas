@@ -8,7 +8,10 @@ import {
 } from "./component-property-code";
 import { planComponentPropertyCodeEdits } from "./component-property-code-edits";
 import { createEmptyDocument } from "@icm/model";
-import { componentSymbolOptions } from "./component-property-details";
+import {
+  componentSymbolOptions,
+  componentDetailFields,
+} from "./component-property-details";
 
 const instance: Instance = {
   id: "M1",
@@ -30,6 +33,31 @@ const context = {
 };
 
 describe("unified component property details", () => {
+  it("uses only declared units for parameters and distinguishes the netlist name", () => {
+    const fields = componentDetailFields(instance, context.details);
+    for (const key of ["m", "nf"])
+      expect(
+        fields.find((field) => field.path === `parameters.${key}`)?.description,
+      ).toBe("");
+    for (const key of ["w", "l"])
+      expect(
+        fields.find((field) => field.path === `parameters.${key}`)?.description,
+      ).toBe("m");
+    expect(
+      fields.find((field) => field.path === "reference")?.description,
+    ).toBe("Netlist name");
+  });
+  it("retains reviewed model choices outside the short comment", () => {
+    const field = componentDetailFields(instance, context.details).find(
+      (item) => item.path === "netlistTarget",
+    )!;
+    expect(field.kind).toBe("choice");
+    expect(field.options).toEqual([
+      { value: "", label: "None" },
+      { value: "model_a", label: "model_a" },
+    ]);
+    expect(field.description).not.toContain("model_a");
+  });
   it("round-trips authored strings, overrides, and model target without unit conversion", () => {
     const source = formatComponentPropertyCode(context);
     expect(JSON.parse(source)).toMatchObject({

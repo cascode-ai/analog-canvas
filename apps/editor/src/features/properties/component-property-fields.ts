@@ -27,6 +27,8 @@ export interface CanvasPropertyField {
     | "choice";
   options?: readonly { value: string; label: string }[];
   description: string;
+  /** Expanded help only; short descriptions remain the default line comments. */
+  help?: string;
 }
 
 export const CANVAS_PROPERTY_FIELDS: readonly CanvasPropertyField[] = [
@@ -34,45 +36,56 @@ export const CANVAS_PROPERTY_FIELDS: readonly CanvasPropertyField[] = [
     path: "placement.at",
     label: "Position",
     kind: "coordinate",
-    description:
-      "[x, y] · canvas coordinates; snapped to the grid when updated.",
+    description: "[x,y]",
+    help: "Canvas coordinates [x, y]. Valid changes update immediately and snap to the grid.",
   },
   {
     path: "placement.rotation",
     label: "Rotation",
     kind: "rotation",
-    description: `Clockwise · ${ROTATION_OPTIONS.map((option) => option.label).join(" / ")}.`,
+    description: "",
+    help: "Clockwise rotation: 0°, 90°, 180° or 270°.",
   },
   {
     path: "placement.mirror",
     label: "Mirror",
     kind: "mirror",
-    description:
-      '"none": unchanged; "x": local X flip before rotation. Buttons flip in canvas directions.',
+    description: "",
+    help: "The two icons flip left/right or top/bottom in canvas coordinates. The stored mirror is applied before rotation.",
   },
   {
     path: "display.reference",
     label: "Reference",
     kind: "boolean",
-    description: "Show or hide the component name (for example, M1).",
+    description: "",
+    help: "Show or hide the instance reference label without renaming its electrical identity.",
   },
   {
     path: "display.value",
     label: "Value",
     kind: "boolean",
-    description: "Show or hide the value / W/L label.",
+    description: "",
+    help: "Show or hide the value or MOS W/L label without changing its parameters.",
+  },
+  {
+    path: "appearance",
+    label: "Appearance",
+    kind: "text",
+    description: "RGB visualization",
   },
   {
     path: "appearance.foreground",
     label: "Foreground",
     kind: "color",
-    description: `[R, G, B] · each 0–${RGB_CHANNEL_MAX}; #RRGGBB also accepted. Auto follows global ink.`,
+    description: "",
+    help: "Use the swatch to open presets and a custom color picker. RGB channels are 0–255; hex is accepted. Global inherits document ink.",
   },
   {
     path: "appearance.background",
     label: "Background",
     kind: "color",
-    description: `[R, G, B] · each 0–${RGB_CHANNEL_MAX}; #RRGGBB also accepted. Auto adds no independent fill.`,
+    description: "",
+    help: "Use the swatch to choose a background preset or custom color. No fill removes only the independent background override.",
   },
 ];
 

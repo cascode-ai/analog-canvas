@@ -119,7 +119,7 @@ export async function readComponentPropertyCode(page: Page): Promise<string> {
   await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
   await page.getByRole("button", { name: "Copy JSON", exact: true }).click();
   await expect(
-    page.getByText("JSON copied · hints and controls excluded", {
+    page.getByText("JSON copied", {
       exact: true,
     }),
   ).toBeVisible();

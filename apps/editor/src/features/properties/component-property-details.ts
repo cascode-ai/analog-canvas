@@ -174,34 +174,41 @@ export function componentDetailFields(
       path: "placement",
       label: "Placement",
       kind: "text",
-      description:
-        'Set null to return to the Placement Tray without deleting the component; set {at: [x, y], rotation: 0, mirror: "none"} to place it.',
+      description: "",
     },
     {
       path: "reference",
       label: "Reference",
       kind: "text",
-      description: "Authored netlist reference; must be unique in this Cell.",
+      description: "Netlist name",
+      help: "Unique electrical instance name in this Cell. Double-click the drawing label to edit its visual text independently.",
     },
     {
       path: "parameters",
       label: "Parameters",
       kind: "text",
-      description:
-        "Raw strings, including W/L/NF/M and netlist overrides. Add keys here; empty strings or removed keys clear values. Units are never appended.",
+      description: "",
     },
     ...context.parameters.map((parameter) => ({
       path: `parameters.${parameter.key}`,
       label: parameter.label,
       kind: parameter.options ? ("choice" as const) : ("text" as const),
       ...(parameter.options ? { options: parameter.options } : {}),
-      description: `${parameter.help}${parameter.defaultValue ? ` Default: ${parameter.defaultValue}.` : ""}${parameter.unit ? " Enter any unit suffix yourself." : ""}`,
+      description: parameter.unit ?? "",
     })),
     {
       path: "netlistTarget",
-      label: "Netlist target",
-      kind: "text",
-      description: `Model name; "" clears it. ${context.modelTarget?.suggestions.length ? `Suggestions: ${context.modelTarget.suggestions.join(", ")}. ` : ""}Reviewed external models use an X reference.`,
+      label: "Model",
+      kind: context.modelTarget?.suggestions.length ? "choice" : "text",
+      options: [
+        ...new Set([
+          "",
+          ...(context.modelTarget?.suggestions ?? []),
+          context.modelTarget?.defaultValue ?? "",
+        ]),
+      ].map((value) => ({ value, label: value || "None" })),
+      description: 'Model name · "": clear',
+      help: "Choose a suggested model or type a custom model name in JSON. An empty string clears the target; model compatibility checks still apply.",
     },
     {
       path: "symbol",
@@ -211,15 +218,13 @@ export function componentDetailFields(
         value,
         label: value,
       })),
-      description:
-        "Pin-compatible drawing variants: swap input/output polarity or switch contact circles without losing connections.",
+      description: "Pin-compatible variant",
     },
     {
       path: "signalFlow",
       label: "Signal flow",
       kind: "text",
-      description:
-        "Presentation only: formula, coefficient, bodyWidth (20–1000), bodyHeight (20–500); dimensions are multiples of 10. {} uses symbol defaults.",
+      description: "Presentation only",
     },
   ];
 }

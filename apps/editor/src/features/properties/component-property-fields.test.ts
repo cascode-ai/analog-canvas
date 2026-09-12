@@ -1,13 +1,40 @@
 import { describe, expect, it } from "vitest";
-import { colorToRgb } from "./component-property-fields";
+import {
+  CANVAS_PROPERTY_FIELDS,
+  colorToRgb,
+  parseCanvasColor,
+} from "./component-property-fields";
 
-describe("inherited property colors", () => {
-  it.each([
-    ["#000", [0, 0, 0]],
-    ["#fff", [255, 255, 255]],
-    ["#aBc", [170, 187, 204]],
-    ["#dc2626", [220, 38, 38]],
-  ])("resolves %s to finite RGB channels", (color, channels) => {
-    expect(colorToRgb(color)).toEqual(channels);
+describe("property color picker transport", () => {
+  it("keeps default comments minimal without removing expanded help", () => {
+    for (const path of [
+      "placement.rotation",
+      "placement.mirror",
+      "display.reference",
+      "display.value",
+    ]) {
+      const field = CANVAS_PROPERTY_FIELDS.find((item) => item.path === path)!;
+      expect(field.description).toBe("");
+      expect(field.help).toBeTruthy();
+    }
+    for (const path of ["appearance.foreground", "appearance.background"])
+      expect(
+        CANVAS_PROPERTY_FIELDS.find((item) => item.path === path)?.description,
+      ).toBe("");
+    expect(
+      CANVAS_PROPERTY_FIELDS.find((item) => item.path === "appearance")
+        ?.description,
+    ).toBe("RGB visualization");
+    expect(
+      CANVAS_PROPERTY_FIELDS.find((item) => item.path === "placement.at")
+        ?.description,
+    ).toBe("[x,y]");
+  });
+  it("expands inherited short hex colors before populating a native picker", () => {
+    expect(colorToRgb("#0aF")).toEqual([0, 170, 255]);
+    expect(parseCanvasColor(colorToRgb("#0aF"), "appearance.foreground")).toBe(
+      "#00aaff",
+    );
+    expect(colorToRgb("#dc2626")).toEqual([220, 38, 38]);
   });
 });

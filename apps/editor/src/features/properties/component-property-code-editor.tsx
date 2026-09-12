@@ -86,12 +86,11 @@ export function ComponentPropertyCodeEditor({
     () => parseComponentPropertyCode(draft, context),
     [context, draft],
   );
-  const changed = draft !== baseline;
 
   const copy = async (): Promise<void> => {
     try {
       await navigator.clipboard.writeText(draft);
-      setApplyMessage("JSON copied · hints and controls excluded");
+      setApplyMessage("JSON copied");
     } catch {
       setApplyMessage("Clipboard unavailable; select the code and copy it");
     }
@@ -121,33 +120,59 @@ export function ComponentPropertyCodeEditor({
       data-testid="component-property-code-editor"
     >
       <header>
-        <strong>Component properties</strong>
-        <button
-          type="button"
-          className="component-property-help"
-          aria-expanded={showHelp}
-          onClick={() => setShowHelp((visible) => !visible)}
-        >
-          {showHelp ? "Hide help" : "Need help?"}
-        </button>
-        <button
-          type="button"
-          className="component-property-copy"
-          aria-label="Copy JSON"
-          title="Copy JSON"
-          onClick={() => void copy()}
-        >
-          <svg
-            viewBox="0 0 20 20"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.6"
-            aria-hidden="true"
+        <strong>Properties</strong>
+        <div className="component-property-header-actions">
+          <button
+            type="button"
+            className="component-property-help"
+            aria-expanded={showHelp}
+            onClick={() => setShowHelp((value) => !value)}
           >
-            <rect x="7" y="7" width="10" height="10" rx="1.5" />
-            <path d="M13 7V4.5A1.5 1.5 0 0 0 11.5 3h-7A1.5 1.5 0 0 0 3 4.5v7A1.5 1.5 0 0 0 4.5 13H7" />
-          </svg>
-        </button>
+            {showHelp ? "Hide help" : "Need help?"}
+          </button>
+          <button
+            type="button"
+            className="component-property-help"
+            aria-label="Defaults"
+            title="Restore parameter and color defaults"
+            onClick={() => change(defaultComponentPropertyCode(context))}
+          >
+            Defaults
+          </button>
+          {(!parsed.ok || rejected) && (
+            <button
+              type="button"
+              className="component-property-copy"
+              aria-label="Discard draft"
+              title="Discard invalid draft"
+              onClick={() => {
+                setDraft(baseline);
+                setApplyMessage(null);
+                setRejected(false);
+              }}
+            >
+              <span aria-hidden="true">×</span>
+            </button>
+          )}
+          <button
+            type="button"
+            className="component-property-copy"
+            aria-label="Copy JSON"
+            title="Copy JSON"
+            onClick={() => void copy()}
+          >
+            <svg
+              viewBox="0 0 20 20"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              aria-hidden="true"
+            >
+              <rect x="7" y="7" width="10" height="10" rx="1.5" />
+              <path d="M13 7V4.5A1.5 1.5 0 0 0 11.5 3h-7A1.5 1.5 0 0 0 3 4.5v7A1.5 1.5 0 0 0 4.5 13H7" />
+            </svg>
+          </button>
+        </div>
       </header>
       <Suspense
         fallback={
@@ -165,39 +190,18 @@ export function ComponentPropertyCodeEditor({
           context={context}
           defaultForeground={defaultForeground}
           focusRequest={focusRequest}
+          baselineCode={baseline}
           showHelp={showHelp}
           onChange={change}
         />
       </Suspense>
       <div className="component-property-code-status" aria-live="polite">
         <span>
-          {parsed.ok
-            ? (applyMessage ??
-              "Live · valid edits update the canvas immediately")
-            : `${parsed.message} · Canvas keeps the last valid edit`}
+          {applyMessage ??
+            (parsed.ok
+              ? "Live"
+              : `${parsed.message} · Canvas keeps the last valid edit`)}
         </span>
-        <div>
-          <button
-            type="button"
-            title="Reset parameter and appearance defaults immediately; keep position, identity, target, display flags, and unknown overrides. Undo restores the previous values."
-            onClick={() => change(defaultComponentPropertyCode(context))}
-          >
-            Defaults
-          </button>
-          {(!parsed.ok || rejected) && (
-            <button
-              type="button"
-              disabled={!changed}
-              onClick={() => {
-                setDraft(baseline);
-                setApplyMessage(null);
-                setRejected(false);
-              }}
-            >
-              Discard draft
-            </button>
-          )}
-        </div>
       </div>
     </section>
   );
