@@ -17,6 +17,10 @@ const crossProjectJourney = readFileSync(
   "scripts/preview-cross-project-simulation-journey.mjs",
   "utf8",
 );
+const sourceGuiJourney = readFileSync(
+  "scripts/preview-source-gui-journey.mjs",
+  "utf8",
+);
 
 describe("the preview deploy", () => {
   it("deploys the preview configuration file and nothing else", () => {
@@ -113,6 +117,18 @@ describe("the preview deploy", () => {
     expect(agentJourney).toContain("firstOutput.expression.anchor");
     expect(agentJourney).not.toContain("invalidSetup.input.probes");
     expect(agentJourney).not.toContain("invalidSetup.input.outputs");
+  });
+
+  it("exports GUI simulation evidence through the unified Explorer", () => {
+    expect(sourceGuiJourney).toContain('name: "Simulation files"');
+    expect(sourceGuiJourney).toContain("Download selected files (${count})");
+    expect(sourceGuiJourney).toContain(
+      'downloadArtifactGroup("Prepare", "prepare.zip")',
+    );
+    expect(sourceGuiJourney).toContain(
+      'downloadArtifactGroup("Run", "run.zip")',
+    );
+    expect(sourceGuiJourney).not.toContain('getByRole("tab", { name: "Files"');
   });
 
   it("imports a Cloud Project Cell before compiling the cross-Project Testbench", () => {
