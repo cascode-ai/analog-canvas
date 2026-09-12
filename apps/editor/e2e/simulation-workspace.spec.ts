@@ -418,7 +418,7 @@ test("human simulation uses saved folder, survives minimizing, recovers a bad in
   ).toBeVisible();
   await expect(panel.locator(".simulation-results-header")).toHaveCount(0);
   // A completed run belongs to its folder, not whichever folder is currently visible.
-  await panel.getByRole("button", { name: "+ New folder…" }).click();
+  await panel.getByRole("button", { name: "+ New experiment" }).click();
   await panel.getByLabel("New simulation folder name").fill("Second folder");
   await panel.getByLabel("New simulation folder name").press("Enter");
   await expect(panel.getByRole("status")).not.toHaveText(
@@ -857,7 +857,7 @@ test("human simulation uses saved folder, survives minimizing, recovers a bad in
   await ranges.getByRole("button", { name: "Apply ranges" }).click();
   await expect(ranges).toHaveCount(0);
   const savedTicks = await rightTimeLabel.textContent();
-  await panel.getByRole("tab", { name: "Files" }).click();
+  await panel.getByRole("tab", { name: "Console" }).click();
   await panel.getByRole("tab", { name: "Plot" }).click();
   await expect(rightTimeLabel).toHaveText(savedTicks ?? "");
   await expect(fixedReadout).toHaveText(markersBeforeRemount ?? "");
@@ -865,7 +865,7 @@ test("human simulation uses saved folder, survives minimizing, recovers a bad in
   await transientOutputs
     .getByRole("button", { name: "Hide first-output" })
     .click();
-  await panel.getByRole("tab", { name: "Files" }).click();
+  await panel.getByRole("tab", { name: "Console" }).click();
   await panel.getByRole("tab", { name: "Plot" }).click();
   await expect(
     transientOutputs.getByRole("button", { name: "Show first-output" }),
@@ -904,36 +904,44 @@ test("human simulation uses saved folder, survives minimizing, recovers a bad in
     path: test.info().outputPath("waveform-tools.png"),
   });
   await waveformDialog.getByRole("button", { name: "Close plot" }).click();
-  await panel.getByRole("tab", { name: "Files" }).click();
-  await panel.getByLabel("Run Evidence").locator("summary").click();
+  await panel.getByRole("button", { name: "Restore results" }).click();
+  const runFiles = panel.getByLabel("Run temporary files");
+  await runFiles.locator("summary").click();
   await expect(
     panel.getByRole("button", {
-      name: "evidence-manifest.json",
-      exact: true,
+      name: /evidence-manifest\.json/,
     }),
   ).toBeVisible();
   const download = page.waitForEvent("download");
-  await panel
-    .getByRole("button", { name: /Download .*\.csv$/ })
+  await runFiles
+    .locator('button[data-tree-row="artifact"]')
+    .filter({ hasText: /\.csv/ })
     .first()
     .click();
+  await panel
+    .getByLabel("File preview")
+    .getByRole("button", { name: "Download", exact: true })
+    .click();
   expect((await download).suggestedFilename()).toMatch(/\.csv$/);
-  await expect(panel.getByLabel("Run Results")).toBeVisible();
+  await expect(runFiles).toBeVisible();
+  await runFiles
+    .getByRole("button", { name: /evidence-manifest\.json/ })
+    .click({ modifiers: ["Control"] });
   const bundleDownload = page.waitForEvent("download");
   await panel
-    .getByLabel("Run files")
-    .getByRole("button", { name: "Download ZIP" })
+    .getByRole("button", { name: "Download selected files (2)" })
     .click();
-  expect((await bundleDownload).suggestedFilename()).toBe("simulation-run.zip");
+  expect((await bundleDownload).suggestedFilename()).toMatch(
+    /-selected-files\.zip$/,
+  );
   await panel.getByRole("button", { name: "More code actions" }).click();
   await page.getByRole("menuitem", { name: "View final deck" }).click();
-  await expect(panel.getByLabel("Prepare Netlist")).toBeVisible();
-  await expect(panel.getByLabel("Run Results")).toBeVisible();
+  await expect(panel.getByLabel("Prepare temporary files")).toBeVisible();
+  await expect(panel.getByLabel("Run temporary files")).toBeVisible();
   await expect(panel.getByText("Input identity", { exact: true })).toHaveCount(
     0,
   );
   expect(executions).toBe(1);
-  await panel.getByRole("button", { name: "Restore results" }).click();
   config.outputs[0]!.label = "new-output";
   await editSimulationFile(
     page,
@@ -1173,7 +1181,7 @@ test("human simulation uses saved folder, survives minimizing, recovers a bad in
   expect(executions).toBe(3);
 });
 
-test("Simulation creates an ordinary testbench and offers the current Cell at the cursor", async ({
+test("Simulation creates an ordinary testbench and defaults a new experiment to the current Cell", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -1206,8 +1214,16 @@ test("Simulation creates an ordinary testbench and offers the current Cell at th
   await expect(page.getByLabel("Testbench Cell")).toHaveCount(0);
   await page.getByRole("button", { name: "Set up", exact: true }).click();
   await page.getByLabel("New simulation folder name").fill("Main experiment");
-  await page.getByLabel("Folder source").selectOption("Current Canvas Cell");
+  await expect(page.getByLabel("Folder template")).toHaveCount(0);
+  await expect(page.getByLabel("Folder source")).toHaveCount(0);
   await page.getByLabel("New simulation folder name").press("Enter");
+  await page
+    .getByRole("button", { name: "run.cir", exact: true })
+    .first()
+    .click();
+  await expect(page.getByLabel("Analysis examples")).toContainText(
+    "ac dec 20 1 1G",
+  );
   const configured = JSON.parse(
     (await downloadBytes(page, "File", "Export Project File…")).toString(),
   );
@@ -1360,7 +1376,7 @@ test("workspace menus, selection, empty editors and resizing share non-destructi
   await handle.press("ArrowRight");
   await expect(handle).toHaveAttribute("aria-valuenow", String(original + 10));
   await handle.dblclick();
-  await expect(handle).toHaveAttribute("aria-valuenow", "170");
+  await expect(handle).toHaveAttribute("aria-valuenow", "240");
   await alpha.click({ button: "right" });
   await page.keyboard.press("Escape");
   await expect(page.getByRole("menu")).toHaveCount(0);
@@ -1396,13 +1412,12 @@ test("inline naming commits once on blur, cancels on Escape, and deletion uses a
     void dialog.dismiss();
   });
   await workspace
-    .getByRole("button", { name: "+ New folder…", exact: true })
+    .getByRole("button", { name: "+ New experiment", exact: true })
     .click();
   const input = workspace.getByRole("textbox", {
     name: "New simulation folder name",
   });
   await input.fill("Gamma");
-  await workspace.getByLabel("Folder template").selectOption("AC");
   // The destination click is not eaten by the naming transaction.
   await workspace
     .getByRole("button", { name: "Folder Beta", exact: true })
@@ -1412,9 +1427,9 @@ test("inline naming commits once on blur, cancels on Escape, and deletion uses a
   ).toHaveCount(1);
   await expect(
     workspace.getByRole("textbox", { name: "Simulation source editor" }),
-  ).toContainText("ac ");
+  ).toContainText("op");
   await workspace
-    .getByRole("button", { name: "+ New folder…", exact: true })
+    .getByRole("button", { name: "+ New experiment", exact: true })
     .click();
   await workspace
     .getByRole("textbox", { name: "New simulation folder name" })

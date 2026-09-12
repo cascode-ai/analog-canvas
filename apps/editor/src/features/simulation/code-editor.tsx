@@ -93,6 +93,7 @@ export interface SimulationCodeEditorProps {
   onHistoryBoundary?(direction: "undo" | "redo"): void;
   onCursor?(sourceOffset: number): void;
   helperActions?: readonly CodeHelperAction[];
+  ghostHints?: readonly string[];
   relatedSources?: readonly string[];
   signalNames?: (() => Readonly<Record<string, string>>) | undefined;
   onFocusSignal?: ((vector: string | null) => void) | undefined;
@@ -491,6 +492,17 @@ export default function SimulationCodeEditor(props: SimulationCodeEditorProps) {
         }}
         onKeyDown={(event) => event.stopPropagation()}
       />
+      {props.ghostHints?.length && !props.readOnly ? (
+        <div
+          className="simulation-code-ghost-hints"
+          aria-label="Analysis examples"
+        >
+          <span>Try another analysis</span>
+          {props.ghostHints.map((hint) => (
+            <code key={hint}>{hint}</code>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
