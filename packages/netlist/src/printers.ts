@@ -340,6 +340,19 @@ function renderSpice(
   }
   if (rootAsTopLevel) {
     const root = ir.cells.find((cell) => cell.id === ir.topCellId);
+    const defaults =
+      root?.formalParameters?.filter(
+        (parameter) => parameter.defaultValue !== undefined,
+      ) ?? [];
+    if (defaults.length)
+      append(
+        ...wrapSpice([
+          ".param",
+          ...defaults.map(
+            (parameter) => `${parameter.name}=${parameter.defaultValue}`,
+          ),
+        ]),
+      );
     if (root)
       for (const instance of root.instances) {
         locate(root.id, instance, length + 1);

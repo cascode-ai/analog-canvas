@@ -3,7 +3,12 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { createEmptyProject, createSimulationFolder } from "@icm/model";
 import { parseProject } from "@icm/project-protocol";
-import { nativeSimulationDevices, nativeDeviceOpVectors } from "@icm/netlist";
+import {
+  nativeSimulationDevices,
+  nativeDeviceOpVectors,
+  generateCircuitSource,
+  planCircuitSourceEdit,
+} from "@icm/netlist";
 import {
   prepareSourceExecutionInput,
   CapabilitiesSchema,
@@ -55,6 +60,78 @@ async function run(request, name) {
 }
 
 describe.skipIf(!endpoint)("candidate ngspice46 source qualification", () => {
+  it("executes edited AC clauses and preserves top-level Cell parameter defaults", async () => {
+    const caps = CapabilitiesSchema.parse(
+      await (await post({ operation: "capabilities" })).json(),
+    );
+    const project = parseProject(
+      readFileSync(
+        new URL(
+          "../apps/editor/src/examples/five-transistor-ota-sky130.icproj.json",
+          import.meta.url,
+        ),
+        "utf8",
+      ),
+    );
+    const root = project.documents.find(
+      (cell) => cell.id === project.topDocumentId,
+    );
+    root.netlist.formalParameters.push({ name: "VBIAS", defaultValue: "1.8" });
+    const folder = createSimulationFolder({
+      id: "source-edits",
+      name: "Source edits",
+      documentId: root.id,
+      profileId: profile.id,
+    });
+    const generated = generateCircuitSource(
+      project,
+      folder.input.circuitBindings[0],
+    );
+    expect(generated.ok).toBe(true);
+    const body = generated.source.sourceBodies.find(
+      (body) => body.instanceId === "VDD",
+    );
+    const plan = planCircuitSourceEdit(
+      generated.source,
+      generated.source.text.slice(0, body.startOffset) +
+        " DC {VBIAS} AC 1 -90" +
+        generated.source.text.slice(body.endOffset),
+    );
+    expect(plan.ok).toBe(true);
+    for (const change of plan.changes)
+      root.instances.find(
+        (instance) => instance.id === change.instanceId,
+      ).netlist.parameters[change.parameter] = change.value;
+    const entry = folder.input.files.find(
+      (file) => file.path === folder.input.entry,
+    );
+    entry.text =
+      '* source parameters\n.include "circuit.spice"\n.control\nset filetype=ascii\nset appendwrite\nsave v(vdd)\nop\nwrite out.raw\nac lin 2 1k 2k\nwrite out.raw\n.endc\n.end\n';
+    const prepared = await prepareSourceExecutionInput(project, folder, caps);
+    expect(prepared.ok, JSON.stringify(prepared)).toBe(true);
+    const result = await run(prepared.input, "source-parameters-default");
+    expect(result.outcome.status, JSON.stringify(result)).toBe("completed");
+    expect(
+      result.data.analyses
+        .find((a) => a.analysis === "op")
+        .probes.find((p) => p.name === "v(vdd)").value,
+    ).toBeCloseTo(1.8, 8);
+    const ac = result.data.analyses
+      .find((a) => a.analysis === "ac")
+      .probes.find((p) => p.name === "v(vdd)");
+    expect(ac.real[0]).toBeCloseTo(0, 8);
+    expect(ac.imag[0]).toBeCloseTo(-1, 8);
+    entry.text = entry.text.replace(".control", ".param VBIAS=1.7\n.control");
+    const overridden = await prepareSourceExecutionInput(project, folder, caps);
+    expect(overridden.ok, JSON.stringify(overridden)).toBe(true);
+    const next = await run(overridden.input, "source-parameters-override");
+    expect(next.outcome.status, JSON.stringify(next)).toBe("completed");
+    expect(
+      next.data.analyses
+        .find((a) => a.analysis === "op")
+        .probes.find((p) => p.name === "v(vdd)").value,
+    ).toBeCloseTo(1.7, 8);
+  }, 160_000);
   it("reads the reviewed SKY130 wrapper's native OP parameters", async () => {
     const circuit = parseProject(
       readFileSync(

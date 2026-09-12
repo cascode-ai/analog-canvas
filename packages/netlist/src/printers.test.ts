@@ -8,6 +8,7 @@ import {
   printDesignNetlist,
   printSpectreNetlist,
   printSpiceNetlist,
+  printSpiceWithLocations,
 } from "./printers.js";
 
 function device(
@@ -371,5 +372,23 @@ describe("design netlist printers", () => {
       rawValue: "2p",
     });
     expect(printSpiceNetlist(ir)).toContain("\n+ parameter_");
+  });
+  it("preserves root Cell defaults when emitting an executable top-level circuit", () => {
+    const ir = structuralIr();
+    const root = ir.cells.find((cell) => cell.id === ir.topCellId)!;
+    root.formalParameters = [
+      { name: "RVAL", defaultValue: "1k" },
+      { name: "RDOUBLE", defaultValue: "{RVAL * 2}" },
+    ];
+    const printed = printSpiceWithLocations(ir, true);
+    expect(printed.text).toContain(".param RVAL=1k RDOUBLE={RVAL * 2}");
+    expect(printed.text).not.toContain(`.subckt ${root.name}`);
+    for (const span of printed.parameters)
+      expect(printed.text.slice(span.startOffset, span.endOffset)).toBe(
+        span.rawValue,
+      );
+    expect(printSpiceWithLocations(ir, false).text).toContain(
+      "params: RVAL=1k RDOUBLE={RVAL * 2}",
+    );
   });
 });

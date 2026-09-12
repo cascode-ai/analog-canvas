@@ -46,6 +46,68 @@ function replace(
   return text;
 }
 describe("Circuit parameter source projection", () => {
+  it("adds, changes and removes AC/phase and waveforms while keeping source nodes locked", () => {
+    const { project, source } = fixture();
+    const body = source.sourceBodies!.find(
+      (body) => body.instanceId === "VDD",
+    )!;
+    const edit = (suffix: string) =>
+      planCircuitSourceEdit(
+        source,
+        source.text.slice(0, body.startOffset) +
+          suffix +
+          source.text.slice(body.endOffset),
+      );
+    const plan = edit(" DC {BIAS} AC 1 -90 SIN(0 1 1k)");
+    expect(plan.ok).toBe(true);
+    if (!plan.ok) return;
+    expect(plan.changes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ parameter: "acMagnitude", value: "1" }),
+        expect.objectContaining({ parameter: "acPhase", value: "-90" }),
+        expect.objectContaining({ parameter: "waveform", value: "sin" }),
+      ]),
+    );
+    const instance = project.documents
+      .find((d) => d.id === body.documentId)!
+      .instances.find((i) => i.id === body.instanceId)!;
+    plan.changes.forEach((change) => {
+      instance.netlist!.parameters[change.parameter] = change.value;
+    });
+    const regenerated = generateCircuitSource(project, source.binding);
+    expect(regenerated.ok).toBe(true);
+    if (!regenerated.ok) return;
+    expect(regenerated.source.text).toContain(
+      "DC {BIAS} AC 1 -90 SIN(0 1 1k 0 0 0)",
+    );
+    const nextBody = regenerated.source.sourceBodies!.find(
+      (b) => b.instanceId === "VDD",
+    )!;
+    const removed = planCircuitSourceEdit(
+      regenerated.source,
+      regenerated.source.text.slice(0, nextBody.startOffset) +
+        " DC 1.8" +
+        regenerated.source.text.slice(nextBody.endOffset),
+    );
+    expect(removed).toMatchObject({
+      ok: true,
+      changes: expect.arrayContaining([
+        expect.objectContaining({ parameter: "acMagnitude", unset: true }),
+        expect.objectContaining({ parameter: "acPhase", unset: true }),
+        expect.objectContaining({ parameter: "waveform", value: "dc" }),
+      ]),
+    });
+    expect(
+      planCircuitSourceEdit(
+        source,
+        source.text.replace("VDD vdd 0", "VDD changed 0"),
+      ),
+    ).toMatchObject({ ok: false, code: "SIMULATION_CIRCUIT_STRUCTURE_LOCKED" });
+    expect(edit(" DC 1.8 AC")).toMatchObject({
+      ok: false,
+      code: "SIMULATION_PARAMETER_INVALID",
+    });
+  });
   it("prints an unresolved model slot without crashing or assigning a model", () => {
     const { project, source } = fixture();
     const width = source.parameters.find((p) => p.parameter === "w")!;
