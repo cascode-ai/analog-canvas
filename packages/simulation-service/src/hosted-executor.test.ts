@@ -56,7 +56,9 @@ describe("hosted executor recovery", () => {
     };
     const normalized = decodeHostedExecutionPayload(input, payload);
     expect(normalized.result.data?.analyses[0]?.scalars?.[0]?.value).toBe(4);
-    expect(normalized.result.data?.analyses[0]?.probes).toHaveLength(2);
+    const analysis = normalized.result.data?.analyses[0];
+    if (analysis?.analysis !== "ac") throw Error("AC expected");
+    expect(analysis.probes).toHaveLength(2);
     expect(normalized.rawfile).toBe(rawfile);
     expect(normalized.result.outcome.status).toBe("completed");
     const { data: _data, ...withheld } = payload;

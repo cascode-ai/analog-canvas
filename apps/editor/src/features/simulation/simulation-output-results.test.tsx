@@ -7,6 +7,7 @@ describe("Simulation Output Results", () => {
   it("shows captured singletons as record-local table values without rendering a waveform", () => {
     const markup = renderToStaticMarkup(
       <SimulationOutputResults
+        resultKey="captured-scalar-only"
         outputs={[]}
         data={{
           schemaVersion: 1,

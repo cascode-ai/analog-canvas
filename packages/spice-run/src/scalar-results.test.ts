@@ -53,10 +53,9 @@ describe("captured scalar cardinality", () => {
       .replace("No. Points: 3", "No. Points: 1");
     const r = readSimulationData(onePoint);
     if (r.status !== "read") throw Error("read expected");
-    expect(r.data.analyses[0]?.probes.map((p) => p.name)).toEqual([
-      "gain_db",
-      "v(reference)",
-    ]);
+    const a = r.data.analyses[0];
+    if (a?.analysis !== "ac") throw Error("AC expected");
+    expect(a.probes.map((p) => p.name)).toEqual(["gain_db", "v(reference)"]);
   });
   it.each(["dims=2", "dims=99", "dims=x", "dims=1 dims=1", "dims=1,3"])(
     "refuses ambiguous or unsupported axis alignment: %s",
