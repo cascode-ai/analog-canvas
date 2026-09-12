@@ -77,9 +77,6 @@
   min-width: 0;
   gap: 4px;
 }
-.simulation-code-more {
-  position: relative;
-}
 .simulation-code-workspace .simulation-code-toolbar {
   min-height: 30px;
   gap: 4px;
@@ -87,15 +84,13 @@
 }
 .simulation-code-workspace .simulation-code-toolbar > button,
 .simulation-code-workspace .simulation-code-actions > button,
-.simulation-code-workspace .simulation-task-actions > button,
-.simulation-code-workspace .simulation-code-more > button {
+.simulation-code-workspace .simulation-task-actions > button {
   height: 22px;
   min-height: 22px;
   padding: 0 5px;
   font-size: 11px;
 }
-.simulation-code-toolbar .simulation-window-actions,
-.simulation-code-toolbar .simulation-code-more {
+.simulation-code-toolbar .simulation-window-actions {
   flex: none;
 }
 .workspace-context-menu {

@@ -194,7 +194,9 @@ test("the qualified OTA folder opens unchanged and preserves all root and hierar
     savedSetup.input.configPath,
     JSON.stringify(config, null, 2),
   );
-  await panel.getByRole("button", { name: "More code actions" }).click();
+  await panel
+    .getByRole("treeitem", { name: "Run", exact: true })
+    .click({ button: "right" });
   await page.getByRole("menuitem", { name: "Preview input netlist…" }).click();
   await expect(panel.getByLabel("Prepare temporary files")).toHaveCount(0);
   const preview = panel.getByRole("region", { name: "File preview" });
@@ -218,7 +220,9 @@ test("the qualified OTA folder opens unchanged and preserves all root and hierar
   expect(deck).toContain('.lib "icm-models.lib" tt');
   expect(deck).toContain("tran 2e-8 0.000004");
   expect(executions).toBe(0);
-  await panel.getByRole("button", { name: "More code actions" }).click();
+  await panel
+    .getByRole("treeitem", { name: "Run", exact: true })
+    .click({ button: "right" });
   await expect(
     page.getByRole("menuitem", { name: "View executed netlist…" }),
   ).toBeDisabled();
@@ -257,8 +261,16 @@ test("the qualified OTA folder opens unchanged and preserves all root and hierar
     buffer: saved,
   });
   await clickNetlistWorkflowCommand(page, "open-analog-simulation");
-  await panel.getByRole("button", { name: "More code actions" }).click();
-  await page.getByRole("menuitem", { name: "Advanced configuration" }).click();
+  if (
+    (await panel
+      .getByRole("button", { name: "Explorer", exact: true })
+      .getAttribute("aria-expanded")) !== "true"
+  )
+    await panel.getByRole("button", { name: "Explorer", exact: true }).click();
+  await panel
+    .getByRole("treeitem", { name: "experiment.json", exact: true })
+    .first()
+    .click();
   await expect(
     panel.getByRole("textbox", { name: "Simulation source editor" }),
   ).toContainText(profile.id);

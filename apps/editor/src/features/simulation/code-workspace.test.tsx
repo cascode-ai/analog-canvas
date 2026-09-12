@@ -39,6 +39,7 @@ describe("approved simulation Code layout", () => {
     expect(markup).toContain("+ New experiment");
     expect(markup).toContain("Source");
     expect(markup).not.toContain("Run target");
+    expect(markup).not.toContain("More code actions");
     expect(markup).not.toContain("New file");
     expect(markup).not.toContain("Setup");
     expect(markup).not.toContain('class="simulation-code-status"');

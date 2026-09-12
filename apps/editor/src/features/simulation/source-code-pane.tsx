@@ -1137,16 +1137,6 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
               ),
             );
         }}
-        onExportFile={(filePath, folderId = props.folder.id) => {
-          const result = downloadTextArtifact(
-            fileText(folderId, filePath),
-            filePath.split("/").at(-1)!,
-          );
-          if (result.status === "failed")
-            props.onProblem(
-              inputProblem("SOURCE_EXPORT_FAILED", result.message),
-            );
-        }}
         onNewFile={async (folderId = props.folder.id) => {
           const path = await ui.name({
             kind: "file",

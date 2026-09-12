@@ -4,6 +4,8 @@ import {
   useId,
   useState,
   type ReactNode,
+  type MouseEvent,
+  type KeyboardEvent,
 } from "react";
 import type { ArtifactRef } from "@icm/simulation-service/contract";
 import {
@@ -45,7 +47,6 @@ export interface SimulationCodeWorkspaceProps {
   onSelectFile(path: string, folderId?: string): void;
   onNewFile?(folderId?: string): void;
   onCopyFile?(path: string, folderId?: string): void;
-  onExportFile?(path: string, folderId?: string): void;
   onFileAction?(
     action: "rename" | "delete" | "entry" | "discard",
     path: string,
@@ -145,6 +146,52 @@ export function SimulationCodeWorkspace(props: SimulationCodeWorkspaceProps) {
     setOpened(next);
     if (props.activePath === path) props.onSelectFile(next.at(-1) ?? "");
   };
+  const closeAll = () => {
+    setOpened([]);
+    props.onSelectFile("");
+    props.onCloseArtifact?.();
+  };
+  const tabMenu = (path: string | null, x: number, y: number) =>
+    ui.menu(
+      x,
+      y,
+      [
+        {
+          label: "Close",
+          run: () =>
+            path === null ? props.onCloseArtifact?.() : closeFile(path),
+        },
+        {
+          label: "Close others",
+          disabled: tabs.length + Number(Boolean(props.artifactPreview)) <= 1,
+          run: () => {
+            setOpened(path === null ? [] : [path]);
+            props.onSelectFile(path ?? "");
+            if (path !== null) props.onCloseArtifact?.();
+          },
+        },
+        { label: "Close all", run: closeAll },
+      ],
+      "Editor tab actions",
+    );
+  const tabMenuHandlers = (path: string | null) => ({
+    onContextMenu: (event: MouseEvent<HTMLDivElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+      tabMenu(path, event.clientX, event.clientY);
+    },
+    onKeyDown: (event: KeyboardEvent<HTMLDivElement>) => {
+      if (
+        event.key === "ContextMenu" ||
+        (event.shiftKey && event.key === "F10")
+      ) {
+        event.preventDefault();
+        event.stopPropagation();
+        const rect = event.currentTarget.getBoundingClientRect();
+        tabMenu(path, rect.left, rect.bottom);
+      }
+    },
+  });
   return (
     <section
       className={`simulation-code-workspace${props.maximized ? " is-maximized" : ""}`}
@@ -167,7 +214,8 @@ export function SimulationCodeWorkspace(props: SimulationCodeWorkspaceProps) {
         ) {
           event.preventDefault();
           event.stopPropagation();
-          if (props.activePath) closeFile(props.activePath);
+          if (props.artifactPreview) props.onCloseArtifact?.();
+          else if (props.activePath) closeFile(props.activePath);
         }
       }}
     >
@@ -181,46 +229,6 @@ export function SimulationCodeWorkspace(props: SimulationCodeWorkspaceProps) {
           Explorer
         </button>
         <div className="simulation-code-actions">{props.actions}</div>
-        <div className="simulation-code-more">
-          <button
-            type="button"
-            aria-label="More code actions"
-            onClick={(event) => {
-              const rect = event.currentTarget.getBoundingClientRect();
-              ui.menu(
-                rect.left,
-                rect.bottom,
-                [
-                  {
-                    label: "Advanced configuration",
-                    run: () => openFile(props.configPath),
-                  },
-                  {
-                    label: "Copy current file",
-                    disabled: !props.activePath,
-                    run: () => props.onCopyFile?.(props.activePath),
-                  },
-                  {
-                    label: "Export current file…",
-                    disabled: !props.activePath,
-                    run: () => props.onExportFile?.(props.activePath),
-                  },
-                  {
-                    label: "Close all editors",
-                    run: () => {
-                      setOpened([]);
-                      props.onSelectFile("");
-                    },
-                  },
-                  ...(props.additionalActions ?? []),
-                ],
-                "Code actions",
-              );
-            }}
-          >
-            ···
-          </button>
-        </div>
         {props.toolbarEnd}
       </header>
       <div className="simulation-code-source-area">
@@ -290,7 +298,10 @@ export function SimulationCodeWorkspace(props: SimulationCodeWorkspaceProps) {
               aria-label="Open simulation files"
             >
               {props.artifactPreview ? (
-                <div className="simulation-code-tab simulation-artifact-tab">
+                <div
+                  className="simulation-code-tab simulation-artifact-tab"
+                  {...tabMenuHandlers(null)}
+                >
                   <button type="button" role="tab" aria-selected="true">
                     {props.artifactPreview.artifact.name}
                     <span> tmp</span>
@@ -307,7 +318,11 @@ export function SimulationCodeWorkspace(props: SimulationCodeWorkspaceProps) {
               {tabs.map((path) => {
                 const file = props.files.find((f) => f.path === path)!;
                 return (
-                  <div className="simulation-code-tab" key={path}>
+                  <div
+                    className="simulation-code-tab"
+                    key={path}
+                    {...tabMenuHandlers(path)}
+                  >
                     <button
                       type="button"
                       role="tab"
