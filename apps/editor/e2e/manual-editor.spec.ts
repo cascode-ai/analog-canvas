@@ -5631,6 +5631,9 @@ test("selects a reviewed SKY130 MOS through the existing Model field", async ({
   await openSelectionShelf(page);
   const properties = page.getByRole("complementary", { name: "Properties" });
 
+  await properties
+    .getByRole("button", { name: "Need help?", exact: true })
+    .click();
   await expect(properties).toContainText("sky130_fd_pr__nfet_01v8");
   await setComponentCodeField(page, "netlistTarget", "sky130_fd_pr__nfet_01v8");
 

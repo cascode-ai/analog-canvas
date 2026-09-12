@@ -50,7 +50,8 @@ describe("source workspace default cutover", () => {
   it("projects the Project save lifecycle instead of claiming a buffer flush saved to cloud", () => {
     expect(render(true, false, "saving")).toContain("Saving…");
     expect(render(true, false, "saving")).toContain('aria-busy="true"');
-    expect(render(true, false, "clean")).toContain(">Saved</button>");
+    expect(render(true, false, "clean")).toContain(">✓ Saved</button>");
+    expect(render(true, false, "clean")).toContain('data-save-state="saved"');
     expect(render(true, false, "failed")).toContain("Retry save");
   });
   it("offers creation without restoring the retired Settings form", () => {

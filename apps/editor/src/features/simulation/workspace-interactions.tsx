@@ -21,16 +21,6 @@ interface NameRequest {
   label: string;
   initial: string;
   validate?(name: string): string | undefined;
-  template?: {
-    value: string;
-    options: string[];
-    onChange(value: string): void;
-  };
-  starter?: {
-    value: string;
-    options: string[];
-    onChange(value: string): void;
-  };
 }
 interface Confirmation {
   title: string;
@@ -326,40 +316,6 @@ function NameInput() {
           }
         }}
       />
-      {request.template ? (
-        <select
-          aria-label="Folder template"
-          defaultValue={request.template.value}
-          onChange={(event) =>
-            request.template?.onChange(event.currentTarget.value)
-          }
-          onKeyDown={(event) => {
-            event.stopPropagation();
-            if (event.key === "Escape") finish(true);
-          }}
-        >
-          {request.template.options.map((value) => (
-            <option key={value}>{value}</option>
-          ))}
-        </select>
-      ) : null}
-      {request.starter ? (
-        <select
-          aria-label="Folder source"
-          defaultValue={request.starter.value}
-          onChange={(event) =>
-            request.starter?.onChange(event.currentTarget.value)
-          }
-          onKeyDown={(event) => {
-            event.stopPropagation();
-            if (event.key === "Escape") finish(true);
-          }}
-        >
-          {request.starter.options.map((value) => (
-            <option key={value}>{value}</option>
-          ))}
-        </select>
-      ) : null}
       {error ? <small role="status">{error}</small> : null}
     </div>
   );

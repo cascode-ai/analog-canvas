@@ -7,10 +7,11 @@ workspace is separate from the development-only Digital tool.
 ## Circuit, source and files
 
 Code and Properties share the right dock but remember independent widths.
-**Files** opens a narrow list beside the code, not another horizontal panel.
-Choose an experiment from the experiment menu, or create, clone, rename or
-delete one there. Multiple experiments can use the same drawn Testbench; a
-different topology is an ordinary separate Cell.
+**Explorer** opens a narrow project tree beside the code. Each experiment puts
+Source first, expanded by default. Prepared and Run artifacts appear beneath it,
+marked **Temporary** and collapsed by default. Choose an experiment there, or
+create, clone, rename or delete one. Multiple experiments can use the same drawn
+Testbench; a different topology is an ordinary separate Cell.
 
 A generated Circuit file is marked with a diamond. Its topology and device
 identity belong to Canvas. You can edit mapped numeric parameters, but changing
@@ -22,6 +23,10 @@ Other SPICE files are authored source. You or an authorized Agent can edit
 them directly, use completion/hover help, or insert a template. The entry file
 is the Run target even while viewing another file. Invalid SPICE or JSON can
 be saved; preparation reports what needs repair rather than losing the draft.
+
+**New experiment** asks only for a name. It uses the current Canvas Cell and an
+OP starter. Muted AC, TRAN and DC examples below the editor show what to try next;
+they are hints and never enter the saved file until you type or insert them.
 
 **More code actions** opens advanced configuration, copies/exports the current
 file, or creates a source file. Configuration is not a default tab. It owns
@@ -121,7 +126,7 @@ refuse a run with a repairable explanation.
 
 ## Results, history and exports
 
-Console, Plot, OP, Compare and Files share one tab row below code. Measurements,
+Console, Plot, OP and Compare share one tab row below code. Measurements,
 history and exports stay inside these views. Maximize results temporarily uses the workspace;
 Restore returns to the previous dock size. Maximize Code keeps the editor.
 
@@ -139,8 +144,10 @@ Automatic summaries are separate from authored rules. Both export through
 `measurements.csv`.
 
 **Export** downloads visible plots as SVG or PNG, complete output CSV, or a
-complete run ZIP. Files exposes authored/generated input, prepared deck,
-rawfile and existing result artifacts. Image export follows the visible plot;
+complete run ZIP. Explorer exposes authored/generated input, prepared deck,
+rawfile and existing result artifacts. Ctrl/Cmd-select any combination of rows,
+then use the Explorer download control; one file downloads directly and several
+download as a hierarchy-preserving ZIP. Image export follows the visible plot;
 CSV retains full collected numbers. Restricted model data is not bundled.
 
 **Compare** keeps completed results within the session and overlays compatible

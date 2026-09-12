@@ -192,6 +192,25 @@
 .workspace-folder-row > button[data-tree-row] {
   flex: 1;
   min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.workspace-folder-row > button[data-tree-row] > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.simulation-run-target-badge,
+.simulation-temporary-badge {
+  margin-left: auto;
+  padding: 1px 5px;
+  border-radius: 8px;
+  font-size: 9px;
+  line-height: 1.4;
+  letter-spacing: 0.02em;
+  color: var(--icm-text-muted);
+  background: color-mix(in srgb, var(--icm-border) 72%, transparent);
 }
 .workspace-editor-content {
   height: 100%;
@@ -224,6 +243,28 @@
   overflow: auto;
   background: var(--icm-surface-muted);
 }
+.simulation-explorer-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  height: 30px;
+  box-sizing: border-box;
+  padding: 0 6px 0 10px;
+  border-bottom: 1px solid var(--icm-border);
+  background: var(--icm-surface-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 10px;
+}
+.simulation-code-files .simulation-explorer-header button {
+  width: auto;
+  margin-left: auto;
+  padding: 4px 7px;
+  text-align: center;
+  border-radius: 3px;
+}
 .simulation-code-files ul {
   list-style: none;
   padding: 6px 0;
@@ -231,6 +272,7 @@
 }
 .simulation-folder-tree {
   min-height: 100%;
+  padding: 4px 0 8px;
 }
 .simulation-code-files input {
   width: 100%;
@@ -239,10 +281,6 @@
 }
 .simulation-folder-tree ul {
   padding-left: 12px;
-}
-.simulation-folder-tree button[aria-pressed="true"] {
-  outline: 1px solid var(--icm-accent);
-  outline-offset: -1px;
 }
 .simulation-code-files button {
   width: 100%;
@@ -256,9 +294,91 @@
   font: inherit;
   padding: 3px 6px;
 }
-.simulation-code-files button.is-active {
-  background: #eaf2f8;
-  color: #155782;
+.simulation-code-files button[data-tree-row].is-selected {
+  background: color-mix(in srgb, var(--icm-accent) 14%, transparent);
+  color: var(--icm-text);
+}
+.simulation-code-files button[data-tree-row].is-active {
+  position: relative;
+  background: color-mix(in srgb, var(--icm-accent) 21%, var(--icm-surface));
+  color: var(--icm-text);
+  font-weight: 600;
+}
+.simulation-code-files button[data-tree-row].is-active::before {
+  content: "";
+  position: absolute;
+  inset: 2px auto 2px 0;
+  width: 2px;
+  background: var(--icm-accent);
+}
+.simulation-folder-tree button[aria-pressed="true"]:not(.is-active),
+.simulation-code-files button[data-tree-row].is-selected:not(.is-active) {
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--icm-accent) 55%, transparent);
+}
+.simulation-explorer-sections {
+  padding-left: 12px;
+}
+.simulation-explorer-section {
+  min-width: 0;
+}
+.simulation-explorer-section > summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 26px;
+  padding: 0 7px 0 3px;
+  cursor: pointer;
+  color: var(--icm-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 10px;
+  user-select: none;
+}
+.simulation-explorer-section > summary:hover {
+  background: color-mix(in srgb, var(--icm-border) 45%, transparent);
+}
+.simulation-explorer-section > summary > small:last-child {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+.simulation-explorer-section > p {
+  margin: 0;
+  padding: 0 8px 3px 19px;
+  color: var(--icm-text-muted);
+  font-size: 10px;
+}
+.simulation-explorer-section > ul {
+  padding: 0 0 4px 8px;
+}
+.simulation-explorer-section button[data-tree-row] {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.simulation-file-icon {
+  flex: none;
+  width: 13px;
+  color: var(--icm-text-muted);
+  text-align: center;
+}
+.simulation-file-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.simulation-file-state {
+  flex: none;
+  color: var(--icm-text-muted);
+}
+.simulation-file-state.is-dirty {
+  color: var(--icm-accent);
+}
+.simulation-explorer-section button[data-tree-row] > small {
+  flex: none;
+  color: var(--icm-text-muted);
+  font-size: 9px;
 }
 .simulation-code-document {
   display: flex;
@@ -279,10 +399,51 @@
   background: var(--icm-surface);
   box-shadow: inset 0 2px var(--icm-accent);
 }
+.simulation-artifact-tab > button[role="tab"] > span {
+  margin-left: 6px;
+  color: var(--icm-text-muted);
+  font-size: 9px;
+  text-transform: uppercase;
+}
 .simulation-code-document-content {
   flex: 1;
   min-height: 0;
   overflow: hidden;
+}
+.simulation-artifact-editor {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--icm-surface);
+}
+.simulation-artifact-editor > header {
+  display: flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 8px 0 12px;
+  border-bottom: 1px solid var(--icm-border);
+  color: var(--icm-text-muted);
+}
+.simulation-artifact-editor > header button {
+  margin-left: auto;
+  border: 1px solid var(--icm-border);
+  border-radius: 3px;
+  background: var(--icm-surface);
+  color: var(--icm-text);
+  padding: 4px 9px;
+}
+.simulation-artifact-editor > pre {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  margin: 0;
+  padding: 12px 14px;
+  font:
+    12px/1.6 "Google Sans Code Variable",
+    Consolas,
+    monospace;
+  white-space: pre-wrap;
 }
 .simulation-code-editor,
 .simulation-code-editor .cm-editor {
@@ -304,7 +465,7 @@
 }
 .simulation-code-editor .cm-activeLine,
 .simulation-code-editor .cm-activeLineGutter {
-  background: #f3f7fa;
+  background: color-mix(in srgb, var(--icm-accent) 7%, transparent);
 }
 .simulation-code-editor .cm-focused {
   outline: none;
@@ -365,6 +526,36 @@
   font-size: 11px;
   color: var(--icm-text-muted);
 }
+.simulation-code-actions [data-workspace-save] {
+  min-width: 68px;
+  border-radius: 3px;
+  transition:
+    background 120ms ease,
+    color 120ms ease,
+    box-shadow 120ms ease;
+}
+.simulation-code-actions [data-workspace-save][data-save-state="dirty"] {
+  background: var(--icm-accent);
+  color: white;
+  box-shadow: 0 1px 2px #0002;
+}
+.simulation-code-actions [data-workspace-save][data-save-state="saving"] {
+  opacity: 1;
+  background: color-mix(in srgb, var(--icm-accent) 16%, var(--icm-surface));
+  color: var(--icm-text);
+}
+.simulation-code-actions [data-workspace-save][data-save-state="saved"],
+.simulation-code-actions
+  [data-workspace-save][data-save-state="saved"]:disabled {
+  opacity: 1;
+  color: #26734d;
+  background: color-mix(in srgb, #38a169 12%, var(--icm-surface));
+}
+.simulation-code-actions [data-workspace-save][data-save-state="failed"] {
+  opacity: 1;
+  color: #b42318;
+  background: color-mix(in srgb, #b42318 10%, var(--icm-surface));
+}
 .simulation-code-workspace.is-maximized .simulation-code-source-area,
 .simulation-code-workspace.is-maximized .simulation-code-output-resizer {
   display: none;
@@ -400,6 +591,26 @@
 .simulation-code-editor-shell > .simulation-code-editor {
   min-height: 0;
   flex: 1;
+}
+.simulation-code-ghost-hints {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 26px;
+  padding: 3px 9px;
+  overflow-x: auto;
+  border-top: 1px solid var(--icm-border);
+  color: var(--icm-text-muted);
+  background: color-mix(in srgb, var(--icm-surface-muted) 78%, transparent);
+  white-space: nowrap;
+}
+.simulation-code-ghost-hints code {
+  opacity: 0.72;
+  font:
+    10px "Google Sans Code Variable",
+    Consolas,
+    monospace;
 }
 .simulation-code-helper-toolbar {
   height: 28px;

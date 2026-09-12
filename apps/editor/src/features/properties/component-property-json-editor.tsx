@@ -159,8 +159,26 @@ export default function ComponentPropertyJsonEditor(props: Props) {
       view.setState(createState.current(props.value));
       view.dispatch({ effects: refreshAssists.of(null) });
     } else if (view.state.doc.toString() !== props.value) {
+      const current = view.state.doc.toString();
+      let from = 0;
+      let suffix = 0;
+      while (
+        from < Math.min(current.length, props.value.length) &&
+        current[from] === props.value[from]
+      )
+        from++;
+      while (
+        suffix < Math.min(current.length, props.value.length) - from &&
+        current[current.length - 1 - suffix] ===
+          props.value[props.value.length - 1 - suffix]
+      )
+        suffix++;
       view.dispatch({
-        changes: { from: 0, to: view.state.doc.length, insert: props.value },
+        changes: {
+          from,
+          to: current.length - suffix,
+          insert: props.value.slice(from, props.value.length - suffix),
+        },
         annotations: [
           Transaction.addToHistory.of(false),
           externalUpdate.of(true),

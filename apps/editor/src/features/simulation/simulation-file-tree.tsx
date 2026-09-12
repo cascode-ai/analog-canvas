@@ -42,7 +42,7 @@ export function SimulationFolderTree(props: SimulationFolderTreeProps) {
     setSelected(ids);
     const target = id ?? props.activeId;
     const items: WorkspaceMenuItem[] = [
-      { label: "New folder…", run: () => action("new", []) },
+      { label: "New experiment…", run: () => action("new", []) },
       {
         label: "New file…",
         disabled: !target,
@@ -130,7 +130,7 @@ export function SimulationFolderTree(props: SimulationFolderTreeProps) {
         data-workspace-new-folder="true"
         onClick={() => action("new", [])}
       >
-        + New folder…
+        + New experiment
       </button>
       {naming && !ui.edit?.folderId ? (
         <WorkspaceNameInput key="new-folder" />
@@ -211,7 +211,12 @@ export function SimulationFolderTree(props: SimulationFolderTreeProps) {
                   }
                 }}
               >
-                {folder.name}
+                <span>{folder.name}</span>
+                {folder.id === props.activeId ? (
+                  <small className="simulation-run-target-badge">
+                    Run target
+                  </small>
+                ) : null}
               </button>
             </div>
           )}

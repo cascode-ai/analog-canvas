@@ -56,10 +56,8 @@ import { DeviceOperatingPointResults } from "./device-operating-point-results";
 
 import {
   buildSimulationArtifactArchive,
-  formatSimulationArtifactPreview,
   readSimulationArtifact,
   readSimulationArtifactPreview,
-  simulationArtifactCategory,
   type SimulationArtifactContent,
 } from "./simulation-artifact-files";
 import {
@@ -315,7 +313,7 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
       setPrepared(reply.prepared);
       setProblem(undefined);
       setArtifactPreview(undefined);
-      setResultTab("files");
+      setResultTab("console");
     } else if ("capabilities" in reply) {
       setCapabilities(reply.capabilities);
       setProblem(undefined);
@@ -556,7 +554,7 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
       setRun(undefined);
       setProblem(undefined);
       setArtifactPreview(undefined);
-      setResultTab("files");
+      setResultTab("console");
       if (presentation)
         folderResults.current.set(item.folderId, { prepared: item.prepared });
       return;
@@ -880,34 +878,26 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
       ];
     });
   };
-  const artifactCategories = ["Netlist", "Results", "Evidence", "Log", "Other"];
   const runPreparedArtifactIds = new Set(
     runPresentation?.prepared.artifacts.map((artifact) => artifact.id) ?? [],
   );
   const artifactGroups = [
-    ...(prepared
-      ? [
-          {
-            key: "prepare" as const,
-            label: "Prepare",
-            description: "Compiled input",
-            artifacts: prepared.artifacts,
-          },
-        ]
-      : []),
-    ...(run
-      ? [
-          {
-            key: "run" as const,
-            label: "Run",
-            description: "Execution output",
-            artifacts: run.artifacts.filter(
-              (artifact) => !runPreparedArtifactIds.has(artifact.id),
-            ),
-          },
-        ]
-      : []),
-  ].filter((group) => group.artifacts.length > 0);
+    {
+      key: "prepare" as const,
+      label: "Prepare",
+      description: "Compiled input",
+      artifacts: prepared?.artifacts ?? [],
+    },
+    {
+      key: "run" as const,
+      label: "Run",
+      description: "Execution output",
+      artifacts:
+        run?.artifacts.filter(
+          (artifact) => !runPreparedArtifactIds.has(artifact.id),
+        ) ?? [],
+    },
+  ];
   const resultCsvArtifacts = run
     ? (() => {
         const csv = run.artifacts.filter((artifact) =>
@@ -981,8 +971,6 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
       );
       return;
     }
-    let template = ids[0] === "ac" ? "AC" : ids[0] === "tran" ? "TRAN" : "OP";
-    let starter = "Text only";
     const name = await interaction.name({
       kind: "folder",
       ...(action === "rename" && current ? { folderId: current.id } : {}),
@@ -998,28 +986,6 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
           )
           ? `Simulation folder name already exists: ${value}`
           : undefined,
-      ...(action === "new"
-        ? {
-            template: {
-              value: template,
-              options: ["OP", "AC", "TRAN"],
-              onChange: (value: string) => {
-                template = value;
-              },
-            },
-            starter: {
-              value: starter,
-              options: [
-                "Text only",
-                "Current Canvas Cell",
-                "Text TB for current Cell",
-              ],
-              onChange: (value: string) => {
-                starter = value;
-              },
-            },
-          }
-        : {}),
       initial:
         action === "rename"
           ? (current?.name ?? "")
@@ -1047,17 +1013,11 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
     else {
       const result = createSimulationStarter(namingProject, {
         ...identity,
-        mode:
-          starter === "Current Canvas Cell"
-            ? "circuit"
-            : starter === "Text TB for current Cell"
-              ? "dut"
-              : "text",
+        mode: "circuit",
         documentId:
           props.draftContext?.rootDocumentId ?? props.activeDocumentId,
         profileId: capabilities?.profiles[0]?.id ?? authoringProfile.id,
-        template:
-          template === "AC" ? "ac" : template === "TRAN" ? "tran" : "op",
+        template: "op",
       });
       if (!result.ok) {
         setProblem(uiProblem("SIMULATION_STARTER_INVALID", result.message));
@@ -1567,138 +1527,6 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
             ) : null}
           </div>
         ) : null}
-
-        {resultTab === "files" ? (
-          <div
-            className={`simulation-files-view${artifactPreview ? " preview-open" : ""}`}
-          >
-            <div className="simulation-file-browser">
-              {artifactGroups.map((group) => (
-                <section
-                  key={group.key}
-                  className="simulation-artifact-group"
-                  aria-label={`${group.label} files`}
-                >
-                  <header>
-                    <span>
-                      <strong>{group.label}</strong>
-                      <small>{group.description}</small>
-                    </span>
-                    <button
-                      type="button"
-                      disabled={artifactBusy !== undefined}
-                      onClick={() =>
-                        void downloadBundle(group.key, group.artifacts)
-                      }
-                    >
-                      {artifactBusy === `bundle:${group.key}`
-                        ? "Packing…"
-                        : "Download ZIP"}
-                    </button>
-                  </header>
-                  {artifactCategories.map((category) => {
-                    const artifacts = group.artifacts.filter(
-                      (artifact) =>
-                        simulationArtifactCategory(artifact) === category,
-                    );
-                    return artifacts.length ? (
-                      <details
-                        key={category}
-                        className="simulation-artifact-category"
-                        aria-label={`${group.label} ${category}`}
-                        open={category === "Results" || category === "Netlist"}
-                      >
-                        <summary>
-                          <strong>{category}</strong>
-                          <small>{artifacts.length}</small>
-                        </summary>
-                        <ul className="simulation-artifact-list">
-                          {artifacts.map((artifact) => (
-                            <li
-                              key={artifact.id}
-                              className={
-                                artifactPreview?.artifact.id === artifact.id
-                                  ? "selected"
-                                  : undefined
-                              }
-                            >
-                              <button
-                                type="button"
-                                title={`Preview ${artifact.name}`}
-                                disabled={artifactBusy !== undefined}
-                                onClick={() => void preview(artifact)}
-                              >
-                                {artifactBusy === `preview:${artifact.id}`
-                                  ? "Opening…"
-                                  : artifact.name}
-                              </button>
-                              <small>
-                                {formatArtifactSize(artifact.byteLength)}
-                              </small>
-                              <button
-                                type="button"
-                                className="simulation-artifact-download"
-                                aria-label={`Download ${artifact.name}`}
-                                title={`Download ${artifact.name}`}
-                                disabled={artifactBusy !== undefined}
-                                onClick={() => void download(artifact)}
-                              >
-                                ↓
-                              </button>
-                            </li>
-                          ))}
-                        </ul>
-                      </details>
-                    ) : null;
-                  })}
-                </section>
-              ))}
-            </div>
-            {artifactPreview ? (
-              <section
-                className="simulation-artifact-preview"
-                aria-label="File preview"
-              >
-                <header>
-                  <span>
-                    <strong>{artifactPreview.artifact.name}</strong>
-                    <small>
-                      {formatArtifactSize(artifactPreview.artifact.byteLength)}
-                    </small>
-                  </span>
-                  <span>
-                    <button
-                      type="button"
-                      disabled={artifactBusy !== undefined}
-                      onClick={() => void download(artifactPreview.artifact)}
-                    >
-                      Download
-                    </button>
-                    <button
-                      type="button"
-                      aria-label="Close file preview"
-                      onClick={() => setArtifactPreview(undefined)}
-                    >
-                      ×
-                    </button>
-                  </span>
-                </header>
-                <pre>{formatSimulationArtifactPreview(artifactPreview)}</pre>
-                {artifactPreview.truncated ? (
-                  <footer>
-                    Preview limited to the first 64 KB. Download for the
-                    complete file.
-                  </footer>
-                ) : null}
-              </section>
-            ) : null}
-            {artifactGroups.length === 0 ? (
-              <p className="simulation-empty-result">
-                Prepare a deck or run the simulation to create files.
-              </p>
-            ) : null}
-          </div>
-        ) : null}
       </div>
     </section>
   );
@@ -1901,6 +1729,12 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
           console={resultContent}
           results={resultContent}
           outputActions={outputActions}
+          artifactGroups={artifactGroups}
+          artifactPreview={artifactPreview}
+          artifactBusy={artifactBusy}
+          onSelectArtifact={(artifact) => void preview(artifact)}
+          onCloseArtifact={() => setArtifactPreview(undefined)}
+          onDownloadArtifact={(artifact) => void download(artifact)}
           outputPane={resultTab}
           onSelectOutputPane={setResultTab}
           maximized={resultsMaximized}
@@ -1938,9 +1772,4 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
       )}
     </section>
   );
-}
-
-function formatArtifactSize(byteLength: number): string {
-  if (byteLength < 1024) return `${byteLength} B`;
-  return `${(byteLength / 1024).toFixed(byteLength < 10_240 ? 1 : 0)} KB`;
 }

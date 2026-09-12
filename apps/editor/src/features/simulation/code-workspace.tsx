@@ -1,4 +1,11 @@
-import { useEffect, useId, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useId,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+  type ReactNode,
+} from "react";
+import type { ArtifactRef } from "@icm/simulation-service/contract";
 import {
   SimulationFolderTree,
   type SimulationFolderTreeProps,
@@ -8,6 +15,11 @@ import {
   WorkspaceNameInput,
   type WorkspaceMenuItem,
 } from "./workspace-interactions";
+import {
+  formatSimulationArtifactPreview,
+  simulationArtifactCategory,
+  type SimulationArtifactContent,
+} from "./simulation-artifact-files";
 
 export interface SimulationCodeFile {
   path: string;
@@ -15,6 +27,15 @@ export interface SimulationCodeFile {
   dirty?: boolean;
   draft?: boolean;
 }
+export interface SimulationExplorerArtifactGroup {
+  key: "prepare" | "run";
+  label: string;
+  description: string;
+  artifacts: readonly ArtifactRef[];
+}
+export type SimulationExplorerSelection =
+  | { kind: "source"; folderId: string; path: string }
+  | { kind: "artifact"; groupKey: "prepare" | "run"; artifact: ArtifactRef };
 export interface SimulationCodeWorkspaceProps {
   workspaceKey: string;
   files: readonly SimulationCodeFile[];
@@ -30,6 +51,13 @@ export interface SimulationCodeWorkspaceProps {
     path: string,
     folderId?: string,
   ): void;
+  artifactGroups?: readonly SimulationExplorerArtifactGroup[];
+  artifactPreview?: SimulationArtifactContent | undefined;
+  artifactBusy?: string | undefined;
+  onSelectArtifact?(artifact: ArtifactRef): void;
+  onCloseArtifact?(): void;
+  onDownloadArtifact?(artifact: ArtifactRef): void;
+  onDownloadSelection?(selection: readonly SimulationExplorerSelection[]): void;
   folders?:
     Omit<SimulationFolderTreeProps, "renderFiles" | "onNewFile"> | undefined;
   additionalActions?: WorkspaceMenuItem[];
@@ -39,7 +67,7 @@ export interface SimulationCodeWorkspaceProps {
   console: ReactNode;
   results: ReactNode;
   outputActions?: ReactNode;
-  outputPane: "console" | "plot" | "operating-point" | "compare" | "files";
+  outputPane: "console" | "plot" | "operating-point" | "compare";
   onSelectOutputPane(pane: SimulationCodeWorkspaceProps["outputPane"]): void;
   maximized?: boolean;
   onToggleMaximize?(): void;
@@ -70,15 +98,17 @@ export function SimulationCodeWorkspace(props: SimulationCodeWorkspaceProps) {
         110,
         Math.min(
           420,
-          Number(localStorage.getItem("icm.code.files-width")) || 170,
+          Number(localStorage.getItem("icm.code.files-width")) || 240,
         ),
       );
     } catch {
-      return 170;
+      return 240;
     }
   });
   const [resultsHeight, setResultsHeight] = useState(38);
   const [collapsed, setCollapsed] = useState(false);
+  const [selected, setSelected] = useState<string[]>([]);
+  const [sectionOpen, setSectionOpen] = useState<Record<string, boolean>>({});
   useEffect(() => {
     if (props.activePath)
       setOpened((paths) =>
@@ -108,6 +138,33 @@ export function SimulationCodeWorkspace(props: SimulationCodeWorkspaceProps) {
     const next = tabs.filter((item) => item !== path);
     setOpened(next);
     if (props.activePath === path) props.onSelectFile(next.at(-1) ?? "");
+  };
+  const sourceKey = (folderId: string, path: string) =>
+    `source\u0000${folderId}\u0000${path}`;
+  const artifactKey = (groupKey: string, artifactId: string) =>
+    `artifact\u0000${groupKey}\u0000${artifactId}`;
+  const select = (key: string, event: ReactMouseEvent) =>
+    setSelected((current) =>
+      event.ctrlKey || event.metaKey
+        ? current.includes(key)
+          ? current.filter((item) => item !== key)
+          : [...current, key]
+        : [key],
+    );
+  const selection = (): SimulationExplorerSelection[] => {
+    const result: SimulationExplorerSelection[] = [];
+    for (const key of selected) {
+      const [kind, owner, value] = key.split("\u0000");
+      if (kind === "source" && owner && value)
+        result.push({ kind, folderId: owner, path: value });
+      if (kind === "artifact" && (owner === "prepare" || owner === "run")) {
+        const artifact = props.artifactGroups
+          ?.find((group) => group.key === owner)
+          ?.artifacts.find((item) => item.id === value);
+        if (artifact) result.push({ kind, groupKey: owner, artifact });
+      }
+    }
+    return result;
   };
   const fileMenu = (
     file: SimulationCodeFile,
@@ -150,86 +207,191 @@ export function SimulationCodeWorkspace(props: SimulationCodeWorkspaceProps) {
     const current = !folderId || folderId === props.folders?.activeId;
     const folder = props.folders?.folders.find((f) => f.id === folderId);
     const files = current ? props.files : (folder?.files ?? []);
+    const visibleFiles = files.filter(
+      (file) => file.path !== (current ? props.configPath : folder?.configPath),
+    );
     const editing =
       ui.edit?.kind === "file" &&
       ui.edit.folderId === (folderId ?? props.folders?.activeId);
+    const resolvedFolderId = folderId ?? props.folders?.activeId ?? "workspace";
+    const sourceSectionKey = `${resolvedFolderId}:source`;
+    const groups = current ? (props.artifactGroups ?? []) : [];
     return (
-      <ul>
-        {editing && !ui.edit?.path ? (
-          <li>
-            <WorkspaceNameInput key="new-file" />
-          </li>
-        ) : null}
-        {files
-          .filter(
-            (file) =>
-              file.path !== (current ? props.configPath : folder?.configPath),
-          )
-          .map((file) => (
-            <li
-              key={file.path}
-              onContextMenu={(event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                fileMenu(file, folderId, event.clientX, event.clientY);
-              }}
-              onKeyDown={(event) => {
-                if (event.target instanceof HTMLInputElement) return;
-                if (
-                  (event.key === "F2" || event.key === "Delete") &&
-                  file.kind === "authored"
-                ) {
+      <div className="simulation-explorer-sections">
+        <details
+          className="simulation-explorer-section is-source"
+          open={sectionOpen[sourceSectionKey] ?? true}
+          onToggle={(event) => {
+            const open = event.currentTarget.open;
+            setSectionOpen((state) => ({
+              ...state,
+              [sourceSectionKey]: open,
+            }));
+          }}
+        >
+          <summary>
+            <span>Source</span>
+            <small>{visibleFiles.length}</small>
+          </summary>
+          <ul>
+            {editing && !ui.edit?.path ? (
+              <li>
+                <WorkspaceNameInput key="new-file" />
+              </li>
+            ) : null}
+            {visibleFiles.map((file) => (
+              <li
+                key={file.path}
+                onContextMenu={(event) => {
                   event.preventDefault();
-                  props.onFileAction?.(
-                    event.key === "F2" ? "rename" : "delete",
-                    file.path,
-                    folderId,
-                  );
-                }
-                if (
-                  event.key === "ContextMenu" ||
-                  (event.shiftKey && event.key === "F10")
-                ) {
-                  event.preventDefault();
-                  const rect = event.currentTarget.getBoundingClientRect();
-                  fileMenu(file, folderId, rect.left, rect.bottom);
-                }
+                  event.stopPropagation();
+                  fileMenu(file, folderId, event.clientX, event.clientY);
+                }}
+                onKeyDown={(event) => {
+                  if (event.target instanceof HTMLInputElement) return;
+                  if (
+                    (event.key === "F2" || event.key === "Delete") &&
+                    file.kind === "authored"
+                  ) {
+                    event.preventDefault();
+                    props.onFileAction?.(
+                      event.key === "F2" ? "rename" : "delete",
+                      file.path,
+                      folderId,
+                    );
+                  }
+                  if (
+                    event.key === "ContextMenu" ||
+                    (event.shiftKey && event.key === "F10")
+                  ) {
+                    event.preventDefault();
+                    const rect = event.currentTarget.getBoundingClientRect();
+                    fileMenu(file, folderId, rect.left, rect.bottom);
+                  }
+                }}
+              >
+                {editing && ui.edit?.path === file.path ? (
+                  <WorkspaceNameInput key={file.path} />
+                ) : (
+                  <button
+                    type="button"
+                    data-tree-row="file"
+                    data-folder-id={folderId ?? props.folders?.activeId}
+                    data-file-path={file.path}
+                    className={[
+                      current &&
+                      !props.artifactPreview &&
+                      file.path === props.activePath
+                        ? "is-active"
+                        : "",
+                      selected.includes(sourceKey(resolvedFolderId, file.path))
+                        ? "is-selected"
+                        : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" ")}
+                    aria-pressed={selected.includes(
+                      sourceKey(resolvedFolderId, file.path),
+                    )}
+                    title={file.path}
+                    onClick={(event) => {
+                      select(sourceKey(resolvedFolderId, file.path), event);
+                      props.onCloseArtifact?.();
+                      openFile(file.path, folderId);
+                    }}
+                  >
+                    <span className="simulation-file-icon" aria-hidden="true">
+                      {file.kind === "generated"
+                        ? "◇"
+                        : file.kind === "prepared"
+                          ? "▧"
+                          : "·"}
+                    </span>
+                    <span className="simulation-file-name">{file.path}</span>
+                    {file.dirty ? (
+                      <span
+                        className="simulation-file-state is-dirty"
+                        title="Unsaved"
+                      >
+                        ●
+                      </span>
+                    ) : file.draft ? (
+                      <span
+                        className="simulation-file-state"
+                        title="Saved draft"
+                      >
+                        ◌
+                      </span>
+                    ) : null}
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        </details>
+        {groups.map((group) => {
+          const groupSectionKey = `${resolvedFolderId}:${group.key}`;
+          return (
+            <details
+              key={group.key}
+              className="simulation-explorer-section is-temporary"
+              aria-label={`${group.label} temporary files`}
+              open={sectionOpen[groupSectionKey] ?? false}
+              onToggle={(event) => {
+                const open = event.currentTarget.open;
+                setSectionOpen((state) => ({
+                  ...state,
+                  [groupSectionKey]: open,
+                }));
               }}
             >
-              {editing && ui.edit?.path === file.path ? (
-                <WorkspaceNameInput key={file.path} />
-              ) : (
-                <button
-                  type="button"
-                  data-tree-row="file"
-                  data-folder-id={folderId ?? props.folders?.activeId}
-                  data-file-path={file.path}
-                  className={
-                    current && file.path === props.activePath ? "is-active" : ""
-                  }
-                  title={file.path}
-                  onClick={() => openFile(file.path, folderId)}
-                >
-                  <span aria-hidden="true">
-                    {file.kind === "generated"
-                      ? "◇"
-                      : file.kind === "prepared"
-                        ? "▧"
-                        : "·"}
-                  </span>{" "}
-                  {file.path}
-                  {"dirty" in file && file.dirty
-                    ? " ●"
-                    : "draft" in file && file.draft
-                      ? " ◌"
-                      : ""}
-                </button>
-              )}
-            </li>
-          ))}
-      </ul>
+              <summary>
+                <span>{group.label}</span>
+                <span className="simulation-temporary-badge">Temporary</span>
+                <small>{group.artifacts.length}</small>
+              </summary>
+              <p>{group.description}</p>
+              <ul>
+                {group.artifacts.map((artifact) => {
+                  const key = artifactKey(group.key, artifact.id);
+                  const active =
+                    props.artifactPreview?.artifact.id === artifact.id;
+                  return (
+                    <li key={artifact.id}>
+                      <button
+                        type="button"
+                        data-tree-row="artifact"
+                        className={`${active ? "is-active" : ""}${selected.includes(key) ? " is-selected" : ""}`.trim()}
+                        aria-pressed={selected.includes(key)}
+                        title={`${simulationArtifactCategory(artifact)} · ${artifact.name}`}
+                        disabled={props.artifactBusy !== undefined}
+                        onClick={(event) => {
+                          select(key, event);
+                          props.onSelectArtifact?.(artifact);
+                        }}
+                      >
+                        <span
+                          className="simulation-file-icon"
+                          aria-hidden="true"
+                        >
+                          ▧
+                        </span>
+                        <span className="simulation-file-name">
+                          {artifact.name}
+                        </span>
+                        <small>{simulationArtifactCategory(artifact)}</small>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </details>
+          );
+        })}
+      </div>
     );
   };
+  const selectedItems = selection();
   return (
     <section
       className={`simulation-code-workspace${props.maximized ? " is-maximized" : ""}`}
@@ -263,7 +425,7 @@ export function SimulationCodeWorkspace(props: SimulationCodeWorkspaceProps) {
           aria-controls={filesId}
           onClick={() => setFilesOpen(!filesOpen)}
         >
-          Files
+          Explorer
         </button>
         <div className="simulation-code-actions">{props.actions}</div>
         <div className="simulation-code-more">
@@ -315,6 +477,18 @@ export function SimulationCodeWorkspace(props: SimulationCodeWorkspaceProps) {
             style={{ width: filesWidth }}
             aria-label="Simulation files"
           >
+            <header className="simulation-explorer-header">
+              <strong>Explorer</strong>
+              <button
+                type="button"
+                disabled={!selectedItems.length || !props.onDownloadSelection}
+                onClick={() => props.onDownloadSelection?.(selectedItems)}
+                title="Download selected files"
+                aria-label={`Download selected files${selectedItems.length ? ` (${selectedItems.length})` : ""}`}
+              >
+                ↓ {selectedItems.length || ""}
+              </button>
+            </header>
             {props.folders ? (
               <SimulationFolderTree
                 {...props.folders}
@@ -336,7 +510,7 @@ export function SimulationCodeWorkspace(props: SimulationCodeWorkspaceProps) {
             aria-valuemin={110}
             aria-valuemax={420}
             aria-valuenow={filesWidth}
-            onDoubleClick={() => setFilesWidth(170)}
+            onDoubleClick={() => setFilesWidth(240)}
             onKeyDown={(event) => {
               if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
                 event.preventDefault();
@@ -380,6 +554,21 @@ export function SimulationCodeWorkspace(props: SimulationCodeWorkspaceProps) {
             role="tablist"
             aria-label="Open simulation files"
           >
+            {props.artifactPreview ? (
+              <div className="simulation-code-tab simulation-artifact-tab">
+                <button type="button" role="tab" aria-selected="true">
+                  {props.artifactPreview.artifact.name}
+                  <span> Temporary</span>
+                </button>
+                <button
+                  type="button"
+                  aria-label={`Close ${props.artifactPreview.artifact.name}`}
+                  onClick={props.onCloseArtifact}
+                >
+                  ×
+                </button>
+              </div>
+            ) : null}
             {tabs.map((path) => {
               const file = props.files.find((f) => f.path === path)!;
               return (
@@ -387,8 +576,13 @@ export function SimulationCodeWorkspace(props: SimulationCodeWorkspaceProps) {
                   <button
                     type="button"
                     role="tab"
-                    aria-selected={props.activePath === path}
-                    onClick={() => props.onSelectFile(path)}
+                    aria-selected={
+                      !props.artifactPreview && props.activePath === path
+                    }
+                    onClick={() => {
+                      props.onCloseArtifact?.();
+                      props.onSelectFile(path);
+                    }}
                     title={path}
                   >
                     {path === props.configPath
@@ -412,12 +606,38 @@ export function SimulationCodeWorkspace(props: SimulationCodeWorkspaceProps) {
           </div>
           <div className="simulation-code-document-content">
             <div
-              hidden={!props.activePath}
+              hidden={!props.activePath || Boolean(props.artifactPreview)}
               className="workspace-editor-content"
             >
               {props.children}
             </div>
-            {!props.activePath ? (
+            {props.artifactPreview ? (
+              <section
+                className="simulation-artifact-editor"
+                aria-label="File preview"
+              >
+                <header>
+                  <span>
+                    Read-only preview · Temporary run file
+                    {props.artifactPreview.truncated ? " · First 64 KB" : ""}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={props.artifactBusy !== undefined}
+                    onClick={() =>
+                      props.onDownloadArtifact?.(
+                        props.artifactPreview!.artifact,
+                      )
+                    }
+                  >
+                    Download
+                  </button>
+                </header>
+                <pre>
+                  {formatSimulationArtifactPreview(props.artifactPreview)}
+                </pre>
+              </section>
+            ) : !props.activePath ? (
               <p className="workspace-empty-editor">
                 Select a file to edit. Closing tabs does not delete files.
               </p>
@@ -486,39 +706,32 @@ export function SimulationCodeWorkspace(props: SimulationCodeWorkspaceProps) {
       >
         <header className="simulation-code-output-tabs">
           <div role="tablist" aria-label="Code output view">
-            {(
-              [
-                "console",
-                "plot",
-                "operating-point",
-                "compare",
-                "files",
-              ] as const
-            ).map((pane) => (
-              <button
-                key={pane}
-                type="button"
-                role="tab"
-                aria-selected={pane === props.outputPane}
-                aria-label={
-                  pane === "operating-point" ? "Operating Point" : undefined
-                }
-                onClick={() => {
-                  props.onSelectOutputPane(pane);
-                  setCollapsed(false);
-                }}
-              >
-                {
+            {(["console", "plot", "operating-point", "compare"] as const).map(
+              (pane) => (
+                <button
+                  key={pane}
+                  type="button"
+                  role="tab"
+                  aria-selected={pane === props.outputPane}
+                  aria-label={
+                    pane === "operating-point" ? "Operating Point" : undefined
+                  }
+                  onClick={() => {
+                    props.onSelectOutputPane(pane);
+                    setCollapsed(false);
+                  }}
+                >
                   {
-                    console: "Console",
-                    plot: "Plot",
-                    "operating-point": "OP",
-                    compare: "Compare",
-                    files: "Files",
-                  }[pane]
-                }
-              </button>
-            ))}
+                    {
+                      console: "Console",
+                      plot: "Plot",
+                      "operating-point": "OP",
+                      compare: "Compare",
+                    }[pane]
+                  }
+                </button>
+              ),
+            )}
           </div>
           <span className="simulation-code-output-spacer" />
           {props.outputActions}

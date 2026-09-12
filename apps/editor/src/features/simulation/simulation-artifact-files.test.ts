@@ -4,6 +4,7 @@ import { SimulationFiles } from "@icm/simulation-service/files";
 
 import {
   buildSimulationArtifactArchive,
+  buildSimulationWorkspaceArchive,
   formatSimulationArtifactPreview,
   readSimulationArtifactPreview,
   simulationArtifactCategory,
@@ -51,5 +52,23 @@ describe("simulation artifact files", () => {
     );
     expect(simulationArtifactCategory(deck)).toBe("Netlist");
     expect(simulationArtifactCategory(csv)).toBe("Results");
+  });
+
+  it("packages selected source and temporary artifacts into one hierarchy", async () => {
+    const files = new SimulationFiles();
+    const log = await files.put("run.log", "text/plain", "finished\n");
+    const archive = await buildSimulationWorkspaceArchive(files, [
+      {
+        kind: "text",
+        path: "Untitled/source/run.cir",
+        text: "op\n",
+      },
+      { kind: "artifact", path: "run/log/run.log", artifact: log },
+    ]);
+    expect(archive.ok).toBe(true);
+    if (!archive.ok) return;
+    const entries = unzipSync(archive.bytes);
+    expect(strFromU8(entries["Untitled/source/run.cir"]!)).toBe("op\n");
+    expect(strFromU8(entries["run/log/run.log"]!)).toBe("finished\n");
   });
 });

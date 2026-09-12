@@ -178,10 +178,10 @@ test("the qualified OTA folder opens unchanged and preserves all root and hierar
   );
   await panel.getByRole("button", { name: "More code actions" }).click();
   await page.getByRole("menuitem", { name: "View final deck" }).click();
-  await expect(panel.getByLabel("Prepare files")).toBeVisible();
-  await panel
-    .getByRole("button", { name: "prepared.cir", exact: true })
-    .click();
+  const prepareFiles = panel.getByLabel("Prepare temporary files");
+  await expect(prepareFiles).toBeVisible();
+  await prepareFiles.locator("summary").click();
+  await panel.getByRole("button", { name: /prepared\.cir/ }).click();
   const preview = panel.getByRole("region", { name: "File preview" });
   const download = page.waitForEvent("download");
   await preview.getByRole("button", { name: "Download", exact: true }).click();
@@ -345,7 +345,7 @@ test("one Testbench persists several independently named folders", async ({
       exact: true,
     }),
   ).toBeVisible();
-  await folders.getByRole("button", { name: "+ New folder…" }).click();
+  await folders.getByRole("button", { name: "+ New experiment" }).click();
   await folders.getByLabel("New simulation folder name").fill("Bias sweep");
   await folders.getByLabel("New simulation folder name").press("Enter");
   await expect(
@@ -375,7 +375,7 @@ test("one Testbench persists several independently named folders", async ({
     saved.simulationFolders.find(
       (folder: { name: string }) => folder.name === "Bias sweep",
     )?.input.circuitBindings[0]?.documentId,
-  ).toBeUndefined();
+  ).toBe("document-ota-5t-testbench");
   expect(
     new Set(
       saved.simulationFolders.map(
@@ -384,11 +384,7 @@ test("one Testbench persists several independently named folders", async ({
       ),
     ),
   ).toEqual(
-    new Set([
-      "document-ota-5t-testbench",
-      "document-ota-5t-testbench-sin",
-      undefined,
-    ]),
+    new Set(["document-ota-5t-testbench", "document-ota-5t-testbench-sin"]),
   );
 
   await folders
