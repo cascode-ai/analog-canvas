@@ -52,6 +52,7 @@ export function ColorOverrideControl({
   transparentDefault,
   autoTitle,
   disabled = false,
+  presentation = "field",
   onChange,
 }: {
   label: string;
@@ -60,10 +61,12 @@ export function ColorOverrideControl({
   transparentDefault?: boolean;
   autoTitle?: string;
   disabled?: boolean;
+  presentation?: "field" | "editor";
   onChange: (value: string | undefined) => void;
 }) {
   const effective = normalizeHexColor(value ?? fallback);
   const [draft, setDraft] = useState<string | null>(null);
+  const [editorOpen, setEditorOpen] = useState(false);
   const draftRef = useRef<string | null>(null);
   const settleRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latestRef = useRef({ value, onChange });
@@ -120,82 +123,134 @@ export function ColorOverrideControl({
     setPending(rgbToHex({ ...rgb, [channel]: clampChannel(parsed) }));
   };
   const colorLabel = /color$/iu.test(label) ? label : `${label} color`;
+  const shownLabel =
+    draft ?? value ?? (transparentDefault ? "Transparent" : "Automatic");
+  const auto = (
+    <button
+      type="button"
+      disabled={disabled || (!value && draft === null)}
+      data-color-action="immediate"
+      aria-label={`Reset ${label.toLowerCase()}`}
+      title={
+        autoTitle ??
+        (transparentDefault
+          ? "Remove the component background"
+          : "Use the document ink color")
+      }
+      onPointerDown={(event) => event.preventDefault()}
+      onClick={() => commitNow(undefined)}
+    >
+      Auto
+    </button>
+  );
+  const presets = (
+    <div className="component-color-presets" aria-label={`${label} presets`}>
+      {COMMON_COLOR_PRESETS.map((preset) => (
+        <button
+          key={preset.value}
+          type="button"
+          className="component-color-swatch"
+          style={
+            {
+              "--component-swatch-color": preset.value,
+            } as CSSProperties
+          }
+          aria-label={`Use ${preset.label} for ${label.toLowerCase()}`}
+          aria-pressed={shown.toLowerCase() === preset.value}
+          data-color-action="immediate"
+          title={`${preset.label} · ${preset.value}`}
+          disabled={disabled}
+          onPointerDown={(event) => event.preventDefault()}
+          onClick={() => commitNow(preset.value)}
+        >
+          <span aria-hidden="true" />
+        </button>
+      ))}
+    </div>
+  );
+  const rgbInputs = (
+    <div className="component-rgb-inputs" aria-label={`${label} custom RGB`}>
+      {(["r", "g", "b"] as const).map((channel) => (
+        <label key={channel}>
+          {channel.toUpperCase()}
+          <input
+            aria-label={`${label} ${
+              channel === "r" ? "red" : channel === "g" ? "green" : "blue"
+            }`}
+            type="number"
+            min="0"
+            max="255"
+            step="1"
+            value={rgb[channel]}
+            disabled={disabled}
+            onChange={(event) =>
+              updateChannel(channel, event.currentTarget.value)
+            }
+            onBlur={(event) => commitOnBlur(event.relatedTarget)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") commitPending();
+            }}
+          />
+        </label>
+      ))}
+    </div>
+  );
+
+  if (presentation === "editor") {
+    return (
+      <div
+        className="component-editor-color-control"
+        data-testid="component-editor-color-control"
+        data-disabled={disabled ? "true" : undefined}
+        data-open={editorOpen ? "true" : undefined}
+      >
+        <button
+          type="button"
+          className="component-editor-color-summary"
+          aria-label={`${label} color controls`}
+          aria-expanded={editorOpen}
+          disabled={disabled}
+          onClick={() => setEditorOpen((open) => !open)}
+        >
+          <span
+            className="component-editor-color-preview"
+            data-inherited={
+              value === undefined && draft === null ? "true" : undefined
+            }
+            style={
+              {
+                "--component-swatch-color": shown,
+              } as CSSProperties
+            }
+            aria-hidden="true"
+          />
+          <span className="component-editor-color-label">{colorLabel}</span>
+          <output aria-label={`${colorLabel} hex value`}>{shownLabel}</output>
+        </button>
+        {editorOpen && (
+          <div className="component-editor-color-body">
+            {presets}
+            <div className="component-editor-color-custom">
+              {rgbInputs}
+              {auto}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <fieldset className="component-color-control" disabled={disabled}>
       <legend>{label}</legend>
       <div className="component-color-primary-row">
-        <output aria-label={`${colorLabel} hex value`}>
-          {draft ?? value ?? (transparentDefault ? "Transparent" : "Automatic")}
-        </output>
-        <button
-          type="button"
-          disabled={disabled || (!value && draft === null)}
-          data-color-action="immediate"
-          aria-label={`Reset ${label.toLowerCase()}`}
-          title={
-            autoTitle ??
-            (transparentDefault
-              ? "Remove the component background"
-              : "Use the document ink color")
-          }
-          onPointerDown={(event) => event.preventDefault()}
-          onClick={() => commitNow(undefined)}
-        >
-          Auto
-        </button>
+        <output aria-label={`${colorLabel} hex value`}>{shownLabel}</output>
+        {auto}
       </div>
-      <div className="component-color-presets" aria-label={`${label} presets`}>
-        {COMMON_COLOR_PRESETS.map((preset) => (
-          <button
-            key={preset.value}
-            type="button"
-            className="component-color-swatch"
-            style={
-              {
-                "--component-swatch-color": preset.value,
-              } as CSSProperties
-            }
-            aria-label={`Use ${preset.label} for ${label.toLowerCase()}`}
-            aria-pressed={shown.toLowerCase() === preset.value}
-            data-color-action="immediate"
-            title={`${preset.label} · ${preset.value}`}
-            onPointerDown={(event) => event.preventDefault()}
-            onClick={() => commitNow(preset.value)}
-          >
-            <span aria-hidden="true" />
-          </button>
-        ))}
-      </div>
+      {presets}
       <details className="component-rgb-details">
         <summary>RGB</summary>
-        <div
-          className="component-rgb-inputs"
-          aria-label={`${label} custom RGB`}
-        >
-          {(["r", "g", "b"] as const).map((channel) => (
-            <label key={channel}>
-              {channel.toUpperCase()}
-              <input
-                aria-label={`${label} ${
-                  channel === "r" ? "red" : channel === "g" ? "green" : "blue"
-                }`}
-                type="number"
-                min="0"
-                max="255"
-                step="1"
-                value={rgb[channel]}
-                onChange={(event) =>
-                  updateChannel(channel, event.currentTarget.value)
-                }
-                onBlur={(event) => commitOnBlur(event.relatedTarget)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") commitPending();
-                }}
-              />
-            </label>
-          ))}
-        </div>
+        {rgbInputs}
       </details>
     </fieldset>
   );

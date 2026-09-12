@@ -45,10 +45,10 @@ palette-first manual authoring; no Project file needs to be opened first.
   `"at": [x, y]`, plus quarter-turn
   rotation, mirror, supported Reference/Value visibility, and line color.
   The code area is ordinary selectable text with no injected comments or
-  controls. Type values directly, or use the separate Line shortcuts for light
-  gray, red, green, blue, and custom RGB. Fixed colors display as `[R, G, B]`
-  (0–255); hex input also works. **Auto** inherits document ink. Component
-  background color is not authored.
+  controls. Type values directly, or expand the compact **Line color** shelf
+  inside the editor frame for light gray, red, green, blue, custom RGB, and
+  **Auto**. Fixed colors display as `[R, G, B]` (0–255); hex input also works.
+  **Auto** inherits document ink. Component background color is not authored.
   Valid edits update the drawing immediately; invalid or rejected edits keep
   the last accepted drawing. Undo restores prior edits. Parameter values are strings: type unit suffixes
   yourself; `EV` remains `EV`, and `2u` is not changed to `2um`.

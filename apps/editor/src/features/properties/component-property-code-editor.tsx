@@ -185,31 +185,34 @@ export function ComponentPropertyCodeEditor({
           </button>
         </div>
       </header>
-      <Suspense
-        fallback={
-          <textarea
-            aria-label="Loading Canvas property code"
+      <div className="component-property-editor-frame">
+        <Suspense
+          fallback={
+            <textarea
+              aria-label="Loading Canvas property code"
+              value={draft}
+              readOnly
+              rows={15}
+            />
+          }
+        >
+          <PropertyJsonEditor
             value={draft}
-            readOnly
-            rows={15}
+            historyKey={historyKey}
+            context={context}
+            focusRequest={focusRequest}
+            onChange={change}
           />
-        }
-      >
-        <PropertyJsonEditor
-          value={draft}
-          historyKey={historyKey}
-          context={context}
-          focusRequest={focusRequest}
-          onChange={change}
+        </Suspense>
+        <ColorOverrideControl
+          label="Line"
+          value={lineColor}
+          fallback={defaultForeground}
+          disabled={!parsed.ok}
+          presentation="editor"
+          onChange={changeLineColor}
         />
-      </Suspense>
-      <ColorOverrideControl
-        label="Line"
-        value={lineColor}
-        fallback={defaultForeground}
-        disabled={!parsed.ok}
-        onChange={changeLineColor}
-      />
+      </div>
       <div className="component-property-code-status" aria-live="polite">
         <span>
           {applyMessage ??

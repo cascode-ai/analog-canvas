@@ -445,14 +445,28 @@
   height: 1rem;
 }
 
+.component-property-editor-frame {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-sm);
+  background: var(--icm-surface);
+}
+
+.component-property-editor-frame:focus-within {
+  border-color: var(--icm-accent);
+  outline: 2px solid var(--icm-accent-soft);
+  outline-offset: 0;
+}
+
 .component-property-code-editor textarea,
 .component-json-editor {
   box-sizing: border-box;
   width: 100%;
   min-width: 0;
   min-height: 15.5rem;
-  border: 1px solid var(--icm-border);
-  border-radius: var(--icm-radius-sm);
+  border: 0;
+  border-radius: 0;
   color: var(--icm-text);
   background: var(--icm-surface);
   font-family: var(--icm-font-mono, ui-monospace, monospace);
@@ -462,15 +476,8 @@
   white-space: pre;
 }
 
-.component-json-editor:focus-within {
-  border-color: var(--icm-accent);
-  outline: 2px solid var(--icm-accent-soft);
-  outline-offset: 0;
-}
-
 .component-json-editor .cm-editor {
   min-height: 15.5rem;
-  border-radius: inherit;
 }
 .component-json-editor .cm-editor.cm-focused {
   outline: none;
@@ -503,6 +510,109 @@
 }
 .component-json-editor .cm-json-bracket {
   color: #6e40a6;
+}
+.component-editor-color-control {
+  min-width: 0;
+  border-top: 1px solid var(--icm-border);
+  background: var(--icm-surface-muted);
+}
+
+.component-editor-color-summary {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 2.25rem;
+  width: 100%;
+  margin: 0;
+  padding: 0.35rem 0.55rem;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--icm-text-muted);
+  cursor: pointer;
+  font-size: var(--icm-font-xs);
+  box-shadow: none;
+  user-select: none;
+}
+
+.component-editor-color-summary::after {
+  width: 0.42rem;
+  height: 0.42rem;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  content: "";
+  transform: rotate(45deg) translate(-1px, 1px);
+  transition: transform 120ms ease;
+}
+
+.component-editor-color-control[data-open="true"]
+  .component-editor-color-summary::after {
+  transform: rotate(225deg) translate(-1px, 1px);
+}
+
+.component-editor-color-summary:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.component-editor-color-preview {
+  box-sizing: border-box;
+  width: 1rem;
+  height: 1rem;
+  border: 1px solid rgb(15 23 42 / 28%);
+  border-radius: 50%;
+  background: var(--component-swatch-color);
+  box-shadow: 0 0 0 2px var(--icm-surface);
+}
+
+.component-editor-color-preview[data-inherited="true"] {
+  border-style: dashed;
+}
+
+.component-editor-color-label {
+  color: var(--icm-text);
+  font-weight: 650;
+}
+
+.component-editor-color-summary output {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--icm-text-muted);
+  font-family: var(--icm-font-mono, ui-monospace, monospace);
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.component-editor-color-body {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.5rem 0.55rem 0.6rem;
+  border-top: 1px solid var(--icm-border);
+  background: var(--icm-surface);
+}
+
+.component-editor-color-custom {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 0.45rem;
+}
+
+.component-editor-color-custom .component-rgb-inputs {
+  padding-top: 0;
+}
+
+.component-editor-color-custom > button {
+  min-height: var(--icm-control-h-lg);
+  margin: 0;
+  padding: 0.45rem 0.55rem;
+}
+
+.component-editor-color-summary:focus-visible {
+  outline: 2px solid var(--icm-accent);
+  outline-offset: -2px;
 }
 .component-property-help {
   padding: 0.2rem 0.35rem;
@@ -769,7 +879,8 @@
   gap: 0.3rem;
 }
 
-.component-color-control .component-color-swatch {
+.component-color-control .component-color-swatch,
+.component-editor-color-control .component-color-swatch {
   display: grid;
   place-items: center;
   width: 100%;
@@ -798,7 +909,9 @@
 
 .component-color-swatch:focus-visible,
 .component-color-control input:focus-visible,
-.component-color-control button:focus-visible {
+.component-color-control button:focus-visible,
+.component-editor-color-control input:focus-visible,
+.component-editor-color-control button:focus-visible {
   outline: 2px solid var(--icm-accent);
   outline-offset: 2px;
 }

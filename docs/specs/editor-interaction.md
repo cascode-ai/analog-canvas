@@ -116,11 +116,12 @@ The lazy JSON editor provides syntax highlighting, bracket matching, JSON
 diagnostics and local text undo. The content is ordinary selectable text: it
 contains no injected comments, value chips, selectors, switches, or other DOM
 widgets. Canvas-layer field metadata still owns validation of rotation, mirror,
-color channels, and other bounded values. A separate Line fieldset below the
-editor offers light gray, red, green, and blue shortcuts plus custom RGB and an
-Auto reset. It edits the same draft as typing; valid edits transact immediately
-through the existing planner. Incomplete syntax disables that external color
-control until the code is valid again.
+color channels, and other bounded values. A collapsed Line color shelf shares
+the editor frame without entering the editable document. Expanding it reveals
+light gray, red, green, and blue shortcuts, bounded RGB inputs, and an Auto
+reset. It edits the same draft as typing; valid edits transact immediately
+through the existing planner. Incomplete syntax disables the integrated color
+shelf until the code is valid again.
 Invalid or rejected drafts preserve the last accepted canvas state. External
 undo/redo synchronizes the editor without replaying edits; Escape blurs this
 editor without applying legacy form drafts or discarding incomplete text.

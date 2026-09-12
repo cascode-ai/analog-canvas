@@ -52,6 +52,7 @@ test("live JSON properties update controls immediately and round-trip raw parame
   await expect(page.getByTestId("revision")).toHaveText(
     String(Number(revision) + 1),
   );
+  await panel.getByRole("button", { name: "Line color controls" }).click();
   await panel.getByRole("button", { name: "Use Red for line" }).click();
   await expect(page.getByTestId("revision")).toHaveText(
     String(Number(revision) + 2),
@@ -127,7 +128,7 @@ test("live Defaults are undoable and invalid drafts never change the canvas", as
   ).toBeVisible();
   await expect(page.getByTestId("revision")).toHaveText(lastValidRevision!);
   await expect(
-    page.getByRole("button", { name: "Use Red for line" }),
+    page.getByRole("button", { name: "Line color controls" }),
   ).toBeDisabled();
   await page.getByRole("button", { name: "Discard draft" }).click();
   await expectComponentCodeField(page, "parameters.w", "7u");
@@ -268,7 +269,7 @@ for (const platform of ["native", "Win32", "Linux x86_64"])
   });
 
 for (const width of [300, 540]) {
-  test(`plain selectable property code and external color shortcuts at ${width}px`, async ({
+  test(`plain selectable property code and integrated color controls at ${width}px`, async ({
     page,
   }) => {
     await page.addInitScript(
@@ -299,11 +300,31 @@ for (const width of [300, 540]) {
     // CRLF convention. Compare all selected content, not OS line separators.
     expect(selected?.replace(/\r\n/gu, "\n")).toBe(raw.replace(/\r\n/gu, "\n"));
 
+    const color = editor.getByTestId("component-editor-color-control");
+    const frame = editor.locator(".component-property-editor-frame");
+    await expect(color).toBeVisible();
+    await expect(color.getByLabel("Line color controls")).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+    await expect(color.getByLabel("Line presets")).toBeHidden();
     const layout = await editor.evaluate((section) => ({
       overflow: section.scrollWidth > section.clientWidth,
       editable: Boolean(section.querySelector('[contenteditable="true"]')),
+      integrated: Boolean(
+        section.querySelector(
+          ".component-property-editor-frame > .component-editor-color-control",
+        ),
+      ),
     }));
-    expect(layout).toEqual({ overflow: false, editable: true });
+    expect(layout).toEqual({
+      overflow: false,
+      editable: true,
+      integrated: true,
+    });
+    await expect(frame).toContainText("Line color");
+
+    await color.getByRole("button", { name: "Line color controls" }).click();
 
     await expect(
       editor.getByRole("button", { name: "Use Light gray for line" }),
@@ -317,7 +338,6 @@ for (const width of [300, 540]) {
       [220, 38, 38],
     );
 
-    await editor.locator("summary", { hasText: "RGB" }).click();
     await expect(editor.getByLabel("Line red")).toHaveValue("220");
     await editor.getByLabel("Line red").fill("12");
     await editor.getByLabel("Line red").press("Enter");
