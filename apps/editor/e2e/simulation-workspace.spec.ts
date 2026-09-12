@@ -13,7 +13,7 @@ import {
   replaceSimulationExperimentConfig,
 } from "@icm/model";
 import { parseProject } from "@icm/project-protocol";
-import { generateCircuitSource } from "@icm/netlist";
+import { generateCircuitSource, simulationSignals } from "@icm/netlist";
 
 import {
   clickNetlistWorkflowCommand,
@@ -22,6 +22,65 @@ import {
 import { ota, profile, editSimulationFile } from "./simulation-e2e-fixtures.js";
 
 const loadModule = createRequire(import.meta.url);
+test("native save completion previews its mapped Net on the real Canvas", async ({
+  page,
+}) => {
+  const project = parseProject(JSON.stringify(ota));
+  const folder = createSimulationFolder({
+    id: "completion-preview-folder",
+    name: "Completion preview",
+    documentId: project.topDocumentId,
+    profileId: profile.id,
+  });
+  project.simulationFolders = [folder];
+  const mapped = Object.entries(simulationSignals(project, folder.input)).find(
+    ([, signal]) =>
+      signal.targets.some(
+        (target) =>
+          target.documentId === project.topDocumentId &&
+          target.netId === "tb-vout-net",
+      ),
+  );
+  if (!mapped)
+    throw Error("Expected the OTA output Net to have a native vector");
+  const [vector, signal] = mapped;
+  const target = signal.targets.find(
+    (candidate) =>
+      candidate.documentId === project.topDocumentId &&
+      candidate.netId === "tb-vout-net",
+  )!;
+  await page.route("**/api/simulate", (route) =>
+    route.fulfill({
+      status: 503,
+      json: { error: "Offline authoring fixture" },
+    }),
+  );
+  await page.goto("/editor");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "completion-preview.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  await page.getByTestId("open-analog-simulation").click();
+  const editor = page.getByRole("textbox", {
+    name: "Simulation source editor",
+  });
+  const source = folder.input.files.find(
+    (file) => file.path === folder.input.entry,
+  )!.text;
+  await editor.fill(`${source.slice(0, source.indexOf(".endc"))}save`);
+  await page.keyboard.type(" ");
+  const option = page.getByRole("option").filter({ hasText: vector });
+  await expect(option).toBeVisible();
+  await option.hover();
+  await expect(page.getByTestId("net-highlight-overlay")).toHaveAttribute(
+    "data-net-id",
+    target.netId,
+  );
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("net-highlight-overlay")).toHaveCount(0);
+});
+
 test("incomplete circuit opens Code and saves invalid parameter drafts across reload and folder duplication", async ({
   page,
 }) => {

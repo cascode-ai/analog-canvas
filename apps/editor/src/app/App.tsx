@@ -1763,7 +1763,7 @@ export function App({
   );
   const codeNetHighlight = useMemo(
     () =>
-      simulationWindowOpen &&
+      analogSimulationOpen &&
       codeNetPreview &&
       codeNetPreview.documentId === document.id &&
       JSON.stringify(codeNetPreview.hierarchyPath) ===
@@ -1777,7 +1777,7 @@ export function App({
           )
         : undefined,
     [
-      simulationWindowOpen,
+      analogSimulationOpen,
       codeNetPreview,
       document.id,
       documentStack,
