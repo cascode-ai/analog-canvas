@@ -37,9 +37,20 @@ export async function editSimulationFile(
 ) {
   const panel = page.getByRole("region", { name: "Analog simulation" });
   if (path === "experiment.json") {
-    await panel.getByRole("button", { name: "More code actions" }).click();
-    await page
-      .getByRole("menuitem", { name: "Advanced configuration" })
+    if (
+      (await panel
+        .getByRole("button", { name: "Explorer", exact: true })
+        .getAttribute("aria-expanded")) !== "true"
+    )
+      await panel
+        .getByRole("button", { name: "Explorer", exact: true })
+        .click();
+    const folderId = await panel
+      .getByRole("treeitem", { name: "Run", exact: true })
+      .getAttribute("data-folder-id");
+    await panel
+      .getByRole("treeitem", { name: "experiment.json", exact: true })
+      .and(panel.locator(`[data-folder-id="${folderId}"]`))
       .click();
   } else await panel.getByRole("tab", { name: path, exact: false }).click();
   const editor = panel.getByRole("textbox", {

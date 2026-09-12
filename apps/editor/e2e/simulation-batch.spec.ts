@@ -294,7 +294,9 @@ test("a saved Run Plan prepares without executing and Run starts its ordinary ba
     "experiment.json",
     JSON.stringify(config, null, 2),
   );
-  await panel.getByRole("button", { name: "More code actions" }).click();
+  await panel
+    .getByRole("treeitem", { name: "Run", exact: true })
+    .click({ button: "right" });
   await page.getByRole("menuitem", { name: "Preview input netlist…" }).click();
   await panel.getByTitle("Batch queue", { exact: true }).click();
   await expect(panel.locator(".simulation-batch-menu-popover")).toContainText(

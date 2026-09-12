@@ -120,6 +120,8 @@ describe("the preview deploy", () => {
   });
 
   it("separates GUI output downloads from complete diagnostic exports", () => {
+    expect(sourceGuiJourney).not.toContain("More code actions");
+    expect(sourceGuiJourney).not.toContain("Advanced configuration");
     expect(sourceGuiJourney).toContain('name: "Simulation files"');
     expect(sourceGuiJourney).toContain('getByRole("menuitem", { name: action');
     expect(sourceGuiJourney).toContain('"Export diagnostic bundle…"');

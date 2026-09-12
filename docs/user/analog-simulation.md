@@ -39,8 +39,10 @@ covered by the Project's browser recovery, not a cloud backup. **File → Save**
 (or the project-level shortcut outside code) still saves the entire Project to
 the signed-in cloud account.
 
-**More code actions** opens advanced configuration, copies/exports the current
-file, or creates a source file. Configuration is not a default tab. It owns
+Open **experiment.json** from Source for configuration; it is not a default tab.
+Use file/folder context menus to copy, download or create files. Right-click a
+file tab (or press Shift+F10 while it is focused) to close it, close other tabs,
+or close all tabs. Closing tabs retains files and pending drafts. Configuration owns
 Profile/corner, output labels and bindings, measurements and the managed Run
 Plan. Native analyses and nominal temperature belong in SPICE, not hidden
 Settings fields. This example runs OP and AC and retains both plots:

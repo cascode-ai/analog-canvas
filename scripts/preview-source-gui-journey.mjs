@@ -90,9 +90,17 @@ let panel;
 const digest = (value) => createHash("sha256").update(value).digest("hex");
 async function edit(path, text) {
   if (path === folder.input.configPath) {
-    await panel.getByRole("button", { name: "More code actions" }).click();
-    await page
-      .getByRole("menuitem", { name: "Advanced configuration" })
+    if (
+      (await panel
+        .getByRole("button", { name: "Explorer", exact: true })
+        .getAttribute("aria-expanded")) !== "true"
+    )
+      await panel
+        .getByRole("button", { name: "Explorer", exact: true })
+        .click();
+    await panel
+      .getByRole("treeitem", { name: path, exact: true })
+      .first()
       .click();
   } else await panel.getByRole("tab", { name: path, exact: false }).click();
   const editor = panel.getByRole("textbox", {
@@ -224,7 +232,9 @@ try {
       '.include "missing-gui-acceptance.spice"\n.control',
     ),
   );
-  await panel.getByRole("button", { name: "More code actions" }).click();
+  await panel
+    .getByRole("treeitem", { name: "Run", exact: true })
+    .click({ button: "right" });
   await page.getByRole("menuitem", { name: "Preview input netlist…" }).click();
   await expect(panel).toContainText("missing-gui-acceptance.spice", {
     timeout: 30_000,
@@ -312,7 +322,9 @@ try {
     axes: [{ kind: "temperature", values: [27, 28] }],
   };
   await edit(folder.input.configPath, JSON.stringify(config, null, 2));
-  await panel.getByRole("button", { name: "More code actions" }).click();
+  await panel
+    .getByRole("treeitem", { name: "Run", exact: true })
+    .click({ button: "right" });
   await page.getByRole("menuitem", { name: "Preview input netlist…" }).click();
   await panel.getByTitle("Batch queue", { exact: true }).click();
   await expect(panel.locator(".simulation-batch-menu-popover")).toContainText(

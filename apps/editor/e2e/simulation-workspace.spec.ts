@@ -125,6 +125,88 @@ test("new experiments explicitly bind the selected Cell without requiring a Test
   await expect(folderRow).toContainText("Cell: ota_5t");
 });
 
+test("tab context menus replace workspace more actions without discarding source", async ({
+  page,
+}) => {
+  const project = parseProject(JSON.stringify(ota));
+  const folder = createSimulationFolder({
+    id: "tab-actions",
+    name: "Tab actions",
+    documentId: project.topDocumentId,
+    profileId: profile.id,
+  });
+  project.simulationFolders = [folder];
+  await page.route("**/api/simulate", (route) =>
+    route.fulfill({
+      status: 503,
+      json: { error: "Offline authoring fixture" },
+    }),
+  );
+  await page.goto("/editor");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "tabs.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  await page.getByTestId("open-analog-simulation").click();
+  const panel = page.getByRole("region", { name: "Analog simulation" });
+  await expect(
+    panel.getByRole("button", { name: "More code actions" }),
+  ).toHaveCount(0);
+  const editor = panel.getByRole("textbox", {
+    name: "Simulation source editor",
+  });
+  const runTab = panel.getByRole("tab", { name: /run\.cir/ });
+  const circuitTab = panel.getByRole("tab", { name: /circuit\.spice/ });
+  const draft = "* retained after closing tabs\n";
+  await editor.fill(draft);
+  await circuitTab.click({ button: "right" });
+  await page.getByRole("menuitem", { name: "Close", exact: true }).click();
+  await expect(circuitTab).toHaveCount(0);
+  await expect(runTab).toHaveAttribute("aria-selected", "true");
+  await panel
+    .getByRole("treeitem", { name: "circuit.spice", exact: true })
+    .click();
+  await panel
+    .getByRole("treeitem", { name: "experiment.json", exact: true })
+    .click();
+  await expect(
+    panel.getByRole("tab", { name: "Configuration" }),
+  ).toHaveAttribute("aria-selected", "true");
+  await circuitTab.click({ button: "right" });
+  await page
+    .getByRole("menuitem", { name: "Close others", exact: true })
+    .click();
+  await expect(
+    panel
+      .getByRole("tablist", { name: "Open simulation files" })
+      .getByRole("tab"),
+  ).toHaveCount(1);
+  await expect(circuitTab).toHaveAttribute("aria-selected", "true");
+  await panel.getByRole("treeitem", { name: "run.cir", exact: true }).click();
+  await expect(editor).toHaveText(draft);
+  await runTab.focus();
+  await runTab.press("Shift+F10");
+  await page.getByRole("menuitem", { name: "Close all", exact: true }).click();
+  await expect(
+    panel
+      .getByRole("tablist", { name: "Open simulation files" })
+      .getByRole("tab"),
+  ).toHaveCount(0);
+  await expect(
+    panel.getByText(
+      "Select a file to edit. Closing tabs does not delete files.",
+    ),
+  ).toBeVisible();
+  await panel.getByRole("treeitem", { name: "run.cir", exact: true }).click();
+  await expect(editor).toHaveText(draft);
+  await runTab.click({ button: "right" });
+  await expect(
+    page.getByRole("menuitem", { name: "Close others", exact: true }),
+  ).toBeDisabled();
+  await page.keyboard.press("Escape");
+});
+
 test("source save applies locally while signed out and leaves File Save cloud-owned", async ({
   page,
 }) => {
@@ -1242,7 +1324,9 @@ test("human simulation uses saved folder, survives minimizing, recovers a bad in
     "evidence/evidence-manifest.json",
   ])
     expect(diagnostics[path]).toBeDefined();
-  await panel.getByRole("button", { name: "More code actions" }).click();
+  await panel
+    .getByRole("treeitem", { name: "Run", exact: true })
+    .click({ button: "right" });
   await page.getByRole("menuitem", { name: "View executed netlist…" }).click();
   await expect(
     panel.getByRole("tab", { name: /executed[.]cir/ }),
@@ -1251,6 +1335,23 @@ test("human simulation uses saved folder, survives minimizing, recovers a bad in
     .getByLabel("File preview")
     .locator("pre")
     .innerText();
+  const executedTab = panel.getByRole("tab", { name: /executed[.]cir/ });
+  await executedTab.click({ button: "right" });
+  await page
+    .getByRole("menuitem", { name: "Close others", exact: true })
+    .click();
+  await expect(
+    panel
+      .getByRole("tablist", { name: "Open simulation files" })
+      .getByRole("tab"),
+  ).toHaveCount(1);
+  await executedTab.focus();
+  await executedTab.press("ControlOrMeta+w");
+  await expect(panel.getByLabel("File preview")).toHaveCount(0);
+  await panel
+    .getByRole("treeitem", { name: folder.input.entry, exact: true })
+    .and(panel.locator(`[data-folder-id="${folder.id}"]`))
+    .click();
   expect(executions).toBe(1);
   config.outputs[0]!.label = "new-output";
   await editSimulationFile(
@@ -1267,12 +1368,16 @@ test("human simulation uses saved folder, survives minimizing, recovers a bad in
   await expect(panel.locator(".simulation-code-status")).toContainText(
     "earlier Project revision",
   );
-  await panel.getByRole("button", { name: "More code actions" }).click();
+  await panel
+    .getByRole("treeitem", { name: "Run", exact: true })
+    .click({ button: "right" });
   await page.getByRole("menuitem", { name: "Preview input netlist…" }).click();
   await expect(panel.getByLabel("File preview").locator("pre")).toContainText(
     ".temp 30",
   );
-  await panel.getByRole("button", { name: "More code actions" }).click();
+  await panel
+    .getByRole("treeitem", { name: "Run", exact: true })
+    .click({ button: "right" });
   await page.getByRole("menuitem", { name: "View executed netlist…" }).click();
   await expect(panel.getByLabel("File preview").locator("pre")).toHaveText(
     executedBeforeEdit,
@@ -1587,7 +1692,9 @@ test("Simulation creates an ordinary testbench and defaults a new experiment to 
   );
   await expect(saveButton).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
   await expect(runButton).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
-  await taskbar.getByRole("button", { name: "More code actions" }).click();
+  await page
+    .getByRole("treeitem", { name: "Run", exact: true })
+    .click({ button: "right" });
   await expect(
     page.getByRole("menuitem", { name: "View executed netlist…" }),
   ).toBeDisabled();
