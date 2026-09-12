@@ -1,4 +1,13 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import { createPortal } from "react-dom";
+import { CodeDocumentActions } from "./code-workspace";
 import {
   Annotation,
   Compartment,
@@ -93,11 +102,13 @@ export interface SimulationCodeEditorProps {
   onHistoryBoundary?(direction: "undo" | "redo"): void;
   onCursor?(sourceOffset: number): void;
   helperActions?: readonly CodeHelperAction[];
-  ghostHints?: readonly string[];
+  helperContent?: ReactNode;
+  onCloseHelperContent?(): void;
+  picking?: { label: string; onStop(): void } | undefined;
   relatedSources?: readonly string[];
   signalNames?: (() => Readonly<Record<string, string>>) | undefined;
   onFocusSignal?: ((vector: string | null) => void) | undefined;
-  saveRequest?: { id: string; vectors: string[] } | undefined;
+  saveRequest?: { id: string; session: string; vectors: string[] } | undefined;
   reveal?:
     { sourceOffset: number; requestId: string; focus?: boolean } | undefined;
 }
@@ -105,9 +116,19 @@ export interface SimulationCodeEditorProps {
 const externalChange = Annotation.define<boolean>();
 /** Loaded only by the Code workspace. It owns local text history, never Project/Run state. */
 export default function SimulationCodeEditor(props: SimulationCodeEditorProps) {
+  const documentActions = useContext(CodeDocumentActions);
+  const saveAnchor = useRef<{
+    session: string;
+    path: string;
+    offset: number;
+  } | null>(null);
   const [helperOpen, setHelperOpen] = useState(false);
   const [unknownCommand, setUnknownCommand] = useState(false);
   const [argumentHint, setArgumentHint] = useState("");
+  useEffect(() => {
+    setHelperOpen(false);
+    saveAnchor.current = null;
+  }, [props.path, props.historyKey]);
   const parent = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
   const callbacks = useRef(props);
@@ -205,6 +226,13 @@ export default function SimulationCodeEditor(props: SimulationCodeEditorProps) {
             return !callbacks.current.readOnly;
           }),
           EditorView.updateListener.of((update) => {
+            if (
+              saveAnchor.current?.path === callbacks.current.path &&
+              update.docChanged
+            )
+              saveAnchor.current.offset = update.changes.mapPos(
+                saveAnchor.current.offset,
+              );
             if (update.docChanged) {
               exact.current = update.state.field(exactSourceField);
               if (
@@ -352,98 +380,127 @@ export default function SimulationCodeEditor(props: SimulationCodeEditorProps) {
       return;
     const edit = nativeSaveEdit(
       editor.state.doc.toString(),
-      editor.state.selection.main.head,
+      saveAnchor.current?.session === props.saveRequest.session &&
+        saveAnchor.current.path === props.path
+        ? saveAnchor.current.offset
+        : editor.state.selection.main.head,
       props.saveRequest.vectors,
       !!props.entry,
     );
+    const anchor = edit.from + edit.insert.replace(/[\r\n]+$/u, "").length;
     editor.dispatch({
       changes: { from: edit.from, insert: edit.insert },
-      selection: { anchor: edit.from + edit.insert.length },
+      selection: { anchor },
       scrollIntoView: true,
     });
-    editor.focus();
+    saveAnchor.current = {
+      session: props.saveRequest.session,
+      path: props.path,
+      offset: anchor,
+    };
   }, [props.saveRequest?.id]);
 
+  const toolbar = (
+    <div
+      className="simulation-code-helper-toolbar"
+      style={
+        props.mode === "json" && !props.helperActions?.length
+          ? { visibility: "hidden" }
+          : undefined
+      }
+    >
+      <button
+        type="button"
+        title="Insert / Helper · Ctrl+Space"
+        data-simulation-helper-trigger
+        aria-expanded={helperOpen || Boolean(props.helperContent)}
+        onClick={() => {
+          if (props.helperContent) props.onCloseHelperContent?.();
+          else setHelperOpen((open) => !open);
+        }}
+      >
+        Helper
+      </button>
+      {unknownCommand && !helperOpen && !props.helperContent && (
+        <button
+          className="simulation-find-helper"
+          onClick={() => setHelperOpen(true)}
+        >
+          Find a helper…
+        </button>
+      )}
+      {props.picking && (
+        <>
+          <small>{props.picking.label}</small>
+          <button onClick={props.picking.onStop}>Done</button>
+        </>
+      )}
+    </div>
+  );
   return (
     <div className="simulation-code-editor-shell">
-      <div
-        className="simulation-code-helper-toolbar"
-        style={
-          props.mode === "json" && !props.helperActions?.length
-            ? { visibility: "hidden" }
-            : undefined
-        }
-      >
-        <button
-          type="button"
-          title="Insert / Helper · Ctrl+Space"
-          data-simulation-helper-trigger
-          aria-expanded={helperOpen}
-          onClick={() => setHelperOpen((open) => !open)}
-        >
-          Helper <kbd>Ctrl+Space</kbd>
-        </button>
-        {unknownCommand && !helperOpen && (
-          <button
-            className="simulation-find-helper"
-            onClick={() => setHelperOpen(true)}
-          >
-            Find a helper…
-          </button>
-        )}
-        {argumentHint && (
-          <small aria-live="polite">{argumentHint} · Tab / Shift+Tab</small>
-        )}
-      </div>
-      {helperOpen && (
-        <CodeHelperList
-          language={props.mode ?? "spice"}
-          control={controlContext(
-            view.current?.state.doc.sliceString(
-              0,
-              view.current.state.selection.main.head,
-            ) ?? "",
-          )}
-          actions={props.helperActions}
-          onClose={() => {
-            setHelperOpen(false);
-            view.current?.focus();
-          }}
-          onChoose={(rule) => {
-            const editor = view.current;
-            if (!editor || props.readOnly || props.mode === "json") return;
-            const line = editor.state.doc.lineAt(
-              editor.state.selection.main.head,
-            );
-            if (
-              /^(PULSE|SIN|PWL)$/u.test(rule.name) &&
-              /^[VI]\S*\s/iu.test(line.text.trim())
-            ) {
-              insertSpiceHelp(
-                editor,
-                rule,
-                editor.state.selection.main.from,
-                editor.state.selection.main.to,
-              );
-              return;
-            }
-            // Replace an unfinished command only. Existing populated code is preserved.
-            if (/^\s*[.\p{L}\w]*$/u.test(line.text))
-              insertSpiceHelp(editor, rule);
-            else {
-              editor.dispatch({
-                changes: { from: line.to, insert: "\n" },
-                selection: { anchor: line.to + 1 },
-              });
-              insertSpiceHelp(editor, rule);
-            }
-          }}
-        />
+      {documentActions ? createPortal(toolbar, documentActions) : toolbar}
+      {argumentHint && (
+        <small className="simulation-code-argument-hint" aria-live="polite">
+          {argumentHint}
+        </small>
       )}
+      {props.helperContent ??
+        (helperOpen && (
+          <CodeHelperList
+            language={props.mode ?? "spice"}
+            control={controlContext(
+              view.current?.state.doc.sliceString(
+                0,
+                view.current.state.selection.main.head,
+              ) ?? "",
+            )}
+            actions={props.helperActions}
+            onClose={(restoreFocus = true) => {
+              setHelperOpen(false);
+              if (restoreFocus) view.current?.focus();
+            }}
+            onChoose={(rule) => {
+              const editor = view.current;
+              if (!editor || props.readOnly || props.mode === "json") return;
+              const line = editor.state.doc.lineAt(
+                editor.state.selection.main.head,
+              );
+              if (
+                /^(PULSE|SIN|PWL)$/u.test(rule.name) &&
+                /^[VI]\S*\s/iu.test(line.text.trim())
+              ) {
+                insertSpiceHelp(
+                  editor,
+                  rule,
+                  editor.state.selection.main.from,
+                  editor.state.selection.main.to,
+                );
+                return;
+              }
+              // Replace an unfinished command only. Existing populated code is preserved.
+              if (/^\s*[.\p{L}\w]*$/u.test(line.text))
+                insertSpiceHelp(editor, rule);
+              else {
+                editor.dispatch({
+                  changes: { from: line.to, insert: "\n" },
+                  selection: { anchor: line.to + 1 },
+                });
+                insertSpiceHelp(editor, rule);
+              }
+            }}
+          />
+        ))}
       <div
         ref={parent}
         className="simulation-code-editor"
         onKeyDownCapture={(event) => {
+          if (event.key === "Escape" && props.picking) {
+            event.preventDefault();
+            event.stopPropagation();
+            props.picking.onStop();
+            return;
+          }
           if (
             event.key === "Escape" &&
             props.mode !== "json" &&
@@ -492,17 +549,6 @@ export default function SimulationCodeEditor(props: SimulationCodeEditorProps) {
         }}
         onKeyDown={(event) => event.stopPropagation()}
       />
-      {props.ghostHints?.length && !props.readOnly ? (
-        <div
-          className="simulation-code-ghost-hints"
-          aria-label="Analysis examples"
-        >
-          <span>Try another analysis</span>
-          {props.ghostHints.map((hint) => (
-            <code key={hint}>{hint}</code>
-          ))}
-        </div>
-      ) : null}
     </div>
   );
 }
