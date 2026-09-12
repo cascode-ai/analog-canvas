@@ -17,8 +17,6 @@ import {
   type ComponentPropertyCodeContext,
   type ComponentPropertyCodeValue,
 } from "./component-property-code";
-import { ColorOverrideControl } from "./color-override-control";
-import { parseCanvasColor } from "./component-property-fields";
 
 type Instance = SchematicDocument["instances"][number];
 const PropertyJsonEditor = lazy(
@@ -87,6 +85,9 @@ export function ComponentPropertyCodeEditor({
     () => parseComponentPropertyCode(draft, context),
     [context, draft],
   );
+  const statusMessage =
+    applyMessage ??
+    (parsed.ok ? null : `${parsed.message} · Canvas keeps the last valid edit`);
 
   const copy = async (): Promise<void> => {
     try {
@@ -112,24 +113,6 @@ export function ComponentPropertyCodeEditor({
       return;
     }
     appliedCode.current = normalized;
-  };
-
-  const lineColor =
-    parsed.ok && parsed.value.appearance.foreground !== "auto"
-      ? parsed.value.appearance.foreground
-      : undefined;
-  const changeLineColor = (foreground: string | undefined): void => {
-    if (!parsed.ok) return;
-    change(
-      serializeComponentPropertyCode({
-        ...parsed.value,
-        appearance: {
-          foreground: foreground
-            ? parseCanvasColor(foreground, "appearance.foreground")
-            : "auto",
-        },
-      }),
-    );
   };
 
   return (
@@ -199,25 +182,16 @@ export function ComponentPropertyCodeEditor({
           value={draft}
           historyKey={historyKey}
           context={context}
+          defaultForeground={defaultForeground}
           focusRequest={focusRequest}
           onChange={change}
         />
       </Suspense>
-      <ColorOverrideControl
-        label="Line"
-        value={lineColor}
-        fallback={defaultForeground}
-        disabled={!parsed.ok}
-        onChange={changeLineColor}
-      />
-      <div className="component-property-code-status" aria-live="polite">
-        <span>
-          {applyMessage ??
-            (parsed.ok
-              ? "Live"
-              : `${parsed.message} · Canvas keeps the last valid edit`)}
-        </span>
-      </div>
+      {statusMessage ? (
+        <div className="component-property-code-status" aria-live="polite">
+          <span>{statusMessage}</span>
+        </div>
+      ) : null}
     </section>
   );
 }

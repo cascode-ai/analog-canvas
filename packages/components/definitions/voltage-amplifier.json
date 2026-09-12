@@ -5,17 +5,17 @@
     "id": "voltage-amplifier",
     "name": "Voltage Amplifier",
     "viewBox": {
-      "x": -34,
-      "y": -32,
-      "width": 68,
-      "height": 64
+      "x": -44,
+      "y": -28,
+      "width": 88,
+      "height": 56
     },
     "pins": [
       {
         "name": "IN",
         "role": "input",
         "at": {
-          "x": -30,
+          "x": -40,
           "y": 0
         },
         "direction": "west",
@@ -28,7 +28,7 @@
         "name": "OUT",
         "role": "output",
         "at": {
-          "x": 30,
+          "x": 40,
           "y": 0
         },
         "direction": "east",
@@ -42,11 +42,11 @@
       {
         "kind": "line",
         "from": {
-          "x": -30,
+          "x": -40,
           "y": 0
         },
         "to": {
-          "x": -23.63,
+          "x": -26.7979,
           "y": 0
         },
         "style": {
@@ -57,21 +57,22 @@
       },
       {
         "kind": "path",
-        "data": "M -23.63 -28.62 L -23.63 28.62 L 23.63 0 Z",
+        "data": "M -26.7979 -24.9983 L -26.7979 25 L 23.2021 0 Z",
         "style": {
           "strokeRole": "emphasis",
           "lineCap": "butt",
-          "lineJoin": "miter"
+          "lineJoin": "miter",
+          "miterLimit": 4
         }
       },
       {
         "kind": "line",
         "from": {
-          "x": 23.63,
+          "x": 23.2021,
           "y": 0
         },
         "to": {
-          "x": 30,
+          "x": 40,
           "y": 0
         },
         "style": {
@@ -109,7 +110,7 @@
       "referenceManifestPath": "fixtures/visual-reference/razavi-reference-v1/manifest.json",
       "referencePath": "fixtures/visual-reference/razavi-reference-v1/voltage-amplifier-vector-source.json",
       "converterPath": "scripts/generate-razavi-common-assets.mjs",
-      "converterVersion": 1
+      "converterVersion": 2
     }
   }
 }

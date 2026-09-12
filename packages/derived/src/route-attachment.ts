@@ -1,11 +1,11 @@
-import type { Point, RouteAnnotationAttachment } from "@icm/model";
+import type { Point, Rotation, RouteAnnotationAttachment } from "@icm/model";
 
 import type { ResolvedRouteGeometry } from "./resolved-route-geometry.js";
 
 export interface ResolvedRouteAttachment {
   conductorPoint: Point;
   labelPoint: Point;
-  rotation: 0 | 90 | 180 | 270;
+  rotation: Rotation;
 }
 
 /** Resolve a persisted route attachment against canonical route geometry. */
@@ -31,12 +31,7 @@ export function resolveRouteAttachment(
     (Math.atan2(dy * direction, dx * direction) * 180) / Math.PI,
   );
   const rotation = ((angle % 360) + 360) % 360;
-  if (
-    rotation !== 0 &&
-    rotation !== 90 &&
-    rotation !== 180 &&
-    rotation !== 270
-  ) {
+  if (![0, 45, 90, 135, 180, 225, 270, 315].includes(rotation)) {
     return null;
   }
   return {
@@ -45,6 +40,6 @@ export function resolveRouteAttachment(
       x: conductorPoint.x + normal.x * attachment.normalOffset,
       y: conductorPoint.y + normal.y * attachment.normalOffset,
     },
-    rotation,
+    rotation: rotation as Rotation,
   };
 }

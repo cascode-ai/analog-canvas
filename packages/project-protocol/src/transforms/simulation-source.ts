@@ -7,6 +7,7 @@ import { migrateSimulationSetupToSource } from "@icm/netlist";
 import { ProjectMigrationError } from "./project.js";
 import { repairBoundFormatOverrides } from "./bound-format-override.js";
 import { repairLegacyReviewedExternalReferences } from "./reviewed-external-reference.js";
+import { normalizeLegacyMirrorDirections } from "./mirror-directions.js";
 
 /** One-way, offline migration. Source bytes become the only saved authority. */
 export function upgradeSchema48To49WithReport(raw: Record<string, unknown>) {
@@ -14,6 +15,7 @@ export function upgradeSchema48To49WithReport(raw: Record<string, unknown>) {
   raw = repairLegacyReviewedExternalReferences(
     repairBoundFormatOverrides(raw),
   ).project;
+  raw = normalizeLegacyMirrorDirections(raw);
   const { simulationSetups: oldSetups, ...circuit } = raw;
   const candidate = CircuitProjectSchema.safeParse({
     ...circuit,

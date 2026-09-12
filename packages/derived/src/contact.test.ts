@@ -26,7 +26,7 @@ function documentWith(
     symbolId: string;
     position: { x: number; y: number };
     rotation?: 0 | 90 | 180 | 270;
-    mirror?: "none" | "x";
+    mirror?: "none" | "horizontal" | "vertical" | "both";
     pins: string[];
   }> = [],
 ): SchematicDocument {
@@ -263,21 +263,21 @@ describe("contactRequiresJunctionDot", () => {
           id: "M3",
           symbolId: "nmos",
           position: { x: 0, y: 0 },
-          mirror: "x",
+          mirror: "horizontal",
           pins: ["G"],
         },
         {
           id: "M2",
           symbolId: "nmos",
           position: { x: 60, y: 0 },
-          mirror: "x",
+          mirror: "horizontal",
           pins: ["G"],
         },
         {
           id: "M1",
           symbolId: "nmos",
           position: { x: 120, y: 0 },
-          mirror: "x",
+          mirror: "horizontal",
           pins: ["G"],
         },
       ],

@@ -49,11 +49,11 @@ describe("hierarchy domain planners", () => {
       createHierarchyInstance("X1", child, {
         position: { x: 100, y: 80 },
         rotation: 90,
-        mirror: "x",
+        mirror: "horizontal",
       }),
     ).toMatchObject({
       id: "X1",
-      placement: { rotation: 90, mirror: "x" },
+      placement: { rotation: 90, mirror: "horizontal" },
       reference: "X1",
       netlist: {
         binding: { childDocumentId: "child" },

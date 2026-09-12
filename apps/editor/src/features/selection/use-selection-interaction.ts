@@ -712,7 +712,7 @@ export function useSelectionInteraction(
 
   const transformCommandMove = (
     transform:
-      | { kind: "rotate"; deltaDegrees: 90 | -90 }
+      | { kind: "rotate"; deltaDegrees: 45 | -45 | 90 | -90 }
       | { kind: "mirror"; direction: ScreenFlip },
   ): boolean => {
     const reason = commandMoveTransformReason();
@@ -737,7 +737,12 @@ export function useSelectionInteraction(
         transform.kind === "rotate"
           ? {
               kind: "rotate",
-              degrees: transform.deltaDegrees === -90 ? 270 : 90,
+              degrees:
+                transform.deltaDegrees === -45
+                  ? 315
+                  : transform.deltaDegrees === -90
+                    ? 270
+                    : transform.deltaDegrees,
             }
           : {
               kind: "mirror",
@@ -1633,7 +1638,7 @@ export function useSelectionInteraction(
       planSelectionMove(options.document, options.visualSelection)
         .previewObjectIds.length > 0,
     canTransformCommandMove: () => commandMoveTransformReason() === null,
-    rotateCommandMove: (deltaDegrees: 90 | -90) =>
+    rotateCommandMove: (deltaDegrees: 45 | -45 | 90 | -90) =>
       transformCommandMove({ kind: "rotate", deltaDegrees }),
     mirrorCommandMove: (direction: ScreenFlip) =>
       transformCommandMove({ kind: "mirror", direction }),

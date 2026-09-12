@@ -227,7 +227,7 @@ describe("Agent Document Snapshot", () => {
     document.instances[0]!.placement = {
       position: { x: 1000, y: 1000 },
       rotation: 90,
-      mirror: "x",
+      mirror: "horizontal",
     };
     document.annotations[0]!.content = {
       runs: [{ kind: "text", value: "changed" }],

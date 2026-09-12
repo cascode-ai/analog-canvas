@@ -145,12 +145,13 @@
       },
       {
         "kind": "line",
+        "part": "control-positive-lead",
         "from": {
           "x": -20,
           "y": 20
         },
         "to": {
-          "x": -4,
+          "x": -10,
           "y": 20
         },
         "style": {
@@ -161,8 +162,9 @@
       },
       {
         "kind": "line",
+        "part": "control-negative-lead",
         "from": {
-          "x": 4,
+          "x": 10,
           "y": 20
         },
         "to": {
@@ -176,14 +178,35 @@
         }
       },
       {
+        "kind": "path",
+        "part": "control-body",
+        "data": "M -10 14 L 10 14 L 10 26 L -10 26 Z",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "path",
+        "part": "control-polarity-positive",
+        "data": "M -8 20 L -2 20 M -5 17 L -5 23",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
         "kind": "line",
+        "part": "control-polarity-negative",
         "from": {
-          "x": 0,
-          "y": 16
+          "x": 2,
+          "y": 20
         },
         "to": {
-          "x": 0,
-          "y": 12
+          "x": 8,
+          "y": 20
         },
         "style": {
           "strokeRole": "normal",
@@ -193,13 +216,14 @@
       },
       {
         "kind": "line",
+        "part": "control-coupling",
         "from": {
           "x": 0,
-          "y": 8
+          "y": 14
         },
         "to": {
           "x": 0,
-          "y": 4
+          "y": 10
         },
         "style": {
           "strokeRole": "normal",
@@ -209,9 +233,27 @@
       },
       {
         "kind": "line",
+        "part": "control-coupling",
         "from": {
           "x": 0,
-          "y": 0
+          "y": 6
+        },
+        "to": {
+          "x": 0,
+          "y": 2
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "part": "control-coupling",
+        "from": {
+          "x": 0,
+          "y": -2
         },
         "to": {
           "x": 0,

@@ -59,6 +59,7 @@ import type {
   LayoutGroup,
   Point,
   Rect,
+  Rotation,
   SchematicDocument,
 } from "@icm/model";
 import { buildSvgScene } from "@icm/render-svg";
@@ -138,12 +139,7 @@ import {
 } from "../features/component-insert/insert-launch";
 import { useComponentPlacement } from "../features/component-insert/use-component-placement";
 import { snapPendingComponentPlacement } from "../features/component-insert/placement-snap";
-import {
-  componentCatalog,
-  findPaletteSymbol,
-  symbolCategory,
-} from "../features/component-insert/symbol-catalog";
-import { SymbolArtwork } from "../features/component-insert/symbol-artwork";
+import { findPaletteSymbol } from "../features/component-insert/symbol-catalog";
 import { CanvasContextMenu } from "../features/selection/canvas-context-menu";
 import { useVisualClipboard } from "../features/clipboard/visual-clipboard";
 import { deriveWireUnderSymbolWarnings } from "../canvas/wire-under-symbol";
@@ -282,6 +278,11 @@ import { createPropertyEditPlanner } from "../features/properties/property-edit-
 import { createSelectionPropertyCommands } from "../features/properties/selection-property-commands";
 import { planComponentPropertyCodeEdits } from "../features/properties/component-property-code-edits";
 import type { ComponentPropertyCodeValue } from "../features/properties/component-property-code";
+import {
+  commonGroupValue,
+  type GroupPropertyColor,
+  type GroupPropertyCodeValue,
+} from "../features/properties/group-property-code";
 import {
   LIBRARY_WIDTH_MAX,
   LIBRARY_WIDTH_MIN,
@@ -1491,6 +1492,7 @@ export function App({
     selectedReviewedExternalBinding,
     selectedPropertyDevice,
     selectedRoute,
+    selectedMosBulkOwnerLabel,
     selectedRouteNetLabels,
     selectedRouteNetLabel,
     selectedAnnotation,
@@ -2142,78 +2144,6 @@ export function App({
     setCanvasContextMenu({ x: clientX, y: clientY });
   }
 
-  const selectedVisualObjectCount = Object.values(visualSelection).reduce(
-    (count, ids) => count + ids.length,
-    0,
-  );
-  const deviceVariantCandidates = useMemo(() => {
-    if (
-      !canvasContextMenu ||
-      selectedVisualObjectCount !== 1 ||
-      selectedIds.length !== 1 ||
-      !selectedInstance
-    ) {
-      return [];
-    }
-    const resolved = resolver.resolve(
-      selectedInstance.symbolId,
-      selectedInstance.symbolVariantId,
-    );
-    if (!resolved) return [];
-    const pinCount = resolved.definition.pins.length;
-    const category = symbolCategory(selectedInstance.symbolId);
-    return componentCatalog(document.presentation.styleProfileId, "")
-      .flatMap((group) => group.symbols)
-      .filter(
-        (symbol) =>
-          symbol.id !== selectedInstance.symbolId &&
-          symbol.pins.length === pinCount &&
-          symbolCategory(symbol.id) === category,
-      )
-      .slice(0, 8)
-      .map((symbol) => ({ symbolId: symbol.id, name: symbol.name }));
-  }, [
-    canvasContextMenu,
-    selectedVisualObjectCount,
-    selectedIds,
-    selectedInstance,
-    resolver,
-    document.presentation.styleProfileId,
-  ]);
-  const swapSelectedInstanceSymbol = (symbolId: string): void => {
-    if (!selectedInstance) return;
-    const resolved = resolver.resolve(
-      selectedInstance.symbolId,
-      selectedInstance.symbolVariantId,
-    );
-    const target = findPaletteSymbol(
-      document.presentation.styleProfileId,
-      symbolId,
-    );
-    if (!resolved || !target) return;
-    // Map pins positionally so nets follow the swap even when the
-    // replacement names its pins differently (A/Y vs 1/2).
-    const oldPins = resolved.definition.pins.map((pin) => pin.name);
-    const newPins = target.pins.map((pin) => pin.name);
-    const pinMap = Object.fromEntries(
-      oldPins.flatMap((name, index) => {
-        const next = newPins[index];
-        return next && next !== name ? [[name, next] as const] : [];
-      }),
-    );
-    const result = transactDocument([
-      {
-        kind: "set_instance_symbol",
-        instanceId: selectedInstance.id,
-        symbolId,
-        symbolVariantId: null,
-        ...(Object.keys(pinMap).length > 0 ? { pinMap } : {}),
-      },
-    ]);
-    setStatus(
-      result.ok ? `Swapped to ${target.name}` : "Could not swap the device",
-    );
-  };
   // Formula capability is owned by the resolved SymbolDefinition, never by a
   // symbol-id allowlist or any electrical/netlist descriptor.
   // A Symbol that hides its label never draws a reference: the label field
@@ -2244,24 +2174,39 @@ export function App({
         previewInstanceValueSource(selectedInstance, instancePropertyDraft),
       ).kind === "displayable"
     : false;
-  const selectedGroupLabelsAllVisible =
-    selectedIds.length > 1 &&
-    selectedIds.every((id) => {
+  const selectedGroupInstances = selectedIds.flatMap((id) => {
+    const instance = document.instances.find((item) => item.id === id);
+    return instance ? [instance] : [];
+  });
+  const selectedGroupReferenceVisibility = commonGroupValue(
+    selectedIds.map((id) => {
       const label = instanceLabelAnnotationFor(document, id);
       return label !== undefined && label.visible !== false;
-    });
-  const selectedGroupValuesAllVisible =
-    selectedIds.length > 1 &&
-    selectedIds.every((id) => {
-      const value = instanceValueAnnotation(document, id);
-      return value !== null && value.visible !== false;
-    });
-  const selectedGroupValueAvailable = selectedIds.some((id) => {
-    const instance = document.instances.find((item) => item.id === id);
-    return instance
-      ? displayableInstanceValue(instance).kind === "displayable"
-      : false;
-  });
+    }),
+  );
+  const selectedGroupValueInstances = selectedGroupInstances.filter(
+    (instance) => displayableInstanceValue(instance).kind === "displayable",
+  );
+  const selectedGroupValueVisibility =
+    selectedGroupValueInstances.length === 0
+      ? null
+      : commonGroupValue(
+          selectedGroupValueInstances.map((instance) => {
+            const value = instanceValueAnnotation(document, instance.id);
+            return value !== null && value.visible !== false;
+          }),
+        );
+  const selectedGroupForeground = commonGroupValue<
+    Exclude<GroupPropertyColor, "mixed">
+  >(
+    selectedGroupInstances.map(
+      (instance) =>
+        (instance.styleOverride?.foreground ?? "auto") as Exclude<
+          GroupPropertyColor,
+          "mixed"
+        >,
+    ),
+  );
   const wireUnderSymbolWarnings = useMemo(
     () =>
       deriveWireUnderSymbolWarnings(document, resolver, routeGeometryRecords),
@@ -2539,12 +2484,12 @@ export function App({
     );
     if (!instance?.placement) return false;
     if (armedVerb === "rotate") {
-      const next = (instance.placement.rotation + 90) % 360;
+      const next = (instance.placement.rotation + 45) % 360;
       const applied = transact([
         {
           kind: "rotate_instance",
           instanceId,
-          rotation: next as 0 | 90 | 180 | 270,
+          rotation: next as Rotation,
         },
       ]);
       if (applied.ok) {
@@ -3558,18 +3503,6 @@ export function App({
     renameProject(projectNameDraft);
   }
 
-  function renameSelectedFormalPort(name: string): void {
-    if (!selectedFormalTerminal) return;
-    name = name.trim();
-    if (!name || name === selectedFormalTerminal.name) return;
-    renameCellTerminal(
-      selectedFormalTerminal.id,
-      name,
-      document.id,
-      "rename-cell-pin",
-    );
-  }
-
   function approveAgentFileCandidate(): void {
     if (!agentFileCandidate) return;
     const meta = agentFileCandidate;
@@ -3689,7 +3622,7 @@ export function App({
     );
   }
 
-  function rotatePendingCopy(delta: 90 | -90): void {
+  function rotatePendingCopy(delta: 45 | -45 | 90 | -90): void {
     if (!copyPlacement) return;
     rotateCopyPlacement(delta);
     setStatus("Place rotated copy · R rotates · Esc cancels");
@@ -4468,7 +4401,9 @@ export function App({
             kind === "annotation") &&
           !selectionPolicy.allowsCanvasHit({ kind, id }, "context-menu")
         ) {
-          setCanvasContextMenu({ x: clientX, y: clientY });
+          if (hasVisualSelection(visualSelection)) {
+            setCanvasContextMenu({ x: clientX, y: clientY });
+          }
           return;
         }
         if (
@@ -4480,7 +4415,7 @@ export function App({
             kind === "annotation")
         ) {
           openVisualContextMenu(kind, id, clientX, clientY);
-        } else {
+        } else if (hasVisualSelection(visualSelection)) {
           setCanvasContextMenu({ x: clientX, y: clientY });
         }
       },
@@ -4657,6 +4592,18 @@ export function App({
             hasVisualSelection(visualSelection) || selectedEndpoint !== null,
           execute: () => editorCommands.execute({ id: "selection.delete" }),
         }}
+        copySelectionImages={(["png", "svg"] as const).map((format) => ({
+          label: `Copy selection as ${format.toUpperCase()}`,
+          enabled: editorCommands.state({
+            id: "selection.copy-image",
+            format,
+          }).enabled,
+          execute: () =>
+            editorCommands.execute({
+              id: "selection.copy-image",
+              format,
+            }),
+        }))}
         resets={[
           {
             label: "Clear Drawing",
@@ -5702,15 +5649,73 @@ export function App({
                 view: routingGuidanceView,
                 onViewChange: setRoutingGuidanceView,
               }}
-              groupDisplay={{
+              groupProperties={{
                 active: selectedIds.length > 1,
-                referencesVisible: selectedGroupLabelsAllVisible,
-                valuesVisible: selectedGroupValuesAllVisible,
-                valuesAvailable: selectedGroupValueAvailable,
-                onReferencesVisibleChange: (visible) =>
-                  setReferenceLabelsVisible(selectedIds, visible),
-                onValuesVisibleChange: (visible) =>
-                  setValueLabelsVisible(selectedIds, visible),
+                count: selectedIds.length,
+                revision: document.revision,
+                defaultForeground: styleProfile.foreground,
+                context: {
+                  reference: selectedGroupReferenceVisibility,
+                  value: selectedGroupValueVisibility,
+                  foreground: selectedGroupForeground,
+                },
+                onApply: (value: GroupPropertyCodeValue) => {
+                  const edits: SchematicEdit[] = [];
+                  if (
+                    value.display.reference !== "mixed" &&
+                    value.display.reference !== selectedGroupReferenceVisibility
+                  )
+                    edits.push(
+                      ...referenceLabelVisibilityEdits(
+                        selectedIds,
+                        value.display.reference,
+                      ),
+                    );
+                  if (
+                    value.display.value !== undefined &&
+                    value.display.value !== "mixed" &&
+                    value.display.value !== selectedGroupValueVisibility
+                  )
+                    edits.push(
+                      ...valueVisibilityEdits(
+                        document,
+                        selectedIds,
+                        value.display.value,
+                      ),
+                    );
+                  if (
+                    value.appearance.foreground !== "mixed" &&
+                    value.appearance.foreground !== selectedGroupForeground
+                  ) {
+                    for (const instance of selectedGroupInstances) {
+                      const styleOverride =
+                        value.appearance.foreground === "auto"
+                          ? null
+                          : { foreground: value.appearance.foreground };
+                      if (
+                        JSON.stringify(instance.styleOverride ?? null) ===
+                        JSON.stringify(styleOverride)
+                      )
+                        continue;
+                      edits.push({
+                        kind: "set_instance_style_override",
+                        instanceId: instance.id,
+                        styleOverride,
+                      });
+                    }
+                  }
+                  if (edits.length === 0) return { ok: true };
+                  if (transact(edits).ok) {
+                    setStatus(
+                      `Updated shared properties on ${selectedIds.length} components`,
+                    );
+                    return { ok: true };
+                  }
+                  return {
+                    ok: false,
+                    message: "Could not update the selected components",
+                  };
+                },
               }}
               component={
                 selectedInstance
@@ -5911,14 +5916,6 @@ export function App({
                           }
                         },
                       },
-                      formalPort: selectedFormalTerminal
-                        ? {
-                            terminal: selectedFormalTerminal,
-                            revision: document.revision,
-                            onRename: renameSelectedFormalPort,
-                            onDirectionChange: updateCellPinDirection,
-                          }
-                        : null,
                       cellSymbolLayout: selectedHierarchyCell
                         ? {
                             cell: selectedHierarchyCell,
@@ -6282,6 +6279,7 @@ export function App({
               }}
               routeActions={{
                 active: selectedRouteId !== null,
+                bulkOwnerLabel: selectedMosBulkOwnerLabel,
                 netLabelInputRef: netLabelPropertyInputRef,
                 netLabel: netLabelDraft,
                 color: selectedRoute?.styleOverride?.color,
@@ -6894,49 +6892,20 @@ export function App({
         {canvasContextMenu ? (
           <CanvasContextMenu
             position={canvasContextMenu}
-            variants={deviceVariantCandidates}
-            renderVariantArtwork={(symbolId) => {
-              const symbol = findPaletteSymbol(
-                document.presentation.styleProfileId,
-                symbolId,
-              );
-              return symbol ? (
-                <SymbolArtwork
-                  symbol={symbol}
-                  className="context-variant-art"
-                />
-              ) : null;
-            }}
-            onSwapVariant={swapSelectedInstanceSymbol}
             alignmentEnabled={alignmentParticipantCount >= 2}
             onAlign={(mode) =>
               editorCommands.execute({ id: "selection.align", mode })
             }
             actions={[
               {
-                label: "New Testbench Cell…",
-                enabled: true,
-                execute: () => openNewTestbenchDialog(),
+                label: "Duplicate (C)",
+                enabled:
+                  hasVisualSelection(visualSelection) &&
+                  editorCommands.state({ id: "selection.copy" }).enabled,
+                execute: () => editorCommands.execute({ id: "selection.copy" }),
               },
               {
-                label: "Place Cell from this Project…",
-                enabled: cellInsertCandidates.length > 0,
-                execute: placeCellInstance,
-              },
-              ...(["png", "svg"] as const).map((format) => ({
-                label: `Copy as ${format.toUpperCase()}`,
-                enabled: editorCommands.state({
-                  id: "selection.copy-image",
-                  format,
-                }).enabled,
-                execute: () =>
-                  editorCommands.execute({
-                    id: "selection.copy-image",
-                    format,
-                  }),
-              })),
-              {
-                label: "Rotate (R)",
+                label: "Rotate 45° (R)",
                 enabled: editorCommands.state({ id: "transform.rotate" })
                   .enabled,
                 execute: () =>
@@ -6952,6 +6921,18 @@ export function App({
                   editorCommands.execute({
                     id: "transform.mirror",
                     direction: "left-right",
+                  }),
+              },
+              {
+                label: "Mirror top/bottom (Ctrl+R)",
+                enabled: editorCommands.state({
+                  id: "transform.mirror",
+                  direction: "top-bottom",
+                }).enabled,
+                execute: () =>
+                  editorCommands.execute({
+                    id: "transform.mirror",
+                    direction: "top-bottom",
                   }),
               },
               {

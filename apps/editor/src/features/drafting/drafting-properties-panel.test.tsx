@@ -50,6 +50,37 @@ function render(object: DraftingObject): string {
   );
 }
 
+function polarityMark(
+  polarity: "positive" | "negative",
+): Extract<DraftingObject, { kind: "text" }> {
+  return {
+    id: `polarity-${polarity}`,
+    kind: "text",
+    locked: false,
+    zIndex: 0,
+    anchor: { kind: "free", position: { x: 50, y: 50 } },
+    content: { runs: [{ kind: "line-break" }] },
+    alignment: "middle",
+    rotation: 0,
+    typographyToken: "label",
+    polarity,
+  };
+}
+
+describe("fixed polarity mark properties", () => {
+  it.each(["positive", "negative"] as const)(
+    "labels the %s sign as a mark rather than editable text",
+    (polarity) => {
+      const markup = render(polarityMark(polarity));
+
+      expect(markup).toContain("Polarity mark");
+      expect(markup).toContain("Mark color");
+      expect(markup).not.toContain(">Text<");
+      expect(markup).not.toContain("Text color");
+    },
+  );
+});
+
 describe("unified arrow styles", () => {
   it("offers one gallery and no redundant head/rotate/reverse controls", () => {
     const markup = render(arrow());

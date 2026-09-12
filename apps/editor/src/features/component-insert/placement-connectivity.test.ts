@@ -964,7 +964,7 @@ describe("multi-pin placement onto one conductor", () => {
       id: "M2",
       position: { x: 110, y: 100 },
       rotation: 0 as const,
-      mirror: "x" as const,
+      mirror: "horizontal" as const,
       pair: ["D", "S"],
       controlPin: "G",
     },

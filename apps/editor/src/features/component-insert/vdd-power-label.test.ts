@@ -170,7 +170,7 @@ describe("vdd power label annotation", () => {
       {
         kind: "mirror_instance" as const,
         instanceId: "VDD1",
-        mirror: "x" as const,
+        mirror: "horizontal" as const,
       },
       {
         kind: "rotate_instance" as const,

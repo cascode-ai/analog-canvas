@@ -115,7 +115,11 @@ function straightTap(): SchematicDocument {
     {
       id: "P2",
       symbolId: "port",
-      placement: { position: { x: 480, y: 240 }, rotation: 0, mirror: "x" },
+      placement: {
+        position: { x: 480, y: 240 },
+        rotation: 0,
+        mirror: "horizontal",
+      },
     },
   );
   document.netlist!.terminals.push(

@@ -1,4 +1,5 @@
 import { razaviTextbookProfile } from "@icm/derived";
+import { mirrorScale, type Mirror, type Rotation } from "@icm/model";
 import {
   renderSymbolDefinitionBody,
   renderUprightSignalFlowFormula,
@@ -14,8 +15,8 @@ export interface ComponentPlacementPreviewProps {
   symbolId: string;
   symbol?: SymbolDefinition;
   position: { x: number; y: number };
-  rotation: 0 | 90 | 180 | 270;
-  mirror?: "none" | "x";
+  rotation: Rotation;
+  mirror?: Mirror;
 }
 
 export function ComponentPlacementPreview({
@@ -33,9 +34,10 @@ export function ComponentPlacementPreview({
     (candidate) => candidate.id === variantId,
   );
 
-  const transform = `translate(${position.x} ${position.y}) rotate(${rotation})${
-    mirror === "x" ? " scale(-1 1)" : ""
-  }`;
+  const scale = mirrorScale(mirror);
+  const mirrorTransform =
+    scale.x === 1 && scale.y === 1 ? "" : ` scale(${scale.x} ${scale.y})`;
+  const transform = `translate(${position.x} ${position.y})${mirrorTransform} rotate(${rotation})`;
   const pinNames = renderSymbolPreviewPinNames(
     definition,
     variant?.hiddenPinNames ?? [],

@@ -1565,7 +1565,7 @@
             }
           },
           "placement": {
-            "mirror": "x",
+            "mirror": "horizontal",
             "position": {
               "x": 570,
               "y": 280
@@ -1593,7 +1593,7 @@
             }
           },
           "placement": {
-            "mirror": "x",
+            "mirror": "horizontal",
             "position": {
               "x": 390,
               "y": 160
@@ -1677,7 +1677,7 @@
             }
           },
           "placement": {
-            "mirror": "x",
+            "mirror": "horizontal",
             "position": {
               "x": 300,
               "y": 440
@@ -2806,7 +2806,7 @@
   ],
   "id": "project-five-transistor-ota-sky130",
   "name": "Five-Transistor OTA (Sky130)",
-  "schemaVersion": 51,
+  "schemaVersion": 53,
   "simulationFolders": [
     {
       "id": "simulation-setup-ota-op-ac",

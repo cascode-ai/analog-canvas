@@ -52,7 +52,8 @@ test("live JSON properties update controls immediately and round-trip raw parame
   await expect(page.getByTestId("revision")).toHaveText(
     String(Number(revision) + 1),
   );
-  await panel.getByRole("button", { name: "Use Red for line" }).click();
+  await panel.getByRole("button", { name: "Edit line color" }).click();
+  await page.getByRole("button", { name: "Use Red for line" }).click();
   await expect(page.getByTestId("revision")).toHaveText(
     String(Number(revision) + 2),
   );
@@ -127,7 +128,22 @@ test("live Defaults are undoable and invalid drafts never change the canvas", as
   ).toBeVisible();
   await expect(page.getByTestId("revision")).toHaveText(lastValidRevision!);
   await expect(
-    page.getByRole("button", { name: "Use Red for line" }),
+    page.getByRole("button", { name: "Edit line color" }),
+  ).toBeDisabled();
+  await expect(
+    page.getByRole("switch", { name: "Toggle reference visibility" }),
+  ).toBeDisabled();
+  await expect(
+    page.getByRole("switch", { name: "Toggle value visibility" }),
+  ).toBeDisabled();
+  await expect(
+    page.getByRole("button", { name: "Rotate clockwise" }),
+  ).toBeDisabled();
+  await expect(
+    page.getByRole("button", { name: "Mirror left to right" }),
+  ).toBeDisabled();
+  await expect(
+    page.getByRole("button", { name: "Mirror top to bottom" }),
   ).toBeDisabled();
   await page.getByRole("button", { name: "Discard draft" }).click();
   await expectComponentCodeField(page, "parameters.w", "7u");
@@ -191,7 +207,7 @@ test("property placement null retains a wired instance and re-places it with gri
   await setComponentCodeField(page, "placement", {
     at: [421, 281],
     rotation: 90,
-    mirror: "x",
+    mirror: "horizontal",
   });
   await expect(page.getByTestId("hit-R1")).toHaveCount(1);
   await expectComponentCodeField(page, "placement.at", [420, 280]);
@@ -263,12 +279,15 @@ for (const platform of ["native", "Win32", "Linux x86_64"])
     await expect(page.getByTestId("revision")).toHaveText(revision!);
     await code.press(`${modifier}+End`);
     await code.press("}");
-    await expect(page.getByText("Live", { exact: true })).toBeVisible();
+    await expect(
+      page.getByText(/Canvas keeps the last valid edit/u),
+    ).toHaveCount(0);
+    await expect(page.getByText("Live", { exact: true })).toHaveCount(0);
     await expect(page.getByTestId("revision")).toHaveText(revision!);
   });
 
 for (const width of [300, 540]) {
-  test(`plain selectable property code and external color shortcuts at ${width}px`, async ({
+  test(`plain selectable property code and inline controls at ${width}px`, async ({
     page,
   }) => {
     await page.addInitScript(
@@ -299,16 +318,134 @@ for (const width of [300, 540]) {
     // CRLF convention. Compare all selected content, not OS line separators.
     expect(selected?.replace(/\r\n/gu, "\n")).toBe(raw.replace(/\r\n/gu, "\n"));
 
+    const color = editor.getByRole("button", { name: "Edit line color" });
+    const reference = editor.getByRole("switch", {
+      name: "Toggle reference visibility",
+    });
+    const value = editor.getByRole("switch", {
+      name: "Toggle value visibility",
+    });
+    const rotation = editor.getByRole("button", { name: "Rotate clockwise" });
+    const mirrorLeftRight = editor.getByRole("button", {
+      name: "Mirror left to right",
+    });
+    const mirrorTopBottom = editor.getByRole("button", {
+      name: "Mirror top to bottom",
+    });
+    await expect(color).toBeVisible();
+    await expect(reference).toHaveAttribute("aria-checked", "true");
+    await expect(value).toHaveAttribute("aria-checked", "false");
+    await expect(rotation).toBeVisible();
+    await expect(mirrorLeftRight).toBeVisible();
+    await expect(mirrorTopBottom).toBeVisible();
+    const horizontalIcon = mirrorLeftRight.locator("svg");
+    const verticalIcon = mirrorTopBottom.locator("svg");
+    await expect(horizontalIcon).toBeVisible();
+    await expect(verticalIcon).toBeVisible();
+    expect(await horizontalIcon.locator("path").getAttribute("d")).toBe(
+      await verticalIcon.locator("path").getAttribute("d"),
+    );
+    await expect(horizontalIcon.locator("g")).not.toHaveAttribute(
+      "transform",
+      /.+/u,
+    );
+    await expect(verticalIcon.locator("g")).toHaveAttribute(
+      "transform",
+      "rotate(90 8 8)",
+    );
+    expect(
+      await reference.evaluate((element) =>
+        element.closest(".cm-line")?.textContent?.includes('"reference"'),
+      ),
+    ).toBe(true);
+    expect(
+      await value.evaluate((element) =>
+        element.closest(".cm-line")?.textContent?.includes('"value"'),
+      ),
+    ).toBe(true);
+    expect(
+      await color.evaluate((element) =>
+        element.closest(".cm-line")?.textContent?.includes('"foreground"'),
+      ),
+    ).toBe(true);
+    expect(
+      await rotation.evaluate((element) =>
+        element.closest(".cm-line")?.textContent?.includes('"rotation"'),
+      ),
+    ).toBe(true);
+    expect(
+      await mirrorLeftRight.evaluate((element) =>
+        element.closest(".cm-line")?.textContent?.includes('"mirror"'),
+      ),
+    ).toBe(true);
+    expect(
+      await mirrorTopBottom.evaluate((element) =>
+        element.closest(".cm-line")?.textContent?.includes('"mirror"'),
+      ),
+    ).toBe(true);
+    await expect(
+      page.getByRole("dialog", { name: "Line color settings" }),
+    ).toHaveCount(0);
     const layout = await editor.evaluate((section) => ({
       overflow: section.scrollWidth > section.clientWidth,
       editable: Boolean(section.querySelector('[contenteditable="true"]')),
+      inlineControls: section.querySelectorAll(
+        ".cm-line .cm-property-inline-toggle, .cm-line .cm-property-inline-placement, .cm-line .cm-property-inline-color",
+      ).length,
     }));
-    expect(layout).toEqual({ overflow: false, editable: true });
+    expect(layout).toEqual({
+      overflow: false,
+      editable: true,
+      inlineControls: 6,
+    });
+    expect(raw).not.toContain("Line color");
+    await reference.click();
+    await value.click();
+    await rotation.click();
+    await expectComponentCodeField(page, "display.reference", false);
+    await expectComponentCodeField(page, "display.value", true);
+    await expectComponentCodeField(page, "placement.rotation", 45);
+    await mirrorLeftRight.click();
+    await expectComponentCodeField(page, "placement.rotation", 45);
+    await expectComponentCodeField(page, "placement.mirror", "horizontal");
+    await mirrorLeftRight.click();
+    await expectComponentCodeField(page, "placement.rotation", 45);
+    await expectComponentCodeField(page, "placement.mirror", "none");
+    await mirrorTopBottom.click();
+    await expectComponentCodeField(page, "placement.rotation", 45);
+    await expectComponentCodeField(page, "placement.mirror", "vertical");
+    await mirrorLeftRight.click();
+    await expectComponentCodeField(page, "placement.rotation", 45);
+    await expectComponentCodeField(page, "placement.mirror", "both");
+    await mirrorLeftRight.click();
+    await expectComponentCodeField(page, "placement.rotation", 45);
+    await expectComponentCodeField(page, "placement.mirror", "vertical");
+    await mirrorTopBottom.click();
+    await expectComponentCodeField(page, "placement.rotation", 45);
+    await expectComponentCodeField(page, "placement.mirror", "none");
+    for (const next of [90, 135, 180, 225, 270, 315, 0, 45]) {
+      await rotation.click();
+      await expectComponentCodeField(page, "placement.rotation", next);
+    }
+    await color.click();
 
     await expect(
-      editor.getByRole("button", { name: "Use Light gray for line" }),
+      page.getByRole("button", { name: "Use Light gray for line" }),
     ).toBeVisible();
-    await editor
+    await expect(
+      page.getByRole("button", { name: "Use Blue for line" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Use Black for line" }),
+    ).toBeVisible();
+    await expect(page.getByRole("button", { name: "Reset line" })).toHaveCount(
+      0,
+    );
+    await page.getByRole("button", { name: "Use Black for line" }).click();
+    await expectComponentCodeField(page, "appearance.foreground", [0, 0, 0]);
+
+    await color.click();
+    await page
       .getByRole("button", { name: "Use Red for line", exact: true })
       .click();
     await expectComponentCodeField(
@@ -317,10 +454,9 @@ for (const width of [300, 540]) {
       [220, 38, 38],
     );
 
-    await editor.locator("summary", { hasText: "RGB" }).click();
-    await expect(editor.getByLabel("Line red")).toHaveValue("220");
-    await editor.getByLabel("Line red").fill("12");
-    await editor.getByLabel("Line red").press("Enter");
+    await color.click();
+    await expect(page.getByLabel("Line RGB")).toHaveValue("[220,38,38]");
+    await page.getByLabel("Line RGB").fill("[12,38,38]");
     await expectComponentCodeField(page, "appearance.foreground", [12, 38, 38]);
   });
 }
@@ -1032,7 +1168,7 @@ test("shows faithful symbol previews for the reviewed Razavi palette", async ({
   const search = dialog.getByLabel("Component search");
   // Browser coverage owns tile-to-artwork wiring. Catalogue completeness and
   // every symbol's geometry are covered by the symbol contract and goldens.
-  for (const symbolId of ["pmos", "resistor", "comparator-unmarked"]) {
+  for (const symbolId of ["pmos", "resistor", "comparator"]) {
     await search.fill(symbolId);
     await expect(
       dialog
@@ -1407,7 +1543,7 @@ test("command move owns rotate and commits pose plus translation atomically", as
   await expect(page.locator('[data-kind="draft-rectangle"]')).toHaveCount(0);
   await expect(
     page.locator('[data-layer="symbols"] [data-object-id="R1"] > g'),
-  ).toHaveAttribute("transform", /rotate\(90\)/u);
+  ).toHaveAttribute("transform", /rotate\(45\)/u);
   const reference = page.locator(
     '[data-layer="annotations"] [data-object-id="instance-label-R1"]',
   );
@@ -1421,7 +1557,7 @@ test("command move owns rotate and commits pose plus translation atomically", as
   );
   await expect(
     page.locator('[data-object-id="R1"] > g').first(),
-  ).toHaveAttribute("transform", /rotate\(90\)/u);
+  ).toHaveAttribute("transform", /rotate\(45\)/u);
 });
 
 test("command move restores its exact preview when cancelled after a turn", async ({
@@ -1439,7 +1575,7 @@ test("command move restores its exact preview when cancelled after a turn", asyn
   await page.keyboard.press("r");
   await expect(
     page.locator('[data-layer="symbols"] [data-object-id="R1"] > g'),
-  ).toHaveAttribute("transform", /rotate\(90\)/u);
+  ).toHaveAttribute("transform", /rotate\(45\)/u);
   await page.keyboard.press("Escape");
 
   await expect(resistor).not.toHaveAttribute("transform", /^matrix\(/u);
@@ -1529,10 +1665,9 @@ test("Cell Pin deletion releases its interface and Base Net lifecycle", async ({
     await page.keyboard.press("p");
     await canvas.click({ position });
     await page.keyboard.press("Escape");
-    await openSelectionShelf(page);
-    const nameField = page.getByLabel("Cell Pin name");
-    await nameField.fill(name);
-    await nameField.blur();
+    await page.getByTestId("annotation-hit-instance-label-P1").dblclick();
+    await page.getByRole("textbox", { name: "Canvas text editor" }).fill(name);
+    await page.getByRole("button", { name: "Apply text changes" }).click();
   };
 
   await placeNamedPort("BUS", { x: 260, y: 180 });
@@ -1610,8 +1745,8 @@ test("Ctrl+R mirrors a selected component instead of refreshing", async ({
     ),
   );
   expect(saved.documents[0].instances[0].placement).toMatchObject({
-    rotation: 180,
-    mirror: "x",
+    rotation: 0,
+    mirror: "vertical",
   });
 });
 
@@ -2608,6 +2743,8 @@ test("keeps DMOS bulk hidden until drawing an explicit bulk route", async ({
 
   await page.getByTestId("hit-M1").click();
   await openSelectionShelf(page);
+  await page.getByRole("button", { name: "Edit line color" }).click();
+  await page.getByRole("button", { name: "Use Red for line" }).click();
   await page.getByTestId("draw-bulk-connection").click();
 
   await expect(page.getByTestId("status")).toContainText(
@@ -2624,6 +2761,33 @@ test("keeps DMOS bulk hidden until drawing an explicit bulk route", async ({
   await expect(bulkRoute).toHaveAttribute(
     "data-route-presentation",
     "bulk-dashed",
+  );
+  await expect(bulkRoute).toHaveAttribute("stroke", "#dc2626");
+
+  await page
+    .getByTestId("schematic-canvas")
+    .click({ position: { x: 50, y: 50 } });
+  const bulkHit = page.getByTestId("route-hit-route-ui-1");
+  const bulkSegmentPoint = await bulkHit.evaluate((element) => {
+    const polyline = element as SVGPolylineElement;
+    const first = polyline.points.getItem(0);
+    const second = polyline.points.getItem(1);
+    const point = polyline.ownerSVGElement!.createSVGPoint();
+    point.x = (first.x + second.x) / 2;
+    point.y = (first.y + second.y) / 2;
+    const screen = point.matrixTransform(polyline.getScreenCTM()!);
+    return { x: screen.x, y: screen.y };
+  });
+  await page.mouse.click(bulkSegmentPoint.x, bulkSegmentPoint.y);
+  await expect(page.getByTestId("selection-shelf")).toContainText("Bulk · M1");
+  await expect(page.getByLabel("MOS bulk route actions")).toContainText(
+    "Follows M1 line color",
+  );
+  await expect(page.getByLabel("Route actions", { exact: true })).toHaveCount(
+    0,
+  );
+  await expect(page.getByText("Electrical route", { exact: true })).toHaveCount(
+    0,
   );
 });
 
@@ -3901,7 +4065,7 @@ test("resizes Properties and applies component presentation as editable code", a
   const edited = JSON.parse(await readComponentPropertyCode(page));
   edited.placement.at = [420, 280];
   edited.placement.rotation = 90;
-  edited.placement.mirror = "x";
+  edited.placement.mirror = "horizontal";
   edited.display.reference = false;
   edited.appearance.foreground = "#DC2626";
   await code.fill(JSON.stringify(edited, null, 2));
@@ -3924,7 +4088,7 @@ test("resizes Properties and applies component presentation as editable code", a
     placement: {
       position: { x: 420, y: 280 },
       rotation: 90,
-      mirror: "x",
+      mirror: "horizontal",
     },
     styleOverride: { foreground: "#DC2626" },
   });
@@ -3990,8 +4154,11 @@ test("Properties toggles reference label visibility for one or many components",
   await expect(
     page.getByTestId("annotation-hit-instance-label-R1"),
   ).toHaveCount(1);
+  await editComponentPropertyCode(page, (value) => {
+    value.display.reference = false;
+  });
 
-  // Marquee both components and toggle the whole group. The left-to-right
+  // Marquee both components and edit the shared code surface. The left-to-right
   // window requires FULL coverage, so sweep well past both symbol bodies.
   const canvas = page.getByTestId("schematic-canvas");
   const box = await canvas.boundingBox();
@@ -4000,26 +4167,85 @@ test("Properties toggles reference label visibility for one or many components",
   await page.mouse.down();
   await page.mouse.move(box.x + 700, box.y + 340, { steps: 6 });
   await page.mouse.up();
-  const groupToggle = page.getByRole("checkbox", {
-    name: "Visual annotation",
-    exact: true,
+  const groupEditor = page.getByTestId("group-property-code-editor");
+  await expect(groupEditor).toBeVisible();
+  await expect(
+    groupEditor.getByText("2 selected", { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText("Canvas labels", { exact: true })).toHaveCount(0);
+  const groupToggle = groupEditor.getByRole("switch", {
+    name: "Toggle reference visibility",
   });
   await expect(groupToggle).toBeVisible();
-  await expect(groupToggle).toBeChecked();
-  await groupToggle.uncheck();
-  await expect(
-    page.getByTestId("annotation-hit-instance-label-R1"),
-  ).toHaveCount(0);
-  await expect(
-    page.getByTestId("annotation-hit-instance-label-R2"),
-  ).toHaveCount(0);
-  await groupToggle.check();
+  await expect(groupToggle).toHaveAttribute("data-mixed", "true");
+  expect(
+    JSON.parse(await readComponentPropertyCode(page)).display.reference,
+  ).toBe("mixed");
+  await groupToggle.click();
   await expect(
     page.getByTestId("annotation-hit-instance-label-R1"),
   ).toHaveCount(1);
   await expect(
     page.getByTestId("annotation-hit-instance-label-R2"),
   ).toHaveCount(1);
+  await groupToggle.click();
+  await expect(
+    page.getByTestId("annotation-hit-instance-label-R1"),
+  ).toHaveCount(0);
+  await expect(
+    page.getByTestId("annotation-hit-instance-label-R2"),
+  ).toHaveCount(0);
+  await groupToggle.click();
+  await expect(
+    page.getByTestId("annotation-hit-instance-label-R1"),
+  ).toHaveCount(1);
+  await expect(
+    page.getByTestId("annotation-hit-instance-label-R2"),
+  ).toHaveCount(1);
+});
+
+test("Select All shows one batch code surface instead of object-specific forms", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await placeComponent(page, "resistor", { x: 280, y: 180 });
+  await placeComponent(page, "resistor", { x: 480, y: 180 });
+  await clickDrawTool(page, "wire");
+  await page.getByTestId("terminal-R1-2").click();
+  await page.getByTestId("terminal-R2-1").click();
+  await page.keyboard.press("Escape");
+  await page.keyboard.press("ControlOrMeta+a");
+  await openSelectionShelf(page);
+
+  const properties = page.getByRole("complementary", { name: "Properties" });
+  const batch = properties.getByTestId("group-property-code-editor");
+  await expect(batch).toBeVisible();
+  await expect(batch.getByText("2 selected", { exact: true })).toBeVisible();
+  expect(JSON.parse(await readComponentPropertyCode(page))).toEqual({
+    display: { reference: true, value: false },
+    appearance: { foreground: "auto" },
+  });
+  await expect(
+    properties.getByText("Electrical route", { exact: true }),
+  ).toHaveCount(0);
+  await expect(properties.getByLabel("Electrical Net label")).toHaveCount(0);
+  await expect(properties.getByLabel("Wire color custom RGB")).toHaveCount(0);
+  await expect(
+    properties.getByText("Canvas labels", { exact: true }),
+  ).toHaveCount(0);
+
+  await batch.getByRole("button", { name: "Edit line color" }).click();
+  await page.getByRole("button", { name: "Use Red for line" }).click();
+  const saved = JSON.parse(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(
+      "utf8",
+    ),
+  );
+  expect(saved.documents[0].instances).toMatchObject([
+    { id: "R1", styleOverride: { foreground: "#dc2626" } },
+    { id: "R2", styleOverride: { foreground: "#dc2626" } },
+  ]);
+  expect(saved.documents[0].routes[0].styleOverride).toBeUndefined();
 });
 
 test("Properties keeps component and Annotation text colors independent", async ({
@@ -4267,13 +4493,14 @@ test("reference and value code refreshes content after parameter edits", async (
   await placeComponent(page, "resistor", { x: 300, y: 200 });
   await placeComponent(page, "resistor", { x: 500, y: 200 });
 
-  // Quick-place leaves the parameters blank, so code cannot enable the value
-  // display and no hidden annotation exists at all.
+  // Removing a required value leaves no valid annotation and proves that the
+  // pending code becomes applicable as soon as the value is restored.
   await page.getByTestId("hit-R1").click();
   await openSelectionShelf(page);
   const properties = page.getByRole("complementary", { name: "Properties" });
   const propertyCode = properties.getByLabel("Editable Canvas property code");
   const missingValueCode = JSON.parse(await readComponentPropertyCode(page));
+  delete missingValueCode.parameters.value;
   missingValueCode.display.value = true;
   await propertyCode.fill(JSON.stringify(missingValueCode, null, 2));
   await expect(
@@ -4315,9 +4542,8 @@ test("reference and value code refreshes content after parameter edits", async (
     page.locator('[data-object-id="instance-value-R1"]'),
   ).toHaveCount(0);
 
-  // The group toggle applies the same value display to every component that
-  // has a projection; R2 keeps none because its parameters stay blank. The
-  // mixed group can never read back as all-visible, so click (not check).
+  // The shared code toggle applies the same value display to every component
+  // that has a projection; R2 exposes its authored 1k device default.
   const canvas = page.getByTestId("schematic-canvas");
   const box = await canvas.boundingBox();
   if (!box) throw new Error("Canvas is not measurable");
@@ -4326,15 +4552,15 @@ test("reference and value code refreshes content after parameter edits", async (
   await page.mouse.move(box.x + 700, box.y + 340, { steps: 6 });
   await page.mouse.up();
   await page
-    .getByRole("checkbox", { name: "Value", exact: true })
-    .first()
+    .getByTestId("group-property-code-editor")
+    .getByRole("switch", { name: "Toggle value visibility" })
     .click();
   await expect(
     page.locator('[data-object-id="instance-value-R1"]'),
   ).toContainText("47k");
   await expect(
     page.locator('[data-object-id="instance-value-R2"]'),
-  ).toHaveCount(0);
+  ).toContainText("1k");
 });
 
 for (const symbol of ["nmos", "pmos"]) {
@@ -4439,17 +4665,24 @@ for (const symbol of ["nmos", "pmos"]) {
       x: movedPosition.x + anchor.localOffset.x,
       y: movedPosition.y + anchor.localOffset.y,
     });
-    await instance.click();
-    await page.keyboard.press("r");
+    await openSelectionShelf(page);
+    await editComponentPropertyCode(page, (code) => {
+      code.placement.rotation = 45;
+    });
+    await expect(
+      page.locator('[data-object-id="M1"] > g').first(),
+    ).toHaveAttribute("transform", /rotate\(45\)/u);
     const rotated = await readDocument();
     const rotatedAnchor = valueAnchor(rotated);
     expect(
       rotated.instances.find((item) => item.id === "M1")!.placement!.rotation,
-    ).toBe(90);
-    expect(rotatedAnchor.localOffset).toEqual({
-      x: -anchor.localOffset.y,
-      y: anchor.localOffset.x,
-    });
+    ).toBe(45);
+    expect(rotatedAnchor.localOffset.x).toBe(
+      Math.round((anchor.localOffset.x - anchor.localOffset.y) / Math.sqrt(2)),
+    );
+    expect(rotatedAnchor.localOffset.y).toBe(
+      Math.round((anchor.localOffset.x + anchor.localOffset.y) / Math.sqrt(2)),
+    );
     await expect(numerator).toContainText("3u");
 
     // Reopen a real exported file, then export again to verify persisted data.
@@ -4500,13 +4733,19 @@ test("drag value annotation keeps the user offset through rotation", async ({
   // A user-moved value is an authored vector: rotation transforms it rigidly
   // instead of pulling it back onto the automatic second row.
   await page.getByTestId("hit-R1").click();
-  await page.keyboard.press("r");
+  await openSelectionShelf(page);
+  await editComponentPropertyCode(page, (propertyCode) => {
+    propertyCode.placement.rotation = 45;
+  });
+  await expect(
+    page.locator('[data-object-id="R1"] > g').first(),
+  ).toHaveAttribute("transform", /rotate\(45\)/u);
   await expect(
     page.locator('[data-object-id="instance-value-R1"]'),
   ).toContainText("33k");
   const rotated = await value.boundingBox();
   if (!rotated) throw new Error("Rotated value is not measurable");
-  // A quarter turn may keep one coordinate, so assert total displacement.
+  // A 45-degree turn may keep one coordinate, so assert total displacement.
   expect(
     Math.hypot(rotated.x - dragged.x, rotated.y - dragged.y),
   ).toBeGreaterThan(10);
@@ -4796,11 +5035,11 @@ test("R rotates a copy preview before committing the copied component", async ({
   await expect(previewSymbol).toHaveAttribute("transform", /rotate\(0\)/);
 
   await page.keyboard.press("r");
-  await expect(previewSymbol).toHaveAttribute("transform", /rotate\(90\)/u);
+  await expect(previewSymbol).toHaveAttribute("transform", /rotate\(45\)/u);
   await canvas.click({ position: { x: 560, y: 340 } });
   await expect(
     canvas.locator('[data-object-id="R1-copy-1"] > g').first(),
-  ).toHaveAttribute("transform", /rotate\(90\)/u);
+  ).toHaveAttribute("transform", /rotate\(45\)/u);
   // The pasted designator and its visible label both read R2.
   await expect(canvas.getByText("R2", { exact: true })).toBeVisible();
   await page.keyboard.press("Escape");
@@ -6904,8 +7143,9 @@ test("turns a marquee selection as one body, not three parts in place", async ({
   await expect(page.getByTestId("status")).toContainText("Selected");
 
   await page.keyboard.press("r");
+  await page.keyboard.press("r");
 
-  // A quarter turn stands the row up: the arrangement itself rotates rather
+  // Two 45-degree turns stand the row up: the arrangement itself rotates rather
   // than each symbol spinning where it stands.
   const after = await centres();
   expect(after).toHaveLength(3);

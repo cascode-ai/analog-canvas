@@ -46,13 +46,13 @@ const SOURCES = [
     id: "opamp",
     letteredId: "opamp-lettered",
     name: "Operational Amplifier (lettered)",
-    palette: true,
+    palette: false,
   },
   {
     id: "opamp-differential",
     letteredId: "opamp-differential-lettered",
     name: "Differential Op Amp (lettered)",
-    palette: true,
+    palette: false,
   },
   {
     id: "opamp-differential-crossed",
@@ -64,7 +64,7 @@ const SOURCES = [
     id: "voltage-amplifier",
     letteredId: "voltage-amplifier-lettered",
     name: "Voltage Amplifier (lettered)",
-    palette: true,
+    palette: false,
   },
 ];
 

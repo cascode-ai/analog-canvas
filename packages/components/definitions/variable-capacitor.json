@@ -168,6 +168,7 @@
         "editor": "text",
         "unitHint": "F",
         "placeholder": "2p",
+        "defaultValue": "1p",
         "help": "Capacitance",
         "displayRole": "value"
       }

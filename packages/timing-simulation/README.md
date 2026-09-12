@@ -7,7 +7,8 @@ The first supported set is:
 
 - two-terminal Digital Clock (`pulse-voltage-source`) referenced to Ground;
 - Buffer, inverter, AND, OR, NAND, NOR, XOR, and XNOR;
-- rising-edge `d-flip-flop`; and
+- rising-edge `d-flip-flop`, including the active-high asynchronous-reset
+  `d-flip-flop-reset` sibling; and
 - four-state `0`, `1`, `X`, and `Z` driver resolution.
 
 Simulation time is an integer number of picoseconds. Saved Net IDs select

@@ -42,7 +42,7 @@ async function placeComponent(
   await page.keyboard.press("Escape");
 }
 
-test("right-click on a device offers same-shape variant swap tiles", async ({
+test("right-click on a device only offers direct selection actions", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -51,19 +51,34 @@ test("right-click on a device offers same-shape variant swap tiles", async ({
   await instance.click({ button: "right" });
   const menu = page.getByTestId("canvas-context-menu");
   await expect(menu).toBeVisible();
-  await expect(menu).toContainText("Swap device");
-  await expect(page.getByTestId("context-swap-resistor")).toBeVisible();
-  await expect(page.getByTestId("context-swap-capacitor")).toBeVisible();
+  await expect(menu.getByRole("menuitem")).toHaveText([
+    "Duplicate (C)",
+    "Rotate 45° (R)",
+    "Mirror left/right (Shift+R)",
+    "Mirror top/bottom (Ctrl+R)",
+    "Delete",
+  ]);
+  await expect(menu).not.toContainText("Swap device");
+  await expect(menu).not.toContainText("New Testbench Cell");
+  await expect(menu).not.toContainText("Place Cell");
+  await expect(menu).not.toContainText("Copy as PNG");
+  await expect(menu).not.toContainText("Copy as SVG");
 
-  await page.getByTestId("context-swap-resistor").click();
-  await expect(menu).toHaveCount(0);
-  await expect(page.getByTestId("status")).toContainText("Swapped to");
+  await menu.getByRole("menuitem", { name: "Rotate 45° (R)" }).click();
+  await expect(
+    page.locator('[data-layer="symbols"] [data-object-id] > g').first(),
+  ).toHaveAttribute("transform", /rotate\(45\)/u);
+
   await instance.click({ button: "right" });
-  // The device is now a resistor, so the tiles offer the inductor back.
-  await expect(page.getByTestId("context-swap-inductor")).toBeVisible();
-  await expect(page.getByTestId("context-swap-resistor")).toHaveCount(0);
+  await menu.getByRole("menuitem", { name: "Duplicate (C)" }).click();
+  await expect(menu).toHaveCount(0);
+  await page
+    .getByTestId("schematic-canvas")
+    .click({ position: { x: 520, y: 300 } });
   await page.keyboard.press("Escape");
-  await expect(page.getByTestId("canvas-context-menu")).toHaveCount(0);
+  await expect(page.locator('[data-canvas-hit-kind="instance"]')).toHaveCount(
+    2,
+  );
 });
 
 test("right-click on a multi-selection aligns bbox edges", async ({ page }) => {
@@ -214,8 +229,13 @@ test("visual clipboard preserves mixed selection and exports only its formal SVG
   const canvas = page.getByTestId("schematic-canvas");
   const before = await canvas.locator('[data-layer="formal"]').innerHTML();
   await text.click({ button: "right" });
-  await page
-    .getByRole("menuitem", { name: "Copy as SVG", exact: true })
+  await expect(page.getByTestId("canvas-context-menu")).not.toContainText(
+    "Copy as SVG",
+  );
+  await page.keyboard.press("Escape");
+  const editMenu = await openMenu(page, "Edit");
+  await editMenu
+    .getByRole("button", { name: "Copy selection as SVG", exact: true })
     .click();
   await expect(page.getByTestId("status")).toHaveText(
     "Copied selection as SVG",
@@ -240,9 +260,9 @@ test("visual clipboard preserves mixed selection and exports only its formal SVG
   await expect(text).toHaveClass(/selected/);
   // Empty-canvas right-click preserves the same mixed selection.
   await canvas.click({ button: "right", position: { x: 650, y: 450 } });
-  await expect(
-    page.getByRole("menuitem", { name: "Copy as PNG" }),
-  ).toBeEnabled();
+  await expect(page.getByTestId("canvas-context-menu")).not.toContainText(
+    "Copy as PNG",
+  );
   await expect(resistor).toHaveClass(/selected/);
   await expect(text).toHaveClass(/selected/);
 });
@@ -270,7 +290,11 @@ test("visual clipboard rasterizes an independent Wire as transparent PNG without
     return { x: point.x, y: point.y };
   });
   await page.mouse.click(midpoint.x, midpoint.y, { button: "right" });
-  await page.getByRole("menuitem", { name: "Copy as PNG" }).click();
+  await page.keyboard.press("Escape");
+  const editMenu = await openMenu(page, "Edit");
+  await editMenu
+    .getByRole("button", { name: "Copy selection as PNG", exact: true })
+    .click();
   await expect(page.getByTestId("status")).toHaveText(
     "Copied selection as PNG",
   );
@@ -314,13 +338,21 @@ test("visual clipboard reports denied access and empty selection without downloa
   await page.goto("/editor");
   const canvas = page.getByTestId("schematic-canvas");
   await canvas.click({ button: "right", position: { x: 600, y: 400 } });
+  await expect(page.getByTestId("canvas-context-menu")).toHaveCount(0);
+  const emptyEditMenu = await openMenu(page, "Edit");
   await expect(
-    page.getByRole("menuitem", { name: "Copy as PNG" }),
+    emptyEditMenu.getByRole("button", {
+      name: "Copy selection as PNG",
+      exact: true,
+    }),
   ).toBeDisabled();
   await expect(
-    page.getByRole("menuitem", { name: "Copy as SVG" }),
+    emptyEditMenu.getByRole("button", {
+      name: "Copy selection as SVG",
+      exact: true,
+    }),
   ).toBeDisabled();
-  await page.keyboard.press("Escape");
+  await emptyEditMenu.locator("summary").click();
   await placeComponent(page, "resistor", { x: 300, y: 220 });
   const downloads: string[] = [];
   page.on("download", (download) =>
@@ -330,7 +362,11 @@ test("visual clipboard reports denied access and empty selection without downloa
     .locator('[data-canvas-hit-kind="instance"]')
     .first()
     .click({ button: "right" });
-  await page.getByRole("menuitem", { name: "Copy as PNG" }).click();
+  await page.keyboard.press("Escape");
+  const selectedEditMenu = await openMenu(page, "Edit");
+  await selectedEditMenu
+    .getByRole("button", { name: "Copy selection as PNG", exact: true })
+    .click();
   await expect(page.getByTestId("status")).toContainText(
     "Clipboard access was denied",
   );

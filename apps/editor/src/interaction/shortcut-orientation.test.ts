@@ -9,8 +9,8 @@ import {
 } from "./shortcut-orientation";
 import type { ScreenFlip } from "./shortcut-orientation";
 
-const rotations: Rotation[] = [0, 90, 180, 270];
-const mirrors: Mirror[] = ["none", "x"];
+const rotations: Rotation[] = [0, 45, 90, 135, 180, 225, 270, 315];
+const mirrors: Mirror[] = ["none", "horizontal", "vertical", "both"];
 const origin = { x: 120, y: 80 };
 const local = { x: 17, y: -9 };
 
@@ -37,7 +37,9 @@ describe("reflectOrientation", () => {
             reflectOrientation(orientation, direction),
           );
 
-          expect(after).toEqual(reflectWorldPoint(before, direction));
+          const expected = reflectWorldPoint(before, direction);
+          expect(after.x).toBeCloseTo(expected.x, 10);
+          expect(after.y).toBeCloseTo(expected.y, 10);
         }
       }
     },
@@ -71,5 +73,13 @@ describe("reflectOrientation", () => {
         { kind: "reflect", direction: "top-bottom" },
       ]),
     ).toEqual(expected);
+  });
+
+  it("applies a 45-degree placement turn", () => {
+    expect(
+      applyOrientationOperations({ rotation: 0, mirror: "none" }, [
+        { kind: "rotate", deltaDegrees: 45 },
+      ]),
+    ).toEqual({ rotation: 45, mirror: "none" });
   });
 });

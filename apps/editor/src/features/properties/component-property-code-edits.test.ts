@@ -20,7 +20,7 @@ describe("planComponentPropertyCodeEdits", () => {
     document.instances.push(instance);
     expect(
       planComponentPropertyCodeEdits(document, instance, {
-        placement: { at: [123, 177], rotation: 90, mirror: "x" },
+        placement: { at: [123, 177], rotation: 90, mirror: "horizontal" },
         display: { reference: true, value: false },
         appearance: { foreground: "#DC2626" },
       }),
@@ -31,7 +31,7 @@ describe("planComponentPropertyCodeEdits", () => {
         position: { x: 120, y: 180 },
       },
       { kind: "rotate_instance", instanceId: "R1", rotation: 90 },
-      { kind: "mirror_instance", instanceId: "R1", mirror: "x" },
+      { kind: "mirror_instance", instanceId: "R1", mirror: "horizontal" },
       {
         kind: "set_instance_style_override",
         instanceId: "R1",
@@ -85,6 +85,90 @@ describe("planComponentPropertyCodeEdits", () => {
         kind: "set_instance_style_override",
         instanceId: "R1",
         styleOverride: null,
+      },
+    ]);
+  });
+
+  it("switches a merged amplifier between no mark, A, and custom text", () => {
+    const document = createEmptyDocument("main", "Main");
+    const plain = {
+      id: "A1",
+      symbolId: "opamp",
+      placement: null,
+    };
+    document.instances.push(plain);
+    expect(
+      planComponentPropertyCodeEdits(document, plain, {
+        placement: null,
+        appearance: { foreground: "auto", internalMark: "A" },
+      }),
+    ).toEqual([
+      {
+        kind: "set_instance_symbol",
+        instanceId: "A1",
+        symbolId: "opamp-lettered",
+      },
+    ]);
+    expect(
+      planComponentPropertyCodeEdits(document, plain, {
+        placement: null,
+        appearance: { foreground: "auto", internalMark: "G" },
+      }),
+    ).toEqual([
+      {
+        kind: "set_instance_symbol",
+        instanceId: "A1",
+        symbolId: "opamp-lettered",
+      },
+      {
+        kind: "set_instance_signal_flow_parameters",
+        instanceId: "A1",
+        parameters: { formula: "G" },
+      },
+    ]);
+
+    const marked = {
+      ...plain,
+      symbolId: "opamp-lettered",
+      signalFlowParameters: { formula: "G" },
+    };
+    expect(
+      planComponentPropertyCodeEdits(document, marked, {
+        placement: null,
+        appearance: { foreground: "auto", internalMark: "none" },
+      }),
+    ).toEqual([
+      {
+        kind: "set_instance_symbol",
+        instanceId: "A1",
+        symbolId: "opamp",
+      },
+      {
+        kind: "set_instance_signal_flow_parameters",
+        instanceId: "A1",
+        parameters: null,
+      },
+    ]);
+  });
+
+  it("keeps comparator polarity independent from its input-swap state", () => {
+    const document = createEmptyDocument("main", "Main");
+    const instance = {
+      id: "A1",
+      symbolId: "comparator-inputs-swapped",
+      placement: null,
+    };
+    document.instances.push(instance);
+    expect(
+      planComponentPropertyCodeEdits(document, instance, {
+        placement: null,
+        appearance: { foreground: "auto", inputPolarity: false },
+      }),
+    ).toEqual([
+      {
+        kind: "set_instance_symbol",
+        instanceId: "A1",
+        symbolId: "comparator-unmarked-inputs-swapped",
       },
     ]);
   });

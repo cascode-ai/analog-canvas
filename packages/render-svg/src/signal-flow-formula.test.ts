@@ -120,14 +120,14 @@ describe("Signal Flow formula renderer", () => {
     const upright = renderUprightSignalFlowFormula(
       presentation,
       undefined,
-      { position: { x: 100, y: 80 }, rotation: 90, mirror: "x" },
+      { position: { x: 100, y: 80 }, rotation: 90, mirror: "horizontal" },
       { foreground: "#000000", profile },
     );
 
-    // (10, 5) mirrors to (-10, 5), rotates to (-5, -10), then translates
-    // to (95, 70). The inner formula keeps its own (10, 5) coordinates.
+    // (10, 5) rotates to (-5, 10), mirrors horizontally to (5, 10), then
+    // translates to (105, 90). The inner formula keeps its own coordinates.
     expect(upright).toContain(
-      'data-role="upright-signal-flow-formula" transform="translate(85 65)"',
+      'data-role="upright-signal-flow-formula" transform="translate(95 85)"',
     );
     expect(upright).toContain('data-role="signal-flow-formula"');
     expect(upright).not.toContain("rotate(");
@@ -139,7 +139,11 @@ describe("Signal Flow formula renderer", () => {
     document.instances.push({
       id: "B1",
       symbolId: "formula-block",
-      placement: { position: { x: 100, y: 100 }, rotation: 90, mirror: "x" },
+      placement: {
+        position: { x: 100, y: 100 },
+        rotation: 90,
+        mirror: "horizontal",
+      },
       styleOverride: { foreground: "#123456" },
       signalFlowParameters: {
         formula: "1/s",
@@ -162,7 +166,7 @@ describe("Signal Flow formula renderer", () => {
     expect(scene.formalBody).toContain('data-role="formula-coefficient"');
     expect(scene.formalBody).toContain('stroke="#123456"');
     expect(scene.formalBody).toContain(
-      'transform="translate(100 100) rotate(90) scale(-1 1)"',
+      'transform="translate(100 100) scale(-1 1) rotate(90)"',
     );
     expect(scene.formalBody).toContain('data-pin-name="A"');
     expect(scene.formalBody).toContain('data-pin-name="Y"');

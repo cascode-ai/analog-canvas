@@ -1,4 +1,4 @@
-import { createEmptyDocument } from "@icm/model";
+import { createEmptyDocument, SchematicDocumentSchema } from "@icm/model";
 import type { Annotation, SchematicDocument } from "@icm/model";
 import {
   defaultInstanceLabelPlacement,
@@ -150,7 +150,7 @@ describe("followAttachedAnnotations rigid fallback", () => {
       { x: 200, y: 100 },
       { rotation: 0, mirror: "none" },
       { x: 200, y: 100 },
-      { rotation: 0, mirror: "x" },
+      { rotation: 0, mirror: "horizontal" },
       new Set(),
       resolver,
     );
@@ -174,6 +174,24 @@ describe("followAttachedAnnotations rigid fallback", () => {
       resolver,
     );
     expect(annotation.alignment).toBe("start");
+  });
+
+  it("persists a user-moved label through a 45-degree turn", () => {
+    const { document, annotation } = documentWithDraggedLabel();
+    followAttachedAnnotations(
+      document,
+      "R1",
+      { x: 200, y: 100 },
+      { rotation: 0, mirror: "none" },
+      { x: 200, y: 100 },
+      { rotation: 45, mirror: "none" },
+      new Set(),
+      resolver,
+    );
+    if (annotation.anchor.kind !== "object") throw new Error("anchor kind");
+    expect(annotation.anchor.localOffset).toEqual({ x: 46, y: 53 });
+    expect(annotation.anchor.fallbackPosition).toEqual({ x: 246, y: 153 });
+    expect(SchematicDocumentSchema.safeParse(document).success).toBe(true);
   });
 
   it("flips the alignment through a half turn", () => {

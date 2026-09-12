@@ -56,7 +56,7 @@ function fixtureDocument(): SchematicDocument {
   document.instances.find((i) => i.id === "B")!.placement = {
     position: { x: 120, y: 300 },
     rotation: 0,
-    mirror: "x",
+    mirror: "horizontal",
   };
   // E: rotation 270 puts its pin contact at (pos.x, pos.y-10), outward north.
   document.instances.find((i) => i.id === "E")!.placement = {

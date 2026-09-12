@@ -201,3 +201,5 @@ export {
 } from "./transforms/simulation-source.js";
 export { upgradeSchema49To50 } from "./transforms/simulation-folders.js";
 export { upgradeSchema50To51 } from "./transforms/drafting-shape-paint.js";
+export { upgradeSchema51To52 } from "./transforms/mirror-directions.js";
+export { upgradeSchema52To53 } from "./transforms/rotation-steps.js";

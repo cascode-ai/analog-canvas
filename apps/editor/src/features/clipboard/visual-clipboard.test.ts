@@ -14,7 +14,11 @@ function fixture() {
   document.instances.push({
     id: "R1",
     symbolId: "resistor",
-    placement: { position: { x: 100, y: 100 }, rotation: 90, mirror: "x" },
+    placement: {
+      position: { x: 100, y: 100 },
+      rotation: 90,
+      mirror: "horizontal",
+    },
   });
   document.nets.push({
     id: "supply",

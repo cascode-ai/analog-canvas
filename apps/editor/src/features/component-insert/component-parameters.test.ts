@@ -14,16 +14,71 @@ import {
 } from "@icm/devices";
 
 describe("component parameter catalogue", () => {
-  it("keeps R/L/C values as raw strings with their physical unit hints", () => {
+  it("seeds fixed and adjustable R/L/C values with their physical units", () => {
     expect(componentParameters("resistor")).toMatchObject([
-      { key: "value", unit: "Ohm", help: "Resistance" },
+      { key: "value", unit: "Ohm", defaultValue: "1k", help: "Resistance" },
     ]);
     expect(componentParameters("capacitor")).toMatchObject([
-      { key: "value", unit: "F", help: "Capacitance" },
+      { key: "value", unit: "F", defaultValue: "1p", help: "Capacitance" },
+    ]);
+    expect(componentParameters("inductor-compact")).toMatchObject([
+      { key: "value", unit: "H", defaultValue: "1n", help: "Inductance" },
     ]);
     expect(componentParameters("inductor")).toMatchObject([
-      { key: "value", unit: "H", help: "Inductance" },
+      { key: "value", unit: "H", defaultValue: "1n", help: "Inductance" },
     ]);
+    expect(componentParameters("variable-resistor")).toMatchObject([
+      { key: "value", unit: "Ohm", defaultValue: "1k" },
+    ]);
+    expect(componentParameters("variable-capacitor")).toMatchObject([
+      { key: "value", unit: "F", defaultValue: "1p" },
+    ]);
+    expect(componentParameters("variable-inductor")).toMatchObject([
+      { key: "value", unit: "H", defaultValue: "1n" },
+    ]);
+    expect(initialComponentParameterValues("resistor")).toEqual({
+      value: "1k",
+    });
+    expect(initialComponentParameterValues("capacitor")).toEqual({
+      value: "1p",
+    });
+    expect(initialComponentParameterValues("inductor-compact")).toEqual({
+      value: "1n",
+    });
+    expect(initialComponentParameterValues("variable-resistor")).toEqual({
+      value: "1k",
+    });
+    expect(initialComponentParameterValues("variable-capacitor")).toEqual({
+      value: "1p",
+    });
+    expect(initialComponentParameterValues("variable-inductor")).toEqual({
+      value: "1n",
+    });
+  });
+
+  it("seeds compound magnetic devices without reducing them to one value", () => {
+    expect(componentParameters("tcoil")).toMatchObject([
+      { key: "l1", unit: "H", defaultValue: "1n" },
+      { key: "l2", unit: "H", defaultValue: "1n" },
+      { key: "k", defaultValue: "1" },
+      { key: "cb", unit: "F", defaultValue: "1p" },
+    ]);
+    expect(initialComponentParameterValues("tcoil")).toEqual({
+      l1: "1n",
+      l2: "1n",
+      k: "1",
+      cb: "1p",
+    });
+    expect(componentParameters("xfmr")).toMatchObject([
+      { key: "lp", unit: "H", defaultValue: "1n" },
+      { key: "ls", unit: "H", defaultValue: "1n" },
+      { key: "k", defaultValue: "1" },
+    ]);
+    expect(initialComponentParameterValues("xfmr")).toEqual({
+      lp: "1n",
+      ls: "1n",
+      k: "1",
+    });
   });
 
   it("uses W, L, NF, and M for manual MOS authoring", () => {

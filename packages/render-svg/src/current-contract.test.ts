@@ -453,4 +453,48 @@ describe("current rendering contract", () => {
     expect(svg).not.toContain('data-route-presentation="bulk-dashed"');
     expect(svg).not.toContain('stroke-dasharray="3 3"');
   });
+
+  it("paints a MOS bulk route with its owning instance foreground", () => {
+    const document = createEmptyDocument("doc", "MOS bulk color");
+    document.instances.push({
+      id: "M1",
+      symbolId: "nmos",
+      placement: {
+        position: { x: 100, y: 100 },
+        rotation: 0,
+        mirror: "none",
+      },
+      styleOverride: { foreground: "#dc2626" },
+    });
+    document.nets.push({
+      id: "bulk-net",
+      terminals: [{ instanceId: "M1", pinName: "B" }],
+    });
+    document.junctions.push({
+      id: "bulk-anchor",
+      netId: "bulk-net",
+      position: { x: 160, y: 100 },
+      role: "route-anchor",
+    });
+    document.routes.push(
+      createRoutePath({
+        id: "bulk-route",
+        netId: "bulk-net",
+        start: { kind: "terminal", instanceId: "M1", pinName: "B" },
+        end: { kind: "junction", junctionId: "bulk-anchor" },
+        bends: [],
+        modes: ["manual"],
+        presentation: "bulk-dashed",
+        styleOverride: { color: "#059669" },
+      }),
+    );
+
+    const svg = renderDocumentSvg(document, resolver);
+    const route = svg.match(
+      /<polyline[^>]*data-object-id="bulk-route"[^>]*>/u,
+    )?.[0];
+    expect(route).toContain('data-route-presentation="bulk-dashed"');
+    expect(route).toContain('stroke="#dc2626"');
+    expect(route).not.toContain('stroke="#059669"');
+  });
 });

@@ -4,6 +4,7 @@ import {
   renderUprightSignalFlowFormula,
   renderVisiblePinNames,
 } from "@icm/render-svg";
+import type { Mirror, Rotation } from "@icm/model";
 import type { SymbolDefinition } from "@icm/symbols";
 
 import { defaultRazaviSymbolVariantId } from "../../presentation/razavi-presentation";
@@ -11,8 +12,8 @@ import { defaultRazaviSymbolVariantId } from "../../presentation/razavi-presenta
 export function renderSymbolPreviewPinNames(
   symbol: SymbolDefinition,
   hiddenPinNames: readonly string[],
-  rotation: 0 | 90 | 180 | 270,
-  mirror: "none" | "x" = "none",
+  rotation: Rotation,
+  mirror: Mirror = "none",
 ): string {
   return renderVisiblePinNames(
     symbol,
@@ -39,7 +40,7 @@ export function SymbolArtwork({
 }: {
   symbol: SymbolDefinition;
   className: string;
-  rotation?: 0 | 90 | 180 | 270;
+  rotation?: Rotation;
   paddingRatio?: number;
 }) {
   const variantId = defaultRazaviSymbolVariantId(symbol.id);
@@ -72,7 +73,7 @@ export function SymbolArtwork({
       ? `${x - padding} ${y - padding} ${width + padding * 2} ${height + padding * 2}`
       : (() => {
           // Insert rotation is around the electrical Symbol origin. Use the
-          // union of all quarter-turn bounds so the preview neither clips nor
+          // union of all supported-turn bounds so the preview neither clips nor
           // changes scale when R rotates an asymmetric symbol.
           const extent =
             Math.max(

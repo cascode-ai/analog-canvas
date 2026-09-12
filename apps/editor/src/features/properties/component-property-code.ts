@@ -1,4 +1,4 @@
-import type { SchematicDocument } from "@icm/model";
+import type { Rotation, SchematicDocument } from "@icm/model";
 import {
   componentPropertyDetailsValue,
   parseComponentPropertyDetails,
@@ -12,6 +12,11 @@ import {
   colorToRgb,
   parseCanvasColor,
 } from "./component-property-fields";
+import {
+  componentInputPolarity,
+  componentInternalMark,
+  NO_INTERNAL_MARK,
+} from "./component-visual-variants";
 
 type Instance = SchematicDocument["instances"][number];
 
@@ -19,8 +24,8 @@ export type ComponentPropertyColor = "auto" | `#${string}`;
 
 export interface ComponentPropertyPlacementCode {
   at: [number, number];
-  rotation: 0 | 90 | 180 | 270;
-  mirror: "none" | "x";
+  rotation: Rotation;
+  mirror: "none" | "horizontal" | "vertical" | "both";
 }
 
 export interface ComponentPropertyDisplayCode {
@@ -33,6 +38,8 @@ export interface ComponentPropertyCodeValue extends ComponentPropertyDetailsValu
   display?: ComponentPropertyDisplayCode;
   appearance: {
     foreground: ComponentPropertyColor;
+    internalMark?: string;
+    inputPolarity?: boolean;
   };
 }
 
@@ -128,7 +135,7 @@ function parsePlacement(
   }
   return {
     at: [at[0] as number, at[1] as number],
-    rotation: rotation as 0 | 90 | 180 | 270,
+    rotation: rotation as Rotation,
     mirror: mirror as ComponentPropertyPlacementCode["mirror"],
   };
 }
@@ -159,10 +166,51 @@ function parseDisplay(
   return display;
 }
 
+function parseAppearance(
+  value: Record<string, unknown>,
+  context: ComponentPropertyCodeContext,
+): ComponentPropertyCodeValue["appearance"] {
+  const internalMark = componentInternalMark(context.instance);
+  const inputPolarity = componentInputPolarity(context.instance.symbolId);
+  const supported = new Set<string>(["foreground"]);
+  if (internalMark !== undefined) supported.add("internalMark");
+  if (inputPolarity !== undefined) supported.add("inputPolarity");
+  const unknown = unexpectedKey(value, supported, "appearance");
+  if (unknown) throw new Error(unknown);
+  if (!("foreground" in value))
+    throw new Error("appearance.foreground is required");
+  const appearance: ComponentPropertyCodeValue["appearance"] = {
+    foreground: parseCanvasColor(value.foreground, "appearance.foreground"),
+  };
+  if (internalMark !== undefined) {
+    if (!("internalMark" in value))
+      throw new Error("appearance.internalMark is required");
+    if (
+      typeof value.internalMark !== "string" ||
+      !value.internalMark.trim() ||
+      value.internalMark.length > 64
+    )
+      throw new Error(
+        'appearance.internalMark must be "none" or nonempty custom text of at most 64 characters',
+      );
+    appearance.internalMark = value.internalMark.trim();
+  }
+  if (inputPolarity !== undefined) {
+    if (!("inputPolarity" in value))
+      throw new Error("appearance.inputPolarity is required");
+    if (typeof value.inputPolarity !== "boolean")
+      throw new Error("appearance.inputPolarity must be true or false");
+    appearance.inputPolarity = value.inputPolarity;
+  }
+  return appearance;
+}
+
 export function componentPropertyCodeValue(
   context: ComponentPropertyCodeContext,
 ): ComponentPropertyCodeValue {
   const { instance } = context;
+  const internalMark = componentInternalMark(instance);
+  const inputPolarity = componentInputPolarity(instance.symbolId);
   const display: ComponentPropertyDisplayCode = {};
   if (context.referenceVisible !== null) {
     display.reference = context.referenceVisible;
@@ -180,6 +228,8 @@ export function componentPropertyCodeValue(
     ...(Object.keys(display).length > 0 ? { display } : {}),
     appearance: {
       foreground: formattedColor(instance.styleOverride?.foreground),
+      ...(internalMark !== undefined ? { internalMark } : {}),
+      ...(inputPolarity !== undefined ? { inputPolarity } : {}),
     },
   };
 }
@@ -187,14 +237,23 @@ export function componentPropertyCodeValue(
 export function serializeComponentPropertyCode(
   value: ComponentPropertyCodeValue,
 ): string {
+  const { display, placement, appearance, ...details } = value;
   const source = JSON.stringify(
     {
-      ...value,
+      ...(display ? { display } : {}),
+      ...details,
+      placement,
       appearance: {
         foreground:
-          value.appearance.foreground === "auto"
+          appearance.foreground === "auto"
             ? "auto"
-            : colorToRgb(value.appearance.foreground),
+            : colorToRgb(appearance.foreground),
+        ...(appearance.internalMark !== undefined
+          ? { internalMark: appearance.internalMark }
+          : {}),
+        ...(appearance.inputPolarity !== undefined
+          ? { inputPolarity: appearance.inputPolarity }
+          : {}),
       },
     },
     null,
@@ -233,15 +292,14 @@ export function parseComponentPropertyCode(
     if (!isRecord(decoded.appearance)) {
       throw new Error("appearance must be an object");
     }
+    // Keep the shared field registry honest, while the component-specific
+    // parser below decides which of those appearance controls is available.
     const appearanceUnknown = unexpectedKey(
       decoded.appearance,
       APPEARANCE_KEYS,
       "appearance",
     );
     if (appearanceUnknown) throw new Error(appearanceUnknown);
-    if (!("foreground" in decoded.appearance)) {
-      throw new Error("appearance.foreground is required");
-    }
     const display = parseDisplay(decoded.display, context);
     return {
       ok: true,
@@ -257,12 +315,7 @@ export function parseComponentPropertyCode(
           context.details !== undefined,
         ),
         ...(display ? { display } : {}),
-        appearance: {
-          foreground: parseCanvasColor(
-            decoded.appearance.foreground,
-            "appearance.foreground",
-          ),
-        },
+        appearance: parseAppearance(decoded.appearance, context),
       },
     };
   } catch (error) {
@@ -281,7 +334,15 @@ export function defaultComponentPropertyCode(
   const value = componentPropertyCodeValue(context);
   if (value.placement)
     value.placement = { ...value.placement, rotation: 0, mirror: "none" };
-  value.appearance = { foreground: "auto" };
+  value.appearance = {
+    foreground: "auto",
+    ...(value.appearance.internalMark !== undefined
+      ? { internalMark: NO_INTERNAL_MARK }
+      : {}),
+    ...(value.appearance.inputPolarity !== undefined
+      ? { inputPolarity: true }
+      : {}),
+  };
   if (value.parameters && context.details) {
     // Preserve unknown model overrides; only descriptor-owned defaults are known.
     for (const parameter of context.details.parameters)

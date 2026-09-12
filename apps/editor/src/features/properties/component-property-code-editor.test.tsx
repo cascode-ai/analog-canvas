@@ -29,11 +29,11 @@ describe("ComponentPropertyCodeEditor", () => {
     expect(markup).not.toContain("Component properties");
     expect(markup).toContain('aria-label="Defaults"');
     expect(markup).not.toContain("Need help?");
-    expect(markup).toContain("<legend>Line</legend>");
-    expect(markup).toContain('aria-label="Line presets"');
-    expect(markup).toContain('aria-label="Line custom RGB"');
+    expect(markup).not.toContain("<legend>Line</legend>");
+    expect(markup).not.toContain('aria-label="Line presets"');
+    expect(markup).not.toContain('aria-label="Line custom RGB"');
     expect(markup).not.toContain("Background");
-    expect(markup).toContain("Live");
+    expect(markup).not.toContain("Live");
     expect(markup).toContain('aria-label="Copy JSON"');
     expect(markup).toContain('title="Copy JSON"');
     expect(markup.indexOf('aria-label="Copy JSON"')).toBeLessThan(

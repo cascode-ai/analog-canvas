@@ -50,7 +50,12 @@ describe("instance style override rendering", () => {
       expect(negativeMarks).toHaveLength(expectedMarkCount);
 
       for (const rotation of [0, 90, 180, 270] as const) {
-        for (const mirror of ["none", "x"] as const) {
+        for (const mirror of [
+          "none",
+          "horizontal",
+          "vertical",
+          "both",
+        ] as const) {
           const placement = {
             position: { x: 100, y: 80 },
             rotation,

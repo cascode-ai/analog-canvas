@@ -34,14 +34,14 @@ const context = {
 describe("component property code", () => {
   it("formats placement as one coordinate and makes display/style explicit", () => {
     expect(formatComponentPropertyCode(context)).toBe(`{
+  "display": {
+    "reference": true,
+    "value": false
+  },
   "placement": {
     "at": [360, 240],
     "rotation": 90,
     "mirror": "none"
-  },
-  "display": {
-    "reference": true,
-    "value": false
   },
   "appearance": {
     "foreground": "auto"
@@ -53,13 +53,13 @@ describe("component property code", () => {
     const source = formatComponentPropertyCode(context)
       .replace("360", "420")
       .replace('"rotation": 90', '"rotation": 180')
-      .replace('"mirror": "none"', '"mirror": "x"')
+      .replace('"mirror": "none"', '"mirror": "horizontal"')
       .replace('"value": false', '"value": true')
       .replace('"foreground": "auto"', '"foreground": "#DC2626"');
     expect(parseComponentPropertyCode(source, context)).toEqual({
       ok: true,
       value: {
-        placement: { at: [420, 240], rotation: 180, mirror: "x" },
+        placement: { at: [420, 240], rotation: 180, mirror: "horizontal" },
         display: { reference: true, value: true },
         appearance: { foreground: "#DC2626" },
       },
@@ -69,11 +69,11 @@ describe("component property code", () => {
   it("rejects unsupported and malformed properties instead of guessing", () => {
     const source = formatComponentPropertyCode(context).replace(
       '"rotation": 90',
-      '"rotation": 45',
+      '"rotation": 30',
     );
     expect(parseComponentPropertyCode(source, context)).toEqual({
       ok: false,
-      message: "placement.rotation must be 0, 90, 180, 270",
+      message: "placement.rotation must be 0, 45, 90, 135, 180, 225, 270, 315",
     });
 
     const extra = formatComponentPropertyCode(context).replace(
@@ -99,8 +99,8 @@ describe("component property code", () => {
 
   it("keeps tray membership outside free-form property edits", () => {
     const source = formatComponentPropertyCode(context).replace(
-      /"placement": \{[\s\S]*?\n  \},\n  "display"/u,
-      '"placement": null,\n  "display"',
+      /"placement": \{[\s\S]*?\n  \},\n  "appearance"/u,
+      '"placement": null,\n  "appearance"',
     );
     expect(parseComponentPropertyCode(source, context)).toEqual({
       ok: false,
@@ -134,5 +134,89 @@ describe("component property code", () => {
     expect(
       parseComponentPropertyCode(JSON.stringify(decoded), context).ok,
     ).toBe(false);
+  });
+
+  it("projects merged amplifier marks through appearance instead of duplicate signal-flow code", () => {
+    const opamp = {
+      ...instance,
+      symbolId: "opamp-lettered",
+      reference: "A1",
+      netlist: undefined,
+      signalFlowParameters: { formula: "G" },
+    };
+    const opampContext = {
+      instance: opamp,
+      referenceVisible: true,
+      valueVisible: null,
+      details: { parameters: [], signalFlow: true },
+    };
+    const decoded = JSON.parse(formatComponentPropertyCode(opampContext));
+    expect(decoded.appearance).toEqual({
+      foreground: "auto",
+      internalMark: "G",
+    });
+    expect(decoded).not.toHaveProperty("signalFlow");
+    expect(
+      parseComponentPropertyCode(JSON.stringify(decoded), opampContext),
+    ).toMatchObject({
+      ok: true,
+      value: { appearance: { internalMark: "G" } },
+    });
+
+    const plainContext = {
+      ...opampContext,
+      instance: {
+        ...opamp,
+        symbolId: "opamp",
+        signalFlowParameters: undefined,
+      },
+    };
+    expect(
+      JSON.parse(formatComponentPropertyCode(plainContext)).appearance
+        .internalMark,
+    ).toBe("none");
+  });
+
+  it("projects comparator polarity as one inline-editable appearance state", () => {
+    for (const [symbolId, inputPolarity] of [
+      ["comparator", true],
+      ["comparator-unmarked", false],
+    ] as const) {
+      const comparatorContext = {
+        ...context,
+        instance: { ...instance, symbolId, netlist: undefined },
+      };
+      const decoded = JSON.parse(
+        formatComponentPropertyCode(comparatorContext),
+      );
+      expect(decoded.appearance.inputPolarity).toBe(inputPolarity);
+      expect(
+        parseComponentPropertyCode(JSON.stringify(decoded), comparatorContext)
+          .ok,
+      ).toBe(true);
+    }
+  });
+
+  it("rejects unavailable or malformed merged appearance fields", () => {
+    const resistor = JSON.parse(formatComponentPropertyCode(context));
+    resistor.appearance.internalMark = "A";
+    expect(
+      parseComponentPropertyCode(JSON.stringify(resistor), context),
+    ).toEqual({
+      ok: false,
+      message: "appearance.internalMark is not a supported property",
+    });
+
+    const opampContext = {
+      ...context,
+      instance: { ...instance, symbolId: "opamp", netlist: undefined },
+    };
+    for (const internalMark of ["", " ", "x".repeat(65)]) {
+      const decoded = JSON.parse(formatComponentPropertyCode(opampContext));
+      decoded.appearance.internalMark = internalMark;
+      expect(
+        parseComponentPropertyCode(JSON.stringify(decoded), opampContext).ok,
+      ).toBe(false);
+    }
   });
 });

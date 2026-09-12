@@ -1,7 +1,4 @@
-import {
-  CURRENT_PROJECT_SCHEMA_VERSION,
-  LegacyProjectSimulationSetupSchema,
-} from "@icm/model";
+import { LegacyProjectSimulationSetupSchema } from "@icm/model";
 import { describe, expect, it } from "vitest";
 import {
   CircuitProjectSchema,
@@ -9,7 +6,10 @@ import {
   type SimulationRunVariant,
   type ProjectSimulationFolder,
 } from "@icm/model";
-import ota from "../../../apps/editor/src/examples/five-transistor-ota-sky130.icproj.json";
+import {
+  currentFiveTransistorOtaCircuitSource,
+  legacyFiveTransistorOta as ota,
+} from "../../../apps/editor/src/examples/five-transistor-ota.test-support.js";
 const legacySetups = () =>
   ota.simulationSetups.map((s) => LegacyProjectSimulationSetupSchema.parse(s));
 import { migrateSimulationSetupToSource } from "./simulation-source-migration.js";
@@ -19,13 +19,9 @@ import { compileSourceSimulation } from "./simulation-source-compile.js";
 import { locateSimulationText } from "./simulation-source-map.js";
 
 function fixture() {
-  const project = CircuitProjectSchema.parse({
-    ...Object.fromEntries(
-      Object.entries(ota).filter(([key]) => key !== "simulationSetups"),
-    ),
-    schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
-    simulationFolders: [],
-  });
+  const project = CircuitProjectSchema.parse(
+    currentFiveTransistorOtaCircuitSource(),
+  );
   const folder = migrateSimulationSetupToSource(
     project,
     legacySetups()[0]!,
@@ -167,13 +163,7 @@ describe("native source run projection", () => {
       ),
     ).toBe(true);
     expect(f.project).toEqual(
-      CircuitProjectSchema.parse({
-        ...Object.fromEntries(
-          Object.entries(ota).filter(([key]) => key !== "simulationSetups"),
-        ),
-        schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
-        simulationFolders: [],
-      }),
+      CircuitProjectSchema.parse(currentFiveTransistorOtaCircuitSource()),
     );
   });
   it("leaves unbound native expressions to ngspice and only requires finite values for managed projection", () => {

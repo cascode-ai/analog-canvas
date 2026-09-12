@@ -4,12 +4,36 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   EndpointActionsSection,
+  GroupPropertiesSection,
   MosBulkConnectionSection,
   RouteActionsSection,
   RoutingGuidanceSection,
 } from "./selection-context-actions";
 
 describe("selection context actions", () => {
+  it("uses one code surface for a multi-component selection", () => {
+    const markup = renderToStaticMarkup(
+      <GroupPropertiesSection
+        active
+        count={4}
+        revision={3}
+        context={{
+          reference: "mixed",
+          value: false,
+          foreground: "mixed",
+        }}
+        defaultForeground="#000000"
+        onApply={vi.fn(() => ({ ok: true as const }))}
+      />,
+    );
+    expect(markup).toContain('aria-label="Batch component properties"');
+    expect(markup).toContain("4 selected");
+    expect(markup).toContain('aria-label="Loading batch property code"');
+    expect(markup).toContain("mixed");
+    expect(markup).not.toContain("Canvas labels");
+    expect(markup).not.toContain("Visual annotation");
+  });
+
   it.each([
     ["unresolved", null, "Unconnected", "Choose a net"],
     ["no-connect", null, "No Connect", "Intentionally left unconnected"],
@@ -90,6 +114,35 @@ describe("selection context actions", () => {
     expect(markup).toContain("Arrow at end");
     expect(markup).toContain("Add current arrow");
     expect(markup).toContain("Clear Net highlight (H)");
+  });
+
+  it("presents a MOS bulk route as instance-owned instead of a generic wire", () => {
+    const markup = renderToStaticMarkup(
+      <RouteActionsSection
+        active
+        bulkOwnerLabel="M1"
+        netLabelInputRef={createRef<HTMLInputElement>()}
+        netLabel=""
+        color="#059669"
+        arrow="middle"
+        defaultColor="#000"
+        highlightActive={false}
+        onNetLabelChange={vi.fn()}
+        onColorChange={vi.fn()}
+        onArrowChange={vi.fn()}
+        onDeleteNetLabel={vi.fn()}
+        onAddCurrentArrow={vi.fn()}
+        onToggleHighlight={vi.fn()}
+        onDeleteWire={vi.fn()}
+      />,
+    );
+    expect(markup).toContain('aria-label="MOS bulk route actions"');
+    expect(markup).toContain("Bulk connection");
+    expect(markup).toContain("Follows <strong>M1</strong> line color");
+    expect(markup).toContain("Delete bulk connection");
+    expect(markup).not.toContain("Electrical route");
+    expect(markup).not.toContain("Wire color");
+    expect(markup).not.toContain("Direction arrow");
   });
 
   it("blocks No Connect while a terminal remains connected", () => {

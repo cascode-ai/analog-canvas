@@ -24,7 +24,7 @@
         {
           "id": "B",
           "placement": {
-            "mirror": "x",
+            "mirror": "horizontal",
             "position": {
               "x": 460,
               "y": 300
@@ -170,7 +170,7 @@
   "externalSubcircuitDefinitions": [],
   "id": "project-routing",
   "name": "Phase 3 Routing Demo",
-  "schemaVersion": 51,
+  "schemaVersion": 53,
   "simulationFolders": [],
   "source": {
     "dialect": "none",

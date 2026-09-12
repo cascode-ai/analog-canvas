@@ -19,12 +19,12 @@ and named symbol variants with their own stable IDs follow the same rule.
 
 ## What a definition owns
 
-| Field | Responsibility |
-| --- | --- |
-| `schemaVersion` | Component authoring envelope version, independent of Project schema |
-| `symbol` | Complete Symbol DSL: primitives, arrows, pins, anchors and variants |
-| `electrical` | Complete DeviceDescriptor: parameters/defaults, pin semantics, model/netlist policy; explicit `null` when no descriptor exists |
-| `catalog` | Library, review/visual authority, category, palette eligibility and generation provenance |
+| Field           | Responsibility                                                                                                                 |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `schemaVersion` | Component authoring envelope version, independent of Project schema                                                            |
+| `symbol`        | Complete Symbol DSL: primitives, arrows, pins, anchors and variants                                                            |
+| `electrical`    | Complete DeviceDescriptor: parameters/defaults, pin semantics, model/netlist policy; explicit `null` when no descriptor exists |
+| `catalog`       | Library, review/visual authority, category, palette eligibility and generation provenance                                      |
 
 `electrical: null` does not claim simulation support. Conversely, a non-null
 descriptor with `targetPolicy: "none"` may provide naming/authoring semantics
@@ -89,14 +89,17 @@ The product set is exactly the reviewed, Reference-calibrated entries:
   plates and leads. PDF-native evidence governs winding placement, bridge
   topology, and polarity-dot clearance; neither Symbol draws a circle at an
   external pin. Both remain manual-only until compound L/K/C or subcircuit
-  lowering has an explicit contract;
+  lowering has an explicit contract. Placement still authors complete starting
+  parameters: T-coil uses `L1=1n`, `L2=1n`, `K=1`, and `CB=1p`; XFMR uses
+  `Lp=1n`, `Ls=1n`, and `K=1`;
 - `diode` and `zener-diode`. The Zener body is direct PDF-vector evidence from
   _Fundamentals of Microelectronics_, Figure 3.44(a). Both retain the SPICE D
   electrical contract, but Zener presentation is manual or PDK-mapped because
   ordinary D syntax does not identify breakdown use;
 - the behavioral block family `inverter`, `and-gate`, `or-gate`, `nand-gate`,
   `nor-gate`, `xor-gate`, `xnor-gate`, `buffer`, `delay-cell`,
-  `d-flip-flop`, `comparator`, and its polarity-unmarked sibling
+  `d-flip-flop`, its active-high asynchronous-reset sibling
+  `d-flip-flop-reset`, `comparator`, and its polarity-unmarked sibling
   `comparator-unmarked` (manual-only netlist mapping, like `opamp`). Inverter, AND,
   NAND, NOR, and XOR use hash-pinned native-vector evidence from textbook
   Figures 16.2, 16.24, and 16.25. Buffer and the generic D/CK/Q/Q-bar flip-flop

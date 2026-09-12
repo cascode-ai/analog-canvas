@@ -87,8 +87,16 @@ properties together as strict, editable JSON. For example, a resistor:
 ```
 
 `placement.at` is the `[x, y]` grid coordinate, rotation is restricted to
-quarter turns, and mirror is `"none"` or `"x"`. Display keys appear only for
-annotations supported by that Symbol. Fixed colors are displayed as compact
+45-degree steps, and mirror is `"none"`, `"horizontal"`, `"vertical"`, or
+`"both"`. Display keys appear only for
+annotations supported by that Symbol; when present, the `display` object is
+serialized first because it contains the most frequently toggled presentation
+state. Newly placed Resistor, Capacitor, and Inductor devices, including their
+adjustable variants, author `1k`, `1p`, and `1n` as their initial netlist
+values. T-coil starts with `L1=1n`, `L2=1n`, `K=1`, and `CB=1p`; XFMR starts
+with `Lp=1n`, `Ls=1n`, and `K=1`. These compound-device parameters remain
+authoring values until an explicit structural lowering contract is added.
+Fixed colors are displayed as compact
 `[R, G, B]` tuples with integer channels 0–255; six-digit hex input remains
 accepted and persisted instance colors remain hex. Four direct line-color
 controls provide light gray, red, green, and blue, while three bounded RGB
@@ -113,14 +121,22 @@ and Cell-level interface/layout operations retain their existing typed
 authoring surfaces; removing a component remains an explicit Delete action.
 
 The lazy JSON editor provides syntax highlighting, bracket matching, JSON
-diagnostics and local text undo. The content is ordinary selectable text: it
-contains no injected comments, value chips, selectors, switches, or other DOM
-widgets. Canvas-layer field metadata still owns validation of rotation, mirror,
-color channels, and other bounded values. A separate Line fieldset below the
-editor offers light gray, red, green, and blue shortcuts plus custom RGB and an
-Auto reset. It edits the same draft as typing; valid edits transact immediately
-through the existing planner. Incomplete syntax disables that external color
-control until the code is valid again.
+diagnostics and local text undo. Its document is ordinary selectable text with
+no injected comments or control values. Canvas-layer field metadata still owns
+validation of rotation, mirror, color channels, and other bounded values. A
+small, non-text switch is visually decorated after each `display.reference` and
+`display.value` boolean for immediate visibility toggling. Compact action
+buttons after `placement.rotation` and `placement.mirror` cycle clockwise
+through the eight 45-degree orientations and reflect left/right or top/bottom. Horizontal
+and vertical reflection are persisted independently; mirror actions never
+rewrite `placement.rotation`, and applying both records `"both"`. A matching color
+button after `appearance.foreground` opens an anchored chooser for light gray,
+red, green, blue, black, and one compact bounded RGB tuple input. `"auto"`
+remains available through direct JSON editing. These controls never enter the
+document, so selection, Copy JSON, and saving contain only authored JSON. Their
+changes edit the same draft as typing and valid edits transact immediately
+through the existing planner. Invalid syntax or values disable the controls
+until the code is valid again.
 Invalid or rejected drafts preserve the last accepted canvas state. External
 undo/redo synchronizes the editor without replaying edits; Escape blurs this
 editor without applying legacy form drafts or discarding incomplete text.
@@ -175,7 +191,11 @@ Imported MOS instances do not receive a guessed fourth node.
 Properties shows Bulk as one compact row: its current Net or an explicit
 Unconnected/No Connect state sits beside the draw action. Hovering the status
 reveals the terminal and binding source; a drawn route's dashed presentation
-is described there too. Unresolved bulk is not repeated as a second message.
+is described there too. A visible bulk route inherits its owning MOS instance's
+foreground color instead of carrying independent wire styling. Selecting that
+route identifies it as `Bulk · <instance>` and offers only the bulk-specific
+delete action, rather than the generic wire color, label, and arrow controls.
+Unresolved bulk is not repeated as a second message.
 Drawing is disabled for retained-unplaced instances until they are placed.
 
 ## Formula-capable behavioral blocks
@@ -296,16 +316,16 @@ removes the latest authored step rather than an automatically compiled elbow.
 Activating the same tool is idempotent: repeated C, W, A, K, or selection of the
 same Library item preserves the active session. Activating a different creation
 tool replaces the current interaction atomically after drag and snap cleanup.
-During component or Copy Placement, `R` quarter-turns the transient preview;
+During component or Copy Placement, `R` turns the transient preview by 45 degrees;
 `Shift+R` mirrors it left/right and `Shift+V` mirrors it top/bottom. Every
 subsequent committed copy receives the same transient orientation, while the
 source selection remains unchanged. The background grid-dot button changes
 only the editor-local canvas paint. Instance reference labels use the first active Document grid line one interval beyond
 the drawn symbol ink. The padded interaction envelope never contributes to
 that clearance, and placement uses nearest-grid normalization for calibrated
-finite-decimal ink edges rather than directional outward snapping. A quarter
-turn reflows a canonical label from its local side at that fixed spacing; four
-quarter turns return its position and alignment to the initial values. Opening
+finite-decimal ink edges rather than directional outward snapping. A 45-degree
+turn reflows a canonical label from its local side at that fixed spacing; eight
+such turns return its position and alignment to the initial values. Opening
 I cancels the current canvas interaction before showing the dialog.
 Escape, Document switch, Project replacement, Clear Canvas, restore, and Agent
 focus reset all use the same transient-cancellation boundary.
@@ -438,8 +458,12 @@ selection entry point: a plain click replaces the selection, while
 `Shift`/`Ctrl`-click toggles that object without discarding other selected
 kinds. Right-clicking an already-selected one preserves the complete mixed
 selection and opens the shared context menu; right-clicking an unselected one
-selects it first. Device-swap choices appear only when the complete selection
-contains exactly one Instance.
+selects it first. The shared context menu is limited to direct selection
+operations: Duplicate, Rotate, horizontal/vertical Mirror, Delete, and Align
+when multiple eligible objects are selected. Device replacement, hierarchy
+creation/placement, and image export do not appear in the canvas context menu.
+Pin-compatible drawing variants remain explicit Properties code;
+selected-image clipboard export lives under Edit.
 
 Placed Instances, explicitly selected schematic annotations, and explicitly
 selected free or object-anchored DraftText are eligible participants. An
@@ -506,8 +530,10 @@ Netlist Reference: following annotations update, custom content copies exactly.
 Old additional annotations are retained as user-authored content rather than
 silently deleted; new edits never generate a hidden/default plus custom pair.
 For a Cell Pin, a character edit renames the terminal while a formatting-only
-edit persists a same-text annotation `formatOverride`. Properties exposes the
-Cell Pin name and direction. Net naming remains a Net Label operation.
+edit persists a same-text annotation `formatOverride`. Its name is edited on
+the canvas and its interface direction is managed in Cell Manager; Properties
+does not repeat either control below the component code. Net naming remains a
+Net Label operation.
 The renderer never synthesizes text from Instance IDs and no empty suppressor
 label exists. Visual annotation display is a Properties toggle for one or many
 selected components: hiding sets the annotation's optional `visible: false`
@@ -537,6 +563,13 @@ of moving a fallback position. Selecting a `power-rail` together with its power
 label is one visual deletion: the label removal is planned once, so the atomic
 transaction cannot reject a duplicated annotation removal. Drafting text has
 no electrical meaning.
+
+The standalone `+` and `−` entries in **Annotations** are fixed polarity
+marks, not editable text. Their vector-stroke center is the placement anchor,
+so the preview, snapped click point, persisted mark, hit target, and selection
+frame all share one center. Their empty compatibility content contributes no
+text bounds and double-click does not open the RichText editor. The combined
+`+ / text / −` polarity annotation remains editable in its center as before.
 
 Selecting an Annotation exposes its own Text color control. Auto removes only
 that Annotation's `textColor`; instance reference/value text then inherits the
@@ -570,7 +603,7 @@ Project through one replacement boundary; they are not Edit Engine
 transactions. Replacement cancels pending recovery for the outgoing Project
 and terminates its Agent session. A complete Project covered by the schema
 24→51 upgrade chain may be upgraded at the read boundary and then enters the
-editor only as schema-51; migrated files are marked as needing save.
+editor only as schema-53; migrated files are marked as needing save.
 
 Selection, viewport, active tool, previews, Agent tokens, and approval UI are
 transient and never enter Project JSON. Recovery is scheduled only after a

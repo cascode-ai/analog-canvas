@@ -294,7 +294,7 @@ describe("polarity drafting text", () => {
     );
   });
 
-  it("centers each one-sided form around the stable rotation anchor", () => {
+  it("centers each fixed one-sided mark exactly on its placement anchor", () => {
     const positive = polarityText("positive");
     const negative = polarityText("negative");
     const positiveGeometry = resolveDraftingObjectGeometry(
@@ -311,12 +311,28 @@ describe("polarity drafting text", () => {
       throw new Error("expected text geometry");
     }
 
-    expect(positiveGeometry.textPosition.y).toBeGreaterThan(80);
-    expect(negativeGeometry.textPosition.y).toBeLessThan(80);
+    expect(positiveGeometry.textPosition).toEqual({ x: 100, y: 80 });
+    expect(negativeGeometry.textPosition).toEqual({ x: 100, y: 80 });
     expect(positiveGeometry.polarityLines).toHaveLength(2);
     expect(negativeGeometry.polarityLines).toHaveLength(1);
+    expect(
+      positiveGeometry.polarityLines.every(
+        (line) => line.from.y <= 80 && line.to.y >= 80,
+      ),
+    ).toBe(true);
+    expect(negativeGeometry.polarityLines[0]).toMatchObject({
+      from: { y: 80 },
+      to: { y: 80 },
+    });
     expect(positiveGeometry.position).toEqual({ x: 100, y: 80 });
     expect(negativeGeometry.position).toEqual({ x: 100, y: 80 });
+    // Hidden placeholder content must not inflate the hit/selection box.
+    for (const geometry of [positiveGeometry, negativeGeometry]) {
+      expect(geometry.bounds.x + geometry.bounds.width / 2).toBeCloseTo(100);
+      expect(geometry.bounds.y + geometry.bounds.height / 2).toBeCloseTo(80);
+      expect(geometry.bounds.width).toBeLessThan(15);
+      expect(geometry.bounds.height).toBeLessThan(15);
+    }
   });
 
   it("rotates the complete three-part annotation around its center", () => {

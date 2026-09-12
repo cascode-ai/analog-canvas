@@ -43,6 +43,8 @@ import { repairLegacyReviewedExternalReferences } from "./transforms/reviewed-ex
 import { OLDEST_SUPPORTED_PROJECT_SCHEMA_VERSION } from "./version.js";
 import { upgradeSchema49To50 } from "./transforms/simulation-folders.js";
 import { upgradeSchema50To51 } from "./transforms/drafting-shape-paint.js";
+import { upgradeSchema51To52 } from "./transforms/mirror-directions.js";
+import { upgradeSchema52To53 } from "./transforms/rotation-steps.js";
 
 /**
  * One upgrade step per historical version, oldest first: entry N carries a
@@ -80,6 +82,8 @@ const UPGRADE_CHAIN: ReadonlyArray<
   upgradeSchema48To49,
   upgradeSchema49To50,
   upgradeSchema50To51,
+  upgradeSchema51To52,
+  upgradeSchema52To53,
 ];
 
 function isRecord(value: unknown): value is Record<string, unknown> {

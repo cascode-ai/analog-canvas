@@ -147,6 +147,56 @@ describe("selection inspection model", () => {
     expect(model.hasRotatableSelection).toBe(false);
   });
 
+  it("identifies a selected MOS bulk route by its owning instance", () => {
+    const project = createEmptyProject("project", "Project");
+    const document = project.documents[0]!;
+    document.instances.push({
+      id: "M1",
+      symbolId: "nmos",
+      placement: {
+        position: { x: 100, y: 100 },
+        rotation: 0,
+        mirror: "none",
+      },
+    });
+    document.nets.push({
+      id: "bulk-net",
+      terminals: [{ instanceId: "M1", pinName: "B" }],
+    });
+    document.junctions.push({
+      id: "bulk-anchor",
+      netId: "bulk-net",
+      position: { x: 160, y: 100 },
+      role: "route-anchor",
+    });
+    document.routes.push(
+      createRoutePath({
+        id: "bulk-route",
+        netId: "bulk-net",
+        start: { kind: "terminal", instanceId: "M1", pinName: "B" },
+        end: { kind: "junction", junctionId: "bulk-anchor" },
+        bends: [],
+        modes: ["manual"],
+        presentation: "bulk-dashed",
+      }),
+    );
+
+    const model = deriveSelectionInspectionModel({
+      project,
+      document,
+      resolver,
+      selection: {
+        instanceIds: [],
+        ...emptySupplementalSelection,
+        routeIds: ["bulk-route"],
+      },
+      selectedEndpoint: null,
+    });
+
+    expect(model.selectedMosBulkOwnerLabel).toBe("M1");
+    expect(model.selectionShelfSummary).toBe("Bulk · M1");
+  });
+
   it("projects a selected disconnected endpoint and its No Connect marker", () => {
     const project = createEmptyProject("project", "Project");
     const document = project.documents[0]!;

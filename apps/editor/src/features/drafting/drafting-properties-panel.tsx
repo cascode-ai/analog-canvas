@@ -115,6 +115,8 @@ export function DraftingPropertiesPanel({
   const geometry = resolveDraftingObjectGeometry(document, resolver, object);
   if (geometry.kind === "text" && object.kind === "text") {
     const profile = resolveDocumentStyleProfile(document.presentation);
+    const barePolarity =
+      object.polarity === "positive" || object.polarity === "negative";
     return (
       <section
         className="property-section drafting-text-properties"
@@ -122,15 +124,19 @@ export function DraftingPropertiesPanel({
         data-testid="drafting-properties"
       >
         <div className="property-card">
-          <div className="property-section-heading">Text</div>
+          <div className="property-section-heading">
+            {barePolarity ? "Polarity mark" : "Text"}
+          </div>
           <ColorOverrideControl
-            label="Text color"
+            label={barePolarity ? "Mark color" : "Text color"}
             value={object.styleOverride?.color}
             fallback={profile.foreground}
             disabled={object.locked}
             onChange={(color) => onStyleChange({ color })}
           />
-          <small>Auto inherits the document text color.</small>
+          <small>
+            Auto inherits the document {barePolarity ? "mark" : "text"} color.
+          </small>
           <button
             type="button"
             className="drafting-text-lock"

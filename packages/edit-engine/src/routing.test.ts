@@ -1200,6 +1200,58 @@ describe("routing Edit Engine", () => {
     expect(after.rotation).toBe(90);
   });
 
+  it("turns a lone part and its attached route by 45 degrees", () => {
+    const document = documentFixture();
+    document.routes.push(
+      createRoutePath({
+        id: "route-a-b",
+        netId: "net-h",
+        start: { kind: "terminal", instanceId: "A", pinName: "P" },
+        end: { kind: "terminal", instanceId: "B", pinName: "P" },
+        bends: [],
+        modes: ["manual"],
+      }),
+    );
+    const before = document.instances.find((instance) => instance.id === "A")!
+      .placement!.position;
+    const routeStartBefore = resolveRouteGeometry(
+      document,
+      resolver,
+      document.routes[0]!,
+    )!.centerline[0];
+    const plan = proposeGroupRotationEdits(document, resolver, ["A"], 45);
+    const applied = executeTransaction(
+      document,
+      transaction(document.id, document.revision, plan.edits),
+      context,
+    );
+    expect(
+      applied.ok,
+      applied.ok
+        ? ""
+        : JSON.stringify({ error: applied.error, edits: plan.edits }),
+    ).toBe(true);
+    if (!applied.ok) return;
+    const after = applied.document.instances.find(
+      (instance) => instance.id === "A",
+    )!.placement!;
+    expect(after.position).toEqual(before);
+    expect(after.rotation).toBe(45);
+    const routeAfter = resolveRouteGeometry(
+      applied.document,
+      resolver,
+      applied.document.routes[0]!,
+    )!;
+    expect(routeAfter.centerline[0]).not.toEqual(routeStartBefore);
+    expect(routeAfter.centerline.at(-1)).toEqual(
+      resolveRouteGeometry(
+        document,
+        resolver,
+        document.routes[0]!,
+      )!.centerline.at(-1),
+    );
+  });
+
   it("turns a quarter each way back to where it started", () => {
     const document = documentFixture();
     const forward = executeTransaction(
@@ -1730,7 +1782,7 @@ describe("routing Edit Engine", () => {
     const mirrored = executeTransaction(
       rotated.document,
       transaction(document.id, 3, [
-        { kind: "mirror_instance", instanceId: "A", mirror: "x" },
+        { kind: "mirror_instance", instanceId: "A", mirror: "horizontal" },
       ]),
       context,
     );
@@ -1743,8 +1795,8 @@ describe("routing Edit Engine", () => {
         mirrored.document.routes.find((route) => route.id === "route-h")!,
       )?.centerline,
     ).toEqual([
-      { x: 160, y: 310 },
-      { x: 310, y: 310 },
+      { x: 160, y: 330 },
+      { x: 310, y: 330 },
       { x: 310, y: 300 },
       { x: 450, y: 300 },
     ]);
@@ -1754,8 +1806,8 @@ describe("routing Edit Engine", () => {
       ),
     ).toMatchObject({
       anchor: {
-        localOffset: { x: 20, y: 40 },
-        fallbackPosition: { x: 180, y: 360 },
+        localOffset: { x: -20, y: -40 },
+        fallbackPosition: { x: 140, y: 280 },
       },
       alignment: "middle",
       rotation: 0,

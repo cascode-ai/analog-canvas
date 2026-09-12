@@ -407,7 +407,7 @@ export function proposeGroupRotationEdits(
   document: SchematicDocument,
   resolver: SymbolResolver,
   instanceIds: readonly string[],
-  deltaDegrees: 90 | -90 | 180,
+  deltaDegrees: 45 | -45 | 90 | -90 | 135 | -135 | 180,
   center?: Point,
   additionalJunctionIds: readonly string[] = [],
 ): GroupMoveEditProposal {

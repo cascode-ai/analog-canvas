@@ -3,6 +3,11 @@ import type { SchematicDocument } from "@icm/model";
 
 import { snapCoordinate } from "../../snap/engine";
 import type { ComponentPropertyCodeValue } from "./component-property-code";
+import {
+  NO_INTERNAL_MARK,
+  symbolForInputPolarity,
+  symbolForInternalMark,
+} from "./component-visual-variants";
 
 type Instance = SchematicDocument["instances"][number];
 
@@ -51,23 +56,41 @@ export function planComponentPropertyCodeEdits(
         ...(unset.length ? { unset } : {}),
       });
   }
-  if (value.symbol && value.symbol !== instance.symbolId)
+  let nextSymbolId = value.symbol ?? instance.symbolId;
+  if (value.appearance.internalMark !== undefined)
+    nextSymbolId =
+      symbolForInternalMark(nextSymbolId, value.appearance.internalMark) ??
+      nextSymbolId;
+  if (value.appearance.inputPolarity !== undefined)
+    nextSymbolId =
+      symbolForInputPolarity(nextSymbolId, value.appearance.inputPolarity) ??
+      nextSymbolId;
+  if (nextSymbolId !== instance.symbolId)
     edits.push({
       kind: "set_instance_symbol",
       instanceId: instance.id,
-      symbolId: value.symbol,
+      symbolId: nextSymbolId,
     });
+
+  let nextSignalFlow = value.signalFlow;
+  if (value.appearance.internalMark !== undefined) {
+    nextSignalFlow = { ...(instance.signalFlowParameters ?? {}) };
+    if (
+      value.appearance.internalMark === NO_INTERNAL_MARK ||
+      value.appearance.internalMark === "A"
+    )
+      delete nextSignalFlow.formula;
+    else nextSignalFlow.formula = value.appearance.internalMark;
+  }
   if (
-    value.signalFlow &&
-    JSON.stringify(value.signalFlow) !==
+    nextSignalFlow &&
+    JSON.stringify(nextSignalFlow) !==
       JSON.stringify(instance.signalFlowParameters ?? {})
   )
     edits.push({
       kind: "set_instance_signal_flow_parameters",
       instanceId: instance.id,
-      parameters: Object.keys(value.signalFlow).length
-        ? value.signalFlow
-        : null,
+      parameters: Object.keys(nextSignalFlow).length ? nextSignalFlow : null,
     });
   if (instance.placement && value.placement) {
     const position = {

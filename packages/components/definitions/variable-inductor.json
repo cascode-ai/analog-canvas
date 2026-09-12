@@ -103,6 +103,7 @@
         "editor": "text",
         "unitHint": "H",
         "placeholder": "3n",
+        "defaultValue": "1n",
         "help": "Inductance",
         "displayRole": "value"
       }

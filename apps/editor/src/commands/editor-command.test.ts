@@ -164,7 +164,7 @@ describe("editor command router", () => {
   it("routes one Rotate command to the active domain", () => {
     const selected = fixture();
     selected.router.execute({ id: "transform.rotate" });
-    expect(selected.operations.rotateSelection).toHaveBeenCalledWith(90);
+    expect(selected.operations.rotateSelection).toHaveBeenCalledWith(45);
 
     const placement = fixture({ interactionMode: "placing-component" });
     placement.router.execute({ id: "transform.rotate", deltaDegrees: -90 });
@@ -172,11 +172,11 @@ describe("editor command router", () => {
 
     const copy = fixture({ interactionMode: "copy-placement" });
     copy.router.execute({ id: "transform.rotate" });
-    expect(copy.operations.rotateCopy).toHaveBeenCalledWith(90);
+    expect(copy.operations.rotateCopy).toHaveBeenCalledWith(45);
 
     const move = fixture({ interactionMode: "moving-selection" });
     move.router.execute({ id: "transform.rotate" });
-    expect(move.operations.rotateMove).toHaveBeenCalledWith(90);
+    expect(move.operations.rotateMove).toHaveBeenCalledWith(45);
     expect(move.operations.rotateSelection).not.toHaveBeenCalled();
     move.router.execute({
       id: "transform.mirror",

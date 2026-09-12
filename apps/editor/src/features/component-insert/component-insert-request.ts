@@ -1,9 +1,11 @@
+import type { Rotation } from "@icm/model";
+
 export interface SymbolInsertRequest {
   kind: "symbol";
   symbolId: string;
   symbolName: string;
   parameters: Record<string, string>;
-  initialRotation: 0 | 90 | 180 | 270;
+  initialRotation: Rotation;
   showReference: boolean;
   referenceText: string | null;
   showValue: boolean;
@@ -30,7 +32,7 @@ export interface PolarityAnnotationInsertRequest {
   symbolId: string;
   symbolName: string;
   polarity: "both" | "positive" | "negative";
-  initialRotation: 0 | 90 | 180 | 270;
+  initialRotation: Rotation;
 }
 
 export interface DraftTextAnnotationInsertRequest {
@@ -38,7 +40,7 @@ export interface DraftTextAnnotationInsertRequest {
   symbolId: string;
   symbolName: string;
   text: string;
-  initialRotation: 0 | 90 | 180 | 270;
+  initialRotation: Rotation;
 }
 
 export interface CellInsertRequest {
@@ -48,7 +50,7 @@ export interface CellInsertRequest {
   childDocumentId: string;
   cellName: string;
   parameters: Record<string, string>;
-  initialRotation: 0 | 90 | 180 | 270;
+  initialRotation: Rotation;
   showReference: boolean;
   referenceText: string | null;
   showValue: true;
@@ -61,7 +63,7 @@ export interface ExternalSubcircuitInsertRequest {
   definitionId: string;
   masterName: string;
   parameters: Record<string, string>;
-  initialRotation: 0 | 90 | 180 | 270;
+  initialRotation: Rotation;
   showReference: boolean;
   referenceText: string | null;
   showValue: true;

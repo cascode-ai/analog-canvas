@@ -130,7 +130,8 @@
         "required": true,
         "editor": "text",
         "unitHint": "F",
-        "placeholder": "2p",
+        "placeholder": "1p",
+        "defaultValue": "1p",
         "help": "Capacitance",
         "displayRole": "value"
       }

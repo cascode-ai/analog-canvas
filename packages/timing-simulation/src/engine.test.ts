@@ -241,6 +241,71 @@ describe("digital event simulation", () => {
     ]);
   });
 
+  it("asynchronously clears a resettable DFF and gives reset priority over clock", () => {
+    const document = createEmptyDocument("doc", "Resettable DFF");
+    document.instances.push(
+      instance("VCLK", "pulse-voltage-source", pulseParameters()),
+      instance("VD", "pulse-voltage-source", {
+        period: "100ns",
+        dutyCycle: "50",
+        initial: "1",
+      }),
+      instance("VRST", "pulse-voltage-source", {
+        period: "20ns",
+        dutyCycle: "25",
+        initial: "1",
+      }),
+      instance("FF", "d-flip-flop-reset"),
+      instance("GND", "ground"),
+    );
+    connect(document, "clock", [
+      { instanceId: "VCLK", pinName: "+" },
+      { instanceId: "FF", pinName: "CK" },
+    ]);
+    connect(document, "data", [
+      { instanceId: "VD", pinName: "+" },
+      { instanceId: "FF", pinName: "D" },
+    ]);
+    connect(document, "reset", [
+      { instanceId: "VRST", pinName: "+" },
+      { instanceId: "FF", pinName: "RST" },
+    ]);
+    connect(document, "q", [{ instanceId: "FF", pinName: "Q" }]);
+    connect(document, "qbar", [{ instanceId: "FF", pinName: "QBAR" }]);
+    connect(document, "ground", [
+      { instanceId: "VCLK", pinName: "-" },
+      { instanceId: "VD", pinName: "-" },
+      { instanceId: "VRST", pinName: "-" },
+      { instanceId: "GND", pinName: "0" },
+    ]);
+
+    const result = simulateDigitalDocument({
+      document,
+      profile: {
+        stopTimePs: 21_000,
+        savedNetIds: ["reset", "q", "qbar"],
+        initialStateByInstanceId: { FF: "1" },
+      },
+    });
+
+    expect(result.completed).toBe(true);
+    expect(result.diagnostics).toEqual([]);
+    expect(
+      result.traces.find((trace) => trace.netId === "q")?.transitions,
+    ).toEqual([
+      { timePs: 0, value: "0" },
+      { timePs: 11_000, value: "1" },
+      { timePs: 20_000, value: "0" },
+    ]);
+    expect(
+      result.traces.find((trace) => trace.netId === "qbar")?.transitions,
+    ).toEqual([
+      { timePs: 0, value: "1" },
+      { timePs: 11_000, value: "0" },
+      { timePs: 20_000, value: "1" },
+    ]);
+  });
+
   it("folds saved Base Nets through matching scoped names", () => {
     const document = createEmptyDocument("doc", "Named probes");
     document.nets.push(

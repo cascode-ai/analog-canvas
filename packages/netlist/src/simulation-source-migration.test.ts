@@ -1,14 +1,14 @@
-import {
-  CURRENT_PROJECT_SCHEMA_VERSION,
-  LegacyProjectSimulationSetupSchema,
-} from "@icm/model";
+import { LegacyProjectSimulationSetupSchema } from "@icm/model";
 import { describe, expect, it } from "vitest";
 import {
   CircuitProjectSchema,
   SimulationExperimentConfigSchema,
   type LegacyProjectSimulationSetup as ProjectSimulationFolder,
 } from "@icm/model";
-import ota from "../../../apps/editor/src/examples/five-transistor-ota-sky130.icproj.json";
+import {
+  currentFiveTransistorOtaCircuitSource,
+  legacyFiveTransistorOta as ota,
+} from "../../../apps/editor/src/examples/five-transistor-ota.test-support.js";
 const legacySetups = () =>
   ota.simulationSetups.map((s) => LegacyProjectSimulationSetupSchema.parse(s));
 import { migrateSimulationSetupToSource } from "./simulation-source-migration.js";
@@ -20,13 +20,9 @@ import { printSpiceNetlist, printSpiceWithLocations } from "./printers.js";
 
 describe("legacy experiment source migration", () => {
   it("preserves all OTA experiment identities, analyses and acquired objects offline", () => {
-    const project = CircuitProjectSchema.parse({
-      ...Object.fromEntries(
-        Object.entries(ota).filter(([key]) => key !== "simulationSetups"),
-      ),
-      schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
-      simulationFolders: [],
-    });
+    const project = CircuitProjectSchema.parse(
+      currentFiveTransistorOtaCircuitSource(),
+    );
     const before = JSON.stringify(project);
     expect(legacySetups().length).toBeGreaterThan(1);
     for (const original of legacySetups()) {
@@ -64,13 +60,9 @@ describe("legacy experiment source migration", () => {
   });
 
   it("retains incomplete intent instead of substituting a runnable example", () => {
-    const project = CircuitProjectSchema.parse({
-      ...Object.fromEntries(
-        Object.entries(ota).filter(([key]) => key !== "simulationSetups"),
-      ),
-      schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
-      simulationFolders: [],
-    });
+    const project = CircuitProjectSchema.parse(
+      currentFiveTransistorOtaCircuitSource(),
+    );
     const folder = structuredClone(legacySetups()[0]!);
     if (folder.input.kind !== "structured")
       throw Error("expected structured fixture");
@@ -86,13 +78,9 @@ describe("legacy experiment source migration", () => {
   });
 
   it("preserves raw file bytes and dependency identity despite config filename collisions", () => {
-    const project = CircuitProjectSchema.parse({
-      ...Object.fromEntries(
-        Object.entries(ota).filter(([key]) => key !== "simulationSetups"),
-      ),
-      schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
-      simulationFolders: [],
-    });
+    const project = CircuitProjectSchema.parse(
+      currentFiveTransistorOtaCircuitSource(),
+    );
     const folder: ProjectSimulationFolder = {
       id: "raw",
       name: "Raw",
@@ -130,13 +118,9 @@ describe("legacy experiment source migration", () => {
   });
 
   it("shares exact planning output with the existing hashed compiler", async () => {
-    const project = CircuitProjectSchema.parse({
-      ...Object.fromEntries(
-        Object.entries(ota).filter(([key]) => key !== "simulationSetups"),
-      ),
-      schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
-      simulationFolders: [],
-    });
+    const project = CircuitProjectSchema.parse(
+      currentFiveTransistorOtaCircuitSource(),
+    );
     const folder = legacySetups()[0]!;
     const plan = buildSimulationPlan(project, folder);
     const compiled = await compileStructuredSimulation(project, folder);
@@ -150,13 +134,9 @@ describe("legacy experiment source migration", () => {
 
 describe("generated parameter source locations", () => {
   it("uses printer-owned exact spans without changing structural output", () => {
-    const project = CircuitProjectSchema.parse({
-      ...Object.fromEntries(
-        Object.entries(ota).filter(([key]) => key !== "simulationSetups"),
-      ),
-      schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
-      simulationFolders: [],
-    });
+    const project = CircuitProjectSchema.parse(
+      currentFiveTransistorOtaCircuitSource(),
+    );
     const plan = buildSimulationPlan(project, legacySetups()[0]!);
     if (!plan.ok) throw Error(JSON.stringify(plan.diagnostics));
     for (const topLevel of [true, false]) {

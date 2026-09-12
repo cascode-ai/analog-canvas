@@ -98,7 +98,7 @@ describe("protected second legs (finding #6)", () => {
     document.instances.find((i) => i.id === "B")!.placement = {
       position: { x: 110, y: 200 },
       rotation: 0,
-      mirror: "x",
+      mirror: "horizontal",
     };
     seedRoute(document, {
       bends: [{ x: 0, y: 200 }],
@@ -239,7 +239,7 @@ describe("escape stubs from segment drags (finding #14)", () => {
     document.instances.find((i) => i.id === "B")!.placement = {
       position: { x: 110, y: 300 },
       rotation: 0,
-      mirror: "x",
+      mirror: "horizontal",
     };
     // Agent-drawn direct connection: one straight escape leg pin to pin.
     seedRoute(document, { bends: [], modes: ["escape"] });
@@ -290,7 +290,7 @@ describe("escape leads under rigid transforms (finding #4)", () => {
     document.instances.find((i) => i.id === "B")!.placement = {
       position: { x: 210, y: 300 },
       rotation: 0,
-      mirror: "x",
+      mirror: "horizontal",
     };
     // Escape-led boundary wire A.P (0,300) -> (40,300) -> (160,300) -> (200,300).
     seedRoute(document, {
@@ -351,7 +351,7 @@ describe("power-rail boundary stretch (finding #18)", () => {
     document.instances.find((i) => i.id === "B")!.placement = {
       position: { x: 110, y: 300 },
       rotation: 0,
-      mirror: "x",
+      mirror: "horizontal",
     };
     seedRoute(document, {
       bends: [],

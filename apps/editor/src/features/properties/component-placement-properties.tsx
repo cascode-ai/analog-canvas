@@ -87,8 +87,8 @@ export function ComponentPlacementProperties({
               <button
                 type="button"
                 className="property-placement-icon-button"
-                aria-label={`Rotate component clockwise 90 degrees; current rotation ${rotation} degrees; shortcut R`}
-                title={`Rotate 90° clockwise · current ${rotation}° (R)`}
+                aria-label={`Rotate component clockwise 45 degrees; current rotation ${rotation} degrees; shortcut R`}
+                title={`Rotate 45° clockwise · current ${rotation}° (R)`}
                 onClick={onRotate}
               >
                 <ToolIcon name="rotate" />

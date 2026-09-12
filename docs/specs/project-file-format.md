@@ -2,7 +2,7 @@
 
 Status: `accepted`
 
-Current Project schema: `51`
+Project schema: `53`
 
 Primary owners: `packages/model` (current shape) and
 `packages/project-protocol` (file boundary)
@@ -61,9 +61,14 @@ source collection to `simulationFolders`, preserving IDs, files and Cell
 bindings. Optional unapplied drafts preserve unfinished numeric editing without
 changing the circuit or becoming executable overrides. Schema 51 adds optional
 opaque fill and front/background drafting planes to rectangles and circles;
-the 50→51 adapter changes only the version stamp. The public file boundary
-supplies only schema 51 in memory and writes only schema 51; versions older
-than 24 or newer than 51 are rejected.
+the 50→51 adapter changes only the version stamp. Schema 52 replaces the
+rotation-coupled local-X mirror bit with independent screen-space
+`horizontal`, `vertical`, and `both` directions. The 51→52 adapter preserves
+the rendered orientation while leaving every rotation unchanged. The public
+file boundary supplies only schema 53 in memory and writes only schema 53.
+Schema 53 expands persisted rotation to 45-degree steps; the 52→53 adapter
+preserves every existing quarter-turn value. Versions older than 24 or newer
+than 53 are rejected.
 
 ## Current authorities
 
@@ -163,8 +168,8 @@ than 24 or newer than 51 are rejected.
 ## Read and write
 
 ```text
-import text -> parse JSON -> require Project schema 24 through 51
--> converge to schema 51 -> strict schema-51 validation -> install unbound
+import text -> parse JSON -> require Project schema 24 through 53
+-> converge to schema 53 -> strict schema-53 validation -> install unbound
 export -> strict validation -> canonical key ordering -> Blob download
 ```
 
@@ -188,7 +193,7 @@ open, and recovery remain exact.
 Canonical serialization ends with one newline and is byte-stable across
 serialize/parse/serialize. The current corpus is listed in
 `fixtures/projects/compatibility-corpus.json`; its accepted entries must all be
-already canonical Project schema 51. The rejected corpus names expected
+already canonical Project schema 53. The rejected corpus names expected
 validation failures.
 
 Viewport, selection, undo history, canvas overlays, Agent credentials,

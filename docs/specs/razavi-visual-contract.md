@@ -92,8 +92,13 @@ may support exploration but is not a reviewed regression baseline.
 
 - Electrical pin anchors use the canonical 10-unit connection grid.
 - Visual primitives may use measured finite-decimal logical coordinates.
-- Visual calibration must not move pins, change pin order, or change topology.
-- Instance transforms apply local x mirror, then rotation, then translation.
+- Visual calibration must not move pins, change pin order, or change topology
+  unless a family generator records an explicit product lead-normalization
+  rule. NPN/PNP preserve their extracted body and arrow geometry while moving
+  B from `-40` to `-30` and C/E from `±30` to `±20`, placing all three
+  connection anchors one grid cell closer to the body.
+- Instance transforms apply rotation, independent screen-space mirror axes,
+  then translation.
 - A symbol family has one canonical shared body geometry; polarity, arrow,
   hidden-pin presentation, and other semantic differences remain separate.
 - A geometry change must satisfy every registered orientation, sample, and

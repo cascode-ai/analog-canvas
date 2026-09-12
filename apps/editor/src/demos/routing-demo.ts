@@ -2,14 +2,14 @@ import {
   CURRENT_PROJECT_SCHEMA_VERSION,
   CircuitProjectSchema,
 } from "@icm/model";
-import type { CircuitProject, Instance } from "@icm/model";
+import type { CircuitProject, Instance, Rotation } from "@icm/model";
 
 function instance(
   id: string,
   x: number,
   y: number,
-  rotation: 0 | 90 | 180 | 270,
-  mirror: "none" | "x" = "none",
+  rotation: Rotation,
+  mirror: "none" | "horizontal" | "vertical" | "both" = "none",
 ): Instance {
   return {
     id,
@@ -55,7 +55,7 @@ export function createRoutingDemoProject(): CircuitProject {
         },
         instances: [
           instance("A", 140, 300, 0),
-          instance("B", 460, 300, 0, "x"),
+          instance("B", 460, 300, 0, "horizontal"),
           instance("C", 300, 140, 90),
           instance("D", 300, 460, 270),
           instance("E", 340, 440, 90),

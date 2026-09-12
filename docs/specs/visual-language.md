@@ -120,8 +120,9 @@ active symbol variant's visible geometry and clusters repeated overlaps.
   frames.
 - Symbol geometry uses square line caps and miter joins unless a reviewed
   symbol explicitly requires another choice.
-- Instance transforms apply local x-coordinate mirror, then rotation, then
-  translation, matching the model coordinate contract.
+- Instance transforms apply rotation, then independent screen-space horizontal
+  and/or vertical reflection, then translation. Mirror actions do not rewrite
+  the authored rotation.
 - Polarity notation moves with its component or drafting annotation, while
   every negative-polarity bar remains horizontal on the page at all rotations.
   Symbol assets identify those bars with an `upright-*-polarity-negative`

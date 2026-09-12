@@ -2,9 +2,11 @@ import type { Ref } from "react";
 import type { MosBulkResolution } from "@icm/derived";
 
 import { ColorOverrideControl } from "../properties/color-override-control";
+import {
+  GroupPropertyCodeEditor,
+  type GroupPropertyCodeEditorProps,
+} from "../properties/group-property-code-editor";
 import { ToolIcon } from "../editor-shell/tool-icon";
-
-import { DisplayToggle } from "../component-insert/display-toggle";
 
 export function MosBulkConnectionSection({
   connection,
@@ -113,45 +115,17 @@ export function RoutingGuidanceSection({
   );
 }
 
-export function GroupDisplayToggles({
+export function GroupPropertiesSection({
   active,
-  referencesVisible,
-  valuesVisible,
-  valuesAvailable,
-  onReferencesVisibleChange,
-  onValuesVisibleChange,
-}: {
-  active: boolean;
-  referencesVisible: boolean;
-  valuesVisible: boolean;
-  valuesAvailable: boolean;
-  onReferencesVisibleChange: (visible: boolean) => void;
-  onValuesVisibleChange: (visible: boolean) => void;
-}) {
+  ...properties
+}: { active: boolean } & GroupPropertyCodeEditorProps) {
   if (!active) return null;
-  return (
-    <section className="property-section" aria-label="Group display toggles">
-      <div className="property-section-heading">Canvas labels</div>
-      <div className="display-toggle-row">
-        <DisplayToggle
-          label="Visual annotation"
-          checked={referencesVisible}
-          onChange={onReferencesVisibleChange}
-        />
-        <DisplayToggle
-          label="Value"
-          checked={valuesVisible}
-          disabled={!valuesAvailable}
-          help={valuesAvailable ? undefined : "Fill device parameters first"}
-          onChange={onValuesVisibleChange}
-        />
-      </div>
-    </section>
-  );
+  return <GroupPropertyCodeEditor {...properties} />;
 }
 
 export function RouteActionsSection({
   active,
+  bulkOwnerLabel,
   netLabelInputRef,
   netLabel,
   color,
@@ -167,6 +141,7 @@ export function RouteActionsSection({
   onDeleteWire,
 }: {
   active: boolean;
+  bulkOwnerLabel?: string | null;
   netLabelInputRef: Ref<HTMLInputElement>;
   netLabel: string;
   color: string | undefined;
@@ -182,6 +157,19 @@ export function RouteActionsSection({
   onDeleteWire: () => void;
 }) {
   if (!active) return null;
+  if (bulkOwnerLabel) {
+    return (
+      <section className="context-actions" aria-label="MOS bulk route actions">
+        <h2>Bulk connection</h2>
+        <p>
+          Follows <strong>{bulkOwnerLabel}</strong> line color.
+        </p>
+        <button type="button" onClick={onDeleteWire}>
+          Delete bulk connection
+        </button>
+      </section>
+    );
+  }
   return (
     <section className="context-actions" aria-label="Route actions">
       <h2>Electrical route</h2>

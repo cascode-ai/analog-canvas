@@ -1379,8 +1379,8 @@ export function proposeGroupMove(
 export interface InstanceRotationProposal {
   instanceId: string;
   position: Point;
-  rotation: 0 | 90 | 180 | 270;
-  mirror: "none" | "x";
+  rotation: Orientation["rotation"];
+  mirror: Orientation["mirror"];
 }
 
 export interface GroupRotationProposal {
@@ -1392,12 +1392,26 @@ export interface GroupRotationProposal {
 }
 
 /** Screen-space turn: positive angles turn clockwise, as SVG rotate() does. */
-function turn(point: Point, pivot: Point, deltaDegrees: 90 | -90 | 180): Point {
+function turn(
+  point: Point,
+  pivot: Point,
+  deltaDegrees: 45 | -45 | 90 | -90 | 135 | -135 | 180,
+  grid: number,
+): Point {
   const dx = point.x - pivot.x;
   const dy = point.y - pivot.y;
   if (deltaDegrees === 90) return { x: pivot.x - dy, y: pivot.y + dx };
   if (deltaDegrees === -90) return { x: pivot.x + dy, y: pivot.y - dx };
-  return { x: pivot.x - dx, y: pivot.y - dy };
+  if (deltaDegrees === 180) return { x: pivot.x - dx, y: pivot.y - dy };
+  const radians = (deltaDegrees * Math.PI) / 180;
+  const cosine = Math.cos(radians);
+  const sine = Math.sin(radians);
+  const snap = (coordinate: number): number =>
+    Math.round(coordinate / grid) * grid;
+  return {
+    x: snap(pivot.x + dx * cosine - dy * sine),
+    y: snap(pivot.y + dx * sine + dy * cosine),
+  };
 }
 
 /**
@@ -1409,7 +1423,9 @@ function turn(point: Point, pivot: Point, deltaDegrees: 90 | -90 | 180): Point {
  * angle, so the arrangement itself rotates.
  *
  * The pivot is the centre of the selected Instances' bounding box snapped to
- * the grid, which keeps on-grid geometry exactly on-grid through the turn.
+ * the grid. Quarter turns remain exact; diagonal turns quantize authored
+ * positions and bends back onto the document grid while terminal contacts
+ * retain their exact derived coordinates and use explicit escape geometry.
  *
  * A rigid turn also fixes where each pin lands: an Instance and its pins
  * rotate together, so a terminal endpoint's new position is simply its old
@@ -1421,7 +1437,7 @@ export function proposeGroupRotation(
   document: SchematicDocument,
   resolver: SymbolResolver,
   instanceIds: readonly string[],
-  deltaDegrees: 90 | -90 | 180,
+  deltaDegrees: 45 | -45 | 90 | -90 | 135 | -135 | 180,
   center?: Point,
   additionalJunctionIds: readonly string[] = [],
 ): GroupRotationProposal {
@@ -1430,10 +1446,11 @@ export function proposeGroupRotation(
     resolver,
     instanceIds,
     (pivot) => ({
-      point: (point) => turn(point, pivot, deltaDegrees),
+      point: (point) =>
+        turn(point, pivot, deltaDegrees, document.presentation.grid),
       placement: (placement) => ({
         rotation: ((((placement.rotation + deltaDegrees) % 360) + 360) %
-          360) as 0 | 90 | 180 | 270,
+          360) as Orientation["rotation"],
         mirror: placement.mirror,
       }),
     }),

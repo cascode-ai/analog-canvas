@@ -86,12 +86,16 @@ describe("polarity annotations", () => {
   });
 
   it("puts a lone sign on the spot, with no second mark beside it", () => {
-    expect(polarityMarks("positive", emptyCentre).map((l) => l.role)).toEqual([
+    const positive = polarityMarks("positive", emptyCentre);
+    const negative = polarityMarks("negative", emptyCentre);
+    expect(positive.map((l) => l.role)).toEqual([
       "positive-horizontal",
       "positive-vertical",
     ]);
-    expect(polarityMarks("negative", emptyCentre).map((l) => l.role)).toEqual([
-      "negative",
-    ]);
+    expect(negative.map((l) => l.role)).toEqual(["negative"]);
+    expect(positive.every((line) => line.from.y <= 0 && line.to.y >= 0)).toBe(
+      true,
+    );
+    expect(negative[0]).toMatchObject({ from: { y: 0 }, to: { y: 0 } });
   });
 });

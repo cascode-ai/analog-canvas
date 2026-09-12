@@ -13,9 +13,9 @@ const PRODUCT_IDS = [
   "capacitor",
   "closed-switch",
   "comparator",
-  "comparator-unmarked",
   "current-source",
   "d-flip-flop",
+  "d-flip-flop-reset",
   "d-flip-flop-q",
   "delay-cell",
   "adder",
@@ -39,9 +39,7 @@ const PRODUCT_IDS = [
   "nor-gate",
   "npn",
   "opamp",
-  "opamp-lettered",
   "opamp-differential",
-  "opamp-differential-lettered",
   "or-gate",
   "pmos",
   "pnp",
@@ -55,7 +53,6 @@ const PRODUCT_IDS = [
   "variable-resistor",
   "vdd-port",
   "voltage-amplifier",
-  "voltage-amplifier-lettered",
   "pulse-voltage-source",
   "voltage-controlled-switch",
   "voltage-source",
@@ -99,6 +96,13 @@ describe("built-in Symbol libraries", () => {
       "opamp-differential-crossed-lettered",
       "opamp-differential-crossed-lettered-inputs-swapped",
       "opamp-differential-crossed-inputs-swapped",
+      // These legacy Library entries are now appearance states of their
+      // semantic source, but remain resolvable for existing Projects.
+      "opamp-lettered",
+      "opamp-differential-lettered",
+      "voltage-amplifier-lettered",
+      "comparator-unmarked",
+      "comparator-unmarked-inputs-swapped",
     ]) {
       expect(resolvable.has(id)).toBe(true);
       expect(browsable.has(id)).toBe(false);
@@ -137,8 +141,8 @@ describe("built-in Symbol libraries", () => {
     const placements = [
       { rotation: 0 as const, mirror: "none" as const },
       { rotation: 90 as const, mirror: "none" as const },
-      { rotation: 180 as const, mirror: "x" as const },
-      { rotation: 270 as const, mirror: "x" as const },
+      { rotation: 180 as const, mirror: "horizontal" as const },
+      { rotation: 270 as const, mirror: "horizontal" as const },
     ];
     for (const symbol of builtInSymbols.filter(
       (candidate) => candidate.pins.length > 2,

@@ -126,15 +126,12 @@ describe("component insertion catalog", () => {
     expect(groups.at(-1)?.category).toBe("Extended Devices");
   });
 
-  it("offers marked and unmarked comparators as separate analog blocks", () => {
+  it("offers one comparator entry and keeps its unmarked style internal", () => {
     const symbols = flattenComponentCatalog(
       componentCatalog("razavi-textbook-v1", "comparator"),
     );
 
-    expect(symbols.map((symbol) => symbol.id)).toEqual([
-      "comparator",
-      "comparator-unmarked",
-    ]);
+    expect(symbols.map((symbol) => symbol.id)).toEqual(["comparator"]);
   });
 
   it("offers the two-terminal variable resistor as a searchable extended device", () => {
@@ -338,15 +335,11 @@ describe("reach order inside a category", () => {
     // often, rather than leading the group as the letter A did.
     expect(blocks).toEqual([
       "opamp",
-      "opamp-lettered",
       "opamp-differential",
-      "opamp-differential-lettered",
       "voltage-amplifier",
-      "voltage-amplifier-lettered",
       "transconductance",
       "differential-transconductance",
       "comparator",
-      "comparator-unmarked",
       "adc",
       "dac",
     ]);
@@ -369,6 +362,7 @@ describe("reach order inside a category", () => {
       "xor-gate",
       "xnor-gate",
       "d-flip-flop",
+      "d-flip-flop-reset",
       "d-flip-flop-q",
       "delay-cell",
     ]);

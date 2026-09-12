@@ -3,6 +3,7 @@ import type {
   Annotation,
   DerivedPoint,
   DerivedRect,
+  Rotation,
   SchematicDocument,
 } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
@@ -28,7 +29,7 @@ export interface AnnotationPresentation {
   readonly anchor: ResolvedAnchor;
   /** Visible SVG text baseline; never substitute fallback while resolved. */
   readonly position: DerivedPoint;
-  readonly rotation: 0 | 90 | 180 | 270;
+  readonly rotation: Rotation;
   readonly alignment: "start" | "middle" | "end";
   readonly bounds: DerivedRect;
 }
@@ -125,20 +126,20 @@ export function resolveAnnotationPresentation(
       : annotation.alignment === "end"
         ? anchor.position.x - width
         : anchor.position.x - width / 2;
+  const unrotatedBounds = {
+    x: left,
+    y: anchor.position.y - fontSize * 1.05 - fractionExtraAscent,
+    width,
+    height,
+  };
   const bounds =
-    annotation.rotation === 90 || annotation.rotation === 270
-      ? {
-          x: anchor.position.x - height / 2,
-          y: anchor.position.y - width / 2,
-          width: height,
-          height: width,
-        }
-      : {
-          x: left,
-          y: anchor.position.y - fontSize * 1.05 - fractionExtraAscent,
-          width,
-          height,
-        };
+    annotation.rotation === 0
+      ? unrotatedBounds
+      : rotatedAnnotationBounds(
+          unrotatedBounds,
+          anchor.position,
+          annotation.rotation,
+        );
   return {
     anchor,
     position: anchor.position,
@@ -146,6 +147,34 @@ export function resolveAnnotationPresentation(
     alignment: annotation.alignment,
     bounds,
   };
+}
+
+function rotatedAnnotationBounds(
+  bounds: DerivedRect,
+  origin: DerivedPoint,
+  rotation: Rotation,
+): DerivedRect {
+  const radians = (rotation * Math.PI) / 180;
+  const cosine = Math.cos(radians);
+  const sine = Math.sin(radians);
+  const corners = [
+    { x: bounds.x, y: bounds.y },
+    { x: bounds.x + bounds.width, y: bounds.y },
+    { x: bounds.x, y: bounds.y + bounds.height },
+    { x: bounds.x + bounds.width, y: bounds.y + bounds.height },
+  ].map((point) => {
+    const dx = point.x - origin.x;
+    const dy = point.y - origin.y;
+    return {
+      x: origin.x + dx * cosine - dy * sine,
+      y: origin.y + dx * sine + dy * cosine,
+    };
+  });
+  const minX = Math.min(...corners.map((point) => point.x));
+  const minY = Math.min(...corners.map((point) => point.y));
+  const maxX = Math.max(...corners.map((point) => point.x));
+  const maxY = Math.max(...corners.map((point) => point.y));
+  return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
 }
 
 function annotationFontSize(

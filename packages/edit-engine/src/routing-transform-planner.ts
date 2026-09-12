@@ -21,7 +21,7 @@ export type TransformOperation =
   | {
       readonly kind: "rotate";
       readonly center?: Point;
-      readonly degrees: 90 | 180 | 270;
+      readonly degrees: 45 | 90 | 135 | 180 | 225 | 270 | 315;
     }
   | {
       readonly kind: "mirror";
@@ -99,7 +99,9 @@ export function planRoutingTransform(
       operation.delta,
     ).edits;
   } else if (operation.kind === "rotate") {
-    const delta = operation.degrees === 270 ? -90 : operation.degrees;
+    const delta = (
+      operation.degrees > 180 ? operation.degrees - 360 : operation.degrees
+    ) as 45 | -45 | 90 | -90 | 135 | -135 | 180;
     edits = proposeGroupRotationEdits(
       document,
       resolver,

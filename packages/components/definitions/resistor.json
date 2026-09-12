@@ -72,7 +72,8 @@
         "required": true,
         "editor": "text",
         "unitHint": "Ohm",
-        "placeholder": "10k",
+        "placeholder": "1k",
+        "defaultValue": "1k",
         "help": "Resistance",
         "displayRole": "value"
       }

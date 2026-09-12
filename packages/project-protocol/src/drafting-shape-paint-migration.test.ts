@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createEmptyProject } from "@icm/model";
+import { createEmptyProject, CURRENT_PROJECT_SCHEMA_VERSION } from "@icm/model";
 import { parseProject, serializeProject } from "./index.js";
 
 describe("drafting shape paint migration", () => {
@@ -13,7 +13,10 @@ describe("drafting shape paint migration", () => {
 
     const loaded = parseProject(JSON.stringify(previous));
 
-    expect(loaded).toEqual({ ...previous, schemaVersion: 51 });
+    expect(loaded).toEqual({
+      ...previous,
+      schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
+    });
     expect(parseProject(serializeProject(loaded))).toEqual(loaded);
   });
 

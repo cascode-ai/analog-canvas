@@ -24,7 +24,7 @@ export type EditorCommandRequest =
    */
   | { id: "selection.move"; detach?: boolean }
   | { id: "selection.align"; mode: EdgeAlignmentMode }
-  | { id: "transform.rotate"; deltaDegrees?: 90 | -90 }
+  | { id: "transform.rotate"; deltaDegrees?: 45 | -45 | 90 | -90 }
   | { id: "transform.rotate-next" }
   | { id: "transform.mirror"; direction: ScreenFlip }
   | { id: "insert.start"; launch: InsertLaunch }
@@ -88,10 +88,10 @@ export interface EditorCommandOperations {
   openSearch(): void;
   beginMove(detach: boolean): void;
   alignSelection(mode: EdgeAlignmentMode): void;
-  rotatePlacement(deltaDegrees: 90 | -90): void;
-  rotateCopy(deltaDegrees: 90 | -90): void;
-  rotateMove(deltaDegrees: 90 | -90): void;
-  rotateSelection(deltaDegrees: 90 | -90): void;
+  rotatePlacement(deltaDegrees: 45 | -45 | 90 | -90): void;
+  rotateCopy(deltaDegrees: 45 | -45 | 90 | -90): void;
+  rotateMove(deltaDegrees: 45 | -45 | 90 | -90): void;
+  rotateSelection(deltaDegrees: 45 | -45 | 90 | -90): void;
   /** Wait for a part to be pointed at, then turn that one. */
   armRotate(): void;
   /** Drop whatever verb is armed without acting on anything. */
@@ -363,7 +363,7 @@ export function createEditorCommandRouter(
         options.operations.armRotate();
         break;
       case "transform.rotate": {
-        const deltaDegrees = request.deltaDegrees ?? 90;
+        const deltaDegrees = request.deltaDegrees ?? 45;
         const resolution = resolveTransformOwner(context, "rotate");
         if (resolution.owner === "unavailable") break;
         switch (resolution.owner) {

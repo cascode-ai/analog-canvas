@@ -218,7 +218,8 @@ const annotationEllipsis = {
 /**
  * Editor-only catalog artwork. These definitions never enter the electrical
  * SymbolResolver: drawing entries activate an existing tool, while polarity
- * and sign entries create editable DraftText objects.
+ * and sign entries create DraftText-backed objects. The paired form edits its
+ * center text; the one-sided forms are fixed marks with no text editor.
  */
 export const annotationPreviewSymbols: readonly SymbolDefinition[] = [
   annotationArrow,

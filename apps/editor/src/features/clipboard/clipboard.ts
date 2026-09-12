@@ -28,6 +28,7 @@ import type {
   Point,
   RouteBranch,
   RouteEndpoint,
+  Rotation,
   SchematicDocument,
   VisualAnchor,
 } from "@icm/model";
@@ -104,9 +105,9 @@ export interface ExplicitCopyRoutingSelection {
 /**
  * Compile the transient copy-placement commands into the same ordered
  * instance edits used by ordinary canvas rotation and reflection.  Keeping
- * every intermediate operation matters: a screen-space reflection can change
- * both the persisted mirror bit and rotation, and that intermediate state is
- * where the Edit Engine follows labels and connected Routes.
+ * every intermediate operation matters: each screen-space reflection changes
+ * only the corresponding persisted mirror axis, and that intermediate state
+ * is where the Edit Engine follows labels and connected Routes.
  */
 export function copyPlacementOrientationEdits(
   instances: readonly Instance[],
@@ -163,22 +164,44 @@ export function orientClipboard(
 ): SchematicClipboard {
   if (operations.length === 0) return clipboard;
   const anchor = pivot ?? clipboardPlacementAnchor(clipboard) ?? { x: 0, y: 0 };
-  const mapPoint = (point: Point): Point =>
+  const mapVector = (vector: Point): Point =>
     operations.reduce((current, operation) => {
       if (operation.kind === "reflect") {
         return operation.direction === "left-right"
-          ? { x: 2 * anchor.x - current.x, y: current.y }
-          : { x: current.x, y: 2 * anchor.y - current.y };
+          ? { x: -current.x, y: current.y }
+          : { x: current.x, y: -current.y };
       }
-      const dx = current.x - anchor.x;
-      const dy = current.y - anchor.y;
-      return operation.deltaDegrees === 90
-        ? { x: anchor.x - dy, y: anchor.y + dx }
-        : { x: anchor.x + dy, y: anchor.y - dx };
-    }, point);
-  const mapVector = (vector: Point): Point => {
-    const mapped = mapPoint({ x: anchor.x + vector.x, y: anchor.y + vector.y });
-    return { x: mapped.x - anchor.x, y: mapped.y - anchor.y };
+      if (operation.deltaDegrees === 90) {
+        return { x: -current.y, y: current.x };
+      }
+      if (operation.deltaDegrees === -90) {
+        return { x: current.y, y: -current.x };
+      }
+      const radians = (operation.deltaDegrees * Math.PI) / 180;
+      const cosine = Math.cos(radians);
+      const sine = Math.sin(radians);
+      return {
+        x: current.x * cosine - current.y * sine,
+        y: current.x * sine + current.y * cosine,
+      };
+    }, vector);
+  const snap = (coordinate: number): number =>
+    Math.round(coordinate / clipboard.sourceGrid) * clipboard.sourceGrid;
+  const needsGridSnap = operations.some(
+    (operation) =>
+      operation.kind === "rotate" &&
+      Math.abs(operation.deltaDegrees) % 90 !== 0,
+  );
+  const snapVector = (vector: Point): Point => {
+    const mapped = mapVector(vector);
+    return needsGridSnap ? { x: snap(mapped.x), y: snap(mapped.y) } : mapped;
+  };
+  const mapPoint = (point: Point): Point => {
+    const mapped = mapVector({ x: point.x - anchor.x, y: point.y - anchor.y });
+    const transformed = { x: anchor.x + mapped.x, y: anchor.y + mapped.y };
+    return needsGridSnap
+      ? { x: snap(transformed.x), y: snap(transformed.y) }
+      : transformed;
   };
   const flipsWorldX = mapVector({ x: 1, y: 0 }).x < 0;
   return {
@@ -211,7 +234,7 @@ export function orientClipboard(
       if (clone.anchor.kind === "free") {
         clone.anchor.position = mapPoint(clone.anchor.position);
       } else if (clone.anchor.kind === "object") {
-        clone.anchor.localOffset = mapVector(clone.anchor.localOffset);
+        clone.anchor.localOffset = snapVector(clone.anchor.localOffset);
         clone.anchor.fallbackPosition = mapPoint(clone.anchor.fallbackPosition);
       } else {
         clone.anchor.fallbackPosition = mapPoint(clone.anchor.fallbackPosition);
@@ -235,7 +258,7 @@ export function orientClipboard(
         if (anchor.kind === "object") {
           return {
             ...anchor,
-            localOffset: mapVector(anchor.localOffset),
+            localOffset: snapVector(anchor.localOffset),
             fallbackPosition: mapPoint(anchor.fallbackPosition),
           };
         }
@@ -258,17 +281,15 @@ export function orientClipboard(
           ? Math.round(normalized) % 360
           : normalized;
       };
-      const quarterTurns = operations.reduce(
+      const rotationDegrees = operations.reduce(
         (total, operation) =>
           operation.kind === "rotate"
-            ? (((total + operation.deltaDegrees / 90) % 4) + 4) % 4
+            ? (((total + operation.deltaDegrees) % 360) + 360) % 360
             : total,
         0,
       );
-      const turnedRotation = (
-        rotation: 0 | 90 | 180 | 270,
-      ): 0 | 90 | 180 | 270 =>
-        (((rotation / 90 + quarterTurns) % 4) * 90) as 0 | 90 | 180 | 270;
+      const turnedRotation = (rotation: Rotation): Rotation =>
+        ((rotation + rotationDegrees) % 360) as Rotation;
       clone.anchor = mapAnchor(clone.anchor);
       switch (clone.kind) {
         case "text": {

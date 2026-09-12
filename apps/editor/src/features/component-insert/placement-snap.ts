@@ -1,4 +1,4 @@
-import type { Point, SchematicDocument } from "@icm/model";
+import type { Point, Rotation, SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
 import { closestPointOnSegment } from "../../canvas/canvas-geometry";
@@ -35,7 +35,7 @@ export function snapPendingComponentPlacement(options: {
   symbolId: string;
   symbolVariantId?: string;
   position: Point;
-  rotation: 0 | 90 | 180 | 270;
+  rotation: Rotation;
   mirror: NonNullable<
     SchematicDocument["instances"][number]["placement"]
   >["mirror"];

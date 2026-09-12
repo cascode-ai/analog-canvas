@@ -152,6 +152,18 @@ export function resolveEndpointConnection(
     ) {
       return { x: landing.x, y: landing.y };
     }
+    if (outward.x !== 0 && outward.y !== 0) {
+      return {
+        x:
+          (outward.x > 0
+            ? Math.ceil(landing.x / grid)
+            : Math.floor(landing.x / grid)) * grid,
+        y:
+          (outward.y > 0
+            ? Math.ceil(landing.y / grid)
+            : Math.floor(landing.y / grid)) * grid,
+      };
+    }
     if (outward.x !== 0 && isGridAlignedCoordinate(landing.y, grid)) {
       return {
         x:

@@ -65,7 +65,8 @@
         "required": true,
         "editor": "text",
         "unitHint": "H",
-        "placeholder": "3n",
+        "placeholder": "1n",
+        "defaultValue": "1n",
         "help": "Inductance",
         "displayRole": "value"
       }
