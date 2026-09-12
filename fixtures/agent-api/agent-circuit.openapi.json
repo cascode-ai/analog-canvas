@@ -34321,6 +34321,76 @@
                         "type": "number",
                         "const": 1
                       },
+                      "nativeMeasurements": {
+                        "type": "array",
+                        "items": {
+                          "oneOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "name": {
+                                  "type": "string"
+                                },
+                                "occurrence": {
+                                  "type": "integer",
+                                  "exclusiveMinimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                "status": {
+                                  "type": "string",
+                                  "const": "available"
+                                },
+                                "value": {
+                                  "type": "number"
+                                },
+                                "logLine": {
+                                  "type": "integer",
+                                  "exclusiveMinimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                "detail": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "name",
+                                "occurrence",
+                                "status",
+                                "value",
+                                "logLine",
+                                "detail"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "name": {
+                                  "type": "string"
+                                },
+                                "occurrence": {
+                                  "type": "number",
+                                  "const": 0
+                                },
+                                "status": {
+                                  "type": "string",
+                                  "const": "unavailable"
+                                },
+                                "detail": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "name",
+                                "occurrence",
+                                "status",
+                                "detail"
+                              ],
+                              "additionalProperties": false
+                            }
+                          ]
+                        }
+                      },
                       "analyses": {
                         "type": "array",
                         "items": {
@@ -34390,6 +34460,38 @@
                                     "items": {
                                       "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema21"
                                     }
+                                  },
+                                  "semantics": {
+                                    "type": "object",
+                                    "properties": {
+                                      "valueKind": {
+                                        "type": "string",
+                                        "enum": [
+                                          "real",
+                                          "complex",
+                                          "unknown"
+                                        ]
+                                      },
+                                      "quantity": {
+                                        "type": "string"
+                                      },
+                                      "origin": {
+                                        "type": "string",
+                                        "enum": [
+                                          "raw",
+                                          "expression"
+                                        ]
+                                      },
+                                      "expression": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "valueKind",
+                                      "quantity",
+                                      "origin"
+                                    ],
+                                    "additionalProperties": false
                                   }
                                 },
                                 "required": [
@@ -35486,23 +35588,23 @@
                               "vgs",
                               "vds",
                               "vbs",
-                              "id"
+                              "id",
+                              "gm",
+                              "gds",
+                              "gmbs",
+                              "vth",
+                              "vdsat"
                             ]
                           },
                           "label": {
-                            "type": "string",
-                            "enum": [
-                              "VGS",
-                              "VDS",
-                              "VBS",
-                              "ID"
-                            ]
+                            "type": "string"
                           },
                           "unit": {
                             "type": "string",
                             "enum": [
                               "V",
-                              "A"
+                              "A",
+                              "S"
                             ]
                           },
                           "expression": {

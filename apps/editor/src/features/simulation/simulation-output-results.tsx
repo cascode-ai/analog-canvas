@@ -19,6 +19,8 @@ import { ScalarResultsExplorer } from "./transient-results-explorer";
 import { SimulationMeasurementResults } from "./simulation-measurement-results";
 import { NativeMeasurementResults } from "./native-measurement-results";
 import { NoiseResultsExplorer } from "./noise-results-explorer";
+import { planResultOutput } from "./result-plot-plan";
+import { ResultRecordView, ResultPlotControls } from "./result-plot-controls";
 
 export type SimulationAnalysisKind = "op" | "dc" | "ac" | "tran" | "noise";
 
@@ -150,7 +152,7 @@ function ScalarPresentationFamilyResults({
         </div>
       </div>
       <ScalarResultsExplorer
-        resultKey={`${resultKey}:${family.base.id}`}
+        resultKey={resultKey}
         plotName={plotName}
         domain={domain}
         analysisLabel={analysisLabel}
@@ -162,7 +164,8 @@ function ScalarPresentationFamilyResults({
             id: family.base.id,
             label: family.base.label,
             colorIndex: 0,
-            quantity: scalarQuantity(selected.result.unit),
+            quantity: `family:${family.base.id}:${selected.result.unit}`,
+            groupLabel: scalarQuantity(selected.result.unit),
             unit: selected.result.unit === "1" ? null : selected.result.unit,
             values: selected.result.values.map((value) => value ?? Number.NaN),
             ...(probe ? { probe } : {}),
@@ -289,152 +292,188 @@ export function SimulationOutputResults({
             </SimulationAnalysisCard>
           );
         if (!analysis.domain) return null;
-        const complex = analysis.outputs.filter((output) => output.imaginary);
-        const complexFamilies = new Set(
-          complex.flatMap((output) => {
-            const expression = authored.get(output.id)?.expression;
-            return expression ? [presentationBase(expression)] : [];
-          }),
-        );
-        const scalarFamilies = presentationFamilies.flatMap((family) => {
-          const baseResult = analysis.outputs.find(
-            (output) => output.id === family.base.id && !output.imaginary,
-          );
-          if (!baseResult) return [];
-          const variants = family.variants.flatMap((spec) => {
-            const result = analysis.outputs.find(
-              (output) => output.id === spec.id && !output.imaginary,
-            );
-            return result ? [{ spec, result }] : [];
-          });
-          return variants.length > 1 ? [{ family, variants }] : [];
-        });
-        const scalarFamilyOutputIds = new Set(
-          scalarFamilies.flatMap(({ variants }) =>
-            variants.map(({ spec }) => spec.id),
-          ),
-        );
-        const scalar = analysis.outputs.filter((output) => {
-          if (output.imaginary) return false;
-          if (scalarFamilyOutputIds.has(output.id)) return false;
-          if (analysis.analysis !== "ac") return true;
-          const expression = authored.get(output.id)?.expression;
-          return !(
-            expression &&
-            PRESENTATION_KINDS.has(expression.kind) &&
-            complexFamilies.has(presentationBase(expression))
-          );
-        });
-        const scalarByUnit = new Map<string, typeof scalar>();
-        for (const output of scalar)
-          scalarByUnit.set(output.unit, [
-            ...(scalarByUnit.get(output.unit) ?? []),
-            output,
-          ]);
+        const recordKey = `${resultKey}:record:${analysisIndex}`;
         return (
-          <SimulationAnalysisCard
-            key={`${analysis.analysis}-${analysisIndex}`}
-            kind={analysis.analysis}
-          >
-            {analysis.analysis === "ac" && complex.length > 0 ? (
-              <ComplexResultsExplorer
-                resultKey={`${resultKey}:complex:${analysisIndex}`}
-                plotName={analysis.plotName}
-                traces={complex.map((output, colorIndex) => {
-                  const phases = unwrapPhaseDegrees(
-                    output.values.map(
-                      (value, i) =>
-                        (Math.atan2(
-                          output.imaginary![i] ?? Number.NaN,
-                          value ?? Number.NaN,
-                        ) *
-                          180) /
-                        Math.PI,
-                    ),
-                  );
-                  const probe = probes.find((probe) => probe.id === output.id);
-                  return {
-                    id: output.id,
-                    label: output.label,
-                    colorIndex,
-                    unit: output.unit,
-                    quantity:
-                      output.unit === "V"
-                        ? "voltage"
-                        : output.unit === "A"
-                          ? "current"
-                          : output.unit === "1"
-                            ? "ratio"
-                            : output.unit,
-                    ...(probe ? { probe } : {}),
-                    points: analysis.domain!.values.map((frequency, i) => ({
-                      ...complexAcPoint(
-                        frequency,
-                        output.values[i] ?? Number.NaN,
-                        output.imaginary![i] ?? Number.NaN,
-                      ),
-                      phaseDeg: phases[i] ?? Number.NaN,
-                    })),
-                  };
-                })}
-                {...(onFocusProbe ? { onFocusProbe } : {})}
-              />
-            ) : null}
-            {scalarFamilies.map(({ family, variants }) => (
-              <ScalarPresentationFamilyResults
-                key={family.base.id}
-                family={family}
-                variants={variants}
-                resultKey={`${resultKey}:${analysis.analysis}:${analysisIndex}`}
-                plotName={analysis.plotName}
-                analysisLabel={
-                  analysis.analysis === "tran"
-                    ? "Transient"
-                    : analysis.analysis.toUpperCase()
-                }
-                domain={analysis.domain!.values}
-                domainLabel={analysis.domain!.name}
-                domainUnit={analysis.domain!.unit}
-                logarithmicX={analysis.analysis === "ac"}
-                probes={probes}
-                {...(onFocusProbe ? { onFocusProbe } : {})}
-              />
-            ))}
-            {[...scalarByUnit.entries()].map(([unit, unitOutputs]) => {
-              return (
-                <ScalarResultsExplorer
-                  key={unit}
-                  resultKey={`${resultKey}:${analysis.analysis}:${analysisIndex}:${unit}`}
-                  plotName={analysis.plotName}
-                  domain={analysis.domain!.values}
-                  analysisLabel={
-                    analysis.analysis === "tran"
-                      ? "Transient"
-                      : analysis.analysis.toUpperCase()
-                  }
-                  domainLabel={analysis.domain!.name}
-                  domainUnit={analysis.domain!.unit}
-                  logarithmicX={analysis.analysis === "ac"}
-                  traces={unitOutputs.map((output, colorIndex) => ({
-                    id: output.id,
-                    label: output.label,
-                    colorIndex,
-                    quantity: scalarQuantity(unit),
-                    unit: unit === "1" ? null : unit,
-                    values: output.values.map((value) => value ?? Number.NaN),
-                    ...(probes.find((probe) => probe.id === output.id)
-                      ? {
-                          probe: probes.find(
-                            (probe) => probe.id === output.id,
-                          )!,
-                        }
-                      : {}),
-                  }))}
-                  {...(onFocusProbe ? { onFocusProbe } : {})}
-                />
+          <ResultRecordView key={recordKey} resultKey={recordKey}>
+            {(view) => {
+              const planned = new Map(
+                analysis.outputs.map((output) => [
+                  output.id,
+                  planResultOutput(
+                    output,
+                    view.state.plotLayout,
+                    view.state.unitOverrides[output.id],
+                  ),
+                ]),
               );
-            })}
-          </SimulationAnalysisCard>
+              const complex = analysis.outputs.filter(
+                (output) => planned.get(output.id)!.complexView,
+              );
+              const complexFamilies = new Set(
+                complex.flatMap((output) => {
+                  const expression = authored.get(output.id)?.expression;
+                  return expression ? [presentationBase(expression)] : [];
+                }),
+              );
+              const scalarFamilies = presentationFamilies.flatMap((family) => {
+                const baseResult = analysis.outputs.find(
+                  (output) => output.id === family.base.id && !output.imaginary,
+                );
+                if (!baseResult) return [];
+                const variants = family.variants.flatMap((spec) => {
+                  const result = analysis.outputs.find(
+                    (output) => output.id === spec.id && !output.imaginary,
+                  );
+                  return result ? [{ spec, result }] : [];
+                });
+                return variants.length > 1 ? [{ family, variants }] : [];
+              });
+              const scalarFamilyOutputIds = new Set(
+                scalarFamilies.flatMap(({ variants }) =>
+                  variants.map(({ spec }) => spec.id),
+                ),
+              );
+              const scalar = analysis.outputs.filter((output) => {
+                if (planned.get(output.id)!.complexView) return false;
+                if (scalarFamilyOutputIds.has(output.id)) return false;
+                if (analysis.analysis !== "ac") return true;
+                const expression = authored.get(output.id)?.expression;
+                return !(
+                  expression &&
+                  PRESENTATION_KINDS.has(expression.kind) &&
+                  complexFamilies.has(presentationBase(expression))
+                );
+              });
+              const scalarByUnit = new Map<string, typeof scalar>();
+              for (const output of scalar)
+                scalarByUnit.set(planned.get(output.id)!.group, [
+                  ...(scalarByUnit.get(planned.get(output.id)!.group) ?? []),
+                  output,
+                ]);
+              return (
+                <SimulationAnalysisCard
+                  key={`${analysis.analysis}-${analysisIndex}`}
+                  kind={analysis.analysis}
+                >
+                  {data.analyses.filter((a) => a.analysis === analysis.analysis)
+                    .length > 1 ? (
+                    <p>
+                      Record {analysisIndex + 1} · {analysis.plotName} · raw
+                      plots{" "}
+                      {analysis.rawPlotOrdinals?.join(", ") ?? "unavailable"}
+                    </p>
+                  ) : null}
+                  <ResultPlotControls view={view} outputs={analysis.outputs} />
+                  {analysis.analysis === "ac" && complex.length > 0 ? (
+                    <ComplexResultsExplorer
+                      resultKey={recordKey}
+                      plotName={analysis.plotName}
+                      traces={complex.map((output) => {
+                        const phases = unwrapPhaseDegrees(
+                          output.values.map(
+                            (value, i) =>
+                              (Math.atan2(
+                                output.imaginary![i] ?? Number.NaN,
+                                value ?? Number.NaN,
+                              ) *
+                                180) /
+                              Math.PI,
+                          ),
+                        );
+                        const probe = probes.find(
+                          (probe) => probe.id === output.id,
+                        );
+                        return {
+                          id: output.id,
+                          label: output.label,
+                          colorIndex: analysis.outputs.indexOf(output),
+                          unit: planned.get(output.id)!.unit || "unknown",
+                          quantity: planned.get(output.id)!.group,
+                          groupLabel: planned.get(output.id)!.groupLabel,
+                          defaultMode:
+                            planned.get(output.id)!.kind === "unknown"
+                              ? ("real" as const)
+                              : ("magnitude" as const),
+                          ...(probe ? { probe } : {}),
+                          points: analysis.domain!.values.map(
+                            (frequency, i) => ({
+                              ...complexAcPoint(
+                                frequency,
+                                output.values[i] ?? Number.NaN,
+                                output.imaginary![i] ?? Number.NaN,
+                              ),
+                              phaseDeg: phases[i] ?? Number.NaN,
+                            }),
+                          ),
+                        };
+                      })}
+                      {...(onFocusProbe ? { onFocusProbe } : {})}
+                    />
+                  ) : null}
+                  {scalarFamilies.map(({ family, variants }) => (
+                    <ScalarPresentationFamilyResults
+                      key={family.base.id}
+                      family={family}
+                      variants={variants}
+                      resultKey={recordKey}
+                      plotName={analysis.plotName}
+                      analysisLabel={
+                        analysis.analysis === "tran"
+                          ? "Transient"
+                          : analysis.analysis.toUpperCase()
+                      }
+                      domain={analysis.domain!.values}
+                      domainLabel={analysis.domain!.name}
+                      domainUnit={analysis.domain!.unit}
+                      logarithmicX={analysis.analysis === "ac"}
+                      probes={probes}
+                      {...(onFocusProbe ? { onFocusProbe } : {})}
+                    />
+                  ))}
+                  {[...scalarByUnit.entries()].map(([group, unitOutputs]) => {
+                    return (
+                      <ScalarResultsExplorer
+                        key={group}
+                        resultKey={recordKey}
+                        plotName={analysis.plotName}
+                        domain={analysis.domain!.values}
+                        analysisLabel={
+                          analysis.analysis === "tran"
+                            ? "Transient"
+                            : analysis.analysis.toUpperCase()
+                        }
+                        domainLabel={analysis.domain!.name}
+                        domainUnit={analysis.domain!.unit}
+                        logarithmicX={analysis.analysis === "ac"}
+                        traces={unitOutputs.map((output) => ({
+                          id: output.id,
+                          label: output.label,
+                          colorIndex: analysis.outputs.indexOf(output),
+                          quantity: group,
+                          groupLabel: planned.get(output.id)!.groupLabel,
+                          unit:
+                            planned.get(output.id)!.unit === "1"
+                              ? null
+                              : planned.get(output.id)!.unit || "unknown",
+                          values: output.values.map(
+                            (value) => value ?? Number.NaN,
+                          ),
+                          ...(probes.find((probe) => probe.id === output.id)
+                            ? {
+                                probe: probes.find(
+                                  (probe) => probe.id === output.id,
+                                )!,
+                              }
+                            : {}),
+                        }))}
+                        {...(onFocusProbe ? { onFocusProbe } : {})}
+                      />
+                    );
+                  })}
+                </SimulationAnalysisCard>
+              );
+            }}
+          </ResultRecordView>
         );
       })}
       {data.diagnostics.length > 0 ? (

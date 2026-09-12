@@ -239,7 +239,35 @@ crossing or insufficient sample window must not become zero and must not change
 an otherwise completed Run into a failed Run. The service is the sole numerical
 owner: GUI, Agent responses, and `measurements.csv` consume the same rows.
 
-## Validation
+## Plot semantics and grouping
+
+Evaluated outputs may carry `semantics`: `valueKind` (`real`, `complex`, or
+`unknown`), the raw `quantity`, `origin` (`raw` or `expression`), and the
+captured native `expression` when available. This metadata is derived from
+the executed source snapshot, never from later editor text or variable-name
+suffixes. Existing archives without it remain readable.
+
+Complex rawfile storage is not an instruction to take magnitude. Physical AC
+acquisitions remain complex even when every imaginary sample is zero. Native
+`db`, `ph`/`cph`, and supported explicit degree conversions are already real
+results: their signs are preserved without applying another magnitude, logarithm,
+or phase transformation. Source inference is deliberately bounded; conflicting
+assignments, dynamic control programs and unsupported expressions stay unknown.
+It does not execute ngspice or replace its numeric results.
+
+Waveform views group compatible units and representations, with independent
+vertical axes. Unknown outputs are isolated, not labelled dimensionless.
+Users may separate each trace for scale differences and declare an unknown
+display unit; declarations label existing values rather than converting them.
+Within one analysis record, plots share horizontal range, history and cursors.
+Repeated records remain separate, with independent view state. These preferences
+are session-only and do not modify Code, the Project, or the simulation input.
+Image exports use the same renderer; raw numeric exports retain recorded values.
+Older archives without sufficient semantics use conservative raw/real display
+for unknown values instead of guessing from names. XY plots, cross-run alignment
+and persisted plot templates are outside this contract.
+
+## Validation evidence
 
 Rawfile, result-data, expression, and measurement tests protect parsing and
 numerical meaning. Closed-form fixtures and model-backed hosted qualification

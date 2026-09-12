@@ -1889,6 +1889,23 @@
   align-items: start;
   min-width: 0;
 }
+.simulation-plot-controls {
+  color: var(--icm-text-muted);
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+.simulation-plot-controls summary {
+  cursor: pointer;
+}
+.simulation-plot-controls label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 12px 0 0;
+}
+.simulation-plot-controls p {
+  margin: 6px 0;
+}
 .simulation-plot-stack {
   display: grid;
   gap: 8px;

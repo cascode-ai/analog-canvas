@@ -7,6 +7,8 @@ import { WaveformTraceList } from "./waveform-trace-list";
 import type { SimulationFocusTarget } from "./simulation-focus-target";
 import type { AcResult } from "@icm/spice-run";
 import type { Prepared } from "@icm/simulation-service/contract";
+import { planResultOutput, rawAcOutput } from "./result-plot-plan";
+import { ScalarResultsExplorer } from "./transient-results-explorer";
 
 import {
   acPointValue,
@@ -21,6 +23,9 @@ export interface OutputTrace extends AcTrace {
   id: string;
   quantity: string;
   probe?: SimulationFocusTarget;
+  groupLabel?: string;
+  defaultMode?: "real" | "magnitude";
+  scalarView?: boolean;
 }
 
 interface ExpandedPlot {
@@ -140,6 +145,7 @@ function outputTraces(
   );
   const probesById = new Map(probes.map((probe) => [probe.id, probe]));
   return analysis.probes.map((resultProbe, index) => {
+    const planned = planResultOutput(rawAcOutput(resultProbe));
     const binding = vectorsByName.get(resultProbe.name.toLowerCase());
     const authored = binding ? probesById.get(binding.probeId) : undefined;
     const phases = unwrapPhaseDegrees(
@@ -152,12 +158,12 @@ function outputTraces(
       id: binding?.probeId ?? resultProbe.name,
       label: (binding && labels[binding.probeId]) || resultProbe.name,
       colorIndex: index,
-      unit:
-        resultProbe.unit ?? (resultProbe.quantity === "current" ? "A" : "V"),
-      quantity:
-        (binding && groups[binding.probeId]) ??
-        binding?.quantity ??
-        (resultProbe.quantity === "current" ? "current" : "voltage"),
+      unit: planned.unit || "unknown",
+      quantity: (binding && groups[binding.probeId]) ?? planned.group,
+      groupLabel: planned.groupLabel,
+      defaultMode:
+        planned.kind === "unknown" ? ("real" as const) : ("magnitude" as const),
+      scalarView: !planned.complexView,
       ...(authored ? { probe: authored } : {}),
       points: analysis.frequencyHz.map((frequency, pointIndex) => ({
         ...complexAcPoint(
@@ -215,12 +221,38 @@ export function AcResultsExplorer({
   groups = {},
   ...display
 }: AcResultsExplorerProps) {
+  const traces = outputTraces(analysis, vectors, probes, labels, groups);
   return (
-    <ComplexResultsExplorer
-      {...display}
-      plotName={analysis.plotName}
-      traces={outputTraces(analysis, vectors, probes, labels, groups)}
-    />
+    <>
+      {traces.some((t) => !t.scalarView) ? (
+        <ComplexResultsExplorer
+          {...display}
+          plotName={analysis.plotName}
+          traces={traces.filter((t) => !t.scalarView)}
+        />
+      ) : null}
+      {traces.some((t) => t.scalarView) ? (
+        <ScalarResultsExplorer
+          {...(display.resultKey ? { resultKey: display.resultKey } : {})}
+          plotName={analysis.plotName}
+          domain={analysis.frequencyHz}
+          domainLabel="Frequency"
+          domainUnit="Hz"
+          logarithmicX
+          analysisLabel="AC"
+          traces={traces
+            .filter((t) => t.scalarView)
+            .map((t) => ({
+              ...t,
+              colorIndex: t.colorIndex ?? 0,
+              values: t.points.map((p) => p.real),
+            }))}
+          {...(display.onFocusProbe
+            ? { onFocusProbe: display.onFocusProbe }
+            : {})}
+        />
+      ) : null}
+    </>
   );
 }
 
@@ -250,6 +282,9 @@ export function ComplexResultsExplorer({
     Readonly<Record<string, string>>
   >({});
   const visible = traces.filter((trace) => !hidden.has(trace.id));
+  const labelGroup = (quantity: string) =>
+    traces.find((t) => t.quantity === quantity)?.groupLabel ??
+    groupLabel(quantity);
   useEffect(() => {
     if (!expandedPlot) return;
     const close = (event: KeyboardEvent) => {
@@ -471,7 +506,10 @@ export function ComplexResultsExplorer({
         const quantityTraces = traces.filter(
           (trace) => trace.quantity === quantity,
         );
-        const mode = viewModes[quantity] ?? "magnitude";
+        const mode =
+          viewModes[quantity] ??
+          traces.find((t) => t.quantity === quantity)?.defaultMode ??
+          "magnitude";
         const kinds = displayKinds(mode);
         const referenceActive = mode === "db20" || mode === "bode";
         const rawVisibleQuantityTraces = quantityTraces.filter(
@@ -488,7 +526,7 @@ export function ComplexResultsExplorer({
               <div className="ac-view-toolbar">
                 <div
                   role="group"
-                  aria-label={`${groupLabel(quantity)} display`}
+                  aria-label={`${labelGroup(quantity)} display`}
                 >
                   {VIEW_MODES.map(({ mode: candidate, label }) => (
                     <button
@@ -510,7 +548,7 @@ export function ComplexResultsExplorer({
                   <label>
                     Reference
                     <select
-                      aria-label={`${groupLabel(quantity)} reference`}
+                      aria-label={`${labelGroup(quantity)} reference`}
                       value={referenceId}
                       onChange={(event) =>
                         setReferences((current) => {
@@ -539,7 +577,7 @@ export function ComplexResultsExplorer({
             </div>
             <div className="simulation-plot-layout">
               <WaveformTraceList
-                label={`${groupLabel(quantity)} outputs`}
+                label={`${labelGroup(quantity)} outputs`}
                 traces={quantityTraces.map((trace) => ({
                   id: trace.id,
                   label: trace.label,
@@ -584,13 +622,13 @@ export function ComplexResultsExplorer({
                 className="ac-plot-dialog"
                 role="dialog"
                 aria-modal="true"
-                aria-label={`${expandedPlot.quantity} ${expandedPlot.kind} plot`}
+                aria-label={`${labelGroup(expandedPlot.quantity).toLowerCase()} ${expandedPlot.kind} plot`}
               >
                 <header>
                   <div>
                     <strong>{plotName}</strong>
                     <span>
-                      {groupLabel(expandedPlot.quantity)} ·{" "}
+                      {labelGroup(expandedPlot.quantity)} ·{" "}
                       {plotKindLabel(expandedPlot.kind)}
                     </span>
                   </div>
@@ -604,7 +642,7 @@ export function ComplexResultsExplorer({
                 </header>
                 <div className="simulation-plot-layout expanded">
                   <WaveformTraceList
-                    label={`${groupLabel(expandedPlot.quantity)} outputs`}
+                    label={`${labelGroup(expandedPlot.quantity)} outputs`}
                     traces={traces
                       .filter(
                         (trace) => trace.quantity === expandedPlot.quantity,

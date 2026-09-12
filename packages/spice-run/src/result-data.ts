@@ -187,6 +187,8 @@ const UNIT_BY_QUANTITY = new Map<string, string>([
   ["resistance", "Ω"],
   ["time", "s"],
   ["frequency", "Hz"],
+  ["decibel", "dB"],
+  ["phase", "rad"],
   ["temp-sweep", "°C"],
   ["res-sweep", "Ω"],
 ]);

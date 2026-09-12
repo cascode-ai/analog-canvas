@@ -185,12 +185,21 @@ export const PreparedSchema = z.strictObject({
 });
 export type Prepared = z.infer<typeof PreparedSchema>;
 export const OutputPointSchema = z.number().finite().nullable();
+/** Meaning is distinct from raw AC storage (a real expression may have zero imaginary samples). */
+export const OutputSemanticsSchema = z.strictObject({
+  valueKind: z.enum(["real", "complex", "unknown"]),
+  quantity: z.string(),
+  origin: z.enum(["raw", "expression"]),
+  expression: z.string().optional(),
+});
+export type OutputSemantics = z.infer<typeof OutputSemanticsSchema>;
 export const EvaluatedOutputSchema = z.strictObject({
   id: Id,
   label: z.string(),
   unit: z.string(),
   values: z.array(OutputPointSchema),
   imaginary: z.array(OutputPointSchema).optional(),
+  semantics: OutputSemanticsSchema.optional(),
 });
 export const EvaluatedScalarSchema = z.strictObject({
   id: Id,
