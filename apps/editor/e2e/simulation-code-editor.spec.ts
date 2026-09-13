@@ -270,7 +270,14 @@ test("file switching preserves caret, selection, scroll and local Undo history",
     Array.from({ length: 90 }, (_, i) => `* line ${i}\n`).join("");
   await editor.fill(long);
   const beforeEdit = (await page.getByTestId("draft-source").textContent())!;
-  await page.keyboard.press("Control+End");
+  // Seed a committed file so Undo checks the later edit, independently of
+  // whether CodeMirror groups two rapid input events into one history entry.
+  await page.getByRole("button", { name: "Save source" }).click();
+  await expect(page.getByTestId("saved-source")).toHaveText(beforeEdit);
+  await editor.focus();
+  await page.keyboard.press(
+    process.platform === "darwin" ? "Meta+ArrowDown" : "Control+End",
+  );
   await page.keyboard.insertText("* preserve this selection");
   await page.keyboard.press("Control+Shift+ArrowLeft");
   const position = await page.getByTestId("source-cursor").textContent();
@@ -292,6 +299,7 @@ test("file switching preserves caret, selection, scroll and local Undo history",
     .click();
   await editor.fill('{"version":1,"different":true}');
   await page.getByRole("tab", { name: "run.cir" }).click();
+  await expect(editor).toBeFocused();
   await editor.focus();
   await expect
     .poll(() => scroller.evaluate((el) => el.scrollTop))
@@ -300,6 +308,6 @@ test("file switching preserves caret, selection, scroll and local Undo history",
   expect(await page.evaluate(() => window.getSelection()?.toString())).toBe(
     selection,
   );
-  await page.keyboard.press("Control+z");
+  await page.keyboard.press("ControlOrMeta+z");
   await expect(page.getByTestId("draft-source")).toHaveText(beforeEdit);
 });

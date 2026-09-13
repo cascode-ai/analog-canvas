@@ -327,7 +327,10 @@ export default function SimulationCodeEditor(props: SimulationCodeEditorProps) {
       editor.dispatch({
         effects: configuration.current.reconfigure(extensions()),
       });
-      if (focused) editor.focus();
+      // File navigation restores focus through CodeMirror together with its
+      // selection. Native focus on a recreated contenteditable can otherwise
+      // scroll the restored viewport back to the start of the document.
+      if (focused || !samePath) editor.focus();
       callbacks.current.onCursor?.(
         sourceOffset(props.text, editor.state.selection.main.head),
       );
