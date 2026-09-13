@@ -11,11 +11,7 @@ export function NativeMeasurementResults({
       className="simulation-measurement-results"
       aria-label="Native measurements"
     >
-      <h4>Code measurements</h4>
-      <p>
-        Scalars reported by ngspice. Repeated names retain their report order;
-        units and plot associations are not inferred.
-      </p>
+      <h4>Measurements</h4>
       <table>
         <thead>
           <tr>
