@@ -44,7 +44,7 @@ export interface EditorAppChromeProps {
   fileCommands: ComponentProps<typeof FileCommandMenu>;
   searchOpen: boolean;
   onManageCells: () => void;
-  onNewTestbench: () => void;
+  onNewTestbench?: () => void;
   placeProjectCell: CommandAction;
   selectionFilterOpen: boolean;
   onOpenSelectionFilter: () => void;
@@ -219,9 +219,11 @@ export function EditorAppChrome({
                 >
                   Manage Cells…
                 </button>
-                <button type="button" onClick={onNewTestbench}>
-                  New Testbench Cell…
-                </button>
+                {onNewTestbench ? (
+                  <button type="button" onClick={onNewTestbench}>
+                    New Testbench Cell…
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   onClick={placeProjectCell.execute}

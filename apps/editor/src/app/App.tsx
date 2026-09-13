@@ -128,6 +128,7 @@ import {
 } from "../features/simulation/terminal-current-pick";
 import { TimingSimulationPanel } from "../features/simulation/timing-simulation-panel";
 import { TIMING_UI_ENABLED } from "../features/simulation/timing-ui";
+import { PUBLIC_SIMULATION_UI_ENABLED } from "../features/simulation/public-simulation-ui";
 import { updateComponentParameterValues } from "../features/component-insert/component-parameters";
 import {
   waveformDraftingObjects,
@@ -371,6 +372,8 @@ export interface AppProps {
   visitStats?: { pv: number; uv: number } | null;
   /** Test/staging seam; production defaults to a human-only editor. */
   publicAgentUiEnabled?: boolean;
+  /** Test/Preview seam; production hides human-facing analog simulation. */
+  publicSimulationUiEnabled?: boolean;
   /** Test/staging seam; production Cloudflare builds keep timing tools hidden. */
   timingUiEnabled?: boolean;
   /** `/g/<id>` deep link: load this gallery entry after boot. */
@@ -381,6 +384,7 @@ export function App({
   project: initialProject,
   visitStats,
   publicAgentUiEnabled = PUBLIC_AGENT_UI_ENABLED,
+  publicSimulationUiEnabled = PUBLIC_SIMULATION_UI_ENABLED,
   timingUiEnabled = TIMING_UI_ENABLED,
   initialGalleryEntryId = null,
 }: AppProps) {
@@ -873,26 +877,36 @@ export function App({
   const analogSimulationMaximized = analogSimulationState === "maximized";
   const humanSimulationSession = useMemo(
     () =>
-      new BrowserSimulationSession({
-        getProjectSessionId: () => editorDocumentController.projectSessionId,
-        getProject: () => editorDocumentController.project,
-        projectFiles: createSimulationProjectFileHost({
-          getProject: () => editorDocumentController.project,
-          getProjectSessionId: () => editorDocumentController.projectSessionId,
-          dispatch: (request) => dispatchProjectTransaction(request),
-          actor: { kind: "human", id: "human-local" },
-        }),
-        transport: releaseChannel === "preview" ? "managed" : "direct",
-      }),
-    [editorDocumentController, projectSessionId, releaseChannel],
+      analogSimulationOpened
+        ? new BrowserSimulationSession({
+            getProjectSessionId: () =>
+              editorDocumentController.projectSessionId,
+            getProject: () => editorDocumentController.project,
+            projectFiles: createSimulationProjectFileHost({
+              getProject: () => editorDocumentController.project,
+              getProjectSessionId: () =>
+                editorDocumentController.projectSessionId,
+              dispatch: (request) => dispatchProjectTransaction(request),
+              actor: { kind: "human", id: "human-local" },
+            }),
+            transport: releaseChannel === "preview" ? "managed" : "direct",
+          })
+        : null,
+    [
+      analogSimulationOpened,
+      editorDocumentController,
+      projectSessionId,
+      releaseChannel,
+    ],
   );
   useEffect(
     () => () => {
-      void humanSimulationSession.clear();
+      void humanSimulationSession?.clear();
     },
     [humanSimulationSession],
   );
   const openAnalogSimulation = (): void => {
+    if (!publicSimulationUiEnabled) return;
     simulationPropertiesOpenBeforeRef.current = selectionOpen;
     setSelectionOpen(false);
     setAnalogSimulationState("open");
@@ -909,7 +923,7 @@ export function App({
   };
   const exitAnalogSimulation = (): void => {
     setSimulationPickModeState(null);
-    void humanSimulationSession.clear();
+    void humanSimulationSession?.clear();
     setAnalogSimulationState("closed");
     setSimulationDraftContext(null);
     setSelectionOpen(simulationPropertiesOpenBeforeRef.current);
@@ -3385,6 +3399,7 @@ export function App({
   }
 
   function openNewTestbenchDialog(dutDocumentId = document.id): void {
+    if (!publicSimulationUiEnabled) return;
     cancelAllTransientInteraction();
     setCanvasContextMenu(null);
     setNewTestbenchDutId(dutDocumentId);
@@ -4501,7 +4516,12 @@ export function App({
     <main className="app-shell">
       {renderCrashRequested() ? <RenderCrashProbe /> : null}
       <EditorAppChrome
-        simulationAction={openAnalogSimulation}
+        {...(publicSimulationUiEnabled
+          ? {
+              simulationAction: openAnalogSimulation,
+              onNewTestbench: () => openNewTestbenchDialog(),
+            }
+          : {})}
         simulationState={analogSimulationState}
         releaseChannel={releaseChannel}
         projectName={project.name}
@@ -4572,7 +4592,6 @@ export function App({
         searchOpen={searchOpen}
         selectionFilterOpen={selectionFilterOpen}
         onManageCells={() => setCellManagerOpen(true)}
-        onNewTestbench={() => openNewTestbenchDialog()}
         placeProjectCell={{
           enabled: cellInsertCandidates.length > 0,
           execute: placeCellInstance,
@@ -5020,7 +5039,7 @@ export function App({
             : null
         }
         newTestbench={
-          newTestbenchDutId
+          publicSimulationUiEnabled && newTestbenchDutId
             ? {
                 documents: project.documents,
                 initialDutDocumentId: newTestbenchDutId,
@@ -5363,7 +5382,7 @@ export function App({
             setSelectionOpen(open);
           }}
           code={
-            analogSimulationOpened ? (
+            analogSimulationOpened && humanSimulationSession ? (
               <Suspense fallback={null}>
                 <LazySpiceSimulationSurface
                   key={projectSessionId}

@@ -20,6 +20,23 @@ build artifact: the workflows build their selected checkout. Channel-controlled
 features and runtime bindings may differ.
 [ADR 0057](adr/0057-release-channels-preview-and-production.md) explains the choice.
 
+The release build keeps ordinary editor behavior at the promoted `main`
+commit. Human-facing Simulation and Agent controls are explicit channel
+capabilities rather than a reason to hold back unrelated editor work:
+
+| Browser capability                                               | Preview  | Production |
+| ---------------------------------------------------------------- | -------- | ---------- |
+| Core editor, project format, Gallery and account UI              | Enabled  | Enabled    |
+| Analog Simulation workspace and Testbench authoring entry points | Enabled  | Disabled   |
+| Agent connection controls                                        | Enabled  | Disabled   |
+| Digital Timing UI                                                | Disabled | Disabled   |
+
+These are browser presentation choices. Persisted Simulation data remains
+round-trippable on both channels, and the Agent and Simulation HTTP APIs keep
+their independently deployed contracts. Production therefore promotes the
+same source revision without exposing unfinished human-facing workflows or
+discarding data authored on Preview.
+
 The deployed cross-Project journey receives a repository secret as a
 host-scoped HttpOnly cookie. Only `/api/projects` recognizes that identity, and
 only when `ICM_CHANNEL=preview`; Gallery, account, moderation and Production

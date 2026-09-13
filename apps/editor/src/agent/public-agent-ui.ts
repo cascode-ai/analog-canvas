@@ -1,3 +1,5 @@
+import { resolvePublicUiFeatureEnabled } from "../deployment/public-ui-feature";
+
 /**
  * Controls whether the browser exposes the human-facing Agent connection UI.
  *
@@ -9,9 +11,7 @@ export function resolvePublicAgentUiEnabled(input: {
   production: boolean;
   configured?: string;
 }): boolean {
-  if (input.configured === "enabled") return true;
-  if (input.configured === "disabled") return false;
-  return !input.production;
+  return resolvePublicUiFeatureEnabled(input);
 }
 
 export const PUBLIC_AGENT_UI_ENABLED = resolvePublicAgentUiEnabled({

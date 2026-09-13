@@ -1,3 +1,5 @@
+import { resolvePublicUiFeatureEnabled } from "../../deployment/public-ui-feature";
+
 /**
  * Controls the experimental human-facing digital timing tools.
  *
@@ -10,9 +12,7 @@ export function resolveTimingUiEnabled(input: {
   production: boolean;
   configured?: string;
 }): boolean {
-  if (input.configured === "enabled") return true;
-  if (input.configured === "disabled") return false;
-  return !input.production;
+  return resolvePublicUiFeatureEnabled(input);
 }
 
 export const TIMING_UI_ENABLED = resolveTimingUiEnabled({

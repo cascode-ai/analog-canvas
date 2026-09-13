@@ -68,6 +68,11 @@ jobs:
           # Timing simulation remains a localhost development surface until
           # its interaction and presentation contracts are ready to publish.
           VITE_ICM_TIMING_UI: disabled
+          # Production promotes the same main commit as Preview, but keeps the
+          # unreleased human Simulation and Agent surfaces out of its editor.
+          # Their persisted data and HTTP APIs remain available independently.
+          VITE_ICM_SIMULATION_UI: disabled
+          VITE_ICM_AGENT_UI: disabled
       # The version serving right now, captured BEFORE anything changes.
       # Read afterwards it would already describe the deploy under test, and
       # a rollback would restore the very thing it is meant to undo.
