@@ -251,9 +251,11 @@ try {
   });
 
   await page.getByRole("button", { name: "Agent", exact: true }).click();
-  const claimElement = page.getByTestId("agent-claim-code");
+  const claimElement = page.getByTestId("agent-copy-text");
   await claimElement.waitFor({ state: "attached", timeout: 30_000 });
-  const claimCode = await claimElement.textContent();
+  const { claimCode } = JSON.parse(
+    (await claimElement.inputValue()).match(/^Claim: (.+)$/mu)?.[1] ?? "{}",
+  );
   assert(claimCode, "The preview returned no Agent claim code");
 
   await startMcp();
@@ -840,10 +842,12 @@ try {
   await recovery.waitFor({ state: "visible" });
   await recovery.getByRole("button", { name: "Restore", exact: true }).click();
   await page.getByRole("button", { name: "Agent", exact: true }).click();
-  const restoredClaim = page.getByTestId("agent-claim-code");
+  const restoredClaim = page.getByTestId("agent-copy-text");
   await restoredClaim.waitFor({ state: "attached", timeout: 30000 });
   const reconnected = await tool("connect", {
-    claimCode: await restoredClaim.textContent(),
+    claimCode: JSON.parse(
+      (await restoredClaim.inputValue()).match(/^Claim: (.+)$/mu)?.[1] ?? "{}",
+    ).claimCode,
   });
   assert(reconnected.ok);
   paired = true;

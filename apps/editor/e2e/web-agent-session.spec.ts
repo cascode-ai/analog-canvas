@@ -70,12 +70,33 @@ test("retries a failed Agent connection without a permission picker", async ({
   expect(creates).toBe(1);
   await expect(page.locator('[data-testid^="agent-preset-"]')).toHaveCount(0);
   await panel.getByTestId("agent-connect").click();
-  await expect(panel.getByTestId("agent-claim-code")).toHaveText(
-    "retry-session.claim",
-  );
+  await expect
+    .poll(() => panel.getByTestId("agent-copy-text").inputValue())
+    .toContain(JSON.stringify({ claimCode: "retry-session.claim" }));
   await expect(panel.getByRole("alert")).toHaveCount(0);
   await expect(panel.getByTestId("agent-connect")).toHaveCount(0);
   expect(creates).toBe(2);
+  await expect(panel.locator("details")).toHaveCount(0);
+  await expect(
+    panel.getByText("Paste this message into your Agent chat to connect.", {
+      exact: true,
+    }),
+  ).toHaveCount(1);
+  // All actions stay above the message, including when the toolbar wraps.
+  for (const width of [1280, 375]) {
+    await page.setViewportSize({ width, height: 800 });
+    const message = await panel.getByTestId("agent-copy-text").boundingBox();
+    expect(message).not.toBeNull();
+    expect(message!.x).toBeGreaterThanOrEqual(0);
+    expect(message!.x + message!.width).toBeLessThanOrEqual(width);
+    for (const button of await panel.getByRole("button").all()) {
+      const bounds = await button.boundingBox();
+      expect(bounds).not.toBeNull();
+      expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(message!.y);
+      expect(bounds!.x).toBeGreaterThanOrEqual(0);
+      expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width);
+    }
+  }
   await panel.getByTestId("agent-copy-instructions").click();
   await expect(panel.getByRole("alert")).toContainText("Copy was blocked");
   expect(
@@ -84,11 +105,11 @@ test("retries a failed Agent connection without a permission picker", async ({
       return input.selectionEnd - input.selectionStart === input.value.length;
     }),
   ).toBe(true);
-  await panel.getByRole("button", { name: "Hide Agent details" }).click();
+  await panel.getByRole("button", { name: "Close Agent dialog" }).click();
   await page.getByRole("button", { name: "Agent", exact: true }).click();
-  await expect(panel.getByTestId("agent-claim-code")).toHaveText(
-    "retry-session.claim",
-  );
+  await expect
+    .poll(() => panel.getByTestId("agent-copy-text").inputValue())
+    .toContain(JSON.stringify({ claimCode: "retry-session.claim" }));
   expect(creates).toBe(2);
 });
 
@@ -175,9 +196,9 @@ test("grants a browser Agent, edits through the live host, and shares undo", asy
   await page.goto("/editor");
   await page.getByRole("button", { name: "Agent", exact: true }).click();
   await expect(page.locator('[data-testid^="agent-preset-"]')).toHaveCount(0);
-  await expect(page.getByTestId("agent-claim-code")).toHaveText(
-    `${sessionId}.one-time-claim`,
-  );
+  await expect
+    .poll(() => page.getByTestId("agent-copy-text").inputValue())
+    .toContain(JSON.stringify({ claimCode: `${sessionId}.one-time-claim` }));
   await expect.poll(() => browserSocket !== null).toBe(true);
   expect(sessionCreates).toBe(1);
   const socket = browserSocket!;
@@ -420,7 +441,7 @@ test("grants a browser Agent, edits through the live host, and shares undo", asy
 
   await page
     .getByTestId("connect-agent-panel")
-    .getByRole("button", { name: "Hide Agent details" })
+    .getByRole("button", { name: "Close Agent dialog" })
     .click();
   await clickCommand(page, "Edit", "Undo");
   await expect(page.getByTestId("active-instance-count")).toHaveText("0");
@@ -451,15 +472,15 @@ test("grants a browser Agent, edits through the live host, and shares undo", asy
   await panel.getByTestId("agent-new-connection").click();
   await expect.poll(() => sessionCreates).toBe(2);
   await expect.poll(() => revokeControls).toBe(1);
-  await expect(panel.getByTestId("agent-claim-code")).toHaveText(
-    `${sessionId}.one-time-claim`,
-  );
+  await expect
+    .poll(() => panel.getByTestId("agent-copy-text").inputValue())
+    .toContain(JSON.stringify({ claimCode: `${sessionId}.one-time-claim` }));
   await expect(panel.getByTestId("agent-status")).toContainText(
     "Waiting for Agent",
   );
   await panel.getByTestId("agent-revoke").click();
   await expect(panel.getByTestId("agent-status")).toContainText("Disconnected");
-  await panel.getByRole("button", { name: "Hide Agent details" }).click();
+  await panel.getByRole("button", { name: "Close Agent dialog" }).click();
   await page.getByRole("button", { name: "Agent", exact: true }).click();
   await expect(panel.getByTestId("agent-status")).toContainText(
     "Waiting for Agent",
@@ -549,7 +570,7 @@ test("copies a working handoff through the normal local dev relay", async ({
       documentId,
     }),
   ).rejects.toThrow();
-  await panel.getByRole("button", { name: "Hide Agent details" }).click();
+  await panel.getByRole("button", { name: "Close Agent dialog" }).click();
   await clickCommand(page, "Edit", "Undo");
   await expect(page.getByTestId("active-instance-count")).toHaveText("0");
 });

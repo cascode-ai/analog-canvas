@@ -126,9 +126,13 @@ for (const project of manifest.projects.filter(
     await page.getByTestId("project-file").setInputFiles(project.file);
     await page.getByRole("button", { name: "Agent", exact: true }).click();
     await page
-      .getByTestId("agent-claim-code")
+      .getByTestId("agent-copy-text")
       .waitFor({ state: "attached", timeout: 30000 });
-    const claimCode = await page.getByTestId("agent-claim-code").textContent();
+    const { claimCode } = JSON.parse(
+      (await page.getByTestId("agent-copy-text").inputValue()).match(
+        /^Claim: (.+)$/mu,
+      )?.[1] ?? "{}",
+    );
     child = spawn(process.execPath, [executable], {
       env: {
         ...process.env,

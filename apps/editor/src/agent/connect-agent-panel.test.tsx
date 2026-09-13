@@ -30,8 +30,8 @@ function baseProps(
   };
 }
 
-// The dialog is only authorization and hand-off; ongoing session controls live
-// in Properties. Secrets remain props-only and are never persisted here.
+// The dialog and expanded Properties share the hand-off and session controls.
+// Secrets remain props-only and are never persisted here.
 
 describe("ConnectAgentPanel", () => {
   it("provides one complete golden-path lifecycle without a bearer value", () => {
@@ -88,20 +88,26 @@ describe("ConnectAgentPanel", () => {
         })}
       />,
     );
-    expect(markup).toContain('data-testid="agent-claim-code"');
+    expect(markup).not.toContain('data-testid="agent-claim-code"');
     expect(markup).toContain('data-testid="agent-copy-instructions"');
     expect(markup).toContain('data-testid="agent-copy-text"');
-    expect(markup).toContain('class="agent-copy-card"');
-    expect(markup).toContain("Paste into your Agent");
+    expect(markup).toContain('class="agent-connection-toolbar"');
+    expect(markup).toContain("Copy message");
+    expect(markup).toContain(
+      "Paste this message into your Agent chat to connect.",
+    );
+    expect(markup).not.toContain("<details");
+    expect(markup).not.toContain("technical details");
+    expect(markup).not.toContain("session 1:00 remaining");
     expect(markup).toContain("Connect to Analog Canvas at http://localhost.");
     expect(markup).toContain("<textarea");
     expect(markup).toContain(
       "Claim: {&quot;claimCode&quot;:&quot;CLAIM-12345&quot;}",
     );
     expect(markup).toContain("/api/agent/mcp-manifest.json");
-    expect(markup).toContain("MCP bootstrap manifest");
+    expect(markup).not.toContain("MCP bootstrap manifest");
     expect(markup).toContain("CLAIM-12345");
-    expect(markup).toContain("circuit.snapshot, circuit.render");
+    expect(markup).not.toContain("Scopes:");
     expect(markup).toContain('data-testid="agent-pause"');
     expect(markup).toContain('data-testid="agent-revoke"');
     expect(markup).toContain('aria-label="Copy connection setup"');
@@ -200,6 +206,35 @@ describe("ConnectAgentPanel", () => {
     );
     expect(markup).toContain('data-testid="agent-claim-expired"');
     expect(markup).not.toContain('data-testid="agent-claim-code"');
-    expect(markup).toContain("Generate another");
+    expect(markup).toContain("Connection message expired.");
+    expect(markup).toContain('data-testid="agent-new-connection"');
+    expect(markup).not.toContain('data-testid="agent-copy-instructions"');
+  });
+
+  it("uses one set of actions without technical disclosures in expanded Properties", () => {
+    const markup = renderToStaticMarkup(
+      <AgentPropertiesSection
+        {...baseProps({
+          status: "connected",
+          claimCode: "current-claim",
+          claimExpiresAt: Date.now() + 30_000,
+        })}
+        expanded
+        onToggleDetails={vi.fn()}
+        onDismiss={vi.fn()}
+      />,
+    );
+    for (const action of [
+      "copy-instructions",
+      "pause",
+      "new-connection",
+      "revoke",
+    ]) {
+      expect(
+        markup.match(new RegExp(`data-testid="agent-${action}"`, "gu")),
+      ).toHaveLength(1);
+    }
+    expect(markup).not.toContain("<details");
+    expect(markup).not.toContain("Scopes:");
   });
 });

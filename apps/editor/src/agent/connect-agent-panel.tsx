@@ -176,20 +176,13 @@ function ConnectionControls(
 function ClaimHandOff({
   claimCode,
   claimExpiresAt,
-  expiresAt,
-  scopes,
   now,
-  onNewConnection,
   status,
-}: Pick<
-  ConnectAgentPanelProps,
-  | "claimCode"
-  | "claimExpiresAt"
-  | "expiresAt"
-  | "scopes"
-  | "onNewConnection"
-  | "status"
-> & { now: number }): ReactNode {
+  controls,
+}: Pick<ConnectAgentPanelProps, "claimCode" | "claimExpiresAt" | "status"> & {
+  now: number;
+  controls: ReactNode;
+}): ReactNode {
   const [copied, setCopied] = useState(false);
   const [copyFailed, setCopyFailed] = useState(false);
   const textRef = useRef<HTMLTextAreaElement>(null);
@@ -198,106 +191,85 @@ function ClaimHandOff({
     setCopyFailed(false);
   }, [claimCode]);
   const claimExpired = claimExpiresAt !== null && now >= claimExpiresAt;
-  if (claimCode === null && !claimExpired) return null;
-  if (claimExpired && status === "waiting-for-agent") {
-    return (
-      <div className="agent-claim" data-testid="agent-claim-expired">
-        <p>Connection setup expired.</p>
-        <button type="button" onClick={onNewConnection}>
-          Generate another
-        </button>
-      </div>
-    );
-  }
-  if (claimExpired) return null;
-  const instructions = agentConnectionInstructions(
-    typeof window === "undefined" ? "http://localhost" : window.location.origin,
-    claimCode!,
-  );
+  const instructions =
+    claimCode !== null && !claimExpired
+      ? agentConnectionInstructions(
+          typeof window === "undefined"
+            ? "http://localhost"
+            : window.location.origin,
+          claimCode,
+        )
+      : null;
+
   return (
-    <div className="agent-claim" data-testid="agent-claim">
-      <p>Copy this message and paste it into your Agent chat to connect.</p>
-      <div className="agent-copy-card">
-        <div className="agent-copy-card-header">
-          <span className="agent-copy-card-label">Paste into your Agent</span>
-          <div className="agent-copy-card-action">
-            <span className="agent-copy-feedback" aria-live="polite">
-              {copied ? "Copied" : ""}
-            </span>
-            <button
-              type="button"
-              className="agent-copy-button"
-              data-testid="agent-copy-instructions"
-              aria-label={
-                copied ? "Connection setup copied" : "Copy connection setup"
+    <div className="agent-connection-content">
+      <div className="agent-connection-toolbar">
+        {instructions !== null ? (
+          <button
+            type="button"
+            className="agent-copy-button"
+            data-testid="agent-copy-instructions"
+            aria-label={
+              copied ? "Connection setup copied" : "Copy connection setup"
+            }
+            onClick={async () => {
+              try {
+                await navigator.clipboard.writeText(instructions);
+                setCopied(true);
+                setCopyFailed(false);
+              } catch {
+                setCopied(false);
+                setCopyFailed(true);
+                textRef.current?.focus();
+                textRef.current?.select();
               }
-              title={copied ? "Copied" : "Copy connection setup"}
-              onClick={async () => {
-                try {
-                  await navigator.clipboard.writeText(instructions);
-                  setCopied(true);
-                  setCopyFailed(false);
-                } catch {
-                  setCopied(false);
-                  setCopyFailed(true);
-                  textRef.current?.focus();
-                  textRef.current?.select();
-                }
-              }}
-            >
-              <svg
-                viewBox="0 0 20 20"
-                width="16"
-                height="16"
-                aria-hidden="true"
-              >
-                <rect x="6.5" y="3.5" width="10" height="11" rx="2" />
-                <path d="M13.5 14.5v.5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7.5a2 2 0 0 1 2-2h1.5" />
-              </svg>
-              Copy
-            </button>
+            }}
+          >
+            <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true">
+              {copied ? (
+                <path d="m4 10 4 4 8-8" />
+              ) : (
+                <>
+                  <rect x="6.5" y="3.5" width="10" height="11" rx="2" />
+                  <path d="M13.5 14.5v.5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7.5a2 2 0 0 1 2-2h1.5" />
+                </>
+              )}
+            </svg>
+            <span aria-live="polite">{copied ? "Copied" : "Copy message"}</span>
+          </button>
+        ) : null}
+        {controls}
+      </div>
+      {instructions !== null ? (
+        <div className="agent-claim" data-testid="agent-claim">
+          <p className="agent-connection-hint">
+            Paste this message into your Agent chat to connect.
+          </p>
+          <textarea
+            ref={textRef}
+            className="agent-message"
+            data-testid="agent-copy-text"
+            aria-label="Agent connection message"
+            readOnly
+            value={instructions}
+            onFocus={(event) => event.currentTarget.select()}
+          />
+          {copyFailed ? (
+            <p className="agent-panel-error" role="alert">
+              Copy was blocked. The message is selected; press Ctrl+C or ⌘C to
+              copy it.
+            </p>
+          ) : null}
+          <div className="agent-message-footer">
+            <span>Expires in {formatRemaining(claimExpiresAt, now)}</span>
+            <span>Keep this editor open.</span>
           </div>
         </div>
-        <textarea
-          ref={textRef}
-          data-testid="agent-copy-text"
-          aria-label="Agent connection message"
-          readOnly
-          value={instructions}
-          onFocus={(event) => event.currentTarget.select()}
-        />
-      </div>
-      {copyFailed ? (
-        <p role="alert">
-          Copy was blocked. The message is selected; press Ctrl+C or ⌘C to copy
-          it.
+      ) : claimExpired && status === "waiting-for-agent" ? (
+        <p className="agent-connection-hint" data-testid="agent-claim-expired">
+          Connection message expired. Choose New connection to try again.
         </p>
       ) : null}
-      <p className="agent-technical-details">
-        Connection code expires in {formatRemaining(claimExpiresAt, now)}. Keep
-        the editor open while the Agent works.
-      </p>
-      <details>
-        <summary>Show connection code and technical details</summary>
-        <code data-testid="agent-claim-code">{claimCode}</code>
-        <p className="agent-technical-details">Scopes: {scopes.join(", ")}</p>
-        <p className="agent-technical-details">
-          Session remaining: {formatRemaining(expiresAt, now)}. Closing this
-          panel does not disconnect it.
-        </p>
-        <p className="agent-technical-details">
-          First-time setup:{" "}
-          <a
-            href="/api/agent/mcp-manifest.json"
-            target="_blank"
-            rel="noreferrer"
-          >
-            MCP bootstrap manifest
-          </a>
-          . No MCP support is required when the Agent uses the bundled Kit
-          fallback.
-        </p>
-      </details>
     </div>
   );
 }
@@ -313,34 +285,40 @@ export function ConnectAgentPanel(props: ConnectAgentPanelProps): ReactNode {
       data-status={props.status}
     >
       <section
-        className="agent-dialog"
+        className="agent-dialog agent-connect-dialog"
         role="dialog"
+        aria-modal="true"
         aria-label="Connect Agent"
       >
         <div className="agent-panel-header">
-          <h2>Connect Agent</h2>
+          <div className="agent-panel-heading">
+            <h2>Connect Agent</h2>
+            <p className="agent-panel-status" data-testid="agent-status">
+              {STATUS_LABEL[props.status]}
+            </p>
+          </div>
           <button
             type="button"
             onClick={props.onClose}
-            aria-label="Hide Agent details"
+            className="agent-panel-close"
+            aria-label="Close Agent dialog"
           >
-            Close
+            <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
+              <path d="m5 5 10 10M15 5 5 15" />
+            </svg>
           </button>
         </div>
-        <p className="agent-panel-status" data-testid="agent-status">
-          {STATUS_LABEL[props.status]}
-          {props.expiresAt !== null
-            ? ` · session ${formatRemaining(props.expiresAt, clock)} remaining`
-            : ""}
-        </p>
         {props.error ? (
           <p className="agent-panel-error" role="alert">
             {props.error}
           </p>
         ) : null}
 
-        <ClaimHandOff {...props} now={clock} />
-        <ConnectionControls {...props} />
+        <ClaimHandOff
+          {...props}
+          now={clock}
+          controls={<ConnectionControls {...props} />}
+        />
       </section>
     </div>
   );
@@ -367,15 +345,13 @@ export function AgentPropertiesSection(
               aria-hidden="true"
             />
             {STATUS_LABEL[props.status]}
-            {props.expiresAt !== null
-              ? ` · ${formatRemaining(props.expiresAt, clock)}`
-              : ""}
           </p>
         </div>
         <div className="agent-properties-actions">
-          {props.status === "connected" ||
-          props.status === "waiting-for-agent" ||
-          props.status === "working" ? (
+          {!props.expanded &&
+          (props.status === "connected" ||
+            props.status === "waiting-for-agent" ||
+            props.status === "working") ? (
             <button
               type="button"
               data-testid="agent-pause"
@@ -384,7 +360,7 @@ export function AgentPropertiesSection(
               Pause
             </button>
           ) : null}
-          {props.status === "paused" ? (
+          {!props.expanded && props.status === "paused" ? (
             <button
               type="button"
               data-testid="agent-resume"
@@ -393,7 +369,8 @@ export function AgentPropertiesSection(
               Resume
             </button>
           ) : null}
-          {props.status === "offline" || props.status === "reconnecting" ? (
+          {!props.expanded &&
+          (props.status === "offline" || props.status === "reconnecting") ? (
             <button
               type="button"
               data-testid="agent-reconnect"
@@ -402,7 +379,7 @@ export function AgentPropertiesSection(
               Retry relay
             </button>
           ) : null}
-          {terminal ? (
+          {!props.expanded && terminal ? (
             <button
               type="button"
               data-testid="agent-new-connection"
@@ -422,44 +399,28 @@ export function AgentPropertiesSection(
       </div>
       {props.expanded ? (
         <div className="agent-properties-details">
-          <ClaimHandOff {...props} now={clock} />
-          <details>
-            <summary>Connection details</summary>
-            <p className="agent-technical-details">
-              Scopes: {props.scopes.join(", ")}
-            </p>
-          </details>
-          {!terminal ? (
-            <div className="agent-controls">
-              <button
-                type="button"
-                data-testid="agent-new-connection"
-                onClick={props.onNewConnection}
-              >
-                New connection
-              </button>
-              <button
-                type="button"
-                data-testid="agent-revoke"
-                onClick={props.onRevoke}
-              >
-                Disconnect
-              </button>
-            </div>
-          ) : null}
+          <ClaimHandOff
+            {...props}
+            now={clock}
+            controls={
+              <>
+                <ConnectionControls {...props} />
+                {terminal ? (
+                  <button
+                    type="button"
+                    className="agent-dismiss"
+                    onClick={props.onDismiss}
+                  >
+                    Dismiss
+                  </button>
+                ) : null}
+              </>
+            }
+          />
           {props.error ? (
             <p className="agent-panel-error" role="alert">
               {props.error}
             </p>
-          ) : null}
-          {terminal ? (
-            <button
-              type="button"
-              className="agent-dismiss"
-              onClick={props.onDismiss}
-            >
-              Dismiss
-            </button>
           ) : null}
         </div>
       ) : null}

@@ -39,8 +39,6 @@
   color: var(--icm-text-muted);
 }
 
-.agent-panel .agent-claim,
-.agent-panel .agent-controls,
 .agent-panel .agent-panel-controls {
   padding: 1rem;
   border: 1px solid var(--icm-border-strong);
@@ -48,71 +46,52 @@
   background: var(--icm-surface-muted);
 }
 
-.agent-claim code[data-testid="agent-claim-code"] {
-  display: block;
-  margin: 0.5rem 0;
-  padding: 0.6rem;
-  border: 1px dashed var(--icm-border-strong);
-  border-radius: var(--icm-radius-sm);
-  background: var(--icm-surface-muted);
-  font-family: var(--icm-font-mono, ui-monospace, monospace);
-  font-size: 1.05rem;
-  word-break: break-all;
+.agent-panel .agent-connect-dialog {
+  box-sizing: border-box;
+  width: min(44rem, 100%);
+  gap: 1.25rem;
+  padding: 1.5rem;
 }
 
-.agent-copy-card {
-  margin-top: var(--icm-space-3);
-  overflow: hidden;
-  border: 1px solid var(--icm-border-strong);
-  border-radius: var(--icm-radius-lg);
-  background: var(--icm-surface);
+.agent-connect-dialog .agent-panel-header {
+  align-items: flex-start;
 }
 
-.agent-copy-card-header {
-  display: flex;
-  min-height: 2.5rem;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--icm-space-2);
-  padding: 0 var(--icm-space-2) 0 var(--icm-space-3);
-  color: var(--icm-text-muted);
-  background: var(--icm-surface-muted);
+.agent-panel-heading {
+  display: grid;
+  gap: 0.35rem;
 }
 
-.agent-copy-card-label,
-.agent-copy-feedback {
+.agent-panel-heading h2 {
+  font-size: 1.5rem;
+  font-weight: 650;
+  line-height: 1.25;
+}
+
+.agent-panel-heading .agent-panel-status {
   font-size: var(--icm-font-sm);
 }
 
-.agent-copy-card-action {
-  display: flex;
-  min-width: 4.25rem;
-  align-items: center;
-  justify-content: flex-end;
-  gap: var(--icm-space-1);
-}
-
-.agent-copy-feedback {
-  color: var(--icm-accent);
-}
-
-.agent-copy-card .agent-copy-button {
-  display: flex;
+.agent-panel .agent-panel-close {
+  display: grid;
+  flex: 0 0 auto;
+  width: 2rem;
   height: 2rem;
-  padding: 0 0.65rem;
-  align-items: center;
-  gap: 0.4rem;
+  padding: 0;
+  place-items: center;
   border: 0;
   border-radius: var(--icm-radius-sm);
-  color: var(--icm-on-accent, #fff);
-  background: var(--icm-accent);
+  color: var(--icm-text-muted);
+  background: transparent;
 }
 
-.agent-copy-card .agent-copy-button:hover {
-  filter: brightness(1.1);
+.agent-panel .agent-panel-close:hover {
+  color: var(--icm-text);
+  background: var(--icm-surface-hover);
 }
 
-.agent-copy-card .agent-copy-button svg {
+.agent-panel-close svg,
+.agent-copy-button svg {
   fill: none;
   stroke: currentcolor;
   stroke-linecap: round;
@@ -120,24 +99,96 @@
   stroke-width: 1.5;
 }
 
-.agent-copy-card textarea {
+.agent-connection-content,
+.agent-claim {
+  display: grid;
+  min-width: 0;
+  gap: 0.85rem;
+}
+
+.agent-connection-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--icm-border);
+}
+
+.agent-connection-toolbar:empty {
+  display: none;
+}
+
+.agent-connection-toolbar .agent-controls {
+  display: contents;
+}
+
+.agent-connection-toolbar button {
+  display: inline-flex;
+  min-height: 2.5rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  padding: 0.5rem 0.8rem;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-md);
+  color: var(--icm-text);
+  background: var(--icm-surface);
+  font: inherit;
+  white-space: nowrap;
+}
+
+.agent-connection-toolbar button:hover {
+  background: var(--icm-surface-hover);
+}
+
+.agent-connection-toolbar .agent-copy-button {
+  min-width: 8.75rem;
+  border-color: transparent;
+  color: var(--icm-on-accent, #fff);
+  background: var(--icm-accent);
+  font-weight: 600;
+}
+
+.agent-connection-toolbar .agent-copy-button:hover {
+  background: var(--icm-accent);
+  filter: brightness(1.1);
+}
+
+.agent-connection-hint {
+  margin: 0;
+  color: var(--icm-text-muted);
+  line-height: 1.5;
+}
+
+.agent-claim .agent-message {
   display: block;
   box-sizing: border-box;
   width: 100%;
-  height: 14rem;
+  height: min(22rem, 42vh);
+  min-height: 8rem;
   resize: vertical;
   margin: 0;
-  padding: var(--icm-space-3);
+  padding: 1rem;
   overflow: auto;
-  border: 0;
-  border-top: 1px solid var(--icm-border);
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-md);
   color: var(--icm-text);
-  background: var(--icm-surface);
+  background: var(--icm-surface-muted);
   font-family: var(--icm-font-mono, ui-monospace, monospace);
   font-size: var(--icm-font-sm);
-  line-height: 1.55;
+  line-height: 1.6;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
+}
+
+.agent-message-footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.4rem 1rem;
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
 }
 
 .agent-controls,
@@ -151,32 +202,13 @@
   box-shadow: none;
 }
 
-.agent-controls button,
 .agent-panel-controls button,
-.agent-claim button,
-.agent-properties-actions button,
-.agent-dismiss {
+.agent-properties-actions button {
   padding: 0.4rem 0.8rem;
   border: 1px solid var(--icm-border-strong);
   border-radius: var(--icm-radius-sm);
   background: var(--icm-surface);
   font: inherit;
-}
-
-.agent-claim details {
-  margin-top: var(--icm-space-2);
-}
-
-.agent-claim summary,
-.agent-properties-details summary {
-  color: var(--icm-text-muted);
-  cursor: pointer;
-}
-
-.agent-technical-details {
-  color: var(--icm-text-muted);
-  font-size: var(--icm-font-xs);
-  overflow-wrap: anywhere;
 }
 
 .agent-properties {
@@ -236,10 +268,7 @@
 .agent-properties-details {
   display: grid;
   gap: var(--icm-space-2);
-  padding: var(--icm-space-2);
-  border: 1px solid var(--icm-border);
-  border-radius: var(--icm-radius-sm);
-  background: var(--icm-surface-muted);
+  padding-top: var(--icm-space-2);
 }
 
 .agent-panel-audit {

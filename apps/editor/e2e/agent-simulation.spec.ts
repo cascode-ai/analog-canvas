@@ -261,7 +261,7 @@ for (const sourceKind of ["workspace", "project-folder"] as const)
     release();
     if (sourceKind === "project-folder") {
       // No Agent read: the project handoff must finish and archive autonomously.
-      await page.getByRole("button", { name: "Hide Agent details" }).click();
+      await page.getByRole("button", { name: "Close Agent dialog" }).click();
       await expect(
         page.getByRole("region", { name: "Analog simulation" }),
       ).toHaveCount(0);
