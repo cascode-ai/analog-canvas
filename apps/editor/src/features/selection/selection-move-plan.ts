@@ -33,7 +33,8 @@ export interface SelectionMovePlan {
   translatedJunctionIds: string[];
   looseRouteIds: string[];
   previewObjectIds: string[];
-  freeAnnotationIds: string[];
+  /** Explicitly selected labels whose anchor target is not moving with them. */
+  independentAnnotationIds: string[];
   draftingIds: string[];
   fixedObjectIds: string[];
 }
@@ -120,11 +121,21 @@ export function planSelectionMove(
       ),
     )
     .map((annotation) => annotation.id);
-  const freeAnnotationIds = selection.annotationIds.filter((id) => {
+  const followingAnnotationIdSet = new Set(followingAnnotationIds);
+  const independentAnnotationIds = selection.annotationIds.filter((id) => {
     const annotation = document.annotations.find(
       (candidate) => candidate.id === id,
     );
-    return annotation?.anchor.kind === "free" && !annotation.locked;
+    if (!annotation) return false;
+    if (annotation.locked) {
+      fixedObjectIds.add(id);
+      return false;
+    }
+    // A selected label whose host is already in the routing transform is a
+    // follower. Updating its anchor as a second operation would apply the
+    // same gesture twice. Every other explicitly selected label owns one
+    // independent anchor update, regardless of free/object/route anchoring.
+    return !followingAnnotationIdSet.has(id);
   });
   const draftingIds = selection.draftingIds.filter((id) => {
     const object = document.drafting?.objects.find(
@@ -144,10 +155,10 @@ export function planSelectionMove(
       ...translatedRouteIds,
       ...translatedJunctionIds,
       ...followingAnnotationIds,
-      ...freeAnnotationIds,
+      ...independentAnnotationIds,
       ...draftingIds,
     ]),
-    freeAnnotationIds: stable(freeAnnotationIds),
+    independentAnnotationIds: stable(independentAnnotationIds),
     draftingIds: stable(draftingIds),
     fixedObjectIds: stable(fixedObjectIds),
   };

@@ -49,6 +49,10 @@ import {
   translateDraftingObject,
 } from "../drafting/drafting-manipulation";
 import {
+  annotationDragPosition,
+  draggedAnnotationAtPosition,
+} from "../text-editing/annotation-drag-model";
+import {
   endpointNetId,
   type RouteGeometryRecord,
 } from "../wiring/route-interaction-geometry";
@@ -96,52 +100,69 @@ export function createSelectionMoveController({
     movePlan: SelectionMovePlan,
     delta: Point,
     sourceDocument: SchematicDocument = document,
-  ): SchematicEdit[] => [
-    ...movePlan.freeAnnotationIds.flatMap((annotationId) => {
-      const annotation = sourceDocument.annotations.find(
-        (candidate) => candidate.id === annotationId,
-      );
-      if (!annotation || annotation.anchor.kind !== "free") return [];
-      return [
-        {
-          kind: "upsert_schematic_annotation" as const,
-          annotation: {
-            ...annotation,
-            anchor: {
-              kind: "free" as const,
-              // Translation preserves the annotation's fine placement: the
-              // grid discipline rides on the delta, and the annotation pitch
-              // can be finer than the Document grid (drafting contract).
-              position: snapGridPoint(
-                {
-                  x: annotation.anchor.position.x + delta.x,
-                  y: annotation.anchor.position.y + delta.y,
-                },
+  ): SchematicEdit[] => {
+    const annotationRouteGeometryRecords =
+      sourceDocument === document
+        ? routeGeometryRecords
+        : (() => {
+            const resolved = resolveDocumentRoutingGeometry(
+              sourceDocument,
+              resolver,
+            );
+            return sourceDocument.routes.flatMap((route) => {
+              const geometry = resolved.routes.get(route.id);
+              return geometry ? [{ route, geometry }] : [];
+            });
+          })();
+    return [
+      ...movePlan.independentAnnotationIds.flatMap((annotationId) => {
+        const annotation = sourceDocument.annotations.find(
+          (candidate) => candidate.id === annotationId,
+        );
+        if (!annotation || annotation.locked) return [];
+        const geometryContext = {
+          document: sourceDocument,
+          // A group translation preserves every member's fine offset. The
+          // already grid-disciplined delta moves the group; re-snapping each
+          // label to the current annotation grid would deform it internally.
+          annotationGrid: 1,
+          resolver,
+          routeGeometryRecords: annotationRouteGeometryRecords,
+        };
+        const position = annotationDragPosition(geometryContext, annotation);
+        return [
+          {
+            kind: "upsert_schematic_annotation" as const,
+            annotation: draggedAnnotationAtPosition(
+              geometryContext,
+              annotation,
+              snapGridPoint(
+                { x: position.x + delta.x, y: position.y + delta.y },
                 1,
               ),
-            },
+            ),
           },
-        },
-      ];
-    }),
-    ...movePlan.draftingIds.flatMap((draftingId) => {
-      const object = sourceDocument.drafting?.objects.find(
-        (candidate) => candidate.id === draftingId,
-      );
-      return object
-        ? [
-            {
-              kind: "upsert_drafting_object" as const,
-              object: translateDraftingObject(
-                object,
-                delta,
-                sourceDocument.presentation.grid,
-              ),
-            },
-          ]
-        : [];
-    }),
-  ];
+        ];
+      }),
+      ...movePlan.draftingIds.flatMap((draftingId) => {
+        const object = sourceDocument.drafting?.objects.find(
+          (candidate) => candidate.id === draftingId,
+        );
+        return object
+          ? [
+              {
+                kind: "upsert_drafting_object" as const,
+                object: translateDraftingObject(
+                  object,
+                  delta,
+                  sourceDocument.presentation.grid,
+                ),
+              },
+            ]
+          : [];
+      }),
+    ];
+  };
 
   const completeVisualSelectionMove = (
     movePlan: SelectionMovePlan,
@@ -177,11 +198,9 @@ export function createSelectionMoveController({
   };
 
   const visualMoveOrigin = (movePlan: SelectionMovePlan): Point => {
-    const freeAnnotation = movePlan.freeAnnotationIds
-      .map((id) =>
-        document.annotations.find((annotation) => annotation.id === id),
-      )
-      .find((annotation) => annotation?.anchor.kind === "free");
+    const independentAnnotation = movePlan.independentAnnotationIds
+      .map((id) => document.annotations.find((item) => item.id === id))
+      .find((annotation) => annotation !== undefined);
     return (
       movePlan.draftingIds
         .flatMap((id) => {
@@ -192,8 +211,16 @@ export function createSelectionMoveController({
           return origin ? [origin] : [];
         })
         .find((point): point is Point => point !== null) ??
-      (freeAnnotation?.anchor.kind === "free"
-        ? freeAnnotation.anchor.position
+      (independentAnnotation
+        ? annotationDragPosition(
+            {
+              document,
+              annotationGrid: 1,
+              resolver,
+              routeGeometryRecords,
+            },
+            independentAnnotation,
+          )
         : undefined) ??
       movePlan.looseRouteIds
         .map(
