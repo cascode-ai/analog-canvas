@@ -33,17 +33,8 @@ function render(object: DraftingObject): string {
       resolver={resolver}
       object={object}
       defaultColor="#101828"
-      inspectorSegment={null}
-      tangentInput={null}
-      bearingInput={null}
-      onInspectorSegmentChange={noop}
-      onTangentInputChange={noop}
-      onBearingInputChange={noop}
-      onStyleChange={noop}
-      onGeometryChange={noop}
-      onTangentAngleChange={noop}
-      onBearingChange={noop}
-      onArrowPresetChange={noop}
+      grid={1}
+      onApply={() => ({ ok: true })}
       onStackingChange={noop}
       onToggleLock={noop}
     />,
@@ -74,7 +65,7 @@ describe("fixed polarity mark properties", () => {
       const markup = render(polarityMark(polarity));
 
       expect(markup).toContain("Polarity mark");
-      expect(markup).toContain("Mark color");
+      expect(markup).toContain("Annotation property code");
       expect(markup).not.toContain(">Text<");
       expect(markup).not.toContain("Text color");
     },
@@ -82,15 +73,12 @@ describe("fixed polarity mark properties", () => {
 });
 
 describe("unified arrow styles", () => {
-  it("offers one gallery and no redundant head/rotate/reverse controls", () => {
+  it("exposes arrow appearance and geometry as editable code", () => {
     const markup = render(arrow());
-    expect(markup).toContain('aria-label="Arrow style"');
-    expect(markup).toContain('aria-label="Filled double arrow"');
-    expect(markup).toContain('aria-label="Outline end arrow"');
-    expect(markup).not.toContain('aria-label="Arrow head');
-    expect(markup).not.toContain(">Reverse<");
-    expect(markup).not.toContain(">Rotate<");
-    expect(markup).toContain('aria-label="Drawing bearing"');
+    expect(markup).toContain("arrowStyle");
+    expect(markup).toContain("bearing");
+    expect(markup).toContain("tangentAngles");
+    expect(markup).not.toContain('aria-label="Drawing bearing"');
   });
   it.each(["Arrow style", "New arrow style"])(
     "%s omits reversed line arrows and the headless line",
@@ -122,26 +110,20 @@ describe("unified arrow styles", () => {
       }
     },
   );
-  it("recognizes legacy trailing, reversed, both and no-head styles", () => {
-    expect(render(arrow())).toContain('title="Arrow style: Filled end arrow"');
-    expect(render(arrow({ arrowHeadAt: "both" }))).toContain(
-      'title="Arrow style: Filled double arrow"',
-    );
-    expect(render(arrow({ arrowHead: "none" }))).toContain(
-      'title="Arrow style: No head"',
-    );
-    expect(render(arrow({ arrowHeadAt: "start" }))).toContain(
-      'title="Arrow style: Filled start arrow"',
-    );
+  it("recognizes legacy trailing, reversed, both and no-head styles in code", () => {
+    expect(render(arrow())).toContain("filled-end");
+    expect(render(arrow({ arrowHeadAt: "both" }))).toContain("filled-both");
+    expect(render(arrow({ arrowHead: "none" }))).toContain("line");
+    expect(render(arrow({ arrowHeadAt: "start" }))).toContain("filled-start");
     expect(
       render(arrow({ arrowHead: "open", arrowHeadAt: "start" })),
-    ).toContain('title="Arrow style: Open start arrow"');
+    ).toContain("open-start");
   });
   it("shows geometric width instead of curve controls for an outline", () => {
     const object = { ...arrow(), outline: { width: 30 } } as DraftingObject;
     const markup = render(object);
-    expect(markup).toContain('aria-label="Arrow width"');
-    expect(markup).not.toContain('aria-label="Tangent angle"');
+    expect(markup).toContain("width");
+    expect(markup).not.toContain("tangentAngles");
   });
 });
 
@@ -161,11 +143,11 @@ describe("closed-shape paint and layer", () => {
 
   it("offers independent border/fill paint and front/back actions", () => {
     const markup = render(rectangle);
-    expect(markup).toContain("<legend>Border</legend>");
-    expect(markup).toContain("<legend>Fill</legend>");
+    expect(markup).toContain("color");
+    expect(markup).toContain("fillColor");
     expect(markup).toContain(">Bring to front</button>");
     expect(markup).toContain(">Send to back</button>");
-    expect(markup.match(/component-color-swatch/gu)).toHaveLength(8);
+    expect(markup).toContain("zIndex");
     expect(markup).not.toContain('type="color"');
   });
 });

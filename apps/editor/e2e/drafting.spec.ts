@@ -1,10 +1,16 @@
 import { expect, test } from "@playwright/test";
 import type { Locator, Page } from "@playwright/test";
 
-import { CURRENT_PROJECT_SCHEMA_VERSION, flattenRichText } from "@icm/model";
+import {
+  CURRENT_PROJECT_SCHEMA_VERSION,
+  createEmptyProject,
+  flattenRichText,
+} from "@icm/model";
 
 import {
   awaitEditorReady,
+  editComponentPropertyCode,
+  readComponentPropertyCode,
   chooseComponent,
   clickCommand,
   clickDrawTool,
@@ -57,26 +63,33 @@ test("outline arrow style is chosen before stamp/drag and shares editable geomet
   await page.mouse.click(hitPoint.x, hitPoint.y);
   await page.keyboard.press("q");
   const properties = page.getByTestId("drafting-properties");
-  await properties.getByLabel("Arrow style", { exact: true }).click();
-  await page.keyboard.press("Escape");
   await expect(properties).toBeVisible();
-  await expect(properties.getByLabel("Arrow width")).toHaveValue("30");
-  await expect(properties.getByLabel("Tangent angle")).toHaveCount(0);
-  await properties.getByLabel("Stroke width", { exact: true }).fill("2");
+  expect(JSON.parse(await readComponentPropertyCode(page)).geometry.width).toBe(
+    30,
+  );
+  expect(
+    JSON.parse(await readComponentPropertyCode(page)).geometry,
+  ).not.toHaveProperty("tangentAngles");
+  await editComponentPropertyCode(page, (code) => {
+    code.appearance.strokeScale = 2;
+  });
   await expect(outline).toHaveAttribute("stroke-width", "3.2");
   await expect(outline).toHaveAttribute("points", previewPoints!);
-  await properties.getByLabel("Arrow width").fill("45");
+  await editComponentPropertyCode(page, (code) => {
+    code.geometry.width = 45;
+  });
   await expect(outline).not.toHaveAttribute("points", previewPoints!);
   await expect(page.getByTestId(/^draft-handle-width-/)).toBeVisible();
   await expect(page.getByTestId(/^draft-handle-rotate-/)).toBeVisible();
   await expect(page.getByTestId(/^draft-handle-segment-/)).toHaveCount(0);
-  await properties.getByLabel("Drawing bearing").fill("45");
-  await properties.getByLabel("Drawing bearing").blur();
+  await editComponentPropertyCode(page, (code) => {
+    code.placement.bearing = 45;
+  });
+
   const rotated = await outline.getAttribute("points");
-  await properties.getByLabel("Arrow style", { exact: true }).click();
-  await properties
-    .getByRole("button", { name: "Outline double arrow", exact: true })
-    .click();
+  await editComponentPropertyCode(page, (code) => {
+    code.appearance.arrowStyle = "outline-both";
+  });
   expect(await outline.getAttribute("points")).not.toBe(rotated);
 
   await canvas.focus();
@@ -369,22 +382,13 @@ test("drafting text owns an independent color override with Auto inheritance", a
   await hit.click({ force: true });
   await page.keyboard.press("q");
   const properties = page.getByTestId("drafting-properties");
-  await expect(properties).toHaveAttribute(
-    "aria-label",
-    "Drawing text properties",
-  );
-  await expect(properties).toHaveClass(/property-section/u);
-  await expect(properties.locator(":scope > .property-card")).toBeVisible();
-  await expect(properties.getByLabel("Text color presets")).toBeVisible();
-  await expect(properties.locator(".component-color-swatch")).toHaveCount(4);
-  await expect(properties.getByLabel("Text color custom RGB")).toBeAttached();
-  await expect(properties.locator('input[type="color"]')).toHaveCount(0);
-  await expect(properties.getByLabel("Text color hex value")).toHaveText(
-    "Automatic",
-  );
-
-  await properties
-    .getByRole("button", { name: "Use Blue for text color" })
+  await expect(page.getByLabel("Editable Canvas property code")).toBeVisible();
+  expect(
+    JSON.parse(await readComponentPropertyCode(page)).appearance.color,
+  ).toBe("auto");
+  await properties.getByRole("button", { name: "Edit text color" }).click();
+  await page
+    .getByRole("button", { name: "Use Blue for text", exact: true })
     .click();
   await expect(text).toHaveAttribute("fill", "#2563eb");
 
@@ -398,11 +402,12 @@ test("drafting text owns an independent color override with Auto inheritance", a
   );
   expect(coloredText.styleOverride.color).toBe("#2563eb");
 
-  await properties.getByRole("button", { name: "Reset text color" }).click();
+  await properties.getByRole("button", { name: "Edit text color" }).click();
+  await page.getByRole("button", { name: "Reset text color" }).click();
   await expect(text).toHaveAttribute("fill", "#000");
-  await expect(properties.getByLabel("Text color hex value")).toHaveText(
-    "Automatic",
-  );
+  expect(
+    JSON.parse(await readComponentPropertyCode(page)).appearance.color,
+  ).toBe("auto");
 
   await page.getByRole("button", { name: "Undo", exact: true }).click();
   await expect(text).toHaveAttribute("fill", "#2563eb");
@@ -1399,9 +1404,9 @@ test("R creates a selectable, styleable rectangle with four resize handles", asy
   ).toHaveCount(4);
   await page.keyboard.press("q");
 
-  await page
-    .getByRole("combobox", { name: "Line style" })
-    .selectOption("dotted");
+  await editComponentPropertyCode(page, (code) => {
+    code.appearance.lineStyle = "dotted";
+  });
   await expect(rectangle).toHaveAttribute("stroke-dasharray", "2 3");
   await expect(page.getByTestId("revision")).toHaveText("3");
 
@@ -1462,9 +1467,11 @@ test("the Circle toolbar creates a selectable shape with one radial handle and n
   await expect(
     page.getByTestId("drafting-properties").getByLabel("Drawing bearing"),
   ).toHaveCount(0);
-  await expect(
-    page.getByTestId("drafting-properties").getByLabel("Line style"),
-  ).toHaveCount(1);
+  await page.keyboard.press("q");
+  expect(
+    JSON.parse(await readComponentPropertyCode(page)).appearance.lineStyle,
+  ).toBe("solid");
+  await page.getByTestId("schematic-canvas").focus();
 
   await page.keyboard.press("r");
   await expect(page.getByTestId("revision")).toHaveText("1");
@@ -1546,11 +1553,11 @@ test("Properties changes drawing line style", async ({ page }) => {
   await clickCreate(page, { x: 200, y: 200 }, { x: 420, y: 200 });
   await page.getByTestId(/^drafting-hit-construction-/).click({ force: true });
   await page.keyboard.press("q");
-  await page
-    .getByRole("combobox", { name: "Line style" })
-    .selectOption("solid");
+  await editComponentPropertyCode(page, (code) => {
+    code.appearance.lineStyle = "solid";
+  });
   await expect(page.getByTestId("revision")).toHaveText("2");
-  await expect(page.locator('[aria-label="Drawing style"]')).toHaveCount(1);
+  await expect(page.getByTestId("drafting-properties")).toHaveCount(1);
   await expect(page.getByTestId("drafting-inline-inspector")).toHaveCount(0);
 });
 
@@ -1562,9 +1569,9 @@ test("Properties renders an arrow line-style override", async ({ page }) => {
   await page.keyboard.press("q");
   const commandBar = page.getByRole("navigation", { name: "Editor commands" });
   const commandBarBefore = await commandBar.boundingBox();
-  await page
-    .getByRole("combobox", { name: "Line style" })
-    .selectOption("dotted");
+  await editComponentPropertyCode(page, (code) => {
+    code.appearance.lineStyle = "dotted";
+  });
   await expect(
     page.locator('[data-kind="draft-arrow"] > polyline'),
   ).toHaveAttribute("stroke-dasharray", "2 3");
@@ -1586,16 +1593,17 @@ test("arrow Properties omits the Segment selector", async ({ page }) => {
     properties.getByRole("combobox", { name: "Curve segment" }),
   ).toHaveCount(0);
 
-  await properties.getByLabel("Stroke width").fill("2");
+  await editComponentPropertyCode(page, (code) => {
+    code.appearance.strokeScale = 2;
+  });
   await expect(shaft).toHaveAttribute("stroke-width", "3.2");
 
   await expect(
     properties.getByRole("combobox", { name: "Arrow head size" }),
   ).toHaveCount(0);
-  await properties.getByLabel("Arrow style", { exact: true }).click();
-  await properties
-    .getByRole("button", { name: "Open end arrow", exact: true })
-    .click();
+  await editComponentPropertyCode(page, (code) => {
+    code.appearance.arrowStyle = "open-end";
+  });
   await expect(head).toHaveAttribute("fill", "none");
   expect(await head.getAttribute("points")).not.toBe(originalPoints);
 });
@@ -1642,9 +1650,9 @@ test("drawing Properties unlocks a protected drawing and Delete overrides its lo
   await drawing.click({ force: true });
   await page.keyboard.press("q");
 
-  await page
-    .getByRole("combobox", { name: "Line style" })
-    .selectOption("dotted");
+  await editComponentPropertyCode(page, (code) => {
+    code.appearance.lineStyle = "dotted";
+  });
   const styledProject = JSON.parse(
     (await downloadBytes(page, "File", "Export Project File…")).toString(
       "utf8",
@@ -1658,7 +1666,7 @@ test("drawing Properties unlocks a protected drawing and Delete overrides its lo
   await expect(
     page.getByRole("button", { name: "Unlock", exact: true }),
   ).toBeVisible();
-  await expect(page.locator('[aria-label="Drawing style"]')).toHaveCount(1);
+  await expect(page.getByTestId("drafting-properties")).toHaveCount(1);
   await page.getByRole("button", { name: "Unlock", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "Lock", exact: true }),
@@ -1858,8 +1866,12 @@ test("Properties sets precise size, stroke width, and color per shape", async ({
   const properties = page.getByTestId("drafting-properties");
   await expect(properties).toBeVisible();
 
-  await properties.getByLabel("Rectangle width").fill("120");
-  await properties.getByLabel("Rectangle height").fill("48");
+  await editComponentPropertyCode(page, (code) => {
+    code.geometry.width = 120;
+  });
+  await editComponentPropertyCode(page, (code) => {
+    code.geometry.height = 48;
+  });
   const size = await rectangle.evaluate((element) => {
     const polygon = element as SVGPolygonElement;
     const points = Array.from({ length: 4 }, (_, index) =>
@@ -1874,8 +1886,11 @@ test("Properties sets precise size, stroke width, and color per shape", async ({
   });
   expect(size).toEqual({ width: 120, height: 48 });
 
-  await properties.getByLabel("Stroke width").fill("2.5");
-  await properties.getByRole("button", { name: "Use Red for border" }).click();
+  await editComponentPropertyCode(page, (code) => {
+    code.appearance.strokeScale = 2.5;
+  });
+  await properties.getByRole("button", { name: "Edit border color" }).click();
+  await page.getByRole("button", { name: "Use Red for border" }).click();
   await expect(rectangle).toHaveAttribute("stroke", "#dc2626");
   const rectangleStroke = Number(await rectangle.getAttribute("stroke-width"));
 
@@ -1901,7 +1916,9 @@ test("Properties sets precise size, stroke width, and color per shape", async ({
   // The dock stays open from the rectangle phase (Q toggles it); selecting
   // the circle swaps the panel content in place.
   await page.mouse.click(circleEdge.x, circleEdge.y);
-  await properties.getByLabel("Circle radius").fill("75");
+  await editComponentPropertyCode(page, (code) => {
+    code.geometry.radius = 75;
+  });
   await expect(circle).toHaveAttribute("r", "75");
   const circleStroke = Number(await circle.getAttribute("stroke-width"));
   expect(circleStroke).toBeLessThan(rectangleStroke);
@@ -1922,7 +1939,8 @@ test("Properties sets precise size, stroke width, and color per shape", async ({
   });
   if (!resizedEdge) throw new Error("resized rectangle is not measurable");
   await page.mouse.click(resizedEdge.x, resizedEdge.y);
-  await properties.getByRole("button", { name: "Reset border" }).click();
+  await properties.getByRole("button", { name: "Edit border color" }).click();
+  await page.getByRole("button", { name: "Reset border color" }).click();
   const stroke = await rectangle.getAttribute("stroke");
   expect(stroke).not.toBe("#dc2626");
 });
@@ -2380,4 +2398,190 @@ test("persists normal weight selected inside an otherwise bold text box", async 
   const revision = await page.getByTestId("revision").textContent();
   await page.getByRole("button", { name: "Apply text changes" }).click();
   await expect(page.getByTestId("revision")).toHaveText(revision!);
+});
+
+for (const kind of ["rectangle", "circle"] as const) {
+  test(`${kind} annotation code commits paint and stacking atomically and survives export`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 1100 });
+    const project = createEmptyProject(`code-${kind}`, "Annotation code");
+    const document = project.documents[0]!;
+    const base = {
+      id: "shape",
+      locked: false,
+      zIndex: 0,
+      anchor: { kind: "free" as const, position: { x: 100, y: 100 } },
+      center: { x: 100, y: 100 },
+      lineStyle: "solid" as const,
+    };
+    document.drafting = {
+      objects: [
+        kind === "rectangle"
+          ? { ...base, kind, width: 160, height: 80, rotation: 0 }
+          : { ...base, kind, radius: 60 },
+      ],
+    };
+    await page.goto("/editor");
+    await page.getByTestId("project-file").setInputFiles({
+      name: "annotation.icproj.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(JSON.stringify(project)),
+    });
+    const hit = page.getByTestId("drafting-hit-shape");
+    const edgePoint = () =>
+      hit.evaluate((element) => {
+        const node = element as SVGGraphicsElement;
+        const bounds = node.getBBox();
+        const point = new DOMPoint(
+          bounds.x,
+          bounds.y + bounds.height / 2,
+        ).matrixTransform(node.getScreenCTM()!);
+        return { x: point.x, y: point.y };
+      });
+    const edge = await edgePoint();
+    await page.mouse.click(edge.x, edge.y, {
+      button: kind === "circle" ? "right" : "left",
+    });
+    if (kind === "circle")
+      await page
+        .getByRole("menuitem", { name: "Properties (Q)", exact: true })
+        .click();
+    else await page.keyboard.press("q");
+    const editor = page.getByLabel("Editable Canvas property code");
+    await expect(editor).toBeVisible();
+    const shape = page.locator(
+      `[data-kind="draft-${kind}"][data-object-id="shape"]`,
+    );
+    const before = JSON.parse(await readComponentPropertyCode(page));
+    const revision = Number(await page.getByTestId("revision").textContent());
+    await editComponentPropertyCode(page, (code) => {
+      code.appearance.color = [12, 34, 56];
+      code.appearance.fillColor = [225, 238, 255];
+      code.stacking.layer = "background";
+      code.stacking.zIndex = 7;
+    });
+    await expect(page.getByTestId("revision")).toHaveText(String(revision + 1));
+    await expect(shape).toHaveAttribute("stroke", "#0c2238");
+    await expect(shape).toHaveAttribute("fill", "#e1eeff");
+    await expect(
+      page.locator(
+        '[data-drafting-layer="background"] [data-object-id="shape"]',
+      ),
+    ).toHaveCount(1);
+    await page.getByRole("button", { name: "Undo", exact: true }).click();
+    expect(JSON.parse(await readComponentPropertyCode(page))).toEqual(before);
+    await expect(shape).toHaveAttribute("fill", "none");
+    await page.getByRole("button", { name: "Redo", exact: true }).click();
+    const valid = await readComponentPropertyCode(page);
+    const bad = JSON.parse(valid);
+    bad.appearance.fillColor = [999, 0, 0];
+    bad.geometry[kind === "rectangle" ? "width" : "radius"] = 200;
+    await editor.fill(JSON.stringify(bad));
+    await expect(
+      page.getByRole("button", { name: "Discard draft" }),
+    ).toBeVisible();
+    await expect(shape).toHaveAttribute("fill", "#e1eeff");
+    const lastRevision = await page.getByTestId("revision").textContent();
+    await page.getByRole("button", { name: "Discard draft" }).click();
+    expect(JSON.parse(await readComponentPropertyCode(page))).toEqual(
+      JSON.parse(valid),
+    );
+    await expect(page.getByTestId("revision")).toHaveText(lastRevision!);
+    const saved = await downloadBytes(page, "File", "Export Project File…");
+    const svg = (await downloadBytes(page, "File", "Export SVG")).toString(
+      "utf8",
+    );
+    expect(svg).toContain('fill="#e1eeff"');
+    expect(svg).toContain('stroke="#0c2238"');
+    await page.getByTestId("project-file").setInputFiles({
+      name: "reopen.icproj.json",
+      mimeType: "application/json",
+      buffer: saved,
+    });
+    await expect(page.getByTestId("status")).toContainText(
+      "Opened reopen.icproj.json",
+    );
+    const reopenedEdge = await edgePoint();
+    await page.mouse.click(reopenedEdge.x, reopenedEdge.y, { button: "right" });
+    await page
+      .getByRole("menuitem", { name: "Properties (Q)", exact: true })
+      .click();
+    expect(JSON.parse(await readComponentPropertyCode(page))).toEqual(
+      JSON.parse(valid),
+    );
+    if (kind === "rectangle")
+      await page.screenshot({ path: "plan/annotation-code-properties.png" });
+    await page.getByRole("button", { name: "Edit fill color" }).click();
+    await page.getByRole("button", { name: "Reset fill color" }).click();
+    await expect(shape).toHaveAttribute("fill", "none");
+    await expect(shape).toHaveAttribute("stroke", "#0c2238");
+  });
+}
+
+test("text and voltage/polarity annotations expose their own live code without leaking drafts", async ({
+  page,
+}) => {
+  const project = createEmptyProject("all-notes", "Annotation types");
+  project.documents[0]!.drafting = {
+    objects: [undefined, "both", "positive", "negative"].map(
+      (polarity, index) => ({
+        id: `note-${index}`,
+        kind: "text" as const,
+        locked: false,
+        zIndex: index,
+        anchor: {
+          kind: "free" as const,
+          position: { x: 100 + index * 150, y: 100 },
+        },
+        content: {
+          runs:
+            polarity === "positive" || polarity === "negative"
+              ? [{ kind: "line-break" as const }]
+              : [{ kind: "text" as const, value: "VDD" }],
+        },
+        alignment: "middle" as const,
+        rotation: 0 as const,
+        ...(polarity
+          ? { polarity: polarity as "both" | "positive" | "negative" }
+          : {}),
+      }),
+    ),
+  };
+  await page.goto("/editor");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "notes.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  await expect(page.getByTestId("status")).toContainText(
+    "Opened notes.icproj.json",
+  );
+  for (let index = 0; index < 4; index++) {
+    await page.getByTestId(`drafting-hit-note-${index}`).click({ force: true });
+    const editor = page.getByLabel("Editable Canvas property code");
+    if (index === 0) await page.keyboard.press("q");
+    const code = JSON.parse(await readComponentPropertyCode(page));
+    expect(code.appearance.color).toBe("auto");
+    expect(Boolean(code.content)).toBe(index < 2);
+    await editComponentPropertyCode(page, (value) => {
+      value.appearance.color = [220, 38, 38];
+      if (index < 2) value.content.runs[0].value = `V${index}`;
+    });
+    const note = page.locator(
+      `[data-kind="draft-text"][data-object-id="note-${index}"]`,
+    );
+    if (index === 0) {
+      await expect(note).toHaveAttribute("fill", "#dc2626");
+      await expect(note).toHaveText("V0");
+    } else
+      await expect(note.locator("line").first()).toHaveAttribute(
+        "stroke",
+        "#dc2626",
+      );
+    await editor.fill('{ "placement":');
+    await expect(
+      page.getByRole("button", { name: "Discard draft" }),
+    ).toBeVisible();
+  }
 });

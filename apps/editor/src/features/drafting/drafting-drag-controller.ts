@@ -57,7 +57,6 @@ export function createDraftingDragController({
   onCompositeMove,
   selectDraftingObject,
   setInspectorSegment,
-  clearTangentInput,
   setHandlePreview,
   transact,
   setStatus,
@@ -91,7 +90,6 @@ export function createDraftingDragController({
   ) => boolean;
   selectDraftingObject: (id: string, additive?: boolean) => void;
   setInspectorSegment: (segment: { objectId: string; index: number }) => void;
-  clearTangentInput: () => void;
   setHandlePreview: (preview: DraftingHandlePreview | null) => void;
   transact: (edits: SchematicEdit[]) => TransactionResult;
   setStatus: (status: string) => void;
@@ -245,7 +243,6 @@ export function createDraftingDragController({
     );
     if (handle.kind === "curve") {
       setInspectorSegment({ objectId: object.id, index: handle.index });
-      clearTangentInput();
     }
     selectDraftingObject(object.id);
 

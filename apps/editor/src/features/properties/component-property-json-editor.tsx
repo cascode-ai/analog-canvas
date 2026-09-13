@@ -381,10 +381,9 @@ function jsonDecorations(state: EditorState, read: () => Props): DecorationSet {
         }).range(mirror.to),
       );
   }
-  const foreground = spans.find(
-    ({ field }) => field.path === "appearance.foreground",
-  );
-  if (foreground) {
+  for (const foreground of spans.filter(
+    ({ field }) => field.kind === "color",
+  )) {
     let color = read().defaultForeground;
     let inherited = false;
     let mixed = false;
@@ -395,10 +394,14 @@ function jsonDecorations(state: EditorState, read: () => Props): DecorationSet {
       } else {
         const parsed = parseCanvasColor(
           foreground.value,
-          "appearance.foreground",
+          foreground.field.path,
         );
         inherited = parsed === "auto";
-        color = inherited ? read().defaultForeground : parsed;
+        color = inherited
+          ? foreground.field.path === "appearance.fillColor"
+            ? "transparent"
+            : read().defaultForeground
+          : parsed;
       }
     } catch {
       colorValid = false;
@@ -406,6 +409,8 @@ function jsonDecorations(state: EditorState, read: () => Props): DecorationSet {
     ranges.push(
       Decoration.widget({
         widget: new ForegroundColorWidget(
+          foreground.field.path,
+          foreground.field.label,
           color,
           inherited,
           mixed,
@@ -803,6 +808,8 @@ function mirrorActionIcon(rotation: 0 | 90): SVGSVGElement {
 
 class ForegroundColorWidget extends WidgetType {
   constructor(
+    private readonly path: string,
+    private readonly label: string,
     private readonly color: string,
     private readonly inherited: boolean,
     private readonly mixed: boolean,
@@ -814,6 +821,8 @@ class ForegroundColorWidget extends WidgetType {
 
   override eq(other: ForegroundColorWidget): boolean {
     return (
+      other.path === this.path &&
+      other.label === this.label &&
       other.color === this.color &&
       other.inherited === this.inherited &&
       other.mixed === this.mixed &&
@@ -826,26 +835,39 @@ class ForegroundColorWidget extends WidgetType {
     button.className = "cm-property-inline-color";
     button.contentEditable = "false";
     button.setAttribute("role", "button");
-    button.setAttribute("aria-label", "Edit line color");
+    button.setAttribute("aria-label", `Edit ${this.label.toLowerCase()} color`);
     button.setAttribute("aria-disabled", String(this.disabled));
     button.tabIndex = this.disabled ? -1 : 0;
     button.title = this.disabled
-      ? "Fix the property JSON before changing line color"
+      ? `Fix the property JSON before changing ${this.label.toLowerCase()} color`
       : this.mixed
-        ? "Line color · Mixed"
+        ? `${this.label} color · Mixed`
         : this.inherited
-          ? `Line color · Auto (${this.color})`
-          : `Line color · ${this.color}`;
+          ? `${this.label} color · ${this.path === "appearance.fillColor" ? "Transparent" : `Auto (${this.color})`}`
+          : `${this.label} color · ${this.color}`;
     button.dataset.inherited = this.inherited ? "true" : "false";
     button.dataset.mixed = this.mixed ? "true" : "false";
     button.style.setProperty("--component-inline-color", this.color);
     button.addEventListener("click", () => {
-      if (!this.disabled) showForegroundColorPopover(view, this.read, button);
+      if (!this.disabled)
+        showForegroundColorPopover(
+          view,
+          this.read,
+          button,
+          this.path,
+          this.label,
+        );
     });
     button.addEventListener("keydown", (event) => {
       if (!this.disabled && (event.key === "Enter" || event.key === " ")) {
         event.preventDefault();
-        showForegroundColorPopover(view, this.read, button);
+        showForegroundColorPopover(
+          view,
+          this.read,
+          button,
+          this.path,
+          this.label,
+        );
       }
     });
     return button;
@@ -860,42 +882,46 @@ function showForegroundColorPopover(
   view: EditorView,
   read: () => Props,
   anchor: HTMLElement,
+  path: string,
+  labelText: string,
 ): void {
   document
     .querySelectorAll(".component-property-color-popover")
     .forEach((element) => element.remove());
 
   const span = editorSpans(view.state.doc.toString(), read()).find(
-    ({ field }) => field.path === "appearance.foreground",
+    ({ field }) => field.path === path,
   );
   if (!span) return;
 
   let parsed: "auto" | `#${string}`;
   const mixed = span.value === "mixed" && read().adapter?.mixedValues === true;
   try {
-    parsed = mixed
-      ? "auto"
-      : parseCanvasColor(span.value, "appearance.foreground");
+    parsed = mixed ? "auto" : parseCanvasColor(span.value, path);
   } catch {
     return;
   }
   const inherited = parsed === "auto";
-  const effective = inherited ? read().defaultForeground : parsed;
+  const effective = inherited
+    ? path === "appearance.fillColor"
+      ? "#ffffff"
+      : read().defaultForeground
+    : parsed;
   const channels = colorToRgb(effective);
   const popover = document.createElement("div");
   popover.className = "component-property-color-popover";
   popover.setAttribute("popover", "auto");
   popover.setAttribute("role", "dialog");
-  popover.setAttribute("aria-label", "Line color settings");
+  popover.setAttribute("aria-label", `${labelText} color settings`);
   popover.style.setProperty("--component-inline-color", effective);
 
   const close = (): void => {
     if (popover.matches(":popover-open")) popover.hidePopover();
     else popover.remove();
   };
-  const apply = (value: [number, number, number]): void => {
+  const apply = (value: [number, number, number] | "auto"): void => {
     const changes = editorChanges(view.state.doc.toString(), read(), {
-      "appearance.foreground": value,
+      [path]: value,
     });
     if (changes.length !== 1) return;
     view.dispatch({ changes, userEvent: "input.property-color" });
@@ -903,29 +929,37 @@ function showForegroundColorPopover(
 
   const header = document.createElement("header");
   const title = document.createElement("strong");
-  title.textContent = "Line color";
+  title.textContent = `${labelText} color`;
   const current = document.createElement("span");
   current.textContent = mixed
     ? "Mixed"
     : inherited
-      ? `Auto · ${effective}`
+      ? path === "appearance.fillColor"
+        ? "Transparent"
+        : `Auto · ${effective}`
       : effective;
   const closeButton = document.createElement("button");
   closeButton.type = "button";
   closeButton.className = "component-property-color-popover-close";
-  closeButton.setAttribute("aria-label", "Close line color settings");
+  closeButton.setAttribute(
+    "aria-label",
+    `Close ${labelText.toLowerCase()} color settings`,
+  );
   closeButton.textContent = "×";
   closeButton.addEventListener("click", close);
   header.append(title, current, closeButton);
 
   const presets = document.createElement("div");
   presets.className = "component-property-color-popover-presets";
-  presets.setAttribute("aria-label", "Line presets");
+  presets.setAttribute("aria-label", `${labelText} presets`);
   for (const preset of LINE_COLOR_PRESETS) {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "component-property-color-popover-swatch";
-    button.setAttribute("aria-label", `Use ${preset.label} for line`);
+    button.setAttribute(
+      "aria-label",
+      `Use ${preset.label} for ${labelText.toLowerCase()}`,
+    );
     button.setAttribute(
       "aria-pressed",
       String(!mixed && !inherited && effective.toLowerCase() === preset.value),
@@ -946,7 +980,7 @@ function showForegroundColorPopover(
   custom.className = "component-property-color-popover-custom";
   const rgb = document.createElement("div");
   rgb.className = "component-property-color-popover-rgb";
-  rgb.setAttribute("aria-label", "Line custom RGB");
+  rgb.setAttribute("aria-label", `${labelText} custom RGB`);
   const label = document.createElement("label");
   label.textContent = "RGB";
   const input = document.createElement("input");
@@ -954,7 +988,7 @@ function showForegroundColorPopover(
   input.inputMode = "decimal";
   input.value = `[${channels.join(",")}]`;
   input.placeholder = "[220,38,38]";
-  input.setAttribute("aria-label", "Line RGB");
+  input.setAttribute("aria-label", `${labelText} RGB`);
   input.addEventListener("input", () => {
     const next = parseRgbTuple(input.value);
     input.setAttribute("aria-invalid", String(next === null));
@@ -969,7 +1003,16 @@ function showForegroundColorPopover(
   label.append(input);
   rgb.append(label);
   custom.append(rgb);
+  const reset = document.createElement("button");
+  reset.type = "button";
+  reset.textContent = path === "appearance.fillColor" ? "Transparent" : "Auto";
+  reset.setAttribute("aria-label", `Reset ${labelText.toLowerCase()} color`);
+  reset.addEventListener("click", () => {
+    apply("auto");
+    close();
+  });
   popover.append(header, presets, custom);
+  if (path !== "appearance.foreground") popover.append(reset);
   popover.addEventListener("toggle", () => {
     if (!popover.matches(":popover-open")) popover.remove();
   });

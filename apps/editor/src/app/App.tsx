@@ -1191,14 +1191,6 @@ export function App({
     objectId: string;
     index: number;
   } | null>(null);
-  const [draftingTangentInput, setDraftingTangentInput] = useState<{
-    key: string;
-    value: string;
-  } | null>(null);
-  const [draftingBearingInput, setDraftingBearingInput] = useState<{
-    objectId: string;
-    value: string;
-  } | null>(null);
   const [selectedRouteSegmentIndex, setSelectedRouteSegmentIndex] = useState<
     number | null
   >(null);
@@ -2771,11 +2763,7 @@ export function App({
     insertArrowWaypoint,
     deleteConstructionVertex,
     setDraftingStyle,
-    setDraftingGeometry,
     setDraftingStacking,
-    setArrowPreset,
-    setDraftingTangentAngle,
-    setDraftingBearing,
     toggleDraftingLock,
     addPlainText,
     addCurrentArrow,
@@ -2878,7 +2866,6 @@ export function App({
     },
     selectDraftingObject,
     setInspectorSegment: setDraftingInspectorSegment,
-    clearTangentInput: () => setDraftingTangentInput(null),
     setHandlePreview: setDraftingHandlePreview,
     transact,
     setStatus,
@@ -3995,8 +3982,6 @@ export function App({
   function selectDraftingObject(id: string, additive = false): void {
     selectVisualObjects("drafting", draftingSelectionIds(id), additive);
     setDraftingInspectorSegment(null);
-    setDraftingTangentInput(null);
-    setDraftingBearingInput(null);
   }
 
   useEffect(() => {
@@ -6291,30 +6276,13 @@ export function App({
                   ? {
                       annotation: selectedAnnotation,
                       inheritedColor: selectedAnnotationInheritedTextColor,
-                      onChange: (textColor) => {
-                        if (selectedAnnotation.locked) {
-                          setStatus(
-                            "Unlock this annotation before changing its text color",
-                          );
-                          return;
-                        }
-                        const annotation = { ...selectedAnnotation };
-                        if (textColor === undefined)
-                          delete annotation.textColor;
-                        else annotation.textColor = textColor;
+                      onApply: (annotation) => {
                         const result = transact([
-                          {
-                            kind: "upsert_schematic_annotation",
-                            annotation,
-                          },
+                          { kind: "upsert_schematic_annotation", annotation },
                         ]);
-                        if (result.ok) {
-                          setStatus(
-                            textColor === undefined
-                              ? "Annotation text color set to Auto"
-                              : "Updated annotation text color",
-                          );
-                        }
+                        if (result.ok)
+                          setStatus("Updated annotation properties");
+                        return result;
                       },
                     }
                   : null
@@ -6350,17 +6318,14 @@ export function App({
                       resolver,
                       object: selectedDrafting,
                       defaultColor: styleProfile.foreground,
-                      inspectorSegment: draftingInspectorSegment,
-                      tangentInput: draftingTangentInput,
-                      bearingInput: draftingBearingInput,
-                      onInspectorSegmentChange: setDraftingInspectorSegment,
-                      onTangentInputChange: setDraftingTangentInput,
-                      onBearingInputChange: setDraftingBearingInput,
-                      onStyleChange: setDraftingStyle,
-                      onGeometryChange: setDraftingGeometry,
-                      onTangentAngleChange: setDraftingTangentAngle,
-                      onBearingChange: setDraftingBearing,
-                      onArrowPresetChange: setArrowPreset,
+                      grid: annotationGrid,
+                      onApply: (object) => {
+                        const result = transact([
+                          { kind: "upsert_drafting_object", object },
+                        ]);
+                        if (result.ok) setStatus("Updated drawing properties");
+                        return result;
+                      },
                       onStackingChange: setDraftingStacking,
                       onToggleLock: () => toggleDraftingLock(selectedDrafting),
                     }
@@ -7006,6 +6971,13 @@ export function App({
               editorCommands.execute({ id: "selection.align", mode })
             }
             actions={[
+              {
+                label: "Properties (Q)",
+                enabled: editorCommands.state({ id: "properties.open" })
+                  .enabled,
+                execute: () =>
+                  editorCommands.execute({ id: "properties.open" }),
+              },
               {
                 label: "Duplicate (C)",
                 enabled:

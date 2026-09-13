@@ -2483,7 +2483,8 @@ test("fills a closed shape and moves it behind or in front of circuit artwork", 
   await expect(
     properties.getByText("Send to back", { exact: true }),
   ).toBeVisible();
-  await properties.getByRole("button", { name: "Use Blue for fill" }).click();
+  await properties.getByRole("button", { name: "Edit fill color" }).click();
+  await page.getByRole("button", { name: "Use Blue for fill" }).click();
   await expect(
     page.locator('[data-kind="draft-rectangle"][data-object-id="box"]'),
   ).toHaveAttribute("fill", "#2563eb");
@@ -4377,73 +4378,46 @@ test("Properties keeps component and Annotation text colors independent", async 
   await expect(
     properties.getByRole("region", { name: "Text properties" }),
   ).toBeVisible();
-  await properties
-    .locator('details[aria-label="Text appearance"] > summary')
-    .click();
-  await expect(properties.getByLabel("Text color hex value")).toHaveText(
-    "Automatic",
-  );
-
-  await properties
-    .getByRole("button", { name: "Use Blue for text color" })
+  expect(
+    JSON.parse(await readComponentPropertyCode(page)).appearance.color,
+  ).toBe("auto");
+  await properties.getByRole("button", { name: "Edit text color" }).click();
+  await page
+    .getByRole("button", { name: "Use Blue for text", exact: true })
     .click();
   await expect(label).toHaveAttribute("fill", "#2563eb");
   await expect(symbol).toHaveAttribute("stroke", "#dc2626");
-  await expect(
-    component.locator('[data-role="instance-background"]'),
-  ).toHaveCount(0);
 
-  // A pending RGB draft belongs to this Annotation only. Selecting another
-  // Annotation remounts the keyed Text properties before the deferred blur
-  // commit, so R1's draft cannot reach either Annotation.
-  await page.clock.pauseAt(clockStart + 60_000);
-  await properties.locator("summary", { hasText: /^RGB$/u }).click();
-  await properties.getByLabel("Text color red").fill("12");
+  // Incomplete property code belongs only to this selection and never reaches another label.
+  await page
+    .getByLabel("Editable Canvas property code")
+    .fill('{ "appearance":');
   await page
     .getByTestId("annotation-hit-instance-label-R2")
     .click({ force: true });
-  await properties
-    .locator('details[aria-label="Text appearance"] > summary')
-    .click();
-  await page.clock.runFor(300);
-  await page.clock.resume();
   await expect(label).toHaveAttribute("fill", "#2563eb");
   await expect(secondLabel).not.toHaveAttribute("fill");
-  await expect(properties.getByLabel("Text color hex value")).toHaveText(
-    "Automatic",
-  );
+  expect(
+    JSON.parse(await readComponentPropertyCode(page)).appearance.color,
+  ).toBe("auto");
 
   await page
     .getByTestId("annotation-hit-instance-label-R1")
     .click({ force: true });
-  await properties
-    .locator('details[aria-label="Text appearance"] > summary')
-    .click();
-  await properties.locator("summary", { hasText: /^RGB$/u }).click();
-  await properties.getByLabel("Text color red").fill("12");
-  const resetTextColor = properties.getByRole("button", {
-    name: "Reset text color",
+  await editComponentPropertyCode(page, (code) => {
+    code.appearance.color = "auto";
   });
-  await resetTextColor.focus();
-  await page.keyboard.press("Enter");
-  await page.waitForTimeout(300);
   await expect(label).toHaveAttribute("fill", "#dc2626");
-  await expect(properties.getByLabel("Text color hex value")).toHaveText(
-    "Automatic",
-  );
-
-  // Auto replaces the pending draft as one history entry. One Undo restores
-  // the intentional blue override, never the transient #0c63eb draft.
   await page.getByRole("button", { name: "Undo", exact: true }).click();
   await expect(label).toHaveAttribute("fill", "#2563eb");
-  await expect(properties.getByLabel("Text color hex value")).toHaveText(
-    "#2563eb",
-  );
+  expect(
+    JSON.parse(await readComponentPropertyCode(page)).appearance.color,
+  ).toEqual([37, 99, 235]);
   await page.getByRole("button", { name: "Redo", exact: true }).click();
   await expect(label).toHaveAttribute("fill", "#dc2626");
-  await expect(properties.getByLabel("Text color hex value")).toHaveText(
-    "Automatic",
-  );
+  expect(
+    JSON.parse(await readComponentPropertyCode(page)).appearance.color,
+  ).toBe("auto");
 
   const project = JSON.parse(
     (await downloadBytes(page, "File", "Export Project File…")).toString(

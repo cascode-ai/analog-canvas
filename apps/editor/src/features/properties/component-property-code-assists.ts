@@ -24,9 +24,10 @@ export interface PropertyCodeSpan {
 export function propertyCodeSpans(
   source: string,
   context?: ComponentPropertyCodeContext,
+  customFields?: readonly CanvasPropertyField[],
 ): PropertyCodeSpan[] {
   const spans: PropertyCodeSpan[] = [];
-  const fields: CanvasPropertyField[] = [
+  const fields: readonly CanvasPropertyField[] = customFields ?? [
     ...CANVAS_PROPERTY_FIELDS,
     ...(context
       ? magneticDisplayParameters(context.instance.symbolId).map(

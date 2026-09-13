@@ -129,15 +129,29 @@ Only the transient capture marker is shown; no snap points are added to the
 drawing. Hold `Alt` to suppress snapping. A visual snap aligns coordinates but
 does not create electrical connectivity or make one drawing follow another.
 
-Select an arrow and press `Q` for Properties. **Style** is the same icon gallery,
-including filled/open single- and double-headed line arrows and hollow outline
-arrows. **Stroke width** changes weight; an outline's **Width** changes its shape
-without changing weight.
-Drag endpoint handles to set length, the side handle for outline width, and the
-rotation handle for direction; `R` and **Bearing** also rotate. Reversed and
-headless line arrows remain supported in existing drawings but are not offered
-in the style menu. The obsolete Head size, Rotate and Reverse controls are no
-longer separate panel controls.
+Select any annotation and press `Q`, or use its right-click Properties action,
+to edit its JSON. Placement and appearance come first; text content (including
+rich text runs) follows geometry and stacking. Valid edits update immediately
+as one undoable edit. Invalid or locked edits retain the last accepted drawing;
+**Discard draft** restores the current code. Semantic labels retain their
+electrical text bindings; their code changes presentation only.
+
+For arrows, `appearance.arrowStyle` chooses `filled-end`, `open-end`,
+`filled-both`, `open-both`, `outline-end`, `outline-start`, or `outline-both`.
+Legacy `filled-start`, `open-start`, and `line` remain editable in code.
+`appearance.strokeScale` changes stroke weight; an outline's `geometry.width`
+changes its shape without changing weight. `placement.bearing` rotates the
+path, and `geometry.tangentAngles` sets the curve angle for each segment.
+Endpoint, width and rotation handles remain available on the canvas.
+
+Rectangles and circles have independent `appearance.color` (border) and
+`appearance.fillColor`. Click either color swatch for presets or RGB input;
+hex and `[R, G, B]` are also accepted in code. `"auto"` inherits the document
+border color and makes the fill transparent. `stacking.layer` selects
+`"background"` or `"foreground"` relative to circuit artwork;
+`stacking.zIndex` orders drawings within their layer, with larger values drawn
+above smaller ones. **Bring to front** and **Send to back** update the same
+code. Width, height and radius live in `geometry`.
 
 Existing head sizes remain intact when loading or restyling old drawings.
 Converting a bent/curved line arrow to an outline is disabled: no bends are

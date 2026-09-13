@@ -1,6 +1,6 @@
 import { createEmptyDocument } from "@icm/model";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { AnnotationColorProperties } from "./annotation-color-properties";
 
@@ -25,22 +25,16 @@ describe("annotation color properties", () => {
       <AnnotationColorProperties
         annotation={annotation}
         inheritedColor="#dc2626"
-        onChange={vi.fn()}
+        onApply={() => ({ ok: true })}
       />,
     );
 
     expect(markup).toContain('aria-label="Text properties"');
-    const appearance = markup.match(
-      /<details[^>]*aria-label="Text appearance"[^>]*>/u,
-    )?.[0];
-    expect(appearance).toBeDefined();
-    expect(appearance).not.toContain('open=""');
-    expect(markup).toContain('aria-label="Text color hex value">Automatic');
-    expect(markup).toContain('aria-label="Text color custom RGB"');
-    expect(markup).toContain('aria-label="Use Red for text color"');
-    expect(markup).not.toContain('type="color"');
-    expect(markup.match(/component-color-swatch/gu)).toHaveLength(4);
-    expect(markup).toContain("Auto uses the inherited text color.");
+    expect(markup).toContain("Annotation property code");
+    expect(markup).toContain("auto");
+    expect(markup).toContain("placement");
+    expect(markup).toContain("appearance");
+    expect(markup).toContain("content");
   });
 
   it("shows the annotation-owned override instead of inherited ink", () => {
@@ -59,12 +53,11 @@ describe("annotation color properties", () => {
       <AnnotationColorProperties
         annotation={annotation}
         inheritedColor="#dc2626"
-        onChange={vi.fn()}
+        onApply={() => ({ ok: true })}
       />,
     );
 
-    expect(markup).toContain('aria-label="Text color hex value">#2563eb');
-    expect(markup).toContain('aria-label="Use Blue for text color"');
-    expect(markup).toContain('aria-pressed="true"');
+    expect(markup).toContain("[37, 99, 235]");
+    expect(markup).toContain("Copy JSON");
   });
 });
