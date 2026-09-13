@@ -22,6 +22,112 @@ async function openSelectionShelf(page: import("@playwright/test").Page) {
   }
 }
 
+test("C copy shows alignment guides, commits the preview and clears guides on Escape", async ({
+  page,
+}) => {
+  const project = createEmptyProject("copy-guides", "Copy guides");
+  project.documents[0]!.instances = [
+    {
+      id: "R1",
+      symbolId: "resistor",
+      placement: { position: { x: 300, y: 200 }, rotation: 0, mirror: "none" },
+    },
+  ];
+  await page.goto("/editor");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "copy-guides.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  // Import fits this single part tightly; leave room for both copy destinations.
+  for (let step = 0; step < 7; step += 1)
+    await page.getByRole("button", { name: "Zoom out", exact: true }).click();
+  const canvas = page.getByTestId("schematic-canvas");
+  const screenPoint = (x: number, y: number) =>
+    canvas.evaluate(
+      (element, point) => {
+        const matrix = (element as SVGSVGElement).getScreenCTM()!;
+        const screen = new DOMPoint(point.x, point.y).matrixTransform(matrix);
+        return { x: screen.x, y: screen.y };
+      },
+      { x, y },
+    );
+  await page.getByTestId("hit-R1").click();
+  await page.keyboard.press("c");
+  const horizontal = await screenPoint(500, 202);
+  await page.mouse.move(horizontal.x, horizontal.y);
+  const ghost = page.getByTestId("copy-placement-preview");
+  await expect(ghost).toHaveAttribute("transform", "translate(200 0)");
+  await expect(page.getByTestId("snap-guide-y")).toHaveCount(1);
+  expect(
+    Number(await page.getByTestId("snap-guide-y").getAttribute("x2")),
+  ).toBeGreaterThan(500);
+  await expect(page.getByTestId("revision")).toHaveText("0");
+
+  const beforeRotation = await page
+    .getByTestId("snap-guide-y")
+    .getAttribute("y1");
+  await page.keyboard.press("r");
+  // A turn under a stationary pointer must refresh the pin/edge guides too.
+  await expect(page.getByTestId("snap-guide-y")).not.toHaveAttribute(
+    "y1",
+    beforeRotation!,
+  );
+  await expect(
+    ghost.locator('[data-object-id="R1-copy-1"] > g').first(),
+  ).toHaveAttribute("transform", /rotate\(90\)/);
+  await page.keyboard.press("Shift+r");
+  await expect(page.getByTestId("snap-guide-y")).toHaveCount(1);
+
+  const away = await screenPoint(457, 287);
+  await page.mouse.move(away.x, away.y);
+  await expect(page.locator(".smart-snap-guide")).toHaveCount(0);
+
+  const vertical = await screenPoint(302, 400);
+  await page.mouse.move(vertical.x, vertical.y);
+  await expect(ghost).toHaveAttribute("transform", "translate(0 200)");
+  await expect(page.getByTestId("snap-guide-x")).toHaveCount(1);
+  expect(
+    Number(await page.getByTestId("snap-guide-x").getAttribute("y2")),
+  ).toBeGreaterThan(400);
+  const preview = await ghost
+    .locator('[data-object-id="R1-copy-1"] > g')
+    .first()
+    .evaluate((element) => {
+      const p = new DOMPoint().matrixTransform(
+        (element as SVGGElement).getScreenCTM()!,
+      );
+      return { x: p.x, y: p.y };
+    });
+  await page.mouse.click(vertical.x, vertical.y);
+  const placed = await canvas
+    .locator('[data-layer="symbols"] [data-object-id="R1-copy-1"] > g')
+    .first()
+    .evaluate((element) => {
+      const p = new DOMPoint().matrixTransform(
+        (element as SVGGElement).getScreenCTM()!,
+      );
+      return { x: p.x, y: p.y };
+    });
+  expect(placed.x).toBeCloseTo(preview.x, 4);
+  expect(placed.y).toBeCloseTo(preview.y, 4);
+  await expect(page.getByTestId("revision")).toHaveText("1");
+  // Repeated placement aligns to the newly stamped part as well as its source.
+  const next = await screenPoint(500, 402);
+  await page.mouse.move(next.x, next.y);
+  await expect(page.getByTestId("snap-guide-y")).toHaveCount(1);
+  await page.mouse.move(100, 60);
+  await expect(ghost).toHaveCount(0);
+  await expect(page.locator(".smart-snap-guide")).toHaveCount(0);
+  await page.mouse.move(next.x, next.y);
+  await expect(page.getByTestId("snap-guide-y")).toHaveCount(1);
+  await page.keyboard.press("Escape");
+  await expect(ghost).toHaveCount(0);
+  await expect(page.locator(".smart-snap-guide")).toHaveCount(0);
+  await clickCommand(page, "Edit", "Undo");
+  await expect(page.getByTestId("instance-count")).toHaveText("1");
+});
+
 test("blocks destructive browser refresh shortcuts and uses the stronger grid", async ({
   page,
 }) => {

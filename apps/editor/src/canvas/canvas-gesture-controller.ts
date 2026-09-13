@@ -122,7 +122,7 @@ export interface CanvasGestureControllerDependencies {
   placement: {
     componentPlacementPending: boolean;
     componentSymbolPending: boolean;
-    snapComponentPlacementPoint: (
+    snapPlacementPoint: (
       point: Point,
       svg: SVGSVGElement,
     ) => { point: Point; guides: readonly SnapGuideLine[] };
@@ -264,7 +264,7 @@ export function createCanvasGestureController({
   placement: {
     componentPlacementPending,
     componentSymbolPending,
-    snapComponentPlacementPoint,
+    snapPlacementPoint,
     setComponentPreviewPoint,
     vddRailMode,
     vddRailStart,
@@ -565,16 +565,18 @@ export function createCanvasGestureController({
         event.clientY,
         event.currentTarget,
       );
-      const snapped = snapComponentPlacementPoint(raw, event.currentTarget);
+      const snapped = snapPlacementPoint(raw, event.currentTarget);
       setComponentPreviewPoint(snapped.point);
       paintSnapGuides(snapped.guides);
       return;
     }
     if (interactionKind === "copy-placement") {
-      setCopyPreviewPoint({
-        x: snapCoordinate(point.x, document.presentation.grid),
-        y: snapCoordinate(point.y, document.presentation.grid),
-      });
+      const snapped = snapPlacementPoint(
+        rawPointFromClient(event.clientX, event.clientY, event.currentTarget),
+        event.currentTarget,
+      );
+      setCopyPreviewPoint(snapped.point);
+      paintSnapGuides(snapped.guides);
       return;
     }
     if (boxPreview?.pointerId === event.pointerId) {

@@ -68,6 +68,10 @@ import { renderCrashRequested, sceneCrashRequested } from "./crash-test-hooks";
 import { buildSceneSafely } from "./scene-safety";
 import { externalSubcircuitSymbolId, hierarchicalSymbolId } from "@icm/symbols";
 import { clipboardPreviewDocument } from "../features/clipboard/clipboard";
+import {
+  copyPlacementAnchors,
+  snapPendingCopyPlacement,
+} from "../features/clipboard/copy-placement-snap";
 import type { SchematicClipboard } from "../features/clipboard/clipboard";
 import {
   canvasInsetsFromOverlays,
@@ -1457,26 +1461,26 @@ export function App({
   const sceneInnerHtml = useMemo(() => ({ __html: scene.formalBody }), [scene]);
   const copyPreviewState = useMemo(() => {
     if (!copyPlacement) {
-      return { scene: null, error: null };
+      return { scene: null, anchors: [], error: null };
     }
     try {
+      const previewDocument = clipboardPreviewDocument(
+        document,
+        copyPlacement.clipboard,
+        { x: 0, y: 0 },
+        copyPlacement.orientationOperations,
+        resolver,
+        copyPlacement.sequence,
+      );
       return {
-        scene: buildSvgScene(
-          clipboardPreviewDocument(
-            document,
-            copyPlacement.clipboard,
-            { x: 0, y: 0 },
-            copyPlacement.orientationOperations,
-            resolver,
-            copyPlacement.sequence,
-          ),
-          resolver,
-        ),
+        scene: buildSvgScene(previewDocument, resolver),
+        anchors: copyPlacementAnchors(previewDocument, resolver),
         error: null,
       };
     } catch (error) {
       return {
         scene: null,
+        anchors: [],
         error:
           error instanceof Error
             ? error.message
@@ -3125,7 +3129,7 @@ export function App({
         pendingSymbolId && pendingComponentPlacement,
       ),
       componentSymbolPending: pendingSymbolId !== null,
-      snapComponentPlacementPoint: resolvePendingPlacementPoint,
+      snapPlacementPoint: resolvePendingPlacementPoint,
       setComponentPreviewPoint,
       vddRailMode,
       vddRailStart,
@@ -3717,6 +3721,16 @@ export function App({
     point: Point,
     svg: SVGSVGElement,
   ): { point: Point; guides: readonly SnapGuideLine[] } {
+    if (copyPlacement) {
+      return snapPendingCopyPlacement({
+        movingAnchors: copyPreviewState.anchors,
+        sceneSnapTargetIndex,
+        anchor: copyPlacement.anchor,
+        position: point,
+        grid: document.presentation.grid,
+        tolerance: logicalRadiusForPixels(svg, SNAP_CAPTURE_RADIUS_PX),
+      });
+    }
     const pitch =
       pendingComponentPlacement?.kind === "drafting-text"
         ? annotationGrid
@@ -3752,6 +3766,17 @@ export function App({
     });
     return { point: snapped.position, guides: snapped.snap.guides };
   }
+
+  useEffect(() => {
+    const svg = snapGuideLayerRef.current?.ownerSVGElement;
+    const point = lastCanvasPointRef.current;
+    if (!copyPlacement?.previewPoint || !svg || !point) return;
+    // Rotation, reflection and repeated stamping change the geometry under a
+    // stationary pointer too. Keep the ghost and its guides in agreement.
+    const snapped = resolvePendingPlacementPoint(point, svg);
+    setCopyPreviewPoint(snapped.point);
+    paintSnapGuides(snapped.guides);
+  }, [copyPreviewState, sceneSnapTargetIndex]);
 
   function paintSnapGuides(guides: readonly SnapGuideLine[]): void {
     replaceCanvasSnapGuides(snapGuideLayerRef.current, guides);
@@ -4481,7 +4506,10 @@ export function App({
       commitWaveformPlacement,
       clearComponentPreview: () => setComponentPreviewPoint(null),
       clearVddRailPreview: () => setVddRailPreviewPoint(null),
-      clearCopyPreview: () => setCopyPreviewPoint(null),
+      clearCopyPreview: () => {
+        setCopyPreviewPoint(null);
+        paintSnapGuides([]);
+      },
       clearWaveformPreview: () => setWaveformPlacementPoint(null),
     },
     gesture: {
