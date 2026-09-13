@@ -135,6 +135,7 @@ export default function SimulationCodeEditor(props: SimulationCodeEditorProps) {
   }, [props.path, props.historyKey]);
   const parent = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
+  const handledReveal = useRef<string | undefined>(undefined);
   const callbacks = useRef(props);
   callbacks.current = props;
   const exact = useRef(props.text);
@@ -330,7 +331,12 @@ export default function SimulationCodeEditor(props: SimulationCodeEditorProps) {
       // File navigation restores focus through CodeMirror together with its
       // selection. Native focus on a recreated contenteditable can otherwise
       // scroll the restored viewport back to the start of the document.
-      if (focused || !samePath) editor.focus();
+      // A new Canvas reveal stays passive; an already-handled reveal must not
+      // suppress focus on a later explicit file switch.
+      const passiveReveal =
+        props.reveal?.focus === false &&
+        props.reveal.requestId !== handledReveal.current;
+      if (focused || (!samePath && !passiveReveal)) editor.focus();
       callbacks.current.onCursor?.(
         sourceOffset(props.text, editor.state.selection.main.head),
       );
@@ -371,6 +377,7 @@ export default function SimulationCodeEditor(props: SimulationCodeEditorProps) {
   useEffect(() => {
     const editor = view.current;
     if (!editor || !props.reveal) return;
+    handledReveal.current = props.reveal.requestId;
     const anchor = editorOffset(exact.current, props.reveal.sourceOffset);
     editor.dispatch({ selection: { anchor }, scrollIntoView: true });
     if (props.reveal.focus !== false) editor.focus();

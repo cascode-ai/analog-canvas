@@ -325,6 +325,7 @@ test("uncommitted source survives reload and an explicit working-copy recovery f
   await expect(panel.locator(".cm-activeLine")).toContainText("XDUT");
   await expect(editor).not.toBeFocused();
   await panel.getByRole("tab", { name: "run.cir", exact: false }).click();
+  await expect(editor).toBeFocused();
   await expect(editor).toContainText(marker);
   const saved = parseProject(
     (await downloadBytes(page, "File", "Export Project File…")).toString(),
