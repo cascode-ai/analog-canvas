@@ -361,8 +361,8 @@ export function SimulationCodeWorkspace(props: SimulationCodeWorkspaceProps) {
               ref={setDocumentActions}
             />
           </div>
+          {props.sourceContext}
           <div className="simulation-code-document-content">
-            {props.sourceContext}
             <div
               hidden={!props.activePath || Boolean(props.artifactPreview)}
               className="workspace-editor-content"

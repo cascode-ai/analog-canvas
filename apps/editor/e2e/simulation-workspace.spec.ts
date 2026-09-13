@@ -34,10 +34,17 @@ test("simulation examples confirm whole-Project replacement and protect existing
     mimeType: "application/json",
     buffer: Buffer.from(JSON.stringify(project)),
   });
+  await page
+    .getByRole("textbox", { name: "Circuit name" })
+    .fill("My unsaved circuit");
+  await page.getByRole("textbox", { name: "Circuit name" }).press("Enter");
   await page.getByTestId("open-analog-simulation").click();
   const panel = page.getByRole("region", { name: "Analog simulation" });
   const cards = panel.getByRole("group", { name: "Simulation examples" });
   await expect(cards.getByRole("button")).toHaveCount(4);
+  await panel.screenshot({
+    path: test.info().outputPath("simulation-starters.png"),
+  });
   await expect(panel).not.toContainText("No DUT instance");
   await cards
     .getByRole("button", { name: "RC Filters Low-pass & high-pass" })
@@ -63,7 +70,7 @@ test("simulation examples confirm whole-Project replacement and protect existing
     .click();
   const guard = page.getByRole("dialog", { name: "Unsaved changes" });
   await expect(guard).toBeVisible();
-  await guard.getByRole("button", { name: "Cancel", exact: true }).click();
+  await guard.getByRole("button", { name: "Stay", exact: true }).click();
   await expect(cards).toBeVisible();
   await cards
     .getByRole("button", { name: "RC Filters Low-pass & high-pass" })
