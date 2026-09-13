@@ -4,7 +4,6 @@ import type {
 } from "react";
 
 import type { SchematicEdit } from "@icm/edit-engine";
-import { resolveRouteAttachment } from "@icm/derived";
 import {
   snapGridPoint,
   type Annotation,
@@ -18,12 +17,11 @@ import {
   type CanvasDragSession,
 } from "../../canvas/canvas-drag-session";
 import { startCanvasDragVisual } from "../../canvas/canvas-drag-visual";
+import { type RouteGeometryRecord } from "../wiring/route-interaction-geometry";
 import {
-  effectiveRouteAttachment,
-  isRoutedMarker,
-  type RouteGeometryRecord,
-} from "../wiring/route-interaction-geometry";
-import { draggedAnnotationAtPosition } from "./annotation-drag-model";
+  annotationDragPosition,
+  draggedAnnotationAtPosition,
+} from "./annotation-drag-model";
 
 type TransactionResult = { ok: boolean };
 
@@ -84,23 +82,16 @@ export function createAnnotationDragController({
     dragSessionRef.current?.cancel();
     const svg = hitTarget.ownerSVGElement!;
     const pointerStart = pointFromClient(event.clientX, event.clientY, svg);
-    const currentAttachment = effectiveRouteAttachment(annotation);
-    const record = currentAttachment
-      ? routeGeometryRecords.find(
-          ({ route }) => route.id === currentAttachment.routeId,
-        )
-      : undefined;
-    const markerPlacement =
-      record && currentAttachment
-        ? resolveRouteAttachment(record.geometry, currentAttachment)
-        : null;
-    const originalPosition = {
-      ...(isRoutedMarker(annotation) && markerPlacement
-        ? markerPlacement.labelPoint
-        : annotation.anchor.kind === "free"
-          ? annotation.anchor.position
-          : annotation.anchor.fallbackPosition),
+    const geometryContext = {
+      document,
+      annotationGrid,
+      resolver,
+      routeGeometryRecords,
     };
+    const originalPosition = annotationDragPosition(
+      geometryContext,
+      annotation,
+    );
     let visual: ReturnType<typeof startCanvasDragVisual> | null = null;
     const dragVisual = () =>
       (visual ??= startCanvasDragVisual(svg, [annotation.id]));
@@ -135,7 +126,7 @@ export function createAnnotationDragController({
           {
             kind: "upsert_schematic_annotation",
             annotation: draggedAnnotationAtPosition(
-              { document, annotationGrid, resolver, routeGeometryRecords },
+              geometryContext,
               latest,
               snapGridPoint(positionAt(client.x, client.y), annotationGrid),
             ),

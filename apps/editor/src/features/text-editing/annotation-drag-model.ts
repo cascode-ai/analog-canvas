@@ -1,5 +1,7 @@
 import {
   resolveAnchorTargetPosition,
+  resolveRouteAttachment,
+  resolveVisualAnchor,
   type ResolvedRouteGeometry,
 } from "@icm/derived";
 import type {
@@ -30,6 +32,31 @@ export interface AnnotationDragGeometryContext {
     route: RouteBranch;
     geometry: ResolvedRouteGeometry;
   }[];
+}
+
+/**
+ * Resolve the visual point from which a label drag starts. Single-label and
+ * composite movement must use the same origin or an object/route anchor will
+ * preview from one point and commit from another.
+ */
+export function annotationDragPosition(
+  { document, resolver, routeGeometryRecords }: AnnotationDragGeometryContext,
+  annotation: Annotation,
+): Point {
+  const currentAttachment = effectiveRouteAttachment(annotation);
+  const record = currentAttachment
+    ? routeGeometryRecords.find(
+        ({ route }) => route.id === currentAttachment.routeId,
+      )
+    : undefined;
+  const markerPlacement =
+    record && currentAttachment
+      ? resolveRouteAttachment(record.geometry, currentAttachment)
+      : null;
+  if (isRoutedMarker(annotation) && markerPlacement) {
+    return markerPlacement.labelPoint;
+  }
+  return resolveVisualAnchor(document, resolver, annotation.anchor).position;
 }
 
 function constrainAnnotationPosition(

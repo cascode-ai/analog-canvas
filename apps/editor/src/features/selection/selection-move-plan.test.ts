@@ -115,4 +115,53 @@ describe("selection move plan", () => {
     expect(plan.translatedJunctionIds).toEqual(["J1"]);
     expect(plan.fixedObjectIds).toEqual([]);
   });
+
+  it("moves an explicitly selected anchored label independently but not twice with its host", () => {
+    const document = createEmptyDocument("doc", "Doc");
+    document.instances.push({
+      id: "R1",
+      symbolId: "resistor",
+      placement: {
+        position: { x: 100, y: 100 },
+        rotation: 0,
+        mirror: "none",
+      },
+    });
+    document.annotations.push({
+      id: "label-r1",
+      kind: "instance-label",
+      binding: { kind: "instance-reference", instanceId: "R1" },
+      anchor: {
+        kind: "object",
+        objectId: "R1",
+        localOffset: { x: 10, y: -20 },
+        fallbackPosition: { x: 110, y: 80 },
+      },
+      alignment: "start",
+      rotation: 0,
+      locked: false,
+    });
+
+    const labelOnly = planSelectionMove(document, {
+      instanceIds: [],
+      routeIds: [],
+      junctionIds: [],
+      annotationIds: ["label-r1"],
+      draftingIds: [],
+    });
+    expect(labelOnly.independentAnnotationIds).toEqual(["label-r1"]);
+    expect(labelOnly.previewObjectIds).toContain("label-r1");
+
+    const withHost = planSelectionMove(document, {
+      instanceIds: ["R1"],
+      routeIds: [],
+      junctionIds: [],
+      annotationIds: ["label-r1"],
+      draftingIds: [],
+    });
+    expect(withHost.independentAnnotationIds).toEqual([]);
+    expect(withHost.previewObjectIds).toEqual(
+      expect.arrayContaining(["R1", "label-r1"]),
+    );
+  });
 });

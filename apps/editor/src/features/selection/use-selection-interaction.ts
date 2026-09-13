@@ -311,7 +311,7 @@ export function useSelectionInteraction(
     }
     if (
       session.movePlan.looseRouteIds.length > 0 ||
-      session.movePlan.freeAnnotationIds.length > 0 ||
+      session.movePlan.independentAnnotationIds.length > 0 ||
       session.movePlan.draftingIds.length > 0
     ) {
       return "Rotate and mirror during Move require a component-and-wire closure";
