@@ -202,6 +202,22 @@ describe("who owns one press on the canvas", () => {
     expect(resolvePointerDownAction(facts(composite))).toEqual({
       kind: "begin-visual-selection-move",
     });
+
+    // Drafting text and shapes are ordinary members of the same selection.
+    // Pressing one must not fall back to its single-object drag controller.
+    const draftingComposite = {
+      hit: hitOf("drafting", "note-1"),
+      compositeSelectionOwnsHit: true,
+      compositeMovePlanHasPreview: true,
+    };
+    expect(
+      resolvePointerDownAction(
+        facts({ ...draftingComposite, primaryInstanceId: "R1" }),
+      ),
+    ).toEqual({ kind: "begin-instance-move", instanceId: "R1" });
+    expect(resolvePointerDownAction(facts(draftingComposite))).toEqual({
+      kind: "begin-visual-selection-move",
+    });
   });
 
   it("lets a modifier compose the selection instead of moving it", () => {
