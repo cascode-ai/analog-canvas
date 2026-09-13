@@ -18,7 +18,13 @@
   transition: none;
 }
 
+.app-shell:has(> .app-workspace.simulation-maximized) {
+  grid-template-rows: minmax(0, 1fr) auto auto;
+}
+
 .app-workspace.simulation-mode.simulation-maximized {
+  /* Reserve the flexible first row; footer auto-placement follows it. */
+  grid-row: 1;
   grid-template-columns: minmax(0, 1fr);
   grid-template-areas: "props";
 }

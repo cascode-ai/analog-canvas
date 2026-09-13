@@ -750,7 +750,10 @@ The user approved the disposable layout prototype and subsequent Explorer
 consolidation: files expand beside code, Source opens by default, temporary
 Prepare/Run groups start collapsed,
 configuration stays hidden by default, Code/Properties have independent widths,
-and Console/Results stay beneath code with reversible maximization. Browser
+and Console/Results stay beneath code with reversible maximization. Maximized
+Simulation reclaims the application header, drawing toolbar and Cell navigation
+space; restoring or minimizing returns that chrome without losing its state.
+Simulation's own restore, minimize and exit controls remain available. Browser
 regressions verify those interactions. That approval does not replace language,
 runtime, numerical or delivery acceptance.
 

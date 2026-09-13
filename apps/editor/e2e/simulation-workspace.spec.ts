@@ -1936,6 +1936,10 @@ test("Simulation creates an ordinary testbench and defaults a new experiment to 
     /simulation-maximized/,
   );
   await expect(page.getByTestId("schematic-canvas")).toBeHidden();
+  await expect(page.locator(".app-chrome")).toBeHidden();
+  const maximizedBounds = await page.locator(".app-workspace").boundingBox();
+  expect(maximizedBounds!.y).toBe(0);
+  expect(maximizedBounds!.width).toBe(page.viewportSize()!.width);
   await expect(page.getByTestId("simulation-resize-handle")).toHaveCount(0);
   await expect(
     page.getByRole("region", { name: "Simulation Code workspace" }),
@@ -1945,6 +1949,7 @@ test("Simulation creates an ordinary testbench and defaults a new experiment to 
     /simulation-maximized/,
   );
   await expect(page.getByTestId("schematic-canvas")).toBeVisible();
+  await expect(page.locator(".app-chrome")).toBeVisible();
   await expect(page.getByTestId("simulation-resize-handle")).toBeVisible();
   await expect(page.getByTestId("library-toggle")).toBeEnabled();
   await expect(page.getByTestId("examples-toggle")).toBeEnabled();
@@ -1993,6 +1998,47 @@ async function openWorkspace(page: Page) {
   await page.getByTestId("open-analog-simulation").click();
   return page.getByRole("region", { name: "Simulation Code workspace" });
 }
+
+test("maximized simulation reclaims chrome at narrow width and minimizes without losing source", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 900, height: 700 });
+  const workspace = await openWorkspace(page);
+  const editor = workspace.getByRole("textbox", {
+    name: "Simulation source editor",
+  });
+  await editor.fill("* retained maximized draft\n");
+  const docked = await workspace.boundingBox();
+  await page
+    .getByRole("button", { name: "Maximize simulation", exact: true })
+    .click();
+  await expect(page.locator(".app-chrome")).toBeHidden();
+  await expect(page.getByTestId("library-toggle")).toBeHidden();
+  await expect(page.getByTestId("examples-toggle")).toBeHidden();
+  const bounds = await page.locator(".app-workspace").boundingBox();
+  expect(bounds!.y).toBe(0);
+  expect(bounds!.width).toBe(900);
+  expect(
+    (await page.locator(".app-statusbar").boundingBox())!.y,
+  ).toBeGreaterThanOrEqual(bounds!.height);
+  expect((await workspace.boundingBox())!.height).toBeGreaterThan(
+    docked!.height,
+  );
+  await expect(
+    page.getByRole("button", { name: "Restore simulation panel", exact: true }),
+  ).toBeVisible();
+  await page.screenshot({
+    path: test.info().outputPath("full-window-simulation.png"),
+  });
+  await page
+    .getByRole("button", { name: "Minimize simulation", exact: true })
+    .click();
+  await expect(page.locator(".app-chrome")).toBeVisible();
+  await expect(page.getByTestId("library-toggle")).toBeEnabled();
+  await page.getByTestId("open-analog-simulation").click();
+  await expect(editor).toContainText("retained maximized draft");
+  await expect(page.locator(".app-chrome")).toBeVisible();
+});
 
 test("folder activation exposes the run target independently of expansion and selection", async ({
   page,
