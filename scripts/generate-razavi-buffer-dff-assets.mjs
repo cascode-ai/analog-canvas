@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 import { format } from "prettier";
 
 import { loadRazaviReferenceAuthority } from "./lib/razavi-reference-authority.mjs";
+import { anchorLogicBody } from "./lib/anchor-logic-body.mjs";
 import { normalizeLogicPortLeads } from "./lib/normalize-logic-port-leads.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -74,7 +75,8 @@ for (const symbolId of symbolIds) {
 }
 
 for (const definition of definitions.values()) {
-  normalizeLogicPortLeads(definition);
+  if (definition.id === "buffer") anchorLogicBody(definition);
+  else normalizeLogicPortLeads(definition);
 }
 
 const dff = definitions.get("d-flip-flop");
@@ -255,7 +257,8 @@ for (const symbolId of generatedIds) {
       "fixtures/visual-reference/razavi-reference-v1/manifest.json",
     referencePath: `fixtures/visual-reference/razavi-reference-v1/${symbolId}-vector-source.json`,
     converterPath: "scripts/generate-razavi-buffer-dff-assets.mjs",
-    converterVersion: symbolId === "d-flip-flop" ? 3 : 2,
+    converterVersion: 3,
+    ...(symbolId === "buffer" ? { bodyNormalization: "left-grid-anchor" } : {}),
   };
   if (symbolId === Q_ONLY_ID || symbolId === RESET_ID) {
     // The body is the reviewed flip-flop's, so it inherits that figure's

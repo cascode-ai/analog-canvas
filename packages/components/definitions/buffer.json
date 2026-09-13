@@ -21,20 +21,20 @@
         "direction": "west",
         "presentation": {
           "visibility": "visible",
-          "leadLength": 15
+          "leadLength": 10
         }
       },
       {
         "name": "Y",
         "role": "output",
         "at": {
-          "x": 20,
+          "x": 10,
           "y": 0
         },
         "direction": "east",
         "presentation": {
           "visibility": "visible",
-          "leadLength": 10
+          "leadLength": 6
         }
       }
     ],
@@ -46,7 +46,7 @@
           "y": 0
         },
         "to": {
-          "x": -14.727526,
+          "x": -20,
           "y": 0
         },
         "style": {
@@ -57,22 +57,28 @@
       },
       {
         "kind": "path",
-        "data": "M 9.022751 -0.0 L -14.727526 14.998936 L -14.727526 -13.749865 L 9.022751 -0.0",
+        "data": "M 3.750277 0 L -20 14.998936 L -20 -13.749865 L 3.750277 0",
         "style": {
           "strokeRole": "emphasis",
           "lineCap": "butt",
           "lineJoin": "miter",
           "miterLimit": 4
+        },
+        "bounds": {
+          "x": -20,
+          "y": -13.749865,
+          "width": 23.750277,
+          "height": 28.748801
         }
       },
       {
         "kind": "line",
         "from": {
-          "x": 9.022751,
+          "x": 3.750277,
           "y": 0
         },
         "to": {
-          "x": 20,
+          "x": 10,
           "y": 0
         },
         "style": {
@@ -110,7 +116,8 @@
       "referenceManifestPath": "fixtures/visual-reference/razavi-reference-v1/manifest.json",
       "referencePath": "fixtures/visual-reference/razavi-reference-v1/buffer-vector-source.json",
       "converterPath": "scripts/generate-razavi-buffer-dff-assets.mjs",
-      "converterVersion": 2
+      "converterVersion": 3,
+      "bodyNormalization": "left-grid-anchor"
     }
   }
 }

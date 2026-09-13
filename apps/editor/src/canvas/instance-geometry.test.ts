@@ -62,26 +62,28 @@ describe("selection geometry", () => {
     expect(blocks).toHaveLength(23);
     for (const symbol of blocks) {
       const bounds = visibleSymbolLocalBounds(resolver.resolve(symbol.id)!);
-      const expected = symbol.id.startsWith("opamp-differential")
-        ? { x: -44, y: -34, width: 73, height: 68 }
-        : /^(?:opamp|voltage-amplifier|comparator)/u.test(symbol.id)
-          ? { x: -44, y: -34, width: 88, height: 68 }
-          : symbol.id.startsWith("differential-transconductance")
-            ? { x: -34, y: -39, width: 68, height: 78 }
-            : symbol.id === "adc"
-              ? { x: -51.5, y: -21.5, width: 93, height: 43 }
-              : symbol.id === "dac"
-                ? { x: -41.5, y: -21.5, width: 93, height: 43 }
-                : { x: -30, y: -35, width: 60, height: 70 };
+      // All triangular Analog Blocks now share the accepted x=30 output
+      // column; these envelopes must follow that placement, including FD.
+      const expected = /^(?:opamp|voltage-amplifier|comparator)/u.test(
+        symbol.id,
+      )
+        ? { x: -44, y: -34, width: 78, height: 68 }
+        : symbol.id.startsWith("differential-transconductance")
+          ? { x: -34, y: -39, width: 68, height: 78 }
+          : symbol.id === "adc"
+            ? { x: -51.5, y: -21.5, width: 93, height: 43 }
+            : symbol.id === "dac"
+              ? { x: -41.5, y: -21.5, width: 93, height: 43 }
+              : { x: -30, y: -35, width: 60, height: 70 };
       expect(bounds, symbol.id).toEqual(expected);
     }
   });
 
   it.each([
-    [0, "none", { x: 56, y: 166, width: 73, height: 68 }],
-    [0, "horizontal", { x: 71, y: 166, width: 73, height: 68 }],
-    [90, "none", { x: 66, y: 156, width: 68, height: 73 }],
-    [270, "none", { x: 66, y: 171, width: 68, height: 73 }],
+    [0, "none", { x: 56, y: 166, width: 78, height: 68 }],
+    [0, "horizontal", { x: 66, y: 166, width: 78, height: 68 }],
+    [90, "none", { x: 66, y: 156, width: 68, height: 78 }],
+    [270, "none", { x: 66, y: 166, width: 68, height: 78 }],
   ] as const)(
     "keeps the asymmetric FD Amp bounds aligned at rotation %s and mirror %s",
     (rotation, mirror, expected) => {

@@ -48,7 +48,7 @@ export interface RazaviSymbolCatalogEntry {
          */
         pinSpanScale?: number;
         /** Product shape normalization; original PDF evidence remains unchanged. */
-        bodyNormalization?: "equilateral-triangle";
+        bodyNormalization?: "equilateral-triangle" | "left-grid-anchor";
       }
     | {
         /**

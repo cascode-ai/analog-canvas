@@ -110,7 +110,18 @@ The product set is exactly the reviewed, Reference-calibrated entries:
   printed page 331, Figure 16.2(c); its timing and netlist implementation remain
   deliberately unmapped. OR is the reviewed NOR body without its output
   bubble; XNOR is the direct XOR body with the reviewed two-input NOR negation
-  bubble.
+  bubble. The eight combinational gates use the product normalization
+  `bodyNormalization: "left-grid-anchor"`: translate the reviewed artwork
+  horizontally so its leftmost outline lies at x=-20, preserving its scale,
+  curves, bubbles and vertical coordinates. Buffer, Inverter, AND and NAND
+  therefore place their vertical left edge on the grid, with exactly one-cell
+  input leads from x=-30. OR/NOR and XOR/XNOR use their leftmost curve as the
+  same baseline. Outputs extend from the body or bubble to the first 10-unit
+  grid column that leaves at least 4 units of visible lead. Path bounds follow
+  the artwork instead of the source crop's empty margin. The shared rule lives
+  in `scripts/lib/anchor-logic-body.mjs`; raw PDF evidence and the DFF/delay
+  geometry are unchanged. Pin names and order stay fixed, but changed pin
+  columns can require manual repair of historical routes;
 - triangular Analog Blocks (`opamp`, fully differential amps, voltage amps,
   comparators, and their lettered/polarity variants) share a user-requested
   equilateral outline with three 60-unit sides and a 60-degree apex. Its left

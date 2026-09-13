@@ -2288,7 +2288,7 @@ describe("logic-gate and comparator family", () => {
 
 describe("switch port leads", () => {
   /**
-   * Switches take a different normalization from the logic family. The logic
+   * Switches take a different normalization from the DFF/delay family. That
    * helper snaps the connection point outward, so a body contact on a
    * half-grid keeps a 1.5-cell lead — deliberate there, and the library is
    * full of the 15s it yields. A switch body contacts at roughly ±13, and
@@ -2487,20 +2487,122 @@ describe("house-drawn switch additions", () => {
   });
 });
 
-describe("logic-library port leads", () => {
-  const logicIds = [
-    "and-gate",
+describe("left-anchored digital gates", () => {
+  it.each([
     "buffer",
+    "inverter",
+    "and-gate",
+    "nand-gate",
+    "or-gate",
+    "nor-gate",
+    "xor-gate",
+    "xnor-gate",
+  ])(
+    "anchors %s without distorting the reviewed body or losing pin joins",
+    (id) => {
+      const symbol = requireRazaviCatalogSymbol(id);
+      const sourceId =
+        id === "or-gate" ? "nor-gate" : id === "xnor-gate" ? "xor-gate" : id;
+      const evidence = JSON.parse(
+        readFileSync(
+          resolve(
+            process.cwd(),
+            "fixtures/visual-reference/razavi-reference-v1",
+            sourceId === "buffer"
+              ? "buffer-vector-source.json"
+              : `logic-${sourceId}-vector-source.json`,
+          ),
+          "utf8",
+        ),
+      );
+      const source = SymbolDefinitionSchema.parse(
+        evidence.normalization.symbolDefinition,
+      );
+      const paths = symbol.primitives.filter((p) => p.kind === "path");
+      const sourcePaths = source.primitives.filter((p) => p.kind === "path");
+      expect(paths).toHaveLength(sourcePaths.length);
+      const left = Math.min(
+        ...paths.flatMap((p) => pathPoints(p.data).map((point) => point.x)),
+      );
+      expect(left).toBe(-20);
+      const dx =
+        pathPoints(paths[0]!.data)[0]!.x -
+        pathPoints(sourcePaths[0]!.data)[0]!.x;
+      for (const [index, path] of paths.entries()) {
+        const original = sourcePaths[index]!;
+        expect(path.style).toEqual(original.style);
+        const points = pathPoints(path.data);
+        const originalPoints = pathPoints(original.data);
+        expect(points).toHaveLength(originalPoints.length);
+        expect(path.bounds).toBeDefined();
+        for (const [i, point] of points.entries()) {
+          expect(point.x - originalPoints[i]!.x).toBeCloseTo(dx, 5);
+          expect(point.y).toBeCloseTo(originalPoints[i]!.y, 8);
+          const bounds = path.bounds!;
+          expect(point.x).toBeGreaterThanOrEqual(bounds.x - 0.000001);
+          expect(point.x).toBeLessThanOrEqual(
+            bounds.x + bounds.width + 0.000001,
+          );
+          expect(point.y).toBeGreaterThanOrEqual(bounds.y - 0.000001);
+          expect(point.y).toBeLessThanOrEqual(
+            bounds.y + bounds.height + 0.000001,
+          );
+        }
+      }
+      expect(getRazaviCatalogEntry(id)?.generation).toMatchObject({
+        bodyNormalization: "left-grid-anchor",
+      });
+      expect(
+        symbol.pins.map(({ name, role, at }) => [name, role, at.y]),
+      ).toEqual(source.pins.map(({ name, role, at }) => [name, role, at.y]));
+      for (const pin of symbol.pins) {
+        expect(Math.abs(pin.at.x % 10)).toBe(0);
+        expect(Math.abs(pin.at.y % 10)).toBe(0);
+        const leads = symbol.primitives.filter(
+          (p) =>
+            p.kind === "line" &&
+            ((p.from.x === pin.at.x && p.from.y === pin.at.y) ||
+              (p.to.x === pin.at.x && p.to.y === pin.at.y)),
+        );
+        expect(leads, `${id}.${pin.name}`).toHaveLength(1);
+        const lead = leads[0]!;
+        if (lead.kind !== "line") throw new Error("Missing pin lead");
+        const contact = lead.from.x === pin.at.x ? lead.to : lead.from;
+        expect(contact.y).toBe(pin.at.y);
+        if (pin.direction === "west") {
+          expect(pin.at.x).toBe(-30);
+          if (["buffer", "inverter", "and-gate", "nand-gate"].includes(id)) {
+            expect(contact.x).toBe(-20);
+            // A real vertical body segment spans the input contacts.
+            const bodyPoints = paths
+              .flatMap((p) => pathPoints(p.data))
+              .filter((p) => p.x === -20);
+            expect(Math.min(...bodyPoints.map((p) => p.y))).toBeLessThan(
+              pin.at.y,
+            );
+            expect(Math.max(...bodyPoints.map((p) => p.y))).toBeGreaterThan(
+              pin.at.y,
+            );
+          }
+        } else {
+          const bubble = symbol.primitives.find((p) => p.kind === "circle");
+          if (bubble?.kind === "circle")
+            expect(contact.x).toBeCloseTo(bubble.center.x + bubble.radius, 5);
+          const length = pin.at.x - contact.x;
+          expect(length).toBeGreaterThanOrEqual(4);
+          expect(length).toBeLessThan(14);
+        }
+      }
+    },
+  );
+});
+
+describe("DFF and delay port leads", () => {
+  const logicIds = [
     "d-flip-flop",
     "d-flip-flop-reset",
     "d-flip-flop-q",
     "delay-cell",
-    "inverter",
-    "nand-gate",
-    "nor-gate",
-    "or-gate",
-    "xnor-gate",
-    "xor-gate",
   ];
 
   it("uses only one-cell or half-grid-adjusted 1.5-cell port leads", () => {

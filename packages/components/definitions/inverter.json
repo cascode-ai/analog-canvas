@@ -21,20 +21,20 @@
         "direction": "west",
         "presentation": {
           "visibility": "visible",
-          "leadLength": 15
+          "leadLength": 10
         }
       },
       {
         "name": "Y",
         "role": "output",
         "at": {
-          "x": 30,
+          "x": 20,
           "y": 0
         },
         "direction": "east",
         "presentation": {
           "visibility": "visible",
-          "leadLength": 15
+          "leadLength": 9
         }
       }
     ],
@@ -46,7 +46,7 @@
           "y": 0
         },
         "to": {
-          "x": -14.727526,
+          "x": -20,
           "y": 0
         },
         "style": {
@@ -57,18 +57,24 @@
       },
       {
         "kind": "path",
-        "data": "M 9.023455 0.0 L -14.727526 -15.000436 L -14.727526 13.748365 L 9.023455 0.0",
+        "data": "M 3.750981 0 L -20 -15.000436 L -20 13.748365 L 3.750981 0",
         "style": {
           "strokeRole": "emphasis",
           "lineCap": "butt",
           "lineJoin": "miter",
           "miterLimit": 4
+        },
+        "bounds": {
+          "x": -20,
+          "y": -15.000436,
+          "width": 23.750981,
+          "height": 28.748801
         }
       },
       {
         "kind": "circle",
         "center": {
-          "x": 12.794489,
+          "x": 7.522015,
           "y": 0.009591
         },
         "radius": 3.750109,
@@ -83,11 +89,11 @@
       {
         "kind": "line",
         "from": {
-          "x": 16.525416,
+          "x": 11.272124,
           "y": 0
         },
         "to": {
-          "x": 30,
+          "x": 20,
           "y": 0
         },
         "style": {
@@ -125,7 +131,8 @@
       "referenceManifestPath": "fixtures/visual-reference/razavi-reference-v1/manifest.json",
       "referencePath": "fixtures/visual-reference/razavi-reference-v1/logic-inverter-vector-source.json",
       "converterPath": "scripts/generate-razavi-logic-gate-assets.mjs",
-      "converterVersion": 2
+      "converterVersion": 3,
+      "bodyNormalization": "left-grid-anchor"
     }
   }
 }
