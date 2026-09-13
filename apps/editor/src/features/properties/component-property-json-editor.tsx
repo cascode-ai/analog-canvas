@@ -79,8 +79,8 @@ interface Props {
 const externalUpdate = Annotation.define<boolean>();
 const refreshDecorations = StateEffect.define<null>();
 const LINE_COLOR_PRESETS = [
-  ...COMMON_COLOR_PRESETS,
   { label: "Black", value: "#000000" },
+  ...COMMON_COLOR_PRESETS,
 ] as const;
 
 /** Lazy loaded: selecting a component does not make the canvas shell depend on CodeMirror. */

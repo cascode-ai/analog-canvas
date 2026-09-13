@@ -429,6 +429,20 @@ for (const width of [300, 540]) {
     }
     await color.click();
 
+    expect(
+      await page
+        .getByLabel("Line presets")
+        .getByRole("button")
+        .evaluateAll((buttons) =>
+          buttons.map((button) => button.getAttribute("aria-label")),
+        ),
+    ).toEqual([
+      "Use Black for line",
+      "Use Light gray for line",
+      "Use Red for line",
+      "Use Green for line",
+      "Use Blue for line",
+    ]);
     await expect(
       page.getByRole("button", { name: "Use Light gray for line" }),
     ).toBeVisible();
