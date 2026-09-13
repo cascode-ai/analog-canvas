@@ -56,6 +56,7 @@ import type { OperatingPointDisplay } from "./operating-point-labels";
 
 import {
   buildSimulationArtifactArchive,
+  buildSimulationWorkspaceArchive,
   readSimulationArtifact,
   readSimulationArtifactPreview,
   type SimulationArtifactContent,
@@ -130,6 +131,14 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
 function SimulationSurface(props: SpiceSimulationSurfaceProps) {
   const interaction = useWorkspaceInteractions();
   const { session, project, open } = props;
+  const [sharedRuns, setSharedRuns] = useState(
+    () => props.runHistory?.snapshot() ?? [],
+  );
+  useEffect(() => {
+    const history = props.runHistory;
+    setSharedRuns(history?.snapshot() ?? []);
+    return history?.subscribe(() => setSharedRuns(history.snapshot()));
+  }, [props.runHistory]);
   const selectedFolder = project.simulationFolders.find(
     (folder) => folder.id === props.selectedFolderId,
   );
@@ -138,6 +147,7 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
   const [capabilities, setCapabilities] = useState<Capabilities>();
   const [prepared, setPrepared] = useState<Prepared>();
   const [run, setRun] = useState<Run>();
+  const [openedProjectFile, setOpenedProjectFile] = useState<string>();
   const [batch, setBatch] = useState<SimulationBatch>();
   const hydratedBatchRuns = useRef(new Set<string>());
   const batchRuns = useRef(new Map<string, { prepared: Prepared; run: Run }>());
@@ -226,7 +236,7 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
     return () => {
       stopped = true;
     };
-  }, [archiveStore, project.id, open]);
+  }, [archiveStore, project.id, open, sharedRuns]);
   useEffect(
     () => () => {
       archiveStore.close();
@@ -713,7 +723,12 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
   };
   const openArchivedRun = async (archiveId: string) => {
     setArtifactBusy(`archive:open:${archiveId}`);
-    const stored = await archiveStore.read(archiveId);
+    const memoryArchive = sharedRuns.find(
+      (item) => item.archive?.id === archiveId,
+    )?.archive;
+    const stored = memoryArchive
+      ? { ok: true as const, value: memoryArchive }
+      : await archiveStore.read(archiveId);
     if (!stored.ok || !stored.value) {
       setArtifactBusy(undefined);
       setProblem(
@@ -737,6 +752,7 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
       ...stored.value.presentation,
       prepared: restored.value.prepared,
     };
+    setOpenedProjectFile(stored.value.projectFile);
     preparedPresentations.current.set(restored.value.prepared.id, presentation);
     archivedRunIds.current.add(restored.value.run.id);
     folderResults.current.set(stored.value.presentation.folderId, {
@@ -1119,6 +1135,49 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
     <>
       {run ? (
         <div className="simulation-result-actions">
+          {openedProjectFile && archivedRunIds.current.has(run.id) ? (
+            <button
+              type="button"
+              disabled={artifactBusy !== undefined}
+              onClick={() =>
+                void (async () => {
+                  setArtifactBusy("bundle:project");
+                  const result = await buildSimulationWorkspaceArchive(
+                    session.files,
+                    [
+                      {
+                        kind: "text",
+                        path: "project.icproj.json",
+                        text: openedProjectFile,
+                      },
+                      ...run.artifacts.map((artifact) => ({
+                        kind: "artifact" as const,
+                        path: `results/${artifact.name}`,
+                        artifact,
+                      })),
+                    ],
+                  );
+                  setArtifactBusy(undefined);
+                  if (!result.ok) {
+                    setProblem(result.error);
+                    return;
+                  }
+                  const url = URL.createObjectURL(
+                    new Blob([result.bytes as BlobPart], {
+                      type: "application/zip",
+                    }),
+                  );
+                  const link = document.createElement("a");
+                  link.href = url;
+                  link.download = "project-with-results.zip";
+                  link.click();
+                  setTimeout(() => URL.revokeObjectURL(url), 0);
+                })()
+              }
+            >
+              Project + results ZIP
+            </button>
+          ) : null}
           <button
             type="button"
             disabled={
@@ -1192,6 +1251,88 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
       aria-label="Simulation results"
     >
       <div ref={resultsBodyRef} className="simulation-results-body">
+        {archives.some(
+          (item) =>
+            item.folderId === selectedFolder?.id &&
+            !sharedRuns.some((run) => run.archive?.id === item.id),
+        ) ? (
+          <section
+            className="simulation-archive-list"
+            aria-label="Saved folder results"
+          >
+            <strong>Saved results · this browser</strong>
+            <ul>
+              {archives
+                .filter(
+                  (item) =>
+                    item.folderId === selectedFolder?.id &&
+                    !sharedRuns.some((run) => run.archive?.id === item.id),
+                )
+                .map((item) => (
+                  <li key={item.id}>
+                    <span>
+                      {item.origin === "agent" ? "Agent · " : ""}
+                      {item.analysisLabel} ·{" "}
+                      {new Date(item.createdAt).toLocaleString()} · Saved input
+                      snapshot
+                    </span>
+                    <button
+                      type="button"
+                      disabled={artifactBusy !== undefined}
+                      onClick={() => void openArchivedRun(item.id)}
+                    >
+                      Open result
+                    </button>
+                    <button
+                      type="button"
+                      aria-label={`Delete saved result ${item.id}`}
+                      onClick={() => void deleteArchivedRun(item.id)}
+                    >
+                      Delete
+                    </button>
+                  </li>
+                ))}
+            </ul>
+          </section>
+        ) : null}
+        {sharedRuns.some(
+          (item) => item.presentation.folderId === selectedFolder?.id,
+        ) ? (
+          <section
+            className="simulation-archive-list"
+            aria-label="Project runs"
+          >
+            <strong>
+              Project runs · automatically archived in this browser
+            </strong>
+            <ul>
+              {sharedRuns
+                .filter(
+                  (item) => item.presentation.folderId === selectedFolder?.id,
+                )
+                .map((item) => (
+                  <li key={item.id}>
+                    <span>
+                      {item.owner === "agent" ? "Agent" : "You"} ·{" "}
+                      {item.presentation.analysisLabel} · {item.state}
+                      {item.error ? (
+                        <small role="status">{item.error}</small>
+                      ) : null}
+                    </span>
+                    <button
+                      type="button"
+                      disabled={!item.archive || artifactBusy !== undefined}
+                      onClick={() =>
+                        item.archive && void openArchivedRun(item.archive.id)
+                      }
+                    >
+                      Open result
+                    </button>
+                  </li>
+                ))}
+            </ul>
+          </section>
+        ) : null}
         {resultTab === "plot" ? (
           <div className="simulation-analysis-view simulation-plot-view">
             {run?.outputData ? (

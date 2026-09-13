@@ -1,0 +1,135 @@
+import { IDBFactory } from "fake-indexeddb";
+import { describe, expect, it, vi } from "vitest";
+import type { Prepared, Run } from "@icm/simulation-service/contract";
+import { SimulationFiles } from "@icm/simulation-service/files";
+import { createBrowserSimulationArchiveStore } from "./browser-simulation-archive-store";
+import { restoreSimulationRunArchive } from "./simulation-run-archive";
+import { ProjectRunHistory } from "./project-run-history";
+
+async function fixture() {
+  const files = new SimulationFiles();
+  const outputData = {
+    schemaVersion: 1 as const,
+    analyses: [],
+    diagnostics: [],
+  };
+  const artifact = await files.put(
+    "outputs.json",
+    "application/json",
+    JSON.stringify(outputData),
+  );
+  const prepared: Prepared = {
+    id: "prepared",
+    digest: "a".repeat(64),
+    inputRevision: "input",
+    expiresAt: 100,
+    mode: "source",
+    environment: { profileId: "test" },
+    vectors: [],
+    outputs: [],
+    deviceOperatingPoints: [],
+    artifacts: [],
+    warnings: [],
+  };
+  const run: Run = {
+    id: "run",
+    preparedId: prepared.id,
+    inputRevision: prepared.inputRevision,
+    state: "finished",
+    artifacts: [artifact],
+    outputData,
+  };
+  return {
+    files,
+    prepared,
+    run,
+    owner: "agent" as const,
+    presentation: {
+      folderId: "folder",
+      folderName: "AC",
+      analysisLabel: "AC",
+      outputs: [],
+    },
+    active: () => true,
+    read: vi.fn(async () => ({ ok: true as const, run })),
+  };
+}
+
+describe("Project result handoff", () => {
+  it("polls independently, archives once and restores after the owner and registry close", async () => {
+    const input = await fixture();
+    const idbFactory = new IDBFactory();
+    const store = createBrowserSimulationArchiveStore({ idbFactory });
+    const history = new ProjectRunHistory("project", store);
+    const start = {
+      ...input,
+      run: { ...input.run, state: "running" as const },
+    };
+    history.track(start);
+    history.track(start);
+    expect(history.snapshot()).toHaveLength(1);
+    await vi.waitFor(
+      () => expect(history.snapshot()[0]?.archive).toBeDefined(),
+      { timeout: 3000 },
+    );
+    await vi.waitFor(async () =>
+      expect((await store.list("project")).ok).toBe(true),
+    );
+    expect(input.read).toHaveBeenCalledTimes(1);
+    const archiveId = history.snapshot()[0]!.archive!.id;
+    await vi.waitFor(async () =>
+      expect(await store.read(archiveId)).toMatchObject({
+        ok: true,
+        value: { id: archiveId },
+      }),
+    );
+    history.dispose();
+    input.files.clear();
+    const reopened = createBrowserSimulationArchiveStore({ idbFactory });
+    const stored = await reopened.read(archiveId);
+    expect(stored.ok && stored.value?.presentation.origin).toBe("agent");
+    if (!stored.ok || !stored.value) throw Error("Missing archive");
+    expect(
+      await restoreSimulationRunArchive(new SimulationFiles(), stored.value),
+    ).toMatchObject({
+      ok: true,
+      value: { run: { id: "run", outputData: input.run.outputData } },
+    });
+    reopened.close();
+  });
+  it("keeps a viewable memory result and explains a persistence failure", async () => {
+    const input = await fixture();
+    const store = createBrowserSimulationArchiveStore({
+      idbFactory: new IDBFactory(),
+    });
+    vi.spyOn(store, "save").mockResolvedValue({
+      ok: false,
+      code: "quota-exceeded",
+      message: "Quota full",
+    });
+    const history = new ProjectRunHistory("project", store);
+    history.track(input);
+    await vi.waitFor(() =>
+      expect(history.snapshot()[0]?.error).toContain("session only"),
+    );
+    expect(history.snapshot()[0]?.archive).toBeDefined();
+    history.dispose();
+  });
+  it("stops polling a revoked owner without calling another owner or deleting completed results", async () => {
+    const input = await fixture();
+    const history = new ProjectRunHistory(
+      "project",
+      createBrowserSimulationArchiveStore({ idbFactory: new IDBFactory() }),
+    );
+    history.track({
+      ...input,
+      active: () => false,
+      run: { ...input.run, state: "running" },
+    });
+    await vi.waitFor(() => expect(history.snapshot()[0]?.state).toBe("lost"), {
+      timeout: 2000,
+    });
+    expect(input.read).not.toHaveBeenCalled();
+    history.dispose();
+  });
+});

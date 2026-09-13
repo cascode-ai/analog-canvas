@@ -247,6 +247,7 @@ import { BrowserAgentFileHost } from "../agent/browser-agent-file-host";
 import { BrowserAgentSimulationHost } from "../agent/browser-agent-simulation-host";
 import { BrowserAgentProjectHost } from "../agent/browser-agent-project-host";
 import { BrowserSimulationSession } from "../features/simulation/browser-simulation-session";
+import { ProjectRunHistory } from "../features/simulation/project-run-history";
 import { createAgentSemanticIntentHandler } from "../agent/agent-semantic-intent-handler";
 import { PUBLIC_AGENT_UI_ENABLED } from "../agent/public-agent-ui";
 import { useAgentSession } from "../agent/use-agent-session";
@@ -842,9 +843,16 @@ export function App({
       }),
     [editorDocumentController, projectSessionId],
   );
+  const projectRunHistory = useMemo(
+    () => new ProjectRunHistory(editorDocumentController.project.id),
+    [editorDocumentController, projectSessionId],
+  );
+  useEffect(() => () => projectRunHistory.dispose(), [projectRunHistory]);
   const browserAgentSimulationHost = useMemo(
     () =>
       new BrowserAgentSimulationHost({
+        runHistory: projectRunHistory,
+        owner: "agent",
         files: browserAgentFileHost.simulationFiles,
         getProjectSessionId: () => editorDocumentController.projectSessionId,
         getProject: () => editorDocumentController.project,
@@ -852,6 +860,7 @@ export function App({
       }),
     [
       browserAgentFileHost.simulationFiles,
+      projectRunHistory,
       editorDocumentController,
       projectSessionId,
       simulationTransport,
@@ -884,6 +893,8 @@ export function App({
     () =>
       analogSimulationOpened
         ? new BrowserSimulationSession({
+            runHistory: projectRunHistory,
+            owner: "human",
             getProjectSessionId: () =>
               editorDocumentController.projectSessionId,
             getProject: () => editorDocumentController.project,
@@ -899,6 +910,7 @@ export function App({
         : null,
     [
       analogSimulationOpened,
+      projectRunHistory,
       editorDocumentController,
       projectSessionId,
       simulationTransport,
@@ -5391,6 +5403,7 @@ export function App({
                 <LazySpiceSimulationSurface
                   key={projectSessionId}
                   session={humanSimulationSession}
+                  runHistory={projectRunHistory}
                   project={project}
                   activeDocumentId={document.id}
                   selectedCircuitObject={
