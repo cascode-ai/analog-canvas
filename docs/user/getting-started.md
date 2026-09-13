@@ -115,6 +115,20 @@ is defined.
 - Use `Ctrl`+mouse wheel to zoom around the cursor and middle-button drag to
   pan. View changes do not increment the Document revision.
 
+## Editing multiple components
+
+Select components together with Shift-click or a selection rectangle, then
+press `Q`. Properties shows one editable JSON block. Shared colors and values
+are displayed; differences appear as `""`. Color compares the actual document
+ink, so inherited black and explicitly assigned black show the same RGB value.
+Set `appearance.foreground` through its swatch, RGB, or hex to recolor all
+selected components, including different types. For one component type, edit
+`parameters.value` (or individual parameters such as MOS `w` and `l`) together.
+Blank parameters keep each component's existing value. The `symbol` field
+shows the common type; it is blank for differing types and is informational.
+Each valid code edit applies atomically and can be undone once. Invalid edits
+keep the last accepted drawing. Changing selection discards its pending draft.
+
 ## Arrow styles
 
 Choose a style from the arrow tool's dropdown **before** drawing. Its main

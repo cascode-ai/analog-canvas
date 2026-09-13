@@ -289,10 +289,12 @@ import {
 } from "../features/instance-display/instance-parameter-display";
 import { createSelectionPropertyCommands } from "../features/properties/selection-property-commands";
 import { planComponentPropertyCodeEdits } from "../features/properties/component-property-code-edits";
+import { planGroupPropertyCodeEdits } from "../features/properties/group-property-code-edits";
 import type { ComponentPropertyCodeValue } from "../features/properties/component-property-code";
 import {
   commonGroupValue,
-  type GroupPropertyColor,
+  groupForeground,
+  groupParameterContext,
   type GroupPropertyCodeValue,
 } from "../features/properties/group-property-code";
 import {
@@ -2220,7 +2222,7 @@ export function App({
     }),
   );
   const selectedGroupValueInstances = selectedGroupInstances.filter(
-    (instance) => displayableInstanceValue(instance).kind === "displayable",
+    (instance) => symbolSupportsValueAnnotation(instance.symbolId),
   );
   const selectedGroupValueVisibility =
     selectedGroupValueInstances.length === 0
@@ -2231,17 +2233,19 @@ export function App({
             return value !== null && value.visible !== false;
           }),
         );
-  const selectedGroupForeground = commonGroupValue<
-    Exclude<GroupPropertyColor, "mixed">
-  >(
-    selectedGroupInstances.map(
-      (instance) =>
-        (instance.styleOverride?.foreground ?? "auto") as Exclude<
-          GroupPropertyColor,
-          "mixed"
-        >,
-    ),
+  const selectedGroupForeground = groupForeground(
+    selectedGroupInstances,
+    styleProfile.foreground,
   );
+  const selectedGroupContext = {
+    ...groupParameterContext(
+      selectedGroupInstances,
+      propertyParametersForInstance,
+    ),
+    reference: selectedGroupReferenceVisibility,
+    value: selectedGroupValueVisibility,
+    foreground: selectedGroupForeground,
+  };
   const wireUnderSymbolWarnings = useMemo(
     () =>
       deriveWireUnderSymbolWarnings(document, resolver, routeGeometryRecords),
@@ -5718,17 +5722,21 @@ export function App({
               groupProperties={{
                 active: selectedIds.length > 1,
                 count: selectedIds.length,
+                selectionKey: JSON.stringify([
+                  document.id,
+                  [...selectedIds].sort(),
+                ]),
                 revision: document.revision,
                 defaultForeground: styleProfile.foreground,
-                context: {
-                  reference: selectedGroupReferenceVisibility,
-                  value: selectedGroupValueVisibility,
-                  foreground: selectedGroupForeground,
-                },
+                context: selectedGroupContext,
                 onApply: (value: GroupPropertyCodeValue) => {
-                  const edits: SchematicEdit[] = [];
+                  const edits = planGroupPropertyCodeEdits(
+                    selectedGroupInstances,
+                    value,
+                    selectedGroupContext,
+                  );
                   if (
-                    value.display.visualAnnotation !== "mixed" &&
+                    value.display.visualAnnotation !== "" &&
                     value.display.visualAnnotation !==
                       selectedGroupReferenceVisibility
                   )
@@ -5740,36 +5748,58 @@ export function App({
                     );
                   if (
                     value.display.value !== undefined &&
-                    value.display.value !== "mixed" &&
+                    value.display.value !== "" &&
                     value.display.value !== selectedGroupValueVisibility
-                  )
+                  ) {
+                    // Display creation must see parameter changes in this same
+                    // transaction, including components that had no value yet.
+                    const patches = new Map(
+                      edits.flatMap((edit) =>
+                        edit.kind === "patch_instance_netlist_parameters"
+                          ? [[edit.instanceId, edit.set ?? {}] as const]
+                          : [],
+                      ),
+                    );
+                    const candidateDocument = {
+                      ...document,
+                      instances: document.instances.map((instance) => {
+                        const set = patches.get(instance.id);
+                        return set && instance.netlist
+                          ? {
+                              ...instance,
+                              netlist: {
+                                ...instance.netlist,
+                                parameters: {
+                                  ...instance.netlist.parameters,
+                                  ...set,
+                                },
+                              },
+                            }
+                          : instance;
+                      }),
+                    };
+                    if (
+                      value.display.value &&
+                      candidateDocument.instances.some(
+                        (instance) =>
+                          selectedIds.includes(instance.id) &&
+                          symbolSupportsValueAnnotation(instance.symbolId) &&
+                          displayableInstanceValue(instance).kind !==
+                            "displayable",
+                      )
+                    )
+                      return {
+                        ok: false,
+                        message:
+                          "Set valid component values before enabling their display",
+                      };
                     edits.push(
                       ...valueVisibilityEdits(
-                        document,
+                        candidateDocument,
                         selectedIds,
                         value.display.value,
                       ),
                     );
-                  if (
-                    value.appearance.foreground !== "mixed" &&
-                    value.appearance.foreground !== selectedGroupForeground
-                  ) {
-                    for (const instance of selectedGroupInstances) {
-                      const styleOverride =
-                        value.appearance.foreground === "auto"
-                          ? null
-                          : { foreground: value.appearance.foreground };
-                      if (
-                        JSON.stringify(instance.styleOverride ?? null) ===
-                        JSON.stringify(styleOverride)
-                      )
-                        continue;
-                      edits.push({
-                        kind: "set_instance_style_override",
-                        instanceId: instance.id,
-                        styleOverride,
-                      });
-                    }
                   }
                   if (edits.length === 0) return { ok: true };
                   if (transact(edits).ok) {

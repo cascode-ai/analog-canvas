@@ -24,6 +24,7 @@ const PropertyJsonEditor = lazy(
 
 export interface GroupPropertyCodeEditorProps {
   count: number;
+  selectionKey: string;
   revision: number;
   context: GroupPropertyCodeContext;
   defaultForeground: string;
@@ -48,11 +49,12 @@ export function GroupPropertyCodeEditor({
   const appliedCode = useRef<string | null>(null);
   const [historyKey, setHistoryKey] = useState(0);
   const [draft, setDraft] = useState(baseline);
+  const [rejected, setRejected] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const adapter = useMemo<PropertyJsonEditorAdapter>(
     () => ({
       parse: (source) => parseGroupPropertyCode(source, context),
-      spans: groupPropertyCodeSpans,
+      spans: (source) => groupPropertyCodeSpans(source, context),
       changes: (source, values) =>
         groupPropertyCodeChanges(source, context, values),
       mixedValues: true,
@@ -68,6 +70,7 @@ export function GroupPropertyCodeEditor({
     if (ownEdit !== baseline) setDraft(baseline);
     if (ownEdit === null) setHistoryKey((key) => key + 1);
     setMessage(null);
+    setRejected(false);
   }, [baseline]);
 
   const parsed = useMemo(
@@ -81,6 +84,7 @@ export function GroupPropertyCodeEditor({
   const change = (source: string): void => {
     setDraft(source);
     setMessage(null);
+    setRejected(false);
     const next = parseGroupPropertyCode(source, context);
     if (!next.ok) return;
     const normalized = serializeGroupPropertyCode(next.value);
@@ -88,6 +92,7 @@ export function GroupPropertyCodeEditor({
     const result = onApply(next.value);
     if (!result.ok) {
       setMessage(result.message);
+      setRejected(true);
       return;
     }
     appliedCode.current = normalized;
@@ -112,7 +117,7 @@ export function GroupPropertyCodeEditor({
         <strong>Properties</strong>
         <div className="component-property-header-actions">
           <span className="group-property-scope">{count} selected</span>
-          {!parsed.ok ? (
+          {!parsed.ok || rejected ? (
             <button
               type="button"
               className="component-property-copy"
@@ -121,6 +126,7 @@ export function GroupPropertyCodeEditor({
               onClick={() => {
                 setDraft(baseline);
                 setMessage(null);
+                setRejected(false);
               }}
             >
               <span aria-hidden="true">×</span>
@@ -166,7 +172,11 @@ export function GroupPropertyCodeEditor({
         />
       </Suspense>
       <small className="group-property-hint">
-        “mixed” means the selected components currently use different values.
+        Empty values keep each component’s current setting. Enter a value to
+        apply it to all selected components. Type is shown for reference.
+        {context.parameters === null
+          ? " Select one component type to edit parameters together."
+          : ""}
       </small>
       {status ? (
         <div className="component-property-code-status" aria-live="polite">

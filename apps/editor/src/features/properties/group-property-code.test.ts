@@ -8,9 +8,11 @@ import {
 } from "./group-property-code";
 
 const context: GroupPropertyCodeContext = {
-  reference: "mixed",
+  symbol: "resistor",
+  parameters: { value: "" },
+  reference: "",
   value: false,
-  foreground: "mixed",
+  foreground: "",
 };
 
 function apply(
@@ -29,10 +31,17 @@ function apply(
 describe("batch component property code", () => {
   it("represents differing selection values explicitly", () => {
     const source = formatGroupPropertyCode(context);
-    expect(Object.keys(JSON.parse(source))).toEqual(["appearance", "display"]);
+    expect(Object.keys(JSON.parse(source))).toEqual([
+      "appearance",
+      "display",
+      "parameters",
+      "symbol",
+    ]);
     expect(JSON.parse(source)).toEqual({
-      display: { visualAnnotation: "mixed", value: false },
-      appearance: { foreground: "mixed" },
+      symbol: "resistor",
+      parameters: { value: "" },
+      display: { visualAnnotation: "", value: false },
+      appearance: { foreground: "" },
     });
     expect(parseGroupPropertyCode(source, context).ok).toBe(true);
   });
@@ -47,12 +56,16 @@ describe("batch component property code", () => {
       }),
     );
     expect(JSON.parse(changed)).toEqual({
+      symbol: "resistor",
+      parameters: { value: "" },
       display: { visualAnnotation: true, value: false },
       appearance: { foreground: [220, 38, 38] },
     });
     expect(parseGroupPropertyCode(changed, context)).toEqual({
       ok: true,
       value: {
+        symbol: "resistor",
+        parameters: { value: "" },
         display: { visualAnnotation: true, value: false },
         appearance: { foreground: "#dc2626" },
       },
@@ -63,13 +76,13 @@ describe("batch component property code", () => {
     const withoutValue = { ...context, value: null };
     const source = formatGroupPropertyCode(withoutValue);
     expect(JSON.parse(source).display).toEqual({
-      visualAnnotation: "mixed",
+      visualAnnotation: "",
     });
     expect(
       parseGroupPropertyCode(
         source.replace(
-          '"visualAnnotation": "mixed"',
-          '"visualAnnotation": "mixed", "value": true',
+          '"visualAnnotation": ""',
+          '"visualAnnotation": "", "value": true',
         ),
         withoutValue,
       ),

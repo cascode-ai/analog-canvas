@@ -304,7 +304,7 @@ function jsonDecorations(state: EditorState, read: () => Props): DecorationSet {
     if (!span) continue;
     const valueValid =
       typeof span.value === "boolean" ||
-      (read().adapter?.mixedValues === true && span.value === "mixed");
+      (read().adapter?.mixedValues === true && span.value === "");
     ranges.push(
       Decoration.widget({
         widget: new DisplayToggleWidget(
@@ -389,7 +389,7 @@ function jsonDecorations(state: EditorState, read: () => Props): DecorationSet {
     let mixed = false;
     let colorValid = true;
     try {
-      if (foreground.value === "mixed" && read().adapter?.mixedValues) {
+      if (foreground.value === "" && read().adapter?.mixedValues) {
         mixed = true;
       } else {
         const parsed = parseCanvasColor(
@@ -634,7 +634,7 @@ class DisplayToggleWidget extends WidgetType {
       );
       if (
         !current ||
-        (typeof current.value !== "boolean" && current.value !== "mixed")
+        (typeof current.value !== "boolean" && current.value !== "")
       )
         return;
       const changes = editorChanges(source, this.read(), {
@@ -919,7 +919,7 @@ function showForegroundColorPopover(
   if (!span) return;
 
   let parsed: "auto" | `#${string}`;
-  const mixed = span.value === "mixed" && read().adapter?.mixedValues === true;
+  const mixed = span.value === "" && read().adapter?.mixedValues === true;
   try {
     parsed = mixed ? "auto" : parseCanvasColor(span.value, path);
   } catch {

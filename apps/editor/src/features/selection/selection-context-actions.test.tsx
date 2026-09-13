@@ -16,11 +16,14 @@ describe("selection context actions", () => {
       <GroupPropertiesSection
         active
         count={4}
+        selectionKey="test-selection"
         revision={3}
         context={{
-          reference: "mixed",
+          symbol: "resistor",
+          parameters: { value: "" },
+          reference: "",
           value: false,
-          foreground: "mixed",
+          foreground: "",
         }}
         defaultForeground="#000000"
         onApply={vi.fn(() => ({ ok: true as const }))}
@@ -29,7 +32,7 @@ describe("selection context actions", () => {
     expect(markup).toContain('aria-label="Batch component properties"');
     expect(markup).toContain("4 selected");
     expect(markup).toContain('aria-label="Loading batch property code"');
-    expect(markup).toContain("mixed");
+    expect(markup).toContain("Empty values keep");
     expect(markup).not.toContain("Canvas labels");
     expect(markup).not.toContain("Visual annotation");
   });

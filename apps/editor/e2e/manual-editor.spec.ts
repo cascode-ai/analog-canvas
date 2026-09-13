@@ -4277,7 +4277,7 @@ test("Properties toggles reference label visibility for one or many components",
   await expect(groupToggle).toHaveAttribute("data-mixed", "true");
   expect(
     JSON.parse(await readComponentPropertyCode(page)).display.visualAnnotation,
-  ).toBe("mixed");
+  ).toBe("");
   await groupToggle.click();
   await expect(
     page.getByTestId("annotation-hit-instance-label-R1"),
@@ -4320,7 +4320,9 @@ test("Select All shows one batch code surface instead of object-specific forms",
   await expect(batch.getByText("2 selected", { exact: true })).toBeVisible();
   expect(JSON.parse(await readComponentPropertyCode(page))).toEqual({
     display: { visualAnnotation: true, value: false },
-    appearance: { foreground: "auto" },
+    appearance: { foreground: [0, 0, 0] },
+    parameters: { value: "1k" },
+    symbol: "resistor",
   });
   await expect(
     properties.getByText("Electrical route", { exact: true }),
@@ -8050,3 +8052,188 @@ for (const symbol of ["xfmr", "tcoil"] as const) {
     await expect(formalLabels).toContainText("K = 0.83");
   });
 }
+
+test("batch Code edits common resistor values and colors atomically and reopens them", async ({
+  page,
+}) => {
+  const project = createEmptyProject("batch-values", "Batch values");
+  project.documents[0]!.instances = ["1k", "2k"].map((value, index) => ({
+    id: `R${index + 1}`,
+    reference: `R${index + 1}`,
+    symbolId: "resistor",
+    placement: {
+      position: { x: 100 + index * 180, y: 100 },
+      rotation: 0,
+      mirror: "none",
+    },
+    netlist: {
+      binding: { kind: "primitive", deviceClass: "resistor" },
+      parameters: { ...(index === 0 ? { value } : {}), tc: `${index + 1}` },
+    },
+    ...(index === 1
+      ? { styleOverride: { foreground: "#000000", background: "#ffffff" } }
+      : {}),
+  }));
+  await page.goto("/editor");
+  await awaitEditorReady(page);
+  await page.getByTestId("project-file").setInputFiles({
+    name: "batch-values.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  await expect(page.getByTestId("status")).toContainText(
+    "Opened batch-values.icproj.json",
+  );
+  await page.getByTestId("hit-R1").click();
+  await page.getByTestId("hit-R2").click({ modifiers: ["Shift"] });
+  await openSelectionShelf(page);
+  const code = JSON.parse(await readComponentPropertyCode(page));
+  expect(code).toMatchObject({
+    symbol: "resistor",
+    parameters: { value: "", tc: "" },
+    appearance: { foreground: [0, 0, 0] },
+  });
+  const revision = Number(await page.getByTestId("revision").textContent());
+  await editComponentPropertyCode(page, (value) => {
+    value.parameters.value = "10k";
+    value.appearance.foreground = [255, 0, 0];
+    value.display.value = true;
+  });
+  await expect(page.getByTestId("revision")).toHaveText(String(revision + 1));
+  for (const id of ["R1", "R2"]) {
+    await expect(
+      page.locator(`[data-object-id="${id}"] [data-role="instance-symbol"]`),
+    ).toHaveAttribute("stroke", "#ff0000");
+    await expect(
+      page.locator(`[data-object-id="instance-value-${id}"]`),
+    ).toContainText("10k");
+  }
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  expect(JSON.parse(await readComponentPropertyCode(page))).toEqual(code);
+  await page.getByRole("button", { name: "Redo", exact: true }).click();
+  const saved = await downloadBytes(page, "File", "Export Project File…");
+  expect(
+    JSON.parse(saved.toString("utf8")).documents[0].instances,
+  ).toMatchObject([
+    {
+      id: "R1",
+      netlist: { parameters: { value: "10k", tc: "1" } },
+      styleOverride: { foreground: "#ff0000" },
+    },
+    {
+      id: "R2",
+      netlist: { parameters: { value: "10k", tc: "2" } },
+      styleOverride: { foreground: "#ff0000", background: "#ffffff" },
+    },
+  ]);
+  await page.getByTestId("project-file").setInputFiles({
+    name: "batch-reopened.icproj.json",
+    mimeType: "application/json",
+    buffer: saved,
+  });
+  await expect(page.getByTestId("status")).toContainText(
+    "Opened batch-reopened.icproj.json",
+  );
+  await page.getByTestId("hit-R1").click();
+  await page.getByTestId("hit-R2").click({ modifiers: ["Shift"] });
+  expect(JSON.parse(await readComponentPropertyCode(page))).toMatchObject({
+    symbol: "resistor",
+    parameters: { value: "10k", tc: "" },
+    appearance: { foreground: [255, 0, 0] },
+  });
+  await page.screenshot({ path: "plan/batch-value-properties.png" });
+});
+
+test("batch Code colors different component types while rejecting incompatible value edits", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await placeComponent(page, "resistor", { x: 300, y: 200 });
+  await placeComponent(page, "capacitor", { x: 520, y: 200 });
+  await page.getByTestId("hit-R1").click();
+  await openSelectionShelf(page);
+  await editComponentPropertyCode(page, (code) => {
+    code.appearance.foreground = [0, 0, 255];
+  });
+  await page.getByTestId("hit-C1").click({ modifiers: ["Shift"] });
+  const code = JSON.parse(await readComponentPropertyCode(page));
+  expect(code).toMatchObject({
+    symbol: "",
+    parameters: "",
+    appearance: { foreground: "" },
+  });
+  const editor = page.getByLabel("Editable Canvas property code");
+  const revision = await page.getByTestId("revision").textContent();
+  await editor.fill(
+    JSON.stringify({
+      ...code,
+      parameters: { value: "10k" },
+      appearance: { foreground: [255, 0, 0] },
+    }),
+  );
+  await expect(
+    page.getByRole("button", { name: "Discard draft", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByTestId("revision")).toHaveText(revision!);
+  await page
+    .getByRole("button", { name: "Discard draft", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Edit line color", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Use Red for line", exact: true })
+    .click();
+  for (const id of ["R1", "C1"])
+    await expect(
+      page.locator(`[data-object-id="${id}"] [data-role="instance-symbol"]`),
+    ).toHaveAttribute("stroke", "#dc2626");
+  const saved = JSON.parse(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(
+      "utf8",
+    ),
+  );
+  expect(saved.documents[0].instances).toMatchObject([
+    { id: "R1", netlist: { parameters: { value: "1k" } } },
+    { id: "C1", netlist: { parameters: { value: "1p" } } },
+  ]);
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  expect(
+    JSON.parse(await readComponentPropertyCode(page)).appearance.foreground,
+  ).toBe("");
+});
+
+test("batch Code drafts follow selection identity even when common values are identical", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await placeComponent(page, "resistor", { x: 250, y: 200 });
+  await placeComponent(page, "resistor", { x: 450, y: 200 });
+  await placeComponent(page, "resistor", { x: 650, y: 200 });
+  await page.getByTestId("hit-R1").click();
+  await page.getByTestId("hit-R2").click({ modifiers: ["Shift"] });
+  await openSelectionShelf(page);
+  await page
+    .getByLabel("Editable Canvas property code")
+    .fill('{ "appearance":');
+  await page.getByTestId("hit-R3").click({ modifiers: ["Shift"] });
+  await expect(
+    page.getByRole("button", { name: "Discard draft", exact: true }),
+  ).toHaveCount(0);
+  expect(
+    JSON.parse(await readComponentPropertyCode(page)).parameters.value,
+  ).toBe("1k");
+  await editComponentPropertyCode(page, (code) => {
+    code.parameters.value = "22k";
+  });
+  const saved = JSON.parse(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(
+      "utf8",
+    ),
+  );
+  expect(
+    saved.documents[0].instances.map(
+      (instance: any) => instance.netlist.parameters.value,
+    ),
+  ).toEqual(["22k", "22k", "22k"]);
+});

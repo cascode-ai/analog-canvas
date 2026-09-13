@@ -1,13 +1,24 @@
-import { colorToRgb, parseCanvasColor } from "./component-property-fields";
+import { NetlistParameterValueSchema, type Instance } from "@icm/model";
+import {
+  effectiveComponentParameterValue,
+  type ComponentParameter,
+} from "../component-insert/component-parameters";
+import {
+  CANVAS_PROPERTY_FIELDS,
+  colorToRgb,
+  parseCanvasColor,
+} from "./component-property-fields";
 import {
   propertyCodeSpans,
   type PropertyCodeSpan,
 } from "./component-property-code-assists";
 
-export type GroupPropertyMixedValue = boolean | "mixed";
-export type GroupPropertyColor = "auto" | `#${string}` | "mixed";
+export type GroupPropertyMixedValue = boolean | "";
+export type GroupPropertyColor = "auto" | `#${string}` | "";
 
 export interface GroupPropertyCodeValue {
+  symbol: string;
+  parameters: Record<string, string> | "";
   display: {
     visualAnnotation: GroupPropertyMixedValue;
     value?: GroupPropertyMixedValue;
@@ -18,6 +29,10 @@ export interface GroupPropertyCodeValue {
 }
 
 export interface GroupPropertyCodeContext {
+  symbol: string;
+  /** Null when selection types or parameter contracts are incompatible. */
+  parameters: Record<string, string> | null;
+  parameterFields?: readonly ComponentParameter[];
   reference: GroupPropertyMixedValue;
   value: GroupPropertyMixedValue | null;
   foreground: GroupPropertyColor;
@@ -43,12 +58,13 @@ function assertKeys(
 
 function parseMixedBoolean(
   value: unknown,
-  current: GroupPropertyMixedValue,
   path: string,
 ): GroupPropertyMixedValue {
   if (typeof value === "boolean") return value;
-  if (value === "mixed" && current === "mixed") return value;
-  throw new Error(`${path} must be true, false, or "mixed"`);
+  if (value === "") return value;
+  throw new Error(
+    `${path} must be true, false, or an empty string to keep individual values`,
+  );
 }
 
 /** Strict JSON surface for properties shared by a component selection. */
@@ -60,7 +76,42 @@ export function parseGroupPropertyCode(
     const decoded: unknown = JSON.parse(source);
     if (!isRecord(decoded))
       throw new Error("Property code must be a JSON object");
-    assertKeys(decoded, ["display", "appearance"], "selection");
+    assertKeys(
+      decoded,
+      ["display", "appearance", "symbol", "parameters"],
+      "selection",
+    );
+    if (decoded.symbol !== context.symbol)
+      throw new Error(
+        "symbol shows the common component type and is read-only in a batch",
+      );
+    let parameters: GroupPropertyCodeValue["parameters"] = "";
+    if (context.parameters === null) {
+      if (decoded.parameters !== "")
+        throw new Error(
+          "Select components of the same type to edit parameters together",
+        );
+    } else {
+      if (!isRecord(decoded.parameters))
+        throw new Error("parameters must be an object");
+      assertKeys(
+        decoded.parameters,
+        Object.keys(context.parameters),
+        "parameters",
+      );
+      parameters = {};
+      for (const key of Object.keys(context.parameters)) {
+        const raw = decoded.parameters[key];
+        if (
+          typeof raw !== "string" ||
+          (raw !== "" && !NetlistParameterValueSchema.safeParse(raw).success)
+        )
+          throw new Error(
+            `parameters.${key} must be a string; leave it empty to keep individual values`,
+          );
+        parameters[key] = raw;
+      }
+    }
     if (!isRecord(decoded.display))
       throw new Error("display must be an object");
     const displayKeys =
@@ -73,18 +124,13 @@ export function parseGroupPropertyCode(
     const display: GroupPropertyCodeValue["display"] = {
       visualAnnotation: parseMixedBoolean(
         decoded.display.visualAnnotation,
-        context.reference,
         "display.visualAnnotation",
       ),
     };
     if (context.value !== null) {
       if (!("value" in decoded.display))
         throw new Error("display.value is required");
-      display.value = parseMixedBoolean(
-        decoded.display.value,
-        context.value,
-        "display.value",
-      );
+      display.value = parseMixedBoolean(decoded.display.value, "display.value");
     }
     if (!isRecord(decoded.appearance))
       throw new Error("appearance must be an object");
@@ -92,14 +138,21 @@ export function parseGroupPropertyCode(
     if (!("foreground" in decoded.appearance))
       throw new Error("appearance.foreground is required");
     const foreground =
-      decoded.appearance.foreground === "mixed" &&
-      context.foreground === "mixed"
-        ? "mixed"
+      decoded.appearance.foreground === ""
+        ? ""
         : parseCanvasColor(
             decoded.appearance.foreground,
             "appearance.foreground",
           );
-    return { ok: true, value: { display, appearance: { foreground } } };
+    return {
+      ok: true,
+      value: {
+        symbol: context.symbol,
+        parameters,
+        display,
+        appearance: { foreground },
+      },
+    };
   } catch (error) {
     return {
       ok: false,
@@ -112,6 +165,8 @@ export function groupPropertyCodeValue(
   context: GroupPropertyCodeContext,
 ): GroupPropertyCodeValue {
   return {
+    symbol: context.symbol,
+    parameters: context.parameters ?? "",
     display: {
       visualAnnotation: context.reference,
       ...(context.value === null ? {} : { value: context.value }),
@@ -128,11 +183,13 @@ export function serializeGroupPropertyCode(
       appearance: {
         foreground:
           value.appearance.foreground === "auto" ||
-          value.appearance.foreground === "mixed"
+          value.appearance.foreground === ""
             ? value.appearance.foreground
             : colorToRgb(value.appearance.foreground),
       },
       display: value.display,
+      parameters: value.parameters,
+      symbol: value.symbol,
     },
     null,
     2,
@@ -160,7 +217,7 @@ export function groupPropertyCodeChanges(
   } catch {
     return [];
   }
-  const spans = propertyCodeSpans(source);
+  const spans = groupPropertyCodeSpans(source, context);
   const changes = Object.entries(values).map(([path, value]) => {
     const matches = spans.filter((item) => item.field.path === path);
     const span = matches.length === 1 ? matches[0] : undefined;
@@ -182,13 +239,96 @@ export function groupPropertyCodeChanges(
     : [];
 }
 
-export function groupPropertyCodeSpans(source: string): PropertyCodeSpan[] {
-  return propertyCodeSpans(source);
+export function groupPropertyCodeSpans(
+  source: string,
+  context: GroupPropertyCodeContext,
+): PropertyCodeSpan[] {
+  return propertyCodeSpans(source, undefined, [
+    ...CANVAS_PROPERTY_FIELDS,
+    ...(context.parameterFields ?? []).map((field) => ({
+      path: `parameters.${field.key}`,
+      label: field.label,
+      kind: field.options ? ("choice" as const) : ("text" as const),
+      ...(field.options ? { options: field.options } : {}),
+      description: field.unit ?? "",
+    })),
+  ]);
 }
 
-export function commonGroupValue<T>(values: readonly T[]): T | "mixed" {
+export function commonGroupValue<T>(values: readonly T[]): T | "" {
   const first = values[0];
   return first !== undefined && values.every((value) => value === first)
     ? first
-    : "mixed";
+    : "";
+}
+
+/** Compare rendered ink, including document inheritance and equivalent hex spellings. */
+export function groupForeground(
+  instances: readonly Instance[],
+  defaultForeground: string,
+): GroupPropertyColor {
+  return commonGroupValue(
+    instances.map((instance) =>
+      parseCanvasColor(
+        colorToRgb(instance.styleOverride?.foreground ?? defaultForeground),
+        "foreground",
+      ),
+    ),
+  );
+}
+
+export function groupParameterContext(
+  instances: readonly Instance[],
+  parametersFor: (instance: Instance) => readonly ComponentParameter[],
+): Pick<GroupPropertyCodeContext, "symbol" | "parameters" | "parameterFields"> {
+  const symbol = commonGroupValue(
+    instances.map((instance) => instance.symbolId),
+  );
+  const first = instances[0];
+  const bindingKey = (instance: Instance) => {
+    const binding = instance.netlist?.binding;
+    return binding?.kind === "external-subcircuit"
+      ? `external:${binding.definitionId}`
+      : binding?.kind === "subcircuit"
+        ? `subcircuit:${binding.childDocumentId}`
+        : binding?.kind === "unresolved-subcircuit"
+          ? `unresolved:${binding.name}`
+          : binding?.kind === "primitive" || binding?.kind === "model"
+            ? binding.deviceClass
+            : "";
+  };
+  if (
+    !first ||
+    !symbol ||
+    instances.some(
+      (instance) =>
+        !instance.netlist || bindingKey(instance) !== bindingKey(first),
+    )
+  )
+    return { symbol, parameters: null };
+  const fields = parametersFor(first).filter(
+    (field) => !field.compatibilityOnly,
+  );
+  const keys = new Set([
+    ...fields.map((field) => field.key),
+    ...instances.flatMap((instance) =>
+      Object.keys(instance.netlist!.parameters),
+    ),
+  ]);
+  const parameters = Object.fromEntries(
+    [...keys].map((key) => {
+      const field = fields.find((field) => field.key === key);
+      return [
+        key,
+        commonGroupValue(
+          instances.map((instance) =>
+            field
+              ? effectiveComponentParameterValue(instance, field)
+              : (instance.netlist!.parameters[key] ?? ""),
+          ),
+        ),
+      ];
+    }),
+  );
+  return { symbol, parameters, parameterFields: fields };
 }

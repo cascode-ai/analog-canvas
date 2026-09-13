@@ -120,7 +120,9 @@ export function GroupPropertiesSection({
   ...properties
 }: { active: boolean } & GroupPropertyCodeEditorProps) {
   if (!active) return null;
-  return <GroupPropertyCodeEditor {...properties} />;
+  return (
+    <GroupPropertyCodeEditor key={properties.selectionKey} {...properties} />
+  );
 }
 
 export function RouteActionsSection({
