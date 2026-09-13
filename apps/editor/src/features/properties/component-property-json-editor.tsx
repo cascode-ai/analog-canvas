@@ -421,7 +421,7 @@ function jsonDecorations(state: EditorState, read: () => Props): DecorationSet {
         Decoration.widget({
           widget: new NetlistTargetSelect(span, documentValid, read),
           side: 1,
-        }).range(at),
+        }).range(span.to),
       );
   }
   return Decoration.set(ranges, true);
@@ -468,6 +468,17 @@ class NetlistTargetSelect extends WidgetType {
   }
 
   toDOM(view: EditorView): HTMLElement {
+    const picker = document.createElement("span");
+    picker.className = "cm-netlist-target-picker";
+    picker.contentEditable = "false";
+    picker.dataset.disabled = String(!this.enabled);
+    picker.title = this.enabled
+      ? "Choose netlist target"
+      : "Fix the property JSON before changing the netlist target";
+    const arrow = document.createElement("span");
+    arrow.className = "cm-netlist-target-arrow";
+    arrow.setAttribute("aria-hidden", "true");
+
     const select = document.createElement("select");
     select.className = "cm-netlist-target-select";
     select.contentEditable = "false";
@@ -497,7 +508,10 @@ class NetlistTargetSelect extends WidgetType {
       if (changes.length)
         view.dispatch({ changes, userEvent: "input.property-control" });
     });
-    return select;
+    // The JSON already shows the name. Keep the native, keyboard-accessible
+    // menu over a compact arrow instead of displaying its value a second time.
+    picker.append(arrow, select);
+    return picker;
   }
 
   override ignoreEvent(): boolean {

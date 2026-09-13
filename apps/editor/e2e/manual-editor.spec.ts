@@ -147,6 +147,7 @@ test("live Defaults are undoable and invalid drafts never change the canvas", as
   await expect(
     page.getByRole("button", { name: "Mirror top to bottom" }),
   ).toBeDisabled();
+  await expect(page.getByLabel("Target netlist options")).toBeDisabled();
   await page.getByRole("button", { name: "Discard draft" }).click();
   await expectComponentCodeField(page, "parameters.w", "7u");
   await expect(page.locator(".cm-json-key").first()).toBeVisible();
@@ -302,6 +303,31 @@ for (const width of [300, 540]) {
     await openSelectionShelf(page);
     const editor = page.getByTestId("component-property-code-editor");
     const code = page.getByLabel("Editable Canvas property code");
+    const target = editor.getByLabel("Target netlist options");
+    await target.selectOption("sky130_fd_pr__pfet_01v8");
+    await expectComponentCodeField(
+      page,
+      "netlistTarget",
+      "sky130_fd_pr__pfet_01v8",
+    );
+    const picker = editor.locator(".cm-netlist-target-picker");
+    await expect(picker).toBeVisible();
+    await expect(
+      editor.locator(".cm-json-string").filter({
+        hasText: '"sky130_fd_pr__pfet_01v8"',
+      }),
+    ).toHaveCount(1);
+    // Only the JSON name is painted; the native menu occupies one icon button.
+    await expect(target).toHaveCSS("opacity", "0");
+    const pickerBox = await picker.boundingBox();
+    expect(pickerBox!.width).toBeLessThanOrEqual(24);
+    const editorBox = await editor.boundingBox();
+    expect(pickerBox!.x + pickerBox!.width).toBeLessThanOrEqual(
+      editorBox!.x + editorBox!.width,
+    );
+    await target.focus();
+    await expect(target).toBeFocused();
+    await expect(picker).toHaveCSS("outline-style", "solid");
     const raw = await readComponentPropertyCode(page);
 
     await expect(editor.locator(".cm-property-assist")).toHaveCount(0);
