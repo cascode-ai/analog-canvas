@@ -3,7 +3,34 @@
 Notable changes to Analog Canvas. Entries describe what changed for the person
 using the product, not the commits that got there.
 
-## 0.2.0 (unreleased)
+## 0.3.0 (2026-09-13)
+
+### Schematic authoring
+
+- Edit component properties through one code surface, including multi-selection,
+  visual variants, and compact color controls. Netlist identity and visual labels
+  are presented separately; ordinary text selection remains available.
+- Rotate components by 90 degrees with the standard controls. Explicit 45-degree
+  orientations remain supported, with connected wires following the chosen
+  orientation. Horizontal and vertical mirrors are independent.
+- Move selected text and mixed selections together, and copy circuit selections
+  between Cells and browser tabs.
+- Place depletion NMOS and PMOS variants, resettable D flip-flops, and refined
+  switch, amplifier, ADC, and DAC symbols from the component library.
+- Preserve supply-marker ownership when editing or opening older projects;
+  improve Net Label placement, composite wire landing, and terminal approaches.
+
+### Compatibility and release channels
+
+- The editor, portable host, and release package now report product version
+  0.3.0. Project files use schema 53 and retain the supported migration chain.
+- Production receives the current core editor. Analog Simulation and Agent
+  connection controls remain Preview features; Digital Timing stays disabled
+  on both hosted channels. Preview and Production accounts and private Projects
+  remain isolated.
+- The separately versioned MCP adapter remains at 0.7.0.
+
+## 0.2.0
 
 ### Simulation
 
