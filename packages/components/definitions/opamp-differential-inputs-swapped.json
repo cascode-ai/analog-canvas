@@ -6,9 +6,9 @@
     "name": "Differential Op Amp (swapped inputs)",
     "viewBox": {
       "x": -44,
-      "y": -28,
+      "y": -34,
       "width": 88,
-      "height": 56
+      "height": 68
     },
     "pins": [
       {
@@ -73,7 +73,7 @@
           "y": -10
         },
         "to": {
-          "x": -23.30127,
+          "x": -26.961524,
           "y": -10
         },
         "style": {
@@ -90,7 +90,7 @@
           "y": 10
         },
         "to": {
-          "x": -23.30127,
+          "x": -26.961524,
           "y": 10
         },
         "style": {
@@ -103,7 +103,7 @@
         "kind": "line",
         "part": "output-lead",
         "from": {
-          "x": 2.6794920000000033,
+          "x": 7.679491999999993,
           "y": -10
         },
         "to": {
@@ -120,7 +120,7 @@
         "kind": "line",
         "part": "output-lead",
         "from": {
-          "x": 2.6794920000000033,
+          "x": 7.679491999999993,
           "y": 10
         },
         "to": {
@@ -135,12 +135,12 @@
       },
       {
         "kind": "path",
-        "data": "M -23.30127 -25 L -23.30127 25 L 20 0 Z",
+        "data": "M -26.961524 -30 L -26.961524 30 L 25 0 Z",
         "bounds": {
-          "x": -23.30127,
-          "y": -25,
-          "width": 43.30127,
-          "height": 50
+          "x": -26.961524,
+          "y": -30,
+          "width": 51.961524,
+          "height": 60
         },
         "style": {
           "strokeRole": "emphasis",
@@ -152,104 +152,104 @@
       {
         "kind": "line",
         "from": {
-          "x": -19.660810922016978,
-          "y": -15.624283738062303
+          "x": -20.711524,
+          "y": 11
         },
         "to": {
-          "x": -19.660810922016978,
-          "y": -9.37426957115952
+          "x": -20.711524,
+          "y": 17
         },
+        "part": "input-polarity",
         "style": {
           "strokeRole": "normal",
-          "lineCap": "butt",
-          "lineJoin": "miter"
-        },
-        "part": "input-polarity"
+          "lineCap": "round",
+          "lineJoin": "round"
+        }
       },
       {
         "kind": "line",
         "from": {
-          "x": -21.98103984241538,
-          "y": -12.500003333388891
+          "x": -23.711524,
+          "y": 14
         },
         "to": {
-          "x": -17.341659590809662,
-          "y": -12.500003333388891
+          "x": -17.711524,
+          "y": 14
         },
+        "part": "input-polarity",
         "style": {
           "strokeRole": "normal",
-          "lineCap": "butt",
-          "lineJoin": "miter"
-        },
-        "part": "input-polarity"
+          "lineCap": "round",
+          "lineJoin": "round"
+        }
       },
       {
         "kind": "line",
         "from": {
-          "x": -21.98103984241538,
-          "y": 12.498596643277388
+          "x": -23.711524,
+          "y": -14
         },
         "to": {
-          "x": -17.341659590809662,
-          "y": 12.498596643277388
+          "x": -17.711524,
+          "y": -14
         },
+        "part": "upright-input-polarity-negative",
         "style": {
           "strokeRole": "normal",
-          "lineCap": "butt",
-          "lineJoin": "miter"
-        },
-        "part": "upright-input-polarity-negative"
+          "lineCap": "round",
+          "lineJoin": "round"
+        }
       },
       {
         "kind": "line",
         "from": {
-          "x": -13.021429433225046,
-          "y": -12.500003333388891
+          "x": -10.5,
+          "y": 11
         },
         "to": {
-          "x": -8.383126770810405,
-          "y": -12.500003333388891
+          "x": -10.5,
+          "y": 17
         },
+        "part": "output-polarity",
         "style": {
           "strokeRole": "normal",
-          "lineCap": "butt",
-          "lineJoin": "miter"
-        },
-        "part": "upright-output-polarity-negative"
+          "lineCap": "round",
+          "lineJoin": "round"
+        }
       },
       {
         "kind": "line",
         "from": {
-          "x": -10.702278102017726,
-          "y": 9.375769596159941
+          "x": -13.5,
+          "y": 14
         },
         "to": {
-          "x": -10.702278102017726,
-          "y": 15.625783763062728
+          "x": -7.5,
+          "y": 14
         },
+        "part": "output-polarity",
         "style": {
           "strokeRole": "normal",
-          "lineCap": "butt",
-          "lineJoin": "miter"
-        },
-        "part": "output-polarity"
+          "lineCap": "round",
+          "lineJoin": "round"
+        }
       },
       {
         "kind": "line",
         "from": {
-          "x": -13.021429433225046,
-          "y": 12.498596643277388
+          "x": -13.5,
+          "y": -14
         },
         "to": {
-          "x": -8.383126770810405,
-          "y": 12.498596643277388
+          "x": -7.5,
+          "y": -14
         },
+        "part": "upright-output-polarity-negative",
         "style": {
           "strokeRole": "normal",
-          "lineCap": "butt",
-          "lineJoin": "miter"
-        },
-        "part": "output-polarity"
+          "lineCap": "round",
+          "lineJoin": "round"
+        }
       }
     ],
     "variants": []

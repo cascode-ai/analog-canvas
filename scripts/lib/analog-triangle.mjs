@@ -1,15 +1,15 @@
 /**
  * Product normalization requested for triangular Analog Blocks: three equal
- * 50-unit sides and a 60-degree apex. PDF extracts remain source evidence;
+ * 60-unit sides and a 60-degree apex. PDF extracts remain source evidence;
  * the generated product outline uses this shared construction instead.
  * The existing ±40 single-output and +20 differential-output pins stay fixed.
  */
 export const ANALOG_TRIANGLE = {
-  leftX: Number((20 - 25 * Math.sqrt(3)).toFixed(6)),
-  apexX: 20,
+  leftX: Number((25 - 30 * Math.sqrt(3)).toFixed(6)),
+  apexX: 25,
   apexY: 0,
-  topY: -25,
-  bottomY: 25,
+  topY: -30,
+  bottomY: 30,
 };
 
 export const ANALOG_TRIANGLE_PATH =
@@ -26,7 +26,7 @@ export const ANALOG_TRIANGLE_BOUNDS = {
 
 export const ANALOG_TRIANGLE_VIEWBOX = {
   x: -44,
-  y: -28,
+  y: -34,
   width: 88,
-  height: 56,
+  height: 68,
 };

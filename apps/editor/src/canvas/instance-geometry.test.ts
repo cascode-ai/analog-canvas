@@ -63,9 +63,9 @@ describe("selection geometry", () => {
     for (const symbol of blocks) {
       const bounds = visibleSymbolLocalBounds(resolver.resolve(symbol.id)!);
       const expected = symbol.id.startsWith("opamp-differential")
-        ? { x: -44, y: -29, width: 68, height: 58 }
+        ? { x: -44, y: -34, width: 73, height: 68 }
         : /^(?:opamp|voltage-amplifier|comparator)/u.test(symbol.id)
-          ? { x: -44, y: -29, width: 88, height: 58 }
+          ? { x: -44, y: -34, width: 88, height: 68 }
           : symbol.id.startsWith("differential-transconductance")
             ? { x: -34, y: -39, width: 68, height: 78 }
             : symbol.id === "adc"
@@ -78,10 +78,10 @@ describe("selection geometry", () => {
   });
 
   it.each([
-    [0, "none", { x: 56, y: 171, width: 68, height: 58 }],
-    [0, "horizontal", { x: 76, y: 171, width: 68, height: 58 }],
-    [90, "none", { x: 71, y: 156, width: 58, height: 68 }],
-    [270, "none", { x: 71, y: 176, width: 58, height: 68 }],
+    [0, "none", { x: 56, y: 166, width: 73, height: 68 }],
+    [0, "horizontal", { x: 71, y: 166, width: 73, height: 68 }],
+    [90, "none", { x: 66, y: 156, width: 68, height: 73 }],
+    [270, "none", { x: 66, y: 171, width: 68, height: 73 }],
   ] as const)(
     "keeps the asymmetric FD Amp bounds aligned at rotation %s and mirror %s",
     (rotation, mirror, expected) => {

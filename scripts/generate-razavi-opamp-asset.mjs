@@ -33,14 +33,8 @@ const differentialAssetPaths = {
     "packages/components/definitions/opamp-differential-crossed.json",
   ),
 };
-/** Figure-derived pair height before the reviewed product-scale adjustment. */
-const SOURCE_PAIR_OFFSET = 10;
 /** Every differential input/output pair uses the ordinary Op Amp's ±10 grid. */
 const OUTPUT_PAIR_OFFSET = 10;
-/** Polarity glyphs stay associated with that same shared pair spacing. */
-const POLARITY_PAIR_OFFSET = 10;
-/** Add a small horizontal gap between input- and output-side glyphs. */
-const POLARITY_HORIZONTAL_SPREAD = 1;
 const catalogPath = resolve(root, "packages/components/catalog.json");
 const check = process.argv.includes("--check");
 const normalize = (value) => `${value.replaceAll("\r\n", "\n").trimEnd()}\n`;
@@ -51,18 +45,39 @@ const OPAMP_INPUT_PIN_X = -40;
 const OPAMP_OUTPUT_PIN_X = 40;
 const OPAMP_BODY_LEFT_X = ANALOG_TRIANGLE.leftX;
 const OPAMP_BODY_APEX_X = ANALOG_TRIANGLE.apexX;
-const SOURCE_OPAMP_BODY_LEFT_X = -26.7979;
-// Preserve the PDF polarity strokes while translating them with the new base.
-const inputMark = (geometry) => ({
-  from: {
-    x: geometry.from.x + OPAMP_BODY_LEFT_X - SOURCE_OPAMP_BODY_LEFT_X,
-    y: geometry.from.y,
-  },
-  to: {
-    x: geometry.to.x + OPAMP_BODY_LEFT_X - SOURCE_OPAMP_BODY_LEFT_X,
-    y: geometry.to.y,
-  },
-});
+const INPUT_MARK_X = OPAMP_BODY_LEFT_X + 6.25;
+const OUTPUT_MARK_X = -10.5;
+const MARK_ROW_Y = 14;
+const MARK_HALF_SIZE = 3;
+
+// Use the differential gm block's square +/- construction for every analog
+// triangle. Scaling the PDF's axes separately distorted the FD Amp marks.
+function polarityPair(x, side) {
+  const mark = (from, to, part) => ({
+    kind: "line",
+    from,
+    to,
+    part,
+    style: { ...normal, lineCap: "round", lineJoin: "round" },
+  });
+  return [
+    mark(
+      { x, y: MARK_ROW_Y - MARK_HALF_SIZE },
+      { x, y: MARK_ROW_Y + MARK_HALF_SIZE },
+      `${side}-polarity`,
+    ),
+    mark(
+      { x: x - MARK_HALF_SIZE, y: MARK_ROW_Y },
+      { x: x + MARK_HALF_SIZE, y: MARK_ROW_Y },
+      `${side}-polarity`,
+    ),
+    mark(
+      { x: x - MARK_HALF_SIZE, y: -MARK_ROW_Y },
+      { x: x + MARK_HALF_SIZE, y: -MARK_ROW_Y },
+      `upright-${side}-polarity-negative`,
+    ),
+  ];
+}
 
 function fail(message) {
   throw new Error(`Razavi op-amp generation: ${message}`);
@@ -161,12 +176,7 @@ const symbol = {
         miterLimit: 4,
       },
     },
-    line(inputMark(geometry.plusVertical)),
-    line(inputMark(geometry.plusHorizontal)),
-    {
-      ...line(inputMark(geometry.minusHorizontal)),
-      part: "upright-input-polarity-negative",
-    },
+    ...polarityPair(INPUT_MARK_X, "input"),
   ],
   variants: [],
 };
@@ -178,9 +188,8 @@ const assetSource = normalize(
  * Figure 13.48 supplies the fully differential polarity layout and dual-output
  * topology. Its printed triangle is compact, whereas the product contract is
  * that every triangular Analog Block uses the ordinary Razavi Op Amp body
- * with the user-requested equilateral normalization. Scale Figure 13.48's
- * polarity layout into the shared body; retain pin semantics and derive only
- * marks needed per state.
+ * with the user-requested equilateral normalization and uniform +/- strokes.
+ * Retain Figure 13.48's pin semantics and derive only marks needed per state.
  */
 const differentialAuthority = manifest.vectorEvidence?.find(
   (candidate) =>
@@ -214,80 +223,8 @@ if (
   fail("Figure 13.48 differential op-amp evidence contract mismatch");
 }
 
-const opampTriangle = ANALOG_TRIANGLE;
-const compactDifferentialTriangle = {
-  leftX: -20,
-  apexX: 14.9998,
-  topY: -15.0002,
-  bottomY: 14.9993,
-};
-const opampCenterY = (opampTriangle.topY + opampTriangle.bottomY) / 2;
-const scaleDifferentialMarkPoint = ({ x, y }) => ({
-  x:
-    opampTriangle.leftX +
-    ((x - compactDifferentialTriangle.leftX) *
-      (opampTriangle.apexX - opampTriangle.leftX)) /
-      (compactDifferentialTriangle.apexX - compactDifferentialTriangle.leftX),
-  y:
-    opampTriangle.topY +
-    ((y - compactDifferentialTriangle.topY) *
-      (opampTriangle.bottomY - opampTriangle.topY)) /
-      (compactDifferentialTriangle.bottomY - compactDifferentialTriangle.topY),
-});
-const scaledDifferentialTriangle = { ...opampTriangle, apexY: 0 };
-const baseDifferentialTriangle = scaledDifferentialTriangle;
+const scaledDifferentialTriangle = ANALOG_TRIANGLE;
 const differentialTrianglePathData = ANALOG_TRIANGLE_PATH;
-const triangleEdgeXAtY = (triangle, y) => {
-  const reachesApexFromTop = y <= triangle.apexY;
-  const edgeY = reachesApexFromTop ? triangle.topY : triangle.bottomY;
-  const ratio = reachesApexFromTop
-    ? (y - edgeY) / (triangle.apexY - edgeY)
-    : (edgeY - y) / (edgeY - triangle.apexY);
-  return triangle.leftX + ratio * (triangle.apexX - triangle.leftX);
-};
-const scaleDifferentialPairLine = (geometry, spreadDirection) => {
-  const base = {
-    from: scaleDifferentialMarkPoint(geometry.from),
-    to: scaleDifferentialMarkPoint(geometry.to),
-  };
-  const center = {
-    x: (base.from.x + base.to.x) / 2,
-    y: (base.from.y + base.to.y) / 2,
-  };
-  const side = Math.sign(center.y - opampCenterY);
-  const targetCenterY =
-    center.y + side * (POLARITY_PAIR_OFFSET - SOURCE_PAIR_OFFSET);
-  const baseEdgeX = triangleEdgeXAtY(baseDifferentialTriangle, center.y);
-  const crossSectionFraction =
-    (center.x - baseDifferentialTriangle.leftX) /
-    (baseEdgeX - baseDifferentialTriangle.leftX);
-  const targetEdgeX = triangleEdgeXAtY(
-    scaledDifferentialTriangle,
-    targetCenterY,
-  );
-  const targetCenterX =
-    scaledDifferentialTriangle.leftX +
-    crossSectionFraction * (targetEdgeX - scaledDifferentialTriangle.leftX) +
-    spreadDirection * POLARITY_HORIZONTAL_SPREAD;
-  const shiftPoint = (point) => ({
-    x: targetCenterX + (point.x - center.x),
-    y: targetCenterY + (point.y - center.y),
-  });
-  return {
-    from: shiftPoint(base.from),
-    to: shiftPoint(base.to),
-  };
-};
-const differentialLine = (geometry) => ({
-  kind: "line",
-  from: geometry.from,
-  to: geometry.to,
-  style: normal,
-});
-const taggedLine = (geometry, part) => ({
-  ...differentialLine(geometry),
-  part,
-});
 const acrossAxis = (primitive) => ({
   ...primitive,
   from: { ...primitive.from, y: -primitive.from.y },
@@ -354,34 +291,8 @@ const outputLead = (contact, pin) => ({
   to: pin.at,
   style: normal,
 });
-const sourceInputMarks = [
-  taggedLine(
-    scaleDifferentialPairLine(differentialGeometry.input_plus_vertical, -1),
-    "input-polarity",
-  ),
-  taggedLine(
-    scaleDifferentialPairLine(differentialGeometry.input_plus_horizontal, -1),
-    "input-polarity",
-  ),
-  taggedLine(
-    scaleDifferentialPairLine(differentialGeometry.input_minus_horizontal, -1),
-    "upright-input-polarity-negative",
-  ),
-];
-const sourceOutputMarks = [
-  taggedLine(
-    scaleDifferentialPairLine(differentialGeometry.output_minus_horizontal, 1),
-    "upright-output-polarity-negative",
-  ),
-  taggedLine(
-    scaleDifferentialPairLine(differentialGeometry.output_plus_vertical, 1),
-    "output-polarity",
-  ),
-  taggedLine(
-    scaleDifferentialPairLine(differentialGeometry.output_plus_horizontal, 1),
-    "output-polarity",
-  ),
-];
+const sourceInputMarks = polarityPair(INPUT_MARK_X, "input");
+const sourceOutputMarks = polarityPair(OUTPUT_MARK_X, "output");
 const differentialSymbol = (id, name, plusOutputAtBottom) => {
   const topInput = pinOneGridOutsideBody(
     inputLeadContact(-OUTPUT_PAIR_OFFSET),
@@ -484,7 +395,7 @@ const generation = {
   referencePath:
     "fixtures/visual-reference/razavi-reference-v1/opamp-vector-source.json",
   converterPath: "scripts/generate-razavi-opamp-asset.mjs",
-  converterVersion: 3,
+  converterVersion: 4,
   bodyNormalization: "equilateral-triangle",
 };
 const differentialGeneration = {
@@ -494,7 +405,7 @@ const differentialGeneration = {
   referencePath:
     "fixtures/visual-reference/razavi-reference-v1/differential-opamp-vector-source.json",
   converterPath: "scripts/generate-razavi-opamp-asset.mjs",
-  converterVersion: 5,
+  converterVersion: 6,
   bodyNormalization: "equilateral-triangle",
 };
 const differentialAuthorityPaths = [

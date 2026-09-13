@@ -113,7 +113,9 @@ The product set is exactly the reviewed, Reference-calibrated entries:
   bubble.
 - triangular Analog Blocks (`opamp`, fully differential amps, voltage amps,
   comparators, and their lettered/polarity variants) share a user-requested
-  equilateral outline with three 50-unit sides and a 60-degree apex. The
+  equilateral outline with three 60-unit sides and a 60-degree apex. Input and
+  output polarity marks use the differential gm block's equal 6-unit strokes
+  with round caps, with clearance for both columns and internal text. The
   generators record `bodyNormalization: "equilateral-triangle"`; PDF extracts
   remain original evidence rather than being relabeled as equilateral. Pin
   names, order, grid anchors, and polarity semantics are preserved. The shared

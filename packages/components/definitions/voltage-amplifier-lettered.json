@@ -6,9 +6,9 @@
     "name": "Voltage Amplifier (lettered)",
     "viewBox": {
       "x": -44,
-      "y": -28,
+      "y": -34,
       "width": 88,
-      "height": 56
+      "height": 68
     },
     "pins": [
       {
@@ -46,7 +46,7 @@
           "y": 0
         },
         "to": {
-          "x": -23.30127,
+          "x": -26.961524,
           "y": 0
         },
         "style": {
@@ -57,7 +57,7 @@
       },
       {
         "kind": "path",
-        "data": "M -23.30127 -25 L -23.30127 25 L 20 0 Z",
+        "data": "M -26.961524 -30 L -26.961524 30 L 25 0 Z",
         "style": {
           "strokeRole": "emphasis",
           "lineCap": "butt",
@@ -65,16 +65,16 @@
           "miterLimit": 4
         },
         "bounds": {
-          "x": -23.30127,
-          "y": -25,
-          "width": 43.30127,
-          "height": 50
+          "x": -26.961524,
+          "y": -30,
+          "width": 51.961524,
+          "height": 60
         }
       },
       {
         "kind": "line",
         "from": {
-          "x": 20,
+          "x": 25,
           "y": 0
         },
         "to": {
@@ -93,7 +93,7 @@
       "defaultFormula": "A",
       "supportsCoefficient": false,
       "center": {
-        "x": -8.87,
+        "x": -9.64,
         "y": 0
       },
       "fontSize": 16

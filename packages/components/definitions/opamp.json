@@ -6,9 +6,9 @@
     "name": "Operational Amplifier",
     "viewBox": {
       "x": -44,
-      "y": -28,
+      "y": -34,
       "width": 88,
-      "height": 56
+      "height": 68
     },
     "pins": [
       {
@@ -59,7 +59,7 @@
           "y": -10
         },
         "to": {
-          "x": -23.30127,
+          "x": -26.961524,
           "y": -10
         },
         "style": {
@@ -75,7 +75,7 @@
           "y": 10
         },
         "to": {
-          "x": -23.30127,
+          "x": -26.961524,
           "y": 10
         },
         "style": {
@@ -87,7 +87,7 @@
       {
         "kind": "line",
         "from": {
-          "x": 20,
+          "x": 25,
           "y": 0
         },
         "to": {
@@ -102,12 +102,12 @@
       },
       {
         "kind": "path",
-        "data": "M -23.30127 -25 L -23.30127 25 L 20 0 Z",
+        "data": "M -26.961524 -30 L -26.961524 30 L 25 0 Z",
         "bounds": {
-          "x": -23.30127,
-          "y": -25,
-          "width": 43.30127,
-          "height": 50
+          "x": -26.961524,
+          "y": -30,
+          "width": 51.961524,
+          "height": 60
         },
         "style": {
           "strokeRole": "emphasis",
@@ -119,51 +119,53 @@
       {
         "kind": "line",
         "from": {
-          "x": -14.550408000000004,
-          "y": 8.749129
+          "x": -20.711524,
+          "y": 11
         },
         "to": {
-          "x": -14.550408000000004,
-          "y": 16.249129
+          "x": -20.711524,
+          "y": 17
         },
+        "part": "input-polarity",
         "style": {
           "strokeRole": "normal",
-          "lineCap": "butt",
-          "lineJoin": "miter"
+          "lineCap": "round",
+          "lineJoin": "round"
         }
       },
       {
         "kind": "line",
         "from": {
-          "x": -18.299537,
-          "y": 12.5
+          "x": -23.711524,
+          "y": 14
         },
         "to": {
-          "x": -10.799537,
-          "y": 12.5
+          "x": -17.711524,
+          "y": 14
         },
+        "part": "input-polarity",
         "style": {
           "strokeRole": "normal",
-          "lineCap": "butt",
-          "lineJoin": "miter"
+          "lineCap": "round",
+          "lineJoin": "round"
         }
       },
       {
         "kind": "line",
         "from": {
-          "x": -18.299537,
-          "y": -12.5
+          "x": -23.711524,
+          "y": -14
         },
         "to": {
-          "x": -10.799537,
-          "y": -12.5
+          "x": -17.711524,
+          "y": -14
         },
+        "part": "upright-input-polarity-negative",
         "style": {
           "strokeRole": "normal",
-          "lineCap": "butt",
-          "lineJoin": "miter"
-        },
-        "part": "upright-input-polarity-negative"
+          "lineCap": "round",
+          "lineJoin": "round"
+        }
       }
     ],
     "variants": []
@@ -194,7 +196,7 @@
       "referenceManifestPath": "fixtures/visual-reference/razavi-reference-v1/manifest.json",
       "referencePath": "fixtures/visual-reference/razavi-reference-v1/opamp-vector-source.json",
       "converterPath": "scripts/generate-razavi-opamp-asset.mjs",
-      "converterVersion": 3,
+      "converterVersion": 4,
       "bodyNormalization": "equilateral-triangle"
     }
   }

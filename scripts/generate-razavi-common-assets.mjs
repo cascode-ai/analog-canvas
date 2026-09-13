@@ -229,7 +229,7 @@ for (const [symbolId, name, category, pinOrder, automaticMappings] of entries) {
         "fixtures/visual-reference/razavi-reference-v1/manifest.json",
       referencePath: `fixtures/visual-reference/razavi-reference-v1/${symbolId}-vector-source.json`,
       converterPath: "scripts/generate-razavi-common-assets.mjs",
-      converterVersion: symbolId === "voltage-amplifier" ? 3 : 1,
+      converterVersion: symbolId === "voltage-amplifier" ? 4 : 1,
       ...(symbolId === "voltage-amplifier"
         ? { bodyNormalization: "equilateral-triangle" }
         : {}),

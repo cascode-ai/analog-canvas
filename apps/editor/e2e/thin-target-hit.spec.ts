@@ -3,7 +3,11 @@ import { expect, test, type Page } from "@playwright/test";
 import { createEmptyProject, type SchematicDocument } from "@icm/model";
 import { builtInSymbols } from "@icm/symbols";
 
-import { awaitEditorReady, clickDrawTool } from "./editor-fixtures";
+import {
+  awaitEditorReady,
+  clickDrawTool,
+  downloadBytes,
+} from "./editor-fixtures";
 
 async function importInstances(
   page: Page,
@@ -150,15 +154,15 @@ test("FD Amp blank space does not capture clicks or marquees; body and pins rema
   await drag(242, 170, 230, 230);
   await expect(hit).not.toHaveClass(/selected/);
   // A left-to-right window enclosing the actual body and pins is sufficient.
-  await drag(155, 170, 225, 230);
+  await drag(155, 165, 230, 235);
   await expect(hit).toHaveClass(/selected/);
 
   await drag(190, 200, 290, 260);
   await expect(hit).toHaveAttribute("x", "256");
-  await expect(hit).toHaveAttribute("y", "231");
+  await expect(hit).toHaveAttribute("y", "226");
   await page.keyboard.press("ControlOrMeta+z");
   await expect(hit).toHaveAttribute("x", "156");
-  await expect(hit).toHaveAttribute("y", "171");
+  await expect(hit).toHaveAttribute("y", "166");
 
   await page.keyboard.press("Escape");
   await clickDrawTool(page, "wire");
@@ -167,6 +171,88 @@ test("FD Amp blank space does not capture clicks or marquees; body and pins rema
   await page.mouse.dblclick(end.x, end.y);
   await page.keyboard.press("Escape");
   await expect(page.locator('[data-canvas-hit-kind="route"]')).toHaveCount(1);
+});
+
+test("enlarged Analog Block triangles leave clear space around internal letters in canvas and SVG", async ({
+  page,
+}) => {
+  await importInstances(
+    page,
+    [
+      "opamp-lettered",
+      "opamp-differential-lettered",
+      "opamp-differential-crossed-lettered-inputs-swapped",
+      "voltage-amplifier-lettered",
+    ].map((symbolId, index) => ({
+      id: `U${index + 1}`,
+      symbolId,
+      placement: {
+        position: {
+          x: 150 + (index % 2) * 200,
+          y: 150 + Math.floor(index / 2) * 160,
+        },
+        rotation: 0,
+        mirror: "none",
+      },
+    })),
+  );
+  const svg = (await downloadBytes(page, "File", "Export SVG")).toString(
+    "utf8",
+  );
+  // Use actual font bounds in both surfaces: symbol-space stroke checks alone
+  // cannot tell whether the browser's letter fits between the polarity rows.
+  const surfaces = await page.evaluate((source) => {
+    const exported = document.createElement("div");
+    exported.innerHTML = source;
+    exported.style.cssText =
+      "position:fixed;left:0;top:0;width:800px;opacity:0;pointer-events:none";
+    document.body.append(exported);
+    const measure = (root: Element) =>
+      [
+        ...root.querySelectorAll<SVGGElement>(
+          "[data-object-id][data-symbol-id]",
+        ),
+      ].map((group) => {
+        const text = group.querySelector<SVGTextElement>(
+          '[data-role="formula-text"]',
+        )!;
+        const letter = text.getBoundingClientRect();
+        const scale = Math.hypot(
+          text.getScreenCTM()!.a,
+          text.getScreenCTM()!.b,
+        );
+        const marks = [
+          ...group.querySelectorAll<SVGLineElement>(
+            'line[stroke-linecap="round"]',
+          ),
+        ];
+        return {
+          id: group.getAttribute("data-object-id"),
+          gaps: marks.map((mark) => {
+            const box = mark.getBoundingClientRect();
+            const gap = Math.hypot(
+              Math.max(0, box.left - letter.right, letter.left - box.right),
+              Math.max(0, box.top - letter.bottom, letter.top - box.bottom),
+            );
+            return gap / scale - Number(mark.getAttribute("stroke-width")) / 2;
+          }),
+        };
+      });
+    const result = [
+      measure(document.querySelector('[data-layer="symbols"]')!),
+      measure(exported),
+    ];
+    exported.remove();
+    return result;
+  }, svg);
+  for (const surface of surfaces) {
+    expect(surface).toHaveLength(4);
+    for (const { id, gaps } of surface)
+      for (const gap of gaps)
+        expect(gap, `${id} letter/polarity clearance`).toBeGreaterThanOrEqual(
+          1,
+        );
+  }
 });
 
 /**

@@ -547,7 +547,7 @@ describe("Razavi symbol catalog", () => {
         return Math.hypot(point.x - next.x, point.y - next.y);
       });
       for (const length of sideLengths)
-        expect(length, `${symbolId} side`).toBeCloseTo(50, 5);
+        expect(length, `${symbolId} side`).toBeCloseTo(60, 5);
       // The pin-end of each lead stays on-grid and the body-end meets an
       // outline edge; there must be no open seam or lead through the interior.
       for (const pin of candidate.pins) {
@@ -634,6 +634,85 @@ describe("Razavi symbol catalog", () => {
           (primitive) => primitive.part === "output-polarity",
         ),
       ).toHaveLength(2);
+    }
+  });
+
+  it("gives every Analog Block equal square polarity strokes with room inside the triangle", () => {
+    const gm = requireRazaviCatalogSymbol("differential-transconductance");
+    const reference = gm.primitives.find(
+      (primitive) => primitive.part === "input-polarity",
+    );
+    if (reference?.kind !== "line") throw new Error("gm polarity missing");
+    const markSize = Math.hypot(
+      reference.to.x - reference.from.x,
+      reference.to.y - reference.from.y,
+    );
+    const family = razaviCatalogSymbols.filter((symbol) =>
+      /^(?:opamp|comparator|differential-transconductance)(?:-|$)/u.test(
+        symbol.id,
+      ),
+    );
+    for (const symbol of family) {
+      const marks = symbol.primitives.filter((primitive) =>
+        primitive.part?.includes("polarity"),
+      );
+      expect(marks).toHaveLength(
+        symbol.id.startsWith("comparator-unmarked")
+          ? 0
+          : symbol.id.startsWith("opamp-differential")
+            ? 6
+            : 3,
+      );
+      const body = symbol.primitives.find(
+        (primitive) =>
+          primitive.kind === "path" &&
+          primitive.style?.strokeRole === "emphasis",
+      );
+      if (body?.kind !== "path") throw new Error("body missing");
+      const points = pathPoints(body.data);
+      const winding = Math.sign(
+        points.reduce((area, from, index) => {
+          const to = points[(index + 1) % points.length]!;
+          return area + from.x * to.y - to.x * from.y;
+        }, 0),
+      );
+      for (const mark of marks) {
+        if (mark.kind !== "line") throw new Error("polarity must be a stroke");
+        expect(
+          Math.hypot(mark.to.x - mark.from.x, mark.to.y - mark.from.y),
+          `${symbol.id} mark size`,
+        ).toBe(markSize);
+        expect(mark.style, `${symbol.id} mark style`).toEqual(reference.style);
+        // A signed distance into each convex outline catches marks
+        // outside the body as well as strokes crowding its heavy outline.
+        for (const point of [mark.from, mark.to])
+          for (const [index, from] of points.entries()) {
+            const to = points[(index + 1) % points.length]!;
+            const dx = to.x - from.x;
+            const dy = to.y - from.y;
+            const clearance =
+              (winding * (dx * (point.y - from.y) - dy * (point.x - from.x))) /
+              Math.hypot(dx, dy);
+            // Normal + emphasis half-widths total 2; retain at least 1 unit
+            // of painted white space, including the rounded mark caps.
+            expect(
+              clearance,
+              `${symbol.id} polarity/body clearance`,
+            ).toBeGreaterThanOrEqual(3);
+          }
+      }
+      if (symbol.id.startsWith("opamp-differential")) {
+        const columnBounds = (side: string) =>
+          marks.flatMap((mark) =>
+            mark.kind === "line" && mark.part?.includes(side)
+              ? [mark.from.x, mark.to.x]
+              : [],
+          );
+        const gap =
+          Math.min(...columnBounds("output")) -
+          Math.max(...columnBounds("input"));
+        expect(gap, `${symbol.id} column gap`).toBeGreaterThanOrEqual(4);
+      }
     }
   });
 
@@ -1454,13 +1533,13 @@ describe("Razavi symbol catalog", () => {
         }),
         expect.objectContaining({
           kind: "line",
-          from: { x: expect.closeTo(-18.299537, 6), y: 12.5 },
-          to: { x: expect.closeTo(-10.799537, 6), y: 12.5 },
+          from: { x: expect.closeTo(-23.711524, 6), y: 14 },
+          to: { x: expect.closeTo(-17.711524, 6), y: 14 },
         }),
         expect.objectContaining({
           kind: "line",
-          from: { x: expect.closeTo(-18.299537, 6), y: -12.5 },
-          to: { x: expect.closeTo(-10.799537, 6), y: -12.5 },
+          from: { x: expect.closeTo(-23.711524, 6), y: -14 },
+          to: { x: expect.closeTo(-17.711524, 6), y: -14 },
         }),
       ]),
     );
