@@ -60,10 +60,19 @@ describe("Cloudflare deploy workflow", () => {
     expect(capture).toBeLessThan(deploy);
   });
 
-  it("rolls back when verification fails", () => {
-    expect(workflow).toContain("Roll back a failed deployment");
-    expect(workflow).toMatch(
-      /if:\s*failure\(\)\s*&&\s*steps\.verify\.outcome/u,
+  it("rolls back post-deploy failures, including secret sync and verification", () => {
+    const rollback = workflow.indexOf("Roll back a failed deployment");
+    const deploy = workflow.indexOf("id: deploy_worker");
+    const secrets = workflow.indexOf("name: Sync worker secrets");
+    const verify = workflow.indexOf("id: verify");
+    expect(deploy).toBeGreaterThan(-1);
+    expect(secrets).toBeGreaterThan(deploy);
+    expect(verify).toBeGreaterThan(secrets);
+    expect(rollback).toBeGreaterThan(verify);
+    // A failed sync skips verification but still leaves a changed Worker.
+    // A failure before deployment must not roll back the serving version.
+    expect(workflow.slice(rollback)).toMatch(
+      /if:\s*failure\(\)\s*&&\s*steps\.deploy_worker\.outcome\s*==\s*'success'/u,
     );
     expect(workflow).toContain("wrangler@4.120.1 rollback");
   });
