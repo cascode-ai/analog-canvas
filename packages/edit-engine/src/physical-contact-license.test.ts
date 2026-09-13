@@ -29,7 +29,7 @@ function transaction(
 }
 
 /**
- * A conductor on net-1 from A.P (150,300) to B.P (450,300), with a foreign
+ * A conductor on net-1 from A.P (140,300) to B.P (460,300), with a foreign
  * Junction J2 (net-2) parked on its interior — visually coincident but
  * electrically separate, exactly like a Crossing. Every test then runs a
  * licensed contact elsewhere on the conductor and asserts J2 stays foreign.
@@ -92,7 +92,7 @@ function fixture(options: {
   }
   if (options.keepInstances.includes("E")) {
     document.instances.find((instance) => instance.id === "E")!.placement = {
-      position: { x: 250, y: 310 },
+      position: { x: 250, y: 300 },
       rotation: 270,
       mirror: "none",
     };

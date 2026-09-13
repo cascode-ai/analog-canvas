@@ -22,15 +22,29 @@ export function stretchRouteEndpoint(
   leads?: { from: PinAxis; to: PinAxis; grid: number },
   outward?: Point | null,
 ): void {
-  if (originalPoint.x === movedPoint.x && originalPoint.y === movedPoint.y)
-    return;
   const segmentMode = side === "from" ? modes[0] : modes.at(-1);
-  if (protectedMode(segmentMode)) {
-    throw new Error(`Route ${routeId} has a protected adjacent segment`);
-  }
   const endpointIndex = side === "from" ? 0 : points.length - 1;
   const neighborIndex = side === "from" ? 1 : points.length - 2;
   const neighbor = points[neighborIndex]!;
+  const escapeX = neighbor.x - originalPoint.x;
+  const escapeY = neighbor.y - originalPoint.y;
+  // A terminal at the symbol origin can turn without moving. Its explicit
+  // escape still has to follow the new outward direction.
+  const turnsEscape =
+    segmentMode === "escape" &&
+    outward &&
+    points.length > 2 &&
+    (escapeX * outward.y !== escapeY * outward.x ||
+      escapeX * outward.x + escapeY * outward.y <= 0);
+  if (
+    originalPoint.x === movedPoint.x &&
+    originalPoint.y === movedPoint.y &&
+    !turnsEscape
+  )
+    return;
+  if (protectedMode(segmentMode)) {
+    throw new Error(`Route ${routeId} has a protected adjacent segment`);
+  }
   points[endpointIndex] = { ...movedPoint };
 
   if (segmentMode === "escape" && outward && points.length > 2) {

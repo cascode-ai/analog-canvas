@@ -79,6 +79,12 @@ The product set is exactly the reviewed, Reference-calibrated entries:
 - `resistor`, `capacitor`, `inductor-compact`, their adjustable siblings
   `variable-resistor`, `variable-capacitor`, and `variable-inductor` (the base
   body plus one diagonal adjustment arrow), `port`, and `port-filled`;
+- `port` and `port-filled` keep their calibrated circular bodies, with the
+  right-hand lead and `P` terminal shortened by one 10-unit grid cell to x=0.
+  Their view boxes shrink with that endpoint; the one-cell lead allowance
+  stays an upper bound. These two directly authored definitions have no family
+  generator. Reference evidence remains unchanged, and historical routes can
+  be repaired manually if the moved terminal requires it;
 - `inductor`, the evidence-exact Large Inductor. The textbook figure is drawn
   at its own scale, so the calibrated coil spans 60 logical units against the
   40 every other reviewed passive uses. Both come from the same pinned PDF

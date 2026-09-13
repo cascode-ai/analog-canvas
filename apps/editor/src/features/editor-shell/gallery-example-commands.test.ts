@@ -70,7 +70,7 @@ describe("Gallery and example commands", () => {
         id: "P1",
         symbolId: "port",
         placement: {
-          position: { x: 510, y: 200 },
+          position: { x: 520, y: 200 },
           rotation: 0,
           mirror: "none",
         },

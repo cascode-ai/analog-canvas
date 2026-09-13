@@ -103,20 +103,20 @@ describe("derived connectivity and route geometry", () => {
   it("resolves transformed Symbol pins and computes stable flightline MSTs", () => {
     const document = documentFixture();
     expect(resolveEndpointPoint(document, resolver, terminal("A"))).toEqual({
-      x: 150,
+      x: 140,
       y: 300,
     });
     expect(resolveEndpointPoint(document, resolver, terminal("B"))).toEqual({
-      x: 450,
+      x: 460,
       y: 300,
     });
     expect(resolveEndpointPoint(document, resolver, terminal("C"))).toEqual({
       x: 300,
-      y: 150,
+      y: 140,
     });
     expect(resolveEndpointPoint(document, resolver, terminal("D"))).toEqual({
       x: 300,
-      y: 450,
+      y: 460,
     });
 
     const flightlines = deriveFlightlines(document, resolver);
@@ -133,9 +133,9 @@ describe("derived connectivity and route geometry", () => {
       ["net-h", "A", "E"],
       ["net-v", "C", "D"],
     ]);
-    expect(flightlines[0]!.distance).toBeCloseTo(Math.hypot(110, 150));
-    expect(flightlines[1]!.distance).toBeCloseTo(Math.hypot(190, 150));
-    expect(flightlines[2]!.distance).toBeCloseTo(300);
+    expect(flightlines[0]!.distance).toBeCloseTo(Math.hypot(120, 140));
+    expect(flightlines[1]!.distance).toBeCloseTo(Math.hypot(200, 140));
+    expect(flightlines[2]!.distance).toBeCloseTo(320);
     expect(deriveFlightlines(document, resolver)).toEqual(flightlines);
   });
 
@@ -227,7 +227,7 @@ describe("derived connectivity and route geometry", () => {
     ).toEqual([
       {
         routeId: "route-h",
-        waypoints: [{ x: 150, y: 300 }],
+        waypoints: [{ x: 140, y: 300 }],
         segmentModes: ["manual", "manual"],
       },
     ]);
@@ -274,7 +274,7 @@ describe("derived connectivity and route geometry", () => {
     ).toEqual([
       {
         routeId: "route-hook",
-        waypoints: [{ x: 450, y: 160 }],
+        waypoints: [{ x: 460, y: 160 }],
         segmentModes: ["manual", "manual"],
       },
     ]);

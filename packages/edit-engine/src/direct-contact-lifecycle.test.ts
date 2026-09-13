@@ -18,7 +18,30 @@ import { planRoutingTransform } from "./routing-transform-planner.js";
 import { gateRoutingOperationPlan } from "./routing-operation-plan.js";
 import { transformMaySeparateDirectContact } from "./transaction-direct-contact.js";
 
-const resolver = new InMemorySymbolResolver(builtInSymbols);
+// These transform contracts require a pin away from the placement origin:
+// rotating/mirroring/alignment must separate initially coincident contacts.
+// The product Port now has a centered pin, so use explicit fixture geometry.
+const offsetTerminal = {
+  ...builtInSymbols.find((symbol) => symbol.id === "port")!,
+  pins: [
+    {
+      name: "P",
+      role: "port",
+      at: { x: 10, y: 0 },
+      direction: "east" as const,
+      presentation: { visibility: "visible" as const, leadLength: 10 },
+    },
+  ],
+  viewBox: { x: -5, y: -5, width: 20, height: 10 },
+  primitives: [
+    { kind: "line" as const, from: { x: 0, y: 0 }, to: { x: 10, y: 0 } },
+  ],
+};
+const resolver = new InMemorySymbolResolver(
+  builtInSymbols.map((symbol) =>
+    symbol.id === "port" ? offsetTerminal : symbol,
+  ),
+);
 const context = { symbolResolver: resolver };
 const terminal = (instanceId: string): RouteEndpoint => ({
   kind: "terminal",

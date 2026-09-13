@@ -38,7 +38,10 @@ describe("current terminal-only connectivity contract", () => {
       expect(endpointBelongsToNet(document, document.nets[0]!, endpoint)).toBe(
         true,
       );
-      expect(resolveEndpointPoint(document, resolver, endpoint)).not.toBeNull();
+      expect(resolveEndpointPoint(document, resolver, endpoint)).toEqual({
+        x: 100,
+        y: 80,
+      });
     },
   );
 

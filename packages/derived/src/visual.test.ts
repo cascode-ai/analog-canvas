@@ -170,7 +170,7 @@ describe("visual quality diagnostics", () => {
         id: "P2",
         symbolId: "port-filled",
         placement: {
-          position: { x: 120, y: 100 },
+          position: { x: 100, y: 100 },
           rotation: 180,
           mirror: "none",
         },
@@ -190,6 +190,16 @@ describe("visual quality diagnostics", () => {
         (item) => item.code === "VISUAL_SYMBOL_OVERLAP",
       ),
     ).toBe(true);
+
+    // The old stems reached one cell farther from each placement origin.
+    // This spacing is now clear and must not retain their old overlap bounds.
+    document.instances[1]!.placement!.position.x = 120;
+    document.revision += 1;
+    expect(
+      diagnoseVisualQuality(document, resolver).some(
+        (item) => item.code === "VISUAL_SYMBOL_OVERLAP",
+      ),
+    ).toBe(false);
   });
 
   it("does not treat a one-grid DFF pin escape as wire-through-symbol", () => {

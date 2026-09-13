@@ -99,7 +99,7 @@ describe("component placement electrical contacts", () => {
       symbolId,
       placement: {
         position: {
-          x: 10 - contactedPin.at.x,
+          x: -contactedPin.at.x,
           y: -contactedPin.at.y,
         },
         rotation: 0 as const,

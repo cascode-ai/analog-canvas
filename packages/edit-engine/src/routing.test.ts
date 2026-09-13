@@ -18,6 +18,7 @@ import {
   deriveFlightlines,
   deriveImportedRoutingGuidance,
   resolveRouteGeometry,
+  resolveEndpointConnection,
   resolveDocumentLogicalNets,
 } from "@icm/derived";
 import { InMemorySymbolResolver, builtInSymbols } from "@icm/symbols";
@@ -557,7 +558,7 @@ describe("routing Edit Engine", () => {
   it("attaches a real terminal to a Route interior and lets both halves follow it", () => {
     const document = documentFixture();
     document.instances.find((instance) => instance.id === "E")!.placement = {
-      position: { x: 300, y: 290 },
+      position: { x: 300, y: 300 },
       rotation: 90,
       mirror: "none",
     };
@@ -675,8 +676,8 @@ describe("routing Edit Engine", () => {
       {
         routeId: "route-h",
         waypoints: [
-          { x: 150, y: 340 },
-          { x: 450, y: 340 },
+          { x: 140, y: 340 },
+          { x: 460, y: 340 },
         ],
         segmentModes: ["manual", "manual", "manual"],
       },
@@ -1242,7 +1243,8 @@ describe("routing Edit Engine", () => {
       resolver,
       applied.document.routes[0]!,
     )!;
-    expect(routeAfter.centerline[0]).not.toEqual(routeStartBefore);
+    // The shortened Port rotates around its terminal, so its contact stays put.
+    expect(routeAfter.centerline[0]).toEqual(routeStartBefore);
     expect(routeAfter.centerline.at(-1)).toEqual(
       resolveRouteGeometry(
         document,
@@ -1370,8 +1372,8 @@ describe("routing Edit Engine", () => {
     expect(
       resolveRouteGeometry(result.document, resolver, route)?.centerline,
     ).toEqual([
-      { x: 150, y: 300 },
-      { x: 450, y: 300 },
+      { x: 140, y: 300 },
+      { x: 460, y: 300 },
     ]);
   });
 
@@ -1492,10 +1494,10 @@ describe("routing Edit Engine", () => {
         moved.document.routes.find((route) => route.id === "route-h")!,
       )?.centerline,
     ).toEqual([
-      { x: 170, y: 320 },
+      { x: 160, y: 320 },
       { x: 310, y: 320 },
       { x: 310, y: 300 },
-      { x: 450, y: 300 },
+      { x: 460, y: 300 },
     ]);
   });
 
@@ -1547,8 +1549,8 @@ describe("routing Edit Engine", () => {
           from: terminal("A"),
           to: terminal("B"),
           waypoints: [
-            { x: 150, y: 340 },
-            { x: 450, y: 340 },
+            { x: 140, y: 340 },
+            { x: 460, y: 340 },
           ],
           segmentModes: ["manual", "manual", "manual"],
         }),
@@ -1728,10 +1730,10 @@ describe("routing Edit Engine", () => {
       // along its lead and arrives at B along B's rather than turning up into
       // B's side, which would have laid the wire across the port artwork.
     ).toEqual([
-      { x: 170, y: 320 },
+      { x: 160, y: 320 },
       { x: 310, y: 320 },
       { x: 310, y: 300 },
-      { x: 450, y: 300 },
+      { x: 460, y: 300 },
     ]);
     expect(
       moved.document.annotations.find(
@@ -1761,10 +1763,10 @@ describe("routing Edit Engine", () => {
         rotated.document.routes.find((route) => route.id === "route-h")!,
       )?.centerline,
     ).toEqual([
-      { x: 160, y: 330 },
-      { x: 310, y: 330 },
+      { x: 160, y: 320 },
+      { x: 310, y: 320 },
       { x: 310, y: 300 },
-      { x: 450, y: 300 },
+      { x: 460, y: 300 },
     ]);
     expect(
       rotated.document.annotations.find(
@@ -1795,10 +1797,10 @@ describe("routing Edit Engine", () => {
         mirrored.document.routes.find((route) => route.id === "route-h")!,
       )?.centerline,
     ).toEqual([
-      { x: 160, y: 330 },
-      { x: 310, y: 330 },
+      { x: 160, y: 320 },
+      { x: 310, y: 320 },
       { x: 310, y: 300 },
-      { x: 450, y: 300 },
+      { x: 460, y: 300 },
     ]);
     expect(
       mirrored.document.annotations.find(
@@ -2002,49 +2004,91 @@ describe("routing Edit Engine", () => {
     });
   });
 
-  it("rotates a terminal escape with the pin instead of rejecting the Route", () => {
-    const document = documentFixture();
-    const endpointB = document.instances.find(
-      (instance) => instance.id === "B",
-    );
-    if (!endpointB?.placement) throw new Error("Fixture B must be placed");
-    endpointB.placement.position.y = 360;
-    const routed = executeTransaction(
-      document,
-      transaction(document.id, 0, [
-        {
-          kind: "route_orthogonal",
-          routeId: "route-agent",
-          netId: "net-h",
-          from: terminal("A"),
-          to: terminal("B"),
-          escapeLength: 20,
-        },
-      ]),
-      context,
-    );
-    expect(routed.ok).toBe(true);
-    if (!routed.ok) return;
+  it.each(
+    ["port", "port-filled"].flatMap((symbolId) =>
+      ["A", "B"].flatMap((instanceId) =>
+        ["rotate", "mirror"].map((transform) => ({
+          symbolId,
+          instanceId,
+          transform,
+        })),
+      ),
+    ),
+  )(
+    "follows $symbolId $instanceId escape through $transform at a stationary contact",
+    ({ symbolId, instanceId, transform }) => {
+      const document = documentFixture();
+      document.instances.find(
+        (instance) => instance.id === instanceId,
+      )!.symbolId = symbolId;
+      const endpointB = document.instances.find(
+        (instance) => instance.id === "B",
+      );
+      if (!endpointB?.placement) throw new Error("Fixture B must be placed");
+      endpointB.placement.position.y = 360;
+      const contactBefore = resolveEndpointConnection(
+        document,
+        resolver,
+        terminal(instanceId),
+      )!.contactPoint;
+      const routed = executeTransaction(
+        document,
+        transaction(document.id, 0, [
+          {
+            kind: "route_orthogonal",
+            routeId: "route-agent",
+            netId: "net-h",
+            from: terminal("A"),
+            to: terminal("B"),
+            escapeLength: 20,
+          },
+        ]),
+        context,
+      );
+      expect(routed.ok).toBe(true);
+      if (!routed.ok) return;
 
-    const rotated = executeTransaction(
-      routed.document,
-      transaction(document.id, 1, [
-        { kind: "rotate_instance", instanceId: "A", rotation: 90 },
-      ]),
-      context,
-    );
-    if (!rotated.ok) throw new Error(rotated.error.message);
-    const route = rotated.document.routes.find(
-      (candidate) => candidate.id === "route-agent",
-    )!;
-    const points = resolveRouteGeometry(
-      rotated.document,
-      resolver,
-      route,
-    )?.centerline;
-    expect(points?.[0]).toEqual({ x: 140, y: 310 });
-    expect(points && isOrthogonal(points)).toBe(true);
-  });
+      const rotated = executeTransaction(
+        routed.document,
+        transaction(document.id, 1, [
+          transform === "rotate"
+            ? { kind: "rotate_instance", instanceId, rotation: 90 }
+            : {
+                kind: "mirror_instance",
+                instanceId,
+                mirror: instanceId === "A" ? "horizontal" : "none",
+              },
+        ]),
+        context,
+      );
+      if (!rotated.ok) throw new Error(rotated.error.message);
+      const route = rotated.document.routes.find(
+        (candidate) => candidate.id === "route-agent",
+      )!;
+      const points = resolveRouteGeometry(
+        rotated.document,
+        resolver,
+        route,
+      )?.centerline;
+      const contactAfter = resolveEndpointConnection(
+        rotated.document,
+        resolver,
+        terminal(instanceId),
+      )!;
+      expect(contactAfter.contactPoint).toEqual(contactBefore);
+      const ordered = instanceId === "A" ? points! : [...points!].reverse();
+      expect(ordered[0]).toEqual(contactBefore);
+      const dx = ordered[1]!.x - ordered[0]!.x;
+      const dy = ordered[1]!.y - ordered[0]!.y;
+      expect(dx * contactAfter.outward!.y - dy * contactAfter.outward!.x).toBe(
+        0,
+      );
+      expect(
+        dx * contactAfter.outward!.x + dy * contactAfter.outward!.y,
+      ).toBeGreaterThan(0);
+      expect(points && isOrthogonal(points)).toBe(true);
+    },
+  );
 
   it("stretches a shared Route across two instance moves in one transaction (ADR 0009)", () => {
     const document = documentFixture();
@@ -2303,7 +2347,7 @@ describe("routing Edit Engine", () => {
         result.document.routes[0]!,
       )?.centerline,
     ).toEqual([
-      { x: 150, y: 300 },
+      { x: 140, y: 300 },
       { x: 150, y: 200 },
     ]);
     expect(
@@ -2315,7 +2359,7 @@ describe("routing Edit Engine", () => {
     ).toEqual([
       { x: 150, y: 200 },
       { x: 450, y: 200 },
-      { x: 450, y: 300 },
+      { x: 460, y: 300 },
     ]);
   });
 

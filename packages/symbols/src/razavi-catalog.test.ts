@@ -1290,6 +1290,28 @@ describe("Razavi symbol catalog", () => {
     expect(requireRazaviCatalogSymbol("ground").labelVisibility).toBe("hidden");
   });
 
+  it.each(["port", "port-filled"])(
+    "shortens the %s stem one cell while keeping its circle and terminal joined",
+    (symbolId) => {
+      const symbol = requireRazaviCatalogSymbol(symbolId);
+      const [circle, lead] = symbol.primitives;
+      expect(circle).toMatchObject({
+        kind: "circle",
+        center: { x: -7.086614, y: 0 },
+        radius: 2.47907,
+      });
+      expect(symbol.pins).toMatchObject([
+        { name: "P", role: "port", at: { x: 0, y: 0 }, direction: "east" },
+      ]);
+      expect(lead).toMatchObject({ kind: "line", from: symbol.pins[0]!.at });
+      if (circle?.kind !== "circle" || lead?.kind !== "line") return;
+      expect(lead.to.x).toBeCloseTo(circle.center.x + circle.radius, 6);
+      expect(lead.to.y).toBe(circle.center.y);
+      expect(lead.from.x - lead.to.x).toBeCloseTo(14.607544 - 10, 6);
+      expect(symbol.viewBox).toEqual({ x: -14, y: -7, width: 18, height: 14 });
+    },
+  );
+
   it("keeps canonical MOS assets four-terminal and three-terminal mode visual-only", () => {
     for (const symbolId of ["nmos", "pmos"]) {
       const symbol = requireRazaviCatalogSymbol(symbolId);

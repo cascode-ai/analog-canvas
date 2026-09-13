@@ -20,10 +20,10 @@ function tee(portOnJunction: boolean): SchematicDocument {
     {
       id: "P1",
       symbolId: "port",
-      // The port pin's contact sits 10 units right of the placement
-      // origin; portOnJunction parks that contact on the junction point.
+      // The shortened port pin sits at the placement origin;
+      // portOnJunction parks that contact on the junction point.
       placement: {
-        position: portOnJunction ? { x: 410, y: 240 } : { x: 560, y: 240 },
+        position: portOnJunction ? { x: 420, y: 240 } : { x: 570, y: 240 },
         rotation: 0,
         mirror: "none",
       },
@@ -105,18 +105,18 @@ function straightTap(): SchematicDocument {
     {
       id: "P0",
       symbolId: "port",
-      placement: { position: { x: 300, y: 240 }, rotation: 0, mirror: "none" },
+      placement: { position: { x: 310, y: 240 }, rotation: 0, mirror: "none" },
     },
     {
       id: "P1",
       symbolId: "port",
-      placement: { position: { x: 410, y: 240 }, rotation: 0, mirror: "none" },
+      placement: { position: { x: 420, y: 240 }, rotation: 0, mirror: "none" },
     },
     {
       id: "P2",
       symbolId: "port",
       placement: {
-        position: { x: 480, y: 240 },
+        position: { x: 470, y: 240 },
         rotation: 0,
         mirror: "horizontal",
       },

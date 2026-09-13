@@ -157,8 +157,8 @@ describe("atomic endpoint landing", () => {
     "classifies coincident terminals as endpoints regardless of instance order (%s)",
     (reverse) => {
       const d = looseWires();
-      port(d, "P1", "n", { x: 40, y: 50 });
-      port(d, "P2", "m", { x: 40, y: 50 });
+      port(d, "P1", "n", { x: 50, y: 50 });
+      port(d, "P2", "m", { x: 50, y: 50 });
       if (reverse) d.instances.reverse();
       d.routes[1]!.start = { kind: "terminal", instanceId: "P2", pinName: "P" };
       const p = proposeRouteEndpointMove(
@@ -292,8 +292,8 @@ describe("terminal-aware shortening", () => {
           ];
           if (reverse) points.reverse();
           expect(points).toEqual([
-            at({ x: 10, y: 0 }),
-            at({ x: 10, y: 100 }),
+            at({ x: 0, y: 0 }),
+            at({ x: 0, y: 100 }),
             at({ x: 200, y: 100 }),
           ]);
           expect(final.instances).toEqual(d.instances);

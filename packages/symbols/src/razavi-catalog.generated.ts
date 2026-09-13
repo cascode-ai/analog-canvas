@@ -1517,7 +1517,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     automaticMappings: [],
     assetPath: "port.json",
     assetHash:
-      "4d17eea1df130c008fa194c65012a9d6893c7245b7d4bb78b4f37e0187c569ea",
+      "f94640fba241c90e2a2538ba1cb0dbaaa75bb85d2d85234f4c67692421f7981f",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1541,7 +1541,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Explicit solid endpoint style; no automatic SPICE mapping.",
     assetPath: "port-filled.json",
     assetHash:
-      "fa0159b800b6df515bfd876704b1cd448de280b63fc48df14221dcc5bb89bbcb",
+      "d3845584c0772d04399efa5e363aea96b7852f8ad1abe43fa714da6371d639ca",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -10223,7 +10223,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
     viewBox: {
       x: -14,
       y: -7,
-      width: 28,
+      width: 18,
       height: 14,
     },
     pins: [
@@ -10231,7 +10231,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         name: "P",
         role: "port",
         at: {
-          x: 10,
+          x: 0,
           y: 0,
         },
         direction: "east",
@@ -10260,7 +10260,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: 10,
+          x: 0,
           y: 0,
         },
         to: {
@@ -10283,7 +10283,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
     viewBox: {
       x: -14,
       y: -7,
-      width: 28,
+      width: 18,
       height: 14,
     },
     pins: [
@@ -10291,7 +10291,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         name: "P",
         role: "port",
         at: {
-          x: 10,
+          x: 0,
           y: 0,
         },
         direction: "east",
@@ -10320,7 +10320,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: 10,
+          x: 0,
           y: 0,
         },
         to: {
