@@ -29,7 +29,7 @@ export interface ComponentPropertyPlacementCode {
 }
 
 export interface ComponentPropertyDisplayCode {
-  reference?: boolean;
+  visualAnnotation?: boolean;
   value?: boolean;
 }
 
@@ -63,7 +63,7 @@ const ROOT_KEYS = new Set([
   "display",
   "appearance",
   "netName",
-  "reference",
+  "netlistName",
   "parameters",
   "netlistTarget",
   "symbol",
@@ -150,7 +150,7 @@ function parseDisplay(
   context: ComponentPropertyCodeContext,
 ): ComponentPropertyDisplayCode | undefined {
   const supported = new Set<string>();
-  if (context.referenceVisible !== null) supported.add("reference");
+  if (context.referenceVisible !== null) supported.add("visualAnnotation");
   if (context.valueVisible !== null) supported.add("value");
   if (supported.size === 0) {
     if (value !== undefined) {
@@ -218,7 +218,7 @@ export function componentPropertyCodeValue(
   const inputPolarity = componentInputPolarity(instance.symbolId);
   const display: ComponentPropertyDisplayCode = {};
   if (context.referenceVisible !== null) {
-    display.reference = context.referenceVisible;
+    display.visualAnnotation = context.referenceVisible;
   }
   if (context.valueVisible !== null) display.value = context.valueVisible;
   return {

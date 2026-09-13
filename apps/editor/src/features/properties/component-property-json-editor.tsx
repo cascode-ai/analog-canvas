@@ -287,7 +287,7 @@ function jsonDecorations(state: EditorState, read: () => Props): DecorationSet {
   const spans = editorSpans(source, read());
   const documentValid = editorParse(source, read()).ok;
   for (const field of [
-    { path: "display.reference", label: "reference" },
+    { path: "display.visualAnnotation", label: "visual annotation" },
     { path: "display.value", label: "value" },
     { path: "appearance.inputPolarity", label: "input polarity" },
   ] as const) {
@@ -407,14 +407,109 @@ function jsonDecorations(state: EditorState, read: () => Props): DecorationSet {
       }).range(foreground.to),
     );
   }
+  for (const span of spans) {
+    const at = source[span.to] === "," ? span.to + 1 : span.to;
+    if (span.field.description)
+      ranges.push(
+        Decoration.widget({
+          widget: new PropertyUnit(span.field.description),
+          side: 2,
+        }).range(at),
+      );
+    if (span.field.path === "netlistTarget" && span.field.kind === "choice")
+      ranges.push(
+        Decoration.widget({
+          widget: new NetlistTargetSelect(span, documentValid, read),
+          side: 1,
+        }).range(at),
+      );
+  }
   return Decoration.set(ranges, true);
+}
+
+class PropertyUnit extends WidgetType {
+  constructor(private readonly unit: string) {
+    super();
+  }
+
+  override eq(other: PropertyUnit): boolean {
+    return this.unit === other.unit;
+  }
+
+  toDOM(): HTMLElement {
+    const unit = document.createElement("span");
+    unit.className = "cm-property-unit";
+    unit.contentEditable = "false";
+    unit.textContent = ` // ${this.unit}`;
+    return unit;
+  }
+
+  override ignoreEvent(): boolean {
+    return true;
+  }
+}
+
+class NetlistTargetSelect extends WidgetType {
+  constructor(
+    private readonly span: PropertyCodeSpan,
+    private readonly enabled: boolean,
+    private readonly read: () => Props,
+  ) {
+    super();
+  }
+
+  override eq(other: NetlistTargetSelect): boolean {
+    return (
+      JSON.stringify(this.span.field.options) ===
+        JSON.stringify(other.span.field.options) &&
+      this.span.value === other.span.value &&
+      this.enabled === other.enabled
+    );
+  }
+
+  toDOM(view: EditorView): HTMLElement {
+    const select = document.createElement("select");
+    select.className = "cm-netlist-target-select";
+    select.contentEditable = "false";
+    select.setAttribute("aria-label", "Target netlist options");
+    select.disabled = !this.enabled;
+    const options = this.span.field.options ?? [];
+    for (const option of options) {
+      const element = document.createElement("option");
+      element.value = option.value;
+      element.textContent = option.label;
+      select.append(element);
+    }
+    if (
+      typeof this.span.value === "string" &&
+      !options.some((option) => option.value === this.span.value)
+    ) {
+      const authored = document.createElement("option");
+      authored.value = this.span.value;
+      authored.textContent = this.span.value;
+      select.append(authored);
+    }
+    select.value = String(this.span.value);
+    select.addEventListener("change", () => {
+      const changes = editorChanges(view.state.doc.toString(), this.read(), {
+        netlistTarget: select.value,
+      });
+      if (changes.length)
+        view.dispatch({ changes, userEvent: "input.property-control" });
+    });
+    return select;
+  }
+
+  override ignoreEvent(): boolean {
+    return true;
+  }
 }
 
 class DisplayToggleWidget extends WidgetType {
   constructor(
     private readonly path:
-      "display.reference" | "display.value" | "appearance.inputPolarity",
-    private readonly label: "reference" | "value" | "input polarity",
+      "display.visualAnnotation" | "display.value" | "appearance.inputPolarity",
+    private readonly label: "visual annotation" | "value" | "input polarity",
     private readonly checked: boolean | "mixed",
     private readonly disabled: boolean,
     private readonly read: () => Props,
@@ -457,8 +552,8 @@ class DisplayToggleWidget extends WidgetType {
       : `${
           this.path === "appearance.inputPolarity"
             ? "Input polarity marks"
-            : this.label === "reference"
-              ? "Reference"
+            : this.label === "visual annotation"
+              ? "Visual annotation"
               : "Value"
         } · ${
           this.checked === "mixed" ? "Mixed" : this.checked ? "Shown" : "Hidden"

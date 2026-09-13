@@ -43,11 +43,11 @@ test("live JSON properties update controls immediately and round-trip raw parame
   await expect(panel.getByRole("button", { name: "Apply code" })).toHaveCount(
     0,
   );
-  await expect(panel.locator(".cm-property-hint")).toHaveCount(0);
-  await expect(panel.locator(".cm-property-assist")).toHaveCount(0);
+  await expect(panel.locator(".cm-property-unit")).toHaveCount(2);
+  await expect(panel.getByLabel("Target netlist options")).toBeVisible();
   await editComponentPropertyCode(page, (code) => {
     code.placement.rotation = 90;
-    code.display.reference = false;
+    code.display.visualAnnotation = false;
   });
   await expect(page.getByTestId("revision")).toHaveText(
     String(Number(revision) + 1),
@@ -59,7 +59,7 @@ test("live JSON properties update controls immediately and round-trip raw parame
   );
   const draft = JSON.parse(await readComponentPropertyCode(page));
   expect(draft.placement.rotation).toBe(90);
-  expect(draft.display.reference).toBe(false);
+  expect(draft.display.visualAnnotation).toBe(false);
   expect(draft.appearance.foreground).toEqual([220, 38, 38]);
   draft.parameters.w = "EV";
   draft.parameters.l = "L";
@@ -131,7 +131,9 @@ test("live Defaults are undoable and invalid drafts never change the canvas", as
     page.getByRole("button", { name: "Edit line color" }),
   ).toBeDisabled();
   await expect(
-    page.getByRole("switch", { name: "Toggle reference visibility" }),
+    page.getByRole("switch", {
+      name: "Toggle visual annotation visibility",
+    }),
   ).toBeDisabled();
   await expect(
     page.getByRole("switch", { name: "Toggle value visibility" }),
@@ -162,15 +164,15 @@ test("one live JSON edit combines model, dimensions and appearance in one undo b
     code.parameters.w = "5u";
     code.appearance.foreground = [20, 30, 40];
   });
-  await expectComponentCodeField(page, "reference", "XM1");
+  await expectComponentCodeField(page, "netlistName", "XM1");
   await expectComponentCodeField(page, "parameters.w", "5u");
   await expectComponentCodeField(page, "appearance.foreground", [20, 30, 40]);
   await clickCommand(page, "Edit", "Undo");
-  await expectComponentCodeField(page, "reference", "M1");
+  await expectComponentCodeField(page, "netlistName", "M1");
   await expectComponentCodeField(page, "parameters.w", "1u");
   await expectComponentCodeField(page, "appearance.foreground", "auto");
   await clickCommand(page, "Edit", "Redo");
-  await expectComponentCodeField(page, "reference", "XM1");
+  await expectComponentCodeField(page, "netlistName", "XM1");
   await expectComponentCodeField(page, "parameters.w", "5u");
 });
 
@@ -320,7 +322,7 @@ for (const width of [300, 540]) {
 
     const color = editor.getByRole("button", { name: "Edit line color" });
     const reference = editor.getByRole("switch", {
-      name: "Toggle reference visibility",
+      name: "Toggle visual annotation visibility",
     });
     const value = editor.getByRole("switch", {
       name: "Toggle value visibility",
@@ -355,7 +357,9 @@ for (const width of [300, 540]) {
     );
     expect(
       await reference.evaluate((element) =>
-        element.closest(".cm-line")?.textContent?.includes('"reference"'),
+        element
+          .closest(".cm-line")
+          ?.textContent?.includes('"visualAnnotation"'),
       ),
     ).toBe(true);
     expect(
@@ -402,7 +406,7 @@ for (const width of [300, 540]) {
     await reference.click();
     await value.click();
     await rotation.click();
-    await expectComponentCodeField(page, "display.reference", false);
+    await expectComponentCodeField(page, "display.visualAnnotation", false);
     await expectComponentCodeField(page, "display.value", true);
     await expectComponentCodeField(page, "placement.rotation", 45);
     await mirrorLeftRight.click();
@@ -1255,18 +1259,18 @@ test("a part with no designator offers no Reference toggle", async ({
   await placeComponent(page, "resistor", { x: 500, y: 200 });
   await openSelectionShelf(page);
   const code = properties.getByLabel("Editable Canvas property code");
-  await expect(code).toContainText(/"reference": true/u);
+  await expect(code).toContainText(/"visualAnnotation": true/u);
   await expect(code).toContainText(/"value": false/u);
   const drawnLabel = page.locator(
     '[data-layer="annotations"] [data-object-id="instance-label-R1"]',
   );
   await expect(drawnLabel).toHaveCount(1);
   await editComponentPropertyCode(page, (value) => {
-    value.display.reference = false;
+    value.display.visualAnnotation = false;
   });
   await expect(drawnLabel).toHaveCount(0);
   await editComponentPropertyCode(page, (value) => {
-    value.display.reference = true;
+    value.display.visualAnnotation = true;
   });
   await expect(drawnLabel).toHaveCount(1);
 });
@@ -4052,7 +4056,7 @@ test("Properties offers no dead Reference controls for a schematic-only block", 
   await page.getByTestId("hit-R1").click();
   await expect(referenceField).toHaveCount(0);
   await expect(parametersCard).toHaveCount(0);
-  await expectComponentCodeField(page, "reference", "R1");
+  await expectComponentCodeField(page, "netlistName", "R1");
   await expect(
     properties.getByLabel("Editable Canvas property code"),
   ).toContainText(/"display"/u);
@@ -4123,7 +4127,7 @@ test("resizes Properties and applies component presentation as editable code", a
   edited.placement.at = [420, 280];
   edited.placement.rotation = 90;
   edited.placement.mirror = "horizontal";
-  edited.display.reference = false;
+  edited.display.visualAnnotation = false;
   edited.appearance.foreground = "#DC2626";
   await code.fill(JSON.stringify(edited, null, 2));
 
@@ -4193,7 +4197,7 @@ test("Properties toggles reference label visibility for one or many components",
   ).toHaveCount(0);
   await expectComponentCodeField(page, "netlistTarget", "");
   await editComponentPropertyCode(page, (value) => {
-    value.display.reference = false;
+    value.display.visualAnnotation = false;
   });
   await expect(
     page.getByTestId("annotation-hit-instance-label-R1"),
@@ -4206,13 +4210,13 @@ test("Properties toggles reference label visibility for one or many components",
   ).toHaveCount(1);
   // Hiding is recoverable: the annotation is still in the project.
   await editComponentPropertyCode(page, (value) => {
-    value.display.reference = true;
+    value.display.visualAnnotation = true;
   });
   await expect(
     page.getByTestId("annotation-hit-instance-label-R1"),
   ).toHaveCount(1);
   await editComponentPropertyCode(page, (value) => {
-    value.display.reference = false;
+    value.display.visualAnnotation = false;
   });
 
   // Marquee both components and edit the shared code surface. The left-to-right
@@ -4231,12 +4235,12 @@ test("Properties toggles reference label visibility for one or many components",
   ).toBeVisible();
   await expect(page.getByText("Canvas labels", { exact: true })).toHaveCount(0);
   const groupToggle = groupEditor.getByRole("switch", {
-    name: "Toggle reference visibility",
+    name: "Toggle visual annotation visibility",
   });
   await expect(groupToggle).toBeVisible();
   await expect(groupToggle).toHaveAttribute("data-mixed", "true");
   expect(
-    JSON.parse(await readComponentPropertyCode(page)).display.reference,
+    JSON.parse(await readComponentPropertyCode(page)).display.visualAnnotation,
   ).toBe("mixed");
   await groupToggle.click();
   await expect(
@@ -4279,7 +4283,7 @@ test("Select All shows one batch code surface instead of object-specific forms",
   await expect(batch).toBeVisible();
   await expect(batch.getByText("2 selected", { exact: true })).toBeVisible();
   expect(JSON.parse(await readComponentPropertyCode(page))).toEqual({
-    display: { reference: true, value: false },
+    display: { visualAnnotation: true, value: false },
     appearance: { foreground: "auto" },
   });
   await expect(
@@ -5839,7 +5843,7 @@ test("exports structural SPICE and Spectre netlists while exposing instance auth
   const properties = page.getByRole("complementary", { name: "Properties" });
   await expect(properties.getByLabel("Cell netlist name")).toHaveCount(0);
   await expect(properties.getByLabel("Cell netlist port order")).toHaveCount(0);
-  await expectComponentCodeField(page, "reference", "M1");
+  await expectComponentCodeField(page, "netlistName", "M1");
   await expectComponentCodeField(page, "netlistTarget", "");
   await expect(properties.getByText(/^Model:/u)).toHaveCount(0);
 });
@@ -5957,7 +5961,7 @@ test("edits a formula-capable Signal Flow block with undo, redo, and Reset defau
   ).toHaveCount(0);
 });
 
-test("selects a reviewed SKY130 MOS through the existing Model field", async ({
+test("selects a reviewed SKY130 MOS through the inline Target netlist field", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -5968,23 +5972,25 @@ test("selects a reviewed SKY130 MOS through the existing Model field", async ({
   await expect(
     properties.getByRole("button", { name: "Need help?", exact: true }),
   ).toHaveCount(0);
-  await setComponentCodeField(page, "netlistTarget", "sky130_fd_pr__nfet_01v8");
+  await properties
+    .getByLabel("Target netlist options")
+    .selectOption("sky130_fd_pr__nfet_01v8");
 
   await expectComponentCodeField(
     page,
     "netlistTarget",
     "sky130_fd_pr__nfet_01v8",
   );
-  await expectComponentCodeField(page, "reference", "XM1");
+  await expectComponentCodeField(page, "netlistName", "XM1");
   await expectComponentCodeField(page, "parameters.nf", "1");
   await expectComponentCodeField(page, "parameters.m", "1");
 
   await setComponentCodeField(page, "netlistTarget", "");
   await expectComponentCodeField(page, "netlistTarget", "");
-  await expectComponentCodeField(page, "reference", "M1");
+  await expectComponentCodeField(page, "netlistName", "M1");
   await setComponentCodeField(page, "netlistTarget", "generic_nmos");
   await expectComponentCodeField(page, "netlistTarget", "generic_nmos");
-  await expectComponentCodeField(page, "reference", "M1");
+  await expectComponentCodeField(page, "netlistName", "M1");
 
   await setComponentCodeField(page, "netlistTarget", "sky130_fd_pr__nfet_01v8");
   await expectComponentCodeField(
@@ -5992,7 +5998,7 @@ test("selects a reviewed SKY130 MOS through the existing Model field", async ({
     "netlistTarget",
     "sky130_fd_pr__nfet_01v8",
   );
-  await expectComponentCodeField(page, "reference", "XM1");
+  await expectComponentCodeField(page, "netlistName", "XM1");
 
   const saved = JSON.parse(
     (await downloadBytes(page, "File", "Export Project File…")).toString(
@@ -6038,7 +6044,7 @@ test("keeps the exact SKY130 PNP on its three-terminal model interface", async (
     "sky130_fd_pr__pnp_05v5_W0p68L0p68",
   );
   await expect(properties.getByLabel("Substrate Net")).toHaveCount(0);
-  await expectComponentCodeField(page, "reference", "XQ1");
+  await expectComponentCodeField(page, "netlistName", "XQ1");
 
   const saved = JSON.parse(
     (await downloadBytes(page, "File", "Export Project File…")).toString(
@@ -6052,7 +6058,7 @@ test("keeps the exact SKY130 PNP on its three-terminal model interface", async (
 
   await setComponentCodeField(page, "netlistTarget", "");
   await expect(properties.getByLabel("Substrate Net")).toHaveCount(0);
-  await expectComponentCodeField(page, "reference", "Q1");
+  await expectComponentCodeField(page, "netlistName", "Q1");
 });
 
 test("derives NPN substrate from its exact Model", async ({ page }) => {
@@ -6070,7 +6076,7 @@ test("derives NPN substrate from its exact Model", async ({ page }) => {
     "sky130_fd_pr__npn_05v5_W1p00L1p00",
   );
   await expect(properties.getByLabel("Substrate Net")).toBeVisible();
-  await expectComponentCodeField(page, "reference", "XQ1");
+  await expectComponentCodeField(page, "netlistName", "XQ1");
 
   const saved = JSON.parse(
     (await downloadBytes(page, "File", "Export Project File…")).toString(
@@ -6084,7 +6090,7 @@ test("derives NPN substrate from its exact Model", async ({ page }) => {
 
   await setComponentCodeField(page, "netlistTarget", "");
   await expect(properties.getByLabel("Substrate Net")).toHaveCount(0);
-  await expectComponentCodeField(page, "reference", "Q1");
+  await expectComponentCodeField(page, "netlistName", "Q1");
 });
 
 for (const fixture of [
@@ -6115,7 +6121,7 @@ for (const fixture of [
     await setComponentCodeField(page, "netlistTarget", fixture.model);
     await expectComponentCodeField(
       page,
-      "reference",
+      "netlistName",
       fixture.externalReference,
     );
     expect(
@@ -6129,7 +6135,11 @@ for (const fixture of [
 
     await setComponentCodeField(page, "netlistTarget", "");
     await expectComponentCodeField(page, "netlistTarget", "");
-    await expectComponentCodeField(page, "reference", fixture.nativeReference);
+    await expectComponentCodeField(
+      page,
+      "netlistName",
+      fixture.nativeReference,
+    );
     await expectComponentCodeField(
       page,
       `parameters.${fixture.primitiveParameter}`,

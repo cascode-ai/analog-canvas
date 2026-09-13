@@ -68,7 +68,7 @@ properties together as strict, editable JSON. For example, a resistor:
 
 ```json
 {
-  "reference": "R1",
+  "netlistName": "R1",
   "parameters": { "value": "10k", "tc": "0.1" },
   "netlistTarget": "",
   "placement": {
@@ -77,7 +77,7 @@ properties together as strict, editable JSON. For example, a resistor:
     "mirror": "none"
   },
   "display": {
-    "reference": true,
+    "visualAnnotation": true,
     "value": false
   },
   "appearance": {
@@ -86,7 +86,9 @@ properties together as strict, editable JSON. For example, a resistor:
 }
 ```
 
-`placement.at` is the `[x, y]` grid coordinate, rotation is restricted to
+`netlistName` is the electrical instance name used by netlist export;
+`display.visualAnnotation` only controls whether its drawing annotation is
+visible. `placement.at` is the `[x, y]` grid coordinate, rotation is restricted to
 45-degree steps, and mirror is `"none"`, `"horizontal"`, `"vertical"`, or
 `"both"`. Display keys appear only for
 annotations supported by that Symbol; when present, the `display` object is
@@ -109,7 +111,9 @@ root keys and invalid values are rejected without changing the Document.
 `parameters` contains descriptor-owned values and arbitrary model/dialect
 overrides as raw strings; empty values or removed keys unset a parameter.
 `netlistTarget` accepts model names, including reviewed external targets, and
-an empty string clears it. A target switch composes the existing structural
+an empty string clears it. Its JSON value carries a compact inline selector
+populated from reviewed targets while preserving authored custom values. A
+target switch composes the existing structural
 planner with the rest of the draft into one project transaction. No new
 project format or parallel netlist authority is introduced.
 
@@ -121,10 +125,12 @@ and Cell-level interface/layout operations retain their existing typed
 authoring surfaces; removing a component remains an explicit Delete action.
 
 The lazy JSON editor provides syntax highlighting, bracket matching, JSON
-diagnostics and local text undo. Its document is ordinary selectable text with
-no injected comments or control values. Canvas-layer field metadata still owns
+diagnostics and local text undo. Its document remains ordinary selectable raw
+JSON. Descriptor-owned parameter values show their declared unit as a non-data
+line annotation, and `netlistTarget` carries a compact non-data selector.
+Canvas-layer field metadata still owns
 validation of rotation, mirror, color channels, and other bounded values. A
-small, non-text switch is visually decorated after each `display.reference` and
+small, non-text switch is visually decorated after each `display.visualAnnotation` and
 `display.value` boolean for immediate visibility toggling. Compact action
 buttons after `placement.rotation` and `placement.mirror` cycle clockwise
 through the eight 45-degree orientations and reflect left/right or top/bottom. Horizontal
@@ -143,7 +149,7 @@ editor without applying legacy form drafts or discarding incomplete text.
 **Discard draft** restores the last accepted state when
 the draft is invalid or rejected, without changing the circuit.
 **Defaults** loads known parameter, orientation, color, and formula defaults
-immediately and remains undoable; it preserves coordinates, reference, model
+immediately and remains undoable; it preserves coordinates, netlist name, model
 target, display flags, and unknown overrides. Defaults sits in the Properties
 header with Copy and conditional Discard; there is no Apply button.
 **Copy JSON** copies

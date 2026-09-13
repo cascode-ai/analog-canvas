@@ -22,7 +22,7 @@ export interface ComponentPropertyDetailsContext {
 }
 
 export interface ComponentPropertyDetailsValue {
-  reference?: string;
+  netlistName?: string;
   parameters?: Record<string, string>;
   netlistTarget?: string;
   symbol?: string;
@@ -49,7 +49,7 @@ export function componentPropertyDetailsValue(
 ): ComponentPropertyDetailsValue {
   if (!context) return {};
   return {
-    ...(instance.reference ? { reference: instance.reference } : {}),
+    ...(instance.reference ? { netlistName: instance.reference } : {}),
     ...(instance.netlist
       ? {
           parameters: {
@@ -85,7 +85,7 @@ export function parseComponentPropertyDetails(
   const baseline = componentPropertyDetailsValue(instance, context);
   const result: ComponentPropertyDetailsValue = {};
   for (const key of [
-    "reference",
+    "netlistName",
     "parameters",
     "netlistTarget",
     "symbol",
@@ -178,10 +178,10 @@ export function componentDetailFields(
       description: "",
     },
     {
-      path: "reference",
-      label: "Reference",
+      path: "netlistName",
+      label: "Netlist name",
       kind: "text",
-      description: "Netlist name",
+      description: "",
       help: "Unique electrical instance name in this Cell. Double-click the drawing label to edit its visual text independently.",
     },
     {
@@ -199,7 +199,7 @@ export function componentDetailFields(
     })),
     {
       path: "netlistTarget",
-      label: "Model",
+      label: "Target netlist",
       kind: context.modelTarget?.suggestions.length ? "choice" : "text",
       options: [
         ...new Set([
@@ -208,7 +208,7 @@ export function componentDetailFields(
           context.modelTarget?.defaultValue ?? "",
         ]),
       ].map((value) => ({ value, label: value || "None" })),
-      description: 'Model name · "": clear',
+      description: "",
       help: "Choose a suggested model or type a custom model name in JSON. An empty string clears the target; model compatibility checks still apply.",
     },
     {
@@ -219,7 +219,7 @@ export function componentDetailFields(
         value,
         label: value,
       })),
-      description: "Pin-compatible variant",
+      description: "",
     },
     ...(componentInternalMark(instance) === undefined
       ? [
@@ -227,7 +227,7 @@ export function componentDetailFields(
             path: "signalFlow",
             label: "Signal flow",
             kind: "text" as const,
-            description: "Presentation only",
+            description: "",
           },
         ]
       : []),

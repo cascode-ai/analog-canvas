@@ -21,7 +21,7 @@ describe("planComponentPropertyCodeEdits", () => {
     expect(
       planComponentPropertyCodeEdits(document, instance, {
         placement: { at: [123, 177], rotation: 90, mirror: "horizontal" },
-        display: { reference: true, value: false },
+        display: { visualAnnotation: true, value: false },
         appearance: { foreground: "#DC2626" },
       }),
     ).toEqual([
@@ -56,7 +56,7 @@ describe("planComponentPropertyCodeEdits", () => {
     expect(
       planComponentPropertyCodeEdits(document, instance, {
         placement: { at: [100, 100], rotation: 0, mirror: "none" },
-        display: { reference: true, value: false },
+        display: { visualAnnotation: true, value: false },
         appearance: { foreground: "auto" },
       }),
     ).toEqual([]);

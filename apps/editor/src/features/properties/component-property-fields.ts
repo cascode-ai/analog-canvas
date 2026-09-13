@@ -60,11 +60,11 @@ export const CANVAS_PROPERTY_FIELDS: readonly CanvasPropertyField[] = [
     help: "Horizontal flips left/right; vertical flips top/bottom. Mirror directions are independent and never rewrite rotation.",
   },
   {
-    path: "display.reference",
-    label: "Reference",
+    path: "display.visualAnnotation",
+    label: "Visual annotation",
     kind: "boolean",
     description: "",
-    help: "Show or hide the instance reference label without renaming its electrical identity.",
+    help: "Show or hide the visual instance annotation without changing its netlist name.",
   },
   {
     path: "display.value",
