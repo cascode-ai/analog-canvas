@@ -5,6 +5,7 @@ import {
   type RoutingSelectionSeed,
 } from "@icm/derived";
 import type { SchematicDocument } from "@icm/model";
+import { withPowerMarkerOwnership } from "./power-marker-ownership.js";
 
 export interface RoutingCopyCapture {
   readonly affected: RoutingAffectedClosure;
@@ -35,6 +36,7 @@ export function captureRoutingCopyFragment(
   seed: RoutingSelectionSeed,
   options: RoutingCopyCaptureOptions = {},
 ): RoutingCopyCapture {
+  document = withPowerMarkerOwnership(document);
   const affected = deriveRoutingAffectedClosure(document, seed, options);
   const selectedInstances = new Set(affected.instances);
   const selectedAnnotations = new Set([

@@ -277,6 +277,10 @@ Topology operations have these preconditions:
   authoring uses the name-first power and named-Net planners; a transaction
   cannot silently add a canonical name, change scope, or repair a duplicate
   Net after the caller's explicit edits have run.
+  The bounded legacy marker-ownership capture before a cut preserves an
+  already-resolved supply identity on each marker; it does not infer a new
+  supply or normalize physical Nets. See the connectivity contract for
+  source-backed Ground repair at the explicit import boundary.
 - `move_junction` preserves topology and must be paired with `set_route_path`
   edits for every incident Route whose geometry changes in the same
   transaction. GUI movement planners always author those Route edits; Routes

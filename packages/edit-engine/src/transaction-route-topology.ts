@@ -8,6 +8,7 @@ import {
 import type { SymbolResolver } from "@icm/symbols";
 
 import type { EditTransaction } from "./edit-schema.js";
+import { missingPowerMarkerClaims } from "./power-marker-ownership.js";
 import {
   type EditMutationOutcome,
   type RejectEdit,
@@ -435,6 +436,44 @@ export function applyRouteTopologyEdit(
         return rejectAt(
           "OBJECT_NOT_FOUND",
           `Route Net does not exist: ${route.netId}`,
+        );
+      }
+      // Capture inherited marker authority before any physical partition.
+      // Owner retargeting below then follows every surviving marker, not just
+      // the component that happens to retain the imported Base-Net ID.
+      for (const claim of missingPowerMarkerClaims(draft, { netId: net.id })) {
+        draft.connectivityEvidence.push(claim);
+        changedObjectIds.add(claim.id);
+      }
+      // Once visible Ground markers own node 0, an inherited source-wide
+      // declaration must not keep a newly detached, unmarked pin grounded.
+      const hasGroundOwner = draft.connectivityEvidence.some(
+        (claim) =>
+          claim.kind === "name-claim" &&
+          claim.netId === net.id &&
+          claim.name === "0" &&
+          claim.scope === "global" &&
+          claim.owner.kind === "power-marker" &&
+          draft.instances.some(
+            (instance) =>
+              claim.owner.kind === "power-marker" &&
+              instance.id === claim.owner.objectId &&
+              instance.symbolId === "ground",
+          ),
+      );
+      if (hasGroundOwner) {
+        draft.connectivityEvidence = draft.connectivityEvidence.filter(
+          (claim) => {
+            if (
+              claim.kind !== "name-claim" ||
+              claim.netId !== net.id ||
+              claim.owner.kind !== "global-declaration" ||
+              claim.name !== "0"
+            )
+              return true;
+            changedObjectIds.add(claim.id);
+            return false;
+          },
         );
       }
       const bulkDefaultBeforeCut =
