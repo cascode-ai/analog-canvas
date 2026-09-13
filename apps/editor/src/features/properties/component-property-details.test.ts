@@ -65,6 +65,14 @@ describe("unified component property details", () => {
   });
   it("round-trips authored strings, overrides, and model target without unit conversion", () => {
     const source = formatComponentPropertyCode(context);
+    expect(Object.keys(JSON.parse(source))).toEqual([
+      "placement",
+      "appearance",
+      "display",
+      "parameters",
+      "netlistName",
+      "netlistTarget",
+    ]);
     expect(JSON.parse(source)).toMatchObject({
       netlistName: "M1",
       parameters: instance.netlist!.parameters,

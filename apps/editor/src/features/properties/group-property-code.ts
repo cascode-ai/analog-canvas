@@ -125,7 +125,6 @@ export function serializeGroupPropertyCode(
 ): string {
   const source = JSON.stringify(
     {
-      display: value.display,
       appearance: {
         foreground:
           value.appearance.foreground === "auto" ||
@@ -133,6 +132,7 @@ export function serializeGroupPropertyCode(
             ? value.appearance.foreground
             : colorToRgb(value.appearance.foreground),
       },
+      display: value.display,
     },
     null,
     2,

@@ -34,10 +34,6 @@ const context = {
 describe("component property code", () => {
   it("formats placement as one coordinate and makes display/style explicit", () => {
     expect(formatComponentPropertyCode(context)).toBe(`{
-  "display": {
-    "visualAnnotation": true,
-    "value": false
-  },
   "placement": {
     "at": [360, 240],
     "rotation": 90,
@@ -45,6 +41,10 @@ describe("component property code", () => {
   },
   "appearance": {
     "foreground": "auto"
+  },
+  "display": {
+    "visualAnnotation": true,
+    "value": false
   }
 }`);
   });

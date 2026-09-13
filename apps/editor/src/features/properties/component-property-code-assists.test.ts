@@ -82,13 +82,13 @@ describe("Canvas property assistance", () => {
   it("addresses all available fields by syntax path and preserves unrelated draft bytes", () => {
     const source = formatComponentPropertyCode(context);
     expect(propertyCodeSpans(source).map((span) => span.field.path)).toEqual([
-      "display.visualAnnotation",
-      "display.value",
       "placement.at",
       "placement.rotation",
       "placement.mirror",
       "appearance",
       "appearance.foreground",
+      "display.visualAnnotation",
+      "display.value",
     ]);
     const changed = apply(
       source,

@@ -29,6 +29,7 @@ function apply(
 describe("batch component property code", () => {
   it("represents differing selection values explicitly", () => {
     const source = formatGroupPropertyCode(context);
+    expect(Object.keys(JSON.parse(source))).toEqual(["appearance", "display"]);
     expect(JSON.parse(source)).toEqual({
       display: { visualAnnotation: "mixed", value: false },
       appearance: { foreground: "mixed" },

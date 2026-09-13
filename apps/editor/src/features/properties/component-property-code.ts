@@ -245,11 +245,16 @@ export function componentPropertyCodeValue(
 export function serializeComponentPropertyCode(
   value: ComponentPropertyCodeValue,
 ): string {
-  const { display, placement, appearance, ...details } = value;
+  const {
+    placement,
+    appearance,
+    display,
+    netlistName,
+    netlistTarget,
+    ...details
+  } = value;
   const source = JSON.stringify(
     {
-      ...(display ? { display } : {}),
-      ...details,
       placement,
       appearance: {
         foreground:
@@ -263,6 +268,10 @@ export function serializeComponentPropertyCode(
           ? { inputPolarity: appearance.inputPolarity }
           : {}),
       },
+      ...(display ? { display } : {}),
+      ...details,
+      netlistName,
+      netlistTarget,
     },
     null,
     2,
