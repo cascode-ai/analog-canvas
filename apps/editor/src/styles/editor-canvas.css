@@ -648,6 +648,10 @@
   background: var(--icm-accent-tint);
 }
 
+.rich-text-floating-toolbar button[aria-label="Decrease text size"] {
+  margin-left: auto;
+}
+
 .rich-text-toolbar-separator {
   flex: 0 0 1px;
   width: 1px;

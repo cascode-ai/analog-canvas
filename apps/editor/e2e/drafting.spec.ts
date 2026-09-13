@@ -2287,10 +2287,26 @@ test("centers fraction parts on a content-sized bar and defaults notes to bold",
   const measure = async (target: Locator) =>
     target.evaluate((element) => {
       const bounds = (role: string) => {
-        const box = element
-          .querySelector<SVGGraphicsElement>(`[data-role="fraction-${role}"]`)!
-          .getBBox();
-        return { x: box.x, width: box.width, center: box.x + box.width / 2 };
+        const part = element.querySelector<SVGGraphicsElement>(
+          `[data-role="fraction-${role}"]`,
+        )!;
+        if (role === "bar") {
+          const box = part.getBBox();
+          return { x: box.x, width: box.width, center: box.x + box.width / 2 };
+        }
+        // Center the browser's actual typographic advances. getBBox includes
+        // platform-specific glyph overhang, which is not the textLength that
+        // positions the parts and sizes the bar (Linux GmR extends by 0.27).
+        const positions = Array.from(part.querySelectorAll("text")).flatMap(
+          (text) =>
+            Array.from({ length: text.getNumberOfChars() }, (_, index) => [
+              text.getStartPositionOfChar(index).x,
+              text.getEndPositionOfChar(index).x,
+            ]).flat(),
+        );
+        const x = Math.min(...positions);
+        const width = Math.max(...positions) - x;
+        return { x, width, center: x + width / 2 };
       };
       return {
         top: bounds("numerator"),

@@ -4501,10 +4501,24 @@ test("value display projects MOS W/L and passive values beside the reference", a
   await expect(value).toContainText("×4");
   await expect(page.locator('[data-role="fraction-bar"]')).toHaveCount(1);
   const fractionCenters = await value.evaluate((element) => {
-    const box = (role: string) =>
-      element
-        .querySelector<SVGGraphicsElement>(`[data-role="fraction-${role}"]`)!
-        .getBBox();
+    const box = (role: string) => {
+      const part = element.querySelector<SVGGraphicsElement>(
+        `[data-role="fraction-${role}"]`,
+      )!;
+      if (role === "bar") return part.getBBox();
+      // Compare typographic advances, not platform-specific ink overhang.
+      const texts = part.matches("text")
+        ? [part as SVGTextElement]
+        : Array.from(part.querySelectorAll("text"));
+      const positions = texts.flatMap((text) =>
+        Array.from({ length: text.getNumberOfChars() }, (_, index) => [
+          text.getStartPositionOfChar(index).x,
+          text.getEndPositionOfChar(index).x,
+        ]).flat(),
+      );
+      const x = Math.min(...positions);
+      return { x, width: Math.max(...positions) - x };
+    };
     const bar = box("bar");
     return [box("numerator"), box("denominator")].map((part) => ({
       centerGap: Math.abs(part.x + part.width / 2 - bar.x - bar.width / 2),
@@ -7484,14 +7498,22 @@ test("swaps a comparator's + and - without turning the body over", async ({
       // The + is the only vertical stroke among the polarity marks.
       plusMarkY: Array.from(element.querySelectorAll("line"))
         .filter((line) => line.getAttribute("x1") === line.getAttribute("x2"))
-        .map((line) => Number(line.getAttribute("y1"))),
+        .map(
+          (line) =>
+            (Number(line.getAttribute("y1")) +
+              Number(line.getAttribute("y2"))) /
+            2,
+        ),
     }));
 
   const before = await readBody();
   expect(before.plusMarkY).toHaveLength(1);
   expect(before.plusMarkY[0]!).toBeGreaterThan(0);
 
-  await setComponentCodeField(page, "symbol", "comparator-inputs-swapped");
+  await setComponentCodeField(page, "appearance.inputsSwapped", true);
+  await expect
+    .poll(async () => (await readBody()).plusMarkY)
+    .toEqual([-before.plusMarkY[0]!]);
 
   const after = await readBody();
   // The + crossed to the other input.
