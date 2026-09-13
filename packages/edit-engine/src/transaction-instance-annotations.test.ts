@@ -1,7 +1,13 @@
-import { createEmptyDocument, SchematicDocumentSchema } from "@icm/model";
+import {
+  createEmptyDocument,
+  reflectOrientation,
+  SchematicDocumentSchema,
+} from "@icm/model";
 import type { Annotation, SchematicDocument } from "@icm/model";
 import {
   defaultInstanceLabelPlacement,
+  defaultInstanceParameterLabelPlacement,
+  defaultVddPowerLabelPlacement,
   resolveDocumentStyleProfile,
 } from "@icm/derived";
 import { InMemorySymbolResolver, builtInSymbols } from "@icm/symbols";
@@ -208,4 +214,162 @@ describe("followAttachedAnnotations rigid fallback", () => {
     );
     expect(annotation.alignment).toBe("end");
   });
+});
+
+describe("attached text reflection", () => {
+  const cases = [
+    { symbolId: "nmos", kind: "instance-label" as const },
+    { symbolId: "nmos", kind: "instance-value" as const },
+    { symbolId: "resistor", kind: "instance-value" as const },
+    { symbolId: "opamp", kind: "instance-label" as const },
+    { symbolId: "port", kind: "instance-label" as const },
+    { symbolId: "port-filled", kind: "instance-label" as const },
+    { symbolId: "vdd-port", kind: "power-label" as const },
+    { symbolId: "xfmr", kind: "instance-value" as const, parameter: "k" },
+    { symbolId: "tcoil", kind: "instance-value" as const, parameter: "l1" },
+  ];
+  it.each(cases)(
+    "reflects existing $symbolId $kind positions instead of choosing a new default side",
+    ({ symbolId, kind, ...extra }) => {
+      for (const rotation of [0, 45, 90] as const) {
+        for (const direction of ["left-right", "top-bottom"] as const) {
+          const document = createEmptyDocument("reflected", "Reflected labels");
+          const instance = {
+            id: "U1",
+            symbolId,
+            placement: {
+              position: { x: 200, y: 100 },
+              rotation,
+              mirror: "none" as const,
+            },
+          };
+          document.instances.push(instance);
+          const resolved = resolver.resolve(symbolId)!;
+          const profile = resolveDocumentStyleProfile(document.presentation);
+          const parameter = "parameter" in extra ? extra.parameter : undefined;
+          const initial = parameter
+            ? defaultInstanceParameterLabelPlacement(
+                instance,
+                resolved,
+                profile,
+                10,
+                parameter,
+              )
+            : kind === "power-label"
+              ? defaultVddPowerLabelPlacement(instance, resolved, 10)
+              : defaultInstanceLabelPlacement(
+                  instance,
+                  resolved,
+                  profile,
+                  10,
+                  kind === "instance-value" ? "value" : "reference",
+                );
+          if (!initial) throw new Error(`Missing ${symbolId} label placement`);
+          const annotation: Annotation = {
+            id: kind === "power-label" ? "power-label-u1" : "label-u1",
+            kind,
+            ...(parameter
+              ? {
+                  binding: {
+                    kind: "instance-value" as const,
+                    instanceId: "U1",
+                    parameter,
+                  },
+                }
+              : symbolId.startsWith("port")
+                ? {
+                    binding: {
+                      kind: "cell-terminal-name" as const,
+                      terminalId: "cell-u1",
+                    },
+                  }
+                : {
+                    content: {
+                      runs: [{ kind: "text" as const, value: "Label" }],
+                    },
+                  }),
+            anchor: {
+              kind: "object",
+              objectId: "U1",
+              localOffset: {
+                x: initial.position.x - 200,
+                y: initial.position.y - 100,
+              },
+              fallbackPosition: initial.position,
+            },
+            alignment: initial.alignment,
+            rotation: 0,
+            locked: false,
+          };
+          document.annotations.push(annotation);
+          const before = structuredClone(annotation);
+          const oldPosition = instance.placement.position;
+          const oldOrientation = {
+            rotation: instance.placement.rotation,
+            mirror: instance.placement.mirror,
+          };
+          const newPosition = { x: 400, y: 300 };
+          const newOrientation = reflectOrientation(oldOrientation, direction);
+          document.instances[0]!.placement = {
+            position: newPosition,
+            ...newOrientation,
+          };
+          const changed = new Set<string>();
+          followAttachedAnnotations(
+            document,
+            "U1",
+            oldPosition,
+            oldOrientation,
+            newPosition,
+            newOrientation,
+            changed,
+            resolver,
+          );
+          if (before.anchor.kind !== "object") throw new Error("anchor");
+          const expectedOffset = {
+            x:
+              before.anchor.localOffset.x *
+              (direction === "left-right" ? -1 : 1),
+            y:
+              before.anchor.localOffset.y *
+              (direction === "top-bottom" ? -1 : 1),
+          };
+          expect(annotation.anchor).toEqual({
+            kind: "object",
+            objectId: "U1",
+            localOffset: expectedOffset,
+            fallbackPosition: {
+              x: newPosition.x + expectedOffset.x,
+              y: newPosition.y + expectedOffset.y,
+            },
+          });
+          expect(annotation.alignment).toBe(
+            direction === "left-right" && before.alignment !== "middle"
+              ? before.alignment === "start"
+                ? "end"
+                : "start"
+              : before.alignment,
+          );
+          expect(annotation.rotation).toBe(0);
+          expect(annotation.binding).toEqual(before.binding);
+          expect(changed).toContain(annotation.id);
+          document.instances[0]!.placement = {
+            position: oldPosition,
+            ...oldOrientation,
+          };
+          followAttachedAnnotations(
+            document,
+            "U1",
+            newPosition,
+            newOrientation,
+            oldPosition,
+            oldOrientation,
+            changed,
+            resolver,
+          );
+          expect(annotation).toEqual(before);
+        }
+      }
+    },
+  );
 });

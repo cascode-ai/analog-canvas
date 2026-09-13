@@ -124,39 +124,57 @@ describe("magnetic parameter display", () => {
     expect(() => show(document, { k: true })).toThrow("Set K");
   });
   it.each(["xfmr", "tcoil"])(
-    "keeps untouched %s rows separated and upright through every orientation",
+    "keeps %s parameter rows readable and reflects the whole column",
     (symbolId) => {
-      let document = show(
-        fixture(symbolId),
-        symbolId === "xfmr"
-          ? { k: true, lp: true, ls: true }
-          : { k: true, l1: true, l2: true, cb: true },
-      );
-      for (const mirror of [
-        "none",
-        "horizontal",
-        "vertical",
-        "both",
-      ] as const) {
-        for (const rotation of [
-          0, 45, 90, 135, 180, 225, 270, 315,
-        ] as Rotation[]) {
-          document = apply(document, [
-            { kind: "rotate_instance", instanceId: "T1", rotation },
+      for (const rotation of [
+        0, 45, 90, 135, 180, 225, 270, 315,
+      ] as Rotation[]) {
+        const initial = show(
+          fixture(symbolId),
+          symbolId === "xfmr"
+            ? { k: true, lp: true, ls: true }
+            : { k: true, l1: true, l2: true, cb: true },
+        );
+        const rotated = apply(initial, [
+          { kind: "rotate_instance", instanceId: "T1", rotation },
+        ]);
+        const originalPositions = rotated.annotations.map((annotation) => {
+          expect(annotation.rotation).toBe(0);
+          expect(annotation.alignment).toBe("start");
+          if (annotation.anchor.kind !== "object") throw new Error("anchor");
+          return annotation.anchor.fallbackPosition;
+        });
+        for (let i = 1; i < originalPositions.length; i++) {
+          expect(
+            originalPositions[i]!.y - originalPositions[i - 1]!.y,
+          ).toBeGreaterThanOrEqual(20);
+        }
+        for (const mirror of ["horizontal", "vertical", "both"] as const) {
+          const mirrored = apply(rotated, [
             { kind: "mirror_instance", instanceId: "T1", mirror },
           ]);
-          const positions = document.annotations.map((annotation) => {
-            expect(annotation.rotation).toBe(0);
-            expect(annotation.alignment).toBe("start");
-            if (annotation.anchor.kind !== "object") throw new Error("anchor");
-            expect(annotation.anchor.fallbackPosition.x).toBeGreaterThan(100);
-            return annotation.anchor.fallbackPosition;
+          mirrored.annotations.forEach((annotation, index) => {
+            const before = originalPositions[index]!;
+            const horizontal = mirror === "horizontal" || mirror === "both";
+            const vertical = mirror === "vertical" || mirror === "both";
+            expect(annotation).toMatchObject({
+              rotation: 0,
+              alignment: horizontal ? "end" : "start",
+              anchor: {
+                fallbackPosition: {
+                  x: horizontal ? 200 - before.x : before.x,
+                  y: vertical ? 200 - before.y : before.y,
+                },
+              },
+            });
+            expect(resolveAnnotationText(mirrored, annotation)).toEqual(
+              resolveAnnotationText(rotated, rotated.annotations[index]!),
+            );
           });
-          expect(new Set(positions.map((position) => position.x)).size).toBe(1);
-          for (let i = 1; i < positions.length; i++)
-            expect(
-              positions[i]!.y - positions[i - 1]!.y,
-            ).toBeGreaterThanOrEqual(20);
+          const restored = apply(mirrored, [
+            { kind: "mirror_instance", instanceId: "T1", mirror: "none" },
+          ]);
+          expect(restored.annotations).toEqual(rotated.annotations);
         }
       }
     },

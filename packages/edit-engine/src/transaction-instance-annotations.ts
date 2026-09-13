@@ -1,5 +1,6 @@
 import {
   inverseTransformPoint,
+  mirrorScale,
   rewriteRichTextPlainText,
   snapGridPoint,
   transformPoint,
@@ -441,11 +442,43 @@ export function followAttachedAnnotations(
   const resolved = instance
     ? resolver?.resolve(instance.symbolId, instance.symbolVariantId)
     : undefined;
+  const reflection =
+    oldOrientation.rotation === newOrientation.rotation &&
+    oldOrientation.mirror !== newOrientation.mirror;
+  const oldMirror = mirrorScale(oldOrientation.mirror);
+  const newMirror = mirrorScale(newOrientation.mirror);
   for (const annotation of draft.annotations) {
     if (
       annotation.anchor.kind !== "object" ||
       annotation.anchor.objectId !== instanceId
     ) {
+      continue;
+    }
+    if (reflection) {
+      // Mirror the authored text attachment in screen space, including the
+      // value-row offset. Re-running default placement would pin power and
+      // magnetic labels to the right and keep values below their references.
+      // Glyphs retain their readable orientation; horizontal alignment changes
+      // with the side on which the text extends from its anchor.
+      const horizontal = oldMirror.x * newMirror.x;
+      const vertical = oldMirror.y * newMirror.y;
+      const localOffset = {
+        x: annotation.anchor.localOffset.x * horizontal,
+        y: annotation.anchor.localOffset.y * vertical,
+      };
+      annotation.anchor = {
+        ...annotation.anchor,
+        localOffset,
+        fallbackPosition: {
+          x: newPosition.x + localOffset.x,
+          y: newPosition.y + localOffset.y,
+        },
+      };
+      if (horizontal < 0 && annotation.alignment !== "middle") {
+        annotation.alignment =
+          annotation.alignment === "start" ? "end" : "start";
+      }
+      changedObjectIds.add(annotation.id);
       continue;
     }
     const visiblePosition = {
