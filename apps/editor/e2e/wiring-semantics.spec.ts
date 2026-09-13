@@ -149,6 +149,84 @@ test("clicking a junction dot selects it and Delete disconnects the tap", async 
   );
 });
 
+for (const fixedVerticalLeg of [false, true]) {
+  test(`middle clicks reach 45 degrees after one corner flip${fixedVerticalLeg ? " after a fixed vertical leg" : ""}`, async ({
+    page,
+  }) => {
+    await page.goto("/editor");
+    await clickDrawTool(page, "wire");
+    const canvas = page.getByTestId("schematic-canvas");
+    await awaitCanvasSettled(canvas);
+    const [start, bend, end] = await onScreen(canvas, [
+      { x: 100, y: 100 },
+      { x: 100, y: 140 },
+      { x: 260, y: 200 },
+    ]);
+    await page.mouse.click(start!.x, start!.y);
+    if (fixedVerticalLeg) await page.mouse.click(bend!.x, bend!.y);
+    await page.mouse.move(end!.x, end!.y);
+    const preview = page.getByTestId("wire-preview");
+    const points = () =>
+      preview.evaluate((element) =>
+        Array.from((element as SVGPolylineElement).points).map(({ x, y }) => ({
+          x,
+          y,
+        })),
+      );
+    await expect(preview).toBeVisible();
+    const original = await points();
+    const middle = () => page.mouse.click(end!.x, end!.y, { button: "middle" });
+
+    await middle();
+    await expect(page.getByTestId("status")).toContainText(
+      fixedVerticalLeg ? "horizontal first" : "vertical first",
+    );
+    const flipped = await points();
+    expect(flipped).not.toEqual(original);
+    expect(
+      flipped.every(
+        (point, index) =>
+          index === 0 ||
+          point.x === flipped[index - 1]!.x ||
+          point.y === flipped[index - 1]!.y,
+      ),
+    ).toBe(true);
+
+    await middle();
+    await expect(page.getByTestId("status")).toContainText("45° diagonal");
+    const diagonal = await points();
+    expect(
+      diagonal.some((point, index) => {
+        if (!index) return false;
+        const dx = Math.abs(point.x - diagonal[index - 1]!.x);
+        const dy = Math.abs(point.y - diagonal[index - 1]!.y);
+        return dx > 0 && dx === dy;
+      }),
+    ).toBe(true);
+    await middle();
+    await expect(page.getByTestId("status")).toContainText("any angle");
+    await middle();
+    await expect(page.getByTestId("status")).toContainText("auto");
+    expect(await points()).toEqual(original);
+    await expect(page.getByTestId("revision")).toHaveText("0");
+    await expect(page.locator('[data-canvas-hit-kind="route"]')).toHaveCount(0);
+
+    await middle();
+    await middle();
+    await page.mouse.dblclick(end!.x, end!.y);
+    await expect(page.locator('[data-layer="routes"] polyline')).toHaveCount(1);
+    const committed = await page
+      .locator('[data-layer="routes"] polyline')
+      .evaluate((element) =>
+        Array.from((element as SVGPolylineElement).points).map(({ x, y }) => ({
+          x,
+          y,
+        })),
+      );
+    expect(committed).toEqual(diagonal);
+  });
+}
+
 test("middle click cycles the wire corner and never commits the wire", async ({
   page,
 }) => {

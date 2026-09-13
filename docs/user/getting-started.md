@@ -113,7 +113,10 @@ is defined.
   `Ctrl+Z` to undo, and `Ctrl+Y` or `Ctrl+Shift+Z` to redo. Shortcuts do not
   fire while typing in a field.
 - Use `Ctrl`+mouse wheel to zoom around the cursor and middle-button drag to
-  pan. View changes do not increment the Document revision.
+  pan. While wiring, a middle click cycles **opposite right-angle corner →
+  45° → any angle → automatic right-angle corner**. Auto follows the incoming
+  leg; it is one of the two right-angle shapes, not a third extra stop.
+  View changes do not increment the Document revision.
 
 ## Editing multiple components
 

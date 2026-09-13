@@ -7828,7 +7828,7 @@ test("dragging a wire previews the orthogonal path it will commit", async ({
   // shape the report was about.
   await clickDrawTool(page, "wire");
   await page.getByTestId("terminal-R1-2").click();
-  for (let step = 0; step < 4; step += 1) {
+  for (let step = 0; step < 3; step += 1) {
     await canvas.click({ button: "middle", position: { x: 380, y: 260 } });
   }
   await canvas.dblclick({ position: { x: 520, y: 300 } });
@@ -7912,7 +7912,7 @@ test("draws a wire at an angle the 45-degree grid cannot reach", async ({
 
   await canvas.click({ position: { x: 200, y: 200 } });
   // Middle-click cycles the corner shape and ends on any angle.
-  for (let step = 0; step < 4; step += 1) {
+  for (let step = 0; step < 3; step += 1) {
     await canvas.click({ button: "middle", position: { x: 260, y: 240 } });
   }
   await expect(page.getByTestId("status")).toContainText("any angle");
@@ -7954,7 +7954,7 @@ test("keeps the chosen corner shape when the wire tool is picked again", async (
   const canvas = page.getByTestId("schematic-canvas");
   await clickDrawTool(page, "wire");
   await canvas.click({ position: { x: 200, y: 200 } });
-  for (let step = 0; step < 4; step += 1) {
+  for (let step = 0; step < 3; step += 1) {
     await canvas.click({ button: "middle", position: { x: 260, y: 240 } });
   }
   await expect(page.getByTestId("status")).toContainText("any angle");

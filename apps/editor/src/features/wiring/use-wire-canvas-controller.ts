@@ -34,39 +34,9 @@ import {
   type WireCanvasSnapResult,
 } from "./wire-canvas-snap";
 import { wireDraftTargetFromSnap } from "./wire-draft-preview";
+import { nextWireCornerShape } from "./wire-corner-shape";
 
 const SNAP_CAPTURE_RADIUS_PX = 7;
-const WIRE_CORNER_SHAPES = [
-  {
-    routingMode: "orthogonal",
-    cornerOrder: "auto",
-    label: "auto",
-  },
-  {
-    routingMode: "orthogonal",
-    cornerOrder: "vertical-first",
-    label: "vertical first",
-  },
-  {
-    routingMode: "orthogonal",
-    cornerOrder: "horizontal-first",
-    label: "horizontal first",
-  },
-  {
-    routingMode: "octilinear",
-    cornerOrder: "diagonal-first",
-    label: "45° diagonal",
-  },
-  {
-    routingMode: "free",
-    cornerOrder: "auto",
-    label: "any angle",
-  },
-] as const satisfies readonly {
-  routingMode: WireRoutingMode;
-  cornerOrder: WireCornerOrder;
-  label: string;
-}[];
 
 export interface UseWireCanvasControllerOptions {
   model: {
@@ -233,14 +203,12 @@ export function useWireCanvasController({
     );
 
   const cycleWireCornerShape = (): void => {
-    // Auto is a real stop: vertical-first follows it so the first middle press
-    // visibly changes the preview instead of repeating auto's horizontal leg.
-    const index = WIRE_CORNER_SHAPES.findIndex(
-      (shape) =>
-        shape.routingMode === wireRoutingMode &&
-        shape.cornerOrder === wireCornerOrder,
+    const next = nextWireCornerShape(
+      wireRoutingMode,
+      wireCornerOrder,
+      wireSource,
+      wireDraftSteps,
     );
-    const next = WIRE_CORNER_SHAPES[(index + 1) % WIRE_CORNER_SHAPES.length]!;
     lastWireShapeRef.current = next;
     if (next.routingMode !== wireRoutingMode) {
       setWireRoutingMode(next.routingMode);
