@@ -3,10 +3,52 @@ import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
 
 import { normalizeImportedProjectConductors } from "./project-conductor-normalization";
+import { resolveDocumentLogicalNets } from "@icm/derived";
+import { parseProject, serializeProject } from "@icm/project-protocol";
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);
 
 describe("imported Project conductor normalization", () => {
+  it("repairs proven split Ground markers once, preserves geometry, and survives save/reopen", () => {
+    const project = createEmptyProject("split-ground", "Ground");
+    const document = project.documents[0]!;
+    for (const id of ["G1", "G2"]) {
+      document.instances.push({ id, symbolId: "ground", placement: null });
+      document.nets.push({
+        id: `net-${id}`,
+        terminals: [{ instanceId: id, pinName: "0" }],
+      });
+      document.connectivityEvidence.push({
+        id: `source-${id}`,
+        kind: "spice-source",
+        netId: `net-${id}`,
+        sourceNetId: "original-0",
+      });
+    }
+    document.connectivityEvidence.push({
+      id: "global",
+      kind: "name-claim",
+      netId: "net-G1",
+      name: "0",
+      scope: "global",
+      powerDomain: "ground",
+      owner: { kind: "global-declaration", sourceNetId: "original-0" },
+    });
+    const repaired = normalizeImportedProjectConductors(project, resolver);
+    expect(repaired.changedDocumentIds).toEqual([document.id]);
+    expect(repaired.project.documents[0]!.nets).toEqual(document.nets);
+    expect(repaired.project.documents[0]!.sourceStatus).toBe(
+      "connectivity-modified",
+    );
+    expect(
+      resolveDocumentLogicalNets(repaired.project.documents[0]!).groups,
+    ).toHaveLength(1);
+    const reopened = parseProject(serializeProject(repaired.project));
+    expect(
+      normalizeImportedProjectConductors(reopened, resolver).changedDocumentIds,
+    ).toEqual([]);
+    expect(document.connectivityEvidence).toHaveLength(3);
+  });
   it("repairs every legacy overlap in the imported copy only", () => {
     const project = createEmptyProject("legacy-overlap", "Legacy overlap");
     const document = project.documents[0]!;

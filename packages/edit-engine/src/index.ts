@@ -5,6 +5,7 @@ export * from "./route-operations.js";
 export * from "./routing-planner.js";
 export * from "./series-splice-planner.js";
 export * from "./power-net-planner.js";
+export * from "./power-marker-ownership.js";
 export * from "./named-net-planner.js";
 export * from "./direct-contact-planner.js";
 export * from "./instance-contact-planner.js";

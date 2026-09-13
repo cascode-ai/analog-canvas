@@ -201,6 +201,24 @@ VDD markers on that Net do not require a drawn trunk or matching label and do
 not produce a flightline. Named local Nets still require route, contact, or
 label evidence for their visible connectivity.
 
+Legacy Projects may have several supply markers sharing one inherited claim.
+Before a Wire cut, each marker on the affected Base Net materializes the
+unambiguous current supply name and scope as its own claim. Copy and flattened
+composition capture the same owner-complete view without mutating the source.
+Existing explicit marker claims and conflicting identities are never replaced.
+When visible Ground owners take over node `0`, the cut retires the redundant
+source-wide ground declaration: a genuinely detached unmarked terminal must
+not remain grounded merely because it retains the original Base-Net ID.
+
+File and Gallery import copies also materialize these owners. They may recover
+an unnamed Ground marker on a split imported Base Net only when that Net's
+source identity is backed by a surviving explicit global `0` declaration in
+the Document. A bare device, arbitrary source name, conflicting current name,
+or unknown supply is not recovered. The import is marked dirty and advances
+the repaired Document revision once; parsing, Cloud opens and recovery remain
+exact. This is a bounded legacy import repair, not a runtime source-equivalence
+rule. Physical membership and authored geometry are never joined by it.
+
 ## Imported routing guidance
 
 SPICE import creates electrical membership before drawing and persists one

@@ -1,6 +1,7 @@
 import {
   normalizeRedundantDirectContactRoutes,
   normalizeSameNetConductorTopology,
+  missingPowerMarkerClaims,
 } from "@icm/edit-engine";
 import { CircuitProjectSchema } from "@icm/model";
 import type { CircuitProject } from "@icm/model";
@@ -12,12 +13,13 @@ export interface ImportedConductorNormalization {
 }
 
 /**
- * Canonicalize legacy ordinary-Wire geometry in one explicitly imported copy.
+ * Canonicalize legacy conductors and supply-marker ownership in an imported copy.
  *
  * Project parsing remains byte-preserving and Cloud/recovery opens remain
  * exact. The local File import boundary is the intentional equivalent of an
  * EDA check-and-save repair: changed Documents advance once and advertise a
- * geometry-only source delta without changing electrical Net membership.
+ * source delta. Marker repair preserves Base-Net membership; proven legacy
+ * split Ground markers regain logical node 0 without drawing or merging wires.
  */
 export function normalizeImportedProjectConductors(
   project: CircuitProject,
@@ -26,14 +28,25 @@ export function normalizeImportedProjectConductors(
   const candidate = structuredClone(project);
   const changedDocumentIds: string[] = [];
   for (const document of candidate.documents) {
+    const markerClaims = missingPowerMarkerClaims(document, {
+      recoverImportedGround: true,
+    });
+    document.connectivityEvidence.push(...markerClaims);
     const directContacts = normalizeRedundantDirectContactRoutes(
       document,
       resolver,
     );
     const topology = normalizeSameNetConductorTopology(document, resolver);
-    if (!directContacts.changed && !topology.changed) continue;
+    if (
+      !directContacts.changed &&
+      !topology.changed &&
+      markerClaims.length === 0
+    )
+      continue;
     document.revision += 1;
-    if (document.sourceStatus === "in-sync") {
+    if (markerClaims.length > 0) {
+      document.sourceStatus = "connectivity-modified";
+    } else if (document.sourceStatus === "in-sync") {
       document.sourceStatus = "geometry-only-changed";
     }
     changedDocumentIds.push(document.id);

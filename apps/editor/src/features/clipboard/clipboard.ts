@@ -6,6 +6,7 @@ import {
 } from "@icm/devices";
 import {
   captureRoutingCopyFragment,
+  withPowerMarkerOwnership,
   createRoutingOperationPlan,
   executeTransaction,
   gridAlignmentDiagnostics,
@@ -706,6 +707,7 @@ export function clipboardPreviewDocument(
 export function captureDocumentComposition(
   document: SchematicDocument,
 ): SchematicClipboard | null {
+  document = withPowerMarkerOwnership(document);
   const draftingObjects = document.drafting?.objects ?? [];
   if (
     document.instances.length === 0 &&
@@ -778,6 +780,7 @@ export function copySelection(
   draftingIds: readonly string[] = [],
   routingSelection?: ExplicitCopyRoutingSelection,
 ): SchematicClipboard | null {
+  document = withPowerMarkerOwnership(document);
   const selectedIds = new Set(instanceIds);
   const instances = document.instances.filter((instance) =>
     selectedIds.has(instance.id),
