@@ -351,7 +351,7 @@ test("normalizes legacy overlapping Wire topology on Project import", async ({
     buffer: Buffer.from(JSON.stringify(source)),
   });
   await expect(page.getByTestId("status")).toContainText(
-    "normalized Wire topology in 1 Cell",
+    "normalized connectivity and Wire topology in 1 Cell",
   );
   const exported = JSON.parse(
     (await downloadBytes(page, "File", "Export Project File…")).toString(
@@ -363,6 +363,76 @@ test("normalizes legacy overlapping Wire topology on Project import", async ({
     sourceStatus: "geometry-only-changed",
   });
   expect(exported.documents[0]!.routes).toHaveLength(3);
+});
+
+test("imports split source-ground markers with independent owners and saves the repair", async ({
+  page,
+}) => {
+  const source = createEmptyProject("split-ground", "Split ground");
+  const document = source.documents[0]!;
+  for (const [index, id] of ["G1", "G2"].entries()) {
+    document.instances.push({
+      id,
+      symbolId: "ground",
+      placement: {
+        position: { x: 200 + index * 200, y: 300 },
+        rotation: 0,
+        mirror: "none",
+      },
+    });
+    document.nets.push({
+      id: `net-${id}`,
+      terminals: [{ instanceId: id, pinName: "0" }],
+    });
+    document.connectivityEvidence.push({
+      id: `source-${id}`,
+      kind: "spice-source",
+      netId: `net-${id}`,
+      sourceNetId: "original-0",
+    });
+  }
+  document.connectivityEvidence.push({
+    id: "global",
+    kind: "name-claim",
+    netId: "net-G1",
+    name: "0",
+    scope: "global",
+    powerDomain: "ground",
+    owner: { kind: "global-declaration", sourceNetId: "original-0" },
+  });
+  await page.goto("/editor");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "split-ground.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(source)),
+  });
+  await expect(page.getByTestId("status")).toContainText(
+    "save to Cloud or export to keep the repair",
+  );
+  const exported = JSON.parse(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(
+      "utf8",
+    ),
+  ) as typeof source;
+  const repaired = exported.documents[0]!;
+  expect(repaired.nets).toEqual(document.nets);
+  expect(repaired.routes).toEqual([]);
+  expect(repaired.sourceStatus).toBe("connectivity-modified");
+  expect(
+    repaired.connectivityEvidence.filter(
+      (e) => e.kind === "name-claim" && e.owner.kind === "power-marker",
+    ),
+  ).toEqual(
+    expect.arrayContaining(
+      ["G1", "G2"].map((objectId) =>
+        expect.objectContaining({
+          name: "0",
+          scope: "global",
+          owner: { kind: "power-marker", objectId },
+        }),
+      ),
+    ),
+  );
 });
 
 test("rejects invalid imports without replacing live or recovered work", async ({
