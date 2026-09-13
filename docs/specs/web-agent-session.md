@@ -70,12 +70,23 @@ The deployed defaults are part of the accepted transport contract:
 
 - a Claim remains redeemable for 30 minutes;
 - an Agent bearer remains valid for at most 8 hours and is never persisted;
-- the session and its connector expire after 7 days;
+- the session and its connector expire after 30 minutes of inactivity;
+  activity renews the deadline without an absolute lifetime limit;
 - a completed request result remains in the idempotency cache for 5 minutes,
   still subject to the configured entry-count and byte ceilings.
 
-No credential outlives its containing session. Redeeming a still-valid Claim
-rotates both the connector and bearer; connector resume rotates the bearer.
+Claim redemption, admitted Circuit/File/Simulation/Project operations and their
+responses, manual Document edits (including changes to the Cell roster), and
+explicit pause/resume reset the idle window. Capabilities probes, connector refresh, heartbeat acknowledgements,
+SSE keepalives, and transport reconnects do not. Relay forwards time out after
+30 seconds, well within the idle window. The relay persists the renewed
+deadline, reschedules expiry, and sends `session.renewed` so browser recovery
+and its timer follow the same deadline. `session.expired` ends idle sessions.
+The initial connector expiry returned to a client is a deadline snapshot;
+resume must ask the server even if that saved timestamp has passed.
+
+Every credential requires a live session, even before its own expiry.
+Redeeming a still-valid Claim rotates both the connector and bearer; connector resume rotates the bearer.
 Each rotation invalidates the previous credential. Session revoke, expiry, or
 Project replacement invalidates the Claim, bearer, and connector together. The
 local MCP Helper may persist only the connector in its private user profile;

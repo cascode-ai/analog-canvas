@@ -79,7 +79,9 @@ files.
 Click **Agent** to open a connection message, then copy it into your Agent
 chat. The development server starts the local Agent relay on first use;
 no separate Worker command or cloud account is needed. Keep the editor open
-while the Agent works. Local sessions last until the development server stops;
+while the Agent works. Sessions expire after 30 minutes without Agent operations
+or manual edits; continued activity renews them. Stopping the development server
+also ends local sessions;
 after restarting it, create a new connection. Cloud account, Gallery, and
 hosted simulation services are not started by this local relay.
 

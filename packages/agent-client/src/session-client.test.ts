@@ -107,7 +107,7 @@ describe("agent session client", () => {
     }
   });
 
-  it("refreshes an expired bearer from the connector and retries the request", async () => {
+  it("refreshes an expired bearer even after the saved connector deadline passed", async () => {
     const directory = await mkdtemp(join(tmpdir(), "analog-session-refresh-"));
     let nowMs = 1_000;
     try {
@@ -117,7 +117,7 @@ describe("agent session client", () => {
         agentToken: "initial-token",
         tokenExpiresAt: 50_000,
         connectorToken: "connector-token",
-        connectorExpiresAt: 500_000,
+        connectorExpiresAt: 60_000,
         scopes: ["circuit.snapshot"],
         projectId: "project-1",
         documentIds: ["main"],

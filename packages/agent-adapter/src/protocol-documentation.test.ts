@@ -16,7 +16,7 @@ describe("Agent session protocol documentation", () => {
   it("tracks the deployed credential and idempotency lifetimes", () => {
     const claimMinutes = DEFAULT_AGENT_SESSION_LIMITS.claimTtlMs / 60_000;
     const bearerHours = DEFAULT_AGENT_SESSION_LIMITS.tokenTtlMs / 3_600_000;
-    const sessionDays = DEFAULT_AGENT_SESSION_LIMITS.sessionTtlMs / 86_400_000;
+    const idleMinutes = DEFAULT_AGENT_SESSION_LIMITS.sessionTtlMs / 60_000;
     const resultMinutes =
       DEFAULT_AGENT_SESSION_LIMITS.resultCacheTtlMs / 60_000;
     const documents = ["docs/specs/web-agent-session.md"];
@@ -27,7 +27,9 @@ describe("Agent session protocol documentation", () => {
         new RegExp(`${claimMinutes}(?:-| )minute`, "u"),
       );
       expect(text, relativePath).toContain(`${bearerHours} hours`);
-      expect(text, relativePath).toContain(`${sessionDays} days`);
+      expect(text, relativePath).toContain(
+        `${idleMinutes} minutes of inactivity`,
+      );
       expect(text, relativePath).toContain(`${resultMinutes} minutes`);
     }
   });

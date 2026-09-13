@@ -261,7 +261,9 @@ function ClaimHandOff({
             </p>
           ) : null}
           <div className="agent-message-footer">
-            <span>Expires in {formatRemaining(claimExpiresAt, now)}</span>
+            <span>
+              Connection code expires in {formatRemaining(claimExpiresAt, now)}
+            </span>
             <span>Keep this editor open.</span>
           </div>
         </div>
@@ -319,6 +321,15 @@ export function ConnectAgentPanel(props: ConnectAgentPanelProps): ReactNode {
           now={clock}
           controls={<ConnectionControls {...props} />}
         />
+        {props.status !== "idle" &&
+        props.status !== "creating" &&
+        props.status !== "revoked" &&
+        props.status !== "expired" ? (
+          <p className="agent-connection-hint" data-testid="agent-idle-policy">
+            Expires after 30 minutes without Agent operations or manual edits.
+            Activity keeps the connection alive.
+          </p>
+        ) : null}
       </section>
     </div>
   );

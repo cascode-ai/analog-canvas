@@ -790,14 +790,12 @@ export class AgentSessionClient {
 
   private async resumeConnectorOnce(): Promise<ActiveSession | null> {
     const stored = await this.connectorStore?.load();
-    if (
-      !stored ||
-      stored.apiBaseUrl !== this.http.baseUrl ||
-      this.now() >= stored.connectorExpiresAt
-    ) {
+    if (!stored || stored.apiBaseUrl !== this.http.baseUrl) {
       if (stored) await this.connectorStore?.clear();
       return null;
     }
+    // Other Agent operations or manual edits can renew the session after this
+    // credential was saved. Only the server can decide whether it expired.
     this.connection.apply("resume-started");
     try {
       const claim = await this.http.resumeConnector(

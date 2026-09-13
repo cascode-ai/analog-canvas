@@ -44,7 +44,10 @@ The connection grants full circuit editing, file and simulation access to the
 current Project immediately; there is no permission-tier selection.
 The button opens the connection card immediately and reuses a live session.
 Copy its message into your Agent chat; opening the card again does not replace
-the connection. After disconnecting or expiry, clicking Agent creates a new one.
+the connection. A connection expires after 30 minutes without Agent operations
+or manual edits; continued activity keeps renewing it with no total time limit.
+The 30-minute connection-code deadline only limits initial pairing.
+After disconnecting or idle expiry, clicking Agent creates a new one.
 The MCP adapter defaults to Production; for Preview, start it with
 `ANALOG_CANVAS_API_URL=https://analog-canvas-preview.tokenzhang.com`.
 Connections, accounts, and private Projects stay within their own channel.

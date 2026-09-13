@@ -532,6 +532,13 @@ test("copies a working handoff through the normal local dev relay", async ({
   };
   const client = new AgentHttpClient({ baseUrl: baseURL! });
   const session = await client.claim(claimCode);
+  const readIdleDeadline = () =>
+    page.evaluate(() => {
+      const record = JSON.parse(
+        localStorage.getItem("icm.agent-session-recovery.v1") ?? "null",
+      );
+      return record?.expiresAt ?? 0;
+    });
   const documentId = session.documentIds[0]!;
   const snapshot = await client.circuit(session.sessionId, session.agentToken, {
     apiVersion: "3.0",
@@ -545,6 +552,9 @@ test("copies a working handoff through the normal local dev relay", async ({
     revision: 0,
   });
   await expect(panel.getByTestId("agent-status")).toContainText("Connected");
+  await expect
+    .poll(readIdleDeadline)
+    .toBeGreaterThan(session.connectorExpiresAt);
   const transaction = await client.circuit(
     session.sessionId,
     session.agentToken,
@@ -605,7 +615,9 @@ test("copies a working handoff through the normal local dev relay", async ({
   if ((await shelf.getAttribute("aria-expanded")) === "true")
     await shelf.click();
   await page.keyboard.press("q");
+  const beforeManualEdit = await readIdleDeadline();
   await setComponentParameter(page, "value", "2.2k");
+  await expect.poll(readIdleDeadline).toBeGreaterThan(beforeManualEdit);
   const readSnapshot = async (requestId: string) => {
     const result = await client.circuit(session.sessionId, session.agentToken, {
       apiVersion: "3.0",
@@ -718,4 +730,95 @@ test("copies a working handoff through the normal local dev relay", async ({
   await panel.getByRole("button", { name: "Close Agent dialog" }).click();
   await clickCommand(page, "Edit", "Undo");
   await expect(page.getByTestId("active-instance-count")).toHaveText("1");
+});
+
+test("keeps browser recovery on the renewed idle deadline and expires after inactivity", async ({
+  page,
+}) => {
+  const start = Date.now();
+  const idleMs = 30 * 60_000;
+  let deadline = start + idleMs;
+  let creates = 0;
+  let socket: WebSocketRoute | null = null;
+  const sendEvent = (type: string) =>
+    socket!.send(
+      JSON.stringify({
+        protocolVersion: "1.0",
+        sessionId: "idle-browser",
+        messageId: `message-${type}`,
+        requestId: `event-${type}`,
+        sentAt: new Date().toISOString(),
+        kind: "event",
+        payload: {
+          type,
+          sessionId: "idle-browser",
+          expiresAt: new Date(deadline).toISOString(),
+        },
+      }),
+    );
+  await page.clock.install({ time: new Date(start) });
+  await page.clock.setFixedTime(start);
+  await page.route("**/api/agent/sessions", (route) => {
+    creates += 1;
+    return route.fulfill({
+      json: {
+        ok: true,
+        session: {
+          sessionId: "idle-browser",
+          editorSecret: "editor-secret",
+          claimCode: "idle-browser.claim",
+          claimExpiresAt: start + idleMs,
+          expiresAt: deadline,
+        },
+      },
+    });
+  });
+  await page.routeWebSocket(
+    "**/api/agent/sessions/idle-browser/editor",
+    (route) => {
+      socket = route;
+      route.onMessage((message) => {
+        const control = JSON.parse(String(message));
+        if (control.kind === "heartbeat") {
+          route.send(
+            JSON.stringify({
+              ...control,
+              kind: "heartbeat-ack",
+            }),
+          );
+          sendEvent("session.ready");
+        }
+      });
+    },
+  );
+  const recovery = () =>
+    page.evaluate(() =>
+      JSON.parse(
+        localStorage.getItem("icm.agent-session-recovery.v1") ?? "null",
+      ),
+    );
+  await page.goto("/editor");
+  await page.getByTestId("open-agent").click();
+  await expect(page.getByTestId("agent-status")).toHaveText("Connected");
+  await expect(page.getByTestId("agent-idle-policy")).toContainText(
+    "30 minutes",
+  );
+  await page.clock.setFixedTime(start + 29 * 60_000);
+  deadline = start + 59 * 60_000;
+  sendEvent("session.renewed");
+  await expect.poll(async () => (await recovery())?.expiresAt).toBe(deadline);
+  // Crossing the initial deadline must not close the session or erase recovery.
+  await page.clock.setFixedTime(start + 31 * 60_000);
+  await page.clock.runFor(1_100);
+  await expect(page.getByTestId("agent-status")).toHaveText("Connected");
+  await page.reload();
+  await page.getByTestId("open-agent").click();
+  await expect(page.getByTestId("agent-status")).toHaveText("Connected");
+  expect(creates).toBe(1);
+  await expect.poll(async () => (await recovery())?.expiresAt).toBe(deadline);
+  // Passive heartbeats must not extend the deadline on the browser.
+  await page.clock.setFixedTime(deadline);
+  await page.clock.runFor(1_100);
+  await expect(page.getByTestId("agent-status")).toHaveText("Session expired");
+  expect(await recovery()).toBeNull();
 });

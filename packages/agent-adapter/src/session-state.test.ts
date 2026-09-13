@@ -50,9 +50,83 @@ describe("AgentSessionMachine", () => {
     expect(session.editorSecret).toMatch(/^rand-/u);
     expect(session.claimCode).toMatch(/^rand-/u);
     expect(session.claimExpiresAt - now()).toBe(30 * 60 * 1_000);
-    expect(session.expiresAt - now()).toBe(7 * 24 * 60 * 60 * 1_000);
+    expect(session.expiresAt - now()).toBe(30 * 60 * 1_000);
     expect(machine.authorizeEditor(session.editorSecret)).toBe(true);
     expect(machine.authorizeEditor("wrong")).toBe(false);
+  });
+
+  it("renews on activity, survives restore and expires exactly after the last idle window", () => {
+    const { machine, session, now, advance, random } = setup();
+    const initial = machine.redeemClaim(session.claimCode, now());
+    if (!initial.ok) throw new Error("claim failed");
+    advance(29 * 60_000);
+    expect(machine.recordActivity(now())).toBe(true);
+    const deadline = now() + 30 * 60_000;
+    expect(machine.expiresAt).toBe(deadline);
+    const restored = AgentSessionMachine.restore(
+      machine.serialize(),
+      random,
+      now(),
+    );
+    advance(2 * 60_000);
+    expect(restored.authorize(initial.claim.agentToken, now()).ok).toBe(true);
+    expect(
+      restored.resumeConnector(initial.claim.connectorToken, now()).ok,
+    ).toBe(true);
+    expect(restored.expiresAt).toBe(deadline); // refresh is not activity
+    advance(28 * 60_000);
+    expect(restored.statusAt(now())).toBe("expired");
+    expect(restored.recordActivity(now())).toBe(false);
+    expect(
+      restored.resumeConnector(initial.claim.connectorToken, now()),
+    ).toMatchObject({ code: "SESSION_EXPIRED" });
+  });
+
+  it("can keep using one connector beyond seven days with bearer rotation", () => {
+    const { machine, session, now, advance } = setup();
+    let claim = machine.redeemClaim(session.claimCode, now());
+    if (!claim.ok) throw new Error("claim failed");
+    const connector = claim.claim.connectorToken;
+    for (let interval = 0; interval < 8 * 24 * 3; interval += 1) {
+      advance(20 * 60_000);
+      if (!claim.ok) throw new Error("resume failed");
+      if (now() >= claim.claim.tokenExpiresAt)
+        claim = machine.resumeConnector(connector, now());
+      if (!claim.ok) throw new Error("resume failed");
+      expect(machine.authorize(claim.claim.agentToken, now()).ok).toBe(true);
+      expect(machine.recordActivity(now())).toBe(true);
+    }
+    expect(machine.statusAt(now())).toBe("active");
+    machine.revoke();
+    expect(machine.recordActivity(now())).toBe(false);
+    expect(machine.resumeConnector(connector, now())).toMatchObject({
+      code: "SESSION_REVOKED",
+    });
+  });
+
+  it("claiming near the pairing deadline starts a fresh idle window without extending the claim", () => {
+    const { machine, session, now, advance } = setup();
+    advance(29 * 60_000);
+    expect(machine.redeemClaim(session.claimCode, now()).ok).toBe(true);
+    expect(machine.expiresAt).toBe(now() + 30 * 60_000);
+    advance(60_000);
+    expect(machine.redeemClaim(session.claimCode, now())).toMatchObject({
+      code: "CLAIM_EXPIRED",
+    });
+    expect(machine.statusAt(now())).toBe("active");
+  });
+
+  it("bounds legacy seven-day sessions on restore without reviving expired state", () => {
+    const { machine, now, random } = setup();
+    const state = machine.serialize();
+    state.limits.sessionTtlMs = 7 * 86_400_000;
+    state.expiresAt = now() + state.limits.sessionTtlMs;
+    const restored = AgentSessionMachine.restore(state, random, now());
+    expect(restored.expiresAt).toBe(now() + 30 * 60_000);
+    state.expiresAt = now() - 1;
+    expect(
+      AgentSessionMachine.restore(state, random, now()).recordActivity(now()),
+    ).toBe(false);
   });
 
   it("reissues a token for a valid claim and invalidates the earlier bearer", () => {
@@ -257,6 +331,7 @@ describe("AgentSessionMachine", () => {
     const restored = AgentSessionMachine.restore(
       machine.serialize(),
       () => "next-token",
+      now(),
     );
     expect(restored.beginRequest("uncertain", now(), "payload-hash").kind).toBe(
       "proceed",
@@ -284,7 +359,11 @@ describe("AgentSessionMachine", () => {
     expect(JSON.stringify(state)).toContain("payload-hash");
     expect(JSON.stringify(state)).not.toContain("circuit-response-marker");
 
-    const restored = AgentSessionMachine.restore(state, () => "next-token");
+    const restored = AgentSessionMachine.restore(
+      state,
+      () => "next-token",
+      now(),
+    );
     expect(restored.authorizeEditor(session.editorSecret)).toBe(true);
     expect(restored.authorize(redeemed.claim.agentToken, now()).ok).toBe(true);
     expect(restored.beginRequest("pending", now(), "payload-hash").kind).toBe(

@@ -105,6 +105,8 @@ export const AgentSessionEventTypeSchema = z.enum([
   "session.paused",
   "session.revoked",
   "session.expiring",
+  "session.renewed",
+  "session.expired",
   "editor.online",
   "editor.offline",
   "document.revision-changed",
@@ -129,6 +131,15 @@ export const AgentSessionEventSchema = z.discriminatedUnion("type", [
   }),
   z.strictObject({
     type: z.literal("session.revoked"),
+    sessionId: OpaqueIdSchema,
+  }),
+  z.strictObject({
+    type: z.literal("session.renewed"),
+    sessionId: OpaqueIdSchema,
+    expiresAt: IsoTimestampSchema,
+  }),
+  z.strictObject({
+    type: z.literal("session.expired"),
     sessionId: OpaqueIdSchema,
   }),
   z.strictObject({

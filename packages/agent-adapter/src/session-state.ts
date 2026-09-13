@@ -20,7 +20,7 @@ export interface AgentSessionLimits {
   claimTtlMs: number;
   /** Capability token lifetime. */
   tokenTtlMs: number;
-  /** Whole-session lifetime; the token never outlives it. */
+  /** Sliding inactivity timeout; every credential also requires a live session. */
   sessionTtlMs: number;
   /** Hard request-body ceiling before any forward. */
   maxRequestBytes: number;
@@ -38,7 +38,7 @@ export interface AgentSessionLimits {
 export const DEFAULT_AGENT_SESSION_LIMITS: AgentSessionLimits = {
   claimTtlMs: 30 * 60 * 1000,
   tokenTtlMs: 8 * 60 * 60 * 1000,
-  sessionTtlMs: 7 * 24 * 60 * 60 * 1000,
+  sessionTtlMs: 30 * 60 * 1000,
   maxRequestBytes: 2_000_000,
   maxMessageBytes: 6_000_000,
   rateLimit: { windowMs: 60_000, maxRequests: 60 },
@@ -272,12 +272,23 @@ export class AgentSessionMachine {
   static restore(
     state: PersistedAgentSessionState,
     random: () => string,
+    now: number,
   ): AgentSessionMachine {
     if (state.version !== 1) {
       throw new Error("Unsupported Agent session state version");
     }
+    // Old persisted sessions used a seven-day absolute lifetime. Cap their
+    // remaining window on first restore; never resurrect an expired session.
+    const limits = {
+      ...DEFAULT_AGENT_SESSION_LIMITS,
+      ...structuredClone(state.limits),
+    };
+    limits.sessionTtlMs = Math.min(
+      limits.sessionTtlMs,
+      DEFAULT_AGENT_SESSION_LIMITS.sessionTtlMs,
+    );
     return new AgentSessionMachine(
-      { ...DEFAULT_AGENT_SESSION_LIMITS, ...structuredClone(state.limits) },
+      limits,
       {
         sessionId: state.sessionId,
         editorSecretVerifier: state.editorSecretVerifier,
@@ -286,7 +297,7 @@ export class AgentSessionMachine {
         documentIds: new Set(state.documentIds),
         scopes: [...state.scopes],
         status: state.status,
-        expiresAt: state.expiresAt,
+        expiresAt: Math.min(state.expiresAt, now + limits.sessionTtlMs),
         claim: state.claim ? { ...state.claim } : null,
         token: state.token
           ? { ...state.token, scopes: [...state.token.scopes] }
@@ -338,6 +349,19 @@ export class AgentSessionMachine {
     return this.internals.status;
   }
 
+  /** Only admitted operations or authenticated human edits count as activity. */
+  recordActivity(now: number): boolean {
+    if (this.lifecycleCode(now)) return false;
+    this.internals.expiresAt = Math.max(
+      this.internals.expiresAt,
+      now + this.limits.sessionTtlMs,
+    );
+    if (this.internals.connector) {
+      this.internals.connector.expiresAt = this.internals.expiresAt;
+    }
+    return true;
+  }
+
   /** Authenticate the browser WebSocket channel with the editor secret. */
   authorizeEditor(secret: string): boolean {
     return constantTimeEqual(
@@ -367,6 +391,7 @@ export class AgentSessionMachine {
     }
     if (now >= claim.expiresAt) return { ok: false, code: "CLAIM_EXPIRED" };
 
+    this.recordActivity(now);
     claim.used = true;
     const connectorToken = this.random();
     const connectorExpiresAt = this.internals.expiresAt;
@@ -627,10 +652,9 @@ export class AgentSessionMachine {
     now: number,
   ): Pick<RedeemedAgentClaim, "agentToken" | "tokenExpiresAt" | "scopes"> {
     const agentToken = this.random();
-    const tokenExpiresAt = Math.min(
-      now + this.limits.tokenTtlMs,
-      this.internals.expiresAt,
-    );
+    // Rotation is independent of the sliding idle deadline. Authorization
+    // checks the session first, so an idle-expired bearer has no authority.
+    const tokenExpiresAt = now + this.limits.tokenTtlMs;
     this.internals.token = {
       verifier: secretVerifier(agentToken),
       scopes: [...this.internals.scopes],

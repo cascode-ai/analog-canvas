@@ -107,6 +107,11 @@ describe("ConnectAgentPanel", () => {
     expect(markup).toContain("/api/agent/mcp-manifest.json");
     expect(markup).not.toContain("MCP bootstrap manifest");
     expect(markup).toContain("CLAIM-12345");
+    expect(markup).toContain("Connection code expires in 0:30");
+    expect(markup).toContain(
+      "Expires after 30 minutes without Agent operations or manual edits.",
+    );
+    expect(markup).toContain("Activity keeps the connection alive.");
     expect(markup).not.toContain("Scopes:");
     expect(markup).toContain('data-testid="agent-pause"');
     expect(markup).toContain('data-testid="agent-revoke"');
