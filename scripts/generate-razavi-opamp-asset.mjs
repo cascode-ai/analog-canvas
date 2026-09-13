@@ -47,7 +47,7 @@ const OPAMP_OUTPUT_PIN_X = ANALOG_TRIANGLE_OUTPUT_X;
 const OPAMP_BODY_LEFT_X = ANALOG_TRIANGLE.leftX;
 const OPAMP_BODY_APEX_X = ANALOG_TRIANGLE.apexX;
 const INPUT_MARK_X = OPAMP_BODY_LEFT_X + 6.25;
-const OUTPUT_MARK_X = -10.5;
+const OUTPUT_MARK_X = Number((ANALOG_TRIANGLE.apexX - 35.5).toFixed(6));
 const MARK_ROW_Y = 14;
 const MARK_HALF_SIZE = 3;
 
@@ -386,7 +386,7 @@ const generation = {
   referencePath:
     "fixtures/visual-reference/razavi-reference-v1/opamp-vector-source.json",
   converterPath: "scripts/generate-razavi-opamp-asset.mjs",
-  converterVersion: 5,
+  converterVersion: 6,
   bodyNormalization: "equilateral-triangle",
 };
 const differentialGeneration = {
@@ -396,7 +396,7 @@ const differentialGeneration = {
   referencePath:
     "fixtures/visual-reference/razavi-reference-v1/differential-opamp-vector-source.json",
   converterPath: "scripts/generate-razavi-opamp-asset.mjs",
-  converterVersion: 7,
+  converterVersion: 8,
   bodyNormalization: "equilateral-triangle",
 };
 const differentialAuthorityPaths = [
@@ -437,15 +437,13 @@ for (const id of ["comparator", "comparator-unmarked"]) {
       ...previous.primitives
         .filter((primitive) => primitive.part === "hysteresis-step")
         .map((primitive) => {
-          if (id !== "comparator-unmarked")
-            return {
-              ...primitive,
-              bounds: { x: -15, y: -7, width: 16, height: 14 },
-            };
+          // Marked comparators reserve space beside the input signs; both
+          // transfer glyphs move with the triangle instead of sheet origin.
           const center = Number(
-            ((2 * ANALOG_TRIANGLE.leftX + ANALOG_TRIANGLE.apexX) / 3).toFixed(
-              6,
-            ),
+            (id === "comparator"
+              ? ANALOG_TRIANGLE.apexX - 32
+              : (2 * ANALOG_TRIANGLE.leftX + ANALOG_TRIANGLE.apexX) / 3
+            ).toFixed(6),
           );
           return {
             ...primitive,

@@ -46,7 +46,7 @@
           "y": 0
         },
         "to": {
-          "x": -26.961524,
+          "x": -30,
           "y": 0
         },
         "style": {
@@ -57,7 +57,7 @@
       },
       {
         "kind": "path",
-        "data": "M -26.961524 -30 L -26.961524 30 L 25 0 Z",
+        "data": "M -30 -30 L -30 30 L 21.961524 0 Z",
         "style": {
           "strokeRole": "emphasis",
           "lineCap": "butt",
@@ -65,7 +65,7 @@
           "miterLimit": 4
         },
         "bounds": {
-          "x": -26.961524,
+          "x": -30,
           "y": -30,
           "width": 51.961524,
           "height": 60
@@ -74,7 +74,7 @@
       {
         "kind": "line",
         "from": {
-          "x": 25,
+          "x": 21.961524,
           "y": 0
         },
         "to": {
@@ -93,7 +93,7 @@
       "defaultFormula": "A",
       "supportsCoefficient": false,
       "center": {
-        "x": -9.64,
+        "x": -12.68,
         "y": 0
       },
       "fontSize": 16

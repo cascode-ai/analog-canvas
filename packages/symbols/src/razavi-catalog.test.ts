@@ -542,6 +542,15 @@ describe("Razavi symbol catalog", () => {
       if (triangle?.kind !== "path") throw new Error("triangle missing");
       const points = pathPoints(triangle.data);
       expect(points).toHaveLength(3);
+      // Use the vertical base as the grid anchor, allowing the apex to carry
+      // the irrational altitude required by an equilateral triangle.
+      const base = points.filter(
+        (point) => point.x === Math.min(...points.map((point) => point.x)),
+      );
+      expect(base, `${symbolId} grid-aligned vertical base`).toEqual([
+        { x: -30, y: -30 },
+        { x: -30, y: 30 },
+      ]);
       const sideLengths = points.map((point, index) => {
         const next = points[(index + 1) % 3]!;
         return Math.hypot(point.x - next.x, point.y - next.y);
@@ -558,7 +567,7 @@ describe("Razavi symbol catalog", () => {
           expect(
             pin.at.x - Math.max(...points.map((point) => point.x)),
             `${symbolId}.${pin.name} beyond apex`,
-          ).toBe(5);
+          ).toBeCloseTo(60 - 30 * Math.sqrt(3), 5);
         }
         const lead = candidate.primitives.find(
           (primitive) =>
@@ -1004,12 +1013,12 @@ describe("Razavi symbol catalog", () => {
           line.to.y - line.from.y,
         );
         if (triangleBlocks.has(symbolId)) {
-          // The output column is five units beyond the apex; differential
-          // leads also traverse the distance from the sloping edge to the tip.
+          // The base and input ports are one grid apart; the fixed output
+          // column also includes the altitude from the differential contact.
           const expectedLength =
             pin.direction === "east"
-              ? 5 + Math.abs(pin.at.y) * Math.sqrt(3)
-              : 40 + (25 - 30 * Math.sqrt(3));
+              ? 60 - (30 - Math.abs(pin.at.y)) * Math.sqrt(3)
+              : 10;
           expect(drawnLength, `${symbolId}.${pin.name} drawn lead`).toBeCloseTo(
             expectedLength,
             5,
@@ -1544,13 +1553,13 @@ describe("Razavi symbol catalog", () => {
         }),
         expect.objectContaining({
           kind: "line",
-          from: { x: expect.closeTo(-23.711524, 6), y: 14 },
-          to: { x: expect.closeTo(-17.711524, 6), y: 14 },
+          from: { x: -26.75, y: 14 },
+          to: { x: -20.75, y: 14 },
         }),
         expect.objectContaining({
           kind: "line",
-          from: { x: expect.closeTo(-23.711524, 6), y: -14 },
-          to: { x: expect.closeTo(-17.711524, 6), y: -14 },
+          from: { x: -26.75, y: -14 },
+          to: { x: -20.75, y: -14 },
         }),
       ]),
     );
@@ -2075,7 +2084,7 @@ describe("logic-gate and comparator family", () => {
       unmarked.primitives.filter((primitive) => primitive.kind === "line"),
     ).toHaveLength(3);
     expect(glyphCentreX).toBeCloseTo(bodyCentreX, 5);
-    expect(markedGlyphCentreX).toBe(-7);
+    expect(markedGlyphCentreX).toBeCloseTo(-10.038476, 6);
   });
 
   it("keeps the hysteresis glyph clear of the body and the polarity marks", () => {

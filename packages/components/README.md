@@ -113,16 +113,19 @@ The product set is exactly the reviewed, Reference-calibrated entries:
   bubble.
 - triangular Analog Blocks (`opamp`, fully differential amps, voltage amps,
   comparators, and their lettered/polarity variants) share a user-requested
-  equilateral outline with three 60-unit sides and a 60-degree apex. Input and
-  output polarity marks use the differential gm block's equal 6-unit strokes
-  with round caps, with clearance for both columns and internal text. The
+  equilateral outline with three 60-unit sides and a 60-degree apex. Its left
+  vertical edge is anchored at x=-30, with both corners on the 10-unit grid;
+  the apex is derived at x≈21.96. Input and output polarity marks use the
+  differential gm block's equal 6-unit strokes with round caps, with clearance
+  for both columns and internal text. The
   generators record `bodyNormalization: "equilateral-triangle"`; PDF extracts
   remain original evidence rather than being relabeled as equilateral. Pin
   names, order, input anchors, and polarity semantics are preserved. Outputs
   share x=30: single-ended terminals retract one 10-unit grid step from x=40,
-  while differential terminals extend one step from x=20. The single-ended
-  lead extends 5 units past the apex. The shared
-  construction lives in `scripts/lib/analog-triangle.mjs`, and the op-amp
+  while differential terminals extend one step from x=20. Input leads are
+  exactly 10 units, and the single-ended output lead extends about 8.04 units
+  past the apex. The shared construction lives in `scripts/lib/analog-triangle.mjs`,
+  and the op-amp
   generator also projects the comparator bodies;
 - the Analog Blocks library includes the reference-calibrated single-input
   `transconductance` symbol and its user-requested house companion

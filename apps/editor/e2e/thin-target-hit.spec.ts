@@ -298,7 +298,7 @@ test("clicking wire beside a symbol body selects the wire, not the box", async (
   await expect(page.getByTestId("hit-R1")).toHaveClass(/selected/);
 });
 
-test("single and differential triangle outputs share one column and remain wireable after reload", async ({
+test("triangle bases sit on the grid and their shared output column remains wireable after reload", async ({
   page,
 }) => {
   await importInstances(
@@ -320,6 +320,31 @@ test("single and differential triangle outputs share one column and remain wirea
   );
   const outputs = ["U1-OUT", "U2-OUT", "U3-OUT+", "U3-OUT-", "U4-OUT"];
   const checkColumns = async () => {
+    const bases = await page
+      .getByTestId("schematic-canvas")
+      .evaluate((canvas) => {
+        const toCanvas = (canvas as SVGSVGElement).getScreenCTM()!.inverse();
+        return [
+          ...canvas.querySelectorAll<SVGGElement>(
+            '[data-layer="symbols"] [data-object-id]',
+          ),
+        ].map((group) => {
+          const path = group.querySelector<SVGPathElement>("path")!;
+          const box = path.getBBox();
+          const matrix = toCanvas.multiply(path.getScreenCTM()!);
+          return [box.y, box.y + box.height].map((y) => {
+            const point = new DOMPoint(box.x, y).matrixTransform(matrix);
+            return { x: point.x, y: point.y };
+          });
+        });
+      });
+    expect(bases).toHaveLength(4);
+    for (const [index, [top, bottom]] of bases.entries()) {
+      expect(top!.x).toBeCloseTo(170, 5);
+      expect(bottom!.x).toBeCloseTo(170, 5);
+      expect(top!.y).toBeCloseTo(70 + index * 100, 5);
+      expect(bottom!.y).toBeCloseTo(130 + index * 100, 5);
+    }
     const centers = await Promise.all(
       outputs.map(async (id) => {
         const box = (await page.getByTestId(`terminal-${id}`).boundingBox())!;

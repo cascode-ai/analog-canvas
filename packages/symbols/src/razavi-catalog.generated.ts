@@ -148,7 +148,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Textbook comparator block; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "comparator.json",
     assetHash:
-      "02f645908993743a0ca6ddd0d40068bd7d91e2bc14c657612fe131d85d234a2c",
+      "2f2701121aa69e74bf76594f0ab0ab3ba6a1dda13322b509dccbeda9cbec78c5",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -167,7 +167,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       referencePath:
         "fixtures/visual-reference/razavi-reference-v1/opamp-vector-source.json",
       converterPath: "scripts/generate-razavi-opamp-asset.mjs",
-      converterVersion: 5,
+      converterVersion: 6,
       bodyNormalization: "equilateral-triangle",
     },
   },
@@ -183,7 +183,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Textbook comparator block; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "comparator-inputs-swapped.json",
     assetHash:
-      "aebf98e641c851ccc3f20a7bb25fdf557b3fc8854befccae92f8bd5f5fd8ebaf",
+      "ca0abbc4716ce0e7d380dc40d379f9f422306cb0426dbfd2b0b6b725f556350a",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -214,7 +214,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Unmarked comparator block; SPICE subcircuit pin polarity and supply contracts require an explicit PDK mapping.",
     assetPath: "comparator-unmarked.json",
     assetHash:
-      "3f3931ff24e926491b03b21ec9786570c1d797366d97b64f55a4d0af532987e4",
+      "21dab86cca8e41549dab92672b9b0313d682570e1e817d8dbb9bb5eed37b6501",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -233,7 +233,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       referencePath:
         "fixtures/visual-reference/razavi-reference-v1/opamp-vector-source.json",
       converterPath: "scripts/generate-razavi-opamp-asset.mjs",
-      converterVersion: 5,
+      converterVersion: 6,
       bodyNormalization: "equilateral-triangle",
     },
   },
@@ -249,7 +249,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Unmarked comparator block; SPICE subcircuit pin polarity and supply contracts require an explicit PDK mapping.",
     assetPath: "comparator-unmarked-inputs-swapped.json",
     assetHash:
-      "aadbb7f7edde29b262f888765fae76aab4276319038feaca381ecde536849814",
+      "c79af617c604de8888fbc9bff6044ccebc479f4bcda519fdac1620e2301e0cdb",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1033,7 +1033,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Three-terminal textbook op-amp; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp.json",
     assetHash:
-      "e3120e144af81f05e93c52fca63ad680210e0c28371ef9ab939bf76e01688e4d",
+      "162bb0b53fa197d07896f44f4cd77ecc5a41f0ca6bafa246aea01df29c340638",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1052,7 +1052,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       referencePath:
         "fixtures/visual-reference/razavi-reference-v1/opamp-vector-source.json",
       converterPath: "scripts/generate-razavi-opamp-asset.mjs",
-      converterVersion: 5,
+      converterVersion: 6,
       bodyNormalization: "equilateral-triangle",
     },
   },
@@ -1068,7 +1068,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Three-terminal textbook op-amp; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-lettered.json",
     assetHash:
-      "40494eedb32b7d77ce01f6a37c39b05642f6fcc243b3f1089f8b0d9763a648c5",
+      "7d6b25a1f9c5066212ab647cc33852574b9d7ca0dddcf5a64162624bf1dde5bf",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1099,7 +1099,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Three-terminal textbook op-amp; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-lettered-inputs-swapped.json",
     assetHash:
-      "8bbc24fa26fec9298b9aa9e87a264ed15acd560ad7445db45378f60fa590dcd1",
+      "00ed86b7c3eba1369e6957a14803ec3c181a79f24075dc2a7472b268e20477d7",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1130,7 +1130,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Three-terminal textbook op-amp; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-inputs-swapped.json",
     assetHash:
-      "174a303b845f992f22fdbc004502b877f0947271bbd1ad2fd862f705f9d98b01",
+      "450fccd1b4f951244bd05fa5b70ec5c13dae9ea7c7f71cbd438deac26a1c061e",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1161,7 +1161,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Fully differential textbook body; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-differential.json",
     assetHash:
-      "99069f20b4d9b9e00a731dc09fde868e08f0c9e148f704ce35f2d0a16afb87a1",
+      "1d4eee3e2b079170002b4d3e284d8fc97bed88e8b50a2e22f15f1d12272a3a58",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1181,7 +1181,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       referencePath:
         "fixtures/visual-reference/razavi-reference-v1/differential-opamp-vector-source.json",
       converterPath: "scripts/generate-razavi-opamp-asset.mjs",
-      converterVersion: 7,
+      converterVersion: 8,
       bodyNormalization: "equilateral-triangle",
     },
   },
@@ -1197,7 +1197,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Fully differential textbook body; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-differential-lettered.json",
     assetHash:
-      "10c4759e203495fd12dddd96260dd4bf34ed1885aacf3442edd12ea3d082a2f5",
+      "bef9362bf5c0b8d1a8df62acb8a5dec489b242a54f57a6db1bd6919e2ff6bc9f",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1229,7 +1229,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Fully differential textbook body; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-differential-lettered-inputs-swapped.json",
     assetHash:
-      "7fa3f121e8cd2b51cbfb96b37bbab002bf68823541298f9e8819dc10337398bc",
+      "328a10002dda0b22cd0ffdbb16751b692f2146044c31249802e7b7d929543f57",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1261,7 +1261,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Fully differential textbook body; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-differential-inputs-swapped.json",
     assetHash:
-      "061dd6305a5eafbbe0a98818c89951e6756f7edfe1e1df3844a17c596c7cecab",
+      "c188124e213e88eefad2fcd1948ce7e63b3d1343094ca46dd0fd7f896e542509",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1293,7 +1293,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Output-polarity sibling of opamp-differential; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-differential-crossed.json",
     assetHash:
-      "6b51b05dc17f412df9cdb1f34101888d5ccd597438b5b1f47c7c92bb33b102d1",
+      "1ea3722d8aab64646feeb2b412bdd4e5efd1b069c528b88975a7248dd6b007e4",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1313,7 +1313,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       referencePath:
         "fixtures/visual-reference/razavi-reference-v1/differential-opamp-vector-source.json",
       converterPath: "scripts/generate-razavi-opamp-asset.mjs",
-      converterVersion: 7,
+      converterVersion: 8,
       bodyNormalization: "equilateral-triangle",
     },
   },
@@ -1329,7 +1329,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Output-polarity sibling of opamp-differential; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-differential-crossed-lettered.json",
     assetHash:
-      "45e2e0a66089e0114ea86a6d81858944d1a42bb71051bd9236b928a93108b823",
+      "4c87d24de295eb053e2b8f2872fa4219ff1c33b3ddf99292c09f811914f710ab",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1361,7 +1361,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Output-polarity sibling of opamp-differential; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-differential-crossed-lettered-inputs-swapped.json",
     assetHash:
-      "0517ca18fbf0f32ebb23dc2cdfd819c631a765b9b7c0e1bda188cc6053749f9b",
+      "1dd83deeba85105fc123efbc41bf3e672c237027c338b9b3178bf4cf2d5d3d69",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1393,7 +1393,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Output-polarity sibling of opamp-differential; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-differential-crossed-inputs-swapped.json",
     assetHash:
-      "fe145cba59191b6a864dbfbfdbfc7d4c29f74ac434d39040fa855947d12bff77",
+      "fa131e118543dc70514ed7e1ce1d44f73eaefd31f20e753725036192d387c39e",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1726,7 +1726,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Textbook gain block has implicit reference nodes and no exact primitive SPICE terminal contract.",
     assetPath: "voltage-amplifier.json",
     assetHash:
-      "44767f52243359b61962744294f975214cda85075a9dfc49bdec770dd016c8ec",
+      "29f5a9a4f74c6e716c53ab3d5f78577e7ba9779a6836e33d534f8dd84e1b3420",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1745,7 +1745,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       referencePath:
         "fixtures/visual-reference/razavi-reference-v1/voltage-amplifier-vector-source.json",
       converterPath: "scripts/generate-razavi-common-assets.mjs",
-      converterVersion: 5,
+      converterVersion: 6,
       bodyNormalization: "equilateral-triangle",
     },
   },
@@ -1761,7 +1761,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Textbook gain block has implicit reference nodes and no exact primitive SPICE terminal contract.",
     assetPath: "voltage-amplifier-lettered.json",
     assetHash:
-      "c2e674e32606b92fabe0fce13e119bebd8a7ac51daaf3ed4915d395193b2b87e",
+      "7cb8b8af81bedd40430a11eb9c1a0e7da362aa59b39e42740e78c5df92e6f5fd",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -2509,7 +2509,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: -10,
         },
         to: {
-          x: -26.961524,
+          x: -30,
           y: -10,
         },
         style: {
@@ -2525,7 +2525,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: 10,
         },
         to: {
-          x: -26.961524,
+          x: -30,
           y: 10,
         },
         style: {
@@ -2537,7 +2537,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: 25,
+          x: 21.961524,
           y: 0,
         },
         to: {
@@ -2552,9 +2552,9 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       },
       {
         kind: "path",
-        data: "M -26.961524 -30 L -26.961524 30 L 25 0 Z",
+        data: "M -30 -30 L -30 30 L 21.961524 0 Z",
         bounds: {
-          x: -26.961524,
+          x: -30,
           y: -30,
           width: 51.961524,
           height: 60,
@@ -2569,11 +2569,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -20.711524,
+          x: -23.75,
           y: 11,
         },
         to: {
-          x: -20.711524,
+          x: -23.75,
           y: 17,
         },
         part: "input-polarity",
@@ -2586,11 +2586,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -23.711524,
+          x: -26.75,
           y: 14,
         },
         to: {
-          x: -17.711524,
+          x: -20.75,
           y: 14,
         },
         part: "input-polarity",
@@ -2603,11 +2603,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -23.711524,
+          x: -26.75,
           y: -14,
         },
         to: {
-          x: -17.711524,
+          x: -20.75,
           y: -14,
         },
         part: "upright-input-polarity-negative",
@@ -2619,7 +2619,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       },
       {
         kind: "path",
-        data: "M -15 7 L -7 7 L -7 -7 L 1 -7",
+        data: "M -18.038476 7 L -10.038476 7 L -10.038476 -7 L -2.0384759999999993 -7",
         style: {
           strokeRole: "normal",
           lineCap: "butt",
@@ -2627,7 +2627,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         },
         part: "hysteresis-step",
         bounds: {
-          x: -15,
+          x: -18.038476,
           y: -7,
           width: 16,
           height: 14,
@@ -2695,7 +2695,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: -10,
         },
         to: {
-          x: -26.961524,
+          x: -30,
           y: -10,
         },
         style: {
@@ -2711,7 +2711,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: 10,
         },
         to: {
-          x: -26.961524,
+          x: -30,
           y: 10,
         },
         style: {
@@ -2723,7 +2723,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: 25,
+          x: 21.961524,
           y: 0,
         },
         to: {
@@ -2738,9 +2738,9 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       },
       {
         kind: "path",
-        data: "M -26.961524 -30 L -26.961524 30 L 25 0 Z",
+        data: "M -30 -30 L -30 30 L 21.961524 0 Z",
         bounds: {
-          x: -26.961524,
+          x: -30,
           y: -30,
           width: 51.961524,
           height: 60,
@@ -2755,11 +2755,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -20.711524,
+          x: -23.75,
           y: -11,
         },
         to: {
-          x: -20.711524,
+          x: -23.75,
           y: -17,
         },
         part: "input-polarity",
@@ -2772,11 +2772,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -23.711524,
+          x: -26.75,
           y: -14,
         },
         to: {
-          x: -17.711524,
+          x: -20.75,
           y: -14,
         },
         part: "input-polarity",
@@ -2789,11 +2789,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -23.711524,
+          x: -26.75,
           y: 14,
         },
         to: {
-          x: -17.711524,
+          x: -20.75,
           y: 14,
         },
         part: "upright-input-polarity-negative",
@@ -2805,7 +2805,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       },
       {
         kind: "path",
-        data: "M -15 7 L -7 7 L -7 -7 L 1 -7",
+        data: "M -18.038476 7 L -10.038476 7 L -10.038476 -7 L -2.0384759999999993 -7",
         style: {
           strokeRole: "normal",
           lineCap: "butt",
@@ -2813,7 +2813,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         },
         part: "hysteresis-step",
         bounds: {
-          x: -15,
+          x: -18.038476,
           y: -7,
           width: 16,
           height: 14,
@@ -2881,7 +2881,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: -10,
         },
         to: {
-          x: -26.961524,
+          x: -30,
           y: -10,
         },
         style: {
@@ -2897,7 +2897,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: 10,
         },
         to: {
-          x: -26.961524,
+          x: -30,
           y: 10,
         },
         style: {
@@ -2909,7 +2909,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: 25,
+          x: 21.961524,
           y: 0,
         },
         to: {
@@ -2924,9 +2924,9 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       },
       {
         kind: "path",
-        data: "M -26.961524 -30 L -26.961524 30 L 25 0 Z",
+        data: "M -30 -30 L -30 30 L 21.961524 0 Z",
         bounds: {
-          x: -26.961524,
+          x: -30,
           y: -30,
           width: 51.961524,
           height: 60,
@@ -2940,7 +2940,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       },
       {
         kind: "path",
-        data: "M -17.641016 7 L -9.641016 7 L -9.641016 -7 L -1.6410160000000005 -7",
+        data: "M -20.679492 7 L -12.679492 7 L -12.679492 -7 L -4.679492 -7",
         style: {
           strokeRole: "normal",
           lineCap: "butt",
@@ -2948,7 +2948,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         },
         part: "hysteresis-step",
         bounds: {
-          x: -17.641016,
+          x: -20.679492,
           y: -7,
           width: 16,
           height: 14,
@@ -3016,7 +3016,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: -10,
         },
         to: {
-          x: -26.961524,
+          x: -30,
           y: -10,
         },
         style: {
@@ -3032,7 +3032,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: 10,
         },
         to: {
-          x: -26.961524,
+          x: -30,
           y: 10,
         },
         style: {
@@ -3044,7 +3044,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: 25,
+          x: 21.961524,
           y: 0,
         },
         to: {
@@ -3059,9 +3059,9 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       },
       {
         kind: "path",
-        data: "M -26.961524 -30 L -26.961524 30 L 25 0 Z",
+        data: "M -30 -30 L -30 30 L 21.961524 0 Z",
         bounds: {
-          x: -26.961524,
+          x: -30,
           y: -30,
           width: 51.961524,
           height: 60,
@@ -3075,7 +3075,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       },
       {
         kind: "path",
-        data: "M -17.641016 7 L -9.641016 7 L -9.641016 -7 L -1.6410160000000005 -7",
+        data: "M -20.679492 7 L -12.679492 7 L -12.679492 -7 L -4.679492 -7",
         style: {
           strokeRole: "normal",
           lineCap: "butt",
@@ -3083,7 +3083,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         },
         part: "hysteresis-step",
         bounds: {
-          x: -17.641016,
+          x: -20.679492,
           y: -7,
           width: 16,
           height: 14,
@@ -6907,7 +6907,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: -10,
         },
         to: {
-          x: -26.961524,
+          x: -30,
           y: -10,
         },
         style: {
@@ -6923,7 +6923,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: 10,
         },
         to: {
-          x: -26.961524,
+          x: -30,
           y: 10,
         },
         style: {
@@ -6935,7 +6935,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: 25,
+          x: 21.961524,
           y: 0,
         },
         to: {
@@ -6950,9 +6950,9 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       },
       {
         kind: "path",
-        data: "M -26.961524 -30 L -26.961524 30 L 25 0 Z",
+        data: "M -30 -30 L -30 30 L 21.961524 0 Z",
         bounds: {
-          x: -26.961524,
+          x: -30,
           y: -30,
           width: 51.961524,
           height: 60,
@@ -6967,11 +6967,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -20.711524,
+          x: -23.75,
           y: 11,
         },
         to: {
-          x: -20.711524,
+          x: -23.75,
           y: 17,
         },
         part: "input-polarity",
@@ -6984,11 +6984,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -23.711524,
+          x: -26.75,
           y: 14,
         },
         to: {
-          x: -17.711524,
+          x: -20.75,
           y: 14,
         },
         part: "input-polarity",
@@ -7001,11 +7001,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -23.711524,
+          x: -26.75,
           y: -14,
         },
         to: {
-          x: -17.711524,
+          x: -20.75,
           y: -14,
         },
         part: "upright-input-polarity-negative",
@@ -7077,7 +7077,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: -10,
         },
         to: {
-          x: -26.961524,
+          x: -30,
           y: -10,
         },
         style: {
@@ -7093,7 +7093,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: 10,
         },
         to: {
-          x: -26.961524,
+          x: -30,
           y: 10,
         },
         style: {
@@ -7105,7 +7105,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: 25,
+          x: 21.961524,
           y: 0,
         },
         to: {
@@ -7120,9 +7120,9 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       },
       {
         kind: "path",
-        data: "M -26.961524 -30 L -26.961524 30 L 25 0 Z",
+        data: "M -30 -30 L -30 30 L 21.961524 0 Z",
         bounds: {
-          x: -26.961524,
+          x: -30,
           y: -30,
           width: 51.961524,
           height: 60,
@@ -7137,11 +7137,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -20.711524,
+          x: -23.75,
           y: 11,
         },
         to: {
-          x: -20.711524,
+          x: -23.75,
           y: 17,
         },
         part: "input-polarity",
@@ -7154,11 +7154,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -23.711524,
+          x: -26.75,
           y: 14,
         },
         to: {
-          x: -17.711524,
+          x: -20.75,
           y: 14,
         },
         part: "input-polarity",
@@ -7171,11 +7171,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -23.711524,
+          x: -26.75,
           y: -14,
         },
         to: {
-          x: -17.711524,
+          x: -20.75,
           y: -14,
         },
         part: "upright-input-polarity-negative",
@@ -7191,7 +7191,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       defaultFormula: "A",
       supportsCoefficient: false,
       center: {
-        x: -9.64,
+        x: -12.68,
         y: 0,
       },
       fontSize: 16,
@@ -7256,7 +7256,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: -10,
         },
         to: {
-          x: -26.961524,
+          x: -30,
           y: -10,
         },
         style: {
@@ -7272,7 +7272,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: 10,
         },
         to: {
-          x: -26.961524,
+          x: -30,
           y: 10,
         },
         style: {
@@ -7284,7 +7284,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: 25,
+          x: 21.961524,
           y: 0,
         },
         to: {
@@ -7299,9 +7299,9 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       },
       {
         kind: "path",
-        data: "M -26.961524 -30 L -26.961524 30 L 25 0 Z",
+        data: "M -30 -30 L -30 30 L 21.961524 0 Z",
         bounds: {
-          x: -26.961524,
+          x: -30,
           y: -30,
           width: 51.961524,
           height: 60,
@@ -7316,11 +7316,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -20.711524,
+          x: -23.75,
           y: -11,
         },
         to: {
-          x: -20.711524,
+          x: -23.75,
           y: -17,
         },
         part: "input-polarity",
@@ -7333,11 +7333,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -23.711524,
+          x: -26.75,
           y: -14,
         },
         to: {
-          x: -17.711524,
+          x: -20.75,
           y: -14,
         },
         part: "input-polarity",
@@ -7350,11 +7350,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -23.711524,
+          x: -26.75,
           y: 14,
         },
         to: {
-          x: -17.711524,
+          x: -20.75,
           y: 14,
         },
         part: "upright-input-polarity-negative",
@@ -7370,7 +7370,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       defaultFormula: "A",
       supportsCoefficient: false,
       center: {
-        x: -9.64,
+        x: -12.68,
         y: 0,
       },
       fontSize: 16,
@@ -7435,7 +7435,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: -10,
         },
         to: {
-          x: -26.961524,
+          x: -30,
           y: -10,
         },
         style: {
@@ -7451,7 +7451,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: 10,
         },
         to: {
-          x: -26.961524,
+          x: -30,
           y: 10,
         },
         style: {
@@ -7463,7 +7463,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: 25,
+          x: 21.961524,
           y: 0,
         },
         to: {
@@ -7478,9 +7478,9 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       },
       {
         kind: "path",
-        data: "M -26.961524 -30 L -26.961524 30 L 25 0 Z",
+        data: "M -30 -30 L -30 30 L 21.961524 0 Z",
         bounds: {
-          x: -26.961524,
+          x: -30,
           y: -30,
           width: 51.961524,
           height: 60,
@@ -7495,11 +7495,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -20.711524,
+          x: -23.75,
           y: -11,
         },
         to: {
-          x: -20.711524,
+          x: -23.75,
           y: -17,
         },
         part: "input-polarity",
@@ -7512,11 +7512,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -23.711524,
+          x: -26.75,
           y: -14,
         },
         to: {
-          x: -17.711524,
+          x: -20.75,
           y: -14,
         },
         part: "input-polarity",
@@ -7529,11 +7529,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -23.711524,
+          x: -26.75,
           y: 14,
         },
         to: {
-          x: -17.711524,
+          x: -20.75,
           y: 14,
         },
         part: "upright-input-polarity-negative",
@@ -7619,7 +7619,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: -10,
         },
         to: {
-          x: -26.961524,
+          x: -30,
           y: -10,
         },
         style: {
@@ -7636,7 +7636,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: 10,
         },
         to: {
-          x: -26.961524,
+          x: -30,
           y: 10,
         },
         style: {
@@ -7649,7 +7649,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "line",
         part: "output-lead",
         from: {
-          x: 7.679491999999993,
+          x: 4.641015999999993,
           y: -10,
         },
         to: {
@@ -7666,7 +7666,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "line",
         part: "output-lead",
         from: {
-          x: 7.679491999999993,
+          x: 4.641015999999993,
           y: 10,
         },
         to: {
@@ -7681,9 +7681,9 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       },
       {
         kind: "path",
-        data: "M -26.961524 -30 L -26.961524 30 L 25 0 Z",
+        data: "M -30 -30 L -30 30 L 21.961524 0 Z",
         bounds: {
-          x: -26.961524,
+          x: -30,
           y: -30,
           width: 51.961524,
           height: 60,
@@ -7698,11 +7698,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -20.711524,
+          x: -23.75,
           y: -11,
         },
         to: {
-          x: -20.711524,
+          x: -23.75,
           y: -17,
         },
         part: "input-polarity",
@@ -7715,11 +7715,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -23.711524,
+          x: -26.75,
           y: -14,
         },
         to: {
-          x: -17.711524,
+          x: -20.75,
           y: -14,
         },
         part: "input-polarity",
@@ -7732,11 +7732,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -23.711524,
+          x: -26.75,
           y: 14,
         },
         to: {
-          x: -17.711524,
+          x: -20.75,
           y: 14,
         },
         part: "upright-input-polarity-negative",
@@ -7749,11 +7749,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -10.5,
+          x: -13.538476,
           y: 11,
         },
         to: {
-          x: -10.5,
+          x: -13.538476,
           y: 17,
         },
         part: "output-polarity",
@@ -7766,11 +7766,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -13.5,
+          x: -16.538476,
           y: 14,
         },
         to: {
-          x: -7.5,
+          x: -10.538476,
           y: 14,
         },
         part: "output-polarity",
@@ -7783,11 +7783,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -13.5,
+          x: -16.538476,
           y: -14,
         },
         to: {
-          x: -7.5,
+          x: -10.538476,
           y: -14,
         },
         part: "upright-output-polarity-negative",
@@ -7873,7 +7873,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: -10,
         },
         to: {
-          x: -26.961524,
+          x: -30,
           y: -10,
         },
         style: {
@@ -7890,7 +7890,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: 10,
         },
         to: {
-          x: -26.961524,
+          x: -30,
           y: 10,
         },
         style: {
@@ -7903,7 +7903,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "line",
         part: "output-lead",
         from: {
-          x: 7.679491999999993,
+          x: 4.641015999999993,
           y: -10,
         },
         to: {
@@ -7920,7 +7920,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "line",
         part: "output-lead",
         from: {
-          x: 7.679491999999993,
+          x: 4.641015999999993,
           y: 10,
         },
         to: {
@@ -7935,9 +7935,9 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       },
       {
         kind: "path",
-        data: "M -26.961524 -30 L -26.961524 30 L 25 0 Z",
+        data: "M -30 -30 L -30 30 L 21.961524 0 Z",
         bounds: {
-          x: -26.961524,
+          x: -30,
           y: -30,
           width: 51.961524,
           height: 60,
@@ -7952,11 +7952,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -20.711524,
+          x: -23.75,
           y: -11,
         },
         to: {
-          x: -20.711524,
+          x: -23.75,
           y: -17,
         },
         part: "input-polarity",
@@ -7969,11 +7969,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -23.711524,
+          x: -26.75,
           y: -14,
         },
         to: {
-          x: -17.711524,
+          x: -20.75,
           y: -14,
         },
         part: "input-polarity",
@@ -7986,11 +7986,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -23.711524,
+          x: -26.75,
           y: 14,
         },
         to: {
-          x: -17.711524,
+          x: -20.75,
           y: 14,
         },
         part: "upright-input-polarity-negative",
@@ -8003,11 +8003,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -10.5,
+          x: -13.538476,
           y: 11,
         },
         to: {
-          x: -10.5,
+          x: -13.538476,
           y: 17,
         },
         part: "output-polarity",
@@ -8020,11 +8020,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -13.5,
+          x: -16.538476,
           y: 14,
         },
         to: {
-          x: -7.5,
+          x: -10.538476,
           y: 14,
         },
         part: "output-polarity",
@@ -8037,11 +8037,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -13.5,
+          x: -16.538476,
           y: -14,
         },
         to: {
-          x: -7.5,
+          x: -10.538476,
           y: -14,
         },
         part: "upright-output-polarity-negative",
@@ -8057,7 +8057,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       defaultFormula: "A",
       supportsCoefficient: false,
       center: {
-        x: -9.64,
+        x: -12.68,
         y: 0,
       },
       fontSize: 16,
@@ -8136,7 +8136,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: -10,
         },
         to: {
-          x: -26.961524,
+          x: -30,
           y: -10,
         },
         style: {
@@ -8153,7 +8153,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: 10,
         },
         to: {
-          x: -26.961524,
+          x: -30,
           y: 10,
         },
         style: {
@@ -8166,7 +8166,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "line",
         part: "output-lead",
         from: {
-          x: 7.679491999999993,
+          x: 4.641015999999993,
           y: -10,
         },
         to: {
@@ -8183,7 +8183,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "line",
         part: "output-lead",
         from: {
-          x: 7.679491999999993,
+          x: 4.641015999999993,
           y: 10,
         },
         to: {
@@ -8198,9 +8198,9 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       },
       {
         kind: "path",
-        data: "M -26.961524 -30 L -26.961524 30 L 25 0 Z",
+        data: "M -30 -30 L -30 30 L 21.961524 0 Z",
         bounds: {
-          x: -26.961524,
+          x: -30,
           y: -30,
           width: 51.961524,
           height: 60,
@@ -8215,11 +8215,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -20.711524,
+          x: -23.75,
           y: 11,
         },
         to: {
-          x: -20.711524,
+          x: -23.75,
           y: 17,
         },
         part: "input-polarity",
@@ -8232,11 +8232,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -23.711524,
+          x: -26.75,
           y: 14,
         },
         to: {
-          x: -17.711524,
+          x: -20.75,
           y: 14,
         },
         part: "input-polarity",
@@ -8249,11 +8249,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -23.711524,
+          x: -26.75,
           y: -14,
         },
         to: {
-          x: -17.711524,
+          x: -20.75,
           y: -14,
         },
         part: "upright-input-polarity-negative",
@@ -8266,11 +8266,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -10.5,
+          x: -13.538476,
           y: 11,
         },
         to: {
-          x: -10.5,
+          x: -13.538476,
           y: 17,
         },
         part: "output-polarity",
@@ -8283,11 +8283,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -13.5,
+          x: -16.538476,
           y: 14,
         },
         to: {
-          x: -7.5,
+          x: -10.538476,
           y: 14,
         },
         part: "output-polarity",
@@ -8300,11 +8300,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -13.5,
+          x: -16.538476,
           y: -14,
         },
         to: {
-          x: -7.5,
+          x: -10.538476,
           y: -14,
         },
         part: "upright-output-polarity-negative",
@@ -8320,7 +8320,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       defaultFormula: "A",
       supportsCoefficient: false,
       center: {
-        x: -9.64,
+        x: -12.68,
         y: 0,
       },
       fontSize: 16,
@@ -8399,7 +8399,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: -10,
         },
         to: {
-          x: -26.961524,
+          x: -30,
           y: -10,
         },
         style: {
@@ -8416,7 +8416,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: 10,
         },
         to: {
-          x: -26.961524,
+          x: -30,
           y: 10,
         },
         style: {
@@ -8429,7 +8429,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "line",
         part: "output-lead",
         from: {
-          x: 7.679491999999993,
+          x: 4.641015999999993,
           y: -10,
         },
         to: {
@@ -8446,7 +8446,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "line",
         part: "output-lead",
         from: {
-          x: 7.679491999999993,
+          x: 4.641015999999993,
           y: 10,
         },
         to: {
@@ -8461,9 +8461,9 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       },
       {
         kind: "path",
-        data: "M -26.961524 -30 L -26.961524 30 L 25 0 Z",
+        data: "M -30 -30 L -30 30 L 21.961524 0 Z",
         bounds: {
-          x: -26.961524,
+          x: -30,
           y: -30,
           width: 51.961524,
           height: 60,
@@ -8478,11 +8478,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -20.711524,
+          x: -23.75,
           y: 11,
         },
         to: {
-          x: -20.711524,
+          x: -23.75,
           y: 17,
         },
         part: "input-polarity",
@@ -8495,11 +8495,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -23.711524,
+          x: -26.75,
           y: 14,
         },
         to: {
-          x: -17.711524,
+          x: -20.75,
           y: 14,
         },
         part: "input-polarity",
@@ -8512,11 +8512,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -23.711524,
+          x: -26.75,
           y: -14,
         },
         to: {
-          x: -17.711524,
+          x: -20.75,
           y: -14,
         },
         part: "upright-input-polarity-negative",
@@ -8529,11 +8529,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -10.5,
+          x: -13.538476,
           y: 11,
         },
         to: {
-          x: -10.5,
+          x: -13.538476,
           y: 17,
         },
         part: "output-polarity",
@@ -8546,11 +8546,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -13.5,
+          x: -16.538476,
           y: 14,
         },
         to: {
-          x: -7.5,
+          x: -10.538476,
           y: 14,
         },
         part: "output-polarity",
@@ -8563,11 +8563,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -13.5,
+          x: -16.538476,
           y: -14,
         },
         to: {
-          x: -7.5,
+          x: -10.538476,
           y: -14,
         },
         part: "upright-output-polarity-negative",
@@ -8653,7 +8653,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: -10,
         },
         to: {
-          x: -26.961524,
+          x: -30,
           y: -10,
         },
         style: {
@@ -8670,7 +8670,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: 10,
         },
         to: {
-          x: -26.961524,
+          x: -30,
           y: 10,
         },
         style: {
@@ -8683,7 +8683,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "line",
         part: "output-lead",
         from: {
-          x: 7.679491999999993,
+          x: 4.641015999999993,
           y: -10,
         },
         to: {
@@ -8700,7 +8700,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "line",
         part: "output-lead",
         from: {
-          x: 7.679491999999993,
+          x: 4.641015999999993,
           y: 10,
         },
         to: {
@@ -8715,9 +8715,9 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       },
       {
         kind: "path",
-        data: "M -26.961524 -30 L -26.961524 30 L 25 0 Z",
+        data: "M -30 -30 L -30 30 L 21.961524 0 Z",
         bounds: {
-          x: -26.961524,
+          x: -30,
           y: -30,
           width: 51.961524,
           height: 60,
@@ -8732,11 +8732,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -20.711524,
+          x: -23.75,
           y: -11,
         },
         to: {
-          x: -20.711524,
+          x: -23.75,
           y: -17,
         },
         part: "input-polarity",
@@ -8749,11 +8749,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -23.711524,
+          x: -26.75,
           y: -14,
         },
         to: {
-          x: -17.711524,
+          x: -20.75,
           y: -14,
         },
         part: "input-polarity",
@@ -8766,11 +8766,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -23.711524,
+          x: -26.75,
           y: 14,
         },
         to: {
-          x: -17.711524,
+          x: -20.75,
           y: 14,
         },
         part: "upright-input-polarity-negative",
@@ -8783,11 +8783,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -10.5,
+          x: -13.538476,
           y: -11,
         },
         to: {
-          x: -10.5,
+          x: -13.538476,
           y: -17,
         },
         part: "output-polarity",
@@ -8800,11 +8800,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -13.5,
+          x: -16.538476,
           y: -14,
         },
         to: {
-          x: -7.5,
+          x: -10.538476,
           y: -14,
         },
         part: "output-polarity",
@@ -8817,11 +8817,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -13.5,
+          x: -16.538476,
           y: 14,
         },
         to: {
-          x: -7.5,
+          x: -10.538476,
           y: 14,
         },
         part: "upright-output-polarity-negative",
@@ -8907,7 +8907,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: -10,
         },
         to: {
-          x: -26.961524,
+          x: -30,
           y: -10,
         },
         style: {
@@ -8924,7 +8924,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: 10,
         },
         to: {
-          x: -26.961524,
+          x: -30,
           y: 10,
         },
         style: {
@@ -8937,7 +8937,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "line",
         part: "output-lead",
         from: {
-          x: 7.679491999999993,
+          x: 4.641015999999993,
           y: -10,
         },
         to: {
@@ -8954,7 +8954,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "line",
         part: "output-lead",
         from: {
-          x: 7.679491999999993,
+          x: 4.641015999999993,
           y: 10,
         },
         to: {
@@ -8969,9 +8969,9 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       },
       {
         kind: "path",
-        data: "M -26.961524 -30 L -26.961524 30 L 25 0 Z",
+        data: "M -30 -30 L -30 30 L 21.961524 0 Z",
         bounds: {
-          x: -26.961524,
+          x: -30,
           y: -30,
           width: 51.961524,
           height: 60,
@@ -8986,11 +8986,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -20.711524,
+          x: -23.75,
           y: -11,
         },
         to: {
-          x: -20.711524,
+          x: -23.75,
           y: -17,
         },
         part: "input-polarity",
@@ -9003,11 +9003,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -23.711524,
+          x: -26.75,
           y: -14,
         },
         to: {
-          x: -17.711524,
+          x: -20.75,
           y: -14,
         },
         part: "input-polarity",
@@ -9020,11 +9020,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -23.711524,
+          x: -26.75,
           y: 14,
         },
         to: {
-          x: -17.711524,
+          x: -20.75,
           y: 14,
         },
         part: "upright-input-polarity-negative",
@@ -9037,11 +9037,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -10.5,
+          x: -13.538476,
           y: -11,
         },
         to: {
-          x: -10.5,
+          x: -13.538476,
           y: -17,
         },
         part: "output-polarity",
@@ -9054,11 +9054,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -13.5,
+          x: -16.538476,
           y: -14,
         },
         to: {
-          x: -7.5,
+          x: -10.538476,
           y: -14,
         },
         part: "output-polarity",
@@ -9071,11 +9071,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -13.5,
+          x: -16.538476,
           y: 14,
         },
         to: {
-          x: -7.5,
+          x: -10.538476,
           y: 14,
         },
         part: "upright-output-polarity-negative",
@@ -9091,7 +9091,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       defaultFormula: "A",
       supportsCoefficient: false,
       center: {
-        x: -9.64,
+        x: -12.68,
         y: 0,
       },
       fontSize: 16,
@@ -9170,7 +9170,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: -10,
         },
         to: {
-          x: -26.961524,
+          x: -30,
           y: -10,
         },
         style: {
@@ -9187,7 +9187,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: 10,
         },
         to: {
-          x: -26.961524,
+          x: -30,
           y: 10,
         },
         style: {
@@ -9200,7 +9200,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "line",
         part: "output-lead",
         from: {
-          x: 7.679491999999993,
+          x: 4.641015999999993,
           y: -10,
         },
         to: {
@@ -9217,7 +9217,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "line",
         part: "output-lead",
         from: {
-          x: 7.679491999999993,
+          x: 4.641015999999993,
           y: 10,
         },
         to: {
@@ -9232,9 +9232,9 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       },
       {
         kind: "path",
-        data: "M -26.961524 -30 L -26.961524 30 L 25 0 Z",
+        data: "M -30 -30 L -30 30 L 21.961524 0 Z",
         bounds: {
-          x: -26.961524,
+          x: -30,
           y: -30,
           width: 51.961524,
           height: 60,
@@ -9249,11 +9249,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -20.711524,
+          x: -23.75,
           y: 11,
         },
         to: {
-          x: -20.711524,
+          x: -23.75,
           y: 17,
         },
         part: "input-polarity",
@@ -9266,11 +9266,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -23.711524,
+          x: -26.75,
           y: 14,
         },
         to: {
-          x: -17.711524,
+          x: -20.75,
           y: 14,
         },
         part: "input-polarity",
@@ -9283,11 +9283,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -23.711524,
+          x: -26.75,
           y: -14,
         },
         to: {
-          x: -17.711524,
+          x: -20.75,
           y: -14,
         },
         part: "upright-input-polarity-negative",
@@ -9300,11 +9300,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -10.5,
+          x: -13.538476,
           y: -11,
         },
         to: {
-          x: -10.5,
+          x: -13.538476,
           y: -17,
         },
         part: "output-polarity",
@@ -9317,11 +9317,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -13.5,
+          x: -16.538476,
           y: -14,
         },
         to: {
-          x: -7.5,
+          x: -10.538476,
           y: -14,
         },
         part: "output-polarity",
@@ -9334,11 +9334,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -13.5,
+          x: -16.538476,
           y: 14,
         },
         to: {
-          x: -7.5,
+          x: -10.538476,
           y: 14,
         },
         part: "upright-output-polarity-negative",
@@ -9354,7 +9354,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       defaultFormula: "A",
       supportsCoefficient: false,
       center: {
-        x: -9.64,
+        x: -12.68,
         y: 0,
       },
       fontSize: 16,
@@ -9433,7 +9433,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: -10,
         },
         to: {
-          x: -26.961524,
+          x: -30,
           y: -10,
         },
         style: {
@@ -9450,7 +9450,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: 10,
         },
         to: {
-          x: -26.961524,
+          x: -30,
           y: 10,
         },
         style: {
@@ -9463,7 +9463,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "line",
         part: "output-lead",
         from: {
-          x: 7.679491999999993,
+          x: 4.641015999999993,
           y: -10,
         },
         to: {
@@ -9480,7 +9480,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "line",
         part: "output-lead",
         from: {
-          x: 7.679491999999993,
+          x: 4.641015999999993,
           y: 10,
         },
         to: {
@@ -9495,9 +9495,9 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       },
       {
         kind: "path",
-        data: "M -26.961524 -30 L -26.961524 30 L 25 0 Z",
+        data: "M -30 -30 L -30 30 L 21.961524 0 Z",
         bounds: {
-          x: -26.961524,
+          x: -30,
           y: -30,
           width: 51.961524,
           height: 60,
@@ -9512,11 +9512,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -20.711524,
+          x: -23.75,
           y: 11,
         },
         to: {
-          x: -20.711524,
+          x: -23.75,
           y: 17,
         },
         part: "input-polarity",
@@ -9529,11 +9529,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -23.711524,
+          x: -26.75,
           y: 14,
         },
         to: {
-          x: -17.711524,
+          x: -20.75,
           y: 14,
         },
         part: "input-polarity",
@@ -9546,11 +9546,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -23.711524,
+          x: -26.75,
           y: -14,
         },
         to: {
-          x: -17.711524,
+          x: -20.75,
           y: -14,
         },
         part: "upright-input-polarity-negative",
@@ -9563,11 +9563,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -10.5,
+          x: -13.538476,
           y: -11,
         },
         to: {
-          x: -10.5,
+          x: -13.538476,
           y: -17,
         },
         part: "output-polarity",
@@ -9580,11 +9580,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -13.5,
+          x: -16.538476,
           y: -14,
         },
         to: {
-          x: -7.5,
+          x: -10.538476,
           y: -14,
         },
         part: "output-polarity",
@@ -9597,11 +9597,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -13.5,
+          x: -16.538476,
           y: 14,
         },
         to: {
-          x: -7.5,
+          x: -10.538476,
           y: 14,
         },
         part: "upright-output-polarity-negative",
@@ -11146,7 +11146,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: 0,
         },
         to: {
-          x: -26.961524,
+          x: -30,
           y: 0,
         },
         style: {
@@ -11157,7 +11157,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       },
       {
         kind: "path",
-        data: "M -26.961524 -30 L -26.961524 30 L 25 0 Z",
+        data: "M -30 -30 L -30 30 L 21.961524 0 Z",
         style: {
           strokeRole: "emphasis",
           lineCap: "butt",
@@ -11165,7 +11165,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           miterLimit: 4,
         },
         bounds: {
-          x: -26.961524,
+          x: -30,
           y: -30,
           width: 51.961524,
           height: 60,
@@ -11174,7 +11174,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: 25,
+          x: 21.961524,
           y: 0,
         },
         to: {
@@ -11236,7 +11236,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: 0,
         },
         to: {
-          x: -26.961524,
+          x: -30,
           y: 0,
         },
         style: {
@@ -11247,7 +11247,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       },
       {
         kind: "path",
-        data: "M -26.961524 -30 L -26.961524 30 L 25 0 Z",
+        data: "M -30 -30 L -30 30 L 21.961524 0 Z",
         style: {
           strokeRole: "emphasis",
           lineCap: "butt",
@@ -11255,7 +11255,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           miterLimit: 4,
         },
         bounds: {
-          x: -26.961524,
+          x: -30,
           y: -30,
           width: 51.961524,
           height: 60,
@@ -11264,7 +11264,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: 25,
+          x: 21.961524,
           y: 0,
         },
         to: {
@@ -11283,7 +11283,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       defaultFormula: "A",
       supportsCoefficient: false,
       center: {
-        x: -9.64,
+        x: -12.68,
         y: 0,
       },
       fontSize: 16,
