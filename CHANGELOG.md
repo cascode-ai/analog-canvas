@@ -3,6 +3,30 @@
 Notable changes to Analog Canvas. Entries describe what changed for the person
 using the product, not the commits that got there.
 
+## 0.4.1 (2026-09-13)
+
+### Agent authoring and simulation results
+
+- Place components with native, attached reference/value annotations and real
+  power connections. MCP 0.8.0 adds `set-instance-display` to control visibility
+  without duplicate text. Net Labels name their Net and attach to its route.
+- See Agent-started Project-folder runs, batches and sweeps in the GUI without
+  changing the active folder or stealing focus. Open completed results without
+  running the simulation again.
+- Automatically preserve verified results in this browser's Saved results.
+  Export a Project + results evidence ZIP when a verified input snapshot is
+  available. Ordinary Project files remain source-only; browser archives are
+  not Cloud Save, and storage failures are reported explicitly.
+- Keep selected simulation Run targets explicit, avoid duplicate OP/MOS result
+  displays, and use consistent names when placing hierarchical Cells.
+- Start from four complete simulation example Projects with explicit replacement
+  confirmation and source-aware guidance. Maximize Simulation to reclaim the
+  application chrome while preserving editor state on restore.
+
+Project schema 53 and the API 3.0 source-workspace contracts are unchanged.
+The independently published MCP adapter advances to 0.8.0; existing pinned
+installations must update separately.
+
 ## 0.4.0 (2026-09-13)
 
 ### Simulation and Agent

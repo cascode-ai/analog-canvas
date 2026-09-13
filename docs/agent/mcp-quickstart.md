@@ -8,16 +8,15 @@ Closing the browser details panel does not revoke the connection.
 Call `get_context` and read the built-in catalog before placing devices.
 Use `inspect` and `search` for IDs and pins, not screenshot coordinates.
 
-Production hides the Agent UI intentionally. Development/staging enables it
-with `VITE_ICM_AGENT_UI=enabled`.
+Production and Preview both expose the Agent UI. Their accounts, Projects and
+connector bindings remain separate.
 
-MCP 0.7.0 is the source-folder candidate for API 3.0 and Project schema 53.
-It authors setup v4 source/config files; do not pair older setup-writing helpers
-with this cutover. The distribution manifest continues to identify the last
-published 0.5.0 artifact until a separately verified release is authorized.
-Changing source/package metadata does not install a new MCP in Codex.
-Releasing the adapter does not deploy editor/API fixes or enable the production Agent UI.
-Set `ANALOG_CANVAS_API_URL` to your development endpoint before starting it.
+MCP 0.8.0 supports API 3.0, Project schema 53 and setup v4 source/config files.
+It adds native component displays and attached Net Labels; use it with Analog
+Canvas 0.4.1 or newer. The public distribution manifest identifies the pinned
+release artifact and its SHA-256. Updating the website does not update an
+already installed MCP process. Set `ANALOG_CANVAS_API_URL` only when connecting
+to Preview or another non-production endpoint.
 
 ## Create and edit (MCP 0.5 / Kit 4)
 
@@ -207,6 +206,14 @@ variable or exact-parameter axes. Nominal values come from source; point
 projections do not mutate the Project. Both become an ordinary sequential
 batch consumed by `start-batch`, `read-batch`, `cancel-batch` and per-run
 `read`/`export`. Reuse start request identity after an uncertain response.
+
+Project-folder runs, including batches and sweeps, appear in the GUI's Project
+runs list without opening the panel or stealing focus. Open result restores a
+completed run without executing it again. Verified artifacts are automatically
+archived in this browser; Saved results survives reload, but is not Cloud Save.
+Session-workspace runs remain private. Storage failures carry a session-only
+warning. Project + results ZIP bundles a captured Project and run evidence;
+ordinary Project exports remain source-only.
 
 Run history and rawfiles are not Project objects. Export artifacts and
 `evidence-manifest.json` for durable evidence. Browser Archive is a bounded
