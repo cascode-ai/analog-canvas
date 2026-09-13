@@ -1,11 +1,14 @@
 import { expect, test, type Page } from "@playwright/test";
+import { createEmptyProject, type CircuitProject } from "@icm/model";
 
 import {
+  awaitEditorReady,
   chooseComponent,
   clickDrawTool,
   placeText,
   clickCommand,
   openMenu,
+  downloadBytes,
 } from "./editor-fixtures";
 
 async function captureImageClipboard(
@@ -103,6 +106,143 @@ test("right-click on a multi-selection aligns bbox edges", async ({ page }) => {
   );
   expect(boxes[0]).toBe(boxes[1]);
 });
+
+for (const grid of [5, 10]) {
+  test(`bottom alignment removes fine text offsets with placement grid ${grid}`, async ({
+    page,
+  }) => {
+    const project = createEmptyProject(
+      "align-ring-labels",
+      "Align ring labels",
+    );
+    const positions = [
+      { x: 175, y: 322 },
+      { x: 295, y: 325 },
+      { x: 400, y: 323 },
+      { x: 527, y: 320 },
+    ];
+    const document = project.documents[0]!;
+    document.instances = [170, 290, 400, 530].map((x, index) => ({
+      id: `U${index + 1}`,
+      symbolId: "opamp-differential-inputs-swapped",
+      // Leave the labels clear of the bodies' hit boxes when Shift-clicking.
+      placement: { position: { x, y: 390 }, rotation: 0, mirror: "none" },
+    }));
+    document.drafting = {
+      objects: positions.map((position, index) => ({
+        id: `label-${index + 1}`,
+        kind: "text",
+        anchor: { kind: "free", position },
+        content: {
+          runs: [
+            {
+              kind: "span",
+              style: "bold",
+              children: [
+                {
+                  kind: "span",
+                  style: "italic",
+                  children: [
+                    { kind: "text", value: "X" },
+                    {
+                      kind: "span",
+                      style: "subscript",
+                      children: [{ kind: "text", value: String(index + 1) }],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+        alignment: "middle",
+        rotation: 0,
+        typographyToken: "label",
+        zIndex: 0,
+        locked: false,
+      })),
+    };
+    await page.goto("/editor");
+    await awaitEditorReady(page);
+    const importProject = async (buffer: Buffer) =>
+      page.getByTestId("project-file").setInputFiles({
+        name: "align-ring-labels.icproj.json",
+        mimeType: "application/json",
+        buffer,
+      });
+    await importProject(Buffer.from(JSON.stringify(project)));
+    const labels = page.locator('[data-testid^="drafting-hit-label-"]');
+    await expect(labels).toHaveCount(4);
+    await page.getByTestId("annotation-grid-select").selectOption(String(grid));
+    const labelRects = () =>
+      labels.evaluateAll((elements) =>
+        elements.map((element) => {
+          const bounds = (element as SVGGraphicsElement).getBBox();
+          return { x: bounds.x, y: bounds.y, bottom: bounds.y + bounds.height };
+        }),
+      );
+    const before = await labelRects();
+    for (let index = 0; index < 4; index += 1)
+      await labels
+        .nth(index)
+        .click({ modifiers: index === 0 ? [] : ["Shift"] });
+    await expect(
+      page.locator('[data-canvas-hit-kind="drafting"].selected'),
+    ).toHaveCount(4);
+    await expect(
+      page.locator('[data-canvas-hit-kind="instance"].selected'),
+    ).toHaveCount(0);
+    const alignBottom = async () => {
+      await labels.last().click({ button: "right" });
+      await page.getByTestId("context-align-bottom").click();
+    };
+    await alignBottom();
+    await expect(page.getByTestId("status")).toContainText(
+      "Aligned 4 selected objects",
+    );
+    const after = await labelRects();
+    expect(after.map((rect) => rect.x)).toEqual(before.map((rect) => rect.x));
+    const bottom = Math.max(...before.map((rect) => rect.bottom));
+    for (const rect of after) expect(rect.bottom).toBeCloseTo(bottom);
+    const renderedBottoms = await page
+      .locator('[data-layer="drafting"] [data-kind="draft-text"]')
+      .evaluateAll((elements) =>
+        elements.map((element) => {
+          const bounds = (element as SVGGraphicsElement).getBBox();
+          return bounds.y + bounds.height;
+        }),
+      );
+    expect(
+      Math.max(...renderedBottoms) - Math.min(...renderedBottoms),
+    ).toBeLessThan(0.01);
+
+    // A second alignment is a true no-op; Undo still reverses the first one.
+    await alignBottom();
+    await expect(page.getByTestId("status")).toContainText(
+      "Selection is already aligned",
+    );
+    await page.keyboard.press("ControlOrMeta+z");
+    expect(await labelRects()).toEqual(before);
+    await page.keyboard.press("ControlOrMeta+Shift+z");
+    expect(await labelRects()).toEqual(after);
+
+    const bytes = await downloadBytes(page, "File", "Export Project File…");
+    const saved = JSON.parse(bytes.toString("utf8")) as CircuitProject;
+    expect(
+      saved.documents[0]!.instances.map((instance) => instance.placement),
+    ).toEqual(document.instances.map((instance) => instance.placement));
+    expect(
+      saved.documents[0]!.drafting!.objects.map((object) => object.anchor),
+    ).toEqual(
+      positions.map((position) => ({
+        kind: "free",
+        position: { x: position.x, y: 325 },
+      })),
+    );
+    await importProject(bytes);
+    expect(await labelRects()).toEqual(after);
+  });
+}
 
 test("drafting text shares device additive selection and context alignment", async ({
   page,

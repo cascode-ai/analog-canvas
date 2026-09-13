@@ -1,13 +1,16 @@
 import {
+  resolveAnnotationPresentation,
   resolveDocumentStyleProfile,
   resolveDraftingObjectGeometry,
 } from "@icm/derived";
+import { executeTransaction } from "@icm/edit-engine";
 import { createEmptyDocument } from "@icm/model";
 import type { SchematicDocument } from "@icm/model";
 import { InMemorySymbolResolver, builtInSymbols } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
 
 import {
+  EDGE_ALIGNMENT_MODES,
   planSelectionAlignment,
   type SelectionAlignmentContext,
 } from "./align-selection";
@@ -58,6 +61,121 @@ function context(
 }
 
 describe("planSelectionAlignment", () => {
+  it.each(
+    EDGE_ALIGNMENT_MODES.flatMap(({ mode }) =>
+      [5, 10].map((grid) => [mode, grid] as const),
+    ),
+  )("aligns fine-positioned text %s with placement grid %s", (mode, grid) => {
+    for (const kind of ["annotation", "drafting"] as const) {
+      for (const anchored of [false, true]) {
+        const document = fixture();
+        const positions = [
+          { x: 103, y: 112 },
+          { x: 106, y: 115 },
+          { x: 104, y: 114 },
+        ];
+        const labels = positions.map((position, index) => ({
+          id: `text-${index}`,
+          content: { runs: [{ kind: "text" as const, value: "X" }] },
+          anchor: anchored
+            ? {
+                kind: "object" as const,
+                objectId: "R1",
+                localOffset: { x: position.x - 100, y: position.y - 100 },
+                fallbackPosition: position,
+              }
+            : { kind: "free" as const, position },
+          alignment: "middle" as const,
+          rotation: 90 as const,
+          locked: false,
+        }));
+        const selection = {
+          ...EMPTY_VISUAL_SELECTION,
+          annotationIds:
+            kind === "annotation" ? labels.map(({ id }) => id) : [],
+          draftingIds: kind === "drafting" ? labels.map(({ id }) => id) : [],
+        };
+        if (kind === "annotation") {
+          document.annotations = labels.map((label) => ({
+            ...label,
+            kind: "instance-label",
+          }));
+        } else {
+          document.drafting = {
+            objects: labels.map((label) => ({
+              ...label,
+              kind: "text",
+              zIndex: 0,
+              typographyToken: "label",
+            })),
+          };
+        }
+        const initial = {
+          ...context(document, selection),
+          annotationGrid: grid,
+        };
+        const plan = planSelectionAlignment(initial, mode);
+        expect(
+          plan.edits.length,
+          `${kind}, anchored=${anchored}`,
+        ).toBeGreaterThan(0);
+        const result = executeTransaction(
+          document,
+          {
+            transactionId: "align-text",
+            documentId: document.id,
+            expectedRevision: document.revision,
+            actor: { kind: "human", id: "test" },
+            edits: plan.edits,
+          },
+          { symbolResolver: resolver },
+        );
+        expect(result.ok, JSON.stringify(result.diagnostics)).toBe(true);
+        if (!result.ok) throw new Error(result.error.message);
+        const presentations =
+          kind === "annotation"
+            ? result.document.annotations.map((annotation) =>
+                resolveAnnotationPresentation(
+                  result.document,
+                  resolver,
+                  annotation,
+                  initial.styleProfile,
+                ),
+              )
+            : result.document.drafting!.objects.map((object) => {
+                const geometry = resolveDraftingObjectGeometry(
+                  result.document,
+                  resolver,
+                  object,
+                );
+                if (geometry.kind !== "text") throw new Error("Expected text");
+                return geometry;
+              });
+        const horizontal = ["left", "h-center", "right"].includes(mode);
+        // Identical rotated text has identical extents: all six edge/center
+        // operations must converge while preserving the perpendicular axis.
+        const aligned = presentations.map(({ bounds }) =>
+          horizontal ? bounds.x : bounds.y,
+        );
+        expect(Math.max(...aligned) - Math.min(...aligned)).toBeCloseTo(0);
+        expect(
+          presentations.map(({ position }) =>
+            horizontal ? position.y : position.x,
+          ),
+        ).toEqual(
+          positions.map((position) => (horizontal ? position.y : position.x)),
+        );
+        expect(result.document.instances).toEqual(document.instances);
+        expect(
+          planSelectionAlignment(
+            { ...initial, document: result.document },
+            mode,
+          ).edits,
+        ).toEqual([]);
+      }
+    }
+  });
+
   it("keeps the established six-way instance alignment on ordinary moves", () => {
     const document = fixture();
     const plan = planSelectionAlignment(

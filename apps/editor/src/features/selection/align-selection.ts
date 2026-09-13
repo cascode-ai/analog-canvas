@@ -57,6 +57,11 @@ interface AlignmentParticipant {
   editForDelta(delta: Point): SchematicEdit | null;
 }
 
+// Explicit text alignment uses the model's finest placement precision. The
+// drag grid must not round a remaining edge difference to zero or move the
+// untouched axis; electrical Instances still use the Document grid below.
+const TEXT_ALIGNMENT_GRID = 1;
+
 function translatePoint(point: Point, delta: Point): Point {
   return snapGridPoint({ x: point.x + delta.x, y: point.y + delta.y }, 1);
 }
@@ -88,7 +93,6 @@ function alignmentParticipants({
   resolver,
   styleProfile,
   routeGeometryRecords,
-  annotationGrid,
   selection,
 }: SelectionAlignmentContext): AlignmentParticipant[] {
   const selectedInstanceIds = new Set(selection.instanceIds);
@@ -143,13 +147,13 @@ function alignmentParticipants({
           id: annotation.id,
           bounds: presentation.bounds,
           locked: annotation.locked,
-          pitch: annotationGrid,
+          pitch: TEXT_ALIGNMENT_GRID,
           editForDelta: (delta) => ({
             kind: "upsert_schematic_annotation",
             annotation: draggedAnnotationAtPosition(
               {
                 document,
-                annotationGrid,
+                annotationGrid: TEXT_ALIGNMENT_GRID,
                 resolver,
                 routeGeometryRecords,
               },
@@ -188,9 +192,9 @@ function alignmentParticipants({
           id: object.id,
           bounds: geometry.bounds,
           locked: object.locked,
-          pitch: annotationGrid,
+          pitch: TEXT_ALIGNMENT_GRID,
           editForDelta: (delta) => {
-            const next = translateDraftText(object, delta, annotationGrid);
+            const next = translateDraftText(object, delta, TEXT_ALIGNMENT_GRID);
             return next
               ? { kind: "upsert_drafting_object", object: next }
               : null;
