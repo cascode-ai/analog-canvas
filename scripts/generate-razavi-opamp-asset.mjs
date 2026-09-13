@@ -10,6 +10,12 @@ import { format } from "prettier";
 
 import { loadRazaviReferenceAuthority } from "./lib/razavi-reference-authority.mjs";
 
+import {
+  ANALOG_TRIANGLE,
+  ANALOG_TRIANGLE_PATH,
+  ANALOG_TRIANGLE_VIEWBOX,
+} from "./lib/analog-triangle.mjs";
+
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const referenceRoot = resolve(
   root,
@@ -42,8 +48,20 @@ const normal = { strokeRole: "normal", lineCap: "butt", lineJoin: "miter" };
 const ANALOG_BLOCK_LEAD_LENGTH = 10;
 const OPAMP_INPUT_PIN_X = -40;
 const OPAMP_OUTPUT_PIN_X = 40;
-const OPAMP_BODY_LEFT_X = -26.7979;
-const OPAMP_BODY_APEX_X = 23.2021;
+const OPAMP_BODY_LEFT_X = ANALOG_TRIANGLE.leftX;
+const OPAMP_BODY_APEX_X = ANALOG_TRIANGLE.apexX;
+const SOURCE_OPAMP_BODY_LEFT_X = -26.7979;
+// Preserve the PDF polarity strokes while translating them with the new base.
+const inputMark = (geometry) => ({
+  from: {
+    x: geometry.from.x + OPAMP_BODY_LEFT_X - SOURCE_OPAMP_BODY_LEFT_X,
+    y: geometry.from.y,
+  },
+  to: {
+    x: geometry.to.x + OPAMP_BODY_LEFT_X - SOURCE_OPAMP_BODY_LEFT_X,
+    y: geometry.to.y,
+  },
+});
 
 function fail(message) {
   throw new Error(`Razavi op-amp generation: ${message}`);
@@ -82,7 +100,7 @@ const symbol = {
   schemaVersion: 1,
   id: "opamp",
   name: "Operational Amplifier",
-  viewBox: { x: -44, y: -28, width: 88, height: 56 },
+  viewBox: ANALOG_TRIANGLE_VIEWBOX,
   pins: [
     {
       name: "IN+",
@@ -133,7 +151,7 @@ const symbol = {
     }),
     {
       kind: "path",
-      data: geometry.trianglePathData,
+      data: ANALOG_TRIANGLE_PATH,
       style: {
         strokeRole: "emphasis",
         lineCap: "butt",
@@ -141,10 +159,10 @@ const symbol = {
         miterLimit: 4,
       },
     },
-    line(geometry.plusVertical),
-    line(geometry.plusHorizontal),
+    line(inputMark(geometry.plusVertical)),
+    line(inputMark(geometry.plusHorizontal)),
     {
-      ...line(geometry.minusHorizontal),
+      ...line(inputMark(geometry.minusHorizontal)),
       part: "upright-input-polarity-negative",
     },
   ],
@@ -158,8 +176,9 @@ const assetSource = normalize(
  * Figure 13.48 supplies the fully differential polarity layout and dual-output
  * topology. Its printed triangle is compact, whereas the product contract is
  * that every triangular Analog Block uses the ordinary Razavi Op Amp body
- * (Figure 8.26). Scale only Figure 13.48's polarity layout into that exact
- * shared body; retain pin semantics and derive only marks needed per state.
+ * with the user-requested equilateral normalization. Scale Figure 13.48's
+ * polarity layout into the shared body; retain pin semantics and derive only
+ * marks needed per state.
  */
 const differentialAuthority = manifest.vectorEvidence?.find(
   (candidate) =>
@@ -193,19 +212,13 @@ if (
   fail("Figure 13.48 differential op-amp evidence contract mismatch");
 }
 
-const opampTriangle = {
-  leftX: -26.7979,
-  apexX: 23.2021,
-  topY: -24.9983,
-  bottomY: 25,
-};
+const opampTriangle = ANALOG_TRIANGLE;
 const compactDifferentialTriangle = {
   leftX: -20,
   apexX: 14.9998,
   topY: -15.0002,
   bottomY: 14.9993,
 };
-const opampCenterX = (opampTriangle.leftX + opampTriangle.apexX) / 2;
 const opampCenterY = (opampTriangle.topY + opampTriangle.bottomY) / 2;
 const scaleDifferentialMarkPoint = ({ x, y }) => ({
   x:
@@ -221,7 +234,7 @@ const scaleDifferentialMarkPoint = ({ x, y }) => ({
 });
 const scaledDifferentialTriangle = { ...opampTriangle, apexY: 0 };
 const baseDifferentialTriangle = scaledDifferentialTriangle;
-const differentialTrianglePathData = geometry.trianglePathData;
+const differentialTrianglePathData = ANALOG_TRIANGLE_PATH;
 const triangleEdgeXAtY = (triangle, y) => {
   const reachesApexFromTop = y <= triangle.apexY;
   const edgeY = reachesApexFromTop ? triangle.topY : triangle.bottomY;
@@ -468,7 +481,8 @@ const generation = {
   referencePath:
     "fixtures/visual-reference/razavi-reference-v1/opamp-vector-source.json",
   converterPath: "scripts/generate-razavi-opamp-asset.mjs",
-  converterVersion: 2,
+  converterVersion: 3,
+  bodyNormalization: "equilateral-triangle",
 };
 const differentialGeneration = {
   kind: "razavi-pdf-vector-reference",
@@ -477,7 +491,8 @@ const differentialGeneration = {
   referencePath:
     "fixtures/visual-reference/razavi-reference-v1/differential-opamp-vector-source.json",
   converterPath: "scripts/generate-razavi-opamp-asset.mjs",
-  converterVersion: 4,
+  converterVersion: 5,
+  bodyNormalization: "equilateral-triangle",
 };
 const differentialAuthorityPaths = [
   "fixtures/visual-reference/razavi-reference-v1/opamp-vector-source.json",
@@ -502,12 +517,50 @@ for (const [id, source] of differentialSources) {
   };
   entry.generation = { ...differentialGeneration };
 }
+// Comparator states share the same outline and port leads. Their transfer
+// characteristic stays authored; unmarked removes only the input +/- strokes.
+const comparatorOutputs = [];
+for (const id of ["comparator", "comparator-unmarked"]) {
+  const path = resolve(root, `packages/components/definitions/${id}.json`);
+  const previous = JSON.parse(await readComponentProjection(path));
+  const next = {
+    ...previous,
+    viewBox: symbol.viewBox,
+    pins: symbol.pins,
+    primitives: [
+      ...symbol.primitives.slice(0, id === "comparator" ? 7 : 4),
+      ...previous.primitives
+        .filter((primitive) => primitive.part === "hysteresis-step")
+        .map((primitive) => {
+          if (id !== "comparator-unmarked") return primitive;
+          const center = Number(
+            ((2 * ANALOG_TRIANGLE.leftX + ANALOG_TRIANGLE.apexX) / 3).toFixed(
+              6,
+            ),
+          );
+          return {
+            ...primitive,
+            data: `M ${center - 8} 7 L ${center} 7 L ${center} -7 L ${center + 8} -7`,
+          };
+        }),
+    ],
+  };
+  const source = normalize(
+    await format(JSON.stringify(next, null, 2), { parser: "json" }),
+  );
+  comparatorOutputs.push([path, source]);
+  const entry = catalog.entries.find((candidate) => candidate.symbolId === id);
+  if (!entry) fail(`missing catalog entry ${id}`);
+  entry.assetHash = hash(source);
+  entry.generation = { ...generation };
+}
 const catalogSource = normalize(
   await format(JSON.stringify(catalog, null, 2), { parser: "json" }),
 );
 
 const outputs = [
   [assetPath, assetSource],
+  ...comparatorOutputs,
   ...differentialSymbols.map((candidate) => [
     differentialAssetPaths[candidate.id],
     differentialSources.get(candidate.id),

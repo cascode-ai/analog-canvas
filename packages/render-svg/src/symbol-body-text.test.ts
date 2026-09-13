@@ -57,8 +57,18 @@ describe("lettered amplifier body text", () => {
     );
     const text = /<text data-role="formula-text" x="([-\d.]+)"/u.exec(svg);
     expect(text).not.toBeNull();
-    // Symbol-local -10.13: the triangle's centroid, right of the marks at -18.
-    expect(Number(text![1])).toBeCloseTo(-10.13, 2);
+    // The letter follows the current triangle centroid after normalization.
+    const body = resolver
+      .resolve("opamp-lettered")!
+      .definition.primitives.find(
+        (primitive) =>
+          primitive.kind === "path" &&
+          primitive.style?.strokeRole === "emphasis",
+      );
+    if (body?.kind !== "path") throw new Error("triangle missing");
+    const coordinates = body.data.match(/-?\d+(?:\.\d+)?/gu)!.map(Number);
+    const centerX = (coordinates[0]! + coordinates[2]! + coordinates[4]!) / 3;
+    expect(Number(text![1])).toBeCloseTo(centerX, 2);
   });
 
   it("gives the voltage amplifier the same editable body letter", () => {

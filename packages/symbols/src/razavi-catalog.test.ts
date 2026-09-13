@@ -482,7 +482,7 @@ describe("Razavi symbol catalog", () => {
     ).toBe(true);
   });
 
-  it("uses one triangle, pair spacing, and visible leads across Analog Blocks", () => {
+  it("uses one equilateral triangle, pair spacing, and visible leads across Analog Blocks", () => {
     const opamp = requireRazaviCatalogSymbol("opamp");
     const opampTriangle = opamp.primitives.find(
       (primitive) =>
@@ -492,15 +492,11 @@ describe("Razavi symbol catalog", () => {
       throw new Error("Op Amp must retain its triangle path");
     }
 
-    for (const symbolId of [
-      "opamp-lettered",
-      "opamp-differential",
-      "opamp-differential-lettered",
-      "voltage-amplifier",
-      "voltage-amplifier-lettered",
-      "comparator",
-      "comparator-unmarked",
-    ]) {
+    const family = razaviCatalogSymbols.filter((symbol) =>
+      /^(?:opamp|voltage-amplifier|comparator)(?:-|$)/u.test(symbol.id),
+    );
+    expect(family).toHaveLength(18);
+    for (const { id: symbolId } of family) {
       const candidate = requireRazaviCatalogSymbol(symbolId);
       const triangle = candidate.primitives.find(
         (primitive) =>
@@ -513,6 +509,44 @@ describe("Razavi symbol catalog", () => {
         style: opampTriangle.style,
       });
       expect(candidate.viewBox, `${symbolId} viewBox`).toEqual(opamp.viewBox);
+      if (triangle?.kind !== "path") throw new Error("triangle missing");
+      const points = pathPoints(triangle.data);
+      expect(points).toHaveLength(3);
+      const sideLengths = points.map((point, index) => {
+        const next = points[(index + 1) % 3]!;
+        return Math.hypot(point.x - next.x, point.y - next.y);
+      });
+      for (const length of sideLengths)
+        expect(length, `${symbolId} side`).toBeCloseTo(50, 5);
+      // The pin-end of each lead stays on-grid and the body-end meets an
+      // outline edge; there must be no open seam or lead through the interior.
+      for (const pin of candidate.pins) {
+        const lead = candidate.primitives.find(
+          (primitive) =>
+            primitive.kind === "line" &&
+            [primitive.from, primitive.to].some(
+              (point) => point.x === pin.at.x && point.y === pin.at.y,
+            ),
+        );
+        if (lead?.kind !== "line")
+          throw new Error(`${symbolId}.${pin.name} lead missing`);
+        const contact =
+          lead.from.x === pin.at.x && lead.from.y === pin.at.y
+            ? lead.to
+            : lead.from;
+        const onEdge = points.some((point, index) => {
+          const next = points[(index + 1) % 3]!;
+          const edge = Math.hypot(next.x - point.x, next.y - point.y);
+          return (
+            Math.abs(
+              Math.hypot(contact.x - point.x, contact.y - point.y) +
+                Math.hypot(contact.x - next.x, contact.y - next.y) -
+                edge,
+            ) < 1e-6
+          );
+        });
+        expect(onEdge, `${symbolId}.${pin.name} body contact`).toBe(true);
+      }
     }
 
     for (const symbolId of [
@@ -556,10 +590,10 @@ describe("Razavi symbol catalog", () => {
       ) {
         throw new Error("FD Amp leads must remain line primitives");
       }
-      expect(topInput.to.x - topInput.from.x).toBeCloseTo(13.2021, 6);
-      expect(bottomInput.to.x - bottomInput.from.x).toBeCloseTo(13.2021, 6);
-      expect(topOutput.to.x - topOutput.from.x).toBeCloseTo(16.79926, 4);
-      expect(bottomOutput.to.x - bottomOutput.from.x).toBeCloseTo(16.7979, 4);
+      expect(topInput.to.x).toBe(bottomInput.to.x);
+      expect(topOutput.from.x).toBe(bottomOutput.from.x);
+      expect(topInput.to.y).toBe(-bottomInput.to.y);
+      expect(topOutput.from.y).toBe(-bottomOutput.from.y);
       expect(
         symbol.primitives.filter(
           (primitive) => primitive.part === "input-polarity",
@@ -1372,7 +1406,7 @@ describe("Razavi symbol catalog", () => {
     );
   });
 
-  it("uses the PDF-derived three-terminal op-amp geometry and polarity marks", () => {
+  it("preserves three-terminal pin contracts and polarity strokes in the equilateral op-amp", () => {
     const opamp = requireRazaviCatalogSymbol("opamp");
     expect(opamp.pins).toMatchObject([
       { name: "IN+", at: { x: -40, y: 10 }, direction: "west" },
@@ -1383,7 +1417,6 @@ describe("Razavi symbol catalog", () => {
       expect.arrayContaining([
         expect.objectContaining({
           kind: "path",
-          data: "M -26.7979 -24.9983 L -26.7979 25 L 23.2021 0 Z",
           style: expect.objectContaining({
             strokeRole: "emphasis",
             lineJoin: "miter",
@@ -1391,13 +1424,13 @@ describe("Razavi symbol catalog", () => {
         }),
         expect.objectContaining({
           kind: "line",
-          from: { x: -21.796167, y: 12.5 },
-          to: { x: -14.296167, y: 12.5 },
+          from: { x: expect.closeTo(-18.299537, 6), y: 12.5 },
+          to: { x: expect.closeTo(-10.799537, 6), y: 12.5 },
         }),
         expect.objectContaining({
           kind: "line",
-          from: { x: -21.796167, y: -12.5 },
-          to: { x: -14.296167, y: -12.5 },
+          from: { x: expect.closeTo(-18.299537, 6), y: -12.5 },
+          to: { x: expect.closeTo(-10.799537, 6), y: -12.5 },
         }),
       ]),
     );
@@ -1407,6 +1440,7 @@ describe("Razavi symbol catalog", () => {
       generation: {
         kind: "razavi-pdf-vector-reference",
         converterPath: "scripts/generate-razavi-opamp-asset.mjs",
+        bodyNormalization: "equilateral-triangle",
       },
     });
   });
@@ -1560,7 +1594,6 @@ describe("Razavi symbol catalog", () => {
       expect.arrayContaining([
         expect.objectContaining({
           kind: "path",
-          data: "M -26.7979 -24.9983 L -26.7979 25 L 23.2021 0 Z",
           style: expect.objectContaining({ strokeRole: "emphasis" }),
         }),
       ]),
@@ -1921,14 +1954,13 @@ describe("logic-gate and comparator family", () => {
     expect(
       unmarked.primitives.filter((primitive) => primitive.kind === "line"),
     ).toHaveLength(3);
-    expect(glyphCentreX).toBeCloseTo(bodyCentreX, 0);
-    expect(glyphCentreX).toBe(-10);
+    expect(glyphCentreX).toBeCloseTo(bodyCentreX, 5);
     expect(markedGlyphCentreX).toBe(-7);
   });
 
   it("keeps the hysteresis glyph clear of the body and the polarity marks", () => {
-    // The glyph is our own drawing inside a traced body: the triangle and the
-    // +/- marks come from the Figure 8.26 op-amp and may not move, so the
+    // The glyph is our own drawing inside the shared equilateral body. The
+    // normalized Figure 8.26 polarity marks still need their own space, so the
     // glyph is the only piece with freedom. Assert the conclusion — visible
     // white space on every side — rather than one position, so a later nudge
     // cannot quietly park it against the apex again. Painted half-widths sum

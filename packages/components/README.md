@@ -111,6 +111,14 @@ The product set is exactly the reviewed, Reference-calibrated entries:
   deliberately unmapped. OR is the reviewed NOR body without its output
   bubble; XNOR is the direct XOR body with the reviewed two-input NOR negation
   bubble.
+- triangular Analog Blocks (`opamp`, fully differential amps, voltage amps,
+  comparators, and their lettered/polarity variants) share a user-requested
+  equilateral outline with three 50-unit sides and a 60-degree apex. The
+  generators record `bodyNormalization: "equilateral-triangle"`; PDF extracts
+  remain original evidence rather than being relabeled as equilateral. Pin
+  names, order, grid anchors, and polarity semantics are preserved. The shared
+  construction lives in `scripts/lib/analog-triangle.mjs`, and the op-amp
+  generator also projects the comparator bodies;
 - the Analog Blocks library includes the reference-calibrated single-input
   `transconductance` symbol and its user-requested house companion
   `differential-transconductance`. Both display `g_m` without a default unary
