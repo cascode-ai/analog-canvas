@@ -21,6 +21,39 @@ const bold = (value: string) => ({
 });
 
 describe("drafting layer rendering", () => {
+  it("defaults notes and their scripts to bold while honoring an explicit normal weight", () => {
+    const document = createEmptyDocument("doc", "Text weights");
+    document.drafting = {
+      objects: [
+        {
+          id: "weight-note",
+          kind: "text",
+          locked: false,
+          zIndex: 0,
+          anchor: { kind: "free", position: { x: 100, y: 100 } },
+          alignment: "start",
+          rotation: 0,
+          content: {
+            runs: [
+              { kind: "text", value: "G" },
+              {
+                kind: "span",
+                style: "subscript",
+                children: [{ kind: "text", value: "m" }],
+              },
+            ],
+          },
+        },
+      ],
+    };
+    expect(renderDocumentSvg(document, resolver)).toMatch(
+      /data-kind="draft-text"[^>]*font-weight="bold"[^>]*>G<tspan[^>]*font-weight:700/u,
+    );
+    document.drafting.objects[0]!.styleOverride = { weight: "normal" };
+    expect(renderDocumentSvg(document, resolver)).toMatch(
+      /data-kind="draft-text"[^>]*font-weight="normal"[^>]*>G<tspan[^>]*font-weight:400/u,
+    );
+  });
   it("exports a transparent complete outline, without a center shaft or duplicated head", () => {
     const document = createEmptyDocument("doc", "Outline arrow");
     document.drafting = {

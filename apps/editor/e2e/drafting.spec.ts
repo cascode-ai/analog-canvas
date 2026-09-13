@@ -1745,6 +1745,7 @@ test("double-click inside a rectangle writes a centered, anchored label", async 
   await page.mouse.dblclick(center.x, center.y);
   const editor = page.getByRole("textbox", { name: "Canvas text editor" });
   await expect(editor).toBeVisible();
+  await expect(editor).toHaveCSS("font-weight", "700");
   await page.keyboard.type("PFD");
   await page.keyboard.press("Escape");
 
@@ -1752,6 +1753,7 @@ test("double-click inside a rectangle writes a centered, anchored label", async 
   await expect(label).toHaveCount(1);
   await expect(label).toHaveAttribute("text-anchor", "middle");
   await expect(label).toContainText("PFD");
+  await expect(label.locator("tspan")).toHaveCSS("font-weight", "700");
 
   // The painted label centers on the rectangle's logical center: x on the
   // center exactly, baseline 0.35 em below for optical cap centering.
@@ -2154,7 +2156,7 @@ test("converts a selected slash fraction and mixes multiple fractions in one not
   await expect(note).toContainText(" = x");
   await expect(
     note.locator('[data-role="fraction-numerator"] text').first(),
-  ).toHaveCSS("font-weight", "700");
+  ).toHaveCSS("font-weight", "400");
   await clickCommand(page, "Edit", "Undo");
   await expect(note).toHaveText("Design note");
   await clickCommand(page, "Edit", "Redo");
@@ -2208,8 +2210,174 @@ test("places a mixed fraction in a device visual annotation without changing its
   expect(annotation.binding).toBeUndefined();
   expect(annotation.content.runs[0].kind).toBe("fraction");
   expect(flattenRichText(annotation.content)).toBe("1/gmN + R1");
-  expect(annotation.content.runs[0].numerator.runs[0].style).toBe("bold");
-  expect(annotation.content.runs[0].denominator.runs[0].children[0].style).toBe(
-    "italic",
-  );
+  // Effective formatting survives; the normal-weight reader can put bold
+  // spans below italic spans so explicit unbold descendants remain expressible.
+  for (const part of ["numerator", "denominator"]) {
+    const text = label
+      .locator(`[data-role="fraction-${part}"] text tspan`)
+      .last();
+    await expect(text).toHaveCSS("font-weight", "700");
+    await expect(text).toHaveCSS("font-style", "italic");
+  }
+});
+
+test("centers fraction parts on a content-sized bar and defaults notes to bold", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await placeText(page);
+  const editor = page.getByRole("textbox", {
+    name: "Canvas text editor",
+    exact: true,
+  });
+  await expect(editor).toHaveCSS("font-weight", "700");
+  await editor.fill("1 + ");
+  await editor.press("End");
+  await page
+    .getByRole("button", { name: "Insert fraction", exact: true })
+    .click();
+  await page.keyboard.insertText("1");
+  await page.keyboard.press("Tab");
+  await page.keyboard.insertText("Gm");
+  await page.keyboard.press("Shift+ArrowLeft");
+  await page.getByRole("button", { name: "Subscript", exact: true }).click();
+  await page.keyboard.press("ArrowRight");
+  await page.getByRole("button", { name: "Subscript", exact: true }).click();
+  await page.keyboard.insertText("R");
+  const part = (name: string) =>
+    editor.locator(`[data-fraction-part="${name}"]`);
+  const apply = () =>
+    page.getByRole("button", { name: "Apply text changes" }).click();
+  const note = page.locator('[data-kind="draft-text"]');
+  const reopen = () => page.getByTestId(/^drafting-hit-note-/).dblclick();
+  const measure = async (target: Locator) =>
+    target.evaluate((element) => {
+      const bounds = (role: string) => {
+        const box = element
+          .querySelector<SVGGraphicsElement>(`[data-role="fraction-${role}"]`)!
+          .getBBox();
+        return { x: box.x, width: box.width, center: box.x + box.width / 2 };
+      };
+      return {
+        top: bounds("numerator"),
+        bottom: bounds("denominator"),
+        bar: bounds("bar"),
+      };
+    });
+  const check = async (target: Locator) => {
+    const { top, bottom, bar } = await measure(target);
+    for (const part of [top, bottom]) {
+      expect(Math.abs(part.center - bar.center)).toBeLessThan(0.02);
+      expect(part.x).toBeGreaterThan(bar.x);
+      expect(part.x + part.width).toBeLessThan(bar.x + bar.width);
+    }
+    // Fixed small overhang; the line must not grow independently of the text.
+    expect(bar.width - Math.max(top.width, bottom.width)).toBeCloseTo(
+      15.116 * 0.988 * 0.105 * 2,
+      2,
+    );
+    return bar.width;
+  };
+  await apply();
+  const initialWidth = await check(note);
+  const weights = () =>
+    note.evaluate((element) => {
+      const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+      const weights: string[] = [];
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        if (node.textContent?.trim())
+          weights.push(getComputedStyle(node.parentElement!).fontWeight);
+      }
+      return weights;
+    });
+  expect(await weights()).toEqual(["700", "700", "700", "700", "700"]);
+  await reopen();
+  const revision = await page.getByTestId("revision").textContent();
+  await apply();
+  await expect(page.getByTestId("revision")).toHaveText(revision!);
+  await reopen();
+  await part("numerator").fill("WWW + MMM");
+  await apply();
+  const grownWidth = await check(note);
+  expect(grownWidth).toBeGreaterThan(initialWidth * 2);
+  await reopen();
+  await part("numerator").fill("1");
+  await part("denominator").fill("R");
+  await apply();
+  expect(await check(note)).toBeLessThan(initialWidth);
+
+  const saved = await downloadBytes(page, "File", "Export Project File…");
+  const svg = await downloadBytes(page, "File", "Export SVG");
+  const exported = await page.context().newPage();
+  await exported.setContent(svg.toString("utf8"));
+  await check(exported.locator('[data-kind="draft-text"]'));
+  await exported.close();
+  await page.getByTestId("project-file").setInputFiles({
+    name: "fraction-layout.icproj.json",
+    mimeType: "application/json",
+    buffer: saved,
+  });
+  await check(note);
+  await reopen();
+  await editor.focus();
+  await editor.press("ControlOrMeta+A");
+  await page.getByRole("button", { name: "Bold", exact: true }).click();
+  await apply();
+  expect((await weights()).every((weight) => weight === "400")).toBe(true);
+  await reopen();
+  await expect(editor).toHaveCSS("font-weight", "400");
+  await editor.focus();
+  await editor.press("ControlOrMeta+A");
+  await page.getByRole("button", { name: "Bold", exact: true }).click();
+  await apply();
+  expect((await weights()).every((weight) => weight === "700")).toBe(true);
+  await check(note);
+});
+
+test("persists normal weight selected inside an otherwise bold text box", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await placeText(page);
+  const editor = page.getByRole("textbox", {
+    name: "Canvas text editor",
+    exact: true,
+  });
+  await editor.fill("Bold Plain");
+  await editor.press("End");
+  for (let index = 0; index < 5; index++)
+    await page.keyboard.press("Shift+ArrowLeft");
+  await page.getByRole("button", { name: "Bold", exact: true }).click();
+  await page.getByRole("button", { name: "Apply text changes" }).click();
+  const note = page.locator('[data-kind="draft-text"]');
+  const renderedWeights = () =>
+    note.evaluate((element) => {
+      const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+      const result = [];
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        if (node.textContent?.trim())
+          result.push({
+            text: node.textContent,
+            weight: getComputedStyle(node.parentElement!).fontWeight,
+          });
+      }
+      return result;
+    });
+  const expected = [
+    { text: "Bold ", weight: "700" },
+    { text: "Plain", weight: "400" },
+  ];
+  expect(await renderedWeights()).toEqual(expected);
+  const saved = await downloadBytes(page, "File", "Export Project File…");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "text-weight.icproj.json",
+    mimeType: "application/json",
+    buffer: saved,
+  });
+  expect(await renderedWeights()).toEqual(expected);
+  await page.getByTestId(/^drafting-hit-note-/).dblclick();
+  await expect(editor.locator("strong")).toHaveText("Bold ");
+  const revision = await page.getByTestId("revision").textContent();
+  await page.getByRole("button", { name: "Apply text changes" }).click();
+  await expect(page.getByTestId("revision")).toHaveText(revision!);
 });

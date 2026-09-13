@@ -99,12 +99,15 @@ is defined.
   connects those Nets. Press `T` or choose **Text** for a non-electrical note: move its translucent
   preview with the pointer, click to place it, then edit the text. `Esc` cancels
   placement. Label handles may be dragged near their owner, while plain text moves freely.
+  Text notes and text inside drawn boxes default to **bold**. Use **B** to
+  switch selected text to normal weight; that choice survives saving and reopening.
 - To mix a stacked fraction with other text, use **Insert fraction** (the
   a-over-b button) in the text toolbar. Type the numerator, press `Tab` for the
   denominator, then `Tab` again to continue the line, for example `+ R₁`.
   Subscript and superscript work inside either part. Selecting `1u/150n` before
   clicking the button converts it while preserving character formatting.
   Double-click a note or visual annotation to edit its fractions again.
+  Both parts stay centered under the same axis, and the bar follows the wider part.
   Use **ƒx** for a complete mathematical formula such as `\frac{1}{g_{mN}} + R_1`.
 - Press `R` to rotate, `F` to fit, `X` to reverse a selected current arrow,
   `Ctrl+Z` to undo, and `Ctrl+Y` or `Ctrl+Shift+Z` to redo. Shortcuts do not

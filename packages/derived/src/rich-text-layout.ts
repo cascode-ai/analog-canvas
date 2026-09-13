@@ -6,6 +6,7 @@ import {
 } from "@icm/math-typesetting/cache";
 
 import type { SchematicStyleProfile } from "./style-profile.js";
+import { fractionTextAdvanceEm } from "./fraction-text-metrics.js";
 
 export interface RichTextMetrics {
   fontSize: number;
@@ -13,6 +14,8 @@ export interface RichTextMetrics {
   subscriptScale: number;
   subscriptBaselineShiftEm: number;
   subscriptHorizontalGapEm: number;
+  /** Shared proportional geometry for a fraction and all its companions. */
+  fractionText?: boolean;
 }
 
 export interface RichTextLayout {
@@ -119,7 +122,10 @@ export function measureRichTextDocument(
   document: RichTextDocument,
   metrics: RichTextMetrics,
 ): RichTextLayout {
-  const lines = measureRuns(document.runs, metrics);
+  const lines = measureRuns(document.runs, {
+    ...metrics,
+    fractionText: metrics.fractionText || containsFractionRun(document),
+  });
   return {
     width: Math.max(0, ...lines.map((line) => line.width)),
     height: lines.reduce((sum, line) => sum + line.height, 0),
@@ -151,9 +157,17 @@ export function wrapRichTextDocument(
   maxWidth: number,
 ): RichTextDocument {
   if (!Number.isFinite(maxWidth) || maxWidth <= 0) return document;
-  const lines = wrapRunsIntoLines(document.runs, metrics, maxWidth, {
-    width: 0,
-  });
+  const lines = wrapRunsIntoLines(
+    document.runs,
+    {
+      ...metrics,
+      fractionText: metrics.fractionText || containsFractionRun(document),
+    },
+    maxWidth,
+    {
+      width: 0,
+    },
+  );
   const runs: RichTextRun[] = [];
   lines.forEach((line, index) => {
     if (index > 0) runs.push({ kind: "line-break" });
@@ -388,7 +402,11 @@ function measureRun(run: RichTextRun, metrics: RichTextMetrics): Line[] {
   if (run.kind === "text") {
     return [
       {
-        width: [...run.value].length * metrics.fontSize * 0.6,
+        width:
+          metrics.fontSize *
+          (metrics.fractionText
+            ? fractionTextAdvanceEm(run.value)
+            : [...run.value].length * 0.6),
         height: metrics.fontSize * metrics.lineHeight,
       },
     ];

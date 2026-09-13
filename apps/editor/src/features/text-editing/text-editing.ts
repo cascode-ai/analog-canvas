@@ -36,6 +36,9 @@ export interface TextEditingSession {
   content: RichTextDocument;
   sizeScale: number;
   alignment: "start" | "middle" | "end";
+  /** Object default while editing; authored content records explicit weights. */
+  defaultBold?: boolean;
+  contentEdited?: boolean;
   /** Net/terminal/value displays edit their source; Instance labels edit presentation. */
   bound: boolean;
   bindingKind?: AnnotationTextBinding["kind"];
@@ -109,6 +112,7 @@ export function createTextEditingSession(
     content: target.object.content,
     sizeScale: target.object.styleOverride?.sizeScale ?? 1,
     alignment: target.object.alignment,
+    defaultBold: target.object.styleOverride?.weight !== "normal",
     bound: false,
   };
 }
@@ -122,6 +126,7 @@ export function updateTextEditingSession(
   return {
     ...session,
     ...change,
+    ...(change.content ? { contentEdited: true } : {}),
     ...(change.content && session.restoreReference
       ? {
           restoreReference:
@@ -342,6 +347,9 @@ export function proposeTextEditingCommit(
     styleOverride: {
       ...object.styleOverride,
       sizeScale: session.sizeScale,
+      // The DOM reader records effective bold spans and explicit unbold text.
+      // Neutralize the object default only after content was actually edited.
+      ...(session.contentEdited ? { weight: "normal" as const } : {}),
     },
   };
   // Sessions normalize an absent scale to 1; compare the same way so an
@@ -349,6 +357,8 @@ export function proposeTextEditingCommit(
   if (
     (object.styleOverride?.sizeScale ?? 1) === next.styleOverride.sizeScale &&
     object.alignment === next.alignment &&
+    (object.styleOverride?.weight ?? "bold") ===
+      (next.styleOverride.weight ?? "bold") &&
     richTextEqual(object.content, next.content)
   ) {
     return { kind: "unchanged" };

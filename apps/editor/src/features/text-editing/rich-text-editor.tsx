@@ -27,6 +27,7 @@ export interface RichTextEditorProps {
   disabled?: boolean;
   sizeScale: number;
   alignment: "start" | "middle" | "end";
+  defaultBold?: boolean;
   /**
    * A plain-only display (for example Symbol body text) edits its source
    * field. It is deliberately a plain editing surface rather than a fake
@@ -130,15 +131,63 @@ function enclosingOverbar(node: Node): HTMLElement | null {
   return overbar ?? null;
 }
 
-function readChildren(element: Element): RichTextRun[] {
+function elementBold(element: Element, inherited: boolean): boolean {
+  const weight = (element as HTMLElement).style?.fontWeight;
+  if (weight === "normal" || weight === "400") return false;
+  if (weight === "bold" || Number(weight) >= 600) return true;
+  return /^(strong|b)$/i.test(element.tagName) || inherited;
+}
+
+function selectionBold(range: Range): boolean {
+  const node = range.commonAncestorContainer;
+  const element = isElement(node) ? node : node.parentElement;
+  return !!element && Number(getComputedStyle(element).fontWeight) >= 600;
+}
+
+function allTextBold(runs: RichTextRun[], bold = false): boolean {
+  return runs.every((run) => {
+    if (run.kind === "text") return !run.value.trim() || bold;
+    if (run.kind === "span")
+      return allTextBold(run.children, bold || run.style === "bold");
+    if (run.kind === "fraction")
+      return (
+        allTextBold(run.numerator.runs, bold) &&
+        allTextBold(run.denominator.runs, bold)
+      );
+    return true;
+  });
+}
+
+function withoutBold(runs: RichTextRun[]): RichTextRun[] {
+  return runs.flatMap((run): RichTextRun[] => {
+    if (run.kind === "span") {
+      const children = withoutBold(run.children);
+      return run.style === "bold" ? children : [{ ...run, children }];
+    }
+    if (run.kind === "fraction")
+      return [
+        {
+          ...run,
+          numerator: { runs: withoutBold(run.numerator.runs) },
+          denominator: { runs: withoutBold(run.denominator.runs) },
+        },
+      ];
+    return [run];
+  });
+}
+
+function readChildren(element: Element, inheritedBold = false): RichTextRun[] {
   const runs: RichTextRun[] = [];
-  for (const child of element.childNodes) runs.push(...readNode(child));
+  const bold = elementBold(element, inheritedBold);
+  for (const child of element.childNodes) runs.push(...readNode(child, bold));
   return runs;
 }
 
-function readNode(node: Node): RichTextRun[] {
+function readNode(node: Node, bold = false): RichTextRun[] {
   if (node.nodeType === Node.TEXT_NODE) {
-    return node.textContent ? [{ kind: "text", value: node.textContent }] : [];
+    if (!node.textContent) return [];
+    const text: RichTextRun = { kind: "text", value: node.textContent };
+    return [bold ? { kind: "span", style: "bold", children: [text] } : text];
   }
   if (!isElement(node)) return [];
   const tag = node.tagName.toLowerCase();
@@ -164,7 +213,7 @@ function readNode(node: Node): RichTextRun[] {
     );
     if (!numerator || !denominator) return [];
     const part = (element: Element): RichTextDocument => {
-      const runs = readChildren(element);
+      const runs = readChildren(element, elementBold(node, bold));
       return normalizeRichText({
         runs: runs.length ? runs : [{ kind: "text", value: " " }],
       });
@@ -177,10 +226,10 @@ function readNode(node: Node): RichTextRun[] {
       },
     ];
   }
-  const children = readChildren(node);
+  const children = readChildren(node, bold);
   if (children.length === 0 && tag !== "div" && tag !== "p") return [];
   if (tag === "strong" || tag === "b") {
-    return [{ kind: "span", style: "bold", children }];
+    return children;
   }
   if (tag === "em" || tag === "i") {
     return [{ kind: "span", style: "italic", children }];
@@ -250,8 +299,13 @@ function normalizeEditableMarkup(editable: HTMLElement): void {
   }
 }
 
-function editableDocument(element: HTMLElement): RichTextDocument {
-  const document: RichTextDocument = { runs: readChildren(element) };
+function editableDocument(
+  element: HTMLElement,
+  defaultBold = false,
+): RichTextDocument {
+  const document: RichTextDocument = {
+    runs: readChildren(element, defaultBold),
+  };
   if (document.runs.length === 0) {
     return { runs: [{ kind: "text", value: " " }] };
   }
@@ -457,6 +511,7 @@ export function RichTextEditor({
   disabled = false,
   sizeScale,
   alignment,
+  defaultBold = false,
   sourceOnly = false,
   multiline = true,
   compact = false,
@@ -514,7 +569,8 @@ export function RichTextEditor({
   }, [sourceOnly, targetKey, disabled]);
 
   const sync = (): void => {
-    if (editableRef.current) onChange(editableDocument(editableRef.current));
+    if (editableRef.current)
+      onChange(editableDocument(editableRef.current, defaultBold));
   };
 
   const rememberSelection = (): void => {
@@ -590,14 +646,17 @@ export function RichTextEditor({
       // structure together with the selected companions, retaining local undo.
       const selected = document.createElement("div");
       selected.append(fragment!);
-      const current = editableDocument(selected);
+      const current = editableDocument(selected, selectionBold(range));
       const sole = current.runs.length === 1 ? current.runs[0] : undefined;
-      const next: RichTextDocument =
-        sole?.kind === "span" && sole.style === name
+      const unbold = name === "bold" && allTextBold(current.runs);
+      const next: RichTextDocument = unbold
+        ? { runs: withoutBold(current.runs) }
+        : sole?.kind === "span" && sole.style === name
           ? { runs: sole.children }
           : { runs: [{ kind: "span", style: name, children: current.runs }] };
       const inserted = insertEditableContent(next);
       if (inserted) {
+        if (unbold) inserted.style.fontWeight = "normal";
         const nextRange = document.createRange();
         nextRange.selectNodeContents(inserted);
         selection?.removeAllRanges();
@@ -692,7 +751,9 @@ export function RichTextEditor({
     if (!range || !editable.contains(range.commonAncestorContainer)) return;
     const selected = document.createElement("div");
     selected.append(range.cloneContents());
-    let selectedContent: RichTextDocument = { runs: readChildren(selected) };
+    let selectedContent: RichTextDocument = {
+      runs: readChildren(selected, selectionBold(range)),
+    };
     // cloneContents omits styles on the common ancestor itself. Carry those
     // styles into both parts when converting a selection inside a styled label.
     let ancestor = isElement(range.commonAncestorContainer)
@@ -1238,6 +1299,7 @@ export function RichTextEditor({
           aria-multiline={multiline}
           style={{
             fontSize: `${15.116 * sizeScale}px`,
+            fontWeight: defaultBold ? 700 : 400,
             // Mirror the committed alignment so centered labels edit centered.
             textAlign:
               alignment === "middle"

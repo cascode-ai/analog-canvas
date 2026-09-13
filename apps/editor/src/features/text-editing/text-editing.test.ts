@@ -56,7 +56,51 @@ describe("unified text editing", () => {
       sizeScale: 1,
       alignment: "middle",
       bound: false,
+      defaultBold: true,
     });
+  });
+
+  it("keeps untouched bold defaults revision-free and persists explicit normal text", () => {
+    const object = draftingText();
+    const document = {
+      ...createEmptyDocument("text", "Text"),
+      drafting: { objects: [object] },
+    };
+    const session = createTextEditingSession({ owner: "drafting", object });
+    expect(session.defaultBold).toBe(true);
+    expect(proposeTextEditingCommit(document, session)).toEqual({
+      kind: "unchanged",
+    });
+    // Unbold keeps the same characters/AST but must change the effective weight.
+    const proposal = proposeTextEditingCommit(
+      document,
+      updateTextEditingSession(session, { content: object.content }),
+    );
+    expect(proposal).toMatchObject({
+      kind: "update",
+      edit: {
+        kind: "upsert_drafting_object",
+        object: { styleOverride: { weight: "normal" } },
+      },
+    });
+    if (
+      proposal.kind !== "update" ||
+      proposal.edit.kind !== "upsert_drafting_object" ||
+      proposal.edit.object.kind !== "text"
+    )
+      throw new Error("Expected text update");
+    const normal = proposal.edit.object;
+    const reopened = createTextEditingSession({
+      owner: "drafting",
+      object: normal,
+    });
+    expect(reopened.defaultBold).toBe(false);
+    expect(
+      proposeTextEditingCommit(
+        { ...document, drafting: { objects: [normal] } },
+        reopened,
+      ),
+    ).toEqual({ kind: "unchanged" });
   });
 
   it("updates session content and size without mutating the original", () => {

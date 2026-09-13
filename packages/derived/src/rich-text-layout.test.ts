@@ -172,7 +172,10 @@ describe("shared rich-text layout", () => {
     const layout = measureRichTextDocument(content, metrics);
     const partScale = fractionPartScale(metrics.subscriptScale);
     const partFont = metrics.fontSize * partScale;
-    const widestPart = [..."150nm"].length * partFont * 0.6;
+    const widestPart = measureRichTextDocument(
+      { runs: [{ kind: "text", value: "150nm" }] },
+      { ...metrics, fontSize: partFont, fractionText: true },
+    ).width;
     expect(layout.width).toBeCloseTo(
       widestPart +
         metrics.fontSize * partScale * fractionGeometry.barOverhangEm * 2,
@@ -187,6 +190,18 @@ describe("shared rich-text layout", () => {
     expect(
       containsFractionRun({ runs: [{ kind: "text", value: "plain" }] }),
     ).toBe(false);
+  });
+
+  it("sizes fraction text proportionally while leaving ordinary text metrics unchanged", () => {
+    const metrics = richTextMetrics(razaviTextbookProfile);
+    const measure = (value: string, fractionText = false) =>
+      measureRichTextDocument(
+        { runs: [{ kind: "text", value }] },
+        { ...metrics, fractionText },
+      ).width;
+    expect(measure("WWW", true)).toBeGreaterThan(measure("iii", true) * 3);
+    expect(measure("WWW")).toBe(measure("iii"));
+    expect(measure("中文", true)).toBeCloseTo(metrics.fontSize * 2);
   });
 
   it("renders fraction parts three A+ levels above the subscript scale", () => {

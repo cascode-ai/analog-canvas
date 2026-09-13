@@ -3942,17 +3942,22 @@ test("stacks complementary scripts under one uninterrupted overbar", async ({
   const overbar = savedRuns.find(
     (run) => run.kind === "span" && run.style === "overbar",
   );
+  const boldText = (value: string) => ({
+    kind: "span",
+    style: "bold",
+    children: [{ kind: "text", value }],
+  });
   expect(overbar?.children).toEqual([
-    { kind: "text", value: "I" },
+    boldText("I"),
     {
       kind: "span",
       style: "subscript",
-      children: [{ kind: "text", value: "n2" }],
+      children: [boldText("n2")],
     },
     {
       kind: "span",
       style: "superscript",
-      children: [{ kind: "text", value: "2" }],
+      children: [boldText("2")],
     },
   ]);
   expect(
@@ -4521,6 +4526,23 @@ test("value display projects MOS W/L and passive values beside the reference", a
   await expect(value).toContainText("180n");
   await expect(value).toContainText("×4");
   await expect(page.locator('[data-role="fraction-bar"]')).toHaveCount(1);
+  const fractionCenters = await value.evaluate((element) => {
+    const box = (role: string) =>
+      element
+        .querySelector<SVGGraphicsElement>(`[data-role="fraction-${role}"]`)!
+        .getBBox();
+    const bar = box("bar");
+    return [box("numerator"), box("denominator")].map((part) => ({
+      centerGap: Math.abs(part.x + part.width / 2 - bar.x - bar.width / 2),
+      leftGap: part.x - bar.x,
+      rightGap: bar.x + bar.width - part.x - part.width,
+    }));
+  });
+  for (const part of fractionCenters) {
+    expect(part.centerGap).toBeLessThan(0.02);
+    expect(part.leftGap).toBeGreaterThan(0);
+    expect(part.rightGap).toBeGreaterThan(0);
+  }
   const multiplierGap = await value.evaluate((element) => {
     const bar = element.querySelector<SVGLineElement>(
       '[data-role="fraction-bar"]',
