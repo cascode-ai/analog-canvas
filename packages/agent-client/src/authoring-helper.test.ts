@@ -57,8 +57,11 @@ describe("authoring helper compilation", () => {
     expect(
       compile([
         { kind: "place-component", symbol: "ground", position: { x: 0, y: 0 } },
-      ])[0]?.edits?.[0],
-    ).toMatchObject({ kind: "add_instance", instance: { symbolId: "ground" } });
+      ])[0]?.command,
+    ).toMatchObject({
+      kind: "place-components",
+      instances: [{ symbolId: "ground" }],
+    });
     expectCompileError(
       [
         {
@@ -81,7 +84,7 @@ describe("authoring helper compilation", () => {
       "omit reference",
     );
   });
-  it("compiles place-component into a catalog-validated add_instance edit", () => {
+  it("compiles place-component into catalog-validated native placement", () => {
     const [transaction] = compile([
       {
         kind: "place-component",
@@ -91,10 +94,10 @@ describe("authoring helper compilation", () => {
         parameters: { c: "1p" },
       },
     ]);
-    expect(transaction?.form).toBe("edits");
-    const edit = transaction?.edits?.[0];
-    expect(edit?.kind).toBe("add_instance");
-    if (edit?.kind === "add_instance") {
+    expect(transaction?.form).toBe("command");
+    expect(transaction?.command?.kind).toBe("place-components");
+    if (transaction?.command?.kind === "place-components") {
+      const edit = { instance: transaction.command.instances[0]! };
       expect(edit.instance.symbolId).toBe("capacitor");
       expect(edit.instance.reference).toBe("C1");
       expect(edit.instance.netlist?.parameters).toEqual({ c: "1p" });

@@ -359,13 +359,17 @@ export function compileActions(
   };
 
   const transactions: CompiledTransaction[] = [];
-  const openEdits = (): { edits: SchematicEdit[]; actionKinds: string[] } => {
+  const openEdits = (
+    kind: string,
+  ): { edits: SchematicEdit[]; actionKinds: string[] } => {
     const last = transactions[transactions.length - 1];
     if (
       last &&
       last.form === "edits" &&
       last.edits &&
-      last.edits.length < maxEdits
+      last.edits.length < maxEdits &&
+      (kind === "place-component") ===
+        last.actionKinds.every((item) => item === "place-component")
     ) {
       return { edits: last.edits, actionKinds: last.actionKinds };
     }
@@ -387,7 +391,7 @@ export function compileActions(
         `compiled edit failed contract validation: ${issue?.path.join(".")} ${issue?.message ?? ""}`.trim(),
       );
     }
-    const slot = openEdits();
+    const slot = openEdits(kind);
     slot.edits.push(validated.data as SchematicEdit);
     slot.actionKinds.push(kind);
   };
@@ -415,6 +419,8 @@ export function compileActions(
   parsed.data.forEach((action, index) => {
     switch (action.kind) {
       case "set-model":
+      case "place-components":
+      case "set-instance-display":
       case "place-existing":
       case "place-cell":
       case "set-net-label":
@@ -645,11 +651,32 @@ export function compileActions(
     }
   });
 
-  return transactions.filter(
-    (transaction) =>
-      transaction.form !== "edits" ||
-      (transaction.edits !== undefined && transaction.edits.length > 0),
-  );
+  return transactions
+    .map((transaction): CompiledTransaction => {
+      if (
+        transaction.form === "edits" &&
+        transaction.edits &&
+        transaction.edits.length > 0 &&
+        transaction.actionKinds.every((kind) => kind === "place-component")
+      ) {
+        return {
+          form: "command",
+          command: {
+            kind: "place-components",
+            instances: transaction.edits.flatMap((edit) =>
+              edit.kind === "add_instance" ? [edit.instance] : [],
+            ),
+          },
+          actionKinds: transaction.actionKinds,
+        };
+      }
+      return transaction;
+    })
+    .filter(
+      (transaction) =>
+        transaction.form !== "edits" ||
+        (transaction.edits !== undefined && transaction.edits.length > 0),
+    );
 }
 
 type PushEdit = (index: number, kind: string, edit: unknown) => void;

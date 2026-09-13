@@ -77,6 +77,12 @@ Model definitions. Netlist parameter values are strings, for example `"1u"`.
 `place-component` requires a Reference for devices, but omit it for `ground`
 and `vdd-port`. To place an imported Instance, use `place-existing` with
 `instanceId` and `placement` (or `move` from the tray); default labels use the GUI planner.
+`place-component` batches use the browser's native display factory: references
+and displayable values are object-attached, and power markers own electrical
+power claims. Use `set-instance-display` with `instanceIds`, `showReference`
+and/or `showValue` to change visibility without creating duplicate annotations.
+Do not substitute free drafting text for these projections. `add-label` attaches
+new labels to their Net's routed geometry when available.
 `add-label` and Net Label `edit-text` author the electrical name claim and bound
 text together. Deleting the label removes its owned claim, not the physical wires.
 

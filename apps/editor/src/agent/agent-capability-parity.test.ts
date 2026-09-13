@@ -51,6 +51,77 @@ async function folder() {
 }
 
 describe("MCP → API → shared editor parity", () => {
+  it("places native bound displays and electrical ground, with idempotent visibility", async () => {
+    const { client, controller } = await folder();
+    expect(
+      (
+        await client.applyActions([
+          {
+            kind: "place-component",
+            symbol: "resistor",
+            reference: "R1",
+            position: { x: 100, y: 100 },
+            parameters: { value: "100" },
+          },
+          {
+            kind: "place-component",
+            symbol: "ground",
+            position: { x: 100, y: 200 },
+          },
+        ])
+      ).ok,
+    ).toBe(true);
+    const id = controller.document.instances.find(
+      (i) => i.reference === "R1",
+    )!.id;
+    const labels = () =>
+      controller.document.annotations.filter(
+        (a) => a.anchor.kind === "object" && a.anchor.objectId === id,
+      );
+    expect(
+      labels()
+        .map((a) => a.binding?.kind)
+        .sort(),
+    ).toEqual(["instance-reference", "instance-value"]);
+    expect(
+      controller.document.connectivityEvidence.some(
+        (e) =>
+          e.kind === "name-claim" &&
+          e.powerDomain === "ground" &&
+          e.name === "0",
+      ),
+    ).toBe(true);
+    for (const visible of [false, true, true]) {
+      expect(
+        (
+          await client.applyActions([
+            {
+              kind: "set-instance-display",
+              instanceIds: [id],
+              showReference: visible,
+              showValue: visible,
+            },
+          ])
+        ).ok,
+      ).toBe(true);
+      expect(labels()).toHaveLength(2);
+      expect(labels().every((a) => (a.visible !== false) === visible)).toBe(
+        true,
+      );
+    }
+    expect(
+      (
+        await client.applyActions([
+          {
+            kind: "move",
+            target: { kind: "instance", id },
+            position: { x: 150, y: 100 },
+          },
+        ])
+      ).ok,
+    ).toBe(true);
+    expect(labels().every((a) => a.anchor.kind === "object")).toBe(true);
+  });
   it("places the original top in a new TB through public actions and retains normal history", async () => {
     const { client, controller } = await folder();
     expect(
@@ -176,6 +247,10 @@ describe("MCP → API → shared editor parity", () => {
       },
     ]);
     expect(label.ok, label.message).toBe(true);
+    expect(controller.document.annotations[0]!.anchor).toMatchObject({
+      kind: "route",
+      routeId: controller.document.routes[0]!.id,
+    });
     const annotationId = controller.document.annotations[0]!.id;
     expect(controller.document.connectivityEvidence).toContainEqual(
       expect.objectContaining({

@@ -4,6 +4,7 @@ import {
   StableIdSchema,
   RichTextDocumentSchema,
   PlacementSchema,
+  InstanceSchema,
 } from "@icm/model";
 
 /** Small server-planned conveniences; results still commit as existing edits. */
@@ -15,6 +16,16 @@ const SelectionSchema = z.strictObject({
   draftingIds: z.array(StableIdSchema).max(256).default([]),
 });
 export const AgentAuthoringCommandSchema = z.discriminatedUnion("kind", [
+  z.strictObject({
+    kind: z.literal("place-components"),
+    instances: z.array(InstanceSchema).min(1).max(64),
+  }),
+  z.strictObject({
+    kind: z.literal("set-instance-display"),
+    instanceIds: z.array(StableIdSchema).min(1).max(64),
+    showReference: z.boolean().optional(),
+    showValue: z.boolean().optional(),
+  }),
   z.strictObject({
     kind: z.literal("place-cell"),
     childDocumentId: StableIdSchema,
