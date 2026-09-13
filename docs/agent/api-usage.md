@@ -99,7 +99,7 @@ and body API version must match.
 ## Web session example (published editor)
 
 The published browser editor exposes the same Circuit API over a browser-
-authorized relay (ADR 0016). The human clicks **Connect Agent** to create a
+authorized relay (ADR 0016). The human clicks **Agent** to create a
 connection with full circuit editing, file and simulation access, then gives
 the Agent a short-lived claim code. The Agent never needs
 repository source — only this document and the claim code.

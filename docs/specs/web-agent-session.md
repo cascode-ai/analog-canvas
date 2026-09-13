@@ -4,7 +4,7 @@ Status: `accepted`
 
 Primary owner: `worker/agent-session.ts` and `apps/editor/src/agent`
 
-The browser Project is authoritative. Clicking **Connect Agent** creates a
+The browser Project is authoritative. Clicking **Agent** creates a
 session with full circuit editing, file and simulation access for that Project;
 there is no permission-tier picker. The relay returns a short-lived pairing
 code; claim redemption returns `sessionId`, authorized `documentIds`, a

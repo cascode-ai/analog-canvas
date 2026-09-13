@@ -123,8 +123,8 @@ describe("editor shell", () => {
     expect(netlistMenu).toContain('data-testid="check-and-save"');
     expect(markup).not.toContain("<summary>Run</summary>");
     const agentEnd =
-      markup.indexOf("</details>", markup.indexOf("<summary>Agent</summary>")) +
-      "</details>".length;
+      markup.indexOf("</button>", markup.indexOf('data-testid="open-agent"')) +
+      "</button>".length;
     expect(markup.slice(agentEnd)).toMatch(
       /^<button[^>]*data-testid="publish-gallery-button"/u,
     );
@@ -198,9 +198,11 @@ describe("editor shell", () => {
     expect(helpButton).toBeGreaterThan(navigationEnd);
     expect(ownerLink).toBeGreaterThan(helpButton);
     expect(markup).not.toContain('role="dialog"');
-    // The Connect Agent command is available (WP-WA5), but the authorization
-    // panel itself must not render until the user opens it.
-    expect(markup).toContain("Connect Agent");
+    // Agent connects directly from the command row; no one-item menu or
+    // connection panel appears before the user clicks it.
+    expect(markup).toContain('data-testid="open-agent" title="Connect Agent"');
+    expect(markup).toContain(">Agent</button>");
+    expect(markup).not.toContain("<summary>Agent</summary>");
     expect(markup).not.toContain('data-testid="connect-agent-panel"');
   });
 
@@ -211,6 +213,7 @@ describe("editor shell", () => {
     );
 
     expect(markup).not.toContain("<summary>Agent</summary>");
+    expect(markup).not.toContain('data-testid="open-agent"');
     expect(markup).not.toContain("Connect Agent");
     expect(markup).not.toContain("Manage Agent");
     expect(markup).not.toContain("agent-shelf-indicator");

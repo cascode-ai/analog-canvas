@@ -278,14 +278,7 @@ try {
     mimeType: "application/json",
     buffer: Buffer.from(destinationProjectText),
   });
-  await page
-    .locator("summary")
-    .filter({ hasText: /^Agent$/ })
-    .click();
-  await page
-    .getByRole("button", { name: "Connect Agent", exact: true })
-    .click();
-  await page.getByTestId("agent-preset-full").click();
+  await page.getByRole("button", { name: "Agent", exact: true }).click();
   const claimElement = page.getByTestId("agent-claim-code");
   await claimElement.waitFor({ state: "attached", timeout: 30_000 });
   const claimCode = await claimElement.textContent();

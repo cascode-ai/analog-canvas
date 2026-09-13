@@ -379,14 +379,17 @@ export function EditorAppChrome({
               </button>
             ) : null}
             {agentAction ? (
-              <details className="command-menu" name="editor-command-menu">
-                <summary>Agent</summary>
-                <div className="command-popover">
-                  <button type="button" onClick={agentAction.execute}>
-                    {agentAction.label}
-                  </button>
-                </div>
-              </details>
+              <button
+                type="button"
+                data-testid="open-agent"
+                title={agentAction.label}
+                onClick={() => {
+                  dismissOpenCommandMenus();
+                  agentAction.execute();
+                }}
+              >
+                Agent
+              </button>
             ) : null}
             {/* Publishing is the primary narrow-window action. Keeping it
                 immediately after the compact menus makes it visible before

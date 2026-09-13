@@ -6,7 +6,7 @@ import {
   readSimulationData,
 } from "@icm/spice-run";
 
-import { openMenu, clickNetlistWorkflowCommand } from "./editor-fixtures.js";
+import { clickNetlistWorkflowCommand } from "./editor-fixtures.js";
 import { profile } from "./simulation-e2e-fixtures.js";
 import { createSimulationFolder, createEmptyProject } from "@icm/model";
 import { unzipSync, strFromU8 } from "fflate";
@@ -136,11 +136,7 @@ for (const sourceKind of ["workspace", "project-folder"] as const)
         buffer: Buffer.from(JSON.stringify(project)),
       });
     }
-    await (
-      await openMenu(page, "Agent")
-    )
-      .getByRole("button", { name: "Connect Agent" })
-      .click();
+    await page.getByRole("button", { name: "Agent", exact: true }).click();
     await expect.poll(() => !!socket).toBe(true);
     const send = async (
       kind: "simulation" | "file",

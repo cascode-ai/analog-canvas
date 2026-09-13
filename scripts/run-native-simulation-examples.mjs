@@ -124,14 +124,7 @@ for (const project of manifest.projects.filter(
   try {
     await page.goto(base + "/editor");
     await page.getByTestId("project-file").setInputFiles(project.file);
-    await page
-      .locator("summary")
-      .filter({ hasText: /^Agent$/ })
-      .click();
-    await page
-      .getByRole("button", { name: "Connect Agent", exact: true })
-      .click();
-    await page.getByTestId("agent-preset-full").click();
+    await page.getByRole("button", { name: "Agent", exact: true }).click();
     await page
       .getByTestId("agent-claim-code")
       .waitFor({ state: "attached", timeout: 30000 });

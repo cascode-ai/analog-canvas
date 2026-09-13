@@ -37,7 +37,7 @@ For run visibility, automatic browser archives and source/result exports, see
 [simulation result handoff](simulation-result-handoff.md).
 
 Production and Preview enable the Agent connection surface with
-`VITE_ICM_AGENT_UI=enabled`. Open **Agent → Connect Agent** for a Claim Code.
+`VITE_ICM_AGENT_UI=enabled`. Click **Agent** for a Claim Code.
 The connection grants full circuit editing, file and simulation access to the
 current Project immediately; there is no permission-tier selection.
 The MCP adapter defaults to Production; for Preview, start it with

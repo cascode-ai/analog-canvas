@@ -5,7 +5,7 @@ import { createHash } from "node:crypto";
 import { createEmptyProject } from "@icm/model";
 import { serializeProject } from "@icm/project-protocol";
 
-import { clickCommand, openMenu } from "./editor-fixtures.js";
+import { clickCommand } from "./editor-fixtures.js";
 
 type SessionMessage = {
   kind: string;
@@ -45,9 +45,8 @@ test("retries a failed Agent connection without a permission picker", async ({
   });
 
   await page.goto("/editor");
-  const agentMenu = await openMenu(page, "Agent");
   expect(creates).toBe(0);
-  await agentMenu.getByRole("button", { name: "Connect Agent" }).click();
+  await page.getByRole("button", { name: "Agent", exact: true }).click();
   const panel = page.getByTestId("connect-agent-panel");
   await expect(panel.getByRole("alert")).toContainText("503");
   expect(creates).toBe(1);
@@ -142,8 +141,7 @@ test("grants a browser Agent, edits through the live host, and shares undo", asy
   });
 
   await page.goto("/editor");
-  const agentMenu = await openMenu(page, "Agent");
-  await agentMenu.getByRole("button", { name: "Connect Agent" }).click();
+  await page.getByRole("button", { name: "Agent", exact: true }).click();
   await expect(page.locator('[data-testid^="agent-preset-"]')).toHaveCount(0);
   await expect(page.getByTestId("agent-claim-code")).toHaveText(
     `${sessionId}.one-time-claim`,
@@ -404,9 +402,9 @@ test("grants a browser Agent, edits through the live host, and shares undo", asy
     )
     .toBe(true);
 
-  const reopenedAgentMenu = await openMenu(page, "Agent");
-  await reopenedAgentMenu.getByRole("button", { name: "Manage Agent" }).click();
+  await page.getByRole("button", { name: "Agent", exact: true }).click();
   await expect(page.getByTestId("agent-properties")).toContainText("Connected");
+  expect(sessionCreates).toBe(1);
   const originalSocket = browserSocket as WebSocketRoute | null;
   if (!originalSocket) throw new Error("Agent WebSocket was not connected");
   originalSocket.close();

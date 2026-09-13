@@ -250,14 +250,7 @@ try {
     buffer: Buffer.from(projectText),
   });
 
-  await page
-    .locator("summary")
-    .filter({ hasText: /^Agent$/ })
-    .click();
-  await page
-    .getByRole("button", { name: "Connect Agent", exact: true })
-    .click();
-  await page.getByTestId("agent-preset-full").click();
+  await page.getByRole("button", { name: "Agent", exact: true }).click();
   const claimElement = page.getByTestId("agent-claim-code");
   await claimElement.waitFor({ state: "attached", timeout: 30_000 });
   const claimCode = await claimElement.textContent();
@@ -846,14 +839,7 @@ try {
   const recovery = page.getByTestId("startup-recovery-banner");
   await recovery.waitFor({ state: "visible" });
   await recovery.getByRole("button", { name: "Restore", exact: true }).click();
-  await page
-    .locator("summary")
-    .filter({ hasText: /^Agent$/ })
-    .click();
-  await page
-    .getByRole("button", { name: "Connect Agent", exact: true })
-    .click();
-  await page.getByTestId("agent-preset-full").click();
+  await page.getByRole("button", { name: "Agent", exact: true }).click();
   const restoredClaim = page.getByTestId("agent-claim-code");
   await restoredClaim.waitFor({ state: "attached", timeout: 30000 });
   const reconnected = await tool("connect", {
