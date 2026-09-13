@@ -76,7 +76,8 @@ describe("unified arrow styles", () => {
   it("exposes arrow appearance and geometry as editable code", () => {
     const markup = render(arrow());
     expect(markup).toContain("arrowStyle");
-    expect(markup).toContain("bearing");
+    expect(markup).toContain("rotation");
+    expect(markup).not.toContain("bearing");
     expect(markup).toContain("tangentAngles");
     expect(markup).not.toContain('aria-label="Drawing bearing"');
   });
@@ -147,7 +148,8 @@ describe("closed-shape paint and layer", () => {
     expect(markup).toContain("fillColor");
     expect(markup).toContain(">Bring to front</button>");
     expect(markup).toContain(">Send to back</button>");
-    expect(markup).toContain("zIndex");
+    expect(markup).not.toContain("zIndex");
+    expect(markup).toContain("Front is above the circuit");
     expect(markup).not.toContain('type="color"');
   });
 });

@@ -342,7 +342,7 @@ function jsonDecorations(state: EditorState, read: () => Props): DecorationSet {
   const rotation = spans.find(
     ({ field }) => field.path === "placement.rotation",
   );
-  if (rotation) {
+  if (rotation?.field.kind === "rotation") {
     const valueValid = ROTATION_OPTIONS.some(
       ({ value }) => value === rotation.value,
     );
@@ -430,10 +430,21 @@ function jsonDecorations(state: EditorState, read: () => Props): DecorationSet {
           side: 2,
         }).range(at),
       );
-    if (span.field.path === "netlistTarget" && span.field.kind === "choice")
+    if (span.field.kind === "choice")
       ranges.push(
         Decoration.widget({
-          widget: new NetlistTargetSelect(span, documentValid, read),
+          widget: new PropertyChoiceSelect(
+            span,
+            documentValid,
+            (span.field.options ?? []).map(
+              (option) =>
+                documentValid &&
+                editorChanges(source, read(), {
+                  [span.field.path]: option.value,
+                }).length > 0,
+            ),
+            read,
+          ),
           side: 1,
         }).range(span.to),
       );
@@ -463,21 +474,26 @@ class PropertyUnit extends WidgetType {
   }
 }
 
-class NetlistTargetSelect extends WidgetType {
+class PropertyChoiceSelect extends WidgetType {
   constructor(
     private readonly span: PropertyCodeSpan,
     private readonly enabled: boolean,
+    private readonly optionEnabled: readonly boolean[],
     private readonly read: () => Props,
   ) {
     super();
   }
 
-  override eq(other: NetlistTargetSelect): boolean {
+  override eq(other: PropertyChoiceSelect): boolean {
     return (
+      this.span.field.path === other.span.field.path &&
+      this.span.field.label === other.span.field.label &&
+      this.span.field.help === other.span.field.help &&
       JSON.stringify(this.span.field.options) ===
         JSON.stringify(other.span.field.options) &&
       this.span.value === other.span.value &&
-      this.enabled === other.enabled
+      this.enabled === other.enabled &&
+      JSON.stringify(this.optionEnabled) === JSON.stringify(other.optionEnabled)
     );
   }
 
@@ -486,9 +502,10 @@ class NetlistTargetSelect extends WidgetType {
     picker.className = "cm-netlist-target-picker";
     picker.contentEditable = "false";
     picker.dataset.disabled = String(!this.enabled);
+    const label = this.span.field.label;
     picker.title = this.enabled
-      ? "Choose netlist target"
-      : "Fix the property JSON before changing the netlist target";
+      ? (this.span.field.help ?? `Choose ${label.toLowerCase()}`)
+      : `Fix the property JSON before changing ${label.toLowerCase()}`;
     const arrow = document.createElement("span");
     arrow.className = "cm-netlist-target-arrow";
     arrow.setAttribute("aria-hidden", "true");
@@ -496,28 +513,35 @@ class NetlistTargetSelect extends WidgetType {
     const select = document.createElement("select");
     select.className = "cm-netlist-target-select";
     select.contentEditable = "false";
-    select.setAttribute("aria-label", "Target netlist options");
+    select.setAttribute(
+      "aria-label",
+      this.span.field.path === "netlistTarget"
+        ? "Target netlist options"
+        : `${label} options`,
+    );
     select.disabled = !this.enabled;
     const options = this.span.field.options ?? [];
-    for (const option of options) {
+    for (const [index, option] of options.entries()) {
       const element = document.createElement("option");
-      element.value = option.value;
+      element.value = String(option.value);
       element.textContent = option.label;
+      element.disabled = !this.optionEnabled[index];
       select.append(element);
     }
-    if (
-      typeof this.span.value === "string" &&
-      !options.some((option) => option.value === this.span.value)
-    ) {
+    if (!options.some((option) => option.value === this.span.value)) {
       const authored = document.createElement("option");
-      authored.value = this.span.value;
-      authored.textContent = this.span.value;
+      authored.value = String(this.span.value);
+      authored.textContent = String(this.span.value);
       select.append(authored);
     }
     select.value = String(this.span.value);
     select.addEventListener("change", () => {
+      const option = options.find(
+        (item) => String(item.value) === select.value,
+      );
+      if (!option) return;
       const changes = editorChanges(view.state.doc.toString(), this.read(), {
-        netlistTarget: select.value,
+        [this.span.field.path]: option.value,
       });
       if (changes.length)
         view.dispatch({ changes, userEvent: "input.property-control" });

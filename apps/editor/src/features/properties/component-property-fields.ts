@@ -31,7 +31,7 @@ export interface CanvasPropertyField {
     | "color"
     | "text"
     | "choice";
-  options?: readonly { value: string; label: string }[];
+  options?: readonly { value: string | number | boolean; label: string }[];
   description: string;
   /** Guidance metadata for callers that present help outside the code editor. */
   help?: string;

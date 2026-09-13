@@ -26,6 +26,7 @@ import { quadraticTangentAngle } from "../drafting/drafting-path";
 import {
   colorToRgb,
   parseCanvasColor,
+  ROTATION_OPTIONS,
   type CanvasPropertyField,
 } from "./component-property-fields";
 import { propertyCodeSpans } from "./component-property-code-assists";
@@ -43,8 +44,7 @@ const schema = z.strictObject({
   placement: z.strictObject({
     at: z.tuple([z.number().int(), z.number().int()]).optional(),
     anchor: VisualAnchorSchema.optional(),
-    rotation: RotationSchema.optional(),
-    bearing: z.number().finite().min(0).lt(360).optional(),
+    rotation: z.number().finite().min(0).lt(360).optional(),
   }),
   appearance: z.strictObject({
     color,
@@ -67,8 +67,7 @@ const schema = z.strictObject({
     .optional(),
   stacking: z
     .strictObject({
-      layer: z.enum(["background", "foreground"]).optional(),
-      zIndex: z.number().int().nonnegative(),
+      layer: z.enum(["back", "front"]),
     })
     .optional(),
   display: z.strictObject({ visible: z.boolean() }).optional(),
@@ -111,10 +110,10 @@ export function draftingPropertyValue(
             }
           : { anchor: object.anchor }),
       ...(text ? { rotation: object.rotation } : {}),
-      ...(object.kind === "rectangle" ? { bearing: object.rotation } : {}),
+      ...(object.kind === "rectangle" ? { rotation: object.rotation } : {}),
       ...(geometry.kind === "arrow" || geometry.kind === "construction-line"
         ? {
-            bearing:
+            rotation:
               roundAngle(
                 normalizedBearing(geometry.points[0]!, geometry.points[1]!),
               ) % 360,
@@ -186,10 +185,16 @@ export function draftingPropertyValue(
           },
         }
       : {}),
-    stacking: {
-      ...(closed ? { layer: object.layer ?? "foreground" } : {}),
-      zIndex: object.zIndex,
-    },
+    ...(closed
+      ? {
+          stacking: {
+            layer:
+              object.layer === "background"
+                ? ("back" as const)
+                : ("front" as const),
+          },
+        }
+      : {}),
     ...(text && !bare ? { content: object.content } : {}),
     locked: object.locked,
   };
@@ -370,7 +375,8 @@ export function parseDraftingPropertyCode(
         throw new Error("Closed shapes require a free placement anchor");
       next.center = anchor.position;
       if (value.stacking!.layer !== baseline.stacking!.layer)
-        next.layer = value.stacking!.layer;
+        next.layer =
+          value.stacking!.layer === "back" ? "background" : "foreground";
       if (next.kind === "rectangle") {
         next.width = value.geometry!.width!;
         next.height = value.geometry!.height!;
@@ -401,16 +407,20 @@ export function parseDraftingPropertyCode(
     )
       next.outline = { width: value.geometry.width };
     if (next.kind === "text" || next.kind === "callout") {
-      next.rotation = value.placement.rotation!;
+      next.rotation = RotationSchema.parse(value.placement.rotation);
       if (value.appearance.alignment !== undefined)
         next.alignment = value.appearance.alignment;
       if (value.content) next.content = value.content;
     }
-    if (value.placement.bearing !== baseline.placement.bearing) {
+    if (
+      next.kind !== "text" &&
+      next.kind !== "callout" &&
+      value.placement.rotation !== baseline.placement.rotation
+    ) {
       const changed = setDraftingBearing(
         next,
         resolveDraftingObjectGeometry(document, resolver, next),
-        value.placement.bearing!,
+        value.placement.rotation!,
         grid,
       );
       if (changed.kind !== "updated")
@@ -446,7 +456,6 @@ export function parseDraftingPropertyCode(
         next = changed;
       }
     }
-    next.zIndex = value.stacking!.zIndex;
     next.locked = value.locked;
     return DraftingObjectSchema.parse(next);
   });
@@ -462,7 +471,7 @@ export function parseAnnotationPropertyCode(
     const next = {
       ...annotation,
       anchor: propertyAnchor(value),
-      rotation: value.placement.rotation!,
+      rotation: RotationSchema.parse(value.placement.rotation),
       alignment: value.appearance.alignment!,
       locked: value.locked,
     };
@@ -497,6 +506,88 @@ export function annotationPropertyAdapter<T>(
       kind: "color",
       description: "",
     },
+    {
+      path: "placement.rotation",
+      label: "Rotation",
+      kind: "choice",
+      options: ROTATION_OPTIONS,
+      description: "",
+      help: "Clockwise angle: 0° right, 90° down. Choose a common angle or type a custom angle in the code. Text uses 45° steps.",
+    },
+    {
+      path: "appearance.lineStyle",
+      label: "Line style",
+      kind: "choice",
+      options: [
+        { value: "solid", label: "Solid — continuous line" },
+        { value: "dashed", label: "Dashed — short dashes" },
+        { value: "dotted", label: "Dotted — dots" },
+      ],
+      description: "",
+    },
+    {
+      path: "appearance.arrowStyle",
+      label: "Arrow style",
+      kind: "choice",
+      options: ARROW_PRESETS.map(({ id, label }) => ({ value: id, label })),
+      description: "",
+      help: "Choose the arrowhead and its end. Outline arrows require a straight path.",
+    },
+    {
+      path: "stacking.layer",
+      label: "Layer",
+      kind: "choice",
+      options: [
+        { value: "front", label: "Front — in front of the circuit" },
+        { value: "back", label: "Back — behind the circuit" },
+      ],
+      description: "",
+    },
+    {
+      path: "appearance.alignment",
+      label: "Text alignment",
+      kind: "choice",
+      options: [
+        { value: "start", label: "Start — left" },
+        { value: "middle", label: "Middle — centered" },
+        { value: "end", label: "End — right" },
+      ],
+      description: "",
+    },
+    {
+      path: "appearance.weight",
+      label: "Text weight",
+      kind: "choice",
+      options: [
+        { value: "normal", label: "Normal" },
+        { value: "bold", label: "Bold" },
+      ],
+      description: "",
+    },
+    ...[
+      {
+        path: "appearance.italic",
+        label: "Italic",
+        on: "Italic",
+        off: "Upright",
+      },
+      {
+        path: "display.visible",
+        label: "Visibility",
+        on: "Visible",
+        off: "Hidden",
+      },
+      { path: "locked", label: "Lock", on: "Locked", off: "Unlocked" },
+    ].map(({ path, label, on, off }): CanvasPropertyField => ({
+      path,
+      label,
+      kind: "choice",
+      description: "",
+      options: [
+        { value: false, label: off },
+        { value: true, label: on },
+      ],
+    })),
   ];
   const spans = (source: string) =>
     propertyCodeSpans(source, undefined, fields);

@@ -95,8 +95,9 @@ export function DraftingPropertiesPanel({
                   </button>
                 </div>
                 <small>
-                  Background stays behind the circuit. Higher zIndex draws above
-                  peers. Fill “auto” is transparent.
+                  Front is above the circuit; Back is behind it. Use these
+                  buttons to move above or below other drawings. Fill “auto” is
+                  transparent.
                 </small>
               </div>
             )}

@@ -70,6 +70,25 @@ test("outline arrow style is chosen before stamp/drag and shares editable geomet
   expect(
     JSON.parse(await readComponentPropertyCode(page)).geometry,
   ).not.toHaveProperty("tangentAngles");
+  const arrowStyle = page.getByRole("combobox", {
+    name: "Arrow style options",
+    exact: true,
+  });
+  await expect(arrowStyle.locator("option")).toHaveCount(10);
+  const rotation = page.getByRole("combobox", {
+    name: "Rotation options",
+    exact: true,
+  });
+  await expect(rotation.locator("option")).toHaveText([
+    "0°",
+    "45°",
+    "90°",
+    "135°",
+    "180°",
+    "225°",
+    "270°",
+    "315°",
+  ]);
   await editComponentPropertyCode(page, (code) => {
     code.appearance.strokeScale = 2;
   });
@@ -82,14 +101,10 @@ test("outline arrow style is chosen before stamp/drag and shares editable geomet
   await expect(page.getByTestId(/^draft-handle-width-/)).toBeVisible();
   await expect(page.getByTestId(/^draft-handle-rotate-/)).toBeVisible();
   await expect(page.getByTestId(/^draft-handle-segment-/)).toHaveCount(0);
-  await editComponentPropertyCode(page, (code) => {
-    code.placement.bearing = 45;
-  });
+  await rotation.selectOption("45");
 
   const rotated = await outline.getAttribute("points");
-  await editComponentPropertyCode(page, (code) => {
-    code.appearance.arrowStyle = "outline-both";
-  });
+  await arrowStyle.selectOption("outline-both");
   expect(await outline.getAttribute("points")).not.toBe(rotated);
 
   await canvas.focus();
@@ -2454,12 +2469,46 @@ for (const kind of ["rectangle", "circle"] as const) {
       `[data-kind="draft-${kind}"][data-object-id="shape"]`,
     );
     const before = JSON.parse(await readComponentPropertyCode(page));
+    expect(before.stacking).toEqual({ layer: "front" });
+    expect(before.placement).not.toHaveProperty("bearing");
+    const lineStyle = page.getByRole("combobox", {
+      name: "Line style options",
+      exact: true,
+    });
+    expect(
+      await lineStyle
+        .locator("option")
+        .evaluateAll((options) =>
+          options.map((option) => (option as HTMLOptionElement).value),
+        ),
+    ).toEqual(["solid", "dashed", "dotted"]);
+    const layer = page.getByRole("combobox", {
+      name: "Layer options",
+      exact: true,
+    });
+    expect(
+      await layer
+        .locator("option")
+        .evaluateAll((options) =>
+          options.map((option) => (option as HTMLOptionElement).value),
+        ),
+    ).toEqual(["front", "back"]);
+    await lineStyle.selectOption("dotted");
+    await expect(shape).toHaveAttribute("stroke-dasharray", /\d/);
+    await layer.selectOption("back");
+    await expect(
+      page.locator(
+        '[data-drafting-layer="background"] [data-object-id="shape"]',
+      ),
+    ).toHaveCount(1);
+    await layer.selectOption("front");
+    await lineStyle.selectOption("solid");
+    await expect(shape).not.toHaveAttribute("stroke-dasharray");
     const revision = Number(await page.getByTestId("revision").textContent());
     await editComponentPropertyCode(page, (code) => {
       code.appearance.color = [12, 34, 56];
       code.appearance.fillColor = [225, 238, 255];
-      code.stacking.layer = "background";
-      code.stacking.zIndex = 7;
+      code.stacking.layer = "back";
     });
     await expect(page.getByTestId("revision")).toHaveText(String(revision + 1));
     await expect(shape).toHaveAttribute("stroke", "#0c2238");
@@ -2584,4 +2633,120 @@ test("text and voltage/polarity annotations expose their own live code without l
       page.getByRole("button", { name: "Discard draft" }),
     ).toBeVisible();
   }
+});
+
+test("annotation dropdowns use typed values and disable locked or incompatible choices", async ({
+  page,
+}) => {
+  const project = createEmptyProject(
+    "annotation-options",
+    "Annotation options",
+  );
+  const anchor = { kind: "free" as const, position: { x: 100, y: 100 } };
+  project.documents[0]!.drafting = {
+    objects: [
+      {
+        id: "note",
+        kind: "text",
+        anchor,
+        locked: false,
+        zIndex: 12,
+        content: { runs: [{ kind: "text", value: "Annotation" }] },
+        alignment: "middle",
+        rotation: 0,
+      },
+      {
+        id: "curve",
+        kind: "arrow",
+        anchor,
+        locked: false,
+        zIndex: 3,
+        from: { kind: "free", position: { x: 100, y: 200 } },
+        to: { kind: "free", position: { x: 300, y: 200 } },
+        curveControls: [{ x: 200, y: 280 }],
+      },
+    ],
+  };
+  await page.goto("/editor");
+  await awaitEditorReady(page);
+  await page.getByTestId("project-file").setInputFiles({
+    name: "annotation-options.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  await expect(page.getByTestId("status")).toContainText(
+    "Opened annotation-options.icproj.json",
+  );
+  await page.getByTestId("drafting-hit-note").click();
+  await page.keyboard.press("q");
+  const weight = page.getByRole("combobox", {
+    name: "Text weight options",
+    exact: true,
+  });
+  const lock = page.getByRole("combobox", {
+    name: "Lock options",
+    exact: true,
+  });
+  await weight.selectOption("normal");
+  await page
+    .getByRole("combobox", { name: "Text alignment options", exact: true })
+    .selectOption("end");
+  await page
+    .getByRole("combobox", { name: "Italic options", exact: true })
+    .selectOption("true");
+  await page
+    .getByRole("combobox", { name: "Rotation options", exact: true })
+    .selectOption("45");
+  expect(JSON.parse(await readComponentPropertyCode(page))).toMatchObject({
+    placement: { rotation: 45 },
+    appearance: { alignment: "end", weight: "normal", italic: true },
+  });
+  await lock.selectOption("true");
+  await expect(weight.locator('option[value="bold"]')).toBeDisabled();
+  await expect(lock.locator('option[value="false"]')).toBeEnabled();
+  await lock.selectOption("false");
+  await expect(weight.locator('option[value="bold"]')).toBeEnabled();
+  await weight.selectOption("bold");
+  const revision = await page.getByTestId("revision").textContent();
+  await page.getByLabel("Editable Canvas property code").fill('{"placement":');
+  await page
+    .getByRole("button", { name: "Discard draft", exact: true })
+    .click();
+  await expect(page.getByTestId("revision")).toHaveText(revision!);
+  await expect(weight).toHaveValue("bold");
+
+  await page.getByTestId("drafting-hit-curve").click({ force: true });
+  const arrowStyle = page.getByRole("combobox", {
+    name: "Arrow style options",
+    exact: true,
+  });
+  await expect(arrowStyle.locator("option")).toHaveCount(10);
+  for (const value of ["outline-start", "outline-end", "outline-both"])
+    await expect(arrowStyle.locator(`option[value="${value}"]`)).toBeDisabled();
+  await arrowStyle.selectOption("filled-both");
+  const saved = JSON.parse(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(
+      "utf8",
+    ),
+  );
+  expect(saved.documents[0].drafting.objects).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        id: "note",
+        rotation: 45,
+        locked: false,
+        zIndex: 12,
+        styleOverride: expect.objectContaining({
+          weight: "bold",
+          italic: true,
+        }),
+      }),
+      expect.objectContaining({
+        id: "curve",
+        zIndex: 3,
+        curveControls: [{ x: 200, y: 280 }],
+        styleOverride: expect.objectContaining({ arrowHeadAt: "both" }),
+      }),
+    ]),
+  );
 });

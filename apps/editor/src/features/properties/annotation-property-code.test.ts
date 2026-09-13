@@ -103,14 +103,14 @@ describe("annotation code projection", () => {
     const result = change(object, (code) => {
       code.appearance.color = "#123456";
       code.appearance.fillColor = "#abcdef";
-      code.stacking = { layer: "background", zIndex: 4 };
+      code.stacking = { layer: "back" };
     });
     expect(result).toMatchObject({
       ok: true,
       value: {
         id: object.id,
         layer: "background",
-        zIndex: 4,
+        zIndex: object.zIndex,
         styleOverride: { color: "#123456", fillColor: "#abcdef" },
       },
     });
@@ -137,6 +137,48 @@ describe("annotation code projection", () => {
       ok: true,
       value: { styleOverride: object.styleOverride, width: 120 },
     });
+  });
+  it("uses front/back without exposing or resetting an existing numeric drawing order", () => {
+    const object = { ...rectangle, layer: "background" as const, zIndex: 37 };
+    const code = draftingPropertyValue(context(object));
+    expect(code.stacking).toEqual({ layer: "back" });
+    expect(code.placement).toEqual({ at: [100, 100], rotation: 0 });
+    expect(source(object)).not.toMatch(/bearing|zIndex|background/);
+    expect(
+      change(object, (value) => {
+        value.stacking!.layer = "front";
+      }),
+    ).toMatchObject({
+      ok: true,
+      value: { layer: "foreground", zIndex: 37 },
+    });
+    const drawing = { ...arrow, zIndex: 12 };
+    expect(draftingPropertyValue(context(drawing))).not.toHaveProperty(
+      "stacking",
+    );
+    expect(
+      change(drawing, (value) => {
+        value.appearance.lineStyle = "dotted";
+      }),
+    ).toMatchObject({
+      ok: true,
+      value: { zIndex: 12, styleOverride: { lineStyle: "dotted" } },
+    });
+  });
+  it("accepts a custom rectangle rotation while retaining the text angle contract", () => {
+    expect(
+      change(rectangle, (code) => {
+        code.placement.rotation = 22.5;
+      }),
+    ).toMatchObject({
+      ok: true,
+      value: { rotation: 22.5 },
+    });
+    expect(
+      change({ ...base, kind: "text", ...text }, (code) => {
+        code.placement.rotation = 22.5;
+      }).ok,
+    ).toBe(false);
   });
   it("never reformats numeric-looking text while compacting color and coordinate arrays", () => {
     const object: DraftingObject = {
@@ -185,13 +227,13 @@ describe("annotation code projection", () => {
   });
   it("rotates and curves through the existing geometry planner", () => {
     const curved = change(arrow, (code) => {
-      code.placement.bearing = 90;
+      code.placement.rotation = 90;
       code.geometry!.tangentAngles = [60];
     });
     expect(curved.ok).toBe(true);
     if (!curved.ok) return;
     const value = draftingPropertyValue(context(curved.value));
-    expect(value.placement.bearing).toBe(90);
+    expect(value.placement.rotation).toBe(90);
     expect(value.geometry!.tangentAngles![0]).toBeCloseTo(60, 0);
     expect(
       change(curved.value, (code) => {
@@ -230,7 +272,7 @@ describe("annotation code projection", () => {
         code.appearance.color = [256, 0, 0];
       },
       (code: any) => {
-        code.stacking.zIndex = 0.5;
+        code.stacking.layer = "middle";
       },
       (code: any) => {
         code.geometry.width = 0;
@@ -321,5 +363,41 @@ describe("annotation code projection", () => {
     expect(
       adapter.changes(code, { "appearance.fillColor": [999, 0, 0] }),
     ).toEqual([]);
+  });
+  it("provides typed menu choices and patches only their JSON value", () => {
+    const object: DraftingObject = { ...base, kind: "text", ...text };
+    const code = source(object);
+    const adapter = annotationPropertyAdapter(
+      (source) => parseDraftingPropertyCode(source, context(object)),
+      false,
+    );
+    const spans = adapter.spans(code);
+    const choices = (path: string) =>
+      spans
+        .find((span) => span.field.path === path)!
+        .field.options!.map((option) => option.value);
+    expect(choices("placement.rotation")).toEqual([
+      0, 45, 90, 135, 180, 225, 270, 315,
+    ]);
+    expect(choices("appearance.alignment")).toEqual(["start", "middle", "end"]);
+    expect(choices("appearance.weight")).toEqual(["normal", "bold"]);
+    expect(choices("appearance.italic")).toEqual([false, true]);
+    for (const [path, value, expected] of [
+      ["placement.rotation", 90, { rotation: 90 }],
+      ["locked", true, { locked: true }],
+      ["appearance.alignment", "end", { alignment: "end" }],
+    ] as const) {
+      const edits = adapter.changes(code, { [path]: value });
+      expect(edits).toHaveLength(1);
+      const edit = edits[0]!;
+      const next = code.slice(0, edit.from) + edit.insert + code.slice(edit.to);
+      expect(parseDraftingPropertyCode(next, context(object))).toMatchObject({
+        ok: true,
+        value: expected,
+      });
+    }
+    expect(adapter.changes(code, { "placement.rotation": "90" })).toEqual([]);
+    expect(adapter.changes(code, { locked: "true" })).toEqual([]);
+    expect(adapter.changes(code, { "appearance.weight": "heavy" })).toEqual([]);
   });
 });
