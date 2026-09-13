@@ -18,7 +18,10 @@ import {
   loadComponentLibrary,
   validateComponentDefinition,
 } from "./component-library.mjs";
-import { deriveDmosSymbol } from "./derived-mos-symbol.mjs";
+import {
+  deriveDepletionMosSymbol,
+  deriveDmosSymbol,
+} from "./derived-mos-symbol.mjs";
 
 const temporaryRoots = [];
 afterEach(async () => {
@@ -174,6 +177,28 @@ describe("one-file component library", () => {
       expect(
         deriveDmosSymbol(changed, id, derived.symbol.name).viewBox,
       ).toEqual(changed.viewBox);
+    }
+  });
+
+  it("derives depletion MOS devices by adding only one wire-width channel mark", async () => {
+    for (const id of ["depletion-nmos", "depletion-pmos"]) {
+      const derived = await component(id);
+      const base = await component(derived.catalog.derivedFrom);
+      expect(
+        deriveDepletionMosSymbol(base.symbol, id, derived.symbol.name),
+      ).toEqual(derived.symbol);
+      expect(derived.electrical.pinOrder).toEqual(base.electrical.pinOrder);
+      expect(derived.symbol.primitives.slice(0, -1)).toEqual(
+        base.symbol.primitives,
+      );
+      expect(derived.symbol.primitives.at(-1)).toMatchObject({
+        kind: "line",
+        from: { x: -0.368217, y: -7.776744 },
+        to: { x: -0.368217, y: 7.776744 },
+        part: "depletion-channel",
+        style: { strokeRole: "normal", lineCap: "butt" },
+      });
+      expect(derived.symbol.variants).toEqual(base.symbol.variants);
     }
   });
 });

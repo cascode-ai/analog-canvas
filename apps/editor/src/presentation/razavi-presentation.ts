@@ -13,6 +13,8 @@ import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
 const DEFAULT_SYMBOL_VARIANTS: Readonly<Record<string, string>> = {
   nmos: "textbook-3terminal",
   pmos: "textbook-3terminal",
+  "depletion-nmos": "textbook-3terminal",
+  "depletion-pmos": "textbook-3terminal",
   ndmos: "standard-3terminal",
   pdmos: "standard-3terminal",
 };

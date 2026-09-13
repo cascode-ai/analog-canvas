@@ -7,18 +7,20 @@ import type { SymbolDefinition } from "./schema.js";
 /**
  * Optional devices that extend the Reference-calibrated Razavi core without
  * claiming Razavi visual authority.  These symbols follow the conventional
- * high-voltage DMOS drawing supplied for the Extended Devices library. DMOS
- * deliberately reuses the complete NMOS/PMOS artwork and differs only by one
- * additional line in the drain-side drift region.
+ * high-voltage and MOS-variant drawings supplied for the Extended Devices
+ * library. Derived MOS entries deliberately reuse the complete NMOS/PMOS
+ * artwork and add only their named distinguishing geometry.
  */
 
 export const EXTENDED_DEVICE_CATEGORY = "Extended Devices";
 export const HIGH_VOLTAGE_DEVICE_SUBCATEGORY = "High-voltage devices";
+export const MOS_VARIANT_SUBCATEGORY = "MOS variants";
 
 export interface ExpandedDeviceCatalogEntry {
   readonly symbolId: string;
   readonly category: typeof EXTENDED_DEVICE_CATEGORY;
-  readonly subcategory: typeof HIGH_VOLTAGE_DEVICE_SUBCATEGORY;
+  readonly subcategory:
+    typeof HIGH_VOLTAGE_DEVICE_SUBCATEGORY | typeof MOS_VARIANT_SUBCATEGORY;
 }
 
 export const nChannelDmosSymbol = expandedComponentSymbols.find(

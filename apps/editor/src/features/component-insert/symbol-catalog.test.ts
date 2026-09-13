@@ -102,6 +102,8 @@ describe("component insertion catalog", () => {
     );
     expect(symbolCategory("ndmos")).toBe("Extended Devices");
     expect(symbolCategory("pdmos")).toBe("Extended Devices");
+    expect(symbolCategory("depletion-nmos")).toBe("Extended Devices");
+    expect(symbolCategory("depletion-pmos")).toBe("Extended Devices");
     expect(symbolCategory("annotation-arrow")).toBe("Annotations");
     expect(symbolCategory("annotation-polarity-both")).toBe("Annotations");
     expect(symbolCategory("annotation-ellipsis")).toBe("Annotations");
@@ -235,6 +237,8 @@ describe("component insertion catalog", () => {
       "zener-diode",
       "tcoil",
       "xfmr",
+      "depletion-nmos",
+      "depletion-pmos",
       "ndmos",
       "pdmos",
     ]);
@@ -242,6 +246,12 @@ describe("component insertion catalog", () => {
   });
 
   it("describes the filled Cell Pin as an independent authoring object", () => {
+    expect(libraryDisplayName("depletion-nmos", "Depletion NMOS")).toBe(
+      "D-NMOS",
+    );
+    expect(libraryDisplayName("depletion-pmos", "Depletion PMOS")).toBe(
+      "D-PMOS",
+    );
     expect(libraryDisplayName("zener-diode", "Zener Diode")).toBe("Zener");
     expect(libraryDescription("port-filled")).toBe(
       "An independent Cell Pin with a solid appearance",
@@ -300,6 +310,8 @@ describe("reach order inside a category", () => {
       "zener-diode",
       "tcoil",
       "xfmr",
+      "depletion-nmos",
+      "depletion-pmos",
       "ndmos",
       "pdmos",
     ]);
