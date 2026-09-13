@@ -1,8 +1,19 @@
 import { describe, expect, it, vi } from "vitest";
 import { createEmptyProject } from "@icm/model";
-import { BrowserSimulationSession } from "./browser-simulation-session";
+import {
+  BrowserSimulationSession,
+  unchangedProjectSnapshot,
+} from "./browser-simulation-session";
 
 describe("browser simulation ownership", () => {
+  it("omits the Project snapshot when editing races with preparation", () => {
+    const before = createEmptyProject("project", "Before");
+    const after = structuredClone(before);
+    expect(unchangedProjectSnapshot(before, after)).toContain("Before");
+    after.documents[0]!.revision++;
+    after.documents[0]!.name = "Changed during prepare";
+    expect(unchangedProjectSnapshot(before, after)).toBe("");
+  });
   it("loads only on demand, keeps failures recoverable, and isolates owners", async () => {
     const project = createEmptyProject("project", "Project");
     const fetch = vi.fn<typeof globalThis.fetch>().mockImplementation(

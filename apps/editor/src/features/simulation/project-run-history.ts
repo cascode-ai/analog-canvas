@@ -71,6 +71,12 @@ export class ProjectRunHistory {
       owner: input.owner,
       presentation: structuredClone(input.presentation),
       state: input.run.state,
+      ...(input.projectFile === ""
+        ? {
+            error:
+              "Project changed during preparation; only the executed-input artifacts and results are retained",
+          }
+        : {}),
     };
     this.records.set(record.id, record);
     this.notify();

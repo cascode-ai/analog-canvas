@@ -27,3 +27,6 @@ prepare time and the run artifacts under `results/`. Extract the Project for
 normal import; the ZIP is an evidence bundle, not a new Project file format.
 For unusually large Projects the snapshot is omitted rather than exceeding the
 archive limit; result-only export remains available.
+If the Project changes while preparation is awaiting compilation or executor
+capabilities, its snapshot is also omitted with a warning. The verified executed
+input artifacts and simulation results remain available.

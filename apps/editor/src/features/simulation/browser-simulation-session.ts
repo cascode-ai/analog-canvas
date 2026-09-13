@@ -11,6 +11,15 @@ import type { ProjectRunHistory } from "./project-run-history";
 import { sourcePresentation } from "./source-presentation";
 import { serializeProject } from "@icm/project-protocol";
 
+/** Do not export a pre-prepare Project when editing raced with compilation. */
+export function unchangedProjectSnapshot(
+  before: CircuitProject,
+  after: CircuitProject,
+): string {
+  const file = serializeProject(before);
+  return file === serializeProject(after) ? file : "";
+}
+
 export interface BrowserSimulationSessionOptions {
   runHistory?: ProjectRunHistory;
   owner?: "agent" | "human";
@@ -127,6 +136,9 @@ export class BrowserSimulationSession {
           ? structuredClone(this.options.getProject())
           : undefined;
       const reply = await service.handle(operation, requestId);
+      const projectFile = sourceProject
+        ? unchangedProjectSnapshot(sourceProject, this.options.getProject())
+        : "";
       if (
         generation === this.generation &&
         this.options.runHistory &&
@@ -149,7 +161,7 @@ export class BrowserSimulationSession {
                   ...sourcePresentation(folder),
                   folderName: item.label ?? folder.name,
                 },
-                projectFile: serializeProject(sourceProject),
+                projectFile,
               });
           }
         }
@@ -166,7 +178,7 @@ export class BrowserSimulationSession {
             this.presentations.set(reply.prepared.id, {
               prepared: reply.prepared,
               presentation: sourcePresentation(folder),
-              projectFile: serializeProject(sourceProject!),
+              projectFile,
             });
         }
         if (operation.operation === "start" && "run" in reply) {
