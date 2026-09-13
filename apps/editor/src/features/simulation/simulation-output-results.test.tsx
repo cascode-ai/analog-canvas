@@ -104,7 +104,7 @@ describe("Simulation Output Results", () => {
     expect(markup).not.toContain(">Magnitude</button>");
     expect(markup.match(/class="simulation-plot-layout"/gu)).toHaveLength(2);
   });
-  it("uses a compact analysis heading and one trailing measurement summary", () => {
+  it("shows a legacy OP value once without its automatic measurement copy", () => {
     const markup = renderToStaticMarkup(
       <SimulationOutputResults
         resultKey="run-1"
@@ -149,10 +149,8 @@ describe("Simulation Output Results", () => {
     expect(markup).toContain('class="simulation-analysis-card"');
     expect(markup).toContain("Operating Point Analysis");
     expect(markup).not.toContain("<small>Bias point</small>");
-    expect(markup).toContain("Measurements");
-    expect(markup.indexOf("Measurements")).toBeGreaterThan(
-      markup.indexOf("</section>"),
-    );
+    expect(markup).not.toContain("Measurements");
+    expect(markup.match(/>VOUT</gu)).toHaveLength(1);
   });
 
   it("keeps Noise spectra and integrated totals in one dedicated result", () => {

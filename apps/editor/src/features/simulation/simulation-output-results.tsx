@@ -20,6 +20,12 @@ import { SimulationMeasurementResults } from "./simulation-measurement-results";
 import { NativeMeasurementResults } from "./native-measurement-results";
 import { CapturedScalarResults } from "./captured-scalar-results";
 import { unrepresentedConsoleMeasurements } from "./measurement-presentation";
+import {
+  isRedundantOpMeasurement,
+  operatingPointOutputs,
+} from "./operating-point-presentation";
+import { DeviceOperatingPointResults } from "./device-operating-point-results";
+import { resultRecordLabel } from "./simulation-result-records";
 import { NoiseResultsExplorer } from "./noise-results-explorer";
 import { planResultOutput } from "./result-plot-plan";
 import { ResultRecordView, ResultPlotControls } from "./result-plot-controls";
@@ -231,6 +237,7 @@ export function SimulationOutputResults({
   data,
   outputs,
   signalTargets,
+  prepared,
   onFocusProbe,
   view = "all",
 }: {
@@ -239,6 +246,7 @@ export function SimulationOutputResults({
   outputs: readonly SimulationOutputSpec[];
   view?: "all" | "waveform" | "op";
   signalTargets?: Prepared["signalTargets"];
+  prepared?: Pick<Prepared, "vectors" | "deviceOperatingPoints"> | undefined;
   onFocusProbe?(probe: SimulationFocusTarget): void;
 }) {
   const authored = new Map(outputs.map((output) => [output.id, output]));
@@ -272,11 +280,26 @@ export function SimulationOutputResults({
   });
   return (
     <div className="simulation-output-results">
+      {view !== "waveform" ? (
+        <DeviceOperatingPointResults
+          devices={data.deviceOperatingPoints ?? []}
+        />
+      ) : null}
       {data.analyses.map((analysis, analysisIndex) => {
         if (!isVisible(analysis)) return null;
-        if (analysis.analysis === "op")
+        if (analysis.analysis === "op") {
+          const opOutputs = operatingPointOutputs(
+            data,
+            analysisIndex,
+            prepared,
+          );
+          if (!opOutputs.length) return null;
           return (
             <SimulationAnalysisCard key={`op-${analysisIndex}`} kind="op">
+              {data.analyses.filter((record) => record.analysis === "op")
+                .length > 1 ? (
+                <p>{resultRecordLabel(analysisIndex, analysis)}</p>
+              ) : null}
               <table>
                 <thead>
                   <tr>
@@ -285,7 +308,7 @@ export function SimulationOutputResults({
                   </tr>
                 </thead>
                 <tbody>
-                  {analysis.outputs.map((output) => (
+                  {opOutputs.map((output) => (
                     <tr key={output.id}>
                       <td>{output.label}</td>
                       <td>
@@ -298,6 +321,7 @@ export function SimulationOutputResults({
               </table>
             </SimulationAnalysisCard>
           );
+        }
         if (analysis.analysis === "noise")
           return (
             <SimulationAnalysisCard key={`noise-${analysisIndex}`} kind="noise">
@@ -521,8 +545,10 @@ export function SimulationOutputResults({
         </div>
       ) : null}
       <SimulationMeasurementResults
-        measurements={(data.measurements ?? []).filter((measurement) =>
-          visibleAnalyses.has(measurement.analysis),
+        measurements={(data.measurements ?? []).filter(
+          (measurement) =>
+            visibleAnalyses.has(measurement.analysis) &&
+            !isRedundantOpMeasurement(data, measurement),
         )}
       />
       {view !== "op" ? (

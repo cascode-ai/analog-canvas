@@ -1040,10 +1040,7 @@ test("human simulation uses saved folder, survives minimizing, recovers a bad in
   const opMeasurements = panel.locator(
     "details.simulation-measurement-results",
   );
-  await expect(opMeasurements.locator(":scope > summary")).toContainText(
-    "1 value",
-  );
-  await expect(opMeasurements).not.toHaveAttribute("open", "");
+  await expect(opMeasurements).toHaveCount(0);
   await panel.getByRole("button", { name: "Show on canvas" }).click();
   await expect(page.getByTestId("operating-point-badges")).toContainText(
     "500 mV",

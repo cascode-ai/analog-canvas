@@ -53,7 +53,6 @@ import {
   type RecordSelection,
 } from "./simulation-result-records";
 import type { OperatingPointDisplay } from "./operating-point-labels";
-import { DeviceOperatingPointResults } from "./device-operating-point-results";
 
 import {
   buildSimulationArtifactArchive,
@@ -1378,13 +1377,11 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
             </div>
             {run?.outputData ? (
               <>
-                <DeviceOperatingPointResults
-                  devices={run.outputData.deviceOperatingPoints ?? []}
-                />
                 <SimulationOutputResults
                   resultKey={`${run.id}:op`}
                   data={run.outputData}
                   view="op"
+                  prepared={runPresentation?.prepared}
                   outputs={runPresentation?.outputs ?? []}
                 />
               </>
