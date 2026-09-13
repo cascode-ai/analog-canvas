@@ -15,6 +15,12 @@ const BREAKDOWN_TABLES = {
   pages: "analytics_pages",
 } as const;
 
+function assertValidBreakdownTable(table: string): void {
+  if (!(Object.values(BREAKDOWN_TABLES) as string[]).includes(table)) {
+    throw new Error(`Invalid breakdown table: ${table}`);
+  }
+}
+
 type SqlResult<T> = {
   one(): T;
   toArray(): T[];
@@ -115,7 +121,7 @@ export class AnalyticsDO {
     `);
     for (const table of Object.values(BREAKDOWN_TABLES)) {
       this.sql.exec(`
-        CREATE TABLE IF NOT EXISTS ${table} (
+        CREATE TABLE IF NOT EXISTS ` + table + ` (
           dimension_key TEXT PRIMARY KEY,
           pv INTEGER NOT NULL,
           uv INTEGER NOT NULL
@@ -211,39 +217,62 @@ export class AnalyticsDO {
 
   private upsertBreakdown(table: string, key: string, uvDelta: number): void {
     this.sql.exec(
-      `INSERT INTO ${table}(dimension_key, pv, uv) VALUES (?, 1, ?)
-       ON CONFLICT(dimension_key) DO UPDATE SET
-         pv = pv + 1,
-         uv = uv + excluded.uv`,
+      this.upsertBreakdownSql(table),
       key,
       uvDelta,
     );
     this.trimBreakdown(table);
   }
 
+  private upsertBreakdownSql(table: string): string {
+    switch (table) {
+      case BREAKDOWN_TABLES.countries:
+        return `INSERT INTO analytics_countries(dimension_key, pv, uv) VALUES (?, 1, ?)
+       ON CONFLICT(dimension_key) DO UPDATE SET
+         pv = pv + 1,
+         uv = uv + excluded.uv`;
+      case BREAKDOWN_TABLES.sources:
+        return `INSERT INTO analytics_sources(dimension_key, pv, uv) VALUES (?, 1, ?)
+       ON CONFLICT(dimension_key) DO UPDATE SET
+         pv = pv + 1,
+         uv = uv + excluded.uv`;
+      case BREAKDOWN_TABLES.pages:
+        return `INSERT INTO analytics_pages(dimension_key, pv, uv) VALUES (?, 1, ?)
+       ON CONFLICT(dimension_key) DO UPDATE SET
+         pv = pv + 1,
+         uv = uv + excluded.uv`;
+      default:
+        throw new Error(`Invalid breakdown table: ${table}`);
+    }
+  }
+
   private trimBreakdown(table: string): void {
+    assertValidBreakdownTable(table);
     const count = Number(
       this.sql
-        .exec<{ count: number }>(`SELECT COUNT(*) AS count FROM ${table}`)
+        .exec<{ count: number }>(
+          "SELECT COUNT(*) AS count FROM " + table,
+        )
         .one().count,
     );
     const excess = count - MAX_BREAKDOWN_ROWS;
     if (excess <= 0) return;
     const rows = this.sql
       .exec<BreakdownRow>(
-        `SELECT dimension_key, pv, uv FROM ${table}
-         WHERE dimension_key != ? ORDER BY pv ASC, uv ASC LIMIT ?`,
+        "SELECT dimension_key, pv, uv FROM " +
+          table +
+          " WHERE dimension_key != ? ORDER BY pv ASC, uv ASC LIMIT ?",
         OTHER_KEY,
         excess,
       )
       .toArray();
     for (const row of rows) {
       this.sql.exec(
-        `DELETE FROM ${table} WHERE dimension_key = ?`,
+        "DELETE FROM " + table + " WHERE dimension_key = ?",
         row.dimension_key,
       );
       this.sql.exec(
-        `INSERT INTO ${table}(dimension_key, pv, uv) VALUES (?, ?, ?)
+        `INSERT INTO ` + table + `(dimension_key, pv, uv) VALUES (?, ?, ?)
          ON CONFLICT(dimension_key) DO UPDATE SET
            pv = pv + excluded.pv,
            uv = uv + excluded.uv`,
@@ -374,9 +403,10 @@ export class AnalyticsDO {
   }
 
   private readBreakdown(table: string): BreakdownRow[] {
+    assertValidBreakdownTable(table);
     const rows = this.sql
       .exec<BreakdownRow>(
-        `SELECT dimension_key, pv, uv FROM ${table} ORDER BY pv DESC, uv DESC`,
+        "SELECT dimension_key, pv, uv FROM " + table + " ORDER BY pv DESC, uv DESC",
       )
       .toArray();
     const other = rows.find((row) => row.dimension_key === OTHER_KEY);
@@ -385,9 +415,10 @@ export class AnalyticsDO {
   }
 
   private breakdownTotal(table: string): VisitStats {
+    assertValidBreakdownTable(table);
     const row = this.sql
       .exec<VisitStats>(
-        `SELECT COALESCE(SUM(pv), 0) AS pv, COALESCE(SUM(uv), 0) AS uv FROM ${table}`,
+        "SELECT COALESCE(SUM(pv), 0) AS pv, COALESCE(SUM(uv), 0) AS uv FROM " + table,
       )
       .one();
     return { pv: Number(row.pv), uv: Number(row.uv) };
