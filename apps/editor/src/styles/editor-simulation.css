@@ -531,6 +531,58 @@
   line-height: 1.45;
 }
 
+.simulation-example-start {
+  padding: 12px;
+  font-size: var(--icm-font-xs);
+  color: var(--icm-text-muted);
+}
+.simulation-example-start > p {
+  margin: 0 0 8px;
+}
+.simulation-example-cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+.simulation-example-cards > button {
+  min-width: 0;
+  text-align: left;
+  padding: 9px;
+  border: 1px solid var(--icm-border);
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.simulation-example-cards strong,
+.simulation-example-cards span {
+  display: block;
+}
+.simulation-example-cards strong {
+  color: var(--icm-text);
+  font-weight: 500;
+}
+.simulation-example-cards span {
+  margin-top: 4px;
+  font-size: var(--icm-font-xs);
+}
+.simulation-source-context {
+  flex: 0 0 auto;
+  padding: 4px 8px;
+  font-size: var(--icm-font-xs);
+  color: var(--icm-text-muted);
+}
+.simulation-source-context summary {
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.simulation-source-context p {
+  margin: 4px 0;
+}
+.simulation-source-context button {
+  margin: 4px 6px 0 0;
+}
+
 .simulation-setup-panel {
   flex: 1 1 auto;
   min-height: 0;

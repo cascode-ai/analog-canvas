@@ -1,0 +1,1260 @@
+{
+  "documents": [
+    {
+      "annotations": [
+        {
+          "alignment": "start",
+          "anchor": {
+            "fallbackPosition": {
+              "x": 310,
+              "y": 430
+            },
+            "kind": "object",
+            "localOffset": {
+              "x": -30,
+              "y": 30
+            },
+            "objectId": "XM1"
+          },
+          "binding": {
+            "instanceId": "XM1",
+            "kind": "instance-reference"
+          },
+          "id": "instance-label-XM1",
+          "kind": "instance-label",
+          "locked": false,
+          "rotation": 0
+        },
+        {
+          "alignment": "start",
+          "anchor": {
+            "fallbackPosition": {
+              "x": 370,
+              "y": 330
+            },
+            "kind": "object",
+            "localOffset": {
+              "x": 20,
+              "y": 10
+            },
+            "objectId": "RD"
+          },
+          "binding": {
+            "instanceId": "RD",
+            "kind": "instance-reference"
+          },
+          "id": "instance-label-RD",
+          "kind": "instance-label",
+          "locked": false,
+          "rotation": 0
+        },
+        {
+          "alignment": "end",
+          "anchor": {
+            "fallbackPosition": {
+              "x": 400,
+              "y": 275
+            },
+            "kind": "object",
+            "localOffset": {
+              "x": 50,
+              "y": 5
+            },
+            "objectId": "VDD"
+          },
+          "binding": {
+            "instanceId": "VDD",
+            "kind": "instance-reference"
+          },
+          "id": "instance-label-VDD",
+          "kind": "instance-label",
+          "locked": false,
+          "rotation": 0
+        },
+        {
+          "alignment": "start",
+          "anchor": {
+            "fallbackPosition": {
+              "x": 460,
+              "y": 385
+            },
+            "kind": "object",
+            "localOffset": {
+              "x": 20,
+              "y": 5
+            },
+            "objectId": "CL"
+          },
+          "binding": {
+            "instanceId": "CL",
+            "kind": "instance-reference"
+          },
+          "id": "instance-label-CL",
+          "kind": "instance-label",
+          "locked": false,
+          "rotation": 0
+        },
+        {
+          "alignment": "start",
+          "anchor": {
+            "fallbackPosition": {
+              "x": 210,
+              "y": 445
+            },
+            "kind": "object",
+            "localOffset": {
+              "x": -50,
+              "y": 5
+            },
+            "objectId": "VIN"
+          },
+          "binding": {
+            "instanceId": "VIN",
+            "kind": "instance-reference"
+          },
+          "id": "instance-label-VIN",
+          "kind": "instance-label",
+          "locked": false,
+          "rotation": 0
+        },
+        {
+          "alignment": "start",
+          "anchor": {
+            "fallbackPosition": {
+              "x": 295,
+              "y": 380
+            },
+            "kind": "object",
+            "localOffset": {
+              "x": -45,
+              "y": -20
+            },
+            "objectId": "XM1"
+          },
+          "binding": {
+            "instanceId": "XM1",
+            "kind": "instance-value"
+          },
+          "id": "instance-value-XM1",
+          "kind": "instance-value",
+          "locked": false,
+          "rotation": 0
+        }
+      ],
+      "connectivityEvidence": [
+        {
+          "id": "connectivity-evidence-b7e6be66f73ec485",
+          "kind": "net-name-hint",
+          "netId": "net-e601849b263a5bd1",
+          "origin": "spice-import",
+          "sourceName": "vdd"
+        },
+        {
+          "id": "connectivity-evidence-8d0b0efdb1057aa9",
+          "kind": "spice-source",
+          "netId": "net-e601849b263a5bd1",
+          "sourceNetId": "net-e601849b263a5bd1"
+        },
+        {
+          "id": "connectivity-evidence-c3026f25e0803bdb",
+          "kind": "name-claim",
+          "name": "0",
+          "netId": "net-89e480092dc336ed",
+          "owner": {
+            "kind": "global-declaration",
+            "sourceNetId": "net-89e480092dc336ed"
+          },
+          "powerDomain": "ground",
+          "scope": "global"
+        },
+        {
+          "id": "connectivity-evidence-08b4f29c97880525",
+          "kind": "spice-source",
+          "netId": "net-89e480092dc336ed",
+          "sourceNetId": "net-89e480092dc336ed"
+        },
+        {
+          "id": "connectivity-evidence-d92e0a448bb319cd",
+          "kind": "net-name-hint",
+          "netId": "net-3cc118a1672a4767",
+          "origin": "spice-import",
+          "sourceName": "in"
+        },
+        {
+          "id": "connectivity-evidence-7ae98d9e91d374ad",
+          "kind": "spice-source",
+          "netId": "net-3cc118a1672a4767",
+          "sourceNetId": "net-3cc118a1672a4767"
+        },
+        {
+          "id": "connectivity-evidence-617050b36c8b4149",
+          "kind": "net-name-hint",
+          "netId": "net-232eaf9b4907ccf7",
+          "origin": "spice-import",
+          "sourceName": "out"
+        },
+        {
+          "id": "connectivity-evidence-e5eb74d8864ce135",
+          "kind": "spice-source",
+          "netId": "net-232eaf9b4907ccf7",
+          "sourceNetId": "net-232eaf9b4907ccf7"
+        },
+        {
+          "id": "connectivity-evidence-41b3d5b2278dadc8",
+          "kind": "spice-source",
+          "netId": "net-split-03d2ef8490cf4130",
+          "sourceNetId": "net-89e480092dc336ed"
+        },
+        {
+          "id": "connectivity-evidence-135777569d918963",
+          "kind": "spice-source",
+          "netId": "net-split-162a792c97635c9d",
+          "sourceNetId": "net-89e480092dc336ed"
+        },
+        {
+          "id": "connectivity-evidence-7384c945030845a2",
+          "kind": "spice-source",
+          "netId": "net-split-1f0a142c9c792118",
+          "sourceNetId": "net-89e480092dc336ed"
+        }
+      ],
+      "constraints": [],
+      "drafting": {
+        "objects": [
+          {
+            "alignment": "start",
+            "anchor": {
+              "kind": "free",
+              "position": {
+                "x": 50,
+                "y": 115
+              }
+            },
+            "content": {
+              "runs": [
+                {
+                  "children": [
+                    {
+                      "kind": "text",
+                      "value": "SKY130 NMOS resistor-loaded common-source amplifier"
+                    }
+                  ],
+                  "kind": "span",
+                  "style": "bold"
+                }
+              ]
+            },
+            "id": "description-0",
+            "kind": "text",
+            "locked": false,
+            "rotation": 0,
+            "styleOverride": {
+              "sizeScale": 1
+            },
+            "zIndex": 0
+          },
+          {
+            "alignment": "start",
+            "anchor": {
+              "kind": "free",
+              "position": {
+                "x": 50,
+                "y": 145
+              }
+            },
+            "content": {
+              "runs": [
+                {
+                  "children": [
+                    {
+                      "kind": "text",
+                      "value": "VDD = 1.8 V; Vbias = 0.7 V; RD = 10 kohm; CL = 1 pF"
+                    }
+                  ],
+                  "kind": "span",
+                  "style": "bold"
+                }
+              ]
+            },
+            "id": "description-1",
+            "kind": "text",
+            "locked": false,
+            "rotation": 0,
+            "styleOverride": {
+              "sizeScale": 1
+            },
+            "zIndex": 0
+          },
+          {
+            "alignment": "start",
+            "anchor": {
+              "kind": "free",
+              "position": {
+                "x": 50,
+                "y": 175
+              }
+            },
+            "content": {
+              "runs": [
+                {
+                  "children": [
+                    {
+                      "kind": "text",
+                      "value": "Small/large signals use native alter commands, not hidden JSON overrides."
+                    }
+                  ],
+                  "kind": "span",
+                  "style": "bold"
+                }
+              ]
+            },
+            "id": "description-2",
+            "kind": "text",
+            "locked": false,
+            "rotation": 0,
+            "styleOverride": {
+              "sizeScale": 1
+            },
+            "zIndex": 0
+          }
+        ]
+      },
+      "id": "cell-common-source",
+      "instances": [
+        {
+          "id": "VDD",
+          "importProvenance": {
+            "kind": "primitive",
+            "sourceMasterName": "voltage-source",
+            "sourceTarget": "primitive:voltage-source",
+            "status": "resolved",
+            "terminalMapping": [
+              {
+                "pinName": "+",
+                "sourcePosition": 0
+              },
+              {
+                "pinName": "-",
+                "sourcePosition": 1
+              }
+            ]
+          },
+          "netlist": {
+            "binding": {
+              "deviceClass": "voltage-source",
+              "kind": "primitive"
+            },
+            "parameters": {
+              "dc": "1.8",
+              "waveform": "dc"
+            }
+          },
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 350,
+              "y": 270
+            },
+            "rotation": 180
+          },
+          "reference": "VDD",
+          "sourceRef": {
+            "end": {
+              "column": 14,
+              "line": 2,
+              "offset": 97
+            },
+            "fileId": "source-648e50f6f6cd02ee",
+            "start": {
+              "column": 1,
+              "line": 2,
+              "offset": 84
+            }
+          },
+          "symbolId": "voltage-source"
+        },
+        {
+          "id": "VIN",
+          "importProvenance": {
+            "kind": "primitive",
+            "sourceMasterName": "voltage-source",
+            "sourceTarget": "primitive:voltage-source",
+            "status": "resolved",
+            "terminalMapping": [
+              {
+                "pinName": "+",
+                "sourcePosition": 0
+              },
+              {
+                "pinName": "-",
+                "sourcePosition": 1
+              }
+            ]
+          },
+          "netlist": {
+            "binding": {
+              "deviceClass": "voltage-source",
+              "kind": "primitive"
+            },
+            "parameters": {
+              "acMagnitude": "1",
+              "amplitude": "10m",
+              "dc": "0.7",
+              "frequency": "10k",
+              "offset": "0.7",
+              "waveform": "sin"
+            }
+          },
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 260,
+              "y": 440
+            },
+            "rotation": 0
+          },
+          "reference": "VIN",
+          "sourceRef": {
+            "end": {
+              "column": 13,
+              "line": 3,
+              "offset": 110
+            },
+            "fileId": "source-648e50f6f6cd02ee",
+            "start": {
+              "column": 1,
+              "line": 3,
+              "offset": 98
+            }
+          },
+          "symbolId": "voltage-source"
+        },
+        {
+          "id": "RD",
+          "importProvenance": {
+            "kind": "primitive",
+            "sourceMasterName": "resistor",
+            "sourceTarget": "primitive:resistor",
+            "status": "resolved",
+            "terminalMapping": [
+              {
+                "pinName": "1",
+                "sourcePosition": 0
+              },
+              {
+                "pinName": "2",
+                "sourcePosition": 1
+              }
+            ]
+          },
+          "netlist": {
+            "binding": {
+              "deviceClass": "resistor",
+              "kind": "primitive"
+            },
+            "parameters": {
+              "value": "10k"
+            }
+          },
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 350,
+              "y": 320
+            },
+            "rotation": 0
+          },
+          "reference": "RD",
+          "sourceRef": {
+            "end": {
+              "column": 15,
+              "line": 4,
+              "offset": 125
+            },
+            "fileId": "source-648e50f6f6cd02ee",
+            "start": {
+              "column": 1,
+              "line": 4,
+              "offset": 111
+            }
+          },
+          "symbolId": "resistor"
+        },
+        {
+          "id": "XM1",
+          "importProvenance": {
+            "kind": "opaque",
+            "sourceMasterName": "sky130_fd_pr__nfet_01v8",
+            "sourceTarget": "external-subcircuit:sky130_fd_pr__nfet_01v8",
+            "status": "resolved",
+            "symbolMappingRegistryId": "sky130-nfet-01v8",
+            "terminalMapping": [
+              {
+                "pinName": "D",
+                "sourcePosition": 0
+              },
+              {
+                "pinName": "G",
+                "sourcePosition": 1
+              },
+              {
+                "pinName": "S",
+                "sourcePosition": 2
+              },
+              {
+                "pinName": "B",
+                "sourcePosition": 3
+              }
+            ]
+          },
+          "netlist": {
+            "binding": {
+              "definitionId": "external-subcircuit-e5ee3d17d0c7c89a",
+              "kind": "external-subcircuit"
+            },
+            "parameters": {
+              "l": "1u",
+              "nf": "1",
+              "w": "10u"
+            }
+          },
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 340,
+              "y": 400
+            },
+            "rotation": 0
+          },
+          "reference": "XM1",
+          "sourceRef": {
+            "end": {
+              "column": 53,
+              "line": 5,
+              "offset": 178
+            },
+            "fileId": "source-648e50f6f6cd02ee",
+            "start": {
+              "column": 1,
+              "line": 5,
+              "offset": 126
+            }
+          },
+          "symbolId": "nmos"
+        },
+        {
+          "id": "CL",
+          "importProvenance": {
+            "kind": "primitive",
+            "sourceMasterName": "capacitor",
+            "sourceTarget": "primitive:capacitor",
+            "status": "resolved",
+            "terminalMapping": [
+              {
+                "pinName": "1",
+                "sourcePosition": 0
+              },
+              {
+                "pinName": "2",
+                "sourcePosition": 1
+              }
+            ]
+          },
+          "netlist": {
+            "binding": {
+              "deviceClass": "capacitor",
+              "kind": "primitive"
+            },
+            "parameters": {
+              "value": "1p"
+            }
+          },
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 440,
+              "y": 380
+            },
+            "rotation": 0
+          },
+          "reference": "CL",
+          "sourceRef": {
+            "end": {
+              "column": 12,
+              "line": 6,
+              "offset": 190
+            },
+            "fileId": "source-648e50f6f6cd02ee",
+            "start": {
+              "column": 1,
+              "line": 6,
+              "offset": 179
+            }
+          },
+          "symbolId": "capacitor"
+        },
+        {
+          "id": "GND2",
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 260,
+              "y": 480
+            },
+            "rotation": 0
+          },
+          "symbolId": "ground"
+        },
+        {
+          "id": "GND3",
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 350,
+              "y": 480
+            },
+            "rotation": 0
+          },
+          "symbolId": "ground"
+        },
+        {
+          "id": "GND4",
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 440,
+              "y": 410
+            },
+            "rotation": 0
+          },
+          "symbolId": "ground"
+        },
+        {
+          "id": "GND2-copy-1",
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 350,
+              "y": 220
+            },
+            "rotation": 180
+          },
+          "symbolId": "ground"
+        }
+      ],
+      "junctions": [
+        {
+          "id": "junction-ui-4",
+          "netId": "net-89e480092dc336ed",
+          "position": {
+            "x": 350,
+            "y": 430
+          },
+          "role": "branch"
+        },
+        {
+          "id": "junction-lifecycle-18-1",
+          "netId": "net-split-162a792c97635c9d",
+          "position": {
+            "x": 350,
+            "y": 230
+          },
+          "role": "branch"
+        },
+        {
+          "id": "junction-canonical-836e0dd3e7b1500a",
+          "netId": "net-232eaf9b4907ccf7",
+          "position": {
+            "x": 350,
+            "y": 360
+          },
+          "role": "branch"
+        }
+      ],
+      "layoutGroups": [],
+      "name": "SKY130 Common-source Amplifier",
+      "netlist": {
+        "formalParameters": [],
+        "name": "common_source",
+        "terminals": []
+      },
+      "nets": [
+        {
+          "id": "net-e601849b263a5bd1",
+          "terminals": [
+            {
+              "instanceId": "VDD",
+              "pinName": "+"
+            },
+            {
+              "instanceId": "RD",
+              "pinName": "1"
+            }
+          ]
+        },
+        {
+          "id": "net-89e480092dc336ed",
+          "terminals": [
+            {
+              "instanceId": "XM1",
+              "pinName": "B"
+            },
+            {
+              "instanceId": "XM1",
+              "pinName": "S"
+            },
+            {
+              "instanceId": "GND3",
+              "pinName": "0"
+            }
+          ]
+        },
+        {
+          "id": "net-3cc118a1672a4767",
+          "terminals": [
+            {
+              "instanceId": "VIN",
+              "pinName": "+"
+            },
+            {
+              "instanceId": "XM1",
+              "pinName": "G"
+            }
+          ]
+        },
+        {
+          "id": "net-232eaf9b4907ccf7",
+          "terminals": [
+            {
+              "instanceId": "RD",
+              "pinName": "2"
+            },
+            {
+              "instanceId": "XM1",
+              "pinName": "D"
+            },
+            {
+              "instanceId": "CL",
+              "pinName": "1"
+            }
+          ]
+        },
+        {
+          "id": "net-split-03d2ef8490cf4130",
+          "terminals": [
+            {
+              "instanceId": "CL",
+              "pinName": "2"
+            },
+            {
+              "instanceId": "GND4",
+              "pinName": "0"
+            }
+          ]
+        },
+        {
+          "id": "net-split-162a792c97635c9d",
+          "terminals": [
+            {
+              "instanceId": "VDD",
+              "pinName": "-"
+            },
+            {
+              "instanceId": "GND2-copy-1",
+              "pinName": "0"
+            }
+          ]
+        },
+        {
+          "id": "net-split-1f0a142c9c792118",
+          "terminals": [
+            {
+              "instanceId": "VIN",
+              "pinName": "-"
+            },
+            {
+              "instanceId": "GND2",
+              "pinName": "0"
+            }
+          ]
+        }
+      ],
+      "noConnects": [],
+      "presentation": {
+        "compactness": "normal",
+        "grid": 10,
+        "styleProfileId": "razavi-textbook-v1"
+      },
+      "revision": 163,
+      "routes": [
+        {
+          "id": "wire-47",
+          "legs": [
+            {
+              "id": "route-leg-3334808c4bb0b5fc",
+              "mode": "manual",
+              "to": {
+                "bendId": "route-bend-9df9d5960dfab1f0",
+                "kind": "bend",
+                "position": {
+                  "x": 260,
+                  "y": 400
+                }
+              }
+            },
+            {
+              "id": "route-leg-4595699febebcc43",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "instanceId": "XM1",
+                  "kind": "terminal",
+                  "pinName": "G"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-3cc118a1672a4767",
+          "start": {
+            "instanceId": "VIN",
+            "kind": "terminal",
+            "pinName": "+"
+          }
+        },
+        {
+          "id": "wire-52",
+          "legs": [
+            {
+              "id": "route-leg-a01eac6794d2ebb6",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "junctionId": "junction-lifecycle-18-1",
+                  "kind": "junction"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-split-162a792c97635c9d",
+          "start": {
+            "instanceId": "VDD",
+            "kind": "terminal",
+            "pinName": "-"
+          }
+        },
+        {
+          "id": "route-e62be0dccd25d299",
+          "legs": [
+            {
+              "id": "route-leg-37d913f0a9a65ed1",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "instanceId": "VDD",
+                  "kind": "terminal",
+                  "pinName": "+"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-e601849b263a5bd1",
+          "start": {
+            "instanceId": "RD",
+            "kind": "terminal",
+            "pinName": "1"
+          }
+        },
+        {
+          "id": "route-ui-5",
+          "legs": [
+            {
+              "id": "route-leg-b425448e843180bb",
+              "mode": "manual",
+              "to": {
+                "bendId": "route-bend-b425438e84317f08",
+                "kind": "bend",
+                "position": {
+                  "x": 370,
+                  "y": 400
+                }
+              }
+            },
+            {
+              "id": "route-leg-b425468e84318421",
+              "mode": "manual",
+              "to": {
+                "bendId": "route-bend-b425468e84318421",
+                "kind": "bend",
+                "position": {
+                  "x": 370,
+                  "y": 430
+                }
+              }
+            },
+            {
+              "id": "route-leg-b425458e8431826e",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "junctionId": "junction-ui-4",
+                  "kind": "junction"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-89e480092dc336ed",
+          "presentation": "bulk-dashed",
+          "start": {
+            "instanceId": "XM1",
+            "kind": "terminal",
+            "pinName": "B"
+          }
+        },
+        {
+          "id": "route-446c979dc97457c8",
+          "legs": [
+            {
+              "id": "route-leg-0380f4248e81778a",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "instanceId": "VIN",
+                  "kind": "terminal",
+                  "pinName": "-"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-split-1f0a142c9c792118",
+          "start": {
+            "instanceId": "GND2",
+            "kind": "terminal",
+            "pinName": "0"
+          }
+        },
+        {
+          "id": "route-canonical-98c3ed8cf6ae9fc3-a-4",
+          "legs": [
+            {
+              "id": "route-leg-6a6e2a9e8beeae8e",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "instanceId": "GND3",
+                  "kind": "terminal",
+                  "pinName": "0"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-89e480092dc336ed",
+          "start": {
+            "instanceId": "XM1",
+            "kind": "terminal",
+            "pinName": "S"
+          }
+        },
+        {
+          "id": "wire-45",
+          "legs": [
+            {
+              "id": "route-leg-f08530a5ed0a318a",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "junctionId": "junction-canonical-836e0dd3e7b1500a",
+                  "kind": "junction"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-232eaf9b4907ccf7",
+          "start": {
+            "instanceId": "RD",
+            "kind": "terminal",
+            "pinName": "2"
+          }
+        },
+        {
+          "id": "route-canonical-5dc017b681e2b4a5",
+          "legs": [
+            {
+              "id": "route-leg-f90643294d33b198",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "instanceId": "XM1",
+                  "kind": "terminal",
+                  "pinName": "D"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-232eaf9b4907ccf7",
+          "start": {
+            "junctionId": "junction-canonical-836e0dd3e7b1500a",
+            "kind": "junction"
+          }
+        },
+        {
+          "id": "route-canonical-597959e33fc6e42d",
+          "legs": [
+            {
+              "id": "route-leg-dd432688216b06ad",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "instanceId": "CL",
+                  "kind": "terminal",
+                  "pinName": "1"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-232eaf9b4907ccf7",
+          "start": {
+            "junctionId": "junction-canonical-836e0dd3e7b1500a",
+            "kind": "junction"
+          }
+        }
+      ],
+      "sourceBinding": {
+        "cellName": "common_source",
+        "sourceRef": {
+          "end": {
+            "column": 12,
+            "line": 6,
+            "offset": 190
+          },
+          "fileId": "source-648e50f6f6cd02ee",
+          "start": {
+            "column": 1,
+            "line": 2,
+            "offset": 84
+          }
+        }
+      },
+      "sourceStatus": "connectivity-modified"
+    }
+  ],
+  "externalSubcircuitDefinitions": [
+    {
+      "formalParameters": [
+        {
+          "defaultValue": "1",
+          "name": "w"
+        },
+        {
+          "defaultValue": "0.15",
+          "name": "l"
+        },
+        {
+          "defaultValue": "1",
+          "name": "nf"
+        },
+        {
+          "defaultValue": "1",
+          "name": "m"
+        }
+      ],
+      "id": "external-subcircuit-e5ee3d17d0c7c89a",
+      "interfaceStatus": "declared",
+      "name": "sky130_fd_pr__nfet_01v8",
+      "terminals": [
+        {
+          "direction": "passive",
+          "id": "external-subcircuit-terminal-353df4da271bcc2b",
+          "name": "D"
+        },
+        {
+          "direction": "passive",
+          "id": "external-subcircuit-terminal-353df3da271bca78",
+          "name": "G"
+        },
+        {
+          "direction": "passive",
+          "id": "external-subcircuit-terminal-353df6da271bcf91",
+          "name": "S"
+        },
+        {
+          "direction": "passive",
+          "id": "external-subcircuit-terminal-353df5da271bcdde",
+          "name": "B"
+        }
+      ]
+    }
+  ],
+  "id": "project-common-source",
+  "name": "SKY130 Common-source Amplifier",
+  "schemaVersion": 53,
+  "simulationFolders": [
+    {
+      "id": "cs-op",
+      "input": {
+        "circuitBindings": [
+          {
+            "documentId": "cell-common-source",
+            "emission": "top-level",
+            "id": "circuit",
+            "path": "circuit.spice"
+          }
+        ],
+        "configPath": "experiment.json",
+        "dependencies": [
+          {
+            "id": "sky130A-continuous",
+            "mountPath": "icm-models.lib",
+            "sha256": "0bf299f0e3e1616478203d370107865635fd08935bb1a9cf9db18efd31703100"
+          }
+        ],
+        "entry": "run.cir",
+        "files": [
+          {
+            "path": "run.cir",
+            "text": "* 01 Bias | Native Device OP\n* 1. Ready to run. Adjust sources or device parameters on Canvas.\n* 2. Click Run.\n* 3. Open Operating Point for node voltages and device values.\n.temp 27\n.lib \"icm-models.lib\" tt\n.include \"circuit.spice\"\n.control\nset filetype=ascii\nset appendwrite\nsave v(in) v(out) i(vdd) @m.xm1.msky130_fd_pr__nfet_01v8[id] @m.xm1.msky130_fd_pr__nfet_01v8[vgs] @m.xm1.msky130_fd_pr__nfet_01v8[vds] @m.xm1.msky130_fd_pr__nfet_01v8[vbs] @m.xm1.msky130_fd_pr__nfet_01v8[gm] @m.xm1.msky130_fd_pr__nfet_01v8[gds] @m.xm1.msky130_fd_pr__nfet_01v8[gmbs] @m.xm1.msky130_fd_pr__nfet_01v8[vth] @m.xm1.msky130_fd_pr__nfet_01v8[vdsat]\nop\nwrite out.raw\n.endc\n.end\n"
+          },
+          {
+            "path": "experiment.json",
+            "text": "{\n  \"version\": 2,\n  \"environment\": {\n    \"profileId\": \"sky130-core-continuous-ngspice46-v1\"\n  }\n}\n"
+          }
+        ],
+        "kind": "source"
+      },
+      "name": "01 Bias | Native Device OP",
+      "version": 4
+    },
+    {
+      "id": "cs-dc",
+      "input": {
+        "circuitBindings": [
+          {
+            "documentId": "cell-common-source",
+            "emission": "top-level",
+            "id": "circuit",
+            "path": "circuit.spice"
+          }
+        ],
+        "configPath": "experiment.json",
+        "dependencies": [
+          {
+            "id": "sky130A-continuous",
+            "mountPath": "icm-models.lib",
+            "sha256": "0bf299f0e3e1616478203d370107865635fd08935bb1a9cf9db18efd31703100"
+          }
+        ],
+        "entry": "run.cir",
+        "files": [
+          {
+            "path": "run.cir",
+            "text": "* 02 DC transfer\n* 1. Ready to run. Adjust sources or device parameters on Canvas.\n* 2. Click Run.\n* 3. Open Plot for waveforms; expand Measurements when available.\n.temp 27\n.lib \"icm-models.lib\" tt\n.include \"circuit.spice\"\n.control\nset filetype=ascii\nset appendwrite\nsave v(in) v(out) i(vdd)\ndc VIN 0.3 1.2 0.005\nwrite out.raw\n.endc\n.end\n"
+          },
+          {
+            "path": "experiment.json",
+            "text": "{\n  \"version\": 2,\n  \"environment\": {\n    \"profileId\": \"sky130-core-continuous-ngspice46-v1\"\n  }\n}\n"
+          }
+        ],
+        "kind": "source"
+      },
+      "name": "02 DC transfer",
+      "version": 4
+    },
+    {
+      "id": "cs-ac",
+      "input": {
+        "circuitBindings": [
+          {
+            "documentId": "cell-common-source",
+            "emission": "top-level",
+            "id": "circuit",
+            "path": "circuit.spice"
+          }
+        ],
+        "configPath": "experiment.json",
+        "dependencies": [
+          {
+            "id": "sky130A-continuous",
+            "mountPath": "icm-models.lib",
+            "sha256": "0bf299f0e3e1616478203d370107865635fd08935bb1a9cf9db18efd31703100"
+          }
+        ],
+        "entry": "run.cir",
+        "files": [
+          {
+            "path": "run.cir",
+            "text": "* 03 AC gain and bandwidth\n* 1. Ready to run. Adjust sources or device parameters on Canvas.\n* 2. Click Run.\n* 3. Open Plot for waveforms; expand Measurements when available.\n.temp 27\n.lib \"icm-models.lib\" tt\n.include \"circuit.spice\"\n.control\nset filetype=ascii\nset appendwrite\nsave v(in) v(out)\n* AC is small-signal response, not an output-swing test.\nac dec 80 10 1G\nlet gain_db = db(v(out)/v(in))\nlet phase_deg = 180/PI*cph(v(out)/v(in))\nmeas ac gain_db_1khz FIND gain_db AT=1k\nwrite out.raw\n.endc\n.end\n"
+          },
+          {
+            "path": "experiment.json",
+            "text": "{\n  \"version\": 2,\n  \"environment\": {\n    \"profileId\": \"sky130-core-continuous-ngspice46-v1\"\n  }\n}\n"
+          }
+        ],
+        "kind": "source"
+      },
+      "name": "03 AC gain and bandwidth",
+      "version": 4
+    },
+    {
+      "id": "cs-tran",
+      "input": {
+        "circuitBindings": [
+          {
+            "documentId": "cell-common-source",
+            "emission": "top-level",
+            "id": "circuit",
+            "path": "circuit.spice"
+          }
+        ],
+        "configPath": "experiment.json",
+        "dependencies": [
+          {
+            "id": "sky130A-continuous",
+            "mountPath": "icm-models.lib",
+            "sha256": "0bf299f0e3e1616478203d370107865635fd08935bb1a9cf9db18efd31703100"
+          }
+        ],
+        "entry": "run.cir",
+        "files": [
+          {
+            "path": "run.cir",
+            "text": "* 04 Small and large signal | Native loop\n* 1. Ready to run. Change the input amplitudes in foreach below.\n* 2. Click Run.\n* 3. Open Plot to compare transient records; expand Measurements for values.\n.temp 27\n.lib \"icm-models.lib\" tt\n.include \"circuit.spice\"\n.control\nset filetype=ascii\nset appendwrite\nsave v(in) v(out)\n* Run once for each listed input amplitude.\nforeach amplitude 0.01 0.2\nalter @VIN[sin] = [ 0.7 $amplitude 10k ]\ntran 0.2u 400u 0 0.2u\nmeas tran output_pp PP v(out) FROM=200u TO=400u\nwrite out.raw\nend\n.endc\n.end\n"
+          },
+          {
+            "path": "experiment.json",
+            "text": "{\n  \"version\": 2,\n  \"environment\": {\n    \"profileId\": \"sky130-core-continuous-ngspice46-v1\"\n  }\n}\n"
+          }
+        ],
+        "kind": "source"
+      },
+      "name": "04 Small and large signal | Native loop",
+      "version": 4
+    }
+  ],
+  "source": {
+    "dialect": "spice3f5-core",
+    "entry": "circuit.spi",
+    "files": [
+      {
+        "hash": "sha256:27c79eb10f8877eeb2aa2ecf4693c56661836587f27fe1488d5cd270bc250af4",
+        "id": "source-648e50f6f6cd02ee",
+        "path": "circuit.spi"
+      }
+    ],
+    "sourcePolicy": "copy"
+  },
+  "structureRevision": 0,
+  "symbolLibrary": {
+    "hash": "razavi-reference-v1",
+    "id": "razavi-symbols",
+    "version": "1"
+  },
+  "topDocumentId": "cell-common-source"
+}

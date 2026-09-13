@@ -35,6 +35,7 @@ export function createSimulationFolder(options: {
                 path: "testbench.spice",
                 text: [
                   "* Text Testbench — add your sources and loads here.",
+                  `* DUT port order: ${options.dut.ports.join(" ")}`,
                   options.dut.ports.length
                     ? `XDUT ${[...options.dut.ports, options.dut.name].join(" ")}`
                     : "* This Cell has no formal ports. Add its interface and DUT call here, or run the Cell directly.",
@@ -47,6 +48,15 @@ export function createSimulationFolder(options: {
           path: "run.cir",
           text: [
             `* ${options.name.replace(/[\r\n]/gu, " ")}`,
+            options.dut
+              ? "* 1. Complete sources, loads and DUT connections in testbench.spice."
+              : options.documentId
+                ? "* 1. Check Canvas sources and model dependencies; set the analysis below."
+                : "* 1. Add your circuit, sources and model includes above .control.",
+            "* 2. Click Run.",
+            options.template === "ac" || options.template === "tran"
+              ? "* 3. Open Plot for waveforms; use Console to inspect errors."
+              : "* 3. Open Operating Point for bias values; use Console to inspect errors.",
             ...(options.documentId ? ['.include "circuit.spice"'] : []),
             ...(options.dut ? ['.include "testbench.spice"'] : []),
             ".control",

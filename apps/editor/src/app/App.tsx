@@ -5409,6 +5409,22 @@ export function App({
                       : (activeSimulationFolder?.id ?? null)
                   }
                   onSelectFolderId={setActiveSimulationFolderId}
+                  onOpenExample={async (exampleProject) => {
+                    await guardDirtyReplacement(
+                      `Open ${exampleProject.name} example`,
+                      () => {
+                        replaceActiveProject(exampleProject, DEFAULT_VIEWBOX);
+                        setSimulationDraftContext(null);
+                        setActiveSimulationFolderId(
+                          exampleProject.simulationFolders[0]?.id ?? null,
+                        );
+                        setAnalogSimulationState("open");
+                        setStatus(
+                          `Opened simulation example: ${exampleProject.name}`,
+                        );
+                      },
+                    );
+                  }}
                   {...(simulationDraftContext
                     ? { draftContext: simulationDraftContext }
                     : {})}

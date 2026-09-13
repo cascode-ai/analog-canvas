@@ -22,6 +22,7 @@ import type {
 } from "@icm/simulation-service/contract";
 import { downloadTextArtifact } from "../../document/project-file-service";
 import type { SpiceSimulationSurfaceProps } from "./simulation-surface-types";
+import { SimulationExampleCards } from "./simulation-example-cards";
 export type {
   SpiceSimulationSurfaceProps,
   SimulationFolderSaveResult,
@@ -804,14 +805,6 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
   const batchRunning = batch && ["running", "cancelling"].includes(batch.state);
   const running =
     (run && ["running", "cancelling"].includes(run.state)) || batchRunning;
-  const activeCell = project.documents.find(
-    (candidate) => candidate.id === props.activeDocumentId,
-  );
-  const hasDutInstance = Boolean(
-    activeCell?.instances.some(
-      (instance) => instance.netlist?.binding?.kind === "subcircuit",
-    ),
-  );
   const finishedBatchItems =
     batch?.items.filter((item) =>
       ["finished", "failed", "cancelled", "lost"].includes(item.state),
@@ -1749,6 +1742,9 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
         }
       }}
     >
+      {!project.simulationFolders.length && props.onOpenExample ? (
+        <SimulationExampleCards onOpen={props.onOpenExample} />
+      ) : null}
       {!selectedFolder ? (
         <header className="simulation-taskbar">
           {simulationActions}
@@ -1756,17 +1752,12 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
         </header>
       ) : null}
 
-      {!selectedFolder && !hasDutInstance ? (
-        <p className="simulation-context-hint">
-          No DUT instance in this Cell · Edit → New Testbench Cell if needed.
-        </p>
-      ) : null}
-
       {selectedFolder ? (
         <SourceCodePane
           ref={codeRef}
           diagnostics={activeProblem?.diagnostics}
           project={project}
+          activeDocumentId={props.activeDocumentId}
           folder={selectedFolder}
           selectedCircuitObject={props.selectedCircuitObject}
           {...(props.onPreviewSignal

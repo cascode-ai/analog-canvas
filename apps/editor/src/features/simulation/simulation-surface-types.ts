@@ -28,6 +28,7 @@ export interface SpiceSimulationSurfaceProps {
   onToggleMaximized(): void;
   onMinimize(): void;
   onExit(): void;
+  onOpenExample?(project: CircuitProject): void | Promise<void>;
   onSaveFolder(
     folder: ProjectSimulationFolder,
     expectedRevision?: number,

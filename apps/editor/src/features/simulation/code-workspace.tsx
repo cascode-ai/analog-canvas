@@ -69,6 +69,7 @@ export interface SimulationCodeWorkspaceProps {
   actions: ReactNode;
   toolbarEnd?: ReactNode;
   status?: ReactNode;
+  sourceContext?: ReactNode;
   console: ReactNode;
   results: ReactNode;
   outputActions?: ReactNode;
@@ -361,6 +362,7 @@ export function SimulationCodeWorkspace(props: SimulationCodeWorkspaceProps) {
             />
           </div>
           <div className="simulation-code-document-content">
+            {props.sourceContext}
             <div
               hidden={!props.activePath || Boolean(props.artifactPreview)}
               className="workspace-editor-content"

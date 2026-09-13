@@ -23,6 +23,66 @@ import {
 import { ota, profile, editSimulationFile } from "./simulation-e2e-fixtures.js";
 
 const loadModule = createRequire(import.meta.url);
+test("simulation examples confirm whole-Project replacement and protect existing work", async ({
+  page,
+}) => {
+  const project = parseProject(JSON.stringify(ota));
+  project.simulationFolders = [];
+  await page.goto("/editor");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "my-circuit.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  await page.getByTestId("open-analog-simulation").click();
+  const panel = page.getByRole("region", { name: "Analog simulation" });
+  const cards = panel.getByRole("group", { name: "Simulation examples" });
+  await expect(cards.getByRole("button")).toHaveCount(4);
+  await expect(panel).not.toContainText("No DUT instance");
+  await cards
+    .getByRole("button", { name: "RC Filters Low-pass & high-pass" })
+    .click();
+  const confirmation = page.getByRole("dialog", { name: "Open RC Filters?" });
+  await expect(confirmation).toContainText("entire Project");
+  await confirmation
+    .getByRole("button", { name: "Cancel", exact: true })
+    .click();
+  await expect(cards).toBeVisible();
+  await expect
+    .poll(async () =>
+      (await readRecoveryRecords(page)).some(
+        (record) => JSON.parse(record.projectText).id === project.id,
+      ),
+    )
+    .toBe(true);
+  await cards
+    .getByRole("button", { name: "RC Filters Low-pass & high-pass" })
+    .click();
+  await confirmation
+    .getByRole("button", { name: "Open example", exact: true })
+    .click();
+  const guard = page.getByRole("dialog", { name: "Unsaved changes" });
+  await expect(guard).toBeVisible();
+  await guard.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(cards).toBeVisible();
+  await cards
+    .getByRole("button", { name: "RC Filters Low-pass & high-pass" })
+    .click();
+  await confirmation
+    .getByRole("button", { name: "Open example", exact: true })
+    .click();
+  await guard.getByRole("button", { name: "Continue without saving" }).click();
+  await expect(cards).toHaveCount(0);
+  await expect(
+    panel.getByRole("button", { name: "Run", exact: true }),
+  ).toBeVisible();
+  await expect(panel.locator(".simulation-source-context")).toContainText(
+    "Canvas source:",
+  );
+  await expect(
+    panel.getByRole("textbox", { name: "Simulation source editor" }),
+  ).toContainText("Click Run");
+});
 test("native metadata is hidden per folder while damaged configuration stays repairable", async ({
   page,
 }) => {
