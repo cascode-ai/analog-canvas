@@ -34,6 +34,8 @@ export interface ComponentPropertyDisplayCode {
 }
 
 export interface ComponentPropertyCodeValue extends ComponentPropertyDetailsValue {
+  /** Global Net name owned by a supply marker. */
+  netName?: string;
   placement: ComponentPropertyPlacementCode | null;
   display?: ComponentPropertyDisplayCode;
   appearance: {
@@ -47,6 +49,8 @@ export interface ComponentPropertyCodeContext {
   instance: Instance;
   referenceVisible: boolean | null;
   valueVisible: boolean | null;
+  /** Null when this component does not own an editable electrical marker name. */
+  netName?: string | null;
   details?: ComponentPropertyDetailsContext;
 }
 
@@ -58,6 +62,7 @@ const ROOT_KEYS = new Set([
   "placement",
   "display",
   "appearance",
+  "netName",
   "reference",
   "parameters",
   "netlistTarget",
@@ -217,6 +222,9 @@ export function componentPropertyCodeValue(
   }
   if (context.valueVisible !== null) display.value = context.valueVisible;
   return {
+    ...(context.netName !== undefined && context.netName !== null
+      ? { netName: context.netName }
+      : {}),
     ...componentPropertyDetailsValue(instance, context.details),
     placement: instance.placement
       ? {
@@ -301,9 +309,31 @@ export function parseComponentPropertyCode(
     );
     if (appearanceUnknown) throw new Error(appearanceUnknown);
     const display = parseDisplay(decoded.display, context);
+    const netNameAvailable =
+      context.netName !== undefined && context.netName !== null;
+    if (!netNameAvailable && "netName" in decoded) {
+      throw new Error("netName is not available for this component");
+    }
+    if (netNameAvailable) {
+      if (!("netName" in decoded)) {
+        throw new Error("netName is required for this component");
+      }
+      if (
+        typeof decoded.netName !== "string" ||
+        !decoded.netName.trim() ||
+        decoded.netName.length > 128
+      ) {
+        throw new Error(
+          "netName must be a nonempty string of at most 128 characters",
+        );
+      }
+    }
     return {
       ok: true,
       value: {
+        ...(netNameAvailable
+          ? { netName: (decoded.netName as string).trim() }
+          : {}),
         ...parseComponentPropertyDetails(
           decoded,
           context.instance,

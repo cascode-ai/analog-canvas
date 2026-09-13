@@ -975,11 +975,14 @@ test("renames one supply marker without changing its same-name peer", async ({
 
   await page.getByTestId("hit-VDD1").click();
   await openSelectionShelf(page);
-  const name = page.getByRole("textbox", { name: "Supply name" });
-  await name.fill("AVDD");
-  await name.press("Tab");
+  await expect(page.getByRole("textbox", { name: "Supply name" })).toHaveCount(
+    0,
+  );
+  await editComponentPropertyCode(page, (code) => {
+    code.netName = "AVDD";
+  });
 
-  await expect(page.getByTestId("status")).toContainText("Supply named AVDD");
+  await expectComponentCodeField(page, "netName", "AVDD");
   await expect(
     canvas.locator('[data-object-id="power-label-vdd1"]'),
   ).toContainText("AVDD");

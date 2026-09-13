@@ -151,9 +151,7 @@ export function EditorPropertiesDock({
               {component.cellSymbolLayout ? (
                 <CellSymbolLayoutProperties {...component.cellSymbolLayout} />
               ) : null}
-              {component.identity.portNet ||
-              component.identity.propertyTerminal ||
-              component.identity.capacitorPlateRows ? (
+              {component.identity.propertyTerminal ? (
                 <ComponentIdentityProperties
                   {...component.identity}
                   fieldsMovedToCode
