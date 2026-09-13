@@ -7157,6 +7157,132 @@ test("resizes a plain Power Rail from its end handle", async ({ page }) => {
   expect(new Set(after.map((point) => point.y)).size).toBe(1);
 });
 
+test("bonds pins crossed by Power Rail drawing, resizing, and dragging", async ({
+  page,
+}) => {
+  const project = createEmptyProject("rail-pin-gestures", "Rail pin gestures");
+  const document = project.documents[0]!;
+  document.instances = [
+    {
+      id: "M1",
+      symbolId: "pmos",
+      placement: { position: { x: 100, y: 200 }, rotation: 0, mirror: "none" },
+    },
+    {
+      id: "M2",
+      symbolId: "pmos",
+      placement: {
+        position: { x: 240, y: 200 },
+        rotation: 0,
+        mirror: "horizontal",
+      },
+    },
+    {
+      id: "R1",
+      symbolId: "resistor",
+      placement: { position: { x: 340, y: 200 }, rotation: 0, mirror: "none" },
+    },
+    {
+      id: "C1",
+      symbolId: "capacitor",
+      placement: { position: { x: 200, y: 140 }, rotation: 0, mirror: "none" },
+    },
+  ];
+  document.nets.push({
+    id: "old-source",
+    terminals: [{ instanceId: "M1", pinName: "S" }],
+  });
+  await page.goto("/editor");
+  await awaitEditorReady(page);
+  await page.getByTestId("project-file").setInputFiles({
+    name: "rail-pins.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  await expect(page.getByTestId("hit-M2")).toBeVisible();
+  const canvas = page.getByTestId("schematic-canvas");
+  const screen = (point: { x: number; y: number }) =>
+    canvas.evaluate((element, point) => {
+      const matrix = (element as SVGSVGElement).getScreenCTM()!;
+      const screen = new DOMPoint(point.x, point.y).matrixTransform(matrix);
+      return { x: screen.x, y: screen.y };
+    }, point);
+  const clickAt = async (point: { x: number; y: number }) => {
+    const position = await screen(point);
+    await page.mouse.click(position.x, position.y);
+  };
+  const drag = async (from: { x: number; y: number }, to: typeof from) => {
+    const start = await screen(from),
+      end = await screen(to);
+    await page.mouse.move(start.x, start.y);
+    await page.mouse.down();
+    await page.mouse.move(end.x, end.y, { steps: 8 });
+    await page.mouse.up();
+  };
+  const readDocument = async () =>
+    JSON.parse(
+      (await downloadBytes(page, "File", "Export Project File…")).toString(
+        "utf8",
+      ),
+    ).documents[0] as SchematicDocument;
+  const expectVddPins = (
+    saved: SchematicDocument,
+    pins: Array<[string, string]>,
+  ) => {
+    const rail = saved.routes.find(
+      (route) => route.presentation === "power-rail",
+    )!;
+    const net = saved.nets.find((net) => net.id === rail.netId)!;
+    for (const [instanceId, pinName] of pins)
+      expect(net.terminals).toContainEqual({ instanceId, pinName });
+    expect(net.terminals).not.toContainEqual({
+      instanceId: "M1",
+      pinName: "G",
+    });
+    expect(net.terminals).not.toContainEqual({
+      instanceId: "M2",
+      pinName: "D",
+    });
+  };
+  const sources: Array<[string, string]> = [
+    ["M1", "S"],
+    ["M2", "S"],
+  ];
+  await page.getByTestId("shapes-chip-vdd").click();
+  await clickAt({ x: 60, y: 180 });
+  await clickAt({ x: 280, y: 180 });
+  await expect(page.getByTestId("status")).toContainText("Added VDD rail");
+  await page.keyboard.press("Escape");
+  expectVddPins(await readDocument(), sources);
+
+  await page.keyboard.press("ControlOrMeta+z");
+  const undone = await readDocument();
+  expect(undone.routes).toHaveLength(0);
+  expect(undone.nets.find((net) => net.id === "old-source")?.terminals).toEqual(
+    [{ instanceId: "M1", pinName: "S" }],
+  );
+  await page.keyboard.press("ControlOrMeta+Shift+z");
+  expectVddPins(await readDocument(), sources);
+
+  await clickAt({ x: 80, y: 180 });
+  await drag({ x: 280, y: 180 }, { x: 380, y: 180 });
+  await expect(page.getByTestId("status")).toContainText("Resized Power Rail");
+  expectVddPins(await readDocument(), [...sources, ["R1", "1"]]);
+
+  await clickAt({ x: 80, y: 180 });
+  await drag({ x: 80, y: 180 }, { x: 80, y: 120 });
+  await expect(page.getByTestId("status")).toContainText("Moved Power Rail");
+  const moved = await readDocument();
+  expectVddPins(moved, [...sources, ["R1", "1"], ["C1", "1"]]);
+  project.documents = [moved];
+  await page.getByTestId("project-file").setInputFiles({
+    name: "rail-pins-saved.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  expectVddPins(await readDocument(), [...sources, ["R1", "1"], ["C1", "1"]]);
+});
+
 test("keeps a long right-aligned Port label readable while editing", async ({
   page,
 }) => {

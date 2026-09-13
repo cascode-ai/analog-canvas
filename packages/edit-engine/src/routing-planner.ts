@@ -50,6 +50,8 @@ import { createContactPlanningDraft } from "./contact-planning-draft.js";
 import { projectRoutingEditGeometry } from "./routing-geometry-projection.js";
 import { routeHasExternalOwner } from "./direct-contact-route-normalization.js";
 import { rebuildRoutePath } from "./route-leg-mutation.js";
+import { planPowerRailPinContacts } from "./power-rail-contact-planner.js";
+import type { ExpectedElectricalEffect } from "./routing-operation-plan.js";
 
 export interface WireEndpointGeometry {
   connection: EndpointRoutingGeometry;
@@ -309,6 +311,7 @@ export interface VisualRouteDeletionContext {
 export interface RouteEditPlan {
   routeId: string;
   edits: SchematicEdit[];
+  expectedElectricalEffect?: ExpectedElectricalEffect;
   preview?: {
     routes: readonly RouteStretchProposal[];
     junctions: readonly JunctionMoveProposal[];
@@ -1011,6 +1014,47 @@ export function proposeRouteEndpointMove(
   return { routeId, preview: proposal, edits };
 }
 
+function withPowerRailPinContacts(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  routeIds: readonly string[],
+  plan: RouteEditPlan,
+): RouteEditPlan {
+  const projected = projectRoutingEditGeometry(document, plan.edits);
+  const contacts = planPowerRailPinContacts(
+    projected,
+    resolver,
+    projected.routes
+      .filter((route) => routeIds.includes(route.id))
+      .flatMap((route) => {
+        const geometry = resolveRouteGeometry(projected, resolver, route);
+        return geometry
+          ? [
+              {
+                routeId: route.id,
+                netId: route.netId,
+                start: geometry.centerline[0]!,
+                end: geometry.centerline.at(-1)!,
+                endpoints: routeEndpoints(route),
+              },
+            ]
+          : [];
+      }),
+  );
+  return {
+    ...plan,
+    edits: [...plan.edits, ...contacts.edits],
+    ...(contacts.endpointGroups.length
+      ? {
+          expectedElectricalEffect: {
+            kind: "merge" as const,
+            endpointGroups: contacts.endpointGroups,
+          },
+        }
+      : {}),
+  };
+}
+
 /**
  * Translate every fragment and Junction belonging to one visually continuous
  * VDD rail. Ordinary branch wires are not translated wholesale: they are
@@ -1043,7 +1087,7 @@ export function proposePowerRailTranslation(
       };
     }),
   );
-  return {
+  return withPowerRailPinContacts(document, resolver, component.routeIds, {
     routeId,
     edits: [
       ...proposal.junctions.map((move): SchematicEdit => ({
@@ -1052,7 +1096,7 @@ export function proposePowerRailTranslation(
       })),
       ...routeEdits(document, proposal.routes),
     ],
-  };
+  });
 }
 
 /** Resize the leading or trailing visual end of one straight Power Rail. */
@@ -1104,7 +1148,7 @@ export function proposePowerRailEndpointResize(
         : { x: target.position.x, y: coordinate },
     },
   ]);
-  return {
+  return withPowerRailPinContacts(document, resolver, component.routeIds, {
     routeId,
     preview: {
       routes: proposal.routes,
@@ -1117,7 +1161,7 @@ export function proposePowerRailEndpointResize(
       })),
       ...routeEdits(document, proposal.routes),
     ],
-  };
+  });
 }
 
 /**

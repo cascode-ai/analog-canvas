@@ -496,7 +496,11 @@ export function useWireInteraction(capabilities: UseWireInteractionOptions) {
             delta,
           );
           const result = transactProposal(
-            proposalFor("route-geometry", proposal.edits),
+            proposalFor(
+              "route-geometry",
+              proposal.edits,
+              proposal.expectedElectricalEffect,
+            ),
           );
           if (result.ok)
             options.setStatus(`Moved Power Rail ${record.route.id}`);
@@ -516,7 +520,11 @@ export function useWireInteraction(capabilities: UseWireInteractionOptions) {
           },
         );
         const result = transactProposal(
-          proposalFor("route-geometry", proposal.edits),
+          proposalFor(
+            "route-geometry",
+            proposal.edits,
+            proposal.expectedElectricalEffect,
+          ),
         );
         if (result.ok)
           options.setStatus(`Resized Power Rail ${record.route.id}`);

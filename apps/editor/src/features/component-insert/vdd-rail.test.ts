@@ -4,16 +4,31 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
+  DocumentHistory,
+  proposePowerRailTranslation,
+  proposePowerRailEndpointResize,
+  type ExpectedElectricalEffect,
+  type SchematicEdit,
   createRoutingOperationPlan,
   evaluateRoutingOperationPlan,
   gateRoutingOperationPlan,
   executeTransaction,
   proposeVisualRouteDeletion,
 } from "@icm/edit-engine";
-import { resolveDocumentLogicalNets } from "@icm/derived";
-import { createEmptyDocument, createRoutePath } from "@icm/model";
+import {
+  derivePowerRailComponent,
+  resolveRouteGeometry,
+  resolveEndpointConnection,
+  resolveDocumentLogicalNets,
+} from "@icm/derived";
+import {
+  createEmptyDocument,
+  createEmptyProject,
+  routeEnd,
+  createRoutePath,
+} from "@icm/model";
 import type { SchematicDocument } from "@icm/model";
-import { parseProject } from "@icm/project-protocol";
+import { parseProject, serializeProject } from "@icm/project-protocol";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 
 import {
@@ -22,7 +37,39 @@ import {
   planVddRailEdits,
 } from "./vdd-rail";
 
-const resolver = new InMemorySymbolResolver(builtInSymbols);
+import {
+  analyzeDesignNetlist,
+  printSpiceNetlist,
+  printSpectreNetlist,
+} from "@icm/netlist";
+
+const resolver = new InMemorySymbolResolver(
+  builtInSymbols.map((symbol) =>
+    symbol.id === "resistor"
+      ? {
+          ...symbol,
+          variants: [
+            ...(symbol.variants ?? []),
+            {
+              id: "offgrid-top",
+              hiddenPinNames: [],
+              auxiliaryPins: [
+                {
+                  name: "1",
+                  at: { x: 0, y: -16 },
+                  direction: "north" as const,
+                  routing: {
+                    escape: "outward" as const,
+                    preferredLanding: { x: 0, y: -20 },
+                  },
+                },
+              ],
+            },
+          ],
+        }
+      : symbol,
+  ),
+);
 
 describe("drawn VDD rail construction", () => {
   it("uses the dominant snapped delta for horizontal and vertical gestures", () => {
@@ -599,16 +646,8 @@ describe("a rail drawn across the ends of existing wires", () => {
     expect(wireNetIds).toEqual(new Set(["net-w0", "net-w1"]));
   });
 
-  it("does not adopt a PIN that happens to rest on the rail", () => {
-    // The line this rule deliberately does not cross. A drawn wire's end is
-    // unambiguously an end, so the rail adopts it. A *pin* resting under a
-    // rail is the abbreviated idiom the Gallery contract welcomes and
-    // diagnoseVisualQuality grades a warning rather than an error — a corpus
-    // sweep found it in published schematics. Adopting it here would rewire
-    // drawings that already exist, so only junctions are collected.
-    //
-    // Asserted on its own rather than left implicit in the collection code:
-    // the whole risk is that a later reader "completes" the symmetry.
+  it("joins a pin and existing wire ends crossed by the same rail gesture", () => {
+    // Drawing a new rail is explicit connection intent at pin tips too.
     const document = twoStandingWires();
     document.instances.push({
       id: "R1",
@@ -645,7 +684,440 @@ describe("a rail drawn across the ends of existing wires", () => {
     const railNet = after.routes.find((route) =>
       route.id.startsWith("route-vdd1"),
     )?.netId;
-    expect(restingNet?.id).toBe("net-resistor");
-    expect(restingNet?.id).not.toBe(railNet);
+    expect(restingNet?.id).toBe(railNet);
+    expect(after.routes.every((route) => route.netId === railNet)).toBe(true);
+  });
+});
+
+describe("Power Rail pin contacts", () => {
+  function pmosPair() {
+    const document = createEmptyDocument("rail-pins", "Rail pins");
+    document.instances = [
+      {
+        id: "M1",
+        symbolId: "pmos",
+        reference: "M1",
+        placement: {
+          position: { x: 100, y: 120 },
+          rotation: 0,
+          mirror: "none",
+        },
+        netlist: {
+          binding: { kind: "model", deviceClass: "mos", name: "pch" },
+          parameters: { w: "1u", l: "100n" },
+        },
+      },
+      {
+        id: "M2",
+        symbolId: "pmos",
+        reference: "M2",
+        placement: {
+          position: { x: 220, y: 120 },
+          rotation: 0,
+          mirror: "horizontal",
+        },
+        netlist: {
+          binding: { kind: "model", deviceClass: "mos", name: "pch" },
+          parameters: { w: "1u", l: "100n" },
+        },
+      },
+    ];
+    // One source already has a Base Net; the other is still unconnected.
+    document.nets.push({
+      id: "old-source",
+      terminals: [{ instanceId: "M1", pinName: "S" }],
+    });
+    return document;
+  }
+
+  function railPlan(
+    document: SchematicDocument,
+    start = { x: 60, y: 100 },
+    end = { x: 260, y: 100 },
+  ) {
+    const plan = planVddRailEdits(
+      document,
+      { instanceId: "VDD1", start, end },
+      resolver,
+    );
+    if (!plan.ok) throw new Error(plan.message);
+    return plan;
+  }
+
+  function applyPlan(
+    document: SchematicDocument,
+    plan: {
+      edits: readonly SchematicEdit[];
+      expectedElectricalEffect?: ExpectedElectricalEffect;
+    },
+  ) {
+    const gate = gateRoutingOperationPlan(
+      document,
+      createRoutingOperationPlan(document, {
+        intent: "route-geometry",
+        diagnostics: [],
+        ...plan,
+      }),
+      { symbolResolver: resolver },
+    );
+    if (!gate.ok)
+      throw new Error(`${gate.message}: ${JSON.stringify(gate.diagnostics)}`);
+    const result = executeTransaction(
+      document,
+      {
+        transactionId: `rail-contact-${document.revision}`,
+        documentId: document.id,
+        expectedRevision: document.revision,
+        actor: { kind: "human", id: "test" },
+        edits: [...gate.edits],
+      },
+      { symbolResolver: resolver },
+    );
+    if (!result.ok) throw new Error(result.error.message);
+    return result.document;
+  }
+
+  function netOf(
+    document: SchematicDocument,
+    instanceId: string,
+    pinName: string,
+  ) {
+    return document.nets.find((net) =>
+      net.terminals.some(
+        (terminal) =>
+          terminal.instanceId === instanceId && terminal.pinName === pinName,
+      ),
+    )?.id;
+  }
+
+  function expectSourcesOnRail(document: SchematicDocument) {
+    const rail = document.routes.find(
+      (route) => route.presentation === "power-rail",
+    )!;
+    expect(rail).toBeDefined();
+    for (const id of ["M1", "M2"])
+      expect(netOf(document, id, "S")).toBe(rail.netId);
+    expect(
+      resolveDocumentLogicalNets(document).byBaseNetId.get(rail.netId)?.name,
+    ).toBe("VDD");
+    const component = derivePowerRailComponent(document, rail.id)!;
+    expect(component.routeIds).toHaveLength(
+      document.routes.filter((route) => route.presentation === "power-rail")
+        .length,
+    );
+    expect(component.endpointJunctionIds).toHaveLength(2);
+  }
+
+  it.each([
+    [
+      { x: 60, y: 100 },
+      { x: 260, y: 100 },
+    ],
+    [
+      { x: 260, y: 100 },
+      { x: 60, y: 100 },
+    ],
+    [
+      { x: 110, y: 100 },
+      { x: 210, y: 100 },
+    ],
+  ])(
+    "connects both mirrored PMOS sources along the span and at its ends (%j → %j)",
+    (start, end) => {
+      const before = pmosPair();
+      expect(
+        resolveEndpointConnection(before, resolver, {
+          kind: "terminal",
+          instanceId: "M1",
+          pinName: "S",
+        })?.contactPoint,
+      ).toEqual({ x: 110, y: 100 });
+      expect(
+        resolveEndpointConnection(before, resolver, {
+          kind: "terminal",
+          instanceId: "M2",
+          pinName: "S",
+        })?.contactPoint,
+      ).toEqual({ x: 210, y: 100 });
+      const after = applyPlan(before, railPlan(before, start, end));
+      expectSourcesOnRail(after);
+      expect(netOf(after, "M1", "G")).toBeUndefined();
+      expect(netOf(after, "M2", "D")).toBeUndefined();
+    },
+  );
+
+  it("connects rotated passive pins on a vertical rail, but not a nearby pin", () => {
+    const before = createEmptyDocument("vertical-pins", "Vertical pins");
+    before.instances = [100, 200, 300].map((y, index) => ({
+      id: `R${index + 1}`,
+      symbolId: "resistor",
+      placement: {
+        position: { x: index === 2 ? 110 : 100, y },
+        rotation: 90,
+        mirror: "none",
+      },
+    }));
+    const after = applyPlan(
+      before,
+      railPlan(before, { x: 120, y: 60 }, { x: 120, y: 340 }),
+    );
+    const rail = after.routes.find(
+      (route) => route.presentation === "power-rail",
+    )!;
+    expect(netOf(after, "R1", "1")).toBe(rail.netId);
+    expect(netOf(after, "R2", "1")).toBe(rail.netId);
+    expect(netOf(after, "R1", "2")).toBeUndefined();
+    expect(netOf(after, "R3", "1")).toBeUndefined();
+  });
+
+  it("bonds exact off-grid artwork tips through grid-aligned rail taps", () => {
+    const before = createEmptyDocument("offgrid-rail", "Offgrid rail");
+    before.instances = [120, 200].map((y, index) => ({
+      id: `R${index + 1}`,
+      symbolId: "resistor",
+      symbolVariantId: "offgrid-top",
+      placement: { position: { x: 100, y }, rotation: 0, mirror: "none" },
+    }));
+    const after = applyPlan(
+      before,
+      railPlan(before, { x: 100, y: 80 }, { x: 100, y: 210 }),
+    );
+    const rail = after.routes.find(
+      (route) => route.presentation === "power-rail",
+    )!;
+    expect(netOf(after, "R1", "1")).toBe(rail.netId);
+    expect(netOf(after, "R2", "1")).toBe(rail.netId);
+    expect(
+      after.junctions.every(
+        (junction) =>
+          junction.position.x % 10 === 0 && junction.position.y % 10 === 0,
+      ),
+    ).toBe(true);
+    for (const id of ["R1", "R2"])
+      expect(
+        after.routes.some(
+          (route) =>
+            route.presentation !== "power-rail" &&
+            [route.start, routeEnd(route)].some(
+              (endpoint) =>
+                endpoint.kind === "terminal" &&
+                endpoint.instanceId === id &&
+                endpoint.pinName === "1",
+            ),
+        ),
+      ).toBe(true);
+    const component = derivePowerRailComponent(after, rail.id)!;
+    expect(component.endpointJunctionIds).toHaveLength(2);
+    const extended = applyPlan(
+      after,
+      proposePowerRailEndpointResize(after, resolver, rail.id, "end", {
+        x: 100,
+        y: 220,
+      }),
+    );
+    expect(
+      extended.routes.filter((route) => route.presentation !== "power-rail"),
+    ).toHaveLength(2);
+  });
+
+  it("connects pins reached by extending a rail and preserves taps when moving it away", () => {
+    const before = pmosPair();
+    const short = applyPlan(
+      before,
+      railPlan(before, { x: 60, y: 100 }, { x: 90, y: 100 }),
+    );
+    expect(netOf(short, "M2", "S")).toBeUndefined();
+    const extended = applyPlan(
+      short,
+      proposePowerRailEndpointResize(
+        short,
+        resolver,
+        "route-vdd1-rail",
+        "end",
+        { x: 260, y: 100 },
+      ),
+    );
+    expectSourcesOnRail(extended);
+    const moved = applyPlan(
+      extended,
+      proposePowerRailTranslation(extended, resolver, "route-vdd1-rail", {
+        x: 0,
+        y: -40,
+      }),
+    );
+    expectSourcesOnRail(moved);
+    const rails = moved.routes.filter(
+      (route) => route.presentation === "power-rail",
+    );
+    for (const route of rails)
+      expect(
+        resolveRouteGeometry(moved, resolver, route)?.centerline.every(
+          (point) => point.y === 60,
+        ),
+      ).toBe(true);
+    // Moving the bonded rail leaves ordinary leads back to the pin tips.
+    for (const instanceId of ["M1", "M2"])
+      expect(
+        moved.routes.some(
+          (route) =>
+            route.presentation !== "power-rail" &&
+            [route.start, routeEnd(route)].some(
+              (endpoint) =>
+                endpoint.kind === "terminal" &&
+                endpoint.instanceId === instanceId &&
+                endpoint.pinName === "S",
+            ),
+        ),
+      ).toBe(true);
+  });
+
+  it("connects when a whole rail is dropped onto pins", () => {
+    const before = pmosPair();
+    const above = applyPlan(
+      before,
+      railPlan(before, { x: 60, y: 60 }, { x: 260, y: 60 }),
+    );
+    const after = applyPlan(
+      above,
+      proposePowerRailTranslation(above, resolver, "route-vdd1-rail", {
+        x: 0,
+        y: 40,
+      }),
+    );
+    expectSourcesOnRail(after);
+  });
+
+  it("persists source connectivity and exports VDD for both SPICE and Spectre", () => {
+    const before = pmosPair();
+    for (const id of ["M1", "M2"])
+      for (const pinName of ["D", "G"])
+        before.nets.push({
+          id: `${id}-${pinName}`,
+          terminals: [{ instanceId: id, pinName }],
+        });
+    const after = applyPlan(before, railPlan(before));
+    const project = createEmptyProject(
+      "rail-project",
+      "Rail project",
+      after.id,
+    );
+    project.documents = [after];
+    const reopened = parseProject(serializeProject(project));
+    expectSourcesOnRail(reopened.documents[0]!);
+    const result = analyzeDesignNetlist(reopened);
+    expect(result.ir, JSON.stringify(result)).not.toBeNull();
+    if (!result.ir) return;
+    for (const instance of result.ir.cells[0]!.instances)
+      expect(instance.nodes.find((node) => node.pinName === "S")?.netName).toBe(
+        "VDD",
+      );
+    expect(printSpiceNetlist(result.ir)).toMatch(/^M1 \S+ \S+ VDD VDD pch/mu);
+    expect(printSpiceNetlist(result.ir)).toMatch(/^M2 \S+ \S+ VDD VDD pch/mu);
+    expect(printSpectreNetlist(result.ir)).toMatch(
+      /^M1 \(\S+ \S+ VDD VDD\) pch/mu,
+    );
+    expect(printSpectreNetlist(result.ir)).toMatch(
+      /^M2 \(\S+ \S+ VDD VDD\) pch/mu,
+    );
+  });
+
+  it("leaves hidden bulk artwork and symbol bodies out of rail contact planning", () => {
+    const before = pmosPair();
+    // B is hidden by the default MOS display. This span passes over its
+    // artwork anchor, while none of the visible pin tips touch it.
+    const plan = railPlan(before, { x: 110, y: 120 }, { x: 130, y: 120 });
+    expect(plan.expectedElectricalEffect).toBeUndefined();
+    expect(
+      plan.edits.filter((edit) => edit.kind === "add_junction"),
+    ).toHaveLength(0);
+  });
+
+  it("rejects a conflicting supply contact atomically", () => {
+    const before = pmosPair();
+    before.annotations.push({
+      id: "label-vss",
+      kind: "power-label",
+      netId: "old-source",
+      binding: { kind: "net-name", netId: "old-source" },
+      anchor: { kind: "free", position: { x: 0, y: 0 } },
+      alignment: "start",
+      rotation: 0,
+      locked: false,
+    });
+    before.connectivityEvidence.push({
+      id: "claim-vss",
+      kind: "name-claim",
+      netId: "old-source",
+      name: "0",
+      scope: "global",
+      powerDomain: "ground",
+      owner: { kind: "power-marker", objectId: "label-vss" },
+    });
+    const snapshot = structuredClone(before);
+    const gate = gateRoutingOperationPlan(
+      before,
+      createRoutingOperationPlan(before, {
+        intent: "connect",
+        diagnostics: [],
+        ...railPlan(before),
+      }),
+      { symbolResolver: resolver },
+    );
+    expect(gate.ok).toBe(false);
+    if (!gate.ok) expect(gate.message).toMatch(/power.*domain|incompatible/iu);
+    expect(before).toEqual(snapshot);
+  });
+
+  it("does not reinterpret untouched legacy rail overlaps on load or unrelated edits", () => {
+    const before = pmosPair();
+    before.instances.push({
+      id: "R1",
+      symbolId: "resistor",
+      placement: { position: { x: 400, y: 400 }, rotation: 0, mirror: "none" },
+    });
+    // Reproduce a stored drawing from before rail gestures acquired taps.
+    const legacy = applyPlan(before, {
+      edits: constructVddRailEdits({
+        instanceId: "VDD1",
+        start: { x: 60, y: 100 },
+        end: { x: 260, y: 100 },
+      }),
+    });
+    const project = createEmptyProject("legacy-rail", "Legacy rail", legacy.id);
+    project.documents = [legacy];
+    const reopened = parseProject(serializeProject(project)).documents[0]!;
+    const after = applyPlan(reopened, {
+      edits: [
+        {
+          kind: "move_instance",
+          instanceId: "R1",
+          position: { x: 500, y: 400 },
+        },
+      ],
+    });
+    expect(netOf(after, "M1", "S")).toBe("old-source");
+    expect(netOf(after, "M2", "S")).toBeUndefined();
+  });
+
+  it("undoes and redoes the rail and both source connections together", () => {
+    const before = pmosPair();
+    const history = new DocumentHistory(before, { symbolResolver: resolver });
+    const plan = railPlan(before);
+    const transact = (edits: readonly SchematicEdit[]) =>
+      history.transact({
+        transactionId: `history-${history.document.revision}`,
+        documentId: before.id,
+        expectedRevision: history.document.revision,
+        actor: { kind: "human", id: "test" },
+        edits,
+      });
+    expect(transact(plan.edits).ok).toBe(true);
+    expectSourcesOnRail(history.document);
+    expect(transact([{ kind: "undo" }]).ok).toBe(true);
+    expect(history.document.routes).toHaveLength(0);
+    expect(netOf(history.document, "M1", "S")).toBe("old-source");
+    expect(netOf(history.document, "M2", "S")).toBeUndefined();
+    expect(transact([{ kind: "redo" }]).ok).toBe(true);
+    expectSourcesOnRail(history.document);
   });
 });

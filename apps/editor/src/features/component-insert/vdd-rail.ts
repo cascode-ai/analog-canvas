@@ -1,4 +1,5 @@
 import type { ExpectedElectricalEffect, SchematicEdit } from "@icm/edit-engine";
+import { planPowerRailPinContacts } from "@icm/edit-engine";
 import {
   endpointKey,
   findRouteSegmentsAtPoint,
@@ -30,8 +31,8 @@ export type VddRailPlan =
       netId: string;
       edits: readonly SchematicEdit[];
       /**
-       * Present only when an end of the rail lands on an existing conductor,
-       * which is the one case where placing a rail joins two Base Nets.
+       * Joins explicitly requested by the rail gesture: wire endpoints and
+       * visible pins resting anywhere along its span.
        */
       expectedElectricalEffect?: ExpectedElectricalEffect;
     }
@@ -205,10 +206,30 @@ export function planVddRailEdits(
         endJunctionId: `junction-${key}-end`,
       })
     : undefined;
+  const pinContacts = resolver
+    ? planPowerRailPinContacts(document, resolver, [
+        {
+          routeId: `route-${key}-rail`,
+          netId,
+          start: construction.start,
+          end: construction.end,
+          endpoints: [
+            { kind: "junction", junctionId: `junction-${key}-start` },
+            { kind: "junction", junctionId: `junction-${key}-end` },
+          ],
+        },
+      ])
+    : { edits: [], endpointGroups: [] };
+  const endpointGroups = [
+    ...(mergeEffect?.kind === "merge" ? mergeEffect.endpointGroups : []),
+    ...pinContacts.endpointGroups,
+  ];
   return {
     ok: true,
     netId,
-    ...(mergeEffect ? { expectedElectricalEffect: mergeEffect } : {}),
+    ...(endpointGroups.length
+      ? { expectedElectricalEffect: { kind: "merge" as const, endpointGroups } }
+      : {}),
     edits: [
       ...constructVddRailEdits({
         ...construction,
@@ -216,6 +237,7 @@ export function planVddRailEdits(
         netName,
         scope: requestedLogical?.scope ?? construction.scope ?? "global",
       }),
+      ...pinContacts.edits,
       ...planInitialMosBulkDefault(document, "vdd", netId),
     ],
   };
