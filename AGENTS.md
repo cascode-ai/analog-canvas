@@ -153,6 +153,13 @@ the boundary has moved.
 
 ## Circuit Asset Rules
 
+- For accepted Symbol geometry or pin-position changes, historical drawing
+  layouts and routes may be left for manual repair. Do not audit or repair
+  every old design as a prerequisite to completing the current change, or
+  add a general migration/compatibility layer just to preserve old layouts.
+  A small one-off repair script is appropriate when concrete affected cases
+  can be fixed by a few clear, deterministic rules with little effort;
+  otherwise leave them for a human. Record known impacts with the change.
 - Keep each circuit fixture in its own `netlists/<circuit-name>/` directory.
 - Preserve explicit `.subckt` interfaces and instance pin order. Interface
   changes are shared-contract changes and require checking every caller.
