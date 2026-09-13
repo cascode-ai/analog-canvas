@@ -79,6 +79,7 @@ describe("the preview deploy", () => {
     expect(preview).toContain(
       'node scripts/preview-simulation-smoke.mjs "$PREVIEW_URL"',
     );
+    expect(preview).toContain("VITE_ICM_SIMULATION_UI: enabled");
     expect(preview).toContain("VITE_ICM_AGENT_UI: enabled");
     expect(preview).toContain("pnpm --filter @icm/mcp-server... build");
     expect(preview).toContain("playwright install --with-deps chromium");
@@ -108,7 +109,11 @@ describe("the preview deploy", () => {
   it("does not leak into the production workflow", () => {
     expect(production).not.toContain("wrangler.preview.jsonc");
     expect(production).not.toContain("VITE_ICM_AGENT_UI: enabled");
+    expect(production).toContain("VITE_ICM_SIMULATION_UI: disabled");
+    expect(production).toContain("VITE_ICM_AGENT_UI: disabled");
     expect(production).not.toContain("preview-agent-simulation-journey.mjs");
+    // UI release controls do not retire the shared machine contracts.
+    expect(production).toContain("/api/agent/mcp-manifest.json");
   });
 
   it("injects its recoverable failure through the current authored-output contract", () => {

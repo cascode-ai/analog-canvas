@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-import { createEmptyProject } from "@icm/model";
+import { createEmptyProject, createSimulationFolder } from "@icm/model";
 import { serializeProject } from "@icm/project-protocol";
 import { EditTransactionSchema } from "@icm/edit-engine";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -105,6 +105,7 @@ describe("editor shell", () => {
     expect(markup).toContain('data-testid="edit-manage-cells"');
     expect(markup).not.toContain('data-testid="cell-command-menu"');
     expect(markup).toContain("Manage Cells…");
+    expect(markup).toContain("New Testbench Cell…");
     expect(markup).toContain("Instance Table…");
     const netlistStart = markup.indexOf("<summary>Netlist</summary>");
     const netlistEnd = markup.indexOf("</details>", netlistStart);
@@ -209,6 +210,25 @@ describe("editor shell", () => {
     expect(markup).not.toContain("agent-shelf-indicator");
     expect(markup).not.toContain("Agent:");
     expect(markup).not.toContain("Approve Agent file import");
+  });
+
+  it("keeps analog Simulation authoring out of a production editor without changing project data", () => {
+    const project = createEmptyProject("simulation-ui-dormant", "Dormant");
+    project.simulationFolders.push(
+      createSimulationFolder({
+        id: "saved-simulation",
+        name: "Saved Simulation",
+        profileId: "hosted-sky130-v1",
+      }),
+    );
+    const persistedSimulation = structuredClone(project.simulationFolders);
+    const markup = renderToStaticMarkup(
+      <App project={project} publicSimulationUiEnabled={false} />,
+    );
+
+    expect(markup).not.toContain('data-testid="open-analog-simulation"');
+    expect(markup).not.toContain("New Testbench Cell…");
+    expect(project.simulationFolders).toEqual(persistedSimulation);
   });
 
   it("keeps the timing surface behind its deployment flag", () => {

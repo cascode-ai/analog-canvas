@@ -43,6 +43,10 @@ jobs:
       - run: pnpm --filter @icm/editor... build
         env:
           VITE_ICM_TIMING_UI: disabled
+          # Preview is the acceptance surface for the human Simulation
+          # workspace. Production builds the same commit with this UI off;
+          # persisted data and HTTP APIs do not depend on the flag.
+          VITE_ICM_SIMULATION_UI: enabled
           # The preview is the channel that simulates (ADR 0057) and simulation
           # is Agent-first (ADR 0055): an Agent must be able to pair with the
           # preview editor, so its Connect Agent surface is enabled here.
