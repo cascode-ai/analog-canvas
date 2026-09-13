@@ -2486,7 +2486,7 @@ export function App({
     );
     if (!instance?.placement) return false;
     if (armedVerb === "rotate") {
-      const next = (instance.placement.rotation + 45) % 360;
+      const next = (instance.placement.rotation + 90) % 360;
       const applied = transact([
         {
           kind: "rotate_instance",
@@ -6940,7 +6940,7 @@ export function App({
                 execute: () => editorCommands.execute({ id: "selection.copy" }),
               },
               {
-                label: "Rotate 45° (R)",
+                label: "Rotate 90° (R)",
                 enabled: editorCommands.state({ id: "transform.rotate" })
                   .enabled,
                 execute: () =>

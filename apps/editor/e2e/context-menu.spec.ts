@@ -53,7 +53,7 @@ test("right-click on a device only offers direct selection actions", async ({
   await expect(menu).toBeVisible();
   await expect(menu.getByRole("menuitem")).toHaveText([
     "Duplicate (C)",
-    "Rotate 45° (R)",
+    "Rotate 90° (R)",
     "Mirror left/right (Shift+R)",
     "Mirror top/bottom (Ctrl+R)",
     "Delete",
@@ -64,10 +64,10 @@ test("right-click on a device only offers direct selection actions", async ({
   await expect(menu).not.toContainText("Copy as PNG");
   await expect(menu).not.toContainText("Copy as SVG");
 
-  await menu.getByRole("menuitem", { name: "Rotate 45° (R)" }).click();
+  await menu.getByRole("menuitem", { name: "Rotate 90° (R)" }).click();
   await expect(
     page.locator('[data-layer="symbols"] [data-object-id] > g').first(),
-  ).toHaveAttribute("transform", /rotate\(45\)/u);
+  ).toHaveAttribute("transform", /rotate\(90\)/u);
 
   await instance.click({ button: "right" });
   await menu.getByRole("menuitem", { name: "Duplicate (C)" }).click();

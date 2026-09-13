@@ -24,7 +24,10 @@ import {
   type PinAxis,
 } from "./route-geometry-edit.js";
 import { rebuildRoutePath } from "./route-leg-mutation.js";
-import { resolveRouteEditPath } from "./route-operations.js";
+import {
+  resolveRouteEditPath,
+  smoothRouteAfterInstanceTransform,
+} from "./route-operations.js";
 import { pointOnSegment } from "./transaction-routing.js";
 import { stretchRouteEndpoint } from "./route-endpoint-stretch.js";
 
@@ -317,7 +320,47 @@ export function applyInstancesRouteFollow(
       continue;
     }
 
-    let normalized = normalizeRouteGeometry(points, modes);
+    const stretched = normalizeRouteGeometry(points, modes);
+    const touchesSlantedInstance = [originalRoute.start, originalEnd].some(
+      (endpoint) => {
+        if (
+          endpoint.kind !== "terminal" ||
+          !instanceIds.has(endpoint.instanceId)
+        )
+          return false;
+        const originalRotation = originalDocument.instances.find(
+          (instance) => instance.id === endpoint.instanceId,
+        )?.placement?.rotation;
+        const movedRotation = draft.instances.find(
+          (instance) => instance.id === endpoint.instanceId,
+        )?.placement?.rotation;
+        return (
+          (originalRotation !== undefined && originalRotation % 90 !== 0) ||
+          (movedRotation !== undefined && movedRotation % 90 !== 0)
+        );
+      },
+    );
+    let normalized = stretched;
+    if (stretched.points.length >= 2 && touchesSlantedInstance) {
+      const smoothed = smoothRouteAfterInstanceTransform(
+        originalDocument,
+        draft,
+        resolver,
+        instanceIds,
+        originalRoute,
+        original.points.length - 2,
+        {
+          routeId: route.id,
+          waypoints: stretched.points.slice(1, -1),
+          segmentModes: stretched.segmentModes,
+        },
+        stretched.points.length - 2,
+      );
+      normalized = normalizeRouteGeometry(
+        [newFrom.contactPoint, ...smoothed.waypoints, newTo.contactPoint],
+        smoothed.segmentModes,
+      );
+    }
     if (normalized.points.length >= 2) {
       // Rotated terminal contacts are exact derived geometry and may be
       // fractional. Endpoint stretch uses those contacts to preserve the pin

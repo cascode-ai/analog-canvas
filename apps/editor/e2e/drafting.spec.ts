@@ -745,10 +745,9 @@ test("previews a copied text at the cursor and commits its rotated pose atomical
   await page.keyboard.press("r");
   await expect(previewText).toBeInViewport();
   const rotatedPreview = (await previewText.boundingBox())!;
-  // One R step is 45 degrees, so this wide label's screen-aligned bounds
-  // become square rather than swapping width and height as the old 90-degree
-  // step did.
-  expect(rotatedPreview.height).toBeCloseTo(rotatedPreview.width, 1);
+  // One R step is a quarter-turn, so this wide label becomes taller than it
+  // is wide while the source remains unchanged.
+  expect(rotatedPreview.height).toBeGreaterThan(rotatedPreview.width);
   await canvas.click({ position: { x: 420, y: 380 } });
   await page.keyboard.press("Escape");
 

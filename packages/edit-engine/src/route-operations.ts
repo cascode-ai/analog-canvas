@@ -472,6 +472,38 @@ function smoothedBoundaryProposal(
   );
 }
 
+/**
+ * Apply the same boundary cleanup used by interactive move/turn planners to
+ * a Route that followed instance placement edits at the transaction boundary.
+ */
+export function smoothRouteAfterInstanceTransform(
+  originalDocument: SchematicDocument,
+  movedDocument: SchematicDocument,
+  resolver: SymbolResolver,
+  movedInstanceIds: ReadonlySet<string>,
+  route: SchematicDocument["routes"][number],
+  originalBendCount: number,
+  stretched: RouteStretchProposal,
+  stretchedRawBendCount: number = stretched.waypoints.length,
+): RouteStretchProposal {
+  return smoothedBoundaryProposal(
+    route,
+    originalBendCount,
+    stretched,
+    {
+      originalDocument,
+      movedDocument,
+      movedBodies: movedInstanceBodies(
+        movedDocument,
+        resolver,
+        movedInstanceIds,
+      ),
+    },
+    resolver,
+    stretchedRawBendCount,
+  );
+}
+
 function smoothedBoundaryGeometry(
   route: SchematicDocument["routes"][number],
   originalBendCount: number,

@@ -363,7 +363,7 @@ export function createEditorCommandRouter(
         options.operations.armRotate();
         break;
       case "transform.rotate": {
-        const deltaDegrees = request.deltaDegrees ?? 45;
+        const deltaDegrees = request.deltaDegrees ?? 90;
         const resolution = resolveTransformOwner(context, "rotate");
         if (resolution.owner === "unavailable") break;
         switch (resolution.owner) {

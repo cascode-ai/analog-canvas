@@ -45,7 +45,7 @@ export function createSelectionTransformController({
     );
 
   const rotate = (
-    deltaDegrees: 45 | -45 | 90 | -90 | 135 | -135 | 180 = 45,
+    deltaDegrees: 45 | -45 | 90 | -90 | 135 | -135 | 180 = 90,
   ): void => {
     const placedSelection = placedInstanceIds();
     const routingPlan = planRoutingTransform(

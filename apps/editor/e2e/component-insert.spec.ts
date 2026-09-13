@@ -386,7 +386,7 @@ test("keeps quick-start shortcuts in the upper-right corner until the first comp
   await expect(preview).toHaveAttribute("transform", /rotate\(0\)/u);
 
   await page.keyboard.press("r");
-  await expect(preview).toHaveAttribute("transform", /rotate\(45\)/u);
+  await expect(preview).toHaveAttribute("transform", /rotate\(90\)/u);
   await page.keyboard.press("Escape");
   await expect(preview).toHaveCount(0);
   await expect(page.getByTestId("revision")).toHaveText("0");
@@ -600,7 +600,7 @@ test("groups drafting tools and editable polarity labels under Annotations", asy
   const preview = page.getByTestId("component-placement-preview");
   await expect(preview).toBeVisible();
   await page.keyboard.press("r");
-  await expect(preview).toHaveAttribute("transform", /rotate\(45\)/u);
+  await expect(preview).toHaveAttribute("transform", /rotate\(90\)/u);
 
   await canvas.click({ position: { x: 460, y: 260 } });
   const editor = page.getByRole("textbox", { name: "Canvas text editor" });
@@ -622,7 +622,7 @@ test("groups drafting tools and editable polarity labels under Annotations", asy
   await page.getByRole("button", { name: "Apply text changes" }).click();
 
   await expect(polarity).toBeVisible();
-  await expect(polarity).toHaveAttribute("transform", /rotate\(45 /u);
+  await expect(polarity).toHaveAttribute("transform", /rotate\(90 /u);
   await expect(
     polarity.locator('[data-role^="polarity-positive"]'),
   ).toHaveCount(2);
@@ -780,7 +780,7 @@ test("groups drafting tools and editable polarity labels under Annotations", asy
   });
   await expect(ellipsis).toBeVisible();
   await expect(ellipsis).toHaveText("...");
-  await expect(ellipsis).toHaveAttribute("transform", /rotate\(45\b/u);
+  await expect(ellipsis).toHaveAttribute("transform", /rotate\(90\b/u);
   await expect(
     canvas.locator('[data-testid^="drafting-hit-text-"]'),
   ).toHaveClass(/hit-target annotation-text-hit selected/u);
@@ -1579,7 +1579,7 @@ test("sets MOS parameters and orientation through the ghost and Properties", asy
   await page.keyboard.press("r");
   await expect(page.getByTestId("component-placement-preview")).toHaveAttribute(
     "transform",
-    /rotate\(45\)/u,
+    /rotate\(90\)/u,
   );
   await canvas.click({ position: { x: 360, y: 230 } });
   await page.keyboard.press("Escape");
@@ -1602,7 +1602,7 @@ test("sets MOS parameters and orientation through the ghost and Properties", asy
   await expectComponentCodeField(page, "parameters.l", "180n");
   await expectComponentCodeField(page, "parameters.m", "4");
   await expect(page.getByLabel("Editable Canvas property code")).toContainText(
-    /"rotation": 45/u,
+    /"rotation": 90/u,
   );
 });
 

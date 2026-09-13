@@ -136,6 +136,56 @@ function gateRouteDocument(symbolId: "nmos" | "pmos") {
   return document;
 }
 
+function pairedMosRouteDocument() {
+  const document = createEmptyDocument(
+    "paired-mos-route",
+    "Paired MOS route follow",
+  );
+  document.instances.push(
+    {
+      id: "M1",
+      symbolId: "nmos",
+      symbolVariantId: "textbook-3terminal",
+      placement: {
+        position: { x: 200, y: 200 },
+        rotation: 0,
+        mirror: "none",
+      },
+    },
+    {
+      id: "M2",
+      symbolId: "nmos",
+      symbolVariantId: "textbook-3terminal",
+      placement: {
+        position: { x: 500, y: 200 },
+        rotation: 0,
+        mirror: "none",
+      },
+    },
+  );
+  document.nets.push({
+    id: "drains",
+    terminals: [
+      { instanceId: "M1", pinName: "D" },
+      { instanceId: "M2", pinName: "D" },
+    ],
+  });
+  document.routes.push(
+    createRoutePath({
+      id: "drain-route",
+      netId: "drains",
+      start: { kind: "terminal", instanceId: "M1", pinName: "D" },
+      end: { kind: "terminal", instanceId: "M2", pinName: "D" },
+      bends: [
+        { x: 210, y: 160 },
+        { x: 510, y: 160 },
+      ],
+      modes: ["escape", "auto", "escape"],
+    }),
+  );
+  return document;
+}
+
 describe("EndpointConnection transform lifecycle", () => {
   it.each(["nmos", "pmos"] as const)(
     "keeps a connected %s Route persistable after a direct 45-degree turn",
@@ -181,6 +231,47 @@ describe("EndpointConnection transform lifecycle", () => {
       ).toBe(true);
     },
   );
+
+  it("removes stale escape doglegs after connected components take opposite 45-degree turns", () => {
+    const document = pairedMosRouteDocument();
+    const left = executeTransaction(
+      document,
+      {
+        transactionId: "turn-left-45",
+        documentId: document.id,
+        expectedRevision: document.revision,
+        actor: { kind: "human", id: "test" },
+        edits: [{ kind: "rotate_instance", instanceId: "M1", rotation: 45 }],
+      },
+      { symbolResolver: resolver },
+    );
+    expect(left).toMatchObject({ ok: true });
+    if (!left.ok) return;
+
+    const right = executeTransaction(
+      left.document,
+      {
+        transactionId: "turn-right-315",
+        documentId: left.document.id,
+        expectedRevision: left.document.revision,
+        actor: { kind: "human", id: "test" },
+        edits: [{ kind: "rotate_instance", instanceId: "M2", rotation: 315 }],
+      },
+      { symbolResolver: resolver },
+    );
+    expect(right).toMatchObject({ ok: true });
+    if (!right.ok) return;
+
+    const bends = routeBends(right.document.routes[0]!);
+    expect(bends).toHaveLength(1);
+    expect(
+      bends.every(
+        (point) =>
+          point.x % document.presentation.grid === 0 &&
+          point.y % document.presentation.grid === 0,
+      ),
+    ).toBe(true);
+  });
 
   it.each(["nmos", "pmos"] as const)(
     "follows a connected %s Route once at the final reflected pose",

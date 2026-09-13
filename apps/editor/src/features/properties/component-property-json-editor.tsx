@@ -586,7 +586,7 @@ class PlacementActionWidget extends WidgetType {
     button.setAttribute(
       "aria-label",
       this.action === "rotation"
-        ? "Rotate clockwise"
+        ? "Rotate clockwise 90 degrees"
         : this.action === "mirror-left-right"
           ? "Mirror left to right"
           : "Mirror top to bottom",
@@ -596,7 +596,7 @@ class PlacementActionWidget extends WidgetType {
     button.title = this.disabled
       ? "Fix the property JSON before changing placement"
       : this.action === "rotation"
-        ? `Rotate clockwise · ${String(this.value)}°`
+        ? `Rotate clockwise 90° · current ${String(this.value)}°`
         : this.action === "mirror-left-right"
           ? "Mirror left/right · Shift+R"
           : "Mirror top/bottom · Ctrl+R";
@@ -617,7 +617,7 @@ class PlacementActionWidget extends WidgetType {
         );
         if (index < 0) return;
         const next =
-          ROTATION_OPTIONS[(index + 1) % ROTATION_OPTIONS.length]!.value;
+          ROTATION_OPTIONS[(index + 2) % ROTATION_OPTIONS.length]!.value;
         const changes = editorChanges(source, this.read(), {
           [this.path]: next,
         });

@@ -325,7 +325,9 @@ for (const width of [300, 540]) {
     const value = editor.getByRole("switch", {
       name: "Toggle value visibility",
     });
-    const rotation = editor.getByRole("button", { name: "Rotate clockwise" });
+    const rotation = editor.getByRole("button", {
+      name: "Rotate clockwise 90 degrees",
+    });
     const mirrorLeftRight = editor.getByRole("button", {
       name: "Mirror left to right",
     });
@@ -404,26 +406,26 @@ for (const width of [300, 540]) {
     await rotation.click();
     await expectComponentCodeField(page, "display.reference", false);
     await expectComponentCodeField(page, "display.value", true);
-    await expectComponentCodeField(page, "placement.rotation", 45);
+    await expectComponentCodeField(page, "placement.rotation", 90);
     await mirrorLeftRight.click();
-    await expectComponentCodeField(page, "placement.rotation", 45);
+    await expectComponentCodeField(page, "placement.rotation", 90);
     await expectComponentCodeField(page, "placement.mirror", "horizontal");
     await mirrorLeftRight.click();
-    await expectComponentCodeField(page, "placement.rotation", 45);
+    await expectComponentCodeField(page, "placement.rotation", 90);
     await expectComponentCodeField(page, "placement.mirror", "none");
     await mirrorTopBottom.click();
-    await expectComponentCodeField(page, "placement.rotation", 45);
+    await expectComponentCodeField(page, "placement.rotation", 90);
     await expectComponentCodeField(page, "placement.mirror", "vertical");
     await mirrorLeftRight.click();
-    await expectComponentCodeField(page, "placement.rotation", 45);
+    await expectComponentCodeField(page, "placement.rotation", 90);
     await expectComponentCodeField(page, "placement.mirror", "both");
     await mirrorLeftRight.click();
-    await expectComponentCodeField(page, "placement.rotation", 45);
+    await expectComponentCodeField(page, "placement.rotation", 90);
     await expectComponentCodeField(page, "placement.mirror", "vertical");
     await mirrorTopBottom.click();
-    await expectComponentCodeField(page, "placement.rotation", 45);
+    await expectComponentCodeField(page, "placement.rotation", 90);
     await expectComponentCodeField(page, "placement.mirror", "none");
-    for (const next of [90, 135, 180, 225, 270, 315, 0, 45]) {
+    for (const next of [180, 270, 0, 90]) {
       await rotation.click();
       await expectComponentCodeField(page, "placement.rotation", next);
     }
@@ -1557,7 +1559,7 @@ test("command move owns rotate and commits pose plus translation atomically", as
   await expect(page.locator('[data-kind="draft-rectangle"]')).toHaveCount(0);
   await expect(
     page.locator('[data-layer="symbols"] [data-object-id="R1"] > g'),
-  ).toHaveAttribute("transform", /rotate\(45\)/u);
+  ).toHaveAttribute("transform", /rotate\(90\)/u);
   const reference = page.locator(
     '[data-layer="annotations"] [data-object-id="instance-label-R1"]',
   );
@@ -1571,7 +1573,7 @@ test("command move owns rotate and commits pose plus translation atomically", as
   );
   await expect(
     page.locator('[data-object-id="R1"] > g').first(),
-  ).toHaveAttribute("transform", /rotate\(45\)/u);
+  ).toHaveAttribute("transform", /rotate\(90\)/u);
 });
 
 test("command move restores its exact preview when cancelled after a turn", async ({
@@ -1589,7 +1591,7 @@ test("command move restores its exact preview when cancelled after a turn", asyn
   await page.keyboard.press("r");
   await expect(
     page.locator('[data-layer="symbols"] [data-object-id="R1"] > g'),
-  ).toHaveAttribute("transform", /rotate\(45\)/u);
+  ).toHaveAttribute("transform", /rotate\(90\)/u);
   await page.keyboard.press("Escape");
 
   await expect(resistor).not.toHaveAttribute("transform", /^matrix\(/u);
@@ -5085,11 +5087,11 @@ test("R rotates a copy preview before committing the copied component", async ({
   await expect(previewSymbol).toHaveAttribute("transform", /rotate\(0\)/);
 
   await page.keyboard.press("r");
-  await expect(previewSymbol).toHaveAttribute("transform", /rotate\(45\)/u);
+  await expect(previewSymbol).toHaveAttribute("transform", /rotate\(90\)/u);
   await canvas.click({ position: { x: 560, y: 340 } });
   await expect(
     canvas.locator('[data-object-id="R1-copy-1"] > g').first(),
-  ).toHaveAttribute("transform", /rotate\(45\)/u);
+  ).toHaveAttribute("transform", /rotate\(90\)/u);
   // The pasted designator and its visible label both read R2.
   await expect(canvas.getByText("R2", { exact: true })).toBeVisible();
   await page.keyboard.press("Escape");
@@ -7193,9 +7195,8 @@ test("turns a marquee selection as one body, not three parts in place", async ({
   await expect(page.getByTestId("status")).toContainText("Selected");
 
   await page.keyboard.press("r");
-  await page.keyboard.press("r");
 
-  // Two 45-degree turns stand the row up: the arrangement itself rotates rather
+  // One 90-degree turn stands the row up: the arrangement itself rotates rather
   // than each symbol spinning where it stands.
   const after = await centres();
   expect(after).toHaveLength(3);

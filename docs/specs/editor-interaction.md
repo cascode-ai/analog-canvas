@@ -126,8 +126,9 @@ no injected comments or control values. Canvas-layer field metadata still owns
 validation of rotation, mirror, color channels, and other bounded values. A
 small, non-text switch is visually decorated after each `display.reference` and
 `display.value` boolean for immediate visibility toggling. Compact action
-buttons after `placement.rotation` and `placement.mirror` cycle clockwise
-through the eight 45-degree orientations and reflect left/right or top/bottom. Horizontal
+buttons after `placement.rotation` and `placement.mirror` rotate clockwise by
+90 degrees and reflect left/right or top/bottom. Direct JSON editing continues
+to accept all eight 45-degree orientations. Horizontal
 and vertical reflection are persisted independently; mirror actions never
 rewrite `placement.rotation`, and applying both records `"both"`. A matching color
 button after `appearance.foreground` opens an anchored chooser for light gray,
@@ -316,7 +317,7 @@ removes the latest authored step rather than an automatically compiled elbow.
 Activating the same tool is idempotent: repeated C, W, A, K, or selection of the
 same Library item preserves the active session. Activating a different creation
 tool replaces the current interaction atomically after drag and snap cleanup.
-During component or Copy Placement, `R` turns the transient preview by 45 degrees;
+During component or Copy Placement, `R` turns the transient preview by 90 degrees;
 `Shift+R` mirrors it left/right and `Shift+V` mirrors it top/bottom. Every
 subsequent committed copy receives the same transient orientation, while the
 source selection remains unchanged. The background grid-dot button changes

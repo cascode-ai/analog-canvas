@@ -203,7 +203,7 @@ export function resolveEditorShortcut(
       if (context.canRotate) {
         return {
           kind: "run-command",
-          command: { id: "transform.rotate", deltaDegrees: 45 },
+          command: { id: "transform.rotate", deltaDegrees: 90 },
         };
       }
       // An active modal owner never lets R fall through to another primary
@@ -305,7 +305,7 @@ export function resolveEditorShortcut(
     if (context.canRotate) {
       return {
         kind: "run-command",
-        command: { id: "transform.rotate", deltaDegrees: 45 },
+        command: { id: "transform.rotate", deltaDegrees: 90 },
       };
     }
     if (context.hasDraftingSelection) {

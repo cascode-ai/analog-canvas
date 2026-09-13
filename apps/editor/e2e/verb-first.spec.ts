@@ -130,7 +130,9 @@ test("Escape disarms rotate so later clicks stop turning parts", async ({
   );
   await expect(page.getByTestId("status")).toContainText("Rotated");
   const turned = (await instances(page).first().boundingBox())!;
-  expect(turned.width).toBeGreaterThan(upright.width);
+  await expect(
+    page.locator('[data-layer="symbols"] [data-object-id="R1"] > g'),
+  ).toHaveAttribute("transform", /rotate\(90\)/u);
 
   // Escape must actually stop the armed rotate (the historical gap).
   await page.keyboard.press("Escape");

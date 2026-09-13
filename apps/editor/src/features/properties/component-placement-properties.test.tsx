@@ -37,6 +37,7 @@ describe("component placement properties", () => {
       /<details[^>]*aria-label="Component placement"[^>]*open=""/u,
     );
     expect(markup).toContain('aria-label="Component geometry"');
+    expect(markup).toContain("Rotate component clockwise 90 degrees");
     expect(markup).toContain("Swap + / − outputs");
     expect(markup).not.toContain("Return to tray");
     expect(markup).toContain("Discard changes");
