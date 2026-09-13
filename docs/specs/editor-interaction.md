@@ -312,6 +312,14 @@ Idle
   -> Drawing(tool, source, waypoints, preview, snap)
 ```
 
+`T` and the Text toolbar action enter drafting-text placement through the same
+placement state as components. A translucent text preview starts at the last
+canvas pointer position and follows the pointer on the annotation grid. Clicking
+commits one free text object at that preview position and opens its text editor.
+Before that click, neither the document nor undo history changes; Escape or
+choosing another tool discards the preview. Fixed catalog text presets keep their
+existing placement behavior.
+
 Box selection, selection move, pan, and text-edit sessions remain bounded
 gesture owners, but every reset boundary cancels them together with the
 canonical interaction. No component preview, rail endpoint, clipboard, authored

@@ -40,6 +40,8 @@ export interface DraftTextAnnotationInsertRequest {
   symbolId: string;
   symbolName: string;
   text: string;
+  /** Open the text editor after the user chooses the placement point. */
+  editAfterPlacement?: boolean;
   initialRotation: Rotation;
 }
 

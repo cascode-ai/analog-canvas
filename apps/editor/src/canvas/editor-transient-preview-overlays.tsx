@@ -3,7 +3,10 @@ import {
   type ArrowPreset,
 } from "../features/drafting/arrow-presets";
 import type { DerivedRect, GridRect, Point } from "@icm/model";
-import type { SchematicStyleProfile } from "@icm/derived";
+import {
+  razaviTextbookProfile,
+  type SchematicStyleProfile,
+} from "@icm/derived";
 import type { SymbolDefinition } from "@icm/symbols";
 
 import {
@@ -29,6 +32,8 @@ export function EditorPlacementPreview({
   styleProfileId,
   pendingSymbolId,
   pendingSymbol,
+  draftingText,
+  styleProfile = razaviTextbookProfile,
   rotation,
   mirror,
 }: {
@@ -39,6 +44,8 @@ export function EditorPlacementPreview({
   styleProfileId: string;
   pendingSymbolId: string | null;
   pendingSymbol?: SymbolDefinition;
+  draftingText?: string;
+  styleProfile?: SchematicStyleProfile;
   rotation: ComponentPlacementPreviewProps["rotation"];
   mirror: NonNullable<ComponentPlacementPreviewProps["mirror"]>;
 }) {
@@ -61,6 +68,28 @@ export function EditorPlacementPreview({
         position={previewPoint}
         rotation={0}
       />
+    );
+  }
+  if (draftingText !== undefined) {
+    return (
+      <g
+        data-testid="text-placement-preview"
+        className="component-placement-preview"
+        transform={`translate(${previewPoint.x} ${previewPoint.y}) rotate(${rotation})`}
+      >
+        <text
+          x={0}
+          y={0}
+          textAnchor="middle"
+          fontSize={styleProfile.typography.annotationFontSize}
+          fontFamily={styleProfile.typography.fontFamily}
+          fontWeight="normal"
+          fontStyle="normal"
+          fill="currentColor"
+        >
+          {draftingText}
+        </text>
+      </g>
     );
   }
   if (!pendingSymbolId) return null;

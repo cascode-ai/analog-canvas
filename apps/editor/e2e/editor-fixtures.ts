@@ -84,6 +84,18 @@ export async function clickDrawTool(page: Page, tool: DrawTool): Promise<void> {
   await page.getByTestId(`draw-tool-${tool}`).click();
 }
 
+/** Place a free text note, leaving its editor open for the calling scenario. */
+export async function placeText(
+  page: Page,
+  position = { x: 450, y: 340 },
+): Promise<void> {
+  await clickDrawTool(page, "text");
+  await page.getByTestId("schematic-canvas").click({ position });
+  await expect(
+    page.getByRole("textbox", { name: "Canvas text editor" }),
+  ).toBeVisible();
+}
+
 export async function chooseComponent(
   page: Page,
   symbolId: string,

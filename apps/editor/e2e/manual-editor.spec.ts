@@ -13,6 +13,7 @@ import {
   chooseComponent,
   clickCommand,
   clickDrawTool,
+  placeText,
   clickNetlistWorkflowCommand,
   downloadBytes,
   editComponentPropertyCode,
@@ -3535,7 +3536,7 @@ test("moves an explicitly selected attached label", async ({ page }) => {
 
 test("moves floating text after it is created", async ({ page }) => {
   await page.goto("/editor");
-  await clickDrawTool(page, "text");
+  await placeText(page);
   await page
     .getByRole("textbox", { name: "Canvas text editor" })
     .fill("Floating note");
@@ -3621,7 +3622,7 @@ test("edits instance, electrical Net, and free text with bounded label handles",
   await expect(page.getByTestId("net-count")).toHaveText("2");
   await expect(page.getByTestId("status")).toHaveText("Saved Net Label Vref");
 
-  await clickDrawTool(page, "text");
+  await placeText(page);
   const textInput = page.getByRole("textbox", {
     name: "Canvas text editor",
   });
@@ -3676,7 +3677,7 @@ test("keeps literal text line breaks and overbars visible while editing", async 
   page,
 }) => {
   await page.goto("/editor");
-  await clickDrawTool(page, "text");
+  await placeText(page);
   const editor = page.getByRole("textbox", { name: "Canvas text editor" });
   await editor.fill("Vx");
   await editor.press("ControlOrMeta+A");
@@ -3706,7 +3707,7 @@ test("stacks complementary scripts under one uninterrupted overbar", async ({
   page,
 }) => {
   await page.goto("/editor");
-  await clickDrawTool(page, "text");
+  await placeText(page);
   const editor = page.getByRole("textbox", { name: "Canvas text editor" });
   await editor.fill("In22");
 
@@ -7886,13 +7887,11 @@ for (const symbol of ["xfmr", "tcoil"] as const) {
           annotation.binding?.parameter,
       ),
     ).toHaveLength(2);
-    await page
-      .getByTestId("project-file")
-      .setInputFiles({
-        name: `${symbol}.icproj.json`,
-        mimeType: "application/json",
-        buffer: saved,
-      });
+    await page.getByTestId("project-file").setInputFiles({
+      name: `${symbol}.icproj.json`,
+      mimeType: "application/json",
+      buffer: saved,
+    });
     await page.getByTestId(`hit-${instanceId}`).click();
     await openSelectionShelf(page);
     await expect(kToggle).toHaveAttribute("aria-checked", "true");

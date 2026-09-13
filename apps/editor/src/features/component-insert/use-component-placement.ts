@@ -666,11 +666,16 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
       Boolean(placementRequest.polarity) &&
       placementRequest.polarity !== "both";
     const preset = placementRequest.text;
-    let id = options.nextId(placementRequest.polarity ? "polarity" : "text");
+    const prefix = placementRequest.polarity
+      ? "polarity"
+      : placementRequest.editAfterPlacement
+        ? "note"
+        : "text";
+    let id = options.nextId(prefix);
     while (
       options.document.drafting?.objects.some((object) => object.id === id)
     ) {
-      id = options.nextId("polarity");
+      id = options.nextId(prefix);
     }
     // The semantic-text helper turns the suffix into a true subscript. The
     // authored value is therefore "Vx"; a literal underscore would be drawn.
@@ -697,6 +702,11 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
     }
     options.cancelAllTransientInteraction();
     options.selectOnly("drafting", [object.id]);
+    if (placementRequest.editAfterPlacement) {
+      options.beginDraftingTextEditing(object);
+      options.setStatus(`Added drafting text ${id}`);
+      return;
+    }
     if (preset) {
       options.setStatus(`Added ${placementRequest.symbolId}`);
       return;
@@ -727,18 +737,21 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
   const beginInsertedComponentPlacement = (
     request: ComponentInsertRequest,
   ): void => {
-    const nextRecent = [
-      request.symbolId,
-      ...recentSymbolIds.filter((symbolId) => symbolId !== request.symbolId),
-    ].slice(0, 8);
-    setRecentSymbolIds(nextRecent);
-    try {
-      window.localStorage.setItem(
-        options.recentStorageKey,
-        JSON.stringify(nextRecent),
-      );
-    } catch {
-      // Recency is convenience-only and must never block placement.
+    // Plain Text has no catalog tile to recall in the Insert picker.
+    if (!(request.kind === "drafting-text" && request.editAfterPlacement)) {
+      const nextRecent = [
+        request.symbolId,
+        ...recentSymbolIds.filter((symbolId) => symbolId !== request.symbolId),
+      ].slice(0, 8);
+      setRecentSymbolIds(nextRecent);
+      try {
+        window.localStorage.setItem(
+          options.recentStorageKey,
+          JSON.stringify(nextRecent),
+        );
+      } catch {
+        // Recency is convenience-only and must never block placement.
+      }
     }
     options.cancelCanvasDrag();
     options.clearTransientCanvasState();
@@ -782,6 +795,9 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
               referenceText: null,
               showValue: false,
               text: request.text,
+              ...(request.editAfterPlacement
+                ? { editAfterPlacement: true }
+                : {}),
             }
           : request.kind === "symbol" &&
               (request.symbolId === "port" ||
@@ -800,9 +816,11 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
             : request;
     options.beginComponentPlacement(pendingRequest);
     options.setStatus(
-      request.kind === "polarity-annotation"
-        ? `Place ${request.symbolName} on the canvas · R rotates · Esc cancels`
-        : `Place ${request.symbolName} on the canvas · R rotates · Shift+R / Ctrl+R mirrors · Esc cancels`,
+      request.kind === "drafting-text" && request.editAfterPlacement
+        ? "Place text: click to place and edit · R rotates · Esc cancels"
+        : request.kind === "polarity-annotation"
+          ? `Place ${request.symbolName} on the canvas · R rotates · Esc cancels`
+          : `Place ${request.symbolName} on the canvas · R rotates · Shift+R / Ctrl+R mirrors · Esc cancels`,
     );
   };
 

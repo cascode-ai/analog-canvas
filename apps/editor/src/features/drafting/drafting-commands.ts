@@ -2,11 +2,9 @@ import { applyArrowPreset, type ArrowPreset } from "./arrow-presets";
 import type { SchematicEdit } from "@icm/edit-engine";
 import { resolveDraftingObjectGeometry } from "@icm/derived";
 import {
-  defaultDraftTextDocument,
   semanticTextDocument,
   snapGridPoint,
   type DraftingObject,
-  type GridRect,
   type Point,
   type SchematicDocument,
 } from "@icm/model";
@@ -29,14 +27,12 @@ import {
 } from "./drafting-manipulation";
 
 type Route = SchematicDocument["routes"][number];
-type DraftingText = Extract<DraftingObject, { kind: "text" }>;
 type TransactionResult = { ok: boolean };
 
 export function createDraftingCommands({
   document,
   annotationGrid,
   resolver,
-  viewBox,
   selection,
   selectedDrafting,
   inspectorSegment,
@@ -46,14 +42,13 @@ export function createDraftingCommands({
   transact,
   setStatus,
   nextId,
-  beginTextEditing,
+  beginTextPlacement,
   selectAnnotation,
 }: {
   document: SchematicDocument;
-  /** Rounding pitch for drafting geometry edits and new plain text. */
+  /** Rounding pitch for drafting geometry edits. */
   annotationGrid: number;
   resolver: SymbolResolver;
-  viewBox: GridRect;
   selection: VisualSelection;
   selectedDrafting: DraftingObject | undefined;
   inspectorSegment: { objectId: string; index: number } | null;
@@ -63,7 +58,7 @@ export function createDraftingCommands({
   transact: (edits: SchematicEdit[]) => TransactionResult;
   setStatus: (status: string) => void;
   nextId: (prefix: string) => string;
-  beginTextEditing: (object: DraftingText) => void;
+  beginTextPlacement: () => void;
   selectAnnotation: (id: string) => void;
 }) {
   const insertConstructionVertex = (
@@ -276,29 +271,7 @@ export function createDraftingCommands({
   };
 
   const addPlainText = (): void => {
-    const id = nextId("note");
-    const position = snapGridPoint(
-      {
-        x: Math.round(viewBox.x + viewBox.width / 2),
-        y: Math.round(viewBox.y + viewBox.height - 20),
-      },
-      annotationGrid,
-    );
-    const object: DraftingText = {
-      id,
-      kind: "text",
-      locked: false,
-      zIndex: 0,
-      anchor: { kind: "free", position },
-      content: defaultDraftTextDocument("Design note"),
-      alignment: "middle",
-      rotation: 0,
-      typographyToken: "label",
-    };
-    if (transact([{ kind: "upsert_drafting_object", object }]).ok) {
-      beginTextEditing(object);
-      setStatus(`Added drafting text ${id}`);
-    }
+    beginTextPlacement();
   };
 
   const addCurrentArrow = (): void => {

@@ -3,6 +3,7 @@ import { expect, test, type Page } from "@playwright/test";
 import {
   chooseComponent,
   clickDrawTool,
+  placeText,
   clickCommand,
   openMenu,
 } from "./editor-fixtures";
@@ -108,7 +109,7 @@ test("drafting text shares device additive selection and context alignment", asy
 }) => {
   await page.goto("/editor");
   await placeComponent(page, "resistor", { x: 300, y: 220 });
-  await clickDrawTool(page, "text");
+  await placeText(page);
   const input = page.getByRole("textbox", { name: "Canvas text editor" });
   await input.fill("BIAS");
   await page.getByRole("button", { name: "Apply text changes" }).click();
@@ -146,7 +147,7 @@ test("dragging drafting text carries its mixed component selection as one body",
 }) => {
   await page.goto("/editor");
   await placeComponent(page, "resistor", { x: 300, y: 220 });
-  await clickDrawTool(page, "text");
+  await placeText(page);
   const input = page.getByRole("textbox", { name: "Canvas text editor" });
   await input.fill("BIAS");
   await page.getByRole("button", { name: "Apply text changes" }).click();
@@ -209,12 +210,12 @@ test("Ctrl+A and a marquee both move drafting texts as one selection", async ({
   const editor = page.getByRole("textbox", { name: "Canvas text editor" });
   const apply = page.getByRole("button", { name: "Apply text changes" });
 
-  await clickDrawTool(page, "text");
+  await placeText(page);
   await editor.fill("LEFT");
   await apply.click();
   const texts = page.locator('[data-canvas-hit-kind="drafting"]');
   await texts.first().dragTo(canvas, { targetPosition: { x: 260, y: 180 } });
-  await clickDrawTool(page, "text");
+  await placeText(page);
   await editor.fill("RIGHT");
   await apply.click();
   await expect(texts).toHaveCount(2);
@@ -438,7 +439,7 @@ test("visual clipboard preserves mixed selection and exports only its formal SVG
   await page.goto("/editor");
   await placeComponent(page, "resistor", { x: 280, y: 220 });
   await placeComponent(page, "capacitor", { x: 540, y: 320 });
-  await clickDrawTool(page, "text");
+  await placeText(page);
   await page.getByRole("textbox", { name: "Canvas text editor" }).fill("BIAS");
   await page.getByRole("button", { name: "Apply text changes" }).click();
   const resistor = page.locator('[data-canvas-hit-kind="instance"]').first();

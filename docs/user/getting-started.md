@@ -91,8 +91,9 @@ is defined.
   its wires as dangling Junction endpoints at the former pin positions.
 - Select an instance to edit its displayed name. Select a wire Route to add an
   electrical Net label; assigning the same name to another Net explicitly
-  connects those Nets. Use **More / Add text** for non-electrical notes. Label
-  handles may be dragged near their owner, while plain text moves freely.
+  connects those Nets. Press `T` or choose **Text** for a non-electrical note: move its translucent
+  preview with the pointer, click to place it, then edit the text. `Esc` cancels
+  placement. Label handles may be dragged near their owner, while plain text moves freely.
 - Press `R` to rotate, `F` to fit, `X` to reverse a selected current arrow,
   `Ctrl+Z` to undo, and `Ctrl+Y` or `Ctrl+Shift+Z` to redo. Shortcuts do not
   fire while typing in a field.

@@ -78,8 +78,10 @@ export interface PendingComponentPlacement {
   portName?: string;
   direction?: "input" | "output" | "inout" | "passive";
   polarity?: "both" | "positive" | "negative";
-  /** Fixed initial content for a catalog drafting-text preset. */
+  /** Initial content for drafting-text placement. */
   text?: string;
+  /** Plain Text opens for editing; fixed catalog presets do not. */
+  editAfterPlacement?: boolean;
   /** Existing unplaced Instance being returned from the Placement Tray. */
   instanceId?: string;
 }

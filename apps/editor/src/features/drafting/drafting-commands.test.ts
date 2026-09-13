@@ -28,7 +28,6 @@ describe("drafting commands", () => {
       document,
       annotationGrid: 1,
       resolver: new InMemorySymbolResolver(builtInSymbols),
-      viewBox: { x: 0, y: 0, width: 400, height: 300 },
       selection: {
         instanceIds: [],
         routeIds: [],
@@ -44,7 +43,7 @@ describe("drafting commands", () => {
       transact,
       setStatus: vi.fn(),
       nextId: () => "unused",
-      beginTextEditing: vi.fn(),
+      beginTextPlacement: vi.fn(),
       selectAnnotation: vi.fn(),
     });
     const outline = ARROW_PRESETS.find((p) => p.id === "outline-end")!;
@@ -73,16 +72,15 @@ describe("drafting commands", () => {
       }),
     ]);
   });
-  it("adds centered drafting text and starts its editor", () => {
+  it("starts text placement without changing the document", () => {
     const document = createEmptyDocument("cell", "Cell");
     const transact = vi.fn(() => ({ ok: true }));
     const setStatus = vi.fn();
-    const beginTextEditing = vi.fn();
+    const beginTextPlacement = vi.fn();
     const commands = createDraftingCommands({
       document,
       annotationGrid: 10,
       resolver: new InMemorySymbolResolver(builtInSymbols),
-      viewBox: { x: 0, y: 0, width: 400, height: 300 },
       selection: {
         instanceIds: [],
         routeIds: [],
@@ -98,26 +96,15 @@ describe("drafting commands", () => {
       transact,
       setStatus,
       nextId: () => "note-1",
-      beginTextEditing,
+      beginTextPlacement,
       selectAnnotation: vi.fn(),
     });
 
     commands.addPlainText();
 
-    expect(transact).toHaveBeenCalledWith([
-      expect.objectContaining({
-        kind: "upsert_drafting_object",
-        object: expect.objectContaining({
-          id: "note-1",
-          kind: "text",
-          anchor: { kind: "free", position: { x: 200, y: 280 } },
-        }),
-      }),
-    ]);
-    expect(setStatus).toHaveBeenCalledWith("Added drafting text note-1");
-    expect(beginTextEditing).toHaveBeenCalledWith(
-      expect.objectContaining({ id: "note-1", kind: "text" }),
-    );
+    expect(beginTextPlacement).toHaveBeenCalledOnce();
+    expect(transact).not.toHaveBeenCalled();
+    expect(setStatus).not.toHaveBeenCalled();
   });
 
   it("moves an unlocked shape behind or in front of the circuit", () => {
@@ -151,7 +138,6 @@ describe("drafting commands", () => {
       document,
       annotationGrid: 1,
       resolver: new InMemorySymbolResolver(builtInSymbols),
-      viewBox: { x: 0, y: 0, width: 400, height: 300 },
       selection: {
         instanceIds: [],
         routeIds: [],
@@ -167,7 +153,7 @@ describe("drafting commands", () => {
       transact,
       setStatus: vi.fn(),
       nextId: () => "unused",
-      beginTextEditing: vi.fn(),
+      beginTextPlacement: vi.fn(),
       selectAnnotation: vi.fn(),
     });
 
