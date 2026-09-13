@@ -74,7 +74,10 @@ Model definitions. Netlist parameter values are strings, for example `"1u"`.
 `connect`/`disconnect` pin targets accept an Instance Reference string or
 `instance:{kind:"instance",id:"…"}`; use the latter for imported formal Cell Pins.
 `place-component` requires a Reference for devices, but omit it for `ground`
-and `vdd-port`. To place an imported Instance, use `place-existing` with
+and `vdd-port`. For `port` and `port-filled`, `reference` supplies the new
+Cell terminal's name, with passive direction by default. Placement creates its
+owned Port, Net and bound terminal-name display atomically; use the returned
+Instance ID for subsequent wiring. To place an imported Instance, use `place-existing` with
 `instanceId` and `placement` (or `move` from the tray); default labels use the GUI planner.
 `place-component` batches use the browser's native display factory: references
 and displayable values are object-attached, and power markers own electrical

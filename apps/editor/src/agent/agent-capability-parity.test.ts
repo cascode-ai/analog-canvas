@@ -51,6 +51,92 @@ async function folder() {
 }
 
 describe("MCP → API → shared editor parity", () => {
+  it("places both Port styles with owned Cell terminals in one undoable batch", async () => {
+    const { client, controller, tool } = await folder();
+    const placed = await client.applyActions([
+      {
+        kind: "place-component",
+        symbol: "port",
+        reference: "VIN",
+        position: { x: 100, y: 100 },
+      },
+      {
+        kind: "place-component",
+        symbol: "resistor",
+        reference: "R1",
+        position: { x: 200, y: 100 },
+        rotation: 270,
+        parameters: { value: "1k" },
+      },
+      {
+        kind: "place-component",
+        symbol: "port-filled",
+        reference: "VOUT",
+        position: { x: 300, y: 100 },
+        rotation: 180,
+      },
+    ]);
+    expect(placed.ok, placed.message).toBe(true);
+    expect(controller.document.revision).toBe(1);
+    expect(controller.document.instances).toHaveLength(3);
+    const terminals = controller.document.netlist!.terminals;
+    expect(terminals.map((terminal) => terminal.name)).toEqual(["VIN", "VOUT"]);
+    for (const terminal of terminals) {
+      expect(terminal.direction).toBe("passive");
+      expect(terminal.interfaceInstanceIds).toHaveLength(1);
+      const instanceId = terminal.interfaceInstanceIds[0]!;
+      const port = controller.document.instances.find(
+        (i) => i.id === instanceId,
+      )!;
+      expect(port.reference).toBeUndefined();
+      expect(port.netlist).toBeUndefined();
+      expect(
+        controller.document.nets.find((n) => n.id === terminal.netId)
+          ?.terminals,
+      ).toEqual([{ instanceId, pinName: "P" }]);
+      expect(
+        controller.document.annotations.filter(
+          (a) => a.anchor.kind === "object" && a.anchor.objectId === instanceId,
+        ),
+      ).toEqual([
+        expect.objectContaining({
+          binding: { kind: "cell-terminal-name", terminalId: terminal.id },
+        }),
+      ]);
+    }
+    expect((await client.applyActions([{ kind: "undo" }])).ok).toBe(true);
+    expect(controller.document.instances).toHaveLength(0);
+    expect(controller.document.netlist!.terminals).toHaveLength(0);
+    expect(controller.document.nets).toHaveLength(0);
+    expect((await client.applyActions([{ kind: "redo" }])).ok).toBe(true);
+    const snapshot = await tool("inspect", {
+      target: { kind: "document" },
+      detail: "full",
+    });
+    expect(
+      snapshot.cellInterface.terminals.map((t: { name: string }) => t.name),
+    ).toEqual(["VIN", "VOUT"]);
+    const wired = await client.applyActions([
+      {
+        kind: "connect",
+        from: {
+          kind: "pin",
+          instance: {
+            kind: "instance",
+            id: terminals[0]!.interfaceInstanceIds[0]!,
+          },
+          pin: "P",
+        },
+        to: { kind: "pin", instance: "R1", pin: "1" },
+      },
+    ]);
+    expect(wired.ok, wired.message).toBe(true);
+    expect(
+      controller.document.nets.find((n) => n.id === terminals[0]!.netId)
+        ?.terminals,
+    ).toHaveLength(2);
+  });
+
   it("places native bound displays and electrical ground, with idempotent visibility", async () => {
     const { client, controller } = await folder();
     expect(

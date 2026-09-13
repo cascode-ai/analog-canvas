@@ -8,6 +8,7 @@ import {
   planInstanceUnplacement,
   planCellReset,
   planCreateCell,
+  planCreateCellPin,
   createHierarchyInstance,
   planPlaceCellInstance,
   planRenameCell,
@@ -57,9 +58,64 @@ export function planBrowserAgentCommand(
   switch (command.kind) {
     case "place-components": {
       const edits: SchematicEdit[] = [];
+      let changesInterface = false;
       for (const instance of command.instances) {
         if (!instance.placement)
           throw new Error("New component requires placement");
+        if (
+          instance.symbolId === "port" ||
+          instance.symbolId === "port-filled"
+        ) {
+          // The compact action's reference names a Cell terminal, not a
+          // device. Use the GUI's interface planner and bound name display.
+          const { reference, netlist: _netlist, ...port } = instance;
+          if (!reference?.trim()) throw new Error("A Cell Pin requires a name");
+          const terminalId = deriveStableId("terminal", instance.id);
+          const netId = deriveStableId("net-cell-pin", instance.id);
+          const endpoint = {
+            kind: "terminal" as const,
+            instanceId: instance.id,
+            pinName: "P",
+          };
+          const annotation = defaultInstanceDisplayAnnotations(
+            document,
+            port,
+            resolver,
+            resolveDocumentStyleProfile(document.presentation),
+            { formalTerminalId: terminalId },
+          )[0];
+          const plan = planCreateCellPin(project, documentId, {
+            instance: port,
+            terminal: {
+              id: terminalId,
+              name: reference.trim(),
+              netId,
+              direction: "passive",
+              interfaceInstanceIds: [instance.id],
+            },
+            connectionEdits: [
+              {
+                kind: "connect_endpoints",
+                from: endpoint,
+                to: endpoint,
+                newNetId: netId,
+              },
+            ],
+            ...(annotation ? { annotation } : {}),
+          });
+          for (const entry of plan) {
+            if (
+              entry.kind !== "transact_document" ||
+              entry.documentId !== documentId
+            )
+              throw new Error(
+                "Cell Pin placement must target its owning Document",
+              );
+            edits.push(...entry.edits);
+          }
+          changesInterface = true;
+          continue;
+        }
         const power = proposedStandalonePowerConnection(document, instance);
         if (power.rejected) throw new Error(power.rejected);
         edits.push({ kind: "add_instance", instance }, ...power.edits);
@@ -76,7 +132,19 @@ export function planBrowserAgentCommand(
           })),
         );
       }
-      return { edits };
+      // Keep mixed device/Port batches atomic, including the interface facts.
+      return changesInterface
+        ? {
+            structureEdits: [
+              {
+                kind: "transact_document",
+                documentId,
+                expectedRevision: document.revision,
+                edits,
+              },
+            ],
+          }
+        : { edits };
     }
     case "set-instance-display":
       return {
