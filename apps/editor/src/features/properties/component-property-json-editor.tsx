@@ -290,6 +290,8 @@ function jsonDecorations(state: EditorState, read: () => Props): DecorationSet {
     { path: "display.visualAnnotation", label: "visual annotation" },
     { path: "display.value", label: "value" },
     { path: "appearance.inputPolarity", label: "input polarity" },
+    { path: "appearance.inputsSwapped", label: "inputs" },
+    { path: "appearance.outputsSwapped", label: "outputs" },
     ...spans
       .filter(
         (span) =>
@@ -550,11 +552,16 @@ class DisplayToggleWidget extends WidgetType {
     toggle.className = "cm-property-inline-toggle";
     toggle.contentEditable = "false";
     toggle.setAttribute("role", "switch");
+    const swapsPolarity =
+      this.path === "appearance.inputsSwapped" ||
+      this.path === "appearance.outputsSwapped";
     toggle.setAttribute(
       "aria-label",
-      this.path === "appearance.inputPolarity"
-        ? "Toggle input polarity marks"
-        : `Toggle ${this.label} visibility`,
+      swapsPolarity
+        ? `Swap the + and - ${this.label}`
+        : this.path === "appearance.inputPolarity"
+          ? "Toggle input polarity marks"
+          : `Toggle ${this.label} visibility`,
     );
     toggle.setAttribute(
       "aria-checked",
@@ -565,9 +572,11 @@ class DisplayToggleWidget extends WidgetType {
     toggle.tabIndex = this.disabled ? -1 : 0;
     toggle.title = this.disabled
       ? `Fix the property JSON before changing ${
-          this.path === "appearance.inputPolarity"
-            ? "input polarity marks"
-            : "visibility"
+          swapsPolarity
+            ? `${this.label} polarity`
+            : this.path === "appearance.inputPolarity"
+              ? "input polarity marks"
+              : "visibility"
         }`
       : `${
           this.path === "appearance.inputPolarity"
@@ -578,7 +587,15 @@ class DisplayToggleWidget extends WidgetType {
                 ? "Value"
                 : this.label
         } · ${
-          this.checked === "mixed" ? "Mixed" : this.checked ? "Shown" : "Hidden"
+          this.checked === "mixed"
+            ? "Mixed"
+            : swapsPolarity
+              ? this.checked
+                ? "Swapped"
+                : "Default"
+              : this.checked
+                ? "Shown"
+                : "Hidden"
         }`;
     const apply = (): void => {
       if (this.disabled) return;

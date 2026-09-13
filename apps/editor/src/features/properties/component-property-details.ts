@@ -68,7 +68,9 @@ export function componentPropertyDetailsValue(
     ...(context.modelTarget
       ? { netlistTarget: context.modelTarget.defaultValue }
       : {}),
-    ...(componentSymbolOptions(instance.symbolId).length > 1
+    // Analog variants are authored through appearance's independent controls.
+    // A second symbol field would compete with those values on every edit.
+    ...(switchContactStyleSibling(instance.symbolId)
       ? { symbol: instance.symbolId }
       : {}),
     ...(context.signalFlow && componentInternalMark(instance) === undefined

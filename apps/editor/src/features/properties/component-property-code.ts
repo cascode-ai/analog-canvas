@@ -15,7 +15,9 @@ import {
 } from "./component-property-fields";
 import {
   componentInputPolarity,
+  componentInputsSwapped,
   componentInternalMark,
+  componentOutputsSwapped,
   NO_INTERNAL_MARK,
 } from "./component-visual-variants";
 
@@ -44,6 +46,8 @@ export interface ComponentPropertyCodeValue extends ComponentPropertyDetailsValu
     foreground: ComponentPropertyColor;
     internalMark?: string;
     inputPolarity?: boolean;
+    inputsSwapped?: boolean;
+    outputsSwapped?: boolean;
   };
 }
 
@@ -202,9 +206,15 @@ function parseAppearance(
 ): ComponentPropertyCodeValue["appearance"] {
   const internalMark = componentInternalMark(context.instance);
   const inputPolarity = componentInputPolarity(context.instance.symbolId);
+  const booleanStates = {
+    inputPolarity,
+    inputsSwapped: componentInputsSwapped(context.instance.symbolId),
+    outputsSwapped: componentOutputsSwapped(context.instance.symbolId),
+  };
   const supported = new Set<string>(["foreground"]);
   if (internalMark !== undefined) supported.add("internalMark");
-  if (inputPolarity !== undefined) supported.add("inputPolarity");
+  for (const [key, state] of Object.entries(booleanStates))
+    if (state !== undefined) supported.add(key);
   const unknown = unexpectedKey(value, supported, "appearance");
   if (unknown) throw new Error(unknown);
   if (!("foreground" in value))
@@ -225,12 +235,14 @@ function parseAppearance(
       );
     appearance.internalMark = value.internalMark.trim();
   }
-  if (inputPolarity !== undefined) {
-    if (!("inputPolarity" in value))
-      throw new Error("appearance.inputPolarity is required");
-    if (typeof value.inputPolarity !== "boolean")
-      throw new Error("appearance.inputPolarity must be true or false");
-    appearance.inputPolarity = value.inputPolarity;
+  for (const key of Object.keys(
+    booleanStates,
+  ) as (keyof typeof booleanStates)[]) {
+    if (booleanStates[key] === undefined) continue;
+    if (!(key in value)) throw new Error(`appearance.${key} is required`);
+    if (typeof value[key] !== "boolean")
+      throw new Error(`appearance.${key} must be true or false`);
+    appearance[key] = value[key];
   }
   return appearance;
 }
@@ -241,6 +253,8 @@ export function componentPropertyCodeValue(
   const { instance } = context;
   const internalMark = componentInternalMark(instance);
   const inputPolarity = componentInputPolarity(instance.symbolId);
+  const inputsSwapped = componentInputsSwapped(instance.symbolId);
+  const outputsSwapped = componentOutputsSwapped(instance.symbolId);
   const display: ComponentPropertyDisplayCode = {};
   if (context.referenceVisible !== null) {
     display.visualAnnotation = context.referenceVisible;
@@ -271,6 +285,8 @@ export function componentPropertyCodeValue(
       foreground: formattedColor(instance.styleOverride?.foreground),
       ...(internalMark !== undefined ? { internalMark } : {}),
       ...(inputPolarity !== undefined ? { inputPolarity } : {}),
+      ...(inputsSwapped !== undefined ? { inputsSwapped } : {}),
+      ...(outputsSwapped !== undefined ? { outputsSwapped } : {}),
     },
   };
 }
@@ -299,6 +315,12 @@ export function serializeComponentPropertyCode(
           : {}),
         ...(appearance.inputPolarity !== undefined
           ? { inputPolarity: appearance.inputPolarity }
+          : {}),
+        ...(appearance.inputsSwapped !== undefined
+          ? { inputsSwapped: appearance.inputsSwapped }
+          : {}),
+        ...(appearance.outputsSwapped !== undefined
+          ? { outputsSwapped: appearance.outputsSwapped }
           : {}),
       },
       ...(display ? { display } : {}),
@@ -413,6 +435,12 @@ export function defaultComponentPropertyCode(
       : {}),
     ...(value.appearance.inputPolarity !== undefined
       ? { inputPolarity: true }
+      : {}),
+    ...(value.appearance.inputsSwapped !== undefined
+      ? { inputsSwapped: false }
+      : {}),
+    ...(value.appearance.outputsSwapped !== undefined
+      ? { outputsSwapped: false }
       : {}),
   };
   if (value.parameters && context.details) {

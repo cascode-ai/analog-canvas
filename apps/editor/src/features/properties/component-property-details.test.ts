@@ -167,6 +167,35 @@ describe("unified component property details", () => {
     expect(componentSymbolOptions("nmos")).toEqual(["nmos"]);
   });
 
+  it("keeps contact-style symbol choices but rejects a second authority for amplifier polarity", () => {
+    for (const symbolId of ["opamp-differential", "ideal-switch"]) {
+      const variantContext = {
+        ...context,
+        instance: { ...instance, symbolId },
+      };
+      const decoded = JSON.parse(formatComponentPropertyCode(variantContext));
+      if (symbolId === "ideal-switch") {
+        expect(decoded.symbol).toBe(symbolId);
+        decoded.symbol = "simple-switch";
+        expect(
+          parseComponentPropertyCode(JSON.stringify(decoded), variantContext),
+        ).toMatchObject({
+          ok: true,
+          value: { symbol: "simple-switch" },
+        });
+      } else {
+        expect(decoded).not.toHaveProperty("symbol");
+        decoded.symbol = "opamp-differential-crossed";
+        expect(
+          parseComponentPropertyCode(JSON.stringify(decoded), variantContext),
+        ).toEqual({
+          ok: false,
+          message: "symbol is not available for this component",
+        });
+      }
+    }
+  });
+
   it("keeps Digital Clock primary controls connected to its compatibility pulse values", () => {
     const clock = {
       ...instance,

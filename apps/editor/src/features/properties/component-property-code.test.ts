@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { SchematicDocument } from "@icm/model";
 
 import {
+  defaultComponentPropertyCode,
   formatComponentPropertyCode,
   parseComponentPropertyCode,
   serializeComponentPropertyCode,
@@ -203,6 +204,7 @@ describe("component property code", () => {
     expect(decoded.appearance).toEqual({
       foreground: "auto",
       internalMark: "G",
+      inputsSwapped: false,
     });
     expect(decoded).not.toHaveProperty("signalFlow");
     expect(
@@ -268,6 +270,73 @@ describe("component property code", () => {
       ).toBe(false);
     }
   });
+
+  it.each([
+    ["opamp-differential", false, false],
+    ["opamp-differential-inputs-swapped", true, false],
+    ["opamp-differential-crossed", false, true],
+    ["opamp-differential-crossed-lettered-inputs-swapped", true, true],
+    ["opamp-lettered-inputs-swapped", true, undefined],
+    ["comparator-unmarked-inputs-swapped", true, undefined],
+    ["differential-transconductance", false, undefined],
+    ["resistor", undefined, undefined],
+  ] as const)(
+    "round-trips independent polarity state for %s",
+    (symbolId, inputsSwapped, outputsSwapped) => {
+      const swapContext = {
+        ...context,
+        instance: { ...instance, symbolId, netlist: undefined },
+        details: { parameters: [] },
+      };
+      const source = formatComponentPropertyCode(swapContext);
+      const decoded = JSON.parse(source);
+      expect(decoded.appearance.inputsSwapped).toBe(inputsSwapped);
+      expect(decoded.appearance.outputsSwapped).toBe(outputsSwapped);
+      expect(decoded).not.toHaveProperty("symbol");
+      const parsed = parseComponentPropertyCode(source, swapContext);
+      expect(parsed.ok).toBe(true);
+      if (!parsed.ok) throw new Error(parsed.message);
+      expect(serializeComponentPropertyCode(parsed.value)).toBe(source);
+      const defaults = JSON.parse(defaultComponentPropertyCode(swapContext));
+      expect(defaults.appearance.inputsSwapped).toBe(
+        inputsSwapped === undefined ? undefined : false,
+      );
+      expect(defaults.appearance.outputsSwapped).toBe(
+        outputsSwapped === undefined ? undefined : false,
+      );
+      expect(
+        parseComponentPropertyCode(JSON.stringify(defaults), swapContext).ok,
+      ).toBe(true);
+    },
+  );
+
+  it.each(["inputsSwapped", "outputsSwapped"])(
+    "rejects missing, malformed or unsupported %s",
+    (key) => {
+      const swapContext = {
+        ...context,
+        instance: { ...instance, symbolId: "opamp-differential" },
+      };
+      for (const invalid of [undefined, "true", 1, null]) {
+        const decoded = JSON.parse(formatComponentPropertyCode(swapContext));
+        decoded.appearance[key] = invalid;
+        expect(
+          parseComponentPropertyCode(JSON.stringify(decoded), swapContext),
+        ).toEqual({
+          ok: false,
+          message: `appearance.${key} ${invalid === undefined ? "is required" : "must be true or false"}`,
+        });
+      }
+      const unsupported = JSON.parse(formatComponentPropertyCode(context));
+      unsupported.appearance[key] = true;
+      expect(
+        parseComponentPropertyCode(JSON.stringify(unsupported), context),
+      ).toEqual({
+        ok: false,
+        message: `appearance.${key} is not a supported property`,
+      });
+    },
+  );
 });
 
 describe("independent parameter visibility code", () => {

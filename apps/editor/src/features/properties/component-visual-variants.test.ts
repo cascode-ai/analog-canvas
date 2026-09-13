@@ -4,9 +4,13 @@ import type { Instance } from "@icm/model";
 
 import {
   componentInputPolarity,
+  componentInputsSwapped,
   componentInternalMark,
+  componentOutputsSwapped,
   symbolForInputPolarity,
+  symbolForInputsSwapped,
   symbolForInternalMark,
+  symbolForOutputsSwapped,
 } from "./component-visual-variants";
 
 const instance = (symbolId: string, formula?: string): Instance => ({
@@ -17,6 +21,72 @@ const instance = (symbolId: string, formula?: string): Instance => ({
 });
 
 describe("merged component visual variants", () => {
+  it.each([
+    "opamp",
+    "opamp-lettered",
+    "comparator",
+    "comparator-unmarked",
+    "differential-transconductance",
+    "opamp-differential",
+    "opamp-differential-lettered",
+    "opamp-differential-crossed",
+    "opamp-differential-crossed-lettered",
+  ])(
+    "reads and sets both input states for %s without changing outputs",
+    (normal) => {
+      const swapped = `${normal}-inputs-swapped`;
+      expect(componentInputsSwapped(normal)).toBe(false);
+      expect(componentInputsSwapped(swapped)).toBe(true);
+      for (const source of [normal, swapped]) {
+        expect(symbolForInputsSwapped(source, false)).toBe(normal);
+        expect(symbolForInputsSwapped(source, true)).toBe(swapped);
+      }
+      expect(componentOutputsSwapped(swapped)).toBe(
+        componentOutputsSwapped(normal),
+      );
+    },
+  );
+
+  it.each([
+    ["opamp-differential", "opamp-differential-crossed"],
+    ["opamp-differential-lettered", "opamp-differential-crossed-lettered"],
+    [
+      "opamp-differential-inputs-swapped",
+      "opamp-differential-crossed-inputs-swapped",
+    ],
+    [
+      "opamp-differential-lettered-inputs-swapped",
+      "opamp-differential-crossed-lettered-inputs-swapped",
+    ],
+  ])(
+    "reads and sets both output states for %s without changing inputs",
+    (normal, swapped) => {
+      expect(componentOutputsSwapped(normal)).toBe(false);
+      expect(componentOutputsSwapped(swapped)).toBe(true);
+      for (const source of [normal, swapped]) {
+        expect(symbolForOutputsSwapped(source, false)).toBe(normal);
+        expect(symbolForOutputsSwapped(source, true)).toBe(swapped);
+      }
+      expect(componentInputsSwapped(swapped)).toBe(
+        componentInputsSwapped(normal),
+      );
+    },
+  );
+
+  it.each([
+    "resistor",
+    "voltage-amplifier",
+    "custom-inputs-swapped",
+    "custom-crossed",
+  ])("does not infer swap capabilities from the name %s", (symbolId) => {
+    expect(componentInputsSwapped(symbolId)).toBeUndefined();
+    expect(componentOutputsSwapped(symbolId)).toBeUndefined();
+    for (const state of [false, true]) {
+      expect(symbolForInputsSwapped(symbolId, state)).toBeUndefined();
+      expect(symbolForOutputsSwapped(symbolId, state)).toBeUndefined();
+    }
+  });
+
   it.each([
     ["opamp", "opamp-lettered"],
     ["opamp-inputs-swapped", "opamp-lettered-inputs-swapped"],

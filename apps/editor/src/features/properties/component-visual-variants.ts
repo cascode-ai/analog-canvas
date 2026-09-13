@@ -1,4 +1,6 @@
 import type { Instance } from "@icm/model";
+import { differentialInputSibling } from "../editor-shell/differential-input-swap";
+import { differentialOutputSibling } from "../editor-shell/differential-output-swap";
 
 export const NO_INTERNAL_MARK = "none";
 
@@ -72,4 +74,35 @@ export function symbolForInputPolarity(
   const pair = polarityVariants.get(symbolId);
   if (!pair) return undefined;
   return visible ? pair.marked : pair.unmarked;
+}
+
+/** Undefined means this component has no interchangeable differential inputs. */
+export function componentInputsSwapped(symbolId: string): boolean | undefined {
+  return differentialInputSibling(symbolId)
+    ? symbolId.endsWith("-inputs-swapped")
+    : undefined;
+}
+
+export function componentOutputsSwapped(symbolId: string): boolean | undefined {
+  return differentialOutputSibling(symbolId)
+    ? symbolId.includes("-crossed")
+    : undefined;
+}
+
+export function symbolForInputsSwapped(
+  symbolId: string,
+  swapped: boolean,
+): string | undefined {
+  return componentInputsSwapped(symbolId) === swapped
+    ? symbolId
+    : differentialInputSibling(symbolId);
+}
+
+export function symbolForOutputsSwapped(
+  symbolId: string,
+  swapped: boolean,
+): string | undefined {
+  return componentOutputsSwapped(symbolId) === swapped
+    ? symbolId
+    : differentialOutputSibling(symbolId);
 }

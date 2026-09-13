@@ -63,6 +63,11 @@ is defined.
   `"vertical"`, or `"both"` and never changes the rotation value. Use the color button after
   `appearance.foreground` for light gray, red, green, blue, black, and one RGB
   tuple input such as `[220,38,38]`.
+  Differential-input blocks expose `appearance.inputsSwapped`; fully
+  differential amplifiers also expose `appearance.outputsSwapped`. Edit these
+  booleans or use their inline switches to exchange the +/− positions
+  independently. Connections follow their named pins, and internal marks stay
+  intact. **Defaults** resets both swaps to `false`.
   These controls are visual only and are absent from selected, copied, and
   saved JSON. Fixed colors display as
   `[R, G, B]` (0–255); hex input also works. Type `"auto"` directly to inherit

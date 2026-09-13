@@ -100,6 +100,20 @@ export const CANVAS_PROPERTY_FIELDS: readonly CanvasPropertyField[] = [
     description: "",
     help: "Show or hide the comparator input polarity marks without changing its electrical pins.",
   },
+  {
+    path: "appearance.inputsSwapped",
+    label: "Swap inputs",
+    kind: "boolean",
+    description: "",
+    help: "Exchange the + and - input positions independently of the outputs. Connections stay attached to their named pins.",
+  },
+  {
+    path: "appearance.outputsSwapped",
+    label: "Swap outputs",
+    kind: "boolean",
+    description: "",
+    help: "Exchange the + and - output positions independently of the inputs. Connections stay attached to their named pins.",
+  },
 ];
 
 export function colorToRgb(value: string): [number, number, number] {

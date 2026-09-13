@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { createEmptyProject, createRoutePath } from "@icm/model";
 
 import {
   awaitEditorReady,
@@ -1372,17 +1373,17 @@ test("merges amplifier body marks into one Library entry and property", async ({
     "data-symbol-id",
     "opamp-differential",
   );
-  for (const symbol of [
+  await expectComponentCodeField(page, "symbol", undefined);
+  await setComponentCodeField(page, "appearance.outputsSwapped", true);
+  await expect(page.locator("[data-symbol-id]").first()).toHaveAttribute(
+    "data-symbol-id",
     "opamp-differential-crossed",
-    "opamp-differential-inputs-swapped",
-  ]) {
-    await setComponentCodeField(page, "symbol", symbol);
-    await expectComponentCodeField(page, "symbol", symbol);
-    await expect(page.locator("[data-symbol-id]").first()).toHaveAttribute(
-      "data-symbol-id",
-      symbol,
-    );
-  }
+  );
+  await setComponentCodeField(page, "appearance.inputsSwapped", true);
+  await expect(page.locator("[data-symbol-id]").first()).toHaveAttribute(
+    "data-symbol-id",
+    "opamp-differential-crossed-inputs-swapped",
+  );
   await expect(
     page.getByRole("button", { name: "Return component to Placement Tray" }),
   ).toHaveCount(0);
@@ -1412,9 +1413,13 @@ test("keeps comparator polarity independent from input swapping", async ({
     "comparator-unmarked",
   );
 
-  await setComponentCodeField(
-    page,
-    "symbol",
+  await expect(
+    page.getByRole("switch", { name: "Swap the + and - outputs" }),
+  ).toHaveCount(0);
+  await page.getByRole("switch", { name: "Swap the + and - inputs" }).click();
+  await expectComponentCodeField(page, "appearance.inputsSwapped", true);
+  await expect(page.locator("[data-symbol-id]").first()).toHaveAttribute(
+    "data-symbol-id",
     "comparator-unmarked-inputs-swapped",
   );
   await polarity.click();
@@ -1422,6 +1427,133 @@ test("keeps comparator polarity independent from input swapping", async ({
   await expect(page.locator("[data-symbol-id]").first()).toHaveAttribute(
     "data-symbol-id",
     "comparator-inputs-swapped",
+  );
+});
+
+test("edits independent input and output swaps with undo, named connections and saved state", async ({
+  page,
+}) => {
+  const project = createEmptyProject(
+    "polarity-properties",
+    "Polarity properties",
+  );
+  const document = project.documents[0]!;
+  document.instances.push({
+    id: "X1",
+    reference: "X1",
+    symbolId: "opamp-differential-lettered",
+    placement: { position: { x: 360, y: 230 }, rotation: 0, mirror: "none" },
+    signalFlowParameters: { formula: "G" },
+  });
+  for (const [pinName, x, y] of [
+    ["IN+", 180, 240],
+    ["IN-", 180, 220],
+    ["OUT+", 520, 240],
+    ["OUT-", 520, 220],
+  ] as const) {
+    const netId = `net-${pinName}`;
+    const junctionId = `junction-${pinName}`;
+    document.nets.push({
+      id: netId,
+      terminals: [{ instanceId: "X1", pinName }],
+    });
+    document.junctions.push({ id: junctionId, netId, position: { x, y } });
+    document.routes.push(
+      createRoutePath({
+        id: `route-${pinName}`,
+        netId,
+        start: { kind: "terminal", instanceId: "X1", pinName },
+        end: { kind: "junction", junctionId },
+        bends: [],
+        modes: ["manual"],
+      }),
+    );
+  }
+  await page.goto("/editor");
+  await awaitEditorReady(page);
+  await page.getByTestId("project-file").setInputFiles({
+    name: "polarity.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  await page.getByTestId("hit-X1").click();
+  await openSelectionShelf(page);
+  const inputs = page.getByRole("switch", { name: "Swap the + and - inputs" });
+  const outputs = page.getByRole("switch", {
+    name: "Swap the + and - outputs",
+  });
+  const amplifier = page.locator(
+    '[data-layer="symbols"] [data-object-id="X1"]',
+  );
+  const terminalY = async (pinName: string) =>
+    (await page.getByTestId(`terminal-X1-${pinName}`).boundingBox())!.y;
+  const initialInputY = await terminalY("IN+");
+  const initialOutputY = await terminalY("OUT+");
+  await expect(inputs).toHaveAttribute("aria-checked", "false");
+  await expect(outputs).toHaveAttribute("aria-checked", "false");
+
+  await inputs.click();
+  await expect(amplifier).toHaveAttribute(
+    "data-symbol-id",
+    "opamp-differential-lettered-inputs-swapped",
+  );
+  await expect(outputs).toHaveAttribute("aria-checked", "false");
+  expect(await terminalY("IN+")).toBeLessThan(initialInputY);
+  expect(await terminalY("OUT+")).toBe(initialOutputY);
+  await outputs.focus();
+  await page.keyboard.press("Space");
+  await expect(amplifier).toHaveAttribute(
+    "data-symbol-id",
+    "opamp-differential-crossed-lettered-inputs-swapped",
+  );
+  await expect(inputs).toHaveAttribute("aria-checked", "true");
+  expect(await terminalY("OUT+")).toBeLessThan(initialOutputY);
+  await expect(amplifier.locator("text", { hasText: "G" })).toBeVisible();
+
+  await clickCommand(page, "Edit", "Undo");
+  await expect(outputs).toHaveAttribute("aria-checked", "false");
+  await expect(inputs).toHaveAttribute("aria-checked", "true");
+  await clickCommand(page, "Edit", "Redo");
+  await expect(outputs).toHaveAttribute("aria-checked", "true");
+  await setComponentCodeField(page, "appearance.inputsSwapped", false);
+  await expect(amplifier).toHaveAttribute(
+    "data-symbol-id",
+    "opamp-differential-crossed-lettered",
+  );
+  await expect(outputs).toHaveAttribute("aria-checked", "true");
+  await inputs.click();
+  await expectComponentCodeField(page, "appearance.inputsSwapped", true);
+  await setComponentCodeField(page, "placement.rotation", 90);
+  await setComponentCodeField(page, "placement.mirror", "horizontal");
+  await expectComponentCodeField(page, "appearance.outputsSwapped", true);
+
+  const bytes = await downloadBytes(page, "File", "Export Project File…");
+  const saved = JSON.parse(bytes.toString("utf8"));
+  expect(saved.documents[0].nets).toEqual(document.nets);
+  expect(
+    saved.documents[0].routes.map((route: { start: unknown }) => route.start),
+  ).toEqual(document.routes.map((route) => route.start));
+  expect(saved.documents[0].instances[0]).toMatchObject({
+    symbolId: "opamp-differential-crossed-lettered-inputs-swapped",
+    signalFlowParameters: { formula: "G" },
+    placement: { rotation: 90, mirror: "horizontal" },
+  });
+  await page.getByTestId("project-file").setInputFiles({
+    name: "reopen.icproj.json",
+    mimeType: "application/json",
+    buffer: bytes,
+  });
+  await page.getByTestId("hit-X1").click();
+  await openSelectionShelf(page);
+  await expect(inputs).toHaveAttribute("aria-checked", "true");
+  await expect(outputs).toHaveAttribute("aria-checked", "true");
+  await expectComponentCodeField(page, "appearance.internalMark", "G");
+  await page.getByRole("button", { name: "Defaults", exact: true }).click();
+  await expect(inputs).toHaveAttribute("aria-checked", "false");
+  await expect(outputs).toHaveAttribute("aria-checked", "false");
+  await expect(amplifier).toHaveAttribute(
+    "data-symbol-id",
+    "opamp-differential",
   );
 });
 

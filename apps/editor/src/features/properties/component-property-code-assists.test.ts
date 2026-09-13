@@ -38,6 +38,28 @@ function apply(
 }
 
 describe("Canvas property assistance", () => {
+  it("addresses each swap switch independently and refuses nonboolean edits", () => {
+    const amplifier = {
+      ...context,
+      instance: { ...context.instance, symbolId: "opamp-differential" },
+    };
+    const source = formatComponentPropertyCode(amplifier);
+    for (const key of ["inputsSwapped", "outputsSwapped"]) {
+      const path = `appearance.${key}`;
+      expect(
+        propertyCodeSpans(source, amplifier).find(
+          (span) => span.field.path === path,
+        )?.field.kind,
+      ).toBe("boolean");
+      expect(
+        apply(source, propertyCodeChanges(source, amplifier, { [path]: true })),
+      ).toBe(source.replace(`"${key}": false`, `"${key}": true`));
+      expect(
+        propertyCodeChanges(source, amplifier, { [path]: "true" }),
+      ).toEqual([]);
+    }
+  });
+
   it("edits an independent field without repairing another invalid value", () => {
     const source = formatComponentPropertyCode(context).replace(
       '"rotation": 0',

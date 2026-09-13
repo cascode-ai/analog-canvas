@@ -6,7 +6,9 @@ import type { ComponentPropertyCodeValue } from "./component-property-code";
 import {
   NO_INTERNAL_MARK,
   symbolForInputPolarity,
+  symbolForInputsSwapped,
   symbolForInternalMark,
+  symbolForOutputsSwapped,
 } from "./component-visual-variants";
 
 type Instance = SchematicDocument["instances"][number];
@@ -67,6 +69,14 @@ export function planComponentPropertyCodeEdits(
   if (value.appearance.inputPolarity !== undefined)
     nextSymbolId =
       symbolForInputPolarity(nextSymbolId, value.appearance.inputPolarity) ??
+      nextSymbolId;
+  if (value.appearance.inputsSwapped !== undefined)
+    nextSymbolId =
+      symbolForInputsSwapped(nextSymbolId, value.appearance.inputsSwapped) ??
+      nextSymbolId;
+  if (value.appearance.outputsSwapped !== undefined)
+    nextSymbolId =
+      symbolForOutputsSwapped(nextSymbolId, value.appearance.outputsSwapped) ??
       nextSymbolId;
   if (nextSymbolId !== instance.symbolId)
     edits.push({
