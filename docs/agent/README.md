@@ -33,16 +33,14 @@ manifest projects the shared sources into the HTTP Kit.
 
 ## Browser-host availability
 
-The public production editor is human-only by default and does not expose a
-claim UI or reconnect a prior browser session. Trusted development or staging
-builds can enable that browser surface with `VITE_ICM_AGENT_UI=enabled`; the
-API and MCP contracts themselves are unchanged.
+Production and Preview enable the Agent connection surface with
+`VITE_ICM_AGENT_UI=enabled`. Open **Agent → Connect Agent** for a Claim Code.
+The MCP adapter defaults to Production; for Preview, start it with
+`ANALOG_CANVAS_API_URL=https://analog-canvas-preview.tokenzhang.com`.
+Connections, accounts, and private Projects stay within their own channel.
 
-The preview channel enables it (`VITE_ICM_AGENT_UI: enabled` in
-`.github/workflows/deploy-preview.yml`), because the preview is where
-simulation runs and simulation is Agent-first (ADR 0055): open **Agent →
-Connect Agent** in the preview editor for a Claim Code and start the MCP
-adapter with `ANALOG_CANVAS_API_URL=https://analog-canvas-preview.tokenzhang.com`.
+An unconfigured production build still keeps the Agent UI dormant. Explicit
+deployment flags control availability without changing the API or MCP contract.
 
 ## External Agent bootstrap (no MCP)
 

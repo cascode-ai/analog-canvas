@@ -89,6 +89,7 @@ import {
   projectStoreCopy,
   type ReleaseChannel,
 } from "../document/release-channel";
+import { resolveSimulationTransport } from "../features/simulation/deployment-transport";
 import { createCanvasHitController } from "../canvas/canvas-hit-controller";
 import { screenScaleHitRadius } from "../canvas/canvas-hit-resolver";
 import { buildDiagnosticMarkers } from "../canvas/diagnostic-markers";
@@ -370,9 +371,9 @@ const NET_LABEL_SNAP_CAPTURE_RADIUS_PX = 12;
 export interface AppProps {
   project?: CircuitProject;
   visitStats?: { pv: number; uv: number } | null;
-  /** Test/staging seam; production defaults to a human-only editor. */
+  /** Override the deployment's Agent UI capability in tests. */
   publicAgentUiEnabled?: boolean;
-  /** Test/Preview seam; production hides human-facing analog simulation. */
+  /** Override the deployment's analog Simulation UI capability in tests. */
   publicSimulationUiEnabled?: boolean;
   /** Test/staging seam; production Cloudflare builds keep timing tools hidden. */
   timingUiEnabled?: boolean;
@@ -615,6 +616,10 @@ export function App({
     };
   }, []);
   const projectStore = projectStoreCopy(releaseChannel);
+  const simulationTransport = resolveSimulationTransport(
+    releaseChannel,
+    import.meta.env.VITE_ICM_SIMULATION_TRANSPORT,
+  );
   // Annotations and drafting place on their own pitch; the Document grid
   // stays the electrical contract for devices, wires, and junctions.
   const [annotationGrid, setAnnotationGridState] = useState<1 | 5 | 10>(() => {
@@ -843,13 +848,13 @@ export function App({
         files: browserAgentFileHost.simulationFiles,
         getProjectSessionId: () => editorDocumentController.projectSessionId,
         getProject: () => editorDocumentController.project,
-        transport: releaseChannel === "preview" ? "managed" : "direct",
+        transport: simulationTransport,
       }),
     [
       browserAgentFileHost.simulationFiles,
       editorDocumentController,
       projectSessionId,
-      releaseChannel,
+      simulationTransport,
     ],
   );
   agentSimulationHostForFiles.current = browserAgentSimulationHost;
@@ -889,14 +894,14 @@ export function App({
               dispatch: (request) => dispatchProjectTransaction(request),
               actor: { kind: "human", id: "human-local" },
             }),
-            transport: releaseChannel === "preview" ? "managed" : "direct",
+            transport: simulationTransport,
           })
         : null,
     [
       analogSimulationOpened,
       editorDocumentController,
       projectSessionId,
-      releaseChannel,
+      simulationTransport,
     ],
   );
   useEffect(

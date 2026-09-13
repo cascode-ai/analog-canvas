@@ -17,9 +17,9 @@ The implementation has these boundaries:
   preparation module resolves capabilities and immutable input identity.
 - SimulationService owns preparation and the session-facing run presentation.
   Its Executor is the execution port; GUI and MCP use the same service and File
-  Resource. On Preview, the managed control plane owns authoritative hosted run
+  Resource. On both hosted channels, the managed control plane owns authoritative run
   admission, idempotency, queueing, retry, cancellation and retention. Local
-  and production direct transports keep the same semantic service contract.
+  direct transports keep the same semantic service contract.
 - spice-run separates request/result types, deck assembly, metadata and terminal
   verdicts. Its public exports remain the same.
 - GUI source editing, diagnostic display and result materialization are separate
@@ -366,7 +366,7 @@ The service exposes `prepare`, `start`, `read`, `cancel`, and `export`.
 returns a short receipt with a run id; `read` returns status or the final
 result and may wait briefly; `cancel` terminates the process and frees the
 slot. A run id is bound to the session or Project owner that started it.
-No run history is saved in the Project. Managed Preview retains owner-scoped
+No run history is saved in the Project. Managed hosted execution retains owner-scoped
 server records and artifacts for the bounded period below; direct/local receipts
 depend on their session service and resource lifetime. Once that evidence is
 unavailable, a receipt reads as lost. A lost run is never silently rerun.
@@ -428,7 +428,7 @@ File Resource `list` recovers session draft IDs after a lost create response;
 it returns revision/entry/expiry metadata, not file bodies.
 
 The browser owns its presentation receipts, not execution authority. On the
-managed Preview transport, tab loss does not stop an admitted run: the owner can
+managed hosted transport, tab loss does not stop an admitted run: the owner can
 list its server records, and bounded immutable input/result evidence remains in
 the artifact store for one day. The queue admits at most 50 waiting runs, one
 queued and one active per owner, waits at most five minutes, and dispatches only

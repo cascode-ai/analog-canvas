@@ -20,22 +20,22 @@ build artifact: the workflows build their selected checkout. Channel-controlled
 features and runtime bindings may differ.
 [ADR 0057](adr/0057-release-channels-preview-and-production.md) explains the choice.
 
-The release build keeps ordinary editor behavior at the promoted `main`
-commit. Human-facing Simulation and Agent controls are explicit channel
-capabilities rather than a reason to hold back unrelated editor work:
+The release build keeps the accepted behavior at the promoted `main` commit.
+Version 0.4.0 opens the previously Preview-only Simulation and Agent workflows
+on Production. Both workflows declare their browser capabilities explicitly:
 
 | Browser capability                                               | Preview  | Production |
 | ---------------------------------------------------------------- | -------- | ---------- |
 | Core editor, project format, Gallery and account UI              | Enabled  | Enabled    |
-| Analog Simulation workspace and Testbench authoring entry points | Enabled  | Disabled   |
-| Agent connection controls                                        | Enabled  | Disabled   |
+| Analog Simulation workspace and Testbench authoring entry points | Enabled  | Enabled    |
+| Agent connection controls                                        | Enabled  | Enabled    |
 | Digital Timing UI                                                | Disabled | Disabled   |
 
 These are browser presentation choices. Persisted Simulation data remains
 round-trippable on both channels, and the Agent and Simulation HTTP APIs keep
-their independently deployed contracts. Production therefore promotes the
-same source revision without exposing unfinished human-facing workflows or
-discarding data authored on Preview.
+their independently deployed contracts. The workflows also set
+`VITE_ICM_SIMULATION_TRANSPORT=managed`; local and portable builds retain direct
+execution unless explicitly configured otherwise.
 
 The deployed cross-Project journey receives a repository secret as a
 host-scoped HttpOnly cookie. Only `/api/projects` recognizes that identity, and
@@ -73,8 +73,8 @@ stronger guarantees from this check.
 Use either a version tag (choose the intended unused release version):
 
 ```bash
-git tag v0.3.0 <sha>
-git push origin v0.3.0
+git tag v0.4.0 <sha>
+git push origin v0.4.0
 ```
 
 or an explicit commit dispatch:
@@ -95,10 +95,18 @@ the hosted request path.
 ## Deploy, verify, recover
 
 Production records its rollback target **before** deployment. It verifies the
-serving shell/editor/analytics, MCP manifest, and stale-asset handling. If the
-check fails, it restores the recorded Worker version, verifies that result,
+serving shell/editor/analytics, MCP manifest, and stale-asset handling. If a
+post-deploy secret sync or verification fails, it restores the recorded Worker
+version, verifies that result,
 and still fails the deployment run. Without a rollback target, it reports that
 human intervention is required.
+
+The Production workflow also runs the numerical, public Agent/MCP, and source
+workspace GUI acceptance against the Production origin. These journeys use
+browser-local fixture Projects and anonymous owned simulation runs. Preview's
+private cross-Project acceptance identity is never installed or accepted on
+Production. The simulator token is required before deployment, and each
+channel's managed queues and artifact bucket are reconciled independently.
 
 Recovery limitations:
 
@@ -144,17 +152,18 @@ executor is refused, not redirected.
 
 ### Managed and direct transport
 
-Preview uses `/api/simulation/runs`. Its durable control object owns owner-bound
-admission, idempotency, leases, cancellation, and bounded run records. Queue
+Both hosted channels use `/api/simulation/runs`. Each channel's durable control
+object owns owner-bound admission, idempotency, leases, cancellation, and bounded run records. Queue
 dispatch sends work to the operator host's declared single slot; R2 holds
-immutable input/result artifacts. Account ownership is preferred; Preview can
+immutable input/result artifacts. Account ownership is preferred; either channel can
 issue an opaque HttpOnly anonymous capability. Capacity controls remain active
 for both.
 
-`/api/simulate` remains the direct/internal contract and the explicit
-Production/local transport until managed bindings are promoted. A managed
-failure never triggers fallback to it. The local host has no automatic
-simulator or PDK discovery.
+`/api/simulate` remains the direct/internal contract and the local transport.
+A managed failure never triggers fallback to it. Production and Preview use
+separate queues, control namespaces, and R2 buckets; both share the existing
+operator gateway, which enforces its single execution slot. The local host has
+no automatic simulator or PDK discovery.
 
 [Simulation execution](specs/simulation-execution.md) owns queue, deadline,
 retention, result, and error contracts. Neither managed retention nor browser

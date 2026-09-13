@@ -21,9 +21,9 @@ edit model.
   and child Cells.
 - **Projects and interchange:** save a private Cloud Project, import/export
   canonical `.icproj.json`, import structural `.cir`, `.sp`, and `.spi` files, and export
-  deterministic structural SPICE or Spectre. The Preview editor also provides
+  deterministic structural SPICE or Spectre. The hosted editor also provides
   saved simulation source folders and a fixed ngspice/SKY130 environment for qualified
-  OP, DC, AC, TRAN, and Noise runs; Production availability remains release-controlled.
+  OP, DC, AC, TRAN, and Noise runs.
 - **Publication-ready output:** the web editor's SVG and PDF exports remain
   vector graphics; PNG is rendered at 3× raster scale.
 - **Community publishing:** signed-in users can publish selected circuits with

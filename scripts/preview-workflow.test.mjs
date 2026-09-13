@@ -81,6 +81,7 @@ describe("the preview deploy", () => {
     );
     expect(preview).toContain("VITE_ICM_SIMULATION_UI: enabled");
     expect(preview).toContain("VITE_ICM_AGENT_UI: enabled");
+    expect(preview).toContain("VITE_ICM_SIMULATION_TRANSPORT: managed");
     expect(preview).toContain("pnpm --filter @icm/mcp-server... build");
     expect(preview).toContain("playwright install --with-deps chromium");
     expect(preview).toContain(
@@ -106,14 +107,59 @@ describe("the preview deploy", () => {
     expect(preview).toMatch(/for _ in \$\(seq 1 \d+\); do\s*\n\s*if curl/u);
   });
 
-  it("does not leak into the production workflow", () => {
+  it("promotes released capabilities while preserving the channel data boundary", () => {
     expect(production).not.toContain("wrangler.preview.jsonc");
-    expect(production).not.toContain("VITE_ICM_AGENT_UI: enabled");
-    expect(production).toContain("VITE_ICM_SIMULATION_UI: disabled");
-    expect(production).toContain("VITE_ICM_AGENT_UI: disabled");
-    expect(production).not.toContain("preview-agent-simulation-journey.mjs");
+    expect(production).toContain("VITE_ICM_SIMULATION_UI: enabled");
+    expect(production).toContain("VITE_ICM_AGENT_UI: enabled");
+    expect(production).toContain("VITE_ICM_SIMULATION_TRANSPORT: managed");
+    expect(production).toContain("VITE_ICM_TIMING_UI: disabled");
+    expect(production).not.toContain("PREVIEW_ACCEPTANCE_TOKEN");
+    expect(production).not.toContain(
+      "preview-cross-project-simulation-journey.mjs",
+    );
+    expect(production).not.toContain("analog-canvas-simulation-preview");
     // UI release controls do not retire the shared machine contracts.
     expect(production).toContain("/api/agent/mcp-manifest.json");
+  });
+
+  it("prepares production resources and credentials before exposing simulation", () => {
+    const resources = production.indexOf(
+      "Reconcile production simulation resources",
+    );
+    const deploy = production.indexOf("id: deploy_worker");
+    expect(resources).toBeGreaterThanOrEqual(0);
+    expect(deploy).toBeGreaterThan(resources);
+    expect(
+      production.indexOf('test -n "$SIMULATION_UPSTREAM_TOKEN"'),
+    ).toBeLessThan(deploy);
+    expect(production).toContain("analog-canvas-simulation-production-dlq");
+    expect(production).toContain(
+      "analog-canvas-simulation-artifacts-production",
+    );
+    expect(production).toContain("--expire-days 1");
+    expect(production).toContain(
+      "SIMULATION_UPSTREAM_TOKEN: ${{ secrets.SIMULATION_UPSTREAM_TOKEN }}",
+    );
+  });
+
+  it("verifies public simulation and Agent paths within production rollback protection", () => {
+    const verify = production.indexOf("id: verify");
+    const rollback = production.indexOf("name: Roll back a failed deployment");
+    for (const script of [
+      "preview-simulation-smoke.mjs",
+      "preview-agent-simulation-journey.mjs",
+      "preview-source-gui-journey.mjs",
+    ]) {
+      const command = production.indexOf(
+        `${script} https://analog-canvas.tokenzhang.com`,
+      );
+      expect(command).toBeGreaterThan(verify);
+      expect(command).toBeLessThan(rollback);
+    }
+    expect(production).toContain(
+      "failure() && steps.deploy_worker.outcome == 'success'",
+    );
+    expect(production).toContain("Record the version to roll back to");
   });
 
   it("injects its recoverable failure through the current authored-output contract", () => {

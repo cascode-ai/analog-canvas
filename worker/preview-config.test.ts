@@ -102,6 +102,10 @@ describe("the preview channel configuration (ADR 0057)", () => {
       "https://sim-fra.analog-canvas.tokenzhang.com",
     );
     expect(preview.vars?.SIMULATION_DEFAULT_EXECUTOR).toBe("operator-host");
+    expect(production.vars?.SIMULATION_UPSTREAM_URL).toBe(
+      preview.vars?.SIMULATION_UPSTREAM_URL,
+    );
+    expect(production.vars?.SIMULATION_DEFAULT_EXECUTOR).toBe("operator-host");
     expect(
       preview.durable_objects?.bindings.some((b) => b.name === "NGSPICE"),
     ).toBe(false);
@@ -114,7 +118,7 @@ describe("the preview channel configuration (ADR 0057)", () => {
     );
     expect(created).toBeGreaterThanOrEqual(0);
     expect(deleted).toBeGreaterThan(created);
-    // Production never had one and gets the host with a promoted release.
+    // Production shares the operator gateway and never owns a container.
     expect(
       production.durable_objects?.bindings.some((b) => b.name === "NGSPICE"),
     ).toBe(false);
@@ -149,8 +153,44 @@ describe("the preview channel configuration (ADR 0057)", () => {
           binding.class_name === "SimulationControlDO",
       ),
     ).toBe(true);
-    expect(production.r2_buckets).toBeUndefined();
-    expect(production.queues).toBeUndefined();
+    expect(production.r2_buckets).toEqual([
+      {
+        binding: "SIMULATION_ARTIFACTS",
+        bucket_name: "analog-canvas-simulation-artifacts-production",
+      },
+    ]);
+    expect(production.queues?.producers).toEqual([
+      {
+        binding: "SIMULATION_JOBS",
+        queue: "analog-canvas-simulation-production",
+      },
+    ]);
+    expect(production.queues?.consumers).toEqual([
+      expect.objectContaining({
+        queue: "analog-canvas-simulation-production",
+        max_batch_size: 1,
+        max_concurrency: 1,
+        max_retries: 3,
+        dead_letter_queue: "analog-canvas-simulation-production-dlq",
+      }),
+    ]);
+    expect(production.durable_objects?.bindings).toContainEqual({
+      name: "SIMULATION_CONTROL",
+      class_name: "SimulationControlDO",
+    });
+  });
+
+  it("adds production run storage without replacing the existing namespaces", () => {
+    expect(production.name).toBe("interactive-circuit-maker");
+    expect(production.migrations).toEqual([
+      { tag: "v1", new_sqlite_classes: ["AnalyticsDO"] },
+      { tag: "v2", new_sqlite_classes: ["AgentSessionDO"] },
+      { tag: "v3", new_sqlite_classes: ["GalleryDO"] },
+      { tag: "v4", new_sqlite_classes: ["AuthDO"] },
+      { tag: "v5", new_sqlite_classes: ["SimulationControlDO"] },
+    ]);
+    for (const binding of production.durable_objects!.bindings)
+      expect(binding.script_name).toBeUndefined();
   });
 
   it("writes the Dockerfile for a repository-root build context", () => {

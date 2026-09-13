@@ -33,8 +33,8 @@
     // v6): a cold spare that had to be woken and paid for on every merge, for
     // a switch nobody would make without editing this file anyway. A request
     // that names `cloudflare-container` explicitly is answered "not
-    // configured", never routed elsewhere. Production has none of this until
-    // a release deliberately promotes it.
+    // configured", never routed elsewhere. Production uses the same gateway
+    // with its own managed queue, records, and artifact store.
     "SIMULATION_UPSTREAM_URL": "https://sim-fra.analog-canvas.tokenzhang.com",
     "SIMULATION_DEFAULT_EXECUTOR": "operator-host",
     // PREVIEW_ACCEPTANCE_TOKEN is a Worker secret, set by the Preview deploy.

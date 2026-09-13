@@ -14,6 +14,10 @@
       "custom_domain": true,
     },
   ],
+  "vars": {
+    "SIMULATION_UPSTREAM_URL": "https://sim-fra.analog-canvas.tokenzhang.com",
+    "SIMULATION_DEFAULT_EXECUTOR": "operator-host",
+  },
   "assets": {
     // The binding the Worker fetches through. Its absence is what produced
     // error 1101 on 2026-09-01: `env.ASSETS` was undefined, so the moment a
@@ -50,6 +54,36 @@
         "name": "AUTH",
         "class_name": "AuthDO",
       },
+      {
+        "name": "SIMULATION_CONTROL",
+        "class_name": "SimulationControlDO",
+      },
+    ],
+  },
+  "r2_buckets": [
+    {
+      "binding": "SIMULATION_ARTIFACTS",
+      "bucket_name": "analog-canvas-simulation-artifacts-production",
+    },
+  ],
+  "queues": {
+    "producers": [
+      {
+        "binding": "SIMULATION_JOBS",
+        "queue": "analog-canvas-simulation-production",
+      },
+    ],
+    "consumers": [
+      {
+        "queue": "analog-canvas-simulation-production",
+        "max_batch_size": 1,
+        "max_batch_timeout": 1,
+        // The shared operator gateway owns the single ngspice execution slot.
+        "max_concurrency": 1,
+        "max_retries": 3,
+        "retry_delay": 2,
+        "dead_letter_queue": "analog-canvas-simulation-production-dlq",
+      },
     ],
   },
   "migrations": [
@@ -68,6 +102,10 @@
     {
       "tag": "v4",
       "new_sqlite_classes": ["AuthDO"],
+    },
+    {
+      "tag": "v5",
+      "new_sqlite_classes": ["SimulationControlDO"],
     },
   ],
   "observability": {

@@ -3,6 +3,30 @@
 Notable changes to Analog Canvas. Entries describe what changed for the person
 using the product, not the commits that got there.
 
+## 0.4.0 (2026-09-13)
+
+### Simulation and Agent
+
+- Open the Simulation workspace on the public site to edit saved source
+  experiments, run the hosted ngspice/SKY130 environment, inspect results,
+  and export data. Qualified analyses include OP, DC, AC, TRAN, and Noise.
+- Connect an Agent from the public editor through the existing revocable
+  Claim Code workflow. The published MCP 0.7.0 adapter and HTTP Kit use the
+  same editing and simulation contracts as the Preview channel.
+- Hosted runs use bounded queues and owner-scoped results. Production keeps
+  its own queue, records, and artifact store; Preview accounts and Projects
+  remain separate. Both channels share the existing operator simulator.
+
+### Properties
+
+- Put Placement, Appearance, and Display first, and keep Netlist name and
+  Netlist target together at the end of the property code.
+- Show a netlist target name once, with a small arrow for choosing another
+  model. Direct JSON editing and copying remain available.
+
+Digital Timing remains unavailable on both hosted channels. Project schema 53
+and the independently versioned MCP 0.7.0 distribution are unchanged.
+
 ## 0.3.0 (2026-09-13)
 
 ### Schematic authoring

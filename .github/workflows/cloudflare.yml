@@ -62,17 +62,45 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Require the released simulator credentials
+        run: test -n "$SIMULATION_UPSTREAM_TOKEN"
+        env:
+          SIMULATION_UPSTREAM_TOKEN: ${{ secrets.SIMULATION_UPSTREAM_TOKEN }}
       - run: pnpm --filter @icm/spice-run build
       - run: pnpm --filter @icm/editor... build
         env:
           # Timing simulation remains a localhost development surface until
           # its interaction and presentation contracts are ready to publish.
           VITE_ICM_TIMING_UI: disabled
-          # Production promotes the same main commit as Preview, but keeps the
-          # unreleased human Simulation and Agent surfaces out of its editor.
-          # Their persisted data and HTTP APIs remain available independently.
-          VITE_ICM_SIMULATION_UI: disabled
-          VITE_ICM_AGENT_UI: disabled
+          # 0.4.0 promotes the accepted Simulation and Agent workflows.
+          VITE_ICM_SIMULATION_UI: enabled
+          VITE_ICM_AGENT_UI: enabled
+          VITE_ICM_SIMULATION_TRANSPORT: managed
+      - run: pnpm --filter @icm/mcp-server... build
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: Reconcile production simulation resources
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          wrangler="pnpm dlx wrangler@4.120.1"
+          ensure_queue() {
+            name="$1"
+            retention="$2"
+            $wrangler queues update "$name" --message-retention-period-secs "$retention" && return
+            $wrangler queues create "$name" --message-retention-period-secs "$retention" && return
+            $wrangler queues update "$name" --message-retention-period-secs "$retention"
+          }
+          ensure_queue analog-canvas-simulation-production 900
+          ensure_queue analog-canvas-simulation-production-dlq 604800
+          bucket=analog-canvas-simulation-artifacts-production
+          if ! $wrangler r2 bucket info "$bucket" >/dev/null 2>&1; then
+            $wrangler r2 bucket create "$bucket" || $wrangler r2 bucket info "$bucket" >/dev/null
+          fi
+          if ! $wrangler r2 bucket lifecycle list "$bucket" | grep -Fq simulation-artifact-retention; then
+            $wrangler r2 bucket lifecycle add "$bucket" simulation-artifact-retention --expire-days 1 --force
+          fi
       # The version serving right now, captured BEFORE anything changes.
       # Read afterwards it would already describe the deploy under test, and
       # a rollback would restore the very thing it is meant to undo.
@@ -95,6 +123,7 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       - run: pnpm dlx wrangler@4.120.1 deploy
+        id: deploy_worker
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -107,7 +136,7 @@ jobs:
       # GITHUB_, hence GH_OAUTH_*.
       - name: Sync worker secrets
         run: |
-          for name in GH_OAUTH_CLIENT_ID GH_OAUTH_CLIENT_SECRET GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET RESEND_API_KEY AUTH_EMAIL_FROM ADMIN_EMAILS ADMIN_EMAILS_EXTRA; do
+          for name in GH_OAUTH_CLIENT_ID GH_OAUTH_CLIENT_SECRET GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET RESEND_API_KEY AUTH_EMAIL_FROM ADMIN_EMAILS ADMIN_EMAILS_EXTRA SIMULATION_UPSTREAM_TOKEN; do
             value="${!name}"
             if [ -z "$value" ]; then
               echo "$name is not configured; skipping"
@@ -126,8 +155,12 @@ jobs:
           AUTH_EMAIL_FROM: ${{ secrets.AUTH_EMAIL_FROM }}
           ADMIN_EMAILS: ${{ secrets.ADMIN_EMAILS }}
           ADMIN_EMAILS_EXTRA: ${{ secrets.ADMIN_EMAILS_EXTRA }}
+          SIMULATION_UPSTREAM_TOKEN: ${{ secrets.SIMULATION_UPSTREAM_TOKEN }}
       - name: Verify production deployment
         id: verify
+        env:
+          ICM_ACCEPTANCE_OUTPUT_DIR: test-results/production-agent-simulation
+          ICM_GUI_ACCEPTANCE_OUTPUT_DIR: test-results/production-source-gui
         run: |
           curl --fail --silent --show-error \
             --retry 5 --retry-delay 2 --retry-all-errors \
@@ -217,13 +250,22 @@ jobs:
               ;;
           esac
 
+          node scripts/preview-simulation-smoke.mjs https://analog-canvas.tokenzhang.com
+          # Reuse the public hosted journeys against Production. They create
+          # only browser-local fixture Projects and anonymous simulation runs;
+          # Preview's private Cloud Project acceptance identity is not used.
+          # A manual dispatch can check out an older release than the event
+          # commit. The helpers record the checkout and verify its served bytes.
+          env -u GITHUB_SHA node scripts/preview-agent-simulation-journey.mjs https://analog-canvas.tokenzhang.com
+          env -u GITHUB_SHA node scripts/preview-source-gui-journey.mjs https://analog-canvas.tokenzhang.com
+
       # Detection without recovery is what turned a bad deploy into twenty
       # minutes of 500s: the pipeline saw them, went red, and left production
       # broken. This restores the previous version instead, then proves the
       # restore worked. The job still fails, loudly — a rollback is a recovery,
       # never a pass.
       - name: Roll back a failed deployment
-        if: failure() && steps.verify.outcome == 'failure'
+        if: failure() && steps.deploy_worker.outcome == 'success'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
