@@ -1198,12 +1198,8 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
             {run?.outputData ? (
               <SimulationOutputResults
                 resultKey={run.id}
-                data={{
-                  ...run.outputData,
-                  analyses: run.outputData.analyses.filter(
-                    (analysis) => analysis.analysis !== "op",
-                  ),
-                }}
+                data={run.outputData}
+                view="waveform"
                 outputs={runPresentation?.outputs ?? []}
                 signalTargets={runPresentation?.prepared.signalTargets}
                 {...(props.onFocusProbe
@@ -1387,12 +1383,8 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
                 />
                 <SimulationOutputResults
                   resultKey={`${run.id}:op`}
-                  data={{
-                    ...run.outputData,
-                    analyses: run.outputData.analyses.filter(
-                      (analysis) => analysis.analysis === "op",
-                    ),
-                  }}
+                  data={run.outputData}
+                  view="op"
                   outputs={runPresentation?.outputs ?? []}
                 />
               </>

@@ -19,6 +19,7 @@ import { ScalarResultsExplorer } from "./transient-results-explorer";
 import { SimulationMeasurementResults } from "./simulation-measurement-results";
 import { NativeMeasurementResults } from "./native-measurement-results";
 import { CapturedScalarResults } from "./captured-scalar-results";
+import { unrepresentedConsoleMeasurements } from "./measurement-presentation";
 import { NoiseResultsExplorer } from "./noise-results-explorer";
 import { planResultOutput } from "./result-plot-plan";
 import { ResultRecordView, ResultPlotControls } from "./result-plot-controls";
@@ -231,10 +232,12 @@ export function SimulationOutputResults({
   outputs,
   signalTargets,
   onFocusProbe,
+  view = "all",
 }: {
   resultKey: string;
   data: SimulationOutputData;
   outputs: readonly SimulationOutputSpec[];
+  view?: "all" | "waveform" | "op";
   signalTargets?: Prepared["signalTargets"];
   onFocusProbe?(probe: SimulationFocusTarget): void;
 }) {
@@ -256,12 +259,21 @@ export function SimulationOutputResults({
       anchor: { kind: "base-net", netId: target.netId },
     });
   }
+  const isVisible = (analysis: SimulationOutputData["analyses"][number]) =>
+    view === "all" ||
+    (view === "op" ? analysis.analysis === "op" : analysis.analysis !== "op");
   const visibleAnalyses = new Set(
-    data.analyses.map((analysis) => analysis.analysis),
+    data.analyses.filter(isVisible).map((a) => a.analysis),
   );
+  const visibleDiagnostics = data.diagnostics.filter((diagnostic) => {
+    if (diagnostic.analysisIndex === undefined) return view !== "op";
+    const analysis = data.analyses[diagnostic.analysisIndex];
+    return analysis ? isVisible(analysis) : view !== "op";
+  });
   return (
     <div className="simulation-output-results">
       {data.analyses.map((analysis, analysisIndex) => {
+        if (!isVisible(analysis)) return null;
         if (analysis.analysis === "op")
           return (
             <SimulationAnalysisCard key={`op-${analysisIndex}`} kind="op">
@@ -495,9 +507,9 @@ export function SimulationOutputResults({
           </ResultRecordView>
         );
       })}
-      {data.diagnostics.length > 0 ? (
+      {visibleDiagnostics.length > 0 ? (
         <div className="simulation-output-diagnostics" role="status">
-          {data.diagnostics.map((diagnostic, index) => (
+          {visibleDiagnostics.map((diagnostic, index) => (
             <p key={`${index}:${diagnostic.outputId}:${diagnostic.code}`}>
               <strong>
                 {authored.get(diagnostic.outputId)?.label ??
@@ -513,7 +525,11 @@ export function SimulationOutputResults({
           visibleAnalyses.has(measurement.analysis),
         )}
       />
-      <NativeMeasurementResults measurements={data.nativeMeasurements ?? []} />
+      {view !== "op" ? (
+        <NativeMeasurementResults
+          measurements={unrepresentedConsoleMeasurements(data)}
+        />
+      ) : null}
     </div>
   );
 }

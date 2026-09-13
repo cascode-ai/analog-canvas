@@ -213,7 +213,7 @@ remain waveforms. Unsupported short arrays and malformed dimensions produce
 diagnostics instead of being plotted against the wrong axis.
 
 The evaluated record also carries `scalars`, separate from curve `outputs`.
-Results shows these in a **Captured values** table per record, preserving signed
+Results shows these in a compact **Measurements** table per record, preserving signed
 and complex numbers. They do not generate curve min/max/span/RMS summaries and
 are not image-export traces. Both raw and evaluated CSV append a separately
 headed scalar table. Unknown units stay explicitly unknown; a variable suffix
@@ -222,8 +222,14 @@ such as `_db` does not establish a unit.
 Console measurement reports remain separate evidence: only declarations reached
 from the executed entry/include graph participate, and repeated report names
 retain Console order. The UI does not invent an association between Console
-lines and raw records. A value may therefore appear as both a captured scalar
-and a Console report, with their different provenance made explicit.
+lines and raw records. A unique raw scalar is preferred over a unique same-name
+Console report when their real values agree at the Console's explicitly printed
+precision. This only suppresses a redundant presentation row; both original
+sources remain in the Run, Console and exported artifacts. Repeated names,
+multiple captures, differing values and complex captures are not collapsed.
+Console-only and failed reports remain visible. The OP view never renders
+run-wide Console measurements from other analyses. View filtering retains the
+original record indices and scopes analysis diagnostics as well as summaries.
 
 Hosted responses with numeric data and explicit rawfile dimensions are re-read
 by the same canonical reader to handle executor-image version skew. Missing

@@ -818,7 +818,7 @@ test("human simulation uses saved folder, survives minimizing, recovers a bad in
       json: {
         outcome: { status: "completed" },
         diagnostics: [],
-        log: "ngspice OP",
+        log: "ngspice OP\nat_one_tau = 5.00000e-01\n",
         durationMs: 1,
         data: {
           ...reading.data,
@@ -852,6 +852,14 @@ test("human simulation uses saved folder, survives minimizing, recovers a bad in
               analysis: "tran",
               plotName: "Transient response",
               timeSeconds: [0, 1e-9, 10e-9],
+              scalars: [
+                {
+                  name: "at_one_tau",
+                  quantity: "voltage",
+                  unit: "V",
+                  value: 0.5,
+                },
+              ],
               probes: [
                 {
                   name: requestedVector,
@@ -950,6 +958,7 @@ test("human simulation uses saved folder, survives minimizing, recovers a bad in
     "ac dec 10 1 1e6",
     "write out.raw",
     "tran 1e-9 1e-6 0 5e-10",
+    "meas tran at_one_tau FIND v(vout) AT=1e-9",
     "write out.raw",
     "noise v(vout) VINP dec 10 1 1e6",
     "write out.raw",
@@ -1018,7 +1027,12 @@ test("human simulation uses saved folder, survives minimizing, recovers a bad in
   await expect(panel.locator(".simulation-console-summary")).toHaveCount(0);
   await expect(panel.locator(".simulation-console-view > pre")).toBeVisible();
   await panel.getByRole("tab", { name: "Plot", exact: true }).click();
+  await expect(panel.getByText("at_one_tau", { exact: true })).toHaveCount(1);
+  await expect(
+    panel.getByRole("region", { name: "Native measurements", exact: true }),
+  ).toHaveCount(0);
   await panel.getByRole("tab", { name: "Operating Point" }).click();
+  await expect(panel.getByText("at_one_tau", { exact: true })).toHaveCount(0);
   await expect(panel.getByRole("region", { name: "OP results" })).toContainText(
     "0.500000",
   );

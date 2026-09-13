@@ -13,11 +13,7 @@ export function CapturedScalarResults({
       aria-label={`Captured scalars record ${record}`}
       className="simulation-measurement-results"
     >
-      <h4>Captured values · Record {record}</h4>
-      <p>
-        Single values stored in this raw plot. These are not samples along its
-        sweep axis. Console measurement reports are listed separately.
-      </p>
+      <h4>Measurements · Record {record}</h4>
       <table>
         <thead>
           <tr>
