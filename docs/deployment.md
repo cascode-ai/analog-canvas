@@ -1,5 +1,41 @@
 # Deployment
 
+## Development and publication cadence
+
+Use three stages so deployment work is paid per accepted batch rather than per
+small edit:
+
+| Stage | Unit of work | Completion |
+| --- | --- | --- |
+| Local | One bounded feature, fix, or improvement on the current local batch branch | Local feedback through `pnpm dev`, focused validation, and an explanatory local commit |
+| Preview | At least 10 completed changes in one batch PR | Whole-batch delivery checks, required PR/merge-queue checks, one main merge, and hosted Preview acceptance |
+| Production | A Preview-accepted candidate with release authorization | Version-tag or explicit-dispatch deployment and Production verification |
+
+Ten changes means ten independently useful outcomes, not ten commits or files.
+Supporting tests and follow-up repairs belong to their original change. Keep
+the current working list and count in `plan/local-batch.md`, with the durable
+intent and evidence in each commit and the batch PR. Continue the batch across
+local tasks instead of opening a separate PR for each task. An explicit user
+request may publish Preview earlier or hold the batch longer.
+
+Local commits do not publish either site. A requested remote branch backup
+also remains local-stage work. When the batch is ready, validate its combined
+diff once for delivery and merge one PR; merging ten separate PRs would still
+trigger repeated Preview deployments. Review the combined risk, including
+interactions between otherwise small changes. Documentation-only work retains
+the workflow's existing deployment exclusions.
+
+Choose any release version while preparing the candidate for Preview. After
+acceptance, Production publication is a separate release decision, covered by
+the user's current or earlier authorization for that release. Neither the
+change count nor Preview success automatically publishes Production. New local
+work may accumulate in the next batch while the accepted Preview waits for a
+Production release.
+
+The existing deployment triggers below implement this cadence. See
+[working rules](../AGENTS.md#three-stage-development-and-delivery) and
+[validation timing](testing/README.md#local-iteration-and-batch-validation).
+
 ## Channels and data isolation
 
 | Channel    | Trigger and configuration                                                         | Data boundary                                                                                                                                              |

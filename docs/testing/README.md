@@ -31,10 +31,13 @@ change:
 
 ```powershell
 pnpm gate:plan -- --path packages/model/src/schema/document.ts
-pnpm gate:plan -- --base origin/main
-pnpm gate:preflight -- --base origin/main
-pnpm gate:affected -- --base origin/main
+pnpm gate:plan -- --base <base-ref>
+pnpm gate:preflight -- --base <base-ref>
+pnpm gate:affected -- --base <base-ref>
 ```
+
+Use the current target's base for local checks and the mainline base for batch
+delivery, as described below.
 
 The versioned catalog at `config/validation-gates.json` maps repository paths
 to preflight, affected, and final gates. Shared-core, production-boundary,
@@ -48,17 +51,47 @@ impact declaration. `gate:affected` runs the catalog's bounded unit, focused
 browser, release, or branch checks. Review the printed reasons before
 execution. When the plan selects `full-delivery`, that complete gate
 supersedes static, unit, focused-browser, release, and branch verification:
-run `gate:preflight` for the independent Test-Impact declaration, skip the
-empty affected stage, and run `gate:full` once. Run `pnpm setup:e2e` once per
-machine or Playwright version instead of paying for a browser installation on
-every full check.
+at batch delivery, run `gate:preflight` for the independent Test-Impact
+declaration, skip the empty affected stage, and run `gate:full` once. Run
+`pnpm setup:e2e` once per machine or Playwright version instead of paying for a
+browser installation on every full check.
 
 Every `apps/editor/e2e/*.spec.ts` file must belong to a focused path group and
 select itself. The gate-planner tests enumerate the directory so adding a spec
 without routing ownership fails deterministically instead of silently making
 that path fall back to the complete browser suite.
 
-## Pull-request batching
+## Local iteration and batch validation
+
+Day-to-day changes accumulate on a local batch branch. Use the development
+server and the smallest checks that prove each target's behavior and direct
+dependencies, then commit it locally. Do not start a full delivery run, PR,
+merge queue, or deployment merely because one small target is complete.
+
+Keep validation scope distinct from publication scope. Before a local commit,
+`pnpm gate:plan -- --base HEAD` describes its uncommitted delta. After one
+target commit, `HEAD^` is its base; for a target spanning several commits, use
+the base before that target began. Test-Impact validation reads committed
+trailers and therefore runs after the target commit. Direct focused unit/browser
+checks belong to the edit loop; apply the selected preflight before executing
+affected, build, or release gates. A target needing broad validation should get
+it, but a `full-delivery` entry records a batch delivery
+obligation rather than requiring full delivery after each local edit.
+
+At least 10 independently useful completed changes form the default Preview
+batch. Tests, repair commits, and file counts do not inflate that number. Before
+publishing it, refresh the mainline base, regenerate the gate plan for the
+combined diff against `origin/main`, and follow the
+[mainline delivery gate](../../AGENTS.md#mainline-delivery-gate). This checks
+interactions and shared contracts across the batch. An unchanged candidate
+does not need its already-passing local checks repeated while remote CI runs;
+new edits or unresolved failures can require fresh verification.
+
+This changes when delivery validation runs, not the required GitHub checks.
+The [deployment guide](../deployment.md#development-and-publication-cadence)
+owns the local, Preview, and Production handoffs.
+
+## Batch pull-request checks
 
 Every implementation pull request keeps the inexpensive broad protection:
 

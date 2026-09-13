@@ -9,6 +9,42 @@ Notes you keep while working — scratch plans, checklists, drafts — belong in
 the untracked `plan/` directory. They are a local working area and are not
 published.
 
+## Three-Stage Development and Delivery
+
+The default cadence is local iteration, a batched Preview delivery, then a
+deliberate Production release. A request to change the editor starts in the
+local stage unless the user explicitly requests a later stage.
+
+1. **Local iteration.** Continue the current local batch branch, or create
+   `codex/local-batch` from current `main` when starting a new batch. Use
+   `pnpm dev` for feedback and focused checks for each bounded target. Keep
+   separate, explanatory local commits for separate targets. A completed local
+   target ends with its commit and validation; it does not automatically open a
+   PR, push, merge, deploy, or bump the product version. Push a branch for backup
+   when requested without treating that backup as a Preview delivery.
+2. **Batched Preview delivery.** Accumulate at least **10 completed changes**
+   before preparing one batch PR and one merge to `main`. A change means one
+   independently useful feature, fix, or improvement; supporting tests, repair
+   commits, files, and formatting do not count as extra changes. The user may
+   request an earlier Preview delivery or hold a ready batch. Run the mainline
+   delivery gate against the whole batch, wait for required PR and merge-queue
+   checks, then merge and verify the deployed Preview. Prepare any intended
+   release version before this acceptance so the accepted candidate can be
+   promoted without another code change.
+3. **Production release.** Promote a Preview-accepted candidate when the user
+   requests Production publication or has already authorized that release.
+   Reaching the batch size or passing Preview is not itself a Production
+   trigger. Use the existing version-tag or explicit-dispatch route, and finish
+   deployed verification. Do not ask again for authorization already given.
+
+Keep a short working list in `plan/local-batch.md`: the branch, completed
+changes and count, validation still needed, and current stage. Read it when
+continuing the batch and reconcile it with local commit messages; commit count
+alone is not a change count. Start the next list after the batch reaches Preview.
+Decisions and validation that must survive delivery belong in the commits and
+batch PR. A squash merge's description must preserve the batch's target summary,
+test impact, validation, and unresolved limitations.
+
 ## Operating Discipline
 
 Before starting a target:
@@ -57,10 +93,16 @@ the boundary has moved.
   `pnpm gate:plan -- --base <base-ref>` before expensive validation. If the
   actual selection differs materially from the gates you chose, revisit the
   choice before proceeding.
-- Run `pnpm gate:preflight -- --base <base-ref>` before affected browser,
-  build, release, or complete gates. Use
-  `pnpm gate:affected -- --base <base-ref>` as the normal automated development
-  validation after focused implementation checks.
+- For local iteration, plan and validate the current target's delta rather than
+  repeatedly treating the accumulated batch as a new change. Start with focused
+  unit/browser checks directly. Run
+  `pnpm gate:preflight -- --base <target-base>` before executing selected
+  affected, build, or release gates, and use
+  `pnpm gate:affected -- --base <target-base>` for the bounded gates the target
+  needs. The Test-Impact check reads commit messages, so check its declaration
+  after committing. A planned `full-delivery` gate is owed at batch promotion;
+  it is not an instruction to rerun full delivery after each local edit. Run
+  broader local checks earlier when the target's actual risk requires them.
 - Prefer the smallest deterministic validation that covers changed behavior,
   direct dependencies, and credible failure risks.
 - Add tests when behavior changes, a regression needs protection, or a
@@ -102,10 +144,10 @@ the boundary has moved.
   what was pushed, and which checks were skipped — in the follow-up commit or
   PR. The record is the point. A bypass nobody wrote down is indistinguishable
   from a bypass nobody noticed.
-- Gate planning is the local validation policy. It never authorizes skipping a
-  required GitHub check. Shared-core changes, gate-policy changes, and
-  unclassified non-documentation paths require the full fallback; bounded
-  changes use the selected focused checks.
+- Gate planning selects validation obligations. Shared-core changes, gate-policy
+  changes, and unclassified non-documentation paths require the full fallback
+  when delivering the batch; bounded changes use selected focused checks.
+  Batching never authorizes skipping a required GitHub check.
 - Report unresolved questions in the commit message or a review note; do not
   leave them only in an untracked working note.
 
@@ -124,13 +166,14 @@ the boundary has moved.
 
 ## After Work
 
-Before considering a target complete:
+Before considering a local target complete:
 
 1. Run the validation the target's risk calls for. A full suite is required
    only when justified by breadth, risk, or project policy.
 2. At minimum, run `git diff --check` and `git status --short --branch`.
-3. Review the diff, stage only intended files, then commit and push according
-   to branch policy.
+3. Review the diff, stage only intended files, and commit locally on the batch
+   branch. Update the batch working list. Push and merge belong to the Preview
+   stage; a local target can be complete while its batch awaits publication.
 4. Write the commit message so it stands alone: what changed, why, the
    validation that backs it, and the `Test-Impact:` trailer. State anything a
    reader would otherwise have to reconstruct — a defect's root cause, a
@@ -141,9 +184,11 @@ Before considering a target complete:
 
 ## Mainline Delivery Gate
 
-Focused validation is the normal development loop. Delivery keeps full unit,
-release, and performance protection for every implementation change while the
-browser layer is selected by impact.
+Focused validation is the normal local development loop. Run this delivery
+gate when the accumulated batch is ready for Preview, using the entire batch
+relative to its mainline base. Delivery keeps full unit, release, and performance
+protection for the implementation batch while the browser layer is selected by
+impact.
 
 Merging to `main` deploys the **preview** channel, not the public site.
 Production deploys only from a `v*` release tag, or a dispatch naming a

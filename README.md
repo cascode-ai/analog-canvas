@@ -76,6 +76,14 @@ Open the displayed loopback URL and choose **New Circuit**, or open its
 import one `.cir`, `.sp`, or `.spi` entry together with its local include
 files.
 
+Development follows three stages: iterate locally on a batch branch with
+focused checks and local commits; accumulate at least 10 completed features,
+fixes, or improvements into one Preview delivery; then promote an accepted
+candidate to Production when that release is authorized. Each local edit ends
+at the local stage by default. See the
+[working rules](AGENTS.md#three-stage-development-and-delivery)
+and [delivery cadence](docs/deployment.md#development-and-publication-cadence).
+
 ## What the repository contains
 
 - `apps/editor/`: React/SVG editor plus the Gallery, account, moderation, and
