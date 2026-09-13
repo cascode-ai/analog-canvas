@@ -28,7 +28,7 @@
         "name": "OUT",
         "role": "output",
         "at": {
-          "x": 40,
+          "x": 30,
           "y": 0
         },
         "direction": "east",
@@ -78,7 +78,7 @@
           "y": 0
         },
         "to": {
-          "x": 40,
+          "x": 30,
           "y": 0
         },
         "style": {

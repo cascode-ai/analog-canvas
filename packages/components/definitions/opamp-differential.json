@@ -41,7 +41,7 @@
         "name": "OUT+",
         "role": "output",
         "at": {
-          "x": 20,
+          "x": 30,
           "y": 10
         },
         "direction": "east",
@@ -54,7 +54,7 @@
         "name": "OUT-",
         "role": "output",
         "at": {
-          "x": 20,
+          "x": 30,
           "y": -10
         },
         "direction": "east",
@@ -107,7 +107,7 @@
           "y": -10
         },
         "to": {
-          "x": 20,
+          "x": 30,
           "y": -10
         },
         "style": {
@@ -124,7 +124,7 @@
           "y": 10
         },
         "to": {
-          "x": 20,
+          "x": 30,
           "y": 10
         },
         "style": {
@@ -281,7 +281,7 @@
       "referenceManifestPath": "fixtures/visual-reference/razavi-reference-v1/manifest.json",
       "referencePath": "fixtures/visual-reference/razavi-reference-v1/differential-opamp-vector-source.json",
       "converterPath": "scripts/generate-razavi-opamp-asset.mjs",
-      "converterVersion": 6,
+      "converterVersion": 7,
       "bodyNormalization": "equilateral-triangle"
     }
   }

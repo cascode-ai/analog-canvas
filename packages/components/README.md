@@ -118,7 +118,10 @@ The product set is exactly the reviewed, Reference-calibrated entries:
   with round caps, with clearance for both columns and internal text. The
   generators record `bodyNormalization: "equilateral-triangle"`; PDF extracts
   remain original evidence rather than being relabeled as equilateral. Pin
-  names, order, grid anchors, and polarity semantics are preserved. The shared
+  names, order, input anchors, and polarity semantics are preserved. Outputs
+  share x=30: single-ended terminals retract one 10-unit grid step from x=40,
+  while differential terminals extend one step from x=20. The single-ended
+  lead extends 5 units past the apex. The shared
   construction lives in `scripts/lib/analog-triangle.mjs`, and the op-amp
   generator also projects the comparator bodies;
 - the Analog Blocks library includes the reference-calibrated single-input

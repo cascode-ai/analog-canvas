@@ -1,7 +1,7 @@
-import { createRoutePath } from "@icm/model";
+import { createRoutePath, transformPoint } from "@icm/model";
 import { createEmptyProject } from "@icm/model";
 import type { SchematicDocument } from "@icm/model";
-import { InMemorySymbolResolver } from "@icm/symbols";
+import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -38,6 +38,89 @@ function document(id: string): SchematicDocument {
 }
 
 describe("resolved route geometry", () => {
+  it("keeps existing named routes attached when Analog Block outputs move one grid step", () => {
+    const family = builtInSymbols.filter((symbol) =>
+      /^(?:opamp|voltage-amplifier|comparator)(?:-|$)/u.test(symbol.id),
+    );
+    expect(family).toHaveLength(18);
+    const current = new InMemorySymbolResolver(family);
+    const previous = new InMemorySymbolResolver(
+      family.map((symbol) => ({
+        ...symbol,
+        pins: symbol.pins.map((pin) =>
+          pin.direction === "east"
+            ? {
+                ...pin,
+                at: {
+                  ...pin.at,
+                  x: symbol.id.startsWith("opamp-differential") ? 20 : 40,
+                },
+              }
+            : pin,
+        ),
+      })),
+    );
+    for (const symbol of family)
+      for (const rotation of [0, 90, 180, 270] as const)
+        for (const mirror of ["none", "horizontal"] as const) {
+          const schematic = document("existing-analog-routes");
+          const placement = { position: { x: 200, y: 200 }, rotation, mirror };
+          schematic.instances.push({
+            id: "U1",
+            symbolId: symbol.id,
+            placement,
+          });
+          for (const pin of symbol.pins.filter(
+            (pin) => pin.direction === "east",
+          )) {
+            const terminal = { instanceId: "U1", pinName: pin.name };
+            schematic.nets.push({ id: pin.name, terminals: [terminal] });
+            schematic.junctions.push({
+              id: pin.name,
+              netId: pin.name,
+              position: transformPoint(
+                { x: 100, y: pin.at.y },
+                placement.position,
+                placement,
+              ),
+            });
+            schematic.routes.push(
+              createRoutePath({
+                id: pin.name,
+                netId: pin.name,
+                start: { kind: "terminal", ...terminal },
+                end: { kind: "junction", junctionId: pin.name },
+                bends: [],
+                modes: ["manual"],
+              }),
+            );
+          }
+          const saved = JSON.stringify(schematic);
+          for (const route of schematic.routes) {
+            const before = resolveRouteGeometry(schematic, previous, route)!;
+            const after = resolveRouteGeometry(schematic, current, route)!;
+            const pin = symbol.pins.find((pin) => pin.name === route.id)!;
+            expect(after.centerline[0]).toEqual(
+              transformPoint(
+                { x: 30, y: pin.at.y },
+                placement.position,
+                placement,
+              ),
+            );
+            expect(
+              Math.hypot(
+                after.centerline[0]!.x - before.centerline[0]!.x,
+                after.centerline[0]!.y - before.centerline[0]!.y,
+              ),
+            ).toBe(10);
+            expect(after.centerline.at(-1)).toEqual(before.centerline.at(-1));
+            expect(after.endpointConnections.from.endpoint).toEqual(
+              route.start,
+            );
+          }
+          expect(JSON.stringify(schematic)).toBe(saved);
+        }
+  });
   it("resolves a 45-degree route attachment", () => {
     const schematic = document("diagonal-route");
     schematic.nets.push({ id: "n", terminals: [] });

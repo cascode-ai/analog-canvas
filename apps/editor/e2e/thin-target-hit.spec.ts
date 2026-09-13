@@ -146,15 +146,15 @@ test("FD Amp blank space does not capture clicks or marquees; body and pins rema
     await page.mouse.move(to.x, to.y, { steps: 8 });
     await page.mouse.up();
   };
-  const blank = await screenPoint(page, 232, 200);
+  const blank = await screenPoint(page, 238, 200);
   await page.mouse.click(blank.x, blank.y);
   await expect(hit).not.toHaveClass(/selected/);
 
   // Right-to-left crossing of the old viewBox's blank strip selects nothing.
-  await drag(242, 170, 230, 230);
+  await drag(242, 170, 236, 230);
   await expect(hit).not.toHaveClass(/selected/);
   // A left-to-right window enclosing the actual body and pins is sufficient.
-  await drag(155, 165, 230, 235);
+  await drag(155, 165, 235, 235);
   await expect(hit).toHaveClass(/selected/);
 
   await drag(190, 200, 290, 260);
@@ -296,4 +296,67 @@ test("clicking wire beside a symbol body selects the wire, not the box", async (
   const body = await screenPoint(page, 300, 198);
   await page.mouse.click(body.x, body.y);
   await expect(page.getByTestId("hit-R1")).toHaveClass(/selected/);
+});
+
+test("single and differential triangle outputs share one column and remain wireable after reload", async ({
+  page,
+}) => {
+  await importInstances(
+    page,
+    [
+      "comparator",
+      "opamp-lettered",
+      "opamp-differential-lettered",
+      "voltage-amplifier-lettered",
+    ].map((symbolId, index) => ({
+      id: `U${index + 1}`,
+      symbolId,
+      placement: {
+        position: { x: 200, y: 100 + index * 100 },
+        rotation: 0,
+        mirror: "none",
+      },
+    })),
+  );
+  const outputs = ["U1-OUT", "U2-OUT", "U3-OUT+", "U3-OUT-", "U4-OUT"];
+  const checkColumns = async () => {
+    const centers = await Promise.all(
+      outputs.map(async (id) => {
+        const box = (await page.getByTestId(`terminal-${id}`).boundingBox())!;
+        return box.x + box.width / 2;
+      }),
+    );
+    for (const x of centers) expect(x).toBeCloseTo(centers[0]!, 2);
+  };
+  await checkColumns();
+  for (const [id, y] of [
+    ["U1-OUT", 100],
+    ["U3-OUT+", 310],
+    ["U3-OUT-", 290],
+  ] as const) {
+    await clickDrawTool(page, "wire");
+    await page.getByTestId(`terminal-${id}`).click();
+    const end = await screenPoint(page, 350, y);
+    await page.mouse.dblclick(end.x, end.y);
+    await page.keyboard.press("Escape");
+  }
+  await expect(page.locator('[data-canvas-hit-kind="route"]')).toHaveCount(3);
+  const saved = await downloadBytes(page, "File", "Export Project File…");
+  const svg = (await downloadBytes(page, "File", "Export SVG")).toString(
+    "utf8",
+  );
+  const starts = await page.evaluate((source) => {
+    const svg = new DOMParser().parseFromString(source, "image/svg+xml");
+    return [...svg.querySelectorAll("polyline[data-net-id]")].map((line) =>
+      Number(line.getAttribute("points")!.split(/[ ,]/)[0]),
+    );
+  }, svg);
+  expect(starts).toEqual([230, 230, 230]);
+  await page.getByTestId("project-file").setInputFiles({
+    name: "output-column.icproj.json",
+    mimeType: "application/json",
+    buffer: saved,
+  });
+  await checkColumns();
+  await expect(page.locator('[data-canvas-hit-kind="route"]')).toHaveCount(3);
 });

@@ -148,7 +148,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Textbook comparator block; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "comparator.json",
     assetHash:
-      "8ee28460fcd566458f0ba35f2b17baa8b5971b1f0f3ccd5d68c71350c2428cbd",
+      "02f645908993743a0ca6ddd0d40068bd7d91e2bc14c657612fe131d85d234a2c",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -167,7 +167,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       referencePath:
         "fixtures/visual-reference/razavi-reference-v1/opamp-vector-source.json",
       converterPath: "scripts/generate-razavi-opamp-asset.mjs",
-      converterVersion: 4,
+      converterVersion: 5,
       bodyNormalization: "equilateral-triangle",
     },
   },
@@ -183,7 +183,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Textbook comparator block; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "comparator-inputs-swapped.json",
     assetHash:
-      "294b9ce40c2cf25efef7d4eb5b1ffa7aac67d26a5740d852fa7e75eedf0206d3",
+      "aebf98e641c851ccc3f20a7bb25fdf557b3fc8854befccae92f8bd5f5fd8ebaf",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -214,7 +214,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Unmarked comparator block; SPICE subcircuit pin polarity and supply contracts require an explicit PDK mapping.",
     assetPath: "comparator-unmarked.json",
     assetHash:
-      "0084027ada15bdaa203453c2dff4b148a343cb3e67c1e906c8c808deb00cd72f",
+      "3f3931ff24e926491b03b21ec9786570c1d797366d97b64f55a4d0af532987e4",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -233,7 +233,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       referencePath:
         "fixtures/visual-reference/razavi-reference-v1/opamp-vector-source.json",
       converterPath: "scripts/generate-razavi-opamp-asset.mjs",
-      converterVersion: 4,
+      converterVersion: 5,
       bodyNormalization: "equilateral-triangle",
     },
   },
@@ -249,7 +249,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Unmarked comparator block; SPICE subcircuit pin polarity and supply contracts require an explicit PDK mapping.",
     assetPath: "comparator-unmarked-inputs-swapped.json",
     assetHash:
-      "35edad213026a517dd0e9549215b2a4440ae51cd8a8a8a00b74874030150bdeb",
+      "aadbb7f7edde29b262f888765fae76aab4276319038feaca381ecde536849814",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1033,7 +1033,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Three-terminal textbook op-amp; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp.json",
     assetHash:
-      "74b1ca2deca4c0b3f3230ed2fe5c75df7a140f7f44c4b46b5a64ce614a3db4aa",
+      "e3120e144af81f05e93c52fca63ad680210e0c28371ef9ab939bf76e01688e4d",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1052,7 +1052,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       referencePath:
         "fixtures/visual-reference/razavi-reference-v1/opamp-vector-source.json",
       converterPath: "scripts/generate-razavi-opamp-asset.mjs",
-      converterVersion: 4,
+      converterVersion: 5,
       bodyNormalization: "equilateral-triangle",
     },
   },
@@ -1068,7 +1068,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Three-terminal textbook op-amp; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-lettered.json",
     assetHash:
-      "c3dd006226ba437a9a0623d8078c4472e439da551dc03d84eba3e05a884d13f6",
+      "40494eedb32b7d77ce01f6a37c39b05642f6fcc243b3f1089f8b0d9763a648c5",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1099,7 +1099,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Three-terminal textbook op-amp; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-lettered-inputs-swapped.json",
     assetHash:
-      "4185e72ed340f3f3f20196399eab20835741c6f2cb0b80f60f938acfe72b74c1",
+      "8bbc24fa26fec9298b9aa9e87a264ed15acd560ad7445db45378f60fa590dcd1",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1130,7 +1130,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Three-terminal textbook op-amp; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-inputs-swapped.json",
     assetHash:
-      "97c07d81d48b6f8a57046aec5b65db1d22a6e3edb105f220ce41a35f4a62b6e4",
+      "174a303b845f992f22fdbc004502b877f0947271bbd1ad2fd862f705f9d98b01",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1161,7 +1161,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Fully differential textbook body; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-differential.json",
     assetHash:
-      "5c8125058ef916f5e07648e5d17cf36651a33725c2329f100f3bbb12c3910813",
+      "99069f20b4d9b9e00a731dc09fde868e08f0c9e148f704ce35f2d0a16afb87a1",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1181,7 +1181,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       referencePath:
         "fixtures/visual-reference/razavi-reference-v1/differential-opamp-vector-source.json",
       converterPath: "scripts/generate-razavi-opamp-asset.mjs",
-      converterVersion: 6,
+      converterVersion: 7,
       bodyNormalization: "equilateral-triangle",
     },
   },
@@ -1197,7 +1197,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Fully differential textbook body; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-differential-lettered.json",
     assetHash:
-      "06d55ec150a5af7d903b2704740258c910a62ccc2e1cabd997a8975b9f4263d1",
+      "10c4759e203495fd12dddd96260dd4bf34ed1885aacf3442edd12ea3d082a2f5",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1229,7 +1229,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Fully differential textbook body; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-differential-lettered-inputs-swapped.json",
     assetHash:
-      "5a6c9ccc2e527ad54888ca593baa9913fdc59900271a19713b5173b38d34eb2d",
+      "7fa3f121e8cd2b51cbfb96b37bbab002bf68823541298f9e8819dc10337398bc",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1261,7 +1261,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Fully differential textbook body; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-differential-inputs-swapped.json",
     assetHash:
-      "eae285ee590798c825eebdf4460ece1e028427727fa64f7c31db980c0259c274",
+      "061dd6305a5eafbbe0a98818c89951e6756f7edfe1e1df3844a17c596c7cecab",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1293,7 +1293,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Output-polarity sibling of opamp-differential; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-differential-crossed.json",
     assetHash:
-      "e4b1b19fdcec915a5af5348261297b94eaa40359eddc4d79f01f56005c57ee56",
+      "6b51b05dc17f412df9cdb1f34101888d5ccd597438b5b1f47c7c92bb33b102d1",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1313,7 +1313,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       referencePath:
         "fixtures/visual-reference/razavi-reference-v1/differential-opamp-vector-source.json",
       converterPath: "scripts/generate-razavi-opamp-asset.mjs",
-      converterVersion: 6,
+      converterVersion: 7,
       bodyNormalization: "equilateral-triangle",
     },
   },
@@ -1329,7 +1329,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Output-polarity sibling of opamp-differential; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-differential-crossed-lettered.json",
     assetHash:
-      "f77f6398a23cfbde5765544b78e29e11a1daf4b9d4b55d3b26aa930cc1131172",
+      "45e2e0a66089e0114ea86a6d81858944d1a42bb71051bd9236b928a93108b823",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1361,7 +1361,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Output-polarity sibling of opamp-differential; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-differential-crossed-lettered-inputs-swapped.json",
     assetHash:
-      "163852d2ec0a449c820c87f50d193edb1671653202a37beda4384ca80974e6e4",
+      "0517ca18fbf0f32ebb23dc2cdfd819c631a765b9b7c0e1bda188cc6053749f9b",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1393,7 +1393,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Output-polarity sibling of opamp-differential; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-differential-crossed-inputs-swapped.json",
     assetHash:
-      "770d0dd45919347d4e7c43b50738ac60f0d1777cd9ea7c200530cb1e02ba85c8",
+      "fe145cba59191b6a864dbfbfdbfc7d4c29f74ac434d39040fa855947d12bff77",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1726,7 +1726,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Textbook gain block has implicit reference nodes and no exact primitive SPICE terminal contract.",
     assetPath: "voltage-amplifier.json",
     assetHash:
-      "73fc04550728dc1622b1a4f57b85b38a3a503ad63c92da5b2900a9d73f79904d",
+      "44767f52243359b61962744294f975214cda85075a9dfc49bdec770dd016c8ec",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1745,7 +1745,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       referencePath:
         "fixtures/visual-reference/razavi-reference-v1/voltage-amplifier-vector-source.json",
       converterPath: "scripts/generate-razavi-common-assets.mjs",
-      converterVersion: 4,
+      converterVersion: 5,
       bodyNormalization: "equilateral-triangle",
     },
   },
@@ -1761,7 +1761,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Textbook gain block has implicit reference nodes and no exact primitive SPICE terminal contract.",
     assetPath: "voltage-amplifier-lettered.json",
     assetHash:
-      "bc9de5c54daf8c1e7325cee5d9d0251b94dd787c9a6d0d4d48b04eb1c182f4cc",
+      "c2e674e32606b92fabe0fce13e119bebd8a7ac51daaf3ed4915d395193b2b87e",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -2491,7 +2491,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         name: "OUT",
         role: "output",
         at: {
-          x: 40,
+          x: 30,
           y: 0,
         },
         direction: "east",
@@ -2541,7 +2541,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: 0,
         },
         to: {
-          x: 40,
+          x: 30,
           y: 0,
         },
         style: {
@@ -2677,7 +2677,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         name: "OUT",
         role: "output",
         at: {
-          x: 40,
+          x: 30,
           y: 0,
         },
         direction: "east",
@@ -2727,7 +2727,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: 0,
         },
         to: {
-          x: 40,
+          x: 30,
           y: 0,
         },
         style: {
@@ -2863,7 +2863,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         name: "OUT",
         role: "output",
         at: {
-          x: 40,
+          x: 30,
           y: 0,
         },
         direction: "east",
@@ -2913,7 +2913,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: 0,
         },
         to: {
-          x: 40,
+          x: 30,
           y: 0,
         },
         style: {
@@ -2998,7 +2998,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         name: "OUT",
         role: "output",
         at: {
-          x: 40,
+          x: 30,
           y: 0,
         },
         direction: "east",
@@ -3048,7 +3048,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: 0,
         },
         to: {
-          x: 40,
+          x: 30,
           y: 0,
         },
         style: {
@@ -6889,7 +6889,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         name: "OUT",
         role: "output",
         at: {
-          x: 40,
+          x: 30,
           y: 0,
         },
         direction: "east",
@@ -6939,7 +6939,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: 0,
         },
         to: {
-          x: 40,
+          x: 30,
           y: 0,
         },
         style: {
@@ -7059,7 +7059,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         name: "OUT",
         role: "output",
         at: {
-          x: 40,
+          x: 30,
           y: 0,
         },
         direction: "east",
@@ -7109,7 +7109,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: 0,
         },
         to: {
-          x: 40,
+          x: 30,
           y: 0,
         },
         style: {
@@ -7238,7 +7238,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         name: "OUT",
         role: "output",
         at: {
-          x: 40,
+          x: 30,
           y: 0,
         },
         direction: "east",
@@ -7288,7 +7288,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: 0,
         },
         to: {
-          x: 40,
+          x: 30,
           y: 0,
         },
         style: {
@@ -7417,7 +7417,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         name: "OUT",
         role: "output",
         at: {
-          x: 40,
+          x: 30,
           y: 0,
         },
         direction: "east",
@@ -7467,7 +7467,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: 0,
         },
         to: {
-          x: 40,
+          x: 30,
           y: 0,
         },
         style: {
@@ -7587,7 +7587,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         name: "OUT+",
         role: "output",
         at: {
-          x: 20,
+          x: 30,
           y: 10,
         },
         direction: "east",
@@ -7600,7 +7600,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         name: "OUT-",
         role: "output",
         at: {
-          x: 20,
+          x: 30,
           y: -10,
         },
         direction: "east",
@@ -7653,7 +7653,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: -10,
         },
         to: {
-          x: 20,
+          x: 30,
           y: -10,
         },
         style: {
@@ -7670,7 +7670,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: 10,
         },
         to: {
-          x: 20,
+          x: 30,
           y: 10,
         },
         style: {
@@ -7841,7 +7841,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         name: "OUT+",
         role: "output",
         at: {
-          x: 20,
+          x: 30,
           y: 10,
         },
         direction: "east",
@@ -7854,7 +7854,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         name: "OUT-",
         role: "output",
         at: {
-          x: 20,
+          x: 30,
           y: -10,
         },
         direction: "east",
@@ -7907,7 +7907,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: -10,
         },
         to: {
-          x: 20,
+          x: 30,
           y: -10,
         },
         style: {
@@ -7924,7 +7924,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: 10,
         },
         to: {
-          x: 20,
+          x: 30,
           y: 10,
         },
         style: {
@@ -8104,7 +8104,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         name: "OUT+",
         role: "output",
         at: {
-          x: 20,
+          x: 30,
           y: 10,
         },
         direction: "east",
@@ -8117,7 +8117,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         name: "OUT-",
         role: "output",
         at: {
-          x: 20,
+          x: 30,
           y: -10,
         },
         direction: "east",
@@ -8170,7 +8170,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: -10,
         },
         to: {
-          x: 20,
+          x: 30,
           y: -10,
         },
         style: {
@@ -8187,7 +8187,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: 10,
         },
         to: {
-          x: 20,
+          x: 30,
           y: 10,
         },
         style: {
@@ -8367,7 +8367,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         name: "OUT+",
         role: "output",
         at: {
-          x: 20,
+          x: 30,
           y: 10,
         },
         direction: "east",
@@ -8380,7 +8380,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         name: "OUT-",
         role: "output",
         at: {
-          x: 20,
+          x: 30,
           y: -10,
         },
         direction: "east",
@@ -8433,7 +8433,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: -10,
         },
         to: {
-          x: 20,
+          x: 30,
           y: -10,
         },
         style: {
@@ -8450,7 +8450,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: 10,
         },
         to: {
-          x: 20,
+          x: 30,
           y: 10,
         },
         style: {
@@ -8621,7 +8621,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         name: "OUT+",
         role: "output",
         at: {
-          x: 20,
+          x: 30,
           y: -10,
         },
         direction: "east",
@@ -8634,7 +8634,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         name: "OUT-",
         role: "output",
         at: {
-          x: 20,
+          x: 30,
           y: 10,
         },
         direction: "east",
@@ -8687,7 +8687,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: -10,
         },
         to: {
-          x: 20,
+          x: 30,
           y: -10,
         },
         style: {
@@ -8704,7 +8704,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: 10,
         },
         to: {
-          x: 20,
+          x: 30,
           y: 10,
         },
         style: {
@@ -8875,7 +8875,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         name: "OUT+",
         role: "output",
         at: {
-          x: 20,
+          x: 30,
           y: -10,
         },
         direction: "east",
@@ -8888,7 +8888,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         name: "OUT-",
         role: "output",
         at: {
-          x: 20,
+          x: 30,
           y: 10,
         },
         direction: "east",
@@ -8941,7 +8941,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: -10,
         },
         to: {
-          x: 20,
+          x: 30,
           y: -10,
         },
         style: {
@@ -8958,7 +8958,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: 10,
         },
         to: {
-          x: 20,
+          x: 30,
           y: 10,
         },
         style: {
@@ -9138,7 +9138,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         name: "OUT+",
         role: "output",
         at: {
-          x: 20,
+          x: 30,
           y: -10,
         },
         direction: "east",
@@ -9151,7 +9151,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         name: "OUT-",
         role: "output",
         at: {
-          x: 20,
+          x: 30,
           y: 10,
         },
         direction: "east",
@@ -9204,7 +9204,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: -10,
         },
         to: {
-          x: 20,
+          x: 30,
           y: -10,
         },
         style: {
@@ -9221,7 +9221,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: 10,
         },
         to: {
-          x: 20,
+          x: 30,
           y: 10,
         },
         style: {
@@ -9401,7 +9401,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         name: "OUT+",
         role: "output",
         at: {
-          x: 20,
+          x: 30,
           y: -10,
         },
         direction: "east",
@@ -9414,7 +9414,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         name: "OUT-",
         role: "output",
         at: {
-          x: 20,
+          x: 30,
           y: 10,
         },
         direction: "east",
@@ -9467,7 +9467,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: -10,
         },
         to: {
-          x: 20,
+          x: 30,
           y: -10,
         },
         style: {
@@ -9484,7 +9484,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: 10,
         },
         to: {
-          x: 20,
+          x: 30,
           y: 10,
         },
         style: {
@@ -11128,7 +11128,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         name: "OUT",
         role: "output",
         at: {
-          x: 40,
+          x: 30,
           y: 0,
         },
         direction: "east",
@@ -11178,7 +11178,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: 0,
         },
         to: {
-          x: 40,
+          x: 30,
           y: 0,
         },
         style: {
@@ -11218,7 +11218,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         name: "OUT",
         role: "output",
         at: {
-          x: 40,
+          x: 30,
           y: 0,
         },
         direction: "east",
@@ -11268,7 +11268,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: 0,
         },
         to: {
-          x: 40,
+          x: 30,
           y: 0,
         },
         style: {

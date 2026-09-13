@@ -28,7 +28,7 @@
         "name": "OUT",
         "role": "output",
         "at": {
-          "x": 40,
+          "x": 30,
           "y": 0
         },
         "direction": "east",
@@ -78,7 +78,7 @@
           "y": 0
         },
         "to": {
-          "x": 40,
+          "x": 30,
           "y": 0
         },
         "style": {
@@ -116,7 +116,7 @@
       "referenceManifestPath": "fixtures/visual-reference/razavi-reference-v1/manifest.json",
       "referencePath": "fixtures/visual-reference/razavi-reference-v1/voltage-amplifier-vector-source.json",
       "converterPath": "scripts/generate-razavi-common-assets.mjs",
-      "converterVersion": 4,
+      "converterVersion": 5,
       "bodyNormalization": "equilateral-triangle"
     }
   }

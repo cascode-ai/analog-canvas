@@ -14,6 +14,7 @@ import {
   ANALOG_TRIANGLE,
   ANALOG_TRIANGLE_BOUNDS,
   ANALOG_TRIANGLE_PATH,
+  ANALOG_TRIANGLE_OUTPUT_X,
   ANALOG_TRIANGLE_VIEWBOX,
 } from "./lib/analog-triangle.mjs";
 
@@ -42,7 +43,7 @@ const hash = (value) => createHash("sha256").update(value).digest("hex");
 const normal = { strokeRole: "normal", lineCap: "butt", lineJoin: "miter" };
 const ANALOG_BLOCK_LEAD_LENGTH = 10;
 const OPAMP_INPUT_PIN_X = -40;
-const OPAMP_OUTPUT_PIN_X = 40;
+const OPAMP_OUTPUT_PIN_X = ANALOG_TRIANGLE_OUTPUT_X;
 const OPAMP_BODY_LEFT_X = ANALOG_TRIANGLE.leftX;
 const OPAMP_BODY_APEX_X = ANALOG_TRIANGLE.apexX;
 const INPUT_MARK_X = OPAMP_BODY_LEFT_X + 6.25;
@@ -304,28 +305,18 @@ const differentialSymbol = (id, name, plusOutputAtBottom) => {
     symbol.pins[0],
     "west",
   );
-  const topOutput = pinOneGridOutsideBody(
-    outputLeadContact(-OUTPUT_PAIR_OFFSET),
-    {
-      name: "OUT-",
-      role: "output",
-      at: { x: geometry.output.to.x, y: -OUTPUT_PAIR_OFFSET },
-      direction: "east",
-      presentation: { visibility: "visible", leadLength: 20 },
-    },
-    "east",
-  );
-  const bottomOutput = pinOneGridOutsideBody(
-    outputLeadContact(OUTPUT_PAIR_OFFSET),
-    {
-      name: "OUT+",
-      role: "output",
-      at: { x: geometry.output.to.x, y: OUTPUT_PAIR_OFFSET },
-      direction: "east",
-      presentation: { visibility: "visible", leadLength: 20 },
-    },
-    "east",
-  );
+  // Share the single-ended output column, rather than deriving a shorter
+  // terminal position from each sloped edge's contact point.
+  const topOutput = {
+    ...symbol.pins[2],
+    name: "OUT-",
+    at: { x: OPAMP_OUTPUT_PIN_X, y: -OUTPUT_PAIR_OFFSET },
+  };
+  const bottomOutput = {
+    ...symbol.pins[2],
+    name: "OUT+",
+    at: { x: OPAMP_OUTPUT_PIN_X, y: OUTPUT_PAIR_OFFSET },
+  };
   const outputPins = plusOutputAtBottom
     ? [bottomOutput, topOutput]
     : [
@@ -395,7 +386,7 @@ const generation = {
   referencePath:
     "fixtures/visual-reference/razavi-reference-v1/opamp-vector-source.json",
   converterPath: "scripts/generate-razavi-opamp-asset.mjs",
-  converterVersion: 4,
+  converterVersion: 5,
   bodyNormalization: "equilateral-triangle",
 };
 const differentialGeneration = {
@@ -405,7 +396,7 @@ const differentialGeneration = {
   referencePath:
     "fixtures/visual-reference/razavi-reference-v1/differential-opamp-vector-source.json",
   converterPath: "scripts/generate-razavi-opamp-asset.mjs",
-  converterVersion: 6,
+  converterVersion: 7,
   bodyNormalization: "equilateral-triangle",
 };
 const differentialAuthorityPaths = [

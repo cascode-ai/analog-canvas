@@ -551,6 +551,15 @@ describe("Razavi symbol catalog", () => {
       // The pin-end of each lead stays on-grid and the body-end meets an
       // outline edge; there must be no open seam or lead through the interior.
       for (const pin of candidate.pins) {
+        if (pin.direction === "east") {
+          expect(pin.at.x, `${symbolId}.${pin.name} shared output column`).toBe(
+            30,
+          );
+          expect(
+            pin.at.x - Math.max(...points.map((point) => point.x)),
+            `${symbolId}.${pin.name} beyond apex`,
+          ).toBe(5);
+        }
         const lead = candidate.primitives.find(
           (primitive) =>
             primitive.kind === "line" &&
@@ -595,10 +604,10 @@ describe("Razavi symbol catalog", () => {
             at: { x: -40, y: -10 },
           }),
           expect.objectContaining({
-            at: { x: 20, y: -10 },
+            at: { x: 30, y: -10 },
           }),
           expect.objectContaining({
-            at: { x: 20, y: 10 },
+            at: { x: 30, y: 10 },
           }),
         ]),
       );
@@ -995,14 +1004,16 @@ describe("Razavi symbol catalog", () => {
           line.to.y - line.from.y,
         );
         if (triangleBlocks.has(symbolId)) {
-          expect(
-            drawnLength,
-            `${symbolId}.${pin.name} drawn lead`,
-          ).toBeGreaterThan(10);
-          expect(
-            drawnLength,
-            `${symbolId}.${pin.name} drawn lead`,
-          ).toBeLessThanOrEqual(20);
+          // The output column is five units beyond the apex; differential
+          // leads also traverse the distance from the sloping edge to the tip.
+          const expectedLength =
+            pin.direction === "east"
+              ? 5 + Math.abs(pin.at.y) * Math.sqrt(3)
+              : 40 + (25 - 30 * Math.sqrt(3));
+          expect(drawnLength, `${symbolId}.${pin.name} drawn lead`).toBeCloseTo(
+            expectedLength,
+            5,
+          );
         } else {
           expect(
             drawnLength,
@@ -1520,7 +1531,7 @@ describe("Razavi symbol catalog", () => {
     expect(opamp.pins).toMatchObject([
       { name: "IN+", at: { x: -40, y: 10 }, direction: "west" },
       { name: "IN-", at: { x: -40, y: -10 }, direction: "west" },
-      { name: "OUT", at: { x: 40, y: 0 }, direction: "east" },
+      { name: "OUT", at: { x: 30, y: 0 }, direction: "east" },
     ]);
     expect(opamp.primitives).toEqual(
       expect.arrayContaining([
@@ -1707,7 +1718,7 @@ describe("Razavi symbol catalog", () => {
         }),
       ]),
     );
-    expect(voltageAmplifier.pins.map((pin) => pin.at.x)).toEqual([-40, 40]);
+    expect(voltageAmplifier.pins.map((pin) => pin.at.x)).toEqual([-40, 30]);
     const idealSwitch = requireRazaviCatalogSymbol("ideal-switch");
     expect(idealSwitch.name).toBe("Open Switch");
     expect(idealSwitch.pins.map((pin) => pin.at.x)).toEqual([-20, 20]);
