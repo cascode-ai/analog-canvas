@@ -133,7 +133,7 @@ describe("vdd power label annotation", () => {
     });
   });
 
-  it("keeps an untouched VDD Port label upright and clear through orientation changes", () => {
+  it("keeps a VDD Port label upright through rotations and mirrors its position", () => {
     let document = createEmptyDocument("main", "Main");
     const instance = {
       id: "VDD1",
@@ -168,11 +168,6 @@ describe("vdd power label annotation", () => {
         rotation: 90 as const,
       },
       {
-        kind: "mirror_instance" as const,
-        instanceId: "VDD1",
-        mirror: "horizontal" as const,
-      },
-      {
         kind: "rotate_instance" as const,
         instanceId: "VDD1",
         rotation: 180 as const,
@@ -187,7 +182,16 @@ describe("vdd power label annotation", () => {
         instanceId: "VDD1",
         rotation: 0 as const,
       },
+      {
+        kind: "mirror_instance" as const,
+        instanceId: "VDD1",
+        mirror: "horizontal" as const,
+      },
     ]) {
+      const beforePosition = objectAnchor(
+        document.annotations[0]!,
+      ).fallbackPosition;
+      const beforeOrigin = document.instances[0]!.placement!.position;
       const result = executeTransaction(
         document,
         {
@@ -213,11 +217,17 @@ describe("vdd power label annotation", () => {
       );
       const annotation = document.annotations[0]!;
       expect(expected).not.toBeNull();
+      const afterOrigin = document.instances[0]!.placement!.position;
       expect(objectAnchor(annotation).fallbackPosition).toEqual(
-        expected?.position,
+        edit.kind === "mirror_instance"
+          ? {
+              x: afterOrigin.x - (beforePosition.x - beforeOrigin.x),
+              y: afterOrigin.y + (beforePosition.y - beforeOrigin.y),
+            }
+          : expected?.position,
       );
       expect(annotation).toMatchObject({
-        alignment: "start",
+        alignment: edit.kind === "mirror_instance" ? "end" : "start",
         rotation: 0,
       });
     }

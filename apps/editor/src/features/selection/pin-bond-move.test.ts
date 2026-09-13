@@ -80,11 +80,11 @@ function fixtureDocument(): SchematicDocument {
   );
   // C: pin contact at (0,200) — the bond target on net-v.
   document.instances.find((i) => i.id === "C")!.placement = {
-    position: { x: -10, y: 200 },
+    position: { x: 0, y: 200 },
     rotation: 0,
     mirror: "none",
   };
-  // E: rotation 270 puts its pin contact at (pos.x, pos.y-10).
+  // E: the shortened Port pin is at its origin, including after rotation.
   document.instances.find((i) => i.id === "E")!.placement = {
     position: { x: 30, y: 400 },
     rotation: 270,
@@ -249,7 +249,7 @@ describe("pin-onto-pin move bond", () => {
     const { statuses, transactions } = runMove({
       instanceId: "E",
       origin: { x: 30, y: 400 },
-      pinStart: { x: 30, y: 390 },
+      pinStart: { x: 30, y: 400 },
       target: { x: 0, y: 200 },
     });
     const edits = transactions.flatMap((t) => t.edits);

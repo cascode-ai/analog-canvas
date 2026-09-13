@@ -27,6 +27,7 @@
       "apps/editor/src/features/selection/**",
       "apps/editor/src/features/text-editing/**",
       "apps/editor/src/features/wiring/**",
+      "apps/editor/e2e/bound-label-mirror.spec.ts",
       "apps/editor/e2e/drafting.spec.ts",
       "apps/editor/e2e/instance-table.spec.ts",
       "apps/editor/e2e/manual-editor.spec.ts",
@@ -352,10 +353,12 @@
       "command": [
         "pnpm",
         "test:e2e:local",
+        "apps/editor/e2e/bound-label-mirror.spec.ts",
         "apps/editor/e2e/manual-editor.spec.ts"
       ],
       "ci": {
         "e2eArgs": [
+          "apps/editor/e2e/bound-label-mirror.spec.ts",
           "apps/editor/e2e/manual-editor.spec.ts",
           "apps/editor/e2e/drafting.spec.ts",
           "apps/editor/e2e/instance-table.spec.ts",
