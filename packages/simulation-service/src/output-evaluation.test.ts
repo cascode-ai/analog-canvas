@@ -171,7 +171,7 @@ describe("simulation output evaluation", () => {
     ]);
     expect(result.analyses[0]!.outputs[1]!.values).toEqual([0.8]);
   });
-  it("keeps MOS terminal values and automatic/authored measurements for each raw OP record", () => {
+  it("keeps MOS values and authored measurements per OP record without automatic copies", () => {
     const result = evaluateSimulationOutputs(
       {
         schemaVersion: 1,
@@ -236,10 +236,7 @@ describe("simulation output evaluation", () => {
     ]);
     expect(
       result.measurements?.filter((m) => m.origin === "automatic"),
-    ).toMatchObject([
-      { rawPlotOrdinals: [3], value: 1 },
-      { rawPlotOrdinals: [4], value: 2 },
-    ]);
+    ).toEqual([]);
     expect(result.deviceOperatingPoints).toMatchObject([
       { analysisIndex: 0, rawPlotOrdinals: [3], values: [{ value: 1 }] },
       { analysisIndex: 1, rawPlotOrdinals: [4], values: [{ value: 2 }] },
