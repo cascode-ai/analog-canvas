@@ -267,6 +267,14 @@ test("manages Cell rename and lists callers", async ({ page }) => {
   await expect(page.getByTestId("active-document-id")).toHaveText(
     "document-main",
   );
+  const canvas = page.getByTestId("schematic-canvas");
+  await expect(canvas.locator('[data-kind="instance-value"]')).toContainText(
+    "Stage",
+  );
+  await expect(
+    canvas.locator('[data-kind="instance-value"]'),
+  ).not.toContainText("ReusableStage");
+  await expect(canvas.locator('[data-kind="instance-label"]')).toHaveCount(0);
 });
 
 test("declares and places a Cell Pin on a new local Net", async ({ page }) => {
@@ -666,9 +674,7 @@ test("places an existing Cell and blocks deleting its shared definition", async 
   await expect(canvas.locator('[data-kind="instance-value"]')).toContainText(
     "ReusableStage",
   );
-  await expect(canvas.locator('[data-kind="instance-label"]')).toContainText(
-    "X1",
-  );
+  await expect(canvas.locator('[data-kind="instance-label"]')).toHaveCount(0);
   await page.keyboard.press("Escape");
 
   await runCellCommand(page, "Manage Cells…");

@@ -36,7 +36,10 @@ import {
   type EdgeAlignmentMode,
 } from "../features/selection/align-selection";
 import { createSelectionTransformController } from "../features/selection/selection-transform-controller";
-import { missingDefaultInstanceDisplayAnnotations } from "../features/instance-display/default-instance-display";
+import {
+  defaultInstanceDisplayAnnotations,
+  missingDefaultInstanceDisplayAnnotations,
+} from "../features/instance-display/default-instance-display";
 
 /** No second geometry/model/clipboard implementation: plan exactly as the GUI does. */
 export function planBrowserAgentCommand(
@@ -61,11 +64,12 @@ export function planBrowserAgentCommand(
         command.placement,
         command.reference,
       );
-      const annotations = missingDefaultInstanceDisplayAnnotations(
+      const annotations = defaultInstanceDisplayAnnotations(
         document,
         instance,
         resolver,
         resolveDocumentStyleProfile(document.presentation),
+        { showDesignator: false, masterName: child.netlist.name },
       );
       return {
         structureEdits: planPlaceCellInstance(

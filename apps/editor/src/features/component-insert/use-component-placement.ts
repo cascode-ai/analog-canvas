@@ -29,7 +29,7 @@ import type {
   SchematicDocument,
 } from "@icm/model";
 import { defaultDraftTextDocument } from "@icm/model";
-import type { SymbolResolver } from "@icm/symbols";
+import { hierarchicalSymbolId, type SymbolResolver } from "@icm/symbols";
 
 import type { ComponentInsertRequest } from "./component-insert-request";
 import type {
@@ -363,7 +363,6 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
   };
 
   const placeNewCell = (
-    symbolId: string,
     position: Point,
     placementRequest: PendingComponentPlacement,
   ): void => {
@@ -381,7 +380,8 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
       options.setStatus("The selected Cell no longer exists");
       return;
     }
-    const id = nextInstanceId(options.document, symbolId);
+    const currentSymbolId = hierarchicalSymbolId(child.netlist.name);
+    const id = nextInstanceId(options.document, currentSymbolId);
     const reference =
       placementRequest.referenceText ??
       nextReference(
@@ -409,7 +409,7 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
       options.styleProfile,
       {
         showDesignator: placementRequest.showReference,
-        masterName: placementRequest.cellName,
+        masterName: child.netlist.name,
       },
     );
     const committed = options.transactProject(
@@ -425,7 +425,7 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
     options.selectOnly("instance", [id]);
     options.setComponentPreviewPoint(position);
     options.setStatus(
-      `Placed ${placementRequest.cellName} as ${id} · click to place another · Esc exits`,
+      `Placed ${child.netlist.name} as ${id} · click to place another · Esc exits`,
     );
   };
 
@@ -878,11 +878,7 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
         options.pendingComponentPlacement,
       );
     } else if (options.pendingComponentPlacement.kind === "cell") {
-      placeNewCell(
-        options.pendingSymbolId,
-        point,
-        options.pendingComponentPlacement,
-      );
+      placeNewCell(point, options.pendingComponentPlacement);
     } else if (
       options.pendingComponentPlacement.kind === "external-subcircuit"
     ) {

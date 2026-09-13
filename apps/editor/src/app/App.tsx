@@ -3418,8 +3418,7 @@ export function App({
       setStatus("The selected DUT Cell no longer exists");
       return;
     }
-    const cellName =
-      child.sourceBinding?.cellName ?? child.netlist.name ?? child.name;
+    const cellName = child.netlist.name;
     beginComponentPlacement({
       kind: "cell",
       symbolId: hierarchicalSymbolId(cellName),
@@ -3427,7 +3426,7 @@ export function App({
       cellName,
       parameters: {},
       initialRotation: 0,
-      showReference: true,
+      showReference: false,
       referenceText: null,
       showValue: true,
     });

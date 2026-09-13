@@ -14,10 +14,10 @@ The insertion UI lists exact reviewed Symbol IDs plus the current Project's
 eligible Cell definitions in a dynamic **Cells** section. A Cell selection
 uses the same cursor preview, grid snap, rotation, mirror, and cancellation
 state as a Symbol; its commit factory alone differs, creating one typed
-subcircuit Instance through a Project structural transaction. `Xn` is its sole
-Netlist Reference and is emitted and displayed by default. A separate visible
-Cell/master label, when present, is ordinary literal attached text with no
-identity or hierarchy authority. Both `port` and
+subcircuit Instance through a Project structural transaction. `Xn` remains its
+sole Netlist Reference and is emitted, but an internal Cell shows only its
+Cell/master name in the normal Reference slot by default. That attached text
+has no identity or hierarchy authority. Both `port` and
 `port-filled` remain manually reachable artwork for one concept: **Cell Pin**.
 Terminal `P` participates in ordinary snap, wire, move/stretch, and selection
 behavior. Placement atomically creates the Instance, Base Net membership, and
@@ -513,8 +513,10 @@ without requiring an Alt cycle.
 Every visible editable label is one persisted RichText annotation. Component
 insertion uses one default-display policy: ordinary instances receive an
 `instance-reference` label, which projects only `Instance.reference`.
-Internal Cells and external subcircuits additionally receive their
-Cell/master presentation as attached literal text; a Cell Pin receives only an object-anchored
+Internal Cells receive only their Cell/master presentation in the normal
+Reference slot; external subcircuits additionally receive it below their
+visible Reference. The default internal-Cell text follows a Cell rename while
+deliberately customized literal content remains custom. A Cell Pin receives only an object-anchored
 `cell-terminal-name`; and parameter values use `instance-value` when requested
 and displayable.
 Properties exposes **Netlist Reference** for explicit electrical renaming:

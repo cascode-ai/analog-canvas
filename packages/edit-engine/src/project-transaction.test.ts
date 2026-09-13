@@ -1,4 +1,9 @@
-import { createRoutePath, createSimulationFolder } from "@icm/model";
+import {
+  createRoutePath,
+  createSimulationFolder,
+  flattenRichText,
+  plainNameDocument,
+} from "@icm/model";
 import { describe, expect, it } from "vitest";
 
 import { createEmptyDocument, createEmptyProject } from "@icm/model";
@@ -652,6 +657,20 @@ describe("Project structural transaction", () => {
     project.documents[0]!.instances.push(
       hierarchyInstance("X1", "Child", child.id),
     );
+    project.documents[0]!.annotations.push({
+      id: "instance-master-X1",
+      kind: "instance-value",
+      content: plainNameDocument("Child"),
+      anchor: {
+        kind: "object",
+        objectId: "X1",
+        localOffset: { x: 0, y: -40 },
+        fallbackPosition: { x: 0, y: -40 },
+      },
+      alignment: "middle",
+      rotation: 0,
+      locked: false,
+    });
 
     const result = executeProjectTransaction(project, {
       transactionId: "rename-child",
@@ -678,6 +697,46 @@ describe("Project structural transaction", () => {
         ],
       },
     });
+    if (!result.ok) return;
+    expect(
+      flattenRichText(result.project.documents[0]!.annotations[0]!.content!),
+    ).toBe("Stage");
+  });
+
+  it("preserves customized Cell master text while renaming its definition", () => {
+    const project = createEmptyProject("project", "Project");
+    const child = createEmptyDocument("document-child", "Child");
+    project.documents.push(child);
+    project.documents[0]!.instances.push(
+      hierarchyInstance("X1", "Child", child.id),
+    );
+    project.documents[0]!.annotations.push({
+      id: "instance-master-X1",
+      kind: "instance-value",
+      content: plainNameDocument("custom alias"),
+      anchor: {
+        kind: "object",
+        objectId: "X1",
+        localOffset: { x: 0, y: -40 },
+        fallbackPosition: { x: 0, y: -40 },
+      },
+      alignment: "middle",
+      rotation: 0,
+      locked: false,
+    });
+
+    const result = executeProjectTransaction(project, {
+      transactionId: "rename-child-with-custom-master-label",
+      projectId: project.id,
+      expectedStructureRevision: project.structureRevision,
+      actor: { kind: "human", id: "human-local" },
+      edits: planRenameCell(project, child.id, "Stage"),
+    });
+
+    if (!result.ok) throw new Error(JSON.stringify(result, null, 2));
+    expect(
+      flattenRichText(result.project.documents[0]!.annotations[0]!.content!),
+    ).toBe("custom alias");
   });
 
   it("atomically creates a child Cell and its parent Instance", () => {

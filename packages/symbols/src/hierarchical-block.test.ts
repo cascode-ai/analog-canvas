@@ -7,6 +7,7 @@ import {
   createHierarchicalBlockSymbol,
   createProjectHierarchicalSymbols,
   externalSubcircuitSymbolId,
+  hierarchicalSymbolId,
 } from "./hierarchical-block.js";
 
 describe("hierarchical block formal terminals", () => {
@@ -56,6 +57,24 @@ describe("hierarchical block formal terminals", () => {
     });
 
     expect(symbol?.pins.map((pin) => pin.name)).toEqual(["IN", "OUT"]);
+  });
+
+  it("uses the current local Cell name after an imported Cell is renamed", () => {
+    const symbol = createHierarchicalBlockSymbol({
+      name: "Stage",
+      sourceBinding: {
+        cellName: "OriginalImportedName",
+        sourceRef: {
+          fileId: "source.sp",
+          start: { offset: 0, line: 1, column: 1 },
+          end: { offset: 1, line: 1, column: 2 },
+        },
+      },
+      netlist: { name: "Stage", terminals: [], formalParameters: [] },
+    });
+
+    expect(symbol?.id).toBe(hierarchicalSymbolId("Stage"));
+    expect(symbol?.name).toBe("Stage");
   });
 
   it("projects independently authored same-name Pins as one hierarchy pin", () => {

@@ -99,6 +99,45 @@ describe("default instance display annotations", () => {
     });
   });
 
+  it("shows only the Cell name in the reference slot for an internal hierarchy instance", () => {
+    const document = createEmptyDocument("main", "Main");
+    const instance = {
+      id: "call-1",
+      symbolId: "resistor",
+      placement: {
+        position: { x: 100, y: 100 },
+        rotation: 0 as const,
+        mirror: "none" as const,
+      },
+      reference: "X1",
+    };
+    const reference = defaultInstanceDisplayAnnotations(
+      document,
+      instance,
+      resolver,
+      resolveSchematicStyleProfile(document.presentation.styleProfileId),
+    )[0]!;
+    const annotations = defaultInstanceDisplayAnnotations(
+      document,
+      instance,
+      resolver,
+      resolveSchematicStyleProfile(document.presentation.styleProfileId),
+      { showDesignator: false, masterName: "GainStage" },
+    );
+
+    expect(annotations).toHaveLength(1);
+    expect(annotations[0]).toMatchObject({
+      id: "instance-master-call-1",
+      kind: "instance-value",
+      anchor: {
+        kind: "object",
+        objectId: "call-1",
+      },
+    });
+    expect(annotations[0]?.anchor).toEqual(reference.anchor);
+    expect(annotations[0]?.binding).toBeUndefined();
+  });
+
   it("still subscripts an instance designator, which is an identifier", () => {
     // The brake. Fixing Cell names must not flatten `M1` into upright text:
     // there the leading symbol and its index are exactly what the reader

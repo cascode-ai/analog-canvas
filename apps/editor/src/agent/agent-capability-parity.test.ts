@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createEmptyProject } from "@icm/model";
+import { createEmptyProject, flattenRichText } from "@icm/model";
 import { createAgentCircuitService } from "@icm/agent-adapter";
 import { AgentSessionClient } from "../../../../packages/agent-client/src/session-client";
 import { FakeAgentHttp } from "../../../../packages/agent-client/src/test-support/fake-relay";
@@ -85,6 +85,19 @@ describe("MCP → API → shared editor parity", () => {
       kind: "subcircuit",
       childDocumentId: "main",
     });
+    const testbench = controller.project.documents.find((d) => d.id === "tb")!;
+    expect(
+      testbench.annotations.some(
+        (annotation) => annotation.binding?.kind === "instance-reference",
+      ),
+    ).toBe(false);
+    expect(
+      flattenRichText(
+        testbench.annotations.find(
+          (annotation) => annotation.id === "instance-master-xdut",
+        )!.content!,
+      ),
+    ).toBe("Main");
     expect(controller.resolver.resolve(instance.symbolId)).toBeTruthy();
     expect(
       (await client.applyActions([{ kind: "undo" }], { documentId: "tb" })).ok,

@@ -20,7 +20,10 @@ export function createHierarchicalBlockSymbol(
     readonly presentation?: SchematicDocument["presentation"];
   },
 ): SymbolDefinition | null {
-  const cellName = document.sourceBinding?.cellName ?? document.netlist?.name;
+  // The current netlist name is the local Cell identity. sourceBinding keeps
+  // import provenance and intentionally does not change when the local Cell is
+  // renamed, so it must not select the runtime symbol identity.
+  const cellName = document.netlist?.name;
   const terminals = projectCellInterface(document.netlist).ports;
   if (!cellName) return null;
   const positional = createHierarchicalBlockGeometry(
