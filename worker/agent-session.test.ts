@@ -709,6 +709,20 @@ describe("public Agent session routes", () => {
     });
   });
 
+  it("acknowledges the editor close handshake so the browser can reconnect", async () => {
+    const close = vi.fn();
+    const socket = {
+      readyState: WebSocket.CLOSING,
+      close,
+    } as unknown as WebSocket;
+    const object = new AgentSessionDO(
+      { storage: new MemoryStorage(), getWebSockets: () => [] },
+      {},
+    );
+    await object.webSocketClose(socket);
+    expect(close).toHaveBeenCalledOnce();
+  });
+
   it("does not mark the editor offline when a replacement socket is open", async () => {
     const storage = new MemoryStorage();
     const replacement = { readyState: WebSocket.OPEN } as WebSocket;

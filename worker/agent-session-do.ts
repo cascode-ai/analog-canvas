@@ -223,6 +223,9 @@ export class AgentSessionDO {
   }
 
   async webSocketClose(socket?: WebSocket) {
+    // Hibernatable sockets require an explicit close reply. Without it the
+    // browser stays CLOSING and never reaches its reconnect handler.
+    if (socket && socket.readyState !== WebSocket.CLOSED) socket.close();
     await this.ready;
     const replacement = (
       this.state.getWebSockets?.(EDITOR_SOCKET_TAG) ?? []

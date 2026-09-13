@@ -500,6 +500,17 @@ test("copies a working handoff through the normal local dev relay", async ({
   baseURL,
 }) => {
   test.setTimeout(60_000);
+  await page.addInitScript(() => {
+    const NativeWebSocket = window.WebSocket;
+    const sockets: WebSocket[] = [];
+    Object.assign(window, { experimentAgentSockets: sockets });
+    window.WebSocket = class extends NativeWebSocket {
+      constructor(url: string | URL, protocols?: string | string[]) {
+        super(url, protocols);
+        if (String(url).includes("/api/agent/")) sockets.push(this);
+      }
+    };
+  });
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await page.goto("/editor");
   await page.getByRole("button", { name: "Agent", exact: true }).click();
@@ -555,6 +566,36 @@ test("copies a working handoff through the normal local dev relay", async ({
   await expect
     .poll(readIdleDeadline)
     .toBeGreaterThan(session.connectorExpiresAt);
+  // Exercise the real close handshake. The relay must acknowledge it so
+  // Chromium leaves CLOSING and the editor reattaches without a new claim.
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    await page.evaluate(() => {
+      const { experimentAgentSockets } = window as unknown as {
+        experimentAgentSockets: WebSocket[];
+      };
+      experimentAgentSockets.at(-1)!.close(4000, "transport recovery test");
+    });
+    await expect
+      .poll(
+        async () => {
+          try {
+            return (
+              await client.circuit(session.sessionId, session.agentToken, {
+                apiVersion: "3.0",
+                operation: "snapshot",
+                documentId,
+                requestId: `after-reconnect-${attempt}-${Date.now()}`,
+              })
+            ).ok;
+          } catch {
+            return false;
+          }
+        },
+        { timeout: 8_000 },
+      )
+      .toBe(true);
+    await expect(panel.getByTestId("agent-status")).toHaveText("Connected");
+  }
   const transaction = await client.circuit(
     session.sessionId,
     session.agentToken,
