@@ -6,10 +6,12 @@ import {
 } from "./component-property-fields";
 
 describe("property color picker transport", () => {
-  it("keeps comments out of the plain editor while retaining validation guidance", () => {
+  it("names visual annotation explicitly while retaining validation guidance", () => {
     expect(
-      CANVAS_PROPERTY_FIELDS.every((field) => field.description === ""),
-    ).toBe(true);
+      CANVAS_PROPERTY_FIELDS.find(
+        (field) => field.path === "display.visualAnnotation",
+      )?.label,
+    ).toBe("Visual annotation");
     expect(
       CANVAS_PROPERTY_FIELDS.find(
         (field) => field.path === "appearance.background",

@@ -506,6 +506,21 @@
 .component-json-editor .cm-json-bracket {
   color: #6e40a6;
 }
+.component-json-editor .cm-property-unit {
+  margin-left: 0.45rem;
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
+  user-select: none;
+}
+.component-json-editor .cm-netlist-target-select {
+  width: auto;
+  max-width: 9rem;
+  min-height: 1.35rem;
+  margin-left: 0.45rem;
+  padding: 0 1.2rem 0 0.25rem;
+  font: inherit;
+  vertical-align: middle;
+}
 .cm-property-inline-toggle {
   position: relative;
   display: inline-block;

@@ -47,15 +47,16 @@ describe("unified component property details", () => {
       expect(
         fields.find((field) => field.path === `parameters.${key}`)?.description,
       ).toBe("m");
-    expect(
-      fields.find((field) => field.path === "reference")?.description,
-    ).toBe("Netlist name");
+    expect(fields.find((field) => field.path === "netlistName")?.label).toBe(
+      "Netlist name",
+    );
   });
   it("retains reviewed model choices outside the short comment", () => {
     const field = componentDetailFields(instance, context.details).find(
       (item) => item.path === "netlistTarget",
     )!;
     expect(field.kind).toBe("choice");
+    expect(field.label).toBe("Target netlist");
     expect(field.options).toEqual([
       { value: "", label: "None" },
       { value: "model_a", label: "model_a" },
@@ -65,7 +66,7 @@ describe("unified component property details", () => {
   it("round-trips authored strings, overrides, and model target without unit conversion", () => {
     const source = formatComponentPropertyCode(context);
     expect(JSON.parse(source)).toMatchObject({
-      reference: "M1",
+      netlistName: "M1",
       parameters: instance.netlist!.parameters,
       netlistTarget: "model_a",
     });
@@ -93,7 +94,7 @@ describe("unified component property details", () => {
   });
   it("plans parameter set/unset, identity and placement as ordinary atomic edits", () => {
     const decoded = JSON.parse(formatComponentPropertyCode(context));
-    decoded.reference = "M2";
+    decoded.netlistName = "M2";
     decoded.parameters.w = "3u";
     decoded.parameters.custom = "";
     delete decoded.parameters.nf;
@@ -133,7 +134,7 @@ describe("unified component property details", () => {
   it("loads real descriptor defaults but preserves placement coordinates, identity, target and unknown overrides", () => {
     const defaults = JSON.parse(defaultComponentPropertyCode(context));
     expect(defaults).toMatchObject({
-      reference: "M1",
+      netlistName: "M1",
       netlistTarget: "model_a",
       placement: { at: [200, 160], rotation: 0, mirror: "none" },
       parameters: { custom: "{x+1}" },

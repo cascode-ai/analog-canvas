@@ -32,11 +32,14 @@ export function planComponentPropertyCodeEdits(
   value: ComponentPropertyCodeValue,
 ): SchematicEdit[] {
   const edits: SchematicEdit[] = [];
-  if (value.reference !== undefined && value.reference !== instance.reference)
+  if (
+    value.netlistName !== undefined &&
+    value.netlistName !== instance.reference
+  )
     edits.push({
       kind: "set_instance_reference",
       instanceId: instance.id,
-      reference: value.reference,
+      reference: value.netlistName,
     });
   if (value.parameters && instance.netlist) {
     const set = Object.fromEntries(

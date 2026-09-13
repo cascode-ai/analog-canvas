@@ -35,7 +35,7 @@ describe("component property code", () => {
   it("formats placement as one coordinate and makes display/style explicit", () => {
     expect(formatComponentPropertyCode(context)).toBe(`{
   "display": {
-    "reference": true,
+    "visualAnnotation": true,
     "value": false
   },
   "placement": {
@@ -49,6 +49,32 @@ describe("component property code", () => {
 }`);
   });
 
+  it("rejects the former ambiguous Reference surface names", () => {
+    const identityContext = { ...context, details: { parameters: [] } };
+    const source = formatComponentPropertyCode(identityContext);
+    expect(source).toContain('"netlistName": "R1"');
+    expect(source).toContain('"visualAnnotation": true');
+    expect(source).not.toMatch(/"reference"/u);
+    expect(
+      parseComponentPropertyCode(
+        source.replace('"netlistName"', '"reference"'),
+        identityContext,
+      ),
+    ).toEqual({
+      ok: false,
+      message: "component.reference is not a supported property",
+    });
+    expect(
+      parseComponentPropertyCode(
+        source.replace('"visualAnnotation"', '"reference"'),
+        identityContext,
+      ),
+    ).toEqual({
+      ok: false,
+      message: "display.reference is not a supported property",
+    });
+  });
+
   it("round-trips edited coordinates, orientation, display, and colors", () => {
     const source = formatComponentPropertyCode(context)
       .replace("360", "420")
@@ -60,7 +86,7 @@ describe("component property code", () => {
       ok: true,
       value: {
         placement: { at: [420, 240], rotation: 180, mirror: "horizontal" },
-        display: { reference: true, value: true },
+        display: { visualAnnotation: true, value: true },
         appearance: { foreground: "#DC2626" },
       },
     });

@@ -162,7 +162,7 @@ test("writes an Instance Reference through post-placement Properties", async ({
   await page.getByTestId("hit-R1").click();
   await page.getByTestId("selection-shelf").click();
   await editComponentPropertyCode(page, (code) => {
-    code.reference = "R7";
+    code.netlistName = "R7";
   });
 
   await expect
@@ -1255,7 +1255,7 @@ test("carries a default and manual Value through placement and Q property editin
     "R1 · resistor",
   );
   await expect(page.getByLabel("Component display toggles")).toHaveCount(0);
-  await expect(propertyCode).toContainText(/"reference": true/u);
+  await expect(propertyCode).toContainText(/"visualAnnotation": true/u);
   await expect(propertyCode).toContainText(/"value": false/u);
   await expect(page.getByText("Actions", { exact: true })).toHaveCount(0);
   // Opening focuses the shelf header, never the first field: Q stays a pure
@@ -1296,13 +1296,13 @@ test("carries a default and manual Value through placement and Q property editin
     "aria-label",
     "Canvas property code",
   );
-  await expectComponentCodeField(page, "reference", "R1");
+  await expectComponentCodeField(page, "netlistName", "R1");
   await editComponentPropertyCode(page, (code) => {
-    code.reference = "R7";
+    code.netlistName = "R7";
     code.parameters.tc = "0.1";
   });
   await expect(page.getByTestId("revision")).toHaveText("4");
-  await expectComponentCodeField(page, "reference", "R7");
+  await expectComponentCodeField(page, "netlistName", "R7");
   await expectComponentCodeField(page, "parameters.tc", "0.1");
 });
 
@@ -1593,7 +1593,7 @@ test("sets MOS parameters and orientation through the ghost and Properties", asy
   await setComponentParameter(page, "m", "4");
 
   await editComponentPropertyCode(page, (value) => {
-    value.display.reference = false;
+    value.display.visualAnnotation = false;
   });
   await expect(
     page.locator('[data-object-id="instance-label-M1"]'),

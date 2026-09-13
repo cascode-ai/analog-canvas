@@ -5664,13 +5664,14 @@ export function App({
                 onApply: (value: GroupPropertyCodeValue) => {
                   const edits: SchematicEdit[] = [];
                   if (
-                    value.display.reference !== "mixed" &&
-                    value.display.reference !== selectedGroupReferenceVisibility
+                    value.display.visualAnnotation !== "mixed" &&
+                    value.display.visualAnnotation !==
+                      selectedGroupReferenceVisibility
                   )
                     edits.push(
                       ...referenceLabelVisibilityEdits(
                         selectedIds,
-                        value.display.reference,
+                        value.display.visualAnnotation,
                       ),
                     );
                   if (
@@ -5808,7 +5809,8 @@ export function App({
                                   : instance,
                               ),
                             };
-                            const desiredReference = value.display?.reference;
+                            const desiredReference =
+                              value.display?.visualAnnotation;
                             const currentReference =
                               selectedInstanceLabel !== undefined &&
                               selectedInstanceLabel.visible !== false;

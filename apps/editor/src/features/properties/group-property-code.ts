@@ -9,7 +9,7 @@ export type GroupPropertyColor = "auto" | `#${string}` | "mixed";
 
 export interface GroupPropertyCodeValue {
   display: {
-    reference: GroupPropertyMixedValue;
+    visualAnnotation: GroupPropertyMixedValue;
     value?: GroupPropertyMixedValue;
   };
   appearance: {
@@ -64,15 +64,17 @@ export function parseGroupPropertyCode(
     if (!isRecord(decoded.display))
       throw new Error("display must be an object");
     const displayKeys =
-      context.value === null ? ["reference"] : ["reference", "value"];
+      context.value === null
+        ? ["visualAnnotation"]
+        : ["visualAnnotation", "value"];
     assertKeys(decoded.display, displayKeys, "display");
-    if (!("reference" in decoded.display))
-      throw new Error("display.reference is required");
+    if (!("visualAnnotation" in decoded.display))
+      throw new Error("display.visualAnnotation is required");
     const display: GroupPropertyCodeValue["display"] = {
-      reference: parseMixedBoolean(
-        decoded.display.reference,
+      visualAnnotation: parseMixedBoolean(
+        decoded.display.visualAnnotation,
         context.reference,
-        "display.reference",
+        "display.visualAnnotation",
       ),
     };
     if (context.value !== null) {
@@ -111,7 +113,7 @@ export function groupPropertyCodeValue(
 ): GroupPropertyCodeValue {
   return {
     display: {
-      reference: context.reference,
+      visualAnnotation: context.reference,
       ...(context.value === null ? {} : { value: context.value }),
     },
     appearance: { foreground: context.foreground },
