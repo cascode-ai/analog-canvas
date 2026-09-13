@@ -201,6 +201,165 @@ test("dragging drafting text carries its mixed component selection as one body",
   expect(textUndone?.y).toBeCloseTo(textBefore.y, 0);
 });
 
+test("Ctrl+A and a marquee both move drafting texts as one selection", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  const canvas = page.getByTestId("schematic-canvas");
+  const editor = page.getByRole("textbox", { name: "Canvas text editor" });
+  const apply = page.getByRole("button", { name: "Apply text changes" });
+
+  await clickDrawTool(page, "text");
+  await editor.fill("LEFT");
+  await apply.click();
+  const texts = page.locator('[data-canvas-hit-kind="drafting"]');
+  await texts.first().dragTo(canvas, { targetPosition: { x: 260, y: 180 } });
+  await clickDrawTool(page, "text");
+  await editor.fill("RIGHT");
+  await apply.click();
+  await expect(texts).toHaveCount(2);
+
+  await page.keyboard.press("ControlOrMeta+A");
+  await expect(texts.nth(0)).toHaveClass(/selected/);
+  await expect(texts.nth(1)).toHaveClass(/selected/);
+  const selectAllBefore = await Promise.all([
+    texts.nth(0).boundingBox(),
+    texts.nth(1).boundingBox(),
+  ]);
+  if (!selectAllBefore[0] || !selectAllBefore[1])
+    throw new Error("Texts are not measurable");
+  const dragStart = {
+    x: selectAllBefore[0].x + selectAllBefore[0].width / 2,
+    y: selectAllBefore[0].y + selectAllBefore[0].height / 2,
+  };
+  await page.mouse.move(dragStart.x, dragStart.y);
+  await page.mouse.down();
+  await page.mouse.move(dragStart.x + 80, dragStart.y + 60, { steps: 4 });
+  await page.mouse.up();
+  const selectAllAfter = await Promise.all([
+    texts.nth(0).boundingBox(),
+    texts.nth(1).boundingBox(),
+  ]);
+  if (!selectAllAfter[0] || !selectAllAfter[1])
+    throw new Error("Moved texts are not measurable");
+  expect(selectAllAfter[0].x - selectAllBefore[0].x).toBeCloseTo(
+    selectAllAfter[1].x - selectAllBefore[1].x,
+    0,
+  );
+  expect(selectAllAfter[0].y - selectAllBefore[0].y).toBeCloseTo(
+    selectAllAfter[1].y - selectAllBefore[1].y,
+    0,
+  );
+
+  await page.keyboard.press("ControlOrMeta+Z");
+  await page.keyboard.press("ControlOrMeta+D");
+  await expect(texts.nth(0)).not.toHaveClass(/selected/);
+  await expect(texts.nth(1)).not.toHaveClass(/selected/);
+
+  const boxes = await Promise.all([
+    texts.nth(0).boundingBox(),
+    texts.nth(1).boundingBox(),
+  ]);
+  if (!boxes[0] || !boxes[1]) throw new Error("Texts are not measurable");
+  const left = Math.min(boxes[0].x, boxes[1].x) - 15;
+  const top = Math.min(boxes[0].y, boxes[1].y) - 15;
+  const right =
+    Math.max(boxes[0].x + boxes[0].width, boxes[1].x + boxes[1].width) + 15;
+  const bottom =
+    Math.max(boxes[0].y + boxes[0].height, boxes[1].y + boxes[1].height) + 15;
+  await page.mouse.move(left, top);
+  await page.mouse.down();
+  await page.mouse.move(right, bottom, { steps: 8 });
+  await page.mouse.up();
+  await expect(texts.nth(0)).toHaveClass(/selected/);
+  await expect(texts.nth(1)).toHaveClass(/selected/);
+
+  const firstBefore = await texts.nth(0).boundingBox();
+  const secondBefore = await texts.nth(1).boundingBox();
+  if (!firstBefore || !secondBefore)
+    throw new Error("Texts are not measurable");
+  await texts.nth(0).dragTo(canvas, { targetPosition: { x: 560, y: 360 } });
+  const firstAfter = await texts.nth(0).boundingBox();
+  const secondAfter = await texts.nth(1).boundingBox();
+  if (!firstAfter || !secondAfter)
+    throw new Error("Moved texts are not measurable");
+  const firstDelta = {
+    x: firstAfter.x - firstBefore.x,
+    y: firstAfter.y - firstBefore.y,
+  };
+  const secondDelta = {
+    x: secondAfter.x - secondBefore.x,
+    y: secondAfter.y - secondBefore.y,
+  };
+  expect(Math.hypot(firstDelta.x, firstDelta.y)).toBeGreaterThan(0);
+  expect(secondDelta.x).toBeCloseTo(firstDelta.x, 0);
+  expect(secondDelta.y).toBeCloseTo(firstDelta.y, 0);
+});
+
+test("multiple selected component annotations move as one text selection", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await placeComponent(page, "resistor", { x: 300, y: 220 });
+  await placeComponent(page, "resistor", { x: 520, y: 220 });
+  const canvas = page.getByTestId("schematic-canvas");
+  const first = page.getByTestId("annotation-hit-instance-label-R1");
+  const second = page.getByTestId("annotation-hit-instance-label-R2");
+  const labelBoxes = await Promise.all([
+    first.boundingBox(),
+    second.boundingBox(),
+  ]);
+  if (!labelBoxes[0] || !labelBoxes[1])
+    throw new Error("Labels are not measurable");
+  const left = Math.min(labelBoxes[0].x, labelBoxes[1].x) - 5;
+  const top = Math.min(labelBoxes[0].y, labelBoxes[1].y) - 5;
+  const right =
+    Math.max(
+      labelBoxes[0].x + labelBoxes[0].width,
+      labelBoxes[1].x + labelBoxes[1].width,
+    ) + 5;
+  const bottom =
+    Math.max(
+      labelBoxes[0].y + labelBoxes[0].height,
+      labelBoxes[1].y + labelBoxes[1].height,
+    ) + 5;
+  await page.mouse.move(left, top);
+  await page.mouse.down();
+  await page.mouse.move(right, bottom, { steps: 8 });
+  await page.mouse.up();
+  await expect(first).toHaveClass(/selected/);
+  await expect(second).toHaveClass(/selected/);
+  await expect(
+    page.locator('[data-canvas-hit-kind="instance"].selected'),
+  ).toHaveCount(0);
+
+  const firstBefore = await first.boundingBox();
+  const secondBefore = await second.boundingBox();
+  if (!firstBefore || !secondBefore)
+    throw new Error("Labels are not measurable");
+  await first.dragTo(canvas, {
+    targetPosition: { x: 400, y: 340 },
+    force: true,
+  });
+  const firstAfter = await first.boundingBox();
+  const secondAfter = await second.boundingBox();
+  if (!firstAfter || !secondAfter)
+    throw new Error("Moved labels are not measurable");
+  const firstDelta = {
+    x: firstAfter.x - firstBefore.x,
+    y: firstAfter.y - firstBefore.y,
+  };
+  const secondDelta = {
+    x: secondAfter.x - secondBefore.x,
+    y: secondAfter.y - secondBefore.y,
+  };
+  expect(Math.hypot(firstDelta.x, firstDelta.y)).toBeGreaterThan(0);
+  expect(secondDelta.x).toBeCloseTo(firstDelta.x, 0);
+  expect(secondDelta.y).toBeCloseTo(firstDelta.y, 0);
+  await expect(first).toHaveClass(/selected/);
+  await expect(second).toHaveClass(/selected/);
+});
+
 test("drafting shapes join device selection from either order", async ({
   page,
 }) => {
