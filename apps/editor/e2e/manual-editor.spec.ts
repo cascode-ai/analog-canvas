@@ -5375,6 +5375,11 @@ test("derives crossings and creates junctions only when a wire ends on a route",
   // deliberately captures D.P, so named HORIZONTAL/VERTICAL claims would
   // correctly turn it into an electrical name conflict instead.
   project.documents[0]!.connectivityEvidence = [];
+  // Port contacts now sit at their origins. Keep E level with D so the new
+  // branch still passes through D.P, as this crossing/contact scenario needs.
+  project.documents[0]!.instances.find(
+    (instance) => instance.id === "E",
+  )!.placement!.position.y = 460;
   await page.getByTestId("project-file").setInputFiles({
     name: "routing-example.icproj.json",
     mimeType: "application/json",
