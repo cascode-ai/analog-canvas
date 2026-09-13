@@ -148,6 +148,8 @@ export function symbolCategory(symbolId: string): string {
  * and filled entries are appearance variants, never shared interface objects.
  */
 const LIBRARY_DISPLAY_NAMES: Readonly<Record<string, string>> = {
+  "depletion-nmos": "D-NMOS",
+  "depletion-pmos": "D-PMOS",
   port: "Cell Pin",
   "port-filled": "Cell Pin (filled)",
   "zener-diode": "Zener",
@@ -222,6 +224,8 @@ const SYMBOL_ORDER: readonly string[] = [
   "zener-diode",
   "tcoil",
   "xfmr",
+  "depletion-nmos",
+  "depletion-pmos",
   "ndmos",
   "pdmos",
   "vdd-port",

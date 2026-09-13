@@ -14,8 +14,9 @@ The core authoring model has two levels:
 
 Start with [NMOS](definitions/nmos.json), [PMOS](definitions/pmos.json),
 [Resistor](definitions/resistor.json), [Capacitor](definitions/capacitor.json),
-or [Inductor](definitions/inductor.json). Extended DMOS, drawing-only blocks,
-and named symbol variants with their own stable IDs follow the same rule.
+or [Inductor](definitions/inductor.json). Extended DMOS and depletion-MOS
+variants, drawing-only blocks, and named symbol variants with their own stable
+IDs follow the same rule.
 
 ## What a definition owns
 
@@ -46,9 +47,10 @@ entry; a geometry generator cannot silently create electrical semantics.
 
 Run `pnpm components:generate`, then `pnpm components:check` and the tests
 appropriate to the change. The check is part of the static delivery gate.
-NDMOS/PDMOS are checked/regenerated against their declared base MOS through one
-shared drift-region operation, not independently maintained copies of the MOS
-construction rules. Other families keep their existing targeted generators.
+NDMOS/PDMOS and depletion NMOS/PMOS are checked/regenerated against their
+declared base MOS through one shared derivation operation, not independently
+maintained copies of the MOS construction rules. Other families keep their
+existing targeted generators.
 
 Runtime adapters in `@icm/devices` and `@icm/symbols` are generated projections,
 not additional authoring sources. Electrical consumers do not import artwork;
@@ -117,8 +119,9 @@ The product set is exactly the reviewed, Reference-calibrated entries:
 `nmos` and `pmos` are the only MOS asset IDs in the Reference-calibrated
 Razavi catalog. Their default visual variant is `textbook-3terminal`; explicit
 bulk-capable variants remain properties of the same canonical assets. Optional
-families such as high-voltage DMOS live in the separate Extended Devices
-catalog and do not claim Razavi visual authority. The drawn VDD rail remains
+families such as high-voltage DMOS and Razavi-compatible depletion MOS live in
+the separate Extended Devices catalog and do not claim Razavi visual
+authority. The drawn VDD rail remains
 the explicit Net/Route authoring form; `vdd-port` is its reviewed marker Symbol
 for placed-device authoring on the same global VDD Net. There is no legacy
 symbol catalog or generic fallback. A device without a reviewed Razavi symbol

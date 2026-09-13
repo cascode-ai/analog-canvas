@@ -86,7 +86,7 @@
       "runtimeOwner": "presentation.nodes.junction"
     }
   ],
-  "extendedEntries": ["ndmos", "pdmos"],
+  "extendedEntries": ["depletion-nmos", "depletion-pmos", "ndmos", "pdmos"],
   "deviceOrder": [
     "resistor",
     "variable-resistor",
@@ -97,6 +97,8 @@
     "variable-inductor",
     "nmos",
     "pmos",
+    "depletion-nmos",
+    "depletion-pmos",
     "ndmos",
     "pdmos",
     "diode",

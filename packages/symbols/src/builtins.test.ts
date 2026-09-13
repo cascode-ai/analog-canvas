@@ -69,6 +69,8 @@ describe("built-in Symbol libraries", () => {
       PRODUCT_IDS,
     );
     expect(expandedDeviceSymbols.map((symbol) => symbol.id)).toEqual([
+      "depletion-nmos",
+      "depletion-pmos",
       "ndmos",
       "pdmos",
     ]);

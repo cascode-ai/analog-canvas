@@ -5,6 +5,315 @@ import type { ExpandedDeviceCatalogEntry } from "./expanded-device-catalog.js";
 export const expandedComponentSymbols: readonly SymbolDefinition[] = [
   {
     schemaVersion: 1,
+    id: "depletion-nmos",
+    name: "Depletion NMOS",
+    viewBox: { x: -24, y: -24, width: 48, height: 48 },
+    pins: [
+      {
+        name: "D",
+        role: "drain",
+        at: { x: 10, y: -20 },
+        direction: "north",
+        presentation: { visibility: "visible", leadLength: 10 },
+      },
+      {
+        name: "G",
+        role: "gate",
+        at: { x: -20, y: 0 },
+        direction: "west",
+        presentation: { visibility: "visible", leadLength: 10 },
+      },
+      {
+        name: "S",
+        role: "source",
+        at: { x: 10, y: 20 },
+        direction: "south",
+        presentation: { visibility: "visible", leadLength: 10 },
+      },
+      {
+        name: "B",
+        role: "bulk",
+        at: { x: 20, y: 0 },
+        direction: "east",
+        presentation: { visibility: "visible", leadLength: 10 },
+      },
+    ],
+    primitives: [
+      {
+        kind: "polyline",
+        points: [
+          { x: -4.244186, y: -6.976744 },
+          { x: 10, y: -6.976744 },
+          { x: 10, y: -20 },
+        ],
+        style: { strokeRole: "normal", lineCap: "butt", lineJoin: "miter" },
+      },
+      {
+        kind: "polyline",
+        points: [
+          { x: -4.244186, y: 6.976744 },
+          { x: 10, y: 6.976744 },
+          { x: 10, y: 20 },
+        ],
+        part: "source-arrow-host",
+        style: { strokeRole: "normal", lineCap: "butt", lineJoin: "miter" },
+      },
+      {
+        kind: "polygon",
+        points: [
+          { x: -11.802326, y: -9.593023 },
+          { x: -11.802326, y: 9.593023 },
+          { x: -8.895349, y: 9.593023 },
+          { x: -8.895349, y: -9.593023 },
+        ],
+        fill: "foreground",
+        stroke: "none",
+        part: "gate-bar",
+      },
+      {
+        kind: "polygon",
+        points: [
+          { x: -6.569767, y: -12.5 },
+          { x: -6.569767, y: 12.5 },
+          { x: -3.662791, y: 12.5 },
+          { x: -3.662791, y: -12.5 },
+        ],
+        fill: "foreground",
+        stroke: "none",
+        part: "gate-bar",
+      },
+      {
+        kind: "line",
+        from: { x: -8.895349, y: 0 },
+        to: { x: -20, y: 0 },
+        style: { strokeRole: "normal", lineCap: "butt", lineJoin: "miter" },
+      },
+      {
+        kind: "line",
+        from: { x: -3.662791, y: 0 },
+        to: { x: 10, y: 0 },
+        part: "bulk-lead",
+        style: { strokeRole: "normal", lineCap: "butt", lineJoin: "miter" },
+      },
+      {
+        kind: "line",
+        from: { x: 16.395349, y: 0 },
+        to: { x: 20, y: 0 },
+        part: "bulk-lead",
+        style: { strokeRole: "normal", lineCap: "butt", lineJoin: "miter" },
+      },
+      {
+        kind: "polygon",
+        points: [
+          { x: 10, y: 0 },
+          { x: 16.395349, y: -3.488372 },
+          { x: 16.395349, y: 3.488372 },
+        ],
+        fill: "foreground",
+        stroke: "none",
+        part: "bulk-lead",
+      },
+      {
+        kind: "line",
+        from: { x: -0.368217, y: -7.776744 },
+        to: { x: -0.368217, y: 7.776744 },
+        part: "depletion-channel",
+        style: { strokeRole: "normal", lineCap: "butt", lineJoin: "miter" },
+      },
+    ],
+    variants: [
+      {
+        id: "textbook-3terminal",
+        hiddenPinNames: ["B"],
+        auxiliaryPins: [
+          {
+            name: "B",
+            at: { x: -4, y: 0 },
+            direction: "east",
+            routing: { escape: "outward", preferredLanding: { x: 0, y: 0 } },
+          },
+        ],
+        hiddenPrimitiveParts: ["bulk-lead", "source-arrow-host"],
+        additionalPrimitives: [
+          {
+            kind: "polyline",
+            points: [
+              { x: -3.662791, y: 6.976744 },
+              { x: 10, y: 6.976744 },
+              { x: 10, y: 20 },
+            ],
+            part: "source-arrow",
+            style: { strokeRole: "normal", lineCap: "butt", lineJoin: "miter" },
+          },
+          {
+            kind: "polygon",
+            points: [
+              { x: 10.581395, y: 6.976744 },
+              { x: 1.27907, y: 2.906977 },
+              { x: 1.27907, y: 11.046512 },
+            ],
+            fill: "foreground",
+            stroke: "none",
+            part: "source-arrow",
+          },
+        ],
+      },
+    ],
+    defaultVariantId: "textbook-3terminal",
+  },
+  {
+    schemaVersion: 1,
+    id: "depletion-pmos",
+    name: "Depletion PMOS",
+    viewBox: { x: -24, y: -24, width: 48, height: 48 },
+    pins: [
+      {
+        name: "D",
+        role: "drain",
+        at: { x: 10, y: 20 },
+        direction: "south",
+        presentation: { visibility: "visible", leadLength: 10 },
+      },
+      {
+        name: "G",
+        role: "gate",
+        at: { x: -20, y: 0 },
+        direction: "west",
+        presentation: { visibility: "visible", leadLength: 10 },
+      },
+      {
+        name: "S",
+        role: "source",
+        at: { x: 10, y: -20 },
+        direction: "north",
+        presentation: { visibility: "visible", leadLength: 10 },
+      },
+      {
+        name: "B",
+        role: "bulk",
+        at: { x: 20, y: 0 },
+        direction: "east",
+        presentation: { visibility: "visible", leadLength: 10 },
+      },
+    ],
+    primitives: [
+      {
+        kind: "polyline",
+        points: [
+          { x: -4.244186, y: 6.976744 },
+          { x: 10, y: 6.976744 },
+          { x: 10, y: 20 },
+        ],
+        style: { strokeRole: "normal", lineCap: "butt", lineJoin: "miter" },
+      },
+      {
+        kind: "polyline",
+        points: [
+          { x: -4.244186, y: -6.976744 },
+          { x: 10, y: -6.976744 },
+          { x: 10, y: -20 },
+        ],
+        part: "source-arrow-host",
+        style: { strokeRole: "normal", lineCap: "butt", lineJoin: "miter" },
+      },
+      {
+        kind: "polygon",
+        points: [
+          { x: -11.802326, y: -9.593023 },
+          { x: -11.802326, y: 9.593023 },
+          { x: -8.895349, y: 9.593023 },
+          { x: -8.895349, y: -9.593023 },
+        ],
+        fill: "foreground",
+        stroke: "none",
+        part: "gate-bar",
+      },
+      {
+        kind: "polygon",
+        points: [
+          { x: -6.569767, y: -12.5 },
+          { x: -6.569767, y: 12.5 },
+          { x: -3.662791, y: 12.5 },
+          { x: -3.662791, y: -12.5 },
+        ],
+        fill: "foreground",
+        stroke: "none",
+        part: "gate-bar",
+      },
+      {
+        kind: "line",
+        from: { x: -8.895349, y: 0 },
+        to: { x: -20, y: 0 },
+        style: { strokeRole: "normal", lineCap: "butt", lineJoin: "miter" },
+      },
+      {
+        kind: "line",
+        from: { x: -3.662791, y: 0 },
+        to: { x: 13.604651, y: 0 },
+        part: "bulk-lead",
+        style: { strokeRole: "normal", lineCap: "butt", lineJoin: "miter" },
+      },
+      {
+        kind: "polygon",
+        points: [
+          { x: 20, y: 0 },
+          { x: 13.604651, y: -3.77907 },
+          { x: 13.604651, y: 3.77907 },
+        ],
+        fill: "foreground",
+        stroke: "none",
+        part: "bulk-lead",
+      },
+      {
+        kind: "line",
+        from: { x: -0.368217, y: -7.776744 },
+        to: { x: -0.368217, y: 7.776744 },
+        part: "depletion-channel",
+        style: { strokeRole: "normal", lineCap: "butt", lineJoin: "miter" },
+      },
+    ],
+    variants: [
+      {
+        id: "textbook-3terminal",
+        hiddenPinNames: ["B"],
+        auxiliaryPins: [
+          {
+            name: "B",
+            at: { x: -4, y: 0 },
+            direction: "east",
+            routing: { escape: "outward", preferredLanding: { x: 0, y: 0 } },
+          },
+        ],
+        hiddenPrimitiveParts: ["bulk-lead", "source-arrow-host"],
+        additionalPrimitives: [
+          {
+            kind: "polyline",
+            points: [
+              { x: 5.639535, y: -7.122093 },
+              { x: 10, y: -7.122093 },
+              { x: 10, y: -20 },
+            ],
+            part: "source-arrow",
+            style: { strokeRole: "normal", lineCap: "butt", lineJoin: "miter" },
+          },
+          {
+            kind: "polygon",
+            points: [
+              { x: -3.662791, y: -7.122093 },
+              { x: 5.639535, y: -11.19186 },
+              { x: 5.639535, y: -3.052326 },
+            ],
+            fill: "foreground",
+            stroke: "none",
+            part: "source-arrow",
+          },
+        ],
+      },
+    ],
+    defaultVariantId: "textbook-3terminal",
+  },
+  {
+    schemaVersion: 1,
     id: "ndmos",
     name: "N-channel DMOS",
     viewBox: { x: -24, y: -24, width: 48, height: 48 },
@@ -321,6 +630,16 @@ export const expandedComponentSymbols: readonly SymbolDefinition[] = [
 ];
 export const expandedComponentCatalogEntries: readonly ExpandedDeviceCatalogEntry[] =
   [
+    {
+      symbolId: "depletion-nmos",
+      category: "Extended Devices",
+      subcategory: "MOS variants",
+    },
+    {
+      symbolId: "depletion-pmos",
+      category: "Extended Devices",
+      subcategory: "MOS variants",
+    },
     {
       symbolId: "ndmos",
       category: "Extended Devices",

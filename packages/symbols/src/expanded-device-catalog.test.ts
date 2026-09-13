@@ -5,13 +5,24 @@ import {
   expandedDeviceSymbols,
   EXTENDED_DEVICE_CATEGORY,
   HIGH_VOLTAGE_DEVICE_SUBCATEGORY,
+  MOS_VARIANT_SUBCATEGORY,
 } from "./expanded-device-catalog.js";
 import { razaviProductSymbols } from "./razavi-catalog.js";
 import { SymbolDefinitionSchema } from "./schema.js";
 
 describe("Extended Devices catalog", () => {
-  it("keeps high-voltage DMOS outside the Razavi authority boundary", () => {
+  it("keeps optional MOS families outside the Razavi authority boundary", () => {
     expect(expandedDeviceCatalogEntries).toEqual([
+      {
+        symbolId: "depletion-nmos",
+        category: EXTENDED_DEVICE_CATEGORY,
+        subcategory: MOS_VARIANT_SUBCATEGORY,
+      },
+      {
+        symbolId: "depletion-pmos",
+        category: EXTENDED_DEVICE_CATEGORY,
+        subcategory: MOS_VARIANT_SUBCATEGORY,
+      },
       {
         symbolId: "ndmos",
         category: EXTENDED_DEVICE_CATEGORY,
@@ -27,6 +38,38 @@ describe("Extended Devices catalog", () => {
       expect(SymbolDefinitionSchema.parse(symbol)).toEqual(symbol);
     }
   });
+
+  it.each([
+    ["depletion-nmos", "Depletion NMOS", "nmos"],
+    ["depletion-pmos", "Depletion PMOS", "pmos"],
+  ] as const)(
+    "keeps %s identical to %s except for one wire-width depletion channel",
+    (id, name, baseId) => {
+      const symbol = expandedDeviceSymbols.find(
+        (candidate) => candidate.id === id,
+      );
+      const base = razaviProductSymbols.find(
+        (candidate) => candidate.id === baseId,
+      );
+      expect(symbol).toMatchObject({
+        id,
+        name,
+        defaultVariantId: "textbook-3terminal",
+        pins: [{ name: "D" }, { name: "G" }, { name: "S" }, { name: "B" }],
+      });
+      expect(symbol?.viewBox).toEqual(base?.viewBox);
+      expect(symbol?.pins).toEqual(base?.pins);
+      expect(symbol?.primitives.slice(0, -1)).toEqual(base?.primitives);
+      expect(symbol?.variants).toEqual(base?.variants);
+      expect(symbol?.primitives.at(-1)).toMatchObject({
+        kind: "line",
+        from: { x: -0.368217, y: -7.776744 },
+        to: { x: -0.368217, y: 7.776744 },
+        part: "depletion-channel",
+        style: { strokeRole: "normal", lineCap: "butt" },
+      });
+    },
+  );
 
   it.each([
     ["ndmos", "N-channel DMOS"],

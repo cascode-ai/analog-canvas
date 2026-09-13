@@ -45,3 +45,42 @@ export function deriveDmosSymbol(base, id, name) {
     defaultVariantId: "standard-3terminal",
   };
 }
+
+/**
+ * Keep the reviewed MOS body, pins, variants, and polarity arrow intact while
+ * adding the single continuous depletion-channel mark requested by the user.
+ */
+export function deriveDepletionMosSymbol(base, id, name) {
+  if (!base) throw new Error(`Missing depletion-MOS base Symbol for ${id}`);
+  const branchYs = base.primitives
+    .filter((primitive) => primitive.kind === "polyline")
+    .map((primitive) => primitive.points[0]?.y)
+    .filter((value) => Number.isFinite(value));
+  if (branchYs.length < 2)
+    throw new Error(`Missing channel branches for depletion MOS: ${base.id}`);
+  const upperY = Math.min(...branchYs);
+  const lowerY = Math.max(...branchYs);
+  const wireHalfWidth = 0.8;
+  // One third of the way back from the NMOS arrow tail (x=1.27907) toward
+  // the channel edge (x=-3.662791), matching the approved visual placement.
+  const depletionChannelX = -0.368217;
+  return {
+    ...base,
+    id,
+    name,
+    primitives: [
+      ...base.primitives,
+      {
+        kind: "line",
+        from: { x: depletionChannelX, y: upperY - wireHalfWidth },
+        to: { x: depletionChannelX, y: lowerY + wireHalfWidth },
+        part: "depletion-channel",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+    ],
+  };
+}

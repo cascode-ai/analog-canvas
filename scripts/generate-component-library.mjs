@@ -7,7 +7,10 @@ import {
   jsonSource,
   writeComponentProjection,
 } from "./lib/component-library.mjs";
-import { deriveDmosSymbol } from "./lib/derived-mos-symbol.mjs";
+import {
+  deriveDepletionMosSymbol,
+  deriveDmosSymbol,
+} from "./lib/derived-mos-symbol.mjs";
 import { isDeepStrictEqual } from "node:util";
 
 const { index, byId } = await loadComponentLibrary();
@@ -16,10 +19,15 @@ const check = process.argv.includes("--check");
 for (const id of index.extendedEntries) {
   const component = byId.get(id);
   if (!component.catalog.derivedFrom) continue;
-  if (component.catalog.derivation !== "mos-drift-region")
-    throw new Error(`Unsupported derivation for ${id}`);
   const base = byId.get(component.catalog.derivedFrom);
-  const symbol = deriveDmosSymbol(base?.symbol, id, component.symbol.name);
+  const symbol =
+    component.catalog.derivation === "mos-drift-region"
+      ? deriveDmosSymbol(base?.symbol, id, component.symbol.name)
+      : component.catalog.derivation === "mos-depletion-channel"
+        ? deriveDepletionMosSymbol(base?.symbol, id, component.symbol.name)
+        : (() => {
+            throw new Error(`Unsupported derivation for ${id}`);
+          })();
   if (!isDeepStrictEqual(component.symbol, symbol)) {
     if (check)
       throw new Error(
