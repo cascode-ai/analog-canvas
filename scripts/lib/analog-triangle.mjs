@@ -17,6 +17,13 @@ export const ANALOG_TRIANGLE_PATH =
   ` L ${ANALOG_TRIANGLE.leftX} ${ANALOG_TRIANGLE.bottomY}` +
   ` L ${ANALOG_TRIANGLE.apexX} ${ANALOG_TRIANGLE.apexY} Z`;
 
+export const ANALOG_TRIANGLE_BOUNDS = {
+  x: ANALOG_TRIANGLE.leftX,
+  y: ANALOG_TRIANGLE.topY,
+  width: ANALOG_TRIANGLE.apexX - ANALOG_TRIANGLE.leftX,
+  height: ANALOG_TRIANGLE.bottomY - ANALOG_TRIANGLE.topY,
+};
+
 export const ANALOG_TRIANGLE_VIEWBOX = {
   x: -44,
   y: -28,

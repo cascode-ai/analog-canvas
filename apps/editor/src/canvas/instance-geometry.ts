@@ -21,10 +21,9 @@ function viewBoxCorners(viewBox: SymbolLocalRect): SymbolLocalPoint[] {
 }
 
 /**
- * Returns the visible local envelope of a resolved symbol. A path cannot be
- * bounded without parsing its SVG path data, so its declaration viewBox stays
- * the safe fallback. Other primitive types are bounded from their painted
- * points plus visible electrical pins.
+ * Returns the visible local envelope of a resolved symbol. Paths use their
+ * authored centerline bounds; only an unbounded path needs the declaration
+ * viewBox fallback. The envelope also contains visible electrical pins.
  */
 export function visibleSymbolLocalBounds(
   resolved: ResolvedSymbol,
@@ -65,7 +64,9 @@ export function visibleSymbolLocalBounds(
         );
         break;
       case "path":
-        return resolved.definition.viewBox;
+        if (!primitive.bounds) return resolved.definition.viewBox;
+        points.push(...viewBoxCorners(primitive.bounds));
+        break;
     }
   }
 
@@ -76,7 +77,12 @@ export function visibleSymbolLocalBounds(
   );
   if (points.length === 0) return resolved.definition.viewBox;
 
-  const padding = 1.5;
+  // Path bounds describe centerlines. Four units cover the amplifier's
+  // 60-degree miter and the sharper resistor zigzag at normal stroke widths,
+  // without making the empty part of the source crop selectable.
+  const padding = primitives.some((primitive) => primitive.kind === "path")
+    ? 4
+    : 1.5;
   const minX = Math.min(...points.map((point) => point.x)) - padding;
   const minY = Math.min(...points.map((point) => point.y)) - padding;
   const maxX = Math.max(...points.map((point) => point.x)) + padding;

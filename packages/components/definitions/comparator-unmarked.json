@@ -103,6 +103,12 @@
       {
         "kind": "path",
         "data": "M -23.30127 -25 L -23.30127 25 L 20 0 Z",
+        "bounds": {
+          "x": -23.30127,
+          "y": -25,
+          "width": 43.30127,
+          "height": 50
+        },
         "style": {
           "strokeRole": "emphasis",
           "lineCap": "butt",
@@ -118,7 +124,13 @@
           "lineCap": "butt",
           "lineJoin": "miter"
         },
-        "part": "hysteresis-step"
+        "part": "hysteresis-step",
+        "bounds": {
+          "x": -16.867513000000002,
+          "y": -7,
+          "width": 16,
+          "height": 14
+        }
       }
     ],
     "variants": []

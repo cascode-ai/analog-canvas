@@ -83,8 +83,8 @@ describe("converter blocks", () => {
   });
 
   it("draws the body as a polygon so bounds come from the artwork", () => {
-    // visibleSymbolLocalBounds falls back to the declaration viewBox for a
-    // `path` body; a polygon is measured from its own points, so the hit box
+    // visibleSymbolLocalBounds falls back to the declaration viewBox for an
+    // unbounded `path` body; a polygon is measured from its own points, so the hit box
     // hugs the arrow the way every other primitive-drawn Symbol's does.
     for (const id of CONVERTERS) {
       const symbol = requireRazaviCatalogSymbol(id);

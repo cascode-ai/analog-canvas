@@ -11,6 +11,7 @@ import { format } from "prettier";
 import { loadRazaviReferenceAuthority } from "./lib/razavi-reference-authority.mjs";
 import {
   ANALOG_TRIANGLE,
+  ANALOG_TRIANGLE_BOUNDS,
   ANALOG_TRIANGLE_PATH,
   ANALOG_TRIANGLE_VIEWBOX,
 } from "./lib/analog-triangle.mjs";
@@ -68,6 +69,7 @@ function normalizeVoltageAmplifierLeads(symbol) {
     {
       ...body,
       data: ANALOG_TRIANGLE_PATH,
+      bounds: ANALOG_TRIANGLE_BOUNDS,
       style: { ...body.style, miterLimit: 4 },
     },
     {

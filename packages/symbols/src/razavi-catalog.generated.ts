@@ -148,7 +148,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Textbook comparator block; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "comparator.json",
     assetHash:
-      "0fddb3cb31f444744e17deaa92d0a2301da71c7dbeced86c15af62771a166135",
+      "4d3e750073d2329283d78543360ae8434c03c6160fc20974a2b40868eddb3d0e",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -183,7 +183,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Textbook comparator block; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "comparator-inputs-swapped.json",
     assetHash:
-      "233f8bff40a89555630e9b74dcd5e1ac1e05ded6dafe92e32682fc89d3c5f6ba",
+      "d2d73bda0ad51ee03298c29fe9047fdc95da81e435638baf81dee0460f19e442",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -214,7 +214,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Unmarked comparator block; SPICE subcircuit pin polarity and supply contracts require an explicit PDK mapping.",
     assetPath: "comparator-unmarked.json",
     assetHash:
-      "7e9d1a001dd081ea637a8a003b5803fec977cc6fa20e1f7a4d0b4e26f1c2f202",
+      "9215aabd38002ca955cb04a808a75409577347728b01e89252eb450fd38b647c",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -249,7 +249,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Unmarked comparator block; SPICE subcircuit pin polarity and supply contracts require an explicit PDK mapping.",
     assetPath: "comparator-unmarked-inputs-swapped.json",
     assetHash:
-      "9f674d3c3cece6d72b3b566e9142bfa00dbe66347088785377f8a6cb7d39b0b2",
+      "aa77bb32060c1dfcce26e9c3636c63b70cd760d5ed4a9b082045e50b7e10f91f",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -516,7 +516,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Behavioral differential transconductance block; structural netlists need an explicit implementation mapping.",
     assetPath: "differential-transconductance.json",
     assetHash:
-      "a367064e6389a3739c3af185c097c15f3905a349a2b72efdfb9e67fc6e6a64c8",
+      "7970e7ed34487ae420f9b69a35c36a27dbc51a1a268549903a5f42d1d65fdea9",
   },
   {
     symbolId: "differential-transconductance-inputs-swapped",
@@ -533,7 +533,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Behavioral differential transconductance block; structural netlists need an explicit implementation mapping.",
     assetPath: "differential-transconductance-inputs-swapped.json",
     assetHash:
-      "7aff3a7490b6de7fcf0b95e819c7f06771b719423e97c659e5247ffca27d8251",
+      "9bf0673fd5a06a21e627cfd940f3ec14699992c347f7ef22517ec236111a6a44",
     generation: {
       kind: "derived-input-swap",
       sourceSymbolId: "differential-transconductance",
@@ -1033,7 +1033,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Three-terminal textbook op-amp; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp.json",
     assetHash:
-      "45ec8c8e7263334be3f7dc37d3bac801dc5e495cacdf95a98e3c6257092e80d1",
+      "68d50781c8a26067104d9288e4741c6b41bb2358cd2aa996735fb3db5869ae2e",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1068,7 +1068,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Three-terminal textbook op-amp; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-lettered.json",
     assetHash:
-      "f78d2339243a8ffa34dc4d0a39f6d55e965b154e4328230c76289ebaafcd8ca7",
+      "0fc492b8bddf6fcdc4b4919434796d5aae2ecb43806d99aa27bc3ad1e1ead554",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1099,7 +1099,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Three-terminal textbook op-amp; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-lettered-inputs-swapped.json",
     assetHash:
-      "3a94e574da786ade89ecf9d56a73a9651ef35fd4efb5c3d87a420198a33364e0",
+      "dfefb259bf437b14787b0a99c58f379d17289fe04075fd4e0be95b04b588d47e",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1130,7 +1130,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Three-terminal textbook op-amp; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-inputs-swapped.json",
     assetHash:
-      "2c0639a83f2b43ea0fbfb19a21d0d74171c8cedee75480a874c14c9c76790bcb",
+      "87b77ffee56e74a20b5f7943c4d578caccee507a9fa76455e489e9dec46d5f7d",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1161,7 +1161,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Fully differential textbook body; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-differential.json",
     assetHash:
-      "fa25dfb5720f49f81b998a332d19aeaad2a3ffc1c58aa9ecbc4efa1243fbed86",
+      "a71d6b7458e90fcf5301fa44cb979ddfa3f042de2090891faac5a2023256d7e6",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1197,7 +1197,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Fully differential textbook body; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-differential-lettered.json",
     assetHash:
-      "4f0b371525e84887614905f0935bf24bdcbedc67ad26ff565bb0133898895479",
+      "f37f5fc1ab82d611eb2bb432b23af1a6d60124a33ca89eb47873204a4d173289",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1229,7 +1229,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Fully differential textbook body; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-differential-lettered-inputs-swapped.json",
     assetHash:
-      "44ae3da3092c4ffa277f310dea0da71f4fadfe945ff2111e0b53b5f17993e353",
+      "1597f9d3f195107b83f7e43c42462f443d3c354b19cacbd57db2d84a999a8785",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1261,7 +1261,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Fully differential textbook body; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-differential-inputs-swapped.json",
     assetHash:
-      "1a9986e5d97884571876daddf711c4dacf3eb108ab9255db069344771fd3e760",
+      "50c950d5fd4f6310008583e523eee2059183ce7a7be46e23cd9766bc63818599",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1293,7 +1293,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Output-polarity sibling of opamp-differential; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-differential-crossed.json",
     assetHash:
-      "379db8055b63fa1bf8c4054891d19ebedf53c2c6fc5a9c206f5bd60433d831f2",
+      "36e06e6f53f5e89c6e536d648923a14008b5da15bca349a34ca1162744c8a7f2",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1329,7 +1329,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Output-polarity sibling of opamp-differential; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-differential-crossed-lettered.json",
     assetHash:
-      "46563882abafb3aeb7bda7332495430d96f097090ebc4fb90bba6f5db800de57",
+      "98b6093ab44528001b2695c9a88cbb0b6680b7f736148cd065990d960e4d32bc",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1361,7 +1361,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Output-polarity sibling of opamp-differential; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-differential-crossed-lettered-inputs-swapped.json",
     assetHash:
-      "c17b2014a1645b9cefa79811a5cf9a4d7d7150355dccc301481ca64835edfc15",
+      "81baea4e962e32abc544490dd496351105acd458147f3a1535e4e9177abce523",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1393,7 +1393,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Output-polarity sibling of opamp-differential; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-differential-crossed-inputs-swapped.json",
     assetHash:
-      "276c9e0e8a536a5c702f4e41be7b6fd2bb994904ec8be6ceb19e2b382733c415",
+      "93af0ab44e99bddfb9bb9671012943e3eb3839eb4dcf1a86533bc54f2cc7369a",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1726,7 +1726,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Textbook gain block has implicit reference nodes and no exact primitive SPICE terminal contract.",
     assetPath: "voltage-amplifier.json",
     assetHash:
-      "1f4adc047e1aaed9fe7889312eaca1f6c20935676c49cafb1e8a36e2a21daeb7",
+      "eb8f913ac7017a1e25c77056c35d03c22ecdbe82e4f1a7e9c8fd51216bc6fe11",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1761,7 +1761,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Textbook gain block has implicit reference nodes and no exact primitive SPICE terminal contract.",
     assetPath: "voltage-amplifier-lettered.json",
     assetHash:
-      "2875b9a6e4a49b1d362d94bed883e3f3b9b6dfdfac46eb9f42ae60f548d189c0",
+      "d74422afaf1f46d2eecdbf61de431304c0cb9758f4f1c8f50c830953b8bb3e80",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -2553,6 +2553,12 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "path",
         data: "M -23.30127 -25 L -23.30127 25 L 20 0 Z",
+        bounds: {
+          x: -23.30127,
+          y: -25,
+          width: 43.30127,
+          height: 50,
+        },
         style: {
           strokeRole: "emphasis",
           lineCap: "butt",
@@ -2618,6 +2624,12 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           lineJoin: "miter",
         },
         part: "hysteresis-step",
+        bounds: {
+          x: -15,
+          y: -7,
+          width: 16,
+          height: 14,
+        },
       },
     ],
     variants: [],
@@ -2725,6 +2737,12 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "path",
         data: "M -23.30127 -25 L -23.30127 25 L 20 0 Z",
+        bounds: {
+          x: -23.30127,
+          y: -25,
+          width: 43.30127,
+          height: 50,
+        },
         style: {
           strokeRole: "emphasis",
           lineCap: "butt",
@@ -2790,6 +2808,12 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           lineJoin: "miter",
         },
         part: "hysteresis-step",
+        bounds: {
+          x: -15,
+          y: -7,
+          width: 16,
+          height: 14,
+        },
       },
     ],
     variants: [],
@@ -2897,6 +2921,12 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "path",
         data: "M -23.30127 -25 L -23.30127 25 L 20 0 Z",
+        bounds: {
+          x: -23.30127,
+          y: -25,
+          width: 43.30127,
+          height: 50,
+        },
         style: {
           strokeRole: "emphasis",
           lineCap: "butt",
@@ -2913,6 +2943,12 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           lineJoin: "miter",
         },
         part: "hysteresis-step",
+        bounds: {
+          x: -16.867513000000002,
+          y: -7,
+          width: 16,
+          height: 14,
+        },
       },
     ],
     variants: [],
@@ -3020,6 +3056,12 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "path",
         data: "M -23.30127 -25 L -23.30127 25 L 20 0 Z",
+        bounds: {
+          x: -23.30127,
+          y: -25,
+          width: 43.30127,
+          height: 50,
+        },
         style: {
           strokeRole: "emphasis",
           lineCap: "butt",
@@ -3036,6 +3078,12 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           lineJoin: "miter",
         },
         part: "hysteresis-step",
+        bounds: {
+          x: -16.867513000000002,
+          y: -7,
+          width: 16,
+          height: 14,
+        },
       },
     ],
     variants: [],
@@ -4330,6 +4378,12 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           lineJoin: "miter",
           miterLimit: 4,
         },
+        bounds: {
+          x: -20,
+          y: -35,
+          width: 40,
+          height: 70,
+        },
       },
       {
         kind: "line",
@@ -4507,6 +4561,12 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           lineCap: "butt",
           lineJoin: "miter",
           miterLimit: 4,
+        },
+        bounds: {
+          x: -20,
+          y: -35,
+          width: 40,
+          height: 70,
         },
       },
       {
@@ -6887,6 +6947,12 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "path",
         data: "M -23.30127 -25 L -23.30127 25 L 20 0 Z",
+        bounds: {
+          x: -23.30127,
+          y: -25,
+          width: 43.30127,
+          height: 50,
+        },
         style: {
           strokeRole: "emphasis",
           lineCap: "butt",
@@ -7049,6 +7115,12 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "path",
         data: "M -23.30127 -25 L -23.30127 25 L 20 0 Z",
+        bounds: {
+          x: -23.30127,
+          y: -25,
+          width: 43.30127,
+          height: 50,
+        },
         style: {
           strokeRole: "emphasis",
           lineCap: "butt",
@@ -7220,6 +7292,12 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "path",
         data: "M -23.30127 -25 L -23.30127 25 L 20 0 Z",
+        bounds: {
+          x: -23.30127,
+          y: -25,
+          width: 43.30127,
+          height: 50,
+        },
         style: {
           strokeRole: "emphasis",
           lineCap: "butt",
@@ -7391,6 +7469,12 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "path",
         data: "M -23.30127 -25 L -23.30127 25 L 20 0 Z",
+        bounds: {
+          x: -23.30127,
+          y: -25,
+          width: 43.30127,
+          height: 50,
+        },
         style: {
           strokeRole: "emphasis",
           lineCap: "butt",
@@ -7586,6 +7670,12 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "path",
         data: "M -23.30127 -25 L -23.30127 25 L 20 0 Z",
+        bounds: {
+          x: -23.30127,
+          y: -25,
+          width: 43.30127,
+          height: 50,
+        },
         style: {
           strokeRole: "emphasis",
           lineCap: "butt",
@@ -7834,6 +7924,12 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "path",
         data: "M -23.30127 -25 L -23.30127 25 L 20 0 Z",
+        bounds: {
+          x: -23.30127,
+          y: -25,
+          width: 43.30127,
+          height: 50,
+        },
         style: {
           strokeRole: "emphasis",
           lineCap: "butt",
@@ -8091,6 +8187,12 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "path",
         data: "M -23.30127 -25 L -23.30127 25 L 20 0 Z",
+        bounds: {
+          x: -23.30127,
+          y: -25,
+          width: 43.30127,
+          height: 50,
+        },
         style: {
           strokeRole: "emphasis",
           lineCap: "butt",
@@ -8348,6 +8450,12 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "path",
         data: "M -23.30127 -25 L -23.30127 25 L 20 0 Z",
+        bounds: {
+          x: -23.30127,
+          y: -25,
+          width: 43.30127,
+          height: 50,
+        },
         style: {
           strokeRole: "emphasis",
           lineCap: "butt",
@@ -8596,6 +8704,12 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "path",
         data: "M -23.30127 -25 L -23.30127 25 L 20 0 Z",
+        bounds: {
+          x: -23.30127,
+          y: -25,
+          width: 43.30127,
+          height: 50,
+        },
         style: {
           strokeRole: "emphasis",
           lineCap: "butt",
@@ -8844,6 +8958,12 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "path",
         data: "M -23.30127 -25 L -23.30127 25 L 20 0 Z",
+        bounds: {
+          x: -23.30127,
+          y: -25,
+          width: 43.30127,
+          height: 50,
+        },
         style: {
           strokeRole: "emphasis",
           lineCap: "butt",
@@ -9101,6 +9221,12 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "path",
         data: "M -23.30127 -25 L -23.30127 25 L 20 0 Z",
+        bounds: {
+          x: -23.30127,
+          y: -25,
+          width: 43.30127,
+          height: 50,
+        },
         style: {
           strokeRole: "emphasis",
           lineCap: "butt",
@@ -9358,6 +9484,12 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "path",
         data: "M -23.30127 -25 L -23.30127 25 L 20 0 Z",
+        bounds: {
+          x: -23.30127,
+          y: -25,
+          width: 43.30127,
+          height: 50,
+        },
         style: {
           strokeRole: "emphasis",
           lineCap: "butt",
@@ -11020,6 +11152,12 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           lineJoin: "miter",
           miterLimit: 4,
         },
+        bounds: {
+          x: -23.30127,
+          y: -25,
+          width: 43.30127,
+          height: 50,
+        },
       },
       {
         kind: "line",
@@ -11103,6 +11241,12 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           lineCap: "butt",
           lineJoin: "miter",
           miterLimit: 4,
+        },
+        bounds: {
+          x: -23.30127,
+          y: -25,
+          width: 43.30127,
+          height: 50,
         },
       },
       {

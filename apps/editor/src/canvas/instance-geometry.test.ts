@@ -52,16 +52,61 @@ const adaptiveDefinition = {
 };
 
 describe("selection geometry", () => {
-  it("keeps ordinary painted geometry and pins inside the Symbol viewBox", () => {
-    const resolved = resolver.resolve("opamp");
-    expect(resolved).toBeDefined();
-    const bounds = visibleSymbolLocalBounds(resolved!);
-    expect(bounds.x).toBeGreaterThanOrEqual(resolved!.definition.viewBox.x);
-    expect(bounds.width).toBeLessThanOrEqual(
-      resolved!.definition.viewBox.width,
+  it("measures every Analog Block and its letter/polarity variants without source-crop whitespace", () => {
+    const blocks = builtInSymbols.filter(
+      (symbol) =>
+        /^(?:opamp|voltage-amplifier|comparator|differential-transconductance)(?:-|$)/u.test(
+          symbol.id,
+        ) || ["transconductance", "adc", "dac"].includes(symbol.id),
     );
-    expect(bounds.height).toBeLessThanOrEqual(
-      resolved!.definition.viewBox.height,
+    expect(blocks).toHaveLength(23);
+    for (const symbol of blocks) {
+      const bounds = visibleSymbolLocalBounds(resolver.resolve(symbol.id)!);
+      const expected = symbol.id.startsWith("opamp-differential")
+        ? { x: -44, y: -29, width: 68, height: 58 }
+        : /^(?:opamp|voltage-amplifier|comparator)/u.test(symbol.id)
+          ? { x: -44, y: -29, width: 88, height: 58 }
+          : symbol.id.startsWith("differential-transconductance")
+            ? { x: -34, y: -39, width: 68, height: 78 }
+            : symbol.id === "adc"
+              ? { x: -51.5, y: -21.5, width: 93, height: 43 }
+              : symbol.id === "dac"
+                ? { x: -41.5, y: -21.5, width: 93, height: 43 }
+                : { x: -30, y: -35, width: 60, height: 70 };
+      expect(bounds, symbol.id).toEqual(expected);
+    }
+  });
+
+  it.each([
+    [0, "none", { x: 56, y: 171, width: 68, height: 58 }],
+    [0, "horizontal", { x: 76, y: 171, width: 68, height: 58 }],
+    [90, "none", { x: 71, y: 156, width: 58, height: 68 }],
+    [270, "none", { x: 71, y: 176, width: 58, height: 68 }],
+  ] as const)(
+    "keeps the asymmetric FD Amp bounds aligned at rotation %s and mirror %s",
+    (rotation, mirror, expected) => {
+      const bounds = instanceVisibleHitBox(
+        {
+          id: "U1",
+          symbolId: "opamp-differential",
+          placement: { position: { x: 100, y: 200 }, rotation, mirror },
+        },
+        resolver.resolve("opamp-differential")!,
+      );
+      expect(bounds).toEqual(expected);
+    },
+  );
+
+  it("honors the resistor's existing path bounds and keeps unknown paths conservative", () => {
+    const resistor = resolver.resolve("resistor")!;
+    const bounds = visibleSymbolLocalBounds(resistor);
+    expect(bounds.width).toBeCloseTo(18.360465);
+    expect(bounds.height).toBe(48);
+    const unbounded = structuredClone(resolver.resolve("opamp")!);
+    for (const primitive of unbounded.definition.primitives)
+      if (primitive.kind === "path") delete primitive.bounds;
+    expect(visibleSymbolLocalBounds(unbounded)).toEqual(
+      unbounded.definition.viewBox,
     );
   });
 

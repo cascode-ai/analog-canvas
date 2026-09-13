@@ -12,6 +12,7 @@ import { loadRazaviReferenceAuthority } from "./lib/razavi-reference-authority.m
 
 import {
   ANALOG_TRIANGLE,
+  ANALOG_TRIANGLE_BOUNDS,
   ANALOG_TRIANGLE_PATH,
   ANALOG_TRIANGLE_VIEWBOX,
 } from "./lib/analog-triangle.mjs";
@@ -152,6 +153,7 @@ const symbol = {
     {
       kind: "path",
       data: ANALOG_TRIANGLE_PATH,
+      bounds: ANALOG_TRIANGLE_BOUNDS,
       style: {
         strokeRole: "emphasis",
         lineCap: "butt",
@@ -439,6 +441,7 @@ const differentialSymbol = (id, name, plusOutputAtBottom) => {
       {
         kind: "path",
         data: differentialTrianglePathData,
+        bounds: ANALOG_TRIANGLE_BOUNDS,
         style: {
           strokeRole: "emphasis",
           lineCap: "butt",
@@ -532,7 +535,11 @@ for (const id of ["comparator", "comparator-unmarked"]) {
       ...previous.primitives
         .filter((primitive) => primitive.part === "hysteresis-step")
         .map((primitive) => {
-          if (id !== "comparator-unmarked") return primitive;
+          if (id !== "comparator-unmarked")
+            return {
+              ...primitive,
+              bounds: { x: -15, y: -7, width: 16, height: 14 },
+            };
           const center = Number(
             ((2 * ANALOG_TRIANGLE.leftX + ANALOG_TRIANGLE.apexX) / 3).toFixed(
               6,
@@ -541,6 +548,7 @@ for (const id of ["comparator", "comparator-unmarked"]) {
           return {
             ...primitive,
             data: `M ${center - 8} 7 L ${center} 7 L ${center} -7 L ${center + 8} -7`,
+            bounds: { x: center - 8, y: -7, width: 16, height: 14 },
           };
         }),
     ],

@@ -95,6 +95,12 @@
           "lineCap": "butt",
           "lineJoin": "miter",
           "miterLimit": 4
+        },
+        "bounds": {
+          "x": -20,
+          "y": -35,
+          "width": 40,
+          "height": 70
         }
       },
       {

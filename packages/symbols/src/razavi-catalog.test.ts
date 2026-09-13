@@ -482,6 +482,36 @@ describe("Razavi symbol catalog", () => {
     ).toBe(true);
   });
 
+  it("declares exact bounds for every fixed Analog Block path, including interior marks", () => {
+    const family = razaviCatalogSymbols.filter((symbol) =>
+      /^(?:opamp|voltage-amplifier|comparator|differential-transconductance)(?:-|$)/u.test(
+        symbol.id,
+      ),
+    );
+    expect(family).toHaveLength(20);
+    for (const symbol of family)
+      for (const primitive of symbol.primitives) {
+        if (primitive.kind !== "path") continue;
+        // These authored outlines and polarity marks contain only straight
+        // segments, so their extrema are independently known from the vertices.
+        expect(primitive.data.replace(/[MLZ\d.,+\-\s]/gu, ""), symbol.id).toBe(
+          "",
+        );
+        const points = pathPoints(primitive.data);
+        const xs = points.map((point) => point.x),
+          ys = points.map((point) => point.y);
+        expect(
+          primitive.bounds,
+          `${symbol.id} ${primitive.part ?? "body"}`,
+        ).toEqual({
+          x: Math.min(...xs),
+          y: Math.min(...ys),
+          width: Math.max(...xs) - Math.min(...xs),
+          height: Math.max(...ys) - Math.min(...ys),
+        });
+      }
+  });
+
   it("uses one equilateral triangle, pair spacing, and visible leads across Analog Blocks", () => {
     const opamp = requireRazaviCatalogSymbol("opamp");
     const opampTriangle = opamp.primitives.find(
