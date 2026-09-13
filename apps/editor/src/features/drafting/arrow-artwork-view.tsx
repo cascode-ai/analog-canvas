@@ -53,13 +53,23 @@ export function ArrowArtworkView({
           {art.heads.map((head, index) => (
             <polygon
               key={index}
-              points={serialize(head)}
-              fill={art.headStyle === "open" ? "none" : color}
-              stroke={art.headStyle === "open" ? color : "none"}
+              points={serialize(head.points)}
+              fill={head.style === "open" ? "none" : color}
+              stroke={head.style === "open" ? color : "none"}
             />
           ))}
         </>
       )}
+      {art.dots.map(({ center, radius }, index) => (
+        <circle
+          key={`dot-${index}`}
+          cx={center.x}
+          cy={center.y}
+          r={radius}
+          fill={color}
+          stroke="none"
+        />
+      ))}
     </g>
   );
 }

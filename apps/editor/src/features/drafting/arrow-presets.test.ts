@@ -28,6 +28,20 @@ const base = DraftArrowSchema.parse({
 });
 const outlinePreset = ARROW_PRESETS.find((p) => p.id === "outline-end")!;
 describe("arrow family compatibility", () => {
+  it("clears independent endpoint overrides when a creation preset is applied", () => {
+    const custom = {
+      ...base,
+      styleOverride: {
+        ...base.styleOverride,
+        arrowStart: "dot" as const,
+        arrowEnd: "none" as const,
+      },
+    };
+    const next = applyArrowPreset(custom, ARROW_PRESETS[0]!)!;
+    expect(next.styleOverride).not.toHaveProperty("arrowStart");
+    expect(next.styleOverride).not.toHaveProperty("arrowEnd");
+    expect(next.styleOverride).toMatchObject(base.styleOverride!);
+  });
   it("round-trips every preset without persisting UI IDs or losing legacy scale/color", () => {
     for (const preset of ARROW_PRESETS) {
       const arrow = applyArrowPreset(base, preset)!;

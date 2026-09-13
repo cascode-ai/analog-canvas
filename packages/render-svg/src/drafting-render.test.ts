@@ -634,6 +634,34 @@ describe("drafting layer rendering", () => {
     expect(svg).toContain(`points="${head},0 ${100 - head},0"`);
   });
 
+  it("exports independently styled ends with filled dots and differently sized heads", () => {
+    const doc = arrowDocument({
+      arrowStart: "dot",
+      arrowEnd: "large-arrow",
+      color: "#123456",
+    });
+    const svg = renderDocumentSvg(doc, resolver);
+    const profile = resolveSchematicStyleProfile(
+      doc.presentation.styleProfileId,
+    );
+    expect(svg.match(/<polygon/gu)).toHaveLength(1);
+    expect(svg).toContain(
+      `<polygon points="100,0 ${100 - profile.annotations.arrowHeadLength * 1.5},`,
+    );
+    expect(svg).toContain(
+      `<circle cx="0" cy="0" r="${profile.annotations.arrowHeadWidth / 2}" fill="#123456"`,
+    );
+    const mixed = renderDocumentSvg(
+      arrowDocument({ arrowStart: "open-arrow", arrowEnd: "small-arrow" }),
+      resolver,
+    );
+    expect(mixed.match(/<polygon/gu)).toHaveLength(2);
+    expect(mixed.match(/<polygon[^>]*fill="none"/gu)).toHaveLength(1);
+    expect(mixed).toContain(
+      `<polygon points="100,0 ${100 - profile.annotations.arrowHeadLength * 0.75},`,
+    );
+  });
+
   it("puts the single head on the start when asked", () => {
     const document = arrowDocument({ arrowHeadAt: "start" });
     const svg = renderDocumentSvg(document, resolver);

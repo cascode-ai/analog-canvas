@@ -136,12 +136,15 @@ as one undoable edit. Invalid or locked edits retain the last accepted drawing;
 **Discard draft** restores the current code. Semantic labels retain their
 electrical text bindings; their code changes presentation only. Values with a
 fixed set of choices have a small dropdown arrow beside the JSON value: line
-style, arrow style, layer, text alignment/weight, visibility and locking.
+style, arrow endpoint styles, layer, text alignment/weight, visibility and locking.
 The menu shows the available choices without repeating the selected value.
 
-For arrows, `appearance.arrowStyle` chooses `filled-end`, `open-end`,
-`filled-both`, `open-both`, `outline-end`, `outline-start`, or `outline-both`.
-The dropdown also lists `filled-start`, `open-start`, and `line` (no head).
+For arrows, `appearance.startStyle` and `appearance.endStyle` independently
+choose `small-arrow`, `medium-arrow`, `large-arrow`, `dot`, `none`, or
+`open-arrow`. Each value has its own dropdown. Start and end follow the first
+and last points of the path when it rotates or mirrors. `appearance.arrowShape`
+chooses a line shaft or a straight outline silhouette; existing curves must be
+straightened before switching to outline.
 `appearance.strokeScale` changes stroke weight; an outline's `geometry.width`
 changes its shape without changing weight. `placement.rotation` is a clockwise
 angle in degrees: 0° points right and 90° points down. For a bent line it is the

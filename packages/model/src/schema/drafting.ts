@@ -9,6 +9,16 @@ import {
 import { VisualAnchorSchema } from "./annotations.js";
 import { RichTextDocumentSchema } from "./rich-text.js";
 
+export const ArrowEndStyleSchema = z.enum([
+  "small-arrow",
+  "medium-arrow",
+  "large-arrow",
+  "dot",
+  "none",
+  "open-arrow",
+]);
+export type ArrowEndStyle = z.infer<typeof ArrowEndStyleSchema>;
+
 const DraftingObjectBaseSchema = z.strictObject({
   id: StableIdSchema,
   locked: z.boolean(),
@@ -21,19 +31,11 @@ const DraftingObjectBaseSchema = z.strictObject({
       italic: z.boolean().optional(),
       lineStyle: z.enum(["solid", "dashed", "dotted"]).optional(),
       arrowHead: z.enum(["none", "filled", "open"]).optional(),
-      /**
-       * Which ends carry the head. Absent means the trailing end alone, which
-       * is what every arrow drawn before this field meant, so existing files
-       * load unchanged with no migration and no schema bump.
-       *
-       * Deliberately one placement rather than a separate style per end: a
-       * double-headed annotation arrow uses the same head at both ends by
-       * drafting convention, so per-end styles would answer a question nobody
-       * asked while doubling what the panel must present. If mismatched ends
-       * ever earn their keep, a second optional field adds them without
-       * disturbing anything written until then.
-       */
+      /** Legacy paired style; retained as the fallback for each unset end. */
       arrowHeadAt: z.enum(["end", "start", "both"]).optional(),
+      /** Endpoint identity follows from/to through rotation, mirrors and edits. */
+      arrowStart: ArrowEndStyleSchema.optional(),
+      arrowEnd: ArrowEndStyleSchema.optional(),
       /** Free multiplier over the profile's annotation stroke (schema 27
        * widened the previous four-step ladder); document-level
        * annotationStrokeScale composes multiplicatively on top. */
@@ -143,6 +145,17 @@ export const DraftingObjectSchema = z
     DraftFloatingSymbolSchema,
   ])
   .superRefine((object, ctx) => {
+    if (
+      object.kind !== "arrow" &&
+      (object.styleOverride?.arrowStart !== undefined ||
+        object.styleOverride?.arrowEnd !== undefined)
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["styleOverride"],
+        message: "Endpoint styles are available only for arrows",
+      });
+    }
     if (
       object.kind !== "rectangle" &&
       object.kind !== "circle" &&

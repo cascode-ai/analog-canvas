@@ -237,7 +237,7 @@ describe("annotation code projection", () => {
     expect(value.geometry!.tangentAngles![0]).toBeCloseTo(60, 0);
     expect(
       change(curved.value, (code) => {
-        code.appearance.arrowStyle = "outline-end";
+        code.appearance.arrowShape = "outline";
       }),
     ).toMatchObject({ ok: false });
   });
@@ -245,14 +245,15 @@ describe("annotation code projection", () => {
     const outlined = change(
       { ...arrow, styleOverride: { color: "#123456" } },
       (code) => {
-        code.appearance.arrowStyle = "outline-both";
+        code.appearance.arrowShape = "outline";
+        code.appearance.startStyle = "medium-arrow";
       },
     );
     expect(outlined).toMatchObject({
       ok: true,
       value: {
         outline: { width: 30 },
-        styleOverride: { color: "#123456", arrowHeadAt: "both" },
+        styleOverride: { color: "#123456", arrowStart: "medium-arrow" },
       },
     });
     if (!outlined.ok) return;
@@ -261,6 +262,78 @@ describe("annotation code projection", () => {
         code.geometry!.width = 45;
       }),
     ).toMatchObject({ ok: true, value: { outline: { width: 45 } } });
+  });
+  it("edits either endpoint without changing the other end or normalizing legacy scale", () => {
+    const legacy: DraftingObject = {
+      ...arrow,
+      styleOverride: { arrowHeadAt: "both" as const, arrowHeadScale: 1.25 },
+    };
+    expect(
+      parseDraftingPropertyCode(source(legacy), context(legacy)),
+    ).toMatchObject({ ok: true, value: legacy });
+    const start = change(legacy, (code) => {
+      code.appearance.startStyle = "dot";
+    });
+    expect(start).toMatchObject({
+      ok: true,
+      value: { styleOverride: { ...legacy.styleOverride, arrowStart: "dot" } },
+    });
+    if (!start.ok) return;
+    expect(start.value.styleOverride).not.toHaveProperty("arrowEnd");
+    expect(
+      change(start.value, (code) => {
+        code.appearance.endStyle = "large-arrow";
+      }),
+    ).toMatchObject({
+      ok: true,
+      value: {
+        styleOverride: {
+          ...legacy.styleOverride,
+          arrowStart: "dot",
+          arrowEnd: "large-arrow",
+        },
+      },
+    });
+    expect(
+      change({ ...start.value, locked: true }, (code) => {
+        code.appearance.endStyle = "none";
+      }).ok,
+    ).toBe(false);
+    expect(
+      change(start.value, (code) => {
+        code.appearance.startStyle = "tiny" as any;
+        code.appearance.endStyle = "none";
+      }).ok,
+    ).toBe(false);
+  });
+  it("preserves endpoint choices when changing the shaft family", () => {
+    const legacy: DraftingObject = {
+      ...arrow,
+      styleOverride: { arrowHead: "none" },
+    };
+    const result = change(legacy, (code) => {
+      code.appearance.arrowShape = "outline";
+    });
+    expect(result).toMatchObject({
+      ok: true,
+      value: {
+        outline: { width: 30 },
+        styleOverride: { arrowStart: "none", arrowEnd: "none" },
+      },
+    });
+    if (!result.ok) return;
+    expect(
+      draftingPropertyValue(context(result.value)).appearance,
+    ).toMatchObject({ startStyle: "none", endStyle: "none" });
+    const line = change(result.value, (code) => {
+      code.appearance.arrowShape = "line";
+      code.appearance.endStyle = "open-arrow";
+    });
+    expect(line).toMatchObject({
+      ok: true,
+      value: { styleOverride: { arrowStart: "none", arrowEnd: "open-arrow" } },
+    });
+    if (line.ok) expect(line.value).not.toHaveProperty("outline");
   });
   it("rejects invalid, unsupported and missing properties without a partial edit", () => {
     for (const update of [

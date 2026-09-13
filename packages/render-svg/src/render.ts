@@ -1841,8 +1841,14 @@ function renderDraftArrow(
   const serialize = (points: readonly Point[]) =>
     points.map((point) => `${point.x},${point.y}`).join(" ");
   const paint = `stroke="${stroke}" stroke-width="${artwork.strokeWidth}" stroke-linecap="${profile.lineCap}" stroke-linejoin="${profile.lineJoin}" stroke-miterlimit="${profile.miterLimit}"`;
+  const dots = artwork.dots
+    .map(
+      ({ center, radius }) =>
+        `<circle cx="${center.x}" cy="${center.y}" r="${radius}" fill="${stroke}"/>`,
+    )
+    .join("");
   if (artwork.outline) {
-    return `<g data-object-id="${object.id}" data-kind="draft-arrow"${unresolved}><polygon data-arrow-family="outline" points="${serialize(artwork.outline)}" fill="none" ${paint}${dash}/></g>`;
+    return `<g data-object-id="${object.id}" data-kind="draft-arrow"${unresolved}><polygon data-arrow-family="outline" points="${serialize(artwork.outline)}" fill="none" ${paint}${dash}/>${dots}</g>`;
   }
   const shaft = geometry.curveControls.some(Boolean)
     ? `<path d="${arrowPathData(artwork.shaft, artwork.controls)}" fill="none"`
@@ -1850,10 +1856,10 @@ function renderDraftArrow(
   const heads = artwork.heads
     .map(
       (head) =>
-        `<polygon points="${serialize(head)}" ${artwork.headStyle === "open" ? `fill="none" stroke="${stroke}" stroke-width="${artwork.strokeWidth}"` : `fill="${stroke}"`}/>`,
+        `<polygon points="${serialize(head.points)}" ${head.style === "open" ? `fill="none" stroke="${stroke}" stroke-width="${artwork.strokeWidth}"` : `fill="${stroke}"`}/>`,
     )
     .join("");
-  return `<g data-object-id="${object.id}" data-kind="draft-arrow"${unresolved}>${shaft} ${paint}${dash}/>${heads}</g>`;
+  return `<g data-object-id="${object.id}" data-kind="draft-arrow"${unresolved}>${shaft} ${paint}${dash}/>${heads}${dots}</g>`;
 }
 
 function renderDraftLeader(

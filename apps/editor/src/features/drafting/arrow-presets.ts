@@ -73,6 +73,11 @@ export function applyArrowPreset(
 ): Arrow | null {
   if (!canApplyArrowPreset(object, preset)) return null;
   const { outline, ...base } = object;
+  const {
+    arrowStart: _start,
+    arrowEnd: _end,
+    ...style
+  } = object.styleOverride ?? {};
   return {
     ...base,
     ...(preset.family === "outline"
@@ -80,7 +85,7 @@ export function applyArrowPreset(
       : {}),
     // Preserve historical head scales and all unrelated color/weight overrides.
     styleOverride: {
-      ...object.styleOverride,
+      ...style,
       arrowHead: preset.head,
       arrowHeadAt: preset.at,
     },

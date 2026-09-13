@@ -143,21 +143,37 @@ export function EditorDraftingHitTargets({
         geometry.curveControls,
         resolveDocumentStyleProfile(document.presentation),
       );
-      if (art.outline)
-        return (
-          <polygon
-            key={object.id}
-            {...common}
-            className={`${selectedClass} drafting-outline-arrow-hit`}
-            points={serializePolylinePoints(art.outline)}
-            fill="none"
-          />
-        );
+      const { "data-testid": _testId, ...headCommon } = common;
       const doubleClick = (event: ReactMouseEvent<SVGElement>) =>
-        selectionPolicy.allowsDrafting(object, "edit")
+        !object.outline && selectionPolicy.allowsDrafting(object, "edit")
           ? onArrowEdit(event, object)
           : undefined;
-      const { "data-testid": _testId, ...headCommon } = common;
+      const dotHits = art.dots.map(({ center, radius }, index) => (
+        <circle
+          key={`dot-${index}`}
+          {...headCommon}
+          className={selectedClass}
+          cx={center.x}
+          cy={center.y}
+          r={radius}
+          fill="transparent"
+          pointerEvents={drawingThroughScene ? "none" : "all"}
+          onDoubleClick={doubleClick}
+        />
+      ));
+      if (art.outline)
+        return (
+          <g key={object.id}>
+            <polygon
+              key={object.id}
+              {...common}
+              className={`${selectedClass} drafting-outline-arrow-hit`}
+              points={serializePolylinePoints(art.outline)}
+              fill="none"
+            />
+            {dotHits}
+          </g>
+        );
       return (
         <g key={object.id}>
           {geometry.curveControls.some(Boolean) ? (
@@ -186,12 +202,13 @@ export function EditorDraftingHitTargets({
               key={`head-${index}`}
               {...headCommon}
               className={selectedClass}
-              points={serializePolylinePoints(head)}
+              points={serializePolylinePoints(head.points)}
               fill="transparent"
               pointerEvents={drawingThroughScene ? "none" : "all"}
               onDoubleClick={doubleClick}
             />
           ))}
+          {dotHits}
         </g>
       );
     }

@@ -72,10 +72,13 @@ describe("fixed polarity mark properties", () => {
   );
 });
 
-describe("unified arrow styles", () => {
+describe("independent arrow endpoint styles", () => {
   it("exposes arrow appearance and geometry as editable code", () => {
     const markup = render(arrow());
-    expect(markup).toContain("arrowStyle");
+    expect(markup).toContain("arrowShape");
+    expect(markup).toContain("startStyle");
+    expect(markup).toContain("endStyle");
+    expect(markup).not.toContain("arrowStyle");
     expect(markup).toContain("rotation");
     expect(markup).not.toContain("bearing");
     expect(markup).toContain("tangentAngles");
@@ -111,14 +114,18 @@ describe("unified arrow styles", () => {
       }
     },
   );
-  it("recognizes legacy trailing, reversed, both and no-head styles in code", () => {
-    expect(render(arrow())).toContain("filled-end");
-    expect(render(arrow({ arrowHeadAt: "both" }))).toContain("filled-both");
-    expect(render(arrow({ arrowHead: "none" }))).toContain("line");
-    expect(render(arrow({ arrowHeadAt: "start" }))).toContain("filled-start");
-    expect(
-      render(arrow({ arrowHead: "open", arrowHeadAt: "start" })),
-    ).toContain("open-start");
+  it("projects legacy styles into independent start and end values", () => {
+    for (const [style, start, end] of [
+      [{}, "none", "medium-arrow"],
+      [{ arrowHeadAt: "both" }, "medium-arrow", "medium-arrow"],
+      [{ arrowHead: "none" }, "none", "none"],
+      [{ arrowHeadAt: "start" }, "medium-arrow", "none"],
+      [{ arrowHead: "open", arrowHeadAt: "start" }, "open-arrow", "none"],
+    ] as const) {
+      const markup = render(arrow(style));
+      expect(markup).toContain(`&quot;startStyle&quot;: &quot;${start}&quot;`);
+      expect(markup).toContain(`&quot;endStyle&quot;: &quot;${end}&quot;`);
+    }
   });
   it("shows geometric width instead of curve controls for an outline", () => {
     const object = { ...arrow(), outline: { width: 30 } } as DraftingObject;

@@ -5,18 +5,15 @@ import {
   VisualAnchorSchema,
   RichTextDocumentSchema,
   RotationSchema,
+  ArrowEndStyleSchema,
   type Annotation,
   type DraftingObject,
   type SchematicDocument,
 } from "@icm/model";
-import { resolveDraftingObjectGeometry } from "@icm/derived";
+import { arrowEndStyles, resolveDraftingObjectGeometry } from "@icm/derived";
 import type { SymbolResolver } from "@icm/symbols";
 import { normalizedBearing } from "../../canvas/canvas-geometry";
-import {
-  applyArrowPreset,
-  arrowPresetFor,
-  ARROW_PRESETS,
-} from "../drafting/arrow-presets";
+import { DEFAULT_OUTLINE_WIDTH } from "../drafting/arrow-presets";
 import {
   translateDraftingObject,
   setDraftingBearing,
@@ -51,7 +48,9 @@ const schema = z.strictObject({
     fillColor: color.optional(),
     lineStyle: z.enum(["solid", "dashed", "dotted"]).optional(),
     strokeScale: z.number().min(0.25).max(4).optional(),
-    arrowStyle: z.string().optional(),
+    arrowShape: z.enum(["line", "outline"]).optional(),
+    startStyle: ArrowEndStyleSchema.optional(),
+    endStyle: ArrowEndStyleSchema.optional(),
     sizeScale: z.number().finite().positive().optional(),
     weight: z.enum(["normal", "bold"]).optional(),
     italic: z.boolean().optional(),
@@ -140,7 +139,13 @@ export function draftingPropertyValue(
           }
         : {}),
       ...(object.kind === "arrow"
-        ? { arrowStyle: arrowPresetFor(object).id }
+        ? {
+            arrowShape: object.outline
+              ? ("outline" as const)
+              : ("line" as const),
+            startStyle: arrowEndStyles(object).start.style,
+            endStyle: arrowEndStyles(object).end.style,
+          }
         : {}),
       ...(text
         ? {
@@ -384,21 +389,37 @@ export function parseDraftingPropertyCode(
     }
     if (
       next.kind === "arrow" &&
-      value.appearance.arrowStyle !== baseline.appearance.arrowStyle
+      value.appearance.arrowShape !== baseline.appearance.arrowShape
     ) {
-      const preset = ARROW_PRESETS.find(
-        (item) => item.id === value.appearance.arrowStyle,
-      );
-      if (!preset)
-        throw new Error(
-          "appearance.arrowStyle must name an available arrow style",
-        );
-      const changed = applyArrowPreset(next, preset);
-      if (!changed)
+      if (
+        value.appearance.arrowShape === "outline" &&
+        (next.waypoints?.length || next.curveControls?.some(Boolean))
+      )
         throw new Error(
           "Outline arrows require a straight path; keep or straighten the existing bends first",
         );
-      next = changed;
+      if (value.appearance.arrowShape === "outline")
+        next.outline = { width: DEFAULT_OUTLINE_WIDTH };
+      else delete next.outline;
+      // A family change must not reinterpret a legacy headless/open arrow's
+      // unchanged endpoint values through the new family's fallback rules.
+      next.styleOverride = {
+        ...next.styleOverride,
+        arrowStart: value.appearance.startStyle,
+        arrowEnd: value.appearance.endStyle,
+      };
+    }
+    if (next.kind === "arrow") {
+      for (const [field, key] of [
+        ["startStyle", "arrowStart"],
+        ["endStyle", "arrowEnd"],
+      ] as const) {
+        if (value.appearance[field] !== baseline.appearance[field])
+          next.styleOverride = {
+            ...next.styleOverride,
+            [key]: value.appearance[field],
+          };
+      }
     }
     if (
       next.kind === "arrow" &&
@@ -526,13 +547,31 @@ export function annotationPropertyAdapter<T>(
       description: "",
     },
     {
-      path: "appearance.arrowStyle",
-      label: "Arrow style",
+      path: "appearance.arrowShape",
+      label: "Arrow shape",
       kind: "choice",
-      options: ARROW_PRESETS.map(({ id, label }) => ({ value: id, label })),
+      options: [
+        { value: "line", label: "Line" },
+        { value: "outline", label: "Outline" },
+      ],
       description: "",
-      help: "Choose the arrowhead and its end. Outline arrows require a straight path.",
+      help: "Outline arrows require a straight path. Endpoint styles are controlled independently below.",
     },
+    ...(["start", "end"] as const).map((end) => ({
+      path: `appearance.${end}Style`,
+      label: end === "start" ? "Start style" : "End style",
+      kind: "choice" as const,
+      options: [
+        { value: "small-arrow", label: "Small arrow" },
+        { value: "medium-arrow", label: "Medium arrow" },
+        { value: "large-arrow", label: "Large arrow" },
+        { value: "dot", label: "Dot" },
+        { value: "none", label: "None" },
+        { value: "open-arrow", label: "Open arrow" },
+      ],
+      description: "",
+      help: `${end === "start" ? "First" : "Last"} endpoint of the drawn path; stays with that endpoint when rotated or mirrored.`,
+    })),
     {
       path: "stacking.layer",
       label: "Layer",

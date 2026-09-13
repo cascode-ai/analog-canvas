@@ -70,11 +70,11 @@ test("outline arrow style is chosen before stamp/drag and shares editable geomet
   expect(
     JSON.parse(await readComponentPropertyCode(page)).geometry,
   ).not.toHaveProperty("tangentAngles");
-  const arrowStyle = page.getByRole("combobox", {
-    name: "Arrow style options",
+  const startStyle = page.getByRole("combobox", {
+    name: "Start style options",
     exact: true,
   });
-  await expect(arrowStyle.locator("option")).toHaveCount(10);
+  await expect(startStyle.locator("option")).toHaveCount(6);
   const rotation = page.getByRole("combobox", {
     name: "Rotation options",
     exact: true,
@@ -104,7 +104,7 @@ test("outline arrow style is chosen before stamp/drag and shares editable geomet
   await rotation.selectOption("45");
 
   const rotated = await outline.getAttribute("points");
-  await arrowStyle.selectOption("outline-both");
+  await startStyle.selectOption("medium-arrow");
   expect(await outline.getAttribute("points")).not.toBe(rotated);
 
   await canvas.focus();
@@ -1618,7 +1618,7 @@ test("arrow Properties omits the Segment selector", async ({ page }) => {
     properties.getByRole("combobox", { name: "Arrow head size" }),
   ).toHaveCount(0);
   await editComponentPropertyCode(page, (code) => {
-    code.appearance.arrowStyle = "open-end";
+    code.appearance.endStyle = "open-arrow";
   });
   await expect(head).toHaveAttribute("fill", "none");
   expect(await head.getAttribute("points")).not.toBe(originalPoints);
@@ -2733,14 +2733,17 @@ test("annotation dropdowns use typed values and disable locked or incompatible c
   await expect(weight).toHaveValue("bold");
 
   await page.getByTestId("drafting-hit-curve").click({ force: true });
-  const arrowStyle = page.getByRole("combobox", {
-    name: "Arrow style options",
+  const startStyle = page.getByRole("combobox", {
+    name: "Start style options",
     exact: true,
   });
-  await expect(arrowStyle.locator("option")).toHaveCount(10);
-  for (const value of ["outline-start", "outline-end", "outline-both"])
-    await expect(arrowStyle.locator(`option[value="${value}"]`)).toBeDisabled();
-  await arrowStyle.selectOption("filled-both");
+  await expect(startStyle.locator("option")).toHaveCount(6);
+  await expect(
+    page
+      .getByRole("combobox", { name: "Arrow shape options", exact: true })
+      .locator('option[value="outline"]'),
+  ).toBeDisabled();
+  await startStyle.selectOption("medium-arrow");
   const saved = JSON.parse(
     (await downloadBytes(page, "File", "Export Project File…")).toString(
       "utf8",
@@ -2762,8 +2765,158 @@ test("annotation dropdowns use typed values and disable locked or incompatible c
         id: "curve",
         zIndex: 3,
         curveControls: [{ x: 200, y: 280 }],
-        styleOverride: expect.objectContaining({ arrowHeadAt: "both" }),
+        styleOverride: expect.objectContaining({ arrowStart: "medium-arrow" }),
       }),
     ]),
   );
 });
+
+for (const shape of ["line", "outline"] as const) {
+  test(`${shape} arrow endpoints have independent styles through rotation, history and file export`, async ({
+    page,
+  }) => {
+    const project = createEmptyProject("arrow-ends", "Independent arrow ends");
+    const anchor = { kind: "free" as const, position: { x: 100, y: 100 } };
+    project.documents[0]!.drafting = {
+      objects: [
+        {
+          id: "arrow-ends",
+          kind: "arrow",
+          locked: false,
+          zIndex: 0,
+          anchor,
+          from: anchor,
+          to: { kind: "free", position: { x: 300, y: 100 } },
+          ...(shape === "outline" ? { outline: { width: 30 } } : {}),
+        },
+      ],
+    };
+    await page.goto("/editor");
+    await awaitEditorReady(page);
+    await page.getByTestId("project-file").setInputFiles({
+      name: "ends.icproj.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(JSON.stringify(project)),
+    });
+    await expect(page.getByTestId("status")).toContainText(
+      "Opened ends.icproj.json",
+    );
+    const hit = page.getByTestId("drafting-hit-arrow-ends");
+    const edge = await hit.evaluate((element) => {
+      const path = element as SVGPolygonElement;
+      const first = path.points.getItem(0);
+      const p = new DOMPoint(first.x, first.y).matrixTransform(
+        path.getScreenCTM()!,
+      );
+      return { x: p.x, y: p.y };
+    });
+    await page.mouse.click(edge.x, edge.y);
+    await page.keyboard.press("q");
+    const start = page.getByRole("combobox", {
+      name: "Start style options",
+      exact: true,
+    });
+    const end = page.getByRole("combobox", {
+      name: "End style options",
+      exact: true,
+    });
+    for (const select of [start, end])
+      await expect(select.locator("option")).toHaveText([
+        "Small arrow",
+        "Medium arrow",
+        "Large arrow",
+        "Dot",
+        "None",
+        "Open arrow",
+      ]);
+    await expect(start).toHaveValue("none");
+    await expect(end).toHaveValue("medium-arrow");
+    for (const style of [
+      "small-arrow",
+      "medium-arrow",
+      "large-arrow",
+      "dot",
+      "none",
+    ]) {
+      await start.selectOption(style);
+      await expect(end).toHaveValue("medium-arrow");
+    }
+    await start.selectOption("dot");
+    const art = page.locator(
+      '[data-kind="draft-arrow"][data-object-id="arrow-ends"]',
+    );
+    for (const style of [
+      "small-arrow",
+      "medium-arrow",
+      "large-arrow",
+      "dot",
+      "none",
+      "open-arrow",
+    ]) {
+      await end.selectOption(style);
+      await expect(start).toHaveValue("dot");
+      await expect(art.locator("circle")).toHaveCount(style === "dot" ? 2 : 1);
+      if (shape === "line")
+        await expect(art.locator("polygon")).toHaveCount(
+          style === "none" || style === "dot" ? 0 : 1,
+        );
+    }
+    await end.selectOption("large-arrow");
+    await page.getByRole("button", { name: "Undo", exact: true }).click();
+    await expect(end).toHaveValue("open-arrow");
+    await page.getByRole("button", { name: "Redo", exact: true }).click();
+    await expect(end).toHaveValue("large-arrow");
+    await page
+      .getByRole("combobox", { name: "Rotation options", exact: true })
+      .selectOption("45");
+    await expect(start).toHaveValue("dot");
+    await expect(end).toHaveValue("large-arrow");
+    const polygon = (await art.locator("polygon").getAttribute("points"))!;
+    const circle = await art.locator("circle").evaluate((el) => ({
+      cx: el.getAttribute("cx"),
+      cy: el.getAttribute("cy"),
+      r: el.getAttribute("r"),
+    }));
+    const saved = await downloadBytes(page, "File", "Export Project File…");
+    expect(
+      JSON.parse(saved.toString("utf8")).documents[0].drafting.objects[0]
+        .styleOverride,
+    ).toMatchObject({ arrowStart: "dot", arrowEnd: "large-arrow" });
+    const svg = (await downloadBytes(page, "File", "Export SVG")).toString(
+      "utf8",
+    );
+    expect(svg).toContain(`points="${polygon}"`);
+    expect(svg).toContain(
+      `<circle cx="${circle.cx}" cy="${circle.cy}" r="${circle.r}"`,
+    );
+    await page.getByTestId("project-file").setInputFiles({
+      name: "reopened-ends.icproj.json",
+      mimeType: "application/json",
+      buffer: saved,
+    });
+    await expect(page.getByTestId("status")).toContainText(
+      "Opened reopened-ends.icproj.json",
+    );
+    await expect(art.locator("polygon")).toHaveAttribute("points", polygon);
+    // Click the visible dot away from the shaft and endpoint handle. It must
+    // select the arrow even outside the original path's geometry.
+    const dotEdge = await art.locator("circle").evaluate((node) => {
+      const dot = node as SVGCircleElement;
+      const r = dot.r.baseVal.value;
+      const p = new DOMPoint(
+        dot.cx.baseVal.value - r * 0.7,
+        dot.cy.baseVal.value - r * 0.4,
+      ).matrixTransform(dot.getScreenCTM()!);
+      return { x: p.x, y: p.y };
+    });
+    await page.mouse.click(dotEdge.x, dotEdge.y);
+    await expect(hit).toHaveClass(/selected/u);
+    if (!(await page.getByTestId("drafting-properties").isVisible()))
+      await page.keyboard.press("q");
+    await expect(start).toHaveValue("dot");
+    await expect(end).toHaveValue("large-arrow");
+    await page.screenshot({
+      path: `plan/arrow-${shape}-endpoint-properties.png`,
+    });
+  });
+}
