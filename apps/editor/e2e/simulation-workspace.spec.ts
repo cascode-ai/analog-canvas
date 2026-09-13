@@ -1815,7 +1815,14 @@ test("human simulation uses saved folder, survives minimizing, recovers a bad in
     name: "Saved result archives",
   });
   await expect(savedArchives).toContainText("E2E folder");
-  await savedArchives.getByRole("button", { name: "Open" }).click();
+  // Every completed run is now automatically retained, not only the one
+  // explicitly archived above. Reopen a completed result, not the cancelled run.
+  await savedArchives
+    .getByRole("listitem")
+    .filter({ hasText: "finished" })
+    .first()
+    .getByRole("button", { name: "Open", exact: true })
+    .click();
   await expect(panel.getByRole("status")).toHaveText("completed");
   expect(executions).toBe(3);
 });

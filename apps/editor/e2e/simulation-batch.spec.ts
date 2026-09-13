@@ -312,4 +312,14 @@ test("a saved Run Plan prepares without executing and Run starts its ordinary ba
     "Batch · finished",
   );
   expect(executions).toBe(6);
+  const history = panel.getByRole("region", {
+    name: "Project runs",
+    exact: true,
+  });
+  await expect(
+    history.getByRole("button", { name: "Open result" }),
+  ).toHaveCount(6);
+  await expect(
+    history.getByRole("button", { name: "Open result" }).last(),
+  ).toBeEnabled();
 });

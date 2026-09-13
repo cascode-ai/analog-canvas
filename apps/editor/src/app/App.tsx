@@ -847,7 +847,10 @@ export function App({
     () => new ProjectRunHistory(editorDocumentController.project.id),
     [editorDocumentController, projectSessionId],
   );
-  useEffect(() => () => projectRunHistory.dispose(), [projectRunHistory]);
+  useEffect(() => {
+    projectRunHistory.activate();
+    return () => projectRunHistory.dispose();
+  }, [projectRunHistory]);
   const browserAgentSimulationHost = useMemo(
     () =>
       new BrowserAgentSimulationHost({

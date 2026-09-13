@@ -58,6 +58,7 @@ export interface SimulationRunArchiveV1 {
 }
 
 export interface SimulationRunArchiveSummary {
+  readonly state?: Run["state"];
   readonly origin?: "agent" | "human";
   readonly id: string;
   readonly projectId: string;
@@ -249,6 +250,7 @@ export function summarizeSimulationRunArchive(
     createdAt: archive.createdAt,
     byteLength: archive.byteLength,
     environment: archive.prepared.environment,
+    state: archive.run.state,
     ...(archive.presentation.origin
       ? { origin: archive.presentation.origin }
       : {}),
@@ -262,6 +264,8 @@ export function isSimulationRunArchive(
   const candidate = value as Partial<SimulationRunArchiveV1>;
   return (
     candidate.schemaVersion === SIMULATION_ARCHIVE_VERSION &&
+    (candidate.projectFile === undefined ||
+      typeof candidate.projectFile === "string") &&
     typeof candidate.id === "string" &&
     typeof candidate.projectId === "string" &&
     typeof candidate.createdAt === "string" &&

@@ -61,6 +61,8 @@ describe("Project result handoff", () => {
     const idbFactory = new IDBFactory();
     const store = createBrowserSimulationArchiveStore({ idbFactory });
     const history = new ProjectRunHistory("project", store);
+    history.dispose();
+    history.activate();
     const start = {
       ...input,
       run: { ...input.run, state: "running" as const },
@@ -96,6 +98,20 @@ describe("Project result handoff", () => {
       value: { run: { id: "run", outputData: input.run.outputData } },
     });
     reopened.close();
+  });
+  it("removes a deleted archive from live results as well as saved listings", async () => {
+    const input = await fixture();
+    const store = createBrowserSimulationArchiveStore({
+      idbFactory: new IDBFactory(),
+    });
+    const history = new ProjectRunHistory("project", store);
+    history.track(input);
+    await vi.waitFor(() =>
+      expect(history.snapshot()[0]?.archive).toBeDefined(),
+    );
+    history.forgetArchive(history.snapshot()[0]!.archive!.id);
+    expect(history.snapshot()).toEqual([]);
+    history.dispose();
   });
   it("keeps a viewable memory result and explains a persistence failure", async () => {
     const input = await fixture();

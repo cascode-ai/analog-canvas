@@ -33,6 +33,9 @@ manifest projects the shared sources into the HTTP Kit.
 
 ## Browser-host availability
 
+For run visibility, automatic browser archives and source/result exports, see
+[simulation result handoff](simulation-result-handoff.md).
+
 Production and Preview enable the Agent connection surface with
 `VITE_ICM_AGENT_UI=enabled`. Open **Agent → Connect Agent** for a Claim Code.
 The MCP adapter defaults to Production; for Preview, start it with

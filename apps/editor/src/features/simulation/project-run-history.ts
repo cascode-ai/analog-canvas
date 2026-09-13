@@ -36,6 +36,16 @@ export class ProjectRunHistory {
     private store: BrowserSimulationArchiveStore = createBrowserSimulationArchiveStore(),
   ) {}
   snapshot = (): readonly ProjectRunRecord[] => [...this.records.values()];
+  /** React StrictMode replays mount effects before any user-owned run starts. */
+  activate() {
+    this.disposed = false;
+  }
+  forgetArchive(archiveId: string) {
+    for (const record of this.records.values()) {
+      if (record.archive?.id === archiveId) this.records.delete(record.id);
+    }
+    this.notify();
+  }
   subscribe = (listener: () => void) => {
     this.listeners.add(listener);
     return () => {
@@ -94,6 +104,9 @@ export class ProjectRunHistory {
               ? { projectFile: input.projectFile, byteLength }
               : {}),
           };
+          if (input.projectFile && byteLength > MAX_SIMULATION_ARCHIVE_BYTES)
+            record.error =
+              "Project snapshot exceeds the archive size limit; result-only export is available";
           const saved = await this.store.save(record.archive);
           if (!saved.ok)
             record.error = `Result available for this session only: ${saved.message}`;

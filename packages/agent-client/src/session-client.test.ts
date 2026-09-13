@@ -260,10 +260,9 @@ describe("agent session client", () => {
     };
     const report = await client.applyActions([
       {
-        kind: "place-component",
-        symbol: "resistor",
-        reference: "R2",
-        position: { x: 700, y: 200 },
+        kind: "set-reference",
+        target: { kind: "instance", reference: "M1" },
+        reference: "M2",
       },
       {
         kind: "move",

@@ -266,6 +266,7 @@ for (const sourceKind of ["workspace", "project-folder"] as const)
     release();
     if (sourceKind === "project-folder") {
       // No Agent read: the project handoff must finish and archive autonomously.
+      await page.getByRole("button", { name: "Hide Agent details" }).click();
       await expect(
         page.getByRole("region", { name: "Analog simulation" }),
       ).toHaveCount(0);
@@ -359,7 +360,18 @@ for (const sourceKind of ["workspace", "project-folder"] as const)
       (await send("simulation", { operation: "read", runId: run.id })).run.id,
     ).toBe(run.id);
     if (sourceKind === "project-folder") {
+      const exported = await send("file", {
+        operation: "download",
+        artifact: "project",
+      });
       await page.reload();
+      // Project recovery/Cloud Save is a separate contract. Reopen the same
+      // source-only Project; no result artifact is imported with this file.
+      await page.getByTestId("project-file").setInputFiles({
+        name: "reopened.icproj.json",
+        mimeType: "application/json",
+        buffer: Buffer.from(exported.artifact.data, "base64"),
+      });
       await clickNetlistWorkflowCommand(page, "open-analog-simulation");
       const saved = page.getByRole("region", { name: "Saved folder results" });
       await expect(saved).toContainText("Agent");

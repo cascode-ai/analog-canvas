@@ -147,7 +147,10 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
   const [capabilities, setCapabilities] = useState<Capabilities>();
   const [prepared, setPrepared] = useState<Prepared>();
   const [run, setRun] = useState<Run>();
-  const [openedProjectFile, setOpenedProjectFile] = useState<string>();
+  const openedProjectFiles = useRef(new Map<string, string>());
+  const openedProjectFile = run
+    ? openedProjectFiles.current.get(run.id)
+    : undefined;
   const [batch, setBatch] = useState<SimulationBatch>();
   const hydratedBatchRuns = useRef(new Set<string>());
   const batchRuns = useRef(new Map<string, { prepared: Prepared; run: Run }>());
@@ -701,7 +704,13 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
       setProblem(captured.error);
       return;
     }
-    const saved = await archiveStore.save(captured.value);
+    const saved = await archiveStore.save(
+      sharedRuns.find((item) => item.id === run.id)?.archive ?? {
+        ...captured.value,
+        id: `run-${run.id}`,
+        ...(openedProjectFile ? { projectFile: openedProjectFile } : {}),
+      },
+    );
     setArtifactBusy(undefined);
     if (!saved.ok) {
       setProblem(
@@ -752,7 +761,11 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
       ...stored.value.presentation,
       prepared: restored.value.prepared,
     };
-    setOpenedProjectFile(stored.value.projectFile);
+    if (stored.value.projectFile)
+      openedProjectFiles.current.set(
+        restored.value.run.id,
+        stored.value.projectFile,
+      );
     preparedPresentations.current.set(restored.value.prepared.id, presentation);
     archivedRunIds.current.add(restored.value.run.id);
     folderResults.current.set(stored.value.presentation.folderId, {
@@ -785,6 +798,7 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
     setArchives((current) =>
       current.filter((archive) => archive.id !== archiveId),
     );
+    props.runHistory?.forgetArchive(archiveId);
   };
   const exportVisiblePlots = async (format: SimulationPlotExportFormat) => {
     if (!resultsBodyRef.current) return;
@@ -1251,7 +1265,13 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
       aria-label="Simulation results"
     >
       <div ref={resultsBodyRef} className="simulation-results-body">
-        {archives.some(
+        {run && archivedRunIds.current.has(run.id) ? (
+          <p>
+            Viewing a saved input snapshot, not a new run of the current source.
+          </p>
+        ) : null}
+        {resultTab !== "compare" &&
+        archives.some(
           (item) =>
             item.folderId === selectedFolder?.id &&
             !sharedRuns.some((run) => run.archive?.id === item.id),
@@ -1295,7 +1315,8 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
             </ul>
           </section>
         ) : null}
-        {sharedRuns.some(
+        {resultTab !== "compare" &&
+        sharedRuns.some(
           (item) => item.presentation.folderId === selectedFolder?.id,
         ) ? (
           <section
@@ -1655,7 +1676,7 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
                       <span>
                         <strong>{archive.folderName}</strong>
                         <small>
-                          {archive.analysisLabel} ·{" "}
+                          {archive.analysisLabel} · {archive.state} ·{" "}
                           {archive.environment.corner?.toUpperCase() ??
                             archive.environment.profileId}{" "}
                           · {new Date(archive.createdAt).toLocaleString()}
