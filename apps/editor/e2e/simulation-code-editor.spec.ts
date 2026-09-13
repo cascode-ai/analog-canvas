@@ -107,7 +107,7 @@ test("flat Helper finds an analysis by purpose and ghost arguments never enter s
   await page.keyboard.insertText("10");
   await page.keyboard.press("Tab");
   await page.keyboard.insertText("1G");
-  await page.keyboard.press("Control+s");
+  await page.keyboard.press("ControlOrMeta+s");
   await expect(page.getByTestId("saved-source")).toHaveText(
     JSON.stringify("* test\r\n.control\r\nac dec 20 10 1G"),
   );
@@ -207,24 +207,24 @@ test("edits, saves and undoes exact source bytes while keeping a save boundary a
     (await page.getByTestId("draft-source").textContent())!,
   );
   await editor.click();
-  await page.keyboard.press("Control+End");
+  await page.keyboard.press("ControlOrMeta+End");
   await page.keyboard.insertText("* edited");
   await expect(page.getByTestId("draft-source")).toHaveText(
     JSON.stringify(original + "* edited"),
   );
-  await page.keyboard.press("Control+z");
+  await page.keyboard.press("ControlOrMeta+z");
   await expect(page.getByTestId("draft-source")).toHaveText(
     JSON.stringify(original),
   );
-  await page.keyboard.press("Control+y");
+  await page.keyboard.press("ControlOrMeta+Shift+z");
   await expect(page.getByTestId("draft-source")).toHaveText(
     JSON.stringify(original + "* edited"),
   );
-  await page.keyboard.press("Control+s");
+  await page.keyboard.press("ControlOrMeta+s");
   await expect(page.getByTestId("saved-source")).toHaveText(
     JSON.stringify(original + "* edited"),
   );
-  await page.keyboard.press("Control+z");
+  await page.keyboard.press("ControlOrMeta+z");
   await expect(page.getByTestId("draft-source")).toHaveText(
     JSON.stringify(original + "* edited"),
   );
