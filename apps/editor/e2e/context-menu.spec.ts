@@ -141,6 +141,66 @@ test("drafting text shares device additive selection and context alignment", asy
   );
 });
 
+test("dragging drafting text carries its mixed component selection as one body", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await placeComponent(page, "resistor", { x: 300, y: 220 });
+  await clickDrawTool(page, "text");
+  const input = page.getByRole("textbox", { name: "Canvas text editor" });
+  await input.fill("BIAS");
+  await page.getByRole("button", { name: "Apply text changes" }).click();
+
+  const instance = page.locator('[data-canvas-hit-kind="instance"]').first();
+  const text = page.locator('[data-canvas-hit-kind="drafting"]').first();
+  await instance.click();
+  await text.click({ modifiers: ["Shift"] });
+  await expect(instance).toHaveClass(/selected/);
+  await expect(text).toHaveClass(/selected/);
+
+  const instanceBefore = await instance.boundingBox();
+  const textBefore = await text.boundingBox();
+  if (!instanceBefore || !textBefore)
+    throw new Error("Selection is not measurable");
+  const start = {
+    x: textBefore.x + textBefore.width / 2,
+    y: textBefore.y + textBefore.height / 2,
+  };
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+  await page.mouse.move(start.x + 80, start.y + 60, { steps: 4 });
+  await page.mouse.up();
+
+  const instanceAfter = await instance.boundingBox();
+  const textAfter = await text.boundingBox();
+  if (!instanceAfter || !textAfter)
+    throw new Error("Moved selection is not measurable");
+  const instanceDelta = {
+    x: instanceAfter.x - instanceBefore.x,
+    y: instanceAfter.y - instanceBefore.y,
+  };
+  const textDelta = {
+    x: textAfter.x - textBefore.x,
+    y: textAfter.y - textBefore.y,
+  };
+  // Smart Snap may keep either axis aligned with nearby geometry. The
+  // contract here is one non-zero translation shared by every selected
+  // member, not a promise that both axes must change.
+  expect(Math.hypot(instanceDelta.x, instanceDelta.y)).toBeGreaterThan(0);
+  expect(textDelta.x).toBeCloseTo(instanceDelta.x, 0);
+  expect(textDelta.y).toBeCloseTo(instanceDelta.y, 0);
+  await expect(instance).toHaveClass(/selected/);
+  await expect(text).toHaveClass(/selected/);
+
+  await page.keyboard.press("ControlOrMeta+Z");
+  const instanceUndone = await instance.boundingBox();
+  const textUndone = await text.boundingBox();
+  expect(instanceUndone?.x).toBeCloseTo(instanceBefore.x, 0);
+  expect(instanceUndone?.y).toBeCloseTo(instanceBefore.y, 0);
+  expect(textUndone?.x).toBeCloseTo(textBefore.x, 0);
+  expect(textUndone?.y).toBeCloseTo(textBefore.y, 0);
+});
+
 test("drafting shapes join device selection from either order", async ({
   page,
 }) => {

@@ -73,6 +73,7 @@ const COMPOSITE_KINDS: readonly CanvasHitKind[] = [
   "instance",
   "instance-label",
   "annotation",
+  "drafting",
   "route",
   "junction",
 ];

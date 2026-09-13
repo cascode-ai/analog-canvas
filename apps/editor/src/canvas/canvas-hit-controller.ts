@@ -111,7 +111,13 @@ export function createCanvasHitController({
   },
 }: CanvasHitControllerDependencies) {
   const compositeSelectionOwnsHit = (
-    kind: "instance" | "instance-label" | "annotation" | "route" | "junction",
+    kind:
+      | "instance"
+      | "instance-label"
+      | "annotation"
+      | "drafting"
+      | "route"
+      | "junction",
     id: string,
   ): boolean => {
     const hasCompositeSelection =
@@ -135,6 +141,9 @@ export function createCanvasHitController({
         selection.junctionIds.includes(id) ||
         selectedInternalJunctionIds.has(id)
       );
+    }
+    if (kind === "drafting") {
+      return selection.draftingIds.includes(id);
     }
     const annotation = document.annotations.find(
       (candidate) => candidate.id === id,
@@ -194,7 +203,6 @@ export function createCanvasHitController({
     const compositeOwnsHit = Boolean(
       hit &&
       hit.kind !== "handle" &&
-      hit.kind !== "drafting" &&
       compositeSelectionOwnsHit(hit.kind, hit.id),
     );
     const primaryInstanceId = selection.instanceIds.at(-1) ?? null;
