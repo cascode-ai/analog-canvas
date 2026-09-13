@@ -6,7 +6,12 @@ import { createEmptyProject } from "@icm/model";
 import { serializeProject } from "@icm/project-protocol";
 
 import { AgentHttpClient } from "../../../packages/agent-client/src/http-client.js";
-import { clickCommand } from "./editor-fixtures.js";
+import {
+  clickCommand,
+  clickDrawTool,
+  readComponentPropertyCode,
+  setComponentParameter,
+} from "./editor-fixtures.js";
 
 type SessionMessage = {
   kind: string;
@@ -553,13 +558,153 @@ test("copies a working handoff through the normal local dev relay", async ({
       edits: [
         {
           kind: "add_instance",
-          instance: { id: "Rlocal", symbolId: "resistor", placement: null },
+          instance: {
+            id: "Rlocal",
+            reference: "R1",
+            symbolId: "resistor",
+            netlist: { parameters: { value: "1k" } },
+            placement: {
+              position: { x: 300, y: 200 },
+              rotation: 0,
+              mirror: "none",
+            },
+          },
         },
       ],
     },
   );
   expect(transaction).toMatchObject({ ok: true, applied: true, revision: 1 });
   await expect(page.getByTestId("active-instance-count")).toHaveText("1");
+
+  // A second local Vite process used to replace the dependency cache of this
+  // live editor. Its eager JSON language and lazy Properties editor then loaded
+  // different CodeMirror state classes, crashing at the first manual selection.
+  const { createServer } = await import("vite");
+  const sibling = await createServer({
+    root: "apps/editor",
+    server: { host: "127.0.0.1", port: Number(new URL(baseURL!).port) + 1000 },
+    optimizeDeps: {
+      force: true,
+      rolldownOptions: { output: { chunkFileNames: "sibling-[hash].js" } },
+    },
+    logLevel: "error",
+  });
+  const siblingPage = await context.newPage();
+  try {
+    await sibling.listen();
+    await siblingPage.goto(sibling.resolvedUrls!.local[0]! + "editor");
+    await expect(siblingPage.getByTestId("schematic-canvas")).toBeVisible();
+  } finally {
+    await siblingPage.close();
+    await sibling.close();
+  }
+
+  await panel.getByRole("button", { name: "Close Agent dialog" }).click();
+  await page.getByTestId("hit-Rlocal").click();
+  const shelf = page.getByTestId("selection-shelf");
+  if ((await shelf.getAttribute("aria-expanded")) === "true")
+    await shelf.click();
+  await page.keyboard.press("q");
+  await setComponentParameter(page, "value", "2.2k");
+  const readSnapshot = async (requestId: string) => {
+    const result = await client.circuit(session.sessionId, session.agentToken, {
+      apiVersion: "3.0",
+      requestId,
+      operation: "snapshot",
+      documentId,
+    });
+    if (!result.ok || result.operation !== "snapshot")
+      throw new Error(`Snapshot failed: ${JSON.stringify(result)}`);
+    return result;
+  };
+  const manual = await readSnapshot("after-manual-value");
+  expect(manual.revision).toBe(2);
+  expect(manual.snapshot.document.instances).toEqual([
+    expect.objectContaining({
+      id: "Rlocal",
+      netlist: { parameters: { value: "2.2k" } },
+    }),
+  ]);
+  const editAgain = (expectedRevision: number) =>
+    client.circuit(session.sessionId, session.agentToken, {
+      apiVersion: "3.0",
+      requestId: `agent-value-${expectedRevision}`,
+      operation: "transact",
+      documentId,
+      transactionId: `agent-value-${expectedRevision}`,
+      expectedRevision,
+      edits: [
+        {
+          kind: "set_instance_netlist",
+          instanceId: "Rlocal",
+          netlist: { parameters: { value: "3.3k" } },
+        },
+      ],
+    });
+  expect(await editAgain(1)).toMatchObject({
+    ok: false,
+    error: { code: "STALE_REVISION" },
+  });
+  expect(await editAgain(manual.revision)).toMatchObject({
+    ok: true,
+    applied: true,
+    revision: 3,
+  });
+  expect(
+    JSON.parse(await readComponentPropertyCode(page)).parameters.value,
+  ).toBe("3.3k");
+
+  // Both writers share history without disconnecting or freezing the canvas.
+  await clickCommand(page, "Edit", "Undo");
+  expect(
+    JSON.parse(await readComponentPropertyCode(page)).parameters.value,
+  ).toBe("2.2k");
+  await clickCommand(page, "Edit", "Redo");
+  const second = await client.circuit(session.sessionId, session.agentToken, {
+    apiVersion: "3.0",
+    requestId: "agent-second-resistor",
+    operation: "transact",
+    documentId,
+    transactionId: "agent-second-resistor",
+    expectedRevision: (await readSnapshot("after-shared-history")).revision,
+    edits: [
+      {
+        kind: "add_instance",
+        instance: {
+          id: "Rnext",
+          symbolId: "resistor",
+          placement: {
+            position: { x: 500, y: 300 },
+            rotation: 0,
+            mirror: "none",
+          },
+        },
+      },
+    ],
+  });
+  expect(second).toMatchObject({ ok: true, applied: true });
+  await clickDrawTool(page, "wire");
+  await page.getByTestId("terminal-Rlocal-2").click();
+  await page.getByTestId("terminal-Rnext-1").click();
+  await page.keyboard.press("Escape");
+  const wired = await readSnapshot("after-manual-wire");
+  expect(wired.snapshot.document.nets).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        terminals: expect.arrayContaining([
+          expect.objectContaining({ instanceId: "Rlocal", pinName: "2" }),
+          expect.objectContaining({ instanceId: "Rnext", pinName: "1" }),
+        ]),
+      }),
+    ]),
+  );
+  expect(wired.snapshot.document.routes).toHaveLength(1);
+  await clickCommand(page, "Edit", "Undo");
+  expect(
+    (await readSnapshot("after-wire-undo")).snapshot.document.routes,
+  ).toHaveLength(0);
+  await page.getByTestId("open-agent").click();
+  await expect(panel.getByTestId("agent-status")).toContainText("Connected");
   await panel.getByTestId("agent-revoke").click();
   await expect(panel.getByTestId("agent-status")).toContainText("Disconnected");
   await expect(
@@ -572,5 +717,5 @@ test("copies a working handoff through the normal local dev relay", async ({
   ).rejects.toThrow();
   await panel.getByRole("button", { name: "Close Agent dialog" }).click();
   await clickCommand(page, "Edit", "Undo");
-  await expect(page.getByTestId("active-instance-count")).toHaveText("0");
+  await expect(page.getByTestId("active-instance-count")).toHaveText("1");
 });

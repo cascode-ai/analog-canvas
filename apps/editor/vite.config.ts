@@ -2,9 +2,27 @@ import { createHash } from "node:crypto";
 import { readFile, writeFile } from "node:fs/promises";
 
 import react from "@vitejs/plugin-react";
-import { defineConfig } from "vite";
+import { defineConfig, type Plugin } from "vite";
 
 import { localAgentRelay } from "./dev/agent-relay";
+
+function isolateDevDependencyCache(): Plugin {
+  return {
+    name: "isolate-dev-dependency-cache",
+    apply: "serve",
+    config(config) {
+      // A test server must not replace a running editor's optimized modules.
+      // Mixing its cached eager imports with new lazy imports duplicates
+      // CodeMirror's state classes and crashes Properties on selection.
+      const port = config.server?.port ?? 5173;
+      return {
+        cacheDir: `node_modules/.vite/dev-${port}`,
+        // Keep the cache owner unambiguous instead of silently changing ports.
+        server: { strictPort: true },
+      };
+    },
+  };
+}
 
 function versionStaticServiceWorker() {
   return {
@@ -30,5 +48,10 @@ function versionStaticServiceWorker() {
 export default defineConfig({
   // The Worker serves the editor from a domain root, so assets are absolute.
   base: "/",
-  plugins: [react(), localAgentRelay(), versionStaticServiceWorker()],
+  plugins: [
+    isolateDevDependencyCache(),
+    react(),
+    localAgentRelay(),
+    versionStaticServiceWorker(),
+  ],
 });
