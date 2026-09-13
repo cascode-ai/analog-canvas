@@ -88,7 +88,8 @@
     "thinTargetHit": [
       "apps/editor/src/canvas/canvas-hit-controller.ts",
       "apps/editor/src/canvas/canvas-hit-resolver*",
-      "apps/editor/e2e/thin-target-hit.spec.ts"
+      "apps/editor/e2e/thin-target-hit.spec.ts",
+      "apps/editor/e2e/digital-gate-grid.spec.ts"
     ],
     "emptyLabelGhost": [
       "packages/derived/src/annotation-presentation.ts",
@@ -474,13 +475,19 @@
       "id": "thin-target-hit-browser",
       "stage": "affected",
       "groups": ["thinTargetHit"],
-      "description": "Validate visible thin-target precedence during canvas hit testing.",
+      "description": "Validate visible target bounds, hit precedence and grid-aligned gate connections.",
       "command": [
         "pnpm",
         "test:e2e:local",
-        "apps/editor/e2e/thin-target-hit.spec.ts"
+        "apps/editor/e2e/thin-target-hit.spec.ts",
+        "apps/editor/e2e/digital-gate-grid.spec.ts"
       ],
-      "ci": { "e2eArgs": ["apps/editor/e2e/thin-target-hit.spec.ts"] }
+      "ci": {
+        "e2eArgs": [
+          "apps/editor/e2e/thin-target-hit.spec.ts",
+          "apps/editor/e2e/digital-gate-grid.spec.ts"
+        ]
+      }
     },
     {
       "id": "empty-label-ghost-browser",

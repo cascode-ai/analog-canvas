@@ -14,6 +14,7 @@ import {
   planDeleteCell,
   planEnsureNamedNet,
   planElectricalMarkerRename,
+  proposedStandalonePowerConnection,
   type SchematicEdit,
   type TransformOperation,
 } from "@icm/edit-engine";
@@ -36,7 +37,12 @@ import {
   type EdgeAlignmentMode,
 } from "../features/selection/align-selection";
 import { createSelectionTransformController } from "../features/selection/selection-transform-controller";
-import { missingDefaultInstanceDisplayAnnotations } from "../features/instance-display/default-instance-display";
+import {
+  defaultInstanceDisplayAnnotations,
+  missingDefaultInstanceDisplayAnnotations,
+} from "../features/instance-display/default-instance-display";
+import { instanceDisplayEdits } from "../features/instance-display/instance-display-edits";
+import { dragNetLabelAttachmentAtPoint } from "../features/wiring/route-interaction-geometry";
 
 /** No second geometry/model/clipboard implementation: plan exactly as the GUI does. */
 export function planBrowserAgentCommand(
@@ -49,6 +55,38 @@ export function planBrowserAgentCommand(
   if (!document) throw new Error("Document not found");
   const sequence = document.revision + 1;
   switch (command.kind) {
+    case "place-components": {
+      const edits: SchematicEdit[] = [];
+      for (const instance of command.instances) {
+        if (!instance.placement)
+          throw new Error("New component requires placement");
+        const power = proposedStandalonePowerConnection(document, instance);
+        if (power.rejected) throw new Error(power.rejected);
+        edits.push({ kind: "add_instance", instance }, ...power.edits);
+        edits.push(
+          ...defaultInstanceDisplayAnnotations(
+            document,
+            instance,
+            resolver,
+            resolveDocumentStyleProfile(document.presentation),
+            { showValue: true },
+          ).map((annotation): SchematicEdit => ({
+            kind: "upsert_schematic_annotation",
+            annotation,
+          })),
+        );
+      }
+      return { edits };
+    }
+    case "set-instance-display":
+      return {
+        edits: instanceDisplayEdits(
+          document,
+          resolver,
+          command.instanceIds,
+          command,
+        ),
+      };
     case "place-cell": {
       const child = project.documents.find(
         (item) => item.id === command.childDocumentId,
@@ -61,11 +99,12 @@ export function planBrowserAgentCommand(
         command.placement,
         command.reference,
       );
-      const annotations = missingDefaultInstanceDisplayAnnotations(
+      const annotations = defaultInstanceDisplayAnnotations(
         document,
         instance,
         resolver,
         resolveDocumentStyleProfile(document.presentation),
+        { showDesignator: false, masterName: child.netlist.name },
       );
       return {
         structureEdits: planPlaceCellInstance(
@@ -182,6 +221,55 @@ export function planBrowserAgentCommand(
       if (!plan.ok) throw new Error(plan.message);
       if (!existing && !command.position)
         throw new Error("New Net Label requires position");
+      const position =
+        command.position ??
+        (existing?.anchor.kind === "free"
+          ? existing.anchor.position
+          : undefined);
+      const records = document.routes
+        .filter((route) => net.baseNetIds.includes(route.netId))
+        .flatMap((route) => {
+          const geometry = resolveRouteGeometry(document, resolver, route);
+          return geometry ? [{ route, geometry }] : [];
+        });
+      const attached = position
+        ? records
+            .flatMap((record) => {
+              const attachment = dragNetLabelAttachmentAtPoint(
+                [record],
+                position,
+                record.route.id,
+              );
+              return attachment
+                ? [{ ...attachment, routeId: record.route.id }]
+                : [];
+            })
+            .sort(
+              (a, b) =>
+                Math.hypot(
+                  a.labelPosition.x - position.x,
+                  a.labelPosition.y - position.y,
+                ) -
+                Math.hypot(
+                  b.labelPosition.x - position.x,
+                  b.labelPosition.y - position.y,
+                ),
+            )[0]
+        : undefined;
+      const anchor = attached
+        ? {
+            kind: "route" as const,
+            routeId: attached.routeId,
+            legId: attached.legId,
+            t: attached.t,
+            normalOffset: attached.normalOffset,
+            direction: "forward" as const,
+            orientation: "horizontal" as const,
+            fallbackPosition: attached.labelPosition,
+          }
+        : position
+          ? { kind: "free" as const, position }
+          : existing!.anchor;
       return {
         edits: [
           ...plan.edits,
@@ -203,14 +291,7 @@ export function planBrowserAgentCommand(
               netId,
               binding: { kind: "net-name", netId },
               formatOverride: command.text,
-              ...(command.position
-                ? {
-                    anchor: {
-                      kind: "free",
-                      position: command.position,
-                    } as const,
-                  }
-                : {}),
+              anchor,
             },
           },
         ],

@@ -563,6 +563,21 @@
   opacity: 1;
   color: #26734d;
 }
+.simulation-code-workspace .simulation-code-toolbar .simulation-run-button {
+  flex: 0 1 auto;
+  width: auto;
+  max-width: 160px;
+  gap: 4px;
+  padding: 0 5px;
+}
+.simulation-run-target {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.simulation-run-button svg {
+  flex-shrink: 0;
+}
 .simulation-code-workspace .simulation-action-button[data-save-state="failed"] {
   color: #b42318;
 }

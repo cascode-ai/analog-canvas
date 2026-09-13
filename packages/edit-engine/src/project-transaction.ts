@@ -4,6 +4,8 @@ import {
   SourceFileRecordSchema,
   SchematicDocumentSchema,
   ProjectSimulationFolderSchema,
+  flattenRichText,
+  plainNameDocument,
   type CircuitProject,
   type SchematicDocument,
 } from "@icm/model";
@@ -408,6 +410,7 @@ export function executeProjectTransaction(
         );
       }
       if (document.name === edit.name) continue;
+      const previousCellName = document.netlist?.name ?? document.name;
       document.name = edit.name;
       if (document.netlist) document.netlist.name = edit.name;
       document.revision += 1;
@@ -422,6 +425,19 @@ export function executeProjectTransaction(
           )
             continue;
           instance.symbolId = hierarchicalSymbolId(edit.name);
+          const masterAnnotation = parent.annotations.find(
+            (annotation) =>
+              annotation.id === `instance-master-${instance.id}` &&
+              annotation.kind === "instance-value" &&
+              annotation.anchor.kind === "object" &&
+              annotation.anchor.objectId === instance.id,
+          );
+          if (
+            masterAnnotation?.content &&
+            flattenRichText(masterAnnotation.content) === previousCellName
+          ) {
+            masterAnnotation.content = plainNameDocument(edit.name);
+          }
           changed = true;
         }
         if (changed) {

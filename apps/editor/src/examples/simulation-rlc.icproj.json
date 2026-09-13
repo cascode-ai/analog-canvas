@@ -1,0 +1,969 @@
+{
+  "documents": [
+    {
+      "annotations": [
+        {
+          "alignment": "middle",
+          "anchor": {
+            "fallbackPosition": {
+              "x": 280,
+              "y": 160
+            },
+            "kind": "object",
+            "localOffset": {
+              "x": 10,
+              "y": -20
+            },
+            "objectId": "R1"
+          },
+          "binding": {
+            "instanceId": "R1",
+            "kind": "instance-reference"
+          },
+          "id": "instance-label-R1",
+          "kind": "instance-label",
+          "locked": false,
+          "rotation": 0
+        },
+        {
+          "alignment": "middle",
+          "anchor": {
+            "fallbackPosition": {
+              "x": 390,
+              "y": 160
+            },
+            "kind": "object",
+            "localOffset": {
+              "x": 10,
+              "y": -20
+            },
+            "objectId": "L1"
+          },
+          "binding": {
+            "instanceId": "L1",
+            "kind": "instance-reference"
+          },
+          "id": "instance-label-L1",
+          "kind": "instance-label",
+          "locked": false,
+          "rotation": 0
+        },
+        {
+          "alignment": "start",
+          "anchor": {
+            "fallbackPosition": {
+              "x": 500,
+              "y": 250
+            },
+            "kind": "object",
+            "localOffset": {
+              "x": 20,
+              "y": 10
+            },
+            "objectId": "C1"
+          },
+          "binding": {
+            "instanceId": "C1",
+            "kind": "instance-reference"
+          },
+          "id": "instance-label-C1",
+          "kind": "instance-label",
+          "locked": false,
+          "rotation": 0
+        },
+        {
+          "alignment": "start",
+          "anchor": {
+            "fallbackPosition": {
+              "x": 190,
+              "y": 250
+            },
+            "kind": "object",
+            "localOffset": {
+              "x": 20,
+              "y": 10
+            },
+            "objectId": "V1"
+          },
+          "binding": {
+            "instanceId": "V1",
+            "kind": "instance-reference"
+          },
+          "id": "instance-label-V1",
+          "kind": "instance-label",
+          "locked": false,
+          "rotation": 0
+        },
+        {
+          "alignment": "start",
+          "anchor": {
+            "fallbackPosition": {
+              "x": 190,
+              "y": 280
+            },
+            "kind": "object",
+            "localOffset": {
+              "x": 20,
+              "y": 40
+            },
+            "objectId": "V1"
+          },
+          "binding": {
+            "instanceId": "V1",
+            "kind": "instance-value"
+          },
+          "id": "instance-value-V1",
+          "kind": "instance-value",
+          "locked": false,
+          "rotation": 0,
+          "visible": false
+        },
+        {
+          "alignment": "middle",
+          "anchor": {
+            "fallbackPosition": {
+              "x": 280,
+              "y": 190
+            },
+            "kind": "object",
+            "localOffset": {
+              "x": 10,
+              "y": 10
+            },
+            "objectId": "R1"
+          },
+          "binding": {
+            "instanceId": "R1",
+            "kind": "instance-value"
+          },
+          "id": "instance-value-R1",
+          "kind": "instance-value",
+          "locked": false,
+          "rotation": 0,
+          "visible": false
+        },
+        {
+          "alignment": "start",
+          "anchor": {
+            "direction": "forward",
+            "fallbackPosition": {
+              "x": 490,
+              "y": 195
+            },
+            "kind": "route",
+            "legId": "route-leg-aaa7fe3b2551960f",
+            "normalOffset": -10,
+            "orientation": "follow",
+            "routeId": "wire-32",
+            "t": 0.375
+          },
+          "binding": {
+            "kind": "net-name",
+            "netId": "net-232eaf9b4907ccf7"
+          },
+          "id": "net-label-wire-32",
+          "kind": "net-label",
+          "locked": false,
+          "netId": "net-232eaf9b4907ccf7",
+          "rotation": 0,
+          "sizeScale": 1
+        },
+        {
+          "alignment": "start",
+          "anchor": {
+            "direction": "forward",
+            "fallbackPosition": {
+              "x": 145,
+              "y": 195
+            },
+            "kind": "route",
+            "legId": "route-leg-c9c862951504dedf",
+            "normalOffset": -25,
+            "orientation": "follow",
+            "routeId": "wire-28",
+            "t": 0.625
+          },
+          "binding": {
+            "kind": "net-name",
+            "netId": "net-3cc118a1672a4767"
+          },
+          "id": "net-label-wire-28",
+          "kind": "net-label",
+          "locked": false,
+          "netId": "net-3cc118a1672a4767",
+          "rotation": 0,
+          "sizeScale": 1
+        }
+      ],
+      "connectivityEvidence": [
+        {
+          "id": "connectivity-evidence-d92e0a448bb319cd",
+          "kind": "net-name-hint",
+          "netId": "net-3cc118a1672a4767",
+          "origin": "spice-import",
+          "sourceName": "in"
+        },
+        {
+          "id": "connectivity-evidence-7ae98d9e91d374ad",
+          "kind": "spice-source",
+          "netId": "net-3cc118a1672a4767",
+          "sourceNetId": "net-3cc118a1672a4767"
+        },
+        {
+          "id": "connectivity-evidence-c3026f25e0803bdb",
+          "kind": "name-claim",
+          "name": "0",
+          "netId": "net-89e480092dc336ed",
+          "owner": {
+            "kind": "global-declaration",
+            "sourceNetId": "net-89e480092dc336ed"
+          },
+          "powerDomain": "ground",
+          "scope": "global"
+        },
+        {
+          "id": "connectivity-evidence-08b4f29c97880525",
+          "kind": "spice-source",
+          "netId": "net-89e480092dc336ed",
+          "sourceNetId": "net-89e480092dc336ed"
+        },
+        {
+          "id": "connectivity-evidence-bd910f1e7809737a",
+          "kind": "net-name-hint",
+          "netId": "net-1161719b3ecff90d",
+          "origin": "spice-import",
+          "sourceName": "mid"
+        },
+        {
+          "id": "connectivity-evidence-e2e3624cdc9a4129",
+          "kind": "spice-source",
+          "netId": "net-1161719b3ecff90d",
+          "sourceNetId": "net-1161719b3ecff90d"
+        },
+        {
+          "id": "connectivity-evidence-617050b36c8b4149",
+          "kind": "net-name-hint",
+          "netId": "net-232eaf9b4907ccf7",
+          "origin": "spice-import",
+          "sourceName": "out"
+        },
+        {
+          "id": "connectivity-evidence-e5eb74d8864ce135",
+          "kind": "spice-source",
+          "netId": "net-232eaf9b4907ccf7",
+          "sourceNetId": "net-232eaf9b4907ccf7"
+        },
+        {
+          "id": "connectivity-evidence-c91303d1f37f789e",
+          "kind": "name-claim",
+          "name": "out",
+          "netId": "net-232eaf9b4907ccf7",
+          "owner": {
+            "annotationId": "net-label-wire-32",
+            "kind": "net-label"
+          },
+          "scope": "local"
+        },
+        {
+          "id": "connectivity-evidence-64b347cb81b29afd",
+          "kind": "name-claim",
+          "name": "in",
+          "netId": "net-3cc118a1672a4767",
+          "owner": {
+            "annotationId": "net-label-wire-28",
+            "kind": "net-label"
+          },
+          "scope": "local"
+        }
+      ],
+      "constraints": [],
+      "drafting": {
+        "objects": [
+          {
+            "alignment": "start",
+            "anchor": {
+              "kind": "free",
+              "position": {
+                "x": 20,
+                "y": 20
+              }
+            },
+            "content": {
+              "runs": [
+                {
+                  "children": [
+                    {
+                      "kind": "text",
+                      "value": "RLC low-pass: L = 10 mH, C = 100 nF"
+                    }
+                  ],
+                  "kind": "span",
+                  "style": "bold"
+                }
+              ]
+            },
+            "id": "description-0",
+            "kind": "text",
+            "locked": false,
+            "rotation": 0,
+            "styleOverride": {
+              "sizeScale": 1
+            },
+            "zIndex": 0
+          },
+          {
+            "alignment": "start",
+            "anchor": {
+              "kind": "free",
+              "position": {
+                "x": 20,
+                "y": 45
+              }
+            },
+            "content": {
+              "runs": [
+                {
+                  "children": [
+                    {
+                      "kind": "text",
+                      "value": "f0 = 5032.92 Hz; critical R = 632.456 ohm."
+                    }
+                  ],
+                  "kind": "span",
+                  "style": "bold"
+                }
+              ]
+            },
+            "id": "description-1",
+            "kind": "text",
+            "locked": false,
+            "rotation": 0,
+            "styleOverride": {
+              "sizeScale": 1
+            },
+            "zIndex": 0
+          },
+          {
+            "alignment": "start",
+            "anchor": {
+              "kind": "free",
+              "position": {
+                "x": 20,
+                "y": 70
+              }
+            },
+            "content": {
+              "runs": [
+                {
+                  "children": [
+                    {
+                      "kind": "text",
+                      "value": "Each experiment explicitly alters R1 for its damping case."
+                    }
+                  ],
+                  "kind": "span",
+                  "style": "bold"
+                }
+              ]
+            },
+            "id": "description-2",
+            "kind": "text",
+            "locked": false,
+            "rotation": 0,
+            "styleOverride": {
+              "sizeScale": 1
+            },
+            "zIndex": 0
+          }
+        ]
+      },
+      "id": "cell-rlc-filter",
+      "instances": [
+        {
+          "id": "V1",
+          "importProvenance": {
+            "kind": "primitive",
+            "sourceMasterName": "voltage-source",
+            "sourceTarget": "primitive:voltage-source",
+            "status": "resolved",
+            "terminalMapping": [
+              {
+                "pinName": "+",
+                "sourcePosition": 0
+              },
+              {
+                "pinName": "-",
+                "sourcePosition": 1
+              }
+            ]
+          },
+          "netlist": {
+            "binding": {
+              "deviceClass": "voltage-source",
+              "kind": "primitive"
+            },
+            "parameters": {
+              "acMagnitude": "1",
+              "dc": "0",
+              "delay": "100u",
+              "fall": "100n",
+              "high": "1",
+              "low": "0",
+              "period": "4m",
+              "rise": "100n",
+              "waveform": "pulse",
+              "width": "2m"
+            }
+          },
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 170,
+              "y": 240
+            },
+            "rotation": 0
+          },
+          "reference": "V1",
+          "sourceRef": {
+            "end": {
+              "column": 10,
+              "line": 2,
+              "offset": 79
+            },
+            "fileId": "source-648e50f6f6cd02ee",
+            "start": {
+              "column": 1,
+              "line": 2,
+              "offset": 70
+            }
+          },
+          "symbolId": "voltage-source"
+        },
+        {
+          "id": "R1",
+          "importProvenance": {
+            "kind": "primitive",
+            "sourceMasterName": "resistor",
+            "sourceTarget": "primitive:resistor",
+            "status": "resolved",
+            "terminalMapping": [
+              {
+                "pinName": "1",
+                "sourcePosition": 0
+              },
+              {
+                "pinName": "2",
+                "sourcePosition": 1
+              }
+            ]
+          },
+          "netlist": {
+            "binding": {
+              "deviceClass": "resistor",
+              "kind": "primitive"
+            },
+            "parameters": {
+              "value": "200"
+            }
+          },
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 270,
+              "y": 180
+            },
+            "rotation": 270
+          },
+          "reference": "R1",
+          "sourceRef": {
+            "end": {
+              "column": 14,
+              "line": 3,
+              "offset": 93
+            },
+            "fileId": "source-648e50f6f6cd02ee",
+            "start": {
+              "column": 1,
+              "line": 3,
+              "offset": 80
+            }
+          },
+          "symbolId": "resistor"
+        },
+        {
+          "id": "L1",
+          "importProvenance": {
+            "kind": "primitive",
+            "sourceMasterName": "inductor",
+            "sourceTarget": "primitive:inductor",
+            "status": "resolved",
+            "terminalMapping": [
+              {
+                "pinName": "1",
+                "sourcePosition": 0
+              },
+              {
+                "pinName": "2",
+                "sourcePosition": 1
+              }
+            ]
+          },
+          "netlist": {
+            "binding": {
+              "deviceClass": "inductor",
+              "kind": "primitive"
+            },
+            "parameters": {
+              "value": "10m"
+            }
+          },
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 380,
+              "y": 180
+            },
+            "rotation": 270
+          },
+          "reference": "L1",
+          "sourceRef": {
+            "end": {
+              "column": 15,
+              "line": 4,
+              "offset": 108
+            },
+            "fileId": "source-648e50f6f6cd02ee",
+            "start": {
+              "column": 1,
+              "line": 4,
+              "offset": 94
+            }
+          },
+          "symbolId": "inductor-compact"
+        },
+        {
+          "id": "C1",
+          "importProvenance": {
+            "kind": "primitive",
+            "sourceMasterName": "capacitor",
+            "sourceTarget": "primitive:capacitor",
+            "status": "resolved",
+            "terminalMapping": [
+              {
+                "pinName": "1",
+                "sourcePosition": 0
+              },
+              {
+                "pinName": "2",
+                "sourcePosition": 1
+              }
+            ]
+          },
+          "netlist": {
+            "binding": {
+              "deviceClass": "capacitor",
+              "kind": "primitive"
+            },
+            "parameters": {
+              "value": "100n"
+            }
+          },
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 480,
+              "y": 240
+            },
+            "rotation": 0
+          },
+          "reference": "C1",
+          "sourceRef": {
+            "end": {
+              "column": 14,
+              "line": 5,
+              "offset": 122
+            },
+            "fileId": "source-648e50f6f6cd02ee",
+            "start": {
+              "column": 1,
+              "line": 5,
+              "offset": 109
+            }
+          },
+          "symbolId": "capacitor"
+        },
+        {
+          "id": "GND1",
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 170,
+              "y": 300
+            },
+            "rotation": 0
+          },
+          "symbolId": "ground"
+        },
+        {
+          "id": "GND2",
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 480,
+              "y": 300
+            },
+            "rotation": 0
+          },
+          "symbolId": "ground"
+        }
+      ],
+      "junctions": [],
+      "layoutGroups": [],
+      "name": "RLC Filter — Damping Laboratory",
+      "netlist": {
+        "formalParameters": [],
+        "name": "rlc_filter",
+        "terminals": []
+      },
+      "nets": [
+        {
+          "id": "net-3cc118a1672a4767",
+          "terminals": [
+            {
+              "instanceId": "V1",
+              "pinName": "+"
+            },
+            {
+              "instanceId": "R1",
+              "pinName": "1"
+            }
+          ]
+        },
+        {
+          "id": "net-89e480092dc336ed",
+          "terminals": [
+            {
+              "instanceId": "V1",
+              "pinName": "-"
+            },
+            {
+              "instanceId": "C1",
+              "pinName": "2"
+            },
+            {
+              "instanceId": "GND1",
+              "pinName": "0"
+            },
+            {
+              "instanceId": "GND2",
+              "pinName": "0"
+            }
+          ]
+        },
+        {
+          "id": "net-1161719b3ecff90d",
+          "terminals": [
+            {
+              "instanceId": "R1",
+              "pinName": "2"
+            },
+            {
+              "instanceId": "L1",
+              "pinName": "1"
+            }
+          ]
+        },
+        {
+          "id": "net-232eaf9b4907ccf7",
+          "terminals": [
+            {
+              "instanceId": "L1",
+              "pinName": "2"
+            },
+            {
+              "instanceId": "C1",
+              "pinName": "1"
+            }
+          ]
+        }
+      ],
+      "noConnects": [],
+      "presentation": {
+        "compactness": "normal",
+        "grid": 10,
+        "styleProfileId": "razavi-textbook-v1"
+      },
+      "revision": 49,
+      "routes": [
+        {
+          "id": "wire-28",
+          "legs": [
+            {
+              "id": "route-leg-c9c862951504dedf",
+              "mode": "manual",
+              "to": {
+                "bendId": "route-bend-c9c862951504dedf",
+                "kind": "bend",
+                "position": {
+                  "x": 170,
+                  "y": 180
+                }
+              }
+            },
+            {
+              "id": "route-leg-c9c861951504dd2c",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "instanceId": "R1",
+                  "kind": "terminal",
+                  "pinName": "1"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-3cc118a1672a4767",
+          "start": {
+            "instanceId": "V1",
+            "kind": "terminal",
+            "pinName": "+"
+          }
+        },
+        {
+          "id": "wire-30",
+          "legs": [
+            {
+              "id": "route-leg-b76235ad7066f66a",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "instanceId": "L1",
+                  "kind": "terminal",
+                  "pinName": "1"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-1161719b3ecff90d",
+          "start": {
+            "instanceId": "R1",
+            "kind": "terminal",
+            "pinName": "2"
+          }
+        },
+        {
+          "id": "wire-32",
+          "legs": [
+            {
+              "id": "route-leg-aaa7fd3b2551945c",
+              "mode": "manual",
+              "to": {
+                "bendId": "route-bend-aaa7fd3b2551945c",
+                "kind": "bend",
+                "position": {
+                  "x": 480,
+                  "y": 180
+                }
+              }
+            },
+            {
+              "id": "route-leg-aaa7fe3b2551960f",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "instanceId": "C1",
+                  "kind": "terminal",
+                  "pinName": "1"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-232eaf9b4907ccf7",
+          "start": {
+            "instanceId": "L1",
+            "kind": "terminal",
+            "pinName": "2"
+          }
+        },
+        {
+          "id": "wire-35",
+          "legs": [
+            {
+              "id": "route-leg-735ee395b837cf05",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "instanceId": "GND1",
+                  "kind": "terminal",
+                  "pinName": "0"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-89e480092dc336ed",
+          "start": {
+            "instanceId": "V1",
+            "kind": "terminal",
+            "pinName": "-"
+          }
+        },
+        {
+          "id": "wire-38",
+          "legs": [
+            {
+              "id": "route-leg-559c359379b7d5d2",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "instanceId": "GND2",
+                  "kind": "terminal",
+                  "pinName": "0"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-89e480092dc336ed",
+          "start": {
+            "instanceId": "C1",
+            "kind": "terminal",
+            "pinName": "2"
+          }
+        }
+      ],
+      "sourceBinding": {
+        "cellName": "rlc_filter",
+        "sourceRef": {
+          "end": {
+            "column": 14,
+            "line": 5,
+            "offset": 122
+          },
+          "fileId": "source-648e50f6f6cd02ee",
+          "start": {
+            "column": 1,
+            "line": 2,
+            "offset": 70
+          }
+        }
+      },
+      "sourceStatus": "connectivity-modified"
+    }
+  ],
+  "externalSubcircuitDefinitions": [],
+  "id": "project-rlc-filter",
+  "name": "RLC Filter — Damping Laboratory",
+  "schemaVersion": 53,
+  "simulationFolders": [
+    {
+      "id": "rlc-1",
+      "input": {
+        "circuitBindings": [
+          {
+            "documentId": "cell-rlc-filter",
+            "emission": "top-level",
+            "id": "circuit",
+            "path": "circuit.spice"
+          }
+        ],
+        "configPath": "experiment.json",
+        "dependencies": [],
+        "entry": "run.cir",
+        "files": [
+          {
+            "path": "run.cir",
+            "text": "* 01 Underdamped | AC + Step\n* 1. Ready to run. Change the resistance in the alter command below.\n* 2. Click Run.\n* 3. Open Plot for waveforms; expand Measurements when available.\n.temp 27\n.include \"circuit.spice\"\n.control\nset filetype=ascii\nset appendwrite\nalter R1 200\nsave v(in) v(out) i(l1)\n* AC is small-signal response, not an output-swing test.\nac dec 100 100 1Meg\nlet gain_db = db(v(out))\nmeas ac peak_gain_db MAX gain_db\nwrite out.raw\ntran 0.5u 1m 0 0.5u\nmeas tran peak_output MAX v(out)\nmeas tran final_value FIND v(out) AT=1m\nwrite out.raw\n.endc\n.end\n"
+          },
+          {
+            "path": "experiment.json",
+            "text": "{\n  \"version\": 2,\n  \"environment\": {\n    \"profileId\": \"sky130-core-continuous-ngspice46-v1\"\n  }\n}\n"
+          }
+        ],
+        "kind": "source"
+      },
+      "name": "01 Underdamped | AC + Step",
+      "version": 4
+    },
+    {
+      "id": "rlc-2",
+      "input": {
+        "circuitBindings": [
+          {
+            "documentId": "cell-rlc-filter",
+            "emission": "top-level",
+            "id": "circuit",
+            "path": "circuit.spice"
+          }
+        ],
+        "configPath": "experiment.json",
+        "dependencies": [],
+        "entry": "run.cir",
+        "files": [
+          {
+            "path": "run.cir",
+            "text": "* 02 Critical | AC + Step\n* 1. Ready to run. Change the resistance in the alter command below.\n* 2. Click Run.\n* 3. Open Plot for waveforms; expand Measurements when available.\n.temp 27\n.include \"circuit.spice\"\n.control\nset filetype=ascii\nset appendwrite\nalter R1 632.455532\nsave v(in) v(out) i(l1)\n* AC is small-signal response, not an output-swing test.\nac dec 100 100 1Meg\nlet gain_db = db(v(out))\nmeas ac peak_gain_db MAX gain_db\nwrite out.raw\ntran 0.5u 1m 0 0.5u\nmeas tran peak_output MAX v(out)\nmeas tran final_value FIND v(out) AT=1m\nwrite out.raw\n.endc\n.end\n"
+          },
+          {
+            "path": "experiment.json",
+            "text": "{\n  \"version\": 2,\n  \"environment\": {\n    \"profileId\": \"sky130-core-continuous-ngspice46-v1\"\n  }\n}\n"
+          }
+        ],
+        "kind": "source"
+      },
+      "name": "02 Critical | AC + Step",
+      "version": 4
+    },
+    {
+      "id": "rlc-3",
+      "input": {
+        "circuitBindings": [
+          {
+            "documentId": "cell-rlc-filter",
+            "emission": "top-level",
+            "id": "circuit",
+            "path": "circuit.spice"
+          }
+        ],
+        "configPath": "experiment.json",
+        "dependencies": [],
+        "entry": "run.cir",
+        "files": [
+          {
+            "path": "run.cir",
+            "text": "* 03 Overdamped | AC + Step\n* 1. Ready to run. Change the resistance in the alter command below.\n* 2. Click Run.\n* 3. Open Plot for waveforms; expand Measurements when available.\n.temp 27\n.include \"circuit.spice\"\n.control\nset filetype=ascii\nset appendwrite\nalter R1 1000\nsave v(in) v(out) i(l1)\n* AC is small-signal response, not an output-swing test.\nac dec 100 100 1Meg\nlet gain_db = db(v(out))\nmeas ac peak_gain_db MAX gain_db\nwrite out.raw\ntran 0.5u 1m 0 0.5u\nmeas tran peak_output MAX v(out)\nmeas tran final_value FIND v(out) AT=1m\nwrite out.raw\n.endc\n.end\n"
+          },
+          {
+            "path": "experiment.json",
+            "text": "{\n  \"version\": 2,\n  \"environment\": {\n    \"profileId\": \"sky130-core-continuous-ngspice46-v1\"\n  }\n}\n"
+          }
+        ],
+        "kind": "source"
+      },
+      "name": "03 Overdamped | AC + Step",
+      "version": 4
+    }
+  ],
+  "source": {
+    "dialect": "spice3f5-core",
+    "entry": "circuit.spi",
+    "files": [
+      {
+        "hash": "sha256:522c323ab66e1bc8d22e6bf6b1229c9ff2e427164a8fef79a2835d8d85001580",
+        "id": "source-648e50f6f6cd02ee",
+        "path": "circuit.spi"
+      }
+    ],
+    "sourcePolicy": "copy"
+  },
+  "structureRevision": 0,
+  "symbolLibrary": {
+    "hash": "razavi-reference-v1",
+    "id": "razavi-symbols",
+    "version": "1"
+  },
+  "topDocumentId": "cell-rlc-filter"
+}

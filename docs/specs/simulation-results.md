@@ -16,6 +16,16 @@ derived run-local metadata mapping native voltage vectors to Canvas paths/names;
 it does not rename the raw data or change connectivity. Native results retain
 their executable spelling alongside friendly names, including in MCP and CSV.
 
+OP samples are not automatic measurements: their value already belongs to the
+OP table. Authored measurement rules remain independent. Historical automatic
+OP copies are suppressed in the editor only when their record, output, unit and
+value corroborate the original sample; failures and inconsistent evidence remain.
+The MOS details own native OP parameters when the saved Prepared acquisition
+mapping proves the same device occurrence, record and parameter. Those samples
+are omitted from the generic OP table, not from raw data or numeric exports.
+Unknown parameters and receipts without sufficient mapping remain visible.
+Repeated OP records keep separate labels; equal values are not duplicate identity.
+
 Numbers are read from ngspice's ASCII rawfile, never from console text. The
 parsed result extends `SimulationResult` with:
 

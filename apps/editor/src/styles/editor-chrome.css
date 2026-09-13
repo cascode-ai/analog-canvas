@@ -1,5 +1,10 @@
 /* Editor chrome owner: application bars, menus, commands, project identity, and root failure surface. */
 
+/* Full-window simulation reclaims chrome space without unmounting its state. */
+.app-shell:has(> .app-workspace.simulation-maximized) > .app-chrome {
+  display: none;
+}
+
 .menubar-row {
   display: flex;
   flex-wrap: nowrap;

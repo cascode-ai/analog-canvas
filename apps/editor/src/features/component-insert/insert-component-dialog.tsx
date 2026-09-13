@@ -290,7 +290,7 @@ export function InsertComponentDialog({
         cellName: choice.cellName ?? choice.symbol.name,
         parameters: {},
         initialRotation: 0,
-        showReference: true,
+        showReference: false,
         referenceText: null,
         showValue: true,
       });

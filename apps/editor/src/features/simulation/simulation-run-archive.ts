@@ -17,6 +17,7 @@ export const SIMULATION_ARCHIVE_VERSION = 1 as const;
 export const MAX_SIMULATION_ARCHIVE_BYTES = 32 * 1024 * 1024;
 
 export interface SimulationArchivePresentation {
+  readonly origin?: "agent" | "human";
   readonly folderId: string;
   readonly folderName: string;
   readonly analysisLabel: string;
@@ -44,6 +45,7 @@ type ArchivedRun = Omit<
 /** Portable browser archive payload. Large numeric arrays live once in the
  * captured result artifacts and are decoded only when the archive is opened. */
 export interface SimulationRunArchiveV1 {
+  readonly projectFile?: string;
   readonly schemaVersion: typeof SIMULATION_ARCHIVE_VERSION;
   readonly id: string;
   readonly projectId: string;
@@ -56,6 +58,8 @@ export interface SimulationRunArchiveV1 {
 }
 
 export interface SimulationRunArchiveSummary {
+  readonly state?: Run["state"];
+  readonly origin?: "agent" | "human";
   readonly id: string;
   readonly projectId: string;
   readonly folderId: string;
@@ -246,6 +250,10 @@ export function summarizeSimulationRunArchive(
     createdAt: archive.createdAt,
     byteLength: archive.byteLength,
     environment: archive.prepared.environment,
+    state: archive.run.state,
+    ...(archive.presentation.origin
+      ? { origin: archive.presentation.origin }
+      : {}),
   };
 }
 
@@ -256,6 +264,8 @@ export function isSimulationRunArchive(
   const candidate = value as Partial<SimulationRunArchiveV1>;
   return (
     candidate.schemaVersion === SIMULATION_ARCHIVE_VERSION &&
+    (candidate.projectFile === undefined ||
+      typeof candidate.projectFile === "string") &&
     typeof candidate.id === "string" &&
     typeof candidate.projectId === "string" &&
     typeof candidate.createdAt === "string" &&

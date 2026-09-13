@@ -6,6 +6,25 @@ import {
 } from "./automatic-measurements.js";
 
 describe("automatic simulation measurements", () => {
+  it("does not duplicate OP nodes or saved MOS parameters as automatic measurements", () => {
+    expect(
+      deriveAutomaticMeasurements([
+        {
+          analysis: "op",
+          plotName: "Operating Point",
+          outputs: [
+            { id: "native:v(out)", label: "v(out)", unit: "V", values: [1.2] },
+            {
+              id: "native:@m1[gm]",
+              label: "@m1[gm]",
+              unit: "S",
+              values: [0.002],
+            },
+          ],
+        },
+      ]),
+    ).toEqual([]);
+  });
   it("uses time-weighted integration on a nonuniform transient grid", () => {
     const measurements = deriveAutomaticMeasurements([
       {

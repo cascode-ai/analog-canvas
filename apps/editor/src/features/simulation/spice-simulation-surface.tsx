@@ -22,6 +22,7 @@ import type {
 } from "@icm/simulation-service/contract";
 import { downloadTextArtifact } from "../../document/project-file-service";
 import type { SpiceSimulationSurfaceProps } from "./simulation-surface-types";
+import { SimulationExampleCards } from "./simulation-example-cards";
 export type {
   SpiceSimulationSurfaceProps,
   SimulationFolderSaveResult,
@@ -53,10 +54,10 @@ import {
   type RecordSelection,
 } from "./simulation-result-records";
 import type { OperatingPointDisplay } from "./operating-point-labels";
-import { DeviceOperatingPointResults } from "./device-operating-point-results";
 
 import {
   buildSimulationArtifactArchive,
+  buildSimulationWorkspaceArchive,
   readSimulationArtifact,
   readSimulationArtifactPreview,
   type SimulationArtifactContent,
@@ -131,6 +132,14 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
 function SimulationSurface(props: SpiceSimulationSurfaceProps) {
   const interaction = useWorkspaceInteractions();
   const { session, project, open } = props;
+  const [sharedRuns, setSharedRuns] = useState(
+    () => props.runHistory?.snapshot() ?? [],
+  );
+  useEffect(() => {
+    const history = props.runHistory;
+    setSharedRuns(history?.snapshot() ?? []);
+    return history?.subscribe(() => setSharedRuns(history.snapshot()));
+  }, [props.runHistory]);
   const selectedFolder = project.simulationFolders.find(
     (folder) => folder.id === props.selectedFolderId,
   );
@@ -139,6 +148,10 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
   const [capabilities, setCapabilities] = useState<Capabilities>();
   const [prepared, setPrepared] = useState<Prepared>();
   const [run, setRun] = useState<Run>();
+  const openedProjectFiles = useRef(new Map<string, string>());
+  const openedProjectFile = run
+    ? openedProjectFiles.current.get(run.id)
+    : undefined;
   const [batch, setBatch] = useState<SimulationBatch>();
   const hydratedBatchRuns = useRef(new Set<string>());
   const batchRuns = useRef(new Map<string, { prepared: Prepared; run: Run }>());
@@ -227,7 +240,7 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
     return () => {
       stopped = true;
     };
-  }, [archiveStore, project.id, open]);
+  }, [archiveStore, project.id, open, sharedRuns]);
   useEffect(
     () => () => {
       archiveStore.close();
@@ -692,7 +705,13 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
       setProblem(captured.error);
       return;
     }
-    const saved = await archiveStore.save(captured.value);
+    const saved = await archiveStore.save(
+      sharedRuns.find((item) => item.id === run.id)?.archive ?? {
+        ...captured.value,
+        id: `run-${run.id}`,
+        ...(openedProjectFile ? { projectFile: openedProjectFile } : {}),
+      },
+    );
     setArtifactBusy(undefined);
     if (!saved.ok) {
       setProblem(
@@ -714,7 +733,12 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
   };
   const openArchivedRun = async (archiveId: string) => {
     setArtifactBusy(`archive:open:${archiveId}`);
-    const stored = await archiveStore.read(archiveId);
+    const memoryArchive = sharedRuns.find(
+      (item) => item.archive?.id === archiveId,
+    )?.archive;
+    const stored = memoryArchive
+      ? { ok: true as const, value: memoryArchive }
+      : await archiveStore.read(archiveId);
     if (!stored.ok || !stored.value) {
       setArtifactBusy(undefined);
       setProblem(
@@ -738,6 +762,11 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
       ...stored.value.presentation,
       prepared: restored.value.prepared,
     };
+    if (stored.value.projectFile)
+      openedProjectFiles.current.set(
+        restored.value.run.id,
+        stored.value.projectFile,
+      );
     preparedPresentations.current.set(restored.value.prepared.id, presentation);
     archivedRunIds.current.add(restored.value.run.id);
     folderResults.current.set(stored.value.presentation.folderId, {
@@ -770,6 +799,7 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
     setArchives((current) =>
       current.filter((archive) => archive.id !== archiveId),
     );
+    props.runHistory?.forgetArchive(archiveId);
   };
   const exportVisiblePlots = async (format: SimulationPlotExportFormat) => {
     if (!resultsBodyRef.current) return;
@@ -805,14 +835,6 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
   const batchRunning = batch && ["running", "cancelling"].includes(batch.state);
   const running =
     (run && ["running", "cancelling"].includes(run.state)) || batchRunning;
-  const activeCell = project.documents.find(
-    (candidate) => candidate.id === props.activeDocumentId,
-  );
-  const hasDutInstance = Boolean(
-    activeCell?.instances.some(
-      (instance) => instance.netlist?.binding?.kind === "subcircuit",
-    ),
-  );
   const finishedBatchItems =
     batch?.items.filter((item) =>
       ["finished", "failed", "cancelled", "lost"].includes(item.state),
@@ -1120,6 +1142,49 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
     <>
       {run ? (
         <div className="simulation-result-actions">
+          {openedProjectFile && archivedRunIds.current.has(run.id) ? (
+            <button
+              type="button"
+              disabled={artifactBusy !== undefined}
+              onClick={() =>
+                void (async () => {
+                  setArtifactBusy("bundle:project");
+                  const result = await buildSimulationWorkspaceArchive(
+                    session.files,
+                    [
+                      {
+                        kind: "text",
+                        path: "project.icproj.json",
+                        text: openedProjectFile,
+                      },
+                      ...run.artifacts.map((artifact) => ({
+                        kind: "artifact" as const,
+                        path: `results/${artifact.name}`,
+                        artifact,
+                      })),
+                    ],
+                  );
+                  setArtifactBusy(undefined);
+                  if (!result.ok) {
+                    setProblem(result.error);
+                    return;
+                  }
+                  const url = URL.createObjectURL(
+                    new Blob([result.bytes as BlobPart], {
+                      type: "application/zip",
+                    }),
+                  );
+                  const link = document.createElement("a");
+                  link.href = url;
+                  link.download = "project-with-results.zip";
+                  link.click();
+                  setTimeout(() => URL.revokeObjectURL(url), 0);
+                })()
+              }
+            >
+              Project + results ZIP
+            </button>
+          ) : null}
           <button
             type="button"
             disabled={
@@ -1193,6 +1258,96 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
       aria-label="Simulation results"
     >
       <div ref={resultsBodyRef} className="simulation-results-body">
+        {run && archivedRunIds.current.has(run.id) ? (
+          <p>
+            Viewing a saved input snapshot, not a new run of the current source.
+          </p>
+        ) : null}
+        {resultTab !== "compare" &&
+        archives.some(
+          (item) =>
+            item.folderId === selectedFolder?.id &&
+            !sharedRuns.some((run) => run.archive?.id === item.id),
+        ) ? (
+          <section
+            className="simulation-archive-list"
+            aria-label="Saved folder results"
+          >
+            <strong>Saved results · this browser</strong>
+            <ul>
+              {archives
+                .filter(
+                  (item) =>
+                    item.folderId === selectedFolder?.id &&
+                    !sharedRuns.some((run) => run.archive?.id === item.id),
+                )
+                .map((item) => (
+                  <li key={item.id}>
+                    <span>
+                      {item.origin === "agent" ? "Agent · " : ""}
+                      {item.analysisLabel} ·{" "}
+                      {new Date(item.createdAt).toLocaleString()} · Saved input
+                      snapshot
+                    </span>
+                    <button
+                      type="button"
+                      disabled={artifactBusy !== undefined}
+                      onClick={() => void openArchivedRun(item.id)}
+                    >
+                      Open result
+                    </button>
+                    <button
+                      type="button"
+                      aria-label={`Delete saved result ${item.id}`}
+                      onClick={() => void deleteArchivedRun(item.id)}
+                    >
+                      Delete
+                    </button>
+                  </li>
+                ))}
+            </ul>
+          </section>
+        ) : null}
+        {resultTab !== "compare" &&
+        sharedRuns.some(
+          (item) => item.presentation.folderId === selectedFolder?.id,
+        ) ? (
+          <section
+            className="simulation-archive-list"
+            aria-label="Project runs"
+          >
+            <strong>
+              Project runs · automatically archived in this browser
+            </strong>
+            <ul>
+              {sharedRuns
+                .filter(
+                  (item) => item.presentation.folderId === selectedFolder?.id,
+                )
+                .map((item) => (
+                  <li key={item.id}>
+                    <span>
+                      {item.owner === "agent" ? "Agent" : "You"} ·{" "}
+                      {item.presentation.folderName} ·{" "}
+                      {item.presentation.analysisLabel} · {item.state}
+                      {item.error ? (
+                        <small role="status">{item.error}</small>
+                      ) : null}
+                    </span>
+                    <button
+                      type="button"
+                      disabled={!item.archive || artifactBusy !== undefined}
+                      onClick={() =>
+                        item.archive && void openArchivedRun(item.archive.id)
+                      }
+                    >
+                      Open result
+                    </button>
+                  </li>
+                ))}
+            </ul>
+          </section>
+        ) : null}
         {resultTab === "plot" ? (
           <div className="simulation-analysis-view simulation-plot-view">
             {run?.outputData ? (
@@ -1378,13 +1533,11 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
             </div>
             {run?.outputData ? (
               <>
-                <DeviceOperatingPointResults
-                  devices={run.outputData.deviceOperatingPoints ?? []}
-                />
                 <SimulationOutputResults
                   resultKey={`${run.id}:op`}
                   data={run.outputData}
                   view="op"
+                  prepared={runPresentation?.prepared}
                   outputs={runPresentation?.outputs ?? []}
                 />
               </>
@@ -1517,7 +1670,7 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
                       <span>
                         <strong>{archive.folderName}</strong>
                         <small>
-                          {archive.analysisLabel} ·{" "}
+                          {archive.analysisLabel} · {archive.state} ·{" "}
                           {archive.environment.corner?.toUpperCase() ??
                             archive.environment.profileId}{" "}
                           · {new Date(archive.createdAt).toLocaleString()}
@@ -1625,9 +1778,11 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
           disabled={busy}
           onClick={() => void execute(true)}
           aria-label="Run"
-          title={`Run ${selectedFolder.name}`}
+          title={`Run ${selectedFolder.name} / ${selectedFolder.input.entry}`}
+          aria-description={`Run ${selectedFolder.name} / ${selectedFolder.input.entry}`}
         >
           <SimulationActionIcon kind={busy ? "saving" : "run"} />
+          <span className="simulation-run-target">{selectedFolder.name}</span>
         </button>
       ) : (
         <button
@@ -1750,6 +1905,9 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
         }
       }}
     >
+      {!project.simulationFolders.length && props.onOpenExample ? (
+        <SimulationExampleCards onOpen={props.onOpenExample} />
+      ) : null}
       {!selectedFolder ? (
         <header className="simulation-taskbar">
           {simulationActions}
@@ -1757,17 +1915,12 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
         </header>
       ) : null}
 
-      {!selectedFolder && !hasDutInstance ? (
-        <p className="simulation-context-hint">
-          No DUT instance in this Cell · Edit → New Testbench Cell if needed.
-        </p>
-      ) : null}
-
       {selectedFolder ? (
         <SourceCodePane
           ref={codeRef}
           diagnostics={activeProblem?.diagnostics}
           project={project}
+          activeDocumentId={props.activeDocumentId}
           folder={selectedFolder}
           selectedCircuitObject={props.selectedCircuitObject}
           {...(props.onPreviewSignal

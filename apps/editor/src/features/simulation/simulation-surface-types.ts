@@ -8,6 +8,7 @@ import type {
 import type { Problem } from "@icm/simulation-service/contract";
 import type { SimulationSignalTarget } from "@icm/netlist";
 import type { BrowserSimulationSession } from "./browser-simulation-session";
+import type { ProjectRunHistory } from "./project-run-history";
 import type { OperatingPointCanvasProjection } from "./operating-point-projection";
 export interface SpiceSimulationSurfaceProps {
   open: boolean;
@@ -25,9 +26,11 @@ export interface SpiceSimulationSurfaceProps {
   selectedFolderId: string | null;
   onSelectFolderId(folderId: string): void;
   session: BrowserSimulationSession;
+  runHistory?: ProjectRunHistory;
   onToggleMaximized(): void;
   onMinimize(): void;
   onExit(): void;
+  onOpenExample?(project: CircuitProject): void | Promise<void>;
   onSaveFolder(
     folder: ProjectSimulationFolder,
     expectedRevision?: number,

@@ -14,6 +14,7 @@ import {
   type SimulationSourceExpression,
 } from "@icm/model";
 import type { SpiceSimulationSurfaceProps } from "./simulation-surface-types";
+import { SourceCircuitContext } from "./source-circuit-context-view";
 import {
   deriveSimulationProbeOptions,
   matchSimulationVoltageProbeOptions,
@@ -77,6 +78,7 @@ interface Props extends Pick<
   | "onPreviewSignal"
 > {
   project: CircuitProject;
+  activeDocumentId?: string | undefined;
   selectedCircuitObject?:
     { documentId: string; instanceId: string } | undefined;
   folder: ProjectSimulationFolder;
@@ -1023,6 +1025,22 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
                 drafts.current.get(key(filePath))!.base,
           }))}
         activePath={path}
+        sourceContext={
+          <SourceCircuitContext
+            project={props.project}
+            activeDocumentId={props.activeDocumentId}
+            input={{
+              ...input,
+              files: input.files.map((file) => ({
+                ...file,
+                text:
+                  drafts.current.get(`${props.folder.id}\u0000${file.path}`)
+                    ?.text ?? file.text,
+              })),
+            }}
+            onSelectFile={setPath}
+          />
+        }
         onSelectFile={setPath}
         onFileAction={async (
           action,

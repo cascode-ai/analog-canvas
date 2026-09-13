@@ -3,6 +3,52 @@
 Notable changes to Analog Canvas. Entries describe what changed for the person
 using the product, not the commits that got there.
 
+## 0.5.0 (2026-09-13)
+
+### Drawing and properties
+
+- Place text with a cursor-following preview. Mix stacked fractions with other
+  text, with centered numerator/denominator and a bar sized to the wider part.
+  New text boxes default to bold, and text alignment uses precise text bounds.
+- Edit annotations through live property JSON with inline option menus.
+  Rectangles and circles have independent border/fill colors and front/back
+  layers; rotation and arrow/line styles have discoverable choices.
+- Show transformer and T-Coil coupling and inductance parameters independently.
+  Swap Analog Block input and output polarities independently in Properties.
+- Use consistent equilateral Analog Block triangles, grid-aligned left edges
+  and balanced output leads. Digital gate bodies also align from the left;
+  selection frames follow their visible artwork.
+- Connect visible component pins crossed by a Power Rail when drawing or
+  adjusting that rail.
+
+Project schema 54 adds independent magnetic parameter visibility. Existing
+Projects remain importable; some older drawings affected by the new symbol
+geometry or pin columns may need manual layout or route repairs.
+
+## 0.4.1 (2026-09-13)
+
+### Agent authoring and simulation results
+
+- Place components with native, attached reference/value annotations and real
+  power connections. MCP 0.8.0 adds `set-instance-display` to control visibility
+  without duplicate text. Net Labels name their Net and attach to its route.
+- See Agent-started Project-folder runs, batches and sweeps in the GUI without
+  changing the active folder or stealing focus. Open completed results without
+  running the simulation again.
+- Automatically preserve verified results in this browser's Saved results.
+  Export a Project + results evidence ZIP when a verified input snapshot is
+  available. Ordinary Project files remain source-only; browser archives are
+  not Cloud Save, and storage failures are reported explicitly.
+- Keep selected simulation Run targets explicit, avoid duplicate OP/MOS result
+  displays, and use consistent names when placing hierarchical Cells.
+- Start from four complete simulation example Projects with explicit replacement
+  confirmation and source-aware guidance. Maximize Simulation to reclaim the
+  application chrome while preserving editor state on restore.
+
+Project schema 53 and the API 3.0 source-workspace contracts are unchanged.
+The independently published MCP adapter advances to 0.8.0; existing pinned
+installations must update separately.
+
 ## 0.4.0 (2026-09-13)
 
 ### Simulation and Agent

@@ -23,6 +23,73 @@ import {
 import { ota, profile, editSimulationFile } from "./simulation-e2e-fixtures.js";
 
 const loadModule = createRequire(import.meta.url);
+test("simulation examples confirm whole-Project replacement and protect existing work", async ({
+  page,
+}) => {
+  const project = parseProject(JSON.stringify(ota));
+  project.simulationFolders = [];
+  await page.goto("/editor");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "my-circuit.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  await page
+    .getByRole("textbox", { name: "Circuit name" })
+    .fill("My unsaved circuit");
+  await page.getByRole("textbox", { name: "Circuit name" }).press("Enter");
+  await page.getByTestId("open-analog-simulation").click();
+  const panel = page.getByRole("region", { name: "Analog simulation" });
+  const cards = panel.getByRole("group", { name: "Simulation examples" });
+  await expect(cards.getByRole("button")).toHaveCount(4);
+  await panel.screenshot({
+    path: test.info().outputPath("simulation-starters.png"),
+  });
+  await expect(panel).not.toContainText("No DUT instance");
+  await cards
+    .getByRole("button", { name: "RC Filters Low-pass & high-pass" })
+    .click();
+  const confirmation = page.getByRole("dialog", { name: "Open RC Filters?" });
+  await expect(confirmation).toContainText("entire Project");
+  await confirmation
+    .getByRole("button", { name: "Cancel", exact: true })
+    .click();
+  await expect(cards).toBeVisible();
+  await expect
+    .poll(async () =>
+      (await readRecoveryRecords(page)).some(
+        (record) => JSON.parse(record.projectText).id === project.id,
+      ),
+    )
+    .toBe(true);
+  await cards
+    .getByRole("button", { name: "RC Filters Low-pass & high-pass" })
+    .click();
+  await confirmation
+    .getByRole("button", { name: "Open example", exact: true })
+    .click();
+  const guard = page.getByRole("dialog", { name: "Unsaved changes" });
+  await expect(guard).toBeVisible();
+  await guard.getByRole("button", { name: "Stay", exact: true }).click();
+  await expect(cards).toBeVisible();
+  await cards
+    .getByRole("button", { name: "RC Filters Low-pass & high-pass" })
+    .click();
+  await confirmation
+    .getByRole("button", { name: "Open example", exact: true })
+    .click();
+  await guard.getByRole("button", { name: "Continue without saving" }).click();
+  await expect(cards).toHaveCount(0);
+  await expect(
+    panel.getByRole("button", { name: "Run", exact: true }),
+  ).toBeVisible();
+  await expect(panel.locator(".simulation-source-context")).toContainText(
+    "Canvas source:",
+  );
+  await expect(
+    panel.getByRole("textbox", { name: "Simulation source editor" }),
+  ).toContainText("Click Run");
+});
 test("native metadata is hidden per folder while damaged configuration stays repairable", async ({
   page,
 }) => {
@@ -66,9 +133,6 @@ test("native metadata is hidden per folder while damaged configuration stays rep
   ).toHaveCount(0);
   await panel
     .getByRole("treeitem", { name: "Folder Repair", exact: true })
-    .click();
-  await panel
-    .getByRole("button", { name: "Toggle Repair", exact: true })
     .click();
   await panel
     .getByRole("treeitem", { name: "experiment.json", exact: true })
@@ -1040,10 +1104,7 @@ test("human simulation uses saved folder, survives minimizing, recovers a bad in
   const opMeasurements = panel.locator(
     "details.simulation-measurement-results",
   );
-  await expect(opMeasurements.locator(":scope > summary")).toContainText(
-    "1 value",
-  );
-  await expect(opMeasurements).not.toHaveAttribute("open", "");
+  await expect(opMeasurements).toHaveCount(0);
   await panel.getByRole("button", { name: "Show on canvas" }).click();
   await expect(page.getByTestId("operating-point-badges")).toContainText(
     "500 mV",
@@ -1821,7 +1882,14 @@ test("human simulation uses saved folder, survives minimizing, recovers a bad in
     name: "Saved result archives",
   });
   await expect(savedArchives).toContainText("E2E folder");
-  await savedArchives.getByRole("button", { name: "Open" }).click();
+  // Every completed run is now automatically retained, not only the one
+  // explicitly archived above. Reopen a completed result, not the cancelled run.
+  await savedArchives
+    .getByRole("listitem")
+    .filter({ hasText: "finished" })
+    .first()
+    .getByRole("button", { name: "Open", exact: true })
+    .click();
   await expect(panel.getByRole("status")).toHaveText("completed");
   expect(executions).toBe(3);
 });
@@ -1895,10 +1963,11 @@ test("Simulation creates an ordinary testbench and defaults a new experiment to 
     exact: true,
   });
   const runButton = taskbar.getByRole("button", { name: "Run", exact: true });
-  expect((await saveButton.boundingBox())!.width).toBe(runBox!.width);
-  expect(runBox!.width).toBe(22);
+  expect((await saveButton.boundingBox())!.width).toBe(22);
+  expect(runBox!.width).toBeGreaterThan(22);
+  expect(runBox!.width).toBeLessThanOrEqual(160);
   await expect(saveButton).toHaveText("");
-  await expect(runButton).toHaveText("");
+  await expect(runButton).toHaveText("Main experiment");
   await expect(saveButton).toHaveAttribute(
     "title",
     /not a cloud save.*Ctrl\+S/,
@@ -1941,6 +2010,10 @@ test("Simulation creates an ordinary testbench and defaults a new experiment to 
     /simulation-maximized/,
   );
   await expect(page.getByTestId("schematic-canvas")).toBeHidden();
+  await expect(page.locator(".app-chrome")).toBeHidden();
+  const maximizedBounds = await page.locator(".app-workspace").boundingBox();
+  expect(maximizedBounds!.y).toBe(0);
+  expect(maximizedBounds!.width).toBe(page.viewportSize()!.width);
   await expect(page.getByTestId("simulation-resize-handle")).toHaveCount(0);
   await expect(
     page.getByRole("region", { name: "Simulation Code workspace" }),
@@ -1950,6 +2023,7 @@ test("Simulation creates an ordinary testbench and defaults a new experiment to 
     /simulation-maximized/,
   );
   await expect(page.getByTestId("schematic-canvas")).toBeVisible();
+  await expect(page.locator(".app-chrome")).toBeVisible();
   await expect(page.getByTestId("simulation-resize-handle")).toBeVisible();
   await expect(page.getByTestId("library-toggle")).toBeEnabled();
   await expect(page.getByTestId("examples-toggle")).toBeEnabled();
@@ -1999,6 +2073,138 @@ async function openWorkspace(page: Page) {
   return page.getByRole("region", { name: "Simulation Code workspace" });
 }
 
+test("maximized simulation reclaims chrome at narrow width and minimizes without losing source", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 900, height: 700 });
+  const workspace = await openWorkspace(page);
+  const editor = workspace.getByRole("textbox", {
+    name: "Simulation source editor",
+  });
+  await editor.fill("* retained maximized draft\n");
+  const docked = await workspace.boundingBox();
+  await page
+    .getByRole("button", { name: "Maximize simulation", exact: true })
+    .click();
+  await expect(page.locator(".app-chrome")).toBeHidden();
+  await expect(page.getByTestId("library-toggle")).toBeHidden();
+  await expect(page.getByTestId("examples-toggle")).toBeHidden();
+  const bounds = await page.locator(".app-workspace").boundingBox();
+  expect(bounds!.y).toBe(0);
+  expect(bounds!.width).toBe(900);
+  expect(
+    (await page.locator(".app-statusbar").boundingBox())!.y,
+  ).toBeGreaterThanOrEqual(bounds!.height);
+  expect((await workspace.boundingBox())!.height).toBeGreaterThan(
+    docked!.height,
+  );
+  await expect(
+    page.getByRole("button", { name: "Restore simulation panel", exact: true }),
+  ).toBeVisible();
+  await page.screenshot({
+    path: test.info().outputPath("full-window-simulation.png"),
+  });
+  await page
+    .getByRole("button", { name: "Minimize simulation", exact: true })
+    .click();
+  await expect(page.locator(".app-chrome")).toBeVisible();
+  await expect(page.getByTestId("library-toggle")).toBeEnabled();
+  await page.getByTestId("open-analog-simulation").click();
+  await expect(editor).toContainText("retained maximized draft");
+  await expect(page.locator(".app-chrome")).toBeVisible();
+});
+
+test("folder activation exposes the run target independently of expansion and selection", async ({
+  page,
+}) => {
+  let executedDeck = "";
+  await page.route("**/api/simulate", async (route) => {
+    const body = route.request().postDataJSON();
+    if (body.operation === "capabilities")
+      return route.fulfill({
+        json: {
+          configured: true,
+          modelLibrary: {
+            path: profile.models.library.runtimePath,
+            section: "tt",
+          },
+          rawfileCollection: "declared-single-ascii",
+          maxOutputBytes: 1048576,
+          inputs: ["source", "raw"],
+          analyses: ["op", "ac", "tran", "noise"],
+          parsedAnalyses: ["op", "ac", "tran", "noise"],
+          profiles: [
+            {
+              id: profile.id,
+              corners: ["tt"],
+              dependencies: [
+                { id: profile.models.id, sha256: profile.models.contentSha256 },
+              ],
+            },
+          ],
+          maxTimeoutMs: 120000,
+          maxInputBytes: 1048576,
+          cancel: true,
+        },
+      });
+    executedDeck = body.preparedDeck;
+    await route.fulfill({
+      status: 503,
+      json: { error: "Captured run target" },
+    });
+  });
+  const workspace = await openWorkspace(page);
+  const run = page.getByRole("button", { name: "Run", exact: true });
+  const alpha = workspace.getByRole("treeitem", {
+    name: "Folder Alpha",
+    exact: true,
+  });
+  const beta = workspace.getByRole("treeitem", {
+    name: "Folder Beta",
+    exact: true,
+  });
+  await expect(run).toHaveText("Alpha");
+  const expanded = await beta.getAttribute("aria-expanded");
+  await beta.click();
+  await expect(run).toHaveText("Beta");
+  await expect(run).toHaveAttribute("title", "Run Beta / run.cir");
+  await expect(beta).toHaveAttribute("aria-current", "page");
+  await expect(beta).toHaveAttribute("aria-expanded", expanded!);
+  await workspace
+    .getByRole("button", { name: "Toggle Alpha", exact: true })
+    .click();
+  await expect(run).toHaveText("Beta");
+  await alpha.click({ button: "right" });
+  await expect(run).toHaveText("Beta");
+  await page.keyboard.press("Escape");
+  await alpha.click({ modifiers: ["Control"] });
+  await expect(run).toHaveText("Beta");
+  await alpha.focus();
+  await alpha.press("Enter");
+  await expect(run).toHaveText("Alpha");
+  await beta.click();
+  await expect(run).toHaveText("Beta");
+  await expect(run.locator("svg")).toBeVisible();
+  await run.click();
+  await expect.poll(() => executedDeck).toContain("* Beta");
+  expect(executedDeck).not.toContain("* Alpha");
+  await beta.focus();
+  await beta.press("F2");
+  const longName = "Beta with a deliberately long simulation folder name";
+  const naming = workspace.getByRole("textbox", {
+    name: "Folder name",
+    exact: true,
+  });
+  await naming.fill(longName);
+  await naming.press("Enter");
+  await expect(run).toHaveText(longName);
+  expect((await run.boundingBox())!.width).toBeLessThanOrEqual(160);
+  await expect(run).toHaveAttribute("title", `Run ${longName} / run.cir`);
+  await workspace.screenshot({
+    path: test.info().outputPath("explicit-run-target.png"),
+  });
+});
+
 test("workspace menus, selection, empty editors and resizing share non-destructive semantics", async ({
   page,
 }) => {
@@ -2035,14 +2241,14 @@ test("workspace menus, selection, empty editors and resizing share non-destructi
   await expect(beta).toHaveAttribute("aria-selected", "true");
   await expect(
     page.getByRole("button", { name: "Run", exact: true }),
-  ).toHaveAttribute("title", "Run Alpha");
+  ).toHaveAttribute("title", "Run Beta / run.cir");
   await files
     .getByRole("button", { name: "Toggle Alpha", exact: true })
     .click();
   await expect(alpha).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Run", exact: true }),
-  ).toHaveAttribute("title", "Run Alpha");
+  ).toHaveAttribute("title", "Run Beta / run.cir");
   await workspace
     .getByRole("button", { name: "Close run.cir", exact: true })
     .click();
@@ -2086,7 +2292,10 @@ test("workspace menus, selection, empty editors and resizing share non-destructi
   await expect(
     workspace.getByRole("tab", { name: /circuit\.spice/ }),
   ).toHaveAttribute("aria-selected", "true");
-  await files.getByRole("button", { name: "Toggle Beta", exact: true }).click();
+  if ((await beta.getAttribute("aria-expanded")) !== "true")
+    await files
+      .getByRole("button", { name: "Toggle Beta", exact: true })
+      .click();
   await beta
     .locator("..")
     .locator("..")
@@ -2097,7 +2306,7 @@ test("workspace menus, selection, empty editors and resizing share non-destructi
   ).toHaveAttribute("aria-selected", "true");
   await expect(
     page.getByRole("button", { name: "Run", exact: true }),
-  ).toHaveAttribute("title", "Run Beta");
+  ).toHaveAttribute("title", "Run Beta / run.cir");
 });
 
 test("Explorer context downloads preserve multi-selection and directory contents without resizing rename rows", async ({

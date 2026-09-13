@@ -7,7 +7,6 @@ import {
   reviewedExternalBindingForMaster,
   reviewedExternalModelSuggestions,
 } from "@icm/devices";
-import { resolveDocumentStyleProfile } from "@icm/derived";
 import {
   type Annotation,
   type CircuitProject,
@@ -15,13 +14,10 @@ import {
 } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
-import { instanceLabelAnnotationFor } from "../instance-display/default-instance-display";
+import { instanceDisplayEdits } from "../instance-display/instance-display-edits";
 import { bindingForEditedModel } from "../netlist-export/netlist-authoring";
 import {
-  defaultInstanceLabel,
-  defaultInstanceValue,
   effectiveRouteAttachment,
-  instanceValueAnnotation,
   isRoutedMarker,
 } from "../wiring/route-interaction-geometry";
 
@@ -58,41 +54,13 @@ export function createSelectionPropertyCommands({
   replaceAnnotationSelection,
   setStatus,
 }: SelectionPropertyCommandDependencies) {
-  const styleProfile = resolveDocumentStyleProfile(document.presentation);
-
   const referenceLabelVisibilityEdits = (
     instanceIds: readonly string[],
     visible: boolean,
   ): SchematicEdit[] => {
-    const edits: SchematicEdit[] = [];
-    for (const instanceId of instanceIds) {
-      const instance = document.instances.find(
-        (item) => item.id === instanceId,
-      );
-      if (!instance) continue;
-      const label = instanceLabelAnnotationFor(document, instanceId);
-      if (label) {
-        const { visible: _currentVisibility, ...rest } = label;
-        edits.push({
-          kind: "upsert_schematic_annotation",
-          annotation: visible ? rest : { ...rest, visible: false },
-        });
-      } else if (visible) {
-        const created = defaultInstanceLabel(
-          document,
-          instance,
-          resolver,
-          styleProfile,
-        );
-        if (created) {
-          edits.push({
-            kind: "upsert_schematic_annotation",
-            annotation: created,
-          });
-        }
-      }
-    }
-    return edits;
+    return instanceDisplayEdits(document, resolver, instanceIds, {
+      showReference: visible,
+    });
   };
 
   const valueVisibilityEdits = (
@@ -100,33 +68,9 @@ export function createSelectionPropertyCommands({
     instanceIds: readonly string[],
     visible: boolean,
   ): SchematicEdit[] => {
-    const edits: SchematicEdit[] = [];
-    for (const instanceId of instanceIds) {
-      const instance = source.instances.find((item) => item.id === instanceId);
-      if (!instance) continue;
-      const value = instanceValueAnnotation(source, instanceId);
-      if (value) {
-        const { visible: _currentVisibility, ...rest } = value;
-        edits.push({
-          kind: "upsert_schematic_annotation",
-          annotation: visible ? rest : { ...rest, visible: false },
-        });
-      } else if (visible) {
-        const created = defaultInstanceValue(
-          source,
-          instance,
-          resolver,
-          styleProfile,
-        );
-        if (created) {
-          edits.push({
-            kind: "upsert_schematic_annotation",
-            annotation: created,
-          });
-        }
-      }
-    }
-    return edits;
+    return instanceDisplayEdits(source, resolver, instanceIds, {
+      showValue: visible,
+    });
   };
 
   const updateSelectedModelTarget = (value: string): void => {

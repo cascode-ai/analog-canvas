@@ -132,6 +132,9 @@ export function deriveAutomaticMeasurements(
 ): Measurement[] {
   const result: Measurement[] = [];
   analyses.forEach((analysis, analysisIndex) => {
+    // OP samples already have a scalar table. Repeating them as automatic
+    // measurements adds no information (and also duplicates MOS details).
+    if (analysis.analysis === "op") return;
     for (const output of analysis.outputs) {
       const values = output.imaginary
         ? output.values.map((real, index) => {
@@ -143,19 +146,6 @@ export function deriveAutomaticMeasurements(
               : Math.hypot(real, imaginary);
           })
         : output.values;
-      if (analysis.analysis === "op") {
-        result.push(
-          measurement(
-            analysisIndex,
-            analysis,
-            output,
-            "operating-point",
-            "Operating point",
-            values[0],
-          ),
-        );
-        continue;
-      }
       const summary = finiteSummary(values);
       result.push(
         measurement(
