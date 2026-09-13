@@ -311,7 +311,8 @@ for (const width of [300, 540]) {
     ).toHaveCount(0);
     expect(raw).not.toContain("//");
 
-    await code.click();
+    // Focus a text-only line; the editor center may contain an inline switch.
+    await code.locator(".cm-line").first().click();
     await page.keyboard.press("ControlOrMeta+a");
     const selected = await code.evaluate(() =>
       window.getSelection()?.toString(),
