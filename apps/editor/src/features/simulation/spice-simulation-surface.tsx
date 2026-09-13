@@ -1625,9 +1625,11 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
           disabled={busy}
           onClick={() => void execute(true)}
           aria-label="Run"
-          title={`Run ${selectedFolder.name}`}
+          title={`Run ${selectedFolder.name} / ${selectedFolder.input.entry}`}
+          aria-description={`Run ${selectedFolder.name} / ${selectedFolder.input.entry}`}
         >
           <SimulationActionIcon kind={busy ? "saving" : "run"} />
+          <span className="simulation-run-target">{selectedFolder.name}</span>
         </button>
       ) : (
         <button

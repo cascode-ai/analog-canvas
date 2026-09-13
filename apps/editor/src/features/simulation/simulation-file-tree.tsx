@@ -59,6 +59,7 @@ const collect = (node: TreeNode): SimulationExplorerSelection[] =>
 export function SimulationFileTree(props: SimulationCodeWorkspaceProps) {
   const ui = useWorkspaceInteractions();
   const anchor = useRef<string | undefined>(undefined);
+  const folderActivation = useRef<string | undefined>(undefined);
   const [selected, setSelected] = useState<string[]>([]);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const folders = props.folders?.folders ?? [
@@ -66,6 +67,11 @@ export function SimulationFileTree(props: SimulationCodeWorkspaceProps) {
   ];
   const activeId = props.folders?.activeId ?? props.workspaceKey;
   useEffect(() => {
+    // Folder activation owns selection and must not reveal/select its last tab.
+    if (folderActivation.current === activeId) {
+      folderActivation.current = undefined;
+      return;
+    }
     if (!props.activePath) {
       setSelected([]);
       return;
@@ -360,12 +366,14 @@ export function SimulationFileTree(props: SimulationCodeWorkspaceProps) {
           ui.edit.kind === "file" &&
           ui.edit.path === node.file.path);
     const active =
-      node.entry?.kind === "source"
-        ? node.folderId === activeId &&
-          node.entry.path === props.activePath &&
-          !props.artifactPreview
-        : node.entry?.kind === "artifact" &&
-          node.entry.artifact.id === props.artifactPreview?.artifact.id;
+      node.kind === "folder"
+        ? node.folderId === activeId
+        : node.entry?.kind === "source"
+          ? node.folderId === activeId &&
+            node.entry.path === props.activePath &&
+            !props.artifactPreview
+          : node.entry?.kind === "artifact" &&
+            node.entry.artifact.id === props.artifactPreview?.artifact.id;
     return (
       <div
         key={node.id}
@@ -427,7 +435,11 @@ export function SimulationFileTree(props: SimulationCodeWorkspaceProps) {
               onClick={(event) => {
                 choose(node, event);
                 if (!event.ctrlKey && !event.metaKey && !event.shiftKey) {
-                  if (node.children) toggle(node);
+                  if (node.kind === "folder") {
+                    if (node.folderId !== activeId)
+                      folderActivation.current = node.folderId;
+                    props.folders?.onSelect(node.folderId);
+                  } else if (node.children) toggle(node);
                   else openFile(node);
                 }
               }}

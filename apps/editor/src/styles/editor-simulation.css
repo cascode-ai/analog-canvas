@@ -292,10 +292,6 @@
   background: var(--icm-accent) !important;
   font-weight: 650;
 }
-.simulation-run-button {
-  width: 22px;
-  padding: 0 !important;
-}
 .simulation-stop-button {
   color: #b42318 !important;
   border-color: #fda29b !important;

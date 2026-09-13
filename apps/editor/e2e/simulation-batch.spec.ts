@@ -117,7 +117,9 @@ test("a saved-folder batch prepares first and exposes each ordinary run", async 
       exact: true,
     });
     if ((await folder.getAttribute("aria-expanded")) !== "true")
-      await folder.click();
+      await panel
+        .getByRole("button", { name: `Toggle ${name}`, exact: true })
+        .click();
     await panel
       .locator(
         `[role="treeitem"][data-folder-id="${folderId}"][data-file-path="run.cir"]`,
@@ -125,7 +127,7 @@ test("a saved-folder batch prepares first and exposes each ordinary run", async 
       .click();
     await expect(
       panel.getByRole("button", { name: "Run", exact: true }),
-    ).toHaveAttribute("title", `Run ${name}`);
+    ).toHaveAttribute("title", `Run ${name} / run.cir`);
   };
   await openEntry("TT", "folder-tt");
   await editSimulationFile(
@@ -167,7 +169,7 @@ test("a saved-folder batch prepares first and exposes each ordinary run", async 
   ).toBeVisible();
   await expect(
     panel.getByRole("button", { name: "Run", exact: true }),
-  ).toHaveAttribute("title", "Run FF");
+  ).toHaveAttribute("title", "Run FF / run.cir");
   await expect(panel.getByRole("status").first()).toContainText(
     "Batch finished",
   );

@@ -46,6 +46,13 @@ Instance through one transaction; topology remains protected. Reviewed SKY130
 Code dimensions are in micrometres and Canvas dimensions in metres; expression
 wrappers explicitly preserve that conversion, including round trips.
 
+The toolbar Run button displays the active folder name, with the entry path in
+its hover hint. Clicking a folder name activates that folder without changing
+its expansion; its chevron controls expansion independently. Opening a source
+file also activates its owning folder, never changes its run entry. Context-menu
+selection and modifier-based multi-selection do not change the toolbar target.
+On opening a Project, the first saved folder is the default active folder.
+
 Batch is a queue of selected experiment folders, invoked by **Run selected
 folders** in the Explorer context menu. All selected folders' drafts are applied
 before preparation, not just the active folder. Native loops remain one native
