@@ -269,3 +269,46 @@ describe("component property code", () => {
     }
   });
 });
+
+describe("independent parameter visibility code", () => {
+  const magneticContext = {
+    ...context,
+    instance: { ...instance, symbolId: "xfmr" },
+    valueVisible: null,
+    parameterVisibility: { k: true, lp: false, ls: false },
+  };
+  it("exposes named switches without an aggregate Value", () => {
+    const source = formatComponentPropertyCode(magneticContext);
+    expect(parseComponentPropertyCode(source, magneticContext)).toMatchObject({
+      ok: true,
+      value: {
+        display: {
+          visualAnnotation: true,
+          parameters: { k: true, lp: false, ls: false },
+        },
+      },
+    });
+    expect(JSON.parse(source).display).not.toHaveProperty("value");
+  });
+  it("rejects unsupported keys and nonboolean visibility", () => {
+    const source = formatComponentPropertyCode(magneticContext);
+    expect(
+      parseComponentPropertyCode(
+        source.replace('"k": true', '"k": "yes"'),
+        magneticContext,
+      ),
+    ).toMatchObject({
+      ok: false,
+      message: "display.parameters.k must be true or false",
+    });
+    expect(
+      parseComponentPropertyCode(
+        source.replace('"k": true', '"unknown": true'),
+        magneticContext,
+      ),
+    ).toMatchObject({
+      ok: false,
+      message: "display.parameters.unknown is not a supported property",
+    });
+  });
+});

@@ -648,6 +648,10 @@ export function instanceValueAnnotation(
     document.annotations.find(
       (annotation) =>
         annotation.kind === "instance-value" &&
+        !(
+          annotation.binding?.kind === "instance-value" &&
+          annotation.binding.parameter
+        ) &&
         annotation.anchor.kind === "object" &&
         annotation.anchor.objectId === instanceId,
     ) ?? null

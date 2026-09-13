@@ -279,6 +279,10 @@ import {
 import { deriveSelectionInspectionModel } from "../features/selection/selection-inspection-model";
 import { usePropertiesEditor } from "../features/properties/use-properties-editor";
 import { createPropertyEditPlanner } from "../features/properties/property-edit-planner";
+import {
+  instanceParameterVisibility,
+  instanceParameterVisibilityEdits,
+} from "../features/instance-display/instance-parameter-display";
 import { createSelectionPropertyCommands } from "../features/properties/selection-property-commands";
 import { planComponentPropertyCodeEdits } from "../features/properties/component-property-code-edits";
 import type { ComponentPropertyCodeValue } from "../features/properties/component-property-code";
@@ -5764,6 +5768,10 @@ export function App({
                           ? selectedInstanceValue !== null &&
                             selectedInstanceValue.visible !== false
                           : null,
+                        parameterVisibility: instanceParameterVisibility(
+                          document,
+                          selectedInstance,
+                        ),
                         netName: selectedSupplyMarker
                           ? (selectedPortLogicalName ?? "")
                           : null,
@@ -5833,6 +5841,18 @@ export function App({
                                   : instance,
                               ),
                             };
+                            if (value.display?.parameters) {
+                              // Apply visibility before movement so the transaction transforms
+                              // new and retained parameter anchors exactly once.
+                              edits.unshift(
+                                ...instanceParameterVisibilityEdits(
+                                  candidateDocument,
+                                  candidateInstance,
+                                  resolver,
+                                  value.display.parameters,
+                                ),
+                              );
+                            }
                             const desiredReference =
                               value.display?.visualAnnotation;
                             const currentReference =

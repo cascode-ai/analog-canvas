@@ -150,12 +150,12 @@ describe("SignalFlowParametersSchema", () => {
 });
 
 describe("CircuitProject schema version", () => {
-  it("current schema version is 52", () => {
-    expect(CURRENT_PROJECT_SCHEMA_VERSION).toBe(53);
+  it("current schema version is 54", () => {
+    expect(CURRENT_PROJECT_SCHEMA_VERSION).toBe(54);
   });
 
   it("createEmptyProject produces the current schema version", () => {
-    expect(createEmptyProject("test", "Test").schemaVersion).toBe(53);
+    expect(createEmptyProject("test", "Test").schemaVersion).toBe(54);
   });
 
   it("validates style and Signal Flow metadata together", () => {

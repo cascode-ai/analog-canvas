@@ -7825,3 +7825,85 @@ test("keeps the chosen corner shape when the wire tool is picked again", async (
   expect(dy).toBeGreaterThan(0);
   expect(dx).not.toBe(dy);
 });
+
+for (const symbol of ["xfmr", "tcoil"] as const) {
+  test(`${symbol} independently displays magnetic parameters and preserves them through history and files`, async ({
+    page,
+  }) => {
+    await page.goto("/editor");
+    await placeComponent(page, symbol, { x: 360, y: 220 });
+    await openSelectionShelf(page);
+    const winding = symbol === "xfmr" ? "lp" : "l1";
+    const windingLabel = symbol === "xfmr" ? "Lp" : "L1";
+    const formalLabels = page.locator(
+      '[data-layer="formal"] [data-kind="instance-value"]',
+    );
+    const kToggle = page.getByRole("switch", {
+      name: "Toggle K visibility",
+      exact: true,
+    });
+    await expect(kToggle).toHaveAttribute("aria-checked", "false");
+    await kToggle.click();
+    await expect(formalLabels).toHaveCount(1);
+    await expect(formalLabels).toContainText("K = 1");
+    await editComponentPropertyCode(page, (code) => {
+      code.display.parameters.k = false;
+      code.display.parameters[winding] = true;
+      code.parameters[winding] = "2.5n";
+    });
+    await expect(formalLabels).toHaveCount(1);
+    await expect(formalLabels).toContainText(`${windingLabel} = 2.5n`);
+    await clickCommand(page, "Edit", "Undo");
+    await expect(formalLabels).toContainText("K = 1");
+    await clickCommand(page, "Edit", "Redo");
+    await expect(formalLabels).toContainText(`${windingLabel} = 2.5n`);
+    await editComponentPropertyCode(page, (code) => {
+      code.display.parameters.k = true;
+      code.parameters.k = "0.83";
+      code.placement.rotation = 45;
+    });
+    await expect(formalLabels).toHaveCount(2);
+    await expect(formalLabels.filter({ hasText: "K = 0.83" })).toHaveCount(1);
+    const labelBoxes = await formalLabels.evaluateAll((elements) =>
+      elements.map((element) => {
+        const box = element.getBoundingClientRect();
+        return { x: box.x, y: box.y, bottom: box.bottom };
+      }),
+    );
+    expect(labelBoxes[0]!.x).toBeCloseTo(labelBoxes[1]!.x, 1);
+    expect(labelBoxes[0]!.bottom).toBeLessThan(labelBoxes[1]!.y);
+    const svg = (await downloadBytes(page, "File", "Export SVG")).toString(
+      "utf8",
+    );
+    expect(svg).toContain("K = 0.83");
+    expect(svg).toContain(`${windingLabel} = 2.5n`);
+    const saved = await downloadBytes(page, "File", "Export Project File…");
+    const project = JSON.parse(saved.toString("utf8"));
+    const instanceId = project.documents[0].instances[0].id;
+    expect(
+      project.documents[0].annotations.filter(
+        (annotation: { binding?: { parameter?: string } }) =>
+          annotation.binding?.parameter,
+      ),
+    ).toHaveLength(2);
+    await page
+      .getByTestId("project-file")
+      .setInputFiles({
+        name: `${symbol}.icproj.json`,
+        mimeType: "application/json",
+        buffer: saved,
+      });
+    await page.getByTestId(`hit-${instanceId}`).click();
+    await openSelectionShelf(page);
+    await expect(kToggle).toHaveAttribute("aria-checked", "true");
+    await expect(formalLabels).toHaveCount(2);
+    await page
+      .getByRole("switch", {
+        name: `Toggle ${windingLabel} visibility`,
+        exact: true,
+      })
+      .click();
+    await expect(formalLabels).toHaveCount(1);
+    await expect(formalLabels).toContainText("K = 0.83");
+  });
+}

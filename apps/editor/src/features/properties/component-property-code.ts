@@ -1,3 +1,4 @@
+import { magneticDisplayParameters } from "@icm/derived";
 import type { Rotation, SchematicDocument } from "@icm/model";
 import {
   componentPropertyDetailsValue,
@@ -31,6 +32,7 @@ export interface ComponentPropertyPlacementCode {
 export interface ComponentPropertyDisplayCode {
   visualAnnotation?: boolean;
   value?: boolean;
+  parameters?: Record<string, boolean>;
 }
 
 export interface ComponentPropertyCodeValue extends ComponentPropertyDetailsValue {
@@ -49,6 +51,7 @@ export interface ComponentPropertyCodeContext {
   instance: Instance;
   referenceVisible: boolean | null;
   valueVisible: boolean | null;
+  parameterVisibility?: Record<string, boolean>;
   /** Null when this component does not own an editable electrical marker name. */
   netName?: string | null;
   details?: ComponentPropertyDetailsContext;
@@ -152,6 +155,8 @@ function parseDisplay(
   const supported = new Set<string>();
   if (context.referenceVisible !== null) supported.add("visualAnnotation");
   if (context.valueVisible !== null) supported.add("value");
+  const parameters = magneticDisplayParameters(context.instance.symbolId);
+  if (parameters.length) supported.add("parameters");
   if (supported.size === 0) {
     if (value !== undefined) {
       throw new Error("display is not available for this component");
@@ -163,10 +168,30 @@ function parseDisplay(
   if (unknown) throw new Error(unknown);
   const display: ComponentPropertyDisplayCode = {};
   for (const key of supported) {
+    if (key === "parameters") {
+      if (!isRecord(value.parameters))
+        throw new Error("display.parameters must be an object");
+      const unknownParameter = unexpectedKey(
+        value.parameters,
+        new Set(parameters.map((parameter) => parameter.name)),
+        "display.parameters",
+      );
+      if (unknownParameter) throw new Error(unknownParameter);
+      display.parameters = {};
+      for (const parameter of parameters) {
+        const visible = value.parameters[parameter.name];
+        if (typeof visible !== "boolean")
+          throw new Error(
+            `display.parameters.${parameter.name} must be true or false`,
+          );
+        display.parameters[parameter.name] = visible;
+      }
+      continue;
+    }
     if (typeof value[key] !== "boolean") {
       throw new Error(`display.${key} must be true or false`);
     }
-    display[key as keyof ComponentPropertyDisplayCode] = value[key] as boolean;
+    display[key as "visualAnnotation" | "value"] = value[key] as boolean;
   }
   return display;
 }
@@ -221,6 +246,14 @@ export function componentPropertyCodeValue(
     display.visualAnnotation = context.referenceVisible;
   }
   if (context.valueVisible !== null) display.value = context.valueVisible;
+  const parameters = magneticDisplayParameters(instance.symbolId);
+  if (parameters.length)
+    display.parameters = Object.fromEntries(
+      parameters.map((parameter) => [
+        parameter.name,
+        context.parameterVisibility?.[parameter.name] ?? false,
+      ]),
+    );
   return {
     ...(context.netName !== undefined && context.netName !== null
       ? { netName: context.netName }

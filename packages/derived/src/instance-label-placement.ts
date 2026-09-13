@@ -4,6 +4,7 @@ import type { ResolvedSymbol } from "@icm/symbols";
 
 import type { SchematicStyleProfile } from "./style-profile.js";
 import { visibleSymbolInkBounds } from "./visual.js";
+import { magneticDisplayParameters } from "./instance-value.js";
 
 export interface InstanceLabelPlacement {
   readonly position: Point;
@@ -419,4 +420,33 @@ export function defaultInstanceLabelPlacement(
     1,
     rowOffset,
   );
+}
+
+/** Independent magnetic values stack outside the world-space symbol ink. */
+export function defaultInstanceParameterLabelPlacement(
+  instance: SchematicDocument["instances"][number],
+  resolved: ResolvedSymbol,
+  profile: SchematicStyleProfile,
+  grid: number,
+  parameter: string,
+): InstanceLabelPlacement | null {
+  const index = magneticDisplayParameters(instance.symbolId).findIndex(
+    (candidate) => candidate.name === parameter,
+  );
+  if (index < 0) return null;
+  const bounds = transformedBounds(
+    visibleSymbolInkBounds(resolved, instance.signalFlowParameters),
+    instance,
+  );
+  if (!bounds) return null;
+  const snap = (value: number) => Math.round(value / grid) * grid;
+  return {
+    position: {
+      x: Math.ceil((bounds.x + bounds.width + grid) / grid) * grid,
+      y:
+        snap(bounds.y + bounds.height / 2) +
+        index * instanceLabelRowOffset(profile, grid),
+    },
+    alignment: "start",
+  };
 }

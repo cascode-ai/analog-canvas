@@ -13,6 +13,8 @@ import type {
 } from "@icm/model";
 import {
   defaultInstanceLabelPlacement,
+  defaultInstanceParameterLabelPlacement,
+  displayableInstanceParameter,
   defaultVddPowerLabelPlacement,
   displayableInstanceValue,
   inferInstanceLabelSide,
@@ -162,7 +164,6 @@ export function refreshInstanceValueAnnotation(
   );
   if (!instance) return;
   const previous = displayableInstanceValue(before);
-  if (previous.kind !== "displayable") return;
   for (const annotation of draft.annotations) {
     if (
       annotation.kind !== "instance-value" ||
@@ -172,13 +173,16 @@ export function refreshInstanceValueAnnotation(
       continue;
     }
     if (annotation.binding?.kind === "instance-value") {
-      if (displayableInstanceValue(instance).kind !== "displayable") {
+      const next = annotation.binding.parameter
+        ? displayableInstanceParameter(instance, annotation.binding.parameter)
+        : displayableInstanceValue(instance);
+      if (next.kind !== "displayable") {
         annotation.visible = false;
       }
       changedObjectIds.add(annotation.id);
       continue;
     }
-    if (!annotation.content) continue;
+    if (!annotation.content || previous.kind !== "displayable") continue;
     if (
       JSON.stringify(annotation.content) !== JSON.stringify(previous.content)
     ) {
@@ -256,13 +260,25 @@ export function isCanonicalInstanceLabel(
   }
   const anchor = annotation.anchor;
   const placement = { position: oldPosition, ...oldOrientation };
-  const expected = defaultInstanceLabelPlacement(
-    { ...instance, placement },
-    resolved,
-    resolveDocumentStyleProfile(document.presentation),
-    document.presentation.grid,
-    slot,
-  );
+  const parameter =
+    annotation.binding?.kind === "instance-value"
+      ? annotation.binding.parameter
+      : undefined;
+  const expected = parameter
+    ? defaultInstanceParameterLabelPlacement(
+        { ...instance, placement },
+        resolved,
+        resolveDocumentStyleProfile(document.presentation),
+        document.presentation.grid,
+        parameter,
+      )
+    : defaultInstanceLabelPlacement(
+        { ...instance, placement },
+        resolved,
+        resolveDocumentStyleProfile(document.presentation),
+        document.presentation.grid,
+        slot,
+      );
   const visiblePosition = {
     x: oldPosition.x + anchor.localOffset.x,
     y: oldPosition.y + anchor.localOffset.y,
@@ -274,7 +290,9 @@ export function isCanonicalInstanceLabel(
     visiblePosition.y === candidate.position.y &&
     anchor.fallbackPosition.x === candidate.position.x &&
     anchor.fallbackPosition.y === candidate.position.y;
-  if (matches(expected)) return true;
+  if (matches(expected) && (!parameter || annotation.rotation === 0))
+    return true;
+  if (parameter) return false;
 
   // Projects saved before the reviewed Resistor path declared tight bounds
   // used its wider viewBox for the canonical label. Accept that one exact
@@ -342,13 +360,25 @@ export function reflowCanonicalInstanceLabelsAfterPresentationChange(
     ) {
       continue;
     }
-    const next = defaultInstanceLabelPlacement(
-      instance,
-      resolved,
-      profile,
-      draft.presentation.grid,
-      slot,
-    );
+    const parameter =
+      annotation.binding?.kind === "instance-value"
+        ? annotation.binding.parameter
+        : undefined;
+    const next = parameter
+      ? defaultInstanceParameterLabelPlacement(
+          instance,
+          resolved,
+          profile,
+          draft.presentation.grid,
+          parameter,
+        )
+      : defaultInstanceLabelPlacement(
+          instance,
+          resolved,
+          profile,
+          draft.presentation.grid,
+          slot,
+        );
     if (!next) continue;
     annotation.anchor = {
       ...annotation.anchor,
@@ -478,6 +508,48 @@ export function followAttachedAnnotations(
         resolveDocumentStyleProfile(draft.presentation),
         draft.presentation.grid,
         "reference",
+      );
+      if (next) {
+        annotation.anchor = {
+          ...annotation.anchor,
+          localOffset: {
+            x: next.position.x - newPosition.x,
+            y: next.position.y - newPosition.y,
+          },
+          fallbackPosition: next.position,
+        };
+        annotation.alignment = next.alignment;
+        annotation.rotation = 0;
+        changedObjectIds.add(annotation.id);
+        continue;
+      }
+    }
+    const parameter =
+      annotation.binding?.kind === "instance-value"
+        ? annotation.binding.parameter
+        : undefined;
+    if (
+      parameter &&
+      instance &&
+      resolved &&
+      isCanonicalInstanceLabel(
+        annotation,
+        instance,
+        resolved,
+        draft,
+        oldPosition,
+        oldOrientation,
+      )
+    ) {
+      const next = defaultInstanceParameterLabelPlacement(
+        {
+          ...instance,
+          placement: { position: newPosition, ...newOrientation },
+        },
+        resolved,
+        resolveDocumentStyleProfile(draft.presentation),
+        draft.presentation.grid,
+        parameter,
       );
       if (next) {
         annotation.anchor = {

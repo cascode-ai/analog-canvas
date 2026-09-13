@@ -1460,7 +1460,7 @@ export function proposePaste(
                   clone.binding?.kind === "instance-reference"
                 ? {
                     binding: {
-                      kind: clone.binding.kind,
+                      ...clone.binding,
                       instanceId:
                         objectIds.get(clone.binding.instanceId) ??
                         clone.binding.instanceId,

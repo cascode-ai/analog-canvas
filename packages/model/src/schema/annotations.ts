@@ -7,6 +7,7 @@ import {
   StableIdSchema,
 } from "./common.js";
 import { RichTextDocumentSchema } from "./rich-text.js";
+import { NetlistParameterNameSchema } from "./instance.js";
 
 export const VisualAnchorSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("free"), position: PointSchema }),
@@ -49,6 +50,8 @@ export const AnnotationTextBindingSchema = z.discriminatedUnion("kind", [
   z.strictObject({
     kind: z.literal("instance-value"),
     instanceId: StableIdSchema,
+    /** One live named parameter; omitted retains the device's aggregate Value. */
+    parameter: NetlistParameterNameSchema.optional(),
   }),
   z.strictObject({ kind: z.literal("net-name"), netId: StableIdSchema }),
   z.strictObject({

@@ -5,7 +5,10 @@ import type {
   SchematicDocument,
 } from "@icm/model";
 
-import { displayableInstanceValue } from "./instance-value.js";
+import {
+  displayableInstanceParameter,
+  displayableInstanceValue,
+} from "./instance-value.js";
 import {
   resolveDocumentLogicalNets,
   type ResolvedDocumentLogicalNets,
@@ -45,7 +48,9 @@ export function resolveAnnotationText(
         (candidate) => candidate.id === binding.instanceId,
       );
       if (!instance) return EMPTY_TEXT;
-      const display = displayableInstanceValue(instance);
+      const display = binding.parameter
+        ? displayableInstanceParameter(instance, binding.parameter)
+        : displayableInstanceValue(instance);
       return display.kind === "displayable" ? display.content : EMPTY_TEXT;
     }
     case "net-name": {

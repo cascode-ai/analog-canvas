@@ -290,7 +290,14 @@ function jsonDecorations(state: EditorState, read: () => Props): DecorationSet {
     { path: "display.visualAnnotation", label: "visual annotation" },
     { path: "display.value", label: "value" },
     { path: "appearance.inputPolarity", label: "input polarity" },
-  ] as const) {
+    ...spans
+      .filter(
+        (span) =>
+          span.field.path.startsWith("display.parameters.") &&
+          span.field.kind === "boolean",
+      )
+      .map((span) => span.field),
+  ]) {
     const span = spans.find(({ field: item }) => item.path === field.path);
     if (!span) continue;
     const valueValid =
@@ -521,9 +528,8 @@ class NetlistTargetSelect extends WidgetType {
 
 class DisplayToggleWidget extends WidgetType {
   constructor(
-    private readonly path:
-      "display.visualAnnotation" | "display.value" | "appearance.inputPolarity",
-    private readonly label: "visual annotation" | "value" | "input polarity",
+    private readonly path: string,
+    private readonly label: string,
     private readonly checked: boolean | "mixed",
     private readonly disabled: boolean,
     private readonly read: () => Props,
@@ -568,7 +574,9 @@ class DisplayToggleWidget extends WidgetType {
             ? "Input polarity marks"
             : this.label === "visual annotation"
               ? "Visual annotation"
-              : "Value"
+              : this.label === "value"
+                ? "Value"
+                : this.label
         } · ${
           this.checked === "mixed" ? "Mixed" : this.checked ? "Shown" : "Hidden"
         }`;

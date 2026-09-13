@@ -63,6 +63,37 @@ export function symbolSupportsValueAnnotation(symbolId: string): boolean {
   );
 }
 
+/** Compound magnetic devices expose independent parameters instead of one Value. */
+export function magneticDisplayParameters(
+  symbolId: string,
+): readonly DeviceParameterDefinition[] {
+  if (symbolId !== "xfmr" && symbolId !== "tcoil") return [];
+  const parameters = deviceDescriptor(symbolId)?.parameters ?? [];
+  return [
+    ...parameters.filter((parameter) => parameter.name === "k"),
+    ...parameters.filter((parameter) => parameter.name !== "k"),
+  ];
+}
+
+/** Preserve authored values and units while identifying which parameter is shown. */
+export function displayableInstanceParameter(
+  instance: InstanceValueSource,
+  name: string,
+): InstanceValueDisplay {
+  const parameter = deviceDescriptor(instance.symbolId)?.parameters.find(
+    (candidate) => candidate.name.toLowerCase() === name.toLowerCase(),
+  );
+  const value = Object.entries(instance.netlist?.parameters ?? {})
+    .find(([key]) => key.toLowerCase() === name.toLowerCase())?.[1]
+    .trim();
+  if (!value)
+    return { kind: "undisplayable", reason: `Parameter ${name} is empty` };
+  return {
+    kind: "displayable",
+    content: boldDocument(`${parameter?.label ?? name} = ${value}`),
+  };
+}
+
 /**
  * Whether an instance of this Symbol gets a reference designator.
  *

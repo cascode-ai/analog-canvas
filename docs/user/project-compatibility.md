@@ -1,6 +1,6 @@
 # Project File Compatibility
 
-The current Project schema version is `53`. It retains schematic-only
+The current Project schema version is `54`. It retains schematic-only
 hierarchy integrity, a Project structural revision, stable formal Cell ports,
 and definition-level Cell symbol presentation. It also has one typed Instance
 netlist authority, formal Cell parameters, and Project-local external
@@ -25,7 +25,11 @@ overrides remain readable for compatibility but are no longer editable.
 Each Annotation may independently carry an optional presentation-only
 `textColor`. An Instance Reference or value with Automatic text color inherits
 its owning Instance foreground; other annotations inherit the document
-foreground. Drafting text keeps its separate drawing-object color override.
+foreground. Transformer and T-Coil parameter labels independently bind to
+K or a winding value; their visibility and positions survive save/reopen.
+Schema 54 adds the optional parameter selector and upgrades schema 53 without
+changing the drawing. Drafting text keeps its separate drawing-object color
+override.
 Rectangles and circles may additionally carry independent border and opaque
 fill colors plus a `background` or `foreground` drafting plane. Missing plane
 data preserves the historical foreground behavior.
@@ -34,10 +38,10 @@ An Instance may also carry optional schematic-only `signalFlowParameters`
 netlist/SPICE parameters. Width and height are optional 10-unit-grid minimums:
 the shared Transfer Function renderer expands beyond them when 12-unit formula
 text, a fraction, or a coefficient needs more room, and never clips or shrinks
-the formula to satisfy an undersized request. A canonical v51 file can be
+the formula to satisfy an undersized request. A canonical v54 file can be
 opened, saved, reopened, and saved again without byte drift.
 
-Schemas v24 through v51 are accepted through the explicit chained upgrades.
+Schemas v24 through v53 are accepted through the explicit chained upgrades.
 Schema v32 adds optional `Annotation.textColor`; schema v33 removes the
 ownerless `explicit-equivalence` record. A v32 file without that record changes
 only its version stamp. A file containing it is rejected at the exact evidence
