@@ -52,10 +52,12 @@ export function ComponentPlacementPreview({
   );
 
   return (
-    <>
+    // Upright text lives outside the body's transform, but belongs to the
+    // same non-interactive ghost. Otherwise moving the pointer can replace a
+    // pressed text node before pointerup and prevent the browser's click.
+    <g className="component-placement-preview">
       <g
         data-testid="component-placement-preview"
-        className="component-placement-preview"
         transform={transform}
         fill="none"
         stroke="currentColor"
@@ -84,6 +86,6 @@ export function ComponentPlacementPreview({
           dangerouslySetInnerHTML={{ __html: pinNames }}
         />
       ) : null}
-    </>
+    </g>
   );
 }

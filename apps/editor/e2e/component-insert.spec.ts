@@ -1738,6 +1738,52 @@ test("sets MOS parameters and orientation through the ghost and Properties", asy
   );
 });
 
+for (const symbolId of ["dac", "adc", "transconductance", "d-flip-flop"]) {
+  test(`places ${symbolId} on the first click with slight pointer drift over its preview`, async ({
+    page,
+  }) => {
+    await page.goto("/editor");
+    await chooseComponent(page, symbolId);
+    const canvas = page.getByTestId("schematic-canvas");
+    const box = (await canvas.boundingBox())!;
+    const instances = canvas.locator('[data-canvas-hit-kind="instance"]');
+
+    // Separate move/down/up events let the ghost render beneath the pointer.
+    // A single mouse.click() can beat that render and hide this regression.
+    for (const [index, x] of [320, 520, 520].entries()) {
+      await page.mouse.move(box.x + x, box.y + 230);
+      await expect(
+        page.getByTestId("component-placement-preview"),
+      ).toBeVisible();
+      await page.mouse.down();
+      await page.mouse.move(box.x + x + 1, box.y + 231);
+      await page.evaluate(
+        () =>
+          new Promise<void>((resolve) =>
+            requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+          ),
+      );
+      await page.mouse.up();
+      await expect(instances).toHaveCount(index + 1);
+      await expect(page.getByTestId("revision")).toHaveText(String(index + 1));
+      await expect(page.getByTestId("component-input-plane")).toBeVisible();
+    }
+
+    // Upright formulas and pin names must be as transparent to input as the
+    // body, including names away from the cursor at the symbol origin.
+    const previewText = canvas.locator('[data-layer="editor-overlay"] text');
+    expect(await previewText.count()).toBeGreaterThan(0);
+    for (const text of await previewText.all()) {
+      await expect(text).toHaveCSS("pointer-events", "none");
+    }
+    await page.keyboard.press("Escape");
+    await expect(page.getByTestId("component-placement-preview")).toHaveCount(
+      0,
+    );
+    await expect(instances).toHaveCount(3);
+  });
+}
+
 test("keeps component placement active across independent canvas commits", async ({
   page,
 }) => {
