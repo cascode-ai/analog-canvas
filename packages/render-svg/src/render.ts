@@ -1,3 +1,4 @@
+import { renderFractionText } from "./fraction-text.js";
 import { arrowArtwork, arrowPathData } from "@icm/derived";
 import {
   RectSchema,
@@ -1392,7 +1393,7 @@ export function buildSvgScene(
       }
       const emphasis = "";
       const positionedFraction =
-        annotation.rotation === 0
+        annotation.kind === "instance-value" && annotation.rotation === 0
           ? renderPositionedFractionAnnotation(content, {
               attributes,
               position,
@@ -1405,6 +1406,15 @@ export function buildSvgScene(
       if (positionedFraction) {
         return `<g>${positionedFraction}${globalBadge}</g>`;
       }
+      const mixedFractions = renderFractionText(content, profile, {
+        x: position.x,
+        y: position.y,
+        fontSize: annotationFontSize,
+        alignment: annotation.alignment,
+        color: colorOverride ?? profile.foreground,
+      });
+      if (mixedFractions)
+        return `<g ${attributes}><g transform="${transform}">${mixedFractions}</g>${globalBadge}</g>`;
       const formula = renderFormulaDocument(content, profile, {
         x: position.x,
         baselineY: position.y,
@@ -1625,6 +1635,15 @@ function renderDraftText(
     defaultBold: weight === "bold",
     defaultItalic: italic === "italic",
   });
+  const fractions = renderFractionText(content, profile, {
+    x: textPosition.x,
+    y: baselineY,
+    fontSize,
+    alignment: object.alignment,
+    color,
+    bold: weight === "bold",
+    italic: italic === "italic",
+  });
   const formula = renderFormulaDocument(content, profile, {
     x: textPosition.x,
     baselineY,
@@ -1646,16 +1665,21 @@ function renderDraftText(
         return `<line data-role="polarity-${line.role}" x1="${rendered.from.x}" y1="${rendered.from.y}" x2="${rendered.to.x}" y2="${rendered.to.y}" stroke="${color}" stroke-width="${strokeWidth}" stroke-linecap="${profile.lineCap}"/>`;
       })
       .join("");
-    const text = formula
-      ? formula
-      : positioned
-        ? `<text x="${textPosition.x}" y="${baselineY}" text-anchor="start" font-size="${fontSize}" font-weight="${weight}" font-style="${italic}" fill="${color}">${positioned.tspans}</text>${positioned.decorations}`
-        : `<text x="${textPosition.x}" y="${baselineY}" text-anchor="${object.alignment}" font-size="${fontSize}" font-weight="${weight}" font-style="${italic}" fill="${color}">${renderRichTextDocument(content, profile, { lineOriginX: textPosition.x, fontSize })}</text>`;
+    const text =
+      fractions ??
+      (formula
+        ? formula
+        : positioned
+          ? `<text x="${textPosition.x}" y="${baselineY}" text-anchor="start" font-size="${fontSize}" font-weight="${weight}" font-style="${italic}" fill="${color}">${positioned.tspans}</text>${positioned.decorations}`
+          : `<text x="${textPosition.x}" y="${baselineY}" text-anchor="${object.alignment}" font-size="${fontSize}" font-weight="${weight}" font-style="${italic}" fill="${color}">${renderRichTextDocument(content, profile, { lineOriginX: textPosition.x, fontSize })}</text>`);
     return `<g data-object-id="${object.id}" data-kind="draft-text" data-polarity="${object.polarity}"${unresolved} transform="rotate(${rotation} ${position.x} ${position.y})">${markers}${text}</g>`;
   }
   // P1: the renderer consumes geometry.rotation (the single rotation truth),
   // not the raw persisted object rotation. The rotation pivot stays on the
   // resolved anchor so centered labels rotate about their center.
+  if (fractions) {
+    return `<g data-object-id="${object.id}" data-kind="draft-text"${unresolved} transform="rotate(${rotation} ${position.x} ${position.y})">${fractions}</g>`;
+  }
   if (formula) {
     return `<g data-object-id="${object.id}" data-kind="draft-text"${unresolved} transform="rotate(${rotation} ${position.x} ${position.y})">${formula}</g>`;
   }

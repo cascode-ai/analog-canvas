@@ -19,6 +19,7 @@ import {
 import type { RichTextDocument, RichTextRun } from "@icm/model";
 
 import { boundFormulaPresentation } from "./bound-formula";
+import { fractionFromSelection } from "./fraction-selection";
 
 export interface RichTextEditorProps {
   targetKey: string;
@@ -58,7 +59,7 @@ function escapeHtml(value: string): string {
     .replaceAll('"', "&quot;");
 }
 
-function toEditableHtml(document: RichTextDocument): string {
+function toEditableHtml(document: RichTextDocument, disabled = false): string {
   const isScriptRun = (
     run: RichTextRun,
   ): run is Extract<RichTextRun, { kind: "span" }> & {
@@ -96,10 +97,7 @@ function toEditableHtml(document: RichTextDocument): string {
       case "math":
         return `<span data-rich-text-math data-display="${run.display}" data-latex="${escapeHtml(run.latex)}" contenteditable="false">${escapeHtml(run.latex)}</span>`;
       case "fraction":
-        // Editing surfaces a fraction in its slash form; committing that
-        // text replaces the fraction with plain runs, which the value
-        // refresh deliberately treats as hand-edited content.
-        return `${renderRuns(run.numerator.runs)}/${renderRuns(run.denominator.runs)}`;
+        return `<span data-rich-text-fraction contenteditable="false"><span data-fraction-part="numerator" contenteditable="${!disabled}" aria-label="Numerator">${renderRuns(run.numerator.runs)}</span><span data-fraction-part="denominator" contenteditable="${!disabled}" aria-label="Denominator">${renderRuns(run.denominator.runs)}</span></span>`;
       case "span": {
         const children = renderRuns(run.children);
         if (run.style === "overbar") {
@@ -157,6 +155,28 @@ function readNode(node: Node): RichTextRun[] {
       },
     ];
   }
+  if (node.hasAttribute("data-rich-text-fraction")) {
+    const numerator = node.querySelector(
+      ':scope > [data-fraction-part="numerator"]',
+    );
+    const denominator = node.querySelector(
+      ':scope > [data-fraction-part="denominator"]',
+    );
+    if (!numerator || !denominator) return [];
+    const part = (element: Element): RichTextDocument => {
+      const runs = readChildren(element);
+      return normalizeRichText({
+        runs: runs.length ? runs : [{ kind: "text", value: " " }],
+      });
+    };
+    return [
+      {
+        kind: "fraction",
+        numerator: part(numerator),
+        denominator: part(denominator),
+      },
+    ];
+  }
   const children = readChildren(node);
   if (children.length === 0 && tag !== "div" && tag !== "p") return [];
   if (tag === "strong" || tag === "b") {
@@ -196,6 +216,11 @@ function normalizeEditableMarkup(editable: HTMLElement): void {
     ),
   ].reverse();
   formattingElements.forEach((element) => {
+    if (
+      element.hasAttribute("data-rich-text-fraction") ||
+      element.hasAttribute("data-fraction-part")
+    )
+      return;
     if (!element.textContent && !element.querySelector("br")) element.remove();
   });
 
@@ -452,6 +477,7 @@ export function RichTextEditor({
   const sourceInputRef = useRef<HTMLTextAreaElement>(null);
   const formulaMathfieldRef = useRef<FormulaMathfieldHandle>(null);
   const selectionRangeRef = useRef<Range | null>(null);
+  const editableInsertionSequenceRef = useRef(0);
   const existingFormula = soleRichTextMathRun(content);
   const [formulaOpen, setFormulaOpen] = useState(false);
   const [formulaDraft, setFormulaDraft] = useState(
@@ -482,10 +508,10 @@ export function RichTextEditor({
       return;
     }
     if (editableRef.current) {
-      editableRef.current.innerHTML = toEditableHtml(content);
+      editableRef.current.innerHTML = toEditableHtml(content, disabled);
       editableRef.current.focus();
     }
-  }, [sourceOnly, targetKey]);
+  }, [sourceOnly, targetKey, disabled]);
 
   const sync = (): void => {
     if (editableRef.current) onChange(editableDocument(editableRef.current));
@@ -514,12 +540,73 @@ export function RichTextEditor({
     selection.addRange(range);
   };
 
+  const insertEditableContent = (
+    content: RichTextDocument,
+  ): HTMLElement | null => {
+    const editable = editableRef.current;
+    if (!editable) return null;
+    const marker = String(++editableInsertionSequenceRef.current);
+    // Insert one atomic node into native undo, then populate it ourselves.
+    // Chromium otherwise repairs nested editable parts while inheriting nearby
+    // bold/italic markup and can move a denominator outside its fraction.
+    document.execCommand(
+      "insertHTML",
+      false,
+      `<span data-rich-text-insertion="${marker}" contenteditable="false">&#xfffc;</span>`,
+    );
+    const inserted = editable.querySelector<HTMLElement>(
+      `[data-rich-text-insertion="${marker}"]`,
+    );
+    if (!inserted) return null;
+    inserted.innerHTML = toEditableHtml(content);
+    inserted.removeAttribute("data-rich-text-insertion");
+    inserted.removeAttribute("contenteditable");
+    return inserted;
+  };
+
   const command = (
     name: "bold" | "italic" | "subscript" | "superscript" | "overbar",
   ) => {
     if (disabled || !editableRef.current) return;
     editableRef.current.focus();
     restoreSelection();
+    const selection = window.getSelection();
+    const range = selection?.rangeCount ? selection.getRangeAt(0) : null;
+    const fragment = range?.cloneContents();
+    const fractions = fragment
+      ? [...fragment.querySelectorAll("[data-rich-text-fraction]")]
+      : [];
+    if (
+      range &&
+      !range.collapsed &&
+      fractions.length &&
+      fractions.every(
+        (fraction) =>
+          fraction.querySelector(':scope > [data-fraction-part="numerator"]') &&
+          fraction.querySelector(':scope > [data-fraction-part="denominator"]'),
+      )
+    ) {
+      // Native formatting skips contenteditable islands. Format their canonical
+      // structure together with the selected companions, retaining local undo.
+      const selected = document.createElement("div");
+      selected.append(fragment!);
+      const current = editableDocument(selected);
+      const sole = current.runs.length === 1 ? current.runs[0] : undefined;
+      const next: RichTextDocument =
+        sole?.kind === "span" && sole.style === name
+          ? { runs: sole.children }
+          : { runs: [{ kind: "span", style: name, children: current.runs }] };
+      const inserted = insertEditableContent(next);
+      if (inserted) {
+        const nextRange = document.createRange();
+        nextRange.selectNodeContents(inserted);
+        selection?.removeAllRanges();
+        selection?.addRange(nextRange);
+      }
+      rememberSelection();
+      sync();
+      return;
+    }
     if (name === "overbar") {
       const selection = window.getSelection();
       const range = selection?.rangeCount ? selection.getRangeAt(0) : null;
@@ -583,6 +670,91 @@ export function RichTextEditor({
     selection?.addRange(next);
     rememberSelection();
     sync();
+  };
+
+  const selectFractionPart = (part: Element): void => {
+    (part as HTMLElement).focus();
+    const range = document.createRange();
+    range.selectNodeContents(part);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    rememberSelection();
+  };
+
+  const insertFraction = (): void => {
+    const editable = editableRef.current;
+    if (disabled || !editable || existingFormula) return;
+    editable.focus();
+    restoreSelection();
+    const selection = window.getSelection();
+    const range = selection?.rangeCount ? selection.getRangeAt(0) : null;
+    if (!range || !editable.contains(range.commonAncestorContainer)) return;
+    const selected = document.createElement("div");
+    selected.append(range.cloneContents());
+    let selectedContent: RichTextDocument = { runs: readChildren(selected) };
+    // cloneContents omits styles on the common ancestor itself. Carry those
+    // styles into both parts when converting a selection inside a styled label.
+    let ancestor = isElement(range.commonAncestorContainer)
+      ? range.commonAncestorContainer
+      : range.commonAncestorContainer.parentElement;
+    while (ancestor && ancestor !== editable) {
+      const tag = ancestor.tagName.toLowerCase();
+      const style =
+        tag === "strong" || tag === "b"
+          ? "bold"
+          : tag === "em" || tag === "i"
+            ? "italic"
+            : tag === "sub"
+              ? "subscript"
+              : tag === "sup"
+                ? "superscript"
+                : ancestor.dataset.richTextStyle === "overbar"
+                  ? "overbar"
+                  : null;
+      if (style && selectedContent.runs.length)
+        selectedContent = {
+          runs: [{ kind: "span", style, children: selectedContent.runs }],
+        };
+      ancestor = ancestor.parentElement;
+    }
+    const fraction = fractionFromSelection(selectedContent);
+    const inserted = insertEditableContent({ runs: [fraction] });
+    const numerator = inserted?.querySelector(
+      '[data-fraction-part="numerator"]',
+    );
+    if (numerator) selectFractionPart(numerator);
+    sync();
+  };
+
+  const moveThroughFraction = (backward: boolean): boolean => {
+    const selection = window.getSelection();
+    const anchor = selection?.anchorNode;
+    const element =
+      anchor && (isElement(anchor) ? anchor : anchor.parentElement);
+    const part = element?.closest<HTMLElement>("[data-fraction-part]");
+    const fraction = part?.parentElement;
+    if (
+      !part ||
+      !fraction?.hasAttribute("data-rich-text-fraction") ||
+      !editableRef.current?.contains(fraction)
+    )
+      return false;
+    const sibling = backward
+      ? part.previousElementSibling
+      : part.nextElementSibling;
+    if (sibling) selectFractionPart(sibling);
+    else {
+      editableRef.current.focus();
+      const range = document.createRange();
+      if (backward) range.setStartBefore(fraction);
+      else range.setStartAfter(fraction);
+      range.collapse(true);
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+      rememberSelection();
+    }
+    return true;
   };
 
   const insertSymbol = (symbol: string): void => {
@@ -704,6 +876,23 @@ export function RichTextEditor({
               onClick={() => command("overbar")}
             >
               <span className="rich-text-overbar-button">x</span>
+            </button>
+            <button
+              type="button"
+              aria-label="Insert fraction"
+              title="Insert fraction · Tab moves through numerator, denominator, and back to text"
+              disabled={
+                disabled ||
+                Boolean(existingFormula) ||
+                formulaSemanticText !== undefined
+              }
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={insertFraction}
+            >
+              <span className="rich-text-fraction-button" aria-hidden="true">
+                <span>a</span>
+                <span>b</span>
+              </span>
             </button>
             <span className="rich-text-toolbar-separator" />
           </>
@@ -1062,7 +1251,9 @@ export function RichTextEditor({
           onKeyUp={rememberSelection}
           onPointerUp={rememberSelection}
           onKeyDown={(event) => {
-            if (event.key === "Escape") {
+            if (event.key === "Tab" && moveThroughFraction(event.shiftKey)) {
+              event.preventDefault();
+            } else if (event.key === "Escape") {
               event.preventDefault();
               onCommit();
             } else if (event.key === "Enter" && event.shiftKey && multiline) {

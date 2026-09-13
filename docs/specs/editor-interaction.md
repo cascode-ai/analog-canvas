@@ -602,6 +602,18 @@ drafting color override, whose Auto state uses the Document profile foreground.
 Both controls transact through their owning object and preserve unrelated
 style fields, selection, and electrical content.
 
+The floating RichText editor also inserts canonical `fraction` runs at the
+caret in notes and literal visual annotations. Numerator and denominator are
+editable in place; Tab advances through the two parts and back to surrounding
+text, while Shift+Tab reverses that navigation. A selection with one unambiguous
+slash is converted without losing its character styles; other selections become
+the numerator. Editing and reopening preserve fraction nodes. Fractions can be
+mixed with styled companion text and additional fractions on the same line.
+Their bars are formal SVG line elements, so canvas and exported artwork agree.
+The existing W/L projection retains its established geometry. Source-only fields
+and bound electrical names do not gain arbitrary fraction formatting, and an
+atomic Formula continues to use its existing editor.
+
 The floating RichText editor has one formula action for editable text content.
 It opens a MathLive math field plus the exact LaTeX source, lets the author
 choose inline or display intent, validates against the bounded Analog Canvas

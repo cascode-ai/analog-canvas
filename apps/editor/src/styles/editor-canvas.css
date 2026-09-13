@@ -626,7 +626,7 @@
   box-sizing: border-box;
   width: 100%;
   max-width: 100%;
-  gap: 0.2rem;
+  gap: 0.1rem;
   min-height: 2.15rem;
   padding: 0.25rem;
   border: 1px solid var(--icm-border);
@@ -636,9 +636,9 @@
 }
 
 .rich-text-floating-toolbar button {
-  min-width: 1.7rem;
+  min-width: 1.6rem;
   min-height: 1.55rem;
-  padding: 0.1rem 0.3rem;
+  padding: 0.1rem 0.2rem;
   border: 0;
   background: transparent;
   font-size: var(--icm-font-sm);
@@ -771,6 +771,44 @@
   font-size: 76%;
   line-height: 1;
   vertical-align: baseline;
+}
+
+.rich-text-fraction-button,
+.rich-text-editable [data-rich-text-fraction] {
+  display: inline-grid;
+  grid-template-rows: auto auto;
+  text-align: center;
+  /* Inline grid exposes its first row baseline, the numerator baseline. */
+  vertical-align: 0.789em;
+  line-height: 1.15;
+}
+
+.rich-text-fraction-button {
+  font-size: 0.75em;
+  vertical-align: middle;
+}
+
+.rich-text-fraction-button > :first-child,
+.rich-text-editable [data-fraction-part="numerator"] {
+  border-bottom: 1px solid currentcolor;
+}
+
+.rich-text-editable [data-rich-text-fraction] {
+  margin: 0 0.12em;
+  font-size: 98.8%;
+  white-space: nowrap;
+}
+
+.rich-text-editable [data-fraction-part] {
+  display: block;
+  min-width: 0.9em;
+  min-height: 1em;
+  padding: 0.12em 0.16em;
+  outline: none;
+}
+
+.rich-text-editable [data-fraction-part]:focus {
+  background: var(--icm-accent-tint);
 }
 
 .rich-text-editable [data-rich-text-math] {

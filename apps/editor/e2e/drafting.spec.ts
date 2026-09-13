@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import type { Locator, Page } from "@playwright/test";
 
-import { CURRENT_PROJECT_SCHEMA_VERSION } from "@icm/model";
+import { CURRENT_PROJECT_SCHEMA_VERSION, flattenRichText } from "@icm/model";
 
 import {
   awaitEditorReady,
@@ -209,7 +209,7 @@ test("adds formatted drafting text and undo/redo restores it", async ({
   await expect(draftInput).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Insert fraction" }),
-  ).toHaveCount(0);
+  ).toBeEnabled();
   await expect(draftInput).toHaveCSS(
     "font-family",
     /ICM Round Period.*DejaVu Sans.*Arial/u,
@@ -2002,4 +2002,214 @@ test("annotation grid pitch frees drawings from the device grid", async ({
   // The pitch choice is an editor preference that survives a reload.
   await page.reload();
   await expect(page.getByTestId("annotation-grid-select")).toHaveValue("1");
+});
+
+test("authors inline fractions alongside styled text and preserves them through editing and export", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await clickDrawTool(page, "text");
+  await page.keyboard.press("r");
+  await page
+    .getByTestId("schematic-canvas")
+    .click({ position: { x: 450, y: 340 } });
+  const editor = page.getByRole("textbox", {
+    name: "Canvas text editor",
+    exact: true,
+  });
+  await editor.fill("R = ");
+  await editor.press("End");
+  await page
+    .getByRole("button", { name: "Insert fraction", exact: true })
+    .click();
+  const fraction = editor.locator("[data-rich-text-fraction]");
+  await expect(fraction).toHaveCount(1);
+  await page.keyboard.insertText("1");
+  await page.keyboard.press("Tab");
+  await page.keyboard.insertText("gmN");
+  const denominator = fraction.locator('[data-fraction-part="denominator"]');
+  await denominator.evaluate((element) => {
+    const range = document.createRange();
+    range.setStart(element.firstChild!, 1);
+    range.setEnd(element.firstChild!, 3);
+    const selection = window.getSelection()!;
+    selection.removeAllRanges();
+    selection.addRange(range);
+    element.dispatchEvent(new Event("pointerup", { bubbles: true }));
+  });
+  await page.getByRole("button", { name: "Subscript", exact: true }).click();
+  await expect(denominator.locator("sub")).toHaveText("mN");
+  await page.keyboard.press("Tab");
+  await page.keyboard.insertText(" + R1");
+  await expect(editor).toHaveText("R = 1gmN + R1");
+  await page.keyboard.press("Shift+ArrowLeft");
+  await page.getByRole("button", { name: "Subscript", exact: true }).click();
+  await expect(editor.locator("sub")).toHaveCount(2);
+  const alignment = await editor.evaluate((element) => {
+    const prefix = document
+      .createTreeWalker(element, NodeFilter.SHOW_TEXT)
+      .nextNode()!;
+    const range = document.createRange();
+    range.selectNodeContents(prefix);
+    const text = range.getBoundingClientRect();
+    const numerator = element
+      .querySelector('[data-fraction-part="numerator"]')!
+      .getBoundingClientRect();
+    return {
+      gap: Math.abs(numerator.bottom - (text.top + text.height / 2)),
+      fontSize: parseFloat(getComputedStyle(element).fontSize),
+    };
+  });
+  expect(alignment.gap).toBeLessThan(alignment.fontSize * 0.35);
+  await page.getByRole("button", { name: "Apply text changes" }).click();
+  const note = page.locator('[data-kind="draft-text"]');
+  await expect(note.locator('[data-role="fraction-bar"]')).toHaveCount(1);
+  await expect(note).toContainText("R = ");
+  await expect(note).toContainText(" + R");
+  await expect(note.locator('[data-text-run="subscript"]')).toHaveCount(2);
+  const saved = await downloadBytes(page, "File", "Export Project File…");
+  const project = JSON.parse(saved.toString("utf8"));
+  const content = project.documents[0].drafting.objects[0].content;
+  expect(content.runs.map((run: { kind: string }) => run.kind)).toContain(
+    "fraction",
+  );
+  expect(
+    content.runs.find((run: { kind: string }) => run.kind === "fraction")
+      .denominator.runs[1].style,
+  ).toBe("subscript");
+  const revision = await page.getByTestId("revision").textContent();
+  await page.getByTestId(/^drafting-hit-note-/).dblclick();
+  await expect(
+    editor.locator('[data-fraction-part="denominator"] sub'),
+  ).toHaveText("mN");
+  await page.getByRole("button", { name: "Apply text changes" }).click();
+  await expect(page.getByTestId("revision")).toHaveText(revision!);
+
+  await expect(note).toHaveAttribute("transform", /rotate\(90 /u);
+  const svg = (await downloadBytes(page, "File", "Export SVG")).toString(
+    "utf8",
+  );
+  expect(svg).toContain('data-role="fraction-bar"');
+  expect(svg).toContain('data-text-run="subscript"');
+  expect(svg).toContain(" + R");
+  expect(svg).not.toContain("data-rich-text-fraction");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "fractions.icproj.json",
+    mimeType: "application/json",
+    buffer: saved,
+  });
+  await expect(note.locator('[data-role="fraction-bar"]')).toHaveCount(1);
+  const reopened = JSON.parse(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(
+      "utf8",
+    ),
+  );
+  expect(reopened.documents[0].drafting.objects[0].content).toEqual(content);
+});
+
+test("converts a selected slash fraction and mixes multiple fractions in one note", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await placeText(page);
+  const editor = page.getByRole("textbox", {
+    name: "Canvas text editor",
+    exact: true,
+  });
+  await editor.fill("1u/150n");
+  await editor.press("ControlOrMeta+A");
+  await page
+    .getByRole("button", { name: "Insert fraction", exact: true })
+    .click();
+  await expect(editor.locator('[data-fraction-part="numerator"]')).toHaveText(
+    "1u",
+  );
+  await expect(editor.locator('[data-fraction-part="denominator"]')).toHaveText(
+    "150n",
+  );
+  await editor.focus();
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect(editor.locator("[data-rich-text-fraction]")).toHaveCount(0);
+  await expect(editor).toHaveText("1u/150n");
+  await page.keyboard.press("ControlOrMeta+Shift+z");
+  await expect(editor.locator("[data-rich-text-fraction]")).toHaveCount(1);
+  await editor.locator('[data-fraction-part="numerator"]').click();
+  await page.keyboard.press("Tab");
+  await page.keyboard.press("Tab");
+  await page.keyboard.insertText(" + ");
+  await page
+    .getByRole("button", { name: "Insert fraction", exact: true })
+    .click();
+  await page.keyboard.insertText("2");
+  await page.keyboard.press("Tab");
+  await page.keyboard.insertText("3");
+  await page.keyboard.press("Tab");
+  await page.keyboard.insertText(" = x");
+  await editor.focus();
+  await editor.press("ControlOrMeta+A");
+  await page.getByRole("button", { name: "Bold", exact: true }).click();
+  await page.getByRole("button", { name: "Apply text changes" }).click();
+  const note = page.locator('[data-kind="draft-text"]');
+  await expect(note.locator('[data-role="fraction-bar"]')).toHaveCount(2);
+  await expect(note).toContainText(" = x");
+  await expect(
+    note.locator('[data-role="fraction-numerator"] text').first(),
+  ).toHaveCSS("font-weight", "700");
+  await clickCommand(page, "Edit", "Undo");
+  await expect(note).toHaveText("Design note");
+  await clickCommand(page, "Edit", "Redo");
+  await expect(note.locator('[data-role="fraction-bar"]')).toHaveCount(2);
+});
+
+test("places a mixed fraction in a device visual annotation without changing its reference", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await chooseComponent(page, "resistor");
+  await page
+    .getByTestId("schematic-canvas")
+    .click({ position: { x: 450, y: 340 } });
+  await page.keyboard.press("Escape");
+  await page.getByTestId("annotation-hit-instance-label-R1").dblclick();
+  const editor = page.getByRole("textbox", {
+    name: "Canvas text editor",
+    exact: true,
+  });
+  await editor.fill("1/gmN + R1");
+  await editor.evaluate((element) => {
+    const range = document.createRange();
+    const text = document
+      .createTreeWalker(element, NodeFilter.SHOW_TEXT)
+      .nextNode()!;
+    range.setStart(text, 0);
+    range.setEnd(text, 5);
+    const selection = window.getSelection()!;
+    selection.removeAllRanges();
+    selection.addRange(range);
+    element.dispatchEvent(new Event("pointerup", { bubbles: true }));
+  });
+  await page
+    .getByRole("button", { name: "Insert fraction", exact: true })
+    .click();
+  await page.getByRole("button", { name: "Apply text changes" }).click();
+  const label = page.locator('[data-object-id="instance-label-R1"]');
+  await expect(label.locator('[data-role="fraction-bar"]')).toHaveCount(1);
+  await expect(label).toContainText(" + R1");
+  const project = JSON.parse(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(
+      "utf8",
+    ),
+  );
+  const doc = project.documents[0];
+  expect(doc.instances[0].reference).toBe("R1");
+  const annotation = doc.annotations.find(
+    (annotation: { id: string }) => annotation.id === "instance-label-R1",
+  );
+  expect(annotation.binding).toBeUndefined();
+  expect(annotation.content.runs[0].kind).toBe("fraction");
+  expect(flattenRichText(annotation.content)).toBe("1/gmN + R1");
+  expect(annotation.content.runs[0].numerator.runs[0].style).toBe("bold");
+  expect(annotation.content.runs[0].denominator.runs[0].children[0].style).toBe(
+    "italic",
+  );
 });
