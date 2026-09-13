@@ -1,4 +1,9 @@
-import { createRoutePath, routeEnd, routeModes } from "@icm/model";
+import {
+  createRoutePath,
+  routeEnd,
+  routeModes,
+  snapGridPoint,
+} from "@icm/model";
 import type {
   Point,
   RouteBranch,
@@ -312,7 +317,23 @@ export function applyInstancesRouteFollow(
       continue;
     }
 
-    const normalized = normalizeRouteGeometry(points, modes);
+    let normalized = normalizeRouteGeometry(points, modes);
+    if (normalized.points.length >= 2) {
+      // Rotated terminal contacts are exact derived geometry and may be
+      // fractional. Endpoint stretch uses those contacts to preserve the pin
+      // lead, but every intermediate point becomes a persisted Route bend and
+      // therefore must return to the document grid before commit.
+      normalized = normalizeRouteGeometry(
+        [
+          normalized.points[0]!,
+          ...normalized.points
+            .slice(1, -1)
+            .map((point) => snapGridPoint(point, draft.presentation.grid)),
+          normalized.points.at(-1)!,
+        ],
+        normalized.segmentModes,
+      );
+    }
     if (normalized.points.length < 2) {
       // A transformed endpoint can land exactly on the Route's other
       // endpoint. Persisting that direct contact as a zero-length Route would

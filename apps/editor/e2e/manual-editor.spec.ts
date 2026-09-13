@@ -1863,6 +1863,49 @@ test("authors components and connectivity manually from an empty canvas", async 
   await expect(page.locator('[data-layer="routes"] polyline')).toHaveCount(0);
 });
 
+test("component property code turns a connected part by 45 degrees", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await placeComponent(page, "resistor", { x: 340, y: 220 });
+  await placeComponent(page, "nmos", { x: 560, y: 220 });
+  await clickDrawTool(page, "wire");
+  await page.getByTestId("terminal-R1-2").click();
+  await page.getByTestId("terminal-M1-G").click();
+  await page.keyboard.press("Escape");
+
+  await page.getByTestId("hit-R1").click();
+  await openSelectionShelf(page);
+  await editComponentPropertyCode(page, (code) => {
+    code.placement.rotation = 45;
+  });
+
+  await expectComponentCodeField(page, "placement.rotation", 45);
+  await expect(page.getByTestId("revision")).toHaveText("4");
+  await expect(page.getByTestId("status")).toHaveText(
+    "Applied Canvas property code to R1",
+  );
+  await expect(page.locator('[data-layer="routes"] polyline')).toHaveCount(1);
+  const saved = JSON.parse(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(
+      "utf8",
+    ),
+  ) as { documents: SchematicDocument[] };
+  expect(saved.documents[0]!.instances[0]!.placement?.rotation).toBe(45);
+  const persistedBends = saved.documents[0]!.routes[0]!.legs.flatMap((leg) =>
+    leg.to.kind === "bend" ? [leg.to.position] : [],
+  );
+  expect(
+    persistedBends.every(
+      (point) =>
+        Number.isInteger(point.x) &&
+        Number.isInteger(point.y) &&
+        point.x % saved.documents[0]!.presentation.grid === 0 &&
+        point.y % saved.documents[0]!.presentation.grid === 0,
+    ),
+  ).toBe(true);
+});
+
 test("splices a two-terminal device into one wire and reconnects its halves after deletion", async ({
   page,
 }) => {

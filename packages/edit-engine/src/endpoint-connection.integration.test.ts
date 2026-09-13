@@ -138,6 +138,51 @@ function gateRouteDocument(symbolId: "nmos" | "pmos") {
 
 describe("EndpointConnection transform lifecycle", () => {
   it.each(["nmos", "pmos"] as const)(
+    "keeps a connected %s Route persistable after a direct 45-degree turn",
+    (symbolId) => {
+      const document = gateRouteDocument(symbolId);
+      const result = executeTransaction(
+        document,
+        {
+          transactionId: `turn-${symbolId}-45`,
+          documentId: document.id,
+          expectedRevision: document.revision,
+          actor: { kind: "human", id: "test" },
+          edits: [
+            {
+              kind: "rotate_instance",
+              instanceId: "M1",
+              rotation: 45,
+            },
+          ],
+        },
+        { symbolResolver: resolver },
+      );
+
+      expect(
+        result,
+        result.ok
+          ? ""
+          : JSON.stringify({
+              error: result.error,
+              diagnostics: result.diagnostics,
+            }),
+      ).toMatchObject({ ok: true });
+      if (!result.ok) return;
+      expect(result.document.instances[0]!.placement?.rotation).toBe(45);
+      expect(
+        routeBends(result.document.routes[0]!).every(
+          (point) =>
+            Number.isInteger(point.x) &&
+            Number.isInteger(point.y) &&
+            point.x % document.presentation.grid === 0 &&
+            point.y % document.presentation.grid === 0,
+        ),
+      ).toBe(true);
+    },
+  );
+
+  it.each(["nmos", "pmos"] as const)(
     "follows a connected %s Route once at the final reflected pose",
     (symbolId) => {
       const document = gateRouteDocument(symbolId);
