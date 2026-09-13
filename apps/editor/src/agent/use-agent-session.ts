@@ -8,6 +8,7 @@ import {
   AGENT_SIMULATION_MAX_TIMEOUT_MS,
   AgentSessionEventSchema,
   AgentSessionMessageSchema,
+  AgentSessionScopeSchema,
   parseAgentFileResourceRequest,
   parseAgentSimulationResourceRequest,
   parseAgentProjectResourceRequest,
@@ -177,7 +178,6 @@ export interface UseAgentSessionOptions {
 }
 
 export interface UseAgentSessionResult extends AgentSessionViewModel {
-  grant: (scopes: readonly AgentSessionScope[]) => Promise<void>;
   pause: () => Promise<void>;
   resume: () => Promise<void>;
   reconnect: () => void;
@@ -214,7 +214,7 @@ export function useAgentSession(
   options: UseAgentSessionOptions,
 ): UseAgentSessionResult {
   const liveRef = useRef<LiveSession | null>(null);
-  const lastScopesRef = useRef<AgentSessionScope[]>([]);
+  const creatingConnectionRef = useRef(false);
   const recoveryAttemptedForProjectRef = useRef<string | null>(null);
   const projectSessionRef = useRef(options.projectSessionId);
   const revisionRef = useRef(
@@ -302,7 +302,6 @@ export function useAgentSession(
     ) => {
       if (!options.enabled) return;
       if (liveRef.current) await revoke();
-      lastScopesRef.current = [...scopes];
       update({
         status: recovery ? "reconnecting" : "creating",
         error: null,
@@ -1038,10 +1037,15 @@ export function useAgentSession(
   }, [options.enabled, update]);
 
   const newConnection = useCallback(async () => {
-    if (!options.enabled) return;
-    const scopes = liveRef.current?.scopes ?? lastScopesRef.current;
-    if (scopes.length === 0) return;
-    await grant(scopes);
+    if (!options.enabled || creatingConnectionRef.current) return;
+    creatingConnectionRef.current = true;
+    try {
+      // Connecting grants the complete editor capability set. Recovery above
+      // resumes the original session; a new connection always gets full edit.
+      await grant(AgentSessionScopeSchema.options);
+    } finally {
+      creatingConnectionRef.current = false;
+    }
   }, [grant, options.enabled]);
 
   useEffect(() => {
@@ -1176,5 +1180,5 @@ export function useAgentSession(
     [options.enabled, options.fileHost],
   );
 
-  return { ...view, grant, pause, resume, reconnect, newConnection, revoke };
+  return { ...view, pause, resume, reconnect, newConnection, revoke };
 }

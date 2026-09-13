@@ -20,7 +20,6 @@ function baseProps(
     expiresAt: null,
     error: null,
     now: 0,
-    onGrant: vi.fn(),
     onPause: vi.fn(),
     onResume: vi.fn(),
     onReconnect: vi.fn(),
@@ -59,17 +58,15 @@ describe("ConnectAgentPanel", () => {
     expect(markup).toBe("");
   });
 
-  it("offers the three permission presets in the idle state", () => {
+  it("offers one connection action without permission tiers in the idle state", () => {
     const markup = renderToStaticMarkup(
       <ConnectAgentPanel {...baseProps({ status: "idle" })} />,
     );
     expect(markup).toContain("Connect Agent");
     expect(markup).toContain("Not connected");
-    expect(markup).toContain('data-testid="agent-preset-review"');
-    expect(markup).toContain('data-testid="agent-preset-layout"');
-    expect(markup).toContain('data-testid="agent-preset-full"');
-    expect(markup).toContain("Review");
-    expect(markup).toContain("Full Circuit Edit");
+    expect(markup).toContain('data-testid="agent-connect"');
+    expect(markup).not.toContain("agent-preset");
+    expect(markup).not.toContain("Choose what the Agent");
   });
 
   it("shows an expiring connection hand-off while waiting for the Agent", () => {

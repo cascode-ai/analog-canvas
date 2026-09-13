@@ -4,9 +4,11 @@ Status: `accepted`
 
 Primary owner: `worker/agent-session.ts` and `apps/editor/src/agent`
 
-The browser Project is authoritative. A user creates a bounded session and
-chooses scopes. The relay returns a short-lived pairing code; claim redemption
-returns `sessionId`, authorized `documentIds`, a short-lived bearer, and a
+The browser Project is authoritative. Clicking **Connect Agent** creates a
+session with full circuit editing, file and simulation access for that Project;
+there is no permission-tier picker. The relay returns a short-lived pairing
+code; claim redemption returns `sessionId`, authorized `documentIds`, a
+short-lived bearer, and a
 session-bound connector credential. A still-valid claim may be redeemed again
 only to rotate both credentials. Bearers are never persisted. The local MCP
 Helper may persist the connector in the user's private profile; the relay
@@ -108,6 +110,10 @@ or human revision event, the Agent refreshes Snapshot state and reconciles
 before deciding what to do; it never blindly changes and replays a request.
 
 ## Permissions
+
+New browser connections grant the complete supported scope set. Replacing a
+connection also grants full access; automatic recovery resumes the original
+session with its existing scopes. Pause and Disconnect remain available.
 
 Circuit permissions independently cover Snapshot, render, source spans,
 geometry, connectivity, presentation, and temporary semantic editor control.

@@ -16,62 +16,6 @@ export type AgentConnectionStatus =
   | "revoked"
   | "expired";
 
-export interface PermissionPreset {
-  id: "review" | "layout" | "full";
-  label: string;
-  description: string;
-  scopes: AgentSessionScope[];
-}
-
-export const AGENT_PERMISSION_PRESETS: readonly PermissionPreset[] = [
-  {
-    id: "review",
-    label: "Review",
-    description: "Read the circuit, render it, and download approved views.",
-    scopes: [
-      "circuit.snapshot",
-      "circuit.render",
-      "circuit.source-spans",
-      "editor.semantic-control",
-      "project.download",
-      "visual.download",
-    ],
-  },
-  {
-    id: "layout",
-    label: "Layout Edit",
-    description: "Review the circuit and change component placement or routes.",
-    scopes: [
-      "circuit.snapshot",
-      "circuit.render",
-      "circuit.source-spans",
-      "circuit.edit.geometry",
-      "editor.semantic-control",
-      "project.download",
-      "visual.download",
-    ],
-  },
-  {
-    id: "full",
-    label: "Full Circuit Edit",
-    description:
-      "Edit circuit, connectivity, annotations, and approved imports.",
-    scopes: [
-      "circuit.snapshot",
-      "circuit.render",
-      "circuit.source-spans",
-      "circuit.edit.geometry",
-      "circuit.edit.connectivity",
-      "circuit.edit.presentation",
-      "editor.semantic-control",
-      "project.download",
-      "visual.download",
-      "project.import",
-      "simulation.run",
-    ],
-  },
-];
-
 export interface ConnectAgentPanelProps {
   open: boolean;
   status: AgentConnectionStatus;
@@ -81,7 +25,6 @@ export interface ConnectAgentPanelProps {
   expiresAt: number | null;
   error: string | null;
   now: number;
-  onGrant: (scopes: AgentSessionScope[]) => void;
   onPause: () => void;
   onResume: () => void;
   onReconnect: () => void;
@@ -92,7 +35,7 @@ export interface ConnectAgentPanelProps {
 
 export interface AgentPropertiesSectionProps extends Omit<
   ConnectAgentPanelProps,
-  "open" | "now" | "onGrant" | "onClose"
+  "open" | "now" | "onClose"
 > {
   expanded: boolean;
   onToggleDetails: () => void;
@@ -139,15 +82,6 @@ function formatRemaining(expiresAt: number | null, now: number): string {
   return `${minutes}:${remainder.toString().padStart(2, "0")}`;
 }
 
-function permissionLabel(scopes: readonly AgentSessionScope[]): string {
-  const preset = AGENT_PERMISSION_PRESETS.find(
-    (candidate) =>
-      candidate.scopes.length === scopes.length &&
-      candidate.scopes.every((scope) => scopes.includes(scope)),
-  );
-  return preset?.label ?? "Custom access";
-}
-
 function useClock(active: boolean, initial: number): number {
   const [clock, setClock] = useState(initial);
   useEffect(() => {
@@ -184,7 +118,20 @@ function ConnectionControls(
       </div>
     );
   }
-  if (props.status === "idle" || props.status === "creating") return null;
+  if (props.status === "creating") return null;
+  if (props.status === "idle") {
+    return (
+      <div className="agent-controls">
+        <button
+          type="button"
+          data-testid="agent-connect"
+          onClick={props.onNewConnection}
+        >
+          Connect Agent
+        </button>
+      </div>
+    );
+  }
   return (
     <div className="agent-controls">
       {props.status === "connected" ||
@@ -332,8 +279,6 @@ function ClaimHandOff({
 export function ConnectAgentPanel(props: ConnectAgentPanelProps): ReactNode {
   const clock = useClock(props.open, props.now);
   if (!props.open) return null;
-  const terminal = props.status === "revoked" || props.status === "expired";
-  const showGrant = props.status === "idle" || terminal;
 
   return (
     <div
@@ -368,29 +313,6 @@ export function ConnectAgentPanel(props: ConnectAgentPanelProps): ReactNode {
           </p>
         ) : null}
 
-        {showGrant ? (
-          <div className="agent-grant" data-testid="agent-grant">
-            <p>Choose what the Agent may do in this Project.</p>
-            <ul>
-              {AGENT_PERMISSION_PRESETS.map((preset) => (
-                <li key={preset.id}>
-                  <button
-                    type="button"
-                    className="agent-preset-button"
-                    data-testid={`agent-preset-${preset.id}`}
-                    onClick={() => props.onGrant(preset.scopes)}
-                  >
-                    {preset.label}
-                  </button>
-                  <span className="agent-preset-description">
-                    {preset.description}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
-
         <ClaimHandOff {...props} now={clock} />
         <ConnectionControls {...props} />
       </section>
@@ -418,7 +340,7 @@ export function AgentPropertiesSection(
               className={`agent-status-dot ${terminal ? "terminal" : ""}`}
               aria-hidden="true"
             />
-            {STATUS_LABEL[props.status]} · {permissionLabel(props.scopes)}
+            {STATUS_LABEL[props.status]}
             {props.expiresAt !== null
               ? ` · ${formatRemaining(props.expiresAt, clock)}`
               : ""}
@@ -477,7 +399,6 @@ export function AgentPropertiesSection(
           <ClaimHandOff {...props} now={clock} />
           <details>
             <summary>Connection details</summary>
-            <p>Access: {permissionLabel(props.scopes)}</p>
             <p className="agent-technical-details">
               Scopes: {props.scopes.join(", ")}
             </p>

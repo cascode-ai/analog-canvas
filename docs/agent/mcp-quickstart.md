@@ -133,9 +133,9 @@ operations and PVT remain separate work.
 
 ## Simulation
 
-Full Circuit Edit includes `simulation.run`; there is no per-run approval or
-mandatory helper-reading gate. GUI and MCP use the same source, File and Run
-resources.
+Connecting from the editor includes `simulation.run`; there is no per-run
+approval or mandatory helper-reading gate. GUI and MCP use the same source,
+File and Run resources.
 
 1. `simulation` / `capabilities` discovers the Profile, qualified analyses,
    parser support, declared rawfile collection and resource limits without

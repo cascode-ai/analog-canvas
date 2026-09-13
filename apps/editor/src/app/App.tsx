@@ -4736,6 +4736,7 @@ export function App({
                 execute: () => {
                   if (agentSession.status === "idle") {
                     setAgentPanelOpen(true);
+                    void agentSession.newConnection();
                     return;
                   }
                   setSelectionOpen(true);
@@ -5224,7 +5225,6 @@ export function App({
                 expiresAt: agentSession.expiresAt,
                 error: agentSession.error,
                 now: Date.now(),
-                onGrant: agentSession.grant,
                 onPause: agentSession.pause,
                 onResume: agentSession.resume,
                 onReconnect: agentSession.reconnect,

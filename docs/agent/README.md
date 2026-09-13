@@ -38,6 +38,8 @@ For run visibility, automatic browser archives and source/result exports, see
 
 Production and Preview enable the Agent connection surface with
 `VITE_ICM_AGENT_UI=enabled`. Open **Agent → Connect Agent** for a Claim Code.
+The connection grants full circuit editing, file and simulation access to the
+current Project immediately; there is no permission-tier selection.
 The MCP adapter defaults to Production; for Preview, start it with
 `ANALOG_CANVAS_API_URL=https://analog-canvas-preview.tokenzhang.com`.
 Connections, accounts, and private Projects stay within their own channel.

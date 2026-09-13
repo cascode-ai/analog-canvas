@@ -141,7 +141,6 @@ for (const sourceKind of ["workspace", "project-folder"] as const)
     )
       .getByRole("button", { name: "Connect Agent" })
       .click();
-    await page.getByTestId("agent-preset-full").click();
     await expect.poll(() => !!socket).toBe(true);
     const send = async (
       kind: "simulation" | "file",

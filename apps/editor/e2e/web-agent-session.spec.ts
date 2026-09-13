@@ -13,6 +13,54 @@ type SessionMessage = {
   payload: unknown;
 };
 
+test("retries a failed Agent connection without a permission picker", async ({
+  page,
+}) => {
+  let creates = 0;
+  await page.routeWebSocket(
+    "**/api/agent/sessions/retry-session/editor",
+    () => {},
+  );
+  await page.route("**/api/agent/sessions", async (route) => {
+    creates += 1;
+    const { scopes } = route.request().postDataJSON() as { scopes: string[] };
+    expect(scopes).toContain("circuit.edit.connectivity");
+    expect(scopes).toContain("simulation.run");
+    if (creates === 1) {
+      await route.fulfill({ status: 503 });
+      return;
+    }
+    await route.fulfill({
+      json: {
+        ok: true,
+        session: {
+          sessionId: "retry-session",
+          editorSecret: "retry-editor-secret",
+          claimCode: "retry-session.claim",
+          claimExpiresAt: Date.now() + 300_000,
+          expiresAt: Date.now() + 3_600_000,
+        },
+      },
+    });
+  });
+
+  await page.goto("/editor");
+  const agentMenu = await openMenu(page, "Agent");
+  expect(creates).toBe(0);
+  await agentMenu.getByRole("button", { name: "Connect Agent" }).click();
+  const panel = page.getByTestId("connect-agent-panel");
+  await expect(panel.getByRole("alert")).toContainText("503");
+  expect(creates).toBe(1);
+  await expect(page.locator('[data-testid^="agent-preset-"]')).toHaveCount(0);
+  await panel.getByTestId("agent-connect").click();
+  await expect(panel.getByTestId("agent-claim-code")).toHaveText(
+    "retry-session.claim",
+  );
+  await expect(panel.getByRole("alert")).toHaveCount(0);
+  await expect(panel.getByTestId("agent-connect")).toHaveCount(0);
+  expect(creates).toBe(2);
+});
+
 test("grants a browser Agent, edits through the live host, and shares undo", async ({
   page,
 }) => {
@@ -47,8 +95,21 @@ test("grants a browser Agent, edits through the live host, and shares undo", asy
       expect(body.projectId).toBe("project-main");
       expect(body.projectSessionId).toMatch(/^project-main:\d+$/u);
       expect(body.documentIds).toEqual(["document-main"]);
-      expect(body.scopes).toContain("circuit.edit.connectivity");
-      expect(body.scopes).toContain("editor.semantic-control");
+      expect([...body.scopes].sort()).toEqual(
+        [
+          "circuit.snapshot",
+          "circuit.render",
+          "circuit.source-spans",
+          "circuit.edit.geometry",
+          "circuit.edit.connectivity",
+          "circuit.edit.presentation",
+          "editor.semantic-control",
+          "project.download",
+          "project.import",
+          "visual.download",
+          "simulation.run",
+        ].sort(),
+      );
       await route.fulfill({
         contentType: "application/json",
         json: {
@@ -83,11 +144,12 @@ test("grants a browser Agent, edits through the live host, and shares undo", asy
   await page.goto("/editor");
   const agentMenu = await openMenu(page, "Agent");
   await agentMenu.getByRole("button", { name: "Connect Agent" }).click();
-  await page.getByTestId("agent-preset-full").click();
+  await expect(page.locator('[data-testid^="agent-preset-"]')).toHaveCount(0);
   await expect(page.getByTestId("agent-claim-code")).toHaveText(
     `${sessionId}.one-time-claim`,
   );
   await expect.poll(() => browserSocket !== null).toBe(true);
+  expect(sessionCreates).toBe(1);
   const socket = browserSocket!;
 
   socket.send(
