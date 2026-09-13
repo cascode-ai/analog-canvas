@@ -774,6 +774,7 @@ test("places Text at its preview after zoom and pan, then edits and undoes it", 
     "transform",
     `translate(${expected.x} ${expected.y}) rotate(90)`,
   );
+  await expect(preview.locator("text")).toHaveAttribute("font-weight", "bold");
   const previewBounds = await preview.locator("text").boundingBox();
   await page.mouse.click(point.x, point.y);
   await expect(preview).toHaveCount(0);

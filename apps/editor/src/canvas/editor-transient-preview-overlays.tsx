@@ -83,7 +83,7 @@ export function EditorPlacementPreview({
           textAnchor="middle"
           fontSize={styleProfile.typography.annotationFontSize}
           fontFamily={styleProfile.typography.fontFamily}
-          fontWeight="normal"
+          fontWeight="bold"
           fontStyle="normal"
           fill="currentColor"
         >
