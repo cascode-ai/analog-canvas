@@ -1335,6 +1335,7 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
                   <li key={item.id}>
                     <span>
                       {item.owner === "agent" ? "Agent" : "You"} ·{" "}
+                      {item.presentation.folderName} ·{" "}
                       {item.presentation.analysisLabel} · {item.state}
                       {item.error ? (
                         <small role="status">{item.error}</small>

@@ -121,7 +121,8 @@ export class BrowserSimulationSession {
         };
       const sourceProject =
         (operation.operation === "prepare" ||
-          operation.operation === "prepare-batch") &&
+          operation.operation === "prepare-batch" ||
+          operation.operation === "prepare-sweep") &&
         this.options.runHistory
           ? structuredClone(this.options.getProject())
           : undefined;
@@ -132,7 +133,8 @@ export class BrowserSimulationSession {
         reply.ok
       ) {
         if (
-          operation.operation === "prepare-batch" &&
+          (operation.operation === "prepare-batch" ||
+            operation.operation === "prepare-sweep") &&
           "batch" in reply &&
           sourceProject
         ) {
@@ -143,7 +145,10 @@ export class BrowserSimulationSession {
             if (folder)
               this.presentations.set(item.prepared.id, {
                 prepared: item.prepared,
-                presentation: sourcePresentation(folder),
+                presentation: {
+                  ...sourcePresentation(folder),
+                  folderName: item.label ?? folder.name,
+                },
                 projectFile: serializeProject(sourceProject),
               });
           }

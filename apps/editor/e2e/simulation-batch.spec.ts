@@ -320,6 +320,9 @@ test("a saved Run Plan prepares without executing and Run starts its ordinary ba
     history.getByRole("button", { name: "Open result" }),
   ).toHaveCount(6);
   await expect(
+    history.getByRole("listitem").filter({ hasText: "finished" }),
+  ).toHaveCount(6);
+  await expect(
     history.getByRole("button", { name: "Open result" }).last(),
   ).toBeEnabled();
 });
