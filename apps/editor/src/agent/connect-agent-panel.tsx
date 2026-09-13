@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import type { AgentSessionScope } from "@icm/agent-adapter";
 
@@ -48,15 +48,15 @@ export function agentConnectionInstructions(
 ): string {
   const kitUrl = `${origin}/api/agent/kit`;
   const manifestUrl = `${origin}/api/agent/mcp-manifest.json`;
-  return `Connect to Analog Canvas.
+  return `Connect to Analog Canvas at ${origin}.
 Claim: ${JSON.stringify({ claimCode })}
-Bootstrap: ${manifestUrl}
 
-1. If the Analog Canvas MCP is available, call connect with the Claim, read analog-canvas://reference/quickstart, then call get_context.
-2. If it is unavailable, read the Bootstrap manifest and configure its version-pinned stdio server for this Agent host. If the host must restart to load it, tell the user once.
-3. If MCP cannot load in this session, continue immediately with the HTTP Agent Kit: ${kitUrl}
+Use an existing Analog Canvas MCP only if it targets this exact server and supports this editor's schema. Call connect with the Claim, read analog-canvas://reference/quickstart, then call get_context.
+Otherwise continue immediately with the HTTP Agent Kit: ${kitUrl}
+Fetch the Kit and follow its instructions and published OpenAPI to claim this session and read the current circuit. No plugin installation or restart is needed for the HTTP path. For a loopback address, run on the same computer as the editor.
+Optional MCP setup: ${manifestUrl}
 
-Do not invent symbol IDs, pin names, revisions, or raw API requests. The connector resumes automatically until the user disconnects it.`;
+Keep credentials private. Do not invent symbol IDs, pin names, revisions, or raw API requests. Keep the browser open; the connector resumes automatically until the user disconnects it.`;
 }
 
 const STATUS_LABEL: Record<AgentConnectionStatus, string> = {
@@ -191,6 +191,12 @@ function ClaimHandOff({
   | "status"
 > & { now: number }): ReactNode {
   const [copied, setCopied] = useState(false);
+  const [copyFailed, setCopyFailed] = useState(false);
+  const textRef = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    setCopied(false);
+    setCopyFailed(false);
+  }, [claimCode]);
   const claimExpired = claimExpiresAt !== null && now >= claimExpiresAt;
   if (claimCode === null && !claimExpired) return null;
   if (claimExpired && status === "waiting-for-agent") {
@@ -210,15 +216,10 @@ function ClaimHandOff({
   );
   return (
     <div className="agent-claim" data-testid="agent-claim">
-      <p>
-        Give the Agent this one-time setup. It expires in{" "}
-        {formatRemaining(claimExpiresAt, now)}; the connected session lasts{" "}
-        {formatRemaining(expiresAt, now)} and closing this panel does not
-        disconnect it.
-      </p>
+      <p>Copy this message and paste it into your Agent chat to connect.</p>
       <div className="agent-copy-card">
         <div className="agent-copy-card-header">
-          <span className="agent-copy-card-label">Plain text</span>
+          <span className="agent-copy-card-label">Paste into your Agent</span>
           <div className="agent-copy-card-action">
             <span className="agent-copy-feedback" aria-live="polite">
               {copied ? "Copied" : ""}
@@ -231,14 +232,17 @@ function ClaimHandOff({
                 copied ? "Connection setup copied" : "Copy connection setup"
               }
               title={copied ? "Copied" : "Copy connection setup"}
-              onClick={() => {
-                void navigator.clipboard
-                  .writeText(instructions)
-                  .then(() => {
-                    setCopied(true);
-                    window.setTimeout(() => setCopied(false), 2_000);
-                  })
-                  .catch(() => undefined);
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(instructions);
+                  setCopied(true);
+                  setCopyFailed(false);
+                } catch {
+                  setCopied(false);
+                  setCopyFailed(true);
+                  textRef.current?.focus();
+                  textRef.current?.select();
+                }
               }}
             >
               <svg
@@ -250,15 +254,37 @@ function ClaimHandOff({
                 <rect x="6.5" y="3.5" width="10" height="11" rx="2" />
                 <path d="M13.5 14.5v.5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7.5a2 2 0 0 1 2-2h1.5" />
               </svg>
+              Copy
             </button>
           </div>
         </div>
-        <pre data-testid="agent-copy-text">{instructions}</pre>
+        <textarea
+          ref={textRef}
+          data-testid="agent-copy-text"
+          aria-label="Agent connection message"
+          readOnly
+          value={instructions}
+          onFocus={(event) => event.currentTarget.select()}
+        />
       </div>
+      {copyFailed ? (
+        <p role="alert">
+          Copy was blocked. The message is selected; press Ctrl+C or ⌘C to copy
+          it.
+        </p>
+      ) : null}
+      <p className="agent-technical-details">
+        Connection code expires in {formatRemaining(claimExpiresAt, now)}. Keep
+        the editor open while the Agent works.
+      </p>
       <details>
         <summary>Show connection code and technical details</summary>
         <code data-testid="agent-claim-code">{claimCode}</code>
         <p className="agent-technical-details">Scopes: {scopes.join(", ")}</p>
+        <p className="agent-technical-details">
+          Session remaining: {formatRemaining(expiresAt, now)}. Closing this
+          panel does not disconnect it.
+        </p>
         <p className="agent-technical-details">
           First-time setup:{" "}
           <a
@@ -298,7 +324,7 @@ export function ConnectAgentPanel(props: ConnectAgentPanelProps): ReactNode {
             onClick={props.onClose}
             aria-label="Hide Agent details"
           >
-            Hide details
+            Close
           </button>
         </div>
         <p className="agent-panel-status" data-testid="agent-status">

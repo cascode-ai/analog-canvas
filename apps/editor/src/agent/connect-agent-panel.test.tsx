@@ -39,7 +39,13 @@ describe("ConnectAgentPanel", () => {
       "https://editor.example",
       "claim-once",
     );
-    expect(instructions).toContain("Connect to Analog Canvas");
+    expect(instructions).toContain(
+      "Connect to Analog Canvas at https://editor.example",
+    );
+    expect(instructions).toContain("targets this exact server");
+    expect(instructions).toContain(
+      "No plugin installation or restart is needed",
+    );
     expect(instructions).toContain('Claim: {"claimCode":"claim-once"}');
     expect(instructions).toContain(
       "https://editor.example/api/agent/mcp-manifest.json",
@@ -86,8 +92,9 @@ describe("ConnectAgentPanel", () => {
     expect(markup).toContain('data-testid="agent-copy-instructions"');
     expect(markup).toContain('data-testid="agent-copy-text"');
     expect(markup).toContain('class="agent-copy-card"');
-    expect(markup).toContain("Plain text");
-    expect(markup).toContain("Connect to Analog Canvas.");
+    expect(markup).toContain("Paste into your Agent");
+    expect(markup).toContain("Connect to Analog Canvas at http://localhost.");
+    expect(markup).toContain("<textarea");
     expect(markup).toContain(
       "Claim: {&quot;claimCode&quot;:&quot;CLAIM-12345&quot;}",
     );

@@ -97,20 +97,19 @@
 }
 
 .agent-copy-card .agent-copy-button {
-  display: grid;
-  width: 2rem;
+  display: flex;
   height: 2rem;
-  padding: 0;
-  place-items: center;
+  padding: 0 0.65rem;
+  align-items: center;
+  gap: 0.4rem;
   border: 0;
   border-radius: var(--icm-radius-sm);
-  color: var(--icm-text-muted);
-  background: transparent;
+  color: var(--icm-on-accent, #fff);
+  background: var(--icm-accent);
 }
 
 .agent-copy-card .agent-copy-button:hover {
-  color: var(--icm-text);
-  background: var(--icm-surface-hover);
+  filter: brightness(1.1);
 }
 
 .agent-copy-card .agent-copy-button svg {
@@ -121,11 +120,16 @@
   stroke-width: 1.5;
 }
 
-.agent-copy-card pre {
-  max-height: 14rem;
+.agent-copy-card textarea {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  height: 14rem;
+  resize: vertical;
   margin: 0;
   padding: var(--icm-space-3);
   overflow: auto;
+  border: 0;
   border-top: 1px solid var(--icm-border);
   color: var(--icm-text);
   background: var(--icm-surface);

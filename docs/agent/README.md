@@ -12,13 +12,15 @@ engine.
    connect a host such as Codex, Claude Code, or Cursor to it. The adapter
    owns claim redemption, persistent connector resume, process-local bearers,
    revisions, idempotent retries, and compact tools; the model never sees
-   tokens or the raw OpenAPI. The copied handoff points the Agent to the
-   versioned bootstrap manifest, so first-time setup can start from the same
-   text. See [mcp-install.md](mcp-install.md).
+   tokens or the raw OpenAPI. The copied handoff names the exact server;
+   use an existing adapter only when it targets that server and supports the
+   editor's schema. See [mcp-install.md](mcp-install.md).
 2. **Fallback: Kit + HTTP API.** For hosts without the packaged
    MCP entry point, fetch the public
    `GET /api/agent/kit` JSON, write its listed files to a private scratch
-   directory, redeem the claim, and call the four operations directly.
+   directory, redeem the claim, and call the four operations directly. The
+   handoff uses this path immediately when a suitable MCP is unavailable;
+   installing a plugin or restarting the Agent host is not a prerequisite.
 3. **Advanced: direct OpenAPI.** `GET /api/agent/openapi.json` is the
    wire-contract authority for direct API integrations. An MCP-based Agent
    does not need it; `advanced_transact` reuses existing transaction forms.
@@ -40,9 +42,19 @@ Production and Preview enable the Agent connection surface with
 `VITE_ICM_AGENT_UI=enabled`. Click **Agent** for a Claim Code.
 The connection grants full circuit editing, file and simulation access to the
 current Project immediately; there is no permission-tier selection.
+The button opens the connection card immediately and reuses a live session.
+Copy its message into your Agent chat; opening the card again does not replace
+the connection. After disconnecting or expiry, clicking Agent creates a new one.
 The MCP adapter defaults to Production; for Preview, start it with
 `ANALOG_CANVAS_API_URL=https://analog-canvas-preview.tokenzhang.com`.
 Connections, accounts, and private Projects stay within their own channel.
+
+For local development, `pnpm dev` starts the real Agent relay on first use
+through the editor's own `/api/agent/` routes, including its WebSocket. No
+separate Worker process needs to be launched manually. Use the loopback origin
+in the copied message from an Agent on the same computer. The local relay
+does not start cloud account, Gallery, or hosted simulation services, and
+restarting the development server ends its in-memory sessions.
 
 An unconfigured production build still keeps the Agent UI dormant. Explicit
 deployment flags control availability without changing the API or MCP contract.

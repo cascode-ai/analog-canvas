@@ -324,8 +324,17 @@ export function useAgentSession(
               scopes,
             }),
           });
-          if (!response.ok)
-            throw new Error(`Session creation failed (${response.status})`);
+          if (!response.ok) {
+            const failure = await response.json().catch(() => null);
+            const detail = failure?.error?.message;
+            throw new Error(
+              typeof detail === "string"
+                ? `${detail} (${response.status})`
+                : response.status === 404
+                  ? "Agent connection service was not found (404). For local use, restart pnpm dev and retry."
+                  : `Could not create an Agent connection (${response.status}). Please retry.`,
+            );
+          }
           const payload: unknown = await response.json();
           if (!isCreatedSessionResponse(payload)) {
             throw new Error("Session creation returned an invalid response");

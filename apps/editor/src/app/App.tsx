@@ -4734,13 +4734,17 @@ export function App({
                     ? "Connect Agent"
                     : "Manage Agent",
                 execute: () => {
-                  if (agentSession.status === "idle") {
-                    setAgentPanelOpen(true);
+                  setAgentPanelOpen(true);
+                  if (
+                    agentSession.status === "idle" ||
+                    agentSession.status === "revoked" ||
+                    agentSession.status === "expired" ||
+                    (agentSession.status === "waiting-for-agent" &&
+                      agentSession.claimExpiresAt !== null &&
+                      agentSession.claimExpiresAt <= Date.now())
+                  ) {
                     void agentSession.newConnection();
-                    return;
                   }
-                  setSelectionOpen(true);
-                  setAgentDetailsOpen(true);
                 },
               }
             : null

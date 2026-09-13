@@ -5,6 +5,7 @@ import { createHash } from "node:crypto";
 import { createEmptyProject } from "@icm/model";
 import { serializeProject } from "@icm/project-protocol";
 
+import { AgentHttpClient } from "../../../packages/agent-client/src/http-client.js";
 import { clickCommand } from "./editor-fixtures.js";
 
 type SessionMessage = {
@@ -17,6 +18,17 @@ test("retries a failed Agent connection without a permission picker", async ({
   page,
 }) => {
   let creates = 0;
+  let releaseCreation: () => void = () => {};
+  const creationReady = new Promise<void>((resolve) => {
+    releaseCreation = resolve;
+  });
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "clipboard", {
+      value: {
+        writeText: () => Promise.reject(new Error("Clipboard blocked")),
+      },
+    });
+  });
   await page.routeWebSocket(
     "**/api/agent/sessions/retry-session/editor",
     () => {},
@@ -27,7 +39,8 @@ test("retries a failed Agent connection without a permission picker", async ({
     expect(scopes).toContain("circuit.edit.connectivity");
     expect(scopes).toContain("simulation.run");
     if (creates === 1) {
-      await route.fulfill({ status: 503 });
+      await creationReady;
+      await route.fulfill({ status: 404 });
       return;
     }
     await route.fulfill({
@@ -48,7 +61,12 @@ test("retries a failed Agent connection without a permission picker", async ({
   expect(creates).toBe(0);
   await page.getByRole("button", { name: "Agent", exact: true }).click();
   const panel = page.getByTestId("connect-agent-panel");
-  await expect(panel.getByRole("alert")).toContainText("503");
+  await expect(panel).toBeVisible();
+  await expect(panel.getByTestId("agent-status")).toHaveText(
+    "Creating connection…",
+  );
+  releaseCreation();
+  await expect(panel.getByRole("alert")).toContainText("restart pnpm dev");
   expect(creates).toBe(1);
   await expect(page.locator('[data-testid^="agent-preset-"]')).toHaveCount(0);
   await panel.getByTestId("agent-connect").click();
@@ -57,6 +75,20 @@ test("retries a failed Agent connection without a permission picker", async ({
   );
   await expect(panel.getByRole("alert")).toHaveCount(0);
   await expect(panel.getByTestId("agent-connect")).toHaveCount(0);
+  expect(creates).toBe(2);
+  await panel.getByTestId("agent-copy-instructions").click();
+  await expect(panel.getByRole("alert")).toContainText("Copy was blocked");
+  expect(
+    await panel.getByTestId("agent-copy-text").evaluate((element) => {
+      const input = element as HTMLTextAreaElement;
+      return input.selectionEnd - input.selectionStart === input.value.length;
+    }),
+  ).toBe(true);
+  await panel.getByRole("button", { name: "Hide Agent details" }).click();
+  await page.getByRole("button", { name: "Agent", exact: true }).click();
+  await expect(panel.getByTestId("agent-claim-code")).toHaveText(
+    "retry-session.claim",
+  );
   expect(creates).toBe(2);
 });
 
@@ -403,28 +435,121 @@ test("grants a browser Agent, edits through the live host, and shares undo", asy
     .toBe(true);
 
   await page.getByRole("button", { name: "Agent", exact: true }).click();
-  await expect(page.getByTestId("agent-properties")).toContainText("Connected");
+  const panel = page.getByTestId("connect-agent-panel");
+  await expect(panel).toBeVisible();
+  await expect(panel.getByTestId("agent-status")).toContainText("Connected");
   expect(sessionCreates).toBe(1);
   const originalSocket = browserSocket as WebSocketRoute | null;
   if (!originalSocket) throw new Error("Agent WebSocket was not connected");
   originalSocket.close();
   await expect.poll(() => browserSocket !== originalSocket).toBe(true);
-  await expect(page.getByTestId("agent-properties")).toContainText("Connected");
-  await page.getByTestId("agent-pause").click();
-  await expect(page.getByTestId("agent-properties")).toContainText("Paused");
-  await page.getByTestId("agent-resume").click();
-  await expect(page.getByTestId("agent-properties")).toContainText("Connected");
-  await page.getByTestId("agent-new-connection").click();
+  await expect(panel.getByTestId("agent-status")).toContainText("Connected");
+  await panel.getByTestId("agent-pause").click();
+  await expect(panel.getByTestId("agent-status")).toContainText("Paused");
+  await panel.getByTestId("agent-resume").click();
+  await expect(panel.getByTestId("agent-status")).toContainText("Connected");
+  await panel.getByTestId("agent-new-connection").click();
   await expect.poll(() => sessionCreates).toBe(2);
   await expect.poll(() => revokeControls).toBe(1);
-  await expect(page.getByTestId("agent-claim-code")).toHaveText(
+  await expect(panel.getByTestId("agent-claim-code")).toHaveText(
     `${sessionId}.one-time-claim`,
   );
-  await expect(page.getByTestId("agent-properties")).toContainText(
+  await expect(panel.getByTestId("agent-status")).toContainText(
     "Waiting for Agent",
   );
-  await page.getByTestId("agent-revoke").click();
-  await expect(page.getByTestId("agent-properties")).toContainText(
-    "Disconnected",
+  await panel.getByTestId("agent-revoke").click();
+  await expect(panel.getByTestId("agent-status")).toContainText("Disconnected");
+  await panel.getByRole("button", { name: "Hide Agent details" }).click();
+  await page.getByRole("button", { name: "Agent", exact: true }).click();
+  await expect(panel.getByTestId("agent-status")).toContainText(
+    "Waiting for Agent",
   );
+  expect(sessionCreates).toBe(3);
+});
+
+test("copies a working handoff through the normal local dev relay", async ({
+  page,
+  context,
+  request,
+  baseURL,
+}) => {
+  test.setTimeout(60_000);
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.goto("/editor");
+  await page.getByRole("button", { name: "Agent", exact: true }).click();
+  const panel = page.getByTestId("connect-agent-panel");
+  await expect(panel).toBeVisible();
+  await expect(panel.getByTestId("agent-copy-instructions")).toBeVisible({
+    timeout: 30_000,
+  });
+  await panel.getByTestId("agent-copy-instructions").click();
+  await expect(panel.getByLabel("Connection setup copied")).toBeVisible();
+  const handoff = await page.evaluate(() => navigator.clipboard.readText());
+  expect(handoff).toBe(await panel.getByTestId("agent-copy-text").inputValue());
+  expect(handoff).toContain(`Connect to Analog Canvas at ${baseURL}.`);
+  const kitUrl = handoff.match(/HTTP Agent Kit: (\S+)/u)![1]!;
+  expect((await request.get(kitUrl)).ok()).toBe(true);
+  expect((await request.get(`${baseURL}/api/agent/openapi.json`)).ok()).toBe(
+    true,
+  );
+  expect(
+    (
+      await request.post(`${baseURL}/api/agent/sessions`, {
+        headers: { Origin: "https://unrelated.example" },
+        data: {},
+      })
+    ).status(),
+  ).toBe(403);
+
+  const { claimCode } = JSON.parse(handoff.match(/Claim: (.+)/u)![1]!) as {
+    claimCode: string;
+  };
+  const client = new AgentHttpClient({ baseUrl: baseURL! });
+  const session = await client.claim(claimCode);
+  const documentId = session.documentIds[0]!;
+  const snapshot = await client.circuit(session.sessionId, session.agentToken, {
+    apiVersion: "3.0",
+    requestId: "local-before",
+    operation: "snapshot",
+    documentId,
+  });
+  expect(snapshot).toMatchObject({
+    ok: true,
+    operation: "snapshot",
+    revision: 0,
+  });
+  await expect(panel.getByTestId("agent-status")).toContainText("Connected");
+  const transaction = await client.circuit(
+    session.sessionId,
+    session.agentToken,
+    {
+      apiVersion: "3.0",
+      requestId: "local-edit",
+      operation: "transact",
+      documentId,
+      transactionId: "local-edit",
+      expectedRevision: 0,
+      edits: [
+        {
+          kind: "add_instance",
+          instance: { id: "Rlocal", symbolId: "resistor", placement: null },
+        },
+      ],
+    },
+  );
+  expect(transaction).toMatchObject({ ok: true, applied: true, revision: 1 });
+  await expect(page.getByTestId("active-instance-count")).toHaveText("1");
+  await panel.getByTestId("agent-revoke").click();
+  await expect(panel.getByTestId("agent-status")).toContainText("Disconnected");
+  await expect(
+    client.circuit(session.sessionId, session.agentToken, {
+      apiVersion: "3.0",
+      requestId: "local-after-revoke",
+      operation: "snapshot",
+      documentId,
+    }),
+  ).rejects.toThrow();
+  await panel.getByRole("button", { name: "Hide Agent details" }).click();
+  await clickCommand(page, "Edit", "Undo");
+  await expect(page.getByTestId("active-instance-count")).toHaveText("0");
 });

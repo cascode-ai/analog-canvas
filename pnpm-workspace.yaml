@@ -5,6 +5,9 @@ allowBuilds:
   # core-js only prints a funding banner from its postinstall script; its
   # runtime modules are already shipped in the package, so no build is needed.
   core-js: false
+  # Wrangler validates its local bundler and Worker runtime binaries.
+  esbuild: true
+  workerd: true
 minimumReleaseAgeExclude:
   - vite@8.2.1
   - svg2pdf.js@2.8.0

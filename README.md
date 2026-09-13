@@ -76,6 +76,13 @@ Open the displayed loopback URL and choose **New Circuit**, or open its
 import one `.cir`, `.sp`, or `.spi` entry together with its local include
 files.
 
+Click **Agent** to open a connection message, then copy it into your Agent
+chat. The development server starts the local Agent relay on first use;
+no separate Worker command or cloud account is needed. Keep the editor open
+while the Agent works. Local sessions last until the development server stops;
+after restarting it, create a new connection. Cloud account, Gallery, and
+hosted simulation services are not started by this local relay.
+
 Development follows three stages: iterate locally on a batch branch with
 focused checks and local commits; accumulate at least 10 completed features,
 fixes, or improvements into one Preview delivery; then promote an accepted

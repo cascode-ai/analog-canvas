@@ -62,7 +62,8 @@ before forming requests; it is the wire-contract authority.
 - For a symbol absent from the Kit catalog, an imported/custom/PDK symbol, or
   an electrical fact absent from a Snapshot, stop and ask the human. Do not
   extrapolate from a label, symbol appearance, or another library.
-- Use only the published HTTPS API. Do not use DOM, mouse, keyboard, visual
+- Use only the published session API: HTTPS, or HTTP on loopback for local
+  development. Do not use DOM, mouse, keyboard, visual
   automation, source repositories, or a second edit path to change a circuit.
 - \`transact\` is the sole mutation path. Preserve human edits, locks, and
   revision conflicts rather than trying to overwrite them.

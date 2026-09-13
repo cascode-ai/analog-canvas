@@ -4,6 +4,8 @@ import { readFile, writeFile } from "node:fs/promises";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
+import { localAgentRelay } from "./dev/agent-relay";
+
 function versionStaticServiceWorker() {
   return {
     name: "version-static-service-worker",
@@ -28,5 +30,5 @@ function versionStaticServiceWorker() {
 export default defineConfig({
   // The Worker serves the editor from a domain root, so assets are absolute.
   base: "/",
-  plugins: [react(), versionStaticServiceWorker()],
+  plugins: [react(), localAgentRelay(), versionStaticServiceWorker()],
 });
