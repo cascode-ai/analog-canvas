@@ -202,7 +202,22 @@ async function serveAsset(request: Request, env: Env): Promise<Response> {
   const isShellFallback = (response.headers.get("content-type") ?? "")
     .toLowerCase()
     .includes("text/html");
-  if (!isShellFallback) return response;
+  if (!isShellFallback) {
+    // Only successful content-hashed build assets are immutable. Shells,
+    // errors and explicitly private responses keep their policy.
+    const policy = response.headers.get("cache-control") ?? "";
+    if (
+      response.status === 200 &&
+      /\/[\w.-]+-[\w-]{8,}\.[\w]+$/.test(path) &&
+      !/\b(no-store|private)\b/i.test(policy) &&
+      !response.headers.has("set-cookie")
+    ) {
+      const headers = new Headers(response.headers);
+      headers.set("cache-control", "public, max-age=31536000, immutable");
+      return new Response(response.body, { status: response.status, headers });
+    }
+    return response;
+  }
   return new Response(`Not found: ${path}`, {
     status: 404,
     headers: {

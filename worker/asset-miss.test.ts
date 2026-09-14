@@ -88,3 +88,58 @@ describe("client routes keep the shell", () => {
     },
   );
 });
+
+describe("hashed asset HTTP caching", () => {
+  it.each(["App-abcdefgh.js", "App-ab12_CD-.css", "font-abcdefgh.woff2"])(
+    "makes %s immutable while preserving its content and validators",
+    async (file) => {
+      const env = {
+        ASSETS: {
+          fetch: async () =>
+            new Response("asset", {
+              headers: {
+                "content-type": "application/octet-stream",
+                etag: '"hash"',
+                "cache-control": "public, max-age=0, must-revalidate",
+              },
+            }),
+        },
+      } as unknown as Parameters<typeof workerEntry.fetch>[1];
+      const response = await workerEntry.fetch(
+        new Request(`https://example.test/assets/${file}`),
+        env,
+      );
+      expect(response.headers.get("cache-control")).toBe(
+        "public, max-age=31536000, immutable",
+      );
+      expect(response.headers.get("etag")).toBe('"hash"');
+      expect(await response.text()).toBe("asset");
+    },
+  );
+  it.each([
+    ["/assets/plain.js", 200, "max-age=0"],
+    ["/assets/App-abcdefgh.js", 404, "no-store"],
+    ["/assets/App-abcdefgh.js", 500, "no-store"],
+    ["/assets/App-abcdefgh.js", 200, "private, max-age=0"],
+    ["/assets/App-abcdefgh.js", 200, "no-store"],
+  ])("preserves policy for %s / %s / %s", async (path, status, policy) => {
+    const env = {
+      ASSETS: {
+        fetch: async () =>
+          new Response("body", {
+            status,
+            headers: {
+              "content-type": "text/javascript",
+              "cache-control": policy,
+            },
+          }),
+      },
+    } as unknown as Parameters<typeof workerEntry.fetch>[1];
+    const response = await workerEntry.fetch(
+      new Request(`https://example.test${path}`),
+      env,
+    );
+    expect(response.status).toBe(status);
+    expect(response.headers.get("cache-control")).toBe(policy);
+  });
+});

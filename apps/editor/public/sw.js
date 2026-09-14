@@ -84,6 +84,19 @@ function servesWhatWasAsked(request, response) {
   return !type.includes("text/html");
 }
 
+function storeResponse(event, key, response) {
+  // Clone before respondWith hands the original body to the browser.
+  const copy = response.clone();
+  event.waitUntil(
+    caches
+      .open(CACHE)
+      .then((cache) => cache.put(key, copy))
+      .catch(() => {
+        // Quota or storage failure must not break an otherwise valid response.
+      }),
+  );
+}
+
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
 
@@ -100,9 +113,7 @@ self.addEventListener("fetch", (event) => {
       fetch(event.request)
         .then((response) => {
           if (response.ok) {
-            void caches
-              .open(CACHE)
-              .then((cache) => cache.put(scopeUrl(), response.clone()));
+            storeResponse(event, scopeUrl(), response);
           }
           return response;
         })
@@ -122,9 +133,7 @@ self.addEventListener("fetch", (event) => {
         if (cached) return cached;
         return fetch(event.request).then((response) => {
           if (response.ok && servesWhatWasAsked(event.request, response)) {
-            void caches
-              .open(CACHE)
-              .then((cache) => cache.put(event.request, response.clone()));
+            storeResponse(event, event.request, response);
           }
           return response;
         });
