@@ -30,6 +30,10 @@ import { compileSourceSimulation } from "../../packages/netlist/src/simulation-s
 import { nativeVoltageAcquisition } from "../../packages/netlist/src/simulation-native-voltage.js";
 import { nativeAcquisitionEdit } from "../../packages/netlist/src/simulation-native-save-edit.js";
 import { nativeSourceAcquisitions } from "../../packages/netlist/src/simulation-native-source-signals.js";
+import {
+  startLocalHost,
+  createLocalSimulationHandler,
+} from "../../apps/local-host/src/index.js";
 
 const roots = [];
 const servers = [];
@@ -318,7 +322,7 @@ RL (N 0) load r=1k
   });
 
   it.skipIf(!process.env.VACASK_BIN || !process.env.VACASK_MODULES)(
-    "runs public Prepare/Start with a real native process and exports the mapped result",
+    "runs public Prepare/Start through the local editor host and native process, then exports the mapped result",
     async () => {
       const project = fixture();
       const before = structuredClone(project);
@@ -359,12 +363,25 @@ RL (N 0) load r=1k
       await vi.waitFor(async () =>
         expect((await fetch(`${base}/health`)).status).toBe(200),
       );
-      // Real shared client + HTTP + process + numeric adapter; capabilities are
+      const editorRoot = await mkdtemp(
+        join(tmpdir(), "icm-native-local-editor-"),
+      );
+      roots.push(editorRoot);
+      await writeFile(
+        join(editorRoot, "index.html"),
+        "<title>Local editor transport proof</title>",
+      );
+      const local = await startLocalHost({
+        editorRoot,
+        simulationHandler: createLocalSimulationHandler(base),
+      });
+      servers.push(local.server);
+      // Real shared client + local Editor host + HTTP + process + numeric adapter; capabilities are
       // declared for this local proof, not a registered cloud qualification.
       const executor = createHostedExecutor((path, options) => {
         const body = JSON.parse(options.body);
         if (body.operation === undefined) submitted = body;
-        return fetch(new URL(path, base), options);
+        return fetch(new URL(path, local.origin), options);
       });
       executor.execute = vi.fn(executor.execute);
       const service = new SimulationService(files, executor, () => project);

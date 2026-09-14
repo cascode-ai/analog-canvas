@@ -1,6 +1,7 @@
 import { mkdtemp, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { request as httpRequest } from "node:http";
 import { describe, expect, it } from "vitest";
 import { startLocalHost, type LocalHostOptions } from "./index.js";
 
@@ -79,6 +80,71 @@ describe("optional local simulation", () => {
       },
       async () => {
         throw new Error("offline");
+      },
+    );
+  });
+  it("only forwards JSON from the exact local origin or non-browser clients", async () => {
+    let calls = 0;
+    await withHost(
+      async (origin) => {
+        for (const headers of [
+          { "content-type": "text/plain" },
+          {
+            "content-type": "application/json",
+            origin: "https://other.example",
+          },
+          { "content-type": "application/json", origin: "null" },
+        ]) {
+          const response = await fetch(origin + "/api/simulate", {
+            method: "POST",
+            headers,
+            body: "{}",
+          });
+          expect([403, 415], JSON.stringify(headers)).toContain(
+            response.status,
+          );
+        }
+        // Node fetch normalizes Host to the URL; raw HTTP is needed to exercise
+        // the DNS-rebinding authority check with the actual hostile header.
+        const reboundStatus = await new Promise<number | undefined>(
+          (resolve, reject) => {
+            const req = httpRequest(
+              origin + "/api/simulate",
+              {
+                method: "POST",
+                headers: {
+                  host: "rebound.example:4173",
+                  "content-type": "application/json",
+                },
+              },
+              (response) => {
+                response.resume();
+                response.on("end", () => resolve(response.statusCode));
+              },
+            );
+            req.on("error", reject);
+            req.end("{}");
+          },
+        );
+        expect(reboundStatus).toBe(403);
+        expect(calls).toBe(0);
+        expect(
+          (
+            await fetch(origin + "/api/simulate", {
+              method: "POST",
+              headers: { "content-type": "application/json", origin },
+              body: "{}",
+            })
+          ).status,
+        ).toBe(200);
+        expect(calls).toBe(1);
+        expect((await post(origin, {})).status).toBe(200);
+        expect(calls).toBe(2);
+        expect((await fetch(origin + "/healthz")).status).toBe(200);
+      },
+      async () => {
+        calls += 1;
+        return Response.json({ ok: true });
       },
     );
   });

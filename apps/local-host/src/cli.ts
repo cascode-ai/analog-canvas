@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { resolve } from "node:path";
 
-import { startLocalHost } from "./index.js";
+import { createLocalSimulationHandler, startLocalHost } from "./index.js";
 
 const rootArgument = process.argv.indexOf("--root");
 const editorRoot = resolve(
@@ -9,5 +9,21 @@ const editorRoot = resolve(
     ? process.argv[rootArgument + 1]!
     : "apps/editor/dist",
 );
-const running = await startLocalHost({ editorRoot, port: 4173 });
+const simulationArgument = process.argv.indexOf("--simulation-url");
+const simulationUrl =
+  simulationArgument < 0 ? undefined : process.argv[simulationArgument + 1];
+if (
+  simulationArgument >= 0 &&
+  (!simulationUrl || simulationUrl.startsWith("--"))
+)
+  throw new Error(
+    "--simulation-url requires the native executor's explicit loopback origin.",
+  );
+const running = await startLocalHost({
+  editorRoot,
+  port: 4173,
+  ...(simulationUrl
+    ? { simulationHandler: createLocalSimulationHandler(simulationUrl) }
+    : {}),
+});
 process.stdout.write(`Interactive Circuit Maker v0.6.0: ${running.origin}\n`);
