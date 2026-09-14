@@ -15367,6 +15367,30 @@
                   },
                   "showValue": {
                     "type": "boolean"
+                  },
+                  "showParameters": {
+                    "type": "object",
+                    "properties": {
+                      "k": {
+                        "type": "boolean"
+                      },
+                      "lp": {
+                        "type": "boolean"
+                      },
+                      "ls": {
+                        "type": "boolean"
+                      },
+                      "l1": {
+                        "type": "boolean"
+                      },
+                      "l2": {
+                        "type": "boolean"
+                      },
+                      "cb": {
+                        "type": "boolean"
+                      }
+                    },
+                    "additionalProperties": false
                   }
                 },
                 "required": [
