@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import {
   mkdtemp,
@@ -22,11 +21,11 @@ import { CapabilitiesSchema } from "../../packages/simulation-service/src/contra
 import { inspectNativeAnalyses } from "../../packages/simulation-service/src/native-source-analysis.js";
 import {
   createSimulationInputMetadata,
-  createSimulationEnvironmentMetadata,
   readVacaskSimulationData,
 } from "../../packages/spice-run/src/index.js";
 import { collectVacaskRawfiles } from "./rawfile-collector.mjs";
 import { runVacaskJob } from "./run-job.mjs";
+import { initializeVacaskRuntime } from "./runtime.mjs";
 import { SimulationRunSupervisor } from "../ngspice/run-supervisor.mjs";
 import { createSimulationStarter } from "../../packages/netlist/src/simulation-starter.js";
 import { compileSourceSimulation } from "../../packages/netlist/src/simulation-source-compile.js";
@@ -323,9 +322,6 @@ RL (N 0) load r=1k
       const files = new SimulationFiles();
       const binary = resolve(process.env.VACASK_BIN);
       const modules = resolve(process.env.VACASK_MODULES);
-      const binarySha256 = createHash("sha256")
-        .update(await readFile(binary))
-        .digest("hex");
       let submitted;
       const supervisor = new SimulationRunSupervisor();
       const root = await mkdtemp(join(tmpdir(), "icm-native-public-"));
@@ -333,15 +329,15 @@ RL (N 0) load r=1k
       const startup = "# public native journey controlled configuration\n";
       const startupPath = join(root, "vacaskrc.toml");
       await writeFile(startupPath, startup);
-      const environment = await createSimulationEnvironmentMetadata({
+      const runtime = await initializeVacaskRuntime({
         executor: "local-host",
-        reproducibility: "observed",
         profileId: "local-proof",
-        platform: `${process.platform}/${process.arch}`,
-        simulator: { name: "vacask", version: "0.3.4", binarySha256 },
-        models: null,
-        startupSha256: createHash("sha256").update(startup).digest("hex"),
+        binary,
+        modules,
+        startupPath,
+        runRoot: root,
       });
+      const environment = runtime.environment;
       // Test execution adapter: actual native process, not a mock of the compiler,
       // Prepare, service or numeric reader. This does NOT qualify a hosted harness.
       const executor = {
@@ -354,7 +350,7 @@ RL (N 0) load r=1k
           const started = performance.now();
           const job = await runVacaskJob(
             { ...input, timeoutMs: 15_000 },
-            { binary, modules, startupPath, runRoot: root, environment },
+            runtime,
             {
               maxInputBytes: caps.maxInputBytes,
               maxInputFiles: caps.maxInputFiles,
