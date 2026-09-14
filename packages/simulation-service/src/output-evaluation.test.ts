@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { readVacaskSimulationData } from "@icm/spice-run";
 
 import {
   evaluateSimulationOutputs,
@@ -7,6 +9,96 @@ import {
 import { SimulationOutputDataSchema } from "./contract.js";
 
 describe("simulation output evaluation", () => {
+  it("exposes native noise vectors and labels sampled integrals through the shared output contract", () => {
+    const text = readFileSync(
+      new URL(
+        "../../../netlists/vacask-resistor-noise/current_noise.raw",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+    const reading = readVacaskSimulationData(
+      [{ path: "current.raw", text }],
+      [
+        {
+          artifactPath: "current.raw",
+          plotOrdinal: 0,
+          analysis: "noise",
+          axis: "frequency",
+          outputPsd: "onoise",
+          powerGain: "gain",
+          inputQuantity: "current",
+        },
+      ],
+    );
+    if (reading.status !== "read") throw Error(JSON.stringify(reading));
+    const noise = reading.data.analyses[0]!;
+    if (noise.analysis !== "noise") throw Error("Expected Noise");
+    const data = {
+      ...reading.data,
+      analyses: [
+        {
+          ...noise,
+          probes: [
+            ...noise.probes!,
+            {
+              name: "n(r1)",
+              quantity: "notype",
+              unit: null,
+              value: Array(13).fill(0),
+            },
+          ],
+        },
+      ],
+    };
+    const result = evaluateSimulationOutputs(data, [], [], [], [], true);
+    expect(SimulationOutputDataSchema.safeParse(result).success).toBe(true);
+    const a = result.analyses[0]!;
+    expect(a.outputs.find((p) => p.id === "noise-input-density")?.unit).toBe(
+      "A/sqrt(Hz)",
+    );
+    expect(a.outputs.find((p) => p.id === "native:gain")).toMatchObject({
+      label: "gain",
+      unit: "V²/A²",
+      values: Array(13).fill(1e6),
+      semantics: { origin: "raw" },
+    });
+    expect(
+      a.outputs.filter((p) => ["native:n(R1)", "native:n(r1)"].includes(p.id)),
+    ).toHaveLength(2);
+    expect(
+      a.integrated?.every(
+        (v) =>
+          v.label.includes("sampled PSD") &&
+          v.semantics?.origin === "expression",
+      ),
+    ).toBe(true);
+    const gap = evaluateSimulationOutputs(
+      {
+        ...data,
+        analyses: [
+          {
+            ...data.analyses[0]!,
+            integratedInputNoise: undefined,
+            inputNoiseDensity: [null, ...noise.inputNoiseDensity.slice(1)],
+          },
+        ],
+      },
+      [],
+      [],
+      [],
+      [],
+      true,
+    );
+    expect(SimulationOutputDataSchema.safeParse(gap).success).toBe(true);
+    expect(gap.analyses[0]?.integrated?.map((v) => v.id)).toEqual([
+      "noise-integrated-output",
+    ]);
+    expect(
+      gap.analyses[0]?.outputs.find((v) => v.id === "noise-input-density")
+        ?.values[0],
+    ).toBeNull();
+  });
   it("resolves ngspice46 typed raw names for hierarchical device parameters", () => {
     const result = evaluateSimulationOutputs(
       {

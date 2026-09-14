@@ -2,6 +2,7 @@ import type { SimulationDiagnostic } from "./contract.js";
 import type { RawfilePlot, RawfileVector } from "./rawfile.js";
 import type {
   SimulationAnalysisResult,
+  NoiseResult,
   SimulationDataReading,
   SimulationProbe,
   SimulationResultData,
@@ -19,6 +20,13 @@ export type VacaskPlotProjection = {
   | { analysis: "dc"; axis: SimulationProbe }
   | { analysis: "ac"; axis: string }
   | { analysis: "tran"; axis: string }
+  | {
+      analysis: "noise";
+      axis: string;
+      outputPsd: string;
+      powerGain: string;
+      inputQuantity: "voltage" | "current";
+    }
 );
 
 class ProjectionFault extends Error {}
@@ -30,7 +38,7 @@ const keyOf = (path: string, ordinal: number) =>
  * Caller retains the original artifacts. No filenames, plot titles, column
  * positions or vector spellings are interpreted as acquisition semantics.
  * A readable partial result is not a successful Run: errors remain diagnostics
- * for the execution verdict. Noise and outer sweeps need explicit projections.
+ * for the execution verdict. Outer sweeps still need explicit projections.
  */
 export function readVacaskSimulationData(
   artifacts: readonly { path: string; text: string }[],
@@ -88,7 +96,12 @@ export function readVacaskSimulationData(
       let analysisIndex: number | undefined;
       if (plan) {
         try {
-          const result = projectPlot(plot, plan);
+          const result = projectPlot(plot, plan, (message) =>
+            diagnostics.push({
+              severity: "warning",
+              text: `${artifact.path} record ${artifactPlotOrdinal}: ${message}`,
+            }),
+          );
           analysisIndex = analyses.length;
           analyses.push({ ...result, rawPlotOrdinals: [ordinal] });
         } catch (error) {
@@ -140,6 +153,7 @@ export function readVacaskSimulationData(
 function projectPlot(
   plot: RawfilePlot,
   plan: VacaskPlotProjection,
+  warn: (message: string) => void,
 ): SimulationAnalysisResult {
   const variables = new Map(plot.vectors.map((v) => [v.variable.name, v]));
   const required = (name: string): RawfileVector => {
@@ -191,6 +205,73 @@ function projectPlot(
     throw new ProjectionFault(
       "The record contains an axis but no measured vectors.",
     );
+  if (plan.analysis === "noise") {
+    const psd = required(plan.outputPsd);
+    const gain = required(plan.powerGain);
+    if (new Set([axisName, plan.outputPsd, plan.powerGain]).size !== 3)
+      throw new ProjectionFault(
+        "Noise frequency, output PSD and power gain must identify different vectors.",
+      );
+    if (
+      axis.real.some((value) => value < 0) ||
+      psd.real.some((value) => value < 0)
+    )
+      throw new ProjectionFault(
+        "Noise frequency and total output PSD must be nonnegative.",
+      );
+    const inputPsd = psd.real.map((value, index) =>
+      gain.real[index]! > 0 ? value / gain.real[index]! : null,
+    );
+    const inputDensity = psd.real.map((value, index) => {
+      const result =
+        gain.real[index]! > 0
+          ? Math.sqrt(value) / Math.sqrt(gain.real[index]!)
+          : NaN;
+      return Number.isFinite(result) ? result : null;
+    });
+    if (inputDensity.some((value) => value === null))
+      warn(
+        "Input-referred noise is unavailable where power gain is nonpositive or the amplitude is non-finite. Those samples remain gaps, not zero.",
+      );
+    const integratedOutputNoise = integrateNoisePsd(axis.real, psd.real);
+    const integratedInputNoise = integrateNoisePsd(axis.real, inputPsd);
+    if (
+      integratedOutputNoise === undefined ||
+      integratedInputNoise === undefined
+    )
+      warn(
+        "One or both noise integrals are unavailable: integration requires at least two increasing frequencies and finite nonnegative PSD samples.",
+      );
+    return {
+      analysis: "noise",
+      plotName: "Noise Analysis",
+      frequencyHz: axis.real,
+      outputNoiseDensity: psd.real.map(Math.sqrt),
+      inputNoiseDensity: inputDensity,
+      ...(integratedOutputNoise === undefined ? {} : { integratedOutputNoise }),
+      ...(integratedInputNoise === undefined ? {} : { integratedInputNoise }),
+      integrationMethod: "trapezoidal-psd",
+      units: {
+        outputDensity: "V/sqrt(Hz)",
+        integratedOutput: "V",
+        inputDensity:
+          plan.inputQuantity === "voltage" ? "V/sqrt(Hz)" : "A/sqrt(Hz)",
+        integratedInput: plan.inputQuantity === "voltage" ? "V" : "A",
+      },
+      probes: probes.map((v) => ({
+        ...probeOf(v),
+        value: v.real,
+        ...(v === psd
+          ? { quantity: "voltage-noise-psd", unit: "V²/Hz" }
+          : v === gain
+            ? {
+                quantity: "noise-transfer-squared",
+                unit: plan.inputQuantity === "voltage" ? "1" : "V²/A²",
+              }
+            : {}),
+      })),
+    } satisfies NoiseResult;
+  }
   if (plan.analysis === "ac")
     return {
       analysis: "ac",
@@ -215,4 +296,26 @@ function projectPlot(
     sweep: { ...plan.axis, values: axis.real },
     probes: probes.map((v) => ({ ...probeOf(v), value: v.real })),
   };
+}
+
+/** Explicit sampled-spectrum estimate, not a simulator-reported integral.
+ * Integrate PSD (never ASD), over exactly the recorded band. Do not sort,
+ * extrapolate or bridge missing samples. A single frequency has no bandwidth. */
+function integrateNoisePsd(
+  frequency: readonly number[],
+  psd: readonly (number | null)[],
+): number | undefined {
+  if (
+    frequency.length < 2 ||
+    psd.some((v) => v === null || !Number.isFinite(v) || v < 0)
+  )
+    return undefined;
+  let integral = 0;
+  for (let i = 1; i < frequency.length; i++) {
+    const width = frequency[i]! - frequency[i - 1]!;
+    if (!(width > 0)) return undefined;
+    integral += (psd[i - 1]! / 2 + psd[i]! / 2) * width;
+    if (!Number.isFinite(integral)) return undefined;
+  }
+  return Math.sqrt(integral);
 }

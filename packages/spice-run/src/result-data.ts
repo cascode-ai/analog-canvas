@@ -115,19 +115,25 @@ export interface TransientResult extends SimulationRawPlotOrigin {
 }
 
 /**
- * A small-signal noise result, assembled from the two plots one ngspice
- * `noise` command produces. Density values are amplitudes per square-root
- * hertz, not squared power densities; the input-referred unit follows the
- * selected independent source (voltage or current).
+ * Small-signal noise, normalized to amplitude per square-root hertz. The
+ * input-referred unit follows the selected source (voltage or current).
+ * Integrals may be simulator-reported, or explicitly labelled sampled-PSD
+ * estimates. Native PSDs and contributions can coexist without replacing them.
  */
 export interface NoiseResult extends SimulationRawPlotOrigin {
   readonly analysis: "noise";
   readonly plotName: "Noise Analysis";
   readonly frequencyHz: readonly number[];
   readonly outputNoiseDensity: readonly number[];
-  readonly inputNoiseDensity: readonly number[];
-  readonly integratedOutputNoise: number;
-  readonly integratedInputNoise: number;
+  /** Null where input referral is undefined (for example, zero transfer gain). */
+  readonly inputNoiseDensity: readonly (number | null)[];
+  /** Absent when the captured spectrum cannot support a finite integral. */
+  readonly integratedOutputNoise?: number | undefined;
+  readonly integratedInputNoise?: number | undefined;
+  /** Native simulator totals have no derived integration method. */
+  readonly integrationMethod?: "trapezoidal-psd" | undefined;
+  /** Preserve native PSD, transfer and device-contribution vectors unchanged. */
+  readonly probes?: readonly DcSweepProbe[] | undefined;
   readonly units: {
     readonly outputDensity: "V/sqrt(Hz)";
     readonly inputDensity: "V/sqrt(Hz)" | "A/sqrt(Hz)";
@@ -755,27 +761,37 @@ export function simulationAnalysisToCsv(
 }
 
 function noiseRows(analysis: NoiseResult): string[][] {
+  const native = analysis.probes ?? [];
+  const integratedLabel = analysis.integrationMethod
+    ? "integrated quantity (sampled PSD, trapezoidal)"
+    : "integrated quantity";
   return [
     [
       "frequency [Hz]",
       `output noise density [${analysis.units.outputDensity}]`,
       `input noise density [${analysis.units.inputDensity}]`,
+      ...native.map((probe) => labelled(probe.name, probe.unit)),
     ],
     ...analysis.frequencyHz.map((frequency, point) => [
       csvNumber(frequency),
       cell(analysis.outputNoiseDensity, point),
       cell(analysis.inputNoiseDensity, point),
+      ...native.map((probe) => cell(probe.value, point)),
     ]),
     [],
-    ["integrated quantity", "value", "unit"],
+    [integratedLabel, "value", "unit"],
     [
       "output noise",
-      csvNumber(analysis.integratedOutputNoise),
+      analysis.integratedOutputNoise === undefined
+        ? ""
+        : csvNumber(analysis.integratedOutputNoise),
       analysis.units.integratedOutput,
     ],
     [
       "input-referred noise",
-      csvNumber(analysis.integratedInputNoise),
+      analysis.integratedInputNoise === undefined
+        ? ""
+        : csvNumber(analysis.integratedInputNoise),
       analysis.units.integratedInput,
     ],
   ];
@@ -848,7 +864,7 @@ function transientRows(analysis: TransientResult): string[][] {
  * short column cannot happen. If one ever did, an empty cell says so, where a
  * zero would not.
  */
-function cell(values: readonly number[], point: number): string {
+function cell(values: readonly (number | null)[], point: number): string {
   const value = values[point];
-  return value === undefined ? "" : csvNumber(value);
+  return value == null ? "" : csvNumber(value);
 }

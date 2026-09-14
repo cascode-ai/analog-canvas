@@ -1,0 +1,15 @@
+Analog Canvas VACASK current-referred noise qualification
+
+ground 0
+load "resistor.osdi"
+model resistance resistor noisy=1
+model current isource
+I1 (output 0) current dc=0
+R1 (output 0) resistance r=1k
+
+control
+  abort always
+  options rawfile="ascii" strictsave=2 temp=26.85
+  save default
+  analysis current_noise noise out="output" in="I1" from=10 to=10k mode="dec" points=4
+endc

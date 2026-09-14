@@ -274,6 +274,42 @@ export function evaluateSimulationOutputs(
         ? { rawPlotOrdinals: [...analysis.rawPlotOrdinals] }
         : {};
       if (analysis.analysis === "noise") {
+        const derived = analysis.integrationMethod === "trapezoidal-psd";
+        const integrated = [
+          {
+            id: "noise-integrated-output",
+            label: "Integrated output noise",
+            unit: analysis.units.integratedOutput,
+            value: analysis.integratedOutputNoise,
+          },
+          {
+            id: "noise-integrated-input",
+            label: "Integrated input-referred noise",
+            unit: analysis.units.integratedInput,
+            value: analysis.integratedInputNoise,
+          },
+        ].flatMap((item) =>
+          item.value === undefined
+            ? []
+            : [
+                {
+                  ...item,
+                  value: item.value,
+                  label: item.label + (derived ? " (sampled PSD)" : ""),
+                  ...(derived
+                    ? {
+                        semantics: {
+                          valueKind: "real" as const,
+                          quantity: "noise-rms",
+                          origin: "expression" as const,
+                          expression:
+                            "RMS from trapezoidal integration of recorded PSD samples",
+                        },
+                      }
+                    : {}),
+                },
+              ],
+        );
         return {
           analysis: "noise" as const,
           ...rawOrigin,
@@ -296,21 +332,23 @@ export function evaluateSimulationOutputs(
               unit: analysis.units.inputDensity,
               values: [...analysis.inputNoiseDensity],
             },
+            ...(includeNative
+              ? (analysis.probes ?? []).map((probe) => ({
+                  // Native VACASK names are case-sensitive. Do not collapse two
+                  // device contributions into the same output identity.
+                  id: `native:${probe.name}`,
+                  label: probe.name,
+                  unit: probe.unit ?? "",
+                  values: [...probe.value],
+                  semantics: {
+                    valueKind: "real" as const,
+                    quantity: probe.quantity,
+                    origin: "raw" as const,
+                  },
+                }))
+              : []),
           ],
-          integrated: [
-            {
-              id: "noise-integrated-output",
-              label: "Integrated output noise",
-              unit: analysis.units.integratedOutput,
-              value: analysis.integratedOutputNoise,
-            },
-            {
-              id: "noise-integrated-input",
-              label: "Integrated input-referred noise",
-              unit: analysis.units.integratedInput,
-              value: analysis.integratedInputNoise,
-            },
-          ],
+          integrated,
         };
       }
       const acquisitions = sourceSeries(analysis, vectors, declarations);

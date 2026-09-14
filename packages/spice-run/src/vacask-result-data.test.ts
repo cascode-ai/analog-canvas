@@ -282,7 +282,7 @@ describe("native numerical result projection", () => {
     );
   });
 
-  it("does not fabricate a noise integral to satisfy the old result shape", () => {
+  it("does not assign noise semantics without an explicit projection", () => {
     const result = read(
       [
         { path: "op.raw", text: op },

@@ -11,8 +11,8 @@ function displayNumber(value: number): string {
 
 /**
  * Noise owns both spectral curves and integrated scalars. Keep them together
- * in one result surface so the two ngspice plots never leak into the UI as
- * unrelated analyses.
+ * in one result surface. Missing integrals remain absent; derived-integral
+ * labels come from the shared result service, also consumed by MCP.
  */
 export function NoiseResultsExplorer({
   analysis,
@@ -42,7 +42,7 @@ export function NoiseResultsExplorer({
             id: output.id,
             label: output.label,
             colorIndex,
-            quantity: "noise-density",
+            quantity: output.semantics?.quantity ?? "noise-density",
             unit,
             values: output.values.map((value) => value ?? Number.NaN),
           }))}

@@ -93,9 +93,18 @@ const SimulationAnalysisResultSchema = z.discriminatedUnion("analysis", [
     plotName: z.literal("Noise Analysis"),
     frequencyHz: z.array(z.number()),
     outputNoiseDensity: z.array(z.number()),
-    inputNoiseDensity: z.array(z.number()),
-    integratedOutputNoise: z.number(),
-    integratedInputNoise: z.number(),
+    inputNoiseDensity: z.array(z.number().finite().nullable()),
+    integratedOutputNoise: z.number().finite().optional(),
+    integratedInputNoise: z.number().finite().optional(),
+    integrationMethod: z.literal("trapezoidal-psd").optional(),
+    probes: z
+      .array(
+        z.strictObject({
+          ...SimulationProbeShape,
+          value: z.array(z.number().finite()),
+        }),
+      )
+      .optional(),
     units: z.strictObject({
       outputDensity: z.literal("V/sqrt(Hz)"),
       inputDensity: z.enum(["V/sqrt(Hz)", "A/sqrt(Hz)"]),
