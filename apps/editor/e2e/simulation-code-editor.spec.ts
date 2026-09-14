@@ -1,12 +1,40 @@
 import { expect, test } from "@playwright/test";
 
+test("source Helper writes native model and instance skeletons with no electrical defaults", async ({
+  page,
+}) => {
+  const editor = page.getByRole("textbox", {
+    name: "Simulation source editor",
+  });
+  await editor.fill("Native source helper\n");
+  await page.getByRole("button", { name: "Helper", exact: true }).click();
+  await page
+    .getByRole("textbox", { name: "Search commands or purpose" })
+    .fill("voltage source");
+  await page.getByRole("option").click();
+  await expect(page.getByTestId("draft-source")).toHaveText(
+    JSON.stringify(
+      "Native source helper\r\nmodel __vsource1 vsource\r\nV1 () __vsource1 dc=",
+    ),
+  );
+  await page.keyboard.insertText("in 0");
+  await page.keyboard.press("End");
+  await page.keyboard.insertText("1.8");
+  await page.keyboard.press("ControlOrMeta+s");
+  await expect(page.getByTestId("saved-source")).toHaveText(
+    JSON.stringify(
+      "Native source helper\r\nmodel __vsource1 vsource\r\nV1 (in 0) __vsource1 dc=1.8",
+    ),
+  );
+});
+
 test("native save result focuses its captured Canvas address after code preview ends", async ({
   page,
 }) => {
   const editor = page.getByRole("textbox", {
     name: "Simulation source editor",
   });
-  await editor.fill("* test\n.control\nsave v(out)");
+  await editor.fill("* test\ncontrol\nsave v(out)");
   await page.keyboard.press("End");
   await page.keyboard.press("ArrowLeft");
   await expect(page.locator("body")).toHaveAttribute(
@@ -36,14 +64,14 @@ test("native save and dc arguments open automatically and preview their Canvas t
   const editor = page.getByRole("textbox", {
     name: "Simulation source editor",
   });
-  await editor.fill("* test\n.control\nsave");
+  await editor.fill("* test\ncontrol\nsave");
   await page.keyboard.press("End");
   await page.keyboard.type(" ");
-  const output = page.getByRole("option").filter({ hasText: "v(out)" });
+  const output = page.getByRole("option").filter({
+    has: page.locator(".cm-completionLabel", { hasText: /^v\(out\)$/ }),
+  });
   await expect(output).toBeVisible();
-  await expect(
-    page.getByRole("option").filter({ hasText: /v\(out\)/i }),
-  ).toHaveCount(1);
+  await expect(output).toHaveCount(1);
   // CodeMirror deliberately ignores completion navigation for 75ms after
   // opening. Visibility alone does not mean keyboard navigation is armed.
   // Exercise the post-open interaction, preserving the library's safety delay.
@@ -65,7 +93,7 @@ test("native save and dc arguments open automatically and preview their Canvas t
   );
   await page.keyboard.press("Escape");
   await expect(page.locator("body")).toHaveAttribute("data-focused-signal", "");
-  await editor.fill("* test\n.control\nsave v(out)");
+  await editor.fill("* test\ncontrol\nsave v(out)");
   await page.keyboard.press("End");
   await page.keyboard.press("ArrowLeft");
   await expect(page.locator("body")).toHaveAttribute(
@@ -74,7 +102,7 @@ test("native save and dc arguments open automatically and preview their Canvas t
   );
   await editor.blur();
   await expect(page.locator("body")).toHaveAttribute("data-focused-signal", "");
-  await editor.fill("* test\n.control\ndc");
+  await editor.fill("* test\ncontrol\nsweep bias instance=");
   await page.keyboard.press("End");
   await page.keyboard.type(" ");
   await expect(
@@ -88,28 +116,30 @@ test("flat Helper finds an analysis by purpose and ghost arguments never enter s
   const editor = page.getByRole("textbox", {
     name: "Simulation source editor",
   });
-  await editor.fill("* test\n.control\n");
+  await editor.fill("* test\ncontrol\n");
   await page.getByRole("button", { name: "Helper", exact: true }).click();
   await page
     .getByRole("textbox", { name: "Search commands or purpose" })
     .fill("频响");
   await page.getByRole("option").click();
   await expect(page.locator(".simulation-parameter-ghost")).toContainText(
-    "dec|oct|lin",
+    "from=start Hz",
   );
   await expect(page.getByTestId("draft-source")).toHaveText(
-    JSON.stringify("* test\r\n.control\r\nac "),
+    JSON.stringify("* test\r\ncontrol\r\nanalysis ac1 ac "),
   );
-  await page.keyboard.insertText("dec");
+  await page.keyboard.insertText("from=10");
   await page.keyboard.press("Tab");
-  await page.keyboard.insertText("20");
+  await page.keyboard.insertText("to=1M");
   await page.keyboard.press("Tab");
-  await page.keyboard.insertText("10");
+  await page.keyboard.insertText('mode="dec"');
   await page.keyboard.press("Tab");
-  await page.keyboard.insertText("1G");
+  await page.keyboard.insertText("points=20");
   await page.keyboard.press("ControlOrMeta+s");
   await expect(page.getByTestId("saved-source")).toHaveText(
-    JSON.stringify("* test\r\n.control\r\nac dec 20 10 1G"),
+    JSON.stringify(
+      '* test\r\ncontrol\r\nanalysis ac1 ac from=10 to=1M mode="dec" points=20',
+    ),
   );
 });
 
@@ -119,7 +149,7 @@ test("unknown input offers explicit help and Escape suppresses parameter ghosts"
   const editor = page.getByRole("textbox", {
     name: "Simulation source editor",
   });
-  await editor.fill("* test\n.control\n频响");
+  await editor.fill("* test\ncontrol\n频响");
   await expect(
     page.getByRole("button", { name: "Find a helper…" }),
   ).toBeVisible();
@@ -128,7 +158,7 @@ test("unknown input offers explicit help and Escape suppresses parameter ghosts"
     page.getByRole("dialog", { name: "Insert / Helper" }),
   ).toBeVisible();
   await page.keyboard.press("Escape");
-  await editor.fill("* test\n.control\nac ");
+  await editor.fill("* test\ncontrol\nanalysis ac1 ac ");
   await expect(page.locator(".simulation-parameter-ghost")).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(page.locator(".simulation-parameter-ghost")).toHaveCount(0);
@@ -208,9 +238,9 @@ test("edits, saves and undoes exact source bytes while keeping a save boundary a
   );
   await editor.click();
   await page.keyboard.press("ControlOrMeta+End");
-  await page.keyboard.insertText("* edited");
+  await page.keyboard.insertText("// edited");
   await expect(page.getByTestId("draft-source")).toHaveText(
-    JSON.stringify(original + "* edited"),
+    JSON.stringify(original + "// edited"),
   );
   await page.keyboard.press("ControlOrMeta+z");
   await expect(page.getByTestId("draft-source")).toHaveText(
@@ -221,15 +251,15 @@ test("edits, saves and undoes exact source bytes while keeping a save boundary a
   );
   await page.keyboard.press(redoShortcut);
   await expect(page.getByTestId("draft-source")).toHaveText(
-    JSON.stringify(original + "* edited"),
+    JSON.stringify(original + "// edited"),
   );
   await page.keyboard.press("ControlOrMeta+s");
   await expect(page.getByTestId("saved-source")).toHaveText(
-    JSON.stringify(original + "* edited"),
+    JSON.stringify(original + "// edited"),
   );
   await page.keyboard.press("ControlOrMeta+z");
   await expect(page.getByTestId("draft-source")).toHaveText(
-    JSON.stringify(original + "* edited"),
+    JSON.stringify(original + "// edited"),
   );
   await page.getByRole("tab", { name: /circuit.spice/ }).click();
   await expect(editor).toHaveAttribute("contenteditable", "false");
@@ -241,11 +271,13 @@ test("invalid text stays editable and saveable and known command errors are inli
   const editor = page.getByRole("textbox", {
     name: "Simulation source editor",
   });
-  await editor.fill("* test\n.control\ntran\n.endc\n.end\n");
+  await editor.fill("* test\ncontrol\nanalysis\nendc\n");
   await expect(page.locator(".cm-lintRange-error")).toHaveCount(1);
   await page.getByRole("button", { name: "Save source" }).click();
-  await expect(page.getByTestId("saved-source")).toContainText("tran");
-  await editor.fill("* test\n.control\ntran 1n 10u\n.endc\n.end\n");
+  await expect(page.getByTestId("saved-source")).toContainText("analysis");
+  await editor.fill(
+    "* test\ncontrol\nanalysis response tran step=1n stop=10u\nendc\n",
+  );
   await expect(page.locator(".cm-lintRange-error")).toHaveCount(0);
 });
 
@@ -270,7 +302,7 @@ test("file switching preserves caret, selection, scroll and local Undo history",
   });
   const long =
     "* file navigation\n" +
-    Array.from({ length: 90 }, (_, i) => `* line ${i}\n`).join("");
+    Array.from({ length: 90 }, (_, i) => `// line ${i}\n`).join("");
   await editor.fill(long);
   const beforeEdit = (await page.getByTestId("draft-source").textContent())!;
   // Seed a committed file so Undo checks the later edit, independently of
@@ -281,7 +313,7 @@ test("file switching preserves caret, selection, scroll and local Undo history",
   await page.keyboard.press(
     process.platform === "darwin" ? "Meta+ArrowDown" : "Control+End",
   );
-  await page.keyboard.insertText("* preserve this selection");
+  await page.keyboard.insertText("// preserve this selection");
   await page.keyboard.press("Control+Shift+ArrowLeft");
   const position = await page.getByTestId("source-cursor").textContent();
   const selection = await page.evaluate(() =>

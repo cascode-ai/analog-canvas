@@ -51,10 +51,10 @@ import { linter, lintGutter, type Diagnostic } from "@codemirror/lint";
 import { searchKeymap } from "@codemirror/search";
 import type { SimulationSourceDiagnostic } from "@icm/netlist";
 import {
-  spiceCodeLanguage,
-  spiceCompletion,
-  spiceHoverHelp,
-} from "./code-spice-language";
+  nativeCodeLanguage,
+  nativeCompletion,
+  nativeHoverHelp,
+} from "./code-native-language";
 import {
   editorOffset,
   editorText,
@@ -68,15 +68,17 @@ import {
 } from "./code-source-state";
 import {
   controlContext,
-  insertSpiceHelp,
-  spiceParameterGuide,
+  insertNativeHelp,
+  nativeParameterGuide,
   dismissParameterGuide,
-  dismissSpiceGuide,
+  dismissNativeGuide,
   parameterGuide,
+  nativeEntry,
+  nativeCompanions,
 } from "./code-parameter-guide";
 import { CodeHelperList, type CodeHelperAction } from "./code-helper-list";
 import {
-  inspectVacaskSource,
+  inspectNativeLanguage,
   nativeAcquisitionEdit,
   nativeParameterDeclarationEdit,
 } from "@icm/netlist";
@@ -86,7 +88,7 @@ export interface SimulationCodeEditorProps {
   text: string;
   /** A committed revision/history boundary. Do not change this while typing a local draft. */
   historyKey: string;
-  mode?: "spice" | "json";
+  mode?: "native" | "json";
   entry?: boolean;
   readOnly?: boolean;
   diagnostics?: readonly SimulationSourceDiagnostic[] | undefined;
@@ -158,6 +160,7 @@ export default function SimulationCodeEditor(props: SimulationCodeEditorProps) {
   );
   const configuration = useRef(new Compartment());
   const extensions = () => sourceExtensions(callbacks, exact);
+  const companionIdentity = JSON.stringify(props.relatedSources);
 
   useLayoutEffect(() => {
     if (!parent.current) return;
@@ -267,7 +270,7 @@ export default function SimulationCodeEditor(props: SimulationCodeEditorProps) {
               const word = line.text.trim();
               setUnknownCommand(
                 /^[\p{L}]{2,}$/u.test(word) &&
-                  !spiceCompletion(
+                  !nativeCompletion(
                     new CompletionContext(
                       update.state,
                       update.state.selection.main.head,
@@ -376,6 +379,7 @@ export default function SimulationCodeEditor(props: SimulationCodeEditorProps) {
     props.readOnly,
     props.generated,
     props.diagnostics,
+    companionIdentity,
   ]);
 
   useEffect(() => {
@@ -507,12 +511,13 @@ export default function SimulationCodeEditor(props: SimulationCodeEditorProps) {
       {props.helperContent ??
         (helperOpen && (
           <CodeHelperList
-            language={props.mode ?? "spice"}
+            language={props.mode ?? "native"}
             control={controlContext(
               view.current?.state.doc.sliceString(
                 0,
                 view.current.state.selection.main.head,
               ) ?? "",
+              !!props.entry,
             )}
             actions={props.helperActions}
             onClose={(restoreFocus = true) => {
@@ -529,27 +534,15 @@ export default function SimulationCodeEditor(props: SimulationCodeEditorProps) {
               const line = editor.state.doc.lineAt(
                 editor.state.selection.main.head,
               );
-              if (
-                /^(PULSE|SIN|PWL)$/u.test(rule.name) &&
-                /^[VI]\S*\s/iu.test(line.text.trim())
-              ) {
-                insertSpiceHelp(
-                  editor,
-                  rule,
-                  editor.state.selection.main.from,
-                  editor.state.selection.main.to,
-                );
-                return;
-              }
               // Replace an unfinished command only. Existing populated code is preserved.
               if (/^\s*[.\p{L}\w]*$/u.test(line.text))
-                insertSpiceHelp(editor, rule);
+                insertNativeHelp(editor, rule);
               else {
                 editor.dispatch({
                   changes: { from: line.to, insert: "\n" },
                   selection: { anchor: line.to + 1 },
                 });
-                insertSpiceHelp(editor, rule);
+                insertNativeHelp(editor, rule);
               }
             }}
           />
@@ -568,7 +561,7 @@ export default function SimulationCodeEditor(props: SimulationCodeEditorProps) {
             event.key === "Escape" &&
             props.mode !== "json" &&
             view.current &&
-            dismissSpiceGuide(view.current)
+            dismissNativeGuide(view.current)
           ) {
             event.preventDefault();
             event.stopPropagation();
@@ -597,7 +590,7 @@ export default function SimulationCodeEditor(props: SimulationCodeEditorProps) {
           const prefix = line.text.trim().toLowerCase();
           if (
             /^[.\p{L}\w]+$/u.test(prefix) &&
-            !spiceCompletion(
+            !nativeCompletion(
               new CompletionContext(
                 editor.state,
                 editor.state.selection.main.head,
@@ -625,12 +618,14 @@ function sourceExtensions(
     props.mode === "json"
       ? [json()]
       : [
-          spiceCodeLanguage,
-          spiceParameterGuide,
+          nativeEntry.of(!!props.entry),
+          nativeCompanions.of(props.relatedSources ?? []),
+          nativeCodeLanguage,
+          nativeParameterGuide,
           autocompletion({
             override: [
               (context) =>
-                spiceCompletion(
+                nativeCompletion(
                   context,
                   callbacks.current.relatedSources,
                   callbacks.current.signalNames,
@@ -651,7 +646,11 @@ function sourceExtensions(
             if (!selected && update.selectionSet) {
               const cursor = update.state.selection.main.head;
               const line = update.state.doc.lineAt(cursor);
-              const vector = [...line.text.matchAll(/\bv\([^\s)]+\)/giu)].find(
+              const vector = [
+                ...line.text.matchAll(
+                  /\bd?v\((?:'[^']*(?:''[^']*)*'|[^\s)]+)\)/gu,
+                ),
+              ].find(
                 (match) =>
                   line.from + match.index <= cursor &&
                   cursor <= line.from + match.index + match[0].length,
@@ -682,7 +681,7 @@ function sourceExtensions(
               },
             };
           }),
-          spiceHoverHelp,
+          nativeHoverHelp,
         ];
   return [
     ...language,
@@ -695,7 +694,7 @@ function sourceExtensions(
         const local =
           current.mode === "json"
             ? []
-            : inspectVacaskSource(current.path, text, current.entry)
+            : inspectNativeLanguage(current.path, text, current.entry)
                 .diagnostics;
         const diagnostics: Diagnostic[] = (
           current.mode === "json" ? jsonParseLinter()(editor) : []

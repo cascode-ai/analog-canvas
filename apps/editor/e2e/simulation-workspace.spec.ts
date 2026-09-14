@@ -17,6 +17,7 @@ import {
   generateCircuitSource,
   simulationSignals,
   nativeSimulationDevices,
+  vacaskIdentifier,
 } from "@icm/netlist";
 
 import {
@@ -901,14 +902,21 @@ test("native save completion previews its mapped Net on the real Canvas", async 
   const source = folder.input.files.find(
     (file) => file.path === folder.input.entry,
   )!.text;
-  await editor.fill(`${source.slice(0, source.indexOf(".endc"))}save`);
+  await editor.fill(`${source.slice(0, source.indexOf("endc"))}save`);
   await expect(page.locator(".simulation-code-status")).toHaveCount(0);
   await expect(
     page.getByRole("button", { name: "Save source", exact: true }),
   ).toBeEnabled();
   await expect(page.getByRole("tab", { name: /run\.cir/ })).toContainText("●");
   await page.keyboard.type(" ");
-  const option = page.getByRole("option").filter({ hasText: vector });
+  const selector = `v(${vacaskIdentifier(vector)})`;
+  const option = page.getByRole("option").filter({
+    has: page.locator(".cm-completionLabel").filter({
+      hasText: new RegExp(
+        `^${selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`,
+      ),
+    }),
+  });
   await expect(option).toBeVisible();
   await option.hover();
   await expect(page.getByTestId("net-highlight-overlay")).toHaveAttribute(

@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { SimulationLanguageHelp } from "@icm/spice";
-import { editorLanguageHelp } from "./code-parameter-guide";
+import { nativeLanguageHelp, type NativeLanguageHelp } from "@icm/netlist";
 
 export interface CodeHelperAction {
   id: string;
@@ -10,15 +9,15 @@ export interface CodeHelperAction {
 }
 export function CodeHelperList({
   control,
-  language = "spice",
+  language = "native",
   actions = [],
   onChoose,
   onClose,
 }: {
   control: boolean;
-  language?: "spice" | "json";
+  language?: "native" | "json";
   actions?: readonly CodeHelperAction[] | undefined;
-  onChoose(rule: SimulationLanguageHelp): void;
+  onChoose(rule: NativeLanguageHelp): void;
   onClose(restoreFocus?: boolean): void;
 }) {
   const [query, setQuery] = useState("");
@@ -27,11 +26,10 @@ export function CodeHelperList({
   const terms = query.trim().toLowerCase().split(/\s+/u);
   const matches = (text: string) =>
     terms.every((term) => text.toLowerCase().includes(term));
-  const rules = editorLanguageHelp
-    .filter(() => language === "spice")
-    .filter((rule) => rule.context === (control ? "control" : "deck"))
-    .filter((rule) => matches(`${rule.name} ${rule.summary} ${rule.keywords}`))
-    .toSorted((a, b) => (a.priority ?? 90) - (b.priority ?? 90));
+  const rules = nativeLanguageHelp
+    .filter(() => language === "native")
+    .filter((rule) => rule.context === (control ? "control" : "circuit"))
+    .filter((rule) => matches(`${rule.name} ${rule.summary} ${rule.keywords}`));
   const entries = [
     ...actions
       .filter((action) => matches(`${action.label} ${action.keywords}`))
@@ -130,7 +128,7 @@ export function CodeHelperList({
           </div>
         ))}
         {!entries.length && (
-          <p>No matching helper. You can keep writing native SPICE.</p>
+          <p>No matching helper. You can keep writing native VACASK.</p>
         )}
       </div>
     </div>

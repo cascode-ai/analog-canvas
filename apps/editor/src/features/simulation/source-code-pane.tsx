@@ -30,6 +30,8 @@ import {
   nativeSimulationDevices,
   nativeTerminalCurrent,
   migrateSimulationConfigToNative,
+  vacaskIdentifier,
+  nativeVoltageSelectorNode,
 } from "@icm/netlist";
 import type { SimulationFiles } from "@icm/simulation-service/files";
 import { sha256 } from "@icm/simulation-service/files";
@@ -1279,16 +1281,15 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
           signalNames={() =>
             Object.fromEntries(
               Object.entries(signals).map(([vector, signal]) => [
-                vector,
+                `v(${vacaskIdentifier(vector)})`,
                 signal.label,
               ]),
             )
           }
           onFocusSignal={(vector) => {
+            const node = vector ? nativeVoltageSelectorNode(vector) : undefined;
             props.onPreviewSignal?.(
-              vector
-                ? (signals[vector.toLowerCase()]?.targets[0] ?? null)
-                : null,
+              node ? (signals[node]?.targets[0] ?? null) : null,
             );
           }}
           saveRequest={saveRequest}
@@ -1402,7 +1403,7 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
           path={path}
           text={text}
           historyKey={`${props.folder.id}:${buffer?.committed ?? props.project.structureRevision}`}
-          mode={path.endsWith(".json") ? "json" : "spice"}
+          mode={path.endsWith(".json") ? "json" : "native"}
           entry={path === input.entry}
           generated={Boolean(originalGenerated)}
           validateText={(text) => {

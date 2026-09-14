@@ -24,6 +24,7 @@ export interface VacaskSourceStatement {
 export function inspectVacaskSource(path: string, text: string, entry = false) {
   const statements: VacaskSourceStatement[] = [];
   const diagnostics: SimulationSourceDiagnostic[] = [];
+  const comments: { start: number; end: number }[] = [];
   const starts = [0];
   for (let i = 0; i < text.length; i++)
     if (text[i] === "\n") starts.push(i + 1);
@@ -89,11 +90,13 @@ export function inspectVacaskSource(path: string, text: string, entry = false) {
     }
     if (text.startsWith("//", cursor)) {
       const end = text.indexOf("\n", cursor);
+      comments.push({ start: cursor, end: end < 0 ? text.length : end });
       cursor = end < 0 ? text.length : end;
       continue;
     }
     if (text.startsWith("/*", cursor)) {
       const end = text.indexOf("*/", cursor + 2);
+      comments.push({ start: cursor, end: end < 0 ? text.length : end + 2 });
       if (end < 0) {
         fail("Unterminated block comment");
         cursor = text.length;
@@ -212,7 +215,7 @@ export function inspectVacaskSource(path: string, text: string, entry = false) {
   }
   if (brackets.length) fail("Unterminated bracketed statement");
   flush();
-  return { statements, diagnostics };
+  return { statements, diagnostics, comments };
 }
 
 /** Native includes use the same ownership graph as the existing compiler.

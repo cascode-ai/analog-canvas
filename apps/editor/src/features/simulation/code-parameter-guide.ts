@@ -1,195 +1,134 @@
 import {
-  lookupSimulationHelp,
-  simulationLanguageHelp,
-  type SimulationLanguageHelp,
-} from "@icm/spice";
-import { inspectVacaskSource } from "@icm/netlist";
-import { StateEffect, StateField, type EditorState } from "@codemirror/state";
+  inspectVacaskSource,
+  nativeArgumentFields,
+  nativeControlContext,
+  lookupNativeHelp,
+  nativeSourceHints,
+  nativeLanguageSymbols,
+  nativeHelpInsertion,
+  type NativeLanguageHelp,
+  type NativeParameterHint,
+} from "@icm/netlist";
+import {
+  Facet,
+  StateEffect,
+  StateField,
+  type EditorState,
+} from "@codemirror/state";
 import { Decoration, EditorView, WidgetType, keymap } from "@codemirror/view";
 import { closeCompletion } from "@codemirror/autocomplete";
 
 export const dismissParameterGuide = StateEffect.define<boolean>();
-export const nativeParameterHelp: SimulationLanguageHelp = {
-  name: "parameters",
-  context: "deck",
-  signature: "parameters name=expression ...",
-  summary:
-    "Declare circuit parameters in native VACASK source. Names and scale suffixes are case-sensitive; M means mega, m means milli.",
-  section: "cir-elaboration",
-  group: "Parameters",
-  keywords: "design variable parameter 参数 变量",
-  priority: 5,
-  parameters: [{ label: "name=expression", repeat: true }],
-};
-// The declaration surface has migrated; the remaining command families have
-// separate native-language work remaining. Never offer the retired .param.
-export const editorLanguageHelp = [
-  ...simulationLanguageHelp.filter((rule) => rule.name !== ".param"),
-  nativeParameterHelp,
-];
-export function controlContext(text: string): boolean {
-  return (
-    [...text.matchAll(/^\s*\.(control|endc)\b/gimu)]
-      .at(-1)?.[1]
-      ?.toLowerCase() === "control"
-  );
-}
+export const nativeEntry = Facet.define<boolean, boolean>({
+  combine: (values) => values[0] ?? true,
+});
+export const nativeCompanions = Facet.define<
+  readonly string[],
+  readonly string[]
+>({ combine: (values) => values[0] ?? [] });
+export const controlContext = nativeControlContext;
 
 export function parameterGuide(state: EditorState) {
   const cursor = state.selection.main.head;
-  let line = state.doc.lineAt(cursor);
-  if (/^\s*(?:\*|;)/u.test(line.text)) return null;
-  const head = /^\s*([.\w]+)(\s*)/u.exec(line.text);
-  if (!head) return null;
-  if (head[1] === "parameters") {
-    const lexical =
-      inspectVacaskSource("line", line.text).statements[0]?.tokens ?? [];
-    const starts: number[] = [];
-    let depth = 0;
-    for (let i = 1; i < lexical.length; i++) {
-      const token = lexical[i]!;
-      if (!depth && token.kind === "word" && lexical[i + 1]?.value === "=")
-        starts.push(token.start);
-      if (token.kind === "symbol") {
-        if (["(", "[", "{"].includes(token.value)) depth++;
-        if ([")", "]", "}"].includes(token.value)) depth--;
-      }
-    }
-    if (!starts.length && lexical[1]) starts.push(lexical[1].start);
-    const end = lexical.at(-1)?.end ?? head[0].length;
-    const tokens = starts.map((start, i) => {
-      const value = line.text.slice(start, starts[i + 1] ?? end).trimEnd();
-      return {
-        from: line.from + start,
-        to: line.from + start + value.length,
-        value,
-      };
-    });
-    const active = tokens.findIndex(
-      (token) => cursor >= token.from && cursor <= token.to,
-    );
-    return {
-      line,
-      help: nativeParameterHelp,
-      tokens,
-      index: active < 0 ? tokens.length : active,
-      parameters: Array.from(
-        { length: tokens.length + 1 },
-        (): NonNullable<SimulationLanguageHelp["parameters"]>[number] => ({
-          label: "name=expression",
-          repeat: true,
-        }),
-      ),
-    };
-  }
-  const context = controlContext(state.doc.sliceString(0, line.from))
-    ? "control"
-    : "deck";
-  const waveform = /\b(PULSE|SIN|PWL)\s*\(/iu.exec(line.text);
-  const waveEnd = waveform
-    ? line.text.indexOf(")", waveform.index + waveform[0].length)
-    : -1;
-  const inWaveform =
-    waveform &&
-    cursor >= line.from + waveform.index + waveform[0].length &&
-    (waveEnd < 0 || cursor <= line.from + waveEnd);
-  const help =
-    (inWaveform ? lookupSimulationHelp(waveform[1]!, "deck") : undefined) ??
-    lookupSimulationHelp(head[1]!, context) ??
-    (context === "deck"
-      ? lookupSimulationHelp(head[1]![0]!, context)
-      : undefined);
-  if (!help?.parameters?.length || cursor < line.from + head[1]!.length)
+  const text = state.doc.toString();
+  const parsed = inspectVacaskSource("editor", text, state.facet(nativeEntry));
+  if (parsed.comments.some((c) => cursor >= c.start && cursor <= c.end))
     return null;
-  // Balanced vectors/expressions and quoted paths form a single argument.
-  const tokens: { from: number; to: number; value: string }[] = [];
-  let start = -1,
-    depth = 0,
-    quote = "";
-  const bodyStart = inWaveform
-    ? waveform.index + waveform[0].length
-    : head[0].length;
-  if (inWaveform && waveEnd >= 0)
-    line = {
-      ...line,
-      text: line.text.slice(0, waveEnd),
-      to: line.from + waveEnd,
-      length: waveEnd,
+  const line = state.doc.lineAt(cursor);
+  const statement = parsed.statements.find(
+    (s) =>
+      s.sourceRef.start.offset <= cursor &&
+      (s.sourceRef.end.offset >= cursor ||
+        s.sourceRef.end.line === line.number),
+  );
+  if (!statement) return null;
+  const fields = nativeArgumentFields(text, statement.tokens);
+  const head = fields[0]?.value;
+  const context = nativeControlContext(
+    text.slice(0, statement.sourceRef.start.offset),
+    state.facet(nativeEntry),
+  )
+    ? "control"
+    : "circuit";
+  let help = head ? lookupNativeHelp(head, context) : undefined;
+  let hints: readonly NativeParameterHint[] = help?.parameters ?? [];
+  let tokens = fields.slice(1);
+  if (head === "analysis" && context === "control" && fields[2]) {
+    const specific = lookupNativeHelp(`analysis ${fields[2].value}`, context);
+    if (specific) {
+      help = specific;
+      hints = [
+        { label: "name" },
+        { label: "type", choices: ["op", "ac", "tran", "noise"] },
+        ...(specific.parameters ?? []),
+      ];
+    }
+  } else if (
+    !help &&
+    context === "circuit" &&
+    statement.tokens[1]?.value === "("
+  ) {
+    const symbols = nativeLanguageSymbols([
+      { text, entry: state.facet(nativeEntry) },
+      ...state.facet(nativeCompanions).map((text) => ({ text, entry: false })),
+    ]);
+    const module = symbols.models.get(fields[2]?.value ?? "");
+    const type = fields
+      .find((f) => /^type\s*=/u.test(f.value))
+      ?.value.split("=")[1]
+      ?.trim()
+      .replace(/^"|"$/gu, "");
+    hints = [
+      { label: "(ordered nodes)" },
+      { label: "master" },
+      ...nativeSourceHints(module, type),
+    ];
+    help = {
+      name: head!,
+      context,
+      signature: "name (nodes) master name=value ...",
+      summary:
+        "Instance node order comes from its master. Source AC uses mag/phase alongside its selected transient type.",
+      section: "cir-instance",
+      group: "Sources & loads",
+      parameters: hints,
     };
-  for (let i = bodyStart; i <= line.text.length; i++) {
-    const char = line.text[i] ?? " ";
-    if (start < 0 && /\s/u.test(char)) continue;
-    if (start < 0) start = i;
-    if (quote) {
-      if (char === quote && line.text[i - 1] !== "\\") quote = "";
-    } else if (char === '"' || char === "'") quote = char;
-    else if (char === "(" || char === "{") depth++;
-    else if (char === ")" || char === "}") depth--;
-    if (/\s/u.test(char) && !quote && depth <= 0) {
-      tokens.push({
-        from: line.from + start,
-        to: line.from + i,
-        value: line.text.slice(start, i),
-      });
-      start = -1;
-    }
   }
-  const active = tokens.findIndex(
-    (token) => cursor >= token.from && cursor <= token.to,
+  if (!help || !hints.length) return null;
+  const positional = hints.filter((h) => !h.key && !h.repeat);
+  const repeating = hints.find((h) => h.repeat);
+  const used = new Set<string>();
+  const parameters: NativeParameterHint[] = tokens.map((token, i) => {
+    if (i < positional.length) return positional[i]!;
+    const key = /^([^=\s]+)\s*=/u.exec(token.value)?.[1];
+    if (key) used.add(key);
+    return (
+      hints.find((h) => h.key === key && h.key !== undefined) ??
+      repeating ?? { label: "name=value" }
+    );
+  });
+  parameters.push(
+    ...positional.slice(tokens.length),
+    ...hints.filter((h) => h.key && !used.has(h.key)),
   );
-  const index = active >= 0 ? active : tokens.length;
-  let parameters = help.parameters.map((p, i) =>
-    help.name.replace(/^\./u, "") === "ac" && i === 1
-      ? {
-          ...p,
-          label:
-            tokens[0]?.value.toLowerCase() === "dec"
-              ? "points / decade"
-              : tokens[0]?.value.toLowerCase() === "oct"
-                ? "points / octave"
-                : tokens[0]?.value.toLowerCase() === "lin"
-                  ? "points (total)"
-                  : "points",
-        }
-      : p,
-  );
-  if (/^[VI]$/u.test(help.name) && tokens[2]) {
-    parameters = parameters.slice(0, 2);
-    let ac = false,
-      waveform = false;
-    const clause = (value: string | undefined) =>
-      /^(?:DC|AC|PULSE|SIN|PWL)(?:\(|$)/iu.test(value ?? "");
-    for (let i = 2; i < tokens.length; i++) {
-      const value = tokens[i]!.value.toUpperCase();
-      if (value === "DC") {
-        parameters.push({ label: "DC" }, { label: "DC value" });
-        i++;
-      } else if (value === "AC") {
-        ac = true;
-        parameters.push({ label: "AC" }, { label: "magnitude" });
-        i++;
-        if (!clause(tokens[i + 1]?.value)) {
-          parameters.push({ label: "phase / deg", optional: true });
-          if (tokens[i + 1]) i++;
-        }
-      } else if (/^(PULSE|SIN|PWL)\(/u.test(value)) {
-        waveform = true;
-        parameters.push({ label: "transient waveform" });
-      } else parameters.push({ label: i === 2 ? "DC value" : "excitation" });
-    }
-    if (!ac)
-      parameters.push({ label: "AC magnitude [phase / deg]", optional: true });
-    if (!waveform)
-      parameters.push({
-        label: "PULSE(...) | SIN(...) | PWL(...)",
-        optional: true,
-      });
-  }
-  const repeated = parameters.at(-1);
-  if (repeated?.repeat) {
-    while (parameters.length <= index) parameters.push({ ...repeated });
-  }
-  return { line, help, tokens, index, parameters };
+  if (repeating) parameters.push(repeating);
+  let active = tokens.findIndex((t) => cursor >= t.from && cursor <= t.to);
+  const last = tokens.at(-1);
+  if (
+    active < 0 &&
+    last &&
+    /=$/u.test(last.value) &&
+    cursor >= last.to &&
+    /^\s*$/u.test(text.slice(last.to, cursor))
+  )
+    active = tokens.length - 1;
+  return {
+    line,
+    help,
+    tokens,
+    index: active < 0 ? tokens.length : active,
+    parameters,
+  };
 }
 
 class GhostParameters extends WidgetType {
@@ -250,28 +189,32 @@ const ghost = EditorView.decorations.compute(
   },
 );
 
-export function insertSpiceHelp(
+export function insertNativeHelp(
   view: EditorView,
-  help: SimulationLanguageHelp,
+  help: NativeLanguageHelp,
   from?: number,
   to?: number,
 ) {
   const line = view.state.doc.lineAt(view.state.selection.main.head);
   const start = from ?? line.from;
   const end = to ?? line.to;
-  const name = /^[RCLVI]$/u.test(help.name) ? `${help.name}1` : help.name;
-  const waveform = /^(PULSE|SIN|PWL)$/iu.test(name);
-  const text = name + (waveform ? "()" : help.parameters?.length ? " " : "");
+  const text = nativeHelpInsertion(
+    help,
+    view.state.doc.toString(),
+    view.state.facet(nativeEntry),
+  );
   view.dispatch({
     changes: { from: start, to: end, insert: text },
-    selection: { anchor: start + text.length - (waveform ? 1 : 0) },
+    selection: {
+      anchor: start + (help.primitive ? text.indexOf("()") + 1 : text.length),
+    },
     effects: dismissParameterGuide.of(false),
     userEvent: "input.complete",
   });
   view.focus();
 }
 
-export function dismissSpiceGuide(view: EditorView): boolean {
+export function dismissNativeGuide(view: EditorView): boolean {
   const closed = closeCompletion(view);
   if (!parameterGuide(view.state) || view.state.field(guideDismissed, false))
     return closed;
@@ -279,13 +222,13 @@ export function dismissSpiceGuide(view: EditorView): boolean {
   return true;
 }
 
-export const spiceParameterGuide = [
+export const nativeParameterGuide = [
   guideDismissed,
   ghost,
   keymap.of([
     {
       key: "Escape",
-      run: dismissSpiceGuide,
+      run: dismissNativeGuide,
     },
     {
       key: "Tab",
