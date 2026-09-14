@@ -105,19 +105,28 @@ const SimulationAnalysisResultSchema = z.discriminatedUnion("analysis", [
   }),
 ]);
 
-const SimulationResultDataSchema = z.strictObject({
+export const SimulationResultDataSchema = z.strictObject({
   schemaVersion: z.literal(1),
   /** Never empty: a run that produced no vectors is a diagnostic, not a result. */
   analyses: z.array(SimulationAnalysisResultSchema),
   rawPlots: z
     .array(
-      z.strictObject({
-        ordinal: z.number().int().nonnegative(),
-        plotName: z.string(),
-        pointCount: z.number().int().nonnegative(),
-        variables: z.array(z.string()),
-        analysisIndex: z.number().int().nonnegative().optional(),
-      }),
+      z
+        .strictObject({
+          ordinal: z.number().int().nonnegative(),
+          artifactPath: z.string().min(1).optional(),
+          artifactPlotOrdinal: z.number().int().nonnegative().optional(),
+          plotName: z.string(),
+          pointCount: z.number().int().nonnegative(),
+          variables: z.array(z.string()),
+          analysisIndex: z.number().int().nonnegative().optional(),
+        })
+        .refine(
+          (record) =>
+            (record.artifactPath === undefined) ===
+            (record.artifactPlotOrdinal === undefined),
+          "Native plot provenance requires both its artifact path and artifact-local ordinal",
+        ),
     )
     .optional(),
 });

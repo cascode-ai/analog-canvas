@@ -151,6 +151,9 @@ export interface SimulationResultData {
   readonly rawPlots?:
     | readonly {
         readonly ordinal: number;
+        /** Native multi-file collection; ordinals remain run-local. */
+        readonly artifactPath?: string | undefined;
+        readonly artifactPlotOrdinal?: number | undefined;
         readonly plotName: string;
         readonly pointCount: number;
         readonly variables: readonly string[];

@@ -22,5 +22,6 @@ fixtures/visual-reference/razavi-reference-v1/tcoil-vector-source.json -text !eo
 netlists/vacask-divider/divider_op.raw -text !eol whitespace=-blank-at-eol,-blank-at-eof
 netlists/vacask-divider/divider_dc.raw -text !eol whitespace=-blank-at-eol,-blank-at-eof
 netlists/vacask-rc/rc_ac.raw -text !eol whitespace=-blank-at-eol,-blank-at-eof
+netlists/vacask-rc/result_tran.raw -text !eol whitespace=-blank-at-eol,-blank-at-eof
 netlists/vacask-resistor-noise/resistor_noise.raw -text !eol whitespace=-blank-at-eol,-blank-at-eof
 netlists/vacask-custom-model/custom_op.raw -text !eol whitespace=-blank-at-eol,-blank-at-eof
