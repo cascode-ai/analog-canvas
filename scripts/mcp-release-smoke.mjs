@@ -86,7 +86,24 @@ function snapshot() {
       routes: [],
       junctions: [],
       noConnects: [],
-      annotations: [],
+      // Keep a schema-54 binding in every response, including connector resume.
+      // Older packaged readers reject this field before ordinary tools can run.
+      annotations: [
+        {
+          id: "release-parameter-label",
+          kind: "instance-value",
+          binding: {
+            kind: "instance-value",
+            instanceId: "release-transformer",
+            parameter: "k",
+          },
+          anchor: { kind: "free", position: { x: 0, y: 0 } },
+          rotation: 0,
+          alignment: "start",
+          locked: false,
+          visible: false,
+        },
+      ],
       drafting: { objects: [] },
       layoutGroups: [],
       constraints: [],
@@ -312,6 +329,14 @@ try {
   await first.request("initialize", { protocolVersion: "2025-03-26" });
   const listed = await first.request("tools/list");
   if (
+    !JSON.stringify(
+      listed.tools.find((tool) => tool.name === "apply_actions"),
+    ).includes("showParameters")
+  )
+    throw new Error(
+      "Packaged MCP is missing independent parameter display controls",
+    );
+  if (
     listed.tools.length !== 19 ||
     ![
       "project_cells",
@@ -335,6 +360,14 @@ try {
     );
   // The next ordinary call must still work after a recoverable tool failure.
   await first.tool("get_context");
+  await first.tool("advanced_transact", {
+    edits: [
+      {
+        kind: "upsert_schematic_annotation",
+        annotation: snapshot().document.annotations[0],
+      },
+    ],
+  });
   await first.tool("apply_actions", {
     actions: [
       {
