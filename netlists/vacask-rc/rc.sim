@@ -1,0 +1,20 @@
+Analog Canvas VACASK analytical RC qualification
+
+ground 0
+load "resistor.osdi"
+load "capacitor.osdi"
+model resistance resistor
+model capacitance capacitor
+model voltage vsource
+
+V1 (input 0) voltage dc=0 mag=1 type="pulse" val0=0 val1=1 delay=1m rise=1u fall=1u width=20m period=40m
+R1 (input output) resistance r=1k
+C1 (output 0) capacitance c=1u
+
+control
+  abort always
+  options rawfile="ascii" strictsave=2 reltol=1e-8 vntol=1e-10
+  save default
+  analysis rc_ac ac from=10 to=10k mode="dec" points=4
+  analysis rc_tran tran stop=6m step=10u maxstep=10u
+endc

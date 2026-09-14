@@ -17,3 +17,9 @@
 # evidence bytes instead of changing the manifest's pinned identities.
 fixtures/visual-reference/razavi-reference-v1/xfmr-vector-source.json -text !eol whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
 fixtures/visual-reference/razavi-reference-v1/tcoil-vector-source.json -text !eol whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+# VACASK reserves 16 bytes for the point count and ends each ASCII plot with
+# a blank line (upstream lib/outrawfile.cpp). Keep measured evidence verbatim.
+netlists/vacask-divider/divider_op.raw -text !eol whitespace=-blank-at-eol,-blank-at-eof
+netlists/vacask-divider/divider_dc.raw -text !eol whitespace=-blank-at-eol,-blank-at-eof
+netlists/vacask-rc/rc_ac.raw -text !eol whitespace=-blank-at-eol,-blank-at-eof
+netlists/vacask-resistor-noise/resistor_noise.raw -text !eol whitespace=-blank-at-eol,-blank-at-eof

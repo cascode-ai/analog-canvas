@@ -1,0 +1,19 @@
+Analog Canvas VACASK analytical divider qualification
+
+ground 0
+load "resistor.osdi"
+model resistance resistor
+model voltage vsource
+
+V1 (input 0) voltage dc=3
+R1 (input output) resistance r=1k
+R2 (output 0) resistance r=2k
+
+control
+  abort always
+  options rawfile="ascii" strictsave=2 reltol=1e-8 vntol=1e-10
+  save default
+  analysis divider_op op
+  sweep supply instance="V1" parameter="dc" from=0 to=3 step=0.5
+    analysis divider_dc op
+endc
