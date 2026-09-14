@@ -12,15 +12,17 @@ import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { parseVacaskRawfile } from "../packages/spice-run/dist/vacask-rawfile.js";
 import { vacaskProcessFailure } from "./lib/vacask-process-failure.mjs";
+import { sky130ProbeChecks } from "./lib/vacask-sky130-probes.mjs";
 
-// Local, trusted analytical fixtures only. This is not the hosted executor,
-// a foundry qualification, or an alternate product run/receipt protocol.
+// Local trusted fixtures, optionally compared with the frozen SKY130 baseline.
+// This is not the hosted executor or an alternate product run/receipt protocol.
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const { values } = parseArgs({
   options: {
     binary: { type: "string" },
     modules: { type: "string" },
     compiler: { type: "string" },
+    "sky130-models": { type: "string" },
     output: {
       type: "string",
       default: join(root, "output/vacask-qualification"),
@@ -29,7 +31,7 @@ const { values } = parseArgs({
 });
 if (!values.binary || !values.modules)
   throw new Error(
-    "Usage: node scripts/vacask-qualification.mjs --binary <vacask> --modules <module-directory> [--compiler <openvaf-r>] [--output <directory>]",
+    "Usage: node scripts/vacask-qualification.mjs --binary <vacask> --modules <module-directory> [--compiler <openvaf-r>] [--sky130-models <candidate-directory>] [--output <directory>]",
   );
 const binary = resolve(values.binary);
 const moduleDirectory = resolve(values.modules);
@@ -70,7 +72,9 @@ if (identity.error || identity.status !== 0)
     `VACASK identity probe failed: ${vacaskProcessFailure(identity)}`,
   );
 const report = {
-  scope: "local analytical qualification only; not a hosted SKY130 Profile",
+  scope: values["sky130-models"]
+    ? "local analytical qualification and native SKY130 candidate comparison; not a hosted Profile"
+    : "local analytical qualification only; not a hosted SKY130 Profile",
   platform: `${process.platform}/${process.arch}`,
   startupSha256: digest(startup),
   binary: {
@@ -245,15 +249,55 @@ if (values.compiler)
     ],
   });
 
+if (values["sky130-models"]) {
+  const models = resolve(values["sky130-models"]);
+  const conversion = readFileSync(join(models, "conversion.json"));
+  const manifest = JSON.parse(conversion);
+  if (manifest.status !== "converted-not-qualified")
+    throw new Error("Native SKY130 conversion is incomplete");
+  report.modelCandidate = {
+    conversionSha256: digest(conversion),
+    modelRevision: manifest.modelRevision,
+    recipeSha256: manifest.recipeSha256,
+    status:
+      "not-qualified; compare to existing hosted reference without widening tolerances",
+  };
+  for (const corner of ["tt", "ff", "ss", "fs", "sf"]) {
+    const model = manifest.corners[corner];
+    if (!model) throw new Error(`Missing native model corner ${corner}`);
+    const bytes = readFileSync(join(models, `${corner}.sim`));
+    if (digest(bytes) !== model.nativeSha256)
+      throw new Error(`Native model digest mismatch: ${corner}`);
+    for (const name of model.requiredModules) {
+      if (
+        !/^[A-Za-z0-9_./-]+\.osdi$/u.test(name) ||
+        name.startsWith("/") ||
+        name.split("/").some((part) => !part || part === "." || part === "..")
+      )
+        throw new Error(`Invalid candidate module path: ${name}`);
+      report.modules[name] = digest(readFileSync(join(moduleDirectory, name)));
+    }
+    cases.push({
+      name: `vacask-sky130-${corner}`,
+      directory: "vacask-sky130",
+      entry: "devices.sim",
+      files: ["devices_op.raw", "devices_ac.raw"],
+      nativeModel: bytes,
+      check: ([op, ac]) => sky130ProbeChecks(op, ac, corner),
+    });
+  }
+}
+
 for (const fixture of cases) {
-  const cwd = join(output, fixture.directory);
+  const name = fixture.name ?? fixture.directory;
+  const cwd = join(output, name);
   mkdirSync(cwd);
   const source = readFileSync(
     join(root, "netlists", fixture.directory, fixture.entry),
   );
   writeFileSync(join(cwd, fixture.entry), source);
   const entry = {
-    name: fixture.directory,
+    name,
     sourceSha256: digest(source),
     durationMs: 0,
     exitCode: null,
@@ -261,6 +305,10 @@ for (const fixture of cases) {
     passed: false,
   };
   try {
+    if (fixture.nativeModel) {
+      writeFileSync(join(cwd, "models.sim"), fixture.nativeModel);
+      entry.modelSha256 = digest(fixture.nativeModel);
+    }
     if (fixture.modelSource) {
       const compiler = resolve(values.compiler);
       const model = readFileSync(
@@ -342,6 +390,10 @@ for (const fixture of cases) {
       return parsed.plots[0];
     });
     entry.checks = fixture.check(plots);
+    if (entry.checks.some((check) => check.passed === false))
+      throw new Error(
+        "Native model results differ from the frozen hosted reference; all probe values retained in this report",
+      );
     entry.passed = true;
   } catch (error) {
     entry.error = error.message;
