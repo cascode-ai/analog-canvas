@@ -247,7 +247,10 @@ test("Code adds and removes source AC clauses and routes parameter declarations 
   );
   await editor.press("ControlOrMeta+z");
   await expect(editor).not.toContainText(".param");
-  await editor.press("ControlOrMeta+y");
+  const redoShortcut = await page.evaluate(() =>
+    /Mac|iPhone|iPad/.test(navigator.platform) ? "Meta+Shift+z" : "Control+y",
+  );
+  await editor.press(redoShortcut);
   await expect(editor).toContainText(".param");
   await editor.fill(
     folder.input.files
@@ -744,7 +747,7 @@ test("incomplete circuit opens Code and saves invalid parameter drafts across re
   );
   if (!source.ok) throw Error("Expected incomplete authoring projection");
   const original = source.source.text;
-  await editor.press("Control+A");
+  await editor.press("ControlOrMeta+A");
   await page.keyboard.insertText(original.replace("<value>", "bad-value"));
   await expect(editor).toContainText("bad-value");
   const saveSource = panel.getByRole("button", {
@@ -1564,7 +1567,7 @@ test("human simulation uses saved folder, survives minimizing, recovers a bad in
     name: "out.raw",
     exact: true,
   });
-  await rawFile.click({ modifiers: ["Control"] });
+  await rawFile.click({ modifiers: ["ControlOrMeta"] });
   await rawFile.click({ button: "right" });
   const menuZip = async (name: string) => {
     const pending = page.waitForEvent("download");
@@ -2180,7 +2183,7 @@ test("folder activation exposes the run target independently of expansion and se
   await alpha.click({ button: "right" });
   await expect(run).toHaveText("Beta");
   await page.keyboard.press("Escape");
-  await alpha.click({ modifiers: ["Control"] });
+  await alpha.click({ modifiers: ["ControlOrMeta"] });
   await expect(run).toHaveText("Beta");
   await alpha.focus();
   await alpha.press("Enter");
@@ -2348,7 +2351,7 @@ test("Explorer context downloads preserve multi-selection and directory contents
     alphaFiles.getByRole("treeitem", { name: "Run", exact: true }),
   ).toHaveAttribute("aria-expanded", "false");
   await run.click();
-  await circuit.click({ modifiers: ["Control"] });
+  await circuit.click({ modifiers: ["ControlOrMeta"] });
   await expect(
     workspace.getByRole("tab", { name: "run.cir", exact: true }),
   ).toHaveAttribute("aria-selected", "true");
@@ -2405,7 +2408,7 @@ test("Explorer context downloads preserve multi-selection and directory contents
   await page.getByRole("menuitem", { name: "Download…", exact: true }).click();
   expect((await nestedDownload).suggestedFilename()).toMatch(/\.zip$/);
   // Selecting the parent and one descendant must not duplicate ZIP entries.
-  await alpha.click({ modifiers: ["Control"] });
+  await alpha.click({ modifiers: ["ControlOrMeta"] });
   await alpha.click({ button: "right" });
   const folderDownload = page.waitForEvent("download");
   await page.getByRole("menuitem", { name: "Download selected (2)…" }).click();

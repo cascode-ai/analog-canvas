@@ -144,7 +144,7 @@ test("a saved-folder batch prepares first and exposes each ordinary run", async 
   await panel.getByRole("treeitem", { name: "Folder TT", exact: true }).click();
   await panel
     .getByRole("treeitem", { name: "Folder FF", exact: true })
-    .click({ modifiers: ["Control"] });
+    .click({ modifiers: ["ControlOrMeta"] });
   await panel
     .getByRole("treeitem", { name: "Folder FF", exact: true })
     .click({ button: "right" });

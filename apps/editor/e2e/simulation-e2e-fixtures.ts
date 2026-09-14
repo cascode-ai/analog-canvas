@@ -58,6 +58,6 @@ export async function editSimulationFile(
   });
   await expect(editor).toBeVisible();
   await editor.click();
-  await editor.press("Control+A");
+  await editor.press("ControlOrMeta+A");
   await page.keyboard.insertText(text);
 }
