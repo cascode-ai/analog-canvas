@@ -26,23 +26,27 @@ const safePath = (path) =>
 const overlap = (a, b) =>
   a === b || a.startsWith(`${b}/`) || b.startsWith(`${a}/`);
 
-/** Validate the existing ExecutionInput; no alternate deck/composition protocol.
- * Runtime dependencies/identity are operator-owned and must already be verified
- * before this function is exposed by a hosted endpoint. */
-export function validateVacaskJob(input, runtime, limits) {
-  if (
-    !limits ||
-    ![
+export function validVacaskLimits(limits) {
+  return (
+    !!limits &&
+    [
       "maxInputBytes",
       "maxInputFiles",
       "maxOutputBytes",
       "maxRawFiles",
       "maxEntries",
       "maxLogBytes",
-    ].every((name) => Number.isSafeInteger(limits[name]) && limits[name] > 0) ||
-    limits.maxLogBytes < 2 ||
-    limits.maxLogBytes > limits.maxOutputBytes
-  )
+    ].every((name) => Number.isSafeInteger(limits[name]) && limits[name] > 0) &&
+    limits.maxLogBytes >= 2 &&
+    limits.maxLogBytes <= limits.maxOutputBytes
+  );
+}
+
+/** Validate the existing ExecutionInput; no alternate deck/composition protocol.
+ * Runtime dependencies/identity are operator-owned and must already be verified
+ * before this function is exposed by a hosted endpoint. */
+export function validateVacaskJob(input, runtime, limits) {
+  if (!validVacaskLimits(limits))
     return rejection(
       "simulator-not-ready",
       "Invalid native execution limits.",

@@ -21,7 +21,8 @@ import { CapabilitiesSchema } from "../../packages/simulation-service/src/contra
 import { inspectNativeAnalyses } from "../../packages/simulation-service/src/native-source-analysis.js";
 import { readVacaskSimulationData } from "../../packages/spice-run/src/index.js";
 import { collectVacaskRawfiles } from "./rawfile-collector.mjs";
-import { executeVacask } from "./execute.mjs";
+import { createVacaskHttpServer } from "./http-server.mjs";
+import { createHostedExecutor } from "../../packages/simulation-service/src/hosted-executor.js";
 import { initializeVacaskRuntime } from "./runtime.mjs";
 import { SimulationRunSupervisor } from "../ngspice/run-supervisor.mjs";
 import { createSimulationStarter } from "../../packages/netlist/src/simulation-starter.js";
@@ -31,7 +32,12 @@ import { nativeAcquisitionEdit } from "../../packages/netlist/src/simulation-nat
 import { nativeSourceAcquisitions } from "../../packages/netlist/src/simulation-native-source-signals.js";
 
 const roots = [];
+const servers = [];
 afterEach(async () => {
+  for (const server of servers.splice(0)) {
+    server.closeAllConnections();
+    await new Promise((resolve) => server.close(resolve));
+  }
   for (const root of roots.splice(0))
     await rm(root, { recursive: true, force: true });
 });
@@ -334,36 +340,33 @@ RL (N 0) load r=1k
         startupPath,
         runRoot: root,
       });
-      // Test execution adapter: actual native process, not a mock of the compiler,
-      // Prepare, service or numeric reader. This does NOT qualify a hosted harness.
-      const executor = {
-        capabilities: async () => caps,
-        cancel: vi.fn(),
-        execute: vi.fn(async (input) => {
-          submitted = structuredClone(input);
-          expect(input.language).toBe("vacask");
-          expect(input.collection).toEqual({ kind: "native-multi-ascii" });
-          const execution = await executeVacask(
-            { ...input, timeoutMs: 15_000 },
-            runtime,
-            {
-              maxInputBytes: caps.maxInputBytes,
-              maxInputFiles: caps.maxInputFiles,
-              maxOutputBytes: caps.maxOutputBytes,
-              maxLogBytes: 65536,
-              maxRawFiles: 64,
-              maxEntries: 4096,
-            },
-            supervisor,
-          );
-          if (!execution.ok) throw Error(JSON.stringify(execution));
-          expect(execution.output.result.outcome).toEqual({
-            status: "completed",
-          });
-          expect(await readdir(root)).toEqual(["vacaskrc.toml"]);
-          return execution.output;
-        }),
-      };
+      const server = createVacaskHttpServer({
+        runtimeReady: runtime,
+        capabilities: caps,
+        supervisor,
+        limits: {
+          maxInputBytes: caps.maxInputBytes,
+          maxInputFiles: caps.maxInputFiles,
+          maxOutputBytes: caps.maxOutputBytes,
+          maxLogBytes: 65536,
+          maxRawFiles: 64,
+          maxEntries: 4096,
+        },
+      });
+      servers.push(server);
+      await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+      const base = `http://127.0.0.1:${server.address().port}`;
+      await vi.waitFor(async () =>
+        expect((await fetch(`${base}/health`)).status).toBe(200),
+      );
+      // Real shared client + HTTP + process + numeric adapter; capabilities are
+      // declared for this local proof, not a registered cloud qualification.
+      const executor = createHostedExecutor((path, options) => {
+        const body = JSON.parse(options.body);
+        if (body.operation === undefined) submitted = body;
+        return fetch(new URL(path, base), options);
+      });
+      executor.execute = vi.fn(executor.execute);
       const service = new SimulationService(files, executor, () => project);
       const prepared = requireReply(
         await service.handle(
@@ -404,6 +407,10 @@ RL (N 0) load r=1k
         "run",
       );
       expect(finished.inputStatus).toBe("unchanged");
+      expect(finished.result.outcome.status).toBe("completed");
+      expect(submitted.language).toBe("vacask");
+      expect(submitted.collection).toEqual({ kind: "native-multi-ascii" });
+      expect(await readdir(root)).toEqual(["vacaskrc.toml"]);
       const op = finished.result.data.analyses.find((a) => a.analysis === "op");
       expect(op.probes.find((p) => p.name === "Out").value).toBeCloseTo(
         0.5,
