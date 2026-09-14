@@ -8,6 +8,7 @@
     "dev": "vite"
   },
   "dependencies": {
+    "@lezer/json": "1.0.3",
     "@codemirror/autocomplete": "6.20.3",
     "@codemirror/commands": "6.11.0",
     "@codemirror/lang-json": "6.0.2",
