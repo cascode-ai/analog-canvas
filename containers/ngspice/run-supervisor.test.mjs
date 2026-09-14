@@ -16,6 +16,27 @@ function deferred() {
 }
 
 describe("SimulationRunSupervisor", () => {
+  it("retires the existing lease on failed cleanup even if an injected fail-stop returns", async () => {
+    const failStop = vi.fn();
+    const supervisor = new SimulationRunSupervisor({ failStop });
+    await supervisor.tryExecute({}, async (run) => {
+      run.phase("cleaning");
+      run.failCleanup();
+    });
+    expect(failStop).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reason: "run-cleanup-failed",
+        phase: "cleaning",
+      }),
+    );
+    expect(supervisor.snapshot()).toMatchObject({
+      state: "fatal",
+      terminationReason: "cleanup-failed",
+    });
+    expect(
+      await supervisor.tryExecute({}, async () => "unsafe reuse"),
+    ).toMatchObject({ kind: "busy" });
+  });
   it("only the owning token can cancel; cancellation during preparation kills on attach and releases normally", async () => {
     const held = deferred(),
       killed = vi.fn(),

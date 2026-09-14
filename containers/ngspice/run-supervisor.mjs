@@ -241,6 +241,10 @@ export class SimulationRunSupervisor {
         active.processTimer = null;
         active.child = null;
       },
+      failCleanup: () => {
+        ensureOwner();
+        this.#expireLease(active, "run-cleanup-failed");
+      },
       get timedOut() {
         return active.terminationReason === "timeout";
       },
@@ -250,17 +254,21 @@ export class SimulationRunSupervisor {
     });
   }
 
-  #expireLease(active) {
+  #expireLease(active, reason = "run-lease-expired") {
     if (this.#active !== active || active.phase === "fatal") return;
     const previousPhase = active.phase;
     active.phase = "fatal";
-    active.terminationReason = "watchdog";
+    active.terminationReason =
+      reason === "run-lease-expired" ? "watchdog" : "cleanup-failed";
     if (active.processTimer) this.#clearTimer(active.processTimer);
     active.processTimer = null;
     this.#terminate(active.child, "SIGKILL");
     this.#failStop({
-      event: "simulation-run-watchdog",
-      reason: "run-lease-expired",
+      event:
+        reason === "run-lease-expired"
+          ? "simulation-run-watchdog"
+          : "simulation-run-cleanup-failed",
+      reason,
       phase: previousPhase,
       heldMs: Math.max(0, this.#now() - active.acquiredAt),
       timeoutMs: active.timeoutMs,
