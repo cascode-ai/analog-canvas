@@ -60,7 +60,9 @@ test("simulation Agent entry is passive and reuses the existing connection panel
   await page.getByTestId("open-analog-simulation").click();
   const bar = page.locator(".simulation-taskbar");
   const guide = page.getByRole("region", { name: "Agent simulation guide" });
-  await expect(guide.getByRole("heading")).toHaveText("Simulate with an Agent");
+  await expect(guide.getByRole("heading")).toHaveText(
+    "Simulate with an Agent (recommended)",
+  );
   await expect(guide.getByRole("listitem")).toHaveCount(3);
   await expect(bar.locator(".simulation-agent-guidance")).toHaveCount(0);
   await expect(
@@ -453,16 +455,24 @@ test("new experiments explicitly bind the selected Cell without requiring a Test
   });
   await name.fill("OTA direct");
   await page.getByRole("heading", { name: "Simulate with an Agent" }).click();
-  await expect(name).toHaveValue("OTA direct");
+  await expect(name).toHaveCount(0);
   await expect(
     page.getByRole("treeitem", { name: "Folder OTA direct", exact: true }),
   ).toHaveCount(0);
-  await name.focus();
+  await page
+    .getByRole("button", { name: "Set up manually", exact: true })
+    .click();
+  await name.fill("OTA direct");
   await name.press("Tab");
   await expect(cell).toBeFocused();
   await cell.selectOption(dut.id);
   await page.getByRole("heading", { name: "Simulate with an Agent" }).click();
-  await expect(cell).toHaveValue(dut.id);
+  await expect(cell).toHaveCount(0);
+  await page
+    .getByRole("button", { name: "Set up manually", exact: true })
+    .click();
+  await name.fill("OTA direct");
+  await cell.selectOption(dut.id);
   // Moving between fields must not prematurely create the folder.
   await expect(name).toBeVisible();
   await page.getByRole("button", { name: "Create", exact: true }).click();
@@ -2629,7 +2639,11 @@ test("inline naming commits once on blur, cancels on Escape, and deletion uses a
   await expect(
     workspace.getByRole("treeitem", { name: "Folder Gamma", exact: true }),
   ).toHaveCount(0);
-  await expect(input).toHaveValue("Gamma");
+  await expect(input).toHaveCount(0);
+  await workspace
+    .getByRole("button", { name: "+ New experiment", exact: true })
+    .click();
+  await input.fill("Gamma");
   await workspace.getByRole("button", { name: "Create", exact: true }).click();
   await expect(
     workspace.getByRole("treeitem", { name: "Folder Gamma", exact: true }),

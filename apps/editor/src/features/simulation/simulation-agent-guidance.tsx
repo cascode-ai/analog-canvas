@@ -104,7 +104,10 @@ export function SimulationAgentStart({
       aria-label="Agent simulation guide"
       data-agent-status={status}
     >
-      <h2>Simulate with an Agent</h2>
+      <h2>
+        Simulate with an Agent{" "}
+        <span className="simulation-agent-recommended">(recommended)</span>
+      </h2>
       <div
         className="simulation-agent-start-status"
         role="status"

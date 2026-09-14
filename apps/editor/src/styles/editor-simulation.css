@@ -134,6 +134,12 @@
   line-height: 1.25;
   letter-spacing: -0.02em;
 }
+.simulation-agent-recommended {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--icm-text-muted);
+  white-space: nowrap;
+}
 .simulation-agent-start-status {
   display: flex;
   align-items: center;
