@@ -1,5 +1,6 @@
-import { DatabaseSync } from "node:sqlite";
+import { createSimulationOperationsHarness as harness } from "./simulation-operations.test-fixture";
 import { describe, expect, it, vi } from "vitest";
+import { createManagedHostedExecutor } from "@icm/simulation-service";
 
 import {
   nativeWorkerEnv,
@@ -7,99 +8,12 @@ import {
   nativeHealth,
 } from "./simulation.test-fixture";
 
-import { SimulationControlDO } from "./simulation-control-do";
 import {
   consumeSimulationJobs,
   routeManagedSimulationRequest,
-  type SimulationArtifactBucket,
   type SimulationJobMessage,
-  type SimulationOperationsEnv,
   type SimulationQueueMessage,
 } from "./simulation-operations";
-
-function sqliteState() {
-  const db = new DatabaseSync(":memory:");
-  return {
-    storage: {
-      sql: {
-        exec<T>(query: string, ...bindings: unknown[]) {
-          const statement = db.prepare(query);
-          if (/^\s*(select|with|pragma)/iu.test(query)) {
-            const rows = statement.all(
-              ...(bindings as (string | number | null)[]),
-            ) as T[];
-            return {
-              toArray: () => rows,
-              one: () => {
-                if (rows.length !== 1) throw new Error("expected one row");
-                return rows[0]!;
-              },
-            };
-          }
-          statement.run(...(bindings as (string | number | null)[]));
-          return {
-            toArray: () => [] as T[],
-            one: () => {
-              throw new Error("no rows");
-            },
-          };
-        },
-      },
-      transactionSync<T>(callback: () => T): T {
-        return callback();
-      },
-    },
-  };
-}
-
-class MemoryBucket implements SimulationArtifactBucket {
-  readonly objects = new Map<string, string>();
-  async get(key: string) {
-    const value = this.objects.get(key);
-    return value === undefined ? null : { text: async () => value };
-  }
-  async put(key: string, value: string) {
-    this.objects.set(key, value);
-    return {};
-  }
-  async delete(key: string) {
-    this.objects.delete(key);
-  }
-}
-
-function harness() {
-  const control = new SimulationControlDO(sqliteState(), undefined, () => 100);
-  const bucket = new MemoryBucket();
-  const jobs: SimulationJobMessage[] = [];
-  const env: SimulationOperationsEnv = {
-    SIMULATION_CONTROL: {
-      getByName: () => ({
-        fetch: (input, init) => control.fetch(new Request(input, init)),
-      }),
-    },
-    SIMULATION_ARTIFACTS: bucket,
-    SIMULATION_JOBS: {
-      async send(message) {
-        jobs.push(message);
-      },
-    },
-    ...nativeWorkerEnv(),
-  };
-  const principal = {
-    id: "user-a",
-    displayName: "User A",
-    email: "a@example.test",
-    provider: "test",
-    role: "user",
-    isAdmin: false,
-  };
-  const runtime = {
-    principalOf: async () => principal,
-    now: () => 100,
-    uuid: () => "lease-a",
-  };
-  return { bucket, control, env, jobs, runtime };
-}
 
 function startRequest() {
   return new Request("https://canvas.test/api/simulation/runs", {
@@ -115,6 +29,100 @@ function startRequest() {
 }
 
 describe("managed simulation operations", () => {
+  it("reports queued cancellation as terminal, not result-not-ready, without dispatching", async () => {
+    const { env, jobs, runtime, close } = harness();
+    const execute = vi.fn();
+    env.VACASK = nativeWorkerEnv(execute).VACASK;
+    try {
+      const accepted = await routeManagedSimulationRequest(
+        startRequest(),
+        env,
+        runtime,
+      );
+      const id = (await accepted!.json()).run.id;
+      const url = `https://canvas.test/api/simulation/runs/${id}`;
+      const pending = await routeManagedSimulationRequest(
+        new Request(`${url}/result`),
+        env,
+        runtime,
+      );
+      expect(await pending!.json()).toMatchObject({
+        error: "RESULT_NOT_READY",
+      });
+      await routeManagedSimulationRequest(
+        new Request(`${url}/cancel`, { method: "POST" }),
+        env,
+        runtime,
+      );
+      const message = { body: jobs[0]!, ack: vi.fn(), retry: vi.fn() };
+      await consumeSimulationJobs({ messages: [message] }, env, runtime);
+      expect(execute).not.toHaveBeenCalled();
+      expect(message.ack).toHaveBeenCalledOnce();
+      const cancelled = await routeManagedSimulationRequest(
+        new Request(`${url}/result`),
+        env,
+        runtime,
+      );
+      expect(await cancelled!.json()).toMatchObject({
+        error: "run-cancelled",
+        state: "cancelled",
+        recovery: "not-retryable",
+      });
+      expect(cancelled!.headers.has("retry-after")).toBe(false);
+    } finally {
+      close();
+    }
+  });
+  it("carries native admission Problems through queued storage and permits a repaired run in the same client", async () => {
+    const { env, jobs, runtime, close } = harness();
+    const deliveries: SimulationQueueMessage<(typeof jobs)[number]>[] = [];
+    const executor = createManagedHostedExecutor({
+      fetch: async (path, init) =>
+        (await routeManagedSimulationRequest(
+          new Request(new URL(String(path), "https://canvas.test"), init),
+          env,
+          runtime,
+        ))!,
+      sleep: async () => {
+        const body = jobs.shift()!;
+        const message = { body, ack: vi.fn(), retry: vi.fn() };
+        deliveries.push(message);
+        await consumeSimulationJobs({ messages: [message] }, env, runtime);
+      },
+    });
+    const identity = {
+      preparedId: "prepared-a",
+      preparedDigest: "a".repeat(64),
+    };
+    try {
+      await expect(
+        executor.execute(
+          { ...nativeInput(), preparedDeck: "changed" },
+          "bad-request",
+          undefined,
+          identity,
+        ),
+      ).rejects.toMatchObject({
+        problem: {
+          code: "prepared-input-changed",
+          recovery: "reprepare",
+          message: "Prepared entry and submitted source bytes differ.",
+        },
+      });
+      await expect(
+        executor.execute(nativeInput(), "fixed-request", undefined, identity),
+      ).resolves.toMatchObject({
+        result: { outcome: { status: "completed" } },
+      });
+      expect(deliveries).toHaveLength(2);
+      for (const message of deliveries) {
+        expect(message.ack).toHaveBeenCalledOnce();
+        expect(message.retry).not.toHaveBeenCalled();
+      }
+    } finally {
+      close();
+    }
+  });
   it("a consumer that failed before acquiring a lease cannot requeue another active attempt", async () => {
     const { env, jobs, runtime, control } = harness();
     const started = await routeManagedSimulationRequest(

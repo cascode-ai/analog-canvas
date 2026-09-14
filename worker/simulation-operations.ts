@@ -2,6 +2,7 @@ import {
   DEFAULT_MANAGED_RUN_POLICY,
   Digest,
   ManagedRunRecordSchema,
+  ProblemSchema,
   type ArtifactRef,
   type ManagedRunRecord,
   type Problem,
@@ -408,6 +409,24 @@ export async function routeManagedSimulationRequest(
     const result = run.artifacts.find(
       (artifact) => artifact.name === "response.json",
     );
+    if (
+      !result &&
+      !["queued", "running", "cancelling"].includes(run.state) &&
+      (run.error || run.state === "cancelled")
+    )
+      return ownedResponse(
+        Response.json(
+          {
+            error: run.error?.code ?? "run-cancelled",
+            message:
+              run.error?.message ??
+              "The queued run was cancelled before execution.",
+            recovery: run.error?.recovery ?? "not-retryable",
+            state: run.state,
+          },
+          { status: 409 },
+        ),
+      );
     if (!result)
       return ownedResponse(
         Response.json(
@@ -586,6 +605,8 @@ export async function consumeSimulationJobs(
       const responseValue = JSON.parse(responseText) as {
         cancelled?: unknown;
         outcome?: { status?: unknown };
+        message?: unknown;
+        recovery?: unknown;
       };
       const code = responseCode(responseValue);
       if (
@@ -666,9 +687,14 @@ export async function consumeSimulationJobs(
           at: runtime.now(),
           error: {
             code: code ?? "SIMULATION_FAILED",
-            message: "The simulator refused or failed this input.",
+            message:
+              typeof responseValue.message === "string"
+                ? responseValue.message
+                : "The simulator refused or failed this input.",
             stage: "start",
-            recovery: "fix-input",
+            recovery:
+              ProblemSchema.shape.recovery.safeParse(responseValue.recovery)
+                .data ?? "fix-input",
           },
           artifacts,
         });

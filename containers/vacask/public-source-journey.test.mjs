@@ -24,6 +24,12 @@ import {
   createSimulationEnvironmentMetadata,
 } from "../../packages/spice-run/src/index.js";
 import { routeSimulationRequest } from "../../worker/simulation.js";
+import {
+  routeManagedSimulationRequest,
+  consumeSimulationJobs,
+} from "../../worker/simulation-operations.js";
+import { createSimulationOperationsHarness } from "../../worker/simulation-operations.test-fixture.js";
+import { createManagedHostedExecutor } from "../../packages/simulation-service/src/managed-hosted-executor.js";
 import { collectVacaskRawfiles } from "./rawfile-collector.mjs";
 import { createVacaskHttpServer } from "./http-server.mjs";
 import { createHostedExecutor } from "../../packages/simulation-service/src/hosted-executor.js";
@@ -41,6 +47,7 @@ import {
 
 const roots = [];
 const servers = [];
+const closers = [];
 afterEach(async () => {
   for (const server of servers.splice(0)) {
     server.closeAllConnections();
@@ -48,6 +55,7 @@ afterEach(async () => {
   }
   for (const root of roots.splice(0))
     await rm(root, { recursive: true, force: true });
+  for (const close of closers.splice(0)) close();
 });
 const caps = CapabilitiesSchema.parse({
   configured: true,
@@ -327,7 +335,7 @@ RL (N 0) load r=1k
 
   it
     .skipIf(!process.env.VACASK_BIN || !process.env.VACASK_MODULES)
-    .each(["local-host", "worker"])(
+    .each(["local-host", "worker", "managed"])(
     "runs public Prepare/Start through %s and the native HTTP process, then exports the mapped result",
     async (transport) => {
       const project = fixture();
@@ -351,7 +359,7 @@ RL (N 0) load r=1k
         runRoot: root,
       };
       let runtime = await initializeVacaskRuntime(configuration);
-      if (transport === "worker") {
+      if (transport !== "local-host") {
         // A test-only lock from measured local assets exercises hosted identity
         // verification; it is not a deployment/model qualification or a fake
         // simulator result. Reinitialize to independently check those bytes.
@@ -412,11 +420,61 @@ RL (N 0) load r=1k
       servers.push(local.server);
       // Real shared client + local Editor host + HTTP + process + numeric adapter; capabilities are
       // declared for this local proof, not a registered cloud qualification.
-      const executor = createHostedExecutor((path, options) => {
+      let executor = createHostedExecutor((path, options) => {
         const body = JSON.parse(options.body);
         if (body.operation === undefined) submitted = body;
         return fetch(new URL(path, local.origin), options);
       });
+      let managed;
+      const deliveries = [];
+      const dispatches = [];
+      if (transport === "managed") {
+        managed = createSimulationOperationsHarness();
+        closers.push(managed.close);
+        Object.assign(managed.env, workerEnvironment);
+        const runner = workerEnvironment.VACASK.getByName();
+        managed.env.VACASK = {
+          getByName: () => ({
+            fetch: (url, init) => {
+              if (new URL(url).pathname === "/run")
+                dispatches.push(JSON.parse(init.body));
+              return runner.fetch(url, init);
+            },
+          }),
+        };
+        executor = createManagedHostedExecutor({
+          fetch: async (path, options) => {
+            if (options?.body) {
+              const body = JSON.parse(options.body);
+              if (body.input) submitted = body.input;
+            }
+            const request = new Request(
+              new URL(path, "https://managed.test"),
+              options,
+            );
+            return (
+              (await routeManagedSimulationRequest(
+                request,
+                managed.env,
+                managed.runtime,
+              )) ?? (await routeSimulationRequest(request, managed.env))
+            );
+          },
+          // Deliver only after the real adapter has observed a queued record.
+          // SQLite/control and queue consumer are real; queue/R2 hosting is not.
+          sleep: async () => {
+            const body = managed.jobs.shift();
+            if (!body) throw new Error("No queued native job");
+            const message = { body, ack: vi.fn(), retry: vi.fn() };
+            deliveries.push(message);
+            await consumeSimulationJobs(
+              { messages: [message] },
+              managed.env,
+              managed.runtime,
+            );
+          },
+        });
+      }
       executor.execute = vi.fn(executor.execute);
       const service = new SimulationService(files, executor, () => project);
       const prepared = requireReply(
@@ -489,6 +547,46 @@ RL (N 0) load r=1k
       ).toBe(started.id);
       expect(executor.execute).toHaveBeenCalledTimes(1);
       expect(project).toEqual(before);
+      if (managed) {
+        expect(deliveries).toHaveLength(1);
+        expect(deliveries[0].ack).toHaveBeenCalledOnce();
+        expect(deliveries[0].retry).not.toHaveBeenCalled();
+        expect(dispatches).toHaveLength(1);
+        // Duplicate queue delivery cannot execute the completed job twice.
+        await consumeSimulationJobs(
+          { messages: [deliveries[0]] },
+          managed.env,
+          managed.runtime,
+        );
+        expect(dispatches).toHaveLength(1);
+        const resultUrl = `https://managed.test/api/simulation/runs/${deliveries[0].body.runId}/result`;
+        const otherOwner = {
+          ...managed.runtime,
+          principalOf: async () => ({
+            ...(await managed.runtime.principalOf()),
+            id: "other-owner",
+          }),
+        };
+        expect(
+          (
+            await routeManagedSimulationRequest(
+              new Request(resultUrl),
+              managed.env,
+              otherOwner,
+            )
+          ).status,
+        ).toBe(404);
+        const stored = await routeManagedSimulationRequest(
+          new Request(resultUrl),
+          managed.env,
+          managed.runtime,
+        );
+        expect((await stored.json()).rawfiles).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({ path: "frequency.op.raw" }),
+          ]),
+        );
+      }
     },
   );
 });

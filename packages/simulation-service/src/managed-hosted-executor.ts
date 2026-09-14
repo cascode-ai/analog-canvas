@@ -117,9 +117,29 @@ export function createManagedHostedExecutor(
         continue;
       }
       if (resultStates.has(run.state)) {
+        const hasResponse = run.artifacts.some(
+          (artifact) => artifact.name === "response.json",
+        );
+        if (!hasResponse && run.state === "cancelled")
+          throw new ExecutionFailure({
+            code: "run-cancelled",
+            message: "The queued run was cancelled before execution.",
+            stage: "cancel",
+            recovery: "not-retryable",
+          });
+        if (!hasResponse && run.error) throw new ExecutionFailure(run.error);
         const payload = await jsonRequest(
           `/api/simulation/runs/${encodeURIComponent(runId)}/result`,
         );
+        // A retained executor refusal is evidence, not a SimulationResult. Keep
+        // its server-owned Problem; genuine failed analyses still carry results.
+        if (
+          run.state === "failed" &&
+          run.error &&
+          typeof payload?.error === "string" &&
+          !payload.outcome
+        )
+          throw new ExecutionFailure(run.error);
         return decodeHostedExecutionPayload(input, payload);
       }
       throw new ExecutionFailure(

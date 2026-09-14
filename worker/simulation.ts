@@ -318,7 +318,11 @@ export async function routeSimulationRequest(
   });
   if (!checked.ok)
     return json(
-      { error: checked.error.code, message: checked.error.message },
+      {
+        error: checked.error.code,
+        message: checked.error.message,
+        recovery: checked.error.recovery,
+      },
       checked.error.recovery === "reprepare"
         ? 409
         : checked.error.code === "input-too-large"

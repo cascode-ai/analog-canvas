@@ -453,6 +453,12 @@ through the existing supervisor, whose process-tree cleanup still owns slot
 release. A private random run token authorizes cancellation; health responses
 and Agent artifacts do not expose that token. Cancel-before-admission is remembered
 for the maximum run window. Network uncertainty is never an automatic rerun.
+A terminal executor refusal retains its specific Problem and recovery guidance;
+it is not decoded as a numeric result. A genuine failed analysis may still have
+partial results, which remain readable. Cancellation while queued has no numeric
+artifact and is reported as cancelled, not as a perpetually pending result.
+The same service session can repair the input, prepare and start a new run.
+
 Managed attempts retry only a proven pre-dispatch infrastructure failure or an
 explicit executor refusal (for example busy or not-ready), within the existing
 attempt limit. A lost
