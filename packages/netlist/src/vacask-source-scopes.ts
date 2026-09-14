@@ -27,6 +27,22 @@ export function vacaskCircuitScopes(
   binding: SimulationCircuitBinding,
   circuit: DesignNetlistIR,
 ) {
+  return authoredCircuitScopes(
+    vacaskAuthoredCircuitEvents(graph),
+    binding,
+    circuit,
+    {
+      key: (name) => name,
+      separator: ":",
+    },
+  );
+}
+
+/** Shared literal circuit facts for occurrence resolution and authoring helpers.
+ * Control programs are never evaluated to guess an instance or node identity. */
+export function vacaskAuthoredCircuitEvents(
+  graph: SourceFileGraph<VacaskSourceStatement>,
+): AuthoredCircuitEvent[] {
   const events: AuthoredCircuitEvent[] = [];
   let conditionalDepth = 0;
   let control = false;
@@ -56,7 +72,13 @@ export function vacaskCircuitScopes(
       if (words(names))
         events.push({ kind: "globals", names: names.map((t) => t.value) });
     } else if (bare(statement, "model") && name?.kind === "word")
-      events.push({ kind: "opaque-master", name: name.value });
+      events.push({
+        kind: "opaque-master",
+        name: name.value,
+        ...(conditionalDepth === 0 && statement.tokens[2]?.kind === "word"
+          ? { module: statement.tokens[2].value }
+          : {}),
+      });
     else if (bare(statement, "ends")) events.push({ kind: "end" });
     else {
       const definition = bare(statement, "subckt");
@@ -89,8 +111,5 @@ export function vacaskCircuitScopes(
         });
     }
   }
-  return authoredCircuitScopes(events, binding, circuit, {
-    key: (name) => name,
-    separator: ":",
-  });
+  return events;
 }

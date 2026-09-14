@@ -23,6 +23,7 @@ import { createSimulationStarter } from "../../packages/netlist/src/simulation-s
 import { compileSourceSimulation } from "../../packages/netlist/src/simulation-source-compile.js";
 import { nativeVoltageAcquisition } from "../../packages/netlist/src/simulation-native-voltage.js";
 import { nativeAcquisitionEdit } from "../../packages/netlist/src/simulation-native-save-edit.js";
+import { nativeSourceAcquisitions } from "../../packages/netlist/src/simulation-native-source-signals.js";
 
 const roots = [];
 afterEach(async () => {
@@ -173,13 +174,21 @@ RL (N 0) load r=1k
         circuit: { bindingId: "circuit", callPath: ["XDUT"] },
       });
       expect(selection).toEqual({ ok: true, vector: "N", save: "v(N)" });
+      const branch = nativeSourceAcquisitions(folder.input).find(
+        (s) => s.vector === "V1:flow(br)",
+      );
+      expect(branch).toEqual({
+        quantity: "current",
+        vector: "V1:flow(br)",
+        save: "i(V1)",
+      });
       const entry = folder.input.files.find(
         (f) => f.path === folder.input.entry,
       );
       const savedSelection = nativeAcquisitionEdit(
         entry.text,
         entry.text.indexOf("save default") + "save default".length,
-        [selection.save, "i(V1)"],
+        [selection.save, branch.save],
         true,
       );
       expect(savedSelection.ok).toBe(true);
@@ -238,6 +247,16 @@ RL (N 0) load r=1k
       expect(plot, JSON.stringify(data)).toBeDefined();
       const probe = plot.probes.find((p) => p.name === "N");
       expect(probe).toBeDefined();
+      const current = plot.probes.find((p) => p.name === branch.vector);
+      expect(current).toBeDefined();
+      if (template === "op") expect(current.value).toBeCloseTo(-0.0005, 12);
+      else {
+        const values = template === "ac" ? current.real : current.value;
+        expect(values.length).toBeGreaterThan(1);
+        for (const value of values) expect(value).toBeCloseTo(-0.0005, 12);
+        if (template === "ac")
+          for (const value of current.imag) expect(value).toBeCloseTo(0, 12);
+      }
       if (template === "op") expect(probe.value).toBeCloseTo(0.5, 10);
       else {
         const values = template === "ac" ? probe.real : probe.value;

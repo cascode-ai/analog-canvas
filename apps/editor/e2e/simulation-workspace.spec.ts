@@ -657,6 +657,65 @@ test("Helper keeps signal selection continuous and shares the file row without s
   await expect(editor).toContainText("v(vout)");
 });
 
+test("native text-only Helper discovers exact-case nodes and declared voltage-source branches", async ({
+  page,
+}) => {
+  const project = parseProject(JSON.stringify(ota));
+  const folder = createSimulationFolder({
+    id: "native-text-discovery",
+    name: "Native discovery",
+    profileId: profile.id,
+  });
+  folder.input.files.find((file) => file.path === folder.input.entry)!.text =
+    `Native discovery
+model supply vsource
+model load resistor
+feed (Out 0) supply dc=1
+Feed (out 0) supply dc=2
+VnotVoltage (Out out) load r=1k
+control
+analysis bias op
+endc
+`;
+  project.simulationFolders = [folder];
+  await page.route("**/api/simulate", (route) =>
+    route.fulfill({
+      status: 503,
+      json: { error: "Offline authoring fixture" },
+    }),
+  );
+  await page.goto("/editor");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "native-text.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  await page.getByTestId("open-analog-simulation").click();
+  const editor = page.getByRole("textbox", {
+    name: "Simulation source editor",
+  });
+  const helper = page.getByRole("button", { name: "Helper", exact: true });
+  const picker = page.getByRole("dialog", { name: "Save signal" });
+  await helper.click();
+  await page
+    .getByRole("option", { name: "Save terminal current…", exact: true })
+    .click();
+  await expect(
+    picker.getByRole("button", { name: "i(VnotVoltage)", exact: true }),
+  ).toHaveCount(0);
+  await picker.getByRole("button", { name: "i(feed)", exact: true }).click();
+  await picker.getByRole("button", { name: "i(Feed)", exact: true }).click();
+  await expect(editor).toContainText("save i(feed) i(Feed)");
+  await picker.getByRole("button", { name: "Done", exact: true }).click();
+  await helper.click();
+  await page
+    .getByRole("option", { name: "Save voltage…", exact: true })
+    .click();
+  await picker.getByRole("button", { name: "v(Out)", exact: true }).click();
+  await picker.getByRole("button", { name: "v(out)", exact: true }).click();
+  await expect(editor).toContainText("save i(feed) i(Feed) v(Out) v(out)");
+});
+
 test("native save completion previews its mapped Net on the real Canvas", async ({
   page,
 }) => {

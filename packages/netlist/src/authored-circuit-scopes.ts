@@ -8,7 +8,7 @@ import type { DesignNetlistIR } from "./ir.js";
 export type AuthoredCircuitEvent =
   | { kind: "definition"; name: string; ports: string[] }
   | { kind: "end" }
-  | { kind: "opaque-master"; name: string }
+  | { kind: "opaque-master"; name: string; module?: string }
   | { kind: "globals"; names: string[] }
   | {
       kind: "call";

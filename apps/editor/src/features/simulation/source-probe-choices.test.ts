@@ -6,6 +6,7 @@ import {
   simulationSignals,
   nativeSimulationDevices,
   nativeTerminalCurrent,
+  inspectVacaskSourceGraph,
 } from "@icm/netlist";
 import { resolveSimulationVoltageProbeNetId } from "./simulation-probe-options";
 import ota from "../../examples/five-transistor-ota-sky130.icproj.json";
@@ -42,7 +43,15 @@ describe("source Probe discovery", () => {
     expect(JSON.stringify(project)).toBe(before);
   });
   it("maps native vectors back to valid Canvas nets through the same naming traversal", () => {
-    const input = project.simulationFolders[0]!.input;
+    const started = createSimulationStarter(project, {
+      id: "mapped",
+      name: "Native mapping",
+      profileId: "candidate",
+      mode: "circuit",
+      documentId: project.topDocumentId,
+    });
+    if (!started.ok) throw Error(started.message);
+    const input = started.folder.input;
     const signals = simulationSignals(project, input);
     expect(Object.keys(signals).length).toBeGreaterThan(0);
     expect(
@@ -89,21 +98,26 @@ describe("source Probe discovery", () => {
         .replace("XDUT ", "XSECOND ");
     const choices = sourceProbeChoices(project, input);
     const names = simulationSignalNames(project, input);
-    expect(Object.keys(names).every((name) => name.startsWith("v("))).toBe(
+    expect(Object.keys(names).some((name) => name.startsWith("XDUT:"))).toBe(
+      true,
+    );
+    expect(Object.keys(names).some((name) => name.startsWith("XSECOND:"))).toBe(
       true,
     );
     expect(Object.values(names).some((name) => name.includes("XDUT/"))).toBe(
       true,
     );
-    const callNodes = tb.text
-      .split("\n")
-      .find((line) => line.startsWith("XDUT "))!
-      .trim()
-      .split(/\s+/u)
-      .slice(1, -1);
-    for (const node of callNodes)
-      expect(names[`v(${node.toLowerCase()})`]).toBeDefined();
-    expect(names["v(xdut.0)"]).toBeUndefined();
+    const call = inspectVacaskSourceGraph(input).statements.find(
+      ({ statement }) => statement.tokens[0]?.value === "XDUT",
+    )!.statement;
+    const callNodes = call.tokens
+      .slice(
+        2,
+        call.tokens.findIndex((t) => t.value === ")"),
+      )
+      .map((t) => t.value);
+    for (const node of callNodes) expect(names[node]).toBeDefined();
+    expect(names["XDUT:0"]).toBeUndefined();
     expect(
       choices
         .filter((c) => c.kind === "voltage")
@@ -127,7 +141,7 @@ describe("source Probe discovery", () => {
     });
     if (!result.ok) throw new Error(result.message);
     result.folder.input.files.find((f) => f.path === "run.cir")!.text =
-      "* raw\nVIN in 0 1\nR1 IN out 1k\nC1 OUT 0 1n\n.end\n";
+      "Native text\nmodel supply vsource\nmodel resistor resistor\nmodel cap capacitor\nVIN (in 0) supply dc=1\nR1 (in out) resistor r=1k\nC1 (out 0) cap c=1n\n";
     const choices = sourceProbeChoices(project, result.folder.input);
     expect(
       choices.filter((c) => c.label.toLowerCase() === "v(out)"),
