@@ -316,6 +316,9 @@ function NameInput() {
       className="workspace-inline-name"
       onContextMenu={(e) => e.stopPropagation()}
       onBlur={(event) => {
+        // Creating an experiment needs an explicit action; only inline
+        // file/folder naming retains the existing blur-to-commit behavior.
+        if (request.cellSelection) return;
         if (!event.currentTarget.contains(event.relatedTarget)) finish();
       }}
     >

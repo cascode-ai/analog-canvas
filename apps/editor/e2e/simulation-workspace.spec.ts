@@ -452,9 +452,17 @@ test("new experiments explicitly bind the selected Cell without requiring a Test
     path: test.info().outputPath("manual-setup-card.png"),
   });
   await name.fill("OTA direct");
+  await page.getByRole("heading", { name: "Simulate with an Agent" }).click();
+  await expect(name).toHaveValue("OTA direct");
+  await expect(
+    page.getByRole("treeitem", { name: "Folder OTA direct", exact: true }),
+  ).toHaveCount(0);
+  await name.focus();
   await name.press("Tab");
   await expect(cell).toBeFocused();
   await cell.selectOption(dut.id);
+  await page.getByRole("heading", { name: "Simulate with an Agent" }).click();
+  await expect(cell).toHaveValue(dut.id);
   // Moving between fields must not prematurely create the folder.
   await expect(name).toBeVisible();
   await page.getByRole("button", { name: "Create", exact: true }).click();
@@ -2614,10 +2622,15 @@ test("inline naming commits once on blur, cancels on Escape, and deletion uses a
     name: "New simulation folder name",
   });
   await input.fill("Gamma");
-  // The destination click is not eaten by the naming transaction.
+  // Switching selection must not implicitly create an experiment.
   await workspace
     .getByRole("treeitem", { name: "Folder Beta", exact: true })
     .click();
+  await expect(
+    workspace.getByRole("treeitem", { name: "Folder Gamma", exact: true }),
+  ).toHaveCount(0);
+  await expect(input).toHaveValue("Gamma");
+  await workspace.getByRole("button", { name: "Create", exact: true }).click();
   await expect(
     workspace.getByRole("treeitem", { name: "Folder Gamma", exact: true }),
   ).toHaveCount(1);
@@ -2643,7 +2656,10 @@ test("inline naming commits once on blur, cancels on Escape, and deletion uses a
   await workspace
     .getByRole("textbox", { name: "Folder name", exact: true })
     .fill("Renamed");
-  await page.keyboard.press("Enter");
+  // Renaming existing folders still commits on blur.
+  await workspace
+    .getByRole("treeitem", { name: "Folder Beta", exact: true })
+    .click();
   const renamed = workspace.getByRole("treeitem", {
     name: "Folder Renamed",
     exact: true,
