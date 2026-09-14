@@ -1,9 +1,32 @@
-import { lookupSimulationHelp, type SimulationLanguageHelp } from "@icm/spice";
+import {
+  lookupSimulationHelp,
+  simulationLanguageHelp,
+  type SimulationLanguageHelp,
+} from "@icm/spice";
+import { inspectVacaskSource } from "@icm/netlist";
 import { StateEffect, StateField, type EditorState } from "@codemirror/state";
 import { Decoration, EditorView, WidgetType, keymap } from "@codemirror/view";
 import { closeCompletion } from "@codemirror/autocomplete";
 
 export const dismissParameterGuide = StateEffect.define<boolean>();
+export const nativeParameterHelp: SimulationLanguageHelp = {
+  name: "parameters",
+  context: "deck",
+  signature: "parameters name=expression ...",
+  summary:
+    "Declare circuit parameters in native VACASK source. Names and scale suffixes are case-sensitive; M means mega, m means milli.",
+  section: "cir-elaboration",
+  group: "Parameters",
+  keywords: "design variable parameter 参数 变量",
+  priority: 5,
+  parameters: [{ label: "name=expression", repeat: true }],
+};
+// The declaration surface has migrated; the remaining command families have
+// separate native-language work remaining. Never offer the retired .param.
+export const editorLanguageHelp = [
+  ...simulationLanguageHelp.filter((rule) => rule.name !== ".param"),
+  nativeParameterHelp,
+];
 export function controlContext(text: string): boolean {
   return (
     [...text.matchAll(/^\s*\.(control|endc)\b/gimu)]
@@ -18,6 +41,47 @@ export function parameterGuide(state: EditorState) {
   if (/^\s*(?:\*|;)/u.test(line.text)) return null;
   const head = /^\s*([.\w]+)(\s*)/u.exec(line.text);
   if (!head) return null;
+  if (head[1] === "parameters") {
+    const lexical =
+      inspectVacaskSource("line", line.text).statements[0]?.tokens ?? [];
+    const starts: number[] = [];
+    let depth = 0;
+    for (let i = 1; i < lexical.length; i++) {
+      const token = lexical[i]!;
+      if (!depth && token.kind === "word" && lexical[i + 1]?.value === "=")
+        starts.push(token.start);
+      if (token.kind === "symbol") {
+        if (["(", "[", "{"].includes(token.value)) depth++;
+        if ([")", "]", "}"].includes(token.value)) depth--;
+      }
+    }
+    if (!starts.length && lexical[1]) starts.push(lexical[1].start);
+    const end = lexical.at(-1)?.end ?? head[0].length;
+    const tokens = starts.map((start, i) => {
+      const value = line.text.slice(start, starts[i + 1] ?? end).trimEnd();
+      return {
+        from: line.from + start,
+        to: line.from + start + value.length,
+        value,
+      };
+    });
+    const active = tokens.findIndex(
+      (token) => cursor >= token.from && cursor <= token.to,
+    );
+    return {
+      line,
+      help: nativeParameterHelp,
+      tokens,
+      index: active < 0 ? tokens.length : active,
+      parameters: Array.from(
+        { length: tokens.length + 1 },
+        (): NonNullable<SimulationLanguageHelp["parameters"]>[number] => ({
+          label: "name=expression",
+          repeat: true,
+        }),
+      ),
+    };
+  }
   const context = controlContext(state.doc.sliceString(0, line.from))
     ? "control"
     : "deck";

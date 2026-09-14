@@ -1,8 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import {
-  simulationLanguageHelp,
-  type SimulationLanguageHelp,
-} from "@icm/spice";
+import type { SimulationLanguageHelp } from "@icm/spice";
+import { editorLanguageHelp } from "./code-parameter-guide";
 
 export interface CodeHelperAction {
   id: string;
@@ -29,7 +27,7 @@ export function CodeHelperList({
   const terms = query.trim().toLowerCase().split(/\s+/u);
   const matches = (text: string) =>
     terms.every((term) => text.toLowerCase().includes(term));
-  const rules = simulationLanguageHelp
+  const rules = editorLanguageHelp
     .filter(() => language === "spice")
     .filter((rule) => rule.context === (control ? "control" : "deck"))
     .filter((rule) => matches(`${rule.name} ${rule.summary} ${rule.keywords}`))

@@ -1,6 +1,5 @@
 import { StreamLanguage, type StreamParser } from "@codemirror/language";
 import {
-  simulationLanguageHelp,
   lookupSimulationHelp,
   NGSPICE_LANGUAGE_REFERENCE,
   type SimulationLanguageContext,
@@ -10,7 +9,12 @@ import type {
   CompletionResult,
 } from "@codemirror/autocomplete";
 import { hoverTooltip } from "@codemirror/view";
-import { parameterGuide, insertSpiceHelp } from "./code-parameter-guide";
+import {
+  parameterGuide,
+  insertSpiceHelp,
+  editorLanguageHelp,
+  nativeParameterHelp,
+} from "./code-parameter-guide";
 
 interface State {
   control: boolean;
@@ -159,7 +163,7 @@ export function spiceCompletion(
     : /^\s*\.param\b/iu.test(before)
       ? "parameter"
       : "deck";
-  const options = simulationLanguageHelp
+  const options = editorLanguageHelp
     .filter(
       (rule) =>
         rule.context === languageContext &&
@@ -169,7 +173,10 @@ export function spiceCompletion(
       label: rule.name,
       type: "keyword",
       detail: rule.signature,
-      info: `${rule.summary}\nngspice 46 manual §${rule.section}`,
+      info:
+        rule === nativeParameterHelp
+          ? rule.summary
+          : `${rule.summary}\nngspice 46 manual §${rule.section}`,
       boost: 100 - (rule.priority ?? 90),
       apply: (
         view: Parameters<typeof insertSpiceHelp>[0],

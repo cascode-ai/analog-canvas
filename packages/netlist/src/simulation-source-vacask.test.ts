@@ -14,6 +14,7 @@ import {
   planCircuitSourceEdit,
 } from "./simulation-circuit-source.js";
 import { parseVacaskRawfile } from "../../spice-run/src/vacask-rawfile.js";
+import { nativeParameterDeclarationEdit } from "./simulation-native-parameter-edit.js";
 
 function fixture() {
   const project = createEmptyProject("p", "Native sources", "a");
@@ -236,6 +237,15 @@ it.skipIf(!process.env.VACASK_BIN || !process.env.VACASK_MODULES)(
   "executes the PUBLIC compiler's generated files in native VACASK with reversed include order",
   () => {
     const { project, folder } = fixture();
+    const entry = folder.input.files.find(
+      (f) => f.path === folder.input.entry,
+    )!;
+    const declaration = nativeParameterDeclarationEdit(entry.text, true);
+    entry.text = (
+      declaration.text.slice(0, declaration.anchor) +
+      "VBIAS=1" +
+      declaration.text.slice(declaration.anchor)
+    ).replace("voltage dc=1", "voltage dc=VBIAS");
     const preview = generateCircuitSource(
       project,
       folder.input.circuitBindings[0]!,

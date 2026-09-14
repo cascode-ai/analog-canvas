@@ -22,5 +22,6 @@ export * from "./simulation-signal-names.js";
 export * from "./simulation-native-voltage.js";
 export * from "./simulation-native-source-signals.js";
 export * from "./simulation-native-save-edit.js";
+export * from "./simulation-native-parameter-edit.js";
 export * from "./simulation-native-devices.js";
 export * from "./simulation-native-migration.js";

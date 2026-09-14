@@ -242,7 +242,7 @@ test("native Circuit source edits persist source fields and distinguish mega fro
   expect(projected.source.text).toContain("freq=1000000");
 });
 
-test("Code adds and removes source AC clauses and routes parameter declarations to authored Code", async ({
+test("Code edits native AC fields and routes parameter declarations to authored Code", async ({
   page,
 }) => {
   const project = parseProject(JSON.stringify(ota));
@@ -273,14 +273,19 @@ test("Code adds and removes source AC clauses and routes parameter declarations 
   const generated = generateCircuitSource(
     project,
     folder.input.circuitBindings[0]!,
+    folder.input,
   );
   if (!generated.ok) throw Error("Expected generated source");
   // DOM innerText can omit the final newline and includes display-only ghosts.
   const source = generated.source.text;
-  const edited = source.replace(
-    "VDD vdd 0 DC 1.8",
-    "VDD vdd 0 DC 1.8 AC 1 -90",
-  );
+  const body = generated.source.sourceBodies!.find(
+    (p) => p.instanceId === "VDD",
+  )!;
+  expect(body).toBeDefined();
+  const edited =
+    source.slice(0, body.startOffset) +
+    ' type="dc" dc=1.8 mag=1 phase=-90' +
+    source.slice(body.endOffset);
   expect(edited).not.toBe(source);
   await editor.fill(edited);
   await page.getByRole("button", { name: "Save source", exact: true }).click();
@@ -301,38 +306,43 @@ test("Code adds and removes source AC clauses and routes parameter declarations 
   const applied = generateCircuitSource(
     saved,
     folder.input.circuitBindings[0]!,
+    folder.input,
   );
   if (!applied.ok) throw Error("Expected applied source");
+  const appliedBody = applied.source.sourceBodies!.find(
+    (p) => p.instanceId === "VDD",
+  )!;
   await editor.fill(
-    applied.source.text.replace(
-      "VDD vdd 0 DC 1.8 AC 1 -90",
-      "VDD vdd 0 DC {VBIAS}",
-    ),
+    applied.source.text.slice(0, appliedBody.startOffset) +
+      ' type="dc" dc=(VBIAS)' +
+      applied.source.text.slice(appliedBody.endOffset),
   );
   await page.getByRole("button", { name: "Helper", exact: true }).click();
   await page
-    .getByRole("option", { name: "Design variable (.param)…", exact: true })
+    .getByRole("option", { name: "Design variable (parameters)…", exact: true })
     .click();
   await expect(page.getByRole("tab", { name: /run\.cir/ })).toHaveAttribute(
     "aria-selected",
     "true",
   );
-  await expect(editor).toContainText(".param");
+  const declarationLine = editor
+    .locator(".cm-line")
+    .filter({ hasText: /^parameters(?:\s|$)/ });
+  await expect(declarationLine).toHaveCount(1);
   await expect(page.locator(".simulation-parameter-ghost")).toContainText(
     "name=expression",
   );
   await editor.press("ControlOrMeta+z");
-  await expect(editor).not.toContainText(".param");
+  await expect(declarationLine).toHaveCount(0);
   const redoShortcut = await page.evaluate(() =>
     /Mac|iPhone|iPad/.test(navigator.platform) ? "Meta+Shift+z" : "Control+y",
   );
   await editor.press(redoShortcut);
-  await expect(editor).toContainText(".param");
-  await editor.fill(
-    folder.input.files
-      .find((file) => file.path === "run.cir")!
-      .text.replace(".control", ".param VBIAS=1.8\n.control"),
+  await expect(declarationLine).toHaveCount(1);
+  await expect(page.locator(".simulation-parameter-ghost")).toContainText(
+    "name=expression",
   );
+  await page.keyboard.type("VBIAS=1.8");
   await page.getByRole("button", { name: "Save source", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "Save source", exact: true }),
@@ -344,9 +354,10 @@ test("Code adds and removes source AC clauses and routes parameter declarations 
   expect(sourceParameters(final)).not.toHaveProperty("acMagnitude");
   expect(sourceParameters(final)).not.toHaveProperty("acPhase");
   expect(
-    final.simulationFolders[0]!.input.files.find((f) => f.path === "run.cir")!
-      .text,
-  ).toContain(".param VBIAS=1.8");
+    final.simulationFolders[0]!.input.files.find(
+      (f) => f.path === folder.input.entry,
+    )!.text,
+  ).toContain("parameters VBIAS=1.8");
   expect(
     JSON.parse(
       final.simulationFolders[0]!.input.files.find(

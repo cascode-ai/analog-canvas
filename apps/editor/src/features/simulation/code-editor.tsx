@@ -49,7 +49,6 @@ import {
 import { json, jsonParseLinter } from "@codemirror/lang-json";
 import { linter, lintGutter, type Diagnostic } from "@codemirror/lint";
 import { searchKeymap } from "@codemirror/search";
-import { inspectSimulationSource } from "@icm/spice";
 import type { SimulationSourceDiagnostic } from "@icm/netlist";
 import {
   spiceCodeLanguage,
@@ -76,7 +75,11 @@ import {
   parameterGuide,
 } from "./code-parameter-guide";
 import { CodeHelperList, type CodeHelperAction } from "./code-helper-list";
-import { nativeAcquisitionEdit } from "@icm/netlist";
+import {
+  inspectVacaskSource,
+  nativeAcquisitionEdit,
+  nativeParameterDeclarationEdit,
+} from "@icm/netlist";
 
 export interface SimulationCodeEditorProps {
   path: string;
@@ -397,23 +400,21 @@ export default function SimulationCodeEditor(props: SimulationCodeEditorProps) {
       return;
     handledDeclaration.current = props.declarationRequest;
     const text = editor.state.field(exactSourceField);
-    const eol = text.includes("\r\n") ? "\r\n" : "\n";
-    const control = /^[ \t]*\.control\b/imu.exec(text);
-    const end = /^[ \t]*\.end\b/imu.exec(text);
-    const from = control?.index ?? end?.index ?? text.length;
-    const prefix = !text
-      ? `* Simulation${eol}`
-      : from > 0 && text[from - 1] !== "\n"
-        ? eol
-        : "";
-    const insert = `${prefix}.param ${eol}`;
-    const next = text.slice(0, from) + insert + text.slice(from);
+    const edit = nativeParameterDeclarationEdit(text, true);
+    const { from, insert } = edit.changes[0]!;
     editor.dispatch({
       changes: { from: editorOffset(text, from), insert },
-      selection: { anchor: editorOffset(next, from + prefix.length + 7) },
-      effects: [restoreExactSource.of(next), dismissParameterGuide.of(false)],
+      selection: { anchor: editorOffset(edit.text, edit.anchor) },
+      effects: [
+        restoreExactSource.of(edit.text),
+        dismissParameterGuide.of(false),
+      ],
       userEvent: "input.complete",
     });
+    // CodeMirror otherwise derives the redo caret by mapping the pre-edit
+    // selection. A remote insertion (after the title) must also record its
+    // post-edit selection; this selection-only event adds no text undo step.
+    editor.dispatch({ selection: editor.state.selection, userEvent: "select" });
     editor.focus();
   }, [props.declarationRequest, props.path]);
 
@@ -521,7 +522,7 @@ export default function SimulationCodeEditor(props: SimulationCodeEditorProps) {
             onChoose={(rule) => {
               const editor = view.current;
               if (!editor || props.readOnly || props.mode === "json") return;
-              if (rule.name === ".param" && props.onParameterDeclaration) {
+              if (rule.name === "parameters" && props.onParameterDeclaration) {
                 props.onParameterDeclaration();
                 return;
               }
@@ -694,16 +695,8 @@ function sourceExtensions(
         const local =
           current.mode === "json"
             ? []
-            : inspectSimulationSource(
-                {
-                  id: current.path,
-                  path: current.path,
-                  hash: "",
-                  encoding: "utf-8",
-                  text,
-                },
-                current.entry,
-              ).diagnostics;
+            : inspectVacaskSource(current.path, text, current.entry)
+                .diagnostics;
         const diagnostics: Diagnostic[] = (
           current.mode === "json" ? jsonParseLinter()(editor) : []
         ) as Diagnostic[];
@@ -713,7 +706,7 @@ function sourceExtensions(
               text
                 .slice(text.lastIndexOf("\n", match.index) + 1, match.index)
                 .trimStart()
-                .startsWith("*")
+                .startsWith("//")
             )
               continue;
             diagnostics.push({

@@ -5,6 +5,24 @@ import { spiceCodeLanguage, spiceCompletion } from "./code-spice-language";
 import { parameterGuide } from "./code-parameter-guide";
 
 describe("SPICE editor assistance", () => {
+  it("offers native parameter declarations instead of .param and keeps grouped assignments intact", () => {
+    const doc = "Title\nparameters Width=(W * 2) nf=3 ";
+    const state = EditorState.create({
+      doc,
+      selection: { anchor: doc.length },
+    });
+    const guide = parameterGuide(state)!;
+    expect(guide.help.name).toBe("parameters");
+    expect(guide.tokens.map((t) => t.value)).toEqual(["Width=(W * 2)", "nf=3"]);
+    expect(guide.index).toBe(2);
+    expect(guide.parameters[2]?.label).toBe("name=expression");
+    const options = complete("Title\npar")!.options;
+    expect(options.some((o) => o.label === ".param")).toBe(false);
+    expect(options.find((o) => o.label === "parameters")?.detail).toBe(
+      "parameters name=expression ...",
+    );
+    expect(state.doc.toString()).toBe(doc);
+  });
   it.each(["V1 in 0 DC 1.8 AC ", "I1 in 0 DC 0 SIN(0 1 1k) AC "])(
     "guides AC following other source clauses: %s",
     (doc) => {

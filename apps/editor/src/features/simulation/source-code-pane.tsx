@@ -1302,7 +1302,7 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
           helperActions={[
             {
               id: "design-variable",
-              label: "Design variable (.param)…",
+              label: "Design variable (parameters)…",
               keywords: "parameter declaration 参数 变量",
               run: addParameterDeclaration,
             },
@@ -1452,7 +1452,7 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
             props.onProblem(
               inputProblem(
                 "SIMULATION_CIRCUIT_STRUCTURE_LOCKED",
-                `Circuit topology, references and model identity are Canvas-owned. Edit mapped values/expressions and DC/AC/waveform clauses here. Use Helper → Design variable (.param) to add declarations in ${input.entry}; those declarations belong to this Folder, while Circuit parameter edits affect every Folder using this Cell.`,
+                `Circuit topology, references and model identity are Canvas-owned. Edit mapped values/expressions and native source parameters here. Use Helper → Design variable (parameters) to add declarations in ${input.entry}; those declarations belong to this Folder, while Circuit parameter edits affect every Folder using this Cell.`,
               ),
             )
           }
