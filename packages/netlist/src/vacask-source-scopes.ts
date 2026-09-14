@@ -100,6 +100,7 @@ export function vacaskAuthoredCircuitEvents(
           kind: "definition",
           name: name.value,
           ports: nodes.map((t) => t.value),
+          conditional: conditionalDepth > 0,
         });
       else if (head.kind === "word" && tokens[end + 1]?.kind === "word")
         events.push({

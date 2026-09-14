@@ -14,30 +14,39 @@ import { sourceProbeChoices } from "./source-probe-choices";
 
 const project = parseProject(JSON.stringify(ota));
 describe("source Probe discovery", () => {
-  it("uses native device identities for hierarchical OP and refuses hidden current instrumentation", () => {
+  it("offers raw model OP through native paths without aliasing it to terminal current", () => {
     const before = JSON.stringify(project);
-    const devices = nativeSimulationDevices(
-      project,
-      project.simulationFolders[0]!.input,
-    );
+    const started = createSimulationStarter(project, {
+      id: "op",
+      name: "Native model OP",
+      profileId: "candidate",
+      mode: "circuit",
+      documentId: project.topDocumentId,
+    });
+    if (!started.ok) throw Error(started.message);
+    const input = started.folder.input;
+    const initial = nativeSimulationDevices(project, input);
+    const target = initial.find((d) => d.polarity)!.card.target!;
+    // Source-identity fixture only, not a SKY130 numerical qualification.
+    input.files.find((f) => f.path === input.entry)!.text +=
+      `\nsubckt ${target} (D G S B)\nmodel core sp_bsim4v8 type=1\nInner (D G S B) core\nends\n`;
+    const devices = nativeSimulationDevices(project, input);
     const mos = devices.find(
-      (device) => device.polarity && device.reference.includes("."),
+      (device) => device.polarity && device.card.target === target,
     )!;
-    expect(mos.nativeDevice).toMatch(/^m\..*\.msky130_fd_pr__/u);
+    expect(mos.nativeDevice).toBeUndefined();
     expect(nativeTerminalCurrent(mos, "D")).toMatchObject({
-      ok: true,
-      vectors: [`@${mos.nativeDevice}[id]`],
-      directives: [],
+      ok: false,
     });
     expect(nativeTerminalCurrent(mos, "G")).toMatchObject({ ok: false });
-    const choices = sourceProbeChoices(
-      project,
-      project.simulationFolders[0]!.input,
-    );
+    const choices = sourceProbeChoices(project, input);
     expect(
       choices.some(
         (choice) =>
-          choice.kind === "device-op" && choice.label.includes("[gm]"),
+          choice.kind === "device-op" &&
+          choice.label.includes("gm (model-native)") &&
+          choice.expression.kind === "vector" &&
+          choice.expression.vector.endsWith(",gm)"),
       ),
     ).toBe(true);
     expect(JSON.stringify(project)).toBe(before);

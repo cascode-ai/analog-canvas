@@ -10,7 +10,7 @@ import {
   nativeSourceAcquisitions,
   simulationSignalNames,
   nativeSimulationDevices,
-  nativeDeviceOpVectors,
+  nativeDeviceOpAcquisitions,
   vacaskIdentifier,
 } from "@icm/netlist";
 import { deriveSimulationProbeOptions } from "./simulation-probe-options";
@@ -27,11 +27,11 @@ export function sourceProbeChoices(
   const graph = inspectVacaskSourceGraph(input);
   const choices: SourceProbeChoice[] = [];
   for (const device of nativeSimulationDevices(project, input))
-    for (const vector of nativeDeviceOpVectors(device))
+    for (const acquisition of nativeDeviceOpAcquisitions(device))
       choices.push({
         kind: "device-op",
-        label: `${device.reference} · ${vector.slice(vector.lastIndexOf("[") + 1, -1).toUpperCase()} — ${vector}`,
-        expression: { kind: "vector", vector },
+        label: `${acquisition.reference} · ${acquisition.parameter} (model-native) — ${acquisition.save}`,
+        expression: { kind: "vector", vector: acquisition.save },
       });
   for (const binding of input.circuitBindings) {
     if (!graph.paths.includes(binding.path)) continue;

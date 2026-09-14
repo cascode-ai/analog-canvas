@@ -7,11 +7,9 @@ import { reviewedExternalDeviceBindings } from "@icm/devices";
 import { mosBulkKind } from "@icm/derived";
 import { analyzeDesignNetlist } from "./extract.js";
 import type { DesignNetlistCell, DesignNetlistInstance } from "./ir.js";
-import { inspectSimulationSourceGraph } from "./simulation-source-graph.js";
-import {
-  listAuthoredCircuitScopes,
-  resolveAuthoredCircuitScope,
-} from "./simulation-source-scopes.js";
+import { inspectVacaskSourceGraph } from "./vacask-source.js";
+import { vacaskCircuitScopes } from "./vacask-source-scopes.js";
+import { vacaskIdentifier, vacaskProjectValue } from "./vacask-printer.js";
 
 export interface NativeSimulationDevice {
   documentId: string;
@@ -20,8 +18,9 @@ export interface NativeSimulationDevice {
   circuit: SimulationCircuitScope;
   reference: string;
   card: DesignNetlistInstance;
-  /** ngspice's flattened primitive identity, not the display reference. */
+  /** Exact native primitive path, never a guessed primitive inside a wrapper. */
   nativeDevice?: string;
+  modelPrimitives: { reference: string; module: string }[];
   polarity?: "nmos" | "pmos";
 }
 
@@ -30,7 +29,7 @@ export function nativeSimulationDevices(
   project: CircuitProject,
   input: SimulationSourceInput,
 ): NativeSimulationDevice[] {
-  const graph = inspectSimulationSourceGraph(input);
+  const graph = inspectVacaskSourceGraph(input);
   const result: NativeSimulationDevice[] = [];
   for (const binding of input.circuitBindings) {
     if (!graph.paths.includes(binding.path)) continue;
@@ -41,8 +40,9 @@ export function nativeSimulationDevices(
     if (!ir) continue;
     const root = ir.cells.find((cell) => cell.id === ir.topCellId);
     if (!root) continue;
-    for (const circuit of listAuthoredCircuitScopes(graph, binding, ir)) {
-      const resolved = resolveAuthoredCircuitScope(graph, binding, ir, circuit);
+    const scopes = vacaskCircuitScopes(graph, binding, ir);
+    for (const circuit of scopes.list()) {
+      const resolved = scopes.resolve(circuit);
       if (!resolved.ok) continue;
       let visits = 0;
       function visit(
@@ -54,22 +54,21 @@ export function nativeSimulationDevices(
         if (++visits > 4096 || ancestors.has(cell.id)) return;
         const document = project.documents.find((d) => d.id === cell.id)!;
         for (const card of cell.instances) {
-          const reference = [...path, card.reference.toLowerCase()].join(".");
+          const reference = [...path, card.reference].join(":");
           const authored = document.instances.find((i) => i.id === card.id);
           const polarity = authored ? mosBulkKind(authored) : undefined;
-          const reviewed = reviewedExternalDeviceBindings.find(
-            (item) => item.id === card.reviewedExternalBindingId,
-          );
-          // The reviewed SKY130 MOS wrappers have one m<masterName> primitive.
-          // This mapping is deliberately not applied to arbitrary external subcircuits.
           const nativeDevice =
-            card.invocationKind === "primitive"
-              ? path.length
-                ? `${card.reference[0]!.toLowerCase()}.${reference}`
-                : reference
-              : reviewed?.deviceClass === "mos"
-                ? `m.${reference}.m${reviewed.masterName}`
-                : undefined;
+            card.invocationKind === "primitive" ? reference : undefined;
+          const child =
+            card.deviceClass === "hierarchical"
+              ? ir!.cells.find((c) => c.name === card.target)
+              : undefined;
+          const modelPrimitives = (
+            card.target && !child ? scopes.primitiveModels(card.target) : []
+          ).map((primitive) => ({
+            reference: [reference, ...primitive.path].join(":"),
+            module: primitive.module,
+          }));
           result.push({
             documentId: cell.id,
             instanceId: card.id,
@@ -77,17 +76,14 @@ export function nativeSimulationDevices(
             circuit,
             reference,
             card,
+            modelPrimitives,
             ...(nativeDevice ? { nativeDevice } : {}),
             ...(polarity ? { polarity } : {}),
           });
-          const child =
-            card.deviceClass === "hierarchical"
-              ? ir!.cells.find((c) => c.name === card.target)
-              : undefined;
           if (child)
             visit(
               child,
-              [...path, card.reference.toLowerCase()],
+              [...path, card.reference],
               [...occurrence, card.id],
               new Set([...ancestors, cell.id]),
             );
@@ -111,16 +107,32 @@ export const NATIVE_MOS_OP_PARAMETERS = [
   "vdsat",
 ] as const;
 
+/** Raw model output selectors. No sign, multiplicity, or terminal-gm aliasing.
+ * sp_bsim4v8 output names are declared by the pinned spice/bsim4v8 OSDI model;
+ * similarly named modules and opaque PDK dependencies are not interchangeable. */
+export function nativeDeviceOpAcquisitions(device: NativeSimulationDevice) {
+  if (!device.polarity) return [];
+  return device.modelPrimitives.flatMap((primitive) =>
+    primitive.module === "sp_bsim4v8" && !/\s/u.test(primitive.reference)
+      ? NATIVE_MOS_OP_PARAMETERS.map((parameter) => ({
+          parameter,
+          reference: primitive.reference,
+          vector: `${primitive.reference}.${parameter}`,
+          save: `p(${vacaskIdentifier(primitive.reference)},${parameter})`,
+          semantics: "model-native" as const,
+        }))
+      : [],
+  );
+}
+
+/** Native save selectors for source generators; raw result keys are available
+ * separately from nativeDeviceOpAcquisitions, never reconstructed from text. */
 export function nativeDeviceOpVectors(
   device: NativeSimulationDevice,
 ): string[] {
-  if (!device.polarity || !device.nativeDevice) return [];
-  // Threshold spellings vary across primitive model families; only the reviewed
-  // BSIM SKY130 wrappers advertise vth/vdsat in Helper. Exact vectors stay editable.
-  return NATIVE_MOS_OP_PARAMETERS.filter(
-    (p) =>
-      device.card.reviewedExternalBindingId || !["vth", "vdsat"].includes(p),
-  ).map((parameter) => `@${device.nativeDevice}[${parameter}]`);
+  return nativeDeviceOpAcquisitions(device).map(
+    (acquisition) => acquisition.save,
+  );
 }
 
 export function nativeTerminalCurrent(
@@ -141,30 +153,34 @@ export function nativeTerminalCurrent(
       ok: false,
       message: `No mapped terminal ${device.reference}.${pinName}`,
     };
-  if (!device.reference.includes(".")) {
-    if (device.card.deviceClass === "voltage-source" && index === 0)
-      return { ok: true, vectors: [`i(${device.reference})`], directives: [] };
-    // Native .probe owns its sense source and collection. No JSON instrumentation.
-    return {
-      ok: true,
-      vectors: [],
-      directives: [`.probe i(${device.reference},${index + 1})`],
-    };
-  }
-  if (device.polarity && device.nativeDevice && pinName.toLowerCase() === "d")
-    return {
-      ok: true,
-      vectors: [`@${device.nativeDevice}[id]`],
-      directives: [],
-    };
   if (
     device.card.deviceClass === "voltage-source" &&
     device.nativeDevice &&
+    !/\s/u.test(device.nativeDevice) &&
     index === 0
-  )
-    return { ok: true, vectors: [`i(${device.nativeDevice})`], directives: [] };
+  ) {
+    const factor = device.card.parameters.find((p) =>
+      ["m", "$mfactor"].includes(p.name.toLowerCase()),
+    );
+    // The generated printer does not forward inherited m to ideal voltage
+    // sources. An explicit non-unit factor still makes flow(br) per-instance.
+    let unitFactor = !factor;
+    if (factor) {
+      try {
+        unitFactor = vacaskProjectValue(factor.rawValue) === "1";
+      } catch {
+        /* A symbolic/invalid factor cannot prove terminal-total meaning. */
+      }
+    }
+    if (unitFactor)
+      return {
+        ok: true,
+        vectors: [`i(${vacaskIdentifier(device.nativeDevice)})`],
+        directives: [],
+      };
+  }
   return {
     ok: false,
-    message: `Native current acquisition is unavailable for ${device.reference}.${pinName}. Hierarchical terminals currently support model-native drain current and voltage-source branch current only; no hidden sense circuit is inserted.`,
+    message: `Terminal current at ${device.reference}.${pinName} requires a zero-volt sense source. Native model id is not a signed terminal-total current, and VACASK does not accept the old .probe directive. Insert an explicit sense source and save its branch current; automatic terminal instrumentation remains a migration gap.`,
   };
 }

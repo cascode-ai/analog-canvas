@@ -13,7 +13,11 @@ import {
   replaceSimulationExperimentConfig,
 } from "@icm/model";
 import { parseProject } from "@icm/project-protocol";
-import { generateCircuitSource, simulationSignals } from "@icm/netlist";
+import {
+  generateCircuitSource,
+  simulationSignals,
+  nativeSimulationDevices,
+} from "@icm/netlist";
 
 import {
   clickNetlistWorkflowCommand,
@@ -714,6 +718,58 @@ endc
   await picker.getByRole("button", { name: "v(Out)", exact: true }).click();
   await picker.getByRole("button", { name: "v(out)", exact: true }).click();
   await expect(editor).toContainText("save i(feed) i(Feed) v(Out) v(out)");
+});
+
+test("native device OP Helper inserts inspectable model-native saves without SPICE aliases", async ({
+  page,
+}) => {
+  const project = parseProject(JSON.stringify(ota));
+  const folder = createSimulationFolder({
+    id: "native-op-helper",
+    name: "Native OP",
+    documentId: project.topDocumentId,
+    profileId: "candidate",
+  });
+  // Offline authoring proof only: no claim that these default model values
+  // replace the foundry wrapper. Numeric compiler/helper proof runs separately.
+  const device = nativeSimulationDevices(project, folder.input).find(
+    (d) => d.polarity,
+  )!;
+  folder.input.files.find((f) => f.path === folder.input.entry)!.text +=
+    `\nsubckt ${device.card.target} (D G S B)\nmodel core sp_bsim4v8 type=1\nInner (D G S B) core\nends\n`;
+  project.simulationFolders = [folder];
+  await page.route("**/api/simulate", (route) =>
+    route.fulfill({
+      status: 503,
+      json: { error: "Offline authoring fixture" },
+    }),
+  );
+  await page.goto("/editor");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "native-op.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  await page.getByTestId("open-analog-simulation").click();
+  const editor = page.getByRole("textbox", {
+    name: "Simulation source editor",
+  });
+  await page.getByRole("button", { name: "Helper", exact: true }).click();
+  await page
+    .getByRole("option", { name: "Save device operating point…", exact: true })
+    .click();
+  const picker = page.getByRole("dialog", { name: "Save signal" });
+  const save = `p('${device.reference}:Inner',gm)`;
+  const choice = picker.getByRole("button", {
+    name: `${device.reference}:Inner · gm (model-native) — ${save}`,
+  });
+  await choice.click();
+  await expect(choice).toContainText("Added");
+  await expect(editor).toContainText(`save ${save}`);
+  await expect(editor).not.toContainText("[gm]");
+  await expect(
+    picker.getByRole("textbox", { name: "Search signal" }),
+  ).toBeFocused();
 });
 
 test("native save completion previews its mapped Net on the real Canvas", async ({

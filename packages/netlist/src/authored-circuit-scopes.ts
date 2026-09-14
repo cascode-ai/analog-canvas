@@ -6,7 +6,7 @@ import type { DesignNetlistIR } from "./ir.js";
 
 /** Transient topology facts, not a saved project protocol or full language AST. */
 export type AuthoredCircuitEvent =
-  | { kind: "definition"; name: string; ports: string[] }
+  | { kind: "definition"; name: string; ports: string[]; conditional?: boolean }
   | { kind: "end" }
   | { kind: "opaque-master"; name: string; module?: string }
   | { kind: "globals"; names: string[] }
@@ -24,7 +24,8 @@ interface Definition {
   ports: string[];
   calls: Call[];
   definitions: Map<string, Definition[]>;
-  opaque: Set<string>;
+  opaque: Map<string, (string | undefined)[]>;
+  conditional: boolean;
 }
 export type ResolvedAuthoredScope =
   | {
@@ -52,7 +53,8 @@ export function authoredCircuitScopes(
     ports,
     calls: [],
     definitions: new Map(),
-    opaque: new Set(),
+    opaque: new Map(),
+    conditional: false,
   });
   const top = make("");
   const parents = [top];
@@ -62,6 +64,7 @@ export function authoredCircuitScopes(
     const parent = parents.at(-1)!;
     if (event.kind === "definition") {
       const definition = make(event.name, event.ports);
+      definition.conditional = event.conditional ?? false;
       const owner = syntax.flatDefinitions ? top : parent;
       const name = key(event.name);
       owner.definitions.set(name, [
@@ -73,9 +76,13 @@ export function authoredCircuitScopes(
       if (parents.length > 1) parents.pop();
     } else if (event.kind === "globals") {
       for (const name of event.names) globals.add(key(name));
-    } else if (event.kind === "opaque-master")
-      parent.opaque.add(key(event.name));
-    else parent.calls.push(event);
+    } else if (event.kind === "opaque-master") {
+      const name = key(event.name);
+      parent.opaque.set(name, [
+        ...(parent.opaque.get(name) ?? []),
+        event.module,
+      ]);
+    } else parent.calls.push(event);
   }
   const root = circuit.cells.find((cell) => cell.id === circuit.topCellId);
   const generated = root
@@ -91,7 +98,9 @@ export function authoredCircuitScopes(
       if (owner.opaque.has(normalized)) return undefined;
       const definitions = owner.definitions.get(normalized);
       if (definitions)
-        return definitions.length === 1 ? definitions[0] : undefined;
+        return definitions.length === 1 && !definitions[0]!.conditional
+          ? definitions[0]
+          : undefined;
     }
     return generated && key(generated.name) === normalized
       ? generated
@@ -190,5 +199,53 @@ export function authoredCircuitScopes(
     visit(top, [], new Set([top]));
     return result;
   }
-  return { resolve, list };
+  /** Literal model primitives inside a top-level master used by generated IR.
+   * Reuses the same declaration/shadowing rules as occurrence resolution.
+   * Unknown dependencies, conditional or ambiguous instances are not guessed.
+   * This is source identity, not a promise that a module has qualified numbers. */
+  function primitiveModels(master: string) {
+    const result: { path: string[]; module: string }[] = [];
+    let visits = 0;
+    function visit(
+      parent: Definition,
+      name: string,
+      path: string[],
+      ancestors: Set<Definition>,
+    ) {
+      if (path.length >= 64 || ++visits > 4096) return;
+      for (const owner of parent === top ? [top] : [parent, top]) {
+        const modules = owner.opaque.get(key(name));
+        const definitions = owner.definitions.get(key(name));
+        if (modules) {
+          if (!definitions && modules.length === 1 && modules[0])
+            result.push({ path, module: modules[0] });
+          return;
+        }
+        if (!definitions) continue;
+        const definition =
+          definitions.length === 1 ? definitions[0] : undefined;
+        if (!definition || definition.conditional || ancestors.has(definition))
+          return;
+        const counts = new Map<string, number>();
+        for (const call of definition.calls)
+          counts.set(key(call.name), (counts.get(key(call.name)) ?? 0) + 1);
+        for (const call of definition.calls)
+          if (
+            call.master &&
+            !call.conditional &&
+            counts.get(key(call.name)) === 1
+          )
+            visit(
+              definition,
+              call.master,
+              [...path, key(call.name)],
+              new Set([...ancestors, definition]),
+            );
+        return;
+      }
+    }
+    visit(top, master, [], new Set());
+    return result;
+  }
+  return { resolve, list, primitiveModels };
 }

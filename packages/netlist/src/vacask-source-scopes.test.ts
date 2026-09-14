@@ -178,6 +178,48 @@ describe("native authored occurrence mapping", () => {
         .map((s) => s.callPath),
     ).toEqual([["X1"]]);
   });
+  it("resolves model leaves with the same local shadowing and exact instance identity", () => {
+    const resolver = scopes(`Title
+model core resistor
+subckt Device (d g s b)
+model core sp_bsim4v8
+N (d g s b) core
+n (d g s b) core
+subckt Inner (d g s b)
+model core bsim4v8
+leaf (d g s b) core
+ends
+X (d g s b) Inner
+ends
+`);
+    expect(resolver.primitiveModels("Device")).toEqual([
+      { path: ["N"], module: "sp_bsim4v8" },
+      { path: ["n"], module: "sp_bsim4v8" },
+      { path: ["X", "leaf"], module: "bsim4v8" },
+    ]);
+    expect(resolver.primitiveModels("Inner")).toEqual([]);
+    expect(resolver.primitiveModels("core")).toEqual([
+      { path: [], module: "resistor" },
+    ]);
+  });
+  it("does not invent model leaves through conditional, duplicate or recursive definitions/calls", () => {
+    for (const body of [
+      "@if enabled\nN (p) core\n@end",
+      "N (p) core\nN (q) core",
+      "Again (p) Device",
+      "model core sp_bsim4v8\nmodel core bsim4v8\nN (p) core",
+      "model core sp_bsim4v8\nsubckt core (p)\nends\nN (p) core",
+    ])
+      expect(
+        scopes(
+          `Title\nmodel core sp_bsim4v8\nsubckt Device (p)\n${body}\nends\n`,
+        ).primitiveModels("Device"),
+      ).toEqual([]);
+    const conditional = scopes(
+      "Title\nmodel core sp_bsim4v8\n@if enabled\nsubckt Device (p)\nN (p) core\nends\n@end\n",
+    );
+    expect(conditional.primitiveModels("Device")).toEqual([]);
+  });
 });
 
 it.skipIf(!process.env.VACASK_BIN)(
