@@ -168,7 +168,7 @@ const SimulationRunMetadataSchema = z.strictObject({
     profileId: z.string().nullable(),
     platform: z.string(),
     simulator: z.strictObject({
-      name: z.literal("ngspice"),
+      name: z.enum(["vacask", "ngspice"]),
       version: z.string(),
       binarySha256: z.string().nullable(),
     }),

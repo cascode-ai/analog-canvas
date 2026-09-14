@@ -2,6 +2,7 @@ import { CapabilitiesSchema } from "./contract.js";
 import { SimulationResultSchema, readSimulationData } from "@icm/spice-run";
 import {
   ExecutionFailure,
+  validateExecutionOutput,
   type Executor,
   type ExecutionInput,
 } from "./executor.js";
@@ -12,59 +13,50 @@ export function decodeHostedExecutionPayload(
   input: ExecutionInput,
   body: HostedExecutionPayload,
 ) {
-  const { rawfile, executedDeck, cancelled, ...value } = body ?? {};
-  const parsed = SimulationResultSchema.safeParse(value);
-  if (!parsed.success)
-    throw new ExecutionFailure(
-      {
-        code: "SIMULATION_RESULT_INVALID",
-        message:
-          "The executor returned an invalid result; this run was not retried.",
-        stage: "read",
-        recovery: "not-retryable",
-      },
-      true,
-    );
-  if (
-    parsed.data.metadata.input.inputRevision !== input.inputRevision ||
-    parsed.data.metadata.environment.profileId !== input.environment.profileId
-  )
-    throw new ExecutionFailure({
-      code: "SIMULATION_IDENTITY_MISMATCH",
-      message:
-        "Result input/environment identity differs from the prepared input",
-      stage: "read",
-      recovery: "not-retryable",
-    });
+  const {
+    rawfile,
+    rawfiles,
+    executedFiles,
+    executedDeck,
+    cancelled,
+    ...value
+  } = body ?? {};
+  const output = validateExecutionOutput(input, {
+    result: value,
+    rawfile,
+    rawfiles,
+    executedFiles,
+    executedDeck,
+    cancelled,
+  });
+  const result = output.result;
   // Older executor images projected padded short vectors as sweep samples.
   // Re-read explicit dimension declarations with the shared reader, without
   // promoting a result the executor withheld (for example a truncated file).
   if (
-    parsed.data.data &&
+    result.metadata.environment.simulator.name === "ngspice" &&
+    result.data &&
     typeof rawfile === "string" &&
     /^\s*\d+\s+\S+\s+\S+[^\r\n]*\bdims=/mu.test(rawfile)
   ) {
     const reading = readSimulationData(rawfile);
-    parsed.data.diagnostics.push(
+    result.diagnostics.push(
       ...reading.diagnostics.filter(
-        (d) =>
-          !parsed.data.diagnostics.some((existing) => existing.text === d.text),
+        (d) => !result.diagnostics.some((existing) => existing.text === d.text),
       ),
     );
     if (reading.status === "read")
-      parsed.data.data = SimulationResultSchema.shape.data.parse(reading.data);
-    else delete parsed.data.data;
+      result.data = SimulationResultSchema.shape.data.parse(reading.data);
+    else delete result.data;
     if (
       reading.diagnostics.some((d) => d.severity === "error") &&
-      parsed.data.outcome.status !== "timed-out"
+      result.outcome.status !== "timed-out"
     )
-      parsed.data.outcome = { status: "failed" };
+      result.outcome = { status: "failed" };
   }
   return {
-    result: parsed.data,
+    ...output,
     cancelled: cancelled === true,
-    ...(typeof rawfile === "string" ? { rawfile } : {}),
-    ...(typeof executedDeck === "string" ? { executedDeck } : {}),
   };
 }
 

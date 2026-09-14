@@ -19,9 +19,11 @@ import {
 import { automaticMeasurementsToCsv } from "./automatic-measurements.js";
 import { nativeMeasurementResults } from "./native-measurements.js";
 import { nativeOutputDeclarations } from "./native-output-semantics.js";
+import { executionArtifactEntries } from "./execution-artifacts.js";
 
 import {
   ExecutionFailure,
+  validateExecutionOutput,
   type ExecutionInput,
   type Executor,
 } from "./executor.js";
@@ -755,10 +757,13 @@ export class SimulationService {
     epoch: number,
   ) {
     try {
-      const output = await this.executor.execute(input, run.token, timeoutMs, {
-        preparedId: run.prepared.id,
-        preparedDigest: run.prepared.digest,
-      });
+      const output = validateExecutionOutput(
+        input,
+        await this.executor.execute(input, run.token, timeoutMs, {
+          preparedId: run.prepared.id,
+          preparedDigest: run.prepared.digest,
+        }),
+      );
       if (epoch !== this.epoch) return;
       run.view.result = output.result;
       if (output.result.data) {
@@ -801,6 +806,25 @@ export class SimulationService {
         await artifact("out.raw", "text/plain", output.rawfile);
       if (output.executedDeck !== undefined)
         await artifact("executed.cir", "text/plain", output.executedDeck);
+      const nativeArtifacts: {
+        kind: "raw" | "executed";
+        path: string;
+        artifact: ArtifactRef;
+      }[] = [];
+      for (const item of executionArtifactEntries(output)) {
+        const ref = await this.publishArtifact(
+          epoch,
+          item.name,
+          "text/plain",
+          item.text,
+        );
+        run.view.artifacts.push(ref);
+        nativeArtifacts.push({
+          kind: item.kind,
+          path: item.path,
+          artifact: ref,
+        });
+      }
       await artifact(
         "result.json",
         "application/json",
@@ -866,6 +890,7 @@ export class SimulationService {
               measurements: run.prepared.measurements ?? [],
             },
             environment: output.result.metadata.environment,
+            ...(nativeArtifacts.length ? { nativeArtifacts } : {}),
             artifacts: evidenceArtifacts,
           },
           null,
