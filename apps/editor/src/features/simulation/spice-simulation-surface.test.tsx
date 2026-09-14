@@ -61,6 +61,10 @@ describe("source workspace default cutover", () => {
       expect(markup).toContain("Agent connected");
       expect(markup).toContain("Tell your Agent your simulation goal");
       expect(opened).toBe(false);
+      expect(markup.includes('aria-label="Agent simulation guide"')).toBe(
+        !saved,
+      );
+      expect(markup.includes('class="simulation-agent-guidance"')).toBe(saved);
       expect(render(saved)).not.toContain("simulation-agent-guidance");
     },
   );

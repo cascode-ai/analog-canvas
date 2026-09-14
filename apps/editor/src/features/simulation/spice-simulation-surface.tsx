@@ -1,5 +1,8 @@
 import type { SimulationFocusTarget } from "./simulation-focus-target";
-import { SimulationAgentGuidance } from "./simulation-agent-guidance";
+import {
+  SimulationAgentGuidance,
+  SimulationAgentStart,
+} from "./simulation-agent-guidance";
 import { useEffect, useRef, useState } from "react";
 import {
   WorkspaceInteractions,
@@ -1848,7 +1851,7 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
   );
   const windowActions = (
     <>
-      {props.agentGuidance ? (
+      {props.agentGuidance && selectedFolder ? (
         <SimulationAgentGuidance {...props.agentGuidance} />
       ) : null}
       <div className="simulation-window-actions">
@@ -1908,12 +1911,13 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
         }
       }}
     >
-      {!project.simulationFolders.length && props.onOpenExample ? (
-        <SimulationExampleCards onOpen={props.onOpenExample} />
-      ) : null}
       {!selectedFolder ? (
         <header className="simulation-taskbar">
-          {simulationActions}
+          {props.agentGuidance ? (
+            <strong className="simulation-start-title">Simulation</strong>
+          ) : (
+            simulationActions
+          )}
           {windowActions}
         </header>
       ) : null}
@@ -2001,8 +2005,20 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
           onHistoryBoundary={props.onHistoryBoundary}
         />
       ) : (
-        <div className="simulation-empty-result">
+        <div className="simulation-start-workspace">
+          {props.agentGuidance ? (
+            <SimulationAgentStart
+              {...props.agentGuidance}
+              onManualSetup={createFolder}
+            />
+          ) : null}
           {interaction.edit?.kind === "folder" ? <WorkspaceNameInput /> : null}
+          {!project.simulationFolders.length && props.onOpenExample ? (
+            <details className="simulation-start-examples">
+              <summary>Explore examples</summary>
+              <SimulationExampleCards onOpen={props.onOpenExample} />
+            </details>
+          ) : null}
         </div>
       )}
     </section>

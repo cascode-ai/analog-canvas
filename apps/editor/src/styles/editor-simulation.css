@@ -90,6 +90,147 @@
   gap: 8px;
   flex: 0 0 auto;
 }
+.simulation-start-title {
+  flex: 1;
+  font-size: var(--icm-font-xs);
+  color: var(--icm-text-muted);
+}
+.simulation-start-workspace {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: clamp(16px, 2vw, 24px);
+}
+.simulation-agent-start {
+  width: min(100%, 540px);
+  margin: 8px auto 16px;
+}
+.simulation-agent-start h2 {
+  margin: 0 0 14px;
+  font-size: 24px;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+}
+.simulation-agent-start-status {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 72px;
+  box-sizing: border-box;
+  padding: 14px 16px;
+  border: 1px solid var(--icm-accent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--icm-accent) 9%, var(--icm-surface));
+}
+.simulation-agent-start-status strong {
+  display: block;
+  font-size: 16px;
+}
+.simulation-agent-start-status p {
+  margin: 4px 0 0;
+  color: var(--icm-text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.simulation-agent-start-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 28px;
+  height: 28px;
+  border-radius: 50%;
+  color: var(--icm-accent);
+  background: var(--icm-surface);
+  font-size: 20px;
+  font-weight: 700;
+}
+.simulation-agent-start:is(
+    [data-agent-status="offline"],
+    [data-agent-status="expired"],
+    [data-agent-status="revoked"]
+  )
+  .simulation-agent-start-status {
+  border-color: var(--icm-danger);
+  background: color-mix(in srgb, var(--icm-danger) 7%, var(--icm-surface));
+}
+.simulation-agent-start:is(
+    [data-agent-status="offline"],
+    [data-agent-status="expired"],
+    [data-agent-status="revoked"]
+  )
+  .simulation-agent-start-icon {
+  color: var(--icm-danger);
+}
+.simulation-agent-steps {
+  list-style: none;
+  counter-reset: agent-step;
+  display: grid;
+  gap: 14px;
+  padding: 0;
+  margin: 18px 0;
+}
+.simulation-agent-steps li {
+  counter-increment: agent-step;
+  position: relative;
+  padding-left: 38px;
+}
+.simulation-agent-steps li::before {
+  content: counter(agent-step);
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--icm-border-strong);
+  border-radius: 50%;
+  color: var(--icm-text-muted);
+  font-size: 12px;
+}
+.simulation-agent-steps strong {
+  font-size: 14px;
+}
+.simulation-agent-steps p {
+  margin: 5px 0 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--icm-text-muted);
+}
+.simulation-agent-start-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.spice-simulation-surface .simulation-agent-start-primary {
+  min-height: 38px;
+  padding: 8px 16px;
+  background: var(--icm-accent);
+  border-color: var(--icm-accent);
+  color: white;
+  font-weight: 600;
+}
+.spice-simulation-surface .simulation-agent-start-primary:hover:not(:disabled) {
+  background: var(--icm-accent);
+  filter: brightness(0.9);
+}
+.spice-simulation-surface .simulation-agent-start-manual {
+  border-color: transparent;
+  background: transparent;
+  color: var(--icm-text-muted);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.simulation-start-examples {
+  width: min(100%, 540px);
+  margin: 16px auto;
+  font-size: 12px;
+  color: var(--icm-text-muted);
+}
+.simulation-start-examples > summary {
+  cursor: pointer;
+  padding: 8px 0;
+}
 .simulation-agent-hint {
   display: none;
   color: var(--icm-text-muted);
