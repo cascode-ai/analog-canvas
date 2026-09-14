@@ -107,7 +107,40 @@ function snapshot() {
           visible: false,
         },
       ],
-      drafting: { objects: [] },
+      drafting: {
+        objects: [
+          {
+            object: {
+              id: "release-arrow",
+              kind: "arrow",
+              locked: false,
+              zIndex: 0,
+              anchor: { kind: "free", position: { x: 0, y: 0 } },
+              from: { kind: "free", position: { x: 0, y: 0 } },
+              to: { kind: "free", position: { x: 100, y: 0 } },
+              styleOverride: { arrowStart: "dot", arrowEnd: "open-arrow" },
+            },
+            resolvedGeometry: {
+              kind: "arrow",
+              from: { x: 0, y: 0 },
+              to: { x: 100, y: 0 },
+              points: [
+                { x: 0, y: 0 },
+                { x: 100, y: 0 },
+              ],
+              vertices: [
+                { x: 0, y: 0 },
+                { x: 100, y: 0 },
+              ],
+              curveControls: [null],
+              center: { x: 50, y: 0 },
+              bounds: { x: 0, y: 0, width: 100, height: 0 },
+              diagnostics: [],
+            },
+            diagnostics: [],
+          },
+        ],
+      },
       layoutGroups: [],
       constraints: [],
       diagnostics: [],
@@ -369,6 +402,10 @@ try {
         kind: "upsert_schematic_annotation",
         annotation: snapshot().document.annotations[0],
       },
+      {
+        kind: "upsert_drafting_object",
+        object: snapshot().document.drafting.objects[0].object,
+      },
     ],
   });
   await first.tool("apply_actions", {
@@ -392,6 +429,12 @@ try {
     path: importPath,
   });
   await first.close();
+
+  // Browser activity can renew the server deadline without updating this file.
+  // Only the server may decide that a stored connector is no longer resumable.
+  const savedConnector = JSON.parse(await readFile(connectorPath, "utf8"));
+  savedConnector.connectorExpiresAt = Date.now() - 60_000;
+  await writeFile(connectorPath, JSON.stringify(savedConnector), "utf8");
 
   const restarted = startMcp();
   await restarted.request("initialize", { protocolVersion: "2025-03-26" });

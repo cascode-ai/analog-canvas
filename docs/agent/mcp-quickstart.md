@@ -11,12 +11,24 @@ Use `inspect` and `search` for IDs and pins, not screenshot coordinates.
 Production and Preview both expose the Agent UI. Their accounts, Projects and
 connector bindings remain separate.
 
-MCP 0.9.0 supports API 3.0, Project schema 54 and setup v4 source/config files.
-It adds native component displays and attached Net Labels; use it with Analog
-Canvas with the MCP 0.9.0 command update deployed. The public distribution manifest identifies the pinned
+MCP 0.10.0 supports API 3.0, Project schema 55 and setup v4 source/config files.
+Use it with Analog Canvas 0.6.0 or newer. It supports independent arrow ends,
+native component displays and attached Net Labels. The public distribution manifest identifies the pinned
 release artifact and its SHA-256. Updating the website does not update an
 already installed MCP process. Set `ANALOG_CANVAS_API_URL` only when connecting
 to Preview or another non-production endpoint.
+
+Sessions have a renewable 30-minute idle deadline. Agent operations and manual
+edits renew it; passive heartbeats do not. A saved connector's deadline may be
+stale after activity in the browser: MCP asks the server whether it can resume,
+rather than discarding the connector based on its local timestamp. Expired or
+revoked server sessions still require a new Claim Code.
+
+Schema 55 arrow objects support independent `styleOverride.arrowStart` and
+`arrowEnd`: `small-arrow`, `medium-arrow`, `large-arrow`, `dot`, `none`, or
+`open-arrow`. Read the `upsert_drafting_object` contract before editing them.
+These fields are arrow-only; legacy `arrowHead`/`arrowHeadAt` remain fallbacks.
+Older 0.9.0 adapters may reject Snapshots containing the new fields.
 
 ## Create and edit (MCP 0.5 / Kit 4)
 
