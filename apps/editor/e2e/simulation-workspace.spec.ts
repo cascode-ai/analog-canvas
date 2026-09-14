@@ -59,19 +59,39 @@ test("simulation Agent entry is passive and reuses the existing connection panel
   });
   await page.getByTestId("open-analog-simulation").click();
   const bar = page.locator(".simulation-taskbar");
+  const guide = page.getByRole("region", { name: "Agent simulation guide" });
+  await expect(guide.getByRole("heading")).toHaveText(
+    "Simulate with an Agent (recommended)",
+  );
+  await expect(guide.getByRole("listitem")).toHaveCount(3);
+  await expect(bar.locator(".simulation-agent-guidance")).toHaveCount(0);
   await expect(
-    bar.getByRole("button", { name: "Manual setup", exact: true }),
+    guide.getByRole("button", { name: "Set up manually", exact: true }),
   ).toBeVisible();
+  const initialSurface = await page
+    .getByRole("region", { name: "Analog simulation" })
+    .boundingBox();
+  const connectBounds = await guide
+    .getByRole("button", { name: "Connect Agent", exact: true })
+    .boundingBox();
+  expect(connectBounds!.y + connectBounds!.height).toBeLessThanOrEqual(
+    initialSurface!.y + initialSurface!.height,
+  );
+  await page
+    .getByRole("region", { name: "Analog simulation" })
+    .screenshot({ path: test.info().outputPath("agent-start.png") });
   await expect(page.getByTestId("connect-agent-panel")).toHaveCount(0);
   expect(creates).toBe(0);
-  await bar.getByRole("button", { name: "Connect Agent", exact: true }).click();
+  await guide
+    .getByRole("button", { name: "Connect Agent", exact: true })
+    .click();
   const panel = page.getByTestId("connect-agent-panel");
   await expect(panel).toBeVisible();
   await expect(panel.getByTestId("agent-copy-text")).toHaveValue(
     /sim-guide.claim/,
   );
   await expect(
-    bar.getByRole("button", { name: "Waiting for Agent", exact: true }),
+    guide.getByRole("button", { name: "View connection info", exact: true }),
   ).toBeVisible();
   expect(creates).toBe(1);
   await panel.getByRole("button", { name: "Close Agent dialog" }).click();
@@ -87,22 +107,46 @@ test("simulation Agent entry is passive and reuses the existing connection panel
       payload: { type: "session.ready", sessionId: "sim-guide" },
     }),
   );
-  await expect(
-    bar.getByRole("button", { name: "Agent connected", exact: true }),
-  ).toBeVisible();
+  await expect(guide.getByRole("status")).toContainText("Agent connected");
   await expect(panel).toHaveCount(0);
   await page
     .getByRole("button", { name: "Maximize simulation", exact: true })
     .click();
-  await expect(bar.locator(".simulation-agent-hint")).toBeVisible();
-  await expect(bar.locator(".simulation-agent-hint")).toHaveText(
-    "Tell your Agent your simulation goal",
+  await expect(guide.getByRole("status")).toContainText(
+    "Tell your Agent your simulation goal.",
   );
-  await bar
-    .getByRole("button", { name: "Agent connected", exact: true })
+  await guide.screenshot({
+    path: test.info().outputPath("agent-connected.png"),
+  });
+  const originalViewport = page.viewportSize()!;
+  await page.setViewportSize({ width: 480, height: 640 });
+  await expect(
+    guide.getByRole("button", { name: "Connection details", exact: true }),
+  ).toBeInViewport();
+  expect(
+    await page
+      .locator(".simulation-start-workspace")
+      .evaluate((element) => element.scrollWidth <= element.clientWidth),
+  ).toBe(true);
+  await guide.screenshot({
+    path: test.info().outputPath("agent-start-narrow.png"),
+  });
+  await page.setViewportSize(originalViewport);
+  await guide
+    .getByRole("button", { name: "Connection details", exact: true })
     .click();
   await expect(panel).toBeVisible();
   expect(creates).toBe(1);
+  await panel.getByRole("button", { name: "Close Agent dialog" }).click();
+  await guide
+    .getByRole("button", { name: "Set up manually", exact: true })
+    .click();
+  await page.getByLabel("New simulation folder name").fill("Agent experiment");
+  await page.getByLabel("New simulation folder name").press("Enter");
+  await expect(guide).toHaveCount(0);
+  await expect(
+    bar.getByRole("button", { name: "Agent connected", exact: true }),
+  ).toBeVisible();
 });
 
 test("simulation examples confirm whole-Project replacement and protect existing work", async ({
@@ -123,6 +167,8 @@ test("simulation examples confirm whole-Project replacement and protect existing
   await page.getByTestId("open-analog-simulation").click();
   const panel = page.getByRole("region", { name: "Analog simulation" });
   const cards = panel.getByRole("group", { name: "Simulation examples" });
+  await expect(cards).not.toBeVisible();
+  await panel.getByText("Explore examples", { exact: true }).click();
   await expect(cards.getByRole("button")).toHaveCount(4);
   await panel.screenshot({
     path: test.info().outputPath("simulation-starters.png"),
@@ -381,20 +427,58 @@ test("new experiments explicitly bind the selected Cell without requiring a Test
     buffer: Buffer.from(JSON.stringify(project)),
   });
   await page.getByTestId("open-analog-simulation").click();
-  await page.getByRole("button", { name: "Manual setup", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Set up manually", exact: true })
+    .click();
   const name = page.getByLabel("New simulation folder name");
   const cell = page.getByRole("combobox", {
     name: "Simulation Cell",
     exact: true,
   });
   await expect(cell).toHaveValue(project.topDocumentId);
+  const setupCard = page.locator(
+    ".simulation-start-workspace > .workspace-inline-name",
+  );
+  const dockedCard = await setupCard.boundingBox();
+  expect(dockedCard!.width).toBeLessThanOrEqual(360);
+  // Resize via the window control without blurring the form into a commit.
+  await name.press("Escape");
+  await page
+    .getByRole("button", { name: "Maximize simulation", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Set up manually", exact: true })
+    .click();
+  expect((await setupCard.boundingBox())!.width).toBeLessThanOrEqual(360);
+  await setupCard.screenshot({
+    path: test.info().outputPath("manual-setup-card.png"),
+  });
+  await name.fill("OTA direct");
+  await page.getByRole("heading", { name: "Simulate with an Agent" }).click();
+  await expect(name).toHaveCount(0);
+  await expect(
+    page.getByRole("treeitem", { name: "Folder OTA direct", exact: true }),
+  ).toHaveCount(0);
+  await page
+    .getByRole("button", { name: "Set up manually", exact: true })
+    .click();
   await name.fill("OTA direct");
   await name.press("Tab");
   await expect(cell).toBeFocused();
   await cell.selectOption(dut.id);
+  await page.getByRole("heading", { name: "Simulate with an Agent" }).click();
+  await expect(cell).toHaveCount(0);
+  await page
+    .getByRole("button", { name: "Set up manually", exact: true })
+    .click();
+  await name.fill("OTA direct");
+  await cell.selectOption(dut.id);
   // Moving between fields must not prematurely create the folder.
   await expect(name).toBeVisible();
   await page.getByRole("button", { name: "Create", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Restore simulation panel", exact: true })
+    .click();
   const folderRow = page.getByRole("treeitem", {
     name: "Folder OTA direct",
     exact: true,
@@ -2019,13 +2103,11 @@ test("Simulation creates an ordinary testbench and defaults a new experiment to 
     page.getByRole("button", { name: "Sim Code", exact: true }),
   ).toBeVisible();
   await expect(page.locator(".simulation-brand")).toHaveCount(0);
-  const setupBox = await page
-    .getByRole("button", { name: "Manual setup", exact: true })
-    .boundingBox();
   const initialBar = await taskbar.boundingBox();
-  expect(setupBox!.height).toBeLessThanOrEqual(24);
   expect(initialBar!.height).toBeLessThanOrEqual(36);
-  await page.getByRole("button", { name: "Manual setup", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Set up manually", exact: true })
+    .click();
   await page.getByLabel("New simulation folder name").fill("Main experiment");
   await expect(page.getByLabel("Folder template")).toHaveCount(0);
   await expect(page.getByLabel("Folder source")).toHaveCount(0);
@@ -2034,7 +2116,7 @@ test("Simulation creates an ordinary testbench and defaults a new experiment to 
     .getByRole("button", { name: "Run", exact: true })
     .boundingBox();
   const statusBox = await taskbar.getByRole("status").boundingBox();
-  expect(runBox!.height).toBe(setupBox!.height);
+  expect(runBox!.height).toBeLessThanOrEqual(24);
   expect(statusBox!.x).toBeGreaterThanOrEqual(runBox!.x + runBox!.width);
   expect(Math.abs(statusBox!.y - runBox!.y)).toBeLessThanOrEqual(2);
   await expect(taskbar).toHaveCount(1);
@@ -2550,10 +2632,19 @@ test("inline naming commits once on blur, cancels on Escape, and deletion uses a
     name: "New simulation folder name",
   });
   await input.fill("Gamma");
-  // The destination click is not eaten by the naming transaction.
+  // Switching selection must not implicitly create an experiment.
   await workspace
     .getByRole("treeitem", { name: "Folder Beta", exact: true })
     .click();
+  await expect(
+    workspace.getByRole("treeitem", { name: "Folder Gamma", exact: true }),
+  ).toHaveCount(0);
+  await expect(input).toHaveCount(0);
+  await workspace
+    .getByRole("button", { name: "+ New experiment", exact: true })
+    .click();
+  await input.fill("Gamma");
+  await workspace.getByRole("button", { name: "Create", exact: true }).click();
   await expect(
     workspace.getByRole("treeitem", { name: "Folder Gamma", exact: true }),
   ).toHaveCount(1);
@@ -2579,7 +2670,10 @@ test("inline naming commits once on blur, cancels on Escape, and deletion uses a
   await workspace
     .getByRole("textbox", { name: "Folder name", exact: true })
     .fill("Renamed");
-  await page.keyboard.press("Enter");
+  // Renaming existing folders still commits on blur.
+  await workspace
+    .getByRole("treeitem", { name: "Folder Beta", exact: true })
+    .click();
   const renamed = workspace.getByRole("treeitem", {
     name: "Folder Renamed",
     exact: true,

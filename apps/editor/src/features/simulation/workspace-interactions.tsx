@@ -316,7 +316,10 @@ function NameInput() {
       className="workspace-inline-name"
       onContextMenu={(e) => e.stopPropagation()}
       onBlur={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget)) finish();
+        // Leaving setup cancels it; moving between its fields does not.
+        // Existing inline file/folder naming still commits on blur.
+        if (!event.currentTarget.contains(event.relatedTarget))
+          finish(Boolean(request.cellSelection));
       }}
     >
       <input
