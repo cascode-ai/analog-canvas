@@ -51,6 +51,15 @@ plus the hierarchy occurrence; the mapping from probe to simulator vector
 name is produced at compile time and never inferred from result text. Raw
 input carries no Canvas mapping unless one is proven valid.
 
+Simulator vector spellings are exact result identities. Acquisition lookup,
+native output/scalar IDs, friendly labels and CSV must not case-fold them:
+VACASK can return `Out` and `out` with different values. Name normalization,
+when required by a source language, belongs to its source/compiler adapter,
+not the shared numerical consumer. Physical AC acquisitions retain their proven
+units and complex semantics even when their names lack SPICE `v(...)` syntax
+and all imaginary samples are zero. This does not claim native execution-service
+cutover; source inspection and execution registration remain migration work.
+
 ### Reading the rawfile
 
 Three properties of the ASCII rawfile are load-bearing, and all three were

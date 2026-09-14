@@ -65,9 +65,9 @@ export function operatingPointOutputs(
         (parameter) => parameter.parameter === value.parameter,
       )?.expression;
       if (expression?.kind !== "acquisition") continue;
-      const vector = prepared.vectors
-        .find((vector) => vector.probeId === expression.acquisitionId)
-        ?.vector.toLowerCase();
+      const vector = prepared.vectors.find(
+        (vector) => vector.probeId === expression.acquisitionId,
+      )?.vector;
       if (!vector) continue;
       // Same priority as the service's ngspice device-parameter alias resolver.
       const output = [

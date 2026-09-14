@@ -35,6 +35,49 @@ const probes = [
   },
 ];
 describe("native result meaning (not AC storage shape)", () => {
+  it("does not borrow units or declarations from a case-distinct vector", () => {
+    const raw = [
+      { name: "Out", quantity: "voltage", unit: "V" },
+      { name: "out", quantity: "current", unit: "A" },
+    ];
+    const source = new Map([
+      ["Upper", "Out"],
+      ["lower", "out"],
+    ]);
+    expect(
+      nativeProbeMeaning(
+        { name: "Upper", quantity: "notype", unit: null },
+        raw,
+        true,
+        source,
+      ),
+    ).toMatchObject({
+      unit: "V",
+      semantics: { valueKind: "complex", origin: "expression" },
+    });
+    expect(
+      nativeProbeMeaning(
+        { name: "lower", quantity: "notype", unit: null },
+        raw,
+        true,
+        source,
+      ),
+    ).toMatchObject({
+      unit: "A",
+      semantics: { valueKind: "complex", origin: "expression" },
+    });
+    expect(
+      nativeProbeMeaning(
+        { name: "upper", quantity: "notype", unit: null },
+        raw,
+        true,
+        source,
+      ),
+    ).toMatchObject({
+      unit: "",
+      semantics: { valueKind: "unknown", origin: "raw" },
+    });
+  });
   it("bounds alias depth and memoizes repeated semantic dependencies", () => {
     const code = [
       "let x0 = v(out)",

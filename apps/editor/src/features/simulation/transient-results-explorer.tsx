@@ -186,11 +186,11 @@ function outputTraces(
   groups: Readonly<Record<string, string>>,
 ): ScalarTrace[] {
   const vectorsByName = new Map(
-    vectors.map((vector) => [vector.vector.toLowerCase(), vector]),
+    vectors.map((vector) => [vector.vector, vector]),
   );
   const probesById = new Map(probes.map((probe) => [probe.id, probe]));
   return analysis.probes.map((resultProbe, index) => {
-    const binding = vectorsByName.get(resultProbe.name.toLowerCase());
+    const binding = vectorsByName.get(resultProbe.name);
     const authored = binding ? probesById.get(binding.probeId) : undefined;
     return {
       id: binding?.probeId ?? resultProbe.name,

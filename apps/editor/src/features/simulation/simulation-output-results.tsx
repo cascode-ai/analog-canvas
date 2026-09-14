@@ -259,7 +259,7 @@ export function SimulationOutputResults({
     const target = targets[0];
     if (!target) continue;
     probes.push({
-      id: `native:${vector.toLowerCase()}`,
+      id: `native:${vector}`,
       kind: "voltage",
       rootDocumentId: target.rootDocumentId,
       documentId: target.documentId,

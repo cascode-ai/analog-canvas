@@ -206,12 +206,12 @@ function sourceSeries(
   vectors: readonly CompiledSimulationVector[],
   declarations: NativeDeclarations = new Map(),
 ): Map<string, ComplexSeries> {
-  const byName = new Map(
-    analysis.probes.map((probe) => [probe.name.toLowerCase(), probe]),
-  );
+  // Simulator/compiler adapters own spelling. The shared result layer must
+  // never merge distinct native vectors such as Out and out.
+  const byName = new Map(analysis.probes.map((probe) => [probe.name, probe]));
   const result = new Map<string, ComplexSeries>();
   for (const vector of vectors) {
-    const name = vector.vector.toLowerCase();
+    const name = vector.vector;
     // ngspice 46 writes saved device parameters as i(@m[id]) / v(@m[vgs]),
     // but admittance parameters retain @m[gm]. Keep raw names as evidence.
     const source =
@@ -402,14 +402,14 @@ export function evaluateSimulationOutputs(
             expression.kind === "acquisition"
               ? vectors
                   .filter((v) => v.probeId === expression.acquisitionId)
-                  .map((v) => v.vector.toLowerCase())
+                  .map((v) => v.vector)
               : [],
           ),
         );
         for (const probe of analysis.probes) {
-          if (represented.has(probe.name.toLowerCase())) continue;
+          if (represented.has(probe.name)) continue;
           const native = {
-            probeId: `native:${probe.name.toLowerCase()}`,
+            probeId: `native:${probe.name}`,
             vector: probe.name,
             quantity: "native" as const,
           };
@@ -422,7 +422,7 @@ export function evaluateSimulationOutputs(
           const series = sourceSeries(analysis, [native], declarations).get(
             native.probeId,
           )!;
-          const friendly = signalNames[probe.name.toLowerCase()];
+          const friendly = signalNames[probe.name];
           evaluated.push({
             id: native.probeId,
             label: friendly ? `${friendly} — ${probe.name}` : probe.name,
@@ -471,7 +471,7 @@ export function evaluateSimulationOutputs(
                   declarations,
                 );
                 return {
-                  id: `native:${scalar.name.toLowerCase()}`,
+                  id: `native:${scalar.name}`,
                   label: scalar.name,
                   // Cardinality and complex interpretation do not erase a
                   // declared raw unit. Unsupported expressions remain unknown.

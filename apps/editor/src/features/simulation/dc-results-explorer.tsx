@@ -58,11 +58,11 @@ export function DcResultsExplorer({
   onFocusProbe,
 }: DcResultsExplorerProps) {
   const vectorsByName = new Map(
-    vectors.map((vector) => [vector.vector.toLowerCase(), vector]),
+    vectors.map((vector) => [vector.vector, vector]),
   );
   const probesById = new Map(probes.map((probe) => [probe.id, probe]));
   const traces = analysis.probes.map((result, index) => {
-    const binding = vectorsByName.get(result.name.toLowerCase());
+    const binding = vectorsByName.get(result.name);
     const authored = binding ? probesById.get(binding.probeId) : undefined;
     return {
       id: binding?.probeId ?? result.name,

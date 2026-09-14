@@ -1,14 +1,158 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
-import { readVacaskSimulationData } from "@icm/spice-run";
+import {
+  readVacaskSimulationData,
+  type SimulationResultData,
+} from "@icm/spice-run";
 
 import {
   evaluateSimulationOutputs,
+  simulationOutputAnalysisToCsv,
   simulationDeviceOperatingPointsToCsv,
 } from "./output-evaluation.js";
 import { SimulationOutputDataSchema } from "./contract.js";
 
 describe("simulation output evaluation", () => {
+  it.each(["op", "dc", "ac", "tran"] as const)(
+    "preserves case-distinct %s acquisitions, output IDs, labels and CSV values",
+    (kind) => {
+      const probes = [
+        { name: "Out", quantity: "voltage", unit: "V", number: 1 },
+        { name: "out", quantity: "current", unit: "A", number: 2 },
+      ];
+      const shared = { plotName: "Case-sensitive signals" };
+      const series = probes.map(({ number, ...p }) => ({
+        ...p,
+        value: [number],
+      }));
+      const analysis: SimulationResultData["analyses"][number] =
+        kind === "op"
+          ? {
+              ...shared,
+              analysis: kind,
+              probes: probes.map(({ number, ...p }) => ({
+                ...p,
+                value: number,
+              })),
+            }
+          : kind === "ac"
+            ? {
+                ...shared,
+                analysis: kind,
+                frequencyHz: [1e3],
+                probes: probes.map(({ number, ...p }) => ({
+                  ...p,
+                  real: [number],
+                  imag: [0],
+                })),
+              }
+            : kind === "dc"
+              ? {
+                  ...shared,
+                  analysis: kind,
+                  sweep: {
+                    name: "sweep",
+                    quantity: "voltage",
+                    unit: "V",
+                    values: [0],
+                  },
+                  probes: series,
+                }
+              : { ...shared, analysis: kind, timeSeconds: [0], probes: series };
+      const data: SimulationResultData = {
+        schemaVersion: 1,
+        analyses: [analysis],
+      };
+      const result = evaluateSimulationOutputs(data, [], [], [], [], true, {
+        Out: "Upper",
+        out: "Lower",
+      });
+      expect(result.diagnostics).toEqual([]);
+      expect(result.analyses[0]!.outputs).toMatchObject([
+        { id: "native:Out", label: "Upper — Out", unit: "V", values: [1] },
+        { id: "native:out", label: "Lower — out", unit: "A", values: [2] },
+      ]);
+      if (kind === "ac")
+        expect(
+          result.analyses[0]!.outputs.every(
+            (o) =>
+              o.semantics?.valueKind === "complex" && o.imaginary?.[0] === 0,
+          ),
+        ).toBe(true);
+      const csv = simulationOutputAnalysisToCsv(result.analyses[0]!);
+      expect(csv).toContain("Upper — Out");
+      expect(csv).toContain("Lower — out");
+      expect(csv).toContain(kind === "ac" ? '"1","0","2","0"' : '"1","2"');
+
+      // Mapping Out must neither consume out nor resolve the missing OUT alias.
+      const selected = evaluateSimulationOutputs(
+        data,
+        [
+          { probeId: "selected", vector: "Out", quantity: "native" },
+          { probeId: "missing", vector: "OUT", quantity: "native" },
+        ],
+        [
+          {
+            id: "selected",
+            label: "Selected",
+            expression: {
+              kind: "acquisition",
+              acquisitionId: "selected",
+              quantity: "native",
+            },
+          },
+          {
+            id: "missing",
+            label: "Missing",
+            expression: {
+              kind: "acquisition",
+              acquisitionId: "missing",
+              quantity: "native",
+            },
+          },
+        ],
+        [],
+        [],
+        true,
+      );
+      expect(selected.analyses[0]!.outputs).toMatchObject([
+        { id: "selected", values: [1] },
+        { id: "native:out", values: [2] },
+      ]);
+      expect(selected.diagnostics).toMatchObject([
+        { outputId: "missing", code: "SIMULATION_OUTPUT_EVALUATION_FAILED" },
+      ]);
+      expect(SimulationOutputDataSchema.safeParse(selected).success).toBe(true);
+    },
+  );
+  it("preserves case-distinct captured scalar identities and units", () => {
+    const result = evaluateSimulationOutputs(
+      {
+        schemaVersion: 1,
+        analyses: [
+          {
+            analysis: "ac",
+            plotName: "scalar",
+            frequencyHz: [1e3],
+            probes: [],
+            scalars: [
+              { name: "Gain", quantity: "decibel", unit: "dB", value: 20 },
+              { name: "gain", quantity: "phase", unit: "rad", value: 1 },
+            ],
+          },
+        ],
+      },
+      [],
+      [],
+      [],
+      [],
+      true,
+    );
+    expect(result.analyses[0]!.scalars).toMatchObject([
+      { id: "native:Gain", value: 20, unit: "dB" },
+      { id: "native:gain", value: 1, unit: "rad" },
+    ]);
+  });
   it("exposes native noise vectors and labels sampled integrals through the shared output contract", () => {
     const text = readFileSync(
       new URL(

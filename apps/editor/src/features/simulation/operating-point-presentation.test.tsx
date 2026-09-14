@@ -91,6 +91,17 @@ function fixture() {
 }
 
 describe("OP result ownership", () => {
+  it("does not hide a case-distinct device parameter even when its value matches", () => {
+    const { data, prepared } = fixture();
+    prepared.vectors[0]!.vector = "M1:id";
+    data.analyses[0]!.outputs = [
+      { id: "native:M1:id", label: "M1", unit: "A", values: [0.001] },
+      { id: "native:m1:id", label: "m1", unit: "A", values: [0.001] },
+    ];
+    expect(operatingPointOutputs(data, 0, prepared).map((o) => o.id)).toEqual([
+      "native:m1:id",
+    ]);
+  });
   it("renders MOS once, keeps equal-valued nodes, and never mutates archive evidence", () => {
     const { data, prepared } = fixture();
     const original = structuredClone(data);

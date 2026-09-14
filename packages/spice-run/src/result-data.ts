@@ -38,7 +38,8 @@ import type { SimulationDiagnostic } from "./index.js";
  * invented unit, because a wrong unit on a chart axis is worse than no unit.
  */
 export interface SimulationProbe {
-  /** ngspice's own vector name: `v(out)`, `i(v1)`. */
+  /** Exact simulator vector name. Consumers must not case-fold identities;
+   * native VACASK may contain both Out and out with different values. */
   readonly name: string;
   readonly quantity: string;
   readonly unit: string | null;
