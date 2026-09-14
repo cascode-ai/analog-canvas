@@ -37,7 +37,7 @@ describe("approved simulation Code layout", () => {
     expect(markup).toContain("OTA transient");
     expect(markup).toContain('data-workspace-new-folder="true"');
     expect(markup).toContain("+ New experiment");
-    expect(markup).toContain("Source");
+    expect(markup).not.toContain('aria-label="Source"');
     expect(markup).not.toContain("Run target");
     expect(markup).not.toContain("More code actions");
     expect(markup).not.toContain("New file");
@@ -82,7 +82,7 @@ describe("approved simulation Code layout", () => {
     expect(markup).not.toContain(">Results</button>");
     expect(markup).toContain('aria-label="Close run.cir"');
   });
-  it("defaults Source open and Run outputs closed without exposing preparation", () => {
+  it("shows source directly under the active folder and keeps Run outputs closed", () => {
     const artifact = {
       id: "artifact-1",
       name: "prepared.cir",
@@ -123,7 +123,7 @@ describe("approved simulation Code layout", () => {
         </SimulationCodeWorkspace>
       </WorkspaceInteractions>,
     );
-    expect(markup).toContain('aria-label="Source"');
+    expect(markup).not.toContain('aria-label="Source"');
     expect(markup).toContain('aria-expanded="true"');
     expect(markup).not.toContain('aria-label="Prepare"');
     expect(markup).toContain('aria-label="Run"');
