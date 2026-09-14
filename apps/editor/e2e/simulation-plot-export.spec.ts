@@ -20,12 +20,9 @@ test("native multi-unit results preserve signs and link only one record", async 
   await page.goto("/editor");
   await expect(page.getByTestId("schematic-canvas")).toBeVisible();
   await page.evaluate(async () => {
-    const reactPath = "/node_modules/.vite/deps/react.js";
-    const domPath = "/node_modules/.vite/deps/react-dom_client.js";
-    const resultPath = "/src/features/simulation/simulation-output-results.tsx";
-    const { createElement } = (await import(reactPath)).default;
-    const { createRoot } = (await import(domPath)).default;
-    const { SimulationOutputResults } = await import(resultPath);
+    // Let Vite resolve one React runtime from the test harness's normal imports.
+    const harnessPath = "/e2e/helpers/simulation-output-harness.tsx";
+    const { mountSimulationOutputHarness } = await import(harnessPath);
     const host = document.createElement("div");
     host.id = "native-result-regression";
     host.style.cssText =
@@ -74,42 +71,40 @@ test("native multi-unit results preserve signs and link only one record", async 
         semantics: { valueKind: "unknown", quantity: "notype", origin: "raw" },
       },
     ];
-    createRoot(host).render(
-      createElement(SimulationOutputResults, {
-        resultKey: "browser-native-rc",
-        outputs: [],
-        data: {
-          schemaVersion: 1,
-          diagnostics: [],
-          analyses: [0, 1].map((index) => ({
-            analysis: "ac",
-            plotName: "RC",
-            rawPlotOrdinals: [index],
-            domain: {
-              name: "Frequency",
-              unit: "Hz",
-              values: [10, 1000, 1000000],
+    mountSimulationOutputHarness(host, {
+      resultKey: "browser-native-rc",
+      outputs: [],
+      data: {
+        schemaVersion: 1,
+        diagnostics: [],
+        analyses: [0, 1].map((index) => ({
+          analysis: "ac",
+          plotName: "RC",
+          rawPlotOrdinals: [index],
+          domain: {
+            name: "Frequency",
+            unit: "Hz",
+            values: [10, 1000, 1000000],
+          },
+          outputs,
+          scalars: [
+            {
+              id: "native:peak_gain_db",
+              label: "peak_gain_db",
+              value: index === 0 ? 4.43515 : -2,
+              unit: "dB",
             },
-            outputs,
-            scalars: [
-              {
-                id: "native:peak_gain_db",
-                label: "peak_gain_db",
-                value: index === 0 ? 4.43515 : -2,
-                unit: "dB",
-              },
-              {
-                id: "native:phasor",
-                label: "scalar_phasor",
-                value: 3,
-                imaginary: 4,
-                unit: "",
-              },
-            ],
-          })),
-        },
-      }),
-    );
+            {
+              id: "native:phasor",
+              label: "scalar_phasor",
+              value: 3,
+              imaginary: 4,
+              unit: "",
+            },
+          ],
+        })),
+      },
+    });
   });
   const root = page.locator("#native-result-regression");
   const records = root.locator(".simulation-analysis-card");

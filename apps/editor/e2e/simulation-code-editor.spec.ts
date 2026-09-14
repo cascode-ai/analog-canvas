@@ -216,7 +216,10 @@ test("edits, saves and undoes exact source bytes while keeping a save boundary a
   await expect(page.getByTestId("draft-source")).toHaveText(
     JSON.stringify(original),
   );
-  await page.keyboard.press("ControlOrMeta+Shift+z");
+  const redoShortcut = await page.evaluate(() =>
+    /Mac|iPhone|iPad/.test(navigator.platform) ? "Meta+Shift+z" : "Control+y",
+  );
+  await page.keyboard.press(redoShortcut);
   await expect(page.getByTestId("draft-source")).toHaveText(
     JSON.stringify(original + "* edited"),
   );
