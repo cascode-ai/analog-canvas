@@ -29,6 +29,7 @@ import {
   resolveDocumentStyleProfile,
   resolveRouteGeometry,
   resolveDocumentLogicalNets,
+  magneticDisplayParameters,
 } from "@icm/derived";
 import type { SymbolResolver } from "@icm/symbols";
 import { copySelection, proposePaste } from "../features/clipboard/clipboard";
@@ -43,6 +44,7 @@ import {
   missingDefaultInstanceDisplayAnnotations,
 } from "../features/instance-display/default-instance-display";
 import { instanceDisplayEdits } from "../features/instance-display/instance-display-edits";
+import { instanceParameterVisibilityEdits } from "../features/instance-display/instance-parameter-display";
 import { dragNetLabelAttachmentAtPoint } from "../features/wiring/route-interaction-geometry";
 
 /** No second geometry/model/clipboard implementation: plan exactly as the GUI does. */
@@ -146,15 +148,41 @@ export function planBrowserAgentCommand(
           }
         : { edits };
     }
-    case "set-instance-display":
-      return {
-        edits: instanceDisplayEdits(
-          document,
-          resolver,
-          command.instanceIds,
-          command,
-        ),
-      };
+    case "set-instance-display": {
+      const edits = instanceDisplayEdits(
+        document,
+        resolver,
+        command.instanceIds,
+        command,
+      );
+      if (command.showParameters) {
+        const desired = Object.fromEntries(
+          Object.entries(command.showParameters).filter(
+            (entry): entry is [string, boolean] => entry[1] !== undefined,
+          ),
+        );
+        for (const id of new Set(command.instanceIds)) {
+          const instance = document.instances.find((item) => item.id === id);
+          if (!instance) throw new Error(`Instance not found: ${id}`);
+          const supported = magneticDisplayParameters(instance.symbolId);
+          for (const parameter of Object.keys(desired)) {
+            if (!supported.some((item) => item.name === parameter))
+              throw new Error(
+                `Parameter display ${parameter} is not supported by ${instance.symbolId}`,
+              );
+          }
+          edits.push(
+            ...instanceParameterVisibilityEdits(
+              document,
+              instance,
+              resolver,
+              desired,
+            ),
+          );
+        }
+      }
+      return { edits };
+    }
     case "place-cell": {
       const child = project.documents.find(
         (item) => item.id === command.childDocumentId,

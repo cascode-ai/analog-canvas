@@ -61,11 +61,13 @@ export function SimulationFileTree(props: SimulationCodeWorkspaceProps) {
   const anchor = useRef<string | undefined>(undefined);
   const folderActivation = useRef<string | undefined>(undefined);
   const [selected, setSelected] = useState<string[]>([]);
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const folders = props.folders?.folders ?? [
     { id: props.workspaceKey, name: props.workspaceKey, files: props.files },
   ];
   const activeId = props.folders?.activeId ?? props.workspaceKey;
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({
+    [activeId]: true,
+  });
   useEffect(() => {
     // Folder activation owns selection and must not reveal/select its last tab.
     if (folderActivation.current === activeId) {
@@ -79,7 +81,7 @@ export function SimulationFileTree(props: SimulationCodeWorkspaceProps) {
     setSelected([activeId + "/file/" + props.activePath]);
     const parts = props.activePath.split("/").slice(0, -1);
     setExpanded((state) => {
-      const next = { ...state, [activeId]: true, [activeId + "/source"]: true };
+      const next = { ...state, [activeId]: true };
       let path = activeId + "/source";
       for (const part of parts) {
         path += "/" + part;
@@ -127,7 +129,14 @@ export function SimulationFileTree(props: SimulationCodeWorkspaceProps) {
         entry: { kind: "source", folderId: folder.id, path: file.path },
       });
     }
-    const children = [source];
+    // Keep source IDs namespaced separately from temporary Run artifacts, but
+    // render their real paths directly beneath the experiment folder.
+    const children = source.children!;
+    children.sort(
+      (a, b) =>
+        Number(Boolean(b.children)) - Number(Boolean(a.children)) ||
+        a.name.localeCompare(b.name),
+    );
     if (folder.id === activeId)
       for (const group of props.artifactGroups ?? []) {
         const directory: TreeNode = {
@@ -171,7 +180,7 @@ export function SimulationFileTree(props: SimulationCodeWorkspaceProps) {
       folderId: folder.id,
       kind: "folder",
       children,
-      expanded: true,
+      expanded: false,
     };
   });
   const all = new Map<string, TreeNode>();
@@ -314,7 +323,6 @@ export function SimulationFileTree(props: SimulationCodeWorkspaceProps) {
             setExpanded((state) => ({
               ...state,
               [id]: true,
-              [id + "/source"]: true,
             }));
             props.onNewFile?.(id);
           },
@@ -501,7 +509,7 @@ export function SimulationFileTree(props: SimulationCodeWorkspaceProps) {
         </div>
         {node.children && isOpen(node) ? (
           <div role="group" aria-label={node.name + " files"}>
-            {node.id.endsWith("/source") &&
+            {node.kind === "folder" &&
             ui.edit?.kind === "file" &&
             ui.edit.folderId === node.folderId &&
             !ui.edit.path ? (

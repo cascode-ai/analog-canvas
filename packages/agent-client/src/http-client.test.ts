@@ -15,6 +15,38 @@ function jsonResponse(status: number, body: unknown): Response {
 }
 
 describe("agent http client", () => {
+  it("reads hidden schema-54 parameter bindings without relaxing unknown-field checks", async () => {
+    const body = snapshotResponse("req-54");
+    if (!body.ok || body.operation !== "snapshot")
+      throw new Error("Expected snapshot");
+    body.snapshot.document.annotations.push({
+      id: "parameter-k",
+      kind: "instance-value",
+      binding: { kind: "instance-value", instanceId: "M1", parameter: "k" },
+      anchor: { kind: "free", position: { x: 0, y: 0 } },
+      rotation: 0,
+      alignment: "start",
+      locked: false,
+      visible: false,
+    });
+    const http = new AgentHttpClient({
+      baseUrl: BASE,
+      fetch: async () => jsonResponse(200, body),
+    });
+    const request = {
+      apiVersion: "3.0" as const,
+      requestId: "req-54",
+      operation: "snapshot" as const,
+      documentId: "main",
+    };
+    expect(await http.circuit("s", "t", request)).toEqual(body);
+    Object.assign(body.snapshot.document.annotations.at(-1)!.binding!, {
+      unsupported: true,
+    });
+    await expect(http.circuit("s", "t", request)).rejects.toThrow(
+      "schema validation",
+    );
+  });
   it("backs off on 429 with byte-identical mutation retries and a finite budget", async () => {
     const bodies: string[] = [];
     const waits: number[] = [];

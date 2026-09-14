@@ -38,6 +38,9 @@ export function instanceDisplayEdits(
         document.annotations.find(
           (item) =>
             item.binding?.kind === bindingKind &&
+            !(
+              item.binding.kind === "instance-value" && item.binding.parameter
+            ) &&
             "instanceId" in item.binding &&
             item.binding.instanceId === id,
         );

@@ -137,6 +137,110 @@ describe("MCP → API → shared editor parity", () => {
     ).toHaveLength(2);
   });
 
+  it("controls schema-54 magnetic labels independently and preserves authored state", async () => {
+    const { client, controller } = await folder();
+    for (const [symbol, reference, parameters] of [
+      ["xfmr", "T1", { k: "0.8", lp: "2n", ls: "4n" }],
+      ["tcoil", "T2", { k: "0.7", l1: "3n", l2: "5n", cb: "1p" }],
+    ] as const) {
+      expect(
+        (
+          await client.applyActions([
+            {
+              kind: "place-component",
+              symbol,
+              reference,
+              parameters,
+              position: { x: 100, y: 100 },
+            },
+          ])
+        ).ok,
+      ).toBe(true);
+      const id = controller.document.instances.find(
+        (i) => i.reference === reference,
+      )!.id;
+      const display = async (
+        showParameters: Record<string, boolean>,
+        showValue?: boolean,
+      ) =>
+        client.applyActions([
+          {
+            kind: "set-instance-display",
+            instanceIds: [id],
+            showParameters,
+            ...(showValue === undefined ? {} : { showValue }),
+          },
+        ]);
+      const labels = () =>
+        controller.document.annotations.filter(
+          (a) =>
+            a.binding?.kind === "instance-value" &&
+            a.binding.instanceId === id &&
+            a.binding.parameter,
+        );
+      const desired = Object.fromEntries(
+        Object.keys(parameters).map((key) => [key, true]),
+      );
+      expect((await display(desired)).ok).toBe(true);
+      expect(labels()).toHaveLength(Object.keys(parameters).length);
+      const original = structuredClone(labels());
+      expect((await display(desired)).ok).toBe(true);
+      expect(labels()).toEqual(original);
+      // Aggregate Value must not hide the first named parameter by fallback.
+      expect((await display({}, false)).ok).toBe(true);
+      expect(labels()).toEqual(original);
+      const k = labels().find(
+        (a) =>
+          a.binding?.kind === "instance-value" && a.binding.parameter === "k",
+      )!;
+      const authored = {
+        ...k,
+        anchor: { kind: "free" as const, position: { x: 321, y: 123 } },
+        textColor: "#123456",
+      };
+      expect(
+        (
+          await client.advancedTransact({
+            edits: [
+              { kind: "upsert_schematic_annotation", annotation: authored },
+            ],
+          })
+        ).ok,
+      ).toBe(true);
+      expect((await display({ k: false })).ok).toBe(true);
+      expect(labels().find((a) => a.id === k.id)).toEqual({
+        ...authored,
+        visible: false,
+      });
+      await client.snapshot("main", { refresh: true });
+      expect((await display({ k: true })).ok).toBe(true);
+      expect(labels().find((a) => a.id === k.id)).toEqual({
+        ...authored,
+        visible: true,
+      });
+      const before = structuredClone(controller.project);
+      expect((await display({ unsupported: true })).ok).toBe(false);
+      expect(
+        (await display({ [symbol === "xfmr" ? "cb" : "lp"]: true })).ok,
+      ).toBe(false);
+      expect(controller.project).toEqual(before);
+    }
+    const beforeBatch = structuredClone(controller.project);
+    const ids = controller.document.instances.map((instance) => instance.id);
+    expect(
+      (
+        await client.applyActions([
+          {
+            kind: "set-instance-display",
+            instanceIds: ids,
+            showReference: false,
+            showParameters: { lp: true },
+          },
+        ])
+      ).ok,
+    ).toBe(false);
+    expect(controller.project).toEqual(beforeBatch);
+  });
   it("places native bound displays and electrical ground, with idempotent visibility", async () => {
     const { client, controller } = await folder();
     expect(

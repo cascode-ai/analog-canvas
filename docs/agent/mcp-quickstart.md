@@ -11,9 +11,9 @@ Use `inspect` and `search` for IDs and pins, not screenshot coordinates.
 Production and Preview both expose the Agent UI. Their accounts, Projects and
 connector bindings remain separate.
 
-MCP 0.8.0 supports API 3.0, Project schema 53 and setup v4 source/config files.
+MCP 0.9.0 supports API 3.0, Project schema 54 and setup v4 source/config files.
 It adds native component displays and attached Net Labels; use it with Analog
-Canvas 0.4.1 or newer. The public distribution manifest identifies the pinned
+Canvas with the MCP 0.9.0 command update deployed. The public distribution manifest identifies the pinned
 release artifact and its SHA-256. Updating the website does not update an
 already installed MCP process. Set `ANALOG_CANVAS_API_URL` only when connecting
 to Preview or another non-production endpoint.
@@ -83,6 +83,15 @@ Instance ID for subsequent wiring. To place an imported Instance, use `place-exi
 and displayable values are object-attached, and power markers own electrical
 power claims. Use `set-instance-display` with `instanceIds`, `showReference`
 and/or `showValue` to change visibility without creating duplicate annotations.
+For transformer (`xfmr`) parameters use `showParameters:{k:true,lp:true,ls:false}`;
+for T-Coil use `k`, `l1`, `l2`, `cb`. Keys are lowercase, omitted keys stay
+unchanged, and unsupported keys for any selected device reject the whole action.
+Set the electrical parameter values before showing them. Hide/show reuses the
+same attached labels and preserves their authored placement and style.
+`showValue` controls only aggregate Value, never these named parameter labels.
+The schema 54 `binding.parameter` field is supported by Snapshot reads and
+advanced annotation edits, including hidden labels. Older 0.8.0 adapters can
+fail to read a Document containing these bindings and must be updated.
 Do not substitute free drafting text for these projections. `add-label` attaches
 new labels to their Net's routed geometry when available.
 `add-label` and Net Label `edit-text` author the electrical name claim and bound

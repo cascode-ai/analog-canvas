@@ -7,8 +7,10 @@ workspace is separate from the development-only Digital tool.
 ## Circuit, source and files
 
 Sim Code and Properties share the right dock but remember independent widths.
-**Explorer** opens a narrow project tree beside the code. Each experiment puts
-Source first, expanded by default. **Run · tmp** is collapsed by default and
+**Explorer** opens a narrow project tree beside the code. Code files appear
+directly under each experiment, without an extra Source directory. On opening a
+Project, only the active experiment is expanded; the others start collapsed.
+**Run · tmp** is collapsed by default and
 contains expandable **Results** (raw/CSV) and **Logs** groups. Preparation
 snapshots and internal evidence are not shown in the everyday file tree.
 Source paths also form expandable directories. Choose an experiment there, or

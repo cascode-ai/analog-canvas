@@ -135,6 +135,9 @@ test("native metadata is hidden per folder while damaged configuration stays rep
     .getByRole("treeitem", { name: "Folder Repair", exact: true })
     .click();
   await panel
+    .getByRole("button", { name: "Toggle Repair", exact: true })
+    .click();
+  await panel
     .getByRole("treeitem", { name: "experiment.json", exact: true })
     .click();
   const editor = panel.getByRole("textbox", {
@@ -2336,7 +2339,14 @@ test("Explorer context downloads preserve multi-selection and directory contents
   ).toHaveCount(0);
   await expect(
     alphaFiles.getByRole("treeitem", { name: "Source", exact: true }),
-  ).toHaveAttribute("aria-expanded", "true");
+  ).toHaveCount(0);
+  await expect(alpha).toHaveAttribute("aria-expanded", "true");
+  await expect(beta).toHaveAttribute("aria-expanded", "false");
+  await expect(run).toHaveAttribute("aria-level", "2");
+  await expect(circuit).toHaveAttribute("aria-level", "2");
+  await expect(
+    alphaFiles.getByRole("treeitem", { name: "Run", exact: true }),
+  ).toHaveAttribute("aria-expanded", "false");
   await run.click();
   await circuit.click({ modifiers: ["Control"] });
   await expect(

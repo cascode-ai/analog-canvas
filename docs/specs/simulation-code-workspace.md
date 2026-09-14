@@ -563,9 +563,8 @@ Existing application navigation / editing toolbar
 Ordinary Canvas                 | Code | Properties           x
                                 | Explorer          Run Stop ...
                                 | Experiment
-                                |   Source (open) / files
-                                |   Prepare · Temporary (closed)
-                                |   Run · Temporary (closed)
+                                |   circuit.spice / run.cir
+                                |   Run · tmp (closed)
                                 | Circuit / TB / Run / artifact tabs
                                 |   code editor with line numbers
                                 |------------------------------
@@ -579,9 +578,11 @@ Ordinary Canvas                 | Code | Properties           x
 - Simulation has its own top-level command, outside Netlist. Missing circuit
   parameters do not prevent opening Code. An authoring-only IR keeps device
   cards with explicit missing-value slots; export and execution stay strict.
-- Explorer displays every experiment and its source files. The active experiment
-  also exposes Prepare and Run artifact groups, each explicitly marked Temporary.
-  Source starts expanded; artifact groups start collapsed. Right-click offers
+- Explorer displays code files directly under each experiment, preserving real
+  source subdirectories without an extra Source wrapper. Only the initial active
+  experiment starts expanded; other experiments and Run artifacts start collapsed.
+  The active experiment exposes Run marked tmp; preparation/evidence stay internal.
+  Right-click offers
   duplicate, rename, delete, export and Run. Multi-select runs a Batch. File
   actions use the shared File Resource; generated topology remains locked.
 - Source and artifact rows support Ctrl/Cmd multi-selection. One selected file
@@ -747,8 +748,8 @@ interfaces, two DUT calls and unbound input. A screenshot or HTTP 200 is not
 electrical evidence.
 
 The user approved the disposable layout prototype and subsequent Explorer
-consolidation: files expand beside code, Source opens by default, temporary
-Prepare/Run groups start collapsed,
+consolidation: files sit directly beneath their experiment, only the active
+experiment initially expands, temporary Run groups start collapsed,
 configuration stays hidden by default, Code/Properties have independent widths,
 and Console/Results stay beneath code with reversible maximization. Maximized
 Simulation reclaims the application header, drawing toolbar and Cell navigation

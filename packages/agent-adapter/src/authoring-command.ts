@@ -25,6 +25,16 @@ export const AgentAuthoringCommandSchema = z.discriminatedUnion("kind", [
     instanceIds: z.array(StableIdSchema).min(1).max(64),
     showReference: z.boolean().optional(),
     showValue: z.boolean().optional(),
+    showParameters: z
+      .strictObject({
+        k: z.boolean().optional(),
+        lp: z.boolean().optional(),
+        ls: z.boolean().optional(),
+        l1: z.boolean().optional(),
+        l2: z.boolean().optional(),
+        cb: z.boolean().optional(),
+      })
+      .optional(),
   }),
   z.strictObject({
     kind: z.literal("place-cell"),
