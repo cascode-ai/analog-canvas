@@ -1,4 +1,4 @@
-import { isSimulationInputPath, type SourceSpan } from "@icm/model";
+import { resolveSimulationInputPath, type SourceSpan } from "@icm/model";
 import { diagnostic, type SpiceDiagnostic } from "./diagnostics.js";
 import { parseSpiceSource, splitSpiceFields } from "./syntax.js";
 import type { SpiceSourceFile } from "./source-types.js";
@@ -411,23 +411,10 @@ export function resolveSimulationInclude(
   sourcePath: string,
   requested: string,
 ): string | null {
-  const path = unquoteSimulationToken(requested);
-  if (
-    !path ||
-    /^[/\\]|^[a-z]:|:\/\//iu.test(path) ||
-    /[\\\u0000-\u001f]/u.test(path)
-  )
-    return null;
-  const parts = sourcePath.split("/").slice(0, -1);
-  for (const part of path.split("/")) {
-    if (part === "." || !part) continue;
-    if (part === "..") {
-      if (!parts.length) return null;
-      parts.pop();
-    } else parts.push(part);
-  }
-  const result = parts.join("/");
-  return isSimulationInputPath(result) ? result : null;
+  return resolveSimulationInputPath(
+    sourcePath,
+    unquoteSimulationToken(requested),
+  );
 }
 
 export function unquoteSimulationToken(value: string): string {

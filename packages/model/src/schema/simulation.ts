@@ -396,6 +396,29 @@ export function isSimulationInputPath(path: string): boolean {
     path.toLowerCase() !== ".spiceinit"
   );
 }
+/** Resolve a decoded filename inside the virtual source root; no language parsing or IO. */
+export function resolveSimulationInputPath(
+  sourcePath: string,
+  requested: string,
+): string | null {
+  if (
+    !requested ||
+    /^[/\\]|^[a-z]:|:\/\//iu.test(requested) ||
+    /[\\\u0000-\u001f]/u.test(requested)
+  )
+    return null;
+  const parts = sourcePath.split("/").slice(0, -1);
+  for (const part of requested.split("/")) {
+    if (part === "." || !part) continue;
+    if (part === "..") {
+      if (!parts.length) return null;
+      parts.pop();
+    } else parts.push(part);
+  }
+  const result = parts.join("/");
+  return isSimulationInputPath(result) ? result : null;
+}
+
 export const SimulationInputPathSchema = z
   .string()
   .refine(isSimulationInputPath, {
