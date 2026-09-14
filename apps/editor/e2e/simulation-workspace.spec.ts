@@ -434,6 +434,23 @@ test("new experiments explicitly bind the selected Cell without requiring a Test
     exact: true,
   });
   await expect(cell).toHaveValue(project.topDocumentId);
+  const setupCard = page.locator(
+    ".simulation-start-workspace > .workspace-inline-name",
+  );
+  const dockedCard = await setupCard.boundingBox();
+  expect(dockedCard!.width).toBeLessThanOrEqual(360);
+  // Resize via the window control without blurring the form into a commit.
+  await name.press("Escape");
+  await page
+    .getByRole("button", { name: "Maximize simulation", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Set up manually", exact: true })
+    .click();
+  expect((await setupCard.boundingBox())!.width).toBeLessThanOrEqual(360);
+  await setupCard.screenshot({
+    path: test.info().outputPath("manual-setup-card.png"),
+  });
   await name.fill("OTA direct");
   await name.press("Tab");
   await expect(cell).toBeFocused();
@@ -441,6 +458,9 @@ test("new experiments explicitly bind the selected Cell without requiring a Test
   // Moving between fields must not prematurely create the folder.
   await expect(name).toBeVisible();
   await page.getByRole("button", { name: "Create", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Restore simulation panel", exact: true })
+    .click();
   const folderRow = page.getByRole("treeitem", {
     name: "Folder OTA direct",
     exact: true,

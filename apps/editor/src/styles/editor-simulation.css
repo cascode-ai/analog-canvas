@@ -95,6 +95,29 @@
   font-size: var(--icm-font-xs);
   color: var(--icm-text-muted);
 }
+.simulation-start-workspace > .workspace-inline-name {
+  box-sizing: border-box;
+  width: min(100%, 360px);
+  margin: 16px auto;
+  padding: 12px;
+  border: 1px solid var(--icm-border);
+  border-radius: 8px;
+  background: var(--icm-surface);
+  font-size: 12px;
+}
+.simulation-start-workspace > .workspace-inline-name input,
+.simulation-start-workspace > .workspace-inline-name select {
+  height: 30px;
+  border-radius: 4px;
+}
+.simulation-start-workspace > .workspace-inline-name .workspace-cell-selection {
+  margin-top: 8px;
+}
+.simulation-start-workspace > .workspace-inline-name button {
+  flex: none;
+  height: 30px;
+  padding: 0 10px;
+}
 .simulation-start-workspace {
   flex: 1;
   min-height: 0;
