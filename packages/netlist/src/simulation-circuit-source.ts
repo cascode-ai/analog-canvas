@@ -8,11 +8,11 @@ import {
 } from "@icm/devices";
 import { parseSpiceNumber } from "@icm/spice";
 import { analyzeDesignNetlistForAuthoring } from "./extract.js";
-import {
-  printSpiceWithLocations,
-  type PrintedSpiceParameter,
-  type PrintedSpiceInstance,
-} from "./printers.js";
+import { printSpiceWithLocations } from "./printers.js";
+import type {
+  PrintedNetlistParameter,
+  PrintedNetlistInstance,
+} from "./printed-netlist.js";
 import type { NetlistDiagnostic } from "./ir.js";
 import { normalizeIndependentSource } from "./source-waveform.js";
 import { parseEditableSourceParameters } from "./simulation-source-parameters.js";
@@ -27,7 +27,7 @@ interface EditableSourceBody {
   sourceParameters: Record<string, string>;
 }
 
-export interface EditableCircuitParameter extends PrintedSpiceParameter {
+export interface EditableCircuitParameter extends PrintedNetlistParameter {
   descriptor: DeviceParameterDefinition;
   originalValue: string;
   conversion: "identity" | "sky130-micrometres";
@@ -38,7 +38,7 @@ export interface GeneratedCircuitSource {
   text: string;
   parameters: EditableCircuitParameter[];
   sourceBodies?: EditableSourceBody[];
-  instances: PrintedSpiceInstance[];
+  instances: PrintedNetlistInstance[];
   reachedDocuments: { id: string; revision: number }[];
 }
 

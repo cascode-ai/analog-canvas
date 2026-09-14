@@ -28,10 +28,8 @@ import {
   type CompiledSimulationVector,
   type TerminalCurrentInstrumentation,
 } from "./simulation-compile.js";
-import {
-  printSpiceWithLocations,
-  type PrintedSpiceParameter,
-} from "./printers.js";
+import { printSpiceWithLocations } from "./printers.js";
+import type { PrintedNetlistParameter } from "./printed-netlist.js";
 import type { DesignNetlistCell } from "./ir.js";
 import {
   inspectSimulationSourceGraph,
@@ -54,7 +52,7 @@ export interface GeneratedSimulationFile {
   bindingId: string;
   path: string;
   text: string;
-  parameters: PrintedSpiceParameter[];
+  parameters: PrintedNetlistParameter[];
 }
 export type SourceSimulationCompilation =
   | { ok: false; diagnostics: SimulationSourceDiagnostic[] }
