@@ -18,7 +18,10 @@ import type {
   CompiledSimulationVector,
 } from "./simulation-compile.js";
 import { printVacaskWithLocations } from "./vacask-printer.js";
-import type { PrintedNetlistParameter } from "./printed-netlist.js";
+import type {
+  PrintedNetlistParameter,
+  PrintedNetlistInstance,
+} from "./printed-netlist.js";
 import { inspectVacaskSourceGraph } from "./vacask-source.js";
 import type { SimulationSourceDiagnostic } from "./source-file-graph.js";
 
@@ -27,6 +30,7 @@ export interface GeneratedSimulationFile {
   path: string;
   text: string;
   parameters: PrintedNetlistParameter[];
+  instances: PrintedNetlistInstance[];
 }
 export type SourceSimulationCompilation =
   | { ok: false; diagnostics: SimulationSourceDiagnostic[] }
@@ -249,6 +253,7 @@ export function compileSourceSimulation(
         path: binding.path,
         text: printed.text,
         parameters: printed.parameters,
+        instances: printed.instances,
       });
   }
   if (diagnostics.some((d) => d.severity === "error"))

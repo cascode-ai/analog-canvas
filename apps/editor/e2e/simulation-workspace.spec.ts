@@ -170,6 +170,78 @@ test("native metadata is hidden per folder while damaged configuration stays rep
     ).toBe(original);
 });
 
+test("native Circuit source edits persist source fields and distinguish mega from milli", async ({
+  page,
+}) => {
+  const project = parseProject(JSON.stringify(ota));
+  const folder = createSimulationFolder({
+    id: "native-values",
+    name: "Native values",
+    documentId: project.topDocumentId,
+    profileId: "candidate",
+  });
+  project.simulationFolders = [folder];
+  await page.route("**/api/simulate", (route) =>
+    route.fulfill({
+      status: 503,
+      json: { error: "Offline authoring fixture" },
+    }),
+  );
+  await page.goto("/editor");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "native-values.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  await page.getByTestId("open-analog-simulation").click();
+  await page.getByRole("tab", { name: /circuit\.spice/ }).click();
+  const editor = page.getByRole("textbox", {
+    name: "Simulation source editor",
+  });
+  const generated = generateCircuitSource(
+    project,
+    folder.input.circuitBindings[0]!,
+    folder.input,
+  );
+  if (!generated.ok) throw Error(JSON.stringify(generated.diagnostics));
+  const body = generated.source.sourceBodies!.find(
+    (b) => b.instanceId === "VDD",
+  )!;
+  const text =
+    generated.source.text.slice(0, body.startOffset) +
+    ' type="sine" dc=1m mag=1 phase=-90 sinedc=0 ampl=1 freq=1M' +
+    generated.source.text.slice(body.endOffset);
+  await expect(editor).toContainText('type="dc"');
+  await editor.fill(text);
+  await page.getByRole("button", { name: "Save source", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Save source", exact: true }),
+  ).toHaveAttribute("data-save-state", "saved");
+  const saved = parseProject(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(),
+  );
+  const params = saved.documents
+    .find((d) => d.id === body.documentId)!
+    .instances.find((i) => i.id === body.instanceId)!.netlist!.parameters;
+  expect(params).toMatchObject({
+    dc: "0.001",
+    frequency: "1000000",
+    waveform: "sin",
+    acMagnitude: "1",
+    acPhase: "-90",
+  });
+  const projected = generateCircuitSource(
+    saved,
+    folder.input.circuitBindings[0]!,
+    saved.simulationFolders[0]!.input,
+  );
+  if (!projected.ok) throw Error("Expected native projection after save");
+  expect(projected.source.text).toContain(
+    'type="sine" dc=0.001 mag=1 phase=-90',
+  );
+  expect(projected.source.text).toContain("freq=1000000");
+});
+
 test("Code adds and removes source AC clauses and routes parameter declarations to authored Code", async ({
   page,
 }) => {

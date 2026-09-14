@@ -148,11 +148,17 @@ export function printVacaskWithLocations(
     cellIds?: ReadonlySet<string>;
     preamble?: boolean;
     reservedNames?: Iterable<string>;
+    /** Editing projection only: unresolved parameter slots never reach execution. */
+    authoring?: boolean;
   } = {},
 ): PrintedVacask {
   const diagnostics: NetlistDiagnostic[] = [];
   const instances: PrintedNetlistInstance[] = [];
   const parameters: PrintedNetlistParameter[] = [];
+  const projectValue = (raw: string, names: ReadonlyMap<string, string>) =>
+    emission.authoring && /^<[A-Za-z][A-Za-z0-9_-]*>$/u.test(raw)
+      ? raw
+      : vacaskProjectValue(raw, names);
   const cellsById = new Map(ir.cells.map((cell) => [cell.id, cell]));
   const cellsByName = new Map(ir.cells.map((cell) => [cell.name, cell]));
   const mastersByName = new Map(
@@ -275,7 +281,7 @@ export function printVacaskWithLocations(
           `${card.reference} has two projections for native parameter ${name}.`,
         );
       assigned.add(name);
-      const value = verbatim ? raw : vacaskProjectValue(raw, parameterNames);
+      const value = verbatim ? raw : projectValue(raw, parameterNames);
       line += ` ${vacaskIdentifier(name)}=`;
       localSpans.push({
         documentId: cellId,
@@ -313,7 +319,7 @@ export function printVacaskWithLocations(
         card.deviceClass === "current-source"
       ) {
         const source = normalizeIndependentSource(card.parameters);
-        if (source.issues.length)
+        if (source.issues.length && !emission.authoring)
           throw new ProjectionError(
             source.issues[0]!.code,
             `${card.reference}: ${source.issues.map((i) => i.message).join("; ")}`,
@@ -340,7 +346,11 @@ export function printVacaskWithLocations(
             ["width", "width"],
             ["period", "period"],
           ] as const)
-            assignment(native, transient[original]!, original);
+            assignment(
+              native,
+              transient[original] ?? `<${original}>`,
+              original,
+            );
         } else if (transient.kind === "sin") {
           for (const [native, original] of [
             ["sinedc", "offset"],
@@ -350,11 +360,17 @@ export function printVacaskWithLocations(
             ["theta", "damping"],
             ["tdphase", "phase"],
           ] as const)
-            assignment(native, transient[original]!, original);
+            assignment(
+              native,
+              transient[original] ?? `<${original}>`,
+              original,
+            );
         } else if (transient.kind === "pwl") {
           assignment(
             "wave",
-            `[${transient.points.flatMap((p) => [vacaskProjectValue(p.time, parameterNames), vacaskProjectValue(p.value, parameterNames)]).join(", ")}]`,
+            emission.authoring && !transient.points.length
+              ? "<pwlPoints>"
+              : `[${transient.points.flatMap((p) => [projectValue(p.time, parameterNames), projectValue(p.value, parameterNames)]).join(", ")}]`,
             "pwlPoints",
             true,
           );
@@ -400,7 +416,8 @@ export function printVacaskWithLocations(
     if (factor || inherit) {
       if (
         card.invocationKind === "subcircuit" &&
-        !cellsByName.has(card.target!)
+        !cellsByName.has(card.target!) &&
+        !emission.authoring
       )
         throw new ProjectionError(
           "VACASK_UNMAPPED_SUBCIRCUIT_MULTIPLICITY",
@@ -408,7 +425,7 @@ export function printVacaskWithLocations(
         );
       line += " $mfactor=";
       if (factor) {
-        const value = vacaskProjectValue(factor.rawValue, parameterNames);
+        const value = projectValue(factor.rawValue, parameterNames);
         if (inherit) line += "($mfactor*";
         localSpans.push({
           documentId: cellId,

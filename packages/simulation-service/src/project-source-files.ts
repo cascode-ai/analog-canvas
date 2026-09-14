@@ -128,7 +128,11 @@ export async function handleProjectSourceFiles(
       (b) => b.path === op.path,
     );
     if (!file && binding && before.project) {
-      const result = generateCircuitSource(before.project, binding);
+      const result = generateCircuitSource(
+        before.project,
+        binding,
+        before.folder.input,
+      );
       if (!result.ok)
         return problem(
           "SIMULATION_CIRCUIT_UNAVAILABLE",
@@ -207,7 +211,7 @@ export async function handleProjectSourceFiles(
         "This host cannot resolve the requested Circuit binding",
         "input",
       );
-    const generated = generateCircuitSource(before.project, binding);
+    const generated = generateCircuitSource(before.project, binding, input);
     if (!generated.ok)
       return problem(
         "SIMULATION_CIRCUIT_UNAVAILABLE",

@@ -1,4 +1,8 @@
-import type { CircuitProject, SimulationCircuitBinding } from "@icm/model";
+import type {
+  CircuitProject,
+  SimulationCircuitBinding,
+  SimulationSourceInput,
+} from "@icm/model";
 import {
   deviceDescriptor,
   parameterExpressionBody,
@@ -8,7 +12,10 @@ import {
 } from "@icm/devices";
 import { parseSpiceNumber } from "@icm/spice";
 import { analyzeDesignNetlistForAuthoring } from "./extract.js";
-import { printSpiceWithLocations } from "./printers.js";
+import { printVacaskWithLocations } from "./vacask-printer.js";
+import { inspectVacaskSource } from "./vacask-source.js";
+import { vacaskValueToProject } from "./vacask-values.js";
+import { compileSourceSimulation } from "./simulation-source-compile.js";
 import type {
   PrintedNetlistParameter,
   PrintedNetlistInstance,
@@ -46,6 +53,7 @@ export interface GeneratedCircuitSource {
 export function generateCircuitSource(
   project: CircuitProject,
   binding: SimulationCircuitBinding,
+  input?: SimulationSourceInput,
 ):
   | { ok: true; source: GeneratedCircuitSource; warnings: NetlistDiagnostic[] }
   | { ok: false; diagnostics: NetlistDiagnostic[] } {
@@ -109,7 +117,37 @@ export function generateCircuitSource(
       }
     }
   }
-  const printed = printSpiceWithLocations(ir, binding.emission === "top-level");
+  let printed = printVacaskWithLocations(ir, binding.emission === "top-level", {
+    authoring: true,
+  });
+  if (input) {
+    // A runnable experiment uses the EXACT compiled file, including primitive
+    // name allocation and ownership across bindings. Incomplete experiments
+    // retain the non-executable authoring projection so their values stay editable.
+    const compiled = compileSourceSimulation(project, {
+      version: 4,
+      id: "circuit-preview",
+      name: "Circuit preview",
+      input,
+    });
+    const file = compiled.ok
+      ? compiled.generated.find(
+          (f) => f.bindingId === binding.id && f.path === binding.path,
+        )
+      : undefined;
+    if (file)
+      printed = {
+        ok: true,
+        text: file.text,
+        parameters: file.parameters,
+        instances: file.instances,
+      };
+  }
+  if (!printed.ok)
+    return {
+      ok: false,
+      diagnostics: [...analysis.diagnostics, ...printed.diagnostics],
+    };
   const parameters = printed.parameters.flatMap(
     (span): EditableCircuitParameter[] => {
       const document = project.documents.find((d) => d.id === span.documentId)!;
@@ -169,8 +207,12 @@ export function generateCircuitSource(
         )
           return [];
         const text = printed.text.slice(span.startOffset, span.endOffset);
-        const prefix = /^\S+[ \t]+\S+[ \t]+\S+/u.exec(text);
-        if (!prefix) return [];
+        const tokens = inspectVacaskSource("card", text).statements[0]?.tokens;
+        const close =
+          tokens?.findIndex((t) => t.kind === "symbol" && t.value === ")") ??
+          -1;
+        const master = close < 0 ? undefined : tokens?.[close + 1];
+        if (!master) return [];
         const document = project.documents.find(
           (d) => d.id === span.documentId,
         )!;
@@ -180,8 +222,8 @@ export function generateCircuitSource(
         return [
           {
             ...span,
-            startOffset: span.startOffset + prefix[0].length,
-            rawValue: text.slice(prefix[0].length),
+            startOffset: span.startOffset + master.end,
+            rawValue: text.slice(master.end),
             documentRevision: document.revision,
             sourceParameters: { ...instance.netlist!.parameters },
           },
@@ -353,15 +395,27 @@ export function planCircuitSourceEdit(
       nextOffset = end;
       continue;
     }
-    const number = parseSpiceNumber(raw);
-    const expression = parameterExpressionBody(raw);
+    let projectValue: string;
+    try {
+      projectValue = vacaskValueToProject(raw);
+    } catch (error) {
+      invalid ??= fail(
+        "SIMULATION_PARAMETER_INVALID",
+        error instanceof Error ? error.message : String(error),
+      );
+      originalOffset = span.endOffset;
+      nextOffset = end;
+      continue;
+    }
+    const number = parseSpiceNumber(projectValue);
+    const expression = parameterExpressionBody(projectValue);
     if (
       expression === undefined &&
       (!number || !Number.isFinite(number.value) || /\s/u.test(raw))
     ) {
       invalid ??= fail(
         "SIMULATION_PARAMETER_INVALID",
-        `Finish the number or braced parameter expression for ${span.descriptor.label} before applying`,
+        `Finish the native number or parenthesized expression for ${span.descriptor.label} before applying`,
       );
       originalOffset = span.endOffset;
       nextOffset = end;
@@ -395,10 +449,18 @@ export function planCircuitSourceEdit(
       nextOffset = end;
       continue;
     }
-    let value = raw;
+    let value = projectValue;
     try {
-      if (span.conversion === "sky130-micrometres")
-        value = sky130MicrometresToProjectLength(raw);
+      if (span.conversion === "sky130-micrometres") {
+        if (
+          number &&
+          !/^[+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?$/iu.test(raw.trim())
+        )
+          throw Error(
+            "Reviewed SKY130 geometry uses plain micrometre numbers, not an SI-suffixed value.",
+          );
+        value = sky130MicrometresToProjectLength(projectValue);
+      }
     } catch (error) {
       invalid ??= fail(
         "SIMULATION_PARAMETER_INVALID",

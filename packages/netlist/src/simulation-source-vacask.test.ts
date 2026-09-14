@@ -9,6 +9,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { compileSourceSimulation } from "./simulation-source-compile.js";
+import {
+  generateCircuitSource,
+  planCircuitSourceEdit,
+} from "./simulation-circuit-source.js";
 import { parseVacaskRawfile } from "../../spice-run/src/vacask-rawfile.js";
 
 function fixture() {
@@ -92,6 +96,29 @@ endc
   return { project, folder };
 }
 describe("public native source compilation", () => {
+  it("shows the exact compiled multi-binding files and reverses mega without SPICE milli interpretation", () => {
+    const { project, folder } = fixture();
+    const compiled = compileSourceSimulation(project, folder);
+    if (!compiled.ok) throw Error(JSON.stringify(compiled.diagnostics));
+    for (const binding of folder.input.circuitBindings) {
+      const generated = generateCircuitSource(project, binding, folder.input);
+      if (!generated.ok) throw Error(JSON.stringify(generated.diagnostics));
+      expect(generated.source.text).toBe(
+        compiled.generated.find((f) => f.bindingId === binding.id)!.text,
+      );
+      const span = generated.source.parameters.find(
+        (p) => p.parameter === "value",
+      )!;
+      const next =
+        generated.source.text.slice(0, span.startOffset) +
+        "1M" +
+        generated.source.text.slice(span.endOffset);
+      expect(planCircuitSourceEdit(generated.source, next)).toMatchObject({
+        ok: true,
+        changes: [{ parameter: "value", value: "1000000" }],
+      });
+    }
+  });
   it("shares generated primitive definitions across bindings without changing source bytes or the Project", () => {
     const { project, folder } = fixture();
     const before = JSON.stringify({ project, folder });
@@ -209,6 +236,27 @@ it.skipIf(!process.env.VACASK_BIN || !process.env.VACASK_MODULES)(
   "executes the PUBLIC compiler's generated files in native VACASK with reversed include order",
   () => {
     const { project, folder } = fixture();
+    const preview = generateCircuitSource(
+      project,
+      folder.input.circuitBindings[0]!,
+      folder.input,
+    );
+    if (!preview.ok) throw Error(JSON.stringify(preview.diagnostics));
+    const span = preview.source.parameters.find(
+      (p) => p.parameter === "value",
+    )!;
+    const next =
+      preview.source.text.slice(0, span.startOffset) +
+      "1M" +
+      preview.source.text.slice(span.endOffset);
+    const planned = planCircuitSourceEdit(preview.source, next);
+    if (!planned.ok) throw Error(planned.message);
+    for (const change of planned.changes)
+      project.documents
+        .find((d) => d.id === change.documentId)!
+        .instances.find((i) => i.id === change.instanceId)!.netlist!.parameters[
+        change.parameter
+      ] = change.value;
     const compiled = compileSourceSimulation(project, folder);
     if (!compiled.ok) throw Error(JSON.stringify(compiled.diagnostics));
     const cwd = mkdtempSync(join(tmpdir(), "icm-public-native-compile-"));
@@ -240,7 +288,7 @@ it.skipIf(!process.env.VACASK_BIN || !process.env.VACASK_MODULES)(
     );
     expect(values.get("Left")).toBe(1);
     expect(values.get("Right")).toBe(2);
-    expect(values.get("V1:flow(br)")).toBeCloseTo(-0.001, 12);
+    expect(values.get("V1:flow(br)")).toBeCloseTo(-0.000001, 12);
     expect(values.get("V2:flow(br)")).toBeCloseTo(-0.001, 12);
   },
 );

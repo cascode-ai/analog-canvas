@@ -419,9 +419,9 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
       () =>
         input.circuitBindings.map((binding) => ({
           binding,
-          result: generateCircuitSource(props.project, binding),
+          result: generateCircuitSource(props.project, binding, input),
         })),
-      [props.project, input.circuitBindings],
+      [props.project, input],
     );
     useEffect(() => {
       setReveal(undefined);
@@ -586,6 +586,7 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
             const regenerated = generateCircuitSource(
               current.current.project,
               draft.binding,
+              folder.input,
             );
             if (!regenerated.ok || regenerated.source.text !== draft.base) {
               props.onProblem(
@@ -818,10 +819,14 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
         (item) => item.path === filePath,
       );
       if (!binding) return "";
-      const generated = generateCircuitSource(props.project, binding);
+      const generated = generateCircuitSource(
+        props.project,
+        binding,
+        folder?.input,
+      );
       return generated.ok
         ? generated.source.text
-        : generated.diagnostics.map((d) => `* ${d.message}`).join("\n");
+        : generated.diagnostics.map((d) => `// ${d.message}`).join("\n");
     };
     const requestSave = async () => {
       if (sourceSaveRequest.current) return;

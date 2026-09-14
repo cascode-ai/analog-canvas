@@ -2,6 +2,7 @@ import type { SimulationSourceInput } from "@icm/model";
 import { isSimulationInputPath } from "@icm/model";
 import {
   inspectVacaskSourceGraph,
+  vacaskNumber as number,
   type VacaskSourceStatement,
   type VacaskSourceToken,
 } from "@icm/netlist";
@@ -17,36 +18,6 @@ const bare = (s: VacaskSourceStatement, name: string) => {
   );
 };
 
-/** Literal facts only, not a native expression evaluator. M is mega, not SPICE milli. */
-function number(text: string | undefined): number | undefined {
-  if (text === undefined) return undefined;
-  const plain = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/u.test(text);
-  if (plain) return Number.isFinite(Number(text)) ? Number(text) : undefined;
-  const match =
-    /^([+-]?(?:\d+(?:\.\d*)?|\.\d+))(meg|mil|[munpfakKMGTxX])[A-Za-z_]*$/u.exec(
-      text,
-    );
-  if (!match) return undefined;
-  const scales: Record<string, number> = {
-    meg: 1e6,
-    mil: 25.4e-6,
-    m: 1e-3,
-    u: 1e-6,
-    n: 1e-9,
-    p: 1e-12,
-    f: 1e-15,
-    a: 1e-18,
-    k: 1e3,
-    K: 1e3,
-    M: 1e6,
-    G: 1e9,
-    T: 1e12,
-    x: 1e6,
-    X: 1e6,
-  };
-  const value = Number(match[1]) * scales[match[2]!]!;
-  return Number.isFinite(value) ? value : undefined;
-}
 function literals(tokens: VacaskSourceToken[]) {
   const result = new Map<string, string | undefined>();
   let depth = 0;
