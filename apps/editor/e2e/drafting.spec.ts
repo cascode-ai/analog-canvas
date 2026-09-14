@@ -601,6 +601,108 @@ test("authors one validated formula through the canonical text editor", async ({
   expect(pdf.toString("latin1")).not.toContain("/Subtype /Image");
 });
 
+for (const zoomedOut of [false, true]) {
+  test(`keeps a reopened long formula within its text editor at ${zoomedOut ? "19%" : "normal"} zoom`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 620 });
+    await page.goto("/editor");
+    await awaitEditorReady(page);
+    if (zoomedOut) {
+      while (
+        Number.parseInt(
+          (await page.getByLabel("Current zoom").textContent())!,
+        ) > 20
+      ) {
+        await page
+          .getByRole("button", { name: "Zoom out", exact: true })
+          .click();
+      }
+    }
+    const canvas = page.getByTestId("schematic-canvas");
+    const viewBox = await canvas.getAttribute("viewBox");
+    await placeText(page, { x: 560, y: 280 });
+    const frame = page.getByTestId("canvas-text-editor");
+    const dialog = page.getByRole("dialog", { name: "Formula", exact: true });
+    const source = page.getByRole("textbox", { name: "Formula LaTeX source" });
+    const latex = String.raw`NTF=\frac{\left(1-z^{-1}\right)\left(1-0.75z^{-1}\right)^2}{\left(1-p_1z^{-1}\right)\left(1-p_2z^{-1}\right)}`;
+    const openFormula = async () => {
+      await page
+        .getByRole("button", { name: "Insert formula", exact: true })
+        .click();
+      await expect(dialog.locator("math-field")).toBeVisible();
+    };
+    const checkFrame = async () => {
+      // All controls must fit the visible foreignObject, including the right
+      // edge. Playwright's visibility check alone accepts clipped descendants.
+      await expect
+        .poll(() =>
+          frame.evaluate((element) => {
+            const outer = element.getBoundingClientRect();
+            const controls = element.querySelectorAll(
+              ".rich-text-floating-toolbar, .rich-text-formula-popover, .rich-text-editable, button",
+            );
+            return [...controls].every((control) => {
+              const rect = control.getBoundingClientRect();
+              if (!rect.width || !rect.height) return true;
+              return (
+                rect.left >= outer.left - 1 && rect.right <= outer.right + 1
+              );
+            });
+          }),
+        )
+        .toBe(true);
+      await expect(canvas).toHaveAttribute("viewBox", viewBox!);
+      const bounds = (await frame.boundingBox())!;
+      expect(bounds.width).toBeCloseTo(332, 0);
+    };
+    const apply = async (expectedLatex: string) => {
+      await dialog.getByRole("button", { name: "Insert", exact: true }).click();
+      await expect(frame.locator("[data-rich-text-math]")).toHaveAttribute(
+        "data-latex",
+        expectedLatex,
+      );
+      await checkFrame();
+      await page.getByRole("button", { name: "Apply text changes" }).click();
+      await expect(frame).toHaveCount(0);
+      await expect(
+        page.locator('[data-kind="draft-text"] [data-role="formula"]'),
+      ).toBeVisible();
+    };
+
+    await openFormula();
+    await source.fill(latex);
+    const display = dialog.getByRole("button", {
+      name: "Display",
+      exact: true,
+    });
+    await display.click();
+    await expect(display).toHaveAttribute("aria-pressed", "true");
+    await checkFrame();
+    await apply(latex);
+
+    await page.getByTestId(/^drafting-hit-note-/).dblclick();
+    await checkFrame();
+    await openFormula();
+    await expect(source).toHaveValue(latex);
+    await expect(display).toHaveAttribute("aria-pressed", "true");
+    await checkFrame();
+    const revised = latex.replace("0.75", "0.65");
+    await source.fill(revised);
+    await apply(revised);
+
+    await page.getByTestId(/^drafting-hit-note-/).dblclick();
+    await openFormula();
+    await expect(source).toHaveValue(revised);
+    await checkFrame();
+    // Both the dialog's close control and the outer cancel remain reachable.
+    await dialog.getByRole("button", { name: "Close formula editor" }).click();
+    await expect(dialog).toHaveCount(0);
+    await page.getByRole("button", { name: "Cancel text changes" }).click();
+    await expect(frame).toHaveCount(0);
+  });
+}
+
 test("edits an unrestricted device formula in the same visual annotation", async ({
   page,
 }) => {
