@@ -1,3 +1,4 @@
+import { validateNativeExecutionInput } from "@icm/simulation-service";
 import { mkdir, mkdtemp, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, join } from "node:path";
 import { isRunLocalPath } from "../simulation/run-local-files.mjs";
@@ -8,8 +9,6 @@ const rejection = (code, message, recovery = "fix-input") => ({
   ok: false,
   error: { code, message, stage: "start", recovery },
 });
-const digest = (value) =>
-  typeof value === "string" && /^[a-f0-9]{64}$/u.test(value);
 const key = (path) =>
   process.platform === "win32" ? path.toLowerCase() : path;
 const safePath = (path) =>
@@ -53,105 +52,54 @@ export function validateVacaskJob(input, runtime, limits) {
       "retry-after",
     );
   if (
-    input?.language !== "vacask" ||
-    input.mode !== "raw" ||
-    input.collection?.kind !== "native-multi-ascii"
-  )
-    return rejection(
-      "native-input-required",
-      "This executor accepts only native VACASK source inputs.",
-    );
-  if (
     runtime.environment?.simulator?.name !== "vacask" ||
-    !isAbsolute(runtime.runRoot ?? "") ||
-    !isAbsolute(runtime.startupPath ?? "") ||
-    !isAbsolute(runtime.binary ?? "") ||
-    !isAbsolute(runtime.modules ?? "")
+    ![
+      runtime.runRoot,
+      runtime.startupPath,
+      runtime.binary,
+      runtime.modules,
+    ].every((path) => typeof path === "string" && isAbsolute(path))
   )
     return rejection(
       "simulator-not-ready",
       "The native runtime has not been configured.",
       "retry-after",
     );
-  if (input.environment?.profileId !== runtime.environment.profileId)
-    return rejection(
-      "prepared-environment-changed",
-      "Prepare again against this runtime Profile.",
-      "reprepare",
-    );
-  if (
-    !safePath(input.entryPath) ||
-    !Array.isArray(input.files) ||
-    !input.files.length ||
-    !Array.isArray(input.dependencies) ||
-    input.files.length + input.dependencies.length > limits.maxInputFiles ||
-    input.files.some(
-      (file) => !file || !safePath(file.path) || typeof file.text !== "string",
-    ) ||
-    input.dependencies.some(
-      (dep) =>
-        !dep ||
-        typeof dep.id !== "string" ||
-        !digest(dep.sha256) ||
-        !safePath(dep.mountPath),
-    )
-  )
-    return rejection(
-      "invalid-input-files",
-      "Input files or dependency paths are invalid or exceed the file limit.",
-    );
+  const checked = validateNativeExecutionInput(input, {
+    profileId: runtime.environment.profileId,
+    dependencies: runtime.dependencies ?? [],
+    maxInputFiles: limits.maxInputFiles,
+    maxInputBytes: limits.maxInputBytes,
+  });
+  if (!checked.ok) return checked;
   const paths = [
-    ...input.files.map((file) => key(file.path)),
-    ...input.dependencies.map((dep) => key(dep.mountPath)),
+    ...input.files.map((f) => f.path),
+    ...input.dependencies.map((d) => d.mountPath),
   ];
+  // Native filesystem restrictions augment, never replace, portable admission.
   if (
+    paths.some((path) => !safePath(path)) ||
     paths.some((path, i) =>
-      paths.slice(i + 1).some((other) => overlap(path, other)),
+      paths.slice(i + 1).some((other) => overlap(key(path), key(other))),
     )
   )
     return rejection(
       "invalid-input-files",
-      "Files and dependency mounts must have disjoint, unique paths.",
-    );
-  const entry = input.files.find((file) => file.path === input.entryPath);
-  if (
-    !entry ||
-    input.preparedDeck !== entry.text ||
-    input.testbench !== entry.text ||
-    input.netlist !== ""
-  )
-    return rejection(
-      "prepared-input-changed",
-      "The prepared entry and submitted source bytes differ.",
-      "reprepare",
-    );
-  if (
-    input.files.reduce((sum, file) => sum + Buffer.byteLength(file.text), 0) >
-    limits.maxInputBytes
-  )
-    return rejection(
-      "input-too-large",
-      "Native input files exceed the combined byte limit.",
+      "Input paths collide or are invalid on this platform.",
     );
   const mounts = [];
   for (const dep of input.dependencies) {
     const found = (runtime.dependencies ?? []).find(
-      (candidate) => candidate.id === dep.id && candidate.sha256 === dep.sha256,
+      (d) => d.id === dep.id && d.sha256 === dep.sha256,
     );
     if (!found || !isAbsolute(found.runtimePath ?? ""))
       return rejection(
         "simulation-dependency-unavailable",
-        `Dependency ${dep.id} does not match this runtime.`,
+        `Dependency ${dep.id} is not mounted on this runtime.`,
         "reprepare",
       );
     mounts.push({ mountPath: dep.mountPath, runtimePath: found.runtimePath });
   }
-  if (
-    input.runToken !== undefined &&
-    (typeof input.runToken !== "string" ||
-      !/^[0-9a-f-]{36}$/u.test(input.runToken))
-  )
-    return rejection("invalid-run-token", "Invalid execution token.");
   return { ok: true, mounts };
 }
 

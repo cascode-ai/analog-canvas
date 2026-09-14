@@ -19,7 +19,11 @@ import { SimulationService } from "../../packages/simulation-service/src/service
 import { SimulationFiles } from "../../packages/simulation-service/src/files.js";
 import { CapabilitiesSchema } from "../../packages/simulation-service/src/contract.js";
 import { inspectNativeAnalyses } from "../../packages/simulation-service/src/native-source-analysis.js";
-import { readVacaskSimulationData } from "../../packages/spice-run/src/index.js";
+import {
+  readVacaskSimulationData,
+  createSimulationEnvironmentMetadata,
+} from "../../packages/spice-run/src/index.js";
+import { routeSimulationRequest } from "../../worker/simulation.js";
 import { collectVacaskRawfiles } from "./rawfile-collector.mjs";
 import { createVacaskHttpServer } from "./http-server.mjs";
 import { createHostedExecutor } from "../../packages/simulation-service/src/hosted-executor.js";
@@ -321,9 +325,11 @@ RL (N 0) load r=1k
     expect(project).toEqual(before);
   });
 
-  it.skipIf(!process.env.VACASK_BIN || !process.env.VACASK_MODULES)(
-    "runs public Prepare/Start through the local editor host and native process, then exports the mapped result",
-    async () => {
+  it
+    .skipIf(!process.env.VACASK_BIN || !process.env.VACASK_MODULES)
+    .each(["local-host", "worker"])(
+    "runs public Prepare/Start through %s and the native HTTP process, then exports the mapped result",
+    async (transport) => {
       const project = fixture();
       const before = structuredClone(project);
       const files = new SimulationFiles();
@@ -336,14 +342,30 @@ RL (N 0) load r=1k
       const startup = "# public native journey controlled configuration\n";
       const startupPath = join(root, "vacaskrc.toml");
       await writeFile(startupPath, startup);
-      const runtime = await initializeVacaskRuntime({
+      const configuration = {
         executor: "local-host",
         profileId: "local-proof",
         binary,
         modules,
         startupPath,
         runRoot: root,
-      });
+      };
+      let runtime = await initializeVacaskRuntime(configuration);
+      if (transport === "worker") {
+        // A test-only lock from measured local assets exercises hosted identity
+        // verification; it is not a deployment/model qualification or a fake
+        // simulator result. Reinitialize to independently check those bytes.
+        const expectedEnvironment = await createSimulationEnvironmentMetadata({
+          ...runtime.environment,
+          executor: "hosted-container",
+          reproducibility: "pinned",
+        });
+        runtime = await initializeVacaskRuntime({
+          ...configuration,
+          executor: "hosted-container",
+          expectedEnvironment,
+        });
+      }
       const server = createVacaskHttpServer({
         runtimeReady: runtime,
         capabilities: caps,
@@ -371,9 +393,21 @@ RL (N 0) load r=1k
         join(editorRoot, "index.html"),
         "<title>Local editor transport proof</title>",
       );
+      const workerEnvironment = {
+        SIMULATION_PROFILE_ID: "local-proof",
+        VACASK: {
+          getByName: () => ({
+            fetch: (url, init) =>
+              fetch(new URL(new URL(url).pathname, base), init),
+          }),
+        },
+      };
       const local = await startLocalHost({
         editorRoot,
-        simulationHandler: createLocalSimulationHandler(base),
+        simulationHandler:
+          transport === "worker"
+            ? (request) => routeSimulationRequest(request, workerEnvironment)
+            : createLocalSimulationHandler(base),
       });
       servers.push(local.server);
       // Real shared client + local Editor host + HTTP + process + numeric adapter; capabilities are

@@ -42,6 +42,7 @@ beforeEach(async () => {
     environment: { profileId: "local-proof", simulator: { name: "vacask" } },
   };
   input = {
+    inputRevision: "job-proof",
     language: "vacask",
     mode: "raw",
     collection: { kind: "native-multi-ascii" },
@@ -77,6 +78,8 @@ describe("native job ownership", () => {
     ["netlist", "another deck", "prepared-input-changed"],
     ["entryPath", "../outside", "invalid-input-files"],
     ["runToken", "bad-token", "invalid-run-token"],
+    ["inputRevision", undefined, "prepared-input-identity-missing"],
+    ["inputRevision", "x".repeat(257), "prepared-input-identity-missing"],
   ])(
     "rejects invalid %s before staging or execution",
     async (field, value, code) => {

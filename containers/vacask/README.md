@@ -73,6 +73,16 @@ image; copying this local example does not meet that requirement.
 
 ## Transport and shutdown
 
+The native Worker route requires `SIMULATION_PROFILE_ID` plus the explicitly
+selected executor (`SIMULATION_UPSTREAM_URL`/token for the private HTTPS gateway,
+or a provisioned `VACASK` binding). `/health` must report that Profile, verified
+pinned VACASK environment metadata and the native capabilities above. Worker
+forwards exact input files and validates result evidence through the shared
+service; it does not add `.lib`, `.include`, or parse numbers independently.
+Do not point this migration at the current production/shared operator endpoint.
+No deployment configuration or qualified model registration is supplied by this
+harness. Use the isolated migration delivery described in the roadmap.
+
 To connect the built local Editor host to this separately running executor:
 
 ```sh

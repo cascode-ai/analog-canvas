@@ -2,10 +2,10 @@ import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it, vi } from "vitest";
 
 import {
-  buildSimulationDeck,
-  createSimulationEnvironmentMetadata,
-} from "@icm/spice-run";
-import hostedSky130Profile from "../containers/ngspice/hosted-sky130-profile.json";
+  nativeWorkerEnv,
+  nativeInput,
+  nativeHealth,
+} from "./simulation.test-fixture";
 
 import { SimulationControlDO } from "./simulation-control-do";
 import {
@@ -67,25 +67,6 @@ class MemoryBucket implements SimulationArtifactBucket {
   }
 }
 
-const environment = await createSimulationEnvironmentMetadata({
-  executor: "hosted-container",
-  reproducibility: "observed",
-  profileId: null,
-  platform: "linux/x64",
-  simulator: {
-    name: "ngspice",
-    version: "ngspice-47",
-    binarySha256:
-      "22d5cae2bd32b2e39157a8d27bf457122f68285b72a9ebefdf41551b628233ab",
-  },
-  models: {
-    id: "sky130A",
-    contentSha256:
-      "17c208a699228f5acb87bf59c09c22a4c4d3937b6766b4957737d34e8e075f64",
-  },
-  startupSha256: null,
-});
-
 function harness() {
   const control = new SimulationControlDO(sqliteState(), undefined, () => 100);
   const bucket = new MemoryBucket();
@@ -102,18 +83,7 @@ function harness() {
         jobs.push(message);
       },
     },
-    NGSPICE: {
-      getByName: () => ({
-        fetch: async () =>
-          Response.json({
-            environment,
-            log: "Circuit: * divider\nv(in) = 1\n",
-            exitCode: 0,
-            timedOut: false,
-            durationMs: 5,
-          }),
-      }),
-    },
+    ...nativeWorkerEnv(),
   };
   const principal = {
     id: "user-a",
@@ -132,8 +102,6 @@ function harness() {
 }
 
 function startRequest() {
-  const netlist = "R1 in 0 1k";
-  const testbench = "V1 in 0 1\n.op";
   return new Request("https://canvas.test/api/simulation/runs", {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -141,19 +109,7 @@ function startRequest() {
       requestId: "request-a",
       preparedId: "prepared-a",
       preparedDigest: "a".repeat(64),
-      input: {
-        mode: "structured",
-        environment: {
-          profileId: hostedSky130Profile.id,
-          corner: "tt",
-        },
-        files: [],
-        dependencies: [],
-        netlist,
-        testbench,
-        preparedDeck: buildSimulationDeck({ netlist, testbench }, null),
-        inputRevision: "revision-a",
-      },
+      input: nativeInput(),
     }),
   });
 }
@@ -183,7 +139,7 @@ describe("managed simulation operations", () => {
       .mockRejectedValueOnce(new Error("read interrupted"));
     env.SIMULATION_CONTROL = { getByName: () => ({ fetch: fetchControl }) };
     const execute = vi.fn();
-    env.NGSPICE = { getByName: () => ({ fetch: execute }) };
+    env.VACASK = nativeWorkerEnv(execute).VACASK;
     const delivery = { body: jobs[0]!, ack: vi.fn(), retry: vi.fn() };
     await consumeSimulationJobs({ messages: [delivery] }, env, runtime);
     expect(execute).not.toHaveBeenCalled();
@@ -199,9 +155,9 @@ describe("managed simulation operations", () => {
   });
   it("can retry a storage failure before any executor dispatch", async () => {
     const { env, jobs, runtime, bucket } = harness();
-    const original = env.NGSPICE!.getByName("test");
+    const original = env.VACASK!.getByName("test");
     const execute = vi.fn(original.fetch);
-    env.NGSPICE = { getByName: () => ({ fetch: execute }) };
+    env.VACASK = nativeWorkerEnv(execute).VACASK;
     const started = await routeManagedSimulationRequest(
       startRequest(),
       env,
@@ -230,14 +186,14 @@ describe("managed simulation operations", () => {
     "does not execute again after %s, including duplicate Queue delivery",
     async (failure) => {
       const { env, jobs, runtime, bucket } = harness();
-      const original = env.NGSPICE!.getByName("test");
+      const original = env.VACASK!.getByName("test");
       const execute = vi.fn(async (url: string, init?: RequestInit) => {
         if (failure === "lost-response")
           throw new Error("response lost after admission");
         if (failure === "invalid-response") return new Response("broken JSON");
         return original.fetch(url, init);
       });
-      env.NGSPICE = { getByName: () => ({ fetch: execute }) };
+      env.VACASK = nativeWorkerEnv(execute).VACASK;
       const started = await routeManagedSimulationRequest(
         startRequest(),
         env,
@@ -274,7 +230,7 @@ describe("managed simulation operations", () => {
     async (cancelling) => {
       const { env, jobs, runtime, control } = harness();
       const execute = vi.fn();
-      env.NGSPICE = { getByName: () => ({ fetch: execute }) };
+      env.VACASK = nativeWorkerEnv(execute).VACASK;
       const started = await routeManagedSimulationRequest(
         startRequest(),
         env,
@@ -432,13 +388,15 @@ describe("managed simulation operations", () => {
 
   it("requeues infrastructure refusal under the same run", async () => {
     const { env, jobs, runtime } = harness();
-    env.NGSPICE = {
+    env.VACASK = {
       getByName: () => ({
-        fetch: async () =>
-          Response.json(
-            { error: "simulator-busy", message: "one circuit at a time" },
-            { status: 503 },
-          ),
+        fetch: async (url) =>
+          new URL(url).pathname === "/health"
+            ? Response.json(nativeHealth)
+            : Response.json(
+                { error: "simulator-busy", message: "one circuit at a time" },
+                { status: 503 },
+              ),
       }),
     };
     const started = await routeManagedSimulationRequest(

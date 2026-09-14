@@ -1,91 +1,30 @@
-/**
- * The simulation route: a netlist and the author's testbench in, ngspice's
- * answer out.
- *
- * The Worker cannot run ngspice — a V8 isolate executes JavaScript and
- * WebAssembly, never a native binary — so the run happens in a container and
- * this module is the boundary in front of it. It adds nothing to the circuit
- * and interprets nothing about it: ADR 0055 puts the testbench in the
- * author's hands, and a diagnosis in ngspice's own words.
- *
- * The container binding is OPTIONAL on purpose. `wrangler.jsonc` is shared by
- * every deploy of this Worker, so a binding for a capability the account may
- * not have enabled would break deploys that have nothing to do with
- * simulation. Absent binding is answered as "not configured" — a fact about
- * the deployment, phrased so nobody mistakes it for a fact about the circuit.
- */
+/** Native execution boundary. Routing only: source preparation, diagnostics and
+ * numeric interpretation belong to the shared service and VACASK harness. */
 import {
-  buildSimulationDeck,
-  deckNeedsModelLibrary,
-  deckRequestsRawfile,
-  evaluateSimulationRun,
+  CapabilitiesSchema,
+  decodeHostedExecutionPayload,
+  validateNativeExecutionInput,
+} from "@icm/simulation-service";
+import {
   createSimulationInputMetadata,
-  isSimulationInputRevision,
-  resolveTimeoutMs,
-  SKY130_LIBRARY_PATH,
-  SKY130_LIBRARY_SECTION,
-  simulationConfigurationMetadata,
   verifySimulationEnvironmentMetadata,
-  type ModelLibrarySelection,
-  type SimulationResult,
 } from "@icm/spice-run";
-import hostedSky130Profile from "../containers/ngspice/hosted-sky130-profile.json";
-import { isSimulationInputPath } from "@icm/model";
 
-/** What a container-backed runner has to offer this module. */
-export interface NgspiceRunner {
+export interface SimulationRunner {
   fetch(input: string, init?: RequestInit): Promise<Response>;
 }
-
 export interface SimulationEnv {
-  /** Present once Containers is enabled for the account and bound. */
-  NGSPICE?: { getByName(name: string): NgspiceRunner };
-  /**
-   * A harness running elsewhere — the same image, on a host the operator
-   * runs, reached over HTTPS through a tunnel. When set it is the simulator;
-   * the container binding, if any, is left asleep. The Worker stays the only
-   * public door: the host answers only to this token.
-   */
+  VACASK?: { getByName(name: string): SimulationRunner };
   SIMULATION_UPSTREAM_URL?: string;
   SIMULATION_UPSTREAM_TOKEN?: string;
-  /**
-   * Preview policy, not circuit state. Both executors may be configured at
-   * once; this chooses the one used when a caller names no target.
-   */
   SIMULATION_DEFAULT_EXECUTOR?: string;
-  /** Where the models live inside the image. */
-  SKY130_LIB_PATH?: string;
-  /** Section in the sectioned Sky130 library; `tt` when omitted. */
-  SKY130_LIB_SECTION?: string;
-  /** Must match the selected harness' SIMULATION_MAX_OUTPUT_BYTES. */
-  SIMULATION_MAX_OUTPUT_BYTES?: string;
+  /** Accepted deployment Profile. Measured identity/scope come from its runtime,
+   * not another Worker-owned model path or analysis list. */
+  SIMULATION_PROFILE_ID?: string;
 }
-
-// The continuous (unbinned) Sky130 library the benchmark image ships; the
-// binned checkout it also carries caps device width at 100 µm (#551).
-
-/** A deck this large is a mistake upstream, not a simulation worth waking for. */
-const MAX_INPUT_BYTES = 2 * 1024 * 1024;
-const DEFAULT_MAX_OUTPUT_BYTES = 1024 * 1024;
-
-function advertisedMaxOutputBytes(env: SimulationEnv): number {
-  const configured = Number(env.SIMULATION_MAX_OUTPUT_BYTES);
-  return Number.isInteger(configured) && configured > 0
-    ? configured
-    : DEFAULT_MAX_OUTPUT_BYTES;
-}
-
-/**
- * Cloudflare Containers are owned by a named Durable Object. An image deploy
- * does not evict an already-warm object immediately, so a fixed key can route
- * a new Worker to the previous Profile for the rest of its idle lifetime.
- * Keying the object by the versioned Profile identity makes a Profile change
- * start a fresh container while unchanged deploys keep their warm instance.
- */
-const CLOUDFLARE_CONTAINER_INSTANCE_KEY = `profile:${hostedSky130Profile.id}`;
-
 export interface SimulationRequestBody {
   operation?: unknown;
+  language?: unknown;
   mode?: unknown;
   environment?: {
     profileId?: unknown;
@@ -104,596 +43,385 @@ export interface SimulationRequestBody {
   inputRevision?: unknown;
   executorTarget?: unknown;
 }
-
 export type SimulationExecutorTarget = "cloudflare-container" | "operator-host";
-
-interface SelectedRunner {
-  target: SimulationExecutorTarget;
-  runner: NgspiceRunner;
+const targetValid = (v: unknown): v is SimulationExecutorTarget =>
+  v === "cloudflare-container" || v === "operator-host";
+const tokenValid = (v: unknown): v is string =>
+  typeof v === "string" && /^[0-9a-f-]{36}$/u.test(v);
+const unavailable = {
+  configured: false,
+  inputs: [],
+  analyses: [],
+  parsedAnalyses: [],
+  profiles: [],
+  maxTimeoutMs: 0,
+  maxInputBytes: 0,
+  cancel: false,
+};
+const MAX_BODY_BYTES = 8 * 1024 * 1024;
+const json = (body: unknown, status = 200, headers?: HeadersInit) =>
+  Response.json(body, { status, ...(headers ? { headers } : {}) });
+async function boundedText(
+  message: Request | Response,
+  maximum: number,
+): Promise<string> {
+  const reader = message.body?.getReader();
+  if (!reader) return "";
+  const decoder = new TextDecoder();
+  let bytes = 0,
+    text = "";
+  try {
+    while (true) {
+      const item = await reader.read();
+      if (item.done) return text + decoder.decode();
+      bytes += item.value.byteLength;
+      if (bytes > maximum) throw new Error("transport-size-limit");
+      text += decoder.decode(item.value, { stream: true });
+    }
+  } catch (error) {
+    await reader.cancel().catch(() => {});
+    throw error;
+  } finally {
+    reader.releaseLock();
+  }
 }
-
-interface HostedExecutionMetadata {
-  target: SimulationExecutorTarget;
+const clip = (text: string) =>
+  text.length > 400 ? text.slice(0, 400) + "…" : text;
+async function refusal(
+  response: Response,
+): Promise<{ reason?: string; message?: string }> {
+  let text: string;
+  try {
+    text = (await boundedText(response, 16384)).trim();
+  } catch {
+    return {
+      message: "Executor refusal exceeded the readable response limit.",
+    };
+  }
+  if (!text) return {};
+  try {
+    const v = JSON.parse(text);
+    if (
+      v &&
+      typeof v === "object" &&
+      !Array.isArray(v) &&
+      (typeof v.error === "string" || typeof v.message === "string")
+    )
+      return {
+        ...(typeof v.error === "string" ? { reason: clip(v.error) } : {}),
+        ...(typeof v.message === "string" ? { message: clip(v.message) } : {}),
+      };
+  } catch {
+    /* Plain proxy text is still useful diagnostic evidence. */
+  }
+  return { message: clip(text) };
 }
-
-/**
- * The harness on an operator-run host, spoken to exactly as the container
- * is: the same `/run` path, the same body, plus the bearer token the host
- * requires. Only the path of the caller's URL is kept, so the route module
- * never has to know which kind of runner it was handed.
- */
-function remoteRunner(base: string, token: string | undefined): NgspiceRunner {
+function selectRunner(
+  env: SimulationEnv,
+  target: SimulationExecutorTarget,
+  key: string,
+): SimulationRunner | null {
+  if (target === "cloudflare-container")
+    return env.VACASK?.getByName(key) ?? null;
+  if (!env.SIMULATION_UPSTREAM_URL?.trim()) return null;
+  const base = new URL(env.SIMULATION_UPSTREAM_URL);
+  if (
+    base.protocol !== "https:" ||
+    base.username ||
+    base.password ||
+    base.search ||
+    base.hash ||
+    base.pathname !== "/"
+  )
+    throw new Error("Invalid operator HTTPS origin");
   return {
-    fetch: (input, init) => {
-      const target = new URL(new URL(input).pathname, base);
-      const headers = new Headers(init?.headers);
-      if (token) headers.set("authorization", `Bearer ${token}`);
-      return fetch(target, { ...init, headers });
+    fetch: (path, init) => {
+      const headers = new Headers({ "content-type": "application/json" });
+      if (env.SIMULATION_UPSTREAM_TOKEN)
+        headers.set("authorization", `Bearer ${env.SIMULATION_UPSTREAM_TOKEN}`);
+      return fetch(new URL(new URL(path).pathname, base), {
+        ...init,
+        headers,
+        redirect: "error",
+      });
     },
   };
 }
-
-/**
- * Resolve one explicitly named executor. A Preview deployment may register
- * both at once; selecting one never wakes, probes, or retries through the
- * other. An uncertain run must not be duplicated on a fallback executor.
- */
-function runnerFor(
-  env: SimulationEnv,
-  key: string,
-  target: SimulationExecutorTarget,
-): SelectedRunner | null {
-  if (target === "operator-host") {
-    const upstream = env.SIMULATION_UPSTREAM_URL?.trim();
-    return upstream
-      ? {
-          target,
-          runner: remoteRunner(upstream, env.SIMULATION_UPSTREAM_TOKEN),
-        }
-      : null;
-  }
-  return env.NGSPICE ? { target, runner: env.NGSPICE.getByName(key) } : null;
-}
-
-function isExecutorTarget(value: unknown): value is SimulationExecutorTarget {
-  return value === "cloudflare-container" || value === "operator-host";
-}
-
-function defaultExecutorTarget(
-  env: SimulationEnv,
-): SimulationExecutorTarget | "invalid" {
-  const configured = env.SIMULATION_DEFAULT_EXECUTOR?.trim();
-  if (configured) return isExecutorTarget(configured) ? configured : "invalid";
-
-  // Backwards-compatible default: a deployment that configured only the
-  // upstream host keeps using it; otherwise the bound container is canonical.
-  return env.SIMULATION_UPSTREAM_URL?.trim()
-    ? "operator-host"
-    : "cloudflare-container";
-}
-
-/**
- * How much of a refusal's body is worth carrying back. A refusal is a
- * sentence, not a payload; more than this is a container misbehaving, and it
- * is clipped rather than relayed.
- */
-const MAX_REFUSAL_MESSAGE_CHARS = 400;
-
-function clipRefusalText(text: string): string {
-  return text.length > MAX_REFUSAL_MESSAGE_CHARS
-    ? `${text.slice(0, MAX_REFUSAL_MESSAGE_CHARS)}\u2026`
-    : text;
-}
-
-/**
- * Why the container refused, in its own words.
- *
- * The status code alone is not a diagnosis, and this route used to answer
- * every refusal with nothing else. The harness already distinguishes a
- * container that is running someone else's circuit (`simulator-busy`, with a
- * retry hint) from one that could not make a directory for the run at all
- * (`run-directory-unavailable`, naming the failure it hit) — and both arrived
- * here as a bare number.
- *
- * On 2026-09-04 that cost the preview channel an outage: a container whose
- * run root was unwritable answered one 500 and then held its single slot
- * forever, so every later request came back `503`. From outside, `503` is
- * also what an honestly busy simulator says. The fault was one line in the
- * harness, and finding it meant inferring container state from the sequence
- * of status codes across repeated probes, because the sentence that named it
- * was discarded here. Carrying that sentence costs nothing.
- *
- * Carried, never trusted: this is another service's output, so it is read as
- * text, bounded, and reported under its own keys rather than spread into the
- * response where it could shadow a field of this route's own.
- */
-async function describeRefusal(
-  response: Response,
-): Promise<{ reason?: string; message?: string }> {
-  let body: string;
-  try {
-    body = await response.text();
-  } catch {
-    // A refusal whose body cannot even be read still has its status, which
-    // is what the caller had before this existed.
-    return {};
-  }
-  const trimmed = body.trim();
-  if (trimmed.length === 0) return {};
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(trimmed);
-  } catch {
-    // Not JSON. A proxy in front of the container, or a harness that died
-    // before it could answer in its own format, replies in plain text — and
-    // that text is then the only clue there is.
-    return { message: clipRefusalText(trimmed) };
-  }
-  if (typeof parsed !== "object" || parsed === null) {
-    return { message: clipRefusalText(trimmed) };
-  }
-  const fields = parsed as { error?: unknown; message?: unknown };
-  const reason = typeof fields.error === "string" ? fields.error : null;
-  const message = typeof fields.message === "string" ? fields.message : null;
-  if (reason === null && message === null) {
-    return { message: clipRefusalText(trimmed) };
-  }
-  return {
-    ...(reason === null ? {} : { reason: clipRefusalText(reason) }),
-    ...(message === null ? {} : { message: clipRefusalText(message) }),
-  };
-}
-
 export async function routeSimulationRequest(
   request: Request,
   env: SimulationEnv,
-  runnerKey = CLOUDFLARE_CONTAINER_INSTANCE_KEY,
+  runnerKey?: string,
 ): Promise<Response | null> {
-  const url = new URL(request.url);
-  if (url.pathname !== "/api/simulate") return null;
-  if (request.method !== "POST") {
-    return Response.json({ error: "method-not-allowed" }, { status: 405 });
-  }
-
-  let body: SimulationRequestBody;
+  if (new URL(request.url).pathname !== "/api/simulate") return null;
+  if (request.method !== "POST")
+    return json({ error: "method-not-allowed" }, 405);
+  let value: unknown;
   try {
-    body = (await request.json()) as SimulationRequestBody;
+    value = JSON.parse(await boundedText(request, MAX_BODY_BYTES));
+  } catch (error) {
+    const large =
+      error instanceof Error && error.message === "transport-size-limit";
+    return json(
+      { error: large ? "request-too-large" : "invalid-json" },
+      large ? 413 : 400,
+    );
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value))
+    return json({ error: "invalid-request" }, 400);
+  const body = value as SimulationRequestBody;
+  if (body.executorTarget !== undefined && !targetValid(body.executorTarget))
+    return json({ error: "invalid-executor-target" }, 400);
+  const configuredTarget = env.SIMULATION_DEFAULT_EXECUTOR?.trim();
+  if (configuredTarget && !targetValid(configuredTarget))
+    return json({ error: "simulation-executor-configuration-invalid" }, 503);
+  const target = (body.executorTarget ??
+    configuredTarget ??
+    (env.SIMULATION_UPSTREAM_URL?.trim()
+      ? "operator-host"
+      : "cloudflare-container")) as SimulationExecutorTarget;
+  const profileId = env.SIMULATION_PROFILE_ID?.trim();
+  let runner: SimulationRunner | null;
+  try {
+    runner = selectRunner(
+      env,
+      target,
+      runnerKey ?? `profile:${profileId ?? "unconfigured"}`,
+    );
   } catch {
-    return Response.json({ error: "invalid-json" }, { status: 400 });
+    return json({ error: "simulation-executor-configuration-invalid" }, 503);
   }
-  if (!body || typeof body !== "object" || Array.isArray(body))
-    return Response.json({ error: "invalid-request" }, { status: 400 });
   if (
-    body.executorTarget !== undefined &&
-    !isExecutorTarget(body.executorTarget)
-  ) {
-    return Response.json(
-      {
-        error: "invalid-executor-target",
-        message:
-          'executorTarget must be "cloudflare-container" or "operator-host".',
-      },
-      { status: 400 },
-    );
-  }
-
-  const configuredDefault = defaultExecutorTarget(env);
-  if (configuredDefault === "invalid") {
-    return Response.json(
-      {
-        error: "simulation-executor-configuration-invalid",
-        message:
-          "SIMULATION_DEFAULT_EXECUTOR does not name a supported Preview executor.",
-      },
-      { status: 503 },
-    );
-  }
-  const target = body.executorTarget ?? configuredDefault;
-  const selected = runnerFor(env, runnerKey, target);
-  const defaultCorner = env.SKY130_LIB_SECTION ?? SKY130_LIBRARY_SECTION;
-  if (!hostedSky130Profile.qualifiedScope.sections.includes(defaultCorner))
-    return Response.json(
-      {
-        error: "simulation-executor-configuration-invalid",
-        message: `SKY130_LIB_SECTION does not name a qualified corner: ${defaultCorner}`,
-      },
-      { status: 503 },
-    );
-  if (body.operation === "capabilities") {
-    return Response.json({
-      configured: !!selected,
-      rawfileCollection: "declared-single-ascii",
-      maxInputFiles: 24,
-      inputs: ["structured", "raw"],
-      analyses: hostedSky130Profile.qualifiedScope.analyses,
-      parsedAnalyses: ["op", "dc", "ac", "tran", "noise"],
-      profiles: [
-        {
-          id: hostedSky130Profile.id,
-          label: hostedSky130Profile.displayName ?? hostedSky130Profile.id,
-          corners: hostedSky130Profile.qualifiedScope.sections,
-          devices: hostedSky130Profile.qualifiedScope.devices,
-          dependencies: [
-            {
-              id: hostedSky130Profile.models.id,
-              sha256: hostedSky130Profile.models.contentSha256,
-            },
-          ],
-        },
-      ],
-      modelLibrary: {
-        path: env.SKY130_LIB_PATH ?? SKY130_LIBRARY_PATH,
-        section: defaultCorner,
-      },
-      maxTimeoutMs: 120000,
-      maxInputBytes: MAX_INPUT_BYTES,
-      maxOutputBytes: advertisedMaxOutputBytes(env),
-      cancel: true,
-    });
-  }
-  if (!selected) {
-    const noExecutorConfigured =
-      !env.NGSPICE && !env.SIMULATION_UPSTREAM_URL?.trim();
-    return Response.json(
-      noExecutorConfigured
-        ? {
-            error: "simulation-not-configured",
-            message:
-              "This deployment has neither a simulation container bound nor a simulator host configured, so no circuit can be run here.",
-          }
-        : {
-            error: "simulation-executor-unavailable",
-            execution: { target },
-            message: `The Preview executor "${target}" is not configured in this deployment.`,
-          },
-      { status: 503 },
-    );
-  }
-  const execution: HostedExecutionMetadata = { target: selected.target };
-  if (
-    body.runToken !== undefined &&
-    (typeof body.runToken !== "string" ||
-      !/^[0-9a-f-]{36}$/u.test(body.runToken))
+    body.operation !== undefined &&
+    body.operation !== "capabilities" &&
+    body.operation !== "cancel"
   )
-    return Response.json({ error: "invalid-run-token" }, { status: 400 });
+    return json({ error: "invalid-operation" }, 400);
+  if (body.runToken !== undefined && !tokenValid(body.runToken))
+    return json({ error: "invalid-run-token" }, 400);
+  if (!runner || !profileId) {
+    if (body.operation === "capabilities") return json(unavailable);
+    return json(
+      {
+        error: !runner
+          ? !env.VACASK && !env.SIMULATION_UPSTREAM_URL?.trim()
+            ? "simulation-not-configured"
+            : "simulation-executor-unavailable"
+          : "simulation-executor-configuration-invalid",
+        execution: { target },
+        message: "Select a configured native executor and accepted Profile.",
+      },
+      503,
+    );
+  }
+  const execution = { target };
   if (body.operation === "cancel") {
-    if (!body.runToken)
-      return Response.json({ error: "invalid-run-token" }, { status: 400 });
+    if (!tokenValid(body.runToken))
+      return json({ error: "invalid-run-token" }, 400);
+    // Cancellation cannot depend on a ready/idle health response.
     try {
-      const response = await selected.runner.fetch("http://container/cancel", {
+      const r = await runner.fetch("http://container/cancel", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ runToken: body.runToken }),
+        signal: AbortSignal.timeout(10000),
       });
-      return Response.json(
-        response.ok
-          ? { accepted: true }
-          : { error: "cancel-refused", ...(await describeRefusal(response)) },
-        { status: response.ok ? 200 : 502 },
-      );
+      if (!r.ok)
+        return json({ error: "cancel-refused", ...(await refusal(r)) }, 502);
+      const accepted = JSON.parse(await boundedText(r, 16384));
+      return accepted?.accepted === true
+        ? json({ accepted: true })
+        : json({ error: "cancel-response-unknown" }, 502);
     } catch {
-      return Response.json(
-        { error: "cancel-response-unknown" },
-        { status: 502 },
-      );
+      return json({ error: "cancel-response-unknown" }, 502);
     }
   }
-  if (body.operation !== undefined)
-    return Response.json({ error: "invalid-operation" }, { status: 400 });
-  if (
-    body.environment &&
-    (body.environment.profileId !== hostedSky130Profile.id ||
-      (body.environment.corner !== undefined &&
-        (typeof body.environment.corner !== "string" ||
-          !hostedSky130Profile.qualifiedScope.sections.includes(
-            body.environment.corner,
-          ))))
-  )
-    return Response.json(
-      { error: "simulation-profile-unavailable" },
-      { status: 400 },
-    );
-  const files = body.files ?? [];
-  const dependencies = body.dependencies ?? [];
-  const safePath = (p: unknown): p is string =>
-    typeof p === "string" && isSimulationInputPath(p);
-  if (
-    !Array.isArray(files) ||
-    files.length > 24 ||
-    files.some((f) => !f || !safePath(f.path) || typeof f.text !== "string") ||
-    files.reduce((n, f) => n + new TextEncoder().encode(f.text).length, 0) >
-      MAX_INPUT_BYTES ||
-    !Array.isArray(dependencies) ||
-    dependencies.length > 24 ||
-    dependencies.some(
-      (dependency) =>
-        !dependency ||
-        dependency.id !== hostedSky130Profile.models.id ||
-        dependency.sha256 !== hostedSky130Profile.models.contentSha256 ||
-        !safePath(dependency.mountPath),
-    ) ||
-    dependencies.some((dependency, index) =>
-      dependencies.some(
-        (candidate, candidateIndex) =>
-          candidateIndex !== index &&
-          candidate.mountPath === dependency.mountPath,
-      ),
-    ) ||
-    dependencies.some((dependency) =>
-      files.some((file) => file.path === dependency.mountPath),
-    ) ||
-    (dependencies.length > 0 && body.mode !== "raw") ||
-    (body.entryPath !== undefined && !safePath(body.entryPath))
-  )
-    return Response.json({ error: "invalid-input-files" }, { status: 400 });
-  const netlist = typeof body.netlist === "string" ? body.netlist : null;
-  const testbench = typeof body.testbench === "string" ? body.testbench : null;
-  if (
-    (body.mode !== "raw" && !netlist) ||
-    netlist === null ||
-    !testbench ||
-    !isSimulationInputRevision(body.inputRevision)
-  ) {
-    return Response.json(
-      {
-        error: "invalid-request",
-        message:
-          "A simulation needs a circuit netlist and the testbench you wrote for it.",
-      },
-      { status: 400 },
-    );
+  let health: Record<string, unknown>;
+  try {
+    const r = await runner.fetch("http://container/health", {
+      method: "GET",
+      signal: AbortSignal.timeout(10000),
+    });
+    if (r.status === 401 || r.status === 403)
+      return json(
+        {
+          error: "simulator-unauthorized",
+          execution,
+          message: "The simulator refused this deployment's credentials.",
+        },
+        502,
+      );
+    if (!r.ok)
+      return body.operation === "capabilities"
+        ? json(unavailable)
+        : json(
+            { error: "simulator-not-ready", execution, ...(await refusal(r)) },
+            503,
+          );
+    health = JSON.parse(await boundedText(r, 131072));
+  } catch {
+    return body.operation === "capabilities"
+      ? json(unavailable)
+      : json({ error: "simulation-executor-unavailable", execution }, 503);
   }
-  const inputRevision = body.inputRevision;
-
-  const timeoutMs = resolveTimeoutMs(
-    typeof body.timeoutMs === "number" ? body.timeoutMs : undefined,
+  const environment = await verifySimulationEnvironmentMetadata(
+    health?.environment,
   );
-  let deck: string;
-  let modelLibrary: ModelLibrarySelection | null;
-  try {
-    // The corner load is the expensive part of every run; a deck with no
-    // device to model is spared it (see deckNeedsModelLibrary).
-    modelLibrary = deckNeedsModelLibrary(`${netlist}\n${testbench}`)
-      ? {
-          directive: "lib",
-          path: env.SKY130_LIB_PATH ?? SKY130_LIBRARY_PATH,
-          section:
-            (body.environment?.corner as string | undefined) ?? defaultCorner,
-        }
-      : null;
-    // Raw input is already an executable deck: preserve its title, control
-    // program and includes. Model directives in raw files remain author-owned.
-    if (body.mode === "raw") {
-      modelLibrary = null;
-      deck = testbench;
-    } else deck = buildSimulationDeck({ netlist, testbench }, modelLibrary);
-  } catch (error) {
-    return Response.json(
-      {
-        error: "simulation-environment-invalid",
-        message: error instanceof Error ? error.message : String(error),
-      },
-      { status: 503 },
-    );
-  }
-  if (new TextEncoder().encode(deck).length > MAX_INPUT_BYTES) {
-    return Response.json({ error: "deck-too-large" }, { status: 413 });
-  }
-  const collection = body.collection as { rawfile?: unknown } | undefined;
+  const capability = CapabilitiesSchema.safeParse(health?.capabilities);
   if (
-    collection !== undefined &&
-    (!collection ||
-      typeof collection !== "object" ||
-      Array.isArray(collection) ||
-      Object.keys(collection).length !== 1 ||
-      !("rawfile" in collection) ||
-      (collection.rawfile !== null &&
-        (!safePath(collection.rawfile) ||
-          [
-            body.entryPath ?? "deck.cir",
-            ".spiceinit",
-            ...files.map((f) => f.path),
-            ...dependencies.map((d) => d.mountPath),
-          ].some(
-            (path) =>
-              path === collection.rawfile ||
-              String(path).startsWith(`${collection.rawfile}/`) ||
-              String(collection.rawfile).startsWith(`${path}/`),
-          ))))
+    !environment ||
+    environment.simulator.name !== "vacask" ||
+    environment.executor !== "hosted-container" ||
+    environment.reproducibility !== "pinned" ||
+    !environment.simulator.binarySha256 ||
+    environment.profileId !== profileId ||
+    !capability.success ||
+    !capability.data.configured ||
+    capability.data.rawfileCollection !== "native-multi-ascii" ||
+    capability.data.inputs.length !== 1 ||
+    capability.data.inputs[0] !== "source" ||
+    capability.data.profiles.length !== 1 ||
+    capability.data.profiles[0]?.id !== profileId ||
+    capability.data.modelLibrary !== undefined ||
+    !Number.isSafeInteger(capability.data.maxTimeoutMs) ||
+    capability.data.maxTimeoutMs <= 0 ||
+    capability.data.maxTimeoutMs > 120000 ||
+    !Number.isSafeInteger(capability.data.maxInputBytes) ||
+    capability.data.maxInputBytes <= 0 ||
+    capability.data.maxInputBytes > 2 * 1024 * 1024 ||
+    !capability.data.maxInputFiles ||
+    !capability.data.maxOutputBytes
   )
-    return Response.json(
-      { error: "invalid-output-collection" },
-      { status: 400 },
+    return body.operation === "capabilities"
+      ? json(unavailable)
+      : json(
+          {
+            error: "simulation-environment-invalid",
+            execution,
+            message:
+              "Native identity/capabilities differ from the accepted deployment Profile.",
+          },
+          503,
+        );
+  const caps = capability.data;
+  if (body.operation === "capabilities") return json(caps);
+  const profile = caps.profiles[0]!;
+  if (
+    body.environment?.corner !== undefined &&
+    !profile.corners.includes(String(body.environment.corner))
+  )
+    return json({ error: "simulation-profile-unavailable" }, 400);
+  const checked = validateNativeExecutionInput(body, {
+    profileId,
+    dependencies: profile.dependencies ?? [],
+    maxInputFiles: caps.maxInputFiles!,
+    maxInputBytes: caps.maxInputBytes,
+  });
+  if (!checked.ok)
+    return json(
+      { error: checked.error.code, message: checked.error.message },
+      checked.error.recovery === "reprepare"
+        ? 409
+        : checked.error.code === "input-too-large"
+          ? 413
+          : 400,
     );
-
-  let containerResponse: Response;
-  if (body.preparedDeck !== undefined && body.preparedDeck !== deck)
-    return Response.json(
-      {
-        error: "prepared-environment-changed",
-        message:
-          "The deployment no longer composes this exact prepared deck. Prepare again.",
-      },
-      { status: 409 },
-    );
+  const input = checked.input;
+  const timeoutMs =
+    typeof body.timeoutMs === "number" && Number.isFinite(body.timeoutMs)
+      ? Math.min(caps.maxTimeoutMs, Math.max(1, Math.trunc(body.timeoutMs)))
+      : Math.min(60000, caps.maxTimeoutMs);
+  let response: Response;
   try {
-    containerResponse = await selected.runner.fetch("http://container/run", {
+    response = await runner.fetch("http://container/run", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        deck,
+        ...input,
         timeoutMs,
-        files,
-        dependencies,
-        ...(collection === undefined ? {} : { collection }),
-        ...(body.entryPath ? { entryPath: body.entryPath } : {}),
         ...(body.runToken ? { runToken: body.runToken } : {}),
       }),
+      signal: AbortSignal.timeout(150000),
     });
-  } catch (error) {
-    return Response.json(
+  } catch {
+    return json(
       {
         error: "simulator-unreachable",
         execution,
-        message: error instanceof Error ? error.message : String(error),
+        message:
+          "Execution outcome is unknown; do not automatically start another run.",
       },
-      { status: 502 },
+      502,
     );
   }
-  if (containerResponse.status === 401 || containerResponse.status === 403) {
-    // The host did not accept this deployment's token. A deployment fact,
-    // named as one, so nobody reads it as the circuit being refused.
-    return Response.json(
+  if (response.status === 401 || response.status === 403)
+    return json(
       {
         error: "simulator-unauthorized",
         execution,
-        message:
-          "The simulator host refused this deployment's credentials; check SIMULATION_UPSTREAM_TOKEN.",
+        message: "The simulator refused this deployment's credentials.",
       },
-      { status: 502 },
+      502,
     );
-  }
-  if (!containerResponse.ok) {
-    return Response.json(
+  if (!response.ok)
+    return json(
       {
         error: "simulator-refused",
         execution,
-        status: containerResponse.status,
-        ...(await describeRefusal(containerResponse)),
+        status: response.status,
+        ...(await refusal(response)),
       },
-      { status: 502 },
+      502,
+      response.headers.has("retry-after")
+        ? { "retry-after": response.headers.get("retry-after")! }
+        : undefined,
     );
-  }
-
-  const raw = (await containerResponse.json()) as {
-    log?: unknown;
-    stdout?: unknown;
-    stderr?: unknown;
-    exitCode?: unknown;
-    signal?: unknown;
-    timedOut?: unknown;
-    cancelled?: unknown;
-    durationMs?: unknown;
-    environment?: unknown;
-    // Present once the harness reads back the file a deck wrote. Optional
-    // because a deck that never calls `write` leaves nothing to send.
-    rawfile?: unknown;
-    rawfileFormat?: unknown;
-    rawfileRequested?: unknown;
-    rawfileName?: unknown;
-    collection?: { rawfile?: unknown };
-    rawfileError?: unknown;
-    truncatedOutputs?: unknown;
-  };
-  const environment = await verifySimulationEnvironmentMetadata(
-    raw.environment,
-  );
-  if (!environment) {
-    return Response.json(
-      {
-        error: "simulator-protocol-invalid",
-        execution,
-        message: "The simulator did not identify its execution environment.",
-      },
-      { status: 502 },
+  try {
+    const output = decodeHostedExecutionPayload(
+      input,
+      JSON.parse(await boundedText(response, MAX_BODY_BYTES)),
     );
-  }
-  const log = typeof raw.log === "string" ? raw.log : "";
-  const rawfileExpected =
-    collection === undefined
-      ? deckRequestsRawfile(deck)
-      : collection.rawfile !== null;
-  if (
-    collection !== undefined &&
-    (raw.collection?.rawfile !== collection.rawfile ||
-      raw.rawfileRequested !== rawfileExpected ||
-      ((typeof raw.rawfile === "string" || raw.rawfileFormat === "binary") &&
-        (collection.rawfile === null ||
-          raw.rawfileName !== collection.rawfile)))
-  )
-    return Response.json(
+    const actual = await verifySimulationEnvironmentMetadata(
+      output.result.metadata.environment,
+    );
+    const expected = await createSimulationInputMetadata({
+      inputRevision: input.inputRevision,
+      netlist: "",
+      testbench: input.testbench,
+      deck: input.preparedDeck!,
+    });
+    if (
+      !actual ||
+      actual.fingerprint !== environment.fingerprint ||
+      Object.entries(expected).some(
+        ([key, field]) =>
+          output.result.metadata.input[key as keyof typeof expected] !== field,
+      ) ||
+      (output.executedFiles!.length > 0 &&
+        (output.executedFiles!.length !== input.files.length ||
+          output.executedFiles!.some(
+            (file) =>
+              !input.files.some(
+                (f) => f.path === file.path && f.text === file.text,
+              ),
+          )))
+    )
+      throw new Error("Changed input/runtime evidence");
+    return json({
+      ...output.result,
+      execution,
+      rawfiles: output.rawfiles,
+      executedFiles: output.executedFiles,
+      cancelled: output.cancelled,
+    });
+  } catch {
+    return json(
       {
         error: "simulator-protocol-invalid",
         execution,
         message:
-          "The executor did not honor the declared output collection. Update the harness and prepare again.",
+          "Native result evidence is invalid or mismatched; the run was not retried.",
       },
-      { status: 502 },
-    );
-  // New harnesses report the same fact they used when collecting artifacts.
-  // Accept an absent field during a rolling deployment, but never accept an
-  // explicit disagreement: one side would otherwise judge a different run
-  // contract from the other.
-  if (
-    typeof raw.rawfileRequested === "boolean" &&
-    raw.rawfileRequested !== rawfileExpected
-  ) {
-    return Response.json(
-      {
-        error: "simulator-protocol-invalid",
-        execution,
-        message:
-          "The simulator disagreed with the Worker about whether the deck requested a rawfile.",
-      },
-      { status: 502 },
+      502,
     );
   }
-  const rawfile = typeof raw.rawfile === "string" ? raw.rawfile : null;
-  const truncatedOutputs = Array.isArray(raw.truncatedOutputs)
-    ? raw.truncatedOutputs
-    : [];
-  const evaluated = evaluateSimulationRun(
-    { rawfile: rawfileExpected ? "required" : "not-required" },
-    {
-      log,
-      ...(typeof raw.stdout === "string" ? { stdout: raw.stdout } : {}),
-      ...(typeof raw.stderr === "string" ? { stderr: raw.stderr } : {}),
-      exitCode: typeof raw.exitCode === "number" ? raw.exitCode : null,
-      signal: typeof raw.signal === "string" ? raw.signal : null,
-      timedOut: raw.timedOut === true,
-      durationMs: typeof raw.durationMs === "number" ? raw.durationMs : 0,
-      rawfile,
-      rawfileFormat:
-        raw.rawfileFormat === "ascii" || raw.rawfileFormat === "binary"
-          ? raw.rawfileFormat
-          : null,
-      rawfileTruncated: truncatedOutputs.includes("rawfile"),
-    },
-    { timeoutMs },
-  );
-  const result: SimulationResult & { execution: HostedExecutionMetadata } = {
-    execution,
-    outcome: evaluated.outcome,
-    diagnostics: evaluated.diagnostics,
-    log,
-    // Omitted rather than null when there is nothing to carry: the field's
-    // contract is that its presence means numbers were read.
-    ...(evaluated.data ? { data: evaluated.data } : {}),
-    durationMs: typeof raw.durationMs === "number" ? raw.durationMs : 0,
-    metadata: {
-      schemaVersion: 1,
-      input: await createSimulationInputMetadata({
-        ...(inputRevision ? { inputRevision } : {}),
-        netlist,
-        testbench,
-        deck,
-      }),
-      configuration: simulationConfigurationMetadata(modelLibrary),
-      environment,
-    },
-  };
-  return Response.json(
-    {
-      ...result,
-      ...(body.runToken
-        ? {
-            cancelled: raw.cancelled === true,
-            executedDeck: deck,
-            ...(rawfile !== null ? { rawfile } : {}),
-          }
-        : {}),
-    },
-    { status: 200 },
-  );
 }

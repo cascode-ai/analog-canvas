@@ -644,7 +644,7 @@ export async function consumeSimulationJobs(
           at: runtime.now(),
           error: {
             code: "SIMULATION_FAILED",
-            message: "ngspice did not produce the requested result.",
+            message: "The simulator did not produce the requested result.",
             stage: "start",
             recovery: "fix-input",
           },

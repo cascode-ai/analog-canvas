@@ -9,14 +9,60 @@ import {
   type AgentSimulationResourceRequest,
 } from "@icm/agent-adapter";
 import { createEmptyProject } from "@icm/model";
-import { SimulationFiles } from "@icm/simulation-service";
-import { createSimulationEnvironmentMetadata } from "@icm/spice-run";
+import {
+  SimulationFiles,
+  assembleNativeExecutionOutput,
+  type ExecutionInput,
+} from "@icm/simulation-service";
+
 import { BrowserAgentSimulationHost } from "../../editor/src/agent/browser-agent-simulation-host.js";
 import { FakeAgentHttp } from "../../../packages/agent-client/src/test-support/fake-relay.js";
 import { routeSimulationRequest } from "../../../worker/simulation.js";
-import profile from "../../../containers/ngspice/hosted-sky130-profile.json";
+import {
+  nativeWorkerEnv,
+  nativeEnvironment,
+} from "../../../worker/simulation.test-fixture.js";
 import { callTool } from "./tools.js";
 
+const source = readFileSync(
+  new URL("../../../netlists/vacask-divider/divider.sim", import.meta.url),
+  "utf8",
+).replace(/  sweep supply[\s\S]*?endc/u, "endc");
+const rawfile = readFileSync(
+  new URL("../../../netlists/vacask-divider/divider_op.raw", import.meta.url),
+  "utf8",
+);
+// Captured native numeric evidence through the real assembler; process execution
+// is mocked here. Live native execution is covered by the public-source journey.
+async function nativeNumericReply(input: ExecutionInput) {
+  const output = await assembleNativeExecutionOutput(
+    input,
+    {
+      execution: {
+        stdout: "Running analysis 'divider_op'.\n  Elapsed time: 0.001\n",
+        stderr: "",
+        exitCode: 0,
+        signal: null,
+        timedOut: false,
+        cancelled: false,
+        spawnError: null,
+        durationMs: 1,
+      },
+      timeoutMs: 1000,
+      rawfiles: [{ path: "divider_op.raw", text: rawfile }],
+      executedFiles: input.files,
+      diagnostics: [],
+      truncated: false,
+    },
+    nativeEnvironment,
+  );
+  return Response.json({
+    ...output.result,
+    rawfiles: output.rawfiles,
+    executedFiles: output.executedFiles,
+    cancelled: output.cancelled,
+  });
+}
 describe("MCP / browser Simulation Resource parity", () => {
   it("returns the generated start identity after a lost response so the same session can retry safely", async () => {
     const http = new FakeAgentHttp();
@@ -57,26 +103,20 @@ describe("MCP / browser Simulation Resource parity", () => {
       version: 4 as const,
       input: {
         kind: "source" as const,
-        entry: "main.cir",
+        entry: "main.sim",
         configPath: "experiment.json",
         circuitBindings: [],
         files: [
           {
             path: "experiment.json",
             text: JSON.stringify({
-              version: 1,
-              environment: { profileId: profile.id },
+              version: 2,
+              environment: { profileId: nativeEnvironment.profileId },
             }),
           },
           {
-            path: "main.cir",
-            text: readFileSync(
-              new URL(
-                "../../../fixtures/ngspice-rawfile/divider-op.deck.spi",
-                import.meta.url,
-              ),
-              "utf8",
-            ),
+            path: "main.sim",
+            text: source,
           },
         ],
         dependencies: [],
@@ -85,22 +125,6 @@ describe("MCP / browser Simulation Resource parity", () => {
     let executions = 0;
     let active = 0;
     let maxActive = 0;
-    const environment = await createSimulationEnvironmentMetadata({
-      executor: "hosted-container",
-      reproducibility: "observed",
-      profileId: profile.id,
-      platform: "linux/x64",
-      simulator: { name: "ngspice", version: "47", binarySha256: null },
-      models: null,
-      startupSha256: null,
-    });
-    const rawfile = readFileSync(
-      new URL(
-        "../../../fixtures/ngspice-rawfile/divider-op.raw",
-        import.meta.url,
-      ),
-      "utf8",
-    );
     const host = new BrowserAgentSimulationHost({
       getProjectSessionId: () => "batch-project:1",
       getProject: () => project,
@@ -108,29 +132,16 @@ describe("MCP / browser Simulation Resource parity", () => {
       fetch: async (url, init) =>
         (await routeSimulationRequest(
           new Request(new URL(String(url), "http://localhost"), init),
-          {
-            NGSPICE: {
-              getByName: () => ({
-                fetch: async () => {
-                  executions++;
-                  active++;
-                  maxActive = Math.max(maxActive, active);
-                  await Promise.resolve();
-                  active--;
-                  return Response.json({
-                    environment,
-                    rawfile,
-                    collection: { rawfile: "out.raw" },
-                    rawfileRequested: true,
-                    rawfileName: "out.raw",
-                    log: "ngspice OP",
-                    durationMs: 1,
-                    exitCode: 0,
-                  });
-                },
-              }),
-            },
-          },
+          nativeWorkerEnv(async (_url, init) => {
+            executions++;
+            active++;
+            maxActive = Math.max(maxActive, active);
+            try {
+              return await nativeNumericReply(JSON.parse(String(init?.body)));
+            } finally {
+              active--;
+            }
+          }),
         ))!,
     });
     class Relay extends FakeAgentHttp {
@@ -200,22 +211,6 @@ describe("MCP / browser Simulation Resource parity", () => {
     const files = new SimulationFiles(),
       project = createEmptyProject("p", "test", "doc");
     let executions = 0;
-    const environment = await createSimulationEnvironmentMetadata({
-      executor: "hosted-container",
-      reproducibility: "observed",
-      profileId: profile.id,
-      platform: "linux/x64",
-      simulator: { name: "ngspice", version: "47", binarySha256: null },
-      models: null,
-      startupSha256: null,
-    });
-    const rawfile = readFileSync(
-      new URL(
-        "../../../fixtures/ngspice-rawfile/divider-op.raw",
-        import.meta.url,
-      ),
-      "utf8",
-    );
     const host = new BrowserAgentSimulationHost({
       getProjectSessionId: () => "p:1",
       getProject: () => project,
@@ -223,25 +218,10 @@ describe("MCP / browser Simulation Resource parity", () => {
       fetch: async (url, init) => {
         const response = await routeSimulationRequest(
           new Request(new URL(String(url), "http://localhost"), init),
-          {
-            NGSPICE: {
-              getByName: () => ({
-                fetch: async () => {
-                  executions++;
-                  return Response.json({
-                    environment,
-                    rawfile,
-                    collection: { rawfile: "out.raw" },
-                    rawfileRequested: true,
-                    rawfileName: "out.raw",
-                    log: "ngspice OP",
-                    durationMs: 1,
-                    exitCode: 0,
-                  });
-                },
-              }),
-            },
-          },
+          nativeWorkerEnv(async (_url, init) => {
+            executions++;
+            return nativeNumericReply(JSON.parse(String(init?.body)));
+          }),
         );
         return response!;
       },
@@ -305,24 +285,18 @@ describe("MCP / browser Simulation Resource parity", () => {
           action: "update",
           owner: { kind: "session-workspace", workspaceId },
           expectedRevision: 0,
-          entry: "main.cir",
+          entry: "main.sim",
           writes: [
             {
               path: "experiment.json",
               text: JSON.stringify({
-                version: 1,
-                environment: { profileId: profile.id },
+                version: 2,
+                environment: { profileId: nativeEnvironment.profileId },
               }),
             },
             {
-              path: "main.cir",
-              text: readFileSync(
-                new URL(
-                  "../../../fixtures/ngspice-rawfile/divider-op.deck.spi",
-                  import.meta.url,
-                ),
-                "utf8",
-              ),
+              path: "main.sim",
+              text: source,
             },
           ],
         },
@@ -360,7 +334,7 @@ describe("MCP / browser Simulation Resource parity", () => {
       expect(finished.run.state, JSON.stringify(finished)).toBe("finished");
       expect(finished.run.result.data.analyses[0].probes).toEqual(
         expect.arrayContaining([
-          expect.objectContaining({ name: "v(mid)", value: 0.5 }),
+          expect.objectContaining({ name: "output", value: 2 }),
         ]),
       );
       const csv = finished.run.artifacts.find(
@@ -373,7 +347,9 @@ describe("MCP / browser Simulation Resource parity", () => {
           outputPath: path,
         }),
       ).toMatchObject({ ok: true });
-      expect(await readFile(path, "utf8")).toContain("0.5");
+      // This captured raw record declares "notype" and the textual fixture has
+      // no typed acquisition. Preserve an unknown unit rather than invent one.
+      expect((await readFile(path, "utf8")).split("\n")).toContain("output,2,");
       expect(http.claims).toHaveLength(1);
     } finally {
       await host.clear();

@@ -7,16 +7,6 @@ import { runVacaskJob, validateVacaskJob } from "./run-job.mjs";
 export async function executeVacask(input, runtime, limits, supervisor) {
   const checked = validateVacaskJob(input, runtime, limits);
   if (!checked.ok) return checked;
-  if (typeof input.inputRevision !== "string" || !input.inputRevision)
-    return {
-      ok: false,
-      error: {
-        code: "prepared-input-identity-missing",
-        message: "Prepare a revision-bound input before executing.",
-        stage: "start",
-        recovery: "reprepare",
-      },
-    };
   const snapshot = {
     language: input.language,
     mode: input.mode,
