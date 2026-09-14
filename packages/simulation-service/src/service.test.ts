@@ -1,7 +1,11 @@
+import { readFileSync } from "node:fs";
 import { migrateSimulationSetupToSource } from "@icm/netlist";
 import { describe, it, expect, vi } from "vitest";
 import {
   createEmptyProject,
+  createSimulationFolder,
+  type ProjectSimulationFolder,
+  type SimulationSourceInput,
   CircuitProjectSchema,
   type CircuitProject,
   type LegacySimulationSetup as SimulationFolderInput,
@@ -11,10 +15,8 @@ import {
   currentFiveTransistorOtaCircuitSource,
   legacyFiveTransistorOta as ota,
 } from "../../../apps/editor/src/examples/five-transistor-ota.test-support.js";
-import {
-  createSimulationEnvironmentMetadata,
-  createSimulationInputMetadata,
-} from "@icm/spice-run";
+import { createSimulationEnvironmentMetadata } from "@icm/spice-run";
+import { assembleNativeExecutionOutput } from "./native-execution-output.js";
 import { SimulationFiles, sha256 } from "./files.js";
 import { SimulationService } from "./service.js";
 import {
@@ -26,8 +28,9 @@ import type { Capabilities, SimulationReply } from "./contract.js";
 
 const caps: Capabilities = {
   configured: true,
-  rawfileCollection: "declared-single-ascii",
-  inputs: ["raw", "structured"],
+  rawfileCollection: "native-multi-ascii",
+  maxInputFiles: 24,
+  inputs: ["source"],
   analyses: ["op", "ac"],
   parsedAnalyses: ["op", "ac", "tran"],
   profiles: [
@@ -42,8 +45,63 @@ const caps: Capabilities = {
   maxOutputBytes: 1048576,
   cancel: true,
 };
-const deck =
-  "divider\nV1 in 0 1\nR1 in out 1k\nR2 out 0 1k\n.control\nset filetype=ascii\nop\nwrite out.raw all\n.endc\n.end\n";
+const deck = readFileSync(
+  new URL("../../../netlists/vacask-divider/divider.sim", import.meta.url),
+  "utf8",
+).replace(/  sweep supply[\s\S]*?endc/u, "endc");
+const rawfile = readFileSync(
+  new URL("../../../netlists/vacask-divider/divider_op.raw", import.meta.url),
+  "utf8",
+);
+function sourceFolder(
+  id: string,
+  name: string,
+  input: Pick<SimulationSourceInput, "entry" | "files" | "dependencies">,
+): ProjectSimulationFolder {
+  const folder = createSimulationFolder({ id, name, profileId: "test" });
+  folder.input.entry = input.entry;
+  folder.input.files = [
+    {
+      path: "experiment.json",
+      text: JSON.stringify({ version: 2, environment: { profileId: "test" } }),
+    },
+    ...input.files,
+  ];
+  folder.input.dependencies = input.dependencies;
+  return folder;
+}
+function saveSource(
+  project: CircuitProject,
+  input: Pick<SimulationSourceInput, "entry" | "files" | "dependencies">,
+) {
+  project.simulationFolders = [sourceFolder(SETUP_ID, "Setup 1", input)];
+}
+function nativeOtaFolder(
+  project: CircuitProject,
+  analysis: string,
+  section = "tt",
+) {
+  const folder = createSimulationFolder({
+    id: SETUP_ID,
+    name: "OTA",
+    profileId: "test",
+    documentId: project.topDocumentId,
+  });
+  const entry = folder.input.files.find(
+    (file) => file.path === folder.input.entry,
+  )!;
+  entry.text = entry.text
+    .replace(
+      'include "circuit.spice"',
+      `include "models/library.inc" section=${section}\ninclude "circuit.spice"`,
+    )
+    .replace("analysis op op", analysis);
+  folder.input.dependencies = [
+    { id: "models", sha256: "a".repeat(64), mountPath: "models/library.inc" },
+  ];
+  project.simulationFolders = [folder];
+  return folder;
+}
 const SETUP_ID = "folder-1";
 function saveSetup(
   project: CircuitProject,
@@ -57,44 +115,43 @@ function saveSetup(
     }).folder,
   ];
 }
+// Lifecycle tests mock process scheduling, but use recorded native plot bytes
+// and the real result assembler. Real execution is covered by the public journey.
 async function result(input: ExecutionInput) {
-  return {
-    outcome: { status: "completed" as const },
-    diagnostics: [],
-    log: "ngspice OP",
-    durationMs: 1,
-    data: {
-      schemaVersion: 1 as const,
-      analyses: [
-        {
-          analysis: "op" as const,
-          plotName: "Operating Point",
-          probes: [
-            { name: "v(out)", quantity: "voltage", unit: "V", value: 0.5 },
-          ],
-        },
-      ],
+  const hasOp = input.files.some((f) =>
+    f.text.includes("analysis divider_op op"),
+  );
+  return assembleNativeExecutionOutput(
+    input,
+    {
+      execution: {
+        stdout: hasOp
+          ? "Running analysis 'divider_op'.\n  Elapsed time: 0.001\n"
+          : "",
+        stderr: "",
+        exitCode: 0,
+        signal: null,
+        spawnError: null,
+        timedOut: false,
+        cancelled: false,
+        durationMs: 1,
+      },
+      timeoutMs: 1000,
+      rawfiles: hasOp ? [{ path: "divider_op.raw", text: rawfile }] : [],
+      executedFiles: input.files,
+      diagnostics: [],
+      truncated: false,
     },
-    metadata: {
-      schemaVersion: 1 as const,
-      input: await createSimulationInputMetadata({
-        inputRevision: input.inputRevision,
-        netlist: input.netlist,
-        testbench: input.testbench,
-        deck: input.preparedDeck!,
-      }),
-      configuration: { modelLibrary: null },
-      environment: await createSimulationEnvironmentMetadata({
-        executor: "local-host",
-        reproducibility: "observed",
-        profileId: "test",
-        platform: "linux/x64",
-        simulator: { name: "ngspice", version: "47", binarySha256: null },
-        models: null,
-        startupSha256: null,
-      }),
-    },
-  };
+    await createSimulationEnvironmentMetadata({
+      executor: "local-host",
+      reproducibility: "observed",
+      profileId: "test",
+      platform: "test/x64",
+      simulator: { name: "vacask", version: "0.3.4", binarySha256: null },
+      models: null,
+      startupSha256: null,
+    }),
+  );
 }
 function unwrap<T extends "prepared" | "run">(reply: SimulationReply, key: T) {
   expect(reply, JSON.stringify(reply)).toMatchObject({ ok: true });
@@ -109,11 +166,7 @@ function fixture() {
     capabilities: async () => caps,
     execute: vi.fn(async (input) => {
       await wait;
-      return {
-        result: await result(input),
-        rawfile: "raw numbers",
-        executedDeck: input.preparedDeck!,
-      };
+      return result(input);
     }),
     cancel: vi.fn(async () => {
       release();
@@ -136,7 +189,7 @@ async function prepareRaw(f: ReturnType<typeof fixture>) {
       {
         path: "experiment.json",
         text: JSON.stringify({
-          version: 1,
+          version: 2,
           environment: { profileId: "test" },
         }),
       },
@@ -162,20 +215,12 @@ describe("shared simulation lifecycle", () => {
   it("prepares every saved folder before running a batch sequentially", async () => {
     const files = new SimulationFiles();
     const project = createEmptyProject("batch-project", "Batch", "doc");
-    project.simulationFolders = ["A", "B"].map(
-      (name) =>
-        migrateSimulationSetupToSource(project, {
-          id: `folder-${name.toLowerCase()}`,
-          name,
-          version: 3,
-          input: {
-            kind: "raw" as const,
-            entry: "tb.cir",
-            files: [{ path: "tb.cir", text: `${name} deck\n.end\n` }],
-            dependencies: [],
-            environment: { profileId: "test" },
-          },
-        }).folder,
+    project.simulationFolders = ["A", "B"].map((name) =>
+      sourceFolder(`folder-${name.toLowerCase()}`, name, {
+        entry: "tb.cir",
+        files: [{ path: "tb.cir", text: `${name} deck\ncontrol\nendc\n` }],
+        dependencies: [],
+      }),
     );
     const releases: Array<() => void> = [];
     let active = 0;
@@ -189,13 +234,7 @@ describe("shared simulation lifecycle", () => {
             maxActive = Math.max(maxActive, active);
             releases.push(() => {
               active--;
-              void result(input).then((simulationResult) =>
-                resolve({
-                  result: simulationResult,
-                  rawfile: "raw numbers",
-                  executedDeck: input.preparedDeck!,
-                }),
-              );
+              void result(input).then(resolve);
             });
           }),
       ),
@@ -353,15 +392,10 @@ describe("shared simulation lifecycle", () => {
 
   it("does not start a partially invalid batch and cancels queued members", async () => {
     const f = fixture();
-    saveSetup(f.project, {
-      version: 3,
-      input: {
-        kind: "raw",
-        entry: "tb.cir",
-        files: [{ path: "tb.cir", text: deck }],
-        dependencies: [],
-        environment: { profileId: "test" },
-      },
+    saveSource(f.project, {
+      entry: "tb.cir",
+      files: [{ path: "tb.cir", text: deck }],
+      dependencies: [],
     });
     expect(
       await f.service.handle(
@@ -426,16 +460,11 @@ describe("shared simulation lifecycle", () => {
     expect(f.executor.execute).toHaveBeenCalledTimes(1);
   });
 
-  it("prepares the corner selected by a structured folder", async () => {
+  it("prepares the corner selected by a Canvas-bound native folder", async () => {
     const project = CircuitProjectSchema.parse(
       currentFiveTransistorOtaCircuitSource(),
     );
-    const folder = LegacyProjectSimulationSetupSchema.parse(
-      ota.simulationSetups[0],
-    );
-    if (!folder || folder.input.kind !== "structured")
-      throw new Error("fixture has no structured folder");
-    folder.input.environment = { profileId: "test", corner: "ff" };
+    const folder = nativeOtaFolder(project, "analysis bias op", "ff");
     const f = fixture();
     f.executor.capabilities = async () => ({
       ...caps,
@@ -445,14 +474,11 @@ describe("shared simulation lifecycle", () => {
           id: "test",
           corners: ["tt", "ff"],
           dependencies: [{ id: "models", sha256: "a".repeat(64) }],
+          modelLibrary: { dependencyId: "models", defaultSection: "tt" },
         },
       ],
-      modelLibrary: { path: "/models/sky130.lib.spice", section: "tt" },
     });
-    if (typeof folder !== "undefined")
-      project.simulationFolders = [
-        migrateSimulationSetupToSource(project, folder).folder,
-      ];
+    const before = structuredClone(project);
     const service = new SimulationService(f.files, f.executor, () => project);
     const prepared = unwrap(
       await service.handle(
@@ -468,6 +494,8 @@ describe("shared simulation lifecycle", () => {
       ),
       "prepared",
     );
+    expect(prepared.environment.corner).toBe("ff");
+    expect(project).toEqual(before);
     const artifact = prepared.artifacts.find(
       (candidate) => candidate.name === "prepared.cir",
     );
@@ -476,26 +504,18 @@ describe("shared simulation lifecycle", () => {
       await f.files.handle({ action: "artifact", artifactId: artifact!.id }),
     ).toMatchObject({
       ok: true,
-      text: expect.stringContaining('.lib "icm-models.lib" ff'),
+      text: expect.stringContaining('include "models/library.inc" section=ff'),
     });
   });
 
   it("prepares the explicitly addressed folder when a Project has several", async () => {
     const f = fixture();
-    f.project.simulationFolders = ["A", "B"].map(
-      (name) =>
-        migrateSimulationSetupToSource(f.project, {
-          id: `folder-${name.toLowerCase()}`,
-          name,
-          version: 3,
-          input: {
-            kind: "raw",
-            entry: "tb.cir",
-            files: [{ path: "tb.cir", text: `${name} deck\n.end\n` }],
-            dependencies: [],
-            environment: { profileId: "test" },
-          },
-        }).folder,
+    f.project.simulationFolders = ["A", "B"].map((name) =>
+      sourceFolder(`folder-${name.toLowerCase()}`, name, {
+        entry: "tb.cir",
+        files: [{ path: "tb.cir", text: `${name} deck\ncontrol\nendc\n` }],
+        dependencies: [],
+      }),
     );
     const prepared = unwrap(
       await f.service.handle(
@@ -523,7 +543,7 @@ describe("shared simulation lifecycle", () => {
       "run",
     );
     expect(f.executor.execute).toHaveBeenCalledWith(
-      expect.objectContaining({ testbench: "B deck\n.end\n" }),
+      expect.objectContaining({ testbench: "B deck\ncontrol\nendc\n" }),
       expect.any(String),
       undefined,
       { preparedId: prepared.id, preparedDigest: prepared.digest },
@@ -533,15 +553,10 @@ describe("shared simulation lifecycle", () => {
 
   it("prepares and runs a persisted raw Project folder without mutating it", async () => {
     const f = fixture();
-    saveSetup(f.project, {
-      version: 3,
-      input: {
-        kind: "raw",
-        entry: "tb.cir",
-        files: [{ path: "tb.cir", text: deck }],
-        dependencies: [],
-        environment: { profileId: "test" },
-      },
+    saveSource(f.project, {
+      entry: "tb.cir",
+      files: [{ path: "tb.cir", text: deck }],
+      dependencies: [],
     });
 
     const before = structuredClone(f.project);
@@ -593,21 +608,21 @@ describe("shared simulation lifecycle", () => {
 
   it("reports unresolved Project dependencies without reading host paths", async () => {
     const f = fixture();
-    saveSetup(f.project, {
-      version: 3,
-      input: {
-        kind: "raw",
-        entry: "tb.cir",
-        files: [{ path: "tb.cir", text: '.include "models/device.lib"' }],
-        dependencies: [
-          {
-            id: "device-models",
-            mountPath: "models/device.lib",
-            sha256: "a".repeat(64),
-          },
-        ],
-        environment: { profileId: "test" },
-      },
+    saveSource(f.project, {
+      entry: "tb.cir",
+      files: [
+        {
+          path: "tb.cir",
+          text: 'Native dependency\ninclude "models/device.lib"\ncontrol\nendc\n',
+        },
+      ],
+      dependencies: [
+        {
+          id: "device-models",
+          mountPath: "models/device.lib",
+          sha256: "a".repeat(64),
+        },
+      ],
     });
     expect(
       await f.service.handle(
@@ -647,26 +662,21 @@ describe("shared simulation lifecycle", () => {
         },
       ],
     });
-    saveSetup(f.project, {
-      version: 3,
-      input: {
-        kind: "raw",
-        entry: "tb.cir",
-        files: [
-          {
-            path: "tb.cir",
-            text: '.lib "models/device.lib" tt\n.end\n',
-          },
-        ],
-        dependencies: [
-          {
-            id: "device-models",
-            mountPath: "models/device.lib",
-            sha256: modelDigest,
-          },
-        ],
-        environment: { profileId: "test" },
-      },
+    saveSource(f.project, {
+      entry: "tb.cir",
+      files: [
+        {
+          path: "tb.cir",
+          text: 'Native dependency\ninclude "models/device.lib" section=tt\ncontrol\nendc\n',
+        },
+      ],
+      dependencies: [
+        {
+          id: "device-models",
+          mountPath: "models/device.lib",
+          sha256: modelDigest,
+        },
+      ],
     });
 
     const prepared = unwrap(
@@ -816,10 +826,10 @@ describe("shared simulation lifecycle", () => {
     );
     expect(finished.artifacts.map((a) => a.name)).toEqual(
       expect.arrayContaining([
-        "out.raw",
+        "raw/divider_op.raw",
         "op-0.csv",
         "result.json",
-        "executed.cir",
+        "executed/deck.cir",
         "evidence-manifest.json",
       ]),
     );
@@ -837,7 +847,7 @@ describe("shared simulation lifecycle", () => {
       run: { id: finished.id, preparedId: prepared.id },
       prepared: { digest: prepared.digest },
       artifacts: expect.arrayContaining([
-        expect.objectContaining({ name: "out.raw" }),
+        expect.objectContaining({ name: "raw/divider_op.raw" }),
         expect.objectContaining({ name: "result.json" }),
       ]),
     });
@@ -1078,26 +1088,16 @@ describe("shared simulation lifecycle", () => {
     const project = CircuitProjectSchema.parse(
       currentFiveTransistorOtaCircuitSource(),
     );
-    const folder = LegacyProjectSimulationSetupSchema.parse(
-      ota.simulationSetups[0],
+    const folder = nativeOtaFolder(
+      project,
+      "analysis transient tran step=1n stop=1m",
     );
-    if (!folder) throw new Error("fixture has no folder");
-    if (folder.input.kind !== "structured")
-      throw new Error("fixture folder is not structured");
-    folder.input.analyses = [
-      { kind: "tran", stepSeconds: 1e-9, stopSeconds: 1e-3 },
-    ];
-    folder.input.environment.profileId = "test";
     const f = fixture();
     f.executor.capabilities = async () => ({
       ...caps,
       analyses: ["op", "ac", "tran"],
       maxOutputBytes: 1024,
     });
-    if (typeof folder !== "undefined")
-      project.simulationFolders = [
-        migrateSimulationSetupToSource(project, folder).folder,
-      ];
     const service = new SimulationService(f.files, f.executor, () => project);
     const prepared = unwrap(
       await service.handle(
