@@ -13,7 +13,10 @@ const releaseRoot = resolve(
 const metadata = JSON.parse(
   await readFile(resolve(releaseRoot, "release.json"), "utf8"),
 );
-const executable = resolve(releaseRoot, metadata.mcp);
+// Also verify the independently downloaded immutable release, not just a build.
+const executable = process.argv[2]
+  ? resolve(process.argv[2])
+  : resolve(releaseRoot, metadata.mcp);
 const temporary = await mkdtemp(join(tmpdir(), "analog-mcp-smoke-"));
 const connectorPath = join(temporary, "connector.json");
 const exportPath = join(temporary, "exported-project.json");
