@@ -13,6 +13,7 @@ import { parseArgs } from "node:util";
 import { parseVacaskRawfile } from "../packages/spice-run/dist/vacask-rawfile.js";
 import { vacaskProcessFailure } from "./lib/vacask-process-failure.mjs";
 import { sky130ProbeChecks } from "./lib/vacask-sky130-probes.mjs";
+import { deviceOutputChecks } from "./lib/vacask-device-output-checks.mjs";
 
 // Local trusted fixtures, optionally compared with the frozen SKY130 baseline.
 // This is not the hosted executor or an alternate product run/receipt protocol.
@@ -23,6 +24,7 @@ const { values } = parseArgs({
     modules: { type: "string" },
     compiler: { type: "string" },
     "sky130-models": { type: "string" },
+    "device-outputs": { type: "boolean", default: false },
     output: {
       type: "string",
       default: join(root, "output/vacask-qualification"),
@@ -31,7 +33,7 @@ const { values } = parseArgs({
 });
 if (!values.binary || !values.modules)
   throw new Error(
-    "Usage: node scripts/vacask-qualification.mjs --binary <vacask> --modules <module-directory> [--compiler <openvaf-r>] [--sky130-models <candidate-directory>] [--output <directory>]",
+    "Usage: node scripts/vacask-qualification.mjs --binary <vacask> --modules <module-directory> [--compiler <openvaf-r>] [--sky130-models <candidate-directory>] [--device-outputs] [--output <directory>]",
   );
 const binary = resolve(values.binary);
 const moduleDirectory = resolve(values.modules);
@@ -88,6 +90,7 @@ const report = {
     ]),
   ),
   customModel: values.compiler ? "requested" : "not-requested",
+  deviceOutputs: values["device-outputs"] ? "requested" : "not-requested",
   cases: [],
 };
 
@@ -224,6 +227,18 @@ const cases = [
     ],
   },
 ];
+
+if (values["device-outputs"]) {
+  report.modules["spice/bsim4v8.osdi"] = digest(
+    readFileSync(join(moduleDirectory, "spice/bsim4v8.osdi")),
+  );
+  cases.push({
+    directory: "vacask-device-outputs",
+    entry: "outputs.sim",
+    files: ["bias.raw", "small.raw", "nderivative.raw", "pderivative.raw"],
+    check: (plots) => deviceOutputChecks(...plots),
+  });
+}
 
 if (values.compiler)
   cases.push({
@@ -392,7 +407,7 @@ for (const fixture of cases) {
     entry.checks = fixture.check(plots);
     if (entry.checks.some((check) => check.passed === false))
       throw new Error(
-        "Native model results differ from the frozen hosted reference; all probe values retained in this report",
+        "Numerical qualification checks failed; all measured values and mismatches are retained in this report",
       );
     entry.passed = true;
   } catch (error) {

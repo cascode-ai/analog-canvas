@@ -26,3 +26,7 @@ netlists/vacask-rc/result_tran.raw -text !eol whitespace=-blank-at-eol,-blank-at
 netlists/vacask-resistor-noise/resistor_noise.raw -text !eol whitespace=-blank-at-eol,-blank-at-eof
 netlists/vacask-resistor-noise/current_noise.raw -text !eol whitespace=-blank-at-eol,-blank-at-eof
 netlists/vacask-custom-model/custom_op.raw -text !eol whitespace=-blank-at-eol,-blank-at-eof
+netlists/vacask-device-outputs/bias.raw -text !eol whitespace=-blank-at-eol,-blank-at-eof
+netlists/vacask-device-outputs/small.raw -text !eol whitespace=-blank-at-eol,-blank-at-eof
+netlists/vacask-device-outputs/nderivative.raw -text !eol whitespace=-blank-at-eol,-blank-at-eof
+netlists/vacask-device-outputs/pderivative.raw -text !eol whitespace=-blank-at-eol,-blank-at-eof
