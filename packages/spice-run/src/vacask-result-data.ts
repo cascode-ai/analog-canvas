@@ -135,7 +135,7 @@ export function readVacaskSimulationData(
     return {
       status: "unusable",
       diagnostics: diagnostics.length
-        ? diagnostics.map((d) => ({ ...d, severity: "error" }))
+        ? diagnostics
         : [
             {
               severity: "error",

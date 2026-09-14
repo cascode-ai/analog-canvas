@@ -231,6 +231,7 @@ export async function runVacaskJob(input, runtime, limits, supervisor) {
                 });
         return {
           ok: true,
+          timeoutMs: lease.timeoutMs,
           execution,
           rawfiles: collected.rawfiles,
           executedFiles:

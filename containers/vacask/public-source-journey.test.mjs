@@ -19,12 +19,9 @@ import { SimulationService } from "../../packages/simulation-service/src/service
 import { SimulationFiles } from "../../packages/simulation-service/src/files.js";
 import { CapabilitiesSchema } from "../../packages/simulation-service/src/contract.js";
 import { inspectNativeAnalyses } from "../../packages/simulation-service/src/native-source-analysis.js";
-import {
-  createSimulationInputMetadata,
-  readVacaskSimulationData,
-} from "../../packages/spice-run/src/index.js";
+import { readVacaskSimulationData } from "../../packages/spice-run/src/index.js";
 import { collectVacaskRawfiles } from "./rawfile-collector.mjs";
-import { runVacaskJob } from "./run-job.mjs";
+import { executeVacask } from "./execute.mjs";
 import { initializeVacaskRuntime } from "./runtime.mjs";
 import { SimulationRunSupervisor } from "../ngspice/run-supervisor.mjs";
 import { createSimulationStarter } from "../../packages/netlist/src/simulation-starter.js";
@@ -337,7 +334,6 @@ RL (N 0) load r=1k
         startupPath,
         runRoot: root,
       });
-      const environment = runtime.environment;
       // Test execution adapter: actual native process, not a mock of the compiler,
       // Prepare, service or numeric reader. This does NOT qualify a hosted harness.
       const executor = {
@@ -347,8 +343,7 @@ RL (N 0) load r=1k
           submitted = structuredClone(input);
           expect(input.language).toBe("vacask");
           expect(input.collection).toEqual({ kind: "native-multi-ascii" });
-          const started = performance.now();
-          const job = await runVacaskJob(
+          const execution = await executeVacask(
             { ...input, timeoutMs: 15_000 },
             runtime,
             {
@@ -361,50 +356,12 @@ RL (N 0) load r=1k
             },
             supervisor,
           );
-          if (!job.ok) throw Error(JSON.stringify(job));
-          const { execution } = job;
-          if (execution.spawnError || execution.exitCode !== 0)
-            throw Error(
-              `${execution.spawnError ?? ""}\n${execution.stdout}\n${execution.stderr}`,
-            );
-          expect(job.diagnostics).toEqual([]);
-          expect(await readdir(root)).toEqual(["vacaskrc.toml"]);
-          const plan = inspectNativeAnalyses({
-            kind: "source",
-            entry: input.entryPath,
-            configPath: "experiment.json",
-            files: input.files,
-            dependencies: input.dependencies,
-            circuitBindings: [],
+          if (!execution.ok) throw Error(JSON.stringify(execution));
+          expect(execution.output.result.outcome).toEqual({
+            status: "completed",
           });
-          expect(plan.warnings).toEqual([]);
-          const reading = readVacaskSimulationData(
-            job.rawfiles,
-            plan.projections,
-          );
-          if (reading.status !== "read") throw Error(JSON.stringify(reading));
-          return {
-            result: {
-              outcome: { status: "completed" },
-              diagnostics: reading.diagnostics,
-              log: execution.stdout + execution.stderr,
-              durationMs: performance.now() - started,
-              data: reading.data,
-              metadata: {
-                schemaVersion: 1,
-                input: await createSimulationInputMetadata({
-                  inputRevision: input.inputRevision,
-                  netlist: input.netlist,
-                  testbench: input.testbench,
-                  deck: input.preparedDeck,
-                }),
-                configuration: { modelLibrary: null },
-                environment,
-              },
-            },
-            rawfiles: job.rawfiles,
-            executedFiles: job.executedFiles,
-          };
+          expect(await readdir(root)).toEqual(["vacaskrc.toml"]);
+          return execution.output;
         }),
       };
       const service = new SimulationService(files, executor, () => project);

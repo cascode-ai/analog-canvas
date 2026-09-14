@@ -283,6 +283,14 @@ describe("native numerical result projection", () => {
   });
 
   it("does not assign noise semantics without an explicit projection", () => {
+    const unmapped = readVacaskSimulationData(
+      [{ path: "op.raw", text: op }],
+      [],
+    );
+    expect(unmapped.status).toBe("unusable");
+    expect(unmapped.diagnostics.every((d) => d.severity === "warning")).toBe(
+      true,
+    );
     const result = read(
       [
         { path: "op.raw", text: op },
