@@ -3,6 +3,42 @@
 Notable changes to Analog Canvas. Entries describe what changed for the person
 using the product, not the commits that got there.
 
+## 0.6.0 (Preview candidate)
+
+### Drawing and properties
+
+- Choose each arrow endpoint independently: small, medium or large arrow,
+  a dot, or no marker; existing open arrows remain available.
+- Edit shared component parameters and colors together in Properties Code.
+  Common values are shown, differing values are blank, and an explicit new
+  value applies to the selection in one undoable edit.
+- See Smart Snap alignment guides while placing copied components, including
+  rotated, mirrored and multi-component copies.
+- Mirror attached reference/value text positions with their components while
+  keeping the lettering readable. Shorten both Port styles by one grid cell.
+- Place DACs and other components reliably when clicking their preview text.
+  Cycle from the alternate orthogonal wire corner to diagonal routing without
+  an extra redundant corner step.
+
+### Agent and Simulation
+
+- Click Agent once for full editing access and a compact copyable connection
+  message. Normal local development starts its Agent relay automatically.
+- Recover dropped connections correctly instead of remaining stuck at
+  Connected while Agent requests report the editor offline.
+- Expire sessions after 30 idle minutes; Agent operations and manual edits
+  renew them, so active work has no absolute session time limit.
+- Keep manual editing and Agent editing available together during local
+  development. Place both Port styles with their actual Cell terminal and Net.
+- Display magnetic parameters independently through the shared Agent command.
+  Show Simulation files directly under their experiment and initially expand
+  only the active experiment.
+
+Project schema 55 adds independent arrow endpoint styles. Existing Projects
+remain importable; drawings affected by shortened Port contacts may need manual
+route repairs. The currently published MCP 0.9.0 targets schema 54; use the
+current HTTP Agent Kit or a compatible adapter for this Preview candidate.
+
 ## 0.5.0 (2026-09-13)
 
 ### Drawing and properties
