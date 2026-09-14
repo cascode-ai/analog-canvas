@@ -636,7 +636,9 @@ test("copies a working handoff through the normal local dev relay", async ({
   const { createServer } = await import("vite");
   const sibling = await createServer({
     root: "apps/editor",
-    server: { host: "127.0.0.1", port: Number(new URL(baseURL!).port) + 1000 },
+    // A human's pnpm dev may already own 5173 while tests use 4173.
+    // Let the OS allocate the sibling port; keep the two-server regression.
+    server: { host: "127.0.0.1", port: 0 },
     optimizeDeps: {
       force: true,
       rolldownOptions: { output: { chunkFileNames: "sibling-[hash].js" } },
