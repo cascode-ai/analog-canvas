@@ -248,7 +248,16 @@ export function transitionManagedRun(
     case "infrastructure-failed":
     case "lease-expired":
       if (!active) return invalid();
-      if (source.state !== "cancelling" && source.attempt < source.maxAttempts)
+      // Only a known pre-execution failure grants another attempt. A lost
+      // response/expired lease cannot prove the original process did not run.
+      const refused =
+        event.kind === "infrastructure-failed" &&
+        event.error.recovery === "retry-after";
+      if (
+        refused &&
+        source.state !== "cancelling" &&
+        source.attempt < source.maxAttempts
+      )
         return update(
           {
             state: "queued",
@@ -261,11 +270,19 @@ export function transitionManagedRun(
         );
       return update({
         state:
-          source.state === "cancelling" ? "cancelled" : "infrastructure-failed",
+          refused && source.state === "cancelling"
+            ? "cancelled"
+            : "infrastructure-failed",
         updatedAt: event.at,
         finishedAt: event.at,
         lease: undefined,
-        error: event.error,
+        error: refused
+          ? event.error
+          : {
+              ...event.error,
+              recovery: "not-retryable",
+              retryAfterMs: undefined,
+            },
       });
     case "expired":
       if (!isManagedRunTerminal(source.state)) return invalid();

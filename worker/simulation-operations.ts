@@ -457,13 +457,15 @@ export async function routeManagedSimulationRequest(
   return ownedResponse(Response.json({ run: transitioned }));
 }
 
-function infrastructureProblem(code: string): Problem {
+function infrastructureProblem(code: string, retryable = false): Problem {
   return {
     code,
-    message: "The execution infrastructure did not complete this attempt.",
+    message: retryable
+      ? "The executor did not accept this attempt; the same run may be retried."
+      : "The execution outcome is unknown. This run will not be executed again automatically.",
     stage: "start",
-    recovery: "retry-after",
-    retryAfterMs: 2_000,
+    recovery: retryable ? "retry-after" : "not-retryable",
+    ...(retryable ? { retryAfterMs: 2_000 } : {}),
   };
 }
 
@@ -479,9 +481,12 @@ function responseCode(value: unknown): string | null {
 
 const retryableInfrastructureCodes = new Set([
   "simulator-busy",
-  "simulator-unreachable",
   "simulation-executor-unavailable",
   "simulator-not-ready",
+]);
+const uncertainInfrastructureCodes = new Set([
+  "simulator-unreachable",
+  "simulator-protocol-invalid",
 ]);
 
 export async function consumeSimulationJobs(
@@ -490,6 +495,8 @@ export async function consumeSimulationJobs(
   runtime: Pick<SimulationOperationsRuntime, "now" | "uuid"> = defaultRuntime,
 ): Promise<void> {
   for (const message of batch.messages) {
+    let dispatched = false;
+    let ownedLeaseId: string | undefined;
     try {
       const current = await readRun(env, message.body.runId);
       if (
@@ -506,22 +513,20 @@ export async function consumeSimulationJobs(
         message.ack();
         continue;
       }
-      let queued = current;
+      const queued = current;
       if (
         (current.state === "running" || current.state === "cancelling") &&
         current.lease &&
         current.lease.expiresAt <= runtime.now()
       ) {
-        const recovered = await transitionRun(env, current.id, {
+        const retired = await transitionRun(env, current.id, {
           kind: "lease-expired",
           at: runtime.now(),
           error: infrastructureProblem("RUN_LEASE_EXPIRED"),
         });
-        if (!recovered || recovered.state !== "queued") {
-          message.ack();
-          continue;
-        }
-        queued = recovered;
+        if (retired) message.ack();
+        else message.retry({ delaySeconds: 2 });
+        continue;
       }
       if (queued.state !== "queued") {
         message.retry({ delaySeconds: 2 });
@@ -539,6 +544,7 @@ export async function consumeSimulationJobs(
         message.retry({ delaySeconds: 2 });
         continue;
       }
+      ownedLeaseId = leased.lease?.id;
       // Queue messages carry identity, not storage authority. The immutable
       // input key comes from the admitted run, so a stale or malformed queue
       // delivery cannot make the consumer execute another owner's object.
@@ -566,6 +572,7 @@ export async function consumeSimulationJobs(
         await inputObject.text(),
       ) as SimulationRequestBody;
       input.runToken = queued.id;
+      dispatched = true;
       const response = await routeSimulationRequest(
         new Request("https://simulation/api/simulate", {
           method: "POST",
@@ -581,13 +588,22 @@ export async function consumeSimulationJobs(
         outcome?: { status?: unknown };
       };
       const code = responseCode(responseValue);
-      if (!response.ok && code && retryableInfrastructureCodes.has(code)) {
+      if (
+        !response.ok &&
+        code &&
+        (retryableInfrastructureCodes.has(code) ||
+          uncertainInfrastructureCodes.has(code))
+      ) {
         const retried = await transitionRun(env, queued.id, {
           kind: "infrastructure-failed",
           at: runtime.now(),
-          error: infrastructureProblem(code),
+          error: infrastructureProblem(
+            code,
+            retryableInfrastructureCodes.has(code),
+          ),
         });
-        if (retried?.state === "queued") message.retry({ delaySeconds: 2 });
+        if (!retried || retried.state === "queued")
+          message.retry({ delaySeconds: 2 });
         else message.ack();
         continue;
       }
@@ -659,12 +675,24 @@ export async function consumeSimulationJobs(
       message.ack();
     } catch {
       const run = await readRun(env, message.body.runId).catch(() => null);
-      if (run?.state === "running")
-        await transitionRun(env, run.id, {
+      if (
+        ownedLeaseId &&
+        run?.lease?.id === ownedLeaseId &&
+        (run.state === "running" || run.state === "cancelling")
+      ) {
+        const settled = await transitionRun(env, run.id, {
           kind: "infrastructure-failed",
           at: runtime.now(),
-          error: infrastructureProblem("SIMULATION_CONSUMER_FAILED"),
+          error: infrastructureProblem(
+            "SIMULATION_CONSUMER_FAILED",
+            !dispatched,
+          ),
         }).catch(() => null);
+        if (settled && settled.state !== "queued") {
+          message.ack();
+          continue;
+        }
+      }
       message.retry({ delaySeconds: 2 });
     }
   }

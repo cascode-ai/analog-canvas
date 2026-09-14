@@ -422,6 +422,15 @@ through the existing supervisor, whose process-tree cleanup still owns slot
 release. A private random run token authorizes cancellation; health responses
 and Agent artifacts do not expose that token. Cancel-before-admission is remembered
 for the maximum run window. Network uncertainty is never an automatic rerun.
+Managed attempts retry only a proven pre-dispatch infrastructure failure or an
+explicit executor refusal (for example busy or not-ready), within the existing
+attempt limit. A lost
+execution reply, post-dispatch consumer/storage failure, or expired execution
+lease ends as `infrastructure-failed` with an unknown-outcome diagnostic, not
+another dispatch. A pending cancellation is not confirmed by lease expiry.
+The same Run record remains readable; duplicate queue delivery cannot restart
+it. This is not proof that an unreachable process was terminated: process
+cleanup and its hard deadline remain the executor supervisor's responsibility.
 MCP transport failures return the effective request ID, including when the tool
 generated it, so an Agent can retry the identical start rather than duplicate it.
 File Resource `list` recovers session draft IDs after a lost create response;

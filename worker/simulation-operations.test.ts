@@ -1,5 +1,5 @@
 import { DatabaseSync } from "node:sqlite";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   buildSimulationDeck,
@@ -159,6 +159,162 @@ function startRequest() {
 }
 
 describe("managed simulation operations", () => {
+  it("a consumer that failed before acquiring a lease cannot requeue another active attempt", async () => {
+    const { env, jobs, runtime, control } = harness();
+    const started = await routeManagedSimulationRequest(
+      startRequest(),
+      env,
+      runtime,
+    );
+    const runId = (await started!.json()).run.id as string;
+    await control.fetch(
+      new Request(`https://simulation-control/runs/${runId}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          kind: "lease-acquired",
+          lease: { id: "other-consumer", acquiredAt: 100, expiresAt: 1000 },
+        }),
+      }),
+    );
+    const original = env.SIMULATION_CONTROL!.getByName("simulation");
+    const fetchControl = vi
+      .fn(original.fetch)
+      .mockRejectedValueOnce(new Error("read interrupted"));
+    env.SIMULATION_CONTROL = { getByName: () => ({ fetch: fetchControl }) };
+    const execute = vi.fn();
+    env.NGSPICE = { getByName: () => ({ fetch: execute }) };
+    const delivery = { body: jobs[0]!, ack: vi.fn(), retry: vi.fn() };
+    await consumeSimulationJobs({ messages: [delivery] }, env, runtime);
+    expect(execute).not.toHaveBeenCalled();
+    expect(delivery.retry).toHaveBeenCalledOnce();
+    const response = await routeManagedSimulationRequest(
+      new Request(`https://canvas.test/api/simulation/runs/${runId}`),
+      env,
+      runtime,
+    );
+    expect(await response!.json()).toMatchObject({
+      run: { state: "running", attempt: 1, lease: { id: "other-consumer" } },
+    });
+  });
+  it("can retry a storage failure before any executor dispatch", async () => {
+    const { env, jobs, runtime, bucket } = harness();
+    const original = env.NGSPICE!.getByName("test");
+    const execute = vi.fn(original.fetch);
+    env.NGSPICE = { getByName: () => ({ fetch: execute }) };
+    const started = await routeManagedSimulationRequest(
+      startRequest(),
+      env,
+      runtime,
+    );
+    const runId = (await started!.json()).run.id as string;
+    vi.spyOn(bucket, "get").mockRejectedValueOnce(
+      new Error("temporary read failure"),
+    );
+    const delivery = { body: jobs[0]!, ack: vi.fn(), retry: vi.fn() };
+    await consumeSimulationJobs({ messages: [delivery] }, env, runtime);
+    expect(execute).not.toHaveBeenCalled();
+    expect(delivery.retry).toHaveBeenCalledOnce();
+    await consumeSimulationJobs({ messages: [delivery] }, env, runtime);
+    expect(execute).toHaveBeenCalledOnce();
+    const response = await routeManagedSimulationRequest(
+      new Request(`https://canvas.test/api/simulation/runs/${runId}`),
+      env,
+      runtime,
+    );
+    expect(await response!.json()).toMatchObject({
+      run: { state: "succeeded", attempt: 2 },
+    });
+  });
+  it.each(["lost-response", "invalid-response", "storage-failed"])(
+    "does not execute again after %s, including duplicate Queue delivery",
+    async (failure) => {
+      const { env, jobs, runtime, bucket } = harness();
+      const original = env.NGSPICE!.getByName("test");
+      const execute = vi.fn(async (url: string, init?: RequestInit) => {
+        if (failure === "lost-response")
+          throw new Error("response lost after admission");
+        if (failure === "invalid-response") return new Response("broken JSON");
+        return original.fetch(url, init);
+      });
+      env.NGSPICE = { getByName: () => ({ fetch: execute }) };
+      const started = await routeManagedSimulationRequest(
+        startRequest(),
+        env,
+        runtime,
+      );
+      const runId = (await started!.json()).run.id as string;
+      if (failure === "storage-failed")
+        vi.spyOn(bucket, "put").mockRejectedValueOnce(
+          new Error("storage down"),
+        );
+      const delivery = { body: jobs[0]!, ack: vi.fn(), retry: vi.fn() };
+      await consumeSimulationJobs({ messages: [delivery] }, env, runtime);
+      await consumeSimulationJobs({ messages: [delivery] }, env, runtime);
+      expect(execute).toHaveBeenCalledTimes(1);
+      expect(delivery.retry).not.toHaveBeenCalled();
+      expect(delivery.ack).toHaveBeenCalledTimes(2);
+      const response = await routeManagedSimulationRequest(
+        new Request(`https://canvas.test/api/simulation/runs/${runId}`),
+        env,
+        runtime,
+      );
+      expect(await response!.json()).toMatchObject({
+        run: {
+          state: "infrastructure-failed",
+          attempt: 1,
+          error: { recovery: "not-retryable" },
+        },
+      });
+    },
+  );
+
+  it.each([false, true])(
+    "retires expired execution without another dispatch or false cancellation (cancelling=%s)",
+    async (cancelling) => {
+      const { env, jobs, runtime, control } = harness();
+      const execute = vi.fn();
+      env.NGSPICE = { getByName: () => ({ fetch: execute }) };
+      const started = await routeManagedSimulationRequest(
+        startRequest(),
+        env,
+        runtime,
+      );
+      const runId = (await started!.json()).run.id as string;
+      const transition = async (event: unknown) => {
+        const reply = await control.fetch(
+          new Request(`https://simulation-control/runs/${runId}`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify(event),
+          }),
+        );
+        expect(reply.status).toBe(200);
+      };
+      await transition({
+        kind: "lease-acquired",
+        lease: { id: "expired", acquiredAt: 90, expiresAt: 99 },
+      });
+      if (cancelling) await transition({ kind: "cancel-requested", at: 95 });
+      const delivery = { body: jobs[0]!, ack: vi.fn(), retry: vi.fn() };
+      await consumeSimulationJobs({ messages: [delivery] }, env, runtime);
+      expect(execute).not.toHaveBeenCalled();
+      expect(delivery.retry).not.toHaveBeenCalled();
+      expect(delivery.ack).toHaveBeenCalledOnce();
+      const response = await routeManagedSimulationRequest(
+        new Request(`https://canvas.test/api/simulation/runs/${runId}`),
+        env,
+        runtime,
+      );
+      expect(await response!.json()).toMatchObject({
+        run: {
+          state: "infrastructure-failed",
+          error: { code: "RUN_LEASE_EXPIRED", recovery: "not-retryable" },
+        },
+      });
+    },
+  );
+
   it("keeps anonymous preview runs usable with an opaque session cookie", async () => {
     const { env } = harness();
     const started = await routeManagedSimulationRequest(startRequest(), env);

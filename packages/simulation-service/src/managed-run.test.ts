@@ -53,7 +53,7 @@ describe("managed simulation run lifecycle", () => {
     expect(changed).toEqual({ ok: false, code: "REQUEST_ID_REUSED" });
   });
 
-  it("leases, retries infrastructure failure, and completes", () => {
+  it("leases, retries an explicit pre-execution refusal, and completes", () => {
     let now = 100;
     const registry = new InMemoryManagedRunRegistry(
       DEFAULT_MANAGED_RUN_POLICY,
@@ -74,8 +74,8 @@ describe("managed simulation run lifecycle", () => {
         kind: "infrastructure-failed",
         at: 120,
         error: {
-          code: "HOST_UNREACHABLE",
-          message: "host unavailable",
+          code: "SIMULATOR_BUSY",
+          message: "executor refused admission",
           stage: "start",
           recovery: "retry-after",
         },
@@ -136,6 +136,54 @@ describe("managed simulation run lifecycle", () => {
       registry.transition(running.run.id, { kind: "cancelled", at: 120 }),
     ).toMatchObject({ ok: true, run: { state: "cancelled" } });
   });
+
+  it.each([false, true])(
+    "does not retry or falsely confirm cancellation after uncertain execution (cancelling=%s)",
+    (cancelling) => {
+      for (const kind of ["infrastructure-failed", "lease-expired"] as const) {
+        const registry = new InMemoryManagedRunRegistry(
+          DEFAULT_MANAGED_RUN_POLICY,
+          () => 100,
+          () => "run-a",
+        );
+        registry.accept(admission());
+        registry.transition("run-a", {
+          kind: "lease-acquired",
+          lease: { id: "lease-a", acquiredAt: 100, expiresAt: 200 },
+        });
+        if (cancelling)
+          registry.transition("run-a", { kind: "cancel-requested", at: 110 });
+        expect(
+          registry.transition("run-a", {
+            kind,
+            at: 210,
+            error: {
+              code: "RUN_RESPONSE_UNKNOWN",
+              message: "outcome unknown",
+              stage: "read",
+              // Expiry must never requeue, even if an old caller labels it retryable.
+              recovery:
+                kind === "lease-expired" ? "retry-after" : "not-retryable",
+            },
+          }),
+        ).toMatchObject({
+          ok: true,
+          enqueue: false,
+          run: {
+            state: "infrastructure-failed",
+            attempt: 1,
+            error: { recovery: "not-retryable" },
+          },
+        });
+        expect(
+          registry.transition("run-a", {
+            kind: "lease-acquired",
+            lease: { id: "again", acquiredAt: 220, expiresAt: 320 },
+          }),
+        ).toMatchObject({ ok: false, code: "INVALID_RUN_TRANSITION" });
+      }
+    },
+  );
 
   it("enforces owner and global queue admission", () => {
     const policy = {
