@@ -5,6 +5,7 @@ export * from "./net-name-codec.js";
 export * from "./printers.js";
 export * from "./printed-netlist.js";
 export * from "./vacask-printer.js";
+export * from "./vacask-source.js";
 export * from "./simulation-compile.js";
 export * from "./simulation-source-migration.js";
 export * from "./simulation-source-compile.js";

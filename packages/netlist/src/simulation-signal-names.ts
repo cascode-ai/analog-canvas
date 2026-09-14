@@ -1,11 +1,8 @@
 import type { CircuitProject, SimulationSourceInput } from "@icm/model";
 import { analyzeDesignNetlist } from "./extract.js";
 import type { DesignNetlistCell } from "./ir.js";
-import { inspectSimulationSourceGraph } from "./simulation-source-graph.js";
-import {
-  listAuthoredCircuitScopes,
-  resolveAuthoredCircuitScope,
-} from "./simulation-source-scopes.js";
+import { inspectVacaskSourceGraph } from "./vacask-source.js";
+import { vacaskCircuitScopes } from "./vacask-source-scopes.js";
 
 export interface SimulationSignalTarget {
   rootDocumentId: string;
@@ -31,7 +28,7 @@ export function simulationSignals(
   project: CircuitProject,
   input: SimulationSourceInput,
 ): Record<string, { label: string; targets: SimulationSignalTarget[] }> {
-  const graph = inspectSimulationSourceGraph(input);
+  const graph = inspectVacaskSourceGraph(input);
   const labels = new Map<string, Set<string>>();
   const targets = new Map<string, SimulationSignalTarget[]>();
   for (const binding of input.circuitBindings) {
@@ -43,8 +40,9 @@ export function simulationSignals(
     if (!ir) continue;
     const root = ir.cells.find((cell) => cell.id === ir.topCellId);
     if (!root) continue;
-    for (const scope of listAuthoredCircuitScopes(graph, binding, ir)) {
-      const resolved = resolveAuthoredCircuitScope(graph, binding, ir, scope);
+    const scopes = vacaskCircuitScopes(graph, binding, ir);
+    for (const scope of scopes.list()) {
+      const resolved = scopes.resolve(scope);
       if (!resolved.ok) continue;
       const qualify = resolved.node;
       let visits = 0;
@@ -58,14 +56,13 @@ export function simulationSignals(
         if (++visits > 4096 || ancestors.has(cell.id)) return;
         const local = new Map(nodes);
         for (const net of cell.nets) {
-          const key = net.name.toLowerCase();
+          const key = net.name;
           const node =
-            local.get(key) ??
-            qualify(
-              net.scope === "global" ? net.name : [...path, net.name].join("."),
-            );
+            net.scope === "global"
+              ? net.name
+              : (local.get(key) ?? qualify([...path, net.name].join(":")));
           local.set(key, node);
-          const vector = `v(${node})`.toLowerCase();
+          const vector = node;
           const name = [...scope.callPath, ...path, net.name].join("/");
           const names = labels.get(vector) ?? new Set<string>();
           names.add(name);
@@ -91,9 +88,8 @@ export function simulationSignals(
             const connection = instance.nodes.find(
               (node) => node.pinName === port.name,
             );
-            const node =
-              connection && local.get(connection.netName.toLowerCase());
-            if (node) ports.set(port.netName.toLowerCase(), node);
+            const node = connection && local.get(connection.netName);
+            if (node) ports.set(port.netName, node);
           }
           visit(
             child,

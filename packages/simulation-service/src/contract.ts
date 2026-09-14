@@ -467,7 +467,9 @@ export type SimulationOperation = z.infer<typeof SimulationOperationSchema>;
 export const CapabilitiesSchema = z.strictObject({
   configured: z.boolean(),
   /** Explicit collection protocol; absent on pre-source deployments. */
-  rawfileCollection: z.literal("declared-single-ascii").optional(),
+  rawfileCollection: z
+    .enum(["native-multi-ascii", "declared-single-ascii"])
+    .optional(),
   maxInputFiles: z.number().int().positive().optional(),
   inputs: z.array(z.enum(["source", "structured", "raw"])),
   analyses: z.array(z.enum(["op", "dc", "ac", "tran", "noise"])),
@@ -483,6 +485,13 @@ export const CapabilitiesSchema = z.strictObject({
       /** Environment-owned files addressable by raw Project dependencies. */
       dependencies: z
         .array(z.strictObject({ id: Id, sha256: Digest }))
+        .optional(),
+      /** Native loading policy references an advertised dependency, not a host path. */
+      modelLibrary: z
+        .strictObject({
+          dependencyId: Id,
+          defaultSection: z.string().min(1).optional(),
+        })
         .optional(),
     }),
   ),

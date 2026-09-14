@@ -775,14 +775,24 @@ export class SimulationService {
           run.prepared.deviceOperatingPoints,
           true,
           run.prepared.signalNames,
-          nativeOutputDeclarations(input.files, input.entryPath ?? "run.cir"),
+          input.language === "vacask"
+            ? new Map()
+            : nativeOutputDeclarations(
+                input.files,
+                input.entryPath ?? "run.cir",
+              ),
         );
       }
-      const nativeMeasurements = nativeMeasurementResults(
-        input.files,
-        input.entryPath ?? "run.cir",
-        output.result.log,
-      );
+      // VACASK control is not an ngspice .control/let/meas program. Native
+      // postprocessor measurements need their own proven result declarations.
+      const nativeMeasurements =
+        input.language === "vacask"
+          ? []
+          : nativeMeasurementResults(
+              input.files,
+              input.entryPath ?? "run.cir",
+              output.result.log,
+            );
       if (nativeMeasurements.length) {
         run.view.outputData ??= {
           schemaVersion: 1,

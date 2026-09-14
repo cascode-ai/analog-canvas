@@ -1,53 +1,27 @@
 import {
   readSimulationExperimentConfig,
-  SIMULATION_NOISE_INPUT_DENSITY_ID,
-  SIMULATION_NOISE_OUTPUT_DENSITY_ID,
   type CircuitProject,
   type ProjectSimulationFolder,
-  type SimulationCircuitBinding,
-  type SimulationCircuitScope,
   type SimulationExperimentConfig,
-  type SimulationExpression,
-  type LegacySimulationSetup as SimulationFolderInput,
-  type SimulationSourceExpression,
   type SimulationRunVariant,
 } from "@icm/model";
-import { projectSourceSimulation } from "./simulation-source-projection.js";
 import { sha256Hex } from "@icm/derived";
+import { analyzeDesignNetlist } from "./extract.js";
+import type { DesignNetlistCell, DesignNetlistIR } from "./ir.js";
 import {
   mapSimulationFile,
-  insertSimulationText,
   type SimulationFileSourceMap,
 } from "./simulation-source-map.js";
-import {
-  buildSimulationPlan,
-  type CompiledSimulation,
-  type CompiledSimulationDeviceOperatingPoint,
-  type CompiledSimulationExpression,
-  type CompiledSimulationOutput,
-  type CompiledSimulationVector,
-  type TerminalCurrentInstrumentation,
+import type {
+  CompiledSimulationDeviceOperatingPoint,
+  CompiledSimulationOutput,
+  CompiledSimulationVector,
 } from "./simulation-compile.js";
-import { printSpiceWithLocations } from "./printers.js";
+import { printVacaskWithLocations } from "./vacask-printer.js";
 import type { PrintedNetlistParameter } from "./printed-netlist.js";
-import type { DesignNetlistCell } from "./ir.js";
-import {
-  inspectSimulationSourceGraph,
-  type SimulationSourceDiagnostic,
-  type SimulationSourceGraph,
-} from "./simulation-source-graph.js";
-import { resolveAuthoredCircuitScope } from "./simulation-source-scopes.js";
-import { nativeSourceCollection } from "./simulation-native-collection.js";
-import {
-  nativeSimulationDevices,
-  NATIVE_MOS_OP_PARAMETERS,
-} from "./simulation-native-devices.js";
+import { inspectVacaskSourceGraph } from "./vacask-source.js";
+import type { SimulationSourceDiagnostic } from "./source-file-graph.js";
 
-type Plan = Extract<CompiledSimulation, { ok: true }>;
-type BoundLeaf = Extract<
-  SimulationSourceExpression,
-  { kind: "voltage" | "current" }
->;
 export interface GeneratedSimulationFile {
   bindingId: string;
   path: string;
@@ -58,30 +32,40 @@ export type SourceSimulationCompilation =
   | { ok: false; diagnostics: SimulationSourceDiagnostic[] }
   | {
       ok: true;
+      language: "vacask";
       config: SimulationExperimentConfig;
-      authority: "code" | "legacy-config";
-      /** Original source bytes remain separate from the execution projection. */
+      authority: "code";
       authoredFiles: { path: string; text: string }[];
       files: { path: string; text: string }[];
       entry: string;
       generated: GeneratedSimulationFile[];
+      /** External model/master names required by the generated electrical IR. */
+      requiredModels: string[];
       vectors: CompiledSimulationVector[];
       outputs: CompiledSimulationOutput[];
       deviceOperatingPoints: CompiledSimulationDeviceOperatingPoint[];
       warnings: SimulationSourceDiagnostic[];
       reachedDocumentIds: string[];
-      /** Includes object identities/parameters but excludes drawing-only changes. */
       electricalHash: string;
       sourceMaps: SimulationFileSourceMap[];
-      includes: SimulationSourceGraph["includes"];
+      includes: ReturnType<typeof inspectVacaskSourceGraph>["includes"];
     };
 
-/** Author text stays native. Canvas extraction, instrumentation and output math remain shared. */
+/** Public native compilation. Source owns analysis/control; Canvas owns the
+ * generated electrical IR. No old executable compiler or syntax fallback. */
 export function compileSourceSimulation(
   project: CircuitProject,
   folder: ProjectSimulationFolder,
   variant?: SimulationRunVariant,
 ): SourceSimulationCompilation {
+  const diagnostics: SimulationSourceDiagnostic[] = [];
+  const fail = (code: string, message: string, path?: string) =>
+    diagnostics.push({
+      code,
+      severity: "error",
+      message,
+      ...(path ? { path } : {}),
+    });
   if (folder.input.drafts?.length)
     return {
       ok: false,
@@ -90,459 +74,232 @@ export function compileSourceSimulation(
         severity: "error",
         path: draft.path,
         message:
-          "This folder contains a saved unapplied draft. Apply or discard it before running; saving remains available.",
+          "Apply or discard the saved draft before preparing; saving remains available.",
       })),
     };
-  const diagnostics: SimulationSourceDiagnostic[] = [];
-  const fail = (code: string, message: string, field?: string) =>
-    diagnostics.push({
-      code,
-      severity: "error",
-      message,
-      ...(field ? { field } : {}),
-    });
-  const parsedConfig = readSimulationExperimentConfig(folder);
-  if (!parsedConfig.ok)
+  const parsed = readSimulationExperimentConfig(folder);
+  if (!parsed.ok)
     return {
       ok: false,
-      diagnostics: (parsedConfig.fields.length
-        ? parsedConfig.fields
-        : [{ message: parsedConfig.message, field: "" }]
+      diagnostics: (parsed.fields.length
+        ? parsed.fields
+        : [{ field: "", message: parsed.message }]
       ).map((issue) => ({
-        code: parsedConfig.fields.length
+        code: parsed.fields.length
           ? "SIMULATION_CONFIG_INVALID"
           : "SIMULATION_CONFIG_JSON",
         severity: "error",
         message: issue.message,
-        path: parsedConfig.path,
+        path: parsed.path,
         ...(issue.field ? { field: issue.field } : {}),
       })),
     };
-  const graph = inspectSimulationSourceGraph(folder.input);
-  diagnostics.push(...graph.diagnostics);
-  const projection = projectSourceSimulation(
-    project,
-    folder,
-    parsedConfig.config,
-    graph,
-    variant,
-  );
-  const effective = projection.project;
-  const config = projection.config;
-  if (parsedConfig.authority === "code") {
-    const native = nativeSourceCollection(graph);
-    config.collection = native.collection;
-    diagnostics.push(...native.diagnostics);
-    if (variant && Object.values(variant).some((value) => value !== undefined))
-      fail(
-        "SIMULATION_NATIVE_VARIANT_UNSUPPORTED",
-        "Native experiments define sweeps and overrides in Code. Batch selects folders; it does not override their parameters.",
-      );
+  if (parsed.authority !== "code") {
+    fail(
+      "SIMULATION_LEGACY_SOURCE",
+      "This experiment still contains legacy executable settings. Preserve its source and explicitly translate its analysis, outputs and model loading to native VACASK before running.",
+      folder.input.configPath,
+    );
+    return { ok: false, diagnostics };
   }
-  diagnostics.push(...projection.diagnostics);
+  if (variant && Object.values(variant).some((value) => value !== undefined))
+    fail(
+      "SIMULATION_NATIVE_VARIANT_UNSUPPORTED",
+      "Native experiments own their parameter sweeps in Code. Batch selects folders; it does not override their electrical parameters.",
+    );
+  const graph = inspectVacaskSourceGraph(folder.input);
+  diagnostics.push(...graph.diagnostics);
+  if (diagnostics.some((d) => d.severity === "error"))
+    return { ok: false, diagnostics };
   const reachable = new Set(graph.paths);
   const bindings = folder.input.circuitBindings.filter((b) =>
     reachable.has(b.path),
   );
-  const byBinding = new Map(bindings.map((b) => [b.id, b]));
-  const leaves = new Map<
-    BoundLeaf,
-    { id: string; binding: SimulationCircuitBinding }
-  >();
-  const perBinding = new Map(
-    bindings.map((b) => [
-      b.id,
-      [] as { id: string; expression: SimulationExpression }[],
-    ]),
-  );
-  function register(expression: SimulationSourceExpression) {
-    if (expression.kind === "voltage" || expression.kind === "current") {
-      const binding = byBinding.get(expression.circuit.bindingId);
-      if (!binding) {
-        fail(
-          "SIMULATION_BINDING_UNAVAILABLE",
-          `Output binding ${expression.circuit.bindingId} is missing or is not included by the entry`,
-        );
-        return;
-      }
-      const id = `source-leaf-${leaves.size}`;
-      const { circuit: _circuit, ...local } = expression;
-      leaves.set(expression, { id, binding });
-      perBinding.get(binding.id)!.push({ id, expression: local });
-    } else if ("operand" in expression) register(expression.operand);
-    else if ("left" in expression) {
-      register(expression.left);
-      register(expression.right);
-    }
-  }
-  config.outputs.forEach((output) => register(output.expression));
-  for (const target of config.deviceOperatingPoints)
-    if (!byBinding.has(target.circuit.bindingId))
-      fail(
-        "SIMULATION_BINDING_UNAVAILABLE",
-        `Device OP binding ${target.circuit.bindingId} is missing or not included`,
-      );
-  const intents = new Map(
-    bindings.map((binding) => [
-      binding.id,
-      {
-        version: 3,
-        input: {
-          kind: "structured",
-          rootDocumentId: binding.documentId,
-          environment: config.environment,
-          analyses: [],
-          outputs: perBinding
-            .get(binding.id)!
-            .map((leaf) => ({ ...leaf, label: leaf.id })),
-          deviceOperatingPoints: config.deviceOperatingPoints
-            .filter((target) => target.circuit.bindingId === binding.id)
-            .map(({ circuit: _circuit, ...target }) => target),
-          measurements: [],
-          designVariables: [],
-          runPlan: { mode: "nominal" },
-        },
-      } satisfies SimulationFolderInput,
-    ]),
-  );
-  // Two passes share one ephemeral instrumentation set across reused Cell definitions.
-  // No additional sources or pins are written back into the Project.
-  let instrumentations: readonly TerminalCurrentInstrumentation[] = [];
-  for (const intent of intents.values()) {
-    const plan = buildSimulationPlan(effective, intent, {
-      nativeControl: true,
-      terminalInstrumentations: instrumentations,
+  const plans = new Map<string, DesignNetlistIR>();
+  for (const binding of bindings) {
+    const result = analyzeDesignNetlist(project, {
+      format: "spice",
+      rootDocumentId: binding.documentId,
     });
-    if (plan.ok) instrumentations = plan.terminalInstrumentations;
-    else
-      diagnostics.push(
-        ...plan.diagnostics.map((item) => ({
-          code: item.code,
-          severity: item.severity,
-          message: item.message,
-          field: item.documentId,
-        })),
-      );
+    diagnostics.push(
+      ...result.diagnostics.map((d) => ({
+        code: d.code,
+        severity: d.severity,
+        message: d.message,
+        field: d.documentId,
+      })),
+    );
+    if (result.ir) plans.set(binding.id, result.ir);
   }
   if (diagnostics.some((d) => d.severity === "error"))
     return { ok: false, diagnostics };
-  const plans = new Map<string, Plan>();
-  for (const [id, intent] of intents) {
-    const plan = buildSimulationPlan(effective, intent, {
-      nativeControl: true,
-      terminalInstrumentations: instrumentations,
-    });
-    if (!plan.ok)
-      return {
-        ok: false,
-        diagnostics: plan.diagnostics.map((item) => ({
-          code: item.code,
-          severity: item.severity,
-          message: item.message,
-        })),
-      };
-    plans.set(id, plan);
-    diagnostics.push(
-      ...plan.warnings.map((item) => ({
-        code: item.code,
-        severity: item.severity,
-        message: item.message,
-        field: item.documentId,
-      })),
-    );
-  }
-  // A generated definition is emitted once even when two bound roots reach it.
-  const definitions = new Map<
-    string,
-    { cell: DesignNetlistCell; bindingId: string }
-  >();
+
+  // Allocate native primitive model names against the whole compilation once.
+  // Every generated file uses that same namespace; shared Cells emit once.
+  const cells = new Map<string, DesignNetlistCell>();
   const names = new Map<string, string>();
+  const owners = new Map<string, string>();
+  const masters = new Map<
+    string,
+    NonNullable<DesignNetlistIR["externalMasters"]>[number]
+  >();
+  const globals = new Set<string>();
   for (const binding of bindings) {
-    const plan = plans.get(binding.id)!;
-    for (const cell of plan.circuit.cells) {
-      const name = cell.name.toLowerCase();
-      if (names.has(name) && names.get(name) !== cell.id)
-        fail(
-          "SIMULATION_GENERATED_NAME_COLLISION",
-          `Generated Cells share the name ${cell.name}`,
-        );
-      names.set(name, cell.id);
-      if (binding.emission === "top-level" && cell.id === binding.documentId)
-        continue;
-      const prior = definitions.get(cell.id);
-      if (prior && JSON.stringify(prior.cell) !== JSON.stringify(cell))
+    const ir = plans.get(binding.id)!;
+    for (const name of ir.globals) globals.add(name);
+    for (const master of ir.externalMasters ?? [])
+      masters.set(master.id, master);
+    for (const cell of ir.cells) {
+      const prior = cells.get(cell.id);
+      if (prior && JSON.stringify(prior) !== JSON.stringify(cell))
         fail(
           "SIMULATION_GENERATED_DEFINITION_CONFLICT",
           `Cell ${cell.name} has conflicting generated definitions`,
+          binding.path,
         );
-      else if (!prior)
-        definitions.set(cell.id, { cell, bindingId: binding.id });
+      if (names.has(cell.name) && names.get(cell.name) !== cell.id)
+        fail(
+          "SIMULATION_GENERATED_NAME_COLLISION",
+          `Generated Cells share the exact name ${cell.name}`,
+          binding.path,
+        );
+      cells.set(cell.id, cell);
+      names.set(cell.name, cell.id);
+      if (
+        !(binding.emission === "top-level" && cell.id === ir.topCellId) &&
+        !owners.has(cell.id)
+      )
+        owners.set(cell.id, binding.id);
     }
   }
+  let depth = 0;
+  const authoredMasters = new Set<string>();
   for (const { path, statement } of graph.statements) {
-    if (
-      statement.kind === "subckt_start" &&
-      names.has(statement.name.toLowerCase())
+    const [head, name] = statement.tokens;
+    const keyword =
+      head?.kind === "word" &&
+      statement.rawText.slice(0, head.end - head.start) === head.value
+        ? head.value
+        : undefined;
+    if (keyword === "subckt") {
+      if (depth === 0 && name) authoredMasters.add(name.value);
+      if (depth === 0 && name && names.has(name.value))
+        diagnostics.push({
+          code: "SIMULATION_GENERATED_DEFINITION_SHADOWED",
+          severity: "error",
+          message: `Authored definition shadows generated Cell ${name.value}`,
+          path,
+          sourceRef: statement.sourceRef,
+        });
+      depth++;
+    } else if (keyword === "ends") depth = Math.max(0, depth - 1);
+    else if (
+      keyword === "model" &&
+      depth === 0 &&
+      name &&
+      names.has(name.value)
     )
       diagnostics.push({
         code: "SIMULATION_GENERATED_DEFINITION_SHADOWED",
         severity: "error",
-        message: `Author definition shadows generated Cell ${statement.name}`,
+        message: `Authored model shadows generated Cell ${name.value}`,
         path,
         sourceRef: statement.sourceRef,
       });
-    if (
-      bindings.length &&
-      statement.kind === "control_command" &&
-      ["source", "circbyline", "remcirc", "edit"].includes(
-        statement.command.toLowerCase(),
-      )
-    )
-      diagnostics.push({
-        code: "SIMULATION_BOUND_TOPOLOGY_REPLACED",
-        severity: "error",
-        message:
-          "Use Canvas edits for topology changes, or an unbound source experiment to replace the loaded circuit",
-        path,
-        sourceRef: statement.sourceRef,
-      });
+    if (keyword === "model" && depth === 0 && name)
+      authoredMasters.add(name.value);
   }
-  const generated: GeneratedSimulationFile[] = bindings.map((binding) => {
-    const ir = plans.get(binding.id)!.circuit;
-    const cells = ir.cells.filter(
-      (cell) =>
-        definitions.get(cell.id)?.bindingId === binding.id ||
-        (binding.emission === "top-level" && cell.id === binding.documentId),
-    );
-    const printed = printSpiceWithLocations(
-      { ...ir, cells },
-      binding.emission === "top-level",
-    );
-    return { bindingId: binding.id, path: binding.path, ...printed };
-  });
-  const vectors: CompiledSimulationVector[] = [];
-  const capture = new Set<string>();
-  const scopes = new Map<
-    string,
-    ReturnType<typeof resolveAuthoredCircuitScope>
-  >();
-  const getScope = (
-    binding: SimulationCircuitBinding,
-    scope: SimulationCircuitScope,
-  ) => {
-    const key = JSON.stringify([
-      binding.id,
-      scope.callPath.map((part) => part.toLowerCase()),
-    ]);
-    let resolved = scopes.get(key);
-    if (!resolved) {
-      resolved = resolveAuthoredCircuitScope(
-        graph,
-        binding,
-        plans.get(binding.id)!.circuit,
-        scope,
-      );
-      scopes.set(key, resolved);
-      if (!resolved.ok) fail("SIMULATION_CALL_SCOPE", resolved.message);
-    }
-    return resolved;
-  };
-  function acquisition(
-    vector: string,
-    quantity: CompiledSimulationVector["quantity"],
-    collect: boolean,
-  ): CompiledSimulationExpression {
-    const normalized = vector.toLowerCase();
-    if (normalized === "v(0)") return { kind: "constant", value: 0, unit: "V" };
-    const existing = vectors.find(
-      (item) => item.vector === normalized && item.quantity === quantity,
-    );
-    const item = existing ?? {
-      probeId: `source-acquisition-${vectors.length}`,
-      vector: normalized,
-      quantity,
-    };
-    if (!existing) vectors.push(item);
-    if (collect) capture.add(normalized);
-    return {
-      kind: "acquisition",
-      acquisitionId: item.probeId,
-      quantity: item.quantity,
-    };
-  }
-  function scoped(
-    expression: CompiledSimulationExpression,
-    plan: Plan,
-    binding: SimulationCircuitBinding,
-    scope: SimulationCircuitScope,
-  ): CompiledSimulationExpression {
-    if (expression.kind === "acquisition") {
-      const original = plan.vectors.find(
-        (v) => v.probeId === expression.acquisitionId,
-      )!;
-      const resolved = getScope(binding, scope);
-      return resolved.ok
-        ? acquisition(resolved.vector(original.vector), original.quantity, true)
-        : expression;
-    }
-    if ("operand" in expression)
-      return {
-        ...expression,
-        operand: scoped(expression.operand, plan, binding, scope),
-      };
-    if ("left" in expression)
-      return {
-        ...expression,
-        left: scoped(expression.left, plan, binding, scope),
-        right: scoped(expression.right, plan, binding, scope),
-      };
-    return { ...expression };
-  }
-  function expression(
-    source: SimulationSourceExpression,
-  ): CompiledSimulationExpression {
-    if (source.kind === "voltage" || source.kind === "current") {
-      const leaf = leaves.get(source)!;
-      const plan = plans.get(leaf.binding.id)!;
-      getScope(leaf.binding, source.circuit);
-      return scoped(
-        plan.outputs.find((o) => o.id === leaf.id)!.expression,
-        plan,
-        leaf.binding,
-        source.circuit,
-      );
-    }
-    if (source.kind === "vector") {
-      if (/[\r\n;]/u.test(source.vector))
-        fail(
-          "SIMULATION_VECTOR_INVALID",
-          "A native vector must be one expression, not multiple commands",
-        );
-      return acquisition(source.vector, "native", false);
-    }
-    if ("operand" in source)
-      return { ...source, operand: expression(source.operand) };
-    if ("left" in source)
-      return {
-        ...source,
-        left: expression(source.left),
-        right: expression(source.right),
-      };
-    return { ...source };
-  }
-  const outputs = config.outputs.map((output) => ({
-    ...output,
-    expression: expression(output.expression),
-  }));
-  const deviceOperatingPoints = config.deviceOperatingPoints.map((target) => {
-    const binding = byBinding.get(target.circuit.bindingId)!;
-    const plan = plans.get(binding.id)!;
-    const compiled = plan.deviceOperatingPoints.find(
-      (item) => item.id === target.id,
-    )!;
-    return {
-      ...compiled,
-      reference: [...target.circuit.callPath, compiled.reference].join("."),
-      values: compiled.values.map((value) => ({
-        ...value,
-        expression: scoped(value.expression, plan, binding, target.circuit),
-      })),
-    };
-  });
-  // Discover mappings, but do not request any acquisition here. Only vectors
-  // actually returned by the native program become Device OP rows.
-  if (parsedConfig.authority === "code") {
-    for (const device of nativeSimulationDevices(project, folder.input)) {
-      if (!device.polarity || !device.nativeDevice) continue;
-      deviceOperatingPoints.push({
-        id: `native-op:${device.nativeDevice}`,
-        documentId: device.documentId,
-        instanceId: device.instanceId,
-        occurrence: device.occurrence,
-        reference: device.reference,
-        polarity: device.polarity,
-        values: NATIVE_MOS_OP_PARAMETERS.map((parameter) => ({
-          parameter,
-          label: parameter.toUpperCase(),
-          unit:
-            parameter === "id" ? "A" : parameter.startsWith("g") ? "S" : "V",
-          expression: acquisition(
-            `@${device.nativeDevice}[${parameter}]`,
-            "native",
-            false,
-          ),
-        })),
-      });
-    }
-  }
-  for (const measurement of config.measurements)
-    if (
-      !outputs.some((o) => o.id === measurement.outputId) &&
-      measurement.outputId !== SIMULATION_NOISE_INPUT_DENSITY_ID &&
-      measurement.outputId !== SIMULATION_NOISE_OUTPUT_DENSITY_ID
-    )
-      fail(
-        "SIMULATION_MEASUREMENT_OUTPUT_MISSING",
-        `Measurement ${measurement.label} references missing Output ${measurement.outputId}`,
-      );
   if (diagnostics.some((d) => d.severity === "error"))
     return { ok: false, diagnostics };
-  const mappedFiles = [
-    ...projection.mappedFiles,
-    ...generated.map(({ path, text, bindingId }) =>
-      mapSimulationFile(path, text, {
+  const generated: GeneratedSimulationFile[] = [];
+  for (const [index, binding] of bindings.entries()) {
+    const ir = plans.get(binding.id)!;
+    const cellIds = new Set(
+      [...cells.values()]
+        .filter(
+          (cell) =>
+            owners.get(cell.id) === binding.id ||
+            (binding.emission === "top-level" && cell.id === ir.topCellId),
+        )
+        .map((cell) => cell.id),
+    );
+    const printed = printVacaskWithLocations(
+      {
+        topCellId: ir.topCellId,
+        cells: [...cells.values()],
+        globals: [...globals],
+        externalMasters: [...masters.values()],
+      },
+      binding.emission === "top-level",
+      { cellIds, preamble: index === 0, reservedNames: authoredMasters },
+    );
+    if (!printed.ok)
+      diagnostics.push(
+        ...printed.diagnostics.map((d) => ({
+          code: d.code,
+          severity: d.severity,
+          message: d.message,
+          path: binding.path,
+          field: d.documentId,
+        })),
+      );
+    else
+      generated.push({
+        bindingId: binding.id,
+        path: binding.path,
+        text: printed.text,
+        parameters: printed.parameters,
+      });
+  }
+  if (diagnostics.some((d) => d.severity === "error"))
+    return { ok: false, diagnostics };
+  const mapped = [
+    ...folder.input.files
+      .filter((f) => f.path !== folder.input.configPath)
+      .map((f) => mapSimulationFile(f.path, f.text)),
+    ...generated.map((f) =>
+      mapSimulationFile(f.path, f.text, {
         kind: "generated",
         purpose: "canvas-circuit",
-        bindingId,
+        bindingId: f.bindingId,
       }),
     ),
   ];
-  if (capture.size) {
-    const index = mappedFiles.findIndex((f) => f.path === folder.input.entry);
-    const entry = mappedFiles[index]!;
-    const end = entry.text.indexOf("\n");
-    const explicitSave =
-      graph.statements.some(
-        ({ statement }) =>
-          statement.kind === "control_command" &&
-          statement.command.toLowerCase() === "save",
-      ) || folder.input.files.some((file) => /^\s*\.save\b/imu.test(file.text));
-    const prefix = `* Canvas acquisitions (generated)\n.save ${explicitSave ? "" : "all "}${[...capture].join(" ")}\n`;
-    // Keep the native title in place. Other author bytes are never reformatted.
-    mappedFiles[index] = insertSimulationText(
-      entry,
-      end < 0 ? entry.text.length : end + 1,
-      (end < 0 ? "\n" : "") + prefix,
-      { kind: "generated", purpose: "canvas-acquisitions" },
-    );
-  }
+  const config = structuredClone(parsed.config);
+  // There is no single authored write filename in VACASK. Collection is a
+  // runtime multi-artifact concern; never manufacture an out.raw source setting.
+  config.collection = { rawfile: null };
   return {
     ok: true,
+    language: "vacask",
+    authority: "code",
     config,
-    authority: parsedConfig.authority,
     authoredFiles: structuredClone(folder.input.files),
-    files: mappedFiles.map(({ path, text }) => ({ path, text })),
-    sourceMaps: mappedFiles.map(({ path, segments }) => ({ path, segments })),
-    includes: graph.includes,
-    electricalHash: sha256Hex(
-      JSON.stringify(
-        [...plans]
-          .sort(([a], [b]) => a.localeCompare(b))
-          .map(([id, plan]) => ({ bindingId: id, circuit: plan.circuit })),
-      ),
-    ),
+    files: mapped.map(({ path, text }) => ({ path, text })),
+    sourceMaps: mapped.map(({ path, segments }) => ({ path, segments })),
     entry: folder.input.entry,
+    includes: graph.includes,
     generated,
-    vectors,
-    outputs,
-    deviceOperatingPoints,
-    warnings: diagnostics,
-    reachedDocumentIds: [
+    requiredModels: [
       ...new Set(
-        [...plans.values()].flatMap((plan) =>
-          plan.circuit.cells.map((cell) => cell.id),
+        [...cells.values()].flatMap((cell) =>
+          cell.instances.flatMap((instance) =>
+            instance.target && !names.has(instance.target)
+              ? [instance.target]
+              : [],
+          ),
         ),
       ),
-    ],
+    ].sort(),
+    electricalHash: sha256Hex(
+      JSON.stringify([...plans].sort(([a], [b]) => a.localeCompare(b))),
+    ),
+    reachedDocumentIds: [...cells.keys()],
+    // Native source controls acquisition and result declarations. These are
+    // derived from actual native output, not restored from retired sidecars.
+    vectors: [],
+    outputs: [],
+    deviceOperatingPoints: [],
+    warnings: diagnostics,
   };
 }

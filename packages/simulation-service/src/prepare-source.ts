@@ -6,28 +6,20 @@ import type {
 import {
   compileSourceSimulation,
   simulationSignals,
-  inspectSimulationSourceGraph,
   insertSimulationText,
   type SimulationSourceDiagnostic,
 } from "@icm/netlist";
-import {
-  deckNeedsModelLibrary,
-  formatModelLibrarySelection,
-} from "@icm/spice-run";
 import { problem, type Capabilities, type Problem } from "./contract.js";
 import type { ExecutionInput } from "./executor.js";
 import { sha256 } from "./content-digest.js";
 import { sourceInputRevision } from "./input-identity.js";
-import { literalSourceAnalyses } from "./source-analysis.js";
+import { inspectNativeAnalyses } from "./native-source-analysis.js";
 import { outputVolumeWarning } from "./result-volume.js";
 
 async function sourceCompilationProblem(
   diagnostics: SimulationSourceDiagnostic[],
   folder: ProjectSimulationFolder,
-): Promise<{
-  ok: false;
-  error: Problem;
-}> {
+): Promise<{ ok: false; error: Problem }> {
   return {
     ok: false,
     error: {
@@ -61,20 +53,25 @@ async function sourceCompilationProblem(
   };
 }
 
-/** Shared source adapter. No execution, Project mutation or private GUI deck path. */
+/** Public native Prepare: same source authority for GUI, MCP and session folders. */
 export async function prepareSourceExecutionInput(
   project: CircuitProject,
   folder: ProjectSimulationFolder,
   caps: Capabilities,
   variant?: SimulationRunVariant,
 ) {
-  const compilationProblem = (diagnostics: SimulationSourceDiagnostic[]) =>
-    sourceCompilationProblem(diagnostics, folder);
   const compiled = compileSourceSimulation(project, folder, variant);
-  if (!compiled.ok) return compilationProblem(compiled.diagnostics);
-  const { config } = compiled;
+  if (!compiled.ok)
+    return sourceCompilationProblem(compiled.diagnostics, folder);
+  if (caps.rawfileCollection !== "native-multi-ascii")
+    return problem(
+      "SIMULATION_NATIVE_RUNTIME_UNAVAILABLE",
+      "This executor has not registered native VACASK multi-file execution. Source editing, inspection and saving remain available.",
+      "prepare",
+      "retry-after",
+    );
   const profile = caps.profiles.find(
-    (item) => item.id === config.environment.profileId,
+    (p) => p.id === compiled.config.environment.profileId,
   );
   if (!profile)
     return problem(
@@ -82,119 +79,113 @@ export async function prepareSourceExecutionInput(
       "Select a Profile advertised by capabilities",
       "prepare",
     );
-  if (
-    config.environment.corner &&
-    !profile.corners.includes(config.environment.corner)
-  )
-    return problem(
-      "SIMULATION_CORNER_UNSUPPORTED",
-      "The selected Profile does not support this corner",
-      "prepare",
-    );
-  if (caps.rawfileCollection !== "declared-single-ascii")
-    return problem(
-      "SIMULATION_COLLECTION_UNAVAILABLE",
-      "This executor does not yet support declared source output collection; editing and saving remain available",
-      "prepare",
-      "retry-after",
-    );
+  const environment = structuredClone(compiled.config.environment);
   const dependencies = structuredClone(folder.input.dependencies);
   const available = new Map(
-    (profile.dependencies ?? []).map((item) => [item.id, item.sha256]),
+    (profile.dependencies ?? []).map((d) => [d.id, d.sha256]),
   );
   const unavailable = dependencies.filter(
-    (item) => available.get(item.id) !== item.sha256,
+    (d) => available.get(d.id) !== d.sha256,
   );
   if (unavailable.length)
-    return compilationProblem(
-      unavailable.map((item) => ({
+    return sourceCompilationProblem(
+      unavailable.map((d) => ({
         code: "SIMULATION_DEPENDENCY_UNAVAILABLE",
         severity: "error",
-        message: `Dependency ${item.id} (${item.mountPath}) is not available in the selected Profile`,
-        path: item.mountPath,
+        message: `Dependency ${d.id} (${d.mountPath}) is not available in the selected Profile`,
+        path: d.mountPath,
       })),
+      folder,
     );
   const files = structuredClone(compiled.files);
   const sourceMaps = structuredClone(compiled.sourceMaps);
-  const entryIndex = files.findIndex((file) => file.path === compiled.entry);
-  const entry = files[entryIndex]!;
-  if (compiled.generated.some((file) => deckNeedsModelLibrary(file.text))) {
-    // Profile-owned models are mounted by identity/digest. Neither the client
-    // nor the author needs to know the host's absolute model-library path.
-    const libraries = profile.dependencies ?? [];
-    if (libraries.length !== 1)
+  const entryIndex = files.findIndex((f) => f.path === compiled.entry);
+  const policy = profile.modelLibrary;
+  // A code-only TB can explicitly load the same Profile library. Its section
+  // has the same electrical meaning as a Canvas-generated model requirement.
+  const authoredProfileLoad =
+    policy &&
+    dependencies.some(
+      (dependency) =>
+        dependency.id === policy.dependencyId &&
+        compiled.includes.some((load) => load.target === dependency.mountPath),
+    );
+  if (policy && (compiled.requiredModels.length || authoredProfileLoad)) {
+    const library = (profile.dependencies ?? []).find(
+      (d) => d.id === policy.dependencyId,
+    );
+    if (!library)
       return problem(
         "SIMULATION_MODEL_LIBRARY_UNAVAILABLE",
-        "Canvas model generation requires one qualified model-library dependency from this Profile",
+        "The Profile model library is not an advertised dependency",
         "prepare",
+        "retry-after",
       );
-    const library = libraries[0]!;
-    let dependency = dependencies.find((item) => item.id === library.id);
+    let dependency = dependencies.find((d) => d.id === library.id);
     if (!dependency) {
-      const occupied = new Set([
-        ...files.map((file) => file.path),
-        ...dependencies.map((item) => item.mountPath),
+      const occupied = [
+        ...files.map((f) => f.path),
+        ...dependencies.map((d) => d.mountPath),
         folder.input.configPath,
-      ]);
-      let mountPath = "icm-models.lib";
+      ];
+      let mountPath = "icm-models.inc";
       for (
-        let index = 1;
-        occupied.has(mountPath) ||
-        [...occupied].some((path) => path.startsWith(`${mountPath}/`));
-        index++
+        let i = 1;
+        occupied.some(
+          (p) =>
+            p === mountPath ||
+            p.startsWith(`${mountPath}/`) ||
+            mountPath.startsWith(`${p}/`),
+        );
+        i++
       )
-        mountPath = `icm-models-${index}.lib`;
+        mountPath = `icm-models-${i}.inc`;
       dependency = { ...library, mountPath };
       dependencies.push(dependency);
     }
-    const existingLoads = compiled.includes.filter(
-      (include) => include.target === dependency.mountPath,
+    const loads = compiled.includes.filter(
+      (i) => i.target === dependency.mountPath,
     );
-    const selectedCorner =
-      compiled.authority === "code" && existingLoads.length
-        ? existingLoads[0]!.section
-        : (config.environment.corner ?? caps.modelLibrary?.section);
-    if (!selectedCorner || !profile.corners.includes(selectedCorner))
+    const section = loads.length ? loads[0]!.section : policy.defaultSection;
+    if (
+      loads.length &&
+      policy.defaultSection !== undefined &&
+      section === undefined
+    )
       return problem(
         "SIMULATION_CORNER_UNSUPPORTED",
-        "Select a qualified model corner before preparation",
+        "This Profile uses a sectioned model library; select its section in the authored include",
         "prepare",
       );
     if (
-      existingLoads.some(
-        (load) => load.section?.toLowerCase() !== selectedCorner.toLowerCase(),
-      )
+      section !== undefined &&
+      (!/^[A-Za-z_$][A-Za-z0-9_$]*$/u.test(section) ||
+        !profile.corners.includes(section))
     )
-      return compilationProblem(
-        existingLoads.map((load) => ({
+      return problem(
+        "SIMULATION_CORNER_UNSUPPORTED",
+        "The native model section is outside this Profile's qualified sections",
+        "prepare",
+      );
+    if (loads.some((load) => load.section !== section))
+      return sourceCompilationProblem(
+        loads.map((load) => ({
           code: "SIMULATION_MODEL_CORNER_CONFLICT",
           severity: "error",
-          message: `Canvas models require .lib section ${selectedCorner}; this authored load selects a different model contract`,
+          message:
+            "The same native model dependency is included with conflicting sections",
           path: load.path,
           sourceRef: load.sourceRef,
         })),
+        folder,
       );
-    if (!existingLoads.length) {
-      // Entry includes resolve relative to the entry's directory in ngspice 46.
+    if (!loads.length) {
+      const entry = files[entryIndex]!;
       const relative =
         "../".repeat(compiled.entry.split("/").length - 1) +
         dependency.mountPath;
       const end = entry.text.indexOf("\n");
-      let directive: string;
-      try {
-        directive = formatModelLibrarySelection({
-          directive: "lib",
-          path: relative,
-          section: selectedCorner,
-        });
-      } catch {
-        return problem(
-          "SIMULATION_MODEL_PATH_INVALID",
-          "The model mount cannot be represented as a literal SPICE include path",
-          "prepare",
-        );
-      }
-      const preamble = `* Profile models (generated)\n${directive}\n`;
+      const preamble = `// Profile models (generated)\ninclude ${JSON.stringify(relative)}${section === undefined ? "" : ` section=${section}`}\n`;
       const mapped = insertSimulationText(
         { ...entry, ...sourceMaps[entryIndex]! },
         end < 0 ? entry.text.length : end + 1,
@@ -204,34 +195,8 @@ export async function prepareSourceExecutionInput(
       files[entryIndex] = { path: mapped.path, text: mapped.text };
       sourceMaps[entryIndex] = { path: mapped.path, segments: mapped.segments };
     }
-    // Record the actual native model selection in the execution receipt only.
-    if (compiled.authority === "code")
-      config.environment.corner = selectedCorner;
+    if (section !== undefined) environment.corner = section;
   }
-  const output = config.collection.rawfile;
-  if (
-    output !== null &&
-    [
-      folder.input.configPath,
-      ...files.map((file) => file.path),
-      ...dependencies.map((dep) => dep.mountPath),
-    ].some(
-      (path) =>
-        path === output ||
-        path.startsWith(`${output}/`) ||
-        output.startsWith(`${path}/`),
-    )
-  )
-    return compilationProblem([
-      {
-        code: "SIMULATION_COLLECTION_INPUT_COLLISION",
-        severity: "error",
-        message:
-          "The collected rawfile must not overwrite an input or dependency",
-        path: folder.input.configPath,
-        field: "collection.rawfile",
-      },
-    ]);
   if (caps.maxInputFiles !== undefined && files.length > caps.maxInputFiles)
     return problem(
       "SIMULATION_INPUT_FILE_LIMIT",
@@ -239,7 +204,7 @@ export async function prepareSourceExecutionInput(
       "prepare",
     );
   const bytes = files.reduce(
-    (count, file) => count + new TextEncoder().encode(file.text).length,
+    (n, f) => n + new TextEncoder().encode(f.text).length,
     0,
   );
   if (bytes > caps.maxInputBytes)
@@ -249,30 +214,34 @@ export async function prepareSourceExecutionInput(
       "prepare",
     );
   const inputRevision = await sourceInputRevision(folder, compiled);
-  const analyses = literalSourceAnalyses(
-    inspectSimulationSourceGraph({ ...folder.input, files: compiled.files }),
-  );
+  const native = inspectNativeAnalyses({
+    ...folder.input,
+    files,
+    dependencies,
+    circuitBindings: [],
+  });
+  const signals = simulationSignals(project, folder.input);
   const volume = outputVolumeWarning(
-    analyses,
-    Math.max(1, compiled.vectors.length),
+    native.analyses,
+    Math.max(1, Object.keys(signals).length),
     caps.maxOutputBytes,
   );
-  const unqualified = [...new Set(analyses.map((a) => a.kind))].filter(
-    (kind) => !caps.analyses.includes(kind),
-  );
+  const unqualified = [
+    ...new Set(native.projections.map((p) => p.analysis)),
+  ].filter((kind) => !caps.analyses.includes(kind));
   const preparedDeck = files[entryIndex]!.text;
-  const signals = simulationSignals(project, folder.input);
   const input: ExecutionInput & { preparedDeck: string } = {
+    language: "vacask",
     mode: "raw",
     netlist: "",
     testbench: preparedDeck,
     preparedDeck,
     inputRevision,
-    environment: config.environment,
+    environment,
     entryPath: compiled.entry,
     files,
     dependencies,
-    collection: config.collection,
+    collection: { kind: "native-multi-ascii" },
   };
   return {
     ok: true as const,
@@ -280,16 +249,17 @@ export async function prepareSourceExecutionInput(
     digest: await sha256(JSON.stringify(input)),
     vectors: compiled.vectors,
     signalNames: Object.fromEntries(
-      Object.entries(signals).map(([key, signal]) => [key, signal.label]),
+      Object.entries(signals).map(([key, s]) => [key, s.label]),
     ),
     signalTargets: Object.fromEntries(
-      Object.entries(signals).map(([key, signal]) => [key, signal.targets]),
+      Object.entries(signals).map(([key, s]) => [key, s.targets]),
     ),
     outputs: compiled.outputs,
     deviceOperatingPoints: compiled.deviceOperatingPoints,
-    measurements: config.measurements,
+    measurements: compiled.config.measurements,
     warnings: [
-      ...compiled.warnings.map((item) => item.message),
+      ...compiled.warnings.map((w) => w.message),
+      ...native.warnings,
       ...(volume ? [volume] : []),
       ...(unqualified.length
         ? [

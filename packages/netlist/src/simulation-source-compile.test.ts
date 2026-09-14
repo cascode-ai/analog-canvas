@@ -2,7 +2,6 @@ import { LegacyProjectSimulationSetupSchema } from "@icm/model";
 import { describe, expect, it } from "vitest";
 import {
   CircuitProjectSchema,
-  SimulationExperimentConfigSchema,
   ProjectSimulationFolderSchema,
   type ProjectSimulationFolder,
 } from "@icm/model";
@@ -15,15 +14,13 @@ const legacySetups = () =>
 import { migrateSimulationSetupToSource } from "./simulation-source-migration.js";
 import { compileSourceSimulation } from "./simulation-source-compile.js";
 import { buildSimulationPlan } from "./simulation-compile.js";
+import { simulationSignals } from "./simulation-signal-names.js";
 
 const project = () =>
   CircuitProjectSchema.parse(currentFiveTransistorOtaCircuitSource());
-function config(folder: ProjectSimulationFolder) {
-  return SimulationExperimentConfigSchema.parse(
-    JSON.parse(
-      folder.input.files.find((f) => f.path === folder.input.configPath)!.text,
-    ),
-  );
+function nativeConfig(folder: ProjectSimulationFolder) {
+  folder.input.files.find((f) => f.path === folder.input.configPath)!.text =
+    JSON.stringify({ version: 2, environment: { profileId: "p" } });
 }
 function raw(text: string) {
   return ProjectSimulationFolderSchema.parse({
@@ -39,15 +36,8 @@ function raw(text: string) {
         {
           path: "experiment.json",
           text: JSON.stringify({
-            version: 1,
+            version: 2,
             environment: { profileId: "p" },
-            outputs: [
-              {
-                id: "v",
-                label: "Custom",
-                expression: { kind: "vector", vector: "v(out)" },
-              },
-            ],
           }),
         },
       ],
@@ -58,7 +48,7 @@ function raw(text: string) {
 }
 describe("source simulation compiler", () => {
   it("never prepares stale committed bytes while an unapplied saved draft exists", () => {
-    const folder = raw("* test\n.control\nop\nwrite out.raw\n.endc\n.end\n");
+    const folder = raw("Test\ncontrol\nanalysis bias op\nendc\n");
     expect(compileSourceSimulation(project(), folder).ok).toBe(true);
     const text = folder.input.files[0]!.text;
     folder.input.drafts = [{ path: "run.cir", base: text, text: "unfinished" }];
@@ -77,9 +67,8 @@ describe("source simulation compiler", () => {
     folder.input.drafts = [];
     expect(compileSourceSimulation(project(), folder).ok).toBe(true);
   });
-  it("accepts only known intrinsic Noise outputs, not arbitrary missing ids", () => {
-    const folder = raw("* test\n.control\nop\nwrite out.raw\n.endc\n.end\n");
-    const settings = config(folder);
+  it("rejects JSON measurement authority, including former intrinsic Noise output ids", () => {
+    const folder = raw("Test\ncontrol\nanalysis bias op\nendc\n");
     const file = folder.input.files.find(
       (f) => f.path === folder.input.configPath,
     )!;
@@ -88,7 +77,7 @@ describe("source simulation compiler", () => {
       "noise-input-density",
       "noise-typo",
     ]) {
-      settings.measurements = [
+      const measurements = [
         {
           id: "m",
           label: "Peak",
@@ -97,71 +86,76 @@ describe("source simulation compiler", () => {
           method: { kind: "maximum" },
         },
       ];
-      file.text = JSON.stringify(settings);
+      file.text = JSON.stringify({
+        version: 2,
+        environment: { profileId: "p" },
+        measurements,
+      });
       const result = compileSourceSimulation(project(), folder);
-      expect(result.ok).toBe(outputId !== "noise-typo");
+      expect(result.ok).toBe(false);
       if (!result.ok)
         expect(
           result.diagnostics.some(
-            (d) => d.code === "SIMULATION_MEASUREMENT_OUTPUT_MISSING",
+            (d) => d.code === "SIMULATION_CONFIG_INVALID",
           ),
         ).toBe(true);
     }
   });
   it("preserves native code and native vector ownership without requiring a Canvas", () => {
     const text =
-      "* native\r\nV1 in 0 1\r\nR1 in out 1k\r\nR2 out 0 1k\r\n.control\r\nop\r\nwrite out.raw\r\n.endc\r\n.end\r\n";
+      "Native\r\nmodel voltage vsource\r\nmodel resistance resistor\r\nV1 (In 0) voltage dc=1\r\nR1 (In Out) resistance r=1k\r\nR2 (Out 0) resistance r=1k\r\ncontrol\r\nsave v(Out)\r\nanalysis bias op\r\nendc\r\n";
     const compiled = compileSourceSimulation(project(), raw(text));
     expect(compiled.ok).toBe(true);
     if (!compiled.ok) return;
     expect(compiled.files[0]!.text).toBe(text);
     expect(compiled.generated).toEqual([]);
-    expect(compiled.vectors[0]).toMatchObject({
-      vector: "v(out)",
-      quantity: "native",
-    });
-    expect(compiled.outputs[0]!.label).toBe("Custom");
+    // Acquisition lives in source and observed native output, not JSON copies.
+    expect(compiled.vectors).toEqual([]);
+    expect(compiled.outputs).toEqual([]);
   });
-  it("keeps each migrated OTA experiment compilable with the same acquisition identities", () => {
+  it("preserves legacy OTA acquisition intent without relabelling ngspice source as native", () => {
     const before = project();
     for (const folder of legacySetups()) {
       if (folder.input.kind !== "structured") continue;
       const migrated = migrateSimulationSetupToSource(before, folder).folder;
+      const saved = structuredClone(migrated);
       const compiled = compileSourceSimulation(before, migrated);
       expect(
         compiled.ok,
         JSON.stringify(compiled.ok ? [] : compiled.diagnostics),
-      ).toBe(true);
-      if (!compiled.ok) continue;
+      ).toBe(false);
+      expect(compiled).toMatchObject({
+        ok: false,
+        diagnostics: [{ code: "SIMULATION_LEGACY_SOURCE" }],
+      });
       const original = buildSimulationPlan(before, folder);
       expect(original.ok).toBe(true);
       if (!original.ok) continue;
-      expect(compiled.vectors.map((v) => v.vector).sort()).toEqual(
-        original.vectors.map((v) => v.vector).sort(),
+      const retained = JSON.parse(
+        migrated.input.files.find((f) => f.path === migrated.input.configPath)!
+          .text,
       );
-      expect(compiled.outputs.map(({ id, label }) => ({ id, label }))).toEqual(
-        original.outputs.map(({ id, label }) => ({ id, label })),
-      );
-      expect(compiled.config.measurements).toEqual(original.measurements);
-      for (const generated of compiled.generated)
-        for (const span of generated.parameters)
-          expect(generated.text.slice(span.startOffset, span.endOffset)).toBe(
-            span.rawValue,
-          );
-      expect(compiled.authoredFiles).toEqual(migrated.input.files);
+      expect(retained.measurements).toEqual(original.measurements);
+      expect(
+        retained.outputs.map(
+          ({ id, label }: { id: string; label: string }) => ({ id, label }),
+        ),
+      ).toEqual(original.outputs.map(({ id, label }) => ({ id, label })));
+      expect(migrated).toEqual(saved);
     }
     expect(before).toEqual(project());
   });
-  it("does not widen an explicit native save list to all when adding Canvas captures", () => {
+  it("does not widen an explicit native save list when including Canvas-generated topology", () => {
     const before = project();
     const original = legacySetups().find(
       (s) => s.input.kind === "structured" && s.input.outputs.length,
     )!;
     const folder = migrateSimulationSetupToSource(before, original).folder;
+    nativeConfig(folder);
     const entry = folder.input.files.find(
       (f) => f.path === folder.input.entry,
     )!;
-    entry.text = entry.text.replace(".control", ".control\nsave v(0)");
+    entry.text = `Explicit acquisition\ninclude "${folder.input.circuitBindings[0]!.path}"\ncontrol\nsave v(0)\nanalysis bias op\nendc\n`;
     const compiled = compileSourceSimulation(before, folder);
     expect(compiled.ok).toBe(true);
     if (!compiled.ok) return;
@@ -169,7 +163,9 @@ describe("source simulation compiler", () => {
       (f) => f.path === folder.input.entry,
     )!.text;
     expect(prepared).toContain("save v(0)");
-    expect(prepared).not.toContain(".save all");
+    expect(prepared).not.toContain("save all");
+    expect(prepared).not.toContain("save default");
+    expect(prepared).toBe(entry.text);
   });
   it("distinguishes two authored DUT calls and maps formal ports to actual top-level nodes", () => {
     const before = project();
@@ -183,45 +179,32 @@ describe("source simulation compiler", () => {
     const root = base.circuit.cells.find((c) => c.ports.length > 0)!;
     binding.documentId = root.id;
     binding.emission = "subcircuit";
-    const settings = config(folder);
-    settings.deviceOperatingPoints = [];
-    settings.measurements = [];
+    nativeConfig(folder);
     const internalNet = root.nets.find(
       (net) =>
         net.scope !== "global" &&
         !root.ports.some((port) => port.netName === net.name),
     )!;
-    settings.outputs = ["XLEFT", "XRIGHT"].map((call, id) => ({
-      id: String(id),
-      label: call,
-      expression: {
-        kind: "voltage",
-        documentId: root.id,
-        occurrence: [],
-        anchor: { kind: "base-net", netId: internalNet.id },
-        circuit: { bindingId: binding.id, callPath: [call] },
-      },
-    }));
-    folder.input.files.find((f) => f.path === folder.input.configPath)!.text =
-      JSON.stringify(settings);
     const ports = root.ports.map((_, i) => `input${i}`).join(" ");
     folder.input.files.find((f) => f.path === folder.input.entry)!.text =
-      `* calls\n.include "${binding.path}"\nXLEFT ${ports} ${root.name}\nXRIGHT ${ports} ${root.name}\n.control\nop\nwrite out.raw\n.endc\n.end\n`;
+      `Calls\ninclude "${binding.path}"\nXLEFT (${ports}) ${root.name}\nXRIGHT (${ports}) ${root.name}\ncontrol\nsave v('XLEFT:${internalNet.name}') v('XRIGHT:${internalNet.name}')\nanalysis bias op\nendc\n`;
     const compiled = compileSourceSimulation(before, folder);
     expect(
       compiled.ok,
       JSON.stringify(compiled.ok ? [] : compiled.diagnostics),
     ).toBe(true);
     if (!compiled.ok) return;
-    expect(compiled.vectors.some((v) => v.vector.startsWith("v(xleft."))).toBe(
-      true,
-    );
-    expect(compiled.vectors.some((v) => v.vector.startsWith("v(xright."))).toBe(
-      true,
-    );
+    const signals = simulationSignals(before, folder.input);
+    for (const call of ["XLEFT", "XRIGHT"]) {
+      expect(signals[`${call}:${internalNet.name}`]?.targets).toContainEqual(
+        expect.objectContaining({ documentId: root.id, netId: internalNet.id }),
+      );
+    }
+    for (const [index] of root.ports.entries())
+      expect(signals[`input${index}`]).toBeDefined();
   });
   it("returns source diagnostics for broken author/config text instead of throwing", () => {
-    const folder = raw('* title\n.include "missing.spice"\n');
+    const folder = raw('Title\ninclude "missing.spice"\n');
     expect(compileSourceSimulation(project(), folder)).toMatchObject({
       ok: false,
       diagnostics: [{ code: "SIMULATION_FILE_MISSING" }],

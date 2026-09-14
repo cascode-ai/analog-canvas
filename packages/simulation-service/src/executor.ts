@@ -16,7 +16,7 @@ export interface ExecutionInput {
   entryPath?: string;
   preparedDeck?: string;
   /** Exact run-local collector, independent of how the native script writes it. */
-  collection?: { rawfile: string | null };
+  collection?: { kind: "native-multi-ascii" } | { rawfile: string | null };
 }
 const ExecutionFilesSchema = z
   .array(SimulationRawFileSchema)

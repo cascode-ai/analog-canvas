@@ -144,6 +144,11 @@ export type PrintedVacask =
 export function printVacaskWithLocations(
   ir: DesignNetlistIR,
   rootAsTopLevel = false,
+  emission: {
+    cellIds?: ReadonlySet<string>;
+    preamble?: boolean;
+    reservedNames?: Iterable<string>;
+  } = {},
 ): PrintedVacask {
   const diagnostics: NetlistDiagnostic[] = [];
   const instances: PrintedNetlistInstance[] = [];
@@ -206,6 +211,7 @@ export function printVacaskWithLocations(
     });
   };
   const used = new Set([
+    ...(emission.reservedNames ?? []),
     ...ir.cells.map((c) => c.name),
     ...(ir.externalMasters ?? []).map((m) => m.name),
     ...ir.cells.flatMap((c) =>
@@ -227,13 +233,15 @@ export function printVacaskWithLocations(
       while (used.has(name)) name += "_";
       used.add(name);
       models.set(card.deviceClass, name);
-      if (definition.file) append(`load "${definition.file}"`);
-      append(`model ${name} ${definition.module}`);
+      if (emission.preamble !== false) {
+        if (definition.file) append(`load "${definition.file}"`);
+        append(`model ${name} ${definition.module}`);
+      }
     }
   try {
-    append("ground 0");
+    if (emission.preamble !== false) append("ground 0");
     const globals = ir.globals.filter((n) => n !== "0");
-    if (globals.length)
+    if (globals.length && emission.preamble !== false)
       append(`global ${globals.map(vacaskIdentifier).join(" ")}`);
     if (!ir.cells.some((c) => c.id === ir.topCellId))
       throw new ProjectionError(
@@ -425,6 +433,7 @@ export function printVacaskWithLocations(
   };
 
   for (const cell of ir.cells) {
+    if (emission.cellIds && !emission.cellIds.has(cell.id)) continue;
     const top = rootAsTopLevel && cell.id === ir.topCellId;
     const parameterNames = new Map(
       (cell.formalParameters ?? []).map((p) => [p.name.toLowerCase(), p.name]),
