@@ -7,6 +7,10 @@ connector. The Helper owns HTTP endpoints, tokens, request IDs and revisions.
 Closing the browser details panel does not revoke the connection.
 Call `get_context` and read the built-in catalog before placing devices.
 Use `inspect` and `search` for IDs and pins, not screenshot coordinates.
+Read `analog-canvas://reference/authoring` for the shared native placement,
+display, Port, Net Label and simulation-result workflow. It is generated from
+the exact `references/authoring-contract.md` served in the HTTP Kit; the tool
+examples below are MCP-specific mappings, not a separate operating policy.
 
 Production and Preview both expose the Agent UI. Their accounts, Projects and
 connector bindings remain separate.
@@ -30,7 +34,7 @@ Schema 55 arrow objects support independent `styleOverride.arrowStart` and
 These fields are arrow-only; legacy `arrowHead`/`arrowHeadAt` remain fallbacks.
 Older 0.9.0 adapters may reject Snapshots containing the new fields.
 
-## Create and edit (MCP 0.5 / Kit 4)
+## Create and edit
 
 Use `apply_actions` for one atomic edit batch, wire, planned command or focus
 operation per call. Split create and wire phases so new pin geometry comes
@@ -170,11 +174,11 @@ File and Run resources.
    Circuit bindings and declared dependencies. It does not contain another
    structured analyses list. Ordinary Project edits own DUTs, formal ports,
    independent sources and wiring.
-3. Use `simulation_files` to read and edit source/config, or the optional
-   source-preserving helpers. Native code owns analyses, `.param`, `.temp`
-   and control. Config owns Profile/corner, output expressions, device OP,
-   measurements, value-free variable bindings, managed Run Plan and collection.
-   Output/measurement/device-OP helpers write that same config. Warnings and
+3. Use `simulation_files` to read and edit source/config. For code-authoritative
+   experiment config version 2, native code owns analyses, `save`, `meas`,
+   `write`, `.param`, `.temp` and control. Config owns environment and collection.
+   JSON output/measurement/device-OP helpers are for legacy config version 1
+   only. Inspect the actual version before choosing a helper. Warnings and
    invalid drafts remain repairable; they are not session revocations.
 4. `prepare` with
    `source:{kind:"project-folder",folderId,expectedStructureRevision}` freezes the

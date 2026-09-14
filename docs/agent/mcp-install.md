@@ -5,8 +5,9 @@ server instructions, quickstart, authoring contracts, built-in catalog, and
 recovery references are compiled into the package; an Agent does not need a
 source checkout.
 
-The editor's **Copy to Agent** handoff is the default installation path. It
-includes a one-time Claim and the public bootstrap manifest:
+The editor's **Copy to Agent** handoff prefers a compatible MCP and asks the
+Agent to install or update it when missing or incompatible. It includes a
+one-time Claim and the public bootstrap manifest:
 
     https://analog-canvas.tokenzhang.com/api/agent/mcp-manifest.json
 
@@ -46,10 +47,18 @@ editor's **Disconnect** action or the MCP `disconnect` tool revokes it.
 Closing the connection details does not disconnect it. Project replacement
 also revokes it.
 
+Check runtime requirements, package integrity and the exact target origin;
+preserve unrelated host configuration. Respect a user's refusal and host
+permission limits. Configuration success is not proof that tools are loaded:
+verify tools are callable and compatible in the current conversation.
+
 If a host cannot load a newly configured MCP process in the current
-conversation, it should ask for one restart and may continue the current task
-through `GET /api/agent/kit`. The Kit is a same-source fallback, not a second
-product protocol: it teaches the Agent to use the existing four-capability
+conversation, tell the user once that a host restart or new conversation may
+be needed; do not restart it automatically. Continue the current task through
+`GET /api/agent/kit` when installation is declined, blocked or cannot load now.
+If the Claim expires during setup, request a fresh code. The Kit is a
+same-source fallback, not a second product protocol: it teaches the Agent to
+use the existing four-capability
 HTTP API without guessing raw requests.
 
 For a deployment check, `pnpm release:verify` builds the browser release,

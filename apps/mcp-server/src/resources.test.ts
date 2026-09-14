@@ -27,6 +27,28 @@ interface ManifestResource {
  * kit — with no copied or drifting knowledge.
  */
 describe("mcp resources single-source projection", () => {
+  it("shares the native authoring and result handoff policy with HTTP Kit", () => {
+    const source = agentOperatingKit.files.find(
+      (file) => file.path === "references/authoring-contract.md",
+    )!;
+    const resource = readResourceContent("analog-canvas://reference/authoring");
+    expect(resource.text).toBe(source.content);
+    for (const contract of [
+      "place-components",
+      "set-instance-display",
+      "set-net-label",
+      "Cell terminal",
+      "project-folder",
+      "Project + results ZIP",
+      "legacy-only",
+      "Retry-After",
+      "SHA-256",
+    ])
+      expect(resource.text).toContain(contract);
+    expect(
+      readResourceContent("analog-canvas://reference/quickstart").text,
+    ).toContain("analog-canvas://reference/authoring");
+  });
   it("serves compact per-edit schemas from the canonical contract", () => {
     const resource = readResourceContent(
       "analog-canvas://contract/edits/set_instance_reference",
