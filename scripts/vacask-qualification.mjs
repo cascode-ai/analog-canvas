@@ -19,6 +19,7 @@ const { values } = parseArgs({
   options: {
     binary: { type: "string" },
     modules: { type: "string" },
+    compiler: { type: "string" },
     output: {
       type: "string",
       default: join(root, "output/vacask-qualification"),
@@ -27,7 +28,7 @@ const { values } = parseArgs({
 });
 if (!values.binary || !values.modules)
   throw new Error(
-    "Usage: node scripts/vacask-qualification.mjs --binary <vacask> --modules <module-directory> [--output <directory>]",
+    "Usage: node scripts/vacask-qualification.mjs --binary <vacask> --modules <module-directory> [--compiler <openvaf-r>] [--output <directory>]",
   );
 const binary = resolve(values.binary);
 const moduleDirectory = resolve(values.modules);
@@ -81,6 +82,7 @@ const report = {
       digest(readFileSync(join(moduleDirectory, name))),
     ]),
   ),
+  customModel: values.compiler ? "requested" : "not-requested",
   cases: [],
 };
 
@@ -218,6 +220,30 @@ const cases = [
   },
 ];
 
+if (values.compiler)
+  cases.push({
+    directory: "vacask-custom-model",
+    entry: "custom.sim",
+    files: ["custom_op.raw"],
+    modelSource: "icm_conductance.va",
+    check: ([op]) => [
+      compare(
+        "custom conductance current (A)",
+        vector(op, "V1:flow(br)"),
+        [-0.005],
+        1e-12,
+        1e-6,
+      ),
+      compare(
+        "custom conductance voltage (V)",
+        vector(op, "input"),
+        [2.5],
+        1e-9,
+        1e-6,
+      ),
+    ],
+  });
+
 for (const fixture of cases) {
   const cwd = join(output, fixture.directory);
   mkdirSync(cwd);
@@ -225,19 +251,81 @@ for (const fixture of cases) {
     join(root, "netlists", fixture.directory, fixture.entry),
   );
   writeFileSync(join(cwd, fixture.entry), source);
-  const started = performance.now();
-  const result = run(["-se", "-sp", "-qp", fixture.entry], cwd);
   const entry = {
     name: fixture.directory,
     sourceSha256: digest(source),
-    durationMs: performance.now() - started,
-    exitCode: result.status,
+    durationMs: 0,
+    exitCode: null,
     files: {},
     passed: false,
   };
-  writeFileSync(join(cwd, "stdout.log"), result.stdout ?? "");
-  writeFileSync(join(cwd, "stderr.log"), result.stderr ?? "");
   try {
+    if (fixture.modelSource) {
+      const compiler = resolve(values.compiler);
+      const model = readFileSync(
+        join(root, "netlists", fixture.directory, fixture.modelSource),
+      );
+      writeFileSync(join(cwd, fixture.modelSource), model);
+      const compilerIdentity = spawnSync(compiler, ["--version"], {
+        cwd,
+        env: environment,
+        encoding: "utf8",
+        windowsHide: true,
+        timeout: 10000,
+      });
+      if (compilerIdentity.error || compilerIdentity.status !== 0)
+        throw new Error(
+          `Compiler identity probe failed: ${compilerIdentity.error?.message ?? compilerIdentity.stderr}`,
+        );
+      const args = [
+        fixture.modelSource,
+        "--target_cpu",
+        "generic",
+        "-o",
+        "icm_conductance.osdi",
+      ];
+      const started = performance.now();
+      const compilation = spawnSync(compiler, args, {
+        cwd,
+        env: environment,
+        encoding: "utf8",
+        windowsHide: true,
+        timeout: 30000,
+        maxBuffer: 1024 * 1024,
+      });
+      entry.compilation = {
+        compilerSha256: digest(readFileSync(compiler)),
+        version: compilerIdentity.stdout,
+        modelSourceSha256: digest(model),
+        args,
+        durationMs: performance.now() - started,
+        exitCode: compilation.status,
+      };
+      writeFileSync(
+        join(cwd, "compiler.log"),
+        (compilation.stdout ?? "") + (compilation.stderr ?? ""),
+      );
+      // The Windows compiler can report a missing linker and still exit 0.
+      // Fresh-directory artifact presence and successful runtime loading are
+      // both required; neither process status nor an old output is evidence.
+      if (
+        compilation.error ||
+        compilation.status !== 0 ||
+        !existsSync(join(cwd, "icm_conductance.osdi"))
+      )
+        throw new Error(
+          `Model compilation failed: ${compilation.error?.message ?? compilation.stderr}`,
+        );
+      entry.compilation.osdiSha256 = digest(
+        readFileSync(join(cwd, "icm_conductance.osdi")),
+      );
+    }
+    const started = performance.now();
+    const result = run(["-se", "-sp", "-qp", fixture.entry], cwd);
+    entry.durationMs = performance.now() - started;
+    entry.exitCode = result.status;
+    writeFileSync(join(cwd, "stdout.log"), result.stdout ?? "");
+    writeFileSync(join(cwd, "stderr.log"), result.stderr ?? "");
     if (result.error || result.status !== 0)
       throw new Error(
         result.error?.message ?? result.stderr ?? "VACASK failed",

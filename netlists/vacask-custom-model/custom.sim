@@ -1,0 +1,16 @@
+Analog Canvas user-authored Verilog-A model qualification
+
+ground 0
+load "icm_conductance.osdi"
+model conductance icm_conductance
+model voltage vsource
+
+V1 (input 0) voltage dc=2.5
+G1 (input 0) conductance g=2m
+
+control
+  abort always
+  options rawfile="ascii" strictsave=2 reltol=1e-8 vntol=1e-10
+  save default
+  analysis custom_op op
+endc

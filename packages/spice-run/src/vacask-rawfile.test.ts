@@ -30,6 +30,11 @@ describe("native VACASK ASCII output", () => {
   it("keeps the captured output bytes, including reserved header padding", () => {
     for (const [directory, name, sha256] of [
       [
+        "vacask-custom-model",
+        "custom_op.raw",
+        "8267242c4e8f45edbca42b80dae3ffa7dcf3b0ec8bad37d172dfc0972c64d076",
+      ],
+      [
         "vacask-divider",
         "divider_op.raw",
         "dc3783912860c8a6d21bce0492c53506fdfe0147e534a3c46cf34d2640a92fc2",
@@ -70,6 +75,15 @@ describe("native VACASK ASCII output", () => {
     expect(
       op.vectors.find((v) => v.variable.name === "V1:flow(br)")!.real[0],
     ).toBeCloseTo(-0.001, 12);
+  });
+
+  it("reads measured Linux output from a freshly compiled Verilog-A model", () => {
+    const result = plot(fixture("vacask-custom-model", "custom_op.raw"));
+    expect(result.pointCount).toBe(1);
+    expect(result.vectors.map((v) => [v.variable.name, v.real])).toEqual([
+      ["V1:flow(br)", [-0.005]],
+      ["input", [2.5]],
+    ]);
   });
 
   it("reads contiguous indexed points and preserves a native OP sweep axis", () => {

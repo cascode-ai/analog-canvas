@@ -1,0 +1,13 @@
+Title: Analog Canvas user-authored Verilog-A model qualification
+Date: Mon Sep 14 17:30:36 2026
+Plotname: Operating Point
+Flags: real
+No. Variables: 2
+No. Points: 1               
+Variables:
+	0	V1:flow(br)	notype
+	1	input	notype
+Values:
+ 0	-5.000000000000000e-03
+	2.500000000000000e+00
+
