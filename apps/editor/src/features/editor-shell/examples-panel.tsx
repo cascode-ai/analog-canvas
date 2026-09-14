@@ -198,30 +198,30 @@ export function ExamplesPanel({
     return () => observer.disconnect();
   }, [open, fetcher, feed.nextCursor, selectedTags]);
 
-  const bundledPreviews = useMemo(
-    () =>
-      new Map(
-        libraryProjectExamples.map((example) => {
-          const topDocument = example.project.documents.find(
-            (candidate) => candidate.id === example.project.topDocumentId,
-          )!;
-          // A Cell instance draws with artwork derived from the Project, not
-          // from the built-in library, so the preview needs the same
-          // Project-aware resolver the canvas uses.
-          return [
-            example.id,
-            renderDocumentSvg(
-              topDocument,
-              createProjectSymbolResolver(example.project, builtInSymbols),
-            ),
-          ];
-        }),
-      ),
-    [],
-  );
-
   const { showGallery, visibleEntries, countLabel, emptyMessage } =
     deriveGalleryPanelView(feed, { searchQuery, selectedTags });
+  const previewCache = useRef<Map<string, string> | null>(null);
+  const bundledPreviews = useMemo(() => {
+    if (!open || showGallery) return new Map<string, string>();
+    if (previewCache.current) return previewCache.current;
+    return (previewCache.current = new Map(
+      libraryProjectExamples.map((example) => {
+        const topDocument = example.project.documents.find(
+          (candidate) => candidate.id === example.project.topDocumentId,
+        )!;
+        // A Cell instance draws with artwork derived from the Project, not
+        // from the built-in library, so the preview needs the same
+        // Project-aware resolver the canvas uses.
+        return [
+          example.id,
+          renderDocumentSvg(
+            topDocument,
+            createProjectSymbolResolver(example.project, builtInSymbols),
+          ),
+        ];
+      }),
+    ));
+  }, [open, showGallery]);
   const exhausted = feed.nextCursor === null;
 
   function toggleTag(tag: string): void {
