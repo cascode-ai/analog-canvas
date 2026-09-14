@@ -102,8 +102,33 @@ export interface CompiledSimulationVector {
   readonly quantity: "voltage" | "current" | "native";
 }
 
+/** Exact extracted electrical address, before a simulator spells a raw vector.
+ * Transient compilation evidence only; never persisted in the Project or inferred
+ * back from lowercased legacy result names. */
+export type CircuitAcquisitionAddress =
+  | {
+      readonly kind: "voltage";
+      readonly path: readonly string[];
+      readonly node: string;
+    }
+  | {
+      readonly kind: "current";
+      readonly path: readonly string[];
+      readonly senseReference: string;
+    };
+
+function spiceAcquisitionVector(address: CircuitAcquisitionAddress): string {
+  if (address.kind === "voltage")
+    return `v(${[...address.path, address.node].join(".").toLowerCase()})`;
+  const parts = address.path.length
+    ? ["v", ...address.path, address.senseReference]
+    : [address.senseReference];
+  return `i(${parts.join(".").toLowerCase()})`;
+}
+
 interface ResolvedSimulationProbe {
   readonly binding: CompiledSimulationVector;
+  readonly address: CircuitAcquisitionAddress;
   /** Expression passed to ngspice's `write`; it may differ from raw output. */
   readonly writeVector: string;
   /** Ephemeral Cell instrumentation required before printing the netlist. */
@@ -184,6 +209,10 @@ export type CompiledSimulation =
       readonly measurements: ReadonlyArray<SimulationMeasurementSpec>;
       /** Derived ingredients shared by source composition and offline migration. */
       readonly circuit: DesignNetlistIR;
+      /** Native emitters consume these addresses, not legacy vector strings. */
+      readonly acquisitionAddresses: Readonly<
+        Record<string, CircuitAcquisitionAddress>
+      >;
       readonly captureVectors: readonly string[];
       readonly terminalInstrumentations: readonly TerminalCurrentInstrumentation[];
       readonly commands: readonly {
@@ -446,7 +475,7 @@ function resolveOccurrence(
       );
       return null;
     }
-    path.push(reference.toLowerCase());
+    path.push(reference);
     hierarchyPath.push({
       parentDocumentId: document.id,
       instanceId,
@@ -601,13 +630,13 @@ function instrumentTerminalCurrents(
   };
 }
 
-function netVoltageNode(
+function netVoltageAddress(
   measurement: SimulationVoltageProbe,
   outputId: string,
   occurrence: ResolvedOccurrence,
   cellsById: ReadonlyMap<string, DesignNetlistCell>,
   diagnostics: NetlistDiagnostic[],
-): string | null {
+): Extract<CircuitAcquisitionAddress, { kind: "voltage" }> | null {
   const { document, cell, path, hierarchyPath } = occurrence;
   const anchor = measurement.anchor;
   const netId =
@@ -657,9 +686,10 @@ function netVoltageNode(
   // name from being derived twice and disagreeing once.
   const logicalNet =
     resolveDocumentLogicalNets(document).byBaseNetId.get(netId);
-  const netName = cell.nets.find(
+  const exportedNet = cell.nets.find(
     (net) => net.id === (logicalNet?.id ?? netId),
-  )?.name;
+  );
+  const netName = exportedNet?.name;
   if (!netName) {
     diagnostics.push(
       diagnostic(
@@ -673,14 +703,25 @@ function netVoltageNode(
     return null;
   }
   let resolvedName = netName;
+  if (netName === "0") return { kind: "voltage", path: [], node: netName };
   let depth = hierarchyPath.length;
   let resolvedCell = cell;
   while (depth > 0) {
+    if (
+      resolvedCell.nets.some(
+        (net) => net.name === resolvedName && net.scope === "global",
+      )
+    )
+      return { kind: "voltage", path: [], node: resolvedName };
     const boundaryPort = resolvedCell.ports.find(
       (port) => port.netName.toLowerCase() === resolvedName.toLowerCase(),
     );
     if (!boundaryPort)
-      return [...path.slice(0, depth), resolvedName].join(".").toLowerCase();
+      return {
+        kind: "voltage",
+        path: path.slice(0, depth),
+        node: resolvedName,
+      };
 
     const frame = hierarchyPath[depth - 1]!;
     const parentCell = cellsById.get(frame.parentDocumentId);
@@ -711,7 +752,7 @@ function netVoltageNode(
     resolvedCell = parentCell;
     depth -= 1;
   }
-  return resolvedName.toLowerCase();
+  return { kind: "voltage", path: [], node: resolvedName };
 }
 
 function terminalCurrentVector(
@@ -771,16 +812,19 @@ function terminalCurrentVector(
     terminal.pinName,
     terminalCurrentInstrumentations,
   );
-  const name = path.length
-    ? ["v", ...path, instrumentation.senseReference.toLowerCase()].join(".")
-    : instrumentation.senseReference.toLowerCase();
+  const address: CircuitAcquisitionAddress = {
+    kind: "current",
+    path: [...path],
+    senseReference: instrumentation.senseReference,
+  };
   const binding: CompiledSimulationVector = {
     probeId: acquisitionId,
-    vector: `i(${name})`,
+    vector: spiceAcquisitionVector(address),
     quantity: "current",
   };
   return {
     binding,
+    address,
     writeVector: binding.vector,
     netlistInstrumentation: instrumentation,
   };
@@ -987,8 +1031,17 @@ export function buildSimulationPlan(
         cellsById,
         diagnostics,
       );
-      return occurrence
-        ? netVoltageNode(measurement, label, occurrence, cellsById, diagnostics)
+      const address = occurrence
+        ? netVoltageAddress(
+            measurement,
+            label,
+            occurrence,
+            cellsById,
+            diagnostics,
+          )
+        : null;
+      return address
+        ? [...address.path, address.node].join(".").toLowerCase()
         : null;
     };
     const positive = resolveNoiseNode(item.output.positive, "positive");
@@ -1011,6 +1064,8 @@ export function buildSimulationPlan(
     });
   }
   const vectors: CompiledSimulationVector[] = [];
+  const acquisitionAddresses: Record<string, CircuitAcquisitionAddress> =
+    Object.create(null);
   const vectorByIdentity = new Map<
     string,
     { vector: CompiledSimulationVector; writeVector: string }
@@ -1052,24 +1107,25 @@ export function buildSimulationPlan(
             : `${ownerId}:input:${leafIndex++}`;
         let resolved: ResolvedSimulationProbe | null;
         if (expression.kind === "voltage") {
-          const node = netVoltageNode(
+          const address = netVoltageAddress(
             expression,
             ownerId,
             occurrence,
             cellsById,
             diagnostics,
           );
-          if (!node) return null;
+          if (!address) return null;
           // Ground is a SPICE constant, not a writable rawfile vector.
           // Folding it here also keeps every derived expression independent of
           // simulator-specific attempts to expose `v(0)`.
-          if (node === "0") return { kind: "constant", value: 0, unit: "V" };
+          if (address.path.length === 0 && address.node === "0")
+            return { kind: "constant", value: 0, unit: "V" };
           const binding: CompiledSimulationVector = {
             probeId: candidateId,
-            vector: `v(${node})`,
+            vector: spiceAcquisitionVector(address),
             quantity: "voltage",
           };
-          resolved = { binding, writeVector: binding.vector };
+          resolved = { binding, address, writeVector: binding.vector };
         } else {
           resolved = terminalCurrentVector(
             expression,
@@ -1081,7 +1137,7 @@ export function buildSimulationPlan(
           );
         }
         if (!resolved) return null;
-        const identity = `${resolved.binding.quantity}\u0000${resolved.binding.vector}`;
+        const identity = JSON.stringify(resolved.address);
         const existing = vectorByIdentity.get(identity);
         const acquisition = existing?.vector ?? resolved.binding;
         if (!existing) {
@@ -1090,6 +1146,7 @@ export function buildSimulationPlan(
             writeVector: resolved.writeVector,
           });
           vectors.push(acquisition);
+          acquisitionAddresses[acquisition.probeId] = resolved.address;
           writeVectors.push(resolved.writeVector);
           if (resolved.netlistInstrumentation) {
             const instrumentation = resolved.netlistInstrumentation;
@@ -1359,6 +1416,7 @@ export function buildSimulationPlan(
     deviceOperatingPoints,
     measurements: structuredClone(input.measurements ?? []),
     circuit: instrumentedIr,
+    acquisitionAddresses,
     captureVectors: written,
     terminalInstrumentations: [...terminalCurrentInstrumentations.values()],
     commands: analysisCommands,
