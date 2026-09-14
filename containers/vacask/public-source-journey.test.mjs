@@ -19,6 +19,8 @@ import {
   readVacaskSimulationData,
 } from "../../packages/spice-run/src/index.js";
 import { collectVacaskRawfiles } from "./rawfile-collector.mjs";
+import { runVacaskProcess } from "./run-process.mjs";
+import { SimulationRunSupervisor } from "../ngspice/run-supervisor.mjs";
 import { createSimulationStarter } from "../../packages/netlist/src/simulation-starter.js";
 import { compileSourceSimulation } from "../../packages/netlist/src/simulation-source-compile.js";
 import { nativeVoltageAcquisition } from "../../packages/netlist/src/simulation-native-voltage.js";
@@ -318,118 +320,113 @@ RL (N 0) load r=1k
         .update(await readFile(binary))
         .digest("hex");
       let submitted;
+      const supervisor = new SimulationRunSupervisor();
       // Test execution adapter: actual native process, not a mock of the compiler,
       // Prepare, service or numeric reader. This does NOT qualify a hosted harness.
       const executor = {
         capabilities: async () => caps,
         cancel: vi.fn(),
         execute: vi.fn(async (input) => {
-          submitted = structuredClone(input);
-          expect(input.language).toBe("vacask");
-          expect(input.collection).toEqual({ kind: "native-multi-ascii" });
-          const root = await mkdtemp(join(tmpdir(), "icm-native-public-"));
-          roots.push(root);
-          for (const file of input.files) {
-            await mkdir(dirname(join(root, file.path)), { recursive: true });
-            await writeFile(join(root, file.path), file.text);
-          }
-          const startup = "# public native journey controlled configuration\n";
-          await writeFile(join(root, "vacaskrc.toml"), startup);
-          const started = performance.now();
-          const execution = spawnSync(
-            binary,
-            [
-              "--tomlfile",
-              join(root, "vacaskrc.toml"),
-              "-n",
-              "1",
-              "-b",
-              "1",
-              input.entryPath,
-            ],
-            {
-              cwd: root,
-              encoding: "utf8",
-              timeout: 15_000,
-              maxBuffer: 1_048_576,
-              windowsHide: true,
-              env: {
-                ...Object.fromEntries(
-                  [
-                    "PATH",
-                    "SystemRoot",
-                    "WINDIR",
-                    "TEMP",
-                    "TMP",
-                    "LD_LIBRARY_PATH",
-                  ].flatMap((key) =>
-                    process.env[key] ? [[key, process.env[key]]] : [],
-                  ),
-                ),
-                SIM_MODULE_PATH: modules,
-                OMP_NUM_THREADS: "1",
-                OPENBLAS_NUM_THREADS: "1",
-                LC_ALL: "C",
-              },
+          const admitted = await supervisor.tryExecute(
+            { timeoutMs: 15_000 },
+            async (lease) => {
+              submitted = structuredClone(input);
+              expect(input.language).toBe("vacask");
+              expect(input.collection).toEqual({ kind: "native-multi-ascii" });
+              const root = await mkdtemp(join(tmpdir(), "icm-native-public-"));
+              roots.push(root);
+              try {
+                for (const file of input.files) {
+                  await mkdir(dirname(join(root, file.path)), {
+                    recursive: true,
+                  });
+                  await writeFile(join(root, file.path), file.text);
+                }
+                const startup =
+                  "# public native journey controlled configuration\n";
+                await writeFile(join(root, "vacaskrc.toml"), startup);
+                const started = performance.now();
+                const execution = await runVacaskProcess(
+                  { binary, modules, startupPath: join(root, "vacaskrc.toml") },
+                  root,
+                  input.entryPath,
+                  lease,
+                  1_048_576,
+                );
+                if (execution.spawnError || execution.exitCode !== 0)
+                  throw Error(
+                    `${execution.spawnError ?? ""}\n${execution.stdout}\n${execution.stderr}`,
+                  );
+                lease.phase("collecting");
+                const collected = await collectVacaskRawfiles(root, {
+                  inputPaths: [
+                    ...input.files.map((f) => f.path),
+                    "vacaskrc.toml",
+                  ],
+                  maxBytes: caps.maxOutputBytes,
+                  maxFiles: 64,
+                  maxEntries: 4096,
+                });
+                expect(collected.diagnostics).toEqual([]);
+                const plan = inspectNativeAnalyses({
+                  kind: "source",
+                  entry: input.entryPath,
+                  configPath: "experiment.json",
+                  files: input.files,
+                  dependencies: input.dependencies,
+                  circuitBindings: [],
+                });
+                expect(plan.warnings).toEqual([]);
+                const reading = readVacaskSimulationData(
+                  collected.rawfiles,
+                  plan.projections,
+                );
+                if (reading.status !== "read")
+                  throw Error(JSON.stringify(reading));
+                return {
+                  result: {
+                    outcome: { status: "completed" },
+                    diagnostics: reading.diagnostics,
+                    log: execution.stdout + execution.stderr,
+                    durationMs: performance.now() - started,
+                    data: reading.data,
+                    metadata: {
+                      schemaVersion: 1,
+                      input: await createSimulationInputMetadata({
+                        inputRevision: input.inputRevision,
+                        netlist: input.netlist,
+                        testbench: input.testbench,
+                        deck: input.preparedDeck,
+                      }),
+                      configuration: { modelLibrary: null },
+                      environment: await createSimulationEnvironmentMetadata({
+                        executor: "local-host",
+                        reproducibility: "observed",
+                        profileId: "local-proof",
+                        platform: `${process.platform}/${process.arch}`,
+                        simulator: {
+                          name: "vacask",
+                          version: "0.3.4",
+                          binarySha256,
+                        },
+                        models: null,
+                        startupSha256: createHash("sha256")
+                          .update(startup)
+                          .digest("hex"),
+                      }),
+                    },
+                  },
+                  rawfiles: collected.rawfiles,
+                  executedFiles: input.files,
+                };
+              } finally {
+                lease.phase("cleaning");
+                await rm(root, { recursive: true, force: true });
+              }
             },
           );
-          if (execution.error || execution.status !== 0)
-            throw Error(
-              `${execution.error ?? ""}\n${execution.stdout}\n${execution.stderr}`,
-            );
-          const collected = await collectVacaskRawfiles(root, {
-            inputPaths: [...input.files.map((f) => f.path), "vacaskrc.toml"],
-            maxBytes: caps.maxOutputBytes,
-            maxFiles: 64,
-            maxEntries: 4096,
-          });
-          expect(collected.diagnostics).toEqual([]);
-          const plan = inspectNativeAnalyses({
-            kind: "source",
-            entry: input.entryPath,
-            configPath: "experiment.json",
-            files: input.files,
-            dependencies: input.dependencies,
-            circuitBindings: [],
-          });
-          expect(plan.warnings).toEqual([]);
-          const reading = readVacaskSimulationData(
-            collected.rawfiles,
-            plan.projections,
-          );
-          if (reading.status !== "read") throw Error(JSON.stringify(reading));
-          return {
-            result: {
-              outcome: { status: "completed" },
-              diagnostics: reading.diagnostics,
-              log: execution.stdout + execution.stderr,
-              durationMs: performance.now() - started,
-              data: reading.data,
-              metadata: {
-                schemaVersion: 1,
-                input: await createSimulationInputMetadata({
-                  inputRevision: input.inputRevision,
-                  netlist: input.netlist,
-                  testbench: input.testbench,
-                  deck: input.preparedDeck,
-                }),
-                configuration: { modelLibrary: null },
-                environment: await createSimulationEnvironmentMetadata({
-                  executor: "local-host",
-                  reproducibility: "observed",
-                  profileId: "local-proof",
-                  platform: `${process.platform}/${process.arch}`,
-                  simulator: { name: "vacask", version: "0.3.4", binarySha256 },
-                  models: null,
-                  startupSha256: createHash("sha256")
-                    .update(startup)
-                    .digest("hex"),
-                }),
-              },
-            },
-            rawfiles: collected.rawfiles,
-            executedFiles: input.files,
-          };
+          expect(admitted.kind).toBe("completed");
+          return admitted.value;
         }),
       };
       const service = new SimulationService(files, executor, () => project);
