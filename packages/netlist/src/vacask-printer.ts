@@ -149,12 +149,39 @@ export function printVacaskWithLocations(
   const instances: PrintedNetlistInstance[] = [];
   const parameters: PrintedNetlistParameter[] = [];
   const cellsById = new Map(ir.cells.map((cell) => [cell.id, cell]));
+  const cellsByName = new Map(ir.cells.map((cell) => [cell.name, cell]));
   const mastersByName = new Map(
     [...ir.cells, ...(ir.externalMasters ?? [])].map((master) => [
       master.name,
       master,
     ]),
   );
+  // Only generated definitions with an actual IR multiplicity call acquire
+  // forwarding. Do not claim an arbitrary external wrapper forwards a factor
+  // merely because it happens to declare a parameter named m.
+  const multipliedCells = new Set<string>();
+  const pending = ir.cells.flatMap((cell) =>
+    cell.instances.flatMap((instance) =>
+      instance.invocationKind === "subcircuit" &&
+      instance.parameters.some((p) => p.name.toLowerCase() === "m") &&
+      instance.target &&
+      cellsByName.has(instance.target)
+        ? [instance.target]
+        : [],
+    ),
+  );
+  for (let index = 0; index < pending.length; index++) {
+    const cell = cellsByName.get(pending[index]!)!;
+    if (multipliedCells.has(cell.id)) continue;
+    multipliedCells.add(cell.id);
+    for (const instance of cell.instances)
+      if (
+        instance.invocationKind === "subcircuit" &&
+        instance.target &&
+        cellsByName.has(instance.target)
+      )
+        pending.push(instance.target);
+  }
   let text = "// Generated native VACASK circuit\n";
   const append = (line: string) => {
     text += `${line}\n`;
@@ -223,6 +250,7 @@ export function printVacaskWithLocations(
     const localSpans: PrintedNetlistParameter[] = [];
     const assigned = new Set<string>();
     const scope = cellsById.get(cellId)!;
+    const inheritedMultiplicity = multipliedCells.has(cellId);
     const parameterNames = new Map(
       (scope.formalParameters ?? []).map((p) => [p.name.toLowerCase(), p.name]),
     );
@@ -261,20 +289,11 @@ export function printVacaskWithLocations(
       const targetParameters =
         mastersByName.get(card.target)?.formalParameters ?? [];
       for (const p of card.parameters) {
-        if (
-          p.name.toLowerCase() === "m" &&
-          card.invocationKind === "subcircuit"
-        )
-          throw new ProjectionError(
-            "VACASK_UNMAPPED_SUBCIRCUIT_MULTIPLICITY",
-            `${card.reference}: subcircuit m needs an explicit native multiplicity contract; it is not an ordinary parameter rename.`,
-          );
+        if (p.name.toLowerCase() === "m") continue;
         assignment(
-          p.name.toLowerCase() === "m"
-            ? "$mfactor"
-            : (targetParameters.find(
-                (f) => f.name.toLowerCase() === p.name.toLowerCase(),
-              )?.name ?? p.name),
+          targetParameters.find(
+            (f) => f.name.toLowerCase() === p.name.toLowerCase(),
+          )?.name ?? p.name,
           p.rawValue,
           p.name,
         );
@@ -333,11 +352,8 @@ export function printVacaskWithLocations(
           );
         }
         for (const p of source.extraParameters)
-          assignment(
-            p.name.toLowerCase() === "m" ? "$mfactor" : p.name,
-            p.rawValue,
-            p.name,
-          );
+          if (p.name.toLowerCase() !== "m")
+            assignment(p.name, p.rawValue, p.name);
       } else {
         const definition =
           PRIMITIVES[card.deviceClass as "resistor" | "capacitor" | "inductor"];
@@ -351,13 +367,52 @@ export function printVacaskWithLocations(
           );
         assignment(definition.value, value.rawValue, value.name);
         for (const p of card.parameters)
-          if (p !== value)
-            assignment(
-              p.name.toLowerCase() === "m" ? "$mfactor" : p.name,
-              p.rawValue,
-              p.name,
-            );
+          if (p !== value && p.name.toLowerCase() !== "m")
+            assignment(p.name, p.rawValue, p.name);
       }
+    }
+    const factors = card.parameters.filter((p) => p.name.toLowerCase() === "m");
+    if (
+      factors.length > 1 ||
+      (assigned.has("$mfactor") && (factors.length || inheritedMultiplicity))
+    )
+      throw new ProjectionError(
+        "VACASK_DUPLICATE_PARAMETER",
+        `${card.reference} has two projections for native parameter $mfactor.`,
+      );
+    const factor = factors[0];
+    // Parallel ideal voltage sources must not divide reported branch current
+    // by an inherited factor. Their imposed voltage is already unchanged.
+    const inherit =
+      inheritedMultiplicity &&
+      !(
+        card.invocationKind === "primitive" &&
+        card.deviceClass === "voltage-source"
+      );
+    if (factor || inherit) {
+      if (
+        card.invocationKind === "subcircuit" &&
+        !cellsByName.has(card.target!)
+      )
+        throw new ProjectionError(
+          "VACASK_UNMAPPED_SUBCIRCUIT_MULTIPLICITY",
+          `${card.reference}: external subcircuit multiplicity needs a qualified native forwarding contract.`,
+        );
+      line += " $mfactor=";
+      if (factor) {
+        const value = vacaskProjectValue(factor.rawValue, parameterNames);
+        if (inherit) line += "($mfactor*";
+        localSpans.push({
+          documentId: cellId,
+          instanceId: card.id,
+          parameter: factor.name,
+          rawValue: value,
+          startOffset: start + line.length,
+          endOffset: start + line.length + value.length,
+        });
+        line += value;
+        if (inherit) line += ")";
+      } else line += "$mfactor";
     }
     append(line);
     instances.push({
@@ -379,6 +434,18 @@ export function printVacaskWithLocations(
         append(
           `subckt ${vacaskIdentifier(cell.name)} (${cell.ports.map((p) => vacaskIdentifier(p.netName)).join(" ")})`,
         );
+      if (multipliedCells.has(cell.id)) {
+        if (
+          cell.formalParameters?.some((p) =>
+            ["m", "$mfactor"].includes(p.name.toLowerCase()),
+          )
+        )
+          throw new ProjectionError(
+            "VACASK_MULTIPLICITY_PARAMETER_CONFLICT",
+            `Cell ${cell.name} declares a parameter that conflicts with generated multiplicity forwarding.`,
+          );
+        append("parameters $mfactor=1");
+      }
       for (const p of cell.formalParameters ?? []) {
         if (p.defaultValue === undefined)
           throw new ProjectionError(

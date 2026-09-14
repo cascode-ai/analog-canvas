@@ -43,6 +43,56 @@ function printed(ir: DesignNetlistIR, top = true) {
   return result;
 }
 
+function multipliedDesign(): DesignNetlistIR {
+  const ir = design(
+    [1, 2, 3].flatMap((n) => [
+      card(`VM${n}`, "voltage-source", { dc: "1" }, [`supply${n}`, "0"]),
+      {
+        ...card(
+          `XM${n}`,
+          "hierarchical",
+          n === 3 ? {} : { m: n === 1 ? "2" : "5" },
+          [`supply${n}`, "0"],
+        ),
+        invocationKind: "subcircuit" as const,
+        target: "outer",
+      },
+    ]),
+  );
+  const ports = [
+    { id: "p", name: "p", netName: "p" },
+    { id: "n", name: "n", netName: "n" },
+  ];
+  ir.cells.push(
+    {
+      id: "outer",
+      name: "outer",
+      ports,
+      nets: [],
+      instances: [
+        {
+          ...card("XL", "hierarchical", { m: "3" }, ["p", "n"]),
+          invocationKind: "subcircuit",
+          target: "leaf",
+        },
+      ],
+    },
+    {
+      id: "leaf",
+      name: "leaf",
+      ports,
+      nets: [],
+      instances: [
+        card("R", "resistor", { value: "1k", m: "4" }, ["p", "n"]),
+        card("I", "current-source", { dc: "1m" }, ["p", "n"]),
+        card("VL", "voltage-source", { dc: "2" }, ["local", "n"]),
+        card("RL", "resistor", { value: "1k", m: "4" }, ["local", "n"]),
+      ],
+    },
+  );
+  return ir;
+}
+
 describe("native VACASK circuit projection", () => {
   it("uses native calls with dimensional numeric values, not copied SPICE suffixes", () => {
     const result = printed(
@@ -245,6 +295,62 @@ describe("native VACASK circuit projection", () => {
     );
   });
 
+  it("forwards and multiplies owned nested Cell factors without duplicating source spans", () => {
+    const result = printed(multipliedDesign());
+    expect(result.text).toContain("subckt outer (p n)\nparameters $mfactor=1");
+    expect(result.text).toContain("subckt leaf (p n)\nparameters $mfactor=1");
+    expect(result.text).toContain("XM1 (supply1 0) outer $mfactor=2");
+    expect(result.text).toContain("XL (p n) leaf $mfactor=($mfactor*3)");
+    expect(result.text).toContain(
+      "R (p n) __icm_resistor r=1000 $mfactor=($mfactor*4)",
+    );
+    expect(result.text).toContain(
+      'I (p n) __icm_isource type="dc" dc=0.001 $mfactor=$mfactor',
+    );
+    expect(result.text).toContain(
+      'VL (local n) __icm_vsource type="dc" dc=2\n',
+    );
+    const span = result.parameters.find(
+      (p) => p.instanceId === "XL" && p.parameter === "m",
+    )!;
+    // A mapped edit replaces only this instance's factor, not the forwarding.
+    expect(result.text.slice(span.startOffset, span.endOffset)).toBe("3");
+    expect(span.rawValue).toBe("3");
+    expect(
+      result.parameters.some(
+        (p) => p.instanceId === "I" && p.parameter === "$mfactor",
+      ),
+    ).toBe(false);
+  });
+
+  it("reports an external wrapper reached through multiplied hierarchy", () => {
+    const ir = multipliedDesign();
+    ir.cells
+      .find((c) => c.id === "leaf")!
+      .instances.push({
+        ...card("XPDK", "mos", {}, ["p", "p", "n", "n"]),
+        invocationKind: "subcircuit",
+        target: "unqualified_native_wrapper",
+      });
+    const result = printVacaskWithLocations(ir, true);
+    expect(!result.ok && result.diagnostics[0]).toMatchObject({
+      code: "VACASK_UNMAPPED_SUBCIRCUIT_MULTIPLICITY",
+      documentId: "leaf",
+      objectIds: ["XPDK"],
+    });
+  });
+
+  it("does not overwrite an ordinary formal parameter with forwarding", () => {
+    const ir = multipliedDesign();
+    ir.cells.find((c) => c.id === "outer")!.formalParameters = [
+      { name: "m", defaultValue: "1" },
+    ];
+    const result = printVacaskWithLocations(ir);
+    expect(!result.ok && result.diagnostics[0]?.code).toBe(
+      "VACASK_MULTIPLICITY_PARAMETER_CONFLICT",
+    );
+  });
+
   it("rejects two source fields that would assign the same native parameter", () => {
     const result = printVacaskWithLocations(
       design([
@@ -289,7 +395,7 @@ describe("project scalar semantics at the VACASK boundary", () => {
 // Opt-in real-kernel evidence. Ordinary unit CI does not pretend to qualify a
 // missing simulator. Set both variables to a pinned VACASK installation.
 it.skipIf(!process.env.VACASK_BIN || !process.env.VACASK_MODULES)(
-  "executes printer-generated hierarchy and waveform sources in native VACASK",
+  "executes printer-generated hierarchy, multiplicity and waveform sources in native VACASK",
   () => {
     const ir = design([
       card("V1", "voltage-source", { dc: "3" }),
@@ -337,6 +443,9 @@ it.skipIf(!process.env.VACASK_BIN || !process.env.VACASK_MODULES)(
         card("R2", "resistor", { value: "2k" }, ["out-", "0"]),
       ],
     });
+    const multiplied = multipliedDesign();
+    ir.cells[0]!.instances.push(...multiplied.cells[0]!.instances);
+    ir.cells.push(...multiplied.cells.slice(1));
     const source =
       printed(ir).text +
       '\ncontrol\n abort always\n options rawfile="ascii" strictsave=2\n save default\n analysis op1 op\n analysis ac1 ac from=1k to=1k mode="lin" points=1\n analysis tran1 tran stop=2m step=20u maxstep=20u\nendc\n';
@@ -380,6 +489,22 @@ it.skipIf(!process.env.VACASK_BIN || !process.env.VACASK_MODULES)(
     expect(v(op, "X2out").real[0]).toBeCloseTo(1.5, 9);
     expect(v(op, "sine").real[0]).toBeCloseTo(2, 9);
     expect(v(op, "logvalue").real[0]).toBeCloseTo(Math.log(100), 9);
+    for (const [n, multiplier] of [
+      [1, 2],
+      [2, 5],
+      [3, 1],
+    ]) {
+      expect(v(op, `VM${n}:flow(br)`).real[0]).toBeCloseTo(
+        -multiplier! * 3 * (4 / 1000 + 0.001),
+        10,
+      );
+      // The internal ideal voltage source reports total load current, not
+      // a per-replica current divided by the inherited factor.
+      expect(v(op, `XM${n}:XL:VL:flow(br)`).real[0]).toBeCloseTo(
+        (-multiplier! * 3 * 4 * 2) / 1000,
+        10,
+      );
+    }
     expect(v(ac, "sine").real[0]).toBeCloseTo(0, 9);
     expect(v(ac, "sine").imag![0]).toBeCloseTo(1, 9);
     v(tran, "time").real.forEach((time, index) => {
