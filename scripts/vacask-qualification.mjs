@@ -11,6 +11,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { parseVacaskRawfile } from "../packages/spice-run/dist/vacask-rawfile.js";
+import { vacaskProcessFailure } from "./lib/vacask-process-failure.mjs";
 
 // Local, trusted analytical fixtures only. This is not the hosted executor,
 // a foundry qualification, or an alternate product run/receipt protocol.
@@ -66,7 +67,7 @@ const run = (args, cwd) =>
 const identity = run(["-h"], output);
 if (identity.error || identity.status !== 0)
   throw new Error(
-    `VACASK identity probe failed: ${identity.error?.message ?? identity.stderr}`,
+    `VACASK identity probe failed: ${vacaskProcessFailure(identity)}`,
   );
 const report = {
   scope: "local analytical qualification only; not a hosted SKY130 Profile",
@@ -275,7 +276,7 @@ for (const fixture of cases) {
       });
       if (compilerIdentity.error || compilerIdentity.status !== 0)
         throw new Error(
-          `Compiler identity probe failed: ${compilerIdentity.error?.message ?? compilerIdentity.stderr}`,
+          `Compiler identity probe failed: ${vacaskProcessFailure(compilerIdentity)}`,
         );
       const args = [
         fixture.modelSource,
@@ -314,7 +315,7 @@ for (const fixture of cases) {
         !existsSync(join(cwd, "icm_conductance.osdi"))
       )
         throw new Error(
-          `Model compilation failed: ${compilation.error?.message ?? compilation.stderr}`,
+          `Model compilation failed: ${vacaskProcessFailure(compilation)}`,
         );
       entry.compilation.osdiSha256 = digest(
         readFileSync(join(cwd, "icm_conductance.osdi")),
@@ -327,9 +328,7 @@ for (const fixture of cases) {
     writeFileSync(join(cwd, "stdout.log"), result.stdout ?? "");
     writeFileSync(join(cwd, "stderr.log"), result.stderr ?? "");
     if (result.error || result.status !== 0)
-      throw new Error(
-        result.error?.message ?? result.stderr ?? "VACASK failed",
-      );
+      throw new Error(`VACASK failed: ${vacaskProcessFailure(result)}`);
     const plots = fixture.files.map((name) => {
       const path = join(cwd, name);
       if (!existsSync(path))
