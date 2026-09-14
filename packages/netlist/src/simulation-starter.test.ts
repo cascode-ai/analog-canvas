@@ -2,10 +2,10 @@ import { describe, it, expect } from "vitest";
 import { parseProject } from "@icm/project-protocol";
 import ota from "../../../apps/editor/src/examples/five-transistor-ota-sky130.icproj.json";
 import { createSimulationStarter } from "./simulation-starter.js";
-import { generateCircuitSource } from "./simulation-circuit-source.js";
-import { inspectSimulationSourceGraph } from "./simulation-source-graph.js";
+import { compileSourceSimulation } from "./simulation-source-compile.js";
+import { inspectVacaskSourceGraph } from "./vacask-source.js";
 import { analyzeDesignNetlist } from "./extract.js";
-import { listAuthoredCircuitScopes } from "./simulation-source-scopes.js";
+import { vacaskCircuitScopes } from "./vacask-source-scopes.js";
 
 const project = parseProject(JSON.stringify(ota));
 const options = {
@@ -26,7 +26,9 @@ describe("simulation starting points", () => {
       if (!result.ok) throw new Error(result.message);
       expect(
         result.folder.input.files.find((f) => f.path === "run.cir")!.text,
-      ).toContain("ac dec 20 1 1G");
+      ).toContain('analysis ac ac from=1 to=1G mode="dec" points=20');
+      const compiled = compileSourceSimulation(project, result.folder);
+      expect(compiled.ok, JSON.stringify(compiled)).toBe(true);
     },
   );
   it("preserves a drawn top-level circuit and allows text without any Canvas binding", () => {
@@ -58,16 +60,16 @@ describe("simulation starting points", () => {
     if (!result.ok) return;
     const binding = result.folder.input.circuitBindings[0]!;
     expect(binding.emission).toBe("subcircuit");
-    expect(generateCircuitSource(project, binding).ok).toBe(true);
+    expect(compileSourceSimulation(project, result.folder).ok).toBe(true);
     const ir = analyzeDesignNetlist(project, {
       format: "spice",
       rootDocumentId: options.documentId,
     }).ir!;
-    const scopes = listAuthoredCircuitScopes(
-      inspectSimulationSourceGraph(result.folder.input),
+    const scopes = vacaskCircuitScopes(
+      inspectVacaskSourceGraph(result.folder.input),
       binding,
       ir,
-    );
+    ).list();
     expect(scopes).toEqual([{ bindingId: "circuit", callPath: ["XDUT"] }]);
     expect(JSON.stringify(project)).toBe(before);
   });

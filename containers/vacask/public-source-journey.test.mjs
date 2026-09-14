@@ -19,6 +19,8 @@ import {
   readVacaskSimulationData,
 } from "../../packages/spice-run/src/index.js";
 import { collectVacaskRawfiles } from "./rawfile-collector.mjs";
+import { createSimulationStarter } from "../../packages/netlist/src/simulation-starter.js";
+import { compileSourceSimulation } from "../../packages/netlist/src/simulation-source-compile.js";
 
 const roots = [];
 afterEach(async () => {
@@ -136,6 +138,95 @@ function requireReply(reply, key) {
 }
 
 describe("native public compilation and result service", () => {
+  it
+    .skipIf(!process.env.VACASK_BIN || !process.env.VACASK_MODULES)
+    .each(["op", "ac", "tran"])(
+    "runs the actual %s DUT starter after only adding user sources/loads",
+    async (template) => {
+      const project = fixture();
+      const before = structuredClone(project);
+      const started = createSimulationStarter(project, {
+        id: "starter",
+        name: "Native starter",
+        profileId: "local-proof",
+        documentId: "dut",
+        mode: "dut",
+        template,
+      });
+      if (!started.ok) throw Error(started.message);
+      const folder = started.folder;
+      // This is the user's TB editing step. The generated DUT, entry, control
+      // template and interface call remain exactly as the product created them.
+      folder.input.files.find((f) => f.path === "testbench.spice").text += `
+model voltage vsource
+model load resistor
+V1 (P 0) voltage dc=1 mag=1
+RL (N 0) load r=1k
+`;
+      const saved = structuredClone(folder);
+      const compiled = compileSourceSimulation(project, folder);
+      if (!compiled.ok) throw Error(JSON.stringify(compiled.diagnostics));
+      const cwd = await mkdtemp(join(tmpdir(), "icm-native-starter-"));
+      roots.push(cwd);
+      for (const file of compiled.files) {
+        await mkdir(dirname(join(cwd, file.path)), { recursive: true });
+        await writeFile(join(cwd, file.path), file.text);
+      }
+      const startup = join(cwd, "startup.toml");
+      await writeFile(startup, "# controlled native starter proof\n");
+      const run = spawnSync(
+        resolve(process.env.VACASK_BIN),
+        ["--tomlfile", startup, "-n", "1", "-b", "1", compiled.entry],
+        {
+          cwd,
+          encoding: "utf8",
+          windowsHide: true,
+          timeout: 15_000,
+          env: {
+            ...process.env,
+            SIM_MODULE_PATH: resolve(process.env.VACASK_MODULES),
+          },
+        },
+      );
+      expect(run.error).toBeUndefined();
+      expect(run.status, `${run.stdout}\n${run.stderr}`).toBe(0);
+      const collected = await collectVacaskRawfiles(cwd, {
+        inputPaths: compiled.files.map((f) => f.path),
+        maxBytes: 1_048_576,
+        maxFiles: 8,
+        maxEntries: 32,
+      });
+      expect(collected.truncated).toBe(false);
+      const analysis = inspectNativeAnalyses({
+        ...folder.input,
+        files: compiled.files,
+        circuitBindings: [],
+      });
+      const data = readVacaskSimulationData(
+        collected.rawfiles,
+        analysis.projections,
+      );
+      expect(data.status, JSON.stringify(data)).toBe("read");
+      if (data.status !== "read") return;
+      // Check raw numerical evidence as well as template syntax. All three
+      // analyses of this purely resistive divider must produce N=0.5.
+      const plot = data.data.analyses.find((p) => p.analysis === template);
+      expect(plot, JSON.stringify(data)).toBeDefined();
+      const probe = plot.probes.find((p) => p.name === "N");
+      expect(probe).toBeDefined();
+      if (template === "op") expect(probe.value).toBeCloseTo(0.5, 10);
+      else {
+        const values = template === "ac" ? probe.real : probe.value;
+        expect(values.length).toBeGreaterThan(1);
+        for (const value of values) expect(value).toBeCloseTo(0.5, 10);
+        if (template === "ac")
+          for (const value of probe.imag) expect(value).toBeCloseTo(0, 10);
+      }
+      expect(folder).toEqual(saved);
+      expect(project).toEqual(before);
+    },
+  );
+
   it("prepares native source and Canvas signal addresses without executing or changing the Project", async () => {
     const project = fixture();
     const before = structuredClone(project);

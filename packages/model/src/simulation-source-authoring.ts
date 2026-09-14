@@ -16,6 +16,15 @@ export function createSimulationFolder(options: {
   /** Supplied from the canonical netlist interface when authoring a textual TB. */
   dut?: { name: string; ports: string[] };
 }): ProjectSimulationFolder {
+  // Always-quoted interface identifiers preserve exact case and punctuation.
+  // These are names, not source snippets; never interpolate new statements.
+  const identifier = (name: string) => {
+    if (!name || /\s/u.test(name))
+      throw new Error(
+        "A native DUT identifier must be non-empty and contain no whitespace",
+      );
+    return `'${name.replaceAll("'", "''")}'`;
+  };
   const config = NativeSimulationExperimentConfigSchema.parse({
     version: 2,
     environment: { profileId: options.profileId },
@@ -26,6 +35,8 @@ export function createSimulationFolder(options: {
     version: 4,
     input: {
       kind: "source",
+      // Virtual filenames remain stable for the workspace/API. Syntax is native
+      // VACASK regardless of extension; it is never selected by the filename.
       entry: "run.cir",
       configPath: "experiment.json",
       files: [
@@ -34,11 +45,11 @@ export function createSimulationFolder(options: {
               {
                 path: "testbench.spice",
                 text: [
-                  "* Text Testbench — add your sources and loads here.",
-                  `* DUT port order: ${options.dut.ports.join(" ")}`,
+                  "// Text Testbench — add your sources and loads here.",
+                  `// DUT port order: ${options.dut.ports.map(identifier).join(" ")}`,
                   options.dut.ports.length
-                    ? `XDUT ${[...options.dut.ports, options.dut.name].join(" ")}`
-                    : "* This Cell has no formal ports. Add its interface and DUT call here, or run the Cell directly.",
+                    ? `XDUT (${options.dut.ports.map(identifier).join(" ")}) ${identifier(options.dut.name)}`
+                    : "// This Cell has no formal ports. Add its interface and DUT call here, or run the Cell directly.",
                   "",
                 ].join("\n"),
               },
@@ -47,29 +58,28 @@ export function createSimulationFolder(options: {
         {
           path: "run.cir",
           text: [
-            `* ${options.name.replace(/[\r\n]/gu, " ")}`,
+            options.name.replace(/[\r\n]/gu, " "),
             options.dut
-              ? "* 1. Complete sources, loads and DUT connections in testbench.spice."
+              ? "// 1. Complete sources, loads and DUT connections in testbench.spice."
               : options.documentId
-                ? "* 1. Check Canvas sources and model dependencies; set the analysis below."
-                : "* 1. Add your circuit, sources and model includes above .control.",
-            "* 2. Click Run.",
+                ? "// 1. Check Canvas sources and model dependencies; set the analysis below."
+                : "// 1. Add your circuit, sources and model includes above control.",
+            "// 2. Click Run.",
             options.template === "ac" || options.template === "tran"
-              ? "* 3. Open Plot for waveforms; use Console to inspect errors."
-              : "* 3. Open Operating Point for bias values; use Console to inspect errors.",
-            ...(options.documentId ? ['.include "circuit.spice"'] : []),
-            ...(options.dut ? ['.include "testbench.spice"'] : []),
-            ".control",
-            "set filetype=ascii",
-            "set appendwrite",
+              ? "// 3. Open Plot for waveforms; use Console to inspect errors."
+              : "// 3. Open Operating Point for bias values; use Console to inspect errors.",
+            "ground 0",
+            ...(options.documentId ? ['include "circuit.spice"'] : []),
+            ...(options.dut ? ['include "testbench.spice"'] : []),
+            "control",
+            'options rawfile="ascii" strictsave=2',
+            "save default",
             options.template === "ac"
-              ? "ac dec 20 1 1G"
+              ? 'analysis ac ac from=1 to=1G mode="dec" points=20'
               : options.template === "tran"
-                ? "tran 1n 1u"
-                : "op",
-            "write out.raw",
-            ".endc",
-            ".end",
+                ? "analysis tran tran step=1n stop=1u"
+                : "analysis op op",
+            "endc",
             "",
           ].join("\n"),
         },

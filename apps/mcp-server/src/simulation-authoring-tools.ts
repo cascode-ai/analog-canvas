@@ -15,6 +15,10 @@ import type { ToolSessionState } from "./tools.js";
 
 const Id = z.string().min(1).max(256);
 const Name = z.string().trim().min(1).max(128);
+const NativeName = Id.regex(
+  /^\S+$/u,
+  "Use an exact native identifier without whitespace",
+);
 const common = { documentId: Id.optional() };
 const FolderArgs = z.discriminatedUnion("action", [
   z.strictObject({
@@ -31,7 +35,9 @@ const FolderArgs = z.discriminatedUnion("action", [
     rootDocumentId: Id.optional(),
     profileId: Id,
     template: z.enum(["op", "ac", "tran"]).optional(),
-    dut: z.strictObject({ name: Id, ports: z.array(Id) }).optional(),
+    dut: z
+      .strictObject({ name: NativeName, ports: z.array(NativeName) })
+      .optional(),
   }),
   z.strictObject({
     action: z.literal("update"),
@@ -214,7 +220,7 @@ function upsert<T extends { id: string }>(items: T[], item: T) {
 export const simulationAuthoringTools: readonly Entry[] = [
   tool(
     "simulation_folder",
-    "Manage saved source experiments: list/get/create/clone/rename/remove. create writes the same small OP source template used by Code. Omit rootDocumentId for text only; rootDocumentId alone runs the drawn Cell directly. Add dut {name, ports} using the exported subcircuit name and ordered ports to start a text TB around that Cell without creating another Cell. Native analyses, .param, .temp and control programs are edited with simulation_files; input replacement can change bindings/dependencies. There is no parallel structured analyses authority. Updates are revision-guarded; malformed code can still be saved.",
+    "Manage saved source experiments: list/get/create/clone/rename/remove. create writes the same native VACASK OP/AC/TRAN source template used by Code. Omit rootDocumentId for text only; rootDocumentId alone runs the drawn Cell directly. Add dut {name, ports} using the exported subcircuit name and ordered ports to start a text TB around that Cell without creating another Cell. Native parameters, analysis settings (including temperature), save and control programs are edited with simulation_files; input replacement can change bindings/dependencies. There is no parallel structured analyses authority. Updates are revision-guarded; malformed code can still be saved.",
     FolderArgs,
     async (parsed, session) => {
       const snapshot = await session.client.snapshot(parsed.documentId, {
