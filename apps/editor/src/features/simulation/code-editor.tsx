@@ -76,7 +76,7 @@ import {
   parameterGuide,
 } from "./code-parameter-guide";
 import { CodeHelperList, type CodeHelperAction } from "./code-helper-list";
-import { nativeAcquisitionEdit } from "./native-save-edit";
+import { nativeAcquisitionEdit } from "@icm/netlist";
 
 export interface SimulationCodeEditorProps {
   path: string;
@@ -97,6 +97,7 @@ export interface SimulationCodeEditorProps {
   /** Generated Circuit uses its mapped-span planner here; invalid numeric drafts may remain editable. */
   acceptChange?(text: string): boolean;
   onRejectedChange?(): void;
+  onHelperError?(message: string): void;
   onParameterDeclaration?(): void;
   declarationRequest?: string | undefined;
   onSave?(): void;
@@ -435,6 +436,10 @@ export default function SimulationCodeEditor(props: SimulationCodeEditorProps) {
       !!props.entry,
       props.saveRequest.directives,
     );
+    if (!edit.ok) {
+      props.onHelperError?.(edit.error.message);
+      return;
+    }
     const anchor = edit.anchor;
     // Compose insertions into one undoable transaction. Replacing the whole
     // document would normalize untouched mixed newlines in the exact-source field.

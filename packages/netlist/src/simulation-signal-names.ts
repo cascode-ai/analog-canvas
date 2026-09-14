@@ -1,4 +1,8 @@
-import type { CircuitProject, SimulationSourceInput } from "@icm/model";
+import type {
+  CircuitProject,
+  SimulationSourceInput,
+  SimulationCircuitScope,
+} from "@icm/model";
 import { analyzeDesignNetlist } from "./extract.js";
 import type { DesignNetlistCell } from "./ir.js";
 import { inspectVacaskSourceGraph } from "./vacask-source.js";
@@ -27,11 +31,13 @@ export function simulationSignalNames(
 export function simulationSignals(
   project: CircuitProject,
   input: SimulationSourceInput,
+  requestedScope?: SimulationCircuitScope,
 ): Record<string, { label: string; targets: SimulationSignalTarget[] }> {
   const graph = inspectVacaskSourceGraph(input);
   const labels = new Map<string, Set<string>>();
   const targets = new Map<string, SimulationSignalTarget[]>();
   for (const binding of input.circuitBindings) {
+    if (requestedScope && requestedScope.bindingId !== binding.id) continue;
     if (!graph.paths.includes(binding.path)) continue;
     const ir = analyzeDesignNetlist(project, {
       format: "spice",
@@ -42,6 +48,12 @@ export function simulationSignals(
     if (!root) continue;
     const scopes = vacaskCircuitScopes(graph, binding, ir);
     for (const scope of scopes.list()) {
+      if (
+        requestedScope &&
+        JSON.stringify(scope.callPath) !==
+          JSON.stringify(requestedScope.callPath)
+      )
+        continue;
       const resolved = scopes.resolve(scope);
       if (!resolved.ok) continue;
       const qualify = resolved.node;

@@ -21,6 +21,8 @@ import {
 import { collectVacaskRawfiles } from "./rawfile-collector.mjs";
 import { createSimulationStarter } from "../../packages/netlist/src/simulation-starter.js";
 import { compileSourceSimulation } from "../../packages/netlist/src/simulation-source-compile.js";
+import { nativeVoltageAcquisition } from "../../packages/netlist/src/simulation-native-voltage.js";
+import { nativeAcquisitionEdit } from "../../packages/netlist/src/simulation-native-save-edit.js";
 
 const roots = [];
 afterEach(async () => {
@@ -141,7 +143,7 @@ describe("native public compilation and result service", () => {
   it
     .skipIf(!process.env.VACASK_BIN || !process.env.VACASK_MODULES)
     .each(["op", "ac", "tran"])(
-    "runs the actual %s DUT starter after only adding user sources/loads",
+    "runs the actual %s DUT starter with user sources/loads and shared Canvas acquisition helpers",
     async (template) => {
       const project = fixture();
       const before = structuredClone(project);
@@ -163,6 +165,28 @@ model load resistor
 V1 (P 0) voltage dc=1 mag=1
 RL (N 0) load r=1k
 `;
+      const selection = nativeVoltageAcquisition(project, folder.input, {
+        kind: "voltage",
+        documentId: "dut",
+        occurrence: [],
+        anchor: { kind: "base-net", netId: "net-N" },
+        circuit: { bindingId: "circuit", callPath: ["XDUT"] },
+      });
+      expect(selection).toEqual({ ok: true, vector: "N", save: "v(N)" });
+      const entry = folder.input.files.find(
+        (f) => f.path === folder.input.entry,
+      );
+      const savedSelection = nativeAcquisitionEdit(
+        entry.text,
+        entry.text.indexOf("save default") + "save default".length,
+        [selection.save, "i(V1)"],
+        true,
+      );
+      expect(savedSelection.ok).toBe(true);
+      expect(savedSelection.text).toBe(
+        entry.text.replace("save default", "save default v(N) i(V1)"),
+      );
+      entry.text = savedSelection.text;
       const saved = structuredClone(folder);
       const compiled = compileSourceSimulation(project, folder);
       if (!compiled.ok) throw Error(JSON.stringify(compiled.diagnostics));

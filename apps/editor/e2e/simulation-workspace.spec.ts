@@ -598,11 +598,11 @@ test("Helper keeps signal selection continuous and shares the file row without s
   const pickerBox = (await picker.boundingBox())!;
   expect(Math.abs(pickerBox.x - popupBox.x)).toBeLessThan(2);
   expect(Math.abs(pickerBox.height - popupBox.height)).toBeLessThan(2);
-  const output = picker.getByRole("button", { name: /— v\(vout\)/ });
+  const output = picker.getByRole("button", { name: /— vout(?:\s|$)/ });
   await output.click();
   await expect(search).toBeFocused();
   await expect(output).toContainText("Added");
-  await picker.getByRole("button", { name: /— v\(vinp\)/ }).click();
+  await picker.getByRole("button", { name: /— vinp(?:\s|$)/ }).click();
   await expect(search).toBeFocused();
   await expect(editor).toContainText("save v(vout) v(vinp)");
   await expect(output).toBeDisabled();
@@ -632,6 +632,29 @@ test("Helper keeps signal selection continuous and shares the file row without s
   await expect(editor).not.toBeFocused();
   await page.getByRole("button", { name: "Done", exact: true }).click();
   await expect(canvas).not.toHaveClass(/simulation-net-pick-active/);
+  // An incomplete source must remain repairable, not falsely acknowledge an
+  // acquisition that the editor refused to insert.
+  const validSource = folder.input.files.find(
+    (file) => file.path === folder.input.entry,
+  )!.text;
+  await editor.fill(`${validSource}\nsave v(`);
+  await helper.click();
+  await page
+    .getByRole("option", { name: "Save voltage…", exact: true })
+    .click();
+  await output.click();
+  await expect(output).not.toContainText("Added");
+  await expect(output).toBeEnabled();
+  await expect(editor).not.toContainText("v(vout)");
+  await search.press("Escape");
+  await editor.fill(validSource);
+  await helper.click();
+  await page
+    .getByRole("option", { name: "Save voltage…", exact: true })
+    .click();
+  await output.click();
+  await expect(output).toContainText("Added");
+  await expect(editor).toContainText("v(vout)");
 });
 
 test("native save completion previews its mapped Net on the real Canvas", async ({

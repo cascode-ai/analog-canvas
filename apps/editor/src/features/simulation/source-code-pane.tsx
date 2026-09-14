@@ -24,7 +24,8 @@ import {
 import {
   generateCircuitSource,
   planCircuitSourceEdit,
-  compileSourceSimulation,
+  nativeVoltageAcquisition,
+  nativeAcquisitionEdit,
   simulationSignals,
   nativeSimulationDevices,
   nativeTerminalCurrent,
@@ -193,6 +194,7 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
       directives?: string[];
     }>();
     const saveSession = useRef(crypto.randomUUID());
+    const sourceCursor = useRef(0);
     const beginSignalSelection = () => {
       saveSession.current = crypto.randomUUID();
       if (props.pickNetsActive) props.onPickNetsChange?.(false);
@@ -250,21 +252,43 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
       [props.project, binding],
     );
     const saveSignal = (
-      label: string,
+      _label: string,
       expression: SimulationSourceExpression,
     ): boolean => {
       const insert = (vectors: string[], directives?: string[]) => {
-        if (
+        const targetPath =
           input.circuitBindings.some((b) => b.path === path) ||
           path.endsWith(".json")
-        )
-          setPath(input.entry);
+            ? input.entry
+            : path;
+        const source =
+          drafts.current.get(`${props.folder.id}\u0000${targetPath}`)?.text ??
+          input.files.find((file) => file.path === targetPath)?.text ??
+          "";
+        // Validate before acknowledging the picker. A rejected helper must not
+        // mark the signal Added or switch away from the user's current file.
+        const proposed = nativeAcquisitionEdit(
+          source,
+          targetPath === path ? sourceCursor.current : 0,
+          vectors,
+          targetPath === input.entry,
+          directives,
+        );
+        if (!proposed.ok) {
+          props.onProblem(
+            inputProblem(proposed.error.code, proposed.error.message),
+          );
+          return false;
+        }
+        if (targetPath !== path) setPath(targetPath);
+        props.onProblem(undefined);
         setSaveRequest({
           id: crypto.randomUUID(),
           session: saveSession.current,
           vectors,
           ...(directives ? { directives } : {}),
         });
+        return true;
       };
       if (expression.kind === "vector") {
         if (/[\r\n;]/u.test(expression.vector)) {
@@ -276,8 +300,7 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
           );
           return false;
         }
-        insert([expression.vector]);
-        return true;
+        return insert([expression.vector]);
       }
       if (expression.kind === "current") {
         const sourceInput = {
@@ -296,8 +319,8 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
             JSON.stringify(item.occurrence) ===
               JSON.stringify(expression.occurrence) &&
             item.circuit.bindingId === expression.circuit.bindingId &&
-            item.circuit.callPath.join(".").toLowerCase() ===
-              expression.circuit.callPath.join(".").toLowerCase(),
+            JSON.stringify(item.circuit.callPath) ===
+              JSON.stringify(expression.circuit.callPath),
         );
         const result = device
           ? nativeTerminalCurrent(device, expression.pinName)
@@ -315,82 +338,37 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
           );
           return false;
         }
-        insert(result.vectors, result.directives);
-        return true;
+        return insert(result.vectors, result.directives);
       }
-      const file = props.folder.input.files.find(
-          (f) => f.path === input.configPath,
-        ),
-        draft = drafts.current.get(
-          `${props.folder.id}\u0000${input.configPath}`,
-        );
-      const parsed = readSimulationExperimentConfig({
-        ...props.folder,
-        input: {
-          ...input,
-          files: [
-            ...input.files.filter((f) => f.path !== input.configPath),
-            { path: input.configPath, text: draft?.text ?? file?.text ?? "" },
-          ],
-        },
-      });
-      if (!parsed.ok) {
+      if (expression.kind !== "voltage") {
         props.onProblem(
           inputProblem(
-            "SIMULATION_CONFIG_INVALID",
-            `${parsed.path}: ${parsed.message}`,
+            "SIMULATION_NATIVE_EXPRESSION_REQUIRED",
+            "Author derived output expressions in native Code; selecting an acquisition does not create a parallel JSON output.",
           ),
         );
         return false;
       }
-      parsed.config.outputs.push({
-        id: `output-${crypto.randomUUID()}`,
-        label,
-        expression,
-      });
-      const projected = {
-        ...props.folder,
-        input: {
+      const resolved = nativeVoltageAcquisition(
+        props.project,
+        {
           ...input,
-          drafts: [],
           files: input.files.map((source) => ({
             ...source,
             text:
-              source.path === input.configPath
-                ? JSON.stringify(parsed.config)
-                : (drafts.current.get(`${props.folder.id}\u0000${source.path}`)
-                    ?.text ?? source.text),
+              drafts.current.get(`${props.folder.id}\u0000${source.path}`)
+                ?.text ?? source.text,
           })),
         },
-      };
-      const resolved = compileSourceSimulation(props.project, projected);
+        expression,
+      );
       if (!resolved.ok) {
         props.onProblem(
-          inputProblem(
-            "SIMULATION_SIGNAL_UNRESOLVED",
-            resolved.diagnostics.map((d) => d.message).join("; "),
-          ),
+          inputProblem("SIMULATION_SIGNAL_UNRESOLVED", resolved.message),
         );
         return false;
       }
-      const output = resolved.outputs.at(-1)!;
-      const acquisitionIds = new Set<string>();
-      const visit = (value: typeof output.expression) => {
-        if (value.kind === "acquisition")
-          acquisitionIds.add(value.acquisitionId);
-        if ("operand" in value) visit(value.operand);
-        if ("left" in value) {
-          visit(value.left);
-          visit(value.right);
-        }
-      };
-      visit(output.expression);
-      const nativeVectors = resolved.vectors
-        .filter((v) => acquisitionIds.has(v.probeId))
-        .map((v) => v.vector);
-      insert(nativeVectors.length ? nativeVectors : ["v(0)"]);
-      render((v) => v + 1);
-      return true;
+      return insert([resolved.save]);
     };
     const addPicked = (matches: readonly SimulationProbeOption[]) => {
       if (!binding) return;
@@ -1260,6 +1238,14 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
         }
       >
         <SimulationCodeEditor
+          onCursor={(offset) => {
+            sourceCursor.current = offset;
+          }}
+          onHelperError={(message) =>
+            props.onProblem(
+              inputProblem("SIMULATION_SAVE_EDIT_INVALID", message),
+            )
+          }
           helperContent={
             probePicker ? (
               <SourceProbePicker

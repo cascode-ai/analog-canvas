@@ -10,6 +10,7 @@ import {
   simulationSignalNames,
   nativeSimulationDevices,
   nativeDeviceOpVectors,
+  vacaskIdentifier,
 } from "@icm/netlist";
 import { deriveSimulationProbeOptions } from "./simulation-probe-options";
 
@@ -59,13 +60,15 @@ export function sourceProbeChoices(
     if (!vectors.has(key)) vectors.set(key, vector);
   };
   const names = simulationSignalNames(project, input);
+  const mappedSelectors = new Set<string>();
   for (const [vector, name] of Object.entries(names)) {
+    const selector = `v(${vacaskIdentifier(vector)})`;
     choices.push({
       kind: "voltage",
       label: `${name.replaceAll("/", " · ")} — ${vector}`,
-      expression: { kind: "vector", vector },
+      expression: { kind: "vector", vector: selector },
     });
-    addVector(vector);
+    mappedSelectors.add(selector);
   }
   let depth = 0;
   for (const { statement } of graph.statements) {
@@ -77,7 +80,7 @@ export function sourceProbeChoices(
       addVector(`i(${statement.name})`);
   }
   for (const vector of vectors.values())
-    if (!names[vector.toLowerCase()])
+    if (!mappedSelectors.has(vector))
       choices.push({
         kind: vector.startsWith("v(") ? "voltage" : "current",
         label: vector,
