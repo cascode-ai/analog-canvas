@@ -1,4 +1,5 @@
 import type { SimulationFocusTarget } from "./simulation-focus-target";
+import { SimulationAgentGuidance } from "./simulation-agent-guidance";
 import { useEffect, useRef, useState } from "react";
 import {
   WorkspaceInteractions,
@@ -1785,11 +1786,8 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
           <span className="simulation-run-target">{selectedFolder.name}</span>
         </button>
       ) : (
-        <button
-          className="simulation-primary-button simulation-setup-button"
-          onClick={createFolder}
-        >
-          Set up
+        <button className="simulation-setup-button" onClick={createFolder}>
+          Manual setup
         </button>
       )}
       <span
@@ -1849,47 +1847,52 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
     </div>
   );
   const windowActions = (
-    <div className="simulation-window-actions">
-      <button
-        className="simulation-minimize-button"
-        onClick={props.onMinimize}
-        aria-label="Minimize simulation"
-        title="Minimize simulation"
-      >
-        <span className="simulation-minimize-glyph" aria-hidden="true" />
-      </button>
-      <button
-        className="simulation-maximize-button"
-        onClick={props.onToggleMaximized}
-        aria-label={
-          props.maximized ? "Restore simulation panel" : "Maximize simulation"
-        }
-        title={
-          props.maximized ? "Restore simulation panel" : "Maximize simulation"
-        }
-      >
-        {props.maximized ? "↙" : "□"}
-      </button>
-      <button
-        className="simulation-close-button"
-        onClick={async () => {
-          if (
-            await interaction.confirm({
-              title: "Exit Simulation?",
-              message:
-                "Unsaved source drafts and temporary run files will be discarded. An active run will be cancelled.",
-              acceptLabel: "Exit Simulation",
-            })
-          ) {
-            codeRef.current?.discard();
-            props.onExit();
+    <>
+      {props.agentGuidance ? (
+        <SimulationAgentGuidance {...props.agentGuidance} />
+      ) : null}
+      <div className="simulation-window-actions">
+        <button
+          className="simulation-minimize-button"
+          onClick={props.onMinimize}
+          aria-label="Minimize simulation"
+          title="Minimize simulation"
+        >
+          <span className="simulation-minimize-glyph" aria-hidden="true" />
+        </button>
+        <button
+          className="simulation-maximize-button"
+          onClick={props.onToggleMaximized}
+          aria-label={
+            props.maximized ? "Restore simulation panel" : "Maximize simulation"
           }
-        }}
-        aria-label="Exit simulation"
-      >
-        ×
-      </button>
-    </div>
+          title={
+            props.maximized ? "Restore simulation panel" : "Maximize simulation"
+          }
+        >
+          {props.maximized ? "↙" : "□"}
+        </button>
+        <button
+          className="simulation-close-button"
+          onClick={async () => {
+            if (
+              await interaction.confirm({
+                title: "Exit Simulation?",
+                message:
+                  "Unsaved source drafts and temporary run files will be discarded. An active run will be cancelled.",
+                acceptLabel: "Exit Simulation",
+              })
+            ) {
+              codeRef.current?.discard();
+              props.onExit();
+            }
+          }}
+          aria-label="Exit simulation"
+        >
+          ×
+        </button>
+      </div>
+    </>
   );
 
   return (

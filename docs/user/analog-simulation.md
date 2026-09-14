@@ -4,6 +4,14 @@ Use the top **Simulation** button to open Code beside the ordinary Canvas.
 Opening the Editor alone does not load the code editor or start ngspice. This
 workspace is separate from the development-only Digital tool.
 
+Simulation is Agent-first: the toolbar keeps a quiet **Connect Agent** entry,
+including when folders already exist or the workspace is maximized. It opens
+the same Agent connection panel as the editor's Agent menu. Once connected,
+tell your Agent your simulation goal; the entry reflects waiting, working,
+paused and offline states without opening dialogs or starting work by itself.
+**Manual setup** remains available to create the same source starter yourself.
+Save, Run and file operations remain usable without an Agent.
+
 ## Circuit, source and files
 
 Sim Code and Properties share the right dock but remember independent widths.

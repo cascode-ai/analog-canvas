@@ -42,6 +42,7 @@
 }
 
 .simulation-taskbar {
+  container-type: inline-size;
   position: relative;
   display: flex;
   flex: none;
@@ -82,6 +83,50 @@
   line-height: 22px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.simulation-agent-guidance {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+.simulation-agent-hint {
+  display: none;
+  color: var(--icm-text-muted);
+  font-size: 11px;
+}
+.spice-simulation-surface .simulation-agent-guidance button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  min-height: 22px;
+  padding: 0 4px;
+  border-color: transparent;
+  background: transparent;
+  color: var(--icm-text-muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.simulation-agent-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.5;
+}
+.simulation-agent-guidance:is(
+    [data-agent-status="connected"],
+    [data-agent-status="working"]
+  )
+  .simulation-agent-dot {
+  background: var(--icm-accent);
+  opacity: 1;
+}
+@container (min-width: 1000px) {
+  .simulation-agent-hint {
+    display: inline;
+  }
 }
 .simulation-setup-menu {
   position: relative;

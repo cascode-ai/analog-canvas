@@ -10,7 +10,9 @@ import type { SimulationSignalTarget } from "@icm/netlist";
 import type { BrowserSimulationSession } from "./browser-simulation-session";
 import type { ProjectRunHistory } from "./project-run-history";
 import type { OperatingPointCanvasProjection } from "./operating-point-projection";
+import type { SimulationAgentGuidanceProps } from "./simulation-agent-guidance";
 export interface SpiceSimulationSurfaceProps {
+  agentGuidance?: SimulationAgentGuidanceProps | undefined;
   open: boolean;
   maximized: boolean;
   project: CircuitProject;

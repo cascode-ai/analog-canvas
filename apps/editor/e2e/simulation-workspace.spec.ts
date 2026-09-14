@@ -1,4 +1,4 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type Page, type WebSocketRoute } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { strFromU8, unzipSync } from "fflate";
@@ -23,6 +23,88 @@ import {
 import { ota, profile, editSimulationFile } from "./simulation-e2e-fixtures.js";
 
 const loadModule = createRequire(import.meta.url);
+test("simulation Agent entry is passive and reuses the existing connection panel", async ({
+  page,
+}) => {
+  let creates = 0;
+  let socket: WebSocketRoute | null = null;
+  await page.routeWebSocket(
+    "**/api/agent/sessions/sim-guide/editor",
+    (route) => {
+      socket = route;
+    },
+  );
+  await page.route("**/api/agent/sessions", async (route) => {
+    creates += 1;
+    await route.fulfill({
+      json: {
+        ok: true,
+        session: {
+          sessionId: "sim-guide",
+          editorSecret: "sim-secret",
+          claimCode: "sim-guide.claim",
+          claimExpiresAt: Date.now() + 300_000,
+          expiresAt: Date.now() + 3_600_000,
+        },
+      },
+    });
+  });
+  const project = parseProject(JSON.stringify(ota));
+  project.simulationFolders = [];
+  await page.goto("/editor");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "agent-guidance.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  await page.getByTestId("open-analog-simulation").click();
+  const bar = page.locator(".simulation-taskbar");
+  await expect(
+    bar.getByRole("button", { name: "Manual setup", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByTestId("connect-agent-panel")).toHaveCount(0);
+  expect(creates).toBe(0);
+  await bar.getByRole("button", { name: "Connect Agent", exact: true }).click();
+  const panel = page.getByTestId("connect-agent-panel");
+  await expect(panel).toBeVisible();
+  await expect(panel.getByTestId("agent-copy-text")).toHaveValue(
+    /sim-guide.claim/,
+  );
+  await expect(
+    bar.getByRole("button", { name: "Waiting for Agent", exact: true }),
+  ).toBeVisible();
+  expect(creates).toBe(1);
+  await panel.getByRole("button", { name: "Close Agent dialog" }).click();
+  await expect.poll(() => socket !== null).toBe(true);
+  socket!.send(
+    JSON.stringify({
+      protocolVersion: "1.0",
+      sessionId: "sim-guide",
+      messageId: "ready",
+      requestId: "ready",
+      sentAt: new Date().toISOString(),
+      kind: "event",
+      payload: { type: "session.ready", sessionId: "sim-guide" },
+    }),
+  );
+  await expect(
+    bar.getByRole("button", { name: "Agent connected", exact: true }),
+  ).toBeVisible();
+  await expect(panel).toHaveCount(0);
+  await page
+    .getByRole("button", { name: "Maximize simulation", exact: true })
+    .click();
+  await expect(bar.locator(".simulation-agent-hint")).toBeVisible();
+  await expect(bar.locator(".simulation-agent-hint")).toHaveText(
+    "Tell your Agent your simulation goal",
+  );
+  await bar
+    .getByRole("button", { name: "Agent connected", exact: true })
+    .click();
+  await expect(panel).toBeVisible();
+  expect(creates).toBe(1);
+});
+
 test("simulation examples confirm whole-Project replacement and protect existing work", async ({
   page,
 }) => {
@@ -299,7 +381,7 @@ test("new experiments explicitly bind the selected Cell without requiring a Test
     buffer: Buffer.from(JSON.stringify(project)),
   });
   await page.getByTestId("open-analog-simulation").click();
-  await page.getByRole("button", { name: "Set up", exact: true }).click();
+  await page.getByRole("button", { name: "Manual setup", exact: true }).click();
   const name = page.getByLabel("New simulation folder name");
   const cell = page.getByRole("combobox", {
     name: "Simulation Cell",
@@ -1938,12 +2020,12 @@ test("Simulation creates an ordinary testbench and defaults a new experiment to 
   ).toBeVisible();
   await expect(page.locator(".simulation-brand")).toHaveCount(0);
   const setupBox = await page
-    .getByRole("button", { name: "Set up", exact: true })
+    .getByRole("button", { name: "Manual setup", exact: true })
     .boundingBox();
   const initialBar = await taskbar.boundingBox();
   expect(setupBox!.height).toBeLessThanOrEqual(24);
   expect(initialBar!.height).toBeLessThanOrEqual(36);
-  await page.getByRole("button", { name: "Set up", exact: true }).click();
+  await page.getByRole("button", { name: "Manual setup", exact: true }).click();
   await page.getByLabel("New simulation folder name").fill("Main experiment");
   await expect(page.getByLabel("Folder template")).toHaveCount(0);
   await expect(page.getByLabel("Folder source")).toHaveCount(0);
@@ -2095,6 +2177,19 @@ test("maximized simulation reclaims chrome at narrow width and minimizes without
   await expect(page.locator(".app-chrome")).toBeHidden();
   await expect(page.getByTestId("library-toggle")).toBeHidden();
   await expect(page.getByTestId("examples-toggle")).toBeHidden();
+  const agentEntry = workspace.getByRole("button", {
+    name: "Connect Agent",
+    exact: true,
+  });
+  await expect(agentEntry).toBeVisible();
+  await expect(workspace.locator(".simulation-agent-hint")).toBeHidden();
+  const agentBox = await agentEntry.boundingBox();
+  const toolbarBox = await workspace
+    .locator(".simulation-taskbar")
+    .boundingBox();
+  expect(agentBox!.x + agentBox!.width).toBeLessThanOrEqual(
+    toolbarBox!.x + toolbarBox!.width,
+  );
   const bounds = await page.locator(".app-workspace").boundingBox();
   expect(bounds!.y).toBe(0);
   expect(bounds!.width).toBe(900);

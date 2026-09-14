@@ -3,8 +3,13 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { BrowserSimulationSession } from "./browser-simulation-session";
 import { SpiceSimulationSurface } from "./spice-simulation-surface";
+import type { SimulationAgentGuidanceProps } from "./simulation-agent-guidance";
 
-function render(saved: boolean, broken = false) {
+function render(
+  saved: boolean,
+  broken = false,
+  agentGuidance?: SimulationAgentGuidanceProps,
+) {
   const project = createEmptyProject("code", "Code");
   if (saved) {
     const folder = createSimulationFolder({
@@ -21,6 +26,7 @@ function render(saved: boolean, broken = false) {
   return renderToStaticMarkup(
     <SpiceSimulationSurface
       open
+      agentGuidance={agentGuidance}
       maximized={false}
       project={project}
       activeDocumentId={project.topDocumentId}
@@ -42,6 +48,22 @@ function render(saved: boolean, broken = false) {
   );
 }
 describe("source workspace default cutover", () => {
+  it.each([false, true])(
+    "keeps Agent guidance with saved folder=%s without side effects",
+    (saved) => {
+      let opened = false;
+      const markup = render(saved, false, {
+        status: "connected",
+        onOpen: () => {
+          opened = true;
+        },
+      });
+      expect(markup).toContain("Agent connected");
+      expect(markup).toContain("Tell your Agent your simulation goal");
+      expect(opened).toBe(false);
+      expect(render(saved)).not.toContain("simulation-agent-guidance");
+    },
+  );
   it("describes source application without claiming a cloud save", () => {
     const markup = render(true);
     expect(markup).toContain('aria-label="Save source"');
@@ -53,7 +75,7 @@ describe("source workspace default cutover", () => {
   });
   it("offers creation without restoring the retired Settings form", () => {
     const markup = render(false);
-    expect(markup).toContain("Set up");
+    expect(markup).toContain("Manual setup");
     expect(markup).not.toContain("Create experiment");
     expect(markup).not.toContain('aria-label="Analyses settings"');
     expect(markup).not.toContain('aria-label="Setup settings"');

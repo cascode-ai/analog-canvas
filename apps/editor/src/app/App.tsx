@@ -4572,6 +4572,20 @@ export function App({
     },
   });
 
+  const openAgentConnection = () => {
+    setAgentPanelOpen(true);
+    if (
+      agentSession.status === "idle" ||
+      agentSession.status === "revoked" ||
+      agentSession.status === "expired" ||
+      (agentSession.status === "waiting-for-agent" &&
+        agentSession.claimExpiresAt !== null &&
+        agentSession.claimExpiresAt <= Date.now())
+    ) {
+      void agentSession.newConnection();
+    }
+  };
+
   return (
     <main className="app-shell">
       {renderCrashRequested() ? <RenderCrashProbe /> : null}
@@ -4761,19 +4775,7 @@ export function App({
                   agentSession.status === "idle"
                     ? "Connect Agent"
                     : "Manage Agent",
-                execute: () => {
-                  setAgentPanelOpen(true);
-                  if (
-                    agentSession.status === "idle" ||
-                    agentSession.status === "revoked" ||
-                    agentSession.status === "expired" ||
-                    (agentSession.status === "waiting-for-agent" &&
-                      agentSession.claimExpiresAt !== null &&
-                      agentSession.claimExpiresAt <= Date.now())
-                  ) {
-                    void agentSession.newConnection();
-                  }
-                },
+                execute: openAgentConnection,
               }
             : null
         }
@@ -5469,6 +5471,14 @@ export function App({
                       : (activeSimulationFolder?.id ?? null)
                   }
                   onSelectFolderId={setActiveSimulationFolderId}
+                  agentGuidance={
+                    publicAgentUiEnabled
+                      ? {
+                          status: agentSession.status,
+                          onOpen: openAgentConnection,
+                        }
+                      : undefined
+                  }
                   onOpenExample={async (exampleProject) => {
                     await guardDirtyReplacement(
                       `Open ${exampleProject.name} example`,
