@@ -825,7 +825,6 @@ function extractExternalSubcircuitInstance(
   instance: Instance,
   definition: ExternalSubcircuitDefinition | undefined,
   context: CellNetContext,
-  options: ResolvedDesignNetlistAnalysisOptions,
   diagnostics: NetlistDiagnostic[],
 ): DesignNetlistInstance | null {
   const netlist = instance.netlist;
@@ -948,16 +947,6 @@ function extractExternalSubcircuitInstance(
             if (!entry) return [];
             let rawValue = entry[1];
             if (parameter.targetUnit === "micrometre") {
-              if (options.format !== "spice") {
-                diagnostic(
-                  diagnostics,
-                  document.id,
-                  "UNSUPPORTED_REVIEWED_BINDING_DIALECT",
-                  `${reviewed.masterName} geometry projection is reviewed only for SPICE/ngspice`,
-                  [instance.id],
-                );
-                return [];
-              }
               try {
                 rawValue = projectLengthToSky130Micrometres(rawValue);
               } catch (error) {
@@ -1372,7 +1361,6 @@ function extractCell(
                 (definition) => definition.id === binding.definitionId,
               ),
               context,
-              options,
               diagnostics,
             )
           : extractDeviceInstance(document, instance, context, diagnostics);

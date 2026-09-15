@@ -6122,6 +6122,21 @@ test("shows and copies a live MOS netlist when only bulk terminals are omitted",
     name: "Live netlist",
     exact: true,
   });
+  const process = panel.getByRole("combobox", { name: "Netlist process" });
+  await process.selectOption("sky130");
+  const skySpectre = await copyNetlistText(page, "spectre");
+  expect(skySpectre).toMatch(
+    /^simulator lang=spice\n\.lib "sky130\.lib\.spice" tt\nsimulator lang=spectre\n/u,
+  );
+  expect(skySpectre).toMatch(
+    /XM1 \(\S+ \S+ \S+ 0\) sky130_fd_pr__nfet_01v8 l=0.15 w=1 nf=1 m=1/u,
+  );
+  expect(skySpectre).toMatch(
+    /XM2 \(\S+ \S+ \S+ VDD\) sky130_fd_pr__pfet_01v8 l=0.15 w=1 nf=1 m=1/u,
+  );
+  expect(skySpectre).not.toContain(".subckt");
+  expect(skySpectre).not.toContain(".global");
+  await process.selectOption("abstract");
   const nmos = panel.getByLabel("NMOS netlist target");
   const pmos = panel.getByLabel("PMOS netlist target");
   await expect(nmos).toHaveValue("NMOS");

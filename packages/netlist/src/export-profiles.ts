@@ -233,7 +233,7 @@ function matchingBinding(project: CircuitProject, instance: Instance) {
 export interface ProfiledNetlistProject {
   project: CircuitProject;
   diagnostics: NetlistDiagnostic[];
-  /** Open SKY130 wrappers use the SPICE dialect, also inside .scs files. */
+  /** The selected model library must be loaded under SPICE before Spectre source resumes. */
   spiceLibraryDialect: boolean;
 }
 
