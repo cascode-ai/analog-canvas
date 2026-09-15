@@ -36,7 +36,7 @@ describe("component property code", () => {
   it("formats placement as one coordinate and makes display/style explicit", () => {
     expect(formatComponentPropertyCode(context)).toBe(`{
   "placement": {
-    "at": [360, 240],
+    "coordinate": [360, 240],
     "rotation": 90,
     "mirror": "none"
   },
@@ -86,10 +86,52 @@ describe("component property code", () => {
     expect(parseComponentPropertyCode(source, context)).toEqual({
       ok: true,
       value: {
-        placement: { at: [420, 240], rotation: 180, mirror: "horizontal" },
+        placement: {
+          coordinate: [420, 240],
+          rotation: 180,
+          mirror: "horizontal",
+        },
         display: { visualAnnotation: true, value: true },
         appearance: { color: "#DC2626" },
       },
+    });
+  });
+
+  it("keeps the visual display name independent from the netlist name", () => {
+    const namedContext = {
+      ...context,
+      displayName: "RL",
+      details: { parameters: [] },
+    };
+    const source = formatComponentPropertyCode(namedContext);
+    const decoded = JSON.parse(source);
+    expect(decoded.displayName).toBe("RL");
+    expect(decoded.netlistName).toBe("R1");
+    decoded.displayName = "load";
+    expect(
+      parseComponentPropertyCode(JSON.stringify(decoded), namedContext),
+    ).toMatchObject({
+      ok: true,
+      value: { displayName: "load", netlistName: "R1" },
+    });
+    delete decoded.displayName;
+    expect(
+      parseComponentPropertyCode(JSON.stringify(decoded), namedContext),
+    ).toEqual({
+      ok: false,
+      message: "displayName is required for this component",
+    });
+  });
+
+  it("rejects the retired placement.at key", () => {
+    const decoded = JSON.parse(formatComponentPropertyCode(context));
+    decoded.placement.at = decoded.placement.coordinate;
+    delete decoded.placement.coordinate;
+    expect(
+      parseComponentPropertyCode(JSON.stringify(decoded), context),
+    ).toEqual({
+      ok: false,
+      message: "placement.at is not a supported property",
     });
   });
 

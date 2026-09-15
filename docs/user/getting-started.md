@@ -50,11 +50,13 @@ is defined.
   only the drawn route.
 - Select a component and press `Q` to open **Properties**. Its editable
   JSON keeps raw parameters (W/L/NF/M and additional
-  netlist overrides), `netlistName` and target netlist together with position as
-  `"at": [x, y]`, plus 45-degree-step
+  netlist overrides), the independent visual `displayName`, `netlistName`, and
+  target netlist together with position as `"coordinate": [x, y]`, plus 45-degree-step
   rotation, mirror, supported Visual annotation/Value visibility, and line color.
-  The `display` block appears first for quick access. The code area is ordinary
-  selectable raw JSON. `netlistName` is the exported electrical instance name;
+  Placement, appearance, and display stay at the top. The code area is ordinary
+  selectable raw JSON. Press Enter to confirm without inserting a line break;
+  use Shift+Enter when you want a new JSON line. `displayName` changes only the
+  drawing label, while `netlistName` is the exported electrical instance name;
   `display.visualAnnotation` only controls the drawing label. Declared parameter
   units appear beside their JSON values without becoming data, and
   `netlistTarget` has a compact inline selector. Type values directly, use the

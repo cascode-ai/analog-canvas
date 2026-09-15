@@ -68,32 +68,35 @@ properties together as strict, editable JSON. For example, a resistor:
 
 ```json
 {
-  "netlistName": "R1",
-  "parameters": { "value": "10k", "tc": "0.1" },
-  "netlistTarget": "",
   "placement": {
-    "at": [360, 240],
+    "coordinate": [360, 240],
     "rotation": 90,
     "mirror": "none"
+  },
+  "appearance": {
+    "color": "auto"
   },
   "display": {
     "visualAnnotation": true,
     "value": false
   },
-  "appearance": {
-    "color": "auto"
-  }
+  "displayName": "R1",
+  "parameters": { "value": "10k", "tc": "0.1" },
+  "netlistName": "R1",
+  "netlistTarget": ""
 }
 ```
 
-`netlistName` is the electrical instance name used by netlist export;
+`displayName` is the visual instance annotation and can differ from the
+electrical `netlistName` used by netlist export;
 `display.visualAnnotation` only controls whether its drawing annotation is
-visible. `placement.at` is the `[x, y]` grid coordinate, rotation is restricted to
+visible. `placement.coordinate` is the `[x, y]` grid coordinate, rotation is restricted to
 45-degree steps, and mirror is `"none"`, `"horizontal"`, `"vertical"`, or
-`"both"`. Display keys appear only for
+`"both"`. Enter confirms the current JSON without inserting a line break;
+Shift+Enter inserts one. Display keys appear only for
 annotations supported by that Symbol; when present, the `display` object is
-serialized first because it contains the most frequently toggled presentation
-state. Newly placed Resistor, Capacitor, and Inductor devices, including their
+kept with placement and appearance near the top. Newly placed Resistor,
+Capacitor, and Inductor devices, including their
 adjustable variants, author `1k`, `1p`, and `1n` as their initial netlist
 values. T-coil starts with `L1=1n`, `L2=1n`, `K=1`, and `CB=1p`; XFMR starts
 with `Lp=1n`, `Ls=1n`, and `K=1`. These compound-device parameters remain

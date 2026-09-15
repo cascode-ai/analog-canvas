@@ -213,12 +213,12 @@ test("property placement null retains a wired instance and re-places it with gri
     before.documents[0].routes.length,
   );
   await setComponentCodeField(page, "placement", {
-    at: [421, 281],
+    coordinate: [421, 281],
     rotation: 90,
     mirror: "horizontal",
   });
   await expect(page.getByTestId("hit-R1")).toHaveCount(1);
-  await expectComponentCodeField(page, "placement.at", [420, 280]);
+  await expectComponentCodeField(page, "placement.coordinate", [420, 280]);
   await clickCommand(page, "Edit", "Undo");
   await expect(page.getByTestId("hit-R1")).toHaveCount(0);
 });
@@ -4225,7 +4225,7 @@ test("resizes Properties and applies component presentation as editable code", a
     .toBeCloseTo(compactWidth + 8, 0);
 
   const edited = JSON.parse(await readComponentPropertyCode(page));
-  edited.placement.at = [420, 280];
+  edited.placement.coordinate = [420, 280];
   edited.placement.rotation = 90;
   edited.placement.mirror = "horizontal";
   edited.display.visualAnnotation = false;

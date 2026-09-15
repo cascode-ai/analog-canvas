@@ -49,9 +49,15 @@ import {
   resolveDocumentStyleProfile,
   summarizeProjectCells,
   resolveRouteAttachment,
+  resolveAnnotationText,
 } from "@icm/derived";
 import type { HierarchyFrame } from "@icm/derived";
-import { createEmptyProject, createEmptyDocument, createId } from "@icm/model";
+import {
+  createEmptyProject,
+  createEmptyDocument,
+  createId,
+  flattenRichText,
+} from "@icm/model";
 import {
   resolveReviewedExternalBinding,
   reviewedExternalModelSuggestions,
@@ -5910,6 +5916,15 @@ export function App({
                       code: {
                         focusRequest: propertyCodeFocusRequest,
                         instance: selectedInstance,
+                        displayName:
+                          selectedInstanceLabel?.kind === "instance-label"
+                            ? flattenRichText(
+                                resolveAnnotationText(
+                                  document,
+                                  selectedInstanceLabel,
+                                ),
+                              )
+                            : null,
                         defaultForeground: styleProfile.foreground,
                         revision: document.revision,
                         referenceVisible:
@@ -5961,11 +5976,11 @@ export function App({
                                 placement: {
                                   position: {
                                     x: snapCoordinate(
-                                      value.placement.at[0],
+                                      value.placement.coordinate[0],
                                       document.presentation.grid,
                                     ),
                                     y: snapCoordinate(
-                                      value.placement.at[1],
+                                      value.placement.coordinate[1],
                                       document.presentation.grid,
                                     ),
                                   },

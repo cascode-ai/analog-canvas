@@ -180,7 +180,7 @@ test("digital gates align from their left outline and keep wired terminals throu
   await page.getByTestId("selection-shelf").click();
   await editComponentPropertyCode(page, (code) => {
     const placement = code.placement as Record<string, unknown>;
-    placement.at = [240, 500];
+    placement.coordinate = [240, 500];
     placement.rotation = 90;
     placement.mirror = "horizontal";
   });

@@ -1354,7 +1354,7 @@ test("carries a default and manual Value through placement and Q property editin
   );
   await expect(page.getByLabel("Component geometry")).toHaveCount(0);
   const propertyCode = page.getByLabel("Editable Canvas property code");
-  await expect(propertyCode).toContainText(/"at": \[/u);
+  await expect(propertyCode).toContainText(/"coordinate": \[/u);
   await expect(propertyCode).toContainText(/"rotation": 0/u);
   await expect(propertyCode).toContainText(/"mirror": "none"/u);
   await expect(page.locator(".selection-overview")).toHaveCount(0);
@@ -1403,6 +1403,7 @@ test("carries a default and manual Value through placement and Q property editin
     "aria-label",
     "Canvas property code",
   );
+  await expectComponentCodeField(page, "displayName", "R1");
   await expectComponentCodeField(page, "netlistName", "R1");
   await editComponentPropertyCode(page, (code) => {
     code.netlistName = "R7";
@@ -1411,6 +1412,21 @@ test("carries a default and manual Value through placement and Q property editin
   await expect(page.getByTestId("revision")).toHaveText("4");
   await expectComponentCodeField(page, "netlistName", "R7");
   await expectComponentCodeField(page, "parameters.tc", "0.1");
+
+  // Enter confirms the current draft without changing its bytes. Shift+Enter
+  // remains the explicit way to add layout whitespace inside the JSON.
+  const singleLine = JSON.stringify(
+    JSON.parse(await readComponentPropertyCode(page)),
+  );
+  await propertyCode.fill(singleLine);
+  await propertyCode.press("ControlOrMeta+End");
+  await propertyCode.press("ArrowLeft");
+  await propertyCode.press("Enter");
+  expect(await readComponentPropertyCode(page)).toBe(singleLine);
+  await propertyCode.press("Shift+Enter");
+  const multiline = await readComponentPropertyCode(page);
+  expect(multiline).toContain("\n}");
+  expect(JSON.parse(multiline)).toEqual(JSON.parse(singleLine));
 });
 
 test("ordinary source property code switches waveforms without erasing inactive values", async ({

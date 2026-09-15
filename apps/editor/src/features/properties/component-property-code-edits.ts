@@ -1,8 +1,14 @@
 import type { SchematicEdit } from "@icm/edit-engine";
-import type { SchematicDocument } from "@icm/model";
+import { resolveAnnotationText } from "@icm/derived";
+import {
+  flattenRichText,
+  semanticTextDocument,
+  type SchematicDocument,
+} from "@icm/model";
 
 import { snapCoordinate } from "../../snap/engine";
 import type { ComponentPropertyCodeValue } from "./component-property-code";
+import { instanceLabelAnnotationFor } from "../instance-display/default-instance-display";
 import {
   NO_INTERNAL_MARK,
   symbolForInputPolarity,
@@ -34,6 +40,28 @@ export function planComponentPropertyCodeEdits(
   value: ComponentPropertyCodeValue,
 ): SchematicEdit[] {
   const edits: SchematicEdit[] = [];
+  if (value.displayName !== undefined) {
+    const label = instanceLabelAnnotationFor(document, instance.id);
+    if (
+      label?.kind === "instance-label" &&
+      flattenRichText(resolveAnnotationText(document, label)).trim() !==
+        value.displayName
+    ) {
+      const {
+        binding: _binding,
+        content: _content,
+        formatOverride: _formatOverride,
+        ...presentation
+      } = label;
+      edits.push({
+        kind: "upsert_schematic_annotation",
+        annotation: {
+          ...presentation,
+          content: semanticTextDocument(value.displayName, "instance-label"),
+        },
+      });
+    }
+  }
   if (
     value.netlistName !== undefined &&
     value.netlistName !== instance.reference
@@ -107,8 +135,14 @@ export function planComponentPropertyCodeEdits(
     });
   if (instance.placement && value.placement) {
     const position = {
-      x: snapCoordinate(value.placement.at[0], document.presentation.grid),
-      y: snapCoordinate(value.placement.at[1], document.presentation.grid),
+      x: snapCoordinate(
+        value.placement.coordinate[0],
+        document.presentation.grid,
+      ),
+      y: snapCoordinate(
+        value.placement.coordinate[1],
+        document.presentation.grid,
+      ),
     };
     if (
       position.x !== instance.placement.position.x ||

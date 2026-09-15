@@ -26,7 +26,7 @@ type Instance = SchematicDocument["instances"][number];
 export type ComponentPropertyColor = "auto" | `#${string}`;
 
 export interface ComponentPropertyPlacementCode {
-  at: [number, number];
+  coordinate: [number, number];
   rotation: Rotation;
   mirror: "none" | "horizontal" | "vertical" | "both";
 }
@@ -40,6 +40,8 @@ export interface ComponentPropertyDisplayCode {
 export interface ComponentPropertyCodeValue extends ComponentPropertyDetailsValue {
   /** Global Net name owned by a supply marker. */
   netName?: string;
+  /** Visual instance annotation, independent from the exported netlist name. */
+  displayName?: string;
   placement: ComponentPropertyPlacementCode | null;
   display?: ComponentPropertyDisplayCode;
   appearance: {
@@ -53,6 +55,8 @@ export interface ComponentPropertyCodeValue extends ComponentPropertyDetailsValu
 
 export interface ComponentPropertyCodeContext {
   instance: Instance;
+  /** Null when this component has no independently editable instance label. */
+  displayName?: string | null;
   referenceVisible: boolean | null;
   valueVisible: boolean | null;
   parameterVisibility?: Record<string, boolean>;
@@ -68,6 +72,7 @@ export type ComponentPropertyCodeParseResult =
 const ROOT_KEYS = new Set([
   "placement",
   "display",
+  "displayName",
   "appearance",
   "netName",
   "netlistName",
@@ -123,15 +128,15 @@ function parsePlacement(
   if (!isRecord(value)) throw new Error("placement must be an object");
   const unknown = unexpectedKey(value, PLACEMENT_KEYS, "placement");
   if (unknown) throw new Error(unknown);
-  const at = value.at;
+  const coordinate = value.coordinate;
   if (
-    !Array.isArray(at) ||
-    at.length !== 2 ||
-    at.some((coordinate) =>
-      typeof coordinate === "number" ? !Number.isFinite(coordinate) : true,
+    !Array.isArray(coordinate) ||
+    coordinate.length !== 2 ||
+    coordinate.some((entry) =>
+      typeof entry === "number" ? !Number.isFinite(entry) : true,
     )
   ) {
-    throw new Error("placement.at must be a finite [x, y] coordinate");
+    throw new Error("placement.coordinate must be a finite [x, y] coordinate");
   }
   const rotation = value.rotation;
   if (!ROTATION_OPTIONS.some((option) => option.value === rotation)) {
@@ -146,7 +151,7 @@ function parsePlacement(
     );
   }
   return {
-    at: [at[0] as number, at[1] as number],
+    coordinate: [coordinate[0] as number, coordinate[1] as number],
     rotation: rotation as Rotation,
     mirror: mirror as ComponentPropertyPlacementCode["mirror"],
   };
@@ -272,9 +277,15 @@ export function componentPropertyCodeValue(
       ? { netName: context.netName }
       : {}),
     ...componentPropertyDetailsValue(instance, context.details),
+    ...(context.displayName !== undefined && context.displayName !== null
+      ? { displayName: context.displayName }
+      : {}),
     placement: instance.placement
       ? {
-          at: [instance.placement.position.x, instance.placement.position.y],
+          coordinate: [
+            instance.placement.position.x,
+            instance.placement.position.y,
+          ],
           rotation: instance.placement.rotation,
           mirror: instance.placement.mirror,
         }
@@ -297,6 +308,7 @@ export function serializeComponentPropertyCode(
     placement,
     appearance,
     display,
+    displayName,
     netlistName,
     netlistTarget,
     ...details
@@ -321,6 +333,7 @@ export function serializeComponentPropertyCode(
           : {}),
       },
       ...(display ? { display } : {}),
+      ...(displayName !== undefined ? { displayName } : {}),
       ...details,
       netlistName,
       netlistTarget,
@@ -370,6 +383,25 @@ export function parseComponentPropertyCode(
     );
     if (appearanceUnknown) throw new Error(appearanceUnknown);
     const display = parseDisplay(decoded.display, context);
+    const displayNameAvailable =
+      context.displayName !== undefined && context.displayName !== null;
+    if (!displayNameAvailable && "displayName" in decoded) {
+      throw new Error("displayName is not available for this component");
+    }
+    if (displayNameAvailable) {
+      if (!("displayName" in decoded)) {
+        throw new Error("displayName is required for this component");
+      }
+      if (
+        typeof decoded.displayName !== "string" ||
+        !decoded.displayName.trim() ||
+        decoded.displayName.length > 256
+      ) {
+        throw new Error(
+          "displayName must be a nonempty string of at most 256 characters",
+        );
+      }
+    }
     const netNameAvailable =
       context.netName !== undefined && context.netName !== null;
     if (!netNameAvailable && "netName" in decoded) {
@@ -392,6 +424,9 @@ export function parseComponentPropertyCode(
     return {
       ok: true,
       value: {
+        ...(displayNameAvailable
+          ? { displayName: (decoded.displayName as string).trim() }
+          : {}),
         ...(netNameAvailable
           ? { netName: (decoded.netName as string).trim() }
           : {}),

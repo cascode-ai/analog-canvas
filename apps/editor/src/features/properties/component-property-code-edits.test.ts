@@ -111,7 +111,11 @@ describe("planComponentPropertyCodeEdits", () => {
     document.instances.push(instance);
     expect(
       planComponentPropertyCodeEdits(document, instance, {
-        placement: { at: [123, 177], rotation: 90, mirror: "horizontal" },
+        placement: {
+          coordinate: [123, 177],
+          rotation: 90,
+          mirror: "horizontal",
+        },
         display: { visualAnnotation: true, value: false },
         appearance: { color: "#DC2626" },
       }),
@@ -146,7 +150,11 @@ describe("planComponentPropertyCodeEdits", () => {
     document.instances.push(instance);
     expect(
       planComponentPropertyCodeEdits(document, instance, {
-        placement: { at: [100, 100], rotation: 0, mirror: "none" },
+        placement: {
+          coordinate: [100, 100],
+          rotation: 0,
+          mirror: "none",
+        },
         display: { visualAnnotation: true, value: false },
         appearance: { color: "auto" },
       }),
@@ -168,7 +176,11 @@ describe("planComponentPropertyCodeEdits", () => {
     document.instances.push(instance);
     expect(
       planComponentPropertyCodeEdits(document, instance, {
-        placement: { at: [100, 100], rotation: 0, mirror: "none" },
+        placement: {
+          coordinate: [100, 100],
+          rotation: 0,
+          mirror: "none",
+        },
         appearance: { color: "auto" },
       }),
     ).toEqual([
@@ -178,6 +190,57 @@ describe("planComponentPropertyCodeEdits", () => {
         styleOverride: null,
       },
     ]);
+  });
+
+  it("updates a visual display name without renaming the electrical instance", () => {
+    const document = createEmptyDocument("main", "Main");
+    const instance = {
+      id: "R1",
+      symbolId: "resistor",
+      reference: "R1",
+      placement: {
+        position: { x: 100, y: 100 },
+        rotation: 0 as const,
+        mirror: "none" as const,
+      },
+    };
+    document.instances.push(instance);
+    document.annotations.push({
+      id: "instance-label-R1",
+      kind: "instance-label",
+      binding: { kind: "instance-reference", instanceId: "R1" },
+      anchor: {
+        kind: "object",
+        objectId: "R1",
+        localOffset: { x: 20, y: -20 },
+        fallbackPosition: { x: 120, y: 80 },
+      },
+      alignment: "middle",
+      rotation: 0,
+      locked: false,
+    });
+    const value = componentPropertyCodeValue({
+      instance,
+      displayName: "R1",
+      referenceVisible: true,
+      valueVisible: false,
+    });
+    const edits = planComponentPropertyCodeEdits(document, instance, {
+      ...value,
+      displayName: "RL",
+    });
+    expect(edits).toHaveLength(1);
+    expect(edits[0]).toMatchObject({
+      kind: "upsert_schematic_annotation",
+      annotation: {
+        id: "instance-label-R1",
+        kind: "instance-label",
+      },
+    });
+    expect(edits[0]).not.toHaveProperty("annotation.binding");
+    expect(edits).not.toContainEqual(
+      expect.objectContaining({ kind: "set_instance_reference" }),
+    );
   });
 
   it("switches a merged amplifier between no mark, A, and custom text", () => {

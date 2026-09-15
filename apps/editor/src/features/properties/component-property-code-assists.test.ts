@@ -104,7 +104,7 @@ describe("Canvas property assistance", () => {
   it("addresses all available fields by syntax path and preserves unrelated draft bytes", () => {
     const source = formatComponentPropertyCode(context);
     expect(propertyCodeSpans(source).map((span) => span.field.path)).toEqual([
-      "placement.at",
+      "placement.coordinate",
       "placement.rotation",
       "placement.mirror",
       "appearance",
@@ -216,7 +216,7 @@ describe("Canvas property assistance", () => {
           const changed = JSON.parse(
             apply(source, reflectedPropertyCode(source, context, direction)),
           );
-          expect(changed.placement.at).toEqual([210, 140]);
+          expect(changed.placement.coordinate).toEqual([210, 140]);
           expect(changed.placement.rotation).toBe(code.placement.rotation);
           const before = transformPoint(
             { x: 10, y: 20 },

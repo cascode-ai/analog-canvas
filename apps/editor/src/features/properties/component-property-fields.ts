@@ -39,11 +39,18 @@ export interface CanvasPropertyField {
 
 export const CANVAS_PROPERTY_FIELDS: readonly CanvasPropertyField[] = [
   {
-    path: "placement.at",
-    label: "Position",
+    path: "placement.coordinate",
+    label: "Coordinate",
     kind: "coordinate",
     description: "",
     help: "Canvas coordinates [x, y]. Valid changes update immediately and snap to the grid.",
+  },
+  {
+    path: "displayName",
+    label: "Display name",
+    kind: "text",
+    description: "",
+    help: "Visual name drawn beside the component. It is independent from the exported netlist name.",
   },
   {
     path: "placement.rotation",

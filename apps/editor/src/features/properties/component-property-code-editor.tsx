@@ -25,6 +25,7 @@ const PropertyJsonEditor = lazy(
 
 export interface ComponentPropertyCodeEditorProps {
   instance: Instance;
+  displayName?: string | null;
   revision: number;
   referenceVisible: boolean | null;
   valueVisible: boolean | null;
@@ -41,6 +42,7 @@ export interface ComponentPropertyCodeEditorProps {
 /** Compact editable JSON for placement, display, and appearance. */
 export function ComponentPropertyCodeEditor({
   instance,
+  displayName,
   revision,
   referenceVisible,
   valueVisible,
@@ -54,6 +56,7 @@ export function ComponentPropertyCodeEditor({
   const context = useMemo<ComponentPropertyCodeContext>(
     () => ({
       instance,
+      ...(displayName !== undefined ? { displayName } : {}),
       referenceVisible,
       valueVisible,
       ...(parameterVisibility ? { parameterVisibility } : {}),
@@ -62,6 +65,7 @@ export function ComponentPropertyCodeEditor({
     }),
     [
       instance,
+      displayName,
       referenceVisible,
       valueVisible,
       parameterVisibility,

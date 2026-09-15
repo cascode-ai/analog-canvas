@@ -20,6 +20,7 @@ import {
   defaultKeymap,
   history,
   historyKeymap,
+  insertNewlineAndIndent,
   redo,
 } from "@codemirror/commands";
 import {
@@ -144,6 +145,15 @@ export default function ComponentPropertyJsonEditor(props: Props) {
             spellcheck: "false",
           }),
           keymap.of([
+            {
+              key: "Enter",
+              run: (view) => {
+                read().onChange(view.state.doc.toString());
+                return true;
+              },
+              shift: insertNewlineAndIndent,
+              preventDefault: true,
+            },
             { key: "Mod-Shift-z", run: redo, preventDefault: true },
             ...historyKeymap,
             ...closeBracketsKeymap,

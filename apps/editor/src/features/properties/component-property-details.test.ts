@@ -144,7 +144,11 @@ describe("unified component property details", () => {
     expect(defaults).toMatchObject({
       netlistName: "M1",
       netlistTarget: "model_a",
-      placement: { at: [200, 160], rotation: 0, mirror: "none" },
+      placement: {
+        coordinate: [200, 160],
+        rotation: 0,
+        mirror: "none",
+      },
       parameters: { custom: "{x+1}" },
     });
     for (const parameter of componentParameters("nmos"))
