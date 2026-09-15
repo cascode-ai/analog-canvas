@@ -1,0 +1,14 @@
+RC filter frequency response
+// 1. Change R or C on Canvas. Use a native VACASK Profile with Python.
+// 2. Click Run.
+// 3. Plot Gain in dB/phase; Measurements contains gain_at_fc.
+ground 0
+include "circuit.spice"
+control
+abort always
+options rawfile="ascii" strictsave=2 temp=27 reltol=1e-8 vntol=1e-10
+save v(in) v(out) i(V1)
+// AC is small-signal response, not an output-swing test.
+analysis frequency ac from=10 to=1M mode="dec" points=80
+postprocess(PYTHON, "report.py", "ac")
+endc
