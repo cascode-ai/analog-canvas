@@ -87,6 +87,17 @@ all five qualified corners and OP/DC/AC/TRAN/Noise. Missing equivalents remain
 an explicit release gap; do not silently substitute generic devices or drop an
 existing advertised capability. Model scope changes require a product decision.
 
+The product owner approved upgrading the MOS equation implementation from the
+source models' BSIM4 4.5/4.62 declarations to **4.8.3**, with requalification and
+explicit reporting of differences from historical results. The converter must
+emit 4.8.3 and retain the original versions in its evidence. Do not claim that a
+4.5 parameter string selects 4.5 equations inside `sp_bsim4v8`. The original
+ngspice baseline remains historical evidence, not a same-version oracle. New
+acceptance must use an independently identified 4.8.3 reference, verify the
+native module's chain-rule correction, and cover the complete analysis/device
+scope above. This decision changes neither foundry coefficients nor the current
+hosted environment; it does not waive model validation or authorize deployment.
+
 Record the actual VACASK build, platform, binary digest, OpenVAF revision,
 OSDI ABI, compiled module digests, model source/digests/licenses, startup policy
 and solver options. Official source defaults and binary packaging may select

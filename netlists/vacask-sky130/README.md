@@ -91,13 +91,37 @@ reference tolerances (maximum relative error about 0.00342%).
 
 Passing these OP/AC device points does not qualify the full Profile: bias,
 geometry, temperature and multiplicity sweeps, OTA DC/AC/TRAN/Noise and the
-hosted environment still require their own evidence. Source-version warnings
-remain visible, and no model coefficients or acceptance thresholds were changed.
+hosted environment still require their own evidence. These historical point
+comparisons did not change model coefficients or acceptance thresholds.
 
-The source declares BSIM4 4.5/4.62; the installed `sp_bsim4v8` module warns
-that it executes 4.8.3. This warning is preserved. Geometry/bias/multiplicity
-sweeps, OTA OP/AC/TRAN/Noise and model/environment equivalence remain open.
-Neither conversion success nor these point probes qualifies deployment.
+The product owner has approved an explicit upgrade from the source's BSIM4
+4.5/4.62 declarations to 4.8.3, subject to requalification. The converter now
+emits `version="4.8.3"` and records the source-version counts in each corner's
+conversion evidence. It does not alter the pinned foundry files or imply that
+old results are unchanged. The native module must also include the proven
+[chain-rule correction](../vacask-device-outputs/README.md).
+
+Geometry/bias/multiplicity sweeps and OTA OP/AC/TRAN/Noise require an independent
+same-version reference. The older ngspice 46/BSIM4 4.5 baseline is preserved for
+historical differences, not relabelled as 4.8.3. Neither conversion success nor
+the seven-device OP/AC point probes qualifies deployment.
+
+Acquire independent five-corner OTA OP/DC/AC/TRAN/Noise reference files with:
+
+```text
+node scripts/vacask-sky130-reference.mjs --binary <frozen-ngspice-46> --models <original-opt-sky130-directory>
+```
+
+This offline tool verifies the original binary and complete `/opt/sky130` tree
+against the historical Profile before copying its `continuous` directory. It
+changes only BSIM equation-version declarations in that copy, records per-file
+source/upgraded hashes and counts, then runs the existing OTA circuit and source
+values at all five corners. The reference uses explicit reltol=1e-8,
+abstol=1e-12, vntol=1e-10 and a 2 ns transient maximum step. Each fresh evidence
+directory retains decks, raw files, stdout/stderr and `reference.json`; neither
+the original models nor the old reference JSON is changed. Successful reference
+acquisition does not itself mean VACASK has passed a comparison. It is not a
+product runner, a runtime fallback, or a cloud model installation tool.
 
 Offline conversion integration tests use `ICM_VACASK_CONVERTER_SOURCE` and
 `ICM_SKY130_MODEL_SOURCE` (defaulting to the local `plan/upstream` checkouts).

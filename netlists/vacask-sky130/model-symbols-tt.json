@@ -8,7 +8,7 @@
   },
   "library": {
     "dependencyId": "sky130-native-tt",
-    "sha256": "c16551b2fb5b9ef3a8daf36276b4b30dbd4548116d6c542733be791fb652ecdc",
+    "sha256": "3e7d81854cf3a26eb8c89fcec4c748fb718b16b1e113a75ed112dc9089acf224",
     "masters": [
       {
         "name": "sky130_fd_pr__nfet_01v8",

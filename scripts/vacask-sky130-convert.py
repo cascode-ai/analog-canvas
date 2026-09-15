@@ -48,12 +48,12 @@ from ng2vclib.dfl import default_config
 cfg = default_config()
 cfg["sourcepath"] = [str(source)]
 for version in ("4.5", "4.62"):
-    # Preserve declared values. The module warns that it runs BSIM4.8.3.
-    # This is a qualification concern, not permission to hide the warning.
+    # Product-approved explicit equation-version upgrade. Preserve source
+    # declarations in conversion evidence, not a misleading native selector.
     cfg["family_map"][("mos", 54, version)] = (
-        "spice/bsim4v8.osdi", "sp_bsim4v8", {"version": '"' + version + '"'}
+        "spice/bsim4v8.osdi", "sp_bsim4v8", {"version": '"4.8.3"'}
     )
-cfg["family_map"][("mos", 54, None)] = ("spice/bsim4v8.osdi", "sp_bsim4v8", {})
+cfg["family_map"][("mos", 54, None)] = ("spice/bsim4v8.osdi", "sp_bsim4v8", {"version": '"4.8.3"'})
 cfg["remove_model_params"]["sp_bsim4v8"] = {"lmin", "lmax", "wmin", "wmax"}
 
 class RelativeIncludeConverter(Converter):
@@ -65,6 +65,7 @@ class RelativeIncludeConverter(Converter):
         self.emitted_bins = {}
         self.required_modules = set()
         self.source_files = set()
+        self.bsim4_source_versions = {}
 
     def process_expressions(self, params):
         return [(name, real_source_division(value))
@@ -86,6 +87,15 @@ class RelativeIncludeConverter(Converter):
             line = ' '.join(parts)
         result = super().process_model(lws, line, eol, annot, in_sec, in_sub)
         module = result.split()[2]
+        if module == 'sp_bsim4v8':
+            name = parts[1]
+            if '.' in name:
+                base, ordinal = name.rsplit('.', 1)
+                model = self.data['bins'][(in_sec, in_sub)][base][int(ordinal)]
+            else:
+                model = self.data['models'][(in_sec, in_sub)][name]
+            version = model[4] or 'unspecified'
+            self.bsim4_source_versions[version] = self.bsim4_source_versions.get(version, 0) + 1
         paths = {path for path, name, _ in self.cfg['family_map'].values() if name == module}
         if len(paths) != 1:
             raise ValueError(f'Missing or ambiguous native module path for {module}: {paths}')
@@ -221,8 +231,13 @@ report = {
     "arithmeticRecipeSha256": digest(Path(__file__).parent / 'lib/vacask_source_arithmetic.py'),
     "binning": {"source": "ngspice-46", "defaultWnflag": 0, "edgeToleranceM": 1e-9, "priority": "last-declared"},
     "scope": "combined_models/continuous tree; only the seven baseline wrappers are acceptance targets",
+    "modelSemantics": {
+        "family": "BSIM4", "targetVersion": "4.8.3", "module": "sp_bsim4v8",
+        "policy": "explicit-upgrade; requalification required",
+    },
     "limitations": [
-        "BSIM4 4.5/4.62 declarations execute with the module's 4.8.3 equations",
+        "BSIM4 source versions are explicitly upgraded to 4.8.3; old results remain historical comparisons",
+        "module identity and the chain-rule correction must be independently verified before qualification",
         "conversion success is not electrical or hosted qualification",
         "other wrappers in this source tree are not qualified",
     ],
@@ -257,6 +272,7 @@ try:
             "nativeSha256": digest(native),
             "entrySha256": digest(entry),
             "sources": {path.relative_to(source).as_posix(): digest(path) for path in inputs},
+            "bsim4SourceVersions": dict(sorted(converter.bsim4_source_versions.items())),
             "requiredModules": sorted(converter.required_modules | {
                 cfg["default_models"][letter][0] for letter in converter.data["default_models_needed"]
             }),

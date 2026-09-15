@@ -258,7 +258,25 @@ describe.skipIf(!available)("pinned native SKY130 conversion", () => {
         "pnp_05v5_w0p68l0p68",
       ])
         expect(text).toContain(`subckt sky130_fd_pr__${name}(`);
-      expect(text).toContain('version="4.5"');
+      expect(text).toContain('version="4.8.3"');
+      expect(text).not.toContain('version="4.5"');
+      expect(text).not.toContain('version="4.62"');
+      expect(report.modelSemantics).toEqual({
+        family: "BSIM4",
+        targetVersion: "4.8.3",
+        module: "sp_bsim4v8",
+        policy: "explicit-upgrade; requalification required",
+      });
+      expect(Object.keys(evidence.bsim4SourceVersions)).toEqual([
+        "4.5",
+        "4.62",
+      ]);
+      expect(
+        Object.values(evidence.bsim4SourceVersions).every((count) => count > 0),
+      ).toBe(true);
+      expect(
+        Object.values(evidence.bsim4SourceVersions).reduce((a, b) => a + b, 0),
+      ).toBe((text.match(/^\s*model \S+ sp_bsim4v8\b/gmu) ?? []).length);
       expect(text).toContain("(w)*$scale");
       expect(text).not.toContain("(w)*$scale/(nf)");
       expect(report.binning).toEqual({
