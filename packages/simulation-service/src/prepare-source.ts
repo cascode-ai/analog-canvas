@@ -7,6 +7,9 @@ import {
   compileSourceSimulation,
   simulationSignals,
   insertSimulationText,
+  replaceSimulationText,
+  inspectVacaskSource,
+  type VacaskSourceStatement,
   type SimulationSourceDiagnostic,
 } from "@icm/netlist";
 import { problem, type Capabilities, type Problem } from "./contract.js";
@@ -110,6 +113,16 @@ export async function prepareSourceExecutionInput(
         dependency.id === policy.dependencyId &&
         compiled.includes.some((load) => load.target === dependency.mountPath),
     );
+  const requestedCorner = compiled.config.environment.corner;
+  if (
+    requestedCorner !== undefined &&
+    (!policy || (!compiled.requiredModels.length && !authoredProfileLoad))
+  )
+    return problem(
+      "SIMULATION_CORNER_UNAVAILABLE",
+      "A corner point requires a used model library declared by the selected Profile; no unrelated include will be changed.",
+      "prepare",
+    );
   if (policy && (compiled.requiredModels.length || authoredProfileLoad)) {
     const library = (profile.dependencies ?? []).find(
       (d) => d.id === policy.dependencyId,
@@ -146,7 +159,10 @@ export async function prepareSourceExecutionInput(
     const loads = compiled.includes.filter(
       (i) => i.target === dependency.mountPath,
     );
-    const section = loads.length ? loads[0]!.section : policy.defaultSection;
+    const nominalSection = loads.length
+      ? loads[0]!.section
+      : policy.defaultSection;
+    const section = requestedCorner ?? nominalSection;
     if (
       loads.length &&
       policy.defaultSection !== undefined &&
@@ -167,7 +183,7 @@ export async function prepareSourceExecutionInput(
         "The native model section is outside this Profile's qualified sections",
         "prepare",
       );
-    if (loads.some((load) => load.section !== section))
+    if (loads.some((load) => load.section !== nominalSection))
       return sourceCompilationProblem(
         loads.map((load) => ({
           code: "SIMULATION_MODEL_CORNER_CONFLICT",
@@ -179,6 +195,66 @@ export async function prepareSourceExecutionInput(
         })),
         folder,
       );
+    if (requestedCorner !== undefined) {
+      // Graph expansion can visit one authored include more than once. Patch
+      // each physical span once, right-to-left, retaining all untouched bytes.
+      const unique = new Map(
+        loads.map((load) => [
+          JSON.stringify([load.path, load.sourceRef.start.offset]),
+          load,
+        ]),
+      );
+      const statementsByPath = new Map<
+        string,
+        Map<number, VacaskSourceStatement>
+      >();
+      for (const load of [...unique.values()].sort(
+        (a, b) => b.sourceRef.start.offset - a.sourceRef.start.offset,
+      )) {
+        const index = files.findIndex((file) => file.path === load.path);
+        const file = files[index]!;
+        let statements = statementsByPath.get(file.path);
+        if (!statements) {
+          statements = new Map(
+            inspectVacaskSource(
+              file.path,
+              file.text,
+              file.path === compiled.entry,
+            ).statements.map((s) => [s.sourceRef.start.offset, s]),
+          );
+          statementsByPath.set(file.path, statements);
+        }
+        const statement = statements.get(load.sourceRef.start.offset);
+        const last = statement?.tokens.at(-1);
+        if (!last)
+          return problem(
+            "SIMULATION_CORNER_SOURCE_RANGE",
+            "Refresh the source and prepare the corner again",
+            "prepare",
+            "reprepare",
+          );
+        const start = load.section === undefined ? last.end : last.start;
+        const mapped = replaceSimulationText(
+          { ...file, ...sourceMaps[index]! },
+          start,
+          last.end,
+          load.section === undefined
+            ? ` section=${requestedCorner}`
+            : requestedCorner,
+          {
+            kind: "generated",
+            purpose: "run-variant",
+            nominal: {
+              path: file.path,
+              startOffset: start,
+              endOffset: last.end,
+            },
+          },
+        );
+        files[index] = { path: mapped.path, text: mapped.text };
+        sourceMaps[index] = { path: mapped.path, segments: mapped.segments };
+      }
+    }
     if (!loads.length) {
       const entry = files[entryIndex]!;
       const relative =

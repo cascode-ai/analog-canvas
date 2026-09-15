@@ -301,7 +301,7 @@ describe("shared simulation lifecycle", () => {
     expect(maxActive).toBe(1);
   });
 
-  it("prepares native exact-parameter sweep members with separate identities through the shared service", async () => {
+  it("prepares native parameter/corner sweep members with separate identities through the shared service", async () => {
     const project = CircuitProjectSchema.parse(
       currentFiveTransistorOtaCircuitSource(),
     );
@@ -312,6 +312,16 @@ describe("shared simulation lifecycle", () => {
     const instance = document.instances.find((i) => i.netlist?.parameters.w)!;
     const before = structuredClone(project);
     const f = fixture();
+    f.executor.capabilities = async () => ({
+      ...caps,
+      profiles: [
+        {
+          ...caps.profiles[0]!,
+          corners: ["tt", "ff"],
+          modelLibrary: { dependencyId: "models", defaultSection: "tt" },
+        },
+      ],
+    });
     const service = new SimulationService(f.files, f.executor, () => project);
     const request = {
       operation: "prepare-sweep" as const,
@@ -325,22 +335,28 @@ describe("shared simulation lifecycle", () => {
           parameter: "w",
           values: ["10u", "20u"],
         },
+        { kind: "corner" as const, values: ["tt", "ff"] },
       ],
     };
     const reply = await service.handle(request, "native-parameter-sweep");
     expect(reply).toMatchObject({ ok: true, batch: { state: "prepared" } });
     if (!reply.ok || !("batch" in reply)) throw Error(JSON.stringify(reply));
     expect(reply.batch.items.map((item) => item.label)).toEqual([
-      `${instance.id}.w=10u`,
-      `${instance.id}.w=20u`,
+      `${instance.id}.w=10u, corner=tt`,
+      `${instance.id}.w=10u, corner=ff`,
+      `${instance.id}.w=20u, corner=tt`,
+      `${instance.id}.w=20u, corner=ff`,
     ]);
     expect(
       new Set(reply.batch.items.map((item) => item.prepared.digest)).size,
-    ).toBe(2);
+    ).toBe(4);
     expect(
       new Set(reply.batch.items.map((item) => item.prepared.inputRevision))
         .size,
-    ).toBe(2);
+    ).toBe(4);
+    expect(
+      reply.batch.items.map((item) => item.prepared.environment.corner),
+    ).toEqual(["tt", "ff", "tt", "ff"]);
     expect(project).toEqual(before);
     expect(f.executor.execute).not.toHaveBeenCalled();
     const again = await service.handle(request, "native-parameter-repeat");

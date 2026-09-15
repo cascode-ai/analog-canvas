@@ -115,13 +115,12 @@ export function compileSourceSimulation(
   }
   variant = parsedVariant.data;
   if (
-    variant.environment?.corner !== undefined ||
     variant.environment?.temperatureC !== undefined ||
     variant.variables?.length
   )
     fail(
       "SIMULATION_NATIVE_VARIANT_UNSUPPORTED",
-      "Native corner, temperature and source-variable run projections are not yet available. Edit their native source directly; exact Canvas parameter points are supported.",
+      "Native temperature and source-variable run projections are not yet available. Edit their native source directly; exact Canvas parameter and Profile corner points are supported.",
     );
   const graph = inspectVacaskSourceGraph(folder.input);
   diagnostics.push(...graph.diagnostics);
@@ -329,6 +328,10 @@ export function compileSourceSimulation(
     ),
   ];
   const config = structuredClone(parsed.config);
+  // Run-only environment intent. The service resolves the Profile's exact
+  // dependency/section and maps its prepared text; no persisted config edit.
+  if (variant.environment?.corner !== undefined)
+    config.environment.corner = variant.environment.corner;
   // There is no single authored write filename in VACASK. Collection is a
   // runtime multi-artifact concern; never manufacture an out.raw source setting.
   config.collection = { rawfile: null };

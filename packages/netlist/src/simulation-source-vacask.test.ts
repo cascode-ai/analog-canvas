@@ -288,7 +288,7 @@ describe("public native source compilation", () => {
   it("refuses stale drafts and unimplemented environment projections while keeping nominal source intact", () => {
     const { project, folder } = fixture();
     const result = compileSourceSimulation(project, folder, {
-      environment: { corner: "ff" },
+      environment: { temperatureC: 125 },
     });
     expect(result).toMatchObject({
       ok: false,

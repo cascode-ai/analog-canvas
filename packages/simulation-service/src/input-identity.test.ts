@@ -79,6 +79,11 @@ describe("Project input identity", () => {
     const point = await pointPromise;
     expect(point).toMatch(/^[a-f0-9]{64}$/u);
     expect(point).not.toBe(before);
+    const corner = { ...variant, environment: { corner: "ff" } };
+    const cornerHash = await cache.read(project, id, corner);
+    expect(cornerHash).toMatch(/^[a-f0-9]{64}$/u);
+    expect(cornerHash).not.toBe(point);
+    expect(await cache.read(project, id, corner)).toBe(cornerHash);
     expect(await cache.read(project, id)).toBe(before);
     instance.placement!.position.x += 10;
     document.revision++;

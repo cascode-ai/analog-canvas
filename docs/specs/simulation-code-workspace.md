@@ -64,9 +64,16 @@ the native printer performs the conversion. The parameter must exist and appear
 in the selected experiment's generated files. Duplicate, missing and non-emitted
 targets are repairable preparation errors, not silently nominal runs. Generated
 files, source ranges and input identity describe that exact point; original
-authored files remain available. Empty points are nominal. Native corner,
-temperature and source-variable point projections remain unimplemented and
-explicitly rejected; their batch parity is an open migration requirement.
+authored files remain available. Empty points are nominal. A native corner point
+selects only the model dependency declared by the Profile: it replaces that
+library's authored include section in prepared files, or selects the section on
+the automatically inserted include. Other includes and original source bytes
+remain unchanged; replacement spans retain their nominal source locations.
+Unsupported corners, absent/unused Profile libraries and conflicting nominal
+includes return repairable errors. Prepared environment and input identity
+retain the effective corner. Temperature and source-variable point projections
+remain unimplemented and explicitly rejected; their batch parity is an open
+migration requirement.
 
 Device OP is derived from vectors actually collected by Code. `op` takes no
 parameters: request e.g. `save @m1[id] @m1[gm]`, then `op`, then `write result.raw`.
