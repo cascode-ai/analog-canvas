@@ -1,4 +1,9 @@
-import { foldNetName, projectCellInterface, routeEndpoints } from "@icm/model";
+import {
+  deriveStableId,
+  foldNetName,
+  projectCellInterface,
+  routeEndpoints,
+} from "@icm/model";
 import {
   deriveProjectNetNameProjection,
   directObjectLocator,
@@ -8,6 +13,7 @@ import {
 } from "@icm/derived";
 import type {
   CircuitProject,
+  ConnectivityEvidence,
   ExternalSubcircuitDefinition,
   Instance,
   SchematicDocument,
@@ -195,14 +201,80 @@ function encodeCandidate(
   return encodeNetName(name, scope, options.format, options.namingProfile);
 }
 
-function buildNetContext(
+/**
+ * A visible Ground or VDD marker is already an explicit electrical statement.
+ * Older drawings and copied markers can predate the persisted name-claim
+ * ownership record, so recover that statement in the read-only export view.
+ * Ordinary unnamed Nets still receive deterministic N0001-style names below.
+ */
+function withNetlistPowerMarkerClaims(
   document: SchematicDocument,
+): SchematicDocument {
+  const logicalNets = resolveDocumentLogicalNets(document);
+  const claimedMarkers = new Set(
+    document.connectivityEvidence.flatMap((evidence) =>
+      evidence.kind === "name-claim" && evidence.owner.kind === "power-marker"
+        ? [evidence.owner.objectId]
+        : [],
+    ),
+  );
+  const additions: ConnectivityEvidence[] = [];
+  for (const instance of document.instances) {
+    const ground = instance.symbolId === "ground";
+    if (
+      (!ground && instance.symbolId !== "vdd-port") ||
+      claimedMarkers.has(instance.id)
+    )
+      continue;
+    const pinName = deviceDescriptor(instance.symbolId)?.pinOrder[0];
+    if (!pinName) continue;
+    const nets = document.nets.filter((net) =>
+      net.terminals.some(
+        (terminal) =>
+          terminal.instanceId === instance.id && terminal.pinName === pinName,
+      ),
+    );
+    if (nets.length !== 1) continue;
+    const logicalNet = logicalNets.byBaseNetId.get(nets[0]!.id);
+    if (
+      !logicalNet ||
+      logicalNet.name ||
+      logicalNet.powerDomain !== "none" ||
+      logicalNet.conflicts.length > 0
+    )
+      continue;
+    additions.push({
+      id: deriveStableId(
+        "connectivity-evidence",
+        "netlist-power-marker",
+        document.id,
+        instance.id,
+      ),
+      kind: "name-claim",
+      netId: nets[0]!.id,
+      name: ground ? "0" : "VDD",
+      scope: "global",
+      powerDomain: ground ? "ground" : "vdd",
+      owner: { kind: "power-marker", objectId: instance.id },
+    });
+  }
+  return additions.length === 0
+    ? document
+    : {
+        ...document,
+        connectivityEvidence: [...document.connectivityEvidence, ...additions],
+      };
+}
+
+function buildNetContext(
+  sourceDocument: SchematicDocument,
   documentsById: Map<string, SchematicDocument>,
   externalDefinitionsById: ReadonlyMap<string, ExternalSubcircuitDefinition>,
   projectedNames: ReadonlyMap<string, ProjectedNetName>,
   options: ResolvedDesignNetlistAnalysisOptions,
   diagnostics: NetlistDiagnostic[],
 ): CellNetContext {
+  const document = withNetlistPowerMarkerClaims(sourceDocument);
   if (document.nets.length > MAX_NETS_PER_CELL) {
     diagnostic(
       diagnostics,
@@ -940,7 +1012,7 @@ function extractDeviceInstance(
         diagnostics,
         document.id,
         "INVALID_NET_MARKER",
-        `Net marker ${instance.id} must connect to an explicitly named Net`,
+        `Net marker ${instance.id} must connect to one valid Net`,
         [instance.id],
       );
     } else if (

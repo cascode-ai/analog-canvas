@@ -823,6 +823,91 @@ describe("current formal cell interface", () => {
     expect(result.ir?.globals).toEqual(["0"]);
   });
 
+  it("recovers unnamed visible Ground markers as global node 0", () => {
+    const project = createEmptyProject("project", "Project");
+    const document = project.documents[0]!;
+    for (const suffix of ["1", "2"]) {
+      document.instances.push(
+        {
+          id: `GND${suffix}`,
+          symbolId: "ground",
+          placement: null,
+        },
+        {
+          id: `R${suffix}`,
+          symbolId: "resistor",
+          placement: null,
+          reference: `R${suffix}`,
+          netlist: {
+            binding: { kind: "primitive", deviceClass: "resistor" },
+            parameters: { value: `${suffix}k` },
+          },
+        },
+      );
+      document.nets.push({
+        id: `net-ground-${suffix}`,
+        terminals: [
+          { instanceId: `GND${suffix}`, pinName: "0" },
+          { instanceId: `R${suffix}`, pinName: "1" },
+        ],
+      });
+      document.noConnects.push({
+        id: `nc-R${suffix}`,
+        endpoint: { kind: "terminal", instanceId: `R${suffix}`, pinName: "2" },
+      });
+    }
+
+    const result = analyzeDesignNetlist(project);
+
+    expect(
+      result.diagnostics.filter((item) => item.severity === "error"),
+    ).toEqual([]);
+    expect(result.ir?.globals).toEqual(["0"]);
+    expect(printSpiceNetlist(result.ir!)).toMatch(/R1 0 NC0001 1k/u);
+    expect(printSpiceNetlist(result.ir!)).toMatch(/R2 0 NC0002 2k/u);
+  });
+
+  it("recovers an unnamed visible VDD marker as global node VDD", () => {
+    const project = createEmptyProject("project", "Project");
+    const document = project.documents[0]!;
+    document.instances.push(
+      {
+        id: "VDD1",
+        symbolId: "vdd-port",
+        placement: null,
+      },
+      {
+        id: "R1",
+        symbolId: "resistor",
+        placement: null,
+        reference: "R1",
+        netlist: {
+          binding: { kind: "primitive", deviceClass: "resistor" },
+          parameters: { value: "1k" },
+        },
+      },
+    );
+    document.nets.push({
+      id: "net-vdd",
+      terminals: [
+        { instanceId: "VDD1", pinName: "P" },
+        { instanceId: "R1", pinName: "1" },
+      ],
+    });
+    document.noConnects.push({
+      id: "nc-R1",
+      endpoint: { kind: "terminal", instanceId: "R1", pinName: "2" },
+    });
+
+    const result = analyzeDesignNetlist(project);
+
+    expect(
+      result.diagnostics.filter((item) => item.severity === "error"),
+    ).toEqual([]);
+    expect(result.ir?.globals).toEqual(["VDD"]);
+    expect(printSpiceNetlist(result.ir!)).toMatch(/R1 VDD NC0001 1k/u);
+  });
+
   it("exports a global named VDD Port Net without inventing a marker record", () => {
     const project = createEmptyProject("project", "Project");
     const document = project.documents[0]!;
