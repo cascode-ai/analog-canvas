@@ -1,4 +1,8 @@
-import type { NetlistFormat, NetlistNamingProfile } from "@icm/netlist";
+import type {
+  NetlistFormat,
+  NetlistNamingProfile,
+  NetlistExportProfile,
+} from "@icm/netlist";
 import type { CircuitProject, GridRect, SchematicDocument } from "@icm/model";
 import { importSpiceSources } from "@icm/spice";
 import type { SymbolResolver } from "@icm/symbols";
@@ -23,6 +27,8 @@ export interface EditorFileCommandDependencies {
   resolver: SymbolResolver;
   defaultViewBox: GridRect;
   electricalWarningsPresent: () => boolean;
+  netlistProfile?: NetlistExportProfile;
+  netlistConfigurationError?: string | null;
   guardDirtyReplacement: (
     label: string,
     replace: () => void | Promise<void>,
@@ -48,6 +54,8 @@ export function createEditorFileCommands({
   resolver,
   defaultViewBox,
   electricalWarningsPresent,
+  netlistProfile,
+  netlistConfigurationError,
   guardDirtyReplacement,
   replaceActiveProject,
   setNetlistPreflightOpen,
@@ -73,10 +81,15 @@ export function createEditorFileCommands({
     format: NetlistFormat,
     namingProfile: NetlistNamingProfile = "native",
   ): void => {
+    if (netlistConfigurationError) {
+      setStatus(`Fix Netlist configuration: ${netlistConfigurationError}`);
+      return;
+    }
     const plan = planDesignNetlistExport({
       format,
       project,
       namingProfile,
+      ...(netlistProfile ? { profile: netlistProfile } : {}),
       electricalWarningsPresent: electricalWarningsPresent(),
     });
     if (plan.status === "blocked") {

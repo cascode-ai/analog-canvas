@@ -288,6 +288,34 @@ Warnings may report generated local Net names or conflicting directions inside
 one same-name Formal Port group. They cannot downgrade a missing
 electrical fact required for meaningful output.
 
+### Explicit export presets
+
+The download boundary accepts an optional `NetlistExportProfile`. The editor
+ships Abstract, SKY130, and Custom defaults in a single raw JSON configuration
+in the right Properties panel; `selected` chooses the active preset. Valid code
+edits apply immediately, invalid drafts block downloads, and browser preferences
+are separate from the Project schema. There are no per-field configuration forms.
+
+Projection copies the Project and visits only the reachable hierarchy. Abstract
+uses ideal R/C/L and generic model names without model cards; SKY130 uses reviewed
+external transistor interfaces and ideal R/C by default; Custom preserves authored
+targets. Defaults fill only missing parameters, case-insensitively. Existing source
+waveforms and AC intent do not acquire a new DC bias from a fallback.
+
+Explicit physical R/C targets use reviewed W/L parameters, never infer geometry
+from an ideal value, and warn when replacing that value. A resistor's existing
+substrate connection wins; an absent substrate may use an explicitly configured
+existing net or exporter-only ground `0`. Reference or target-interface collisions
+block output. Reviewed geometry stays in canonical metres until strict SPICE
+extraction emits the PDK wrapper's micrometre values. Unknown custom subcircuits
+and unresolved hierarchy retain their original interfaces and validation.
+
+Configured library paths and sections are printed as includes outside the pure
+IR printer. SKY130 `.scs` files use `simulator lang=spice` for the same authentic
+SPICE wrapper library; this is not a native Spectre PDK conversion or a claim of
+licensed Spectre qualification. Strict extraction and simulation consumers do not
+implicitly use these download presets.
+
 ### Incomplete downloads
 
 `createDesignNetlistExport` permits a download when the only errors are
@@ -302,8 +330,8 @@ never writes placeholders into the Project or changes simulation readiness.
 
 Existing conflicting bindings, missing hierarchy interfaces, unsupported devices,
 invalid waveforms, and incomplete connections remain blocking. This projection
-never exports the permissive authoring IR. It cannot omit an invalid device or
-invent a connection, numerical value, model definition, or stimulus.
+never exports the permissive authoring IR. It cannot omit an invalid device or invent a model definition. Numerical defaults
+and the explicit substrate rule belong only to the selected preset above.
 
 The editor's primary Netlist button downloads immediately in its current format
 (SPICE by default); its adjacent menu downloads the other format and remembers
@@ -330,8 +358,8 @@ or output bytes.
 
 Cell interfaces and instance electrical data are persisted in the Project.
 Device definitions ship with the Symbol library. Export IR, generated local Net
-names, diagnostics, and output text are transient. PDK libraries and simulation
-profiles are external to this version of the contract.
+names, diagnostics, and output text are transient. PDK model contents and simulation profiles remain external; download preferences
+are browser-local configuration.
 
 ## Valid example
 
@@ -344,16 +372,16 @@ change either output.
 
 A manually authored NMOS with W/L values but no model target produces a
 missing-target error in strict analysis. A structural download may mark its
-model `TODO_Main_M1_model` if all other electrical facts are present. Export
-must not guess `nmos`, `nch_mac`, or a foundry model from its Symbol ID. The same
+model `TODO_Main_M1_model` if all other electrical facts are present. Without a selected preset, export must not guess a model. With a preset, the
+configured target and parameter defaults apply. The same
 device with an unconnected, unmarked drain still blocks download.
 
 ## Compatibility boundary
 
 Export accepts only the current Project schema. Retired compatibility
 properties and all non-current schema versions are rejected by persistence
-before extraction. No export path invents a model, child binding, Net
-connection, source specification, library path, or simulator directive.
+before extraction. Only the explicit preset projection may add its documented defaults and library
+include; it never repairs a broken hierarchy or invents foundry model data.
 
 ## Deterministic validation
 

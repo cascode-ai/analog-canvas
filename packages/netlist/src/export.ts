@@ -5,6 +5,11 @@ import {
   type DesignNetlistAnalysisOptions,
 } from "./extract.js";
 import type { NetlistDiagnostic } from "./ir.js";
+import {
+  projectNetlistExportProfile,
+  NETLIST_PROFILE_LABELS,
+  type NetlistExportProfile,
+} from "./export-profiles.js";
 import { printDesignNetlist, type NetlistFileDescriptor } from "./printers.js";
 
 export interface NetlistExportPlaceholder {
@@ -33,11 +38,27 @@ export type DesignNetlistExportResult = {
  * permissive authoring IR as an export or change simulation readiness.
  */
 export function createDesignNetlistExport(
-  project: CircuitProject,
-  options: DesignNetlistAnalysisOptions = {},
+  source: CircuitProject,
+  options: DesignNetlistAnalysisOptions & {
+    profile?: NetlistExportProfile;
+  } = {},
 ): DesignNetlistExportResult {
-  const format = options.format ?? "spice";
-  const analysis = analyzeDesignNetlist(project, options);
+  const requestedFormat = options.format ?? "spice";
+  const profiled = options.profile
+    ? projectNetlistExportProfile(
+        source,
+        options.profile,
+        options.rootDocumentId,
+      )
+    : undefined;
+  const project = profiled?.project ?? source;
+  const format = profiled?.spiceLibraryDialect ? "spice" : requestedFormat;
+  const analysisOptions = { ...options, format };
+  const extracted = analyzeDesignNetlist(project, analysisOptions);
+  const analysis = {
+    ...extracted,
+    diagnostics: [...(profiled?.diagnostics ?? []), ...extracted.diagnostics],
+  };
   const errors = analysis.diagnostics.filter(
     (item) => item.severity === "error",
   );
@@ -120,11 +141,16 @@ export function createDesignNetlistExport(
         }
       }
     }
-    ir = analyzeDesignNetlist(draft, options).ir;
+    ir = analyzeDesignNetlist(draft, analysisOptions).ir;
     if (!ir) return blocked;
   }
   const file = printDesignNetlist(format, ir);
   const comments = [
+    ...(options.profile
+      ? [
+          `Netlist preset: ${NETLIST_PROFILE_LABELS[options.profile.id]}. Circuit values override preset defaults.`,
+        ]
+      : []),
     ...(placeholders.length
       ? [
           "INCOMPLETE NETLIST - replace TODO fields before simulation.",
@@ -137,6 +163,20 @@ export function createDesignNetlistExport(
       : []),
     ...analysis.diagnostics.map((item) => `${item.code}: ${item.message}`),
   ];
+  const library = options.profile?.library;
+  if (library?.path) {
+    const load =
+      format === "spice"
+        ? library.section
+          ? `.lib "${library.path}" ${library.section}`
+          : `.include "${library.path}"`
+        : `include "${library.path}"${library.section ? ` section=${library.section}` : ""}`;
+    // SPICE's first line is a title. Keep a comment there when this structural
+    // file is used as a simulator entry, so the library load cannot disappear.
+    file.text =
+      `${format === "spice" ? "*" : "//"} Model library (configured export path)\n${load}\n` +
+      file.text;
+  }
   const prefix = format === "spice" ? "*" : "//";
   if (comments.length) {
     // Every line stays a comment even when an authored name contains newlines.
@@ -149,7 +189,17 @@ export function createDesignNetlistExport(
   return {
     status: "ready",
     diagnostics: analysis.diagnostics,
-    file,
+    file:
+      requestedFormat === "spectre" && format === "spice"
+        ? {
+            ...file,
+            extension: ".scs",
+            mediaType: "application/x-spectre",
+            text:
+              "// SKY130 SPICE library and device wrappers\nsimulator lang=spice\n" +
+              file.text,
+          }
+        : file,
     placeholders,
     cellCount: ir.cells.length,
     externalMasterCount: ir.externalMasters?.length ?? 0,

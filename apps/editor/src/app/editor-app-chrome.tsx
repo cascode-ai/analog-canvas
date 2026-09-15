@@ -1,3 +1,4 @@
+import { NETLIST_PROFILE_LABELS, type NetlistProfileId } from "@icm/netlist";
 import { useState, type ComponentProps, type RefObject } from "react";
 
 import { AccountMenu } from "../components/account";
@@ -63,6 +64,8 @@ export interface EditorAppChromeProps {
   checkAndSave: CommandAction;
   onOpenInstanceTable: () => void;
   onOpenNetlistPreflight: () => void;
+  onOpenNetlistConfiguration: () => void;
+  netlistProfileId: NetlistProfileId;
   onExportNetlist: (format: "spice" | "spectre") => void;
   agentAction: { label: string; execute: () => void } | null;
   simulationAction?: () => void;
@@ -124,6 +127,8 @@ export function EditorAppChrome({
   checkAndSave,
   onOpenInstanceTable,
   onOpenNetlistPreflight,
+  netlistProfileId,
+  onOpenNetlistConfiguration,
   onExportNetlist,
   agentAction,
   simulationAction,
@@ -346,7 +351,7 @@ export function EditorAppChrome({
                 className="toolbar-button netlist-download"
                 data-testid="download-netlist"
                 aria-label={`Download ${netlistFormat === "spice" ? "SPICE" : "Spectre"} netlist`}
-                title={`Download ${netlistFormat === "spice" ? "SPICE (.spi)" : "Spectre (.scs)"} netlist`}
+                title={`Download ${NETLIST_PROFILE_LABELS[netlistProfileId]} ${netlistFormat === "spice" ? "SPICE (.spi)" : "Spectre (.scs)"} netlist`}
                 onClick={() => downloadNetlist(netlistFormat)}
               >
                 <svg
@@ -374,6 +379,9 @@ export function EditorAppChrome({
                   title="Netlist formats and checks"
                 />
                 <div className="command-popover">
+                  <button type="button" onClick={onOpenNetlistConfiguration}>
+                    Configuration…
+                  </button>
                   <button
                     type="button"
                     onClick={() => downloadNetlist("spice")}
@@ -406,7 +414,7 @@ export function EditorAppChrome({
                     type="button"
                     aria-haspopup="dialog"
                     aria-expanded={netlistPreflightOpen}
-                    onClick={onOpenNetlistPreflight}
+                    onClick={() => onOpenNetlistPreflight()}
                   >
                     Check Report…
                   </button>

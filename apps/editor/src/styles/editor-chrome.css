@@ -187,6 +187,35 @@
   gap: var(--icm-space-3);
 }
 
+.netlist-profile-code {
+  display: grid;
+  gap: 8px;
+}
+.netlist-profile-code h2 {
+  font-size: 14px;
+  margin: 0;
+}
+.netlist-profile-code p {
+  font-size: 12px;
+  color: var(--icm-text-dim);
+}
+.netlist-profile-code textarea {
+  width: 100%;
+  min-height: 60dvh;
+  resize: vertical;
+  box-sizing: border-box;
+  padding: 10px;
+  border: 1px solid var(--icm-border);
+  border-radius: 6px;
+  background: var(--icm-surface);
+  color: var(--icm-text);
+  font: 12px/1.6 monospace;
+  tab-size: 2;
+}
+.netlist-profile-code textarea[aria-invalid="true"] {
+  border-color: #c44;
+}
+
 .netlist-preflight-header p,
 .netlist-preflight-header h2,
 .netlist-preflight-summary h3,

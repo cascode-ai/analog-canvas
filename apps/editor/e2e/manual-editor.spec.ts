@@ -5977,6 +5977,49 @@ test("exports structural SPICE and Spectre netlists while exposing instance auth
   await expect(properties.getByText(/^Model:/u)).toHaveCount(0);
 });
 
+test("edits all netlist presets as raw JSON in Properties and remembers valid changes", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await clickCommand(page, "Netlist", "Configuration…");
+  const panel = page.getByRole("region", {
+    name: "Netlist configuration",
+    exact: true,
+  });
+  const code = panel.getByRole("textbox", {
+    name: "Netlist configuration JSON",
+  });
+  await expect(panel.getByRole("combobox")).toHaveCount(0);
+  await expect(panel.getByRole("button")).toHaveCount(0);
+  const config = JSON.parse(await code.inputValue());
+  config.selected = "sky130";
+  config.profiles.sky130.library.path =
+    "/opt/sky130/continuous/sky130.lib.spice";
+  await code.fill(JSON.stringify(config, null, 2));
+  const sky = (
+    await downloadBytes(page, "Netlist", "Export SPICE netlist")
+  ).toString("utf8");
+  expect(sky).toContain('.lib "/opt/sky130/continuous/sky130.lib.spice" tt');
+  config.selected = "custom";
+  config.profiles.custom.devices.nmos.target = "MY_NMOS";
+  await code.fill(JSON.stringify(config, null, 2));
+  await page.reload();
+  await clickCommand(page, "Netlist", "Configuration…");
+  await expect(code).toHaveValue(JSON.stringify(config, null, 2));
+  await code.fill("{");
+  await expect(panel.getByRole("alert")).toContainText("Downloads are paused");
+  await page.getByTestId("download-netlist").click();
+  await expect(page.getByTestId("status")).toContainText(
+    "Fix Netlist configuration",
+  );
+  config.selected = "abstract";
+  await code.fill(JSON.stringify(config, null, 2));
+  const abstract = (
+    await downloadBytes(page, "Netlist", "Export Spectre netlist")
+  ).toString("utf8");
+  expect(abstract).toContain("simulator lang=spectre");
+});
+
 test("downloads an incomplete netlist in one click and previews its TODO fields", async ({
   page,
 }) => {
@@ -6004,6 +6047,13 @@ test("downloads an incomplete netlist in one click and previews its TODO fields"
     mimeType: "application/json",
     buffer: Buffer.from(JSON.stringify(project)),
   });
+  await clickCommand(page, "Netlist", "Configuration…");
+  const config = page.getByRole("textbox", {
+    name: "Netlist configuration JSON",
+  });
+  const preferences = JSON.parse(await config.inputValue());
+  preferences.profiles.abstract.devices.resistor.parameters.value = "";
+  await config.fill(JSON.stringify(preferences, null, 2));
   const downloadPromise = page.waitForEvent("download");
   // Keyboard activation is the same single action as a mouse click.
   await page.getByTestId("download-netlist").press("Enter");

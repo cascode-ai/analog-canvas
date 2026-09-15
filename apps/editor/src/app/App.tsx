@@ -1,3 +1,5 @@
+import { NetlistProfileCode } from "../features/netlist-export/netlist-profile-code";
+import { useNetlistExportPreferences } from "../features/netlist-export/netlist-export-preferences";
 import {
   DEFAULT_ARROW_PRESET,
   type ArrowPreset,
@@ -726,6 +728,9 @@ export function App({
     command: string;
   } | null>(null);
   const [netlistPreflightOpen, setNetlistPreflightOpen] = useState(false);
+  const [netlistConfigurationOpen, setNetlistConfigurationOpen] =
+    useState(false);
+  const netlistPreferences = useNetlistExportPreferences();
   const [documentSettingsOpen, setDocumentSettingsOpen] = useState(false);
   const [projectNameDraft, setProjectNameDraft] = useState<string | null>(null);
   const [publishGalleryOpen, setPublishGalleryOpen] = useState(false);
@@ -3284,6 +3289,7 @@ export function App({
   }, [document, visualSelection]);
 
   function openProperties(): void {
+    setNetlistConfigurationOpen(false);
     setImportReviewOpen(false);
     setSelectionOpen(true);
     // Focus the header, not the first field: Q stays a pure toggle and
@@ -3998,6 +4004,8 @@ export function App({
       // electrical verdict belongs to.
       electricalWarningsPresent: () =>
         requestElectricalDiagnostics().length > 0,
+      netlistProfile: netlistPreferences.profile,
+      netlistConfigurationError: netlistPreferences.error,
       guardDirtyReplacement,
       replaceActiveProject,
       setNetlistPreflightOpen,
@@ -4766,6 +4774,12 @@ export function App({
           execute: () => void projectCheck.checkAndSave(),
         }}
         onOpenInstanceTable={() => setInstanceTableOpen(true)}
+        netlistProfileId={netlistPreferences.profile.id}
+        onOpenNetlistConfiguration={() => {
+          setNetlistConfigurationOpen(true);
+          setSelectionOpen(true);
+          if (compactLayout) setCompactLibraryPanelOpen(false);
+        }}
         onOpenNetlistPreflight={() => setNetlistPreflightOpen(true)}
         onExportNetlist={exportDesignNetlist}
         agentAction={
@@ -5120,6 +5134,7 @@ export function App({
             ? {
                 open: netlistPreflightOpen,
                 project,
+                profile: netlistPreferences.profile,
                 // The dialog only renders while open, so this IS the
                 // explicit check the author asked for.
                 electricalDiagnostics: requestElectricalDiagnostics(),
@@ -5690,9 +5705,21 @@ export function App({
           properties={
             <EditorPropertiesDock
               open={selectionOpen}
+              configuration={
+                netlistConfigurationOpen ? (
+                  <NetlistProfileCode
+                    text={netlistPreferences.text}
+                    error={netlistPreferences.error}
+                    onChange={netlistPreferences.changeText}
+                  />
+                ) : undefined
+              }
               shelfRef={selectionShelfRef}
               onToggle={() => {
-                if (selectionOpen) exitCellSymbolLayout();
+                if (selectionOpen) {
+                  exitCellSymbolLayout();
+                  setNetlistConfigurationOpen(false);
+                }
                 // Narrow layouts have room for one side panel. Whichever the user
                 // just asked for wins.
                 else if (compactLayout) setCompactLibraryPanelOpen(false);

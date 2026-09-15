@@ -4,6 +4,7 @@ import type {
   NetlistDiagnostic,
   NetlistFormat,
   NetlistNamingProfile,
+  NetlistExportProfile,
 } from "@icm/netlist";
 import type { CircuitProject } from "@icm/model";
 import { useMemo, useState } from "react";
@@ -17,9 +18,11 @@ export function NetlistPreflightDialog({
   onNavigate,
   onNavigateElectrical,
   onExport,
+  profile,
 }: {
   open: boolean;
   project: CircuitProject;
+  profile?: NetlistExportProfile;
   electricalDiagnostics: readonly Diagnostic[];
   onClose(): void;
   onNavigate(diagnostic: NetlistDiagnostic): void;
@@ -30,8 +33,13 @@ export function NetlistPreflightDialog({
   const [namingProfile, setNamingProfile] =
     useState<NetlistNamingProfile>("native");
   const result = useMemo(
-    () => createDesignNetlistExport(project, { format, namingProfile }),
-    [format, namingProfile, project],
+    () =>
+      createDesignNetlistExport(project, {
+        format,
+        namingProfile,
+        ...(profile ? { profile } : {}),
+      }),
+    [format, namingProfile, project, profile],
   );
   // The same finding repeated once per object says nothing many times over;
   // count it instead. Seven identical lines was most of what the report said.

@@ -262,7 +262,25 @@ click. The adjacent arrow offers **Export Spectre netlist** (`.scs`) and
 **Export SPICE netlist**; choosing either downloads immediately and sets the
 main button's format for the rest of the editor session.
 
-Missing device values or model targets are exported as undefined `TODO_…`
+**Netlist / Configuration…** opens one raw JSON document in the right Properties
+panel. Copy, paste, or replace the whole configuration. Set `selected` to
+`abstract`, `sky130`, or `custom`; edit the corresponding entry under `profiles`.
+Valid edits apply immediately and are remembered in this browser. Invalid JSON
+pauses downloads until corrected. The circuit itself is unchanged.
+
+- `abstract`: ideal R/C/L and generic NMOS/PMOS model names, with editable
+  fallback values and dimensions. No transistor model cards are invented.
+- `sky130`: real SKY130 transistor wrappers, with ideal R/C by default. For
+  physical R/C, set the target to `sky130_fd_pr__res_high_po` or
+  `sky130_fd_pr__cap_mim_m3_1` and supply `w`/`l` in metres (for example `5u`),
+  plus `mult` or `mf`. The resistor's `substrate` defaults to `0`. Ideal values
+  are not converted into geometry. Set `library.path` and `library.section`
+  for your installed PDK. SCS exports use a SPICE-language section for that
+  same SPICE library.
+- `custom`: keep authored component targets, and fill missing fields from your
+  editable defaults. Existing component values always take priority.
+
+Fields still missing after these defaults are exported as undefined `TODO_…`
 placeholders, with an **INCOMPLETE NETLIST** header listing what to fill in.
 The Project stays unchanged. Existing values, connections, and formal pin order
 are retained. Findings are included as comments and do not require a confirmation
@@ -274,9 +292,9 @@ partial circuit.
 Choose the arrow beside Netlist, then **Check Report** to inspect the same
 SPICE/Spectre preview, change the naming profile, or navigate to a finding.
 The report lists structural findings and current-revision ERC readiness
-separately. These files contain structure only: they do not add PDK includes,
-models, corners, stimuli, analyses, or simulator options. Exporting a draft does
-not make the circuit ready for simulation.
+separately. The export includes the library path/section you configured, but does
+not add model cards, analyses, or a complete testbench. Exporting a file does not
+make the circuit ready for simulation.
 
 ## Portable release
 

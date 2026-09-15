@@ -1,6 +1,10 @@
 import { createFormalExportSource, safeExportBaseName } from "@icm/exporters";
 import { createDesignNetlistExport } from "@icm/netlist";
-import type { NetlistFormat, NetlistNamingProfile } from "@icm/netlist";
+import type {
+  NetlistFormat,
+  NetlistNamingProfile,
+  NetlistExportProfile,
+} from "@icm/netlist";
 import type { CircuitProject, SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 import { prepareDocumentFormulaArtifacts } from "../text-editing/formula-artifacts";
@@ -58,14 +62,20 @@ export function planDesignNetlistExport({
   format,
   project,
   namingProfile = "native",
+  profile,
   electricalWarningsPresent = false,
 }: {
   format: NetlistFormat;
   project: CircuitProject;
   namingProfile?: NetlistNamingProfile;
+  profile?: NetlistExportProfile;
   electricalWarningsPresent?: boolean;
 }): DesignNetlistExportPlan {
-  const result = createDesignNetlistExport(project, { format, namingProfile });
+  const result = createDesignNetlistExport(project, {
+    format,
+    namingProfile,
+    ...(profile ? { profile } : {}),
+  });
   if (result.status === "blocked") {
     return {
       status: "blocked",
