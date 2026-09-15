@@ -15,9 +15,9 @@ release="analog-canvas-vacask-preview/releases/$GITHUB_SHA"
 ssh sim "mkdir -p ~/$release/context"
 scp candidate-download/vacask-candidate-source.tgz "sim:$release/context.tgz"
 scp candidate-download/native-compose-config.json "sim:$release/runtime.json"
-tar -cf - containers/vacask/host/compose.yaml containers/ngspice/gateway.mjs | ssh sim "tar -xf - -C ~/$release"
+tar -cf - containers/vacask/Dockerfile containers/vacask/host/compose.yaml containers/ngspice/gateway.mjs | ssh sim "tar -xf - -C ~/$release"
 ssh sim "test \$(awk '/MemAvailable:/ {print \$2}' /proc/meminfo) -gt 1572864 && test \$(df -Pk ~ | awk 'NR==2 {print \$4}') -gt 3145728"
-ssh sim "tar -xzf ~/$release/context.tgz -C ~/$release/context && docker build --platform linux/amd64 -t icm-vacask-preview:$GITHUB_SHA ~/$release/context"
+ssh sim "tar -xzf ~/$release/context.tgz -C ~/$release/context && docker build --platform linux/amd64 -f ~/$release/containers/vacask/Dockerfile -t icm-vacask-preview:$GITHUB_SHA ~/$release/context"
 
 # Cloudflare API replies containing secrets never reach stdout or artifacts.
 base=https://api.cloudflare.com/client/v4

@@ -23,7 +23,7 @@ COPY SHA256SUMS /opt/SHA256SUMS
 COPY startup.toml /opt/startup.toml
 WORKDIR /opt
 RUN sha256sum -c SHA256SUMS \
-    && chmod 755 /opt/vacask/bin/vacask \
+    && chmod 755 /opt/vacask/bin/vacask /opt/vacask/bin/openvaf-r \
     && node --version \
     && /opt/vacask/bin/openvaf-r /opt/vacask/src/vacask/devices/resistor.va -o /tmp/build-probe.osdi \
     && test -s /tmp/build-probe.osdi \
