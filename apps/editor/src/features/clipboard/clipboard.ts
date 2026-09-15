@@ -1401,21 +1401,43 @@ export function proposePaste(
       return { kind: "upsert_connectivity_evidence", evidence: clone };
     }),
   );
-  edits.push(
-    ...clipboard.routes.map((route): SchematicEdit => ({
-      kind: "set_route_path",
-      route: createRoutePath({
-        id: routeIds.get(route.id)!,
-        netId: netIds.get(route.netId)!,
-        start: mapEndpoint(route.start, instanceIds, junctionIds),
-        end: mapEndpoint(routeEnd(route), instanceIds, junctionIds),
-        bends: routeBends(route).map((point) => movePoint(point, offset)),
-        modes: route.legs.map((leg) => leg.mode),
-        ...(route.presentation ? { presentation: route.presentation } : {}),
-        ...(route.styleOverride
-          ? { styleOverride: structuredClone(route.styleOverride) }
+  const clonedRoutesBySource = new Map(
+    clipboard.routes.map((source) => [
+      source,
+      createRoutePath({
+        id: routeIds.get(source.id)!,
+        netId: netIds.get(source.netId)!,
+        start: mapEndpoint(source.start, instanceIds, junctionIds),
+        end: mapEndpoint(routeEnd(source), instanceIds, junctionIds),
+        bends: routeBends(source).map((point) => movePoint(point, offset)),
+        modes: source.legs.map((leg) => leg.mode),
+        ...(source.presentation ? { presentation: source.presentation } : {}),
+        ...(source.styleOverride
+          ? { styleOverride: structuredClone(source.styleOverride) }
           : {}),
       }),
+    ]),
+  );
+  const pastedLegIds = new Map(
+    [...clonedRoutesBySource].flatMap(([source, clone]) =>
+      source.legs.map((leg, index) => [leg.id, clone.legs[index]!.id]),
+    ),
+  );
+  for (const annotation of clipboard.annotations) {
+    if (
+      annotation.anchor.kind === "route" &&
+      routeIds.has(annotation.anchor.routeId) &&
+      !pastedLegIds.has(annotation.anchor.legId)
+    ) {
+      errors.push(
+        `Annotation ${annotation.id} references a Leg outside its copied Route`,
+      );
+    }
+  }
+  edits.push(
+    ...[...clonedRoutesBySource.values()].map((route): SchematicEdit => ({
+      kind: "set_route_path",
+      route,
     })),
   );
   edits.push(
@@ -1470,59 +1492,23 @@ export function proposePaste(
           ...(annotation.netId
             ? { netId: netIds.get(annotation.netId) ?? annotation.netId }
             : {}),
-          anchor:
-            annotation.anchor.kind === "free"
-              ? {
-                  kind: "free",
-                  position: movePoint(annotation.anchor.position, offset),
-                }
-              : annotation.anchor.kind === "object"
-                ? {
-                    ...annotation.anchor,
-                    objectId:
-                      objectIds.get(annotation.anchor.objectId) ??
-                      annotation.anchor.objectId,
-                    fallbackPosition: movePoint(
-                      annotation.anchor.fallbackPosition,
-                      offset,
-                    ),
-                  }
-                : {
-                    ...annotation.anchor,
-                    routeId:
-                      routeIds.get(annotation.anchor.routeId) ??
-                      annotation.anchor.routeId,
-                    fallbackPosition: movePoint(
-                      annotation.anchor.fallbackPosition,
-                      offset,
-                    ),
-                  },
+          anchor: remapPastedVisualAnchor(
+            annotation.anchor,
+            objectIds,
+            routeIds,
+            pastedLegIds,
+            offset,
+            true,
+          ),
         },
       };
-    }),
-  );
-  const clonedRoutesBySource = new Map(
-    clipboard.routes.flatMap((source) => {
-      const clonedId = routeIds.get(source.id);
-      const edit = edits.find(
-        (candidate) =>
-          candidate.kind === "set_route_path" &&
-          candidate.route.id === clonedId,
-      );
-      return edit?.kind === "set_route_path"
-        ? [[source, edit.route] as const]
-        : [];
     }),
   );
   const idRemap: OperationIdRemap = {
     instances: Object.fromEntries(instanceIds),
     nets: Object.fromEntries(netIds),
     routes: Object.fromEntries(routeIds),
-    legs: Object.fromEntries(
-      [...clonedRoutesBySource].flatMap(([source, clone]) =>
-        source.legs.map((leg, index) => [leg.id, clone.legs[index]!.id]),
-      ),
-    ),
+    legs: Object.fromEntries(pastedLegIds),
     bends: Object.fromEntries(
       [...clonedRoutesBySource].flatMap(([source, clone]) =>
         source.legs.flatMap((leg, index) => {
@@ -1545,7 +1531,6 @@ export function proposePaste(
   // Drafting objects carry no connectivity, so a copy is the object itself
   // under a fresh id, shifted by the same placement offset as everything else.
   const pastedAnchorObjectIds = new Map([...objectIds, ...draftingIds]);
-  const pastedLegIds = new Map(Object.entries(idRemap.legs));
   for (const object of clipboard.draftingObjects) {
     const id = draftingIds.get(object.id)!;
     const translated = translateDraftingObject(
