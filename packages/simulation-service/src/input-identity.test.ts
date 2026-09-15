@@ -89,6 +89,14 @@ describe("Project input identity", () => {
     expect(cornerHash).toMatch(/^[a-f0-9]{64}$/u);
     expect(cornerHash).not.toBe(point);
     expect(await cache.read(project, id, corner)).toBe(cornerHash);
+    const hot = {
+      ...corner,
+      environment: { ...corner.environment, temperatureC: 125 },
+    };
+    const hotHash = await cache.read(project, id, hot);
+    expect(hotHash).toMatch(/^[a-f0-9]{64}$/u);
+    expect(hotHash).not.toBe(cornerHash);
+    expect(await cache.read(project, id, hot)).toBe(hotHash);
     expect(await cache.read(project, id)).toBe(before);
     instance.placement!.position.x += 10;
     document.revision++;

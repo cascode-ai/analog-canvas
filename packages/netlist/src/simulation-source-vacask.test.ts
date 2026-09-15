@@ -391,14 +391,14 @@ describe("public native source compilation", () => {
         ),
       ).toBe(true);
   });
-  it("refuses stale drafts and unimplemented environment projections while keeping nominal source intact", () => {
+  it("refuses stale drafts and invalid temperatures while keeping nominal source intact", () => {
     const { project, folder } = fixture();
     const result = compileSourceSimulation(project, folder, {
-      environment: { temperatureC: 125 },
+      environment: { temperatureC: -300 },
     });
     expect(result).toMatchObject({
       ok: false,
-      diagnostics: [{ code: "SIMULATION_NATIVE_VARIANT_UNSUPPORTED" }],
+      diagnostics: [{ code: "SIMULATION_TEMPERATURE_RANGE" }],
     });
     folder.input.drafts = [
       {

@@ -84,7 +84,12 @@ export async function prepareSourceExecutionInput(
       "Select a Profile advertised by capabilities",
       "prepare",
     );
-  const environment = structuredClone(compiled.config.environment);
+  const environment: ExecutionInput["environment"] = {
+    ...structuredClone(compiled.config.environment),
+    ...(variant?.environment?.temperatureC === undefined
+      ? {}
+      : { temperatureC: variant.environment.temperatureC }),
+  };
   const dependencies = structuredClone(folder.input.dependencies);
   const available = new Map(
     (profile.dependencies ?? []).map((d) => [d.id, d.sha256]),

@@ -81,6 +81,75 @@ function native(bound = false) {
 
 describe("source execution preparation", () => {
   it.skipIf(!process.env.VACASK_BIN || !process.env.VACASK_MODULES)(
+    "runs ambient points across native option resets and DC sweeps without changing tnom",
+    async () => {
+      const { circuit, folder, entry } = native();
+      entry.text = readFileSync(
+        new URL(
+          "../../../netlists/vacask-temperature/run.sim",
+          import.meta.url,
+        ),
+        "utf8",
+      );
+      const before = structuredClone({ circuit, folder });
+      for (const temperatureC of [undefined, 0, 125]) {
+        const point = await prepareSourceExecutionInput(
+          circuit,
+          folder,
+          caps,
+          temperatureC === undefined
+            ? undefined
+            : { environment: { temperatureC } },
+        );
+        if (!point.ok) throw Error(JSON.stringify(point));
+        const cwd = mkdtempSync(join(tmpdir(), "icm-native-temperature-"));
+        for (const file of point.input.files) {
+          mkdirSync(dirname(join(cwd, file.path)), { recursive: true });
+          writeFileSync(join(cwd, file.path), file.text);
+        }
+        const startup = join(cwd, "startup.toml");
+        writeFileSync(startup, "# controlled ambient-temperature proof\n");
+        const run = spawnSync(
+          process.env.VACASK_BIN!,
+          ["--tomlfile", startup, "-n", "1", "-b", "1", point.input.entryPath!],
+          {
+            cwd,
+            encoding: "utf8",
+            windowsHide: true,
+            timeout: 15000,
+            env: {
+              ...process.env,
+              SIM_MODULE_PATH: process.env.VACASK_MODULES,
+            },
+          },
+        );
+        expect(run.error, cwd).toBeUndefined();
+        expect(run.status, `${cwd}\n${run.stdout}\n${run.stderr}`).toBe(0);
+        for (const [name, nominal] of [
+          ["first", 27],
+          ["second", 80],
+        ] as const) {
+          const raw = parseVacaskRawfile(
+            readFileSync(join(cwd, `${name}.raw`), "utf8"),
+          );
+          if (!raw.ok) throw Error(raw.error.message);
+          const vectors = new Map(
+            raw.plots[0]!.vectors.map((v) => [v.variable.name, v.real]),
+          );
+          expect(new Set(vectors.get("Ambient"))).toEqual(
+            new Set([temperatureC ?? nominal]),
+          );
+          expect(new Set(vectors.get("Nominal"))).toEqual(new Set([25]));
+          if (name === "second") expect(vectors.get("Swept")).toEqual([0, 1]);
+        }
+        expect(point.input.environment.temperatureC).toBe(temperatureC);
+        expect(point.authoredFiles).toEqual(folder.input.files);
+        expect({ circuit, folder }).toEqual(before);
+      }
+    },
+  );
+
+  it.skipIf(!process.env.VACASK_BIN || !process.env.VACASK_MODULES)(
     "executes prepared Profile corner points with actual native section-dependent numbers",
     async () => {
       const { circuit, folder, entry } = native();
@@ -363,14 +432,14 @@ describe("source execution preparation", () => {
     expect(folder).toEqual(before);
   });
 
-  it("records authored temperature and parameter changes, refusing hidden JSON run overrides", async () => {
+  it("records authored temperature and parameter changes and applies a run-only temperature point", async () => {
     const { circuit, folder, entry } = native();
     const nominal = await prepareSourceExecutionInput(circuit, folder, caps);
     expect(nominal.ok, JSON.stringify(nominal)).toBe(true);
     if (!nominal.ok) return;
     entry.text = entry.text
       .replace("dc=1", "dc=2")
-      .replace("analysis bias op", "analysis bias op temp=125");
+      .replace("analysis bias op", "options temp=125\r\nanalysis bias op");
     const before = structuredClone(folder);
     const hot = await prepareSourceExecutionInput(circuit, folder, caps);
     const same = await prepareSourceExecutionInput(circuit, folder, caps);
@@ -381,16 +450,16 @@ describe("source execution preparation", () => {
     expect(hot.input.inputRevision).not.toBe(nominal.input.inputRevision);
     expect(hot.digest).toBe(same.digest);
     expect(hot.authoredFiles).toEqual(before.input.files);
-    expect(
-      await prepareSourceExecutionInput(circuit, folder, caps, {
-        environment: { temperatureC: 125 },
-      }),
-    ).toMatchObject({
-      ok: false,
-      error: {
-        diagnostics: [{ code: "SIMULATION_NATIVE_VARIANT_UNSUPPORTED" }],
-      },
+    const point = await prepareSourceExecutionInput(circuit, folder, caps, {
+      environment: { temperatureC: 135 },
     });
+    if (!point.ok) throw Error(JSON.stringify(point));
+    expect(point.input.preparedDeck).toContain(
+      "options temp=125\r\noptions temp=135\r\nanalysis bias op",
+    );
+    expect(point.input.environment.temperatureC).toBe(135);
+    expect(point.input.inputRevision).not.toBe(hot.input.inputRevision);
+    expect(point.authoredFiles).toEqual(folder.input.files);
     expect(folder).toEqual(before);
   });
 

@@ -297,7 +297,7 @@ describe("shared simulation lifecycle", () => {
     expect(maxActive).toBe(1);
   });
 
-  it("prepares native parameter/corner sweep members with separate identities through the shared service", async () => {
+  it("prepares native parameter/corner/temperature sweep members with separate identities through the shared service", async () => {
     const project = CircuitProjectSchema.parse(
       currentFiveTransistorOtaCircuitSource(),
     );
@@ -332,27 +332,35 @@ describe("shared simulation lifecycle", () => {
           values: ["10u", "20u"],
         },
         { kind: "corner" as const, values: ["tt", "ff"] },
+        { kind: "temperature" as const, values: [27, 125] },
       ],
     };
     const reply = await service.handle(request, "native-parameter-sweep");
     expect(reply).toMatchObject({ ok: true, batch: { state: "prepared" } });
     if (!reply.ok || !("batch" in reply)) throw Error(JSON.stringify(reply));
     expect(reply.batch.items.map((item) => item.label)).toEqual([
-      `${instance.id}.w=10u, corner=tt`,
-      `${instance.id}.w=10u, corner=ff`,
-      `${instance.id}.w=20u, corner=tt`,
-      `${instance.id}.w=20u, corner=ff`,
+      `${instance.id}.w=10u, corner=tt, temp=27C`,
+      `${instance.id}.w=10u, corner=tt, temp=125C`,
+      `${instance.id}.w=10u, corner=ff, temp=27C`,
+      `${instance.id}.w=10u, corner=ff, temp=125C`,
+      `${instance.id}.w=20u, corner=tt, temp=27C`,
+      `${instance.id}.w=20u, corner=tt, temp=125C`,
+      `${instance.id}.w=20u, corner=ff, temp=27C`,
+      `${instance.id}.w=20u, corner=ff, temp=125C`,
     ]);
     expect(
       new Set(reply.batch.items.map((item) => item.prepared.digest)).size,
-    ).toBe(4);
+    ).toBe(8);
     expect(
       new Set(reply.batch.items.map((item) => item.prepared.inputRevision))
         .size,
-    ).toBe(4);
+    ).toBe(8);
     expect(
       reply.batch.items.map((item) => item.prepared.environment.corner),
-    ).toEqual(["tt", "ff", "tt", "ff"]);
+    ).toEqual(["tt", "tt", "ff", "ff", "tt", "tt", "ff", "ff"]);
+    expect(
+      reply.batch.items.map((item) => item.prepared.environment.temperatureC),
+    ).toEqual([27, 125, 27, 125, 27, 125, 27, 125]);
     expect(project).toEqual(before);
     expect(f.executor.execute).not.toHaveBeenCalled();
     const again = await service.handle(request, "native-parameter-repeat");

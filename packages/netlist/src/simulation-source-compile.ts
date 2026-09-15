@@ -27,6 +27,7 @@ import { inspectVacaskSourceGraph } from "./vacask-source.js";
 import type { SimulationSourceDiagnostic } from "./source-file-graph.js";
 import { applySimulationParameter } from "./simulation-parameter-target.js";
 import { projectVacaskRunVariables } from "./vacask-run-variables.js";
+import { projectVacaskRunTemperature } from "./vacask-run-temperature.js";
 
 export interface GeneratedSimulationFile {
   bindingId: string;
@@ -115,11 +116,6 @@ export function compileSourceSimulation(
     return { ok: false, diagnostics };
   }
   variant = parsedVariant.data;
-  if (variant.environment?.temperatureC !== undefined)
-    fail(
-      "SIMULATION_NATIVE_VARIANT_UNSUPPORTED",
-      "Native temperature run projection is not yet available. Edit its native source directly; Canvas parameter, source-variable and Profile corner points are supported.",
-    );
   const graph = inspectVacaskSourceGraph(folder.input);
   diagnostics.push(...graph.diagnostics);
   if (diagnostics.some((d) => d.severity === "error"))
@@ -130,6 +126,14 @@ export function compileSourceSimulation(
     variant.variables ?? [],
   );
   diagnostics.push(...authored.diagnostics);
+  if (diagnostics.some((d) => d.severity === "error"))
+    return { ok: false, diagnostics };
+  const temperature = projectVacaskRunTemperature(
+    folder.input,
+    authored.files,
+    variant.environment?.temperatureC,
+  );
+  diagnostics.push(...temperature.diagnostics);
   if (diagnostics.some((d) => d.severity === "error"))
     return { ok: false, diagnostics };
   const reachable = new Set(graph.paths);
@@ -322,7 +326,7 @@ export function compileSourceSimulation(
   if (diagnostics.some((d) => d.severity === "error"))
     return { ok: false, diagnostics };
   const mapped = [
-    ...authored.files,
+    ...temperature.files,
     ...generated.map((f) =>
       mapSimulationFile(f.path, f.text, {
         kind: "generated",
@@ -350,12 +354,14 @@ export function compileSourceSimulation(
     entry: folder.input.entry,
     // Include positions used for later environment edits belong to prepared
     // bytes. Circuit diagnostics above keep their original authored positions.
-    includes: variant.variables?.length
-      ? inspectVacaskSourceGraph({
-          ...folder.input,
-          files: authored.files.map(({ path, text }) => ({ path, text })),
-        }).includes
-      : graph.includes,
+    includes:
+      variant.variables?.length ||
+      variant.environment?.temperatureC !== undefined
+        ? inspectVacaskSourceGraph({
+            ...folder.input,
+            files: temperature.files.map(({ path, text }) => ({ path, text })),
+          }).includes
+        : graph.includes,
     generated,
     requiredModels: [
       ...new Set(

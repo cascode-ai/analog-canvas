@@ -80,8 +80,17 @@ subcircuit/control names do not become root targets. Ambiguous declarations,
 duplicate points or additional statements return repairable errors. Canvas can
 reference the root parameter through its existing parameter expression; an
 exact Instance point overrides that expression for the run. No JSON value or
-binding table is restored. Temperature point projection remains unimplemented
-and explicitly rejected; its batch parity is an open migration requirement.
+binding table is restored. A temperature point is ambient Celsius, finite and
+not below absolute zero. Prepared source inserts `options temp=...` immediately
+before each authored analysis or its complete adjacent sweep group. Earlier
+native options and `clear options` therefore cannot silently undo the point;
+`tnom` and device-specific temperature parameters remain untouched. Native loop
+structure is retained. A native `option="temp"` sweep, a dynamic option-sweep
+target, or a program without a located authored analysis returns a repairable
+point-specific diagnostic; the nominal program remains editable and runnable.
+Temperature is recorded in the execution environment and prepared source, not
+added as another saved sidecar setting. Analysis-specific `temp` arguments are
+not a substitute for VACASK's ambient simulator option.
 
 Device OP is derived from vectors actually collected by Code. `op` takes no
 parameters: request e.g. `save @m1[id] @m1[gm]`, then `op`, then `write result.raw`.

@@ -1,0 +1,13 @@
+Ambient option projection proof, not PDK temperature qualification
+model voltage vsource
+Vambient (Ambient 0) voltage dc=$temp
+Vnominal (Nominal 0) voltage dc=$tnom
+Vsweep (Swept 0) voltage dc=0
+control
+options rawfile="ascii" tnom=25 temp=27
+analysis first op
+clear options
+options rawfile="ascii" tnom=25 temp=80
+sweep bias instance="Vsweep" parameter="dc" from=0 to=1 step=1
+  analysis second op
+endc
