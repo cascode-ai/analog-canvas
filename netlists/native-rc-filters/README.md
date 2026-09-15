@@ -52,5 +52,6 @@ No MOS, foundry corner, hosted isolation or production qualification is claimed.
 Use the existing native harness environment instructions in
 [containers/vacask/README.md](../../containers/vacask/README.md). Retain a Vitest
 JSON report to record the real environment/input metadata and measurements.
-The older all-example generator has not yet been migrated; it must not overwrite
-this accepted native source from its legacy ngspice recipes.
+The example export command now reads these reviewed bundled Projects, rather
+than rebuilding a separate circuit/program. See the
+[export instructions](../../apps/editor/src/examples/SIMULATION.md).

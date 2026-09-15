@@ -35,3 +35,28 @@ New experiment comments are created once, then owned by the user. Source context
 uses the live draft include graph and calls subcircuit references “sources”, not
 proof of instantiation. Dynamic source loading or broken includes are marked for
 Prepare verification. Code parameter overrides do not rewrite Canvas values.
+
+## Export reviewed examples
+
+After building the Agent adapter/exporter dependencies, use a fresh or empty
+output directory:
+
+```sh
+pnpm --filter @icm/agent-adapter... --filter @icm/exporters... build
+node scripts/build-native-simulation-examples.mjs output/passive-candidate --project rc --project rlc
+```
+
+This exports the bundled Projects without reconstructing their schematics or
+maintaining a duplicate set of programs. It writes SVG/PNG/inspection artifacts,
+authored files under `source/`, and actual native compiled files under `prepared/`.
+Existing evidence is never overwritten. `manifest.json` is written last with
+`compiled-not-executed`; Profile identity belongs to each folder. Compilation
+does not run or qualify an environment, and no cloud endpoint is contacted.
+
+Omitting `--project` selects all four Projects and all 19 folders. Every selected
+folder must compile before any output is written: unfinished model-backed
+conversions remain explicit failures, not silently skipped entries. The full
+library test remains an acceptance obligation alongside the focused passive
+export test. The former optional external OTA input is retired; the reviewed
+bundled OTA is the single source, as for the other examples. This command does
+not authorize using the older fixed-Preview remote runner for VACASK acceptance.
