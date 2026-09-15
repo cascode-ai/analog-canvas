@@ -39,6 +39,7 @@ describe("DrawingToolbar", () => {
     expect(markup).toContain("Document settings");
     expect(markup).toContain('data-testid="digital-simulation-toggle"');
     expect(markup).toContain("Digital Simulation");
+    expect(markup).toContain('class="draw-toolbar-project-spacer"');
     expect(
       markup.indexOf('data-testid="netlist-panel-toggle"'),
     ).toBeGreaterThan(

@@ -221,6 +221,7 @@ export function DrawingToolbar({
           <span>Simulation</span>
         </button>
       ) : null}
+      <span className="draw-toolbar-project-spacer" aria-hidden="true" />
       <span className="toolbar-divider" aria-hidden="true" />
       <ImmediatePanelButton
         testId="netlist-panel-toggle"

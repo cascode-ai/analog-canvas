@@ -774,6 +774,11 @@ test("Netlist keeps format selection in the project panel while File keeps drawi
   });
   await expect(projectPanel.getByLabel("Netlist process")).toBeVisible();
   await expect(projectPanel.getByLabel("Netlist format")).toBeVisible();
+  await expect(
+    page
+      .getByRole("complementary", { name: "Project tools", exact: true })
+      .getByRole("tab"),
+  ).toHaveCount(0);
   await openMenu(page, "File");
   await menu
     .getByRole("button", { name: "Export drawing", exact: true })

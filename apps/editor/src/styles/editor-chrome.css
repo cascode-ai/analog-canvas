@@ -42,6 +42,11 @@
   background: var(--icm-surface);
 }
 
+.draw-toolbar-project-spacer {
+  flex: 1 1 auto;
+  min-width: var(--icm-space-2);
+}
+
 .draw-tool {
   display: inline-flex;
   align-items: center;
