@@ -80,6 +80,10 @@ describe("CircuitProject schema", () => {
     const project = createEmptyProject("project-test", "Test Project");
     expect(CircuitProjectSchema.parse(project)).toEqual(project);
     expect(CircuitProjectJsonSchema).toMatchObject({ type: "object" });
+    expect(project.documents[0]).toMatchObject({
+      name: "dut",
+      netlist: { name: "dut" },
+    });
   });
 
   it("rejects the retired hidden electrical Net-name owner", () => {

@@ -63,7 +63,7 @@ export function createEmptyProject(
     },
     structureRevision: 0,
     topDocumentId: documentId,
-    documents: [createEmptyDocument(documentId, "Main")],
+    documents: [createEmptyDocument(documentId, "dut")],
     externalSubcircuitDefinitions: [],
     simulationFolders: [],
   });

@@ -177,7 +177,7 @@ describe("editor shell", () => {
     const markup = renderToStaticMarkup(<App project={project} />);
     expect(markup).toContain('data-testid="cell-navigation"');
     expect(markup).toContain("Enter Cell");
-    expect(markup).toContain("Main (top)");
+    expect(markup).toContain("dut (top)");
   });
 
   it("provides one Help entry without rendering its dialog by default", () => {

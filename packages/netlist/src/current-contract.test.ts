@@ -1516,7 +1516,7 @@ describe("current formal cell interface", () => {
           : /M2 \(M2_D M2_G M2_S VDD\) PMOS_MODEL/u,
       );
       expect(text).toContain(
-        format === "spice" ? ".subckt Main VDD VSS" : "subckt Main (VDD VSS)",
+        format === "spice" ? ".subckt dut VDD VSS" : "subckt dut (VDD VSS)",
       );
     },
   );

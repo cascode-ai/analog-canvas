@@ -931,7 +931,7 @@ test("opens netlist preflight and navigates its canonical finding", async ({
     .getByRole("button", { name: /MISSING_PIN_NET/u })
     .first()
     .click();
-  await expect(page.getByTestId("active-document-name")).toHaveText("Main");
+  await expect(page.getByTestId("active-document-name")).toHaveText("dut");
   await expect(page.getByTestId("status")).toContainText("Preflight:");
   await expect(dialog).toBeVisible();
 
@@ -956,7 +956,7 @@ test("previews a validated structural netlist in both export dialects", async ({
   await clickCommand(page, "Netlist", "Check Report…");
   const dialog = page.getByRole("dialog", { name: "Check Report" });
   const preview = dialog.getByTestId("netlist-preview");
-  await expect(preview).toContainText(".subckt Main");
+  await expect(preview).toContainText(".subckt dut");
   await dialog.getByTestId("check-report-close").click();
   await netlistPanel.getByLabel("Netlist format").selectOption("spectre");
   await clickCommand(page, "Netlist", "Check Report…");
@@ -5952,13 +5952,13 @@ test("copies structural SPICE and Spectre netlists while exposing instance autho
 }) => {
   await page.goto("/editor");
   const spice = await copyNetlistText(page, "spice");
-  expect(spice).toContain(".subckt Main");
+  expect(spice).toContain(".subckt dut");
   expect(spice).not.toMatch(/^(?:\*|\/\/)/mu);
   const spectre = await copyNetlistText(page, "spectre");
   expect(spectre).toContain("simulator lang=spectre");
   const primary = page.getByTestId("copy-netlist");
   await expect(primary).toHaveAccessibleName("Copy netlist");
-  await expect(primary).toContainText("Copy");
+  await expect(primary).not.toContainText("Copy");
   await expect(primary).toHaveAttribute("title", /Spectre \(\.scs\)/u);
   expect(await copyNetlistText(page)).toBe(spectre);
   await expect(page.getByRole("dialog", { name: "Check Report" })).toHaveCount(
@@ -6114,11 +6114,11 @@ test("shows and copies a live MOS netlist when only bulk terminals are omitted",
   const spice = await copyNetlistText(page, "spice");
   expect(spice).toMatch(/M1 \S+ \S+ \S+ VSS NMOS/u);
   expect(spice).toMatch(/M2 \S+ \S+ \S+ VDD PMOS/u);
-  expect(spice).toContain(".subckt Main VDD VSS");
+  expect(spice).toContain(".subckt dut VDD VSS");
   const spectre = await copyNetlistText(page, "spectre");
   expect(spectre).toMatch(/M1 \(\S+ \S+ \S+ VSS\) NMOS/u);
   expect(spectre).toMatch(/M2 \(\S+ \S+ \S+ VDD\) PMOS/u);
-  expect(spectre).toContain("subckt Main (VDD VSS)");
+  expect(spectre).toContain("subckt dut (VDD VSS)");
   const panel = page.getByRole("region", {
     name: "Live netlist",
     exact: true,
@@ -6135,7 +6135,7 @@ test("shows and copies a live MOS netlist when only bulk terminals are omitted",
   expect(skySpectre).toMatch(
     /XM2 \(\S+ \S+ \S+ VDD\) sky130_fd_pr__pfet_01v8 l=0.15 w=1 nf=1 m=1/u,
   );
-  expect(skySpectre).toContain("subckt Main (VDD VSS)");
+  expect(skySpectre).toContain("subckt dut (VDD VSS)");
   expect(skySpectre).not.toContain(".subckt");
   expect(skySpectre).not.toContain(".global");
   await process.selectOption("abstract");
@@ -6156,6 +6156,18 @@ test("shows and copies a live MOS netlist when only bulk terminals are omitted",
     "CUSTOM_PMOS",
   );
   await expect(panel.getByRole("alert")).toHaveCount(0);
+  await panel.getByRole("button", { name: "Default", exact: true }).click();
+  await expect(panel.getByLabel("Netlist format")).toHaveValue("spice");
+  await expect(panel.getByLabel("Netlist process")).toHaveValue("abstract");
+  await expect(panel.getByLabel("NMOS netlist target")).toHaveValue("NMOS");
+  await expect(panel.getByLabel("PMOS netlist target")).toHaveValue("PMOS");
+  await expect(panel.getByLabel("Netlist code")).toContainText(
+    ".subckt dut VDD VSS",
+  );
+  await page.reload();
+  await page.getByTestId("netlist-panel-toggle").click();
+  await expect(panel.getByLabel("Netlist format")).toHaveValue("spice");
+  await expect(panel.getByLabel("Netlist process")).toHaveValue("abstract");
 });
 
 test("edits process configuration as raw JSON and remembers process and format independently", async ({
@@ -6786,7 +6798,7 @@ test("separates drawing, placement, and Cell body resets with impact preview and
 
   await clickCommand(page, "Edit", "Clear Drawing");
   const clearDialog = page.getByRole("dialog", {
-    name: "Clear Drawing in Main?",
+    name: "Clear Drawing in dut?",
   });
   await expect(clearDialog).toContainText("You can restore them with Undo");
   await expect(clearDialog).toContainText("Affected objects: 1");
@@ -6798,7 +6810,7 @@ test("separates drawing, placement, and Cell body resets with impact preview and
 
   await clickCommand(page, "Edit", "Clear Drawing");
   await page
-    .getByRole("dialog", { name: "Clear Drawing in Main?" })
+    .getByRole("dialog", { name: "Clear Drawing in dut?" })
     .getByRole("button", { name: "Clear Drawing" })
     .click();
   await expect(page.getByTestId("instance-count")).toHaveText("2");
@@ -6806,7 +6818,7 @@ test("separates drawing, placement, and Cell body resets with impact preview and
   await expect(page.locator('[data-layer="routes"] polyline')).toHaveCount(0);
   await expect(page.getByTestId("revision")).toHaveText("4");
   await expect(page.getByTestId("status")).toHaveText(
-    "Clear Drawing completed in Cell Main · Undo restores it",
+    "Clear Drawing completed in Cell dut · Undo restores it",
   );
 
   await page.keyboard.press("Control+z");
@@ -6817,7 +6829,7 @@ test("separates drawing, placement, and Cell body resets with impact preview and
 
   await clickCommand(page, "Edit", "Reset Cell Placement");
   const placementDialog = page.getByRole("dialog", {
-    name: "Reset Cell Placement in Main?",
+    name: "Reset Cell Placement in dut?",
   });
   await expect(placementDialog).toContainText("Affected objects: 3");
   await placementDialog
@@ -6836,7 +6848,7 @@ test("separates drawing, placement, and Cell body resets with impact preview and
 
   await clickCommand(page, "Edit", "Reset Cell Body");
   await page
-    .getByRole("dialog", { name: "Reset Cell Body in Main?" })
+    .getByRole("dialog", { name: "Reset Cell Body in dut?" })
     .getByRole("button", { name: "Reset Cell Body" })
     .click();
   await expect(page.getByTestId("instance-count")).toHaveText("0");
@@ -8642,7 +8654,7 @@ test("keeps the netlist live and selectable when clipboard access fails", async 
   );
   await page.getByTestId("copy-netlist").click();
   const code = page.getByRole("textbox", { name: "Netlist code", exact: true });
-  await expect(code).toContainText(".subckt Main");
+  await expect(code).toContainText(".subckt dut");
   const netlistEditor = page.locator(
     '.project-source-editor[data-language="netlist"]',
   );
@@ -8667,7 +8679,7 @@ test("keeps the netlist live and selectable when clipboard access fails", async 
     buffer: Buffer.from("\n.subckt live a b\nR1 a b 2k\n.ends live\n"),
   });
   await expect(code).toContainText("R1 a b 2k");
-  await expect(code).not.toContainText(".subckt Main");
+  await expect(code).not.toContainText(".subckt dut");
   await page.setViewportSize({ width: 760, height: 800 });
   await expect(code).toBeVisible();
   await code.focus();
