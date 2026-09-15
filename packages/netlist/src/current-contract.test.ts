@@ -86,6 +86,121 @@ function resistorProject(parameters: Record<string, string>) {
 }
 
 describe("current formal cell interface", () => {
+  it("names an unlabeled internal Net from a connected reference and pin", () => {
+    const project = createEmptyProject("project", "Project");
+    const document = project.documents[0]!;
+    document.instances.push(
+      {
+        id: "R1",
+        symbolId: "resistor",
+        placement: null,
+        reference: "R1",
+        netlist: {
+          binding: { kind: "primitive", deviceClass: "resistor" },
+          parameters: { value: "1k" },
+        },
+      },
+      {
+        id: "R2",
+        symbolId: "resistor",
+        placement: null,
+        reference: "R2",
+        netlist: {
+          binding: { kind: "primitive", deviceClass: "resistor" },
+          parameters: { value: "2k" },
+        },
+      },
+    );
+    document.nets.push(
+      {
+        id: "net-in",
+        terminals: [{ instanceId: "R1", pinName: "1" }],
+      },
+      {
+        id: "net-mid",
+        terminals: [
+          { instanceId: "R1", pinName: "2" },
+          { instanceId: "R2", pinName: "1" },
+        ],
+      },
+      {
+        id: "net-ground",
+        terminals: [{ instanceId: "R2", pinName: "2" }],
+      },
+    );
+    claimNet(document, "net-in", "IN");
+    claimNet(document, "net-ground", "0", "global", "ground");
+
+    const result = analyzeDesignNetlist(project);
+
+    expect(
+      result.diagnostics.filter((item) => item.severity === "error"),
+    ).toEqual([]);
+    expect(printSpiceNetlist(result.ir!)).toContain("R1 IN R1_2 1k");
+    expect(printSpiceNetlist(result.ir!)).toContain("R2 R1_2 0 2k");
+  });
+
+  it("prefers diode-connected and drain landmarks for generated node names", () => {
+    const project = createEmptyProject("project", "Project");
+    const document = project.documents[0]!;
+    const mos = (reference: string) => ({
+      id: reference,
+      symbolId: "nmos",
+      placement: null,
+      reference,
+      netlist: {
+        binding: {
+          kind: "model" as const,
+          deviceClass: "mos" as const,
+          name: "NMOS",
+        },
+        parameters: { w: "1u", l: "150n" },
+      },
+    });
+    document.instances.push(mos("M2"), mos("M7"), mos("M8"), mos("M9"));
+    document.nets.push(
+      {
+        id: "net-tail",
+        terminals: [
+          { instanceId: "M2", pinName: "S" },
+          { instanceId: "M9", pinName: "D" },
+        ],
+      },
+      {
+        id: "net-mirror",
+        terminals: [
+          { instanceId: "M2", pinName: "D" },
+          { instanceId: "M7", pinName: "D" },
+          { instanceId: "M7", pinName: "G" },
+          { instanceId: "M8", pinName: "G" },
+        ],
+      },
+    );
+    for (const [instanceId, pinNames] of [
+      ["M2", ["G"]],
+      ["M7", ["S"]],
+      ["M8", ["D", "S"]],
+      ["M9", ["G", "S"]],
+    ] as const) {
+      for (const pinName of pinNames) {
+        document.noConnects.push({
+          id: `nc-${instanceId}-${pinName}`,
+          endpoint: { kind: "terminal", instanceId, pinName },
+        });
+      }
+    }
+
+    const result = analyzeDesignNetlist(project);
+
+    expect(
+      result.diagnostics.filter((item) => item.severity === "error"),
+    ).toEqual([]);
+    const spice = printSpiceNetlist(result.ir!);
+    expect(spice).toContain("M7_DG");
+    expect(spice).toContain("M9_D");
+    expect(spice).not.toContain("N000");
+  });
+
   it("maps formal Cell Pin Instances to the ordered exported interface", () => {
     const project = createEmptyProject("project", "Project");
     const document = project.documents[0]!;

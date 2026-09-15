@@ -266,6 +266,114 @@ function withNetlistPowerMarkerClaims(
       };
 }
 
+function generatedNetPinPriority(pinName: string): number {
+  switch (pinName.trim().toUpperCase()) {
+    case "D":
+      return 0;
+    case "OUT":
+    case "OUTPUT":
+    case "Q":
+      return 1;
+    case "C":
+      return 2;
+    case "G":
+      return 3;
+    case "B":
+      return 4;
+    case "S":
+    case "E":
+      return 5;
+    default:
+      return 10;
+  }
+}
+
+function generatedNetPinToken(pinName: string): string {
+  return pinName
+    .trim()
+    .replaceAll("+", "P")
+    .replaceAll("-", "N")
+    .replace(/[^A-Za-z0-9_]+/gu, "_")
+    .replace(/^_+|_+$/gu, "");
+}
+
+/**
+ * Prefer a stable electrical alias such as M9_D or M7_DG over an opaque
+ * sequence number. A shorted multi-pin device is the strongest landmark;
+ * otherwise an output/drain-like pin wins, followed by natural reference
+ * order. Authored labels and formal port names are resolved before this path.
+ */
+function generatedNetNameFromTerminals(
+  document: SchematicDocument,
+  logicalNet: ResolvedLogicalNet,
+): string | undefined {
+  const memberNetIds = new Set(logicalNet.baseNetIds);
+  const instanceById = new Map(
+    document.instances.map((instance) => [instance.id, instance]),
+  );
+  const pinsByInstanceId = new Map<string, Set<string>>();
+  for (const net of document.nets) {
+    if (!memberNetIds.has(net.id)) continue;
+    for (const terminal of net.terminals) {
+      const instance = instanceById.get(terminal.instanceId);
+      if (!instance?.reference) continue;
+      const pins = pinsByInstanceId.get(instance.id) ?? new Set<string>();
+      pins.add(terminal.pinName);
+      pinsByInstanceId.set(instance.id, pins);
+    }
+  }
+  const candidates = [...pinsByInstanceId].flatMap(([instanceId, pinNames]) => {
+    const instance = instanceById.get(instanceId)!;
+    const authoredReference = instance.reference;
+    if (!authoredReference) return [];
+    const descriptor = deviceDescriptor(instance.symbolId);
+    const externalPrefix = descriptor?.referencePrefix
+      ? `X${descriptor.referencePrefix}`
+      : undefined;
+    const reference =
+      externalPrefix &&
+      instance.netlist?.binding?.kind === "external-subcircuit" &&
+      authoredReference.toUpperCase().startsWith(externalPrefix.toUpperCase())
+        ? authoredReference.slice(1)
+        : authoredReference;
+    const orderedPins = [...pinNames].sort((left, right) => {
+      const leftIndex = descriptor?.pinOrder.indexOf(left) ?? -1;
+      const rightIndex = descriptor?.pinOrder.indexOf(right) ?? -1;
+      if (leftIndex >= 0 || rightIndex >= 0) {
+        if (leftIndex < 0) return 1;
+        if (rightIndex < 0) return -1;
+        if (leftIndex !== rightIndex) return leftIndex - rightIndex;
+      }
+      return compareText(left, right);
+    });
+    const pinTokens = orderedPins.map(generatedNetPinToken).filter(Boolean);
+    if (pinTokens.length === 0) return [];
+    const pinPart = pinTokens.every((token) => token.length === 1)
+      ? pinTokens.join("")
+      : pinTokens.join("_");
+    const name = `${reference}_${pinPart}`;
+    if (!isIdentifier(name)) return [];
+    return [
+      {
+        name,
+        pinCount: orderedPins.length,
+        pinPriority: Math.min(...orderedPins.map(generatedNetPinPriority)),
+        reference,
+      },
+    ];
+  });
+  return candidates.sort(
+    (left, right) =>
+      right.pinCount - left.pinCount ||
+      left.pinPriority - right.pinPriority ||
+      left.reference.localeCompare(right.reference, "en", {
+        sensitivity: "base",
+        numeric: true,
+      }) ||
+      compareText(left.name, right.name),
+  )[0]?.name;
+}
+
 function buildNetContext(
   sourceDocument: SchematicDocument,
   documentsById: Map<string, SchematicDocument>,
@@ -473,15 +581,32 @@ function buildNetContext(
       }
     }
     if (!name && logicalNet.scope !== "global") {
-      let encodedGenerated: EncodedNetName;
-      do {
-        name = `N${String(generatedIndex).padStart(4, "0")}`;
-        generatedIndex += 1;
-        encodedGenerated = encodeCandidate(name, "local", options);
-      } while (
-        encodedGenerated.ok &&
-        occupiedNames.has(encodedGenerated.collisionKey)
-      );
+      const terminalName = generatedNetNameFromTerminals(document, logicalNet);
+      if (terminalName) {
+        name = terminalName;
+        let encodedGenerated = encodeCandidate(name, "local", options);
+        let suffix = 2;
+        while (
+          encodedGenerated.ok &&
+          occupiedNames.has(encodedGenerated.collisionKey)
+        ) {
+          name = `${terminalName}__${suffix}`;
+          suffix += 1;
+          encodedGenerated = encodeCandidate(name, "local", options);
+        }
+        if (!encodedGenerated.ok) name = undefined;
+      }
+      if (!name) {
+        let encodedGenerated: EncodedNetName;
+        do {
+          name = `N${String(generatedIndex).padStart(4, "0")}`;
+          generatedIndex += 1;
+          encodedGenerated = encodeCandidate(name, "local", options);
+        } while (
+          encodedGenerated.ok &&
+          occupiedNames.has(encodedGenerated.collisionKey)
+        );
+      }
       diagnostic(
         diagnostics,
         document.id,
