@@ -2,6 +2,7 @@ import { lazy, Suspense, useMemo } from "react";
 import type { CircuitProject } from "@icm/model";
 import {
   createDesignNetlistExport,
+  NETLIST_MOS_TARGET_OPTIONS,
   NETLIST_PROFILE_IDS,
   NETLIST_PROFILE_LABELS,
   type NetlistExportProfile,
@@ -57,10 +58,13 @@ export function NetlistCodePanel({
       : null;
   const source = result?.status === "ready" ? result.file.text : "";
   return (
-    <section className="netlist-profile-code" aria-label="Live netlist">
+    <section
+      className="netlist-profile-code netlist-live-code"
+      aria-label="Live netlist"
+    >
       <div className="netlist-code-controls">
         <label>
-          Format
+          <span>Format</span>
           <select
             aria-label="Netlist format"
             value={format}
@@ -73,7 +77,7 @@ export function NetlistCodePanel({
           </select>
         </label>
         <label>
-          Process
+          <span>Process</span>
           <select
             aria-label="Netlist process"
             value={profile.id}
@@ -129,18 +133,34 @@ export function NetlistCodePanel({
         {(["nmos", "pmos"] as const).map((family) => (
           <label key={family}>
             <span>{family.toUpperCase()}</span>
-            <input
+            <select
               aria-label={`${family.toUpperCase()} netlist target`}
               value={profile.devices[family].target}
+              title={profile.devices[family].target}
               onChange={(event) =>
-                onMosTargetChange(family, event.currentTarget.value.trim())
+                onMosTargetChange(family, event.currentTarget.value)
               }
-              spellCheck={false}
-              autoCapitalize="off"
-              autoCorrect="off"
-            />
+            >
+              {[
+                ...new Set([
+                  profile.devices[family].target,
+                  ...NETLIST_MOS_TARGET_OPTIONS[profile.id][family],
+                ]),
+              ].map((target) => (
+                <option key={target || "unspecified"} value={target}>
+                  {target || "Unspecified"}
+                </option>
+              ))}
+            </select>
           </label>
         ))}
+        <button
+          type="button"
+          className="netlist-default-action"
+          onClick={onReset}
+        >
+          Default
+        </button>
       </div>
       {error ? (
         <p role="alert">{error}</p>
@@ -150,11 +170,6 @@ export function NetlistCodePanel({
           Report.
         </p>
       ) : null}
-      <div className="netlist-default-action">
-        <button type="button" onClick={onReset}>
-          Default
-        </button>
-      </div>
     </section>
   );
 }

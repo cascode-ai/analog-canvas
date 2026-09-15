@@ -6254,6 +6254,20 @@ test("shows and copies a live MOS netlist when only bulk terminals are omitted",
     exact: true,
   });
   const process = panel.getByRole("combobox", { name: "Netlist process" });
+  const topControls = panel.locator(".netlist-code-controls");
+  for (const label of await topControls.locator("label").all()) {
+    const labelTextBox = await label.locator("span").boundingBox();
+    const selectBox = await label.locator("select").boundingBox();
+    expect(labelTextBox).not.toBeNull();
+    expect(selectBox).not.toBeNull();
+    expect(
+      Math.abs(
+        labelTextBox!.y +
+          labelTextBox!.height / 2 -
+          (selectBox!.y + selectBox!.height / 2),
+      ),
+    ).toBeLessThanOrEqual(2);
+  }
   await process.selectOption("sky130");
   const skySpectre = await copyNetlistText(page, "spectre");
   expect(skySpectre).toMatch(
@@ -6269,25 +6283,51 @@ test("shows and copies a live MOS netlist when only bulk terminals are omitted",
   expect(skySpectre).toContain("subckt dut (VDD VSS)");
   expect(skySpectre).not.toContain(".subckt");
   expect(skySpectre).not.toContain(".global");
-  await process.selectOption("abstract");
   const nmos = panel.getByLabel("NMOS netlist target");
   const pmos = panel.getByLabel("PMOS netlist target");
-  await expect(nmos).toHaveValue("NMOS");
-  await expect(pmos).toHaveValue("PMOS");
-  await nmos.fill("CUSTOM_NMOS");
-  await pmos.fill("CUSTOM_PMOS");
-  await expect(panel.getByLabel("Netlist code")).toContainText("CUSTOM_NMOS");
-  await expect(panel.getByLabel("Netlist code")).toContainText("CUSTOM_PMOS");
+  const defaultButton = panel.getByRole("button", {
+    name: "Default",
+    exact: true,
+  });
+  await expect(nmos).toHaveValue("sky130_fd_pr__nfet_01v8");
+  await expect(pmos).toHaveValue("sky130_fd_pr__pfet_01v8");
+  await nmos.selectOption("sky130_fd_pr__nfet_01v8_lvt");
+  await pmos.selectOption("sky130_fd_pr__pfet_01v8_lvt");
+  await expect(panel.getByLabel("Netlist code")).toContainText(
+    "sky130_fd_pr__nfet_01v8_lvt",
+  );
+  await expect(panel.getByLabel("Netlist code")).toContainText(
+    "sky130_fd_pr__pfet_01v8_lvt",
+  );
+  const mappingBoxes = await Promise.all(
+    [nmos, pmos, defaultButton].map((control) => control.boundingBox()),
+  );
+  expect(mappingBoxes.every(Boolean)).toBe(true);
+  const mappingCenters = mappingBoxes.map((box) => box!.y + box!.height / 2);
+  expect(
+    Math.max(...mappingCenters) - Math.min(...mappingCenters),
+  ).toBeLessThanOrEqual(2);
+  const selectionPanelBox = await panel.locator("..").boundingBox();
+  const mappingBarBox = await panel
+    .getByLabel("MOS device mapping")
+    .boundingBox();
+  expect(selectionPanelBox).not.toBeNull();
+  expect(mappingBarBox).not.toBeNull();
+  expect(
+    selectionPanelBox!.y +
+      selectionPanelBox!.height -
+      (mappingBarBox!.y + mappingBarBox!.height),
+  ).toBeLessThanOrEqual(16);
   await page.reload();
   await page.getByTestId("netlist-panel-toggle").click();
   await expect(panel.getByLabel("NMOS netlist target")).toHaveValue(
-    "CUSTOM_NMOS",
+    "sky130_fd_pr__nfet_01v8_lvt",
   );
   await expect(panel.getByLabel("PMOS netlist target")).toHaveValue(
-    "CUSTOM_PMOS",
+    "sky130_fd_pr__pfet_01v8_lvt",
   );
   await expect(panel.getByRole("alert")).toHaveCount(0);
-  await panel.getByRole("button", { name: "Default", exact: true }).click();
+  await defaultButton.click();
   await expect(panel.getByLabel("Netlist format")).toHaveValue("spice");
   await expect(panel.getByLabel("Netlist process")).toHaveValue("abstract");
   await expect(panel.getByLabel("NMOS netlist target")).toHaveValue("NMOS");

@@ -41,11 +41,15 @@ describe("live netlist controls", () => {
     expect(markup).not.toContain(">Copy</button>");
     expect(markup).toContain('aria-label="NMOS netlist target"');
     expect(markup).toContain('value="nch_ulvt_mac"');
+    expect(markup).toContain('value="nch_lvt_mac"');
     expect(markup).toContain('aria-label="PMOS netlist target"');
     expect(markup).toContain('value="pch_ulvt_mac"');
+    expect(markup).toContain('value="pch_lvt_mac"');
+    expect(markup.match(/<select/g)).toHaveLength(4);
+    expect(markup).not.toContain("<input");
     expect(markup).toContain(">Default</button>");
-    expect(markup.indexOf(">Default</button>")).toBeGreaterThan(
-      markup.indexOf('aria-label="MOS device mapping"'),
+    expect(markup).toMatch(
+      /aria-label="MOS device mapping"[\s\S]*aria-label="NMOS netlist target"[\s\S]*aria-label="PMOS netlist target"[\s\S]*>Default<\/button><\/div>/u,
     );
     expect(markup).not.toContain("<h2>Netlist</h2>");
   });

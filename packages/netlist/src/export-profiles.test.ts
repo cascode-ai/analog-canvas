@@ -3,6 +3,7 @@ import { deviceDescriptor } from "@icm/devices";
 import { describe, it, expect } from "vitest";
 import {
   createNetlistExportProfile,
+  NETLIST_MOS_TARGET_OPTIONS,
   NETLIST_PROFILE_LABELS,
   projectNetlistExportProfile,
   setNetlistDefaultTarget,
@@ -52,6 +53,29 @@ function exported(
 }
 
 describe("netlist export presets", () => {
+  it("offers process-specific MOS target choices including every default", () => {
+    for (const id of [
+      "abstract",
+      "sky130",
+      "tsmc28",
+      "tsmc180",
+      "custom",
+    ] as const) {
+      const profile = createNetlistExportProfile(id);
+      expect(NETLIST_MOS_TARGET_OPTIONS[id].nmos).toContain(
+        profile.devices.nmos.target,
+      );
+      expect(NETLIST_MOS_TARGET_OPTIONS[id].pmos).toContain(
+        profile.devices.pmos.target,
+      );
+    }
+    expect(NETLIST_MOS_TARGET_OPTIONS.sky130.nmos).toContain(
+      "sky130_fd_pr__nfet_01v8_lvt",
+    );
+    expect(NETLIST_MOS_TARGET_OPTIONS.tsmc28.pmos).toContain("pch_lvt_mac");
+    expect(NETLIST_MOS_TARGET_OPTIONS.tsmc180.nmos).toEqual(["nch", "nch_mac"]);
+  });
+
   it("maps TSMC 28 ULVT wrappers, model entry, and m to multi", () => {
     const profile = createNetlistExportProfile("tsmc28");
     expect(profile.devices.nmos.target).toBe("nch_ulvt_mac");

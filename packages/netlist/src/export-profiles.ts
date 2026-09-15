@@ -25,6 +25,61 @@ export const NETLIST_PROFILE_LABELS = {
   tsmc180: "TSMC 180",
   custom: "Custom",
 } as const;
+export const NETLIST_MOS_TARGET_OPTIONS: Readonly<
+  Record<NetlistProfileId, Readonly<Record<"nmos" | "pmos", readonly string[]>>>
+> = {
+  abstract: { nmos: ["NMOS"], pmos: ["PMOS"] },
+  sky130: {
+    nmos: ["sky130_fd_pr__nfet_01v8", "sky130_fd_pr__nfet_01v8_lvt"],
+    pmos: ["sky130_fd_pr__pfet_01v8", "sky130_fd_pr__pfet_01v8_lvt"],
+  },
+  tsmc28: {
+    nmos: [
+      "nch_ulvt_mac",
+      "nch_lvt_mac",
+      "nch_mac",
+      "nch_hvt_mac",
+      "nch_ehvt_mac",
+      "nch_18_mac",
+    ],
+    pmos: [
+      "pch_ulvt_mac",
+      "pch_lvt_mac",
+      "pch_mac",
+      "pch_ehvt_mac",
+      "pch_18_mac",
+    ],
+  },
+  tsmc180: {
+    nmos: ["nch", "nch_mac"],
+    pmos: ["pch", "pch_mac"],
+  },
+  custom: {
+    nmos: [
+      "NMOS",
+      "sky130_fd_pr__nfet_01v8",
+      "sky130_fd_pr__nfet_01v8_lvt",
+      "nch_ulvt_mac",
+      "nch_lvt_mac",
+      "nch_mac",
+      "nch_hvt_mac",
+      "nch_ehvt_mac",
+      "nch_18_mac",
+      "nch",
+    ],
+    pmos: [
+      "PMOS",
+      "sky130_fd_pr__pfet_01v8",
+      "sky130_fd_pr__pfet_01v8_lvt",
+      "pch_ulvt_mac",
+      "pch_lvt_mac",
+      "pch_mac",
+      "pch_ehvt_mac",
+      "pch_18_mac",
+      "pch",
+    ],
+  },
+};
 export const NETLIST_DEVICE_FAMILIES = [
   "nmos",
   "pmos",

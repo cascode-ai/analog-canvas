@@ -124,6 +124,20 @@
   padding-right: 38px;
 }
 
+.project-tool-dock .netlist-live-code {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.project-tool-dock .netlist-live-code > .project-source-editor,
+.project-tool-dock .netlist-live-code > textarea {
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 0;
+}
+
 .project-tool-close {
   position: absolute;
   top: var(--icm-space-2);

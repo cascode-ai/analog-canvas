@@ -216,18 +216,22 @@
 .netlist-code-controls {
   display: grid;
   grid-template-columns: minmax(0, 0.7fr) minmax(0, 1fr) auto;
-  align-items: end;
+  align-items: center;
   gap: 8px;
 }
-.netlist-code-controls label {
+.netlist-code-controls label,
+.netlist-device-mapping label {
   display: grid;
-  gap: 4px;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
   min-width: 0;
   color: var(--icm-text-muted);
   font-size: var(--icm-font-xs);
   font-weight: 600;
 }
-.netlist-code-controls select {
+.netlist-code-controls select,
+.netlist-device-mapping select {
   min-width: 0;
   width: 100%;
   padding: 4px 24px 4px 8px;
@@ -251,10 +255,7 @@
   height: 18px;
 }
 .netlist-default-action {
-  display: flex;
-  justify-content: flex-end;
-}
-.netlist-default-action button {
+  min-height: 30px;
   min-width: 76px;
 }
 .netlist-profile-code p {
@@ -328,33 +329,14 @@
   background: color-mix(in srgb, var(--icm-accent) 7%, transparent);
 }
 .netlist-device-mapping {
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
   padding-top: 2px;
 }
-.netlist-device-mapping label {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-  color: var(--icm-text-muted);
-  font: 600 var(--icm-font-xs) / 1.4 var(--font-mono);
-}
-.netlist-device-mapping input {
-  width: min(10rem, 30vw);
-  min-width: 0;
-  padding: 3px 2px;
-  border: 0;
-  border-bottom: 1px solid var(--icm-border-strong);
-  border-radius: 0;
-  outline: 0;
-  background: transparent;
-  color: var(--icm-text);
-  font: 12px/1.4 var(--font-mono);
-}
-.netlist-device-mapping input:focus {
-  border-bottom-color: var(--icm-accent);
+.netlist-device-mapping select {
+  font-family: var(--font-mono);
 }
 
 .netlist-preflight-header p,
