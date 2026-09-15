@@ -1,11 +1,5 @@
 import { readFileSync } from "node:fs";
-import {
-  nativeAcquisitionEdit,
-  nativeDeviceOpAcquisitions,
-  nativeSimulationDevices,
-  nativeVoltageAcquisition,
-  type NativeModelLibrarySymbols,
-} from "@icm/netlist";
+import { nativeSky130OtaFixture } from "../test-support/sky130-ota.js";
 import { describe, it, expect, vi } from "vitest";
 import {
   createEmptyProject,
@@ -1023,76 +1017,16 @@ describe("shared simulation lifecycle", () => {
     );
   });
   it("prepares the shipped hierarchical OTA with native voltage and evidence-backed model OP acquisitions", async () => {
-    const project = CircuitProjectSchema.parse(
-      currentFiveTransistorOtaCircuitSource(),
-    );
-    const profileId = "test";
-    // Captured from the real converted TT model bytes. The converter integration
-    // test checks its digest and paths; this service test is not PDK qualification.
-    const { library }: { library: NativeModelLibrarySymbols } = JSON.parse(
-      readFileSync(
-        new URL(
-          "../../../netlists/vacask-sky130/model-symbols-tt.json",
-          import.meta.url,
-        ),
-        "utf8",
-      ),
-    );
-    const folder = nativeOtaFolder(
-      project,
-      "analysis bias op\nanalysis response ac from=1 to=1e6 dec=10",
-    );
-    const entry = folder.input.files.find(
-      (f) => f.path === folder.input.entry,
-    )!;
-    entry.text = entry.text.replace(
-      'include "models/library.inc" section=tt',
-      'include "models/library.inc"',
-    );
-    folder.input.dependencies = [
-      {
-        id: library.dependencyId,
-        sha256: library.sha256,
-        mountPath: "models/library.inc",
-      },
-    ];
-    const voltage = nativeVoltageAcquisition(project, folder.input, {
-      kind: "voltage",
-      documentId: project.topDocumentId,
-      circuit: { bindingId: folder.input.circuitBindings[0]!.id, callPath: [] },
-      anchor: { kind: "terminal", instanceId: "XDUT", pinName: "vout" },
-      occurrence: [],
-    });
-    if (!voltage.ok) throw Error(voltage.message);
+    const { project, profile, voltage, m1, acquisitions } =
+      nativeSky130OtaFixture();
     expect(voltage.vector).toBe("vout");
-    const m1 = nativeSimulationDevices(project, folder.input, [library]).find(
-      (d) =>
-        d.documentId === "document-ota-5t" &&
-        d.instanceId === "M1" &&
-        JSON.stringify(d.occurrence) === JSON.stringify(["XDUT"]),
-    );
     expect(m1).toBeDefined();
-    const acquisitions = nativeDeviceOpAcquisitions(m1!);
     expect(acquisitions).toHaveLength(9);
     expect(
       acquisitions.every(
         (a) => a.reference === "XDUT:XM1:msky130_fd_pr__nfet_01v8",
       ),
     ).toBe(true);
-    const edit = nativeAcquisitionEdit(
-      entry.text,
-      entry.text.indexOf("analysis bias"),
-      [voltage.save, ...acquisitions.map((a) => a.save)],
-      true,
-    );
-    if (!edit.ok) throw Error(edit.error.message);
-    entry.text = edit.text;
-    const profile = {
-      id: profileId,
-      corners: [],
-      dependencies: [{ id: library.dependencyId, sha256: library.sha256 }],
-      modelSymbols: [library],
-    };
     const f = fixture();
     f.executor.capabilities = async () => ({
       ...caps,

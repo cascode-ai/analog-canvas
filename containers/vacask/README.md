@@ -88,6 +88,33 @@ capability dependency declarations must match the runtime registry. A hosted
 runtime requires an accepted pinned environment, read-only assets and a pinned
 image; copying this local example does not meet that requirement.
 
+## Real hierarchical OTA journey
+
+After the dependency build, run the original shipped OTA through Prepare/Start,
+the local-host HTTP adapter, the actual native process and the shared File Resource:
+
+```sh
+VACASK_BIN=/absolute/vacask/bin/vacask \
+VACASK_MODULES=/absolute/vacask/lib/vacask/mod \
+ICM_VACASK_CONVERTED_TT=/absolute/converted/tt.sim \
+pnpm test:local containers/vacask/sky130-public-journey.test.mjs
+```
+
+The test skips without these explicit inputs. The TT file must match the captured
+dependency digest in `netlists/vacask-sky130/model-symbols-tt.json`; substituting a
+different model without updating and verifying its evidence is rejected. Linux
+packages needing additional shared libraries can explicitly supply the existing
+operator-owned `ICM_VACASK_LIBRARY_PATH`. No implicit PDK discovery is performed.
+
+The fixture keeps the shipped Canvas topology and dimensions. Its authored native
+source uses `options scale=1e-6`, matching the candidate model's micrometre-valued
+wrapper parameters and existing reference decks, and explicit native AC sweep
+syntax. These are experiment setup, not a hidden geometry rewrite or a globally
+qualified Profile. The test reads complete result artifacts in pages, checks OP/AC
+records, nine M1 model-parameter mappings, CSV/raw exports and scratch cleanup.
+A passing run proves this local integration only: it does not certify model
+accuracy, all analyses/corners, GUI/public MCP transport or hosted isolation.
+
 ## Transport and shutdown
 
 The native Worker route requires `SIMULATION_PROFILE_ID` plus the explicitly
