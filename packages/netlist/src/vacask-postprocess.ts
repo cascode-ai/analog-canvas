@@ -1,5 +1,20 @@
 /** Explicit output framing, not an input/analysis protocol or a numeric evaluator. */
 export const VACASK_MEASUREMENT_PREFIX = "ICM_MEASUREMENT_V1 ";
+export const VACASK_PLOT_PREFIX = "ICM_PLOT_V1 ";
+
+/** Declare the meaning of an authored native ASCII raw record after writing it.
+ * This helper does not evaluate expressions, write waveforms or read files. */
+export function vacaskPlotPythonSource(): string {
+  return `import json as _icm_plot_json
+
+def report_plot(path, analysis, axis=None, probes=(), plot_ordinal=0):
+    report = {"artifactPath": path, "plotOrdinal": plot_ordinal,
+              "analysis": analysis, "probes": list(probes)}
+    if axis is not None:
+        report["axis"] = axis
+    print(${JSON.stringify(VACASK_PLOT_PREFIX)} + _icm_plot_json.dumps(report, allow_nan=False), flush=True)
+`;
+}
 
 /** Ordinary authored Python for a native postprocess program. No hidden runner,
  * imports outside the standard library, or frontend evaluation of expressions.

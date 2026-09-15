@@ -29,5 +29,5 @@ export function selectedResultRecords(
 }
 
 export function resultRecordLabel(index: number, analysis: Analysis) {
-  return `${analysis.plotName} · record ${analysis.rawPlotOrdinals?.join(", ") ?? index}`;
+  return `${analysis.plotName} · record ${analysis.rawPlotOrdinals?.join(", ") ?? index}${analysis.postprocessor ? ` · Postprocessor, Console line ${analysis.postprocessor.logLine}` : ""}`;
 }

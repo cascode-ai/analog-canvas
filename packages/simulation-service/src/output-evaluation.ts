@@ -238,6 +238,7 @@ function sourceSeries(
         real: source.real,
         imaginary: source.imag,
         complex:
+          !!analysis.postprocessor ||
           vector.quantity !== "native" ||
           meaning.semantics.valueKind !== "real" ||
           source.imag.some((v) => v !== 0),
@@ -273,9 +274,14 @@ export function evaluateSimulationOutputs(
   );
   const analyses: SimulationOutputData["analyses"] = data.analyses.map(
     (analysis, analysisIndex) => {
-      const rawOrigin = analysis.rawPlotOrdinals
-        ? { rawPlotOrdinals: [...analysis.rawPlotOrdinals] }
-        : {};
+      const rawOrigin = {
+        ...(analysis.rawPlotOrdinals
+          ? { rawPlotOrdinals: [...analysis.rawPlotOrdinals] }
+          : {}),
+        ...(analysis.postprocessor
+          ? { postprocessor: analysis.postprocessor }
+          : {}),
+      };
       if (analysis.analysis === "noise") {
         const derived = analysis.integrationMethod === "trapezoidal-psd";
         const integrated = [
@@ -390,7 +396,9 @@ export function evaluateSimulationOutputs(
           } catch (error) {
             diagnostics.push({
               analysisIndex,
-              ...rawOrigin,
+              ...(analysis.rawPlotOrdinals
+                ? { rawPlotOrdinals: [...analysis.rawPlotOrdinals] }
+                : {}),
               outputId: output.id,
               code: "SIMULATION_OUTPUT_EVALUATION_FAILED",
               message:
@@ -413,9 +421,10 @@ export function evaluateSimulationOutputs(
           if (represented.has(probe.name)) continue;
           // Prepared electrical evidence can type an otherwise untyped native
           // branch, but authored expressions shadowing it retain their meaning.
-          const captured = !declarations.has(probe.name)
-            ? typedNativeVectors.get(probe.name)
-            : undefined;
+          const captured =
+            !analysis.postprocessor && !declarations.has(probe.name)
+              ? typedNativeVectors.get(probe.name)
+              : undefined;
           const native = {
             probeId: `native:${probe.name}`,
             vector: probe.name,
@@ -430,7 +439,9 @@ export function evaluateSimulationOutputs(
           const series = sourceSeries(analysis, [native], declarations).get(
             native.probeId,
           )!;
-          const friendly = signalNames[probe.name];
+          const friendly = analysis.postprocessor
+            ? undefined
+            : signalNames[probe.name];
           evaluated.push({
             id: native.probeId,
             label: friendly ? `${friendly} — ${probe.name}` : probe.name,
@@ -440,13 +451,17 @@ export function evaluateSimulationOutputs(
             semantics: {
               ...meaning.semantics,
               ...(captured ? { quantity: captured.quantity } : {}),
-              valueKind: captured
-                ? series.complex
+              valueKind: analysis.postprocessor
+                ? analysis.analysis === "ac"
                   ? "complex"
                   : "real"
-                : meaning.semantics.valueKind === "real" && series.complex
-                  ? "unknown"
-                  : meaning.semantics.valueKind,
+                : captured
+                  ? series.complex
+                    ? "complex"
+                    : "real"
+                  : meaning.semantics.valueKind === "real" && series.complex
+                    ? "unknown"
+                    : meaning.semantics.valueKind,
             },
           });
         }

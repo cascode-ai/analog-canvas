@@ -1,5 +1,8 @@
 import { z } from "zod";
-import { SimulationRawPlotOrdinalsSchema } from "@icm/spice-run";
+import {
+  SimulationRawPlotOrdinalsSchema,
+  SimulationPostprocessorOriginSchema,
+} from "@icm/spice-run";
 import { SimulationRunVariantSchema } from "@icm/model";
 import { SimulationResultSchema } from "@icm/spice-run";
 import {
@@ -217,6 +220,7 @@ export const EvaluatedScalarSchema = z.strictObject({
   semantics: OutputSemanticsSchema.optional(),
 });
 export const EvaluatedAnalysisSchema = z.strictObject({
+  postprocessor: SimulationPostprocessorOriginSchema.optional(),
   rawPlotOrdinals: SimulationRawPlotOrdinalsSchema.optional(),
   analysis: z.enum(["op", "dc", "ac", "tran", "noise"]),
   plotName: z.string(),

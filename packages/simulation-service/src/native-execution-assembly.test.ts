@@ -1,6 +1,9 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { createSimulationEnvironmentMetadata } from "@icm/spice-run";
+import { VACASK_PLOT_PREFIX } from "@icm/netlist";
+import { evaluateSimulationOutputs } from "./output-evaluation.js";
+import { SimulationOutputDataSchema } from "./contract.js";
 import {
   assembleNativeExecutionOutput,
   type NativeJobObservation,
@@ -61,6 +64,62 @@ function fixture(control = "analysis bias op") {
   return { input, job };
 }
 describe("native result assembly", () => {
+  it("maps explicitly reported curves into canonical outputs without losing raw or failed-record evidence", async () => {
+    const { input, job } = fixture();
+    job.rawfiles.push({
+      path: "derived.raw",
+      text: readFileSync(
+        new URL("../../../netlists/vacask-rc/rc_ac.raw", import.meta.url),
+        "utf8",
+      ),
+    });
+    const report = {
+      artifactPath: "derived.raw",
+      plotOrdinal: 0,
+      analysis: "ac",
+      axis: "frequency",
+      probes: [{ name: "output", quantity: "transfer", unit: "1" }],
+    };
+    job.execution.stdout += VACASK_PLOT_PREFIX + JSON.stringify(report) + "\n";
+    job.execution.stdout +=
+      VACASK_PLOT_PREFIX +
+      JSON.stringify({ ...report, artifactPath: "missing.raw" }) +
+      "\n";
+    const result = await assembleNativeExecutionOutput(
+      input,
+      job,
+      await environment(),
+    );
+    expect(result.result.outcome.status).toBe("failed");
+    expect(result.result.data?.analyses).toHaveLength(2);
+    expect(
+      result.result.data?.analyses[1]?.postprocessor?.logLine,
+    ).toBeGreaterThan(0);
+    const output = evaluateSimulationOutputs(
+      result.result.data!,
+      [],
+      [],
+      [],
+      [],
+      true,
+    );
+    expect(SimulationOutputDataSchema.safeParse(output).success).toBe(true);
+    expect(output.analyses[1]).toMatchObject({
+      postprocessor: result.result.data!.analyses[1]!.postprocessor,
+      outputs: expect.arrayContaining([
+        expect.objectContaining({
+          label: "output",
+          unit: "1",
+          semantics: expect.objectContaining({ valueKind: "complex" }),
+        }),
+      ]),
+    });
+    job.truncated = true;
+    expect(
+      (await assembleNativeExecutionOutput(input, job, await environment()))
+        .result.data,
+    ).toBeUndefined();
+  });
   it("returns canonical numeric and original-file evidence with measured environment", async () => {
     const { input, job } = fixture();
     const measured = await environment();

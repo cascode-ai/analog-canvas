@@ -6,7 +6,10 @@ import {
   createEmptyProject,
   createSimulationFolder,
 } from "../../packages/model/src/index.js";
-import { vacaskMeasurementPythonSource } from "../../packages/netlist/src/vacask-postprocess.js";
+import {
+  vacaskMeasurementPythonSource,
+  vacaskPlotPythonSource,
+} from "../../packages/netlist/src/vacask-postprocess.js";
 import { SimulationService } from "../../packages/simulation-service/src/service.js";
 import { SimulationFiles } from "../../packages/simulation-service/src/files.js";
 import { CapabilitiesSchema } from "../../packages/simulation-service/src/contract.js";
@@ -36,15 +39,17 @@ it.skipIf(
     const entry = folder.input.files.find((f) => f.path === folder.input.entry);
     entry.text = `Native measurements
 model v vsource
-V1 (out 0) v dc=2.5
+V1 (out 0) v dc=2.5 mag=2
 control
 options rawfile="ascii"
 save v(out)
 analysis bias op
+analysis frequency ac from=10 to=100 mode="lin" points=3
 postprocess(${JSON.stringify(process.env.ICM_PYTHON)}, "reports.py")
 endc
 embed "reports.py" <<<REPORT
 ${vacaskMeasurementPythonSource()}
+${vacaskPlotPythonSource()}
 # Read this run's real one-point native OP artifact, not a test's expected value.
 from pathlib import Path
 lines = Path("bias.raw").read_text().splitlines()
@@ -59,6 +64,26 @@ report_measurement("nonfinite", lambda: float("nan"), "V")
 report_measurement("vector", lambda: [bias["out"]], "V")
 report_measurement("gain", lambda: bias["out"]/2, "1")
 report_measurement("voltage", lambda: bias["out"]*2, "V")
+# Test-only native ASCII reader/writer; the helper supplies metadata, not math.
+# Read real solver arrays, then compute a complex expression in authored Python.
+lines = Path("frequency.raw").read_text().splitlines()
+start = lines.index("Variables:") + 1
+end = lines.index("Values:")
+names = [line.split()[1] for line in lines[start:end]]
+tokens = " ".join(lines[end+1:]).split()
+rows = []
+for at in range(0, len(tokens), len(names)+1):
+    values = [complex(*map(float, item.split(","))) for item in tokens[at+1:at+len(names)+1]]
+    point = dict(zip(names, values))
+    rows.append((point["frequency"], point["out"]/(1+1j)))
+header = ["Title: Authored complex expression", "Date: Current run", "Plotname: Derived transfer",
+          "Flags: complex", "No. Variables: 2", "No. Points: " + str(len(rows)),
+          "Variables:", "0 frequency notype", "1 Gain notype", "Values:"]
+for index, (frequency, gain) in enumerate(rows):
+    header.extend([f"{index} {frequency.real:.17e},0", f" {gain.real:.17e},{gain.imag:.17e}"])
+Path("derived.raw").write_text(chr(10).join(header) + chr(10))
+report_plot("derived.raw", "ac", axis="frequency",
+            probes=[{"name": "Gain", "quantity": "transfer", "unit": "1"}])
 >>>REPORT
 `;
     project.simulationFolders = [folder];
@@ -90,8 +115,8 @@ report_measurement("voltage", lambda: bias["out"]*2, "V")
         configured: true,
         rawfileCollection: "native-multi-ascii",
         inputs: ["source"],
-        analyses: ["op"],
-        parsedAnalyses: ["op"],
+        analyses: ["op", "ac"],
+        parsedAnalyses: ["op", "ac"],
         profiles: [{ id: "measure-proof", corners: [] }],
         maxTimeoutMs: 15000,
         maxInputBytes: limits.maxInputBytes,
@@ -147,9 +172,13 @@ report_measurement("voltage", lambda: bias["out"]*2, "V")
         },
         { timeout: 20000 },
       );
-      expect(finished.result.outcome.status, JSON.stringify(finished)).toBe(
-        "completed",
-      );
+      expect(
+        finished.result.outcome.status,
+        JSON.stringify({
+          diagnostics: finished.result.diagnostics,
+          log: finished.result.log,
+        }),
+      ).toBe("completed");
       expect(finished.outputData.nativeMeasurements).toMatchObject([
         {
           name: "voltage",
@@ -172,6 +201,42 @@ report_measurement("voltage", lambda: bias["out"]*2, "V")
         { name: "gain", value: 1.25 },
         { name: "voltage", occurrence: 2, value: 5 },
       ]);
+      const derivedIndex = finished.result.data.analyses.findIndex(
+        (a) => a.postprocessor,
+      );
+      expect(derivedIndex).toBeGreaterThan(-1);
+      const derived = finished.result.data.analyses[derivedIndex];
+      const native = finished.result.data.analyses.find(
+        (a) => a.analysis === "ac" && !a.postprocessor,
+      );
+      expect(derived.frequencyHz).toEqual(native.frequencyHz);
+      expect(derived.probes).toEqual([
+        {
+          name: "Gain",
+          quantity: "transfer",
+          unit: "1",
+          real: native.frequencyHz.map(() => 1),
+          imag: native.frequencyHz.map(() => -1),
+        },
+      ]);
+      expect(finished.outputData.analyses[derivedIndex]).toMatchObject({
+        postprocessor: derived.postprocessor,
+        outputs: [
+          { label: "Gain", unit: "1", semantics: { valueKind: "complex" } },
+        ],
+      });
+      const derivedCsvRef = finished.artifacts.find(
+        (a) => a.name === `ac-${derivedIndex}.csv`,
+      );
+      expect(derivedCsvRef).toBeDefined();
+      const derivedCsv = await files.handle({
+        action: "artifact",
+        artifactId: derivedCsvRef.id,
+        maxChars: 65536,
+      });
+      expect(derivedCsv.ok).toBe(true);
+      expect(derivedCsv.text).toContain("Gain");
+      expect(derivedCsv.text).toContain("1,-1");
       const ref = finished.artifacts.find(
         (a) => a.name === "native-measurements.json",
       );

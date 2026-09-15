@@ -37,6 +37,15 @@ function fixture(): SimulationOutputData {
     ],
   };
 }
+
+it("labels a single postprocessor waveform without needing duplicate solver records", () => {
+  const data = fixture();
+  data.analyses[0]!.postprocessor = { logLine: 23 };
+  const html = renderToStaticMarkup(
+    <SimulationOutputResults resultKey="derived" data={data} outputs={[]} />,
+  );
+  expect(html).toContain("Postprocessor, Console line 23");
+});
 describe("measurement presentation", () => {
   it("does not equate authored postprocessor reports to same-valued raw scalars", () => {
     const data = fixture();

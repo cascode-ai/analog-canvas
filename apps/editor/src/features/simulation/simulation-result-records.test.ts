@@ -5,6 +5,17 @@ import {
   resultRecordLabel,
 } from "./simulation-result-records";
 describe("record selection", () => {
+  it("distinguishes authored postprocessing from solver records", () => {
+    expect(
+      resultRecordLabel(0, {
+        analysis: "ac",
+        plotName: "Gain",
+        outputs: [],
+        rawPlotOrdinals: [2],
+        postprocessor: { logLine: 17 },
+      }),
+    ).toBe("Gain · record 2 · Postprocessor, Console line 17");
+  });
   it("does not invent a stable identity from duplicate kind or Plotname", () => {
     const data: SimulationOutputData = {
       schemaVersion: 1,

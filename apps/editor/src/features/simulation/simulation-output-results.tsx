@@ -299,6 +299,7 @@ export function SimulationOutputResults({
       ) : null}
       {data.analyses.map((analysis, analysisIndex) => {
         if (!isVisible(analysis)) return null;
+        const recordFocus = analysis.postprocessor ? undefined : onFocusProbe;
         if (analysis.analysis === "op") {
           const opOutputs = operatingPointOutputs(
             data,
@@ -308,7 +309,8 @@ export function SimulationOutputResults({
           if (!opOutputs.length) return null;
           return (
             <SimulationAnalysisCard key={`op-${analysisIndex}`} kind="op">
-              {data.analyses.filter((record) => record.analysis === "op")
+              {analysis.postprocessor ||
+              data.analyses.filter((record) => record.analysis === "op")
                 .length > 1 ? (
                 <p>{resultRecordLabel(analysisIndex, analysis)}</p>
               ) : null}
@@ -408,14 +410,21 @@ export function SimulationOutputResults({
                   kind={analysis.analysis}
                   toolbar={
                     <>
-                      {data.analyses.filter(
+                      {analysis.postprocessor ||
+                      data.analyses.filter(
                         (a) => a.analysis === analysis.analysis,
                       ).length > 1 ? (
                         <p>
-                          Record {analysisIndex + 1} · {analysis.plotName} · raw
-                          plots{" "}
-                          {analysis.rawPlotOrdinals?.join(", ") ??
-                            "unavailable"}
+                          {analysis.postprocessor ? (
+                            resultRecordLabel(analysisIndex, analysis)
+                          ) : (
+                            <>
+                              Record {analysisIndex + 1} · {analysis.plotName} ·
+                              raw plots{" "}
+                              {analysis.rawPlotOrdinals?.join(", ") ??
+                                "unavailable"}
+                            </>
+                          )}
                         </p>
                       ) : null}
                       {analysis.outputs.length > 0 ? (
@@ -474,7 +483,7 @@ export function SimulationOutputResults({
                           ),
                         };
                       })}
-                      {...(onFocusProbe ? { onFocusProbe } : {})}
+                      {...(recordFocus ? { onFocusProbe: recordFocus } : {})}
                     />
                   ) : null}
                   {scalarFamilies.map(({ family, variants }) => (
@@ -494,7 +503,7 @@ export function SimulationOutputResults({
                       domainUnit={analysis.domain!.unit}
                       logarithmicX={analysis.analysis === "ac"}
                       probes={probes}
-                      {...(onFocusProbe ? { onFocusProbe } : {})}
+                      {...(recordFocus ? { onFocusProbe: recordFocus } : {})}
                     />
                   ))}
                   {[...scalarByUnit.entries()].map(([group, unitOutputs]) => {
@@ -533,7 +542,7 @@ export function SimulationOutputResults({
                               }
                             : {}),
                         }))}
-                        {...(onFocusProbe ? { onFocusProbe } : {})}
+                        {...(recordFocus ? { onFocusProbe: recordFocus } : {})}
                       />
                     );
                   })}

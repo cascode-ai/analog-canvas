@@ -1,4 +1,7 @@
 import { z } from "zod";
+export const SimulationPostprocessorOriginSchema = z.strictObject({
+  logLine: z.number().int().positive(),
+});
 export const SimulationRawPlotOrdinalsSchema = z
   .array(z.number().int().nonnegative())
   .min(1);
@@ -40,6 +43,7 @@ const SimulationAnalysisResultSchema = z.discriminatedUnion("analysis", [
   z.strictObject({
     rawPlotOrdinals: SimulationRawPlotOrdinalsSchema.optional(),
     analysis: z.literal("op"),
+    postprocessor: SimulationPostprocessorOriginSchema.optional(),
     scalars: CapturedScalarsSchema,
     plotName: z.string(),
     probes: z.array(
@@ -48,6 +52,7 @@ const SimulationAnalysisResultSchema = z.discriminatedUnion("analysis", [
   }),
   z.strictObject({
     analysis: z.literal("ac"),
+    postprocessor: SimulationPostprocessorOriginSchema.optional(),
     scalars: CapturedScalarsSchema,
     rawPlotOrdinals: SimulationRawPlotOrdinalsSchema.optional(),
     plotName: z.string(),
@@ -65,6 +70,7 @@ const SimulationAnalysisResultSchema = z.discriminatedUnion("analysis", [
   }),
   z.strictObject({
     analysis: z.literal("dc"),
+    postprocessor: SimulationPostprocessorOriginSchema.optional(),
     scalars: CapturedScalarsSchema,
     rawPlotOrdinals: SimulationRawPlotOrdinalsSchema.optional(),
     plotName: z.string(),
@@ -78,6 +84,7 @@ const SimulationAnalysisResultSchema = z.discriminatedUnion("analysis", [
   }),
   z.strictObject({
     analysis: z.literal("tran"),
+    postprocessor: SimulationPostprocessorOriginSchema.optional(),
     scalars: CapturedScalarsSchema,
     rawPlotOrdinals: SimulationRawPlotOrdinalsSchema.optional(),
     plotName: z.string(),
@@ -88,6 +95,7 @@ const SimulationAnalysisResultSchema = z.discriminatedUnion("analysis", [
   }),
   z.strictObject({
     analysis: z.literal("noise"),
+    postprocessor: SimulationPostprocessorOriginSchema.optional(),
     scalars: CapturedScalarsSchema,
     rawPlotOrdinals: SimulationRawPlotOrdinalsSchema.optional(),
     plotName: z.literal("Noise Analysis"),

@@ -90,6 +90,49 @@ image; copying this local example does not meet that requirement.
 
 ## Native postprocessor measurements
 
+### Derived waveforms
+
+`vacaskPlotPythonSource()` from `@icm/netlist` supplies ordinary Python defining
+`report_plot`. After its own computation writes a **new native ASCII rawfile**,
+the authored program can publish that record's meaning:
+
+```python
+report_plot("derived/gain.raw", "ac", axis="frequency",
+            probes=[{"name": "Gain", "quantity": "transfer", "unit": "1"}])
+```
+
+The helper emits `ICM_PLOT_V1 ` followed by a result declaration containing
+`artifactPath`, zero-based `plotOrdinal` (default 0), `analysis`, `axis` and
+`probes`. It does not generate/evaluate a second experiment or serialize numeric
+arrays into stdout. The bounded rawfile collector, native reader and existing
+result/CSV APIs handle the actual samples. Supported projections are `op`
+(one real point, no axis), `ac` (complex values, frequency in Hz), `tran` (real
+values, time in seconds) and `dc` (real values, explicit axis probe with name,
+quantity and unit). This does not qualify a custom Noise analysis or infer PSD
+semantics. Unmapped columns keep unknown units; declared units are the author's
+claim, not a dimensional proof. Names are case-sensitive.
+
+Declarations cannot override source-derived solver mappings. Repeated record
+declarations are ambiguous and excluded; malformed declarations, absent files,
+bad arrays or missing vectors produce diagnostics without discarding other
+valid records. No filesystem access is made using a reported path. Truncation
+and dropped electrical inputs still withhold numerical results.
+
+Each mapped analysis carries `postprocessor.logLine` through the shared result
+and evaluated-output contracts. The GUI identifies the report's Console line;
+it does not bind a computed same-name vector to a Canvas node. Raw artifacts,
+the original console declaration and source remain available through File APIs.
+This is output provenance, not a new Project schema or saved input protocol.
+
+The helper deliberately supplies neither a numeric evaluator nor a rawfile
+writer: authors use their program/library. The real local journey test below
+now reads actual native AC arrays, computes a complex expression in Python,
+writes a new record, and checks result arrays, provenance, units and CSV export.
+It is not GUI/MCP transport or hosted acceptance. GUI/MCP helper discovery,
+qualified Python libraries and hosted isolation remain migration work.
+
+### Scalar measurements
+
 The native source remains authoritative. VACASK's `postprocess(...)` runs the
 author's program; the editor does not translate Python into another measurement
 language or evaluate a parallel JSON experiment. The exported

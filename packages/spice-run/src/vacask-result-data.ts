@@ -13,7 +13,9 @@ import { parseVacaskRawfile } from "./vacask-rawfile.js";
 export type VacaskPlotProjection = {
   artifactPath: string;
   plotOrdinal: number;
-  /** Required acquisitions and their proven units; other vectors stay visible, untyped. */
+  postprocessor?: { logLine: number };
+  /** Required vectors and units: source-proven for solver records, author-declared
+   * for postprocessor records. Other vectors stay visible, untyped. */
   probes?: readonly SimulationProbe[];
 } & (
   | { analysis: "op" }
@@ -103,7 +105,13 @@ export function readVacaskSimulationData(
             }),
           );
           analysisIndex = analyses.length;
-          analyses.push({ ...result, rawPlotOrdinals: [ordinal] });
+          analyses.push({
+            ...result,
+            rawPlotOrdinals: [ordinal],
+            ...(plan.postprocessor
+              ? { postprocessor: plan.postprocessor }
+              : {}),
+          });
         } catch (error) {
           if (!(error instanceof ProjectionFault)) throw error;
           fail(

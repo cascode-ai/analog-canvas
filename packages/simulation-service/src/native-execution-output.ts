@@ -7,6 +7,7 @@ import {
 } from "@icm/spice-run";
 import { validateExecutionOutput, type ExecutionInput } from "./executor.js";
 import { inspectNativeAnalyses } from "./native-source-analysis.js";
+import { vacaskPostprocessPlots } from "./vacask-postprocess-plots.js";
 
 /** Process/collector facts from the native harness, not another Run resource. */
 export interface NativeJobObservation {
@@ -114,14 +115,16 @@ export async function assembleNativeExecutionOutput(
     ...plan.warnings.map((text) => ({ severity: "warning" as const, text })),
   );
   let data;
+  const plots = vacaskPostprocessPlots(log, plan.projections);
+  diagnostics.push(...plots.diagnostics);
   const dropped = diagnostics.some((d) => d.droppedInput);
   if (
     !job.truncated &&
     !dropped &&
     job.executedFiles.length &&
-    (job.rawfiles.length || plan.projections.length)
+    (job.rawfiles.length || plots.projections.length)
   ) {
-    const reading = readVacaskSimulationData(job.rawfiles, plan.projections);
+    const reading = readVacaskSimulationData(job.rawfiles, plots.projections);
     diagnostics.push(...reading.diagnostics);
     if (reading.status === "read") data = reading.data;
   }

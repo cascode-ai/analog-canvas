@@ -52,6 +52,8 @@ export interface OperatingPointProbe extends SimulationProbe {
 
 /** Combine these zero-based ordinals with the Run and its collected raw artifact identity. */
 export interface SimulationRawPlotOrigin {
+  /** Author-declared postprocessing, not a solver-produced quantity or verified unit. */
+  readonly postprocessor?: { readonly logLine: number } | undefined;
   /** Optional only for archived results created before native multi-record support. */
   readonly rawPlotOrdinals?: readonly number[] | undefined;
   /** Explicit short vectors of length one, never inferred from a flat waveform. */
