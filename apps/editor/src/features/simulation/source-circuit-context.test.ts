@@ -13,7 +13,7 @@ describe("source circuit context", () => {
     expect(context.label).not.toContain("Testbench");
     expect(context.paths).toContain("testbench.spice");
     closed.input.files.find((file) => file.path === closed.input.entry)!.text =
-      "* text only\nR1 a 0 1k\n.end\n";
+      "Text only\nground 0\nmodel r resistor\nR1 (a 0) r r=1k\n";
     expect(sourceCircuitContext(project, closed.input).label).toBe(
       "Text circuit · no Canvas source",
     );
@@ -22,7 +22,7 @@ describe("source circuit context", () => {
     const project = createSimulationExample("rc");
     const input = project.simulationFolders[0]!.input;
     input.files.find((file) => file.path === input.entry)!.text =
-      '* broken\n.include "missing.spice"\n.end\n';
+      'Broken\ninclude "missing.sim"\n';
     expect(sourceCircuitContext(project, input).uncertain).toBe(true);
   });
   it("shows a per-experiment parameter override", () => {
@@ -31,5 +31,19 @@ describe("source circuit context", () => {
       sourceCircuitContext(project, project.simulationFolders[0]!.input)
         .overrides,
     ).toBe(true);
+  });
+  it("does not mistake comments or unreachable files for alterations", () => {
+    const project = createSimulationExample("rc");
+    const input = project.simulationFolders[0]!.input;
+    input.files.find((file) => file.path === input.entry)!.text =
+      'No alteration\n// alter instance("R1") r=2k\ninclude "circuit.spice"\n';
+    input.files.push({
+      path: "unused.sim",
+      text: 'alter instance("R1") r=2k\n',
+    });
+    const context = sourceCircuitContext(project, input);
+    expect(context.overrides).toBe(false);
+    expect(context.documentIds.size).toBeGreaterThan(0);
+    expect(context.paths).not.toContain("unused.sim");
   });
 });
