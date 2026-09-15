@@ -110,23 +110,47 @@ test("GUI imports a Canvas-bound project, runs native AC, exports and reloads it
     /^postprocess\(PYTHON,.*\)\r?\n/mu,
     "",
   );
-  const executor = await createAgentNativeExecutor();
+  const direct = process.env.ICM_E2E_NATIVE_TRANSPORT === "vite";
+  const executor = direct ? undefined : await createAgentNativeExecutor();
+  let environment = executor?.environment;
+  if (direct) {
+    if (!process.env.ICM_SIMULATION_URL)
+      throw new Error(
+        "Vite transport requires ICM_SIMULATION_URL; no intercepted fallback.",
+      );
+    const health = await fetch(`${process.env.ICM_SIMULATION_URL}/health`);
+    expect(health.status).toBe(200);
+    environment = (await health.json()).environment;
+    expect(environment?.simulator.name).toBe("vacask");
+    expect(environment?.profileId).toBe(agentNativeProfile);
+  }
   let executions = 0;
-  const results: Awaited<ReturnType<typeof executor.execute>>[] = [];
+  const results: Awaited<
+    ReturnType<Awaited<ReturnType<typeof createAgentNativeExecutor>>["execute"]>
+  >[] = [];
   try {
-    await page.route("**/api/simulate", async (route) => {
-      const input = route.request().postDataJSON();
-      if (input.operation === "capabilities")
-        return route.fulfill({ json: executor.capabilities });
-      expect(input.language).toBe("vacask");
-      expect(
-        input.files.find((f: { path: string }) => f.path === "circuit.spice"),
-      ).toBeTruthy();
-      const result = await executor.execute(input);
-      results.push(result);
-      executions++;
-      return route.fulfill({ json: result });
-    });
+    if (direct)
+      page.on("response", async (response) => {
+        if (new URL(response.url()).pathname !== "/api/simulate") return;
+        const input = response.request().postDataJSON();
+        if (input.operation !== undefined) return;
+        results.push(await response.json());
+        executions++;
+      });
+    else
+      await page.route("**/api/simulate", async (route) => {
+        const input = route.request().postDataJSON();
+        if (input.operation === "capabilities")
+          return route.fulfill({ json: executor!.capabilities });
+        expect(input.language).toBe("vacask");
+        expect(
+          input.files.find((f: { path: string }) => f.path === "circuit.spice"),
+        ).toBeTruthy();
+        const result = await executor!.execute(input);
+        results.push(result);
+        executions++;
+        return route.fulfill({ json: result });
+      });
     await page.goto("/editor");
     await page.getByTestId("project-file").setInputFiles({
       name: "native-rc.icproj.json",
@@ -144,7 +168,7 @@ test("GUI imports a Canvas-bound project, runs native AC, exports and reloads it
     const ac = results[0]!.data!.analyses.find((a) => a.analysis === "ac")!;
     expect(ac.frequencyHz).toHaveLength(401);
     expect(ac.probes.some((p) => p.name === "out")).toBe(true);
-    expect(results[0]!.metadata!.environment).toEqual(executor.environment);
+    expect(results[0]!.metadata!.environment).toEqual(environment);
     const bytes = await downloadBytes(page, "File", "Export Project File…");
     const saved = parseProject(bytes.toString());
     expect(saved.documents).toEqual(
@@ -172,7 +196,17 @@ test("GUI imports a Canvas-bound project, runs native AC, exports and reloads it
     await expect.poll(() => executions, { timeout: 45000 }).toBe(2);
     await expect(panel.getByRole("status")).toHaveText("completed");
     expect(results[1]!.data).toEqual(results[0]!.data);
+    await test.info().attach("native-gui-run-evidence", {
+      body: Buffer.from(
+        JSON.stringify({
+          transport: direct ? "vite" : "intercepted-native",
+          environment,
+          results,
+        }),
+      ),
+      contentType: "application/json",
+    });
   } finally {
-    await executor.close();
+    await executor?.close();
   }
 });
