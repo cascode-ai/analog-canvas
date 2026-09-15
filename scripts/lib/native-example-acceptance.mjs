@@ -1,5 +1,18 @@
 import assert from "node:assert/strict";
 
+const libraryAnalyses = Object.fromEntries(
+  [
+    ["op-ac", ["op", "dc", "ac", "tran"]],
+    ["full-tt", ["op", "dc", "ac", "tran", "noise"]],
+    ["bias-tt", ["op"]],
+    ["dc-transfer-tt", ["dc"]],
+    ...["tt", "ff", "ss", "fs", "sf"].map((c) => ["ac-" + c, ["ac"]]),
+    ["tran-tt", ["tran"]],
+    ["noise-tt", ["noise"]],
+    ["tran-sin-tt", ["tran"]],
+  ].map(([id, analyses]) => ["simulation-setup-ota-" + id, analyses]),
+);
+
 export const nativeExampleFolderIds = [
   "rc-lp-ac",
   "rc-hp-ac",
@@ -20,6 +33,7 @@ export const nativeExampleFolderIds = [
   "ota-tran",
   "ota-noise",
   "ota-closed",
+  ...Object.keys(libraryAnalyses),
 ];
 
 export function validateNativeExampleResult(result, measurements = []) {
@@ -187,7 +201,7 @@ export function analyzeNativeExampleRuns(input) {
   assert.deepEqual(
     [...input.keys()].sort(),
     [...nativeExampleFolderIds].sort(),
-    "Acceptance must cover all 19 starter experiments exactly",
+    "Acceptance must cover all 31 bundled experiments exactly",
   );
   const runs = new Map(
     [...input].map(([id, r]) => [
@@ -225,7 +239,8 @@ export function analyzeNativeExampleRuns(input) {
       (a) => !a.postprocessor || id === "cs-tran",
     );
     const expected =
-      id === "cs-tran"
+      libraryAnalyses[id] ??
+      (id === "cs-tran"
         ? ["tran", "tran"]
         : id.startsWith("rlc-") || id === "ota-closed"
           ? ["ac", "tran"]
@@ -239,7 +254,7 @@ export function analyzeNativeExampleRuns(input) {
                     : id.endsWith("-dc")
                       ? "dc"
                       : "op",
-            ];
+            ]);
     assert.deepEqual(
       native.map((a) => a.analysis).sort(),
       expected.sort(),
@@ -247,9 +262,11 @@ export function analyzeNativeExampleRuns(input) {
     );
     for (const a of native) {
       if (a.analysis === "op" || a.analysis === "noise") continue;
-      for (const name of id.startsWith("ota-")
-        ? ["vinp", "vout"]
-        : ["in", "out"])
+      for (const name of id === "simulation-setup-ota-op-ac"
+        ? ["vout"]
+        : id.startsWith("ota-") || libraryAnalyses[id]
+          ? ["vinp", "vout"]
+          : ["in", "out"])
         probe(a, name);
     }
   }

@@ -43,7 +43,12 @@ test.each([
     args: ["--project", "common-source"],
     counts: [4],
   },
-  { scope: "complete library", args: [], counts: [4, 3, 4, 8] },
+  {
+    scope: "Library OTA selection",
+    args: ["--project", "ota-library"],
+    counts: [12],
+  },
+  { scope: "complete library", args: [], counts: [4, 3, 4, 8, 12] },
 ])(
   "exports the $scope without reconstructing any reviewed Project",
   ({ args, counts }) => {
@@ -69,7 +74,21 @@ test.each([
             ),
           );
           expect(inspection.document.id).toBe(doc.id);
-          expect(inspection.document.diagnostics).toEqual([]);
+          if (item.id !== "ota-library") {
+            expect(inspection.document.diagnostics).toEqual([]);
+          } else {
+            // The reviewed Library drawing already has advisory label overlaps.
+            // Preserve these diagnostics and the drawing, rather than treating
+            // a low-confidence non-gating visual warning as electrical failure.
+            for (const diagnostic of inspection.document.diagnostics)
+              expect(diagnostic).toMatchObject({
+                code: "VISUAL_LABEL_OVERLAP",
+                domain: "visual",
+                severity: "warning",
+                confidence: "low",
+                gateEligible: false,
+              });
+          }
           expect(
             readFileSync(join(directory, `${item.slug}-${doc.id}.svg`), "utf8"),
           ).toContain("<svg");

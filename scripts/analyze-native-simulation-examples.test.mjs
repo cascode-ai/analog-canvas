@@ -20,7 +20,7 @@ afterEach(() => {
 });
 
 // Synthetic results exercise only the on-disk receipt contract. They must never
-// be confused with the real 19-experiment numerical acceptance journey.
+// be confused with the real 31-experiment numerical acceptance journey.
 function fixture(mode) {
   const root = mkdtempSync(join(tmpdir(), "icm-native-analysis-test-"));
   roots.push(root);
@@ -121,7 +121,7 @@ function fixture(mode) {
 
 describe("native acceptance CLI evidence boundary", () => {
   it.each([
-    ["valid-subset", "all 19"],
+    ["valid-subset", "all 31"],
     ["missing-capabilities", "Receipt must retain"],
     ["run-error", "evidence publication failed"],
     ["export-error", "Browser/export errors"],

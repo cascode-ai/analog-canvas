@@ -1088,8 +1088,7 @@ it
           ? JSON.parse(await artifactText("native-measurements.json"))
           : [];
         const result = JSON.parse(await artifactText("result.json"));
-        if (kind !== "ota-library")
-          starterAcceptanceRuns.set(folder.id, { result, measurements });
+        starterAcceptanceRuns.set(folder.id, { result, measurements });
         if (process.env.ICM_VACASK_EVIDENCE_DIR) {
           const parent = resolve(process.env.ICM_VACASK_EVIDENCE_DIR);
           await mkdir(parent, { recursive: true });

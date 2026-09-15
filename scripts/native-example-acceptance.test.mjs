@@ -5,6 +5,7 @@ import {
   validateNoiseIntegral,
   unwrappedPhase,
   distortion,
+  nativeExampleFolderIds,
 } from "./lib/native-example-acceptance.mjs";
 
 const frame = () => ({
@@ -24,11 +25,22 @@ const frame = () => ({
 });
 
 describe("native starter acceptance evidence", () => {
-  it("requires all nineteen experiments rather than an empty/subset success", () => {
-    expect(() => analyzeNativeExampleRuns(new Map())).toThrow("all 19");
+  it("requires all 31 experiments including Library OTA rather than a subset success", () => {
+    expect(nativeExampleFolderIds).toHaveLength(31);
+    expect(new Set(nativeExampleFolderIds).size).toBe(31);
+    expect(() => analyzeNativeExampleRuns(new Map())).toThrow("all 31");
     expect(() => analyzeNativeExampleRuns(new Map([["cs-op", {}]]))).toThrow(
-      "all 19",
+      "all 31",
     );
+    expect(() =>
+      analyzeNativeExampleRuns(
+        new Map(
+          nativeExampleFolderIds
+            .filter((id) => !id.startsWith("simulation-setup-ota-"))
+            .map((id) => [id, {}]),
+        ),
+      ),
+    ).toThrow("all 31");
   });
   it("accepts complete native frames, not receipts or foreign simulator identities", () => {
     expect(validateNativeExampleResult(frame())).toHaveLength(1);

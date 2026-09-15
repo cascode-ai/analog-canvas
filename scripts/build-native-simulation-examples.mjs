@@ -21,6 +21,7 @@ const catalog = [
   { id: "rlc", slug: "02-rlc-filter" },
   { id: "common-source", slug: "03-common-source" },
   { id: "ota", slug: "04-sky130-ota" },
+  { id: "ota-library", slug: "05-sky130-ota-library" },
 ];
 const args = process.argv.slice(2);
 const output = resolve(
@@ -34,7 +35,7 @@ while (args.length) {
     id = args.shift();
   if (flag !== "--project" || !catalog.some((p) => p.id === id)) {
     throw Error(
-      "Usage: node scripts/build-native-simulation-examples.mjs [empty-output-directory] [--project rc|rlc|common-source|ota]...",
+      "Usage: node scripts/build-native-simulation-examples.mjs [empty-output-directory] [--project rc|rlc|common-source|ota|ota-library]...",
     );
   }
   selected.add(id);
@@ -46,7 +47,10 @@ const projects = [];
 // Compile all selected folders before writing anything. An unfinished native
 // conversion must not produce a successful manifest or silently disappear.
 for (const entry of entries) {
-  const sourcePath = `apps/editor/src/examples/simulation-${entry.id}.icproj.json`;
+  const sourcePath =
+    entry.id === "ota-library"
+      ? "apps/editor/src/examples/five-transistor-ota-sky130.icproj.json"
+      : `apps/editor/src/examples/simulation-${entry.id}.icproj.json`;
   const project = parseProject(await readFile(sourcePath, "utf8"));
   const folders = [];
   for (const folder of project.simulationFolders) {

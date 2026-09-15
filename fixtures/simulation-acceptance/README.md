@@ -63,7 +63,7 @@ the local build and MCP initialize version against the supplied package.
 For example (paths and digests are explicit acceptance inputs, not defaults):
 
 ```powershell
-node scripts/run-native-simulation-examples.mjs output/native-simulation-examples --url https://isolated-candidate.example --mcp-bundle output/mcp/analog-canvas-mcp-v0.9.0/bin/analog-canvas-mcp.mjs --mcp-sha256 <expected-bundle-sha256> --environment <passive-environment.json> --environment <tt-environment.json> --environment <ff-environment.json> --environment <ss-environment.json>
+node scripts/run-native-simulation-examples.mjs output/native-simulation-examples --url https://isolated-candidate.example --mcp-bundle output/mcp/analog-canvas-mcp-v0.9.0/bin/analog-canvas-mcp.mjs --mcp-sha256 <expected-bundle-sha256> --environment <native-environment.json>
 node scripts/analyze-native-simulation-examples.mjs output/native-simulation-examples
 ```
 
@@ -71,7 +71,11 @@ Each environment file is the existing environment metadata object (including
 `profileId`, `simulator` with its binary digest, and `fingerprint`), obtained from
 the independently prepared candidate runtime—not copied from the result being
 accepted. `--project <exact-slug>` selects one entire Project for focused work;
-the final numerical analyzer still requires all 19 starter experiments.
+the final numerical analyzer requires all 31 experiments: the 19 starters plus
+the 12 Library OTA experiments. The exporter includes all five Projects by
+default; `--project ota-library` selects the Library OTA during focused export.
+All use `vacask-sky130-candidate`; corner selection lives in native include
+sections, not a separate runtime identity.
 The output `results/` must not already exist: use a freshly generated export
 directory for another attempt, keeping earlier failure evidence.
 
@@ -86,7 +90,9 @@ Runner receipts cover this GUI/MCP batch only, not full M6 or model qualificatio
 For current local native execution, `containers/vacask/starter-journey.test.mjs`
 runs the actual Prepare/Run/Read/File service against a configured VACASK binary,
 modules, Python and matching model artifacts. Set `ICM_VACASK_STARTER_SANITY=1`
-when running the **whole** file to additionally check all 19 starters together:
+when running the **whole** file to additionally check all 31 experiments together.
+Set `ICM_VACASK_SECTIONED_MANIFEST` to the generated model package manifest;
+the binary, modules and Python paths must also be explicitly configured:
 
 ```powershell
 $env:ICM_VACASK_STARTER_SANITY = "1"
@@ -103,7 +109,8 @@ equivalence to an ngspice reference; see the
 `scripts/lib/native-example-acceptance.mjs` supplies those same checks to the
 offline `analyze-native-simulation-examples.mjs` command. The CLI additionally
 requires complete live receipts, hashed nested `executed/` and `raw/` artifacts,
-matching compiled input and exported plots. Its output is exclusive-create;
+matching Profile-projected Prepare input (using retained receipt capabilities)
+and exported plots. Its output is exclusive-create;
 existing acceptance evidence is not overwritten. Historical runner output with
 flattened paths or absent exports is not accepted native evidence.
 
