@@ -97,6 +97,102 @@ endc
   return { project, folder };
 }
 describe("public native source compilation", () => {
+  it("projects exact Canvas run points without editing nominal source or parameters", () => {
+    const { project, folder } = fixture();
+    const before = structuredClone({ project, folder });
+    const nominal = compileSourceSimulation(project, folder);
+    const empty = compileSourceSimulation(project, folder, {
+      parameters: [],
+      variables: [],
+      environment: {},
+    });
+    expect(empty).toEqual(nominal);
+    const point = compileSourceSimulation(project, folder, {
+      parameters: [
+        { documentId: "a", instanceId: "R", parameter: "value", value: "4k" },
+      ],
+    });
+    if (!nominal.ok || !point.ok)
+      throw Error(JSON.stringify({ nominal, point }));
+    expect(point.electricalHash).not.toBe(nominal.electricalHash);
+    expect(point.authoredFiles).toEqual(nominal.authoredFiles);
+    expect(point.config).toEqual(nominal.config);
+    const value = (result: typeof point, binding: string) => {
+      const file = result.generated.find((f) => f.bindingId === binding)!;
+      const span = file.parameters.find(
+        (p) => p.instanceId === "R" && p.parameter === "value",
+      )!;
+      expect(file.text.slice(span.startOffset, span.endOffset)).toBe(
+        span.rawValue,
+      );
+      return span.rawValue;
+    };
+    expect(value(point, "ba")).toBe("4000");
+    expect(value(point, "bb")).toBe(value(nominal, "bb"));
+    expect({ project, folder }).toEqual(before);
+    expect(compileSourceSimulation(project, folder)).toEqual(nominal);
+  });
+
+  it.each([
+    ["DOCUMENT_MISSING", { documentId: "absent" }],
+    ["INSTANCE_MISSING", { instanceId: "absent" }],
+    ["PARAMETER_MISSING", { parameter: "absent" }],
+  ])("rejects a %s run target without mutation", (code, overrides) => {
+    const { project, folder } = fixture();
+    const before = structuredClone({ project, folder });
+    expect(
+      compileSourceSimulation(project, folder, {
+        parameters: [
+          {
+            documentId: "a",
+            instanceId: "R",
+            parameter: "value",
+            value: "4k",
+            ...overrides,
+          },
+        ],
+      }),
+    ).toMatchObject({
+      ok: false,
+      diagnostics: [{ code: `SIMULATION_VARIANT_${code}` }],
+    });
+    expect({ project, folder }).toEqual(before);
+  });
+
+  it("rejects duplicate, invalid and unreachable points rather than running nominal silently", () => {
+    const { project, folder } = fixture();
+    const point = {
+      documentId: "a",
+      instanceId: "R",
+      parameter: "value",
+      value: "4k",
+    };
+    expect(
+      compileSourceSimulation(project, folder, { parameters: [point, point] }),
+    ).toMatchObject({
+      ok: false,
+      diagnostics: [{ code: "SIMULATION_VARIANT_DUPLICATE" }],
+    });
+    expect(
+      compileSourceSimulation(project, folder, {
+        parameters: [{ ...point, instanceId: "" }],
+      }),
+    ).toMatchObject({
+      ok: false,
+      diagnostics: [{ code: "SIMULATION_VARIANT_INVALID" }],
+    });
+    folder.input.files[1]!.text = folder.input.files[1]!.text.replace(
+      'include "a.inc"',
+      "",
+    ).replace("X1 (Left 0) CellA", "");
+    expect(
+      compileSourceSimulation(project, folder, { parameters: [point] }),
+    ).toMatchObject({
+      ok: false,
+      diagnostics: [{ code: "SIMULATION_VARIANT_TARGET_NOT_EMITTED" }],
+    });
+  });
+
   it("shows the exact compiled multi-binding files and reverses mega without SPICE milli interpretation", () => {
     const { project, folder } = fixture();
     const compiled = compileSourceSimulation(project, folder);
@@ -189,7 +285,7 @@ describe("public native source compilation", () => {
         ),
       ).toBe(true);
   });
-  it("refuses stale drafts and hidden electrical overrides while keeping nominal source intact", () => {
+  it("refuses stale drafts and unimplemented environment projections while keeping nominal source intact", () => {
     const { project, folder } = fixture();
     const result = compileSourceSimulation(project, folder, {
       environment: { corner: "ff" },
@@ -233,9 +329,12 @@ describe("public native source compilation", () => {
   });
 });
 
-it.skipIf(!process.env.VACASK_BIN || !process.env.VACASK_MODULES)(
-  "executes the PUBLIC compiler's generated files in native VACASK with reversed include order",
-  () => {
+it.skipIf(!process.env.VACASK_BIN || !process.env.VACASK_MODULES).each([
+  { point: undefined, current: -0.000001 },
+  { point: "2meg", current: -0.0000005 },
+])(
+  "executes the PUBLIC compiler with reversed include order and run point $point",
+  ({ point, current }) => {
     const { project, folder } = fixture();
     const entry = folder.input.files.find(
       (f) => f.path === folder.input.entry,
@@ -267,7 +366,23 @@ it.skipIf(!process.env.VACASK_BIN || !process.env.VACASK_MODULES)(
         .instances.find((i) => i.id === change.instanceId)!.netlist!.parameters[
         change.parameter
       ] = change.value;
-    const compiled = compileSourceSimulation(project, folder);
+    const before = structuredClone({ project, folder });
+    const compiled = compileSourceSimulation(
+      project,
+      folder,
+      point
+        ? {
+            parameters: [
+              {
+                documentId: "a",
+                instanceId: "R",
+                parameter: "value",
+                value: point,
+              },
+            ],
+          }
+        : undefined,
+    );
     if (!compiled.ok) throw Error(JSON.stringify(compiled.diagnostics));
     const cwd = mkdtempSync(join(tmpdir(), "icm-public-native-compile-"));
     for (const file of compiled.files)
@@ -298,7 +413,8 @@ it.skipIf(!process.env.VACASK_BIN || !process.env.VACASK_MODULES)(
     );
     expect(values.get("Left")).toBe(1);
     expect(values.get("Right")).toBe(2);
-    expect(values.get("V1:flow(br)")).toBeCloseTo(-0.000001, 12);
+    expect(values.get("V1:flow(br)")).toBeCloseTo(current, 12);
     expect(values.get("V2:flow(br)")).toBeCloseTo(-0.001, 12);
+    expect({ project, folder }).toEqual(before);
   },
 );

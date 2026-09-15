@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createEmptyProject } from "@icm/model";
+import { createEmptyProject, createSimulationFolder } from "@icm/model";
 import { parseProject } from "@icm/project-protocol";
 import ota from "../../../apps/editor/src/examples/five-transistor-ota-sky130.icproj.json";
 import { ProjectInputIdentity } from "./input-identity.js";
@@ -17,11 +17,11 @@ describe("Project input identity", () => {
         configPath: "experiment.json",
         circuitBindings: [],
         files: [
-          { path: "tb.cir", text: "title\n.end" },
+          { path: "tb.cir", text: "title\ncontrol\nendc\n" },
           {
             path: "experiment.json",
             text: JSON.stringify({
-              version: 1,
+              version: 2,
               environment: { profileId: "local" },
             }),
           },
@@ -39,7 +39,7 @@ describe("Project input identity", () => {
     project.structureRevision++;
     expect(await cache.read(project, "s")).toBe(hash);
     const input = project.simulationFolders[0]!.input;
-    input.files[0]!.text += "\n* changed";
+    input.files[0]!.text += "\n// changed";
     project.structureRevision++;
     expect(await cache.read(project, "s")).not.toBe(hash);
     project.simulationFolders = [];
@@ -48,6 +48,14 @@ describe("Project input identity", () => {
   });
   it("invalidates on a Document-only parameter edit, while layout leaves electrical identity unchanged", async () => {
     const project = parseProject(JSON.stringify(ota));
+    project.simulationFolders = [
+      createSimulationFolder({
+        id: "native",
+        name: "Native",
+        profileId: "local",
+        documentId: project.topDocumentId,
+      }),
+    ];
     const cache = new ProjectInputIdentity(),
       id = project.simulationFolders[0]!.id;
     const before = await cache.read(project, id);
@@ -56,11 +64,35 @@ describe("Project input identity", () => {
       d.instances.some((i) => i.netlist?.parameters.w),
     )!;
     const instance = document.instances.find((i) => i.netlist?.parameters.w)!;
+    const variant = {
+      parameters: [
+        {
+          documentId: document.id,
+          instanceId: instance.id,
+          parameter: "w",
+          value: "12u",
+        },
+      ],
+    };
+    const pointPromise = cache.read(project, id, variant);
+    expect(cache.read(project, id, variant)).toBe(pointPromise);
+    const point = await pointPromise;
+    expect(point).toMatch(/^[a-f0-9]{64}$/u);
+    expect(point).not.toBe(before);
+    expect(await cache.read(project, id)).toBe(before);
     instance.placement!.position.x += 10;
     document.revision++;
     expect(await cache.read(project, id)).toBe(before);
+    expect(await cache.read(project, id, variant)).toBe(point);
     instance.netlist!.parameters.w = "8u";
     document.revision++;
     expect(await cache.read(project, id)).not.toBe(before);
+    // The same run point still overrides this nominal edit; it does not inherit
+    // another member's cached identity or become stale from an irrelevant value.
+    expect(await cache.read(project, id, variant)).toBe(point);
+    const invalid = {
+      parameters: [{ ...variant.parameters[0]!, instanceId: "missing" }],
+    };
+    expect(await cache.read(project, id, invalid)).toBeNull();
   });
 });

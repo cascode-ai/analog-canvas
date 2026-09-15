@@ -301,6 +301,62 @@ describe("shared simulation lifecycle", () => {
     expect(maxActive).toBe(1);
   });
 
+  it("prepares native exact-parameter sweep members with separate identities through the shared service", async () => {
+    const project = CircuitProjectSchema.parse(
+      currentFiveTransistorOtaCircuitSource(),
+    );
+    const folder = nativeOtaFolder(project, "analysis bias op");
+    const document = project.documents.find((d) =>
+      d.instances.some((i) => i.netlist?.parameters.w),
+    )!;
+    const instance = document.instances.find((i) => i.netlist?.parameters.w)!;
+    const before = structuredClone(project);
+    const f = fixture();
+    const service = new SimulationService(f.files, f.executor, () => project);
+    const request = {
+      operation: "prepare-sweep" as const,
+      folderId: folder.id,
+      expectedStructureRevision: project.structureRevision,
+      axes: [
+        {
+          kind: "parameter" as const,
+          documentId: document.id,
+          instanceId: instance.id,
+          parameter: "w",
+          values: ["10u", "20u"],
+        },
+      ],
+    };
+    const reply = await service.handle(request, "native-parameter-sweep");
+    expect(reply).toMatchObject({ ok: true, batch: { state: "prepared" } });
+    if (!reply.ok || !("batch" in reply)) throw Error(JSON.stringify(reply));
+    expect(reply.batch.items.map((item) => item.label)).toEqual([
+      `${instance.id}.w=10u`,
+      `${instance.id}.w=20u`,
+    ]);
+    expect(
+      new Set(reply.batch.items.map((item) => item.prepared.digest)).size,
+    ).toBe(2);
+    expect(
+      new Set(reply.batch.items.map((item) => item.prepared.inputRevision))
+        .size,
+    ).toBe(2);
+    expect(project).toEqual(before);
+    expect(f.executor.execute).not.toHaveBeenCalled();
+    const again = await service.handle(request, "native-parameter-repeat");
+    if (!again.ok || !("batch" in again)) throw Error(JSON.stringify(again));
+    expect(again.batch.items.map((item) => item.prepared.digest)).toEqual(
+      reply.batch.items.map((item) => item.prepared.digest),
+    );
+    expect(
+      await service.handle(
+        { ...request, axes: [{ ...request.axes[0]!, instanceId: "missing" }] },
+        "native-invalid-point",
+      ),
+    ).toMatchObject({ ok: false, error: { recovery: "fix-input" } });
+    expect(f.executor.execute).not.toHaveBeenCalled();
+  });
+
   it("expands corner, Design Variable and instance parameter axes into one batch", async () => {
     const project = CircuitProjectSchema.parse(
       currentFiveTransistorOtaCircuitSource(),

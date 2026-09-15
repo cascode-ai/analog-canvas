@@ -56,7 +56,17 @@ On opening a Project, the first saved folder is the default active folder.
 Batch is a queue of selected experiment folders, invoked by **Run selected
 folders** in the Explorer context menu. All selected folders' drafts are applied
 before preparation, not just the active folder. Native loops remain one native
-program, not an app-expanded sweep. Execution variants are rejected for version 2.
+program, not an app-expanded sweep. Native VACASK preparation also accepts an
+execution-only exact Canvas parameter point through the shared `prepare-sweep`
+service. It changes a Project copy before electrical extraction, never the saved
+Instances or configuration. Values use the same syntax as Instance properties;
+the native printer performs the conversion. The parameter must exist and appear
+in the selected experiment's generated files. Duplicate, missing and non-emitted
+targets are repairable preparation errors, not silently nominal runs. Generated
+files, source ranges and input identity describe that exact point; original
+authored files remain available. Empty points are nominal. Native corner,
+temperature and source-variable point projections remain unimplemented and
+explicitly rejected; their batch parity is an open migration requirement.
 
 Device OP is derived from vectors actually collected by Code. `op` takes no
 parameters: request e.g. `save @m1[id] @m1[gm]`, then `op`, then `write result.raw`.

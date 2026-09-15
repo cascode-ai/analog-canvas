@@ -1,5 +1,6 @@
 import {
   readSimulationExperimentConfig,
+  SimulationRunVariantSchema,
   type CircuitProject,
   type ProjectSimulationFolder,
   type SimulationExperimentConfig,
@@ -24,6 +25,7 @@ import type {
 } from "./printed-netlist.js";
 import { inspectVacaskSourceGraph } from "./vacask-source.js";
 import type { SimulationSourceDiagnostic } from "./source-file-graph.js";
+import { applySimulationParameter } from "./simulation-parameter-target.js";
 
 export interface GeneratedSimulationFile {
   bindingId: string;
@@ -106,10 +108,20 @@ export function compileSourceSimulation(
     );
     return { ok: false, diagnostics };
   }
-  if (variant && Object.values(variant).some((value) => value !== undefined))
+  const parsedVariant = SimulationRunVariantSchema.safeParse(variant ?? {});
+  if (!parsedVariant.success) {
+    fail("SIMULATION_VARIANT_INVALID", parsedVariant.error.issues[0]!.message);
+    return { ok: false, diagnostics };
+  }
+  variant = parsedVariant.data;
+  if (
+    variant.environment?.corner !== undefined ||
+    variant.environment?.temperatureC !== undefined ||
+    variant.variables?.length
+  )
     fail(
       "SIMULATION_NATIVE_VARIANT_UNSUPPORTED",
-      "Native experiments own their parameter sweeps in Code. Batch selects folders; it does not override their electrical parameters.",
+      "Native corner, temperature and source-variable run projections are not yet available. Edit their native source directly; exact Canvas parameter points are supported.",
     );
   const graph = inspectVacaskSourceGraph(folder.input);
   diagnostics.push(...graph.diagnostics);
@@ -119,9 +131,41 @@ export function compileSourceSimulation(
   const bindings = folder.input.circuitBindings.filter((b) =>
     reachable.has(b.path),
   );
+  // A point owns only this preparation. Never edit nominal Canvas values or
+  // introduce another persisted electrical configuration for native source.
+  const points = variant.parameters ?? [];
+  const effective = points.length ? structuredClone(project) : project;
+  const parameterKey = (p: {
+    documentId: string;
+    instanceId: string;
+    parameter: string;
+  }) => JSON.stringify([p.documentId, p.instanceId, p.parameter]);
+  const targets = new Set<string>();
+  for (const point of points) {
+    const key = parameterKey(point);
+    if (targets.has(key)) {
+      fail(
+        "SIMULATION_VARIANT_DUPLICATE",
+        "More than one override for the same instance parameter",
+      );
+      continue;
+    }
+    targets.add(key);
+    const result = applySimulationParameter(
+      effective,
+      point,
+      point.value,
+      "Variant",
+      "SIMULATION_VARIANT",
+      true,
+    );
+    if (!result.ok) fail(result.code, result.message);
+  }
+  if (diagnostics.some((d) => d.severity === "error"))
+    return { ok: false, diagnostics };
   const plans = new Map<string, DesignNetlistIR>();
   for (const binding of bindings) {
-    const result = analyzeDesignNetlist(project, {
+    const result = analyzeDesignNetlist(effective, {
       format: "spice",
       rootDocumentId: binding.documentId,
     });
@@ -256,6 +300,20 @@ export function compileSourceSimulation(
         instances: printed.instances,
       });
   }
+  if (diagnostics.some((d) => d.severity === "error"))
+    return { ok: false, diagnostics };
+  // Existing in the Project is insufficient: the selected source graph must
+  // emit the parameter. Reject inert points instead of giving a nominal run
+  // the misleading label of a successful sweep member.
+  const emitted = new Set(
+    generated.flatMap((file) => file.parameters.map(parameterKey)),
+  );
+  for (const point of points)
+    if (!emitted.has(parameterKey(point)))
+      fail(
+        "SIMULATION_VARIANT_TARGET_NOT_EMITTED",
+        `Variant parameter is not emitted by this experiment: ${point.documentId}/${point.instanceId}.${point.parameter}`,
+      );
   if (diagnostics.some((d) => d.severity === "error"))
     return { ok: false, diagnostics };
   const mapped = [
