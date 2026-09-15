@@ -74,6 +74,9 @@ jobs:
             ConnectTimeout 20
           CFG
           ssh sim 'echo "host reachable: $(hostname)"; docker ps --format "{{.Names}} {{.Status}}" | sed "s/^/  /"'
+          # Read-only capacity evidence before considering a second executor.
+          # Never stop the shared ngspice service to make a candidate fit.
+          ssh sim 'free -m; df -h /; printf "logical CPUs: "; nproc'
 
       - name: Probe what the Cloudflare token may do
         if: github.event_name == 'workflow_dispatch' && inputs.action == 'probe'
