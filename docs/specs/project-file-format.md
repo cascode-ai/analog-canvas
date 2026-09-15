@@ -198,9 +198,11 @@ open, and recovery remain exact.
 
 Canonical serialization ends with one newline and is byte-stable across
 serialize/parse/serialize. The current corpus is listed in
-`fixtures/projects/compatibility-corpus.json`; its accepted entries must all be
-already canonical Project schema 55. The rejected corpus names expected
-validation failures.
+`fixtures/projects/compatibility-corpus.json`; its `current` entries must all be
+already canonical Project schema 55. Explicit `migrated` witnesses retain their
+source bytes and declared source version; loading and saving must produce a
+byte-stable current Project. The rejected corpus names expected validation
+failures. These are test inventory categories, not new Project fields.
 
 Viewport, selection, undo history, canvas overlays, Agent credentials,
 recovery envelopes, generated renders, and derived diagnostics are not part of

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "description": "Canonical current-schema Project corpus. Historical schema upgrades are covered by synthesized tests rather than retained duplicate assets.",
+  "description": "Project compatibility corpus: canonical current files, explicitly retained migration witnesses, and rejected inputs.",
   "current": [
     "fixtures/projects/minimal/project.icproj.json",
     "fixtures/projects/phase-1-manual/project.icproj.json",
@@ -8,6 +8,12 @@
     "fixtures/projects/phase-5-dense-analog/project.icproj.json",
     "fixtures/projects/instance-value-display/project.icproj.json",
     "netlists/native-ota/source.icproj.json"
+  ],
+  "migrated": [
+    {
+      "path": "netlists/native-ota-library/legacy-source.icproj.json",
+      "sourceSchemaVersion": 48
+    }
   ],
   "rejected": [
     {

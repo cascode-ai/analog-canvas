@@ -79,9 +79,10 @@ versions newer than v55 are rejected by the project-file boundary.
 
 The canonical-current corpus at
 [`fixtures/projects/compatibility-corpus.json`](../../fixtures/projects/compatibility-corpus.json)
-lists every shipped Project fixture. It distinguishes byte-stable accepted
-files from named rejected inputs. Previous-version compatibility uses a
-focused synthetic regression instead of retaining historic Project assets.
+lists current and explicitly retained historical circuit fixtures. It distinguishes
+byte-stable current files, historical inputs tested through migration, and named
+rejected inputs. Synthetic regressions cover other previous-version transitions;
+the original OTA conversion witness remains unchanged for migration testing.
 Retired fields such as first-class
 `Document.ports`, `Net.ports`, `spice.*`, and `routeAttachment` are invalid.
 
