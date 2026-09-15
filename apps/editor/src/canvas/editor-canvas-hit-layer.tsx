@@ -127,13 +127,6 @@ function AnalogBlockHitGeometry({
   pointerEvents: "none" | undefined;
 }) {
   const primitives = analogBlockHitPrimitives(instance, resolved);
-  const hitAttributes = {
-    "data-canvas-hit-kind": "instance",
-    "data-canvas-hit-id": instance.id,
-    "data-drag-object-id": instance.id,
-    pointerEvents,
-  } as const;
-
   const renderPrimitive = (
     primitive: SymbolPrimitive,
     index: number,
@@ -150,8 +143,8 @@ function AnalogBlockHitGeometry({
           pointerEvents: "none" as const,
         }
       : {
-          ...hitAttributes,
           className: `analog-block-hit-area${filled ? " filled" : ""}${selected ? " selected" : ""}`,
+          pointerEvents,
         };
     switch (primitive.kind) {
       case "line":
@@ -386,6 +379,9 @@ function SelectionHitTargets({
               <g
                 key={instance.id}
                 data-testid={`hit-${instance.id}`}
+                data-canvas-hit-kind="instance"
+                data-canvas-hit-id={instance.id}
+                data-drag-object-id={instance.id}
                 className={
                   selected
                     ? "analog-block-hit-target selected"

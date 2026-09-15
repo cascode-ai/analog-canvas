@@ -421,9 +421,9 @@ export function createCanvasGestureController({
     // gesture on any of these hit layers would capture the pointer and swallow
     // the later contextmenu event. Route strokes and endpoint circles are
     // already excluded by the background-target classifier below.
-    const contextMenuHitKind = (event.target as Element).getAttribute?.(
-      "data-canvas-hit-kind",
-    );
+    const contextMenuHitKind = (event.target as Element)
+      .closest?.("[data-canvas-hit-kind]")
+      ?.getAttribute("data-canvas-hit-kind");
     if (
       event.button === 2 &&
       (contextMenuHitKind === "instance" ||

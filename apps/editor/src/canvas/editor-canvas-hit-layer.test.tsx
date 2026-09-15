@@ -81,12 +81,15 @@ describe("editor canvas hit layer", () => {
     );
 
     expect(markup).toContain(
-      '<g data-testid="hit-U1" class="analog-block-hit-target" transform="translate(100 200) rotate(0)">',
+      '<g data-testid="hit-U1" data-canvas-hit-kind="instance" data-canvas-hit-id="U1" data-drag-object-id="U1" class="analog-block-hit-target" transform="translate(100 200) rotate(0)">',
     );
     expect(markup).toContain(
       'class="analog-block-hit-area filled" d="M -30 -30 L -30 30 L 21.961524 0 Z"',
     );
     expect(markup).toContain('class="analog-block-hit-area" x1="-40"');
+    expect(markup).not.toContain(
+      'class="analog-block-hit-area" data-canvas-hit-kind',
+    );
     expect(markup).not.toContain('<rect data-testid="hit-U1"');
   });
 
