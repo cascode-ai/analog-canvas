@@ -41,3 +41,26 @@ This is browser/Agent-resource parity evidence. The WebSocket peer and HTTP
 boundary are test-controlled; neither mode proves the public MCP transport,
 cross-Project DUT import, qualified SKY130 scope or cloud isolation. Those
 remain separate exits in the [migration roadmap](../../docs/roadmap/vacask-migration.md).
+
+## Real MCP transport journey
+
+`apps/editor/e2e/mcp-native-simulation.spec.ts` is a separate opt-in test. With
+the same real-runtime variables above, first build `@icm/mcp-server...`, then
+run that spec. It starts the actual MCP stdio entry point and uses the browser's
+real local Worker/Agent Durable Object: no intercepted Agent messages, fake
+claims or direct service invocation stand in for the MCP transport. The
+simulation HTTP boundary still belongs to the test and forwards prepared input
+to the real native runtime; it is not an operator-host or cloud gateway test.
+
+The case covers helper discovery, session-workspace authoring, missing-include
+repair, Prepare/Start/Read, repeated Start with the same identity, verified CSV
+download and restarting MCP to resume the approved connector and read the same
+run without another execution. Its connector and exports stay in an owned
+temporary directory. The opt-in flag is required; a normal browser suite skips
+this test rather than silently substituting a mocked relay or captured solver.
+
+Use Playwright's JSON/HTML reporter to retain the `public-mcp-native-run`
+attachment containing the measured result identity. For JSON, set
+`PLAYWRIGHT_JSON_OUTPUT_FILE` to an ignored working path and pass
+`--reporter=line,json`. This proves local public-MCP protocol integration, not
+hosted authentication/isolation, cross-Project DUT import, or model qualification.
