@@ -6,11 +6,7 @@ import { join, resolve } from "node:path";
 import { createInterface } from "node:readline";
 
 import { chromium } from "@playwright/test";
-import {
-  createEmptyProject,
-  readSimulationExperimentConfig,
-  replaceSimulationExperimentConfig,
-} from "../packages/model/dist/index.js";
+import { createEmptyProject } from "../packages/model/dist/index.js";
 import {
   parseProject,
   serializeProject,
@@ -18,6 +14,7 @@ import {
 import { SimulationOutputDataSchema } from "../packages/simulation-service/dist/contract.js";
 import { SimulationResultSchema } from "../packages/spice-run/dist/index.js";
 import { materializeSimulationRunEvidence } from "./lib/simulation-run-evidence.mjs";
+import { nativeImportedTestbench } from "./lib/native-cross-project-fixture.mjs";
 
 const baseUrl = new URL(
   process.argv[2] ?? "https://analog-canvas-preview.tokenzhang.com",
@@ -30,7 +27,7 @@ const outputDirectory = resolve(
 );
 const referenceText = await readFile(
   new URL(
-    "../netlists/native-ota-library/legacy-source.icproj.json",
+    "../apps/editor/src/examples/five-transistor-ota-sky130.icproj.json",
     import.meta.url,
   ),
   "utf8",
@@ -318,64 +315,13 @@ try {
   assert.equal(imported.ok, true);
   assert.equal(imported.status, "imported");
 
-  const importedTestbench = structuredClone(testbench);
-  importedTestbench.id = importedTestbenchId;
-  importedTestbench.name = "Cross-Project OTA Testbench";
-  importedTestbench.netlist.name = "cross_project_ota_tb";
-  const dutInstance = importedTestbench.instances.find(
-    (instance) => instance.id === "XDUT",
-  );
-  assert.equal(dutInstance?.netlist?.binding?.kind, "subcircuit");
-  dutInstance.netlist.binding.childDocumentId = imported.rootDocumentId;
-
-  let opSetup = structuredClone(referenceSetup);
-  opSetup.id = importedSetupId;
-  opSetup.name = "Cross-Project OTA OP";
-  const binding = opSetup.input.circuitBindings.find(
-    (item) => item.emission === "top-level",
-  );
-  assert(binding, "The qualification requires a drawn Testbench binding");
-  binding.documentId = importedTestbenchId;
-  const parsedConfig = readSimulationExperimentConfig(opSetup);
-  assert(parsedConfig.ok, "Invalid qualification configuration");
-  const opConfig = parsedConfig.config;
-  opConfig.deviceOperatingPoints = [];
-  opConfig.measurements = [];
-  opConfig.variables = [];
-  opConfig.runPlan = { mode: "nominal" };
-  opConfig.outputs = opConfig.outputs
-    .filter((output) => output.id === "probe-vout")
-    .map((output) => {
-      const mapped = structuredClone(output);
-      if (mapped.expression.documentId === testbench.id) {
-        mapped.expression.documentId = importedTestbenchId;
-      } else if (mapped.expression.documentId === dut.id) {
-        mapped.expression.documentId = imported.rootDocumentId;
-      }
-      return mapped;
-    });
-  assert.deepEqual(
-    opConfig.outputs.map((output) => output.id),
-    ["probe-vout"],
-    "The cross-Project baseline must probe only the DUT formal output",
-  );
-  opSetup = replaceSimulationExperimentConfig(opSetup, opConfig);
-  const program = opSetup.input.files.find(
-    (file) => file.path === opSetup.input.entry,
-  );
-  assert(program, "The qualification has no entry");
-  // This acceptance owns its small native program, not arbitrary user source.
-  program.text = [
-    "* Cross-Project OTA OP",
-    `.include "${binding.path}"`,
-    ".control",
-    "set filetype=ascii",
-    "op",
-    "write out.raw",
-    ".endc",
-    ".end",
-    "",
-  ].join("\n");
+  const { testbench: importedTestbench, folder: opSetup } =
+    nativeImportedTestbench(
+      referenceProject,
+      imported.rootDocumentId,
+      importedTestbenchId,
+      importedSetupId,
+    );
 
   const authored = await tool("advanced_transact", {
     structureEdits: [
@@ -412,11 +358,12 @@ try {
     },
   );
   assert.equal(fullRun.result?.outcome.status, "completed");
-  const op = fullRun.outputData?.analyses.find(
+  assert.equal(fullRun.result.metadata.environment.simulator.name, "vacask");
+  const op = fullRun.result.data?.analyses.find(
     (analysis) => analysis.analysis === "op",
   );
-  const vout = op?.outputs.find((output) => output.id === "probe-vout")
-    ?.values[0];
+  const value = op?.probes.find((probe) => probe.name === "vout")?.value;
+  const vout = Array.isArray(value) ? value[0] : value;
   assert(Number.isFinite(vout), "Imported OTA returned no finite OP output");
   assert(
     vout > 0.5 && vout < 1.2,
@@ -429,7 +376,7 @@ try {
     ),
     ...finished.artifacts.filter((item) =>
       [
-        "out.raw",
+        "raw/bias.raw",
         "result.json",
         "outputs.json",
         "op.csv",
