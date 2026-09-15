@@ -6,6 +6,7 @@ import {
   validateNativeExecutionInput,
 } from "@icm/simulation-service";
 import {
+  SIMULATION_EXECUTOR_RESPONSE_MAX_BYTES,
   createSimulationInputMetadata,
   verifySimulationEnvironmentMetadata,
 } from "@icm/spice-run";
@@ -382,7 +383,9 @@ export async function routeSimulationRequest(
   try {
     const output = decodeHostedExecutionPayload(
       input,
-      JSON.parse(await boundedText(response, MAX_BODY_BYTES)),
+      JSON.parse(
+        await boundedText(response, SIMULATION_EXECUTOR_RESPONSE_MAX_BYTES),
+      ),
     );
     const actual = await verifySimulationEnvironmentMetadata(
       output.result.metadata.environment,

@@ -112,8 +112,25 @@ wrapper parameters and existing reference decks. Prepare inserts an inspectable
 initial `options scale` in the first reached control block; authored source needs
 no scale patch. Later authored options and `clear options` retain native semantics.
 This is not a hidden geometry rewrite or a globally qualified Profile. The test
-reads complete result artifacts in pages, checks OP/AC
+reads complete result artifacts in pages, checks OP/DC/AC/TRAN/Noise
 records, nine M1 model-parameter mappings, CSV/raw exports and scratch cleanup.
+Its authored program switches VINP to DC for the transfer sweep, restores
+the nominal bias for AC/Noise, and restores pulse mode for TRAN. It requests
+explicit high precision, with a 1 pA transient current floor: the tighter
+1 fA floor caused NR timestep collapse at the 1 ns edge even with more
+iterations or Gear2. No product solver defaults or foundry values change.
+The transient capture requires more than 1 MB, so this test advertises an
+8 MiB output cap and still reads the same paged File Resource. Optional
+`ICM_VACASK_EVIDENCE_DIR` retains exact prepared/input/result artifacts in a
+fresh `ota-public-*` directory, including failed-run evidence. Those artifacts
+are observations, not auto-approved numerical baselines.
+The serialized executor envelope has its own shared 8 MiB ceiling, consumed
+by native HTTP, the local forwarder and Worker. Raw-byte budgets do not include
+JSON escaping or parsed-result duplication, so oversized envelopes still fail
+explicitly without automatic re-execution. An isolated migration gateway must
+set its existing `SIMULATION_GATEWAY_MAX_RESPONSE_BYTES` to 8388608; this does
+not alter or redeploy the shared ngspice gateway. Larger/streamed artifact
+transport is not claimed by these local checks.
 A passing run proves this local integration only: it does not certify model
 accuracy, all analyses/corners, GUI/public MCP transport or hosted isolation.
 

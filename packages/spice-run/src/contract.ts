@@ -1,4 +1,10 @@
 import type { SimulationResultData } from "./result-data.js";
+
+/** Bounded executor envelope (raw artifacts plus parsed results), not a GUI
+ * receipt or an output-file budget. Shared by native HTTP, Worker and local
+ * forwarding so a valid multi-analysis reply is not cut at an older 4 MiB hop. */
+export const SIMULATION_EXECUTOR_RESPONSE_MAX_BYTES = 8 * 1024 * 1024;
+
 export type SimulationAnalysis = "op" | "dc" | "ac" | "tran" | "noise";
 
 export interface SimulationRequest {

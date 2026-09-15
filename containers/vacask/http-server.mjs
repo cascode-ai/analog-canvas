@@ -1,6 +1,9 @@
 import { createServer } from "node:http";
 import { CapabilitiesSchema } from "@icm/simulation-service";
-import { verifySimulationEnvironmentMetadata } from "@icm/spice-run";
+import {
+  SIMULATION_EXECUTOR_RESPONSE_MAX_BYTES,
+  verifySimulationEnvironmentMetadata,
+} from "@icm/spice-run";
 import { executeVacask } from "./execute.mjs";
 import { validVacaskLimits } from "./run-job.mjs";
 import { verifyVacaskModelSymbols } from "./model-symbols.mjs";
@@ -33,15 +36,18 @@ export function createVacaskHttpServer({
   limits,
   supervisor = new SimulationRunSupervisor(),
   maxRequestBytes = 4 * 1024 * 1024,
-  maxResponseBytes = 4 * 1024 * 1024,
+  maxResponseBytes = SIMULATION_EXECUTOR_RESPONSE_MAX_BYTES,
   maxConnections = 16,
 }) {
   if (
+    maxResponseBytes > SIMULATION_EXECUTOR_RESPONSE_MAX_BYTES ||
     ![maxRequestBytes, maxResponseBytes, maxConnections].every(
       (n) => Number.isSafeInteger(n) && n > 0,
     )
   )
-    throw new Error("HTTP limits must be positive integer counts.");
+    throw new Error(
+      "HTTP limits must be positive integers within the shared response ceiling.",
+    );
   let runtime, caps;
   // Keep health responsive while boot identity is measured, including failure.
   Promise.resolve(runtimeReady)

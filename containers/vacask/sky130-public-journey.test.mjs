@@ -1,4 +1,11 @@
-import { mkdtemp, writeFile, readdir, rm } from "node:fs/promises";
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  writeFile,
+  readdir,
+  rm,
+} from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { expect, it, vi } from "vitest";
@@ -25,10 +32,10 @@ it.skipIf(
     !process.env.VACASK_MODULES ||
     !process.env.ICM_VACASK_CONVERTED_TT,
 )(
-  "executes the shipped SKY130 OTA through public Prepare/Start and maps real OP/AC artifacts",
+  "executes the shipped SKY130 OTA through public Prepare/Start and maps real OP/DC/AC/TRAN/Noise artifacts",
   async () => {
     const { project, folder, profile, library, acquisitions } =
-      nativeSky130OtaFixture();
+      nativeSky130OtaFixture(true);
     const devices = nativeSimulationDevices(project, folder.input);
     const sensed = ["nmos", "pmos"].map((polarity) => {
       const device = devices.find((d) => d.polarity === polarity);
@@ -78,13 +85,15 @@ it.skipIf(
         configured: true,
         rawfileCollection: "native-multi-ascii",
         inputs: ["source"],
-        analyses: ["op", "ac"],
-        parsedAnalyses: ["op", "ac"],
+        analyses: ["op", "dc", "ac", "tran", "noise"],
+        parsedAnalyses: ["op", "dc", "ac", "tran", "noise"],
         profiles: [profile],
         maxTimeoutMs: 30000,
         maxInputBytes: 1048576,
         maxInputFiles: 24,
-        maxOutputBytes: 1048576,
+        // Native transient capture is ~3 MB with all default/model/current
+        // vectors. Exercise bounded paging without truncating this fixture.
+        maxOutputBytes: 8 * 1048576,
         cancel: true,
       });
       server = createVacaskHttpServer({
@@ -146,15 +155,11 @@ it.skipIf(
             ),
             "run",
           );
-          expect(finished.error, JSON.stringify(finished)).toBeUndefined();
           expect(finished.state).toBe("finished");
         },
         { timeout: 40000, interval: 100 },
       );
-      expect(
-        finished.result.outcome.status,
-        JSON.stringify(finished.result),
-      ).toBe("completed");
+      expect(finished.error, JSON.stringify(finished)).toBeUndefined();
       expect(finished.inputStatus).toBe("unchanged");
       const artifact = async (name) => {
         const ref = finished.artifacts.find((a) => a.name === name);
@@ -177,10 +182,63 @@ it.skipIf(
       // Run receipts may omit large data. Read the canonical, paged artifact
       // through the same File Resource used by clients, not an inline shortcut.
       const result = JSON.parse(await artifact("result.json"));
+      // Optional local evidence for cross-simulator numerical investigation.
+      // These exact public artifacts are observations, never a passing golden.
+      if (process.env.ICM_VACASK_EVIDENCE_DIR) {
+        const parent = resolve(process.env.ICM_VACASK_EVIDENCE_DIR);
+        await mkdir(parent, { recursive: true });
+        const evidence = await mkdtemp(join(parent, "ota-public-"));
+        for (const name of ["result.json", "outputs.json", "evidence.json"])
+          if (finished.artifacts.some((a) => a.name === name))
+            await writeFile(join(evidence, name), await artifact(name));
+        await writeFile(
+          join(evidence, "prepared.json"),
+          JSON.stringify(prepared),
+        );
+        await writeFile(
+          join(evidence, "input.sim"),
+          await artifact(`executed/${folder.input.entry}`),
+        );
+        await writeFile(
+          join(evidence, "circuit.sim"),
+          await artifact("executed/circuit.spice"),
+        );
+      }
+      expect(
+        finished.result.outcome.status,
+        JSON.stringify(finished.result),
+      ).toBe("completed");
       const op = result.data.analyses.find((a) => a.analysis === "op");
       const ac = result.data.analyses.find((a) => a.analysis === "ac");
+      expect(result.data.analyses.map((a) => a.analysis).sort()).toEqual(
+        ["op", "dc", "ac", "tran", "noise"].sort(),
+      );
       expect(op).toBeDefined();
       expect(ac).toBeDefined();
+      const reference = JSON.parse(
+        await readFile(
+          new URL(
+            "../../fixtures/simulation-acceptance/hosted-sky130-core-continuous-v1.json",
+            import.meta.url,
+          ),
+          "utf8",
+        ),
+      );
+      // These four OP points meet the original hosted tolerances. This does
+      // not generalize to the old DC, AC or transient/noise baselines.
+      for (const [legacy, native] of [
+        ["v(vout)", "vout"],
+        ["v(ibias)", "ibias"],
+        ["v(xdut.tail)", "XDUT:tail"],
+        ["v(xdut.nleft)", "XDUT:nleft"],
+      ]) {
+        const expected = reference.expectedProbes[legacy];
+        const measured = op.probes.find((p) => p.name === native)?.value;
+        expect(Number.isFinite(measured), native).toBe(true);
+        expect(Math.abs(measured - expected.value), native).toBeLessThanOrEqual(
+          expected.absoluteTolerance,
+        );
+      }
       for (const device of sensed) {
         const pins = device.currentSenses.map((s) => {
           const probe = op.probes.find((p) => p.name === s.vector);
@@ -217,10 +275,50 @@ it.skipIf(
       expect(voltage.value).toBeGreaterThan(0);
       expect(voltage.value).toBeLessThan(1.8);
       expect(ac.frequencyHz[0]).toBe(1);
-      expect(ac.frequencyHz.at(-1)).toBeCloseTo(1e6, 3);
+      expect(ac.frequencyHz.at(-1)).toBeCloseTo(1e9, 3);
+      expect(ac.frequencyHz).toHaveLength(91);
       const output = ac.probes.find((p) => p.name === "vout");
       expect(output.real).toHaveLength(ac.frequencyHz.length);
       expect(output.imag).toHaveLength(ac.frequencyHz.length);
+      const dc = result.data.analyses.find((a) => a.analysis === "dc");
+      expect(dc.sweep.values).toHaveLength(9);
+      dc.sweep.values.forEach((value, i) =>
+        expect(value).toBeCloseTo(0.88 + 0.005 * i, 12),
+      );
+      const dcOutput = dc.probes.find((p) => p.name === "vout").value;
+      expect(dcOutput[0]).toBeLessThan(voltage.value);
+      expect(dcOutput.at(-1)).toBeGreaterThan(voltage.value);
+      const tran = result.data.analyses.find((a) => a.analysis === "tran");
+      expect(tran.timeSeconds[0]).toBe(0);
+      expect(tran.timeSeconds.at(-1)).toBeCloseTo(4e-6, 14);
+      expect(tran.timeSeconds.length).toBeGreaterThan(200);
+      tran.timeSeconds
+        .slice(1)
+        .forEach((t, i) => expect(t).toBeGreaterThan(tran.timeSeconds[i]));
+      const transientOutput = tran.probes.find((p) => p.name === "vout").value;
+      expect(transientOutput[0]).toBeCloseTo(voltage.value, 6);
+      expect(Math.max(...transientOutput)).toBeGreaterThan(voltage.value + 0.1);
+      const noise = result.data.analyses.find((a) => a.analysis === "noise");
+      expect(noise.frequencyHz).toHaveLength(181);
+      expect(noise.frequencyHz[0]).toBe(1);
+      expect(noise.frequencyHz.at(-1)).toBeCloseTo(1e9, 3);
+      expect(noise.units.outputDensity).toBe("V/sqrt(Hz)");
+      expect(noise.units.inputDensity).toBe("V/sqrt(Hz)");
+      for (const density of [
+        noise.outputNoiseDensity,
+        noise.inputNoiseDensity,
+      ]) {
+        expect(density).toHaveLength(noise.frequencyHz.length);
+        expect(density.every((v) => Number.isFinite(v) && v > 0)).toBe(true);
+      }
+      // Input referral uses the very same linearized transfer as AC, not PSD
+      // mistaken for amplitude density or an unrelated output-current unit.
+      expect(
+        noise.outputNoiseDensity[0] / noise.inputNoiseDensity[0],
+      ).toBeCloseTo(Math.hypot(output.real[0], output.imag[0]), 5);
+      for (const analysis of [dc, tran])
+        for (const probe of analysis.probes)
+          expect(probe.value.every(Number.isFinite)).toBe(true);
       const outputs = JSON.parse(await artifact("outputs.json"));
       for (const device of sensed) {
         for (const sense of device.currentSenses) {

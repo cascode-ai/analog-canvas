@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createSimulationEnvironmentMetadata } from "@icm/spice-run";
+import {
+  createSimulationEnvironmentMetadata,
+  SIMULATION_EXECUTOR_RESPONSE_MAX_BYTES,
+} from "@icm/spice-run";
 import { createVacaskHttpServer } from "./http-server.mjs";
 import { executeVacask } from "./execute.mjs";
 import { mkdtemp, writeFile } from "node:fs/promises";
@@ -235,5 +238,21 @@ describe("native HTTP transport", () => {
     expect(await reply.json()).toMatchObject({
       error: "executor-response-too-large",
     });
+  });
+  it("allows multi-analysis replies beyond the retired 4 MiB hop but caps configured envelopes", async () => {
+    const { post } = await start();
+    const text = "x".repeat(4 * 1024 * 1024 + 1);
+    vi.mocked(executeVacask).mockResolvedValueOnce({
+      ok: true,
+      output: { result: { log: text } },
+    });
+    const reply = await post({});
+    expect(reply.status).toBe(200);
+    expect(JSON.stringify(await reply.json())).toContain(text);
+    expect(() =>
+      createVacaskHttpServer({
+        maxResponseBytes: SIMULATION_EXECUTOR_RESPONSE_MAX_BYTES + 1,
+      }),
+    ).toThrow(/ceiling/u);
   });
 });

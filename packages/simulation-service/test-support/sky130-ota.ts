@@ -12,7 +12,7 @@ import { currentFiveTransistorOtaCircuitSource } from "../../../apps/editor/src/
 /** The original shipped hierarchical circuit, unchanged. Source authoring uses
  * public helpers; the captured library identity is converter-checked, not a
  * claim that this Profile is electrically or operationally qualified. */
-export function nativeSky130OtaFixture() {
+export function nativeSky130OtaFixture(fullAnalysis = false) {
   const project = CircuitProjectSchema.parse(
     currentFiveTransistorOtaCircuitSource(),
   );
@@ -39,7 +39,24 @@ export function nativeSky130OtaFixture() {
     )
     .replace(
       "analysis op op",
-      'analysis bias op\nanalysis response ac from=1 to=1e6 mode="dec" points=10',
+      fullAnalysis
+        ? [
+            "options reltol=1e-8 abstol=1e-15 vntol=1e-10",
+            "analysis bias op",
+            "// Native waveform sources need explicit DC mode for a dc parameter sweep.",
+            'alter instance("VINP") type="dc"',
+            'sweep input instance="VINP" parameter="dc" from=0.88 to=0.92 step=0.005',
+            "analysis transfer op",
+            'alter instance("VINP") dc=0.9',
+            'analysis response ac from=1 to=1e9 mode="dec" points=10',
+            'analysis spectrum noise out="vout" in="VINP" from=1 to=1e9 mode="dec" points=20',
+            'alter instance("VINP") type="pulse"',
+            "// A 1 pA current floor avoids roundoff-driven NR rejection at the 1 ns edge.",
+            "// Keep the strict relative/voltage tolerances; this is authored fixture policy.",
+            "options abstol=1e-12",
+            "analysis pulse tran stop=4u step=20n maxstep=20n",
+          ].join("\n")
+        : 'analysis bias op\nanalysis response ac from=1 to=1e6 mode="dec" points=10',
     );
   folder.input.dependencies = [
     {

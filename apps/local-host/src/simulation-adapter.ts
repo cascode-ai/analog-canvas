@@ -1,3 +1,5 @@
+import { SIMULATION_EXECUTOR_RESPONSE_MAX_BYTES } from "@icm/spice-run";
+
 /** Explicit loopback transport. The executor owns runtime discovery, capabilities
  * and process lifetime; this adapter never starts or retries a simulation. */
 export function createLocalSimulationHandler(
@@ -54,7 +56,7 @@ export function createLocalSimulationHandler(
             const next = await reader.read();
             if (next.done) break;
             size += next.value.byteLength;
-            if (size > 4 * 1024 * 1024)
+            if (size > SIMULATION_EXECUTOR_RESPONSE_MAX_BYTES)
               throw new Error("Executor response too large");
             chunks.push(next.value);
           }
