@@ -70,3 +70,21 @@ qualification. It does not certify hostile-job isolation, admission/queue
 behavior, forced-stop recovery, cloud routing or latency. Before distribution,
 review third-party licensing; local inputs are not downloaded by this recipe.
 No shared Preview, production route or operator service is changed here.
+
+## Hosted identity path, still tested locally
+
+Append `--hosted` to the smoke command to select `hosted-container`. Supply
+`expected-environment.json` in the read-only proof directory. It must use the
+existing environment metadata contract, with `executor: "hosted-container"`,
+`reproducibility: "pinned"` and a valid fingerprint. Freeze the inspected
+candidate's measured asset identities in a separate step using
+`createSimulationEnvironmentMetadata`; the smoke never derives its own expected
+values from the process it is checking. Record the image digest alongside this
+candidate lock. Pinning measured bytes is not electrical or cloud qualification.
+
+Also supply `changed-startup.toml`, an intentionally different startup file.
+The smoke first verifies that this mismatch rejects readiness and Run with 503,
+without acquiring a job or leaving scratch. It then boots the original startup,
+requires the entire runtime environment to equal the supplied lock, and runs
+the same five-corner and fault/recovery checks. No executor port is published;
+cloud authentication, distributed queue and deployment acceptance remain owed.

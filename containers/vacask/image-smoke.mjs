@@ -37,9 +37,19 @@ const limits = {
   maxEntries: 256,
 };
 const analyses = ["op", "dc", "ac", "tran", "noise"];
-const service = await startVacaskService({
+assert(
+  process.argv.length === 2 ||
+    (process.argv.length === 3 && process.argv[2] === "--hosted"),
+  "Only --hosted is supported",
+);
+const expectedEnvironment =
+  process.argv[2] === "--hosted"
+    ? JSON.parse(await readFile("/proof/expected-environment.json", "utf8"))
+    : undefined;
+const configuration = {
   runtime: {
-    executor: "local-host",
+    executor: expectedEnvironment ? "hosted-container" : "local-host",
+    ...(expectedEnvironment ? { expectedEnvironment } : {}),
     profileId: profile.id,
     binary: "/opt/vacask/bin/vacask",
     modules: "/opt/modules",
@@ -71,9 +81,46 @@ const service = await startVacaskService({
     cancel: true,
   },
   limits,
-});
+};
+if (expectedEnvironment) {
+  assert.equal(expectedEnvironment.executor, "hosted-container");
+  assert.equal(expectedEnvironment.reproducibility, "pinned");
+  // A separately supplied, modified startup file must not silently create a
+  // different accepted environment. This is a boot failure, not a job failure.
+  const rejected = await startVacaskService({
+    ...configuration,
+    runtime: {
+      ...configuration.runtime,
+      startupPath: "/proof/changed-startup.toml",
+    },
+  });
+  try {
+    await assert.rejects(rejected.ready, /differs from the accepted lock/u);
+    const origin = `http://127.0.0.1:${rejected.server.address().port}`;
+    const health = await fetch(origin + "/health");
+    assert.equal(health.status, 503);
+    assert.equal((await health.json()).activity.state, "idle");
+    const run = await fetch(origin + "/run", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(inputs[0]),
+    });
+    assert.equal(run.status, 503);
+    await writeFile(
+      "/evidence/rejected-startup.json",
+      JSON.stringify(await run.json()),
+      { flag: "wx" },
+    );
+  } finally {
+    await rejected.stop();
+  }
+  assert.deepEqual(await readdir("/var/lib/vacask"), []);
+}
+const service = await startVacaskService(configuration);
 try {
   const runtime = await service.ready;
+  if (expectedEnvironment)
+    assert.deepEqual(runtime.environment, expectedEnvironment);
   await writeFile(
     "/evidence/environment.json",
     JSON.stringify(runtime.environment, null, 2),
