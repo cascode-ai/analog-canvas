@@ -182,6 +182,7 @@ describe("netlist export presets", () => {
     expect(scs.file.text).toMatch(
       /^simulator lang=spice\n\.lib "sky130\.lib\.spice" tt\nsimulator lang=spectre\n/u,
     );
+    expect(scs.file.text).toContain("global 0 VDD");
     expect(scs.file.text).toContain("subckt Main\n");
     expect(scs.file.text).toMatch(
       /XM1 \([^\n]+\) sky130_fd_pr__nfet_01v8 l=0.3 w=2 nf=3 m=2/u,
@@ -213,7 +214,7 @@ describe("netlist export presets", () => {
         expect(result.file.text).toMatch(
           /XM2 \S+ \S+ \S+ VDD sky130_fd_pr__pfet_01v8/u,
         );
-        expect(result.file.text).toContain(".global VDD");
+        expect(result.file.text).toContain(".global 0 VDD");
       } else {
         expect(result.file.text).toMatch(
           /XM1 \(\S+ \S+ \S+ 0\) sky130_fd_pr__nfet_01v8/u,
@@ -221,7 +222,7 @@ describe("netlist export presets", () => {
         expect(result.file.text).toMatch(
           /XM2 \(\S+ \S+ \S+ VDD\) sky130_fd_pr__pfet_01v8/u,
         );
-        expect(result.file.text).toContain("global VDD");
+        expect(result.file.text).toContain("global 0 VDD");
         expect(result.file.text).not.toContain(".global VDD");
       }
     },

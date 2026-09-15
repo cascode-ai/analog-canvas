@@ -1495,7 +1495,9 @@ describe("current formal cell interface", () => {
           ? /M2 M2_D M2_G M2_S VDD PMOS_MODEL/u
           : /M2 \(M2_D M2_G M2_S VDD\) PMOS_MODEL/u,
       );
-      expect(text).toContain(format === "spice" ? ".global VDD" : "global VDD");
+      expect(text).toContain(
+        format === "spice" ? ".global 0 VDD" : "global 0 VDD",
+      );
     },
   );
 });
