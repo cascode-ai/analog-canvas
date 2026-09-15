@@ -11,6 +11,10 @@
   ],
   "migrated": [
     {
+      "path": "netlists/ngspice-ota-qualification/source.icproj.json",
+      "sourceSchemaVersion": 48
+    },
+    {
       "path": "netlists/native-ota-library/legacy-source.icproj.json",
       "sourceSchemaVersion": 48
     }
