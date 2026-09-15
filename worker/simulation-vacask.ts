@@ -259,10 +259,22 @@ export async function routeVacaskSimulationRequest(
             503,
           );
     health = JSON.parse(await boundedText(r, 131072));
-  } catch {
+  } catch (error) {
     return body.operation === "capabilities"
       ? json(unavailable)
-      : json({ error: "simulation-executor-unavailable", execution }, 503);
+      : json(
+          {
+            error: "simulation-executor-unavailable",
+            execution,
+            message: clip(
+              String(error).replaceAll(
+                env.SIMULATION_UPSTREAM_TOKEN || "\u0000",
+                "[redacted]",
+              ),
+            ),
+          },
+          503,
+        );
   }
   const environment = await verifySimulationEnvironmentMetadata(
     health?.environment,
