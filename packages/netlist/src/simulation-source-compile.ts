@@ -28,6 +28,10 @@ import type { SimulationSourceDiagnostic } from "./source-file-graph.js";
 import { applySimulationParameter } from "./simulation-parameter-target.js";
 import { projectVacaskRunVariables } from "./vacask-run-variables.js";
 import { projectVacaskRunTemperature } from "./vacask-run-temperature.js";
+import {
+  compileNativeDeviceOperatingPoints,
+  nativeSimulationDevices,
+} from "./simulation-native-devices.js";
 
 export interface GeneratedSimulationFile {
   bindingId: string;
@@ -343,6 +347,12 @@ export function compileSourceSimulation(
   // There is no single authored write filename in VACASK. Collection is a
   // runtime multi-artifact concern; never manufacture an out.raw source setting.
   config.collection = { rawfile: null };
+  const deviceOp = compileNativeDeviceOperatingPoints(
+    nativeSimulationDevices(effective, {
+      ...folder.input,
+      files: temperature.files.map(({ path, text }) => ({ path, text })),
+    }),
+  );
   return {
     ok: true,
     language: "vacask",
@@ -378,11 +388,11 @@ export function compileSourceSimulation(
       JSON.stringify([...plans].sort(([a], [b]) => a.localeCompare(b))),
     ),
     reachedDocumentIds: [...cells.keys()],
-    // Native source controls acquisition and result declarations. These are
-    // derived from actual native output, not restored from retired sidecars.
-    vectors: [],
+    // Source controls saves. Potential device mappings are captured here; the
+    // result reader materializes only returned values, never retired sidecars.
+    vectors: deviceOp.vectors,
     outputs: [],
-    deviceOperatingPoints: [],
+    deviceOperatingPoints: deviceOp.deviceOperatingPoints,
     warnings: diagnostics,
   };
 }

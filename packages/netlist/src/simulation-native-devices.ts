@@ -4,7 +4,11 @@ import type {
   SimulationSourceInput,
 } from "@icm/model";
 import { reviewedExternalDeviceBindings } from "@icm/devices";
-import { mosBulkKind } from "@icm/derived";
+import { mosBulkKind, sha256Hex } from "@icm/derived";
+import type {
+  CompiledSimulationDeviceOperatingPoint,
+  CompiledSimulationVector,
+} from "./simulation-compile.js";
 import { analyzeDesignNetlist } from "./extract.js";
 import type { DesignNetlistCell, DesignNetlistInstance } from "./ir.js";
 import { inspectVacaskSourceGraph } from "./vacask-source.js";
@@ -133,6 +137,64 @@ export function nativeDeviceOpVectors(
   return nativeDeviceOpAcquisitions(device).map(
     (acquisition) => acquisition.save,
   );
+}
+
+/** Potential mappings only: Code owns saves, and the result reader displays
+ * only quantities actually returned by an OP record. Each wrapper primitive
+ * keeps its own model values; never sum gm/id or infer terminal semantics. */
+export function compileNativeDeviceOperatingPoints(
+  devices: readonly NativeSimulationDevice[],
+): {
+  vectors: CompiledSimulationVector[];
+  deviceOperatingPoints: CompiledSimulationDeviceOperatingPoint[];
+} {
+  const vectors: CompiledSimulationVector[] = [];
+  const deviceOperatingPoints: CompiledSimulationDeviceOperatingPoint[] = [];
+  for (const device of devices) {
+    if (!device.polarity) continue;
+    const acquisitions = nativeDeviceOpAcquisitions(device);
+    for (const reference of new Set(acquisitions.map((a) => a.reference))) {
+      const id = `native-op:${sha256Hex(
+        JSON.stringify([
+          device.circuit,
+          device.documentId,
+          device.occurrence,
+          device.instanceId,
+          reference,
+        ]),
+      )}`;
+      const values = acquisitions
+        .filter((a) => a.reference === reference)
+        .map((a) => {
+          const probeId = `${id}:${a.parameter}`;
+          vectors.push({ probeId, vector: a.vector, quantity: "native" });
+          return {
+            parameter: a.parameter,
+            label: `${a.parameter} (model)`,
+            unit: (a.parameter === "id"
+              ? "A"
+              : ["gm", "gds", "gmbs"].includes(a.parameter)
+                ? "S"
+                : "V") as "A" | "S" | "V",
+            expression: {
+              kind: "acquisition" as const,
+              acquisitionId: probeId,
+              quantity: "native" as const,
+            },
+          };
+        });
+      deviceOperatingPoints.push({
+        id,
+        documentId: device.documentId,
+        instanceId: device.instanceId,
+        occurrence: [...device.occurrence],
+        reference,
+        polarity: device.polarity,
+        values,
+      });
+    }
+  }
+  return { vectors, deviceOperatingPoints };
 }
 
 export function nativeTerminalCurrent(

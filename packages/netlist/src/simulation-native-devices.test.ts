@@ -5,6 +5,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+  compileNativeDeviceOperatingPoints,
   nativeDeviceOpAcquisitions,
   nativeSimulationDevices,
   nativeTerminalCurrent,
@@ -12,6 +13,9 @@ import {
 import { nativeAcquisitionEdit } from "./simulation-native-save-edit.js";
 import { compileSourceSimulation } from "./simulation-source-compile.js";
 import { parseVacaskRawfile } from "../../spice-run/src/vacask-rawfile.js";
+import { readVacaskSimulationData } from "@icm/spice-run";
+import { evaluateSimulationOutputs } from "../../simulation-service/src/output-evaluation.js";
+import { SimulationOutputDataSchema } from "../../simulation-service/src/contract.js";
 
 // Illustrative default BSIM4, not a substitute for any foundry model.
 function fixture(pmos = false) {
@@ -115,6 +119,20 @@ describe("native Canvas device acquisitions", () => {
       expect(nativeTerminalCurrent(device, "G").ok).toBe(false);
     }
     expect({ project, folder }).toEqual(before);
+    const compiled = compileSourceSimulation(project, folder);
+    if (!compiled.ok) throw Error(JSON.stringify(compiled.diagnostics));
+    expect(compiled.vectors).toHaveLength(18);
+    expect(compiled.deviceOperatingPoints.map((d) => d.reference)).toEqual([
+      "X1:M1",
+      "x1:M1",
+    ]);
+    expect(new Set(compiled.deviceOperatingPoints.map((d) => d.id)).size).toBe(
+      2,
+    );
+    expect(compiled.files.find((f) => f.path === "run.sim")!.text).toBe(
+      before.folder.input.files[1]!.text,
+    );
+    expect({ project, folder }).toEqual(before);
   });
 
   it("derives wrapper internals from authored models, not the SKY130 instance-name convention", () => {
@@ -154,6 +172,32 @@ include "dut.inc"`,
     expect(nativeDeviceOpAcquisitions(device)[0]?.save).toBe(
       "p('X1:XM1:OddName',id)",
     );
+    const compiled = compileSourceSimulation(project, folder);
+    if (!compiled.ok) throw Error(JSON.stringify(compiled.diagnostics));
+    expect(compiled.deviceOperatingPoints[0]).toMatchObject({
+      documentId: document.id,
+      instanceId: "mos",
+      reference: "X1:XM1:OddName",
+      polarity: "nmos",
+    });
+    const multiple = compileNativeDeviceOperatingPoints([
+      {
+        ...device,
+        modelPrimitives: [
+          ...device.modelPrimitives,
+          { reference: "X1:XM1:Second", module: "sp_bsim4v8" },
+        ],
+      },
+    ]);
+    expect(multiple.deviceOperatingPoints.map((d) => d.reference)).toEqual([
+      "X1:XM1:OddName",
+      "X1:XM1:Second",
+    ]);
+    expect(
+      multiple.deviceOperatingPoints.every((d) =>
+        d.values.every((v) => v.expression.kind === "acquisition"),
+      ),
+    ).toBe(true);
   });
 
   it("does not advertise an output schema for a missing, conditional, ambiguous or different model", () => {
@@ -170,6 +214,10 @@ include "dut.inc"`,
       );
       expect(devices).toHaveLength(2);
       expect(devices.flatMap(nativeDeviceOpAcquisitions)).toEqual([]);
+      expect(compileNativeDeviceOperatingPoints(devices)).toEqual({
+        vectors: [],
+        deviceOperatingPoints: [],
+      });
     }
   });
 
@@ -228,9 +276,14 @@ it.skipIf(!process.env.VACASK_BIN || !process.env.VACASK_MODULES)(
         true,
       );
       if (!edit.ok) throw Error(edit.error.message);
-      source.text = edit.text;
+      source.text = edit.text.replace(
+        "analysis proof op",
+        "analysis proof op\nanalysis repeated op\nclear saves\nanalysis uncaptured op",
+      );
       const compiled = compileSourceSimulation(project, folder);
       if (!compiled.ok) throw Error(JSON.stringify(compiled.diagnostics));
+      expect(compiled.deviceOperatingPoints).toHaveLength(2);
+      expect(compiled.vectors).toHaveLength(acquisitions.length);
       const cwd = mkdtempSync(join(tmpdir(), "icm-native-device-helper-"));
       for (const file of compiled.files)
         writeFileSync(join(cwd, file.path), file.text);
@@ -267,6 +320,74 @@ it.skipIf(!process.env.VACASK_BIN || !process.env.VACASK_MODULES)(
         expect(expected, acquisition.parameter).toBeDefined();
         expect(actual).toBeCloseTo(expected!, 11);
       }
+      // The public compiler's captured map, not a reconstructed instance-name
+      // convention, resolves every actual quantity to this Canvas occurrence.
+      for (const device of compiled.deviceOperatingPoints) {
+        expect(device).toMatchObject({
+          documentId: "dut",
+          instanceId: "mos",
+          polarity: pmos ? "pmos" : "nmos",
+        });
+        for (const value of device.values) {
+          expect(value.label).toBe(`${value.parameter} (model)`);
+          if (value.expression.kind !== "acquisition")
+            throw Error("Unexpected derived model value");
+          const acquisitionId = value.expression.acquisitionId;
+          const vector = compiled.vectors.find(
+            (v) => v.probeId === acquisitionId,
+          )!;
+          expect(vector.vector).toBe(`${device.reference}.${value.parameter}`);
+          expect(
+            parsed.plots[0]!.vectors.find(
+              (v) => v.variable.name === vector.vector,
+            )?.real[0],
+          ).toBeDefined();
+        }
+      }
+      const artifacts = ["proof", "repeated", "uncaptured"].map((name) => ({
+        path: `${name}.raw`,
+        text: readFileSync(join(cwd, `${name}.raw`), "utf8"),
+      }));
+      const numeric = readVacaskSimulationData(
+        artifacts,
+        artifacts.map((a) => ({
+          artifactPath: a.path,
+          plotOrdinal: 0,
+          analysis: "op" as const,
+        })),
+      );
+      if (numeric.status !== "read") throw Error(JSON.stringify(numeric));
+      const outputs = evaluateSimulationOutputs(
+        numeric.data,
+        compiled.vectors,
+        compiled.outputs,
+        [],
+        compiled.deviceOperatingPoints,
+        true,
+      );
+      expect(SimulationOutputDataSchema.safeParse(outputs).success).toBe(true);
+      expect(outputs.diagnostics).toEqual([]);
+      expect(outputs.deviceOperatingPoints).toHaveLength(4);
+      expect(
+        outputs.deviceOperatingPoints?.map((d) => d.analysisIndex),
+      ).toEqual([0, 0, 1, 1]);
+      for (const device of outputs.deviceOperatingPoints!) {
+        expect(device.values).toHaveLength(9);
+        for (const value of device.values) {
+          const expected = reference.plots[0]!.vectors.find(
+            (v) =>
+              v.variable.name === `${pmos ? "P" : "N"}1.${value.parameter}`,
+          )?.real[0];
+          expect(value.status).toBe("available");
+          if (value.status !== "available") throw Error(value.reason);
+          expect(value.value).toBeCloseTo(expected!, 11);
+        }
+      }
+      // No phantom OP rows after clear saves, and no reclassification of
+      // the untouched native artifact bytes to make a missing value appear.
+      expect(
+        outputs.deviceOperatingPoints?.some((d) => d.analysisIndex === 2),
+      ).toBe(false);
     }
   },
 );

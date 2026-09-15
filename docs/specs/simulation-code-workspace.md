@@ -92,15 +92,21 @@ Temperature is recorded in the execution environment and prepared source, not
 added as another saved sidecar setting. Analysis-specific `temp` arguments are
 not a substitute for VACASK's ambient simulator option.
 
-Device OP is derived from vectors actually collected by Code. `op` takes no
-parameters: request e.g. `save @m1[id] @m1[gm]`, then `op`, then `write result.raw`.
-Helper resolves Canvas and authored hierarchy identities, including reviewed
-SKY130 wrapper primitives. It never adds JSON selections or hidden Canvas sense
-sources. Top-level terminal picks use native `.probe`; hierarchical picks support
-only model-native readable drain currents and voltage-source branch currents.
-Unsupported internal terminals report the limitation without modifying the project.
-Native raw names and model values remain evidence; there is no reconstructed
-`gm`, threshold or saturation-region algorithm.
+Device OP is derived from quantities actually collected by Code. In VACASK,
+request e.g. `save p('X1:M1',id) p('X1:M1',gm)` before `analysis bias op`.
+Compilation captures case-sensitive Canvas occurrence/primitive mappings using
+the same source-model resolution as the helper. Mappings are potential
+acquisitions, not additional save directives or persisted selections: only
+returned OP quantities appear, separately for each record. `clear saves` must
+not leave phantom values in later records. Each internal primitive keeps its
+own reference and `(model)` labels; current signs and multiplicity are not
+converted to terminal-total values, and gm/threshold/region are not inferred.
+Currently this mapping recognizes authored `sp_bsim4v8` models and wrappers.
+Opaque external Profile libraries still require proven primitive mappings;
+their private instance names are not guessed from SKY130 naming conventions.
+Voltage-source branch current is supported, but arbitrary terminal current
+still requires explicit zero-volt sensing; automatic sensing remains a migration
+gap. Unsupported picks do not modify the Project or invoke old `.probe` syntax.
 
 Native `meas` results are finite scalar reports read from the simulator log, with
 report order and Console line retained. Missing results are unavailable, not zero.
