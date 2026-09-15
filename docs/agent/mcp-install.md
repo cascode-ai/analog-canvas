@@ -77,7 +77,8 @@ explicit `ICM_ACCEPTANCE_MCP_SOURCE=built` is available for local development;
 its receipt says `source: built` and is not distribution acceptance.
 
 The published 0.10.0 package predates Spec reports and rejects `outputData.specs`.
-Its immutable asset cannot be replaced. Before delivering the converged Simulation
-contract, publish a new version through Publish MCP, update the distribution
-declaration to its verified Linux tarball hash, and pass public-package Preview
-acceptance. Local compilation with the old version label is not that release.
+Its immutable asset cannot be replaced. MCP 0.11.0 carries the converged Simulation
+contract and captured Spec support. Each new version is published through Publish
+MCP with its verified Linux tarball hash pinned in the distribution declaration,
+then passes public-package Preview acceptance. Local compilation with an old
+version label is not a distribution update.
