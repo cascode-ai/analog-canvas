@@ -1,6 +1,7 @@
 # Netlist dialect conversion
 
-Status: accepted. Owner: `packages/spice`.
+Status: accepted
+Primary owner: `packages/spice`
 
 ## Runtime integration
 

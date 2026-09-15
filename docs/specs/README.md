@@ -24,6 +24,7 @@ against. They describe required behavior and invariants, not task history.
 | [`persistence-and-recovery.md`](persistence-and-recovery.md)   | accepted        | Atomic save, AppData cache/session/recovery, migrations                                  |
 | [`export.md`](export.md)                                       | accepted        | Formal SVG source and derived PNG/PDF contracts                                          |
 | [`netlist-export.md`](netlist-export.md)                       | accepted        | Deterministic structural SPICE/Spectre export and diagnostics                            |
+| [`netlist-conversion.md`](netlist-conversion.md)               | accepted        | SPICE/SCS structural conversion, HTTP protocol and import rejection boundaries           |
 | [`performance.md`](performance.md)                             | accepted        | Representative workloads and release budgets                                             |
 | [`editor-interaction.md`](editor-interaction.md)               | accepted        | Direct manipulation, manual authoring, gestures, and automation boundary                 |
 | [`web-agent-session.md`](web-agent-session.md)                 | accepted        | Browser-authoritative relay: scopes, transport, events, errors, threat                   |
