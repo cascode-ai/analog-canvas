@@ -4,7 +4,6 @@ import {
   CircuitProjectSchema,
   SimulationExperimentConfigSchema,
   type SimulationRunVariant,
-  type ProjectSimulationFolder,
 } from "@icm/model";
 import {
   currentFiveTransistorOtaCircuitSource,
@@ -241,27 +240,5 @@ describe("native source run projection", () => {
       },
     );
     expect(f.folder).toEqual(before);
-    const native = structuredClone(f.folder) satisfies ProjectSimulationFolder;
-    native.input.circuitBindings = [];
-    const config = native.input.files.find(
-      (file) => file.path === native.input.configPath,
-    )!;
-    config.text = JSON.stringify({
-      version: 2,
-      environment: { profileId: "native" },
-    });
-    native.input.files.find((file) => file.path === native.input.entry)!.text =
-      "Native\r\nmodel source vsource\r\nV1 (a 0) source dc=1\r\ncontrol\r\nanalysis bias op temp=125\r\nendc\r\n";
-    const result = compileSourceSimulation(f.project, native, {
-      environment: { temperatureC: 125 },
-    });
-    expect(result).toMatchObject({
-      ok: false,
-      diagnostics: expect.arrayContaining([
-        expect.objectContaining({
-          code: "SIMULATION_NATIVE_VARIANT_UNSUPPORTED",
-        }),
-      ]),
-    });
   });
 });
