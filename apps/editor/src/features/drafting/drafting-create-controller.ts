@@ -19,6 +19,7 @@ import {
   type SnapGuideLine,
 } from "../../snap/engine";
 import type { RouteGeometryRecord } from "../wiring/route-interaction-geometry";
+import { rectangleGridGeometry } from "./rectangle-grid-geometry";
 import {
   applyArrowPreset,
   DEFAULT_ARROW_PRESET,
@@ -123,6 +124,12 @@ export function createDraftingCreateController({
     origin?: Point,
     tolerance = document.presentation.grid,
   ): { point: Point; snap: Point | null; guides: SnapGuideLine[] } => {
+    const rectanglePoint = (point: Point): Point =>
+      tool !== "rectangle"
+        ? point
+        : origin
+          ? rectangleGridGeometry(origin, point, annotationGrid).end
+          : snapGridPoint(point, annotationGrid);
     const angleStep = shiftKey
       ? Math.PI / 4
       : angleMode === "orthogonal"
@@ -136,7 +143,7 @@ export function createDraftingCreateController({
           ? constrainDraftingAngle(origin, point, angleStep)
           : point;
       return {
-        point: snapGridPoint(constrained, annotationGrid),
+        point: rectanglePoint(snapGridPoint(constrained, annotationGrid)),
         snap: null,
         guides: [],
       };
@@ -176,9 +183,11 @@ export function createDraftingCreateController({
     const hasObjectSnap =
       (resolved.xMatch && resolved.xMatch.targetKind !== "grid") ||
       (resolved.yMatch && resolved.yMatch.targetKind !== "grid");
-    const finalPoint = resolved.pointMatch
-      ? snapGridPoint(snapped, 1)
-      : snapGridPoint(snapped, annotationGrid);
+    const finalPoint = rectanglePoint(
+      resolved.pointMatch
+        ? snapGridPoint(snapped, 1)
+        : snapGridPoint(snapped, annotationGrid),
+    );
     return {
       point: finalPoint,
       snap: hasObjectSnap ? finalPoint : null,
@@ -279,19 +288,15 @@ export function createDraftingCreateController({
         setStatus(`Added circle ${id}`);
       }
     } else if (active === "rectangle") {
-      const width = Math.round(Math.abs(snappedEnd.x - snappedStart.x));
-      const height = Math.round(Math.abs(snappedEnd.y - snappedStart.y));
+      const { center, width, height } = rectangleGridGeometry(
+        snappedStart,
+        snappedEnd,
+        annotationGrid,
+      );
       if (width < 1 || height < 1) {
         setStatus("Rectangle needs non-zero width and height");
         return;
       }
-      const center = snapGridPoint(
-        {
-          x: Math.round((snappedStart.x + snappedEnd.x) / 2),
-          y: Math.round((snappedStart.y + snappedEnd.y) / 2),
-        },
-        annotationGrid,
-      );
       if (
         transact([
           {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { resolveDraftingObjectGeometry } from "@icm/derived";
-import { createEmptyDocument } from "@icm/model";
+import { createEmptyDocument, DraftingObjectSchema } from "@icm/model";
 import type { DraftingObject } from "@icm/model";
 import { InMemorySymbolResolver, builtInSymbols } from "@icm/symbols";
 
@@ -150,12 +150,70 @@ describe("drafting manipulation", () => {
       10,
     );
     expect(resized).toMatchObject({
-      center: { x: 50, y: 50 },
+      center: { x: 45, y: 45 },
       width: 50,
       height: 30,
-      anchor: { position: { x: 50, y: 50 } },
+      anchor: { position: { x: 45, y: 45 } },
     });
   });
+
+  for (const rotation of [0, 90, 180, 270]) {
+    it.each([1, 5, 10])(
+      `resizes a ${rotation}° rectangle on the %i-unit grid without moving its opposite corner`,
+      (grid) => {
+        const object = {
+          ...rectangle(),
+          center: { x: 150, y: 150 },
+          anchor: { kind: "free" as const, position: { x: 150, y: 150 } },
+          width: 100,
+          height: 100,
+          rotation,
+        };
+        const geometry = resolveDraftingObjectGeometry(
+          document,
+          resolver,
+          object,
+        );
+        if (geometry.kind !== "rectangle") throw new Error("Missing rectangle");
+        const opposite = geometry.corners[2]!;
+        const target = { x: 100 + 11 * grid, y: 100 + 7 * grid };
+        const resized = applyDraftingHandle(
+          object,
+          { kind: "rectangle-corner", index: 0 },
+          target,
+          geometry,
+          grid,
+        );
+        expect(DraftingObjectSchema.safeParse(resized).success).toBe(true);
+        const changed = resolveDraftingObjectGeometry(
+          document,
+          resolver,
+          resized,
+        );
+        if (changed.kind !== "rectangle") throw new Error("Missing rectangle");
+        expect(
+          Math.min(
+            ...changed.corners.map((corner) =>
+              Math.hypot(corner.x - opposite.x, corner.y - opposite.y),
+            ),
+          ),
+        ).toBeLessThan(1e-8);
+        for (const corner of changed.corners) {
+          expect(corner.x / grid).toBeCloseTo(Math.round(corner.x / grid), 8);
+          expect(corner.y / grid).toBeCloseTo(Math.round(corner.y / grid), 8);
+        }
+        const nearest = Math.min(
+          ...changed.corners.map((corner) =>
+            Math.max(
+              Math.abs(corner.x - target.x),
+              Math.abs(corner.y - target.y),
+            ),
+          ),
+        );
+        expect(nearest).toBeLessThanOrEqual(grid + 1e-8);
+      },
+    );
+  }
 
   it("moves and resizes a circle while keeping it orientation-free", () => {
     const object = circle();
