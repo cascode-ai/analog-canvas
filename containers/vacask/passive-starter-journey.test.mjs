@@ -15,60 +15,201 @@ import { initializeVacaskRuntime } from "./runtime.mjs";
 import { executeVacask } from "./execute.mjs";
 import { SimulationRunSupervisor } from "../ngspice/run-supervisor.mjs";
 
-const project = parseProject(
-  await readFile(
+// Analytical series RLC, output across C. Integrate the unit-step response
+// over the unchanged 100 ns source ramp; do not approximate it as an ideal step.
+function rlcReference(resistance) {
+  const L = 0.01,
+    C = 1e-7,
+    a = resistance / (2 * L),
+    w2 = 1 / (L * C);
+  let step, integral;
+  if (Math.abs(w2 - a * a) < w2 * 1e-8) {
+    // The saved critical R has nine significant digits. Use the continuous
+    // critical limit to avoid subtracting nearly equal roots (~5e-11 relative).
+    step = (t) => 1 - Math.exp(-a * t) * (1 + a * t);
+    integral = (t) => t - (2 - (2 + a * t) * Math.exp(-a * t)) / a;
+  } else if (a * a < w2) {
+    const b = Math.sqrt(w2 - a * a);
+    step = (t) =>
+      1 - Math.exp(-a * t) * (Math.cos(b * t) + (a / b) * Math.sin(b * t));
+    integral = (t) => {
+      const c = Math.cos(b * t),
+        s = Math.sin(b * t),
+        e = Math.exp(-a * t);
+      return (
+        t -
+        (e * (-a * c + b * s) + a) / w2 -
+        ((a / b) * (e * (-a * s - b * c) + b)) / w2
+      );
+    };
+  } else {
+    const d = Math.sqrt(a * a - w2),
+      p = -a + d,
+      q = -a - d;
+    const cp = q / (p - q),
+      cq = -p / (p - q);
+    step = (t) => 1 + cp * Math.exp(p * t) + cq * Math.exp(q * t);
+    integral = (t) =>
+      t + (cp * Math.expm1(p * t)) / p + (cq * Math.expm1(q * t)) / q;
+  }
+  const positive = (f, t) => (t > 0 ? f(t) : 0);
+  return (time) => {
+    const t = time - 100e-6,
+      rise = 100e-9;
+    return {
+      voltage: (positive(integral, t) - positive(integral, t - rise)) / rise,
+      current: (C * (positive(step, t) - positive(step, t - rise))) / rise,
+    };
+  };
+}
+
+function assertRlcResult(data, measurements, resistance) {
+  const ac = data.analyses.find((a) => a.analysis === "ac" && a.postprocessor);
+  const tran = data.analyses.find((a) => a.analysis === "tran");
+  expect(ac.frequencyHz).toHaveLength(401);
+  expect(ac.frequencyHz[0]).toBe(100);
+  expect(ac.frequencyHz.at(-1)).toBeCloseTo(1e6, 5);
+  const gain = ac.probes.find((p) => p.name === "Gain");
+  let maxAc = 0;
+  for (const [index, frequency] of ac.frequencyHz.entries()) {
+    const w = 2 * Math.PI * frequency,
+      re = 1 - w * w * 0.01 * 1e-7,
+      im = w * resistance * 1e-7;
+    maxAc = Math.max(
+      maxAc,
+      Math.abs(gain.real[index] - re / (re * re + im * im)),
+      Math.abs(gain.imag[index] + im / (re * re + im * im)),
+    );
+  }
+  expect(maxAc).toBeLessThan(1e-7);
+  const output = tran.probes.find((p) => p.name === "out");
+  const current = tran.probes.find((p) => p.name === "L1:flow(br)");
+  expect(current).toBeDefined();
+  expect(tran.timeSeconds.at(-1)).toBe(1e-3);
+  const reference = rlcReference(resistance);
+  let maxVoltage = 0,
+    maxCurrent = 0;
+  for (const [index, time] of tran.timeSeconds.entries()) {
+    const exact = reference(time);
+    maxVoltage = Math.max(
+      maxVoltage,
+      Math.abs(output.value[index] - exact.voltage),
+    );
+    maxCurrent = Math.max(
+      maxCurrent,
+      Math.abs(current.value[index] - exact.current),
+    );
+  }
+  console.info(
+    "RLC-analytical-errors",
+    JSON.stringify({ resistance, maxAc, maxVoltage, maxCurrent }),
+  );
+  expect(maxVoltage).toBeLessThan(1e-5);
+  expect(maxCurrent).toBeLessThan(1e-7);
+  const measured = (name) => measurements.find((m) => m.name === name).value;
+  expect(measured("peak_output")).toBe(Math.max(...output.value));
+  expect(measured("final_value")).toBe(output.value.at(-1));
+  expect(
+    Math.abs(
+      measured("peak_gain_db") -
+        Math.max(
+          ...gain.real.map(
+            (v, i) => 20 * Math.log10(Math.hypot(v, gain.imag[i])),
+          ),
+        ),
+    ),
+  ).toBeLessThan(1e-10);
+}
+
+const projects = await Promise.all(
+  ["rc", "rlc"].map(async (kind) => ({
+    kind,
+    project: parseProject(
+      await readFile(
+        new URL(
+          `../../apps/editor/src/examples/simulation-${kind}.icproj.json`,
+          import.meta.url,
+        ),
+        "utf8",
+      ),
+    ),
+  })),
+);
+const resistanceFor = (id) =>
+  ({ "rlc-1": 200, "rlc-2": 632.455532, "rlc-3": 1000 })[id];
+const reference = (kind, name) =>
+  readFile(
     new URL(
-      "../../apps/editor/src/examples/simulation-rc.icproj.json",
+      `../../netlists/native-${kind === "rc" ? "rc-filters" : "rlc-filter"}/${name}`,
       import.meta.url,
     ),
     "utf8",
-  ),
-);
-const reference = (name) =>
-  readFile(
-    new URL(`../../netlists/native-rc-filters/${name}`, import.meta.url),
-    "utf8",
   );
 
-it("ships all four RC experiments as native source with editable shared report helpers", async () => {
-  const before = structuredClone(project);
-  expect(project.simulationFolders).toHaveLength(4);
-  for (const folder of project.simulationFolders) {
-    const source = (path) =>
-      folder.input.files.find((file) => file.path === path).text;
-    const template = (
-      await reference(folder.id.endsWith("-ac") ? "ac.sim" : "step.sim")
-    ).replaceAll("\r\n", "\n");
-    expect(source(folder.input.entry)).toBe(
-      folder.name + "\n" + template.slice(template.indexOf("\n") + 1),
-    );
-    expect(source("report.py")).toBe(
-      (await reference("report.py")).replaceAll("\r\n", "\n"),
-    );
-    expect(source("icm_reports.py")).toBe(
-      vacaskMeasurementPythonSource() + "\n" + vacaskPlotPythonSource(),
-    );
-    const compiled = compileSourceSimulation(project, folder);
-    expect(compiled.ok, JSON.stringify(compiled)).toBe(true);
-    expect(compiled.config.environment.profileId).toBe("vacask-passives-v1");
-    expect(
-      compiled.files.find((f) => f.path === "circuit.spice").text,
-    ).toContain('load "capacitor.osdi"');
-  }
-  expect(project).toEqual(before);
-});
+it.each(projects)(
+  "ships $kind experiments as native source with editable shared report helpers",
+  async ({ kind, project }) => {
+    const before = structuredClone(project);
+    expect(project.simulationFolders).toHaveLength(kind === "rc" ? 4 : 3);
+    for (const folder of project.simulationFolders) {
+      const source = (path) =>
+        folder.input.files.find((file) => file.path === path).text;
+      const template = (
+        await reference(
+          kind,
+          kind === "rlc"
+            ? "rlc.sim"
+            : folder.id.endsWith("-ac")
+              ? "ac.sim"
+              : "step.sim",
+        )
+      )
+        .replaceAll("\r\n", "\n")
+        .replace(
+          'alter instance("R1") r=200',
+          `alter instance("R1") r=${resistanceFor(folder.id)}`,
+        );
+      expect(source(folder.input.entry)).toBe(
+        folder.name + "\n" + template.slice(template.indexOf("\n") + 1),
+      );
+      expect(source("report.py")).toBe(
+        (
+          await readFile(
+            new URL(
+              "../../scripts/lib/native-passive-report.py",
+              import.meta.url,
+            ),
+            "utf8",
+          )
+        ).replaceAll("\r\n", "\n"),
+      );
+      expect(source("icm_reports.py")).toBe(
+        vacaskMeasurementPythonSource() + "\n" + vacaskPlotPythonSource(),
+      );
+      const compiled = compileSourceSimulation(project, folder);
+      expect(compiled.ok, JSON.stringify(compiled)).toBe(true);
+      expect(compiled.config.environment.profileId).toBe("vacask-passives-v1");
+      expect(
+        compiled.files.find((f) => f.path === "circuit.spice").text,
+      ).toContain('load "capacitor.osdi"');
+    }
+    expect(project).toEqual(before);
+  },
+);
 
 // Real local, observed native Profile, not pinned/cloud/model qualification.
-it.skipIf(
-  !process.env.VACASK_BIN ||
-    !process.env.VACASK_MODULES ||
-    !process.env.ICM_PYTHON ||
-    !process.env.ICM_PYTHON_LIBRARIES,
-)(
-  "runs the bundled RC low/high-pass AC and step through Prepare/Run/Read, measurements and CSV",
-  async () => {
+it
+  .skipIf(
+    !process.env.VACASK_BIN ||
+      !process.env.VACASK_MODULES ||
+      !process.env.ICM_PYTHON ||
+      !process.env.ICM_PYTHON_LIBRARIES,
+  )
+  .each(projects)(
+  "runs bundled $kind AC and step through Prepare/Run/Read, measurements and CSV",
+  async ({ kind, project }) => {
     const before = structuredClone(project);
-    const root = await mkdtemp(join(tmpdir(), "icm-rc-starters-"));
+    const root = await mkdtemp(join(tmpdir(), `icm-${kind}-starters-`));
     try {
       const startupPath = join(root, "startup.toml");
       await writeFile(
@@ -195,7 +336,7 @@ it.skipIf(
         );
         const result = JSON.parse(await artifactText("result.json"));
         console.info(
-          "RC-native-evidence",
+          "Passive-native-evidence",
           JSON.stringify({
             folderId: folder.id,
             metadata: result.metadata,
@@ -212,7 +353,9 @@ it.skipIf(
           JSON.stringify(measurements),
         ).toBe(true);
         const high = folder.id.includes("-hp-");
-        if (folder.id.endsWith("-ac")) {
+        if (kind === "rlc") {
+          assertRlcResult(result.data, measurements, resistanceFor(folder.id));
+        } else if (folder.id.endsWith("-ac")) {
           const transfer = result.data.analyses.find((a) => a.postprocessor);
           expect(transfer.analysis).toBe("ac");
           expect(transfer.frequencyHz[0]).toBe(10);
@@ -267,7 +410,11 @@ it.skipIf(
         });
         expect(downloaded.ok).toBe(true);
         expect(downloaded.text).toContain(
-          folder.id.endsWith("-ac") ? "gain_at_fc" : "at_one_tau",
+          kind === "rlc"
+            ? "peak_output"
+            : folder.id.endsWith("-ac")
+              ? "gain_at_fc"
+              : "at_one_tau",
         );
       }
       expect(project).toEqual(before);

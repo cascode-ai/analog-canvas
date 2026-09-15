@@ -1,4 +1,4 @@
-"""Editable RC example calculations, using this run's native ASCII outputs only.
+"""Editable passive example calculations, using this run's native ASCII outputs only.
 
 No numpy dependency, hidden frontend evaluator, or ngspice subprocess. The
 shared icm_reports.py helper reports results; it does not perform the math.
@@ -51,13 +51,17 @@ def sample(axis, values, target):
     )
 
 
-if sys.argv[1] == "ac":
+mode = sys.argv[1]
+if mode not in ("ac", "step", "rlc"):
+    raise ValueError("Expected ac, step, or rlc example analyses")
+
+if mode in ("ac", "rlc"):
     data = read_ascii("frequency.raw")
     frequency = [v.real for v in data["frequency"]]
     gain = [out / inp for inp, out in zip(data["in"], data["out"])]
     # Preserve the complex transfer. The common Plot UI supplies dB and phase
     # rather than representing already-logarithmic values as complex voltages.
-    lines = ["Title: RC transfer", "Date: Current run", "Plotname: RC Gain",
+    lines = ["Title: Passive transfer", "Date: Current run", "Plotname: Gain",
              "Flags: complex", "No. Variables: 2", f"No. Points: {len(gain)}",
              "Variables:", "0 frequency notype", "1 Gain notype", "Values:"]
     for index, (freq, value) in enumerate(zip(frequency, gain)):
@@ -65,11 +69,16 @@ if sys.argv[1] == "ac":
     Path("gain.raw").write_text("\n".join(lines) + "\n")
     report_plot("gain.raw", "ac", axis="frequency",
                 probes=[{"name": "Gain", "quantity": "transfer", "unit": "1"}])
-    report_measurement("gain_at_fc", lambda: sample(
-        frequency, [20 * log10(abs(v)) for v in gain], 1591.549431), "dB")
-elif sys.argv[1] == "step":
+    if mode == "ac":
+        report_measurement("gain_at_fc", lambda: sample(
+            frequency, [20 * log10(abs(v)) for v in gain], 1591.549431), "dB")
+    else:
+        report_measurement("peak_gain_db", lambda: max(20 * log10(abs(v)) for v in gain), "dB")
+
+if mode in ("step", "rlc"):
     data = read_ascii("step.raw")
-    report_measurement("at_one_tau", lambda: sample(data["time"], data["out"], 200.05e-6), "V")
+    if mode == "step":
+        report_measurement("at_one_tau", lambda: sample(data["time"], data["out"], 200.05e-6), "V")
+    else:
+        report_measurement("peak_output", lambda: max(data["out"]), "V")
     report_measurement("final_value", lambda: sample(data["time"], data["out"], 1e-3), "V")
-else:
-    raise ValueError("Expected the ac or step example analysis")

@@ -13,11 +13,12 @@ Cancelling either prompt must leave the original Project installed. Never infer
 that a Project is empty from its currently visible Cell.
 
 The starter programs cover 4 RC, 3 RLC, 4 common-source and 8 OTA experiments.
-On the VACASK migration branch, the four RC experiments are translated to native
-VACASK; see their [recipes and acceptance](../../../../netlists/native-rc-filters/README.md).
+On the VACASK migration branch, four RC and three RLC experiments are translated
+to native VACASK; see [RC acceptance](../../../../netlists/native-rc-filters/README.md)
+and [RLC acceptance](../../../../netlists/native-rlc-filter/README.md).
 Their Canvas data is preserved; only executable source, report files and requested
 Profile change. AC exposes a complex Gain trace with common dB/phase views.
-The RLC, common-source and OTA recipes still contain legacy ngspice programs and
+The common-source and OTA recipes still contain legacy ngspice programs and
 are not yet runnable through the native compiler. Tests intentionally continue
 to reject those unfinished conversions; a Code-only config does not establish
 that its executable source is native. Historical numerical
