@@ -295,9 +295,7 @@ test("paired refresh and Gallery return preserve the saved Cloud binding", async
     ],
   });
   await expect
-    .poll(async () =>
-      (await recoveryProjectTexts(page)).includes("paired-R"),
-    )
+    .poll(async () => (await recoveryProjectTexts(page)).includes("paired-R"))
     .toBe(true);
   page.on("dialog", (dialog) => void dialog.accept());
   await page.reload();
