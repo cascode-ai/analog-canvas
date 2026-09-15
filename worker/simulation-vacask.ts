@@ -143,7 +143,9 @@ function selectRunner(
       return fetch(new URL(new URL(path).pathname, base), {
         ...init,
         headers,
-        redirect: "error",
+        // Workers supports manual/follow, not the browser's "error" mode.
+        // Every caller rejects non-2xx replies, so credentials never follow a redirect.
+        redirect: "manual",
       });
     },
   };

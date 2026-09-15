@@ -53,6 +53,7 @@ describe("dual-engine Profile routing", () => {
   it("runs VACASK only at its own origin with its own credential", async () => {
     const fetcher = vi.fn(async (url: URL, init: RequestInit) => {
       expect(url.origin).toBe("https://vacask.test");
+      expect(init.redirect).toBe("manual");
       expect(new Headers(init.headers).get("authorization")).toBe(
         "Bearer vacask-test-only",
       );
@@ -112,6 +113,20 @@ describe("dual-engine Profile routing", () => {
     const fetcher = vi.fn(async (url: URL) => {
       expect(url.hostname).toBe("vacask.test");
       return new Response("offline", { status: 503 });
+    });
+    vi.stubGlobal("fetch", fetcher);
+    expect(
+      (await routeSimulationRequest(post(nativeInput()), env))!.status,
+    ).toBe(503);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+  it("does not follow a native gateway redirect or forward its credential elsewhere", async () => {
+    const fetcher = vi.fn(async (_url: URL, init: RequestInit) => {
+      expect(init.redirect).toBe("manual");
+      return new Response(null, {
+        status: 302,
+        headers: { location: "https://unrelated.test/health" },
+      });
     });
     vi.stubGlobal("fetch", fetcher);
     expect(
