@@ -268,13 +268,16 @@ export async function copyNetlistText(
   await page.evaluate(() =>
     navigator.clipboard.writeText("clipboard sentinel"),
   );
-  if (format)
-    await clickCommand(
-      page,
-      "Netlist",
-      `Copy ${format === "spice" ? "SPICE" : "Spectre"} netlist`,
-    );
-  else await page.getByTestId("copy-netlist").click();
+  const panel = page.getByRole("region", {
+    name: "Live netlist",
+    exact: true,
+  });
+  if (!(await panel.isVisible())) {
+    await page.getByTestId("netlist-panel-toggle").click();
+    await expect(panel).toBeVisible();
+  }
+  if (format) await panel.getByLabel("Netlist format").selectOption(format);
+  await panel.getByTestId("copy-netlist-panel").click();
   await expect
     .poll(() => page.evaluate(() => navigator.clipboard.readText()))
     .not.toBe("clipboard sentinel");

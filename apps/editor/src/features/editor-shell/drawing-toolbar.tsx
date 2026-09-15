@@ -1,3 +1,5 @@
+import { useId, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import type { EditorTool } from "../../interaction/interaction-state";
 import { ToolIcon } from "./tool-icon";
 import {
@@ -17,6 +19,7 @@ interface ToolbarCommand {
 export interface DrawingToolbarProps {
   leftPanelMode: "examples" | "library";
   libraryPanelOpen: boolean;
+  projectPanel: "netlist" | "project-code" | null;
   leftPanelsDisabled?: boolean;
   tool: EditorTool;
   arrowPreset?: ArrowPreset;
@@ -27,15 +30,86 @@ export interface DrawingToolbarProps {
   simulation?: { open: boolean; onToggle: () => void };
   onToggleExamples: () => void;
   onToggleLibrary: () => void;
+  onToggleNetlist: () => void;
+  onToggleProjectCode: () => void;
   onInsert: () => void;
   onActivateTool: (tool: EditorTool) => void;
   onAddText: () => void;
   onOpenDocumentSettings: () => void;
 }
 
+function ImmediatePanelButton({
+  testId,
+  label,
+  tooltip,
+  pressed,
+  controls,
+  disabled,
+  onClick,
+  children,
+}: {
+  testId: string;
+  label: string;
+  tooltip: string;
+  pressed: boolean;
+  controls?: string;
+  disabled?: boolean;
+  onClick(): void;
+  children: ReactNode;
+}) {
+  const tooltipId = useId();
+  const [position, setPosition] = useState<{
+    left: number;
+    top: number;
+  } | null>(null);
+  const show = (target: HTMLElement): void => {
+    const bounds = target.getBoundingClientRect();
+    setPosition({
+      left: bounds.left + bounds.width / 2,
+      top: bounds.bottom + 6,
+    });
+  };
+  return (
+    <>
+      <button
+        type="button"
+        className="draw-tool"
+        aria-label={label}
+        aria-describedby={position ? tooltipId : undefined}
+        aria-pressed={pressed}
+        aria-expanded={pressed}
+        aria-controls={controls}
+        data-testid={testId}
+        disabled={disabled}
+        onClick={onClick}
+        onPointerEnter={(event) => show(event.currentTarget)}
+        onPointerLeave={() => setPosition(null)}
+        onFocus={(event) => show(event.currentTarget)}
+        onBlur={() => setPosition(null)}
+      >
+        {children}
+      </button>
+      {position && typeof document !== "undefined"
+        ? createPortal(
+            <span
+              id={tooltipId}
+              role="tooltip"
+              className="instant-toolbar-tooltip"
+              style={position}
+            >
+              {tooltip}
+            </span>,
+            document.body,
+          )
+        : null}
+    </>
+  );
+}
+
 export function DrawingToolbar({
   leftPanelMode,
   libraryPanelOpen,
+  projectPanel,
   leftPanelsDisabled = false,
   tool,
   arrowPreset = DEFAULT_ARROW_PRESET,
@@ -45,6 +119,8 @@ export function DrawingToolbar({
   redo,
   onToggleExamples,
   onToggleLibrary,
+  onToggleNetlist,
+  onToggleProjectCode,
   onInsert,
   onActivateTool,
   onAddText,
@@ -60,38 +136,58 @@ export function DrawingToolbar({
       aria-label="Drawing tools"
       data-testid="draw-toolbar"
     >
-      <button
-        type="button"
-        className="draw-tool examples-toggle"
-        title={
+      <ImmediatePanelButton
+        testId="examples-toggle"
+        label="Circuit gallery"
+        tooltip={
           examplesOpen ? "Hide the circuit gallery" : "Show the circuit gallery"
         }
-        aria-pressed={examplesOpen}
-        aria-controls="examples-panel"
-        aria-expanded={examplesOpen}
-        data-testid="examples-toggle"
+        pressed={examplesOpen}
+        controls="examples-panel"
         disabled={leftPanelsDisabled}
         onClick={onToggleExamples}
       >
         <ToolIcon name="examples" />
         <span>Gallery</span>
-      </button>
-      <button
-        type="button"
-        className="draw-tool"
-        title={
+      </ImmediatePanelButton>
+      <ImmediatePanelButton
+        testId="library-toggle"
+        label="Component library"
+        tooltip={
           libraryPanelOpen ? "Hide component library" : "Show component library"
         }
-        aria-pressed={libraryOpen}
-        aria-controls="shapes-library-panel"
-        aria-expanded={libraryOpen}
-        data-testid="library-toggle"
+        pressed={libraryOpen}
+        controls="shapes-library-panel"
         disabled={leftPanelsDisabled}
         onClick={onToggleLibrary}
       >
         <ToolIcon name="library" />
         <span>Library</span>
-      </button>
+      </ImmediatePanelButton>
+      <ImmediatePanelButton
+        testId="netlist-panel-toggle"
+        label="Netlist"
+        tooltip={projectPanel === "netlist" ? "Hide Netlist" : "Show Netlist"}
+        pressed={projectPanel === "netlist"}
+        onClick={onToggleNetlist}
+      >
+        <ToolIcon name="netlist" />
+        <span>Netlist</span>
+      </ImmediatePanelButton>
+      <ImmediatePanelButton
+        testId="project-code-toggle"
+        label="Project Code"
+        tooltip={
+          projectPanel === "project-code"
+            ? "Hide Project Code"
+            : "Show Project Code"
+        }
+        pressed={projectPanel === "project-code"}
+        onClick={onToggleProjectCode}
+      >
+        <ToolIcon name="project-code" />
+        <span>Project Code</span>
+      </ImmediatePanelButton>
       <span className="draw-toolbar-divider" aria-hidden="true" />
       <button
         type="button"

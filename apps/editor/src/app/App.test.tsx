@@ -115,8 +115,10 @@ describe("editor shell", () => {
     const netlistEnd = markup.indexOf("</details>", netlistStart);
     const netlistMenu = markup.slice(netlistStart, netlistEnd);
     expect(netlistStart).toBeGreaterThan(-1);
-    expect(netlistMenu).toContain("Copy SPICE netlist");
-    expect(netlistMenu).toContain("Copy Spectre netlist");
+    expect(netlistMenu).not.toContain("Copy SPICE netlist");
+    expect(netlistMenu).not.toContain("Copy Spectre netlist");
+    expect(markup).toContain('data-testid="netlist-panel-toggle"');
+    expect(markup).toContain('data-testid="project-code-toggle"');
     expect(markup).toContain("Check Report…");
     expect(netlistMenu).not.toContain('data-testid="open-analog-simulation"');
     expect(markup).toContain('data-testid="open-analog-simulation"');

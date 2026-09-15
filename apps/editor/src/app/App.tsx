@@ -178,7 +178,16 @@ import {
 import { EditorDialogLayer } from "./editor-dialog-layer";
 import { EditorAppChrome } from "./editor-app-chrome";
 import { EditorRightDock } from "./editor-right-dock";
+import {
+  EditorProjectDock,
+  type EditorProjectPanelMode,
+} from "./editor-project-dock";
 import { EditorPropertiesDock } from "./editor-properties-dock";
+import { ProjectCodePanel } from "../features/project-code/project-code-panel";
+import {
+  formatProjectCode,
+  planProjectCodeCommit,
+} from "../features/project-code/project-code";
 import { LazySpiceSimulationSurface } from "./lazy-editor-dialogs";
 import { recoverSourceDrafts } from "../features/simulation/source-draft-cache";
 import type { NewTestbenchRequest } from "../features/simulation/new-testbench-dialog";
@@ -569,6 +578,7 @@ export function App({
     canRedo,
     openDocument,
     replaceProject,
+    commitProjectStructure,
     dispatchProjectTransaction,
     transact: transactDocument,
     controller: editorDocumentController,
@@ -749,12 +759,9 @@ export function App({
     command: string;
   } | null>(null);
   const [netlistPreflightOpen, setNetlistPreflightOpen] = useState(false);
-  const [codePanel, setCodePanel] = useState<
-    "netlist" | "configuration" | "instances" | null
-  >(null);
-  const [netlistFormat, setNetlistFormat] = useState<"spice" | "spectre">(
-    "spice",
-  );
+  const [projectPanel, setProjectPanel] =
+    useState<EditorProjectPanelMode | null>(null);
+  const propertiesOpenBeforeProjectPanelRef = useRef(false);
   const [netlistNamingProfile, setNetlistNamingProfile] = useState<
     "native" | "cadence-bang"
   >("native");
@@ -3268,7 +3275,7 @@ export function App({
   }, [document, visualSelection]);
 
   function openProperties(): void {
-    setCodePanel(null);
+    setProjectPanel(null);
     setImportReviewOpen(false);
     setSelectionOpen(true);
     // Focus the header, not the first field: Q stays a pure toggle and
@@ -3279,10 +3286,33 @@ export function App({
   }
 
   function closeProperties(): void {
-    setCodePanel(null);
     exitCellSymbolLayout();
     setSelectionOpen(false);
     setImportReviewOpen(false);
+  }
+
+  function showProjectPanel(mode: EditorProjectPanelMode): void {
+    exitCellSymbolLayout();
+    if (projectPanel === null) {
+      propertiesOpenBeforeProjectPanelRef.current = selectionOpen;
+    }
+    setProjectPanel(mode);
+    setSelectionOpen(false);
+    setImportReviewOpen(false);
+    if (compactLayout) setCompactLibraryPanelOpen(false);
+  }
+
+  function closeProjectPanel(): void {
+    setProjectPanel(null);
+    setSelectionOpen(propertiesOpenBeforeProjectPanelRef.current);
+  }
+
+  function toggleProjectPanel(mode: "netlist" | "project-code"): void {
+    if (projectPanel === mode) {
+      closeProjectPanel();
+      return;
+    }
+    showProjectPanel(mode);
   }
 
   function selectAllObjects(): void {
@@ -3989,11 +4019,9 @@ export function App({
       guardDirtyReplacement,
       replaceActiveProject,
       showNetlist: (format, namingProfile) => {
-        setNetlistFormat(format);
+        netlistPreferences.selectFormat(format);
         setNetlistNamingProfile(namingProfile);
-        setCodePanel("netlist");
-        setSelectionOpen(true);
-        if (compactLayout) setCompactLibraryPanelOpen(false);
+        showProjectPanel("netlist");
       },
       setImportReport,
       setImportReviewOpen,
@@ -4760,23 +4788,19 @@ export function App({
               })
             : []
         }
-        instanceCodeOpen={codePanel === "instances" && selectionOpen}
+        instanceCodeOpen={projectPanel === "instances"}
         netlistPreflightOpen={netlistPreflightOpen}
         checkAndSave={{
           enabled: !saveBusy && !projectCheck.busy,
           execute: () => void projectCheck.checkAndSave(),
         }}
         onOpenInstanceCode={() => {
-          setCodePanel("instances");
-          setSelectionOpen(true);
-          if (compactLayout) setCompactLibraryPanelOpen(false);
+          showProjectPanel("instances");
         }}
         netlistProfileId={netlistPreferences.profile.id}
-        netlistFormat={netlistFormat}
+        netlistFormat={netlistPreferences.format}
         onOpenNetlistConfiguration={() => {
-          setCodePanel("configuration");
-          setSelectionOpen(true);
-          if (compactLayout) setCompactLibraryPanelOpen(false);
+          showProjectPanel("netlist-configuration");
         }}
         onOpenNetlistPreflight={() => setNetlistPreflightOpen(true)}
         onExportNetlist={exportDesignNetlist}
@@ -4819,6 +4843,12 @@ export function App({
           },
           leftPanelMode,
           libraryPanelOpen: visibleLibraryPanelOpen,
+          projectPanel:
+            projectPanel === "project-code"
+              ? "project-code"
+              : projectPanel
+                ? "netlist"
+                : null,
           leftPanelsDisabled: false,
           tool,
           documentSettingsOpen,
@@ -4832,6 +4862,8 @@ export function App({
           },
           onToggleExamples: toggleExamplesPanel,
           onToggleLibrary: toggleLibraryPanel,
+          onToggleNetlist: () => toggleProjectPanel("netlist"),
+          onToggleProjectCode: () => toggleProjectPanel("project-code"),
           onInsert: () =>
             editorCommands.execute({
               id: "insert.start",
@@ -4845,6 +4877,7 @@ export function App({
           onAddText: () => editorCommands.execute({ id: "drafting.add-text" }),
           onOpenDocumentSettings: () => {
             setDocumentSettingsOpen((open) => !open);
+            setProjectPanel(null);
             setSelectionOpen(true);
           },
           ...(timingUiEnabled
@@ -5112,14 +5145,15 @@ export function App({
                 open: netlistPreflightOpen,
                 project,
                 profile: netlistPreferences.profile,
+                format: netlistPreferences.format,
                 // The dialog only renders while open, so this IS the
                 // explicit check the author asked for.
                 electricalDiagnostics: requestElectricalDiagnostics(),
                 onClose: () => setNetlistPreflightOpen(false),
                 onNavigate: navigateToNetlistDiagnostic,
                 onNavigateElectrical: jumpToProjectDiagnostic,
-                onExport: (format, namingProfile) =>
-                  exportDesignNetlist(format, namingProfile),
+                onExport: (namingProfile) =>
+                  exportDesignNetlist(netlistPreferences.format, namingProfile),
               }
             : null
         }
@@ -5286,7 +5320,8 @@ export function App({
           } as CSSProperties
         }
       >
-        {selectionOpen && !analogSimulationMaximized ? (
+        {(selectionOpen || projectPanel !== null) &&
+        !analogSimulationMaximized ? (
           <div
             className="properties-resize-handle"
             role="separator"
@@ -5596,26 +5631,36 @@ export function App({
               </Suspense>
             ) : null
           }
-          properties={
-            <EditorPropertiesDock
-              open={selectionOpen}
-              configuration={
-                codePanel === "configuration" ? (
+          project={
+            projectPanel ? (
+              <EditorProjectDock
+                mode={projectPanel}
+                onSelect={showProjectPanel}
+                onClose={closeProjectPanel}
+              >
+                {projectPanel === "netlist-configuration" ? (
                   <NetlistProfileCode
                     text={netlistPreferences.text}
                     error={netlistPreferences.error}
                     onChange={netlistPreferences.changeText}
                   />
-                ) : codePanel === "netlist" ? (
+                ) : projectPanel === "netlist" ? (
                   <NetlistCodePanel
                     project={project}
-                    format={netlistFormat}
+                    format={netlistPreferences.format}
                     namingProfile={netlistNamingProfile}
                     profile={netlistPreferences.profile}
                     onProfileChange={netlistPreferences.selectProfile}
+                    onFormatChange={netlistPreferences.selectFormat}
+                    onCopy={() =>
+                      exportDesignNetlist(
+                        netlistPreferences.format,
+                        netlistNamingProfile,
+                      )
+                    }
                     configurationError={netlistPreferences.error}
                   />
-                ) : codePanel === "instances" ? (
+                ) : projectPanel === "instances" ? (
                   <InstanceCodePanel
                     key={projectSessionId}
                     project={project}
@@ -5631,13 +5676,63 @@ export function App({
                       return committed;
                     }}
                   />
-                ) : undefined
-              }
+                ) : (
+                  <ProjectCodePanel
+                    project={project}
+                    onApply={(source, baseline) => {
+                      if (formatProjectCode(project) !== baseline) {
+                        return {
+                          ok: false,
+                          message:
+                            "The canvas or Agent changed this Project while you were editing. Reload the live code before applying.",
+                        };
+                      }
+                      const plan = planProjectCodeCommit(
+                        project,
+                        source,
+                        document.id,
+                      );
+                      if (!plan.ok) return plan;
+                      if (!plan.changed) {
+                        setStatus("Project Code is already up to date");
+                        return { ok: true };
+                      }
+                      try {
+                        resetInteractionState();
+                        const nextDocument = commitProjectStructure(
+                          plan.project,
+                          plan.activeDocumentId,
+                        );
+                        documentViewBoxes.current = new Map();
+                        setDocumentStack([]);
+                        setViewBox(
+                          DEFAULT_VIEWBOX,
+                          nextDocument.presentation.grid,
+                        );
+                        setStatus("Applied complete Project Code");
+                        return { ok: true };
+                      } catch (error) {
+                        return {
+                          ok: false,
+                          message:
+                            error instanceof Error
+                              ? error.message
+                              : "Could not apply Project Code",
+                        };
+                      }
+                    }}
+                  />
+                )}
+              </EditorProjectDock>
+            ) : null
+          }
+          properties={
+            <EditorPropertiesDock
+              open={selectionOpen}
               shelfRef={selectionShelfRef}
               onToggle={() => {
                 if (selectionOpen) {
                   exitCellSymbolLayout();
-                  setCodePanel(null);
                 }
                 // Narrow layouts have room for one side panel. Whichever the user
                 // just asked for wins.

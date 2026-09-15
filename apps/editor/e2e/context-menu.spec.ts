@@ -734,7 +734,7 @@ test("visual clipboard reports denied access and empty selection without downloa
   expect(downloads).toEqual([]);
 });
 
-test("Netlist exposes direct SPICE and Spectre exports while File keeps drawing exports", async ({
+test("Netlist keeps format selection in the project panel while File keeps drawing exports", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -757,13 +757,20 @@ test("Netlist exposes direct SPICE and Spectre exports while File keeps drawing 
       name: "Copy SPICE netlist",
       exact: true,
     }),
-  ).toBeVisible();
+  ).toHaveCount(0);
   await expect(
     netlistMenu.getByRole("button", {
       name: "Copy Spectre netlist",
       exact: true,
     }),
-  ).toBeVisible();
+  ).toHaveCount(0);
+  await page.getByTestId("netlist-panel-toggle").click();
+  const projectPanel = page.getByRole("region", {
+    name: "Live netlist",
+    exact: true,
+  });
+  await expect(projectPanel.getByLabel("Netlist process")).toBeVisible();
+  await expect(projectPanel.getByLabel("Netlist format")).toBeVisible();
   await openMenu(page, "File");
   await menu
     .getByRole("button", { name: "Export drawing", exact: true })

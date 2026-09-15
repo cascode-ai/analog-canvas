@@ -946,11 +946,18 @@ test("previews a validated structural netlist in both export dialects", async ({
   page,
 }) => {
   await page.goto("/editor");
+  await page.getByTestId("netlist-panel-toggle").click();
+  const netlistPanel = page.getByRole("region", {
+    name: "Live netlist",
+    exact: true,
+  });
   await clickCommand(page, "Netlist", "Check Report…");
   const dialog = page.getByRole("dialog", { name: "Check Report" });
   const preview = dialog.getByTestId("netlist-preview");
   await expect(preview).toContainText(".subckt Main");
-  await dialog.getByLabel("Netlist export format").selectOption("spectre");
+  await dialog.getByTestId("check-report-close").click();
+  await netlistPanel.getByLabel("Netlist format").selectOption("spectre");
+  await clickCommand(page, "Netlist", "Check Report…");
   await expect(preview).toContainText("simulator lang=spectre");
 });
 
@@ -5948,8 +5955,9 @@ test("copies structural SPICE and Spectre netlists while exposing instance autho
   const spectre = await copyNetlistText(page, "spectre");
   expect(spectre).toContain("simulator lang=spectre");
   const primary = page.getByTestId("copy-netlist");
-  await expect(primary).toHaveAccessibleName("Copy Spectre netlist");
-  await expect(primary).toContainText("SCS");
+  await expect(primary).toHaveAccessibleName("Copy netlist");
+  await expect(primary).toContainText("Copy");
+  await expect(primary).toHaveAttribute("title", /Spectre \(\.scs\)/u);
   expect(await copyNetlistText(page)).toBe(spectre);
   await expect(page.getByRole("dialog", { name: "Check Report" })).toHaveCount(
     0,
@@ -5978,6 +5986,70 @@ test("copies structural SPICE and Spectre netlists while exposing instance autho
   await expectComponentCodeField(page, "netlistName", "M1");
   await expectComponentCodeField(page, "netlistTarget", "");
   await expect(properties.getByText(/^Model:/u)).toHaveCount(0);
+});
+
+test("edits the complete Project Code with one undo boundary and protects a stale draft", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await page.getByTestId("project-code-toggle").click();
+  const projectCode = page.getByRole("textbox", { name: "Project code" });
+  const apply = page.getByRole("button", { name: "Apply", exact: true });
+  const reload = page.getByRole("button", { name: "Reload", exact: true });
+  await expect(projectCode).toBeVisible();
+
+  const original = JSON.parse(await projectCode.inputValue());
+  const edited = structuredClone(original);
+  edited.name = "Edited Project";
+  edited.documents[0].name = "Edited Main";
+  await projectCode.fill(JSON.stringify(edited, null, 2));
+  await apply.click();
+  await expect(page.getByTestId("project-name-input")).toHaveValue(
+    "Edited Project",
+  );
+  await expect(page.getByTestId("active-document-name")).toHaveText(
+    "Edited Main",
+  );
+  await expect(page.getByTestId("status")).toContainText(
+    "Applied complete Project Code",
+  );
+
+  await page.getByTestId("draw-tool-undo").click();
+  await expect(page.getByTestId("project-name-input")).toHaveValue(
+    original.name,
+  );
+  await expect(page.getByTestId("active-document-name")).toHaveText(
+    original.documents[0].name,
+  );
+
+  await projectCode.fill("{");
+  await expect(apply).toBeDisabled();
+  await expect(page.getByRole("alert")).toBeVisible();
+  await reload.click();
+
+  const staleDraft = JSON.parse(await projectCode.inputValue());
+  staleDraft.name = "Draft Project";
+  await projectCode.fill(JSON.stringify(staleDraft, null, 2));
+  const projectName = page.getByTestId("project-name-input");
+  await projectName.fill("Canvas changed");
+  await projectName.press("Enter");
+  await expect(page.getByRole("alert")).toContainText("live Project changed");
+  await expect(apply).toBeDisabled();
+  await reload.click();
+  await expect(projectCode).toHaveValue(/"name": "Canvas changed"/u);
+});
+
+test("shows the component-library tooltip without a native hover delay", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  const library = page.getByTestId("library-toggle");
+  if ((await library.getAttribute("aria-pressed")) === "true") {
+    await library.click();
+  }
+  await expect(library).not.toHaveAttribute("title");
+  await library.hover();
+  await expect(page.getByRole("tooltip")).toHaveText("Show component library");
 });
 
 test("shows and copies a live MOS netlist when only bulk terminals are omitted", async ({
@@ -6024,7 +6096,7 @@ test("shows and copies a live MOS netlist when only bulk terminals are omitted",
   ).toHaveCount(0);
 });
 
-test("edits all netlist presets as raw JSON in Properties and remembers valid changes", async ({
+test("edits process configuration as raw JSON and remembers process and format independently", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -6045,7 +6117,7 @@ test("edits all netlist presets as raw JSON in Properties and remembers valid ch
   await code.fill(JSON.stringify(config, null, 2));
   const sky = await copyNetlistText(page, "spice");
   expect(sky).toContain('.lib "/opt/sky130/continuous/sky130.lib.spice" tt');
-  const preset = page.getByRole("combobox", { name: "Netlist preset" });
+  const preset = page.getByRole("combobox", { name: "Netlist process" });
   await expect(preset).toHaveValue("sky130");
   await preset.selectOption("tsmc28");
   await expect(
@@ -6061,7 +6133,9 @@ test("edits all netlist presets as raw JSON in Properties and remembers valid ch
   await code.fill(JSON.stringify(config, null, 2));
   await page.reload();
   await clickCommand(page, "Netlist", "Configuration…");
-  await expect(code).toHaveValue(JSON.stringify(config, null, 2));
+  await expect
+    .poll(async () => JSON.parse(await code.inputValue()))
+    .toEqual(config);
   await code.fill("{");
   await expect(panel.getByRole("alert")).toContainText("Copying is paused");
   await page.getByTestId("copy-netlist").click();
@@ -6122,7 +6196,11 @@ test("copies an incomplete netlist in one click and previews its TODO fields", a
   await expect(report.getByTestId("netlist-preview")).toContainText(
     "R1 NC0001 NC0002 {TODO_Main_R1_value}",
   );
-  await report.getByLabel("Netlist export format").selectOption("spectre");
+  await report.getByTestId("check-report-close").click();
+  await page
+    .getByRole("combobox", { name: "Netlist format" })
+    .selectOption("spectre");
+  await clickCommand(page, "Netlist", "Check Report…");
   await expect(report.getByTestId("netlist-preview")).toContainText(
     "R1 (NC0001 NC0002) resistor r=TODO_Main_R1_value",
   );

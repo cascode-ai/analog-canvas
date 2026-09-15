@@ -348,7 +348,7 @@ export function EditorAppChrome({
                 type="button"
                 className="toolbar-button netlist-copy"
                 data-testid="copy-netlist"
-                aria-label={`Copy ${netlistFormat === "spice" ? "SPICE" : "Spectre"} netlist`}
+                aria-label="Copy netlist"
                 title={`Copy ${NETLIST_PROFILE_LABELS[netlistProfileId]} ${netlistFormat === "spice" ? "SPICE (.spi)" : "Spectre (.scs)"} netlist`}
                 onClick={() => copyNetlist(netlistFormat)}
               >
@@ -367,9 +367,7 @@ export function EditorAppChrome({
                   />
                 </svg>
                 Netlist
-                <span className="netlist-format">
-                  {netlistFormat === "spice" ? "SPICE" : "SCS"}
-                </span>
+                <span className="netlist-format">Copy</span>
               </button>
               <details className="command-menu" name="editor-command-menu">
                 <summary
@@ -379,18 +377,6 @@ export function EditorAppChrome({
                 <div className="command-popover">
                   <button type="button" onClick={onOpenNetlistConfiguration}>
                     Configuration…
-                  </button>
-                  <button type="button" onClick={() => copyNetlist("spice")}>
-                    Copy SPICE netlist
-                    <span className="netlist-extension" aria-hidden="true">
-                      .spi
-                    </span>
-                  </button>
-                  <button type="button" onClick={() => copyNetlist("spectre")}>
-                    Copy Spectre netlist
-                    <span className="netlist-extension" aria-hidden="true">
-                      .scs
-                    </span>
                   </button>
                   <span className="command-group-label">Authoring</span>
                   <button

@@ -68,6 +68,23 @@
   font-weight: 600;
 }
 
+.instant-toolbar-tooltip {
+  position: fixed;
+  z-index: 1000;
+  transform: translateX(-50%);
+  max-width: min(22rem, calc(100vw - 16px));
+  padding: 6px 9px;
+  border: 1px solid var(--icm-border-strong);
+  border-radius: var(--icm-radius-sm);
+  background: var(--icm-surface);
+  color: var(--icm-text);
+  box-shadow: var(--icm-shadow-md);
+  font-size: var(--icm-font-sm);
+  line-height: var(--icm-line-tight);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
 .toolbar-group {
   display: inline-flex;
   flex-wrap: wrap;
@@ -201,15 +218,32 @@
   justify-content: space-between;
   gap: 8px;
 }
-.netlist-code-header select {
+.netlist-code-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 0.7fr) auto;
+  align-items: end;
+  gap: 8px;
+}
+.netlist-code-controls label {
+  display: grid;
+  gap: 4px;
   min-width: 0;
-  max-width: 70%;
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
+  font-weight: 600;
+}
+.netlist-code-controls select {
+  min-width: 0;
+  width: 100%;
   padding: 4px 24px 4px 8px;
   border: 1px solid var(--icm-border);
   border-radius: 6px;
   background: var(--icm-surface);
   color: var(--icm-text);
   font: inherit;
+}
+.netlist-code-controls button {
+  min-height: 30px;
 }
 .netlist-profile-code p {
   font-size: 12px;

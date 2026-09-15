@@ -31,6 +31,7 @@ describe("NetlistPreflightDialog", () => {
       <NetlistPreflightDialog
         open
         project={project}
+        format="spice"
         electricalDiagnostics={[electrical]}
         onClose={() => undefined}
         onNavigate={() => undefined}
@@ -54,6 +55,7 @@ describe("NetlistPreflightDialog", () => {
       <NetlistPreflightDialog
         open
         project={project}
+        format="spectre"
         electricalDiagnostics={[]}
         onClose={() => undefined}
         onNavigate={() => undefined}
@@ -63,7 +65,9 @@ describe("NetlistPreflightDialog", () => {
     );
 
     expect(markup).toContain('aria-label="Netlist naming profile"');
+    expect(markup).not.toContain('aria-label="Netlist export format"');
     expect(markup).toContain('value="cadence-bang"');
     expect(markup).toContain("Cadence `!` globals");
+    expect(markup).toContain("Copy Spectre netlist");
   });
 });

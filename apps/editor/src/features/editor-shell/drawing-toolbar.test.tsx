@@ -9,6 +9,7 @@ describe("DrawingToolbar", () => {
       <DrawingToolbar
         leftPanelMode="examples"
         libraryPanelOpen
+        projectPanel="project-code"
         tool="wire"
         documentSettingsOpen
         undo={{ enabled: true, execute: vi.fn() }}
@@ -16,6 +17,8 @@ describe("DrawingToolbar", () => {
         simulation={{ open: true, onToggle: vi.fn() }}
         onToggleExamples={vi.fn()}
         onToggleLibrary={vi.fn()}
+        onToggleNetlist={vi.fn()}
+        onToggleProjectCode={vi.fn()}
         onInsert={vi.fn()}
         onActivateTool={vi.fn()}
         onAddText={vi.fn()}
@@ -25,6 +28,8 @@ describe("DrawingToolbar", () => {
 
     expect(markup).toContain('data-testid="draw-toolbar"');
     expect(markup).toContain('data-testid="examples-toggle"');
+    expect(markup).toContain('data-testid="netlist-panel-toggle"');
+    expect(markup).toContain('data-testid="project-code-toggle"');
     expect(markup).toContain('data-testid="draw-tool-wire"');
     expect(markup).toContain('aria-pressed="true"');
     expect(markup).toContain("Insert component (I)");

@@ -4,18 +4,21 @@ import {
   isNetlistExportProfile,
   NETLIST_PROFILE_IDS,
   type NetlistExportProfile,
+  type NetlistFormat,
   type NetlistProfileId,
 } from "@icm/netlist";
 
 export const NETLIST_EXPORT_PREFERENCES_KEY = "icm.netlist-export.v1";
 export interface NetlistExportPreferences {
   selected: NetlistProfileId;
+  format: NetlistFormat;
   profiles: Record<NetlistProfileId, NetlistExportProfile>;
 }
 
 function defaultNetlistExportPreferences(): NetlistExportPreferences {
   return {
     selected: "abstract",
+    format: "spice",
     profiles: Object.fromEntries(
       NETLIST_PROFILE_IDS.map((id) => [id, createNetlistExportProfile(id)]),
     ) as NetlistExportPreferences["profiles"],
@@ -33,7 +36,7 @@ function migrateStoredNetlistExportPreferences(raw: string): string {
   for (const id of ["tsmc28", "tsmc180"] as const) {
     profiles[id] ??= createNetlistExportProfile(id);
   }
-  return JSON.stringify({ ...parsed, profiles });
+  return JSON.stringify({ format: "spice", ...parsed, profiles });
 }
 
 export function parseNetlistExportPreferences(
@@ -44,6 +47,8 @@ export function parseNetlistExportPreferences(
     throw new Error(
       `selected must be one of: ${NETLIST_PROFILE_IDS.join(", ")}.`,
     );
+  if (parsed.format !== "spice" && parsed.format !== "spectre")
+    throw new Error("format must be spice or spectre.");
   if (
     !NETLIST_PROFILE_IDS.every(
       (id) =>
@@ -73,6 +78,13 @@ export function selectNetlistExportProfile(
   selected: NetlistProfileId,
 ): NetlistExportPreferences {
   return { ...preferences, selected };
+}
+
+export function selectNetlistExportFormat(
+  preferences: NetlistExportPreferences,
+  format: NetlistFormat,
+): NetlistExportPreferences {
+  return { ...preferences, format };
 }
 
 /** Raw JSON is the complete configuration surface; valid edits apply immediately. */
@@ -113,12 +125,21 @@ export function useNetlistExportPreferences() {
     setText(source);
     setError(null);
   };
+  const selectFormat = (format: NetlistFormat) => {
+    const next = selectNetlistExportFormat(preferences, format);
+    const source = JSON.stringify(next, null, 2);
+    setPreferences(next);
+    setText(source);
+    setError(null);
+  };
   return {
     selected: preferences.selected,
+    format: preferences.format,
     profile: preferences.profiles[preferences.selected],
     text,
     error,
     changeText,
     selectProfile,
+    selectFormat,
   };
 }
