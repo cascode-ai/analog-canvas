@@ -15,6 +15,7 @@ export * from "./vacask-postprocess.js";
 export * from "./simulation-compile.js";
 export * from "./simulation-source-migration.js";
 export * from "./simulation-source-compile.js";
+export * from "./simulation-source-ngspice.js";
 export * from "./simulation-source-graph.js";
 export * from "./simulation-circuit-source.js";
 export * from "./source-waveform.js";

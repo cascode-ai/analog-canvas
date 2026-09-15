@@ -135,11 +135,14 @@ export function createHostedExecutor(
     return payload;
   }
   return {
-    async capabilities() {
+    async capabilities(profileId) {
       const response = await fetchImpl("/api/simulate", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ operation: "capabilities" }),
+        body: JSON.stringify({
+          operation: "capabilities",
+          ...(profileId ? { environment: { profileId } } : {}),
+        }),
         signal: AbortSignal.timeout(10000),
       }).catch(() => {
         throw new ExecutionFailure({
@@ -173,8 +176,15 @@ export function createHostedExecutor(
       );
       return decodeHostedExecutionPayload(input, body);
     },
-    async cancel(runToken: string) {
-      await post({ operation: "cancel", runToken }, "cancel");
+    async cancel(runToken: string, profileId) {
+      await post(
+        {
+          operation: "cancel",
+          runToken,
+          ...(profileId ? { environment: { profileId } } : {}),
+        },
+        "cancel",
+      );
     },
   };
 }

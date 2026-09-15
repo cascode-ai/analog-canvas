@@ -10,7 +10,10 @@ import {
   type CircuitProject,
 } from "@icm/model";
 import { currentFiveTransistorOtaCircuitSource } from "../../../apps/editor/src/examples/five-transistor-ota.test-support.js";
-import { createSimulationEnvironmentMetadata } from "@icm/spice-run";
+import {
+  createSimulationEnvironmentMetadata,
+  createSimulationInputMetadata,
+} from "@icm/spice-run";
 import { assembleNativeExecutionOutput } from "./native-execution-output.js";
 import { SimulationFiles, sha256 } from "./files.js";
 import { SimulationService } from "./service.js";
@@ -136,17 +139,60 @@ async function result(input: ExecutionInput) {
     }),
   );
 }
+// Synthetic ngspice reply for transport/Spec contracts, not engine acceptance.
+async function ngspiceResult(input: ExecutionInput) {
+  return {
+    outcome: { status: "completed" as const },
+    diagnostics: [],
+    log: "fixture",
+    durationMs: 1,
+    metadata: {
+      schemaVersion: 1 as const,
+      configuration: { modelLibrary: null },
+      input: await createSimulationInputMetadata({
+        inputRevision: input.inputRevision,
+        netlist: input.netlist,
+        testbench: input.testbench,
+        deck: input.preparedDeck!,
+      }),
+      environment: await createSimulationEnvironmentMetadata({
+        executor: "local-host",
+        reproducibility: "observed",
+        profileId: "test",
+        platform: "test/x64",
+        simulator: { name: "ngspice", version: "test", binarySha256: null },
+        models: null,
+        startupSha256: null,
+      }),
+    },
+    data: {
+      schemaVersion: 1 as const,
+      analyses: [
+        {
+          analysis: "op" as const,
+          plotName: "Operating Point",
+          probes: [
+            { name: "v(out)", quantity: "voltage", unit: "V", value: 1 },
+          ],
+        },
+      ],
+    },
+  };
+}
 function unwrap<T extends "prepared" | "run">(reply: SimulationReply, key: T) {
   expect(reply, JSON.stringify(reply)).toMatchObject({ ok: true });
   if (!reply.ok || !(key in reply)) throw Error(JSON.stringify(reply));
   return (reply as Extract<SimulationReply, Record<T, unknown>>)[key];
 }
-function fixture() {
+function fixture(engine: "ngspice" | "vacask" = "vacask") {
   const files = new SimulationFiles();
   let release: () => void = () => {};
   const wait = new Promise<void>((r) => (release = r));
   const executor: Executor = {
-    capabilities: async () => caps,
+    capabilities: async () =>
+      engine === "vacask"
+        ? caps
+        : { ...caps, rawfileCollection: "declared-single-ascii" },
     execute: vi.fn(async (input) => {
       await wait;
       return result(input);
@@ -196,12 +242,11 @@ async function prepareRaw(f: ReturnType<typeof fixture>, source = deck) {
 }
 describe("shared simulation lifecycle", () => {
   it("delivers the same captured Spec report through run reads and artifacts", async () => {
-    const f = fixture();
-    const source = deck
-      .replace(".control", "* @spec peak <= 2 unit=V\n.control")
-      .replace("op\n", "op\nmeas tran peak MAX v(out)\n");
+    const f = fixture("ngspice");
+    const source =
+      "Spec fixture\nV1 out 0 1\nR1 out 0 1k\n* @spec peak <= 2 unit=V\n.control\nop\nmeas tran peak MAX v(out)\nwrite out.raw all\n.endc\n.end\n";
     vi.mocked(f.executor.execute).mockImplementation(async (input) => ({
-      result: { ...(await result(input)).result, log: "peak = 1.8" },
+      result: { ...(await ngspiceResult(input)), log: "peak = 1.8" },
       rawfile: "raw numbers",
     }));
     const { prepared } = await prepareRaw(f, source);
@@ -271,11 +316,9 @@ describe("shared simulation lifecycle", () => {
     await f.service.clear();
   });
   it("hands off one complete AC CSV and only authored metrics, with no automatic summaries", async () => {
-    const f = fixture();
-    const source = deck.replace(
-      "op\n",
-      "ac dec 80 10 1Meg\nmeas ac gain_at_fc FIND v(out) AT=1591.55\n",
-    );
+    const f = fixture("ngspice");
+    const source =
+      "AC fixture\nV1 out 0 1\nR1 out 0 1k\n.control\nac dec 80 10 1Meg\nmeas ac gain_at_fc FIND v(out) AT=1591.55\nwrite out.raw all\n.endc\n.end\n";
     const analysis = {
       analysis: "ac" as const,
       plotName: "AC Analysis",
@@ -292,7 +335,7 @@ describe("shared simulation lifecycle", () => {
     };
     vi.mocked(f.executor.execute).mockImplementation(async (input) => ({
       result: {
-        ...(await result(input)).result,
+        ...(await ngspiceResult(input)),
         log: "gain_at_fc = 0.5",
         data: { schemaVersion: 1, analyses: [analysis] },
       },

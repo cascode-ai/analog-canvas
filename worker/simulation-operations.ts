@@ -468,7 +468,11 @@ export async function routeManagedSimulationRequest(
       new Request("https://simulation/api/simulate", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ operation: "cancel", runToken: runId }),
+        body: JSON.stringify({
+          operation: "cancel",
+          runToken: runId,
+          environment: run.environment,
+        }),
       }),
       env,
     );

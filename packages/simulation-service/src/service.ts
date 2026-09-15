@@ -14,6 +14,7 @@ import {
 import { SimulationFiles } from "./files.js";
 import { simulationSpecReport, simulationSpecsToCsv } from "./spec-results.js";
 import { vacaskMeasurementResults } from "./vacask-measurements.js";
+import { ngspiceMeasurementResults } from "./ngspice-measurements.js";
 import { executionArtifactEntries } from "./execution-artifacts.js";
 
 import {
@@ -81,7 +82,11 @@ export class SimulationService {
     this.batches.clear();
     this.batchStarts.clear();
     // Draft/artifact teardown belongs to the File Resource owner.
-    await Promise.allSettled(active.map((r) => this.executor.cancel(r.token)));
+    await Promise.allSettled(
+      active.map((r) =>
+        this.executor.cancel(r.token, r.prepared.environment.profileId),
+      ),
+    );
   }
   async handle(request: unknown, requestId: string): Promise<SimulationReply> {
     const parsed = SimulationOperationSchema.safeParse(request);
@@ -138,7 +143,10 @@ export class SimulationService {
           ["running", "cancelling", "lost"].includes(run.view.state)
         ) {
           if (run.view.state !== "lost") run.view.state = "cancelling";
-          await this.executor.cancel(run.token);
+          await this.executor.cancel(
+            run.token,
+            run.prepared.environment.profileId,
+          );
           // Executor acknowledgement means termination requested; only completion confirms cleanup.
         }
         if (op.operation === "read") {
@@ -557,7 +565,10 @@ export class SimulationService {
         const run = this.runs.get(running.runId);
         if (run && ["running", "cancelling", "lost"].includes(run.view.state)) {
           if (run.view.state !== "lost") run.view.state = "cancelling";
-          await this.executor.cancel(run.token);
+          await this.executor.cancel(
+            run.token,
+            run.prepared.environment.profileId,
+          );
         }
       } else {
         batch.view.state = "cancelled";
@@ -589,6 +600,7 @@ export class SimulationService {
       caps,
       this.getProject,
       this.files,
+      (profileId) => this.executor.capabilities(profileId),
     );
     if (!preparation.ok) return preparation;
     const {
@@ -771,10 +783,20 @@ export class SimulationService {
       );
       if (epoch !== this.epoch) return;
       run.view.result = output.result;
-      const nativeReports = vacaskMeasurementResults(
-        output.result.log,
-        output.result.outcome.status !== "completed-with-dropped-input",
-      );
+      const nativeReports =
+        output.result.metadata.environment.simulator.name === "vacask"
+          ? vacaskMeasurementResults(
+              output.result.log,
+              output.result.outcome.status !== "completed-with-dropped-input",
+            )
+          : {
+              measurements: ngspiceMeasurementResults(
+                input.files,
+                input.entryPath ?? "run.cir",
+                output.result.log,
+              ),
+              diagnostics: [],
+            };
       const nativeMeasurements = nativeReports.measurements;
       const specs = simulationSpecReport(
         input.files,

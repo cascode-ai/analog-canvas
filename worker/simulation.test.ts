@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { routeSimulationRequest, type SimulationEnv } from "./simulation";
+import {
+  routeVacaskSimulationRequest as routeSimulationRequest,
+  type SimulationEnv,
+} from "./simulation-vacask";
 import {
   nativeCapabilities,
   nativeEnvironment,

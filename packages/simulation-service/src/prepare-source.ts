@@ -15,6 +15,7 @@ import { sha256 } from "./content-digest.js";
 import { sourceInputRevision } from "./input-identity.js";
 import { inspectNativeAnalyses } from "./native-source-analysis.js";
 import { outputVolumeWarning } from "./result-volume.js";
+import { prepareNgspiceExecutionInput } from "./prepare-ngspice.js";
 
 async function sourceCompilationProblem(
   diagnostics: SimulationSourceDiagnostic[],
@@ -60,6 +61,13 @@ export async function prepareSourceExecutionInput(
   caps: Capabilities,
   variant?: SimulationRunVariant,
 ) {
+  if (
+    caps.rawfileCollection === "declared-single-ascii" &&
+    !caps.profiles.some(
+      (profile) => profile.modelLibrary || profile.modelSymbols,
+    )
+  )
+    return prepareNgspiceExecutionInput(project, folder, caps, variant);
   const context = resolveSourceSimulationContext(
     project,
     folder,

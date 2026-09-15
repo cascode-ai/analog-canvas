@@ -9,7 +9,10 @@ import { sha256 } from "./content-digest.js";
 /** Authored/electrical identity is separate from the resolved runtime's prepared digest. */
 export function sourceInputRevision(
   folder: ProjectSimulationFolder,
-  compiled: Extract<ReturnType<typeof compileSourceSimulation>, { ok: true }>,
+  compiled: Pick<
+    Extract<ReturnType<typeof compileSourceSimulation>, { ok: true }>,
+    "electricalHash" | "files" | "outputs" | "deviceOperatingPoints" | "config"
+  >,
 ) {
   return sha256(
     JSON.stringify({

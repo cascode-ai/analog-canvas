@@ -155,11 +155,14 @@ export function createManagedHostedExecutor(
   }
 
   return {
-    async capabilities() {
+    async capabilities(profileId) {
       const response = await fetchImpl("/api/simulate", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ operation: "capabilities" }),
+        body: JSON.stringify({
+          operation: "capabilities",
+          ...(profileId ? { environment: { profileId } } : {}),
+        }),
         signal: AbortSignal.timeout(10_000),
       }).catch(() => null);
       const parsed = CapabilitiesSchema.safeParse(

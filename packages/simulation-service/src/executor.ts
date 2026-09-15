@@ -135,14 +135,14 @@ export interface ExecutionIdentity {
   preparedDigest: string;
 }
 export interface Executor {
-  capabilities(): Promise<Capabilities>;
+  capabilities(profileId?: string): Promise<Capabilities>;
   execute(
     input: ExecutionInput,
     runToken: string,
     timeoutMs?: number,
     identity?: ExecutionIdentity,
   ): Promise<ExecutionOutput>;
-  cancel(runToken: string): Promise<void>;
+  cancel(runToken: string, profileId?: string): Promise<void>;
 }
 export class ExecutionFailure extends Error {
   constructor(
