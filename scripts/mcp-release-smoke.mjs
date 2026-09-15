@@ -85,9 +85,60 @@ function snapshot() {
       },
       cellInterface: null,
       instances: [],
-      nets: [],
-      routes: [],
-      junctions: [],
+      nets: [
+        {
+          id: "release-net",
+          name: null,
+          scope: "local",
+          powerDomain: "none",
+          terminals: [],
+          routeIds: ["release-route"],
+          junctionIds: ["release-junction-start", "release-junction-end"],
+        },
+      ],
+      routes: [
+        {
+          id: "release-route",
+          netId: "release-net",
+          start: { kind: "junction", junctionId: "release-junction-start" },
+          legs: [
+            {
+              id: "release-route-leg",
+              to: {
+                kind: "endpoint",
+                endpoint: {
+                  kind: "junction",
+                  junctionId: "release-junction-end",
+                },
+              },
+              mode: "manual",
+            },
+          ],
+          styleOverride: {
+            color: "#123456",
+            arrow: "end",
+            lineStyle: "dashed",
+          },
+          polyline: [
+            { x: 0, y: 0 },
+            { x: 100, y: 0 },
+          ],
+        },
+      ],
+      junctions: [
+        {
+          id: "release-junction-start",
+          netId: "release-net",
+          position: { x: 0, y: 0 },
+          role: "route-anchor",
+        },
+        {
+          id: "release-junction-end",
+          netId: "release-net",
+          position: { x: 100, y: 0 },
+          role: "route-anchor",
+        },
+      ],
       noConnects: [],
       // Keep a schema-54 binding in every response, including connector resume.
       // Older packaged readers reject this field before ordinary tools can run.
@@ -405,6 +456,15 @@ try {
       {
         kind: "upsert_drafting_object",
         object: snapshot().document.drafting.objects[0].object,
+      },
+      {
+        kind: "set_route_style_override",
+        routeId: "release-route",
+        styleOverride: {
+          color: "#123456",
+          arrow: "end",
+          lineStyle: "dotted",
+        },
       },
     ],
   });

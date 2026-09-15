@@ -15,12 +15,13 @@ examples below are MCP-specific mappings, not a separate operating policy.
 Production and Preview both expose the Agent UI. Their accounts, Projects and
 connector bindings remain separate.
 
-MCP 0.10.0 supports API 3.0, Project schema 55 and setup v4 source/config files.
+MCP 0.11.0 supports API 3.0, Project schema 56 and setup v4 source/config files.
 Use it with Analog Canvas 0.6.0 or newer. It supports independent arrow ends,
-native component displays and attached Net Labels. The public distribution manifest identifies the pinned
-release artifact and its SHA-256. Updating the website does not update an
-already installed MCP process. Set `ANALOG_CANVAS_API_URL` only when connecting
-to Preview or another non-production endpoint.
+electrical Wire line styles, native component displays and attached Net Labels.
+The public distribution manifest identifies the pinned release artifact and its
+SHA-256. Updating the website does not update an already installed MCP process.
+Set `ANALOG_CANVAS_API_URL` only when connecting to Preview or another
+non-production endpoint.
 
 Sessions have a renewable 30-minute idle deadline. Agent operations and manual
 edits renew it; passive heartbeats do not. A saved connector's deadline may be
@@ -32,15 +33,11 @@ Schema 55 arrow objects support independent `styleOverride.arrowStart` and
 `arrowEnd`: `small-arrow`, `medium-arrow`, `large-arrow`, `dot`, `none`, or
 `open-arrow`. Read the `upsert_drafting_object` contract before editing them.
 These fields are arrow-only; legacy `arrowHead`/`arrowHeadAt` remain fallbacks.
-Older 0.9.0 adapters may reject Snapshots containing the new fields.
-
-The next editor schema, 56, adds electrical Wire line styles. Its Agent
-Snapshots also expose each Route's `styleOverride` (color, arrow and lineStyle)
-so Agents can preserve the other settings when editing one. Use a matching
-source-built adapter for this development version. The published 0.10.0
-adapter targets schema 55 and strictly validates Snapshots; a compatible MCP
-release is required before publishing this editor change. Updating the website
-does not replace an already installed adapter.
+Older 0.9.0 adapters may reject Snapshots containing the new fields. Schema 56
+adds electrical Wire `styleOverride.lineStyle`: `solid`, `dashed`, or `dotted`.
+Route Snapshots expose the complete styleOverride (color, arrow and lineStyle),
+so preserve the other settings when editing one. Older 0.10.0 adapters target
+schema 55 and may reject a schema 56 Snapshot.
 
 ## Create and edit
 
