@@ -2,7 +2,12 @@ import type {
   CircuitProject,
   SimulationSourceInput,
   SimulationSourceExpression,
+  ProjectSimulationFolder,
 } from "@icm/model";
+import {
+  resolveSourceSimulationContext,
+  type Capabilities,
+} from "@icm/simulation-service";
 import {
   analyzeDesignNetlist,
   inspectVacaskSourceGraph,
@@ -20,6 +25,39 @@ export interface SourceProbeChoice {
   label: string;
   kind: "voltage" | "current" | "device-op";
   expression: SimulationSourceExpression;
+}
+
+/** Offline authoring stays available. Invalid Profile context must not lend its
+ * model evidence to a picker; explain the omission without blocking text edits. */
+export function sourceProbeEnvironment(
+  project: CircuitProject,
+  folder: ProjectSimulationFolder,
+  profiles?: Capabilities["profiles"],
+): {
+  input: SimulationSourceInput;
+  libraries: readonly NativeModelLibrarySymbols[];
+  notice?: string;
+} {
+  if (!profiles) return { input: folder.input, libraries: [] };
+  const context = resolveSourceSimulationContext(project, folder, profiles);
+  if (!context.ok)
+    return {
+      input: folder.input,
+      libraries: [],
+      notice:
+        "Profile model choices unavailable: " +
+        ("diagnostics" in context
+          ? context.diagnostics.map((d) => d.message).join("; ")
+          : context.error.message),
+    };
+  return {
+    input: {
+      ...folder.input,
+      files: context.files,
+      dependencies: context.dependencies,
+    },
+    libraries: context.profile.modelSymbols ?? [],
+  };
 }
 export function sourceProbeChoices(
   project: CircuitProject,

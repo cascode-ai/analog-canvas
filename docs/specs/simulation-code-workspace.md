@@ -106,9 +106,12 @@ An external Profile can advertise `modelSymbols`, a read-only summary tied to
 the dependency ID, content digest and selected native section. Its declaration
 events enter the same scope resolver at the actual include location, so local
 shadows, duplicate declarations and conditional loads do not gain guessed
-identities. The public capabilities and picker share this summary; Prepare also
-resolves it after the Profile's automatic include/corner projection. The picker
-currently requires an explicitly declared dependency/include in the source.
+identities. Public helpers and the GUI picker use the same pure source-context
+projection as Prepare, including automatic Profile loads, collision-free mounts
+and the selected corner. An explicit dependency/include is not required for a
+Canvas-bound library. Projection never writes these generated files into authored
+source or mounts model bytes. Invalid context withholds Profile model choices
+with an explanatory notice; ordinary offline authoring remains available.
 The provisioning inspector and executor boot verifier use the same model bytes
 and scope table. A conditional internal path is a potential acquisition only
 when every declaration at that path resolves to the same module. Missing or

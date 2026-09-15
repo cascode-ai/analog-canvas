@@ -55,7 +55,10 @@ import {
   simulationArtifactCategory,
   simulationExplorerArtifactCategory,
 } from "./simulation-artifact-files";
-import { sourceProbeChoices } from "./source-probe-choices";
+import {
+  sourceProbeChoices,
+  sourceProbeEnvironment,
+} from "./source-probe-choices";
 import { SourceProbePicker } from "./source-probe-picker";
 import { SimulationActionIcon } from "./simulation-action-icon";
 import { flushSelectedFolders } from "./flush-selected-folders";
@@ -230,36 +233,44 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
     const [probePicker, setProbePicker] = useState<
       "voltage" | "current" | "device-op"
     >();
+    const probeEnvironment = useMemo(() => {
+      const folder = {
+        ...props.folder,
+        input: {
+          ...input,
+          files: input.files.map((file) => ({
+            ...file,
+            text:
+              drafts.current.get(`${props.folder.id}\u0000${file.path}`)
+                ?.text ?? file.text,
+          })),
+        },
+      };
+      return probePicker
+        ? sourceProbeEnvironment(
+            props.project,
+            folder,
+            props.capabilities?.profiles,
+          )
+        : { input: folder.input, libraries: [] };
+    }, [
+      props.project,
+      input,
+      draftRevision,
+      probePicker,
+      props.capabilities,
+      props.folder,
+    ]);
     const probeChoices = useMemo(
       () =>
         probePicker
           ? sourceProbeChoices(
               props.project,
-              {
-                ...input,
-                files: input.files.map((file) => ({
-                  ...file,
-                  text:
-                    drafts.current.get(`${props.folder.id}\u0000${file.path}`)
-                      ?.text ?? file.text,
-                })),
-              },
-              props.capabilities?.profiles.find((p) => {
-                const config = readSimulationExperimentConfig(props.folder);
-                return (
-                  config.ok && p.id === config.config.environment.profileId
-                );
-              })?.modelSymbols,
+              probeEnvironment.input,
+              probeEnvironment.libraries,
             )
           : [],
-      [
-        props.project,
-        input,
-        draftRevision,
-        probePicker,
-        props.capabilities,
-        props.folder,
-      ],
+      [props.project, probePicker, probeEnvironment],
     );
     const binding = input.circuitBindings.find(
       (b) => b.emission === "top-level",
@@ -332,7 +343,16 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
               f.text,
           })),
         };
-        const device = nativeSimulationDevices(props.project, sourceInput).find(
+        const context = sourceProbeEnvironment(
+          props.project,
+          { ...props.folder, input: sourceInput },
+          props.capabilities?.profiles,
+        );
+        const device = nativeSimulationDevices(
+          props.project,
+          context.input,
+          context.libraries,
+        ).find(
           (item) =>
             item.documentId === expression.documentId &&
             item.instanceId === expression.instanceId &&
@@ -1276,6 +1296,7 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
               <SourceProbePicker
                 key={`${props.folder.id}:${probePicker}`}
                 choices={probeChoices}
+                notice={probeEnvironment.notice}
                 kind={probePicker}
                 onAdd={saveSignal}
                 onClose={() => setProbePicker(undefined)}
