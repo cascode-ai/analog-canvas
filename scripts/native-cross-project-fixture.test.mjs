@@ -1,5 +1,7 @@
 import { it, expect } from "vitest";
-import { readFile } from "node:fs/promises";
+import { readFile, mkdtemp, writeFile, rm } from "node:fs/promises";
+import { dirname, join, resolve } from "node:path";
+import { tmpdir } from "node:os";
 import { createEmptyProject } from "@icm/model";
 import { parseProject } from "@icm/project-protocol";
 import {
@@ -8,8 +10,10 @@ import {
 } from "../packages/edit-engine/src/index.js";
 import { prepareSourceExecutionInput } from "@icm/simulation-service";
 import { nativeImportedTestbench } from "./lib/native-cross-project-fixture.mjs";
+import { startVacaskService } from "../containers/vacask/entrypoint.mjs";
+import { validateNativeExampleResult } from "./lib/native-example-acceptance.mjs";
 
-it("imports the real OTA DUT through the shared transaction and prepares its native Canvas TB", async () => {
+async function prepareImportedFixture() {
   const reference = parseProject(
     await readFile(
       "apps/editor/src/examples/five-transistor-ota-sky130.icproj.json",
@@ -51,13 +55,17 @@ it("imports the real OTA DUT through the shared transaction and prepares its nat
       "utf8",
     ),
   );
-  const prepared = await prepareSourceExecutionInput(authored.project, folder, {
+  const capabilities = {
     configured: true,
     rawfileCollection: "native-multi-ascii",
     inputs: ["source"],
     analyses: ["op"],
     parsedAnalyses: ["op"],
     maxTimeoutMs: 15000,
+    maxInputBytes: 1048576,
+    maxInputFiles: 24,
+    maxOutputBytes: 8388608,
+    cancel: true,
     profiles: [
       {
         id: "vacask-sky130-candidate",
@@ -71,7 +79,12 @@ it("imports the real OTA DUT through the shared transaction and prepares its nat
         },
       },
     ],
-  });
+  };
+  const prepared = await prepareSourceExecutionInput(
+    authored.project,
+    folder,
+    capabilities,
+  );
   expect(prepared.ok, JSON.stringify(prepared)).toBe(true);
   expect(prepared.input.language).toBe("vacask");
   expect(prepared.input.environment.corner).toBe("tt");
@@ -103,4 +116,112 @@ it("imports the real OTA DUT through the shared transaction and prepares its nat
       .childDocumentId,
   ).toBe(plan.rootDocumentId);
   expect(reference).toEqual(before);
-});
+  return {
+    project: authored.project,
+    input: prepared.input,
+    capabilities,
+    symbols,
+  };
+}
+
+it(
+  "imports the real OTA DUT through the shared transaction and prepares its native Canvas TB",
+  prepareImportedFixture,
+);
+
+it.skipIf(
+  !process.env.VACASK_BIN ||
+    !process.env.VACASK_MODULES ||
+    !process.env.ICM_VACASK_SECTIONED_MANIFEST,
+)(
+  "executes the imported Canvas DUT on native VACASK and preserves the prepared circuit bytes",
+  async () => {
+    const { project, input, capabilities, symbols } =
+      await prepareImportedFixture();
+    const before = structuredClone(project);
+    const manifestPath = resolve(process.env.ICM_VACASK_SECTIONED_MANIFEST);
+    const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+    expect(manifest.dependency).toEqual(symbols.dependency);
+    expect(manifest.modelSymbols).toEqual(symbols.modelSymbols);
+    const root = await mkdtemp(join(tmpdir(), "native-imported-ota-"));
+    let service;
+    let evidence;
+    try {
+      const startupPath = join(root, "startup.toml");
+      await writeFile(startupPath, "# Native cross-Project acceptance\n");
+      service = await startVacaskService({
+        runtime: {
+          executor: "local-host",
+          profileId: "vacask-sky130-candidate",
+          binary: resolve(process.env.VACASK_BIN),
+          modules: resolve(process.env.VACASK_MODULES),
+          startupPath,
+          runRoot: root,
+          dependencies: [
+            {
+              ...manifest.dependency,
+              runtimePath: join(dirname(manifestPath), manifest.library),
+            },
+          ],
+          ...(process.env.ICM_VACASK_LIBRARY_PATH
+            ? { libraryPath: process.env.ICM_VACASK_LIBRARY_PATH }
+            : {}),
+        },
+        capabilities,
+        limits: {
+          maxInputBytes: 1048576,
+          maxInputFiles: 24,
+          maxOutputBytes: 8388608,
+          maxLogBytes: 65536,
+          maxRawFiles: 16,
+          maxEntries: 256,
+        },
+      });
+      const runtime = await service.ready;
+      const response = await fetch(
+        `http://127.0.0.1:${service.server.address().port}/run`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(input),
+          signal: AbortSignal.timeout(45000),
+        },
+      );
+      const result = await response.json();
+      evidence = { input, result };
+      expect(response.status, JSON.stringify(result)).toBe(200);
+      validateNativeExampleResult(result);
+      expect(result.metadata.environment).toEqual(runtime.environment);
+      expect(result.executedFiles).toEqual(expect.arrayContaining(input.files));
+      const op = result.data.analyses.find((a) => a.analysis === "op");
+      const probe = op?.probes.find((p) => p.name === "vout");
+      const value = Array.isArray(probe?.value) ? probe.value[0] : probe?.value;
+      expect(Number.isFinite(value)).toBe(true);
+      // Basic rail sanity, not an ngspice equivalence/tolerance baseline.
+      expect(value).toBeGreaterThan(0);
+      expect(value).toBeLessThan(1.8);
+      expect(result.rawfiles.some((f) => f.path === "bias.raw")).toBe(true);
+      expect(project).toEqual(before);
+    } finally {
+      try {
+        if (evidence && process.env.ICM_VACASK_EVIDENCE_DIR) {
+          const directory = await mkdtemp(
+            join(
+              resolve(process.env.ICM_VACASK_EVIDENCE_DIR),
+              "cross-project-",
+            ),
+          );
+          await writeFile(
+            join(directory, "run.json"),
+            JSON.stringify(evidence),
+          );
+          console.info("Native cross-Project run evidence", directory);
+        }
+      } finally {
+        if (service) await service.stop();
+        await rm(root, { recursive: true, force: true });
+      }
+    }
+  },
+  120000,
+);
