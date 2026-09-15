@@ -15,7 +15,7 @@ import {
   parseProject,
   serializeProject,
 } from "../packages/project-protocol/dist/index.js";
-import { SimulationOutputDataSchema } from "../packages/simulation-service/dist/contract.js";
+import { SimulationSpecReportSchema } from "../packages/simulation-service/dist/contract.js";
 import { SimulationResultSchema } from "../packages/spice-run/dist/index.js";
 import { materializeSimulationRunEvidence } from "./lib/simulation-run-evidence.mjs";
 
@@ -408,15 +408,14 @@ try {
       );
       return artifact.name === "result.json"
         ? SimulationResultSchema.parse(value)
-        : SimulationOutputDataSchema.parse(value);
+        : SimulationSpecReportSchema.parse(value);
     },
   );
   assert.equal(fullRun.result?.outcome.status, "completed");
-  const op = fullRun.outputData?.analyses.find(
+  const op = fullRun.result.data?.analyses.find(
     (analysis) => analysis.analysis === "op",
   );
-  const vout = op?.outputs.find((output) => output.id === "probe-vout")
-    ?.values[0];
+  const vout = op?.probes.find((probe) => probe.name === "v(vout)")?.value;
   assert(Number.isFinite(vout), "Imported OTA returned no finite OP output");
   assert(
     vout > 0.5 && vout < 1.2,
@@ -431,9 +430,9 @@ try {
       [
         "out.raw",
         "result.json",
-        "outputs.json",
-        "op.csv",
-        "outputs-op.csv",
+        "specs.json",
+        "specs.csv",
+        "op-0.csv",
       ].includes(item.name),
     ),
   ]) {

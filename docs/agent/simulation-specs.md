@@ -32,6 +32,12 @@ judgment, reason and logLine. Retrieve artifacts through the existing authorized
 file API; no new authority or UI interaction is required. `specs.csv` preserves
 the result and provenance for external tools. Raw and analysis CSV remain intact.
 
+The GUI file tree presents `specs.csv`; `specs.json` remains available through
+File Resource and diagnostic export. Waveforms live in `result.data` or
+`result.json`, with one complete CSV per analysis record. New runs do not compute
+automatic min/max/RMS summaries or generate a second `outputs-*.csv` family.
+Legacy output fields and archived files remain readable but are not regenerated.
+
 Judgments: `pass`, `failed`, `not-evaluated`, `unconstrained`. Stable reasons:
 `satisfied`, `outside-spec`, `no-spec`, `invalid-spec`, `duplicate-spec`,
 `ambiguous-measurement`, `measurement-missing`, `run-incomplete`. Missing or

@@ -5,6 +5,14 @@
   "projections": ["mcp-resources", "http-kit", "codex-fallback"],
   "resources": [
     {
+      "uri": "analog-canvas://reference/simulation-specs",
+      "name": "Simulation Spec rules and raw handoff",
+      "description": "Native measurements, captured acceptance rules, verdicts and canonical result files.",
+      "mimeType": "text/markdown",
+      "source": { "kind": "repo", "path": "docs/agent/simulation-specs.md" },
+      "projections": ["mcp-resources", "codex-fallback"]
+    },
+    {
       "uri": "analog-canvas://reference/quickstart",
       "name": "MCP live-session quickstart",
       "description": "MCP-native connect, inspect, atomic edit, verify, and recovery loop.",

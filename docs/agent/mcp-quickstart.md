@@ -16,6 +16,10 @@ Production and Preview both expose the Agent UI. Their accounts, Projects and
 connector bindings remain separate.
 
 MCP 0.10.0 supports API 3.0, Project schema 55 and setup v4 source/config files.
+The published 0.10.0 binary predates captured Spec reports: its strict response
+validator rejects `outputData.specs`. Spec-enabled sites require a newly published,
+compatible adapter; a rebuilt binary with the old version label is not an update
+to that immutable release. See [distribution verification](mcp-install.md).
 Use it with Analog Canvas 0.6.0 or newer. It supports independent arrow ends,
 native component displays and attached Net Labels. The public distribution manifest identifies the pinned
 release artifact and its SHA-256. Updating the website does not update an
@@ -201,6 +205,11 @@ File and Run resources.
    `not-evaluated`, not Failed; measurements without a rule are `unconstrained`.
    Use raw/CSV to plot or compare externally. Built-in Plot/Compare/OP views
    and `simulation-plot` image export are retired; native OP still executes.
+   Read waveform numbers from `result.data` or `result.json`, not the legacy
+   `outputData.analyses` array (empty for new runs). There is one complete CSV
+   per analysis record; no automatic measurements or duplicate outputs CSV.
+   If `resultPreview` is true, read `result.json` and `specs.json` by artifact ID.
+   The full Spec reference is bundled as `analog-canvas://reference/simulation-specs`.
 
 ### File ownership and editing
 

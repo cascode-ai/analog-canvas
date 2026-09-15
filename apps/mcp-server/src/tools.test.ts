@@ -33,6 +33,16 @@ function parseText(result: {
 }
 
 describe("mcp tool surface", () => {
+  it("advertises raw and captured Specs rather than a retired result renderer", () => {
+    const tools = listToolDefinitions();
+    expect(tools.find((t) => t.name === "simulation")?.description).toContain(
+      "outputData.specs",
+    );
+    const download = tools.find((t) => t.name === "export_file")!;
+    expect(download.description).toContain("simulation_files");
+    expect(download.description).toContain("SIMULATION_PLOT_RETIRED");
+    expect(download.description).not.toContain("same plot renderer");
+  });
   it("exposes compact Circuit, File and Simulation tools with JSON-schema inputs", () => {
     const tools = listToolDefinitions();
     expect(tools.map((tool) => tool.name)).toEqual([

@@ -1313,9 +1313,15 @@ test("human simulation uses saved folder, survives minimizing, recovers a bad in
   ).toBe(true);
   expect(
     Object.keys(visibleEntries).every((path) =>
-      /[.](raw|csv|json|log|txt)$/.test(path),
+      /[.](raw|csv|log|txt)$/.test(path),
     ),
   ).toBe(true);
+  expect(
+    Object.keys(visibleEntries)
+      .filter((path) => path.endsWith(".csv"))
+      .map((path) => path.split("/").at(-1))
+      .sort(),
+  ).toEqual(["ac-1.csv", "noise-3.csv", "op-0.csv", "specs.csv", "tran-2.csv"]);
   await runFiles
     .getByRole("treeitem", { name: "Run", exact: true })
     .click({ button: "right" });
@@ -1326,6 +1332,7 @@ test("human simulation uses saved folder, survives minimizing, recovers a bad in
     "evidence/source-map.json",
     "evidence/prepared.json",
     "evidence/result.json",
+    "evidence/specs.json",
     "evidence/evidence-manifest.json",
   ])
     expect(diagnostics[path]).toBeDefined();

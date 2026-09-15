@@ -23,8 +23,8 @@ The implementation has these boundaries:
 - spice-run separates request/result types, deck assembly, metadata and terminal
   verdicts. Its public exports remain the same.
 - GUI source editing, diagnostic display and result materialization are separate
-  from workspace orchestration. Charts consume scalar/complex series; derived
-  outputs are not re-encoded as fake simulator analyses.
+  from workspace orchestration. User Agents consume raw scalar/complex series;
+  the product does not derive charts or automatic measurement summaries.
 
 The local host has no default binary, model directory or version, and does not
 probe installed software. Its optional `simulationHandler` uses the same
@@ -32,7 +32,7 @@ probe installed software. Its optional `simulationHandler` uses the same
 reports `configured: false`, and execution returns
 `simulation-not-configured`; Editor and saved inputs remain usable.
 
-Run reads return bounded receipts. Full `result.json` and `outputs.json`
+Run reads return bounded receipts. Full `result.json` and `specs.json`
 remain File artifacts; the GUI materializes these only when a receipt is a
 preview. MCP keeps paged file access instead of receiving unbounded arrays.
 Input freshness is cached per Project structure revision and folder ID; raw
@@ -453,7 +453,7 @@ second result store and does not claim an external model tree is embedded.
 
 The human result workspace contains Specs and Console. Plot, Compare, OP
 presentation and result-to-Canvas projection are retired; native OP/AC/DC/TRAN/
-Noise execution and existing numeric artifacts remain unchanged. Raw and full
+Noise execution and raw numeric data remain unchanged. Raw and full
 CSV are the external plotting/analysis handoff. The legacy `simulation-plot`
 export request is recognized but returns `SIMULATION_PLOT_RETIRED`.
 
@@ -472,9 +472,21 @@ report stale and never changes its numbers or judgment.
 
 Sim Code occupies an independent right workspace rather than a Properties tab.
 Minimizing it preserves mounted source buffers and run ownership. Explorer
-contains source files and run outputs, including the two Spec artifacts; it
+contains source files and run outputs, including `specs.csv`; it
 also hosts run history. Folder/Run context menus expose archive and export
 operations while internal preparation/evidence files remain in diagnostics.
+
+New runs produce one complete `<analysis>-<record-index>.csv` per captured
+analysis, alongside `out.raw`. `result.data` / `result.json` owns structured raw
+numbers; `outputData.specs` / `specs.json` owns the captured acceptance report.
+The legacy `outputData.analyses` and `diagnostics` arrays are empty for new runs;
+optional legacy measurements and device operating-point summaries are absent.
+No second named-output waveforms, automatic min/max/RMS summaries,
+`outputs-*.csv`, `measurements.csv`, `device-operating-points.csv`, `outputs.json`
+or `native-measurements.json` are generated. Native `meas` values without a rule
+remain unconstrained Spec rows. `specs.json` is available through File Resource
+and diagnostic export, not duplicated beside its CSV in Explorer. Archived
+legacy output artifacts remain readable/exportable without being regenerated.
 
 Automatic retention and **Archive current run** capture a run's verified artifact
 set and compact presentation metadata in browser IndexedDB. At most ten runs
