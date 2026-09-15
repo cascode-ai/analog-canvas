@@ -64,87 +64,92 @@ def falling_crossing(axis, values, target):
     raise ValueError("No falling crossing in the returned samples")
 
 
-mode = sys.argv[1]
-if mode not in ("ac", "step", "rlc", "cs-ac", "cs-tran", "ota-op", "ota-ac", "ota-tran", "ota-closed"):
-    raise ValueError("Unknown starter report mode")
+def main():
+    mode = sys.argv[1]
+    if mode not in ("ac", "step", "rlc", "cs-ac", "cs-tran", "ota-op", "ota-ac", "ota-tran", "ota-closed"):
+        raise ValueError("Unknown starter report mode")
 
-if mode in ("ac", "rlc", "cs-ac", "ota-ac", "ota-closed"):
-    data = read_ascii("frequency.raw")
-    frequency = [v.real for v in data["frequency"]]
-    input_name, output_name = ("vinp", "vout") if mode.startswith("ota-") else ("in", "out")
-    gain = [out / inp for inp, out in zip(data[input_name], data[output_name])]
-    # Preserve the complex transfer. The common Plot UI supplies dB and phase
-    # rather than representing already-logarithmic values as complex voltages.
-    lines = ["Title: Voltage transfer", "Date: Current run", "Plotname: Gain",
-             "Flags: complex", "No. Variables: 2", f"No. Points: {len(gain)}",
-             "Variables:", "0 frequency notype", "1 Gain notype", "Values:"]
-    for index, (freq, value) in enumerate(zip(frequency, gain)):
-        lines.extend([f"{index} {freq:.17e},0", f" {value.real:.17e},{value.imag:.17e}"])
-    Path("gain.raw").write_text("\n".join(lines) + "\n")
-    report_plot("gain.raw", "ac", axis="frequency",
-                probes=[{"name": "Gain", "quantity": "transfer", "unit": "1"}])
-    if mode == "ac":
-        report_measurement("gain_at_fc", lambda: sample(
-            frequency, [20 * log10(abs(v)) for v in gain], 1591.549431), "dB")
-    elif mode == "cs-ac":
-        report_measurement("gain_db_1khz", lambda: sample(
-            frequency, [20 * log10(abs(v)) for v in gain], 1e3), "dB")
-    elif mode in ("ota-ac", "ota-closed"):
-        db = [20 * log10(abs(v)) for v in gain]
-        report_measurement("dc_gain_db" if mode == "ota-ac" else "closed_gain_db",
-                           lambda: sample(frequency, db, 1), "dB")
-        if mode == "ota-ac":
-            report_measurement("unity_gain_hz", lambda: falling_crossing(frequency, db, 0), "Hz")
-    else:
-        report_measurement("peak_gain_db", lambda: max(20 * log10(abs(v)) for v in gain), "dB")
+    if mode in ("ac", "rlc", "cs-ac", "ota-ac", "ota-closed"):
+        data = read_ascii("frequency.raw")
+        frequency = [v.real for v in data["frequency"]]
+        input_name, output_name = ("vinp", "vout") if mode.startswith("ota-") else ("in", "out")
+        gain = [out / inp for inp, out in zip(data[input_name], data[output_name])]
+        # Preserve the complex transfer. The common Plot UI supplies dB and phase
+        # rather than representing already-logarithmic values as complex voltages.
+        lines = ["Title: Voltage transfer", "Date: Current run", "Plotname: Gain",
+                 "Flags: complex", "No. Variables: 2", f"No. Points: {len(gain)}",
+                 "Variables:", "0 frequency notype", "1 Gain notype", "Values:"]
+        for index, (freq, value) in enumerate(zip(frequency, gain)):
+            lines.extend([f"{index} {freq:.17e},0", f" {value.real:.17e},{value.imag:.17e}"])
+        Path("gain.raw").write_text("\n".join(lines) + "\n")
+        report_plot("gain.raw", "ac", axis="frequency",
+                    probes=[{"name": "Gain", "quantity": "transfer", "unit": "1"}])
+        if mode == "ac":
+            report_measurement("gain_at_fc", lambda: sample(
+                frequency, [20 * log10(abs(v)) for v in gain], 1591.549431), "dB")
+        elif mode == "cs-ac":
+            report_measurement("gain_db_1khz", lambda: sample(
+                frequency, [20 * log10(abs(v)) for v in gain], 1e3), "dB")
+        elif mode in ("ota-ac", "ota-closed"):
+            db = [20 * log10(abs(v)) for v in gain]
+            report_measurement("dc_gain_db" if mode == "ota-ac" else "closed_gain_db",
+                               lambda: sample(frequency, db, 1), "dB")
+            if mode == "ota-ac":
+                report_measurement("unity_gain_hz", lambda: falling_crossing(frequency, db, 0), "Hz")
+        else:
+            report_measurement("peak_gain_db", lambda: max(20 * log10(abs(v)) for v in gain), "dB")
 
-if mode in ("step", "rlc"):
-    data = read_ascii("step.raw")
-    if mode == "step":
-        report_measurement("at_one_tau", lambda: sample(data["time"], data["out"], 200.05e-6), "V")
-    else:
-        report_measurement("peak_output", lambda: max(data["out"]), "V")
-    report_measurement("final_value", lambda: sample(data["time"], data["out"], 1e-3), "V")
+    if mode in ("step", "rlc"):
+        data = read_ascii("step.raw")
+        if mode == "step":
+            report_measurement("at_one_tau", lambda: sample(data["time"], data["out"], 200.05e-6), "V")
+        else:
+            report_measurement("peak_output", lambda: max(data["out"]), "V")
+        report_measurement("final_value", lambda: sample(data["time"], data["out"], 1e-3), "V")
 
-if mode == "cs-tran":
-    data = read_ascii("signal.raw")
-    # Native outer sweeps concatenate sample groups. Preserve every returned
-    # case as an explicit record, with its amplitude in the plot title. The
-    # original multi-axis raw file remains available for independent inspection.
-    start = 0
-    for end in range(1, len(data["amplitude"]) + 1):
-        if end < len(data["amplitude"]) and data["amplitude"][end] == data["amplitude"][start]:
-            continue
-        amplitude = data["amplitude"][start]
-        time = data["time"][start:end]
-        values = data["out"][start:end]
-        index = start
-        path = f"signal-{index}.raw"
-        lines = [f"Title: Input amplitude {amplitude:g} V", "Date: Current run",
-                 f"Plotname: Signal ({amplitude:g} V input)", "Flags: real",
-                 "No. Variables: 3", f"No. Points: {len(time)}", "Variables:",
-                 "0 time notype", "1 in notype", "2 out notype", "Values:"]
-        for i, (t, inp, out) in enumerate(zip(time, data["in"][start:end], values)):
-            lines.extend([f"{i} {t:.17e}", f" {inp:.17e}", f" {out:.17e}"])
-        Path(path).write_text("\n".join(lines) + "\n")
-        report_plot(path, "tran", axis="time", probes=[
-            {"name": name, "quantity": "voltage", "unit": "V"} for name in ("in", "out")])
-        def peak_to_peak():
-            window = [v for t, v in zip(time, values) if 200e-6 < t < 400e-6]
-            window.extend(sample(time, values, t) for t in (200e-6, 400e-6))
-            return max(window) - min(window)
-        report_measurement("output_pp", peak_to_peak, "V")
-        start = end
+    if mode == "cs-tran":
+        data = read_ascii("signal.raw")
+        # Native outer sweeps concatenate sample groups. Preserve every returned
+        # case as an explicit record, with its amplitude in the plot title. The
+        # original multi-axis raw file remains available for independent inspection.
+        start = 0
+        for end in range(1, len(data["amplitude"]) + 1):
+            if end < len(data["amplitude"]) and data["amplitude"][end] == data["amplitude"][start]:
+                continue
+            amplitude = data["amplitude"][start]
+            time = data["time"][start:end]
+            values = data["out"][start:end]
+            index = start
+            path = f"signal-{index}.raw"
+            lines = [f"Title: Input amplitude {amplitude:g} V", "Date: Current run",
+                     f"Plotname: Signal ({amplitude:g} V input)", "Flags: real",
+                     "No. Variables: 3", f"No. Points: {len(time)}", "Variables:",
+                     "0 time notype", "1 in notype", "2 out notype", "Values:"]
+            for i, (t, inp, out) in enumerate(zip(time, data["in"][start:end], values)):
+                lines.extend([f"{i} {t:.17e}", f" {inp:.17e}", f" {out:.17e}"])
+            Path(path).write_text("\n".join(lines) + "\n")
+            report_plot(path, "tran", axis="time", probes=[
+                {"name": name, "quantity": "voltage", "unit": "V"} for name in ("in", "out")])
+            def peak_to_peak():
+                window = [v for t, v in zip(time, values) if 200e-6 < t < 400e-6]
+                window.extend(sample(time, values, t) for t in (200e-6, 400e-6))
+                return max(window) - min(window)
+            report_measurement("output_pp", peak_to_peak, "V")
+            start = end
 
-if mode == "ota-op":
-    data = read_ascii("bias.raw")
-    report_measurement("supply_current", lambda: -data["VDD:flow(br)"][0], "A")
+    if mode == "ota-op":
+        data = read_ascii("bias.raw")
+        report_measurement("supply_current", lambda: -data["VDD:flow(br)"][0], "A")
 
-if mode in ("ota-tran", "ota-closed"):
-    data = read_ascii("step.raw")
-    if mode == "ota-tran":
-        report_measurement("output_max", lambda: max(data["vout"]), "V")
-        report_measurement("output_min", lambda: min(data["vout"]), "V")
-    else:
-        report_measurement("output_at_2us", lambda: sample(data["time"], data["vout"], 2e-6), "V")
-        report_measurement("output_peak", lambda: max(window_values(data["time"], data["vout"], 1e-6, 3e-6)), "V")
+    if mode in ("ota-tran", "ota-closed"):
+        data = read_ascii("step.raw")
+        if mode == "ota-tran":
+            report_measurement("output_max", lambda: max(data["vout"]), "V")
+            report_measurement("output_min", lambda: min(data["vout"]), "V")
+        else:
+            report_measurement("output_at_2us", lambda: sample(data["time"], data["vout"], 2e-6), "V")
+            report_measurement("output_peak", lambda: max(window_values(data["time"], data["vout"], 1e-6, 3e-6)), "V")
+
+
+if __name__ == "__main__":
+    main()

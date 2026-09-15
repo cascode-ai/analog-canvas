@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { parseProject } from "@icm/project-protocol";
-import ota from "../../../apps/editor/src/examples/five-transistor-ota-sky130.icproj.json";
+import ota from "../../../netlists/native-ota-library/legacy-source.icproj.json";
 import { createSimulationStarter } from "./simulation-starter.js";
 import { compileSourceSimulation } from "./simulation-source-compile.js";
 import { inspectVacaskSourceGraph } from "./vacask-source.js";

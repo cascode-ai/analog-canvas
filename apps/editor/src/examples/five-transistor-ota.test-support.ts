@@ -1,6 +1,6 @@
 import { CURRENT_PROJECT_SCHEMA_VERSION } from "@icm/model";
 
-import legacyFiveTransistorOta from "./five-transistor-ota-sky130.icproj.json";
+import legacyFiveTransistorOta from "../../../../netlists/native-ota-library/legacy-source.icproj.json";
 
 export { legacyFiveTransistorOta };
 

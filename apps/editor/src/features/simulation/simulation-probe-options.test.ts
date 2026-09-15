@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { parseProject } from "@icm/project-protocol";
 import { createEmptyProject } from "@icm/model";
 
-import fiveTransistorOtaSky130 from "../../examples/five-transistor-ota-sky130.icproj.json";
+import fiveTransistorOtaSky130 from "../../../../../netlists/native-ota-library/legacy-source.icproj.json";
 import {
   deriveSimulationProbeOptions,
   matchSimulationTerminalCurrentProbeOptions,

@@ -67,7 +67,7 @@ describe.skipIf(!endpoint)("candidate ngspice46 source qualification", () => {
     const project = parseProject(
       readFileSync(
         new URL(
-          "../apps/editor/src/examples/five-transistor-ota-sky130.icproj.json",
+          "../netlists/native-ota-library/legacy-source.icproj.json",
           import.meta.url,
         ),
         "utf8",
@@ -136,7 +136,7 @@ describe.skipIf(!endpoint)("candidate ngspice46 source qualification", () => {
     const circuit = parseProject(
       readFileSync(
         new URL(
-          "../apps/editor/src/examples/five-transistor-ota-sky130.icproj.json",
+          "../netlists/native-ota-library/legacy-source.icproj.json",
           import.meta.url,
         ),
         "utf8",

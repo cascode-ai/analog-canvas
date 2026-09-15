@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { parseProject } from "@icm/project-protocol";
-import ota from "../../../apps/editor/src/examples/five-transistor-ota-sky130.icproj.json";
+import ota from "../../../netlists/native-ota-library/legacy-source.icproj.json";
 import { createSimulationStarter } from "./simulation-starter.js";
 import { nativeVoltageAcquisition } from "./simulation-native-voltage.js";
 import { analyzeDesignNetlist } from "./extract.js";

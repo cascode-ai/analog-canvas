@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { parseProject, serializeProject } from "@icm/project-protocol";
 import { generateCircuitSource } from "@icm/netlist";
 import { SimulationFiles, sha256 } from "@icm/simulation-service/files";
-import ota from "../../examples/five-transistor-ota-sky130.icproj.json";
+import ota from "../../../../../netlists/native-ota-library/legacy-source.icproj.json";
 import { EditorDocumentController } from "../../document/document-controller";
 import { createSimulationProjectFileHost } from "./project-file-host";
 

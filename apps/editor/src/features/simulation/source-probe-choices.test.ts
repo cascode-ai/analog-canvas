@@ -9,7 +9,7 @@ import {
   inspectVacaskSourceGraph,
 } from "@icm/netlist";
 import { resolveSimulationVoltageProbeNetId } from "./simulation-probe-options";
-import ota from "../../examples/five-transistor-ota-sky130.icproj.json";
+import ota from "../../../../../netlists/native-ota-library/legacy-source.icproj.json";
 import {
   sourceProbeChoices,
   sourceProbeEnvironment,

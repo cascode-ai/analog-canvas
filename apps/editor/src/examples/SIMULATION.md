@@ -23,8 +23,10 @@ Profile change. AC exposes a complex Gain trace with common dB/phase views.
 Historical numerical acceptance remains separate from these source migrations:
 compiling a native program does not establish equivalence to the old simulator.
 The saved local `output/native-simulation-examples` evidence is not a golden
-inside the bundled Projects. Legacy Library/other user experiments are not
-implicitly converted by the starter migration.
+inside the bundled Projects. The separate twelve-folder
+[Library OTA lab](../../../../netlists/native-ota-library/README.md) is now explicitly
+converted too; its historical source is retained for import tests. Other user
+experiments are not implicitly converted by either asset migration.
 
 The subsequent common-source conversion requests an explicit BSIM4 4.8.3 TT
 candidate; this is a model-version upgrade requiring separate qualification,

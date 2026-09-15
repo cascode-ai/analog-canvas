@@ -30,7 +30,7 @@ const outputDirectory = resolve(
 );
 const referenceText = await readFile(
   new URL(
-    "../apps/editor/src/examples/five-transistor-ota-sky130.icproj.json",
+    "../netlists/native-ota-library/legacy-source.icproj.json",
     import.meta.url,
   ),
   "utf8",

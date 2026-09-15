@@ -293,174 +293,66 @@ describe("the bundled five-transistor Sky130 OTA", () => {
     });
   });
 
-  it("preserves the qualified four-analysis numerical acceptance folder", async () => {
-    const folder = project.simulationFolders.find(
-      (candidate) => candidate.id === "simulation-setup-ota-op-ac",
-    );
-    expect(folder).toBeDefined();
-    expect(folder?.input.kind).toBe("source");
-    if (folder?.input.kind !== "source") return;
-    const compiled = await compileSourceSimulation(project, folder);
-    expect(compiled.ok).toBe(true);
-    if (!compiled.ok) return;
-
-    expect(sourcePresentation(folder).analysisLabel).toBe(
-      "OP + DC + AC + TRAN",
-    );
-    expect(compiled.files.map((file) => file.text).join("\n")).toContain(
-      "VINP",
-    );
-    expect(compiled.files.map((file) => file.text).join("\n")).toContain(
-      "AC 1 0",
-    );
-    expect(compiled.files.map((file) => file.text).join("\n")).toContain("op");
-    expect(compiled.files.map((file) => file.text).join("\n")).toContain(
-      "ac dec 10 1 1000000000",
-    );
-    expect(compiled.files.map((file) => file.text).join("\n")).toContain(
-      "dc VINP 0.88 0.92 0.005",
-    );
-    expect(compiled.files.map((file) => file.text).join("\n")).toContain(
-      "tran 2e-8 0.000004",
-    );
-    expect(compiled.files.map((file) => file.text).join("\n")).toContain(
-      "set appendwrite",
-    );
-    expect(compiled.config.outputs.map((o) => o.id)).toEqual([
-      "probe-vout",
-      "probe-ibias",
-      "probe-tail",
-      "probe-nleft",
-    ]);
-    expect(compiled.vectors.map(({ probeId, ...vector }) => vector)).toEqual([
-      { vector: "v(vout)", quantity: "voltage" },
-      { vector: "v(ibias)", quantity: "voltage" },
-      {
-        vector: "v(xdut.tail)",
-        quantity: "voltage",
-      },
-      {
-        vector: "v(xdut.nleft)",
-        quantity: "voltage",
-      },
-    ]);
-    expect(compiled.deviceOperatingPoints).toEqual([]);
-    expect(compiled.config.measurements).toEqual([]);
-  });
-
-  it("ships independently runnable bias, transfer, five-corner AC, transient, and Noise folders", async () => {
+  it("ships twelve native folders with original analysis coverage and Canvas bindings", async () => {
     const expected = [
-      ["simulation-setup-ota-op-ac", "op,dc,ac,tran", "tt"],
-      ["simulation-setup-ota-full-tt", "op,dc,ac,tran,noise", "tt"],
-      ["simulation-setup-ota-bias-tt", "op", "tt"],
-      ["simulation-setup-ota-dc-transfer-tt", "dc", "tt"],
-      ["simulation-setup-ota-ac-tt", "ac", "tt"],
-      ["simulation-setup-ota-ac-ff", "ac", "ff"],
-      ["simulation-setup-ota-ac-ss", "ac", "ss"],
-      ["simulation-setup-ota-ac-fs", "ac", "fs"],
-      ["simulation-setup-ota-ac-sf", "ac", "sf"],
-      ["simulation-setup-ota-tran-tt", "tran", "tt"],
-      ["simulation-setup-ota-noise-tt", "noise", "tt"],
-      ["simulation-setup-ota-tran-sin-tt", "tran", "tt"],
-    ] as const;
-
-    expect(
-      project.simulationFolders.map((folder) => [
-        folder.id,
-        folder.input.kind === "source"
-          ? sourcePresentation(folder)
-              .analysisLabel.toLowerCase()
-              .split(" + ")
-              .join(",")
-          : folder.input.kind,
-        readSimulationExperimentConfig(folder).ok
-          ? JSON.parse(
-              folder.input.files.find(
-                (f) => f.path === folder.input.configPath,
-              )!.text,
-            ).environment.corner
-          : null,
+      ["simulation-setup-ota-op-ac", "OP + DC + AC + TRAN", "tt"],
+      ["simulation-setup-ota-full-tt", "OP + DC + AC + TRAN + NOISE", "tt"],
+      ["simulation-setup-ota-bias-tt", "OP", "tt"],
+      ["simulation-setup-ota-dc-transfer-tt", "DC", "tt"],
+      ...["tt", "ff", "ss", "fs", "sf"].map((corner) => [
+        "simulation-setup-ota-ac-" + corner,
+        "AC",
+        corner,
       ]),
+      ["simulation-setup-ota-tran-tt", "TRAN", "tt"],
+      ["simulation-setup-ota-noise-tt", "NOISE", "tt"],
+      ["simulation-setup-ota-tran-sin-tt", "TRAN", "tt"],
+    ];
+    expect(
+      project.simulationFolders.map((folder) => {
+        const parsed = readSimulationExperimentConfig(folder);
+        if (!parsed.ok) throw Error(parsed.message);
+        expect(parsed.authority).toBe("code");
+        return [
+          folder.id,
+          sourcePresentation(folder).analysisLabel,
+          parsed.config.environment.profileId
+            .replace("vacask-sky130-", "")
+            .replace("-candidate", ""),
+        ];
+      }),
     ).toEqual(expected);
-
     for (const folder of project.simulationFolders) {
-      expect(folder.input.kind, folder.name).toBe("source");
-      if (folder.input.kind !== "source") continue;
       expect(
         folder.input.circuitBindings.find((b) => b.emission === "top-level")
           ?.documentId,
-        folder.name,
       ).toBe(
-        folder.id === "simulation-setup-ota-tran-sin-tt"
+        folder.id.endsWith("sin-tt")
           ? "document-ota-5t-testbench-sin"
           : testbench.id,
       );
       const compiled = await compileSourceSimulation(project, folder);
-      expect(compiled.ok, folder.name).toBe(true);
-      if (compiled.ok && folder.id === "simulation-setup-ota-tran-sin-tt") {
-        expect(compiled.files.map((file) => file.text).join("\n")).toContain(
-          "SIN(0.9 10m 1Meg 0 0 0)",
-        );
+      expect(compiled.ok, JSON.stringify(compiled)).toBe(true);
+      if (!compiled.ok) continue;
+      expect(compiled.language).toBe("vacask");
+      expect(compiled.config.outputs).toEqual([]);
+      expect(compiled.config.measurements).toEqual([]);
+      expect(
+        compiled.files.find((f) => f.path === "circuit.spice")?.text,
+      ).toContain("mag=1");
+      const code = compiled.files.find(
+        (f) => f.path === folder.input.entry,
+      )!.text;
+      if (folder.id === "simulation-setup-ota-op-ac") {
+        expect(code).toContain("from=0.88 to=0.92 step=0.005");
+        expect(code).toContain('from=1 to=1000000000 mode="dec" points=10');
+        expect(code).toContain("stop=0.000004 step=2e-8 maxstep=2e-8");
       }
+      if (folder.id.endsWith("sin-tt"))
+        expect(
+          compiled.files.find((f) => f.path === "circuit.spice")?.text,
+        ).toContain('type="sine"');
     }
-  });
-
-  it("covers the complete structured simulation feature matrix", () => {
-    const inputs = project.simulationFolders.map((folder) => {
-      const parsed = readSimulationExperimentConfig(folder);
-      if (!parsed.ok) throw Error(parsed.message);
-      return {
-        ...parsed.config,
-        analyses: sourcePresentation(folder)
-          .analysisLabel.toLowerCase()
-          .split(" + ")
-          .map((kind) => ({ kind })),
-      };
-    });
-    expect(
-      new Set(
-        inputs.flatMap((input) =>
-          input.analyses.map((analysis) => analysis.kind),
-        ),
-      ),
-    ).toEqual(new Set(["op", "dc", "ac", "tran", "noise"]));
-    expect(new Set(inputs.map((input) => input.environment.corner))).toEqual(
-      new Set(["tt", "ff", "ss", "fs", "sf"]),
-    );
-    expect(
-      new Set(
-        inputs.flatMap((input) =>
-          (input.measurements ?? []).map(
-            (measurement) => measurement.method.kind,
-          ),
-        ),
-      ),
-    ).toEqual(
-      new Set([
-        "value",
-        "sample-at",
-        "minimum",
-        "maximum",
-        "peak-to-peak",
-        "mean",
-        "rms",
-      ]),
-    );
-    expect(
-      new Set(
-        inputs.flatMap((input) =>
-          (input.deviceOperatingPoints ?? []).map(
-            (selection) => selection.instanceId,
-          ),
-        ),
-      ),
-    ).toEqual(new Set(["M1", "M3"]));
-    const combined = inputs.find((input) => input.analyses.length === 5)!;
-    expect(
-      combined.outputs.map((candidate) => candidate.expression.kind),
-    ).toEqual(
-      expect.arrayContaining(["voltage", "negate", "divide", "db20", "phase"]),
-    );
   });
 
   it("passes the Check-and-Save gates with no electrical rule issue", () => {

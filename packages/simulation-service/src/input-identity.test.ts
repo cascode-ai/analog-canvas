@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createEmptyProject, createSimulationFolder } from "@icm/model";
 import { parseProject } from "@icm/project-protocol";
-import ota from "../../../apps/editor/src/examples/five-transistor-ota-sky130.icproj.json";
+import ota from "../../../netlists/native-ota-library/legacy-source.icproj.json";
 import { ProjectInputIdentity } from "./input-identity.js";
 
 describe("Project input identity", () => {

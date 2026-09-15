@@ -20,6 +20,208 @@ import {
 } from "../../packages/netlist/src/simulation-native-devices.js";
 import { parseVacaskRawfile } from "../../packages/spice-run/src/vacask-rawfile.js";
 
+const legacyLibraryOta = JSON.parse(
+  await readFile(
+    new URL(
+      "../../netlists/native-ota-library/legacy-source.icproj.json",
+      import.meta.url,
+    ),
+    "utf8",
+  ),
+);
+
+function assertLibraryOtaResult(id, data, measurements) {
+  const original = legacyLibraryOta.simulationSetups.find(
+    (s) => s.id === id,
+  ).input;
+  const raw = data.analyses.filter((a) => !a.postprocessor);
+  // Collection order follows artifact paths, not control-program statement order.
+  expect(raw.map((a) => a.analysis).sort()).toEqual(
+    original.analyses.map((a) => a.kind).sort(),
+  );
+  const get = (a, name) => a.probes.find((p) => p.name === name);
+  const sample = (x, y, at) => {
+    const i = x.findIndex((v) => v >= at);
+    if (i < 0 || (i === 0 && x[i] !== at))
+      throw Error("Outside returned samples");
+    return x[i] === at
+      ? y[i]
+      : y[i - 1] + ((y[i] - y[i - 1]) * (at - x[i - 1])) / (x[i] - x[i - 1]);
+  };
+  for (const a of original.analyses) {
+    const result = raw.find((r) => r.analysis === a.kind);
+    if (a.kind === "dc") {
+      expect(result.sweep.values.length).toBe(
+        Math.round((a.stopValue - a.startValue) / a.stepValue) + 1,
+      );
+      result.sweep.values.forEach((x, i) => {
+        expect(x).toBeCloseTo(a.startValue + i * a.stepValue, 10);
+        if (id !== "simulation-setup-ota-op-ac")
+          expect(get(result, "vinp").value[i]).toBeCloseTo(x, 10);
+      });
+    } else if (a.kind === "ac" || a.kind === "noise") {
+      expect(result.frequencyHz.length).toBe(a.points * 9 + 1);
+      expect(result.frequencyHz[0]).toBe(1);
+      expect(result.frequencyHz.at(-1)).toBeCloseTo(1e9, 3);
+    } else if (a.kind === "tran") {
+      const time = result.timeSeconds,
+        input = get(result, "vinp")?.value;
+      expect(time.at(-1)).toBeCloseTo(a.stopSeconds, 12);
+      expect(
+        time.every(
+          (t, i) =>
+            !i ||
+            t - time[i - 1] <= (a.maxStepSeconds ?? a.stepSeconds) * 1.000001,
+        ),
+      ).toBe(true);
+      if (id === "simulation-setup-ota-op-ac") {
+        // That historical folder requests only four output/internal voltages.
+        expect(input).toBeUndefined();
+      } else if (id.endsWith("sin-tt")) {
+        time.forEach((t, i) =>
+          expect(input[i]).toBeCloseTo(
+            0.9 + 0.01 * Math.sin(2 * Math.PI * 1e6 * t),
+            9,
+          ),
+        );
+      } else {
+        expect(sample(time, input, 0.5e-6)).toBeCloseTo(0.9, 9);
+        expect(sample(time, input, 1.5e-6)).toBeCloseTo(0.91, 9);
+      }
+    }
+  }
+  if (original.deviceOperatingPoints?.length) {
+    const op = raw.find((a) => a.analysis === "op");
+    const parameters = op.probes.filter(
+      (p) => p.name.startsWith("XDUT:XM") && p.name.includes("."),
+    );
+    expect(parameters).toHaveLength(18);
+    expect(parameters.every((p) => Number.isFinite(p.value))).toBe(true);
+    expect(new Set(parameters.map((p) => p.name.split(":")[1]))).toEqual(
+      new Set(["XM1", "XM3"]),
+    );
+    for (const native of raw.filter((a) => a.analysis !== "noise")) {
+      if (native.analysis !== "op")
+        expect(
+          native.probes.some(
+            (p) => p.name.startsWith("XDUT:XM") && p.name.includes("."),
+          ),
+        ).toBe(false);
+      const derived = data.analyses.find(
+        (a) =>
+          a.analysis === native.analysis &&
+          a.postprocessor &&
+          get(a, "I_supply"),
+      );
+      const supply = get(derived, "I_supply"),
+        current = get(native, "VDD:flow(br)");
+      expect(supply.unit).toBe("A");
+      if (native.analysis === "ac") {
+        expect(supply.real).toEqual(current.real.map((v) => -v));
+        expect(supply.imag).toEqual(current.imag.map((v) => -v));
+      } else {
+        expect(supply.value).toEqual(
+          Array.isArray(current.value)
+            ? current.value.map((v) => -v)
+            : -current.value,
+        );
+      }
+    }
+  }
+  expect(measurements.map((m) => m.name).sort()).toEqual(
+    (original.measurements ?? []).map((m) => m.id).sort(),
+  );
+  for (const spec of original.measurements ?? []) {
+    const a = raw.find((a) => a.analysis === spec.analysis),
+      method = spec.method;
+    let axis = a.timeSeconds ?? a.frequencyHz ?? a.sweep?.values ?? [0];
+    let values;
+    if (spec.outputId === "noise-output-density") values = a.outputNoiseDensity;
+    else if (spec.outputId === "noise-input-density")
+      values = a.inputNoiseDensity;
+    else if (spec.outputId === "probe-gain-db") {
+      const out = get(a, "vout"),
+        inp = get(a, "vinp");
+      values = out.real.map(
+        (r, i) =>
+          20 *
+          Math.log10(
+            Math.hypot(r, out.imag[i]) / Math.hypot(inp.real[i], inp.imag[i]),
+          ),
+      );
+      const derived = data.analyses.find(
+        (a) => a.analysis === "ac" && a.postprocessor && get(a, "Gain"),
+      );
+      const gain = get(derived, "Gain");
+      values.forEach((v, i) =>
+        expect(
+          20 * Math.log10(Math.hypot(gain.real[i], gain.imag[i])),
+        ).toBeCloseTo(v, 10),
+      );
+    } else {
+      const p = get(
+        a,
+        spec.outputId === "probe-supply-current" ? "VDD:flow(br)" : "vout",
+      );
+      values = Array.isArray(p.value) ? p.value : [p.value];
+      if (spec.outputId === "probe-supply-current")
+        values = values.map((v) => -v);
+    }
+    if (method.window) {
+      const { start, stop } = method.window;
+      const pairs = [
+        [start, sample(axis, values, start)],
+        ...axis.flatMap((x, i) =>
+          x > start && x < stop ? [[x, values[i]]] : [],
+        ),
+        [stop, sample(axis, values, stop)],
+      ];
+      axis = pairs.map((p) => p[0]);
+      values = pairs.map((p) => p[1]);
+    }
+    let expected;
+    switch (method.kind) {
+      case "value":
+        expected = values[0];
+        break;
+      case "sample-at":
+        expected = sample(axis, values, method.coordinate);
+        break;
+      case "minimum":
+        expected = Math.min(...values);
+        break;
+      case "maximum":
+        expected = Math.max(...values);
+        break;
+      case "peak-to-peak":
+        expected = Math.max(...values) - Math.min(...values);
+        break;
+      case "mean":
+      case "rms": {
+        const power = method.kind === "rms" ? 2 : 1;
+        const integral = values
+          .slice(1)
+          .reduce(
+            (sum, v, i) =>
+              sum +
+              ((axis[i + 1] - axis[i]) * (values[i] ** power + v ** power)) / 2,
+            0,
+          );
+        expected = integral / (axis.at(-1) - axis[0]);
+        if (power === 2) expected = Math.sqrt(expected);
+        break;
+      }
+      default:
+        throw Error(`Unverified measurement ${method.kind}`);
+    }
+    const value = measurements.find((m) => m.name === spec.id).value;
+    expect(Number.isFinite(value)).toBe(true);
+    expect(Math.abs(value - expected)).toBeLessThan(
+      Math.max(1e-15, Math.abs(expected) * 1e-10),
+    );
+  }
+}
+
 function assertOtaResult(id, data, measurements) {
   const get = (plot, name) => plot.probes.find((p) => p.name === name);
   const measured = (name) => measurements.find((m) => m.name === name).value;
@@ -388,12 +590,14 @@ function assertRlcResult(data, measurements, resistance) {
 }
 
 const projects = await Promise.all(
-  ["rc", "rlc", "common-source", "ota"].map(async (kind) => ({
+  ["rc", "rlc", "common-source", "ota", "ota-library"].map(async (kind) => ({
     kind,
     project: parseProject(
       await readFile(
         new URL(
-          `../../apps/editor/src/examples/simulation-${kind}.icproj.json`,
+          kind === "ota-library"
+            ? "../../apps/editor/src/examples/five-transistor-ota-sky130.icproj.json"
+            : `../../apps/editor/src/examples/simulation-${kind}.icproj.json`,
           import.meta.url,
         ),
         "utf8",
@@ -423,7 +627,7 @@ const { library } = JSON.parse(
 );
 const cornerLibraries = Object.fromEntries(
   await Promise.all(
-    ["tt", "ff", "ss"].map(async (corner) => [
+    ["tt", "ff", "ss", "fs", "sf"].map(async (corner) => [
       corner,
       JSON.parse(
         await readFile(
@@ -437,6 +641,56 @@ const cornerLibraries = Object.fromEntries(
     ]),
   ),
 );
+
+it("preserves all twelve Library OTA experiments, their circuits and native report source", async () => {
+  const { project } = projects.find((p) => p.kind === "ota-library");
+  const before = parseProject(JSON.stringify(legacyLibraryOta));
+  expect({ ...project, simulationFolders: [] }).toEqual({
+    ...before,
+    simulationFolders: [],
+  });
+  expect(project.simulationFolders.map((f) => f.id)).toEqual(
+    before.simulationFolders.map((f) => f.id),
+  );
+  for (const folder of project.simulationFolders) {
+    const original = before.simulationFolders.find((f) => f.id === folder.id);
+    expect(folder.input.circuitBindings).toEqual(
+      original.input.circuitBindings,
+    );
+    const compiled = compileSourceSimulation(project, folder);
+    expect(compiled.ok, JSON.stringify(compiled)).toBe(true);
+    for (const [file, path] of [
+      ["report.py", "netlists/native-ota-library/report.py"],
+      ["native_report.py", "scripts/lib/native-starter-report.py"],
+    ])
+      expect(folder.input.files.find((f) => f.path === file).text).toBe(
+        (
+          await readFile(new URL(`../../${path}`, import.meta.url), "utf8")
+        ).replaceAll("\r\n", "\n"),
+      );
+    const corner = legacyLibraryOta.simulationSetups.find(
+      (s) => s.id === folder.id,
+    ).input.environment.corner;
+    const lib = cornerLibraries[corner];
+    expect(folder.input.dependencies).toEqual([
+      {
+        id: lib.dependencyId,
+        sha256: lib.sha256,
+        mountPath: "models/library.inc",
+      },
+    ]);
+    if (folder.id.includes("bias") || folder.id.includes("full")) {
+      const ops = nativeSimulationDevices(project, folder.input, [lib])
+        .filter((d) => ["M1", "M3"].includes(d.instanceId))
+        .flatMap((d) => nativeDeviceOpAcquisitions(d));
+      expect(ops).toHaveLength(18);
+      for (const op of ops)
+        expect(
+          compiled.files.find((f) => f.path === folder.input.entry).text,
+        ).toContain(op.save);
+    }
+  }
+});
 
 it("ships all eight OTA native folders without substituting corners or the code-owned feedback testbench", async () => {
   const { project } = projects.find((p) => p.kind === "ota");
@@ -633,15 +887,17 @@ it
   )
   .each(
     projects.flatMap((p) =>
-      p.kind === "ota"
-        ? ["tt", "ff", "ss"].map((corner) => ({ ...p, corner }))
-        : [{ ...p, corner: "tt" }],
+      p.kind === "ota-library"
+        ? ["tt", "ff", "ss", "fs", "sf"].map((corner) => ({ ...p, corner }))
+        : p.kind === "ota"
+          ? ["tt", "ff", "ss"].map((corner) => ({ ...p, corner }))
+          : [{ ...p, corner: "tt" }],
     ),
   )(
   "runs bundled $kind $corner experiments through Prepare/Run/Read, measurements and CSV",
   async ({ kind, project, corner }, context) => {
     const commonSource = kind === "common-source";
-    const modelBacked = commonSource || kind === "ota";
+    const modelBacked = commonSource || kind.startsWith("ota");
     const lib = cornerLibraries[corner];
     const modelPath =
       process.env[`ICM_VACASK_CONVERTED_${corner.toUpperCase()}`];
@@ -735,9 +991,11 @@ it
       );
       for (const folder of project.simulationFolders) {
         if (
-          kind === "ota" &&
-          (folder.id.startsWith("ota-ac-") ? folder.id.slice(-2) : "tt") !==
-            corner
+          modelBacked &&
+          JSON.parse(
+            folder.input.files.find((f) => f.path === folder.input.configPath)
+              .text,
+          ).environment.profileId !== profile.id
         )
           continue;
         const prepared = await service.handle(
@@ -778,6 +1036,10 @@ it
           run.result.outcome.status,
           JSON.stringify({ id: folder.id, result: run.result }),
         ).toBe("completed");
+        expect(
+          run.error,
+          JSON.stringify({ id: folder.id, error: run.error }),
+        ).toBeUndefined();
         // Large waveforms intentionally leave Read as a bounded receipt. Fetch
         // complete arrays through the same paged File API used by GUI/MCP.
         const artifactText = async (name) => {
@@ -844,8 +1106,11 @@ it
           JSON.stringify(measurements),
         ).toBe(true);
         const high = folder.id.includes("-hp-");
-        if (kind === "ota") {
-          assertOtaResult(folder.id, result.data, measurements);
+        if (kind.startsWith("ota")) {
+          if (kind === "ota-library")
+            assertLibraryOtaResult(folder.id, result.data, measurements);
+          else assertOtaResult(folder.id, result.data, measurements);
+          expect(run.artifacts.some((a) => a.name.endsWith(".csv"))).toBe(true);
           for (const item of run.artifacts.filter((a) =>
             a.name.endsWith(".csv"),
           ))
