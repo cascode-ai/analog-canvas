@@ -16,6 +16,7 @@ RUN test "$(uname -m)" = x86_64 \
     && rm -rf /var/lib/apt/lists/*
 COPY vacask/ /opt/vacask/
 COPY modules/ /opt/modules/
+COPY model-source/ /opt/model-source/
 COPY models/ /opt/models/
 COPY harness/ /opt/harness/
 COPY SHA256SUMS /opt/SHA256SUMS

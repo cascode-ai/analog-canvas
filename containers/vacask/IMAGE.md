@@ -6,7 +6,7 @@ executor or Profile protocol. It is not yet a hosted, qualified environment.
 Package explicit, locally prepared artifacts into a **new** directory:
 
 ```sh
-node scripts/package-vacask-image.mjs <new-context> <linux-release> <repaired-modules> <model-package> <harness-package>
+node scripts/package-vacask-image.mjs <new-context> <linux-release> <repaired-build> <model-package> <harness-package>
 docker build --platform linux/amd64 -t icm-vacask:candidate <new-context>
 ```
 
@@ -16,6 +16,14 @@ checksums verified during the build. Base images use OCI digests, Ubuntu
 packages use a dated snapshot, and `/opt/os-packages.txt` records installed
 versions. These are build inputs, not a promise of bit-identical image rebuilds.
 Record the actual image digest and existing runtime environment fingerprint.
+
+`<repaired-build>` is the directory emitted by `vacask-bsim4-build.mjs`, containing
+`modules/`, `bsim4v8.va` and `build.json`. Packaging verifies the corresponding
+source, original source, compiler and module against the build record. The image
+contains the repaired source and portable recipe in `/opt/model-source/`; local
+absolute paths and compile logs are not published. From `/opt`, use the compiler
+and `rebuildArgs` recorded there to write a new module into writable scratch.
+Rebuilding does not overwrite the accepted module or qualify a new digest.
 
 The image runs as UID 10001. Supply the existing runtime configuration at
 `/etc/vacask/runtime-config.json` read-only; hosted mode still requires the
@@ -54,6 +62,5 @@ file, because the packaged compiler can report a linker failure with exit zero.
 This local proof uses observed `local-host` identity inside Docker, not hosted
 qualification. It does not certify hostile-job isolation, admission/queue
 behavior, forced-stop recovery, cloud routing or latency. Before distribution,
-package the repaired model's corresponding source/build provenance and review
-third-party licensing; those local inputs are not downloaded by this recipe.
+review third-party licensing; local inputs are not downloaded by this recipe.
 No shared Preview, production route or operator service is changed here.

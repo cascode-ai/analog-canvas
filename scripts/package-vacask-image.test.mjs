@@ -10,7 +10,22 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
-import { packageVacaskImage } from "./package-vacask-image.mjs";
+import {
+  packageVacaskImage,
+  readModelBuildSource,
+} from "./package-vacask-image.mjs";
+
+it("refuses an unrelated model source before trusting a build receipt", async () => {
+  const root = await mkdtemp(join(tmpdir(), "native-source-package-"));
+  try {
+    await writeFile(join(root, "bsim4v8.va"), "unrelated source");
+    await expect(readModelBuildSource(root, "absent-release")).rejects.toThrow(
+      "Repaired source identity mismatch",
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
 
 it("refuses an unexpected simulator before creating an image context or touching inputs", async () => {
   const root = await mkdtemp(join(tmpdir(), "native-image-package-"));

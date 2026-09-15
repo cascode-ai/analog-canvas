@@ -3,19 +3,70 @@ import { cp, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import {
+  BSIM4_CHAINRULE_PATCHED_SHA256,
+  BSIM4_CHAINRULE_SOURCE_SHA256,
+} from "./lib/vacask-bsim4-chainrule.mjs";
 
 const sha = (bytes) => createHash("sha256").update(bytes).digest("hex");
+
+export async function readModelBuildSource(buildDirectory, release) {
+  const source = await readFile(join(buildDirectory, "bsim4v8.va"));
+  assert.equal(
+    sha(source),
+    BSIM4_CHAINRULE_PATCHED_SHA256,
+    "Repaired source identity mismatch",
+  );
+  const record = JSON.parse(
+    await readFile(join(buildDirectory, "build.json"), "utf8"),
+  );
+  assert.equal(record.succeeded, true, "Model build did not succeed");
+  assert.equal(record.patchedSourceSha256, sha(source));
+  assert.equal(record.sourceSha256, BSIM4_CHAINRULE_SOURCE_SHA256);
+  assert.equal(
+    sha(await readFile(join(release, "src/vacask/devices/spice/bsim4v8.va"))),
+    record.sourceSha256,
+  );
+  assert.equal(
+    sha(await readFile(join(release, "bin/openvaf-r"))),
+    record.compilerSha256,
+  );
+  assert.equal(
+    sha(await readFile(join(buildDirectory, "modules/spice/bsim4v8.osdi"))),
+    record.moduleSha256,
+  );
+  return {
+    source,
+    // Portable rebuild recipe, not the developer's absolute paths or logs.
+    provenance: {
+      scope: "Native candidate source provenance; not hosted qualification",
+      source: "model-source/bsim4v8.va",
+      sourceSha256: record.patchedSourceSha256,
+      upstreamSourceSha256: record.sourceSha256,
+      compiler: "vacask/bin/openvaf-r",
+      compilerSha256: record.compilerSha256,
+      module: "modules/spice/bsim4v8.osdi",
+      moduleSha256: record.moduleSha256,
+      rebuildArgs: [
+        "model-source/bsim4v8.va",
+        "-o",
+        "/tmp/bsim4v8-rebuilt.osdi",
+      ],
+    },
+  };
+}
 
 // Compose existing artifacts, not another runtime/Profile. Every copied asset
 // gets a standard checksum; simulator and repaired module identities are fixed.
 export async function packageVacaskImage(
   output,
   release,
-  modules,
+  modelBuild,
   models,
   harness,
 ) {
   const root = resolve(output);
+  const modules = join(modelBuild, "modules");
   const binary = await readFile(join(release, "bin/vacask"));
   assert.equal(
     sha(binary),
@@ -27,6 +78,7 @@ export async function packageVacaskImage(
     "5c06ffb2aec8d96c2bbfdbde854e788ac704cbdf2f8d60ae90146aa22e3659a9",
     "Expected repaired BSIM4 module",
   );
+  const modelSource = await readModelBuildSource(modelBuild, release);
   const modelManifest = JSON.parse(
     await readFile(join(models, "package-manifest.json"), "utf8"),
   );
@@ -57,6 +109,15 @@ export async function packageVacaskImage(
       force: false,
     });
   await mkdir(join(root, "models"));
+  await mkdir(join(root, "model-source"));
+  await writeFile(join(root, "model-source/bsim4v8.va"), modelSource.source, {
+    flag: "wx",
+  });
+  await writeFile(
+    join(root, "model-source/provenance.json"),
+    JSON.stringify(modelSource.provenance, null, 2) + "\n",
+    { flag: "wx" },
+  );
   for (const name of ["models.inc", "package-manifest.json"])
     await cp(join(models, name), join(root, "models", name));
   const sums = [];
@@ -98,7 +159,7 @@ if (
   assert.equal(
     process.argv.length,
     7,
-    "Usage: package-vacask-image.mjs <new-context> <linux-release> <repaired-modules> <model-package> <harness-package>",
+    "Usage: package-vacask-image.mjs <new-context> <linux-release> <repaired-build> <model-package> <harness-package>",
   );
   console.log(
     JSON.stringify(
