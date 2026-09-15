@@ -6,6 +6,21 @@ process supervisor. It never falls back to ngspice.
 
 ## Run locally
 
+For a standalone harness artifact (for a later image build), run:
+
+```sh
+node scripts/package-vacask-harness.mjs /absolute/new-output-directory
+node /absolute/new-output-directory/vacask-harness.mjs /absolute/runtime-config.json
+```
+
+Build the service dependencies first as below. Packaging bundles this same
+entrypoint and workspace dependencies into one Node 24 ESM file, with a SHA-256
+manifest; it refuses existing output directories. No models, simulator binary,
+Python, operator configuration or credentials are embedded. The artifact is not
+an image or deployment, and its manifest does not replace the runtime lock.
+The real CLI journey accepts `ICM_VACASK_HARNESS_ENTRY` to exercise that artifact
+from a scratch working directory, without workspace module resolution.
+
 For a flattened native model artifact, derive read-only symbol evidence with
 `node scripts/vacask-model-symbols.mjs --library <file> --dependency-id <id> --master <wrapper> --output <new-json-file>`
 after building the service dependencies below. Repeat `--master` for each public

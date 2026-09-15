@@ -60,8 +60,15 @@ it.skipIf(!process.env.VACASK_BIN || !process.env.VACASK_MODULES)(
       );
       child = spawn(
         process.execPath,
-        [resolve("containers/vacask/entrypoint.mjs"), configPath],
+        [
+          resolve(
+            process.env.ICM_VACASK_HARNESS_ENTRY ??
+              "containers/vacask/entrypoint.mjs",
+          ),
+          configPath,
+        ],
         {
+          cwd: root,
           stdio: ["ignore", "pipe", "pipe"],
           windowsHide: true,
         },
