@@ -109,6 +109,132 @@ print(json.dumps([source_bin_guards(v,boundaries) for v in json.loads(sys.stdin.
   });
 });
 
+const arithmeticInputs = [
+  "361*nf/w+1489",
+  "nf/w",
+  "1/(nf/w)",
+  "nf/-w",
+  "nf/w/w",
+  '"models/a/b"',
+  "2",
+  "nf*1.0/w",
+];
+function convertedArithmetic() {
+  const run = spawnSync(
+    python,
+    [
+      "-c",
+      `
+import json, sys
+from scripts.lib.vacask_source_arithmetic import real_source_division
+print(json.dumps([[real_source_division(v),real_source_division(real_source_division(v))]
+                  for v in json.loads(sys.stdin.read())]))
+`,
+    ],
+    {
+      input: JSON.stringify(arithmeticInputs),
+      encoding: "utf8",
+      windowsHide: true,
+    },
+  );
+  expect(run.status, run.stderr).toBe(0);
+  return JSON.parse(run.stdout);
+}
+describe.skipIf(!pythonAvailable)("source real division", () => {
+  it("promotes before division, preserving nesting, signs, strings and repeated formatting", () => {
+    const converted = convertedArithmetic();
+    expect(converted.map(([value]) => value)).toEqual([
+      "361*nf*1.0/w+1489",
+      "nf*1.0/w",
+      "1*1.0/(nf*1.0/w)",
+      "nf*1.0/-w",
+      "nf*1.0/w*1.0/w",
+      '"models/a/b"',
+      "2",
+      "nf*1.0/w",
+    ]);
+    for (const [first, repeated] of converted) expect(repeated).toBe(first);
+  });
+  it.skipIf(!process.env.VACASK_BIN || !process.env.VACASK_MODULES)(
+    "evaluates integer-authored model operands as source real arithmetic in actual VACASK",
+    () => {
+      const expressions = convertedArithmetic()
+        .slice(0, 5)
+        .map(([value]) => value);
+      const expected = [
+        (361 * 2) / 3 + 1489,
+        2 / 3,
+        1 / (2 / 3),
+        -2 / 3,
+        2 / 3 / 3,
+      ];
+      const cwd = mkdtempSync(join(tmpdir(), "icm-source-arithmetic-"));
+      try {
+        writeFileSync(
+          join(cwd, "vacaskrc.toml"),
+          "# controlled test startup\n",
+        );
+        writeFileSync(
+          join(cwd, "run.sim"),
+          `Source arithmetic test
+ground 0
+load "resistor.osdi"
+model resistance resistor
+model voltage vsource
+parameters nf=2 w=3
+${expressions.map((e, i) => `V${i} (n${i} 0) voltage dc=1\nR${i} (n${i} 0) resistance r=(abs(${e})+1)`).join("\n")}
+control
+ abort always
+ options rawfile="ascii" strictsave=2
+ save ${expressions.map((_, i) => `i('V${i}')`).join(" ")}
+ analysis math op
+endc
+`,
+        );
+        const run = spawnSync(
+          process.env.VACASK_BIN,
+          ["--tomlfile", join(cwd, "vacaskrc.toml"), "-sp", "run.sim"],
+          {
+            cwd,
+            encoding: "utf8",
+            windowsHide: true,
+            timeout: 15000,
+            env: {
+              ...process.env,
+              SIM_MODULE_PATH: process.env.VACASK_MODULES,
+              ...(process.env.ICM_VACASK_LIBRARY_PATH
+                ? { LD_LIBRARY_PATH: process.env.ICM_VACASK_LIBRARY_PATH }
+                : {}),
+              HOME: cwd,
+              USERPROFILE: cwd,
+              OMP_NUM_THREADS: "1",
+            },
+          },
+        );
+        expect(run.error).toBeUndefined();
+        expect(run.status, run.stdout + run.stderr).toBe(0);
+        const parsed = parseVacaskRawfile(
+          readFileSync(join(cwd, "math.raw"), "utf8"),
+        );
+        expect(parsed.ok).toBe(true);
+        if (!parsed.ok) throw Error(parsed.error.message);
+        for (const [i, value] of expected.entries()) {
+          const actual = parsed.plots[0].vectors.find(
+            (v) => v.variable.name === `V${i}:flow(br)`,
+          )?.real[0];
+          expect(actual).toBeDefined();
+          expect(Math.abs(actual - -1 / (Math.abs(value) + 1))).toBeLessThan(
+            1e-14,
+          );
+        }
+      } finally {
+        rmSync(cwd, { recursive: true });
+      }
+    },
+    20000,
+  );
+});
+
 // Requires the two clean, pinned source checkouts. This is an offline conversion
 // integration test, not simulator/model qualification. No downloads in unit CI.
 describe.skipIf(!available)("pinned native SKY130 conversion", () => {
@@ -144,9 +270,13 @@ describe.skipIf(!available)("pinned native SKY130 conversion", () => {
       expect(report.binningRecipeSha256).toBe(
         hash("scripts/lib/vacask_model_binning.py"),
       );
+      expect(report.arithmeticRecipeSha256).toBe(
+        hash("scripts/lib/vacask_source_arithmetic.py"),
+      );
+      expect(text).toContain("swx_nrds=361*nf*1.0/w+1489");
       expect(text).toContain("model nshort_model__0 sp_bsim4v8");
       expect(text).toContain("rbody (rb r1) rbody_model");
-      expect(text).toContain("dw=(-sw_activecd-nfom_dw/2) tnom=30");
+      expect(text).toContain("dw=(-sw_activecd-nfom_dw*1.0/2) tnom=30");
       expect(text).toContain("$mfactor=(0.5)*$mfactor");
       expect(text).toContain("model defmod_c sp_capacitor");
       expect(text).toContain('load "spice/bsim4v8.osdi"');

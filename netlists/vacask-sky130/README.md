@@ -61,6 +61,13 @@ and [model insertion order](https://sourceforge.net/p/ngspice/ngspice/ci/ebdaf58
 The recipe records this policy and its helper digest. It does not adopt the
 native foreign parser's different bin rules or add an executable fallback.
 
+Source parameter division is lowered with a real unit multiplier before `/`:
+`361*nf/w+1489` becomes `361*nf*1.0/w+1489`. For integer-authored NF=2, W=3,
+this preserves 1729.666... instead of native integer truncation to 1729.
+Nesting and left-to-right multiplication/division order are retained; string
+values are untouched. This is a source-model conversion rule, not a rewrite
+of authored native VACASK programs. Its helper digest is also recorded.
+
 The directory named `continuous` still contains binned models. Its name is not
 a promise that every W/L/NF is supported. The seven baseline wrappers remain
 the acceptance target; other included wrappers are not qualified.
@@ -74,13 +81,18 @@ The frozen hosted binary has now reproduced the TT/FF reference locally. Its
 four MOS model bodies and all five FET corner parameter files match this
 source after comment/whitespace normalization. At L=0.5 um the original
 ngspice selects nshort_model.6; the old lowering selected .5. Corrected bin
-selection removes the large FF/SS differences. With default native solver
-options 15/50 comparisons still fail (maximum relative error about 0.00342%).
-An explicit diagnostic run with reltol=1e-8, abstol=1e-15, vntol=1e-10 reduces
-that to five LVT PFET current differences, maximum about 0.000843%. This is
-not a product default change. The original acceptance thresholds remain
-unchanged and **do not pass**. The remaining differences require investigation;
-neither model-version warnings nor solver tolerance alone explains them.
+selection removes the large FF/SS differences. The remaining LVT PFET error
+was traced to integer division of its sheet-resistance expression. With both
+corrections and explicit reltol=1e-8, abstol=1e-15, vntol=1e-10, all 50 point
+comparisons pass the unchanged original thresholds. These solver settings are
+now in the device probe, not silently applied to every product run. With native
+default solver tolerances, ten NFET current comparisons still exceed the strict
+reference tolerances (maximum relative error about 0.00342%).
+
+Passing these OP/AC device points does not qualify the full Profile: bias,
+geometry, temperature and multiplicity sweeps, OTA DC/AC/TRAN/Noise and the
+hosted environment still require their own evidence. Source-version warnings
+remain visible, and no model coefficients or acceptance thresholds were changed.
 
 The source declares BSIM4 4.5/4.62; the installed `sp_bsim4v8` module warns
 that it executes 4.8.3. This warning is preserved. Geometry/bias/multiplicity

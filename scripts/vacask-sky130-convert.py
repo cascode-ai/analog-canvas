@@ -13,6 +13,7 @@ import sys
 import tempfile
 from copy import deepcopy
 from lib.vacask_model_binning import source_bin_guards
+from lib.vacask_source_arithmetic import real_source_division
 
 VACASK_REV = "c1a1c84f1b2b9aa71c0cddf06e555441434db7b7"
 MODELS_REV = "403964dc7f9cca5ec1a8cc7b4f2a6f532b781676"
@@ -64,6 +65,10 @@ class RelativeIncludeConverter(Converter):
         self.emitted_bins = {}
         self.required_modules = set()
         self.source_files = set()
+
+    def process_expressions(self, params):
+        return [(name, real_source_division(value))
+                for name, value in super().process_expressions(params)]
 
     def process_model(self, lws, line, eol, annot, in_sec, in_sub):
         parts = line.split(' ', 2)
@@ -213,6 +218,7 @@ report = {
     "modelRevision": MODELS_REV,
     "recipeSha256": digest(Path(__file__)),
     "binningRecipeSha256": digest(Path(__file__).parent / 'lib/vacask_model_binning.py'),
+    "arithmeticRecipeSha256": digest(Path(__file__).parent / 'lib/vacask_source_arithmetic.py'),
     "binning": {"source": "ngspice-46", "defaultWnflag": 0, "edgeToleranceM": 1e-9, "priority": "last-declared"},
     "scope": "combined_models/continuous tree; only the seven baseline wrappers are acceptance targets",
     "limitations": [

@@ -35,7 +35,9 @@ VPC (pc 0) voltage dc=0
 XQP (pc pb pe) sky130_fd_pr__pnp_05v5_w0p68l0p68
 control
  abort always
- options scale=1e-6 rawfile="ascii" strictsave=2
+ // Explicit numerical accuracy for the frozen per-probe acceptance thresholds.
+ // This fixture does not change the product's default solver configuration.
+ options reltol=1e-8 abstol=1e-15 vntol=1e-10 scale=1e-6 rawfile="ascii" strictsave=2
  save default
  analysis devices_op op
  analysis devices_ac ac values=[1e9]
