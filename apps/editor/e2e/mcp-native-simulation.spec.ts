@@ -13,8 +13,9 @@ import {
 } from "./native-simulation-executor.mjs";
 
 // Opt-in: real stdio MCP + local Worker/DO + browser service + native process.
-// No mocked Agent messages/HTTP replies. The simulation HTTP seam alone is
-// test-owned; no public endpoint, cloud account or operator deployment is used.
+// No mocked Agent messages. Explicit Vite mode uses the real development HTTP
+// transport; default real mode intercepts only the simulation seam. Neither
+// mode uses a public endpoint, cloud account or operator deployment.
 test("public MCP connects to the real local relay and executes native source", async ({
   page,
   baseURL,
@@ -30,15 +31,34 @@ test("public MCP connects to the real local relay and executes native source", a
   let child: ReturnType<typeof startMcp> | undefined;
   let executions = 0;
   try {
-    executor = await createAgentNativeExecutor();
-    const activeExecutor = executor;
-    await page.route("**/api/simulate", async (route) => {
-      const input = route.request().postDataJSON();
-      if (input.operation === "capabilities")
-        return route.fulfill({ json: activeExecutor.capabilities });
-      executions++;
-      return route.fulfill({ json: await activeExecutor.execute(input) });
-    });
+    const direct = process.env.ICM_E2E_NATIVE_TRANSPORT === "vite";
+    let expectedEnvironment;
+    if (direct) {
+      if (!process.env.ICM_SIMULATION_URL)
+        throw new Error(
+          "Vite transport requires ICM_SIMULATION_URL; no intercepted fallback.",
+        );
+      const health = await fetch(`${process.env.ICM_SIMULATION_URL}/health`);
+      expect(health.status).toBe(200);
+      expectedEnvironment = (await health.json()).environment;
+      expect(expectedEnvironment?.simulator.name).toBe("vacask");
+      expect(expectedEnvironment?.profileId).toBe(agentNativeProfile);
+      page.on("request", (request) => {
+        if (new URL(request.url()).pathname !== "/api/simulate") return;
+        if (request.postDataJSON().operation === undefined) executions++;
+      });
+    } else {
+      executor = await createAgentNativeExecutor();
+      const activeExecutor = executor;
+      expectedEnvironment = activeExecutor.environment;
+      await page.route("**/api/simulate", async (route) => {
+        const input = route.request().postDataJSON();
+        if (input.operation === "capabilities")
+          return route.fulfill({ json: activeExecutor.capabilities });
+        executions++;
+        return route.fulfill({ json: await activeExecutor.execute(input) });
+      });
+    }
     await page.goto("/editor");
     await page.getByRole("button", { name: "Agent", exact: true }).click();
     const message = page.getByTestId("agent-copy-text");
@@ -173,7 +193,7 @@ test("public MCP connects to the real local relay and executes native source", a
       run: finished,
       directory: join(root, "downloaded-evidence"),
       compiled: { files: [{ path: "main.sim", text: agentNativeSource }] },
-      expectedEnvironment: activeExecutor.environment,
+      expectedEnvironment,
     });
     expect(evidence.plots).toHaveLength(1);
     expect(evidence.artifacts.map((a: { name: string }) => a.name)).toEqual(
@@ -184,7 +204,13 @@ test("public MCP connects to the real local relay and executes native source", a
       ]),
     );
     await test.info().attach("public-mcp-native-download-receipt", {
-      body: Buffer.from(JSON.stringify(evidence, null, 2)),
+      body: Buffer.from(
+        JSON.stringify(
+          { transport: direct ? "vite" : "intercepted-native", ...evidence },
+          null,
+          2,
+        ),
+      ),
       contentType: "application/json",
     });
     await test.info().attach("public-mcp-native-run", {
