@@ -79,6 +79,15 @@ The product set is exactly the reviewed, Reference-calibrated entries:
 - `resistor`, `capacitor`, `inductor-compact`, their adjustable siblings
   `variable-resistor`, `variable-capacitor`, and `variable-inductor` (the base
   body plus one diagonal adjustment arrow), `port`, and `port-filled`;
+- `capacitor-section`, the top/bottom plate cross-section from Figure 13.42
+  (printed page 562) of _Design of Analog CMOS Integrated Circuits, Second
+  Edition_. Pin `1` connects to the top plate and Pin `2` to the bottom plate;
+  the substrate baseline is decorative and adds no terminal or parasitic
+  model. It exports the same ideal two-terminal C primitive as `capacitor`.
+  The source plate outlines are native PDF vectors; printed raster texture
+  is represented by vector hatching and external leads end on the 10-unit
+  grid. This presentation is selected manually, since a SPICE C line cannot
+  distinguish cross-section artwork from the ordinary capacitor symbol;
 - `port` and `port-filled` keep their calibrated circular bodies, with the
   right-hand lead and `P` terminal shortened by one 10-unit grid cell to x=0.
   Their view boxes shrink with that endpoint; the one-cell lead allowance

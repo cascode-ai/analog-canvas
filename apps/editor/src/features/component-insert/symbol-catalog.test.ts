@@ -73,6 +73,7 @@ describe("component insertion catalog", () => {
       "resistor",
     ]);
     expect(symbolCategory("capacitor")).toBe("Passives");
+    expect(symbolCategory("capacitor-section")).toBe("Passives");
     expect(symbolCategory("tcoil")).toBe("Extended Devices");
     expect(symbolCategory("xfmr")).toBe("Extended Devices");
     expect(symbolCategory("variable-resistor")).toBe("Extended Devices");
@@ -329,6 +330,7 @@ describe("reach order inside a category", () => {
     expect(passives).toEqual([
       "resistor",
       "capacitor",
+      "capacitor-section",
       "inductor-compact",
       "inductor",
     ]);

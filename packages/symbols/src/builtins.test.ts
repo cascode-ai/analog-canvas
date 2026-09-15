@@ -11,6 +11,7 @@ const PRODUCT_IDS = [
   "and-gate",
   "buffer",
   "capacitor",
+  "capacitor-section",
   "closed-switch",
   "comparator",
   "current-source",

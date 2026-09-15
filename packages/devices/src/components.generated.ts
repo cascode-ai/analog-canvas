@@ -88,6 +88,37 @@ export const componentDeviceDescriptors: readonly DeviceDescriptor[] = [
     },
   },
   {
+    id: "capacitor-section",
+    symbolId: "capacitor-section",
+    deviceClass: "capacitor",
+    referencePrefix: "C",
+    pinOrder: ["1", "2"],
+    pinSemantics: [
+      { pinName: "1", role: "capacitor-top-plate" },
+      { pinName: "2", role: "capacitor-bottom-plate" },
+    ],
+    targetPolicy: "builtin",
+    parameters: [
+      {
+        name: "value",
+        label: "Value",
+        required: true,
+        editor: "text",
+        unitHint: "F",
+        placeholder: "1p",
+        defaultValue: "1p",
+        help: "Capacitance",
+        displayRole: "value",
+      },
+    ],
+    dialects: ["spice", "spectre"],
+    capabilities: {
+      supportsModel: false,
+      supportsBulkBinding: false,
+      supportsValueAnnotation: true,
+    },
+  },
+  {
     id: "variable-capacitor",
     symbolId: "variable-capacitor",
     deviceClass: "capacitor",
