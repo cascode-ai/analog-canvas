@@ -42,16 +42,46 @@ Temperature is 27 °C; OTA AC covers TT, FF and SS,
 and the other MOS analyses use TT. This is representative coverage, not a claim
 that every product feature, process corner or analog specification is tested.
 
-## Native numerical checks and remaining live MCP migration
+## Native numerical checks and live MCP runner
 
-The historical runner `run-native-simulation-examples.mjs` has **not yet been
-migrated**: it still targets shared Preview, pins MCP 0.7.0 and flattens artifact
-paths. Do not use it to qualify VACASK or deploy VACASK to that shared executor.
-The intended live acceptance opens isolated temporary candidate browser contexts, imports through
+`run-native-simulation-examples.mjs` requires an explicit candidate origin,
+a digest-checked packaged MCP entry and independently expected native environment
+metadata for every selected Profile. It refuses the known Production/shared
+Preview origins. This does **not** prove resource isolation: establish M1's
+executor/storage/auth boundary separately before running against a cloud origin.
+The runner opens fresh temporary browser contexts, imports through
 the GUI, obtains a fresh full-authority claim for each temporary Project, and
 runs prepare/start/read batch and artifact export through stdio MCP. It does
 not use a user's open browser Project, restart their MCP, publish a Project,
 call simulation HTTP endpoints directly, or substitute mocked simulator data.
+
+Build the candidate Editor and packaged MCP using the existing build/package
+commands. Deploy only to the authorized isolated target. Preserve the package's
+`bin/analog-canvas-mcp.mjs` and adjacent `package.json`; do not substitute an
+unbundled `dist/main.js`. The runner checks served Editor entry bytes against
+the local build and MCP initialize version against the supplied package.
+For example (paths and digests are explicit acceptance inputs, not defaults):
+
+```powershell
+node scripts/run-native-simulation-examples.mjs output/native-simulation-examples --url https://isolated-candidate.example --mcp-bundle output/mcp/analog-canvas-mcp-v0.9.0/bin/analog-canvas-mcp.mjs --mcp-sha256 <expected-bundle-sha256> --environment <passive-environment.json> --environment <tt-environment.json> --environment <ff-environment.json> --environment <ss-environment.json>
+node scripts/analyze-native-simulation-examples.mjs output/native-simulation-examples
+```
+
+Each environment file is the existing environment metadata object (including
+`profileId`, `simulator` with its binary digest, and `fingerprint`), obtained from
+the independently prepared candidate runtime—not copied from the result being
+accepted. `--project <exact-slug>` selects one entire Project for focused work;
+the final numerical analyzer still requires all 19 starter experiments.
+The output `results/` must not already exist: use a freshly generated export
+directory for another attempt, keeping earlier failure evidence.
+
+The runner checks advertised native collection, batch capacity and model dependency
+digests before submission. It downloads complete artifacts with original nested
+paths, checks the expected runtime and executed source, and exports every non-OP
+plot from complete `result.json` arrays. One failed run/export cannot become a
+passing Project receipt; other available evidence is still collected. An active
+batch is cancelled on interrupted acceptance before disconnecting its MCP.
+Runner receipts cover this GUI/MCP batch only, not full M6 or model qualification.
 
 For current local native execution, `containers/vacask/starter-journey.test.mjs`
 runs the actual Prepare/Run/Read/File service against a configured VACASK binary,
@@ -72,8 +102,8 @@ GUI/MCP, isolated-cloud acceptance or fixed-reference model qualification.
 offline `analyze-native-simulation-examples.mjs` command. The CLI additionally
 requires complete live receipts, hashed nested `executed/` and `raw/` artifacts,
 matching compiled input and exported plots. Its output is exclusive-create;
-existing acceptance evidence is not overwritten. Until the live runner preserves
-that contract, its old output must not be described as accepted native evidence.
+existing acceptance evidence is not overwritten. Historical runner output with
+flattened paths or absent exports is not accepted native evidence.
 
 `results/<project>/<folder>/` contains immutable rawfiles, logs, result JSON,
 native measurements, CSV exports and evidence manifests with verified SHA-256

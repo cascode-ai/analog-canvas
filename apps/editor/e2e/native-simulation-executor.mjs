@@ -77,6 +77,9 @@ export async function createAgentNativeExecutor() {
       }));
     return {
       capabilities,
+      // Test-owned runtime identity exists before submission, independently of
+      // the run under inspection. Acceptance must not trust its own result.
+      environment,
       async execute(input) {
         if (input.language !== "vacask")
           throw new Error("Expected native input.");

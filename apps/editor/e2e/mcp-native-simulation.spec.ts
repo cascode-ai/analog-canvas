@@ -5,6 +5,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { createSimulationFolder } from "@icm/model";
+import { collectNativeRunEvidence } from "../../../scripts/lib/native-example-runner.mjs";
 import {
   agentNativeSource,
   agentNativeProfile,
@@ -163,6 +164,29 @@ test("public MCP connects to the real local relay and executes native source", a
     });
     expect(exported.ok, JSON.stringify(exported)).toBe(true);
     expect(await readFile(outputPath, "utf8")).toContain("0.5");
+    const evidence = await collectNativeRunEvidence({
+      tool: async (name: string, args: unknown) => {
+        const reply = await child!.tool(name, args);
+        expect(reply.ok, JSON.stringify(reply)).toBe(true);
+        return reply;
+      },
+      run: finished,
+      directory: join(root, "downloaded-evidence"),
+      compiled: { files: [{ path: "main.sim", text: agentNativeSource }] },
+      expectedEnvironment: activeExecutor.environment,
+    });
+    expect(evidence.plots).toHaveLength(1);
+    expect(evidence.artifacts.map((a: { name: string }) => a.name)).toEqual(
+      expect.arrayContaining([
+        "result.json",
+        "executed/main.sim",
+        "raw/agent_ac.raw",
+      ]),
+    );
+    await test.info().attach("public-mcp-native-download-receipt", {
+      body: Buffer.from(JSON.stringify(evidence, null, 2)),
+      contentType: "application/json",
+    });
     await test.info().attach("public-mcp-native-run", {
       body: Buffer.from(JSON.stringify(finished, null, 2)),
       contentType: "application/json",

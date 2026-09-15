@@ -3,11 +3,13 @@ import type {
   ExecutionInput,
   ExecutionOutput,
 } from "@icm/simulation-service";
+import type { SimulationEnvironmentMetadata } from "@icm/spice-run";
 
 export const agentNativeSource: string;
 export const agentNativeProfile: string;
 export function createAgentNativeExecutor(): Promise<{
   capabilities: Capabilities;
+  environment: SimulationEnvironmentMetadata;
   execute(input: ExecutionInput): Promise<
     ExecutionOutput["result"] & {
       rawfiles: ExecutionOutput["rawfiles"];
