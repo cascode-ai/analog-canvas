@@ -417,7 +417,7 @@ describe("structural SPICE round trip", () => {
     ]);
     const before = beforeAnalysis.ir!;
     const text = printSpiceNetlist(before);
-    expect(text).toContain(".subckt leaf VDD VSS A B params: scale=1");
+    expect(text).toContain(".subckt leaf VSS A B params: scale=1");
     expect(text).toContain("R1 A NC0001 1k");
 
     const imported = await importSpiceSources(

@@ -1084,6 +1084,10 @@ describe("current formal cell interface", () => {
       scope: "global",
     });
     expect(result.ir?.globals).toEqual(["VDD"]);
+    expect(result.ir?.cells[0]?.ports).toEqual([
+      expect.objectContaining({ name: "VSS", netName: "VSS" }),
+    ]);
+    expect(printSpiceNetlist(result.ir!)).toContain(".subckt dut VSS");
   });
 
   it("exports formal VDD Power as a local Cell Pin and reuses it for an implicit PMOS bulk", () => {
@@ -1128,6 +1132,11 @@ describe("current formal cell interface", () => {
     expect(result.ir?.globals).toEqual([]);
     expect(result.ir?.cells[0]?.ports).toEqual([
       { id: "net-vdd", name: "VDD", netName: "VDD" },
+      {
+        id: deriveStableId("default-cell-supply", document.id, "VSS"),
+        name: "VSS",
+        netName: "VSS",
+      },
     ]);
     expect(result.ir?.cells[0]?.instances[0]?.nodes[3]).toEqual({
       pinName: "B",

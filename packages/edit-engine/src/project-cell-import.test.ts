@@ -98,6 +98,8 @@ describe("cross-Project Cell import", () => {
 
   it("uses deterministic names and treats a repeated import as idempotent", () => {
     const destination = createEmptyProject("destination", "Destination");
+    destination.documents[0]!.name = "Main";
+    destination.documents[0]!.netlist!.name = "Main";
     const source = createEmptyProject("source", "Source", "source-main");
     source.documents[0]!.name = "Main";
     source.documents[0]!.netlist!.name = "Main";

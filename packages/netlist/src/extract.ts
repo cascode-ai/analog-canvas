@@ -1540,16 +1540,45 @@ function analyzeDesign(
         ),
     ),
   );
+  const omittedImplicitSuppliesByCell = new Map<string, Set<string>>();
   for (const cell of cells) {
-    for (const net of cell.nets) {
-      if (
-        net.id.startsWith("default-cell-supply-") &&
+    const sourceDocument = documentsById.get(cell.id);
+    const authoredPortKeys = new Set(
+      sourceDocument
+        ? projectCellInterface(sourceDocument.netlist).ports.map((port) =>
+            foldNetName(port.name),
+          )
+        : [],
+    );
+    const omittedPorts = cell.ports.filter(
+      (port) =>
+        !authoredPortKeys.has(foldNetName(port.name)) &&
         globalSupplyKeys.has(
-          encodedNetNameCollisionKey(net.name, resolvedOptions.format),
-        )
-      ) {
-        net.scope = "global";
-      }
+          encodedNetNameCollisionKey(port.name, resolvedOptions.format),
+        ),
+    );
+    if (omittedPorts.length === 0) continue;
+    const omittedIds = new Set(omittedPorts.map((port) => port.id));
+    const omittedNames = new Set(
+      omittedPorts.map((port) => foldNetName(port.name)),
+    );
+    omittedImplicitSuppliesByCell.set(foldNetName(cell.name), omittedNames);
+    cell.ports = cell.ports.filter((port) => !omittedIds.has(port.id));
+    cell.nets = cell.nets.filter(
+      (net) =>
+        !omittedIds.has(net.id) || !net.id.startsWith("default-cell-supply-"),
+    );
+  }
+  for (const cell of cells) {
+    for (const instance of cell.instances) {
+      if (instance.deviceClass !== "hierarchical" || !instance.target) continue;
+      const omitted = omittedImplicitSuppliesByCell.get(
+        foldNetName(instance.target),
+      );
+      if (!omitted) continue;
+      instance.nodes = instance.nodes.filter(
+        (node) => !omitted.has(foldNetName(node.pinName)),
+      );
     }
   }
   const globals = [
