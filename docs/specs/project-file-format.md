@@ -2,7 +2,7 @@
 
 Status: `accepted`
 
-Project schema: `55`
+Project schema: `56`
 
 Primary owners: `packages/model` (current shape) and
 `packages/project-protocol` (file boundary)
@@ -65,7 +65,7 @@ the 50→51 adapter changes only the version stamp. Schema 52 replaces the
 rotation-coupled local-X mirror bit with independent screen-space
 `horizontal`, `vertical`, and `both` directions. The 51→52 adapter preserves
 the rendered orientation while leaving every rotation unchanged. The public
-file boundary supplies only schema 55 in memory and writes only schema 55.
+file boundary supplies only schema 56 in memory and writes only schema 56.
 Schema 53 expands persisted rotation to 45-degree steps; the 52→53 adapter
 preserves every existing quarter-turn value. Schema 54 adds an optional
 `parameter` selector to live `instance-value` annotation bindings; 53→54 only
@@ -74,7 +74,11 @@ Schema 55 adds optional `styleOverride.arrowStart` and `arrowEnd` to arrows.
 Each accepts `small-arrow`, `medium-arrow`, `large-arrow`, `dot`, `none`, or
 `open-arrow`. An unset end retains legacy `arrowHead`, `arrowHeadAt`, and
 `arrowHeadScale` behavior. The 54→55 adapter only advances the version stamp.
-Versions older than 24 or newer than 55 are rejected.
+Schema 56 adds optional `Route.styleOverride.lineStyle`: `solid`, `dashed`, or
+`dotted`. The 55→56 adapter only advances the version stamp; existing Routes
+keep their geometry, electrical membership, colors and arrows. An absent
+style retains a solid ordinary Wire and the existing MOS bulk presentation.
+Versions older than 24 or newer than 56 are rejected.
 
 ## Current authorities
 
@@ -174,8 +178,8 @@ Versions older than 24 or newer than 55 are rejected.
 ## Read and write
 
 ```text
-import text -> parse JSON -> require Project schema 24 through 55
--> converge to schema 55 -> strict schema-55 validation -> install unbound
+import text -> parse JSON -> require Project schema 24 through 56
+-> converge to schema 56 -> strict schema-56 validation -> install unbound
 export -> strict validation -> canonical key ordering -> Blob download
 ```
 
@@ -199,7 +203,7 @@ open, and recovery remain exact.
 Canonical serialization ends with one newline and is byte-stable across
 serialize/parse/serialize. The current corpus is listed in
 `fixtures/projects/compatibility-corpus.json`; its accepted entries must all be
-already canonical Project schema 55. The rejected corpus names expected
+already canonical Project schema 56. The rejected corpus names expected
 validation failures.
 
 Viewport, selection, undo history, canvas overlays, Agent credentials,

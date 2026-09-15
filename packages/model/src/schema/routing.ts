@@ -26,6 +26,8 @@ export const RouteDirectionArrowSchema = z.enum(["middle", "end"]);
 /** Optional visual overrides for one electrical Route. */
 export const RouteStyleOverrideSchema = z.strictObject({
   color: HexColorSchema.optional(),
+  // Appearance only: dashed conductors retain ordinary Wire connectivity.
+  lineStyle: z.enum(["solid", "dashed", "dotted"]).optional(),
   // Direction follows the authored Route from `start` through its final leg.
   // Omission keeps the conductor unadorned.
   arrow: RouteDirectionArrowSchema.optional(),

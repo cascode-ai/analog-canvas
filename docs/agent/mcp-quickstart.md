@@ -34,6 +34,14 @@ Schema 55 arrow objects support independent `styleOverride.arrowStart` and
 These fields are arrow-only; legacy `arrowHead`/`arrowHeadAt` remain fallbacks.
 Older 0.9.0 adapters may reject Snapshots containing the new fields.
 
+The next editor schema, 56, adds electrical Wire line styles. Its Agent
+Snapshots also expose each Route's `styleOverride` (color, arrow and lineStyle)
+so Agents can preserve the other settings when editing one. Use a matching
+source-built adapter for this development version. The published 0.10.0
+adapter targets schema 55 and strictly validates Snapshots; a compatible MCP
+release is required before publishing this editor change. Updating the website
+does not replace an already installed adapter.
+
 ## Create and edit
 
 Use `apply_actions` for one atomic edit batch, wire, planned command or focus

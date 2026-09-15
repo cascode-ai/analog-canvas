@@ -1,6 +1,6 @@
 # Project File Compatibility
 
-The current Project schema version is `55`. It retains schematic-only
+The current Project schema version is `56`. It retains schematic-only
 hierarchy integrity, a Project structural revision, stable formal Cell ports,
 and definition-level Cell symbol presentation. It also has one typed Instance
 netlist authority, formal Cell parameters, and Project-local external
@@ -75,7 +75,7 @@ arrowheads, dots, no head, and legacy open arrowheads. Unset ends preserve the
 previous head style, placement, and scale; v54 content changes only its stamp.
 These additions do not invent intent while upgrading an older Project.
 The original file is never overwritten silently. Schemas older than v24 and
-versions newer than v55 are rejected by the project-file boundary.
+versions newer than v56 are rejected by the project-file boundary.
 
 The canonical-current corpus at
 [`fixtures/projects/compatibility-corpus.json`](../../fixtures/projects/compatibility-corpus.json)
@@ -104,3 +104,9 @@ explicitly clearing site data. Use **File / Save** for the formal Cloud Project
 and **Export Project File…** for portable bytes. A direct backup download is
 shown when recovery storage fails. These operations do not delete browser
 recovery copies.
+
+Schema 56 adds optional electrical Wire `styleOverride.lineStyle` (`solid`,
+`dashed`, or `dotted`). Styling does not change electrical connectivity or
+netlist output. The schema 55 upgrade preserves all existing Route data and
+changes only the version stamp. MOS bulk connections retain their dedicated
+dash pattern. Select a Wire and use **Properties / Line style** to change it.

@@ -132,11 +132,13 @@ export function RouteActionsSection({
   netLabel,
   color,
   arrow,
+  lineStyle,
   defaultColor,
   highlightActive,
   onNetLabelChange,
   onColorChange,
   onArrowChange,
+  onLineStyleChange,
   onDeleteNetLabel,
   onAddCurrentArrow,
   onToggleHighlight,
@@ -148,11 +150,13 @@ export function RouteActionsSection({
   netLabel: string;
   color: string | undefined;
   arrow: "middle" | "end" | undefined;
+  lineStyle?: "solid" | "dashed" | "dotted" | undefined;
   defaultColor: string;
   highlightActive: boolean;
   onNetLabelChange: (value: string) => void;
   onColorChange: (value: string | undefined) => void;
   onArrowChange: (value: "middle" | "end" | undefined) => void;
+  onLineStyleChange: (value: "solid" | "dashed" | "dotted") => void;
   onDeleteNetLabel: () => void;
   onAddCurrentArrow: () => void;
   onToggleHighlight: () => void;
@@ -193,6 +197,22 @@ export function RouteActionsSection({
         fallback={defaultColor}
         onChange={onColorChange}
       />
+      <label>
+        Line style
+        <select
+          aria-label="Wire line style"
+          value={lineStyle ?? "solid"}
+          onChange={(event) =>
+            onLineStyleChange(
+              event.currentTarget.value as "solid" | "dashed" | "dotted",
+            )
+          }
+        >
+          <option value="solid">Solid</option>
+          <option value="dashed">Dashed</option>
+          <option value="dotted">Dotted</option>
+        </select>
+      </label>
       <label>
         Direction arrow
         <select

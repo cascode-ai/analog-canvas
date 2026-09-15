@@ -6453,6 +6453,7 @@ export function App({
                 netLabel: netLabelDraft,
                 color: selectedRoute?.styleOverride?.color,
                 arrow: selectedRoute?.styleOverride?.arrow,
+                lineStyle: selectedRoute?.styleOverride?.lineStyle,
                 defaultColor: styleProfile.foreground,
                 highlightActive: selectedHighlightIsActive,
                 onNetLabelChange: updateNetLabelDraft,
@@ -6505,6 +6506,26 @@ export function App({
                         : `Removed wire arrow from ${selectedRoute.id}`,
                     );
                   }
+                },
+                onLineStyleChange: (lineStyle) => {
+                  if (!selectedRoute) return;
+                  const styleOverride = {
+                    ...(selectedRoute.styleOverride ?? {}),
+                  };
+                  if (lineStyle === "solid") delete styleOverride.lineStyle;
+                  else styleOverride.lineStyle = lineStyle;
+                  const result = transact([
+                    {
+                      kind: "set_route_style_override",
+                      routeId: selectedRoute.id,
+                      styleOverride:
+                        Object.keys(styleOverride).length > 0
+                          ? styleOverride
+                          : null,
+                    },
+                  ]);
+                  if (result.ok)
+                    setStatus(`Updated wire line style to ${lineStyle}`);
                 },
                 onDeleteNetLabel: deleteSelectedRouteNetLabel,
                 onAddCurrentArrow: addCurrentArrow,

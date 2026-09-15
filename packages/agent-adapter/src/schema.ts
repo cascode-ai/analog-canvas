@@ -17,6 +17,7 @@ import {
   RouteEndpointSchema,
   RouteLegSchema,
   RoutePresentationSchema,
+  RouteStyleOverrideSchema,
   SourceSpanSchema,
   StableIdSchema,
   SymbolLocalPointSchema,
@@ -470,6 +471,7 @@ export const AgentSnapshotRouteSchema = z.strictObject({
   start: RouteEndpointSchema,
   legs: z.array(RouteLegSchema).min(1),
   presentation: RoutePresentationSchema.optional(),
+  styleOverride: RouteStyleOverrideSchema.optional(),
   polyline: z.array(DerivedPointSchema).min(2).nullable(),
 });
 

@@ -485,7 +485,7 @@ describe("current rendering contract", () => {
         bends: [],
         modes: ["manual"],
         presentation: "bulk-dashed",
-        styleOverride: { color: "#059669" },
+        styleOverride: { color: "#059669", lineStyle: "solid" },
       }),
     );
 
@@ -494,6 +494,7 @@ describe("current rendering contract", () => {
       /<polyline[^>]*data-object-id="bulk-route"[^>]*>/u,
     )?.[0];
     expect(route).toContain('data-route-presentation="bulk-dashed"');
+    expect(route).toContain('stroke-dasharray="3 3"');
     expect(route).toContain('stroke="#dc2626"');
     expect(route).not.toContain('stroke="#059669"');
   });

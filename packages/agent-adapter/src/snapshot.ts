@@ -383,6 +383,9 @@ function documentSnapshot(
         start: structuredClone(route.start),
         legs: structuredClone(route.legs),
         ...(route.presentation ? { presentation: route.presentation } : {}),
+        ...(route.styleOverride
+          ? { styleOverride: structuredClone(route.styleOverride) }
+          : {}),
         polyline: geometry ? [...geometry.centerline] : null,
       };
     });

@@ -2512,6 +2512,71 @@ test("fills a closed shape and moves it behind or in front of circuit artwork", 
   });
 });
 
+test("changes wire line style while preserving color, arrow, export and undo", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await placeComponent(page, "resistor", { x: 340, y: 220 });
+  await placeComponent(page, "resistor", { x: 660, y: 220 });
+  await clickDrawTool(page, "wire");
+  await page.getByTestId("terminal-R1-2").click();
+  await page.getByTestId("terminal-R2-1").click();
+  await page.keyboard.press("Escape");
+  await clickRoute(page, "route-ui-1");
+  await openSelectionShelf(page);
+  const style = page.getByLabel("Wire line style");
+  const conductor = page.locator(
+    '[data-layer="routes"] polyline[data-object-id="route-ui-1"]',
+  );
+  await expect(style).toHaveValue("solid");
+  await page.getByLabel("Wire direction arrow").selectOption("end");
+  await page.getByRole("button", { name: "Use Red for wire color" }).click();
+  await style.selectOption("dashed");
+  await expect(conductor).toHaveAttribute("stroke-dasharray", "6 4");
+  await expect(conductor).toHaveAttribute("stroke", "#dc2626");
+  const arrow = page.locator(
+    '[data-layer="routes"] [data-role="route-direction-arrow"]',
+  );
+  await expect(arrow).toHaveAttribute("data-arrow-position", "end");
+  await expect(arrow).toHaveAttribute("fill", "#dc2626");
+  await style.selectOption("dotted");
+  await expect(conductor).toHaveAttribute("stroke-dasharray", "2 3");
+  await clickCommand(page, "Edit", "Undo");
+  await expect(style).toHaveValue("dashed");
+  await expect(conductor).toHaveAttribute("stroke-dasharray", "6 4");
+  await clickCommand(page, "Edit", "Redo");
+  await expect(style).toHaveValue("dotted");
+  const saved = await downloadBytes(page, "File", "Export Project File…");
+  expect(
+    JSON.parse(saved.toString("utf8")).documents[0].routes[0].styleOverride,
+  ).toEqual({
+    lineStyle: "dotted",
+    color: "#dc2626",
+    arrow: "end",
+  });
+  const svg = (await downloadBytes(page, "File", "Export SVG")).toString(
+    "utf8",
+  );
+  expect(svg).toMatch(
+    /<polyline[^>]*data-object-id="route-ui-1"[^>]*stroke-dasharray="2 3"/u,
+  );
+  expect(svg).toContain('data-role="route-direction-arrow"');
+  const pdf = await downloadBytes(page, "File", "Export PDF");
+  expect(pdf.subarray(0, 5).toString("ascii")).toBe("%PDF-");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "styled-wire.icproj.json",
+    mimeType: "application/json",
+    buffer: saved,
+  });
+  await clickRoute(page, "route-ui-1");
+  await openSelectionShelf(page);
+  await expect(style).toHaveValue("dotted");
+  await expect(conductor).toHaveAttribute("stroke", "#dc2626");
+  await style.selectOption("solid");
+  await expect(conductor).not.toHaveAttribute("stroke-dasharray");
+  await expect(arrow).toHaveAttribute("data-arrow-position", "end");
+});
+
 test("places and clears an independent direction arrow on one wire", async ({
   page,
 }) => {

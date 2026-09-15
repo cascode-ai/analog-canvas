@@ -40,6 +40,39 @@ function transaction(
 }
 
 describe("set_route_style_override edit", () => {
+  it.each(["solid", "dashed", "dotted"] as const)(
+    "sets %s styling alone, preserves connectivity, and supports undo/redo",
+    (lineStyle) => {
+      const document = documentWithRoute();
+      const history = new DocumentHistory(document);
+      const result = history.transact(
+        transaction(history.document, [
+          {
+            kind: "set_route_style_override",
+            routeId: "wire",
+            styleOverride: { lineStyle },
+          },
+        ]),
+      );
+      expect(result).toMatchObject({ ok: true, applied: true });
+      expect(history.document.routes[0]!.styleOverride).toEqual({ lineStyle });
+      expect(history.document.nets).toEqual(document.nets);
+      expect(history.document.junctions).toEqual(document.junctions);
+      expect(history.document.routes[0]).toEqual({
+        ...document.routes[0],
+        styleOverride: { lineStyle },
+      });
+      expect(
+        history.transact(transaction(history.document, [{ kind: "undo" }])),
+      ).toMatchObject({ ok: true });
+      expect(history.document.routes[0]!.styleOverride).toBeUndefined();
+      expect(
+        history.transact(transaction(history.document, [{ kind: "redo" }])),
+      ).toMatchObject({ ok: true });
+      expect(history.document.routes[0]!.styleOverride).toEqual({ lineStyle });
+    },
+  );
+
   it("sets and clears a wire color without changing connectivity", () => {
     const document = documentWithRoute();
     const set = executeTransaction(
@@ -111,6 +144,18 @@ describe("set_route_style_override edit", () => {
 
   it("rejects invalid colors, missing routes, and no-op changes", () => {
     const document = documentWithRoute();
+    expect(
+      executeTransaction(document, {
+        ...transaction(document, []),
+        edits: [
+          {
+            kind: "set_route_style_override",
+            routeId: "wire",
+            styleOverride: { lineStyle: "long-dash" },
+          },
+        ],
+      }).ok,
+    ).toBe(false);
     expect(
       executeTransaction(document, {
         ...transaction(document, [] as never[]),
