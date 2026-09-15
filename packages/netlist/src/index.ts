@@ -27,3 +27,4 @@ export * from "./simulation-native-parameter-edit.js";
 export * from "./simulation-native-devices.js";
 export * from "./vacask-model-symbols.js";
 export * from "./simulation-native-migration.js";
+export { isVacaskStatement } from "./vacask-statement.js";

@@ -10,6 +10,7 @@ import {
   inspectVacaskSource,
   inspectVacaskSourceGraph,
   locateSimulationText,
+  isVacaskStatement,
   type VacaskSourceStatement,
   type SimulationSourceDiagnostic,
 } from "@icm/netlist";
@@ -240,6 +241,29 @@ export function resolveSourceSimulationContext(
       sourceMaps[entryIndex] = { path: mapped.path, segments: mapped.segments };
     }
     if (section !== undefined) environment.corner = section;
+    if (policy.defaultScale !== undefined) {
+      // This is a visible initial default, not an enforced option or a rewrite
+      // of dimensions. Later authored options (including clear) retain authority.
+      const control = inspectVacaskSourceGraph({
+        ...folder.input,
+        files,
+        dependencies,
+      }).statements.find(({ statement }) =>
+        isVacaskStatement(statement, "control"),
+      );
+      if (control) {
+        const index = files.findIndex((file) => file.path === control.path);
+        const file = files[index]!;
+        const mapped = insertSimulationText(
+          { ...file, ...sourceMaps[index]! },
+          control.statement.tokens[0]!.end,
+          `\n// Profile model scale (initial default)\noptions scale=${policy.defaultScale}\n`,
+          { kind: "generated", purpose: "environment" },
+        );
+        files[index] = { path: mapped.path, text: mapped.text };
+        sourceMaps[index] = { path: mapped.path, segments: mapped.segments };
+      }
+    }
   }
   return {
     ok: true as const,

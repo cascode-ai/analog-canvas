@@ -37,10 +37,6 @@ export function nativeSky130OtaFixture() {
       'include "circuit.spice"',
       'include "models/library.inc"\ninclude "circuit.spice"',
     )
-    // Reviewed SKY130 wrapper parameters are plain micrometres. The native
-    // candidate uses the same explicit scale as its numerical reference decks;
-    // this is authored environment setup, not a mutation of Canvas dimensions.
-    .replace("options rawfile=", "options scale=1e-6 rawfile=")
     .replace(
       "analysis op op",
       'analysis bias op\nanalysis response ac from=1 to=1e6 mode="dec" points=10',
@@ -82,6 +78,9 @@ export function nativeSky130OtaFixture() {
     corners: [],
     dependencies: [{ id: library.dependencyId, sha256: library.sha256 }],
     modelSymbols: [library],
+    // The candidate's wrapper interface is plain micrometres. Declare this in
+    // its loading policy; do not patch the experiment or Canvas dimensions.
+    modelLibrary: { dependencyId: library.dependencyId, defaultScale: 1e-6 },
   };
   return { project, folder, profile, library, voltage, m1, acquisitions };
 }

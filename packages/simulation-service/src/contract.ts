@@ -519,6 +519,9 @@ export const CapabilitiesSchema = z.strictObject({
           .strictObject({
             dependencyId: Id,
             defaultSection: z.string().min(1).optional(),
+            /** Native initial option for this library, not a Canvas length conversion.
+             * Authored options/clear keep their normal subsequent semantics. */
+            defaultScale: z.number().positive().optional(),
           })
           .optional(),
       })

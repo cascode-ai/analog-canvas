@@ -28,6 +28,9 @@ it.skipIf(
     const { project, folder, profile, library, acquisitions } =
       nativeSky130OtaFixture();
     const before = structuredClone(project);
+    expect(
+      folder.input.files.some((file) => /options\s+scale=/u.test(file.text)),
+    ).toBe(false);
     const root = await mkdtemp(join(tmpdir(), "icm-sky130-public-"));
     let server;
     try {
@@ -192,6 +195,9 @@ it.skipIf(
         "XDUT:XM1:msky130_fd_pr__nfet_01v8.gm",
       );
       expect(await artifact("executed/circuit.spice")).toContain("XDUT");
+      expect(await artifact(`executed/${folder.input.entry}`)).toContain(
+        "options scale=0.000001",
+      );
       expect(await readdir(root)).toEqual(["vacaskrc.toml"]);
       expect(project).toEqual(before);
     } catch (error) {

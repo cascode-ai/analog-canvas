@@ -80,6 +80,90 @@ function native(bound = false) {
 }
 
 describe("source execution preparation", () => {
+  it("projects a used library's initial scale without rewriting user options or dimensions", async () => {
+    const { circuit, folder, entry } = native(true);
+    const selected = structuredClone(caps);
+    selected.profiles[0]!.modelLibrary!.defaultScale = 1e-6;
+    entry.text = entry.text.replace(
+      "control",
+      "control // authored control\r\noptions scale=2e-6\r\nclear options\r\noptions scale=3e-6",
+    );
+    const before = structuredClone({ circuit, folder });
+    const prepared = await prepareSourceExecutionInput(
+      circuit,
+      folder,
+      selected,
+    );
+    if (!prepared.ok) throw Error(JSON.stringify(prepared));
+    const text = prepared.input.preparedDeck;
+    expect(text.indexOf("options scale=0.000001")).toBeLessThan(
+      text.indexOf("options scale=2e-6"),
+    );
+    expect(text).toContain("clear options\r\noptions scale=3e-6");
+    expect(text.match(/Profile model scale/g)).toHaveLength(1);
+    const map = prepared.sourceMaps.find((m) => m.path === entry.path)!;
+    expect(
+      locateSimulationText(map, text.indexOf("options scale=0.000001")),
+    ).toEqual({ kind: "generated", purpose: "environment" });
+    expect(
+      locateSimulationText(map, text.indexOf("options scale=2e-6")),
+    ).toEqual({
+      kind: "authored",
+      path: entry.path,
+      startOffset: entry.text.indexOf("options scale=2e-6"),
+    });
+    expect({ circuit, folder }).toEqual(before);
+    selected.profiles[0]!.modelLibrary!.defaultScale = 1e-9;
+    const other = await prepareSourceExecutionInput(circuit, folder, selected);
+    if (!other.ok) throw Error(JSON.stringify(other));
+    expect(other.digest).not.toBe(prepared.digest);
+    expect(other.input.inputRevision).toBe(prepared.input.inputRevision);
+  });
+  it("applies the default in the first reached control include, not in every analysis", async () => {
+    const { circuit, folder, entry } = native(true);
+    entry.text =
+      'Included native control\ninclude "../circuit.inc"\ninclude "commands.inc"\n';
+    folder.input.files.push({
+      path: "tb/commands.inc",
+      text: "control\nanalysis a op\nclear options\nanalysis b op\nendc\n",
+    });
+    const selected = structuredClone(caps);
+    selected.profiles[0]!.modelLibrary!.defaultScale = 1e-6;
+    const prepared = await prepareSourceExecutionInput(
+      circuit,
+      folder,
+      selected,
+    );
+    if (!prepared.ok) throw Error(JSON.stringify(prepared));
+    expect(prepared.input.preparedDeck).not.toContain("options scale");
+    const commands = prepared.input.files!.find(
+      (f) => f.path === "tb/commands.inc",
+    )!.text;
+    expect(commands.match(/options scale/g)).toHaveLength(1);
+    expect(commands).toContain("clear options\nanalysis b op");
+  });
+  it("does not apply model scale to a text-only experiment that never loads that library", async () => {
+    const { circuit, folder } = native();
+    const selected = structuredClone(caps);
+    selected.profiles[0]!.modelLibrary!.defaultScale = 1e-6;
+    const prepared = await prepareSourceExecutionInput(
+      circuit,
+      folder,
+      selected,
+    );
+    if (!prepared.ok) throw Error(JSON.stringify(prepared));
+    expect(
+      prepared.input.files!.every((f) => !f.text.includes("options scale")),
+    ).toBe(true);
+  });
+  it.each([0, -1, Infinity, NaN])(
+    "rejects invalid Profile defaultScale %s",
+    (value) => {
+      const selected = structuredClone(caps);
+      selected.profiles[0]!.modelLibrary!.defaultScale = value;
+      expect(CapabilitiesSchema.safeParse(selected).success).toBe(false);
+    },
+  );
   it.skipIf(!process.env.VACASK_BIN || !process.env.VACASK_MODULES)(
     "runs ambient points across native option resets and DC sweeps without changing tnom",
     async () => {

@@ -106,11 +106,13 @@ different model without updating and verifying its evidence is rejected. Linux
 packages needing additional shared libraries can explicitly supply the existing
 operator-owned `ICM_VACASK_LIBRARY_PATH`. No implicit PDK discovery is performed.
 
-The fixture keeps the shipped Canvas topology and dimensions. Its authored native
-source uses `options scale=1e-6`, matching the candidate model's micrometre-valued
-wrapper parameters and existing reference decks, and explicit native AC sweep
-syntax. These are experiment setup, not a hidden geometry rewrite or a globally
-qualified Profile. The test reads complete result artifacts in pages, checks OP/AC
+The fixture keeps the shipped Canvas topology and dimensions. Its model-loading
+policy declares `defaultScale: 1e-6`, matching the candidate model's micrometre-valued
+wrapper parameters and existing reference decks. Prepare inserts an inspectable
+initial `options scale` in the first reached control block; authored source needs
+no scale patch. Later authored options and `clear options` retain native semantics.
+This is not a hidden geometry rewrite or a globally qualified Profile. The test
+reads complete result artifacts in pages, checks OP/AC
 records, nine M1 model-parameter mappings, CSV/raw exports and scratch cleanup.
 A passing run proves this local integration only: it does not certify model
 accuracy, all analyses/corners, GUI/public MCP transport or hosted isolation.

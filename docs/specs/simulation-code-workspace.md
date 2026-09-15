@@ -112,6 +112,15 @@ and the selected corner. An explicit dependency/include is not required for a
 Canvas-bound library. Projection never writes these generated files into authored
 source or mounts model bytes. Invalid context withholds Profile model choices
 with an explanatory notice; ordinary offline authoring remains available.
+The used Profile `modelLibrary` may declare a positive finite `defaultScale`.
+Projection writes it as an initial native `options scale` in the first reached
+control block, mapped as generated environment text and included in the execution
+digest. It is a global simulator default, not a per-device unit conversion or an
+enforced value: later authored options and `clear options` keep their semantics.
+No option is inserted for an unused library, and Canvas geometry is unchanged.
+Mixed model families must be qualified under the same scale; the loader does not
+claim per-library scale isolation. The candidate SKY130 wrapper convention uses
+`1e-6`; ordinary native models without this policy retain VACASK's own defaults.
 The provisioning inspector and executor boot verifier use the same model bytes
 and scope table. A conditional internal path is a potential acquisition only
 when every declaration at that path resolves to the same module. Missing or
