@@ -1,4 +1,4 @@
-import { createRoutePath, routeEnd } from "@icm/model";
+import { createEmptyDocument, createRoutePath, routeEnd } from "@icm/model";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -274,6 +274,84 @@ describe("physical contact license", () => {
       )?.id,
     ).toBe("net-3");
     expect(result.document.routes[0]?.netId).toBe("net-1");
+  });
+
+  it("does not turn a preserved corner overlap into a contact during group translation", () => {
+    const document = createEmptyDocument(
+      "translated-overlap",
+      "Translated overlap",
+    );
+    document.instances.push(
+      {
+        id: "R1",
+        symbolId: "resistor",
+        placement: {
+          position: { x: 0, y: 20 },
+          rotation: 0,
+          mirror: "none",
+        },
+      },
+      {
+        id: "R2",
+        symbolId: "resistor",
+        placement: {
+          position: { x: 200, y: 20 },
+          rotation: 0,
+          mirror: "none",
+        },
+      },
+    );
+    document.nets.push({
+      id: "net-wire",
+      terminals: [
+        { instanceId: "R1", pinName: "2" },
+        { instanceId: "R2", pinName: "1" },
+      ],
+    });
+    document.routes.push(
+      createRoutePath({
+        id: "route-wire",
+        netId: "net-wire",
+        start: { kind: "terminal", instanceId: "R1", pinName: "2" },
+        end: { kind: "terminal", instanceId: "R2", pinName: "1" },
+        bends: [{ x: 200, y: 40 }],
+        modes: ["manual", "manual"],
+      }),
+    );
+    const result = executeTransaction(
+      document,
+      transaction(document, [
+        {
+          kind: "move_instance",
+          instanceId: "R1",
+          position: { x: 50, y: 70 },
+        },
+        {
+          kind: "move_instance",
+          instanceId: "R2",
+          position: { x: 250, y: 70 },
+        },
+        {
+          kind: "set_route_path",
+          route: createRoutePath({
+            id: "route-wire",
+            netId: "net-wire",
+            start: { kind: "terminal", instanceId: "R1", pinName: "2" },
+            end: { kind: "terminal", instanceId: "R2", pinName: "1" },
+            bends: [{ x: 250, y: 90 }],
+            modes: ["manual", "manual"],
+          }),
+        },
+      ]),
+      context,
+    );
+
+    if (!result.ok) throw new Error(result.error.message);
+    expect(result.document.routes).toHaveLength(1);
+    expect(result.document.nets[0]!.terminals).toEqual([
+      { instanceId: "R1", pinName: "2" },
+      { instanceId: "R2", pinName: "1" },
+    ]);
   });
 
   it("licenses only the attached pin, not the instance's other pins", () => {

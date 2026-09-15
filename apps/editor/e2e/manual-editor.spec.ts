@@ -490,9 +490,9 @@ for (const width of [300, 540]) {
     await expect(
       page.getByRole("button", { name: "Use Black for line" }),
     ).toBeVisible();
-    await expect(page.getByRole("button", { name: "Reset line" })).toHaveCount(
-      0,
-    );
+    await expect(
+      page.getByRole("button", { name: "Reset line", exact: true }),
+    ).toHaveCount(0);
     await page.getByRole("button", { name: "Use Black for line" }).click();
     await expectComponentCodeField(page, "appearance.color", [0, 0, 0]);
 

@@ -701,6 +701,13 @@ export function executeTransaction(
       resolver,
       explicitlyAuthoredRouteIds,
     )) {
+      // A Route and terminal translated in the same transform preserve their
+      // previous relative geometry. Comparing the terminal's new absolute
+      // point against the old Route can otherwise misclassify an existing
+      // corner overlap as a new contact and short two pins on the moved part.
+      // Explicit instance-drop planners own intentional contacts for moved
+      // terminals; this detector repairs Routes moved onto static terminals.
+      if (transformedInstanceIds.has(contact.endpoint.instanceId)) continue;
       const points =
         physicalContactLicense.routeGeometryPoints.get(contact.routeId) ??
         new Set<string>();

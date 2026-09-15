@@ -2144,6 +2144,12 @@ export function App({
   const selectedInstanceLabel = selectedInstance
     ? instanceLabelAnnotationFor(document, selectedInstance.id)
     : undefined;
+  const selectedDisplayName =
+    selectedInstanceLabel?.kind === "instance-label"
+      ? flattenRichText(
+          resolveAnnotationText(document, selectedInstanceLabel),
+        ).trim() || null
+      : null;
   const selectedInstanceValue = selectedInstance
     ? instanceValueAnnotation(document, selectedInstance.id)
     : null;
@@ -5754,15 +5760,7 @@ export function App({
                       code: {
                         focusRequest: propertyCodeFocusRequest,
                         instance: selectedInstance,
-                        displayName:
-                          selectedInstanceLabel?.kind === "instance-label"
-                            ? flattenRichText(
-                                resolveAnnotationText(
-                                  document,
-                                  selectedInstanceLabel,
-                                ),
-                              )
-                            : null,
+                        displayName: selectedDisplayName,
                         defaultForeground: styleProfile.foreground,
                         revision: document.revision,
                         referenceVisible:
