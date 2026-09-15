@@ -2113,7 +2113,10 @@ test("shows the complete foldable categorized Library, quick-places a device, an
     page
       .getByTestId("shapes-category-passives")
       .locator('[data-testid^="shapes-chip-"]'),
-  ).toHaveCount(5);
+  ).toHaveCount(4);
+  await expect(
+    page.getByTestId("shapes-chip-capacitor-section"),
+  ).toHaveCount(0);
   await expect(
     page
       .getByTestId("shapes-category-logic-gates")
@@ -2456,50 +2459,4 @@ test("double-clicking a catalog item applies it immediately", async ({
     "Place Resistor on the canvas",
   );
   await page.keyboard.press("Escape");
-});
-
-test("places and edits a two-terminal capacitor section and exports its vector artwork", async ({
-  page,
-}, testInfo) => {
-  await page.goto("/editor");
-  await chooseComponent(page, "capacitor-section");
-  const canvas = page.getByTestId("schematic-canvas");
-  await canvas.click({ position: { x: 360, y: 240 } });
-  await page.keyboard.press("Escape");
-  const symbol = canvas.locator('[data-symbol-id="capacitor-section"]');
-  await expect(symbol).toBeVisible();
-  const bodyPaths = await symbol
-    .locator("polyline")
-    .evaluateAll((elements) =>
-      elements.map((element) => element.getAttribute("points")),
-    );
-  expect(bodyPaths.length).toBeGreaterThanOrEqual(3);
-  const instanceId = await symbol.getAttribute("data-object-id");
-  expect(instanceId).not.toBeNull();
-  await page.getByTestId(`hit-${instanceId}`).click();
-  await page.keyboard.press("q");
-  const initial = JSON.parse(await readComponentPropertyCode(page));
-  expect(initial.parameters.value).toBe("1p");
-  await editComponentPropertyCode(page, (code) => {
-    code.parameters.value = "2p";
-    code.placement.rotation = 90;
-  });
-  const edited = JSON.parse(await readComponentPropertyCode(page));
-  expect(edited.parameters.value).toBe("2p");
-  expect(edited.placement.rotation).toBe(90);
-  await expect(symbol.locator("g").first()).toHaveAttribute(
-    "transform",
-    /rotate\(90\)/,
-  );
-
-  const svg = (await downloadBytes(page, "File", "Export SVG")).toString(
-    "utf8",
-  );
-  expect(svg).toContain('data-symbol-id="capacitor-section"');
-  for (const points of bodyPaths) expect(svg).toContain(`points="${points}"`);
-  expect(svg).not.toContain("<image");
-  await testInfo.attach("capacitor-section.svg", {
-    body: Buffer.from(svg),
-    contentType: "image/svg+xml",
-  });
 });

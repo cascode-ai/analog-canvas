@@ -37,7 +37,6 @@ const COMPACT_LIBRARY_LABELS: Readonly<Record<string, string>> = {
   "voltage-amplifier-lettered": "V Amp A",
   inductor: "Ind L",
   "inductor-compact": "Ind",
-  "capacitor-section": "Cap Sec",
   ndmos: "NDMOS",
   npn: "NPN",
   opamp: "OpAmp",

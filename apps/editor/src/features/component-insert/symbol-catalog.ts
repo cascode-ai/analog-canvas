@@ -65,13 +65,7 @@ export function symbolCategory(symbolId: string): string {
     return "Transistors";
   }
   if (
-    [
-      "resistor",
-      "capacitor",
-      "capacitor-section",
-      "inductor-compact",
-      "inductor",
-    ].includes(symbolId)
+    ["resistor", "capacitor", "inductor-compact", "inductor"].includes(symbolId)
   ) {
     return "Passives";
   }
@@ -207,7 +201,6 @@ const SYMBOL_ORDER: readonly string[] = [
   // Passives in the order they are taught and reached for, not alphabetical.
   "resistor",
   "capacitor",
-  "capacitor-section",
   "inductor-compact",
   "inductor",
   // Logic gates likewise: the two single-input gates, then the combinational

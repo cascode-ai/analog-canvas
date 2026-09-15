@@ -138,7 +138,6 @@ const normalize = (value) => `${value.replaceAll("\r\n", "\n").trimEnd()}\n`;
 const hash = (value) => createHash("sha256").update(value).digest("hex");
 
 const entries = [
-  ["capacitor-section", "Capacitor Section", "passive", ["1", "2"], []],
   ["closed-switch", "Closed Switch", "switch", ["1", "2"], []],
   ["diode", "Diode", "passive", ["A", "K"], ["spice:D"]],
   ["ideal-switch", "Ideal Switch", "switch", ["1", "2"], []],
@@ -207,11 +206,9 @@ for (const [symbolId, name, category, pinOrder, automaticMappings] of entries) {
     ...(automaticMappings.length === 0
       ? {
           manualOnlyReason:
-            symbolId === "capacitor-section"
-              ? "Manually selected capacitor cross-section; SPICE C preserves its two-terminal capacitance, not plate artwork. Substrate line is decorative."
-              : symbolId === "ideal-switch" || symbolId === "closed-switch"
-                ? "Two-terminal Razavi switch; SPICE S has a four-terminal control contract."
-                : "Textbook gain block has implicit reference nodes and no exact primitive SPICE terminal contract.",
+            symbolId === "ideal-switch" || symbolId === "closed-switch"
+              ? "Two-terminal Razavi switch; SPICE S has a four-terminal control contract."
+              : "Textbook gain block has implicit reference nodes and no exact primitive SPICE terminal contract.",
         }
       : {}),
     assetPath: `${symbolId}.json`,
@@ -225,9 +222,7 @@ for (const [symbolId, name, category, pinOrder, automaticMappings] of entries) {
         `fixtures/visual-reference/razavi-reference-v1/${symbolId}-reference.png`,
       ],
       calibrationPath:
-        symbolId === "capacitor-section"
-          ? "fixtures/visual-reference/razavi-reference-v1/capacitor-section-vector-source.json"
-          : "fixtures/visual-reference/razavi-reference-v1/common-symbol-geometry.json",
+        "fixtures/visual-reference/razavi-reference-v1/common-symbol-geometry.json",
     },
     generation: {
       kind: "razavi-pdf-vector-reference",
