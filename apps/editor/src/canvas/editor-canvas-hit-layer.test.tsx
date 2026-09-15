@@ -62,6 +62,34 @@ function emptySelectionProps(document = createEmptyDocument("cell", "Cell")) {
 }
 
 describe("editor canvas hit layer", () => {
+  it("uses authored Analog Block geometry instead of a rectangular click plane", () => {
+    const document = createEmptyDocument("cell", "Cell");
+    document.instances.push({
+      id: "U1",
+      symbolId: "opamp-differential",
+      placement: {
+        position: { x: 100, y: 200 },
+        rotation: 0,
+        mirror: "none",
+      },
+    });
+    const markup = renderToStaticMarkup(
+      <EditorCanvasHitLayer
+        selection={emptySelectionProps(document)}
+        endpoints={emptyEndpointProps(document)}
+      />,
+    );
+
+    expect(markup).toContain(
+      '<g data-testid="hit-U1" class="analog-block-hit-target" transform="translate(100 200) rotate(0)">',
+    );
+    expect(markup).toContain(
+      'class="analog-block-hit-area filled" d="M -30 -30 L -30 30 L 21.961524 0 Z"',
+    );
+    expect(markup).toContain('class="analog-block-hit-area" x1="-40"');
+    expect(markup).not.toContain('<rect data-testid="hit-U1"');
+  });
+
   it("renders a selected route from resolved geometry", () => {
     const document = createEmptyDocument("cell", "Cell");
     document.nets.push({ id: "net", terminals: [] });

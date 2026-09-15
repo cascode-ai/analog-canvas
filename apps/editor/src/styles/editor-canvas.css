@@ -102,6 +102,43 @@
   pointer-events: all;
 }
 
+/* Analog Blocks are tapered or triangular. A rectangular interaction plane
+   made the empty corners beside those bodies behave like component artwork.
+   Their hit layer follows the authored body and leads instead: closed shapes
+   own their interior, while lines keep a small screen-space aiming band. */
+.analog-block-hit-target {
+  cursor: default;
+}
+
+.analog-block-hit-target.selected {
+  cursor: move;
+}
+
+.analog-block-hit-area {
+  fill: rgb(0 0 0 / 0.1%);
+  stroke: rgb(0 0 0 / 0.1%);
+  stroke-width: 10;
+  cursor: inherit;
+  pointer-events: stroke;
+  vector-effect: non-scaling-stroke;
+}
+
+.analog-block-hit-area.filled {
+  pointer-events: all;
+}
+
+.analog-block-hit-outline {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 2;
+  stroke-dasharray: 3 5;
+  vector-effect: non-scaling-stroke;
+}
+
+.analog-block-hit-target:hover:not(.selected) .analog-block-hit-outline {
+  stroke: rgb(var(--icm-accent-rgb) / 22%);
+}
+
 .text-format-tools {
   display: flex;
   align-items: center;
@@ -367,6 +404,7 @@
    presentation attributes. Disable those overlays at the canvas level while
    wiring, leaving only endpoint and route hit targets above the input plane. */
 .schematic-canvas.wire-mode .hit-target,
+.schematic-canvas.wire-mode .analog-block-hit-area,
 .schematic-canvas.wire-mode .annotation-hit,
 .schematic-canvas.wire-mode .route-handle {
   pointer-events: none;
