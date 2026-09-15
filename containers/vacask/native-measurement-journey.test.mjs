@@ -1,5 +1,5 @@
 import { mkdtemp, writeFile, rm } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { delimiter, join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { expect, it, vi } from "vitest";
 import {
@@ -22,7 +22,8 @@ import { SimulationRunSupervisor } from "../ngspice/run-supervisor.mjs";
 it.skipIf(
   !process.env.VACASK_BIN ||
     !process.env.VACASK_MODULES ||
-    !process.env.ICM_PYTHON,
+    !process.env.ICM_PYTHON ||
+    !process.env.ICM_PYTHON_LIBRARIES,
 )(
   "publishes actual postprocessor measurements, recovers per expression, and preserves artifacts",
   async () => {
@@ -45,7 +46,7 @@ options rawfile="ascii"
 save v(out)
 analysis bias op
 analysis frequency ac from=10 to=100 mode="lin" points=3
-postprocess(${JSON.stringify(process.env.ICM_PYTHON)}, "reports.py")
+postprocess(PYTHON, "reports.py")
 endc
 embed "reports.py" <<<REPORT
 ${vacaskMeasurementPythonSource()}
@@ -91,7 +92,10 @@ report_plot("derived.raw", "ac", axis="frequency",
     const root = await mkdtemp(join(tmpdir(), "icm-native-measurements-"));
     try {
       const startupPath = join(root, "startup.toml");
-      await writeFile(startupPath, "# controlled native measurement proof\n");
+      await writeFile(
+        startupPath,
+        `[Binaries]\npython = ${JSON.stringify(process.env.ICM_PYTHON)}\n`,
+      );
       const runtime = await initializeVacaskRuntime({
         executor: "local-host",
         profileId: "measure-proof",
@@ -99,10 +103,19 @@ report_plot("derived.raw", "ac", axis="frequency",
         modules: resolve(process.env.VACASK_MODULES),
         startupPath,
         runRoot: root,
+        python: {
+          binary: resolve(process.env.ICM_PYTHON),
+          libraries: process.env.ICM_PYTHON_LIBRARIES.split(delimiter),
+        },
         ...(process.env.ICM_VACASK_LIBRARY_PATH
           ? { libraryPath: process.env.ICM_VACASK_LIBRARY_PATH }
           : {}),
       });
+      expect(runtime.python.version).toMatch(/^3\./);
+      expect(runtime.python.binarySha256).toMatch(/^[a-f0-9]{64}$/);
+      expect(runtime.python.libraries).toHaveLength(
+        process.env.ICM_PYTHON_LIBRARIES.split(delimiter).length,
+      );
       const limits = {
         maxInputBytes: 65536,
         maxInputFiles: 8,

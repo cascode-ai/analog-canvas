@@ -27,15 +27,27 @@ beforeEach(async () => {
     modules: join(root, "modules"),
     startupPath: join(root, "startup.toml"),
     runRoot: join(root, "jobs"),
+    python: {
+      binary: join(root, "python3"),
+      libraries: [join(root, "python-libs")],
+    },
   };
   await mkdir(config.modules);
   await mkdir(config.runRoot);
   await writeFile(config.binary, "native executable");
   await writeFile(config.startupPath, "# controlled\n");
   await writeFile(join(config.modules, "resistor.osdi"), "compiled model");
-  vi.mocked(execFile).mockImplementation((_binary, _args, _options, callback) =>
+  await mkdir(config.python.libraries[0]);
+  await writeFile(join(config.python.libraries[0], "stdlib.py"), "stdlib v1");
+  await writeFile(config.python.binary, "python executable");
+  vi.mocked(execFile).mockImplementation((binary, args, _options, callback) =>
     callback(null, {
-      stdout: "This is vacask 0.3.4.\nHelp text\n",
+      stdout:
+        binary === config.python.binary
+          ? "3.11.2\n"
+          : args.includes("-h")
+            ? "This is vacask 0.3.4.\nHelp text\n"
+            : `ICM_RUNTIME_PYTHON ${config.python.binary}\n`,
       stderr: "",
     }),
   );
@@ -53,6 +65,85 @@ async function locked() {
   });
 }
 describe("native measured environment", () => {
+  it.skipIf(process.platform === "win32")(
+    "requires external library aliases to be explicitly declared files, not a directory allow-list",
+    async () => {
+      const outside = join(root, "external.py");
+      await writeFile(outside, "external v1");
+      await symlink(outside, join(config.python.libraries[0], "alias.py"));
+      await expect(initializeVacaskRuntime(config)).rejects.toThrow("escapes");
+      config.python.libraries.push(outside);
+      const expectedEnvironment = await locked();
+      await writeFile(outside, "external v2");
+      await expect(
+        initializeVacaskRuntime({ ...config, expectedEnvironment }),
+      ).rejects.toThrow("differs");
+      await expect(
+        hashVacaskAsset(config.python.libraries[0], { externalFiles: [root] }),
+      ).rejects.toThrow("explicit regular files");
+    },
+  );
+  it("does not claim a pinned environment when Python assets were omitted", async () => {
+    const observed = await initializeVacaskRuntime({
+      ...config,
+      python: undefined,
+    });
+    expect(observed.environment.reproducibility).toBe("observed");
+    const expectedEnvironment = await createSimulationEnvironmentMetadata({
+      ...observed.environment,
+      reproducibility: "pinned",
+    });
+    await expect(
+      initializeVacaskRuntime({
+        ...config,
+        python: undefined,
+        expectedEnvironment,
+      }),
+    ).rejects.toThrow("requires declared Python");
+  });
+  it.each(["binary", "library"])(
+    "includes Python %s bytes in the existing fingerprint and refuses drift before probing",
+    async (kind) => {
+      const expectedEnvironment = await locked();
+      vi.mocked(execFile).mockClear();
+      await writeFile(
+        kind === "binary"
+          ? config.python.binary
+          : join(config.python.libraries[0], "stdlib.py"),
+        "changed",
+      );
+      await expect(
+        initializeVacaskRuntime({ ...config, expectedEnvironment }),
+      ).rejects.toThrow("differs");
+      expect(execFile).not.toHaveBeenCalled();
+      const changed = await initializeVacaskRuntime(config);
+      expect(changed.environment.models.contentSha256).not.toBe(
+        expectedEnvironment.models.contentSha256,
+      );
+      expect(changed.python.version).toBe("3.11.2");
+    },
+  );
+  it("checks native startup selection before launching the declared Python", async () => {
+    const other = join(root, "other-python");
+    await writeFile(other, "different interpreter");
+    vi.mocked(execFile).mockImplementation((binary, args, options, callback) =>
+      callback(null, {
+        stdout: args.includes("-h")
+          ? "This is vacask 0.3.4.\n"
+          : `ICM_RUNTIME_PYTHON ${other}\n`,
+        stderr: "",
+      }),
+    );
+    await expect(initializeVacaskRuntime(config)).rejects.toThrow(
+      "different Python",
+    );
+    expect(
+      vi
+        .mocked(execFile)
+        .mock.calls.every(([binary]) => binary !== config.python.binary),
+    ).toBe(true);
+    expect(await readdir(config.runRoot)).toEqual([]);
+  });
   it("accepts the declared hosted identity only when every measured field matches", async () => {
     const observed = await initializeVacaskRuntime(config);
     const expectedEnvironment = await createSimulationEnvironmentMetadata({

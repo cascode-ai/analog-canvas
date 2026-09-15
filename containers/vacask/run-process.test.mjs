@@ -76,6 +76,7 @@ describe("native supervised process", () => {
       HOME: cwd,
       TMPDIR: cwd,
       SIM_MODULE_PATH: runtime.modules,
+      PYTHONDONTWRITEBYTECODE: "1",
     });
     expect(env).not.toHaveProperty("SIMULATION_ACCESS_TOKEN");
     expect(env).not.toHaveProperty("PYTHONPATH");

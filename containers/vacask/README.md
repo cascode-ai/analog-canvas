@@ -88,6 +88,45 @@ capability dependency declarations must match the runtime registry. A hosted
 runtime requires an accepted pinned environment, read-only assets and a pinned
 image; copying this local example does not meet that requirement.
 
+### Python runtime identity
+
+For native `postprocess(PYTHON, ...)`, also declare operator-owned `runtime.python`:
+
+```json
+{
+  "binary": "/usr/bin/python3",
+  "libraries": ["/usr/lib/python3.12", "/absolute/vacask/lib/vacask/python"]
+}
+```
+
+These paths are illustrative, not a qualified Python version or complete library
+manifest. Include the actual standard library, installed packages used by the
+Profile, and bundled helpers. A library tree's file symlink that points outside
+the tree requires its exact target file as another `libraries` entry; allowing
+an entire external directory is not sufficient. Directory symlinks are refused.
+
+Set the controlled startup TOML to the same interpreter:
+
+```toml
+[Binaries]
+python = "/usr/bin/python3"
+```
+
+Boot hashes the interpreter and declared library bytes into the existing
+`vacask-runtime-assets` fingerprint, asks VACASK which interpreter its `PYTHON`
+variable selects, and checks the resolved path before invoking that interpreter
+for its Python 3 version. An accepted lock's asset mismatch fails before process
+probing. Python bytecode writes are disabled by default; deployment must still
+keep measured assets read-only. Startup failures leave this executor not-ready,
+not the editor or authoring service unusable.
+
+Python declarations are required with `expectedEnvironment` (therefore for a
+hosted runtime); they may be omitted only for an unqualified, observed local
+runtime. This measures declared files, not the completeness of Python's import
+closure, all dynamic-loader dependencies, or arbitrary postprocessor programs.
+Image pinning, package/model qualification and OS isolation remain separate
+requirements. A local successful probe is not hosted acceptance.
+
 ## Native postprocessor measurements
 
 ### Shared authoring entry points
@@ -212,7 +251,9 @@ used to infer an expected name, value or successful measurement.
 The real local service/process test also uses the shared helper and reads an
 actual OP artifact before reporting; it verifies failure recovery, repeated
 reports and File Resource export. Run it with explicit `VACASK_BIN`,
-`VACASK_MODULES` and an absolute `ICM_PYTHON` interpreter path:
+`VACASK_MODULES`, an absolute `ICM_PYTHON` interpreter path, and
+`ICM_PYTHON_LIBRARIES` containing the declared library directories and external
+target files, separated by the host path delimiter (`:` on Linux, `;` on Windows):
 
 ```sh
 pnpm test:local containers/vacask/native-measurement-journey.test.mjs

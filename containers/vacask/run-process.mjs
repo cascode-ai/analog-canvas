@@ -41,6 +41,7 @@ export function vacaskRunEnvironment(runtime, directory) {
     SIM_MODULE_PATH: runtime.modules,
     OMP_NUM_THREADS: "1",
     OPENBLAS_NUM_THREADS: "1",
+    PYTHONDONTWRITEBYTECODE: "1",
     // A controlled deployment may need an explicit dynamic-library root.
     // Never inherit LD_LIBRARY_PATH, PYTHONPATH, tokens or the host HOME.
     ...(runtime.libraryPath ? { LD_LIBRARY_PATH: runtime.libraryPath } : {}),
