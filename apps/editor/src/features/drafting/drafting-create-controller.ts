@@ -180,18 +180,37 @@ export function createDraftingCreateController({
       x: constrained.x + resolved.delta.x,
       y: constrained.y + resolved.delta.y,
     };
-    const hasObjectSnap =
-      (resolved.xMatch && resolved.xMatch.targetKind !== "grid") ||
-      (resolved.yMatch && resolved.yMatch.targetKind !== "grid");
     const finalPoint = rectanglePoint(
       resolved.pointMatch
         ? snapGridPoint(snapped, 1)
         : snapGridPoint(snapped, annotationGrid),
     );
+    // Rectangle spans may need one more grid cell to keep an integer center.
+    // Only show object captures and guides still met by that final corner.
+    const retainedPointMatch =
+      tool !== "rectangle" ||
+      !resolved.pointMatch ||
+      (Math.abs(finalPoint.x - resolved.pointMatch.point.x) < 1e-8 &&
+        Math.abs(finalPoint.y - resolved.pointMatch.point.y) < 1e-8);
+    const hasObjectSnap =
+      retainedPointMatch &&
+      [resolved.xMatch, resolved.yMatch].some(
+        (match) =>
+          match &&
+          match.targetKind !== "grid" &&
+          (tool !== "rectangle" ||
+            Math.abs(finalPoint[match.axis] - match.coordinate) < 1e-8),
+      );
     return {
       point: finalPoint,
       snap: hasObjectSnap ? finalPoint : null,
-      guides: resolved.guides,
+      guides:
+        tool === "rectangle"
+          ? resolved.guides.filter(
+              (guide) =>
+                Math.abs(finalPoint[guide.axis] - guide.coordinate) < 1e-8,
+            )
+          : resolved.guides,
     };
   };
 

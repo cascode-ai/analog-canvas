@@ -138,6 +138,88 @@ describe("drafting create controller", () => {
   });
 
   it.each([
+    {
+      name: "unrepresentable point",
+      target: { x: 205, y: 165 },
+      pointer: { x: 205, y: 165 },
+      captured: false,
+      axes: [],
+    },
+    {
+      name: "representable point",
+      target: { x: 210, y: 170 },
+      pointer: { x: 210, y: 170 },
+      captured: true,
+      axes: [],
+    },
+    {
+      name: "unrepresentable axis",
+      target: { x: 205, y: 300 },
+      pointer: { x: 205, y: 165 },
+      captured: false,
+      axes: [],
+    },
+    {
+      name: "representable axis",
+      target: { x: 300, y: 170 },
+      pointer: { x: 205, y: 170 },
+      captured: true,
+      axes: ["y"],
+    },
+  ])(
+    "only indicates a rectangle snap that the final corner satisfies: $name",
+    ({ target, pointer, captured, axes }) => {
+      const document = createEmptyDocument("cell", "Cell");
+      document.drafting = {
+        objects: [
+          {
+            id: "target-line",
+            kind: "construction-line",
+            locked: false,
+            zIndex: 0,
+            anchor: { kind: "free", position: target },
+            points: [target, { x: target.x + 20, y: target.y }],
+            lineStyle: "solid",
+          },
+        ],
+      };
+      const controller = createDraftingCreateController({
+        document,
+        annotationGrid: 5,
+        angleMode: "free",
+        resolver: new InMemorySymbolResolver(builtInSymbols),
+        visibleEndpoints: [],
+        routeGeometryRecords: [],
+        tool: "rectangle",
+        source: { x: 100, y: 100 },
+        hover: null,
+        waypoints: [],
+        setSource: vi.fn(),
+        setHover: vi.fn(),
+        setWaypoints: vi.fn(),
+        setSnapPoint: vi.fn(),
+        clear: vi.fn(),
+        setTool: vi.fn(),
+        transact: vi.fn(() => ({ ok: true })),
+        setStatus: vi.fn(),
+        nextId: () => "rectangle-1",
+      });
+      const resolved = controller.snapPoint(
+        pointer,
+        false,
+        false,
+        { x: 100, y: 100 },
+        5,
+      );
+      expect(resolved.point).toEqual({ x: 210, y: 170 });
+      expect(resolved.snap).toEqual(captured ? resolved.point : null);
+      expect(resolved.guides.map((guide) => guide.axis)).toEqual(axes);
+      for (const guide of resolved.guides)
+        expect(guide.coordinate).toBe(resolved.point[guide.axis]);
+    },
+  );
+
+  it.each([
     { grid: 10, from: { x: 100, y: 100 }, to: { x: 210, y: 170 } },
     { grid: 10, from: { x: 210, y: 170 }, to: { x: 100, y: 100 } },
     { grid: 5, from: { x: 100, y: 100 }, to: { x: 205, y: 165 } },
