@@ -5,6 +5,7 @@ import react from "@vitejs/plugin-react";
 import { defineConfig, type Plugin } from "vite";
 
 import { localAgentRelay } from "./dev/agent-relay";
+import { localSimulation } from "./dev/local-simulation.js";
 
 function isolateDevDependencyCache(): Plugin {
   return {
@@ -52,6 +53,7 @@ export default defineConfig({
     isolateDevDependencyCache(),
     react(),
     localAgentRelay(),
+    localSimulation(process.env.ICM_SIMULATION_URL),
     versionStaticServiceWorker(),
   ],
 });

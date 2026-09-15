@@ -6,6 +6,19 @@ process supervisor. It never falls back to ngspice.
 
 ## Run locally
 
+The development editor can connect to an already running native harness:
+
+```powershell
+$env:ICM_SIMULATION_URL = "http://127.0.0.1:9000"
+pnpm dev
+```
+
+Use the actual port reported by the harness. This server-side setting reuses
+the local-host adapter; it does not launch a simulator, discover binaries or
+contact a hosted fallback. Without it, capabilities report unconfigured and
+editing remains available. Restart Vite after changing the setting. The
+development endpoint accepts only loopback Host and same-origin JSON requests.
+
 For a standalone harness artifact (for a later image build), run:
 
 ```sh
