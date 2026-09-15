@@ -9,6 +9,8 @@ import {
   insertSimulationText,
   replaceSimulationText,
   inspectVacaskSource,
+  inspectVacaskSourceGraph,
+  locateSimulationText,
   type VacaskSourceStatement,
   type SimulationSourceDiagnostic,
 } from "@icm/netlist";
@@ -185,14 +187,17 @@ export async function prepareSourceExecutionInput(
       );
     if (loads.some((load) => load.section !== nominalSection))
       return sourceCompilationProblem(
-        loads.map((load) => ({
-          code: "SIMULATION_MODEL_CORNER_CONFLICT",
-          severity: "error",
-          message:
-            "The same native model dependency is included with conflicting sections",
-          path: load.path,
-          sourceRef: load.sourceRef,
-        })),
+        // Diagnostics navigate nominal Code, not the length-shifted run copy.
+        inspectVacaskSourceGraph(folder.input)
+          .includes.filter((load) => load.target === dependency.mountPath)
+          .map((load) => ({
+            code: "SIMULATION_MODEL_CORNER_CONFLICT",
+            severity: "error",
+            message:
+              "The same native model dependency is included with conflicting sections",
+            path: load.path,
+            sourceRef: load.sourceRef,
+          })),
         folder,
       );
     if (requestedCorner !== undefined) {
@@ -234,6 +239,11 @@ export async function prepareSourceExecutionInput(
             "reprepare",
           );
         const start = load.section === undefined ? last.end : last.start;
+        const origin = locateSimulationText(sourceMaps[index]!, last.start);
+        const nominalStart =
+          origin?.kind === "authored"
+            ? origin.startOffset + start - last.start
+            : start;
         const mapped = replaceSimulationText(
           { ...file, ...sourceMaps[index]! },
           start,
@@ -246,8 +256,8 @@ export async function prepareSourceExecutionInput(
             purpose: "run-variant",
             nominal: {
               path: file.path,
-              startOffset: start,
-              endOffset: last.end,
+              startOffset: nominalStart,
+              endOffset: nominalStart + last.end - start,
             },
           },
         );

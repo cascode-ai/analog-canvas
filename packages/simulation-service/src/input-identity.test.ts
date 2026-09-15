@@ -17,7 +17,7 @@ describe("Project input identity", () => {
         configPath: "experiment.json",
         circuitBindings: [],
         files: [
-          { path: "tb.cir", text: "title\ncontrol\nendc\n" },
+          { path: "tb.cir", text: "title\nparameters BIAS=1\ncontrol\nendc\n" },
           {
             path: "experiment.json",
             text: JSON.stringify({
@@ -36,6 +36,11 @@ describe("Project input identity", () => {
     expect(cache.read(project, "s")).toBe(first);
     const hash = await first;
     expect(hash).toMatch(/^[a-f0-9]{64}$/);
+    const variable = { variables: [{ variableId: "BIAS", value: "2" }] };
+    const varied = await cache.read(project, "s", variable);
+    expect(varied).toMatch(/^[a-f0-9]{64}$/);
+    expect(varied).not.toBe(hash);
+    expect(await cache.read(project, "s", variable)).toBe(varied);
     project.structureRevision++;
     expect(await cache.read(project, "s")).toBe(hash);
     const input = project.simulationFolders[0]!.input;

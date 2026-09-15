@@ -26,6 +26,7 @@ import type {
 import { inspectVacaskSourceGraph } from "./vacask-source.js";
 import type { SimulationSourceDiagnostic } from "./source-file-graph.js";
 import { applySimulationParameter } from "./simulation-parameter-target.js";
+import { projectVacaskRunVariables } from "./vacask-run-variables.js";
 
 export interface GeneratedSimulationFile {
   bindingId: string;
@@ -114,16 +115,21 @@ export function compileSourceSimulation(
     return { ok: false, diagnostics };
   }
   variant = parsedVariant.data;
-  if (
-    variant.environment?.temperatureC !== undefined ||
-    variant.variables?.length
-  )
+  if (variant.environment?.temperatureC !== undefined)
     fail(
       "SIMULATION_NATIVE_VARIANT_UNSUPPORTED",
-      "Native temperature and source-variable run projections are not yet available. Edit their native source directly; exact Canvas parameter and Profile corner points are supported.",
+      "Native temperature run projection is not yet available. Edit its native source directly; Canvas parameter, source-variable and Profile corner points are supported.",
     );
   const graph = inspectVacaskSourceGraph(folder.input);
   diagnostics.push(...graph.diagnostics);
+  if (diagnostics.some((d) => d.severity === "error"))
+    return { ok: false, diagnostics };
+  const authored = projectVacaskRunVariables(
+    folder.input,
+    graph,
+    variant.variables ?? [],
+  );
+  diagnostics.push(...authored.diagnostics);
   if (diagnostics.some((d) => d.severity === "error"))
     return { ok: false, diagnostics };
   const reachable = new Set(graph.paths);
@@ -316,9 +322,7 @@ export function compileSourceSimulation(
   if (diagnostics.some((d) => d.severity === "error"))
     return { ok: false, diagnostics };
   const mapped = [
-    ...folder.input.files
-      .filter((f) => f.path !== folder.input.configPath)
-      .map((f) => mapSimulationFile(f.path, f.text)),
+    ...authored.files,
     ...generated.map((f) =>
       mapSimulationFile(f.path, f.text, {
         kind: "generated",
@@ -344,7 +348,14 @@ export function compileSourceSimulation(
     files: mapped.map(({ path, text }) => ({ path, text })),
     sourceMaps: mapped.map(({ path, segments }) => ({ path, segments })),
     entry: folder.input.entry,
-    includes: graph.includes,
+    // Include positions used for later environment edits belong to prepared
+    // bytes. Circuit diagnostics above keep their original authored positions.
+    includes: variant.variables?.length
+      ? inspectVacaskSourceGraph({
+          ...folder.input,
+          files: authored.files.map(({ path, text }) => ({ path, text })),
+        }).includes
+      : graph.includes,
     generated,
     requiredModels: [
       ...new Set(

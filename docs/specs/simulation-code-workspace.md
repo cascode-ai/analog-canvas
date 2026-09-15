@@ -71,9 +71,17 @@ the automatically inserted include. Other includes and original source bytes
 remain unchanged; replacement spans retain their nominal source locations.
 Unsupported corners, absent/unused Profile libraries and conflicting nominal
 includes return repairable errors. Prepared environment and input identity
-retain the effective corner. Temperature and source-variable point projections
-remain unimplemented and explicitly rejected; their batch parity is an open
-migration requirement.
+retain the effective corner. A source-variable point addresses one reachable,
+unconditional root `parameters` declaration by its exact case-sensitive name
+in `variableId`. The point is a native expression (including native suffixes),
+not Instance-property syntax. VACASK evaluates it; the application replaces its
+value span in the run copy, preserving nominal files and source maps. Local
+subcircuit/control names do not become root targets. Ambiguous declarations,
+duplicate points or additional statements return repairable errors. Canvas can
+reference the root parameter through its existing parameter expression; an
+exact Instance point overrides that expression for the run. No JSON value or
+binding table is restored. Temperature point projection remains unimplemented
+and explicitly rejected; its batch parity is an open migration requirement.
 
 Device OP is derived from vectors actually collected by Code. `op` takes no
 parameters: request e.g. `save @m1[id] @m1[gm]`, then `op`, then `write result.raw`.

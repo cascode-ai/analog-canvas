@@ -173,12 +173,13 @@ describe("source execution preparation", () => {
       });
       entry.text = entry.text.replace(
         "control",
-        'include "../other.inc" section=ss\r\ninclude "../models/library.inc" section=ss // nominal corner\r\ncontrol',
+        'parameters BIAS=0.9\r\ninclude "../other.inc" section=ss\r\ninclude "../models/library.inc" section=ss // nominal corner\r\ncontrol',
       );
       const before = structuredClone({ circuit, folder });
       const nominal = await prepareSourceExecutionInput(circuit, folder, caps);
       const point = await prepareSourceExecutionInput(circuit, folder, caps, {
         environment: { corner: "ff" },
+        variables: [{ variableId: "BIAS", value: "0.123456789" }],
       });
       if (!nominal.ok || !point.ok)
         throw Error(JSON.stringify({ nominal, point }));
@@ -218,6 +219,7 @@ describe("source execution preparation", () => {
       expect({ circuit, folder }).toEqual(before);
       const again = await prepareSourceExecutionInput(circuit, folder, caps, {
         environment: { corner: "ff" },
+        variables: [{ variableId: "BIAS", value: "0.123456789" }],
       });
       expect(again.ok && again.digest).toBe(point.digest);
     },
@@ -309,7 +311,7 @@ describe("source execution preparation", () => {
     ];
     entry.text = entry.text.replace(
       "control",
-      'include "../models/library.inc" section=ss\r\ninclude "../models/library.inc" section=tt\r\ncontrol',
+      'parameters BIAS=1\r\ninclude "../models/library.inc" section=ss\r\ninclude "../models/library.inc" section=tt\r\ncontrol',
     );
     expect(
       await prepareSourceExecutionInput(circuit, folder, caps, {
@@ -323,6 +325,15 @@ describe("source execution preparation", () => {
         ]),
       },
     });
+    const conflict = await prepareSourceExecutionInput(circuit, folder, caps, {
+      environment: { corner: "ff" },
+      variables: [{ variableId: "BIAS", value: "0.123456789" }],
+    });
+    if (conflict.ok)
+      throw Error("Conflicting nominal sections must stay diagnosable");
+    expect(conflict.error.diagnostics?.[0]?.source?.startOffset).toBe(
+      entry.text.indexOf('include "../models/library.inc"'),
+    );
   });
 
   it("returns source locations tied to exact authored bytes, shared by GUI and MCP", async () => {

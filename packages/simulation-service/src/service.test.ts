@@ -9,12 +9,8 @@ import {
   CircuitProjectSchema,
   type CircuitProject,
   type LegacySimulationSetup as SimulationFolderInput,
-  LegacyProjectSimulationSetupSchema,
 } from "@icm/model";
-import {
-  currentFiveTransistorOtaCircuitSource,
-  legacyFiveTransistorOta as ota,
-} from "../../../apps/editor/src/examples/five-transistor-ota.test-support.js";
+import { currentFiveTransistorOtaCircuitSource } from "../../../apps/editor/src/examples/five-transistor-ota.test-support.js";
 import { createSimulationEnvironmentMetadata } from "@icm/spice-run";
 import { assembleNativeExecutionOutput } from "./native-execution-output.js";
 import { SimulationFiles, sha256 } from "./files.js";
@@ -377,16 +373,9 @@ describe("shared simulation lifecycle", () => {
     const project = CircuitProjectSchema.parse(
       currentFiveTransistorOtaCircuitSource(),
     );
-    const folder = ota.simulationSetups
-      .map((s) => LegacyProjectSimulationSetupSchema.parse(s))
-      .find((s) => s.input.kind === "structured");
-    if (!folder || folder.input.kind !== "structured")
-      throw new Error("folder");
-    const setupInput = folder.input;
-    setupInput.analyses = [{ kind: "op" }];
-    setupInput.environment = { profileId: "test", corner: "tt" };
+    const folder = nativeOtaFolder(project, "analysis bias op");
     const root = project.documents.find(
-      (document) => document.id === setupInput.rootDocumentId,
+      (document) => document.id === project.topDocumentId,
     )!;
     const source = root.instances.find(
       (instance) =>
@@ -395,20 +384,17 @@ describe("shared simulation lifecycle", () => {
         "low" in instance.netlist.parameters,
     );
     if (!source) throw new Error("source");
-    setupInput.designVariables = [
-      {
-        id: "input-bias",
-        name: "VIN",
-        value: "0.9",
-        bindings: [
-          {
-            documentId: root.id,
-            instanceId: source.id,
-            parameter: "low",
-          },
-        ],
-      },
-    ];
+    // The native declaration owns the nominal value. Canvas owns its explicit
+    // expression reference, not a second JSON binding/value table.
+    source.netlist!.parameters.low = "{VIN}";
+    const entry = folder.input.files.find(
+      (file) => file.path === folder.input.entry,
+    )!;
+    entry.text = entry.text.replace(
+      'include "models/library.inc"',
+      'parameters VIN=0.9\ninclude "models/library.inc"',
+    );
+    const before = structuredClone(project);
     const f = fixture();
     f.executor.capabilities = async () => ({
       ...caps,
@@ -417,14 +403,10 @@ describe("shared simulation lifecycle", () => {
           id: "test",
           corners: ["tt", "ff"],
           dependencies: [{ id: "models", sha256: "a".repeat(64) }],
+          modelLibrary: { dependencyId: "models", defaultSection: "tt" },
         },
       ],
-      modelLibrary: { path: "/models/sky130.lib.spice", section: "tt" },
     });
-    if (typeof folder !== "undefined")
-      project.simulationFolders = [
-        migrateSimulationSetupToSource(project, folder).folder,
-      ];
     const service = new SimulationService(f.files, f.executor, () => project);
     const reply = await service.handle(
       {
@@ -435,7 +417,7 @@ describe("shared simulation lifecycle", () => {
           { kind: "corner", values: ["tt", "ff"] },
           {
             kind: "variable",
-            variableId: "input-bias",
+            variableId: "VIN",
             values: ["0.85", "0.95"],
           },
           {
@@ -459,7 +441,7 @@ describe("shared simulation lifecycle", () => {
     expect(
       new Set(reply.batch.items.map((item) => item.prepared.digest)).size,
     ).toBe(8);
-    expect(project.documents.find((item) => item.id === root.id)).toEqual(root);
+    expect(project).toEqual(before);
   });
 
   it("does not start a partially invalid batch and cancels queued members", async () => {

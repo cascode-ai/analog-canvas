@@ -15,6 +15,7 @@ import {
 } from "./simulation-circuit-source.js";
 import { parseVacaskRawfile } from "../../spice-run/src/vacask-rawfile.js";
 import { nativeParameterDeclarationEdit } from "./simulation-native-parameter-edit.js";
+import { locateSimulationText } from "./simulation-source-map.js";
 
 function fixture() {
   const project = createEmptyProject("p", "Native sources", "a");
@@ -97,6 +98,111 @@ endc
   return { project, folder };
 }
 describe("public native source compilation", () => {
+  it("projects case-sensitive root variables across includes without evaluating or editing nominal expressions", () => {
+    const { project, folder } = fixture();
+    folder.input.files[1]!.text = folder.input.files[1]!.text.replace(
+      "model voltage",
+      'include "parameters.inc"\nsubckt Local (p n)\nparameters BIAS=77\nends\nmodel voltage',
+    );
+    folder.input.files.push({
+      path: "parameters.inc",
+      text: "parameters BIAS=(0.8 + 0.1) OTHER=1M // nominal\n",
+    });
+    const before = structuredClone({ project, folder });
+    const result = compileSourceSimulation(project, folder, {
+      variables: [
+        { variableId: "BIAS", value: "unknown_native_function(2)" },
+        { variableId: "OTHER", value: "2M" },
+      ],
+    });
+    if (!result.ok) throw Error(JSON.stringify(result));
+    const file = result.files.find((f) => f.path === "parameters.inc")!;
+    expect(file.text).toBe(
+      "parameters BIAS=unknown_native_function(2) OTHER=2M // nominal\n",
+    );
+    expect(
+      result.files.find((f) => f.path === folder.input.entry)!.text,
+    ).toContain("parameters BIAS=77");
+    expect(result.authoredFiles).toEqual(folder.input.files);
+    const map = result.sourceMaps.find((m) => m.path === file.path)!;
+    expect(
+      locateSimulationText(map, file.text.indexOf("unknown_native")),
+    ).toEqual({
+      kind: "generated",
+      purpose: "run-variant",
+      nominal: { path: file.path, startOffset: 16, endOffset: 27 },
+    });
+    expect(locateSimulationText(map, file.text.indexOf("// nominal"))).toEqual({
+      kind: "authored",
+      path: file.path,
+      startOffset: folder.input.files.at(-1)!.text.indexOf("// nominal"),
+    });
+    expect({ project, folder }).toEqual(before);
+  });
+
+  it.each([
+    ["parameters bias=1", "SIMULATION_VARIABLE_DECLARATION"],
+    ["parameters BIAS=1\nparameters BIAS=2", "SIMULATION_VARIABLE_DECLARATION"],
+    ["@if (1)\nparameters BIAS=1\n@end", "SIMULATION_VARIABLE_DECLARATION"],
+    [
+      "subckt Local (p n)\nparameters BIAS=1\nends",
+      "SIMULATION_VARIABLE_DECLARATION",
+    ],
+    ["control\nparameters BIAS=1\nendc", "SIMULATION_VARIABLE_DECLARATION"],
+  ])("does not guess a root variable for %s", (declaration, code) => {
+    const { project, folder } = fixture();
+    folder.input.files[1]!.text = folder.input.files[1]!.text.replace(
+      "model voltage",
+      `${declaration}\nmodel voltage`,
+    );
+    const before = structuredClone({ project, folder });
+    expect(
+      compileSourceSimulation(project, folder, {
+        variables: [{ variableId: "BIAS", value: "2" }],
+      }),
+    ).toMatchObject({
+      ok: false,
+      diagnostics: [expect.objectContaining({ code })],
+    });
+    expect({ project, folder }).toEqual(before);
+  });
+
+  it("rejects extra declarations, comments, statements and duplicate variable points atomically", () => {
+    const { project, folder } = fixture();
+    folder.input.files[1]!.text = folder.input.files[1]!.text.replace(
+      "model voltage",
+      "parameters BIAS=1\nmodel voltage",
+    );
+    const before = structuredClone({ project, folder });
+    for (const value of [
+      "1 OTHER=2",
+      "1\nparameters OTHER=2",
+      "1 // comment",
+      "1; model x vsource",
+    ]) {
+      expect(
+        compileSourceSimulation(project, folder, {
+          variables: [{ variableId: "BIAS", value }],
+        }),
+      ).toMatchObject({
+        ok: false,
+        diagnostics: [
+          expect.objectContaining({ code: "SIMULATION_VARIABLE_POINT" }),
+        ],
+      });
+    }
+    const point = { variableId: "BIAS", value: "2" };
+    expect(
+      compileSourceSimulation(project, folder, { variables: [point, point] }),
+    ).toMatchObject({
+      ok: false,
+      diagnostics: [
+        expect.objectContaining({ code: "SIMULATION_VARIABLE_DUPLICATE" }),
+      ],
+    });
+    expect({ project, folder }).toEqual(before);
+  });
+
   it("projects exact Canvas run points without editing nominal source or parameters", () => {
     const { project, folder } = fixture();
     const before = structuredClone({ project, folder });
@@ -330,11 +436,12 @@ describe("public native source compilation", () => {
 });
 
 it.skipIf(!process.env.VACASK_BIN || !process.env.VACASK_MODULES).each([
-  { point: undefined, current: -0.000001 },
-  { point: "2meg", current: -0.0000005 },
+  { point: undefined, bias: undefined, current: -0.000001 },
+  { point: "2meg", bias: undefined, current: -0.0000005 },
+  { point: "2meg", bias: "1.5", current: -0.00000075 },
 ])(
-  "executes the PUBLIC compiler with reversed include order and run point $point",
-  ({ point, current }) => {
+  "executes the PUBLIC compiler with reversed include order and run point $point/$bias",
+  ({ point, bias, current }) => {
     const { project, folder } = fixture();
     const entry = folder.input.files.find(
       (f) => f.path === folder.input.entry,
@@ -366,12 +473,29 @@ it.skipIf(!process.env.VACASK_BIN || !process.env.VACASK_MODULES).each([
         .instances.find((i) => i.id === change.instanceId)!.netlist!.parameters[
         change.parameter
       ] = change.value;
+    if (bias) {
+      // Exact Canvas points win over a native variable referenced by the same
+      // nominal parameter, without changing either saved authority.
+      project.documents[0]!.instances.find(
+        (i) => i.id === "R",
+      )!.netlist!.parameters.value = "{RVALUE}";
+      entry.text = entry.text.replace(
+        "parameters VBIAS=1",
+        "parameters VBIAS=1 RVALUE=1M",
+      );
+    }
     const before = structuredClone({ project, folder });
     const compiled = compileSourceSimulation(
       project,
       folder,
       point
         ? {
+            variables: bias
+              ? [
+                  { variableId: "VBIAS", value: bias },
+                  { variableId: "RVALUE", value: "3M" },
+                ]
+              : [],
             parameters: [
               {
                 documentId: "a",
@@ -411,7 +535,7 @@ it.skipIf(!process.env.VACASK_BIN || !process.env.VACASK_MODULES).each([
     const values = new Map(
       raw.plots[0]!.vectors.map((v) => [v.variable.name, v.real[0]]),
     );
-    expect(values.get("Left")).toBe(1);
+    expect(values.get("Left")).toBe(bias ? Number(bias) : 1);
     expect(values.get("Right")).toBe(2);
     expect(values.get("V1:flow(br)")).toBeCloseTo(current, 12);
     expect(values.get("V2:flow(br)")).toBeCloseTo(-0.001, 12);
