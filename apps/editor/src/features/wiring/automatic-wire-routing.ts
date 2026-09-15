@@ -7,6 +7,7 @@ import {
   type WireSource,
 } from "@icm/edit-engine";
 import {
+  routeEnd,
   transformPoint,
   type Point,
   type Rect,
@@ -96,7 +97,7 @@ function endpointOwner(source: WireSource): string | null {
     : null;
 }
 
-function cardinalOutward(source: WireSource): Point | null {
+function declaredCardinalOutward(source: WireSource): Point | null {
   const outward = source.connection.outward;
   if (!outward) return null;
   if (
@@ -106,6 +107,47 @@ function cardinalOutward(source: WireSource): Point | null {
     return outward;
   }
   return null;
+}
+
+function existingJunctionOutward(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  source: WireSource,
+): Point | null {
+  if (source.endpoint.kind !== "junction") return null;
+  const junctionId = source.endpoint.junctionId;
+  const directions = document.routes.flatMap((route): Point[] => {
+    const end = routeEnd(route);
+    const atStart =
+      route.start.kind === "junction" && route.start.junctionId === junctionId;
+    const atEnd = end.kind === "junction" && end.junctionId === junctionId;
+    if (!atStart && !atEnd) return [];
+    const centerline = resolveRouteGeometry(
+      document,
+      resolver,
+      route,
+    )?.centerline;
+    if (!centerline || centerline.length < 2) return [];
+    const point = atStart ? centerline[0]! : centerline.at(-1)!;
+    const neighbor = atStart ? centerline[1]! : centerline.at(-2)!;
+    const dx = point.x - neighbor.x;
+    const dy = point.y - neighbor.y;
+    if (dx !== 0 && dy === 0) return [{ x: Math.sign(dx), y: 0 }];
+    if (dy !== 0 && dx === 0) return [{ x: 0, y: Math.sign(dy) }];
+    return [];
+  });
+  return directions.length === 1 ? directions[0]! : null;
+}
+
+function routingOutward(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  source: WireSource,
+): Point | null {
+  return (
+    declaredCardinalOutward(source) ??
+    existingJunctionOutward(document, resolver, source)
+  );
 }
 
 function splitRouteAxis(
@@ -201,9 +243,9 @@ function escapePoint(
   source: WireSource,
   owner: Obstacle | undefined,
   grid: number,
+  outward: Point | null,
 ): Point {
   const point = source.connection.gridLanding;
-  const outward = cardinalOutward(source);
   if (!outward) return point;
   if (!owner) {
     return { x: point.x + outward.x * grid, y: point.y + outward.y * grid };
@@ -232,10 +274,11 @@ function routingEscapePoints(
   resolver: SymbolResolver,
   source: WireSource,
   owner: Obstacle | undefined,
+  outward: Point | null,
 ): Point[] {
   const point = source.connection.gridLanding;
-  if (cardinalOutward(source)) {
-    return [escapePoint(source, owner, document.presentation.grid)];
+  if (outward) {
+    return [escapePoint(source, owner, document.presentation.grid, outward)];
   }
   const routeAxis = splitRouteAxis(document, resolver, source);
   const grid = document.presentation.grid;
@@ -254,23 +297,21 @@ function routingEscapePoints(
   return [point];
 }
 
-function leavesTerminalOutward(
+function leavesEndpointOutward(
   from: Point,
   to: Point,
-  source: WireSource,
+  outward: Point | null,
 ): boolean {
-  const outward = cardinalOutward(source);
   return Boolean(
     outward && (to.x - from.x) * outward.x + (to.y - from.y) * outward.y > 0,
   );
 }
 
-function entersTerminalFromOutward(
+function entersEndpointFromOutward(
   from: Point,
   to: Point,
-  target: WireSource,
+  outward: Point | null,
 ): boolean {
-  const outward = cardinalOutward(target);
   return Boolean(
     outward && (from.x - to.x) * outward.x + (from.y - to.y) * outward.y > 0,
   );
@@ -288,15 +329,15 @@ function baselineRespectsEndpoint(
   points: readonly Point[],
   source: WireSource,
   atStart: boolean,
+  outward: Point | null,
 ): boolean {
   if (points.length < 2) return true;
   const segmentFrom = atStart ? points[0]! : points.at(-2)!;
   const segmentTo = atStart ? points[1]! : points.at(-1)!;
-  const outward = cardinalOutward(source);
   if (outward) {
     return atStart
-      ? leavesTerminalOutward(segmentFrom, segmentTo, source)
-      : entersTerminalFromOutward(segmentFrom, segmentTo, source);
+      ? leavesEndpointOutward(segmentFrom, segmentTo, outward)
+      : entersEndpointFromOutward(segmentFrom, segmentTo, outward);
   }
   const routeAxis = splitRouteAxis(document, resolver, source);
   const approachAxis = segmentAxis(segmentFrom, segmentTo);
@@ -308,6 +349,8 @@ function score(
   obstacles: readonly Obstacle[],
   from: WireSource,
   to: WireSource,
+  fromOutward: Point | null,
+  toOutward: Point | null,
 ): Candidate {
   const fromOwner = endpointOwner(from);
   const toOwner = endpointOwner(to);
@@ -320,11 +363,11 @@ function score(
         const allowedSourceEscape =
           obstacle.instanceId === fromOwner &&
           index === 0 &&
-          leavesTerminalOutward(segmentFrom, segmentTo, from);
+          leavesEndpointOutward(segmentFrom, segmentTo, fromOutward);
         const allowedTargetEscape =
           obstacle.instanceId === toOwner &&
           index === lastSegment &&
-          entersTerminalFromOutward(segmentFrom, segmentTo, to);
+          entersEndpointFromOutward(segmentFrom, segmentTo, toOutward);
         return (
           !allowedSourceEscape &&
           !allowedTargetEscape &&
@@ -351,7 +394,7 @@ function joinPathParts(...parts: readonly (readonly Point[])[]): Point[] {
       }
     }
   }
-  return result;
+  return simplify(result);
 }
 
 /**
@@ -385,11 +428,29 @@ export function automaticWireDraftSteps(
     routingMode,
     cornerOrder,
   ).points;
+  const fromOutward = routingOutward(document, resolver, from);
+  const toOutward = routingOutward(document, resolver, to);
   const obstacles = obstacleBounds(document, resolver, from, to, baseline);
-  const baselineIsClear = score(baseline, obstacles, from, to).collisions === 0;
+  const baselineIsClear =
+    score(baseline, obstacles, from, to, fromOutward, toOutward).collisions ===
+    0;
   const baselineApproachIsValid =
-    baselineRespectsEndpoint(document, resolver, baseline, from, true) &&
-    baselineRespectsEndpoint(document, resolver, baseline, to, false);
+    baselineRespectsEndpoint(
+      document,
+      resolver,
+      baseline,
+      from,
+      true,
+      fromOutward,
+    ) &&
+    baselineRespectsEndpoint(
+      document,
+      resolver,
+      baseline,
+      to,
+      false,
+      toOutward,
+    );
   if (baselineIsClear && baselineApproachIsValid) {
     return steps;
   }
@@ -399,12 +460,14 @@ export function automaticWireDraftSteps(
     resolver,
     from,
     obstacles.find(({ instanceId }) => instanceId === endpointOwner(from)),
+    fromOutward,
   );
   const targetEscapes = routingEscapePoints(
     document,
     resolver,
     to,
     obstacles.find(({ instanceId }) => instanceId === endpointOwner(to)),
+    toOutward,
   );
 
   const grid = document.presentation.grid;
@@ -461,14 +524,34 @@ export function automaticWireDraftSteps(
 
   const unique = new Map(paths.map((path) => [JSON.stringify(path), path]));
   const best = [...unique.values()]
-    .map((path) => score(path, obstacles, from, to))
+    .map((path) => score(path, obstacles, from, to, fromOutward, toOutward))
+    .filter(
+      (candidate) =>
+        candidate.collisions === 0 &&
+        baselineRespectsEndpoint(
+          document,
+          resolver,
+          candidate.points,
+          from,
+          true,
+          fromOutward,
+        ) &&
+        baselineRespectsEndpoint(
+          document,
+          resolver,
+          candidate.points,
+          to,
+          false,
+          toOutward,
+        ),
+    )
     .sort(
       (left, right) =>
         left.collisions - right.collisions ||
         left.length - right.length ||
         left.points.length - right.points.length,
     )[0];
-  if (!best || best.collisions > 0) return steps;
+  if (!best) return steps;
   if (best.points.length <= 2) return steps;
   return best.points.slice(1, -1).map((point) => ({
     point,

@@ -1,5 +1,6 @@
 import {
   createEmptyDocument,
+  createRoutePath,
   type Point,
   type RouteEndpoint,
   type SchematicDocument,
@@ -80,7 +81,6 @@ describe("automatic orthogonal wire routing", () => {
     expect(steps.map(({ point }) => point)).toEqual([
       { x: 170, y: 200 },
       { x: 170, y: 400 },
-      { x: 570, y: 400 },
     ]);
   });
 
@@ -168,6 +168,56 @@ describe("automatic orthogonal wire routing", () => {
       (afterTerminal.x - terminal.x) * outward.x +
         (afterTerminal.y - terminal.y) * outward.y,
     ).toBeGreaterThan(0);
+  });
+
+  it("continues away from the incoming leg of an existing loose end", () => {
+    const document = createEmptyDocument("main", "Main");
+    instance(document, "R1", "resistor", { x: 270, y: 200 });
+    instance(document, "R2", "resistor", { x: 590, y: 330 });
+    document.nets.push({
+      id: "net-existing",
+      terminals: [{ instanceId: "R1", pinName: "2" }],
+    });
+    document.junctions.push({
+      id: "J-source",
+      netId: "net-existing",
+      position: { x: 430, y: 340 },
+      role: "route-anchor",
+    });
+    document.routes.push(
+      createRoutePath({
+        id: "route-existing",
+        netId: "net-existing",
+        start: { kind: "terminal", instanceId: "R1", pinName: "2" },
+        end: { kind: "junction", junctionId: "J-source" },
+        bends: [{ x: 430, y: 230 }],
+        modes: ["manual", "manual"],
+      }),
+    );
+    const from: WireSource = {
+      ...junctionSource({ x: 430, y: 340 }, "source"),
+      netId: "net-existing",
+    };
+    const to = source(document, "R2", "1");
+    const steps = automaticWireDraftSteps(
+      document,
+      resolver,
+      from,
+      to,
+      [],
+      "orthogonal",
+      "auto",
+    );
+    const points = compileWireDraft(
+      from,
+      to,
+      steps,
+      "orthogonal",
+      "auto",
+    ).points;
+
+    expect(points[1]!.x).toBe(points[0]!.x);
+    expect(points[1]!.y).toBeGreaterThan(points[0]!.y);
   });
 
   it("never changes a point or corner mode the user chose", () => {

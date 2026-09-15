@@ -259,14 +259,21 @@ test("adds formatted drafting text and undo/redo restores it", async ({
         .then((bounds) => bounds?.width),
     )
     .toBeCloseTo(332, 0);
-  const [narrowBoldTop, narrowIncreaseTop] = await Promise.all([
-    controlTop(page.getByRole("button", { name: "Bold" })),
-    controlTop(page.getByRole("button", { name: "Increase text size" })),
-  ]);
-  expect(Math.abs(narrowIncreaseTop - narrowBoldTop)).toBeLessThan(1);
   // Chromium may report one intermediate foreignObject layout immediately
-  // after the viewport changes. Keep the same row contract, but assert the
-  // settled layout rather than sampling that transient frame.
+  // after the viewport changes. Assert both toolbar rows after that layout
+  // settles rather than sampling a transient frame.
+  await expect
+    .poll(async () => {
+      const [boldTop, increaseTop] = await Promise.all([
+        controlTop(page.getByRole("button", { name: "Bold" })),
+        controlTop(page.getByRole("button", { name: "Increase text size" })),
+      ]);
+      return Math.abs(increaseTop - boldTop);
+    })
+    .toBeLessThan(1);
+  const narrowBoldTop = await controlTop(
+    page.getByRole("button", { name: "Bold" }),
+  );
   await expect
     .poll(async () => {
       const [applyTop, cancelTop] = await Promise.all([
