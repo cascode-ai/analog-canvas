@@ -11,7 +11,7 @@ import {
 } from "../packages/model/dist/index.js";
 import {
   generateCircuitSource,
-  compileSourceSimulation,
+  compileNgspiceSourceSimulation as compileSourceSimulation,
 } from "../packages/netlist/dist/index.js";
 import { verifyPreviewCandidate } from "./lib/preview-candidate.mjs";
 import {
@@ -34,7 +34,7 @@ const outputDirectory = resolve(
 );
 const fixtureText = await readFile(
   new URL(
-    "../netlists/native-ota-library/legacy-source.icproj.json",
+    "../netlists/ngspice-ota-qualification/source.icproj.json",
     import.meta.url,
   ),
   "utf8",

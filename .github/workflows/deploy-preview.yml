@@ -220,6 +220,16 @@ jobs:
       # A divider checks the transport and the persisted OTA Project checks the
       # product compiler plus OP/DC/AC/TRAN/Noise model evidence. Both run on the preview's
       # simulator host; a green status without numbers is not acceptance.
+      - name: Run both engines through the managed public MCP path
+        run: node scripts/preview-dual-engine-smoke.mjs "$PREVIEW_URL"
+      - name: Preserve dual-engine candidate receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: preview-dual-engine-${{ github.sha }}
+          path: test-results/preview-dual-engine/
+          if-no-files-found: ignore
+          retention-days: 14
       - name: Run the preview's numerical and vertical simulation acceptance
         run: node scripts/preview-simulation-smoke.mjs "$PREVIEW_URL"
       - name: Run the public Agent/MCP simulation journey

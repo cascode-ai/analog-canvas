@@ -37,6 +37,8 @@
     // with its own managed queue, records, and artifact store.
     "SIMULATION_UPSTREAM_URL": "https://sim-fra.analog-canvas.tokenzhang.com",
     "SIMULATION_DEFAULT_EXECUTOR": "operator-host",
+    "VACASK_UPSTREAM_URL": "https://vacask-preview-sim.tokenzhang.com",
+    "VACASK_PROFILE_ID": "vacask-sky130-candidate",
     // PREVIEW_ACCEPTANCE_TOKEN is a Worker secret, set by the Preview deploy.
     // It authorizes only the CI journey's isolated Cloud Project shelf.
   },
