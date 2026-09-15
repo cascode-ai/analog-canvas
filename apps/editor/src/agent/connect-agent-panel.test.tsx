@@ -54,6 +54,13 @@ describe("ConnectAgentPanel", () => {
     expect(instructions).toContain("connector resumes automatically");
     expect(instructions).toContain("https://editor.example/api/agent/kit");
     expect(instructions).toContain("continue immediately");
+    expect(instructions).toContain("install or update it");
+    expect(instructions).toContain("version-pinned package");
+    expect(instructions).toContain("tools are actually callable");
+    expect(instructions).toContain("tell the user once");
+    expect(instructions).toContain("Do not restart it yourself");
+    expect(instructions).toContain("installation is declined, blocked");
+    expect(instructions).toContain("If the Claim expires during setup");
     expect(instructions).not.toMatch(/Bearer [A-Za-z0-9_-]{20,}/u);
   });
 

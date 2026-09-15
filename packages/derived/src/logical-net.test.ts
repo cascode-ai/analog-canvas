@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   resolveCommittedDocumentLogicalNets,
   resolveDocumentLogicalNets,
+  validateLogicalNetContract,
 } from "./logical-net.js";
 
 describe("resolved logical Nets", () => {
@@ -299,5 +300,109 @@ describe("resolved logical Nets", () => {
       formalTerminalIds: ["terminal-out-a", "terminal-out-b"],
       conflicts: [],
     });
+  });
+
+  it("derives a formal VDD Power Cell Pin as local VDD without a name claim", () => {
+    const document = createEmptyDocument("document", "Document");
+    document.instances.push({
+      id: "VDD1",
+      symbolId: "vdd-port",
+      placement: null,
+    });
+    document.nets.push({
+      id: "net-vdd",
+      terminals: [{ instanceId: "VDD1", pinName: "P" }],
+    });
+    document.netlist!.terminals.push({
+      id: "terminal-vdd1",
+      name: "VDD",
+      netId: "net-vdd",
+      direction: "inout",
+      interfaceInstanceIds: ["VDD1"],
+    });
+
+    expect(resolveDocumentLogicalNets(document).groups[0]).toMatchObject({
+      name: "VDD",
+      scope: "local",
+      powerDomain: "vdd",
+      formalTerminalIds: ["terminal-vdd1"],
+      conflicts: [],
+    });
+  });
+
+  it("rejects one physical Net being both a formal Cell Pin and Global", () => {
+    const document = createEmptyDocument("document", "Document");
+    document.instances.push({
+      id: "VDD1",
+      symbolId: "vdd-port",
+      placement: null,
+    });
+    document.nets.push({
+      id: "net-vdd",
+      terminals: [{ instanceId: "VDD1", pinName: "P" }],
+    });
+    document.netlist!.terminals.push({
+      id: "terminal-vdd1",
+      name: "VDD",
+      netId: "net-vdd",
+      direction: "inout",
+      interfaceInstanceIds: ["VDD1"],
+    });
+    document.connectivityEvidence.push({
+      id: "claim-global-vdd",
+      kind: "name-claim",
+      netId: "net-vdd",
+      name: "VDD",
+      scope: "global",
+      powerDomain: "vdd",
+      owner: { kind: "power-marker", objectId: "VDD1" },
+    });
+
+    expect(resolveDocumentLogicalNets(document).groups[0]?.conflicts).toContain(
+      "formal-global-conflict",
+    );
+    expect(validateLogicalNetContract(document)).toContainEqual({
+      code: "FORMAL_PORT_GLOBAL_NET_CONFLICT",
+      netIds: ["net-vdd"],
+    });
+  });
+
+  it("keeps SPICE ground 0 as the existing formal/global reference exception", () => {
+    const document = createEmptyDocument("document", "Document");
+    document.instances.push(
+      { id: "P1", symbolId: "port", placement: null },
+      { id: "GND1", symbolId: "ground", placement: null },
+    );
+    document.nets.push({
+      id: "net-ground",
+      terminals: [
+        { instanceId: "P1", pinName: "P" },
+        { instanceId: "GND1", pinName: "0" },
+      ],
+    });
+    document.netlist!.terminals.push({
+      id: "terminal-ground",
+      name: "0",
+      netId: "net-ground",
+      direction: "inout",
+      interfaceInstanceIds: ["P1"],
+    });
+    document.connectivityEvidence.push({
+      id: "claim-ground",
+      kind: "name-claim",
+      netId: "net-ground",
+      name: "0",
+      scope: "global",
+      powerDomain: "ground",
+      owner: { kind: "power-marker", objectId: "GND1" },
+    });
+
+    expect(resolveDocumentLogicalNets(document).groups[0]).toMatchObject({
+      name: "0",
+      scope: "global",
+      powerDomain: "ground",
+      conflicts: [],
+    });
+    expect(validateLogicalNetContract(document)).toEqual([]);
   });
 });

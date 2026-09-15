@@ -68,32 +68,35 @@ properties together as strict, editable JSON. For example, a resistor:
 
 ```json
 {
-  "netlistName": "R1",
-  "parameters": { "value": "10k", "tc": "0.1" },
-  "netlistTarget": "",
   "placement": {
-    "at": [360, 240],
+    "coordinate": [360, 240],
     "rotation": 90,
     "mirror": "none"
+  },
+  "appearance": {
+    "color": "auto"
   },
   "display": {
     "visualAnnotation": true,
     "value": false
   },
-  "appearance": {
-    "foreground": "auto"
-  }
+  "displayName": "R1",
+  "parameters": { "value": "10k", "tc": "0.1" },
+  "netlistName": "R1",
+  "netlistTarget": ""
 }
 ```
 
-`netlistName` is the electrical instance name used by netlist export;
+`displayName` is the visual instance annotation and can differ from the
+electrical `netlistName` used by netlist export;
 `display.visualAnnotation` only controls whether its drawing annotation is
-visible. `placement.at` is the `[x, y]` grid coordinate, rotation is restricted to
+visible. `placement.coordinate` is the `[x, y]` grid coordinate, rotation is restricted to
 45-degree steps, and mirror is `"none"`, `"horizontal"`, `"vertical"`, or
-`"both"`. Display keys appear only for
+`"both"`. Enter confirms the current JSON without inserting a line break;
+Shift+Enter inserts one. Display keys appear only for
 annotations supported by that Symbol; when present, the `display` object is
-serialized first because it contains the most frequently toggled presentation
-state. Newly placed Resistor, Capacitor, and Inductor devices, including their
+kept with placement and appearance near the top. Newly placed Resistor,
+Capacitor, and Inductor devices, including their
 adjustable variants, author `1k`, `1p`, and `1n` as their initial netlist
 values. T-coil starts with `L1=1n`, `L2=1n`, `K=1`, and `CB=1p`; XFMR starts
 with `Lp=1n`, `Ls=1n`, and `K=1`. These compound-device parameters remain
@@ -145,13 +148,16 @@ buttons after `placement.rotation` and `placement.mirror` rotate clockwise by
 to accept all eight 45-degree orientations. Horizontal
 and vertical reflection are persisted independently; mirror actions never
 rewrite `placement.rotation`, and applying both records `"both"`. A matching color
-button after `appearance.foreground` opens an anchored chooser for light gray,
+button after `appearance.color` opens an anchored chooser for light gray,
 red, green, blue, black, and one compact bounded RGB tuple input. `"auto"`
 remains available through direct JSON editing. These controls never enter the
 document, so selection, Copy JSON, and saving contain only authored JSON. Their
 changes edit the same draft as typing and valid edits transact immediately
 through the existing planner. Invalid syntax or values disable the controls
 until the code is valid again.
+Component code exposes no background or fill field. Shape code uses
+`appearance.fillColor` only for objects with an independently fillable body,
+such as rectangles and circles.
 Invalid or rejected drafts preserve the last accepted canvas state. External
 undo/redo synchronizes the editor without replaying edits; Escape blurs this
 editor without applying legacy form drafts or discarding incomplete text.
@@ -200,9 +206,14 @@ new interfaces use deterministic direction-aware automatic layout.
 Canonical `nmos`/`pmos` use the asset's `textbook-3terminal` visual variant by
 default while retaining D/G/S/B electrically. A manual MOS uses explicit B
 membership first, then an explicitly configured cell default; otherwise bulk
-remains unresolved. Drawing the visible `bulk-dashed` connection clears that
-default binding and connects B to the selected Net in the same transaction.
-Imported MOS instances do not receive a guessed fourth node.
+remains unresolved in the authored connectivity graph. Structural netlist and
+simulation extraction give an omitted B a deterministic polarity default:
+NMOS uses global `0` and PMOS uses global `VDD`. An explicit B membership or
+NoConnect remains authoritative. Drawing the visible `bulk-dashed` connection
+clears any configured default binding and connects B to the selected Net in the
+same transaction. Imported MOS instances retain their authored fourth node;
+when it is absent, the same export-only polarity default applies without
+rewriting the Project.
 Properties shows Bulk as one compact row: its current Net or an explicit
 Unconnected/No Connect state sits beside the draw action. Hovering the status
 reveals the terminal and binding source; a drawn route's dashed presentation
@@ -236,19 +247,22 @@ behavioral blocks remain manual-only; a structural netlist requires an explicit
 implementation mapping.
 
 Ground is the `ground` component connected through pin `0`; placement reuses an
-existing global ground supply Net. Power Rail is a virtual Library item presented
+existing global ground supply Net. VDD Power is placed as a local formal Cell
+Pin by default; Properties can switch its unchanged artwork and physical Net to
+an explicit Global declaration. Power Rail is a virtual Library item presented
 through the same I-dialog, Library, and placement input plane as components.
 Its editor-local VDD artwork is preview-only and is not registered with the
 product Symbol Resolver. Before the first click the artwork follows the
 pointer; after the first click the preview becomes a straight horizontal or
 vertical rail, selected by the pointer's dominant axis. The second click
-creates a Base Net with the selected global supply claim, creates two route-anchor
+creates a Base Net with the selected local supply claim, creates two route-anchor
 Junctions and one `power-rail` Route, and persists one net-name-bound RichText
 power-label annotation. Same-name supply claims resolve to one Logical Net
 without a physical merge. The Route is the only rail geometry: the annotation adds no
 supply bar or terminal stub, and the semantic name uses the shared Razavi
 schematic-math style. It creates no VDD Instance and exits placement after the
-commit. Deleting the rail also deletes its power label and rail-only Junctions;
+commit. A rail explicitly drawn onto an existing Global supply retains that
+electrical connection. Deleting the rail also deletes its power label and rail-only Junctions;
 an otherwise-unused local Net follows the ordinary orphan lifecycle.
 
 ## Project sessions
@@ -383,8 +397,9 @@ ordinary click.
 
 Escape cancels the active preview without mutation. A committed gesture is one
 atomic transaction. Hover, geometric crossing, selection, and preview never
-change connectivity. A wire endpoint or explicit segment tap is required to
-create contact.
+change connectivity. A wire endpoint, explicit segment tap, or a moved Route
+segment landing exactly on a visible device pin creates contact. Two Route
+interiors crossing still do not connect.
 
 ## Movement closure
 
@@ -639,8 +654,8 @@ Open, demo load, restore, and human-approved staged import replace the entire
 Project through one replacement boundary; they are not Edit Engine
 transactions. Replacement cancels pending recovery for the outgoing Project
 and terminates its Agent session. A complete Project covered by the schema
-24→55 upgrade chain may be upgraded at the read boundary and then enters the
-editor only as schema-55; migrated files are marked as needing save.
+24→56 upgrade chain may be upgraded at the read boundary and then enters the
+editor only as schema-56; migrated files are marked as needing save.
 
 Selection, viewport, active tool, previews, Agent tokens, and approval UI are
 transient and never enter Project JSON. Recovery is scheduled only after a

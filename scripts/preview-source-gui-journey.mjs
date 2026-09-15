@@ -59,7 +59,7 @@ const program =
     .find((file) => file.path === folder.input.entry)
     .text.replace(
       ".endc",
-      "noise v(vout) VINP dec 20 1 1000000000\nwrite out.raw noise1.all noise2.all\n.endc",
+      "meas tran vout_peak MAX v(vout)\n* @spec vout_peak range 0 1.8 unit=V\nnoise v(vout) VINP dec 20 1 1000000000\nwrite out.raw noise1.all noise2.all\n.endc",
     ) + "\n* Source workspace GUI acceptance\n";
 config.deviceOperatingPoints = ["M1", "M3"].map((instanceId) => ({
   id: `gui-op-${instanceId}`,
@@ -179,10 +179,7 @@ try {
     mimeType: "application/json",
     buffer: Buffer.from(fixtureText),
   });
-  await page
-    .locator("summary")
-    .filter({ hasText: /^Netlist$/u })
-    .click();
+  await page.locator('summary[aria-label="Netlist"]').click();
   await page.getByTestId("open-analog-simulation").click();
   panel = page.getByRole("region", { name: "Analog simulation" });
   await expect(
@@ -263,7 +260,41 @@ try {
   await panel.getByRole("button", { name: "Maximize results" }).click();
   const input = JSON.parse(entryFromZip(diagnosticEntries, "prepared.json"));
   const result = JSON.parse(entryFromZip(diagnosticEntries, "result.json"));
-  const outputs = JSON.parse(entryFromZip(diagnosticEntries, "outputs.json"));
+  const specs = JSON.parse(entryFromZip(diagnosticEntries, "specs.json"));
+  assert(
+    !Object.keys(runEntries).some((path) => basename(path) === "specs.json"),
+  );
+  assert(
+    !Object.keys(diagnosticEntries).some(
+      (path) =>
+        basename(path).startsWith("outputs-") ||
+        [
+          "outputs.json",
+          "measurements.csv",
+          "device-operating-points.csv",
+        ].includes(basename(path)),
+    ),
+  );
+  assert.deepEqual(
+    Object.keys(runEntries)
+      .map((path) => basename(path))
+      .filter((name) => name.endsWith(".csv"))
+      .sort(),
+    [
+      "op-0.csv",
+      "dc-1.csv",
+      "ac-2.csv",
+      "tran-3.csv",
+      "noise-4.csv",
+      "specs.csv",
+    ].sort(),
+  );
+  assert(specs.inputDigest);
+  assert.equal(specs.results.length, 1);
+  assert.equal(specs.results[0].name, "vout_peak");
+  assert.equal(specs.results[0].judgment, "pass", JSON.stringify(specs));
+  assert(Number.isFinite(specs.results[0].value));
+  report.specs = specs;
   assert.equal(
     result.outcome.status,
     "completed",
@@ -283,13 +314,6 @@ try {
     compiled.vectors,
     input,
   );
-  assert(outputs.measurements.length > 0);
-  assert.equal(outputs.deviceOperatingPoints.length, 2);
-  assert(
-    outputs.analyses.some((record) =>
-      record.outputs.some((output) => output.label),
-    ),
-  );
   assert(
     entryFromZip(diagnosticEntries, "prepared.cir").includes("noise v(vout)"),
   );
@@ -299,21 +323,14 @@ try {
   report.environment = result.metadata.environment;
   report.recoveredInputError = true;
 
-  await panel.getByRole("tab", { name: "Plot", exact: true }).click();
+  await panel.getByRole("tab", { name: "Specs", exact: true }).click();
   await expect(
-    panel.getByRole("heading", { name: "AC Analysis" }),
+    panel.getByRole("region", { name: "Specification results" }),
   ).toBeVisible();
-  const plotExport = panel.locator("details.simulation-result-export");
-  await plotExport.locator("summary").click();
-  await download(
-    plotExport.getByRole("button", { name: "Visible plots · SVG" }),
-    "plots-svg.zip",
-  );
-  await download(
-    plotExport.getByRole("button", { name: "Visible plots · PNG" }),
-    "plots-png.zip",
-  );
-  await plotExport.locator("summary").click();
+  assert(entryFromZip(runEntries, "specs.csv").includes("judgment"));
+  await expect(
+    panel.getByRole("row").filter({ hasText: "vout_peak" }),
+  ).toContainText("Pass");
   await page.screenshot({ path: join(outputDirectory, "results.png") });
   await panel.getByRole("button", { name: "Restore results" }).click();
 
@@ -351,10 +368,7 @@ try {
     .getByTestId("startup-recovery-banner")
     .getByRole("button", { name: "Restore", exact: true })
     .click();
-  await page
-    .locator("summary")
-    .filter({ hasText: /^Netlist$/u })
-    .click();
+  await page.locator('summary[aria-label="Netlist"]').click();
   await page.getByTestId("open-analog-simulation").click();
   await expect(
     panel.getByRole("textbox", { name: "Simulation source editor" }),

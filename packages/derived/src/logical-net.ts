@@ -2,7 +2,10 @@ import { foldNetName } from "@icm/model";
 import type { SchematicDocument } from "@icm/model";
 
 export type LogicalNetConflictCode =
-  "name-conflict" | "scope-conflict" | "power-domain-conflict";
+  | "name-conflict"
+  | "scope-conflict"
+  | "power-domain-conflict"
+  | "formal-global-conflict";
 export type LogicalNetPowerDomain = "none" | "vdd" | "ground" | "conflict";
 
 export interface ResolvedLogicalNet {
@@ -40,7 +43,8 @@ export type LogicalNetContractIssue = {
   code:
     | "CONFLICTING_LOGICAL_NET_NAME"
     | "CONFLICTING_LOGICAL_NET_SCOPE"
-    | "CONFLICTING_LOGICAL_NET_POWER_DOMAIN";
+    | "CONFLICTING_LOGICAL_NET_POWER_DOMAIN"
+    | "FORMAL_PORT_GLOBAL_NET_CONFLICT";
   netIds: readonly string[];
 };
 
@@ -106,6 +110,14 @@ export function resolveDocumentLogicalNets(
 
   const byScopedName = new Map<string, string[]>();
   const formalNames = (document.netlist?.terminals ?? []).map((terminal) => {
+    const interfaceInstances = terminal.interfaceInstanceIds.flatMap(
+      (instanceId) => {
+        const instance = document.instances.find(
+          (candidate) => candidate.id === instanceId,
+        );
+        return instance ? [instance] : [];
+      },
+    );
     const matchingGlobalClaim = document.connectivityEvidence.some(
       (evidence) =>
         evidence.kind === "name-claim" &&
@@ -118,6 +130,11 @@ export function resolveDocumentLogicalNets(
       netId: terminal.netId,
       name: terminal.name,
       scope: matchingGlobalClaim ? ("global" as const) : ("local" as const),
+      powerDomain: interfaceInstances.some(
+        (instance) => instance.symbolId === "vdd-port",
+      )
+        ? ("vdd" as const)
+        : ("none" as const),
     };
   });
   for (const evidence of document.connectivityEvidence) {
@@ -192,6 +209,11 @@ export function resolveDocumentLogicalNets(
           powerDomains.add(item.powerDomain);
         }
       }
+      for (const terminal of memberFormalNames) {
+        if (terminal.powerDomain !== "none") {
+          powerDomains.add(terminal.powerDomain);
+        }
+      }
       const powerDomain: LogicalNetPowerDomain =
         powerDomains.size > 1
           ? "conflict"
@@ -209,6 +231,17 @@ export function resolveDocumentLogicalNets(
       }
       if (powerDomain === "conflict") {
         conflicts.push("power-domain-conflict");
+      }
+      const isSpiceGroundReference =
+        powerDomain === "ground" &&
+        namesByFolded.size === 1 &&
+        namesByFolded.has(foldNetName("0"));
+      if (
+        memberFormalNames.length > 0 &&
+        scopes.has("global") &&
+        !isSpiceGroundReference
+      ) {
+        conflicts.push("formal-global-conflict");
       }
       const sourceNetIds = [
         ...new Set(
@@ -295,6 +328,14 @@ export function validateLogicalNetContract(
         ? [
             {
               code: "CONFLICTING_LOGICAL_NET_POWER_DOMAIN" as const,
+              netIds: group.baseNetIds,
+            },
+          ]
+        : []),
+      ...(group.conflicts.includes("formal-global-conflict")
+        ? [
+            {
+              code: "FORMAL_PORT_GLOBAL_NET_CONFLICT" as const,
               netIds: group.baseNetIds,
             },
           ]

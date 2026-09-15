@@ -329,7 +329,7 @@ const TOOLS: readonly ToolEntry[] = [
     definition: {
       name: "simulation",
       description:
-        "Prepare one saved Project folder or a raw File Resource workspace, or prepare and sequentially run a bounded batch of saved folders. Start, poll/read, cancel, and list run artifacts through the shared Simulation Resource. authoring-help lists the same native VACASK helpers as Code; filter by name/context (embed supplies Python scalar/curve reports). It is read-only and needs no configured executor; returned skeleton names must be adapted before revision-guarded simulation_files edits. Supply the SAME requestId for a start retry. Ordinary failures are recoverable result objects, not session failures. Native source owns settings; use ordinary Cell/source edits for DUT/testbench.",
+        "Prepare a saved Project folder or raw File Resource workspace; start, read, cancel and export runs or sequential batches through the shared Simulation Resource. authoring-help exposes native VACASK helpers including Python reporting. Source code owns analyses and native measurements; @spec comments declare acceptance rules. Read outputData.specs or specs.json for verdicts, result.data/result.json for raw numbers and one analysis CSV per record. No automatic measurements or built-in plots. Large receipts use resultPreview and paged artifact access. Supply the SAME requestId for a start retry. Use simulation_files for source and ordinary Cell edits for the DUT/testbench.",
       inputSchema: jsonSchemaOf(SimulationArgs),
     },
     handle: async (args, session) => {
@@ -432,7 +432,7 @@ const TOOLS: readonly ToolEntry[] = [
     definition: {
       name: "export_file",
       description:
-        "Export the browser Project, Canvas SVG/PNG/PDF, or a simulation plot to an explicit local path. Canvas exports require documentId. simulation-plot requires simulation:{runId,analysisIndex,format:svg|png}; it uses the same plot renderer/export as Results, returning a ZIP when the selected record has multiple plots. No GUI click is required.",
+        "Export the browser Project or Canvas SVG/PNG/PDF to an explicit local path. Canvas exports require documentId. Simulation results use simulation export to list artifacts, then simulation_files artifact with outputPath to save raw/CSV/Spec files after digest verification. simulation-plot is retired and returns SIMULATION_PLOT_RETIRED; plot externally from raw/CSV.",
       inputSchema: jsonSchemaOf(ExportFileArgs),
     },
     handle: async (args, session) =>

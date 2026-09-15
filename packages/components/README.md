@@ -79,6 +79,15 @@ The product set is exactly the reviewed, Reference-calibrated entries:
 - `resistor`, `capacitor`, `inductor-compact`, their adjustable siblings
   `variable-resistor`, `variable-capacitor`, and `variable-inductor` (the base
   body plus one diagonal adjustment arrow), `port`, and `port-filled`;
+- `capacitor-section`, the top/bottom plate cross-section from Figure 13.42
+  (printed page 562) of _Design of Analog CMOS Integrated Circuits, Second
+  Edition_. Pin `1` connects to the top plate and Pin `2` to the bottom plate;
+  the substrate baseline is decorative and adds no terminal or parasitic
+  model. It exports the same ideal two-terminal C primitive as `capacitor`.
+  The source plate outlines are native PDF vectors; printed raster texture
+  is represented by vector hatching and external leads end on the 10-unit
+  grid. This presentation is selected manually, since a SPICE C line cannot
+  distinguish cross-section artwork from the ordinary capacitor symbol;
 - `port` and `port-filled` keep their calibrated circular bodies, with the
   right-hand lead and `P` terminal shortened by one 10-unit grid cell to x=0.
   Their view boxes shrink with that endpoint; the one-cell lead allowance
@@ -154,9 +163,10 @@ Razavi catalog. Their default visual variant is `textbook-3terminal`; explicit
 bulk-capable variants remain properties of the same canonical assets. Optional
 families such as high-voltage DMOS and Razavi-compatible depletion MOS live in
 the separate Extended Devices catalog and do not claim Razavi visual
-authority. The drawn VDD rail remains
-the explicit Net/Route authoring form; `vdd-port` is its reviewed marker Symbol
-for placed-device authoring on the same global VDD Net. There is no legacy
+authority. The drawn VDD rail remains the explicit Net/Route authoring form;
+`vdd-port` is its reviewed marker Symbol for placed-device authoring. New rails
+and VDD Power default to local scope; VDD Power is a formal Cell Pin unless the
+user explicitly selects Global. There is no legacy
 symbol catalog or generic fallback. A device without a reviewed Razavi symbol
 or an explicit Extended Devices entry is an unsupported import error.
 

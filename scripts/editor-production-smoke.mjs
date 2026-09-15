@@ -137,6 +137,42 @@ async function main() {
       page,
       "browser-pdf-",
     );
+    if (
+      await loadedJavaScriptContains(
+        page,
+        "Unrecognized extension value in extension set",
+      )
+    ) {
+      throw new Error(
+        "CodeMirror state runtime loaded before a code editor was requested",
+      );
+    }
+    // The first page installs the SW; a controlled navigation must actually
+    // cache consumed JS bodies, not only the five install-time icons/shell.
+    await page.evaluate(() => navigator.serviceWorker.ready);
+    await page.reload({ waitUntil: "networkidle" });
+    await page.waitForSelector('[data-testid="schematic-canvas"]');
+    const cachedEditorScript = await page.evaluate(async () => {
+      const script = performance
+        .getEntriesByType("resource")
+        .map((entry) => entry.name)
+        .find((url) => /\/assets\/App-[^/]+\.js$/.test(url));
+      for (let attempt = 0; attempt < 50; attempt++) {
+        // Inspect the stored request, including its Vary headers; a synthetic
+        // Request here lacks the module request's Origin header.
+        for (const name of await caches.keys()) {
+          const cache = await caches.open(name);
+          const key = (await cache.keys()).find(
+            (request) => request.url === script,
+          );
+          if (key && (await cache.match(key))) return true;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      }
+      return false;
+    });
+    if (!cachedEditorScript)
+      throw new Error("Service worker did not cache the editor script");
     mounted = true;
     // Browser recovery is Project data and must never leak into the PWA
     // asset caches (Cache Storage) or the service-worker precache.
@@ -147,6 +183,17 @@ async function main() {
         for (const request of await cache.keys()) {
           const response = await cache.match(request);
           if (!response) continue;
+          // Build JS legitimately contains bundled examples and schema names.
+          // Those are application code, not a user's recovery/project payload.
+          const path = new URL(request.url).pathname;
+          const type = response.headers.get("content-type") ?? "";
+          if (
+            path.startsWith("/assets/") &&
+            /javascript|css|font|image/.test(type)
+          )
+            continue;
+          if (path.startsWith("/api/"))
+            return `api-data-in-cache:${request.url}`;
           const text = await response.text();
           if (
             text.includes('"topDocumentId"') ||

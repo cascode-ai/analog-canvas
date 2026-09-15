@@ -187,6 +187,51 @@
   gap: var(--icm-space-3);
 }
 
+.netlist-profile-code {
+  display: grid;
+  gap: 8px;
+}
+.netlist-profile-code h2 {
+  font-size: 14px;
+  margin: 0;
+}
+.netlist-code-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.netlist-code-header select {
+  min-width: 0;
+  max-width: 70%;
+  padding: 4px 24px 4px 8px;
+  border: 1px solid var(--icm-border);
+  border-radius: 6px;
+  background: var(--icm-surface);
+  color: var(--icm-text);
+  font: inherit;
+}
+.netlist-profile-code p {
+  font-size: 12px;
+  color: var(--icm-text-dim);
+}
+.netlist-profile-code textarea {
+  width: 100%;
+  min-height: 60dvh;
+  resize: vertical;
+  box-sizing: border-box;
+  padding: 10px;
+  border: 1px solid var(--icm-border);
+  border-radius: 6px;
+  background: var(--icm-surface);
+  color: var(--icm-text);
+  font: 12px/1.6 monospace;
+  tab-size: 2;
+}
+.netlist-profile-code textarea[aria-invalid="true"] {
+  border-color: #c44;
+}
+
 .netlist-preflight-header p,
 .netlist-preflight-header h2,
 .netlist-preflight-summary h3,
@@ -390,6 +435,42 @@
 
 .command-menu {
   position: relative;
+}
+
+.netlist-copy-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+}
+
+.netlist-copy-group > .netlist-copy {
+  gap: 5px;
+  border-radius: var(--icm-radius-sm) 0 0 var(--icm-radius-sm);
+}
+
+.netlist-copy-group .command-menu > summary {
+  padding: 0 7px;
+  border-radius: 0 var(--icm-radius-sm) var(--icm-radius-sm) 0;
+  border-left-color: var(--icm-border);
+}
+
+.netlist-copy-group .command-popover {
+  left: auto;
+  right: 0;
+}
+
+.netlist-format,
+.netlist-extension {
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
+}
+
+.netlist-copy > .netlist-format {
+  display: inline;
+}
+
+.netlist-extension {
+  margin-left: auto;
 }
 
 .command-menu summary {
@@ -630,127 +711,6 @@
 
 .project-search-results small {
   color: var(--icm-text-muted);
-}
-
-/* A deliberately separate review surface: Properties keeps its compact,
- * selection-led workflow while the table handles explicit project batches. */
-.instance-table-dialog {
-  display: grid;
-  grid-template-rows: auto auto minmax(12rem, 1fr) auto;
-  gap: 0.8rem;
-  width: min(70rem, 100%);
-  max-height: min(42rem, calc(100vh - 4rem));
-  padding: 1rem;
-  overflow: hidden;
-  border: 1px solid rgb(255 255 255 / 55%);
-  border-radius: var(--icm-radius-lg);
-  background: var(--icm-surface);
-  box-shadow: var(--icm-shadow-lg);
-}
-
-.instance-table-dialog > header,
-.instance-table-controls,
-.instance-table-batch {
-  display: flex;
-  align-items: end;
-  justify-content: space-between;
-  gap: 0.65rem;
-}
-
-.instance-table-dialog h2,
-.instance-table-dialog p {
-  margin: 0;
-}
-
-.instance-table-dialog h2 {
-  margin-top: 0.15rem;
-  font-size: 1.1rem;
-}
-
-.instance-table-controls label,
-.instance-table-batch label {
-  display: grid;
-  gap: 0.2rem;
-  color: var(--icm-text-muted);
-  font-size: 0.78rem;
-}
-
-.instance-table-controls input,
-.instance-table-controls select,
-.instance-table-batch input,
-.instance-table-batch select {
-  min-height: 2.15rem;
-  padding: 0.35rem 0.5rem;
-  border: 1px solid var(--icm-border-strong);
-  border-radius: var(--icm-radius-sm);
-  color: var(--icm-text);
-  background: #fff;
-  font: inherit;
-}
-
-.instance-table-controls label:nth-child(2) {
-  flex: 1;
-}
-
-.instance-table-controls label:nth-child(2) input {
-  width: 100%;
-}
-
-.instance-table-scroll {
-  overflow: auto;
-  border: 1px solid var(--icm-border);
-  border-radius: var(--icm-radius-sm);
-}
-
-.instance-table-scroll table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.8rem;
-}
-
-.instance-table-scroll th,
-.instance-table-scroll td {
-  padding: 0.45rem 0.55rem;
-  border-bottom: 1px solid var(--icm-border);
-  text-align: left;
-  vertical-align: top;
-}
-
-.instance-table-scroll th {
-  position: sticky;
-  top: 0;
-  background: var(--icm-surface-muted);
-}
-
-.instance-table-link {
-  min-height: auto;
-  padding: 0;
-  border: 0;
-  color: var(--icm-accent);
-  background: transparent;
-  font: inherit;
-  font-weight: 650;
-}
-
-.instance-table-batch {
-  flex-wrap: wrap;
-  justify-content: start;
-}
-
-.instance-table-batch > span {
-  color: var(--icm-text-muted);
-  font-size: 0.8rem;
-}
-
-@media (max-width: 48rem) {
-  .instance-table-dialog {
-    max-height: calc(100vh - 1.5rem);
-  }
-
-  .instance-table-controls,
-  .instance-table-batch {
-    align-items: stretch;
-  }
 }
 
 .command-popover button:disabled {

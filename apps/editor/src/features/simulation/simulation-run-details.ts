@@ -1,6 +1,7 @@
 import { SimulationResultSchema } from "@icm/spice-run";
 import {
   SimulationOutputDataSchema,
+  SimulationSpecReportSchema,
   type Run,
   type Problem,
 } from "@icm/simulation-service/contract";
@@ -22,19 +23,29 @@ export class SimulationRunDetails {
     const details: Pick<Run, "result" | "outputData"> = {};
     try {
       for (const artifact of run.artifacts) {
-        if (artifact.name !== "result.json" && artifact.name !== "outputs.json")
+        if (
+          !["result.json", "outputs.json", "specs.json"].includes(artifact.name)
+        )
           continue;
         const content = await readSimulationArtifact(files, artifact);
         if (!content.ok) return content;
         const value: unknown = JSON.parse(content.content.text);
         if (artifact.name === "result.json")
           details.result = SimulationResultSchema.parse(value);
-        else details.outputData = SimulationOutputDataSchema.parse(value);
+        else if (artifact.name === "specs.json")
+          details.outputData = {
+            schemaVersion: 1,
+            analyses: [],
+            diagnostics: [],
+            specs: SimulationSpecReportSchema.parse(value),
+          };
+        else if (!run.artifacts.some((item) => item.name === "specs.json"))
+          details.outputData = SimulationOutputDataSchema.parse(value);
       }
       if (!details.result && !details.outputData)
         throw new Error("Missing result artifacts");
       this.cached.set(key, details);
-      // Mirrors the UI's bounded comparison retention, not a second run registry.
+      // Bound materialized history in memory; this is not a second run registry.
       if (this.cached.size > 5)
         this.cached.delete(this.cached.keys().next().value!);
       return { ok: true, run: { ...run, ...details, resultPreview: false } };

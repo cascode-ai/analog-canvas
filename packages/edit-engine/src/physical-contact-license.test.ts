@@ -1,4 +1,4 @@
-import { createRoutePath } from "@icm/model";
+import { createEmptyDocument, createRoutePath, routeEnd } from "@icm/model";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -98,29 +98,21 @@ function fixture(options: {
     };
   }
   document.connectivityEvidence = [];
-  const seeded = executeTransaction(
-    document,
-    transaction(
-      document,
-      [
-        {
-          kind: "set_route_path",
-          route: createRoutePath({
-            id: "route-h",
-            netId: "net-1",
-            start: { kind: "terminal", instanceId: "A", pinName: "P" },
-            end: { kind: "terminal", instanceId: "B", pinName: "P" },
-            bends: [],
-            modes: ["manual"],
-          }),
-        },
-      ],
-      "seed",
-    ),
-    context,
-  );
-  if (!seeded.ok) throw new Error(seeded.error.message);
-  return seeded.document;
+  // Install the persisted baseline directly. Running a set_route_path
+  // transaction here would itself be a Route-edit gesture and correctly bond
+  // E when this fixture includes it, obscuring the typed-attach boundary the
+  // tests below are meant to isolate.
+  document.routes = [
+    createRoutePath({
+      id: "route-h",
+      netId: "net-1",
+      start: { kind: "terminal", instanceId: "A", pinName: "P" },
+      end: { kind: "terminal", instanceId: "B", pinName: "P" },
+      bends: [],
+      modes: ["manual"],
+    }),
+  ];
+  return document;
 }
 
 function attachEdit(
@@ -168,6 +160,7 @@ describe("physical contact license", () => {
     expect(license.objectIds.size).toBe(0);
     expect(license.endpointKeys.size).toBe(0);
     expect(license.routePoints.size).toBe(0);
+    expect(license.routeGeometryPoints.size).toBe(0);
     expect(
       nextPhysicalContactOperation(document, resolver, license),
     ).toBeNull();
@@ -233,6 +226,131 @@ describe("physical contact license", () => {
     expect(result.document.nets.map((net) => net.id).sort()).toEqual([
       "net-1",
       "net-2",
+    ]);
+  });
+
+  it("does not retrofit a terminal that already rested on the Route", () => {
+    const document = fixture({
+      keepInstances: ["A", "B", "E"],
+      parkedJunctionX: 200,
+    });
+    document.nets.find((net) => net.id === "net-1")!.terminals = document.nets
+      .find((net) => net.id === "net-1")!
+      .terminals.filter((terminal) => terminal.instanceId !== "E");
+    document.nets.push({
+      id: "net-3",
+      terminals: [{ instanceId: "E", pinName: "P" }],
+    });
+    document.netlist!.terminals.find(
+      (terminal) => terminal.interfaceInstanceIds[0] === "E",
+    )!.netId = "net-3";
+    const originalRoute = document.routes[0]!;
+    const result = executeTransaction(
+      document,
+      transaction(document, [
+        {
+          kind: "set_route_path",
+          route: createRoutePath({
+            id: originalRoute.id,
+            netId: originalRoute.netId,
+            start: originalRoute.start,
+            end: routeEnd(originalRoute),
+            bends: [
+              { x: 350, y: 300 },
+              { x: 350, y: 320 },
+              { x: 460, y: 320 },
+            ],
+            modes: ["manual", "manual", "manual", "manual"],
+          }),
+        },
+      ]),
+      context,
+    );
+
+    if (!result.ok) throw new Error(result.error.message);
+    expect(
+      result.document.nets.find((net) =>
+        net.terminals.some((terminal) => terminal.instanceId === "E"),
+      )?.id,
+    ).toBe("net-3");
+    expect(result.document.routes[0]?.netId).toBe("net-1");
+  });
+
+  it("does not turn a preserved corner overlap into a contact during group translation", () => {
+    const document = createEmptyDocument(
+      "translated-overlap",
+      "Translated overlap",
+    );
+    document.instances.push(
+      {
+        id: "R1",
+        symbolId: "resistor",
+        placement: {
+          position: { x: 0, y: 20 },
+          rotation: 0,
+          mirror: "none",
+        },
+      },
+      {
+        id: "R2",
+        symbolId: "resistor",
+        placement: {
+          position: { x: 200, y: 20 },
+          rotation: 0,
+          mirror: "none",
+        },
+      },
+    );
+    document.nets.push({
+      id: "net-wire",
+      terminals: [
+        { instanceId: "R1", pinName: "2" },
+        { instanceId: "R2", pinName: "1" },
+      ],
+    });
+    document.routes.push(
+      createRoutePath({
+        id: "route-wire",
+        netId: "net-wire",
+        start: { kind: "terminal", instanceId: "R1", pinName: "2" },
+        end: { kind: "terminal", instanceId: "R2", pinName: "1" },
+        bends: [{ x: 200, y: 40 }],
+        modes: ["manual", "manual"],
+      }),
+    );
+    const result = executeTransaction(
+      document,
+      transaction(document, [
+        {
+          kind: "move_instance",
+          instanceId: "R1",
+          position: { x: 50, y: 70 },
+        },
+        {
+          kind: "move_instance",
+          instanceId: "R2",
+          position: { x: 250, y: 70 },
+        },
+        {
+          kind: "set_route_path",
+          route: createRoutePath({
+            id: "route-wire",
+            netId: "net-wire",
+            start: { kind: "terminal", instanceId: "R1", pinName: "2" },
+            end: { kind: "terminal", instanceId: "R2", pinName: "1" },
+            bends: [{ x: 250, y: 90 }],
+            modes: ["manual", "manual"],
+          }),
+        },
+      ]),
+      context,
+    );
+
+    if (!result.ok) throw new Error(result.error.message);
+    expect(result.document.routes).toHaveLength(1);
+    expect(result.document.nets[0]!.terminals).toEqual([
+      { instanceId: "R1", pinName: "2" },
+      { instanceId: "R2", pinName: "1" },
     ]);
   });
 

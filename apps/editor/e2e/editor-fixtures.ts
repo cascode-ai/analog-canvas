@@ -28,9 +28,12 @@ export async function awaitRecoveryStoreReady(page: Page): Promise<void> {
 }
 
 export async function openMenu(page: Page, name: string): Promise<Locator> {
-  const summary = page.locator("summary", { hasText: name }).filter({
-    hasText: new RegExp(`^${name}$`, "u"),
-  });
+  const summary =
+    name === "Netlist"
+      ? page.locator('summary[aria-label="Netlist"]')
+      : page.locator("summary", { hasText: name }).filter({
+          hasText: new RegExp(`^${name}$`, "u"),
+        });
   const details = summary.locator("..");
   if ((await details.getAttribute("open")) === null) await summary.click();
   return details;
@@ -42,12 +45,9 @@ export async function clickCommand(
   button: string,
 ): Promise<void> {
   const details = await openMenu(page, menu);
-  if (
-    menu === "File" &&
-    /^Export (?:SVG|PNG|PDF|SPICE netlist|Spectre netlist)$/u.test(button)
-  ) {
+  if (menu === "File" && /^Export (?:SVG|PNG|PDF)$/u.test(button)) {
     const group = details.getByRole("button", {
-      name: button.endsWith("netlist") ? "Export netlist" : "Export drawing",
+      name: "Export drawing",
       exact: true,
     });
     if ((await group.getAttribute("aria-expanded")) !== "true")
@@ -252,4 +252,40 @@ export async function readRecoveryRecords(
 export async function recoveryProjectTexts(page: Page): Promise<string> {
   const records = await readRecoveryRecords(page);
   return records.map((record) => record.projectText).join("\n");
+}
+
+/** Copy through the real clipboard and prove its content matches the live sidebar. */
+export async function copyNetlistText(
+  page: Page,
+  format?: "spice" | "spectre",
+): Promise<string> {
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+  let downloads = 0;
+  const downloaded = () => {
+    downloads += 1;
+  };
+  page.on("download", downloaded);
+  await page.evaluate(() =>
+    navigator.clipboard.writeText("clipboard sentinel"),
+  );
+  if (format)
+    await clickCommand(
+      page,
+      "Netlist",
+      `Copy ${format === "spice" ? "SPICE" : "Spectre"} netlist`,
+    );
+  else await page.getByTestId("copy-netlist").click();
+  await expect
+    .poll(() => page.evaluate(() => navigator.clipboard.readText()))
+    .not.toBe("clipboard sentinel");
+  const text = await page.evaluate(() => navigator.clipboard.readText());
+  // Windows normalizes clipboard lines to CRLF while textarea values retain
+  // the application's LF spelling. The text contract is line-ending neutral.
+  const normalizedText = text.replace(/\r\n?/gu, "\n");
+  await expect(
+    page.getByRole("textbox", { name: "Netlist code", exact: true }),
+  ).toHaveValue(normalizedText);
+  expect(downloads).toBe(0);
+  page.off("download", downloaded);
+  return normalizedText;
 }

@@ -70,6 +70,96 @@ function visibleEndpoints(
   );
 }
 
+function routeContainsAuthoredPoint(
+  document: SchematicDocument,
+  geometry: ReturnType<typeof resolveDocumentRoutingGeometry>,
+  routeId: string,
+  point: Point,
+): boolean {
+  const route = document.routes.find((candidate) => candidate.id === routeId);
+  // Power rails own a dedicated contact planner which keeps off-grid artwork
+  // tips connected through grid-aligned taps. Generic Route contact repair
+  // would split the rail at the artwork tip and create a second topology.
+  if (
+    !route ||
+    route.presentation === "bulk-dashed" ||
+    route.presentation === "power-rail"
+  )
+    return false;
+  return findRouteSegmentsAtPoint(geometry, point).some((address) => {
+    if (address.routeId !== routeId) return false;
+    const segment = geometry.routes
+      .get(routeId)
+      ?.segments.find(
+        (candidate) => candidate.address.segmentIndex === address.segmentIndex,
+      );
+    return segment !== undefined && segment.mode !== "escape";
+  });
+}
+
+export interface NewlyTouchedRouteTerminal {
+  readonly endpoint: Extract<RouteEndpoint, { kind: "terminal" }>;
+  readonly routeId: string;
+  readonly point: Point;
+}
+
+/**
+ * Exact terminal contacts introduced by authored Route geometry.
+ *
+ * Comparing the projected result with the source avoids bonding a pin that
+ * was already parked on an untouched part of the same Route. Route-to-Route
+ * crossings never enter this detector because only visible terminals are
+ * considered.
+ */
+export function newlyTouchedRouteTerminals(
+  before: SchematicDocument,
+  after: SchematicDocument,
+  resolver: SymbolResolver,
+  routeIds: ReadonlySet<string>,
+): NewlyTouchedRouteTerminal[] {
+  if (routeIds.size === 0) return [];
+  const beforeGeometry = resolveDocumentRoutingGeometry(before, resolver);
+  const afterGeometry = resolveDocumentRoutingGeometry(after, resolver);
+  const result: NewlyTouchedRouteTerminal[] = [];
+  for (const endpoint of visibleEndpoints(after, resolver)) {
+    if (endpoint.kind !== "terminal") continue;
+    const point = resolveEndpointConnection(
+      after,
+      resolver,
+      endpoint,
+    )?.contactPoint;
+    if (!point) continue;
+    for (const routeId of [...routeIds].sort((left, right) =>
+      left.localeCompare(right, "en"),
+    )) {
+      // A newly pasted/drawn Route is handled by its authoring planner. This
+      // detector is for an existing conductor whose geometry moved onto a
+      // previously separate pin; treating every new Route as a drag also
+      // connected copied circuits to unrelated objects under the paste ghost.
+      if (!before.routes.some((candidate) => candidate.id === routeId)) {
+        continue;
+      }
+      const route = after.routes.find((candidate) => candidate.id === routeId);
+      if (!route) continue;
+      if (
+        routeEndpoints(route).some(
+          (candidate) => endpointKey(candidate) === endpointKey(endpoint),
+        )
+      ) {
+        continue;
+      }
+      if (!routeContainsAuthoredPoint(after, afterGeometry, routeId, point)) {
+        continue;
+      }
+      if (routeContainsAuthoredPoint(before, beforeGeometry, routeId, point)) {
+        continue;
+      }
+      result.push({ endpoint, routeId, point: { ...point } });
+    }
+  }
+  return result;
+}
+
 /**
  * Return one deterministic physical-contact operation for the current draft.
  * The transaction applies it and asks again, so route splits and Net merges
@@ -77,8 +167,9 @@ function visibleEndpoints(
  *
  * Only contacts the transaction licensed are normalized. Route-interior
  * crossings are deliberately absent. This module handles direct endpoint
- * contacts and explicit Junction-on-route contacts; snapped pin-to-route
- * attachment remains a typed gesture intent.
+ * contacts, explicit Junction-on-route contacts, and exact terminal points
+ * newly touched by edited Route geometry. A Route crossing another Route is
+ * never a contact here because neither interior supplies an endpoint.
  */
 export function nextPhysicalContactOperation(
   document: SchematicDocument,
@@ -93,7 +184,8 @@ export function nextPhysicalContactOperation(
   if (
     license.objectIds.size === 0 &&
     license.endpointKeys.size === 0 &&
-    license.routePoints.size === 0
+    license.routePoints.size === 0 &&
+    license.routeGeometryPoints.size === 0
   ) {
     return null;
   }
@@ -120,7 +212,16 @@ export function nextPhysicalContactOperation(
     positionedByPoint.set(key, entries);
   }
   for (const coincident of positionedByPoint.values()) {
-    if (!coincident.some(({ endpoint }) => endpointLicensed(endpoint))) {
+    const point = coincident[0]?.point;
+    const changedRouteLandedHere =
+      point !== undefined &&
+      [...license.routeGeometryPoints.values()].some((points) =>
+        points.has(physicalContactPointKey(point)),
+      );
+    if (
+      !changedRouteLandedHere &&
+      !coincident.some(({ endpoint }) => endpointLicensed(endpoint))
+    ) {
       continue;
     }
     for (let leftIndex = 0; leftIndex < coincident.length; leftIndex += 1) {
@@ -132,6 +233,7 @@ export function nextPhysicalContactOperation(
       ) {
         const right = coincident[rightIndex]!;
         if (
+          !changedRouteLandedHere &&
           !endpointLicensed(left.endpoint) &&
           !endpointLicensed(right.endpoint)
         ) {
@@ -151,13 +253,7 @@ export function nextPhysicalContactOperation(
 
   const geometry = resolveDocumentRoutingGeometry(document, resolver);
   for (const { endpoint, point } of positioned) {
-    // Pin-to-route attachment is a gesture-level intent because it may split
-    // a selected Route and therefore needs the caller's snapped target. The
-    // transaction still validates and applies that typed intent. Junctions,
-    // by contrast, are explicit topology objects: a Junction on a conductor
-    // is unambiguously a physical contact and is normalized here.
-    if (endpoint.kind !== "junction") continue;
-    const junctionLicensed = endpointLicensed(endpoint);
+    const endpointIsLicensed = endpointLicensed(endpoint);
     for (const address of findRouteSegmentsAtPoint(geometry, point)) {
       const route = document.routes.find(
         (candidate) => candidate.id === address.routeId,
@@ -175,14 +271,27 @@ export function nextPhysicalContactOperation(
       // that lead can short pins inside the symbol and destabilize the Route
       // whenever the symbol moves.
       if (segment.mode === "escape") continue;
-      // A wholesale license (introduced conductor) bonds anywhere along the
-      // Route; a typed attach only bonds at the exact point it named.
-      const routeLicensed =
-        license.objectIds.has(route.id) ||
+      // Introduced conductors license explicit Junction incidence. Terminal
+      // interiors require either the exact point newly covered by a moved
+      // Route or the typed endpoint/point pair supplied by an attach planner.
+      const introducedRouteLicensed = license.objectIds.has(route.id);
+      const typedRoutePointLicensed =
         license.routePoints
           .get(route.id)
           ?.has(physicalContactPointKey(point)) === true;
-      if (!junctionLicensed && !routeLicensed) continue;
+      const changedRoutePointLicensed =
+        license.routeGeometryPoints
+          .get(route.id)
+          ?.has(physicalContactPointKey(point)) === true;
+      const contactLicensed =
+        endpoint.kind === "junction"
+          ? endpointIsLicensed ||
+            introducedRouteLicensed ||
+            typedRoutePointLicensed ||
+            changedRoutePointLicensed
+          : changedRoutePointLicensed ||
+            (endpointIsLicensed && typedRoutePointLicensed);
+      if (!contactLicensed) continue;
       if (
         routeEndpoints(route).some(
           (candidate) => endpointKey(candidate) === endpointKey(endpoint),
@@ -190,11 +299,14 @@ export function nextPhysicalContactOperation(
       ) {
         continue;
       }
-      // Endpoint-to-endpoint coincidence is handled above. Splitting is only
-      // meaningful for a real segment interior.
-      if (samePoint(point, segment.from) || samePoint(point, segment.to)) {
-        continue;
-      }
+      // Endpoint-to-endpoint coincidence is handled above. An internal bend,
+      // however, is a valid split vertex and splitRoute partitions it without
+      // creating a zero-length leg.
+      const routeSegments = geometry.routes.get(route.id)?.segments ?? [];
+      const pointIsRouteBoundary =
+        samePoint(point, routeSegments[0]?.from ?? point) ||
+        samePoint(point, routeSegments.at(-1)?.to ?? point);
+      if (pointIsRouteBoundary) continue;
       return {
         kind: "attach-endpoint-to-route",
         endpoint,

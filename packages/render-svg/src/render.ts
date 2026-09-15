@@ -1110,7 +1110,13 @@ export function buildSvgScene(
       const isPowerRail =
         presentation === "power-rail" && powerRailNetIds.has(route.netId);
       const dash =
-        presentation === "bulk-dashed" ? ' stroke-dasharray="3 3"' : "";
+        presentation === "bulk-dashed"
+          ? ' stroke-dasharray="3 3"'
+          : route.styleOverride?.lineStyle === "dashed"
+            ? ' stroke-dasharray="6 4"'
+            : route.styleOverride?.lineStyle === "dotted"
+              ? ' stroke-dasharray="2 3"'
+              : "";
       const presentationAttribute =
         presentation !== "wire"
           ? ` data-route-presentation="${presentation}"`

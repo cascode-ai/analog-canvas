@@ -519,7 +519,34 @@ export default function SimulationCodeEditor(props: SimulationCodeEditorProps) {
               ) ?? "",
               !!props.entry,
             )}
-            actions={props.helperActions}
+            actions={[
+              ...(props.helperActions ?? []),
+              ...(props.mode === "json"
+                ? []
+                : [
+                    {
+                      id: "spec-limit",
+                      label: "Spec acceptance rule…",
+                      keywords: "spec expected limit pass failed 验收 指标",
+                      run: () => {
+                        const editor = view.current;
+                        if (!editor || props.readOnly) return;
+                        const line = editor.state.doc.lineAt(
+                          editor.state.selection.main.head,
+                        );
+                        const prefix = line.text.trim() ? "\n" : "";
+                        const insert = `${prefix}* @spec measurement <= 1 unit=V`;
+                        const from = line.text.trim() ? line.to : line.from;
+                        const anchor = from + prefix.length + 8;
+                        editor.dispatch({
+                          changes: { from, insert },
+                          selection: { anchor, head: anchor + 11 },
+                        });
+                        editor.focus();
+                      },
+                    },
+                  ]),
+            ]}
             onClose={(restoreFocus = true) => {
               setHelperOpen(false);
               if (restoreFocus) view.current?.focus();

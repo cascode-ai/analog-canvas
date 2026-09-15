@@ -18,13 +18,15 @@ describe("ComponentPropertyCodeEditor", () => {
           },
         }}
         revision={1}
+        displayName="RL"
         referenceVisible
         valueVisible={false}
         onApply={vi.fn(() => ({ ok: true as const }))}
       />,
     );
     expect(markup).toContain('aria-label="Loading Canvas property code"');
-    expect(markup).toContain("&quot;at&quot;");
+    expect(markup).toContain("&quot;coordinate&quot;");
+    expect(markup).toContain("&quot;displayName&quot;: &quot;RL&quot;");
     expect(markup).not.toContain("Apply code");
     expect(markup).not.toContain("Component properties");
     expect(markup).toContain('aria-label="Defaults"');

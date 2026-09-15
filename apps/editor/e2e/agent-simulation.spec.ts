@@ -1,24 +1,373 @@
 import { test, expect, type WebSocketRoute } from "@playwright/test";
+import { readFileSync } from "node:fs";
+import {
+  createSimulationEnvironmentMetadata,
+  createSimulationInputMetadata,
+  readSimulationData,
+} from "@icm/spice-run";
 
 import { clickNetlistWorkflowCommand } from "./editor-fixtures.js";
+import { profile } from "./simulation-e2e-fixtures.js";
 import { createSimulationFolder, createEmptyProject } from "@icm/model";
-import { unzipSync, strFromU8 } from "fflate";
-import {
-  agentNativeSource,
-  agentNativeProfile,
-  createAgentNativeExecutor,
-} from "./native-simulation-executor.mjs";
-const closers: Array<() => Promise<void>> = [];
-test.afterEach(async () => {
-  for (const close of closers.splice(0)) await close();
+import { createHash } from "node:crypto";
+
+// No MCP, Agent client, Project fixture import, or injected relay messages.
+// Only the simulator backend is a fixture: this proves HTTP authoring/handoff,
+// not new electrical accuracy. All Agent work crosses the real local relay.
+test("HTTP Kit alone authors native objects and hands off a Project-folder run", async ({
+  page,
+  request,
+  baseURL,
+}) => {
+  test.setTimeout(90_000);
+  let executions = 0;
+  const rawfile = readFileSync(
+    new URL(
+      "../../../fixtures/ngspice-rawfile/divider-op.raw",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  await page.route("**/api/simulate", async (route) => {
+    const body = route.request().postDataJSON();
+    if (body.operation === "capabilities") {
+      await route.fulfill({
+        json: {
+          configured: true,
+          rawfileCollection: "declared-single-ascii",
+          inputs: ["structured", "raw"],
+          analyses: ["op"],
+          parsedAnalyses: ["op"],
+          profiles: [{ id: profile.id, corners: ["tt"] }],
+          maxTimeoutMs: 120000,
+          maxInputBytes: 1048576,
+          cancel: true,
+        },
+      });
+      return;
+    }
+    executions++;
+    expect(body.preparedDeck).toContain('.include "circuit.spice"');
+    const generatedCircuit = body.files.find(
+      (file: { path: string }) => file.path === "circuit.spice",
+    ).text;
+    expect(generatedCircuit).toContain("R1");
+    expect(generatedCircuit).toContain("R2");
+    const reading = readSimulationData(rawfile);
+    if (reading.status !== "read") throw Error("Invalid rawfile fixture");
+    await route.fulfill({
+      json: {
+        outcome: { status: "completed" },
+        diagnostics: [],
+        log: "fixture OP",
+        durationMs: 1,
+        data: reading.data,
+        rawfile,
+        executedDeck: body.preparedDeck,
+        cancelled: false,
+        metadata: {
+          schemaVersion: 1,
+          input: await createSimulationInputMetadata({
+            inputRevision: body.inputRevision,
+            netlist: body.netlist,
+            testbench: body.testbench,
+            deck: body.preparedDeck,
+          }),
+          configuration: { modelLibrary: null },
+          environment: await createSimulationEnvironmentMetadata({
+            executor: "local-host",
+            reproducibility: "observed",
+            profileId: profile.id,
+            platform: "linux/x64",
+            simulator: {
+              name: "ngspice",
+              version: profile.simulator.version,
+              binarySha256: null,
+            },
+            models: null,
+            startupSha256: null,
+          }),
+        },
+      },
+    });
+  });
+  await page.goto("/editor");
+  await page.getByRole("button", { name: "Agent", exact: true }).click();
+  const panel = page.getByTestId("connect-agent-panel");
+  await expect(panel.getByTestId("agent-copy-text")).toBeVisible({
+    timeout: 30000,
+  });
+  const handoff = await panel.getByTestId("agent-copy-text").inputValue();
+  const kit = await (
+    await request.get(handoff.match(/HTTP Agent Kit: (\S+)/u)![1]!)
+  ).json();
+  const files = new Map<string, string>(
+    kit.files.map((file: { path: string; content: string }) => [
+      file.path,
+      file.content,
+    ]),
+  );
+  expect(files.get("references/authoring-contract.md")).toContain(
+    "Shared simulation and result handoff",
+  );
+  const catalog = JSON.parse(
+    files.get("references/razavi-authoring-catalog.json")!,
+  );
+  const openapiResponse = await request.get(
+    `${baseURL}/api/agent/openapi.json`,
+  );
+  expect(openapiResponse.ok()).toBe(true);
+  const openapi = await openapiResponse.text();
+  for (const term of [
+    "place-components",
+    "set-net-label",
+    "upsert_simulation_folder",
+    "simulation-input",
+  ])
+    expect(openapi).toContain(term);
+  const claim = JSON.parse(handoff.match(/Claim: (.+)/u)![1]!);
+  const claimed = await request.post(`${baseURL}/api/agent/claims`, {
+    data: claim,
+  });
+  expect(claimed.ok()).toBe(true);
+  const session = await claimed.json();
+  const documentId = session.documentIds[0];
+  const send = async (resource: string, payload: Record<string, unknown>) => {
+    const response = await request.post(
+      `${baseURL}/api/agent/sessions/${session.sessionId}/${resource}`,
+      {
+        headers: { Authorization: `Bearer ${session.agentToken}` },
+        data: { apiVersion: "3.0", requestId: crypto.randomUUID(), ...payload },
+      },
+    );
+    const result = await response.json();
+    // Never log the claim or credentials, even on failure.
+    expect(response.ok(), JSON.stringify(result.error)).toBe(true);
+    expect(result.ok, JSON.stringify(result.error ?? result.diagnostics)).toBe(
+      true,
+    );
+    return result;
+  };
+  await send("circuit", { operation: "capabilities" });
+  const snapshot = () => send("circuit", { operation: "snapshot", documentId });
+  const transact = async (operation: Record<string, unknown>) => {
+    const current = await snapshot();
+    return send("circuit", {
+      operation: "transact",
+      documentId,
+      transactionId: crypto.randomUUID(),
+      expectedRevision: current.revision,
+      expectedStructureRevision: current.snapshot.project.structureRevision,
+      ...operation,
+    });
+  };
+  const definitions = [
+    ["http-v", "voltage-source", "V1", { dc: "1" }],
+    ["http-r1", "resistor", "R1", { value: "1k" }],
+    ["http-r2", "resistor", "R2", { value: "1k" }],
+    ["http-g", "ground", undefined, undefined],
+    ["http-port", "port", "OUT", undefined],
+  ] as const;
+  await transact({
+    command: {
+      kind: "place-components",
+      instances: definitions.map(
+        ([id, symbolId, reference, parameters], index) => {
+          expect(
+            catalog.symbols.some(
+              (symbol: { symbolId: string }) => symbol.symbolId === symbolId,
+            ),
+          ).toBe(true);
+          return {
+            id,
+            symbolId,
+            ...(reference ? { reference } : {}),
+            ...(parameters ? { netlist: { parameters } } : {}),
+            placement: {
+              position: { x: 200 + index * 140, y: 200 },
+              rotation: 0,
+              mirror: "none",
+            },
+          };
+        },
+      ),
+    },
+  });
+  const placed = await snapshot();
+  expect(placed.snapshot.document.annotations).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        kind: "instance-value",
+        binding: expect.objectContaining({ instanceId: "http-r1" }),
+      }),
+      expect.objectContaining({
+        binding: expect.objectContaining({ kind: "cell-terminal-name" }),
+      }),
+    ]),
+  );
+  expect(placed.snapshot.document.cellInterface.terminals).toEqual(
+    expect.arrayContaining([expect.objectContaining({ name: "OUT" })]),
+  );
+  const endpoint = (id: string, pinIndex: number) => {
+    const instance = placed.snapshot.document.instances.find(
+      (item: { id: string }) => item.id === id,
+    );
+    const symbol = catalog.symbols.find(
+      (item: { symbolId: string }) => item.symbolId === instance.symbolId,
+    );
+    const pinName = symbol.pins[pinIndex].name;
+    expect(
+      instance.pins.some((pin: { name: string }) => pin.name === pinName),
+    ).toBe(true);
+    return {
+      kind: "endpoint",
+      endpoint: { kind: "terminal", instanceId: id, pinName },
+    };
+  };
+  for (const [a, ai, b, bi] of [
+    ["http-v", 0, "http-r1", 0],
+    ["http-r1", 1, "http-r2", 0],
+    ["http-r2", 1, "http-g", 0],
+    ["http-v", 1, "http-g", 0],
+    ["http-port", 0, "http-r1", 1],
+  ] as const)
+    await transact({
+      wireIntent: {
+        id: crypto.randomUUID(),
+        from: endpoint(a, ai),
+        to: endpoint(b, bi),
+      },
+    });
+  const wired = await snapshot();
+  const netId = wired.snapshot.document.instances.find(
+    (item: { id: string }) => item.id === "http-r1",
+  ).pins[1].netId;
+  await transact({
+    command: {
+      kind: "set-net-label",
+      annotationId: "http-label",
+      netId,
+      position: { x: 420, y: 260 },
+      text: { runs: [{ kind: "text", value: "OUT" }] },
+    },
+  });
+  const labelled = await snapshot();
+  expect(labelled.snapshot.document.annotations).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        id: "http-label",
+        binding: expect.objectContaining({ netId }),
+      }),
+    ]),
+  );
+  await send("circuit", { operation: "render", documentId, mode: "formal" });
+  const capabilities = await send("simulation", { operation: "capabilities" });
+  // Use the advertised profile, not a hard-coded production environment.
+  const profileId = capabilities.capabilities.profiles[0]?.id;
+  expect(profileId).toBeTruthy();
+  await transact({
+    structureEdits: [
+      {
+        kind: "upsert_simulation_folder",
+        folder: {
+          id: "http-folder",
+          name: "HTTP divider",
+          version: 4,
+          input: {
+            kind: "source",
+            entry: "run.cir",
+            configPath: "experiment.json",
+            files: [
+              {
+                path: "run.cir",
+                text: '* HTTP divider\n.include "circuit.spice"\n.control\nset filetype=ascii\nop\nwrite out.raw\n.endc\n.end\n',
+              },
+              {
+                path: "experiment.json",
+                text: JSON.stringify({
+                  version: 2,
+                  environment: { profileId },
+                }),
+              },
+            ],
+            circuitBindings: [
+              {
+                id: "circuit",
+                path: "circuit.spice",
+                documentId,
+                emission: "top-level",
+              },
+            ],
+            dependencies: [],
+          },
+        },
+      },
+    ],
+  });
+  const current = await snapshot();
+  const prepared = (
+    await send("simulation", {
+      operation: "prepare",
+      source: {
+        kind: "project-folder",
+        folderId: "http-folder",
+        expectedStructureRevision: current.snapshot.project.structureRevision,
+      },
+    })
+  ).prepared;
+  const run = (
+    await send("simulation", {
+      operation: "start",
+      preparedId: prepared.id,
+      digest: prepared.digest,
+    })
+  ).run;
+  // No Agent read is needed for the browser observer to finish the handoff.
+  await panel.getByRole("button", { name: "Close Agent dialog" }).click();
+  await clickNetlistWorkflowCommand(page, "open-analog-simulation");
+  await page.locator(".simulation-run-history > summary").click();
+  const records = page.getByRole("region", {
+    name: "Project runs",
+    exact: true,
+  });
+  await expect(
+    records.getByRole("button", { name: "Open result" }),
+  ).toBeEnabled();
+  await records.getByRole("button", { name: "Open result" }).click();
+  await expect(
+    page.getByRole("region", { name: "Analog simulation" }).getByRole("status"),
+  ).toHaveText("completed");
+  expect(executions).toBe(1);
+  expect(
+    (await send("simulation", { operation: "read", runId: run.id })).run.state,
+  ).toBe("finished");
+  const exported = await send("files", {
+    operation: "download",
+    artifact: "project",
+  });
+  const bytes = Buffer.from(exported.artifact.data, "base64");
+  expect(bytes.byteLength).toBe(exported.artifact.byteLength);
+  expect(createHash("sha256").update(bytes).digest("hex")).toBe(
+    exported.artifact.sha256,
+  );
+  await page.reload();
+  await page.getByTestId("project-file").setInputFiles({
+    name: "http.icproj.json",
+    mimeType: "application/json",
+    buffer: bytes,
+  });
+  await clickNetlistWorkflowCommand(page, "open-analog-simulation");
+  await page.locator(".simulation-run-history > summary").click();
+  await expect(
+    page.getByRole("region", { name: "Saved folder results" }),
+  ).toContainText("Agent");
+  expect(executions).toBe(1);
 });
+
 for (const sourceKind of ["workspace", "project-folder"] as const)
   test(`Agent ${sourceKind} simulation recovers errors, exports and hands off project results`, async ({
     page,
   }) => {
-    test.setTimeout(60000);
-    const executor = await createAgentNativeExecutor();
-    closers.push(() => executor.close());
     const id = "simulation-e2e",
       secret = "simulation-editor-secret";
     let socket: WebSocketRoute | undefined;
@@ -53,16 +402,73 @@ for (const sourceKind of ["workspace", "project-folder"] as const)
         });
       } else await route.fulfill({ json: { ok: true, status: "active" } });
     });
+    const rawfile =
+      readFileSync(
+        new URL(
+          "../../../fixtures/ngspice-rawfile/divider-op.raw",
+          import.meta.url,
+        ),
+        "utf8",
+      ) +
+      "\n" +
+      readFileSync(
+        new URL("../../../fixtures/ngspice-rawfile/rc-ac.raw", import.meta.url),
+        "utf8",
+      );
     await page.route("**/api/simulate", async (route) => {
       const body = route.request().postDataJSON();
       if (body.operation === "capabilities")
         return route.fulfill({
-          json: executor.capabilities,
+          json: {
+            configured: true,
+            rawfileCollection: "declared-single-ascii",
+            inputs: ["structured", "raw"],
+            analyses: ["op", "ac"],
+            parsedAnalyses: ["op", "ac", "tran"],
+            profiles: [{ id: profile.id, corners: ["tt"] }],
+            maxTimeoutMs: 120000,
+            maxInputBytes: 1048576,
+            cancel: true,
+          },
         });
       executions++;
       await hold;
+      const reading = readSimulationData(rawfile);
+      if (reading.status !== "read") throw Error("raw fixture");
       await route.fulfill({
-        json: await executor.execute(body),
+        json: {
+          outcome: { status: "completed" },
+          diagnostics: [],
+          log: "ngspice OP",
+          durationMs: 1,
+          data: reading.data,
+          rawfile,
+          executedDeck: body.preparedDeck,
+          cancelled: false,
+          metadata: {
+            schemaVersion: 1,
+            input: await createSimulationInputMetadata({
+              inputRevision: body.inputRevision,
+              netlist: body.netlist,
+              testbench: body.testbench,
+              deck: body.preparedDeck,
+            }),
+            configuration: { modelLibrary: null },
+            environment: await createSimulationEnvironmentMetadata({
+              executor: "local-host",
+              reproducibility: "observed",
+              profileId: profile.id,
+              platform: "linux/x64",
+              simulator: {
+                name: "ngspice",
+                version: profile.simulator.version,
+                binarySha256: null,
+              },
+              models: null,
+              startupSha256: null,
+            }),
+          },
+        },
       });
     });
     await page.goto("/editor");
@@ -75,7 +481,7 @@ for (const sourceKind of ["workspace", "project-folder"] as const)
         createSimulationFolder({
           id: "e2e",
           name: "Divider",
-          profileId: agentNativeProfile,
+          profileId: profile.id,
         }),
       );
       await page.getByTestId("project-file").setInputFiles({
@@ -156,9 +562,9 @@ for (const sourceKind of ["workspace", "project-folder"] as const)
     const sourceSetup = createSimulationFolder({
       id: "e2e",
       name: "Divider",
-      profileId: agentNativeProfile,
+      profileId: profile.id,
     });
-    const updated = await send("file", {
+    await send("file", {
       operation: "simulation-input",
       input: {
         action: "update",
@@ -167,11 +573,11 @@ for (const sourceKind of ["workspace", "project-folder"] as const)
             ? { kind: "session-workspace", workspaceId: workspace.id }
             : { kind: "project-folder", folderId: "e2e" },
         expectedRevision: 0,
-        entry: "main.sim",
+        entry: "main.cir",
         writes: [
           {
-            path: "main.sim",
-            text: `${agentNativeSource}\ninclude "missing.sim"\n`,
+            path: "main.cir",
+            text: "divider\nV1 in 0 1\nR1 in mid 1k\nR2 mid 0 1k\n.control\nset appendwrite\nop\nwrite out.raw\nac dec 10 1 1e6\nwrite out.raw\n.endc\n.end",
           },
           ...sourceSetup.input.files.filter(
             (file) => file.path === sourceSetup.input.configPath,
@@ -179,45 +585,23 @@ for (const sourceKind of ["workspace", "project-folder"] as const)
         ],
       },
     });
-    expect(updated.ok, JSON.stringify(updated)).toBe(true);
-    const sourceAt = (revision: number) =>
-      sourceKind === "project-folder"
-        ? {
-            kind: "project-folder",
-            folderId: "e2e",
-            expectedStructureRevision: revision,
-          }
-        : {
-            kind: "workspace",
-            workspaceId: workspace.id,
-            expectedRevision: revision,
-          };
-    const rejected = await send("simulation", {
-      operation: "prepare",
-      source: sourceAt(1),
-    });
-    expect(rejected.ok, JSON.stringify(rejected)).toBe(false);
-    expect(JSON.stringify(rejected)).toContain("SIMULATION_FILE_MISSING");
-    expect(executions).toBe(0);
-    const repaired = await send("file", {
-      operation: "simulation-input",
-      input: {
-        action: "update",
-        owner:
-          sourceKind === "workspace"
-            ? { kind: "session-workspace", workspaceId: workspace.id }
-            : { kind: "project-folder", folderId: "e2e" },
-        expectedRevision: 1,
-        writes: [{ path: "main.sim", text: agentNativeSource }],
-      },
-    });
-    expect(repaired.ok, JSON.stringify(repaired)).toBe(true);
-    const preparation = await send("simulation", {
-      operation: "prepare",
-      source: sourceAt(2),
-    });
-    expect(preparation.ok, JSON.stringify(preparation)).toBe(true);
-    const prepared = preparation.prepared;
+    const prepared = (
+      await send("simulation", {
+        operation: "prepare",
+        source:
+          sourceKind === "project-folder"
+            ? {
+                kind: "project-folder",
+                folderId: "e2e",
+                expectedStructureRevision: 1,
+              }
+            : {
+                kind: "workspace",
+                workspaceId: workspace.id,
+                expectedRevision: 1,
+              },
+      })
+    ).prepared;
     expect(executions).toBe(0);
     const start = {
       operation: "start",
@@ -236,6 +620,7 @@ for (const sourceKind of ["workspace", "project-folder"] as const)
         page.getByRole("region", { name: "Analog simulation" }),
       ).toHaveCount(0);
       await clickNetlistWorkflowCommand(page, "open-analog-simulation");
+      await page.locator(".simulation-run-history > summary").click();
       const records = page.getByRole("region", {
         name: "Project runs",
         exact: true,
@@ -245,9 +630,13 @@ for (const sourceKind of ["workspace", "project-folder"] as const)
         records.getByRole("button", { name: "Open result" }),
       ).toBeEnabled();
       await records.getByRole("button", { name: "Open result" }).click();
+      await page
+        .getByRole("treeitem", { name: "Folder Divider", exact: true })
+        .click({ button: "right" });
       await expect(
-        page.getByRole("button", { name: "Project + results ZIP" }),
-      ).toBeVisible();
+        page.getByRole("menuitem", { name: "Download project + results…" }),
+      ).toBeEnabled();
+      await page.keyboard.press("Escape");
       expect(executions).toBe(1);
     }
     let finished: any;
@@ -259,38 +648,13 @@ for (const sourceKind of ["workspace", "project-folder"] as const)
         return finished.state;
       })
       .toBe("finished");
-    await test.info().attach("native-agent-run", {
-      body: Buffer.from(
-        JSON.stringify(
-          {
-            executionMode:
-              process.env.ICM_E2E_VACASK_REAL === "1"
-                ? "real-native"
-                : "captured-native",
-            run: finished,
-          },
-          null,
-          2,
-        ),
-      ),
-      contentType: "application/json",
-    });
-    expect(
-      finished.result.outcome.status,
-      JSON.stringify(finished.result.diagnostics),
-    ).toBe("completed");
-    expect(finished.result.metadata.environment.simulator.name).toBe("vacask");
-    const opIndex = finished.result.data.analyses.findIndex(
-      (analysis: { analysis: string }) => analysis.analysis === "op",
-    );
-    expect(opIndex).toBeGreaterThanOrEqual(0);
-    expect(finished.result.data.analyses[opIndex].probes).toEqual(
+    expect(finished.result.data.analyses[0].probes).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ name: "mid", value: 0.5 }),
+        expect.objectContaining({ name: "v(mid)", value: 0.5 }),
       ]),
     );
     const csv = finished.artifacts.find(
-      (a: { name: string }) => a.name === `op-${opIndex}.csv`,
+      (a: { name: string }) => a.name === "op-0.csv",
     );
     expect(
       (
@@ -300,61 +664,27 @@ for (const sourceKind of ["workspace", "project-folder"] as const)
         })
       ).result.text,
     ).toContain("0.5");
-    const recordIndex = finished.outputData
-      ? finished.outputData.analyses.findIndex(
-          (analysis: { analysis: string }) => analysis.analysis === "ac",
-        )
-      : finished.result.data.analyses.findIndex(
-          (analysis: { analysis: string }) => analysis.analysis === "ac",
-        );
-    expect(recordIndex).toBeGreaterThanOrEqual(0);
-    const ac = finished.result.data.analyses.find(
-      (analysis: { analysis: string }) => analysis.analysis === "ac",
-    );
-    const mid = ac.probes.find(
-      (probe: { name: string }) => probe.name === "mid",
-    );
-    expect(mid.real).toHaveLength(7);
-    for (const value of mid.real) expect(value).toBeCloseTo(0.5, 12);
-    for (const value of mid.imag) expect(value).toBeCloseTo(0, 12);
-    const image = await send("file", {
-      operation: "download",
-      artifact: "simulation-plot",
-      simulation: { runId: run.id, analysisIndex: recordIndex, format: "svg" },
-    });
-    expect(image.ok, JSON.stringify(image)).toBe(true);
-    const imageBytes = Buffer.from(image.artifact.data, "base64");
-    const svgs =
-      image.artifact.mediaType === "application/zip"
-        ? Object.values(unzipSync(imageBytes)).map((bytes) => strFromU8(bytes))
-        : [imageBytes.toString("utf8")];
-    expect(svgs.length).toBeGreaterThan(0);
-    for (const svg of svgs) {
-      expect(svg).toContain('fill="white"');
-      expect(svg).toMatch(/<(?:path|polyline)/u);
-      expect(svg).toContain("stroke:");
-    }
-    const raster = await send("file", {
-      operation: "download",
-      artifact: "simulation-plot",
-      simulation: { runId: run.id, analysisIndex: recordIndex, format: "png" },
-    });
-    expect(raster.ok, JSON.stringify(raster)).toBe(true);
-    const rasterBytes = Buffer.from(raster.artifact.data, "base64");
-    const pngs =
-      raster.artifact.mediaType === "application/zip"
-        ? Object.values(unzipSync(rasterBytes))
-        : [rasterBytes];
-    for (const png of pngs)
-      expect([...png.slice(0, 8)]).toEqual([137, 80, 78, 71, 13, 10, 26, 10]);
-    await expect(page.locator(".simulation-file-export")).toHaveCount(0);
     expect(
       await send("file", {
         operation: "download",
         artifact: "simulation-plot",
-        simulation: { runId: run.id, analysisIndex: 999, format: "svg" },
+        simulation: { runId: run.id, analysisIndex: 0, format: "svg" },
       }),
-    ).toMatchObject({ ok: false, error: { code: "FILE_EXPORT_FAILED" } });
+    ).toMatchObject({ ok: false, error: { code: "SIMULATION_PLOT_RETIRED" } });
+    const report = finished.artifacts.find(
+      (a: { name: string }) => a.name === "specs.json",
+    );
+    expect(report).toBeDefined();
+    expect(
+      JSON.parse(
+        (
+          await send("file", {
+            operation: "simulation-input",
+            input: { action: "artifact", artifactId: report.id },
+          })
+        ).result.text,
+      ).runId,
+    ).toBe(run.id);
     expect(
       (await send("simulation", { operation: "read", runId: run.id })).run.id,
     ).toBe(run.id);
@@ -372,21 +702,15 @@ for (const sourceKind of ["workspace", "project-folder"] as const)
         buffer: Buffer.from(exported.artifact.data, "base64"),
       });
       await clickNetlistWorkflowCommand(page, "open-analog-simulation");
+      await page.locator(".simulation-run-history > summary").click();
       const saved = page.getByRole("region", { name: "Saved folder results" });
       await expect(saved).toContainText("Agent");
       await saved.getByRole("button", { name: "Open result" }).click();
       await expect(
-        page.getByRole("button", { name: "Project + results ZIP" }),
-      ).toBeVisible();
+        page
+          .getByRole("region", { name: "Analog simulation" })
+          .getByRole("status"),
+      ).toHaveText("completed");
       expect(executions).toBe(1);
-      // The same saved source remains executable from GUI after Agent handoff.
-      const panel = page.getByRole("region", { name: "Analog simulation" });
-      await panel.getByRole("button", { name: "Run", exact: true }).click();
-      await expect.poll(() => executions).toBe(2);
-      await expect(panel.getByRole("status")).toHaveText("completed");
-      await panel.getByRole("tab", { name: "Console", exact: true }).click();
-      await expect(panel.locator(".simulation-console-view")).toContainText(
-        "Running analysis 'agent_ac'",
-      );
     }
   });

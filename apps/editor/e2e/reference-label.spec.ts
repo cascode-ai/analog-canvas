@@ -119,13 +119,20 @@ test("Properties renames the electrical identity explicitly; restore is an in-pl
   await page.getByTestId("hit-R1").click();
   await page.getByTestId("selection-shelf").click();
   const properties = page.getByRole("complementary", { name: "Properties" });
+  await expectComponentCodeField(page, "displayName", "load");
   await expectComponentCodeField(page, "netlistName", "R1");
   await expect(properties.getByLabel("Component label")).toHaveCount(0);
+  await editComponentPropertyCode(page, (code) => {
+    code.displayName = "RL";
+  });
+  await expectComponentCodeField(page, "displayName", "RL");
+  await expectComponentCodeField(page, "netlistName", "R1");
+  await expect(visual(page)).toContainText("RL");
   await editComponentPropertyCode(page, (code) => {
     code.netlistName = "R7";
   });
   await expectComponentCodeField(page, "netlistName", "R7");
-  await expect(visual(page)).toContainText("load");
+  await expect(visual(page)).toContainText("RL");
   // Prefix validation still applies to this explicitly electrical field.
   await editComponentPropertyCode(page, (code) => {
     code.netlistName = "gm";
@@ -140,7 +147,7 @@ test("Properties renames the electrical identity explicitly; restore is an in-pl
   await editComponentPropertyCode(page, (value) => {
     value.display.visualAnnotation = true;
   });
-  await expect(visual(page)).toContainText("load");
+  await expect(visual(page)).toContainText("RL");
 
   await page.getByTestId("annotation-hit-instance-label-R1").dblclick();
   const restore = page.getByRole("button", {

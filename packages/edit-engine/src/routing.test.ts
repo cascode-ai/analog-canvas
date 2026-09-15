@@ -557,11 +557,6 @@ describe("routing Edit Engine", () => {
 
   it("attaches a real terminal to a Route interior and lets both halves follow it", () => {
     const document = documentFixture();
-    document.instances.find((instance) => instance.id === "E")!.placement = {
-      position: { x: 300, y: 300 },
-      rotation: 90,
-      mirror: "none",
-    };
     const routed = executeTransaction(
       document,
       transaction(document.id, 0, [
@@ -578,6 +573,16 @@ describe("routing Edit Engine", () => {
     );
     expect(routed.ok).toBe(true);
     if (!routed.ok) return;
+    // Put E on the persisted baseline after authoring the Route. Authoring a
+    // Route through a pin now connects it by design; this test isolates the
+    // explicit attach primitive against a pre-existing resting pin.
+    routed.document.instances.find(
+      (instance) => instance.id === "E",
+    )!.placement = {
+      position: { x: 300, y: 300 },
+      rotation: 90,
+      mirror: "none",
+    };
     routed.document.connectivityEvidence.push({
       id: "claim-route-h",
       kind: "name-claim",

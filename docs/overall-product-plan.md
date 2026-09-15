@@ -69,8 +69,9 @@ source-value override.
 
 ## Core invariants
 
-- A Base Net owns physical membership. Net Labels, VDD, Ground, and Power Rail
-  naming use one owner-addressed marker system; Logical Nets are derived.
+- A Base Net owns physical membership. Net Labels, Ground, Global VDD, and
+  Power Rail naming use one owner-addressed marker system; local VDD Power uses
+  the existing formal Cell-Pin owner. Logical Nets are derived.
   Power Rail is a drawing gesture, not a separate electrical object.
 - Different supply names remain distinct. Scope and hierarchy interfaces
   determine where a name connects; text equality alone is not a universal
@@ -81,7 +82,7 @@ source-value override.
   explicit cut partitions physical connectivity.
 - Cell Pins are ordered hierarchy interfaces. Visual variants never delete
   electrical terminal semantics or invent MOS bulk connections.
-- Canonical Project content is schema-55, governed by the
+- Canonical Project content is schema-56, governed by the
   [file-format contract](specs/project-file-format.md).
   Cloud Save, portable file export, browser recovery, and public Gallery
   publication are distinct operations.

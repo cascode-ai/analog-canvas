@@ -587,7 +587,8 @@ function netVoltageAddress(
           )?.netId
         : anchor.kind === "route"
           ? document.routes.find((route) => route.id === anchor.routeId)?.netId
-          : document.nets.find((net) => net.id === anchor.netId)?.id;
+          : (document.nets.find((net) => net.id === anchor.netId)?.id ??
+            cell.nets.find((net) => net.id === anchor.netId)?.id);
   if (!netId) {
     const primary: ObjectLocator =
       anchor.kind === "terminal"
@@ -635,6 +636,8 @@ function netVoltageAddress(
     );
     return null;
   }
+  if (exportedNet.scope === "global")
+    return { kind: "voltage", path: [], node: netName };
   let resolvedName = netName;
   if (netName === "0") return { kind: "voltage", path: [], node: netName };
   let depth = hierarchyPath.length;
@@ -1187,7 +1190,15 @@ export function buildSimulationPlan(
       occurrence.document,
       authoredInstance,
     );
-    if (!bulk?.net) {
+    const implicitBulkName = polarity === "nmos" ? "0" : "VDD";
+    const implicitBulkNet =
+      bulk?.status === "unresolved"
+        ? occurrence.cell.nets.find(
+            (net) => net.name.toLowerCase() === implicitBulkName.toLowerCase(),
+          )
+        : undefined;
+    const bulkNetId = bulk?.net?.id ?? implicitBulkNet?.id;
+    if (!bulkNetId) {
       diagnostics.push(
         diagnostic(
           "SIMULATION_DEVICE_OPERATING_POINT_BULK_UNAVAILABLE",
@@ -1229,7 +1240,7 @@ export function buildSimulationPlan(
         parameter: "vbs" as const,
         label: "VBS" as const,
         unit: "V" as const,
-        expression: difference(voltageOnNet(request, bulk.net.id), source),
+        expression: difference(voltageOnNet(request, bulkNetId), source),
       },
       {
         parameter: "id" as const,

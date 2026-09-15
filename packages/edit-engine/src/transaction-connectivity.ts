@@ -247,26 +247,26 @@ export function uniquePhysicalContactId(
 /**
  * The contacts this transaction may normalize into electrical connections.
  *
- * Only geometry the transaction INTRODUCES bonds: a placed instance, an
- * explicit Junction, a drawn power rail, a typed attach. Moving,
- * rotating, mirroring, aligning, or re-pointing EXISTING geometry never
- * bonds — rearranging a schematic must not silently merge Nets (nor be
- * rejected by a merge it never asked for). A transform that parks pins
- * on foreign conductors leaves them visually coincident but electrically
- * separate, exactly like a Crossing.
+ * Only contact explicitly licensed by the current gesture bonds: a placed
+ * instance, an explicit Junction, a drawn power rail, a typed attach, or an
+ * exact pin point newly covered by edited Route geometry. Unrelated contact
+ * that already existed before the gesture stays inert.
  *
- * The license is deliberately tiered: introduced objects bond at every
- * contact they make, but a typed attach names one endpoint and one exact
- * conductor point, and bonds nothing beyond them — the instance's other
- * pins and the rest of the conductor stay inert.
+ * The license is deliberately tiered: introduced endpoints bond at direct
+ * contact, introduced conductors bond explicit Junction incidence, and a
+ * typed attach names one endpoint and one exact conductor point. A moved
+ * existing Route separately licenses only the pin points its new geometry
+ * covers.
  */
 export type PhysicalContactLicense = {
-  /** Objects the transaction introduces; every contact they make bonds. */
+  /** Objects introduced by the transaction and eligible for typed contact. */
   readonly objectIds: Set<string>;
   /** Endpoints a typed attach names; only that pin or Junction bonds. */
   readonly endpointKeys: Set<string>;
   /** Exact conductor points a typed attach names, keyed by Route ID. */
   readonly routePoints: Map<string, Set<string>>;
+  /** Exact pin points newly covered by edited Route geometry. */
+  readonly routeGeometryPoints: Map<string, Set<string>>;
 };
 
 export function physicalContactPointKey(point: Point): string {
@@ -290,6 +290,7 @@ export function physicalContactLicenseForTransaction(
     objectIds: new Set(),
     endpointKeys: new Set(),
     routePoints: new Map(),
+    routeGeometryPoints: new Map(),
   };
   for (const edit of transaction.edits) {
     switch (edit.kind) {

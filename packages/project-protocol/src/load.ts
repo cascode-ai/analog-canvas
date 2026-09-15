@@ -47,6 +47,7 @@ import { upgradeSchema51To52 } from "./transforms/mirror-directions.js";
 import { upgradeSchema52To53 } from "./transforms/rotation-steps.js";
 import { upgradeSchema53To54 } from "./transforms/parameter-annotations.js";
 import { upgradeSchema54To55 } from "./transforms/arrow-end-styles.js";
+import { upgradeSchema55To56 } from "./transforms/route-line-style.js";
 
 /**
  * One upgrade step per historical version, oldest first: entry N carries a
@@ -88,6 +89,7 @@ const UPGRADE_CHAIN: ReadonlyArray<
   upgradeSchema52To53,
   upgradeSchema53To54,
   upgradeSchema54To55,
+  upgradeSchema55To56,
 ];
 
 function isRecord(value: unknown): value is Record<string, unknown> {

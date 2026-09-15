@@ -1,4 +1,5 @@
-import { createEmptyDocument } from "@icm/model";
+import type { SchematicEdit } from "@icm/edit-engine";
+import { createEmptyDocument, DraftingObjectSchema } from "@icm/model";
 import { InMemorySymbolResolver, builtInSymbols } from "@icm/symbols";
 import { describe, expect, it, vi } from "vitest";
 
@@ -135,6 +136,160 @@ describe("drafting create controller", () => {
       (setWaypoints.mock.calls[0]![0] as (points: never[]) => unknown)([]),
     ).toEqual([{ x: 45, y: 35 }]);
   });
+
+  it.each([
+    {
+      name: "unrepresentable point",
+      target: { x: 205, y: 165 },
+      pointer: { x: 205, y: 165 },
+      captured: false,
+      axes: [],
+    },
+    {
+      name: "representable point",
+      target: { x: 210, y: 170 },
+      pointer: { x: 210, y: 170 },
+      captured: true,
+      axes: [],
+    },
+    {
+      name: "unrepresentable axis",
+      target: { x: 205, y: 300 },
+      pointer: { x: 205, y: 165 },
+      captured: false,
+      axes: [],
+    },
+    {
+      name: "representable axis",
+      target: { x: 300, y: 170 },
+      pointer: { x: 205, y: 170 },
+      captured: true,
+      axes: ["y"],
+    },
+  ])(
+    "only indicates a rectangle snap that the final corner satisfies: $name",
+    ({ target, pointer, captured, axes }) => {
+      const document = createEmptyDocument("cell", "Cell");
+      document.drafting = {
+        objects: [
+          {
+            id: "target-line",
+            kind: "construction-line",
+            locked: false,
+            zIndex: 0,
+            anchor: { kind: "free", position: target },
+            points: [target, { x: target.x + 20, y: target.y }],
+            lineStyle: "solid",
+          },
+        ],
+      };
+      const controller = createDraftingCreateController({
+        document,
+        annotationGrid: 5,
+        angleMode: "free",
+        resolver: new InMemorySymbolResolver(builtInSymbols),
+        visibleEndpoints: [],
+        routeGeometryRecords: [],
+        tool: "rectangle",
+        source: { x: 100, y: 100 },
+        hover: null,
+        waypoints: [],
+        setSource: vi.fn(),
+        setHover: vi.fn(),
+        setWaypoints: vi.fn(),
+        setSnapPoint: vi.fn(),
+        clear: vi.fn(),
+        setTool: vi.fn(),
+        transact: vi.fn(() => ({ ok: true })),
+        setStatus: vi.fn(),
+        nextId: () => "rectangle-1",
+      });
+      const resolved = controller.snapPoint(
+        pointer,
+        false,
+        false,
+        { x: 100, y: 100 },
+        5,
+      );
+      expect(resolved.point).toEqual({ x: 210, y: 170 });
+      expect(resolved.snap).toEqual(captured ? resolved.point : null);
+      expect(resolved.guides.map((guide) => guide.axis)).toEqual(axes);
+      for (const guide of resolved.guides)
+        expect(guide.coordinate).toBe(resolved.point[guide.axis]);
+    },
+  );
+
+  it.each([
+    { grid: 10, from: { x: 100, y: 100 }, to: { x: 210, y: 170 } },
+    { grid: 10, from: { x: 210, y: 170 }, to: { x: 100, y: 100 } },
+    { grid: 5, from: { x: 100, y: 100 }, to: { x: 205, y: 165 } },
+    { grid: 5, from: { x: 205, y: 165 }, to: { x: 100, y: 100 } },
+    { grid: 1, from: { x: 100, y: 100 }, to: { x: 201, y: 161 } },
+  ])(
+    "keeps rectangle preview and committed corners on the $grid-unit grid from $from to $to",
+    ({ grid, from, to }) => {
+      const transact = vi.fn((_edits: SchematicEdit[]) => ({ ok: true }));
+      const controller = createDraftingCreateController({
+        document: createEmptyDocument("cell", "Cell"),
+        angleMode: "free",
+        annotationGrid: grid,
+        resolver: new InMemorySymbolResolver(builtInSymbols),
+        visibleEndpoints: [],
+        routeGeometryRecords: [],
+        tool: "rectangle",
+        source: from,
+        hover: to,
+        waypoints: [],
+        setSource: vi.fn(),
+        setHover: vi.fn(),
+        setWaypoints: vi.fn(),
+        setSnapPoint: vi.fn(),
+        clear: vi.fn(),
+        setTool: vi.fn(),
+        transact,
+        setStatus: vi.fn(),
+        nextId: () => "rectangle-1",
+      });
+      const previewEnd = controller.snapPoint(to, false, false, from).point;
+      // Alt suppresses object capture but must keep the same representable
+      // rectangle; the model stores an integer center, even on the fine grid.
+      expect(controller.snapPoint(to, true, false, from).point).toEqual(
+        previewEnd,
+      );
+      controller.handleCanvasClick(to, false, false, grid);
+      const edit = transact.mock.calls[0]?.[0]?.[0];
+      if (edit?.kind !== "upsert_drafting_object")
+        throw new Error("Missing edit");
+      const object = DraftingObjectSchema.parse(edit.object);
+      if (object.kind !== "rectangle") throw new Error("Missing rectangle");
+      expect(object.center).toEqual({
+        x: (from.x + previewEnd.x) / 2,
+        y: (from.y + previewEnd.y) / 2,
+      });
+      expect(object.width).toBe(Math.abs(previewEnd.x - from.x));
+      expect(object.height).toBe(Math.abs(previewEnd.y - from.y));
+      expect(object.center.x - object.width / 2).toBe(
+        Math.min(from.x, previewEnd.x),
+      );
+      expect(object.center.y - object.height / 2).toBe(
+        Math.min(from.y, previewEnd.y),
+      );
+      for (const coordinate of [
+        object.center.x - object.width / 2,
+        object.center.x + object.width / 2,
+        object.center.y - object.height / 2,
+        object.center.y + object.height / 2,
+      ]) {
+        expect(coordinate % grid).toBe(0);
+      }
+      // Enter completion follows the same geometry as the second click.
+      transact.mockClear();
+      controller.finish();
+      expect(transact).toHaveBeenCalledWith([
+        { kind: "upsert_drafting_object", object },
+      ]);
+    },
+  );
 
   it("creates a circle from its center and radius point", () => {
     const transact = vi.fn(() => ({ ok: true }));

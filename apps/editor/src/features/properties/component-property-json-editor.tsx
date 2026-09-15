@@ -20,6 +20,7 @@ import {
   defaultKeymap,
   history,
   historyKeymap,
+  insertNewlineAndIndent,
   redo,
 } from "@codemirror/commands";
 import {
@@ -144,6 +145,15 @@ export default function ComponentPropertyJsonEditor(props: Props) {
             spellcheck: "false",
           }),
           keymap.of([
+            {
+              key: "Enter",
+              run: (view) => {
+                read().onChange(view.state.doc.toString());
+                return true;
+              },
+              shift: insertNewlineAndIndent,
+              preventDefault: true,
+            },
             { key: "Mod-Shift-z", run: redo, preventDefault: true },
             ...historyKeymap,
             ...closeBracketsKeymap,
@@ -1036,7 +1046,7 @@ function showForegroundColorPopover(
     close();
   });
   popover.append(header, presets, custom);
-  if (path !== "appearance.foreground") popover.append(reset);
+  popover.append(reset);
   popover.addEventListener("toggle", () => {
     if (!popover.matches(":popover-open")) popover.remove();
   });

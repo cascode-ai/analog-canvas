@@ -474,6 +474,25 @@
         "three-terminal bridged T-coil topology",
         "winding, bridge-capacitor, junction, and polarity-dot placement"
       ]
+    },
+    {
+      "id": "razavi-textbook-capacitor-section",
+      "kind": "pdf-vector-extract",
+      "source": {
+        "title": "Design of Analog CMOS Integrated Circuits, Second Edition",
+        "sha256": "a6031d1149c2c6191a1f0e541065165b72dafc4bc4ab4b0ea37af41b7cb0f739",
+        "pdfPage": 581,
+        "printedPage": 562,
+        "figure": "13.42"
+      },
+      "extractPath": "capacitor-section-vector-source.json",
+      "extractSha256": "50b2f68007a8966629cde8f9c09bad54df5a1b5c394de71b20fbe27126d822a8",
+      "rasterPath": "capacitor-section-reference.png",
+      "rasterSha256": "d858694eaaf04a69d5fd17120805b6ac20bc165c8b42cb898f29e03ed3cfe8fa",
+      "scope": [
+        "capacitor top/bottom plate section geometry and separate contact bars",
+        "decorative substrate baseline; no third electrical terminal"
+      ]
     }
   ],
   "mosGeometryPath": "mos-geometry.json",

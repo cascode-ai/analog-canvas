@@ -7,18 +7,43 @@ connector. The Helper owns HTTP endpoints, tokens, request IDs and revisions.
 Closing the browser details panel does not revoke the connection.
 Call `get_context` and read the built-in catalog before placing devices.
 Use `inspect` and `search` for IDs and pins, not screenshot coordinates.
+Read `analog-canvas://reference/authoring` for the shared native placement,
+display, Port, Net Label and simulation-result workflow. It is generated from
+the exact `references/authoring-contract.md` served in the HTTP Kit; the tool
+examples below are MCP-specific mappings, not a separate operating policy.
 
 Production and Preview both expose the Agent UI. Their accounts, Projects and
 connector bindings remain separate.
 
-MCP 0.9.0 supports API 3.0, Project schema 54 and setup v4 source/config files.
-It adds native component displays and attached Net Labels; use it with Analog
-Canvas with the MCP 0.9.0 command update deployed. The public distribution manifest identifies the pinned
-release artifact and its SHA-256. Updating the website does not update an
-already installed MCP process. Set `ANALOG_CANVAS_API_URL` only when connecting
-to Preview or another non-production endpoint.
+MCP 0.12.0 supports API 3.0, Project schema 56, setup v4 source/config files
+and captured Spec reports. The published 0.11.0 binary supports Spec reports
+but predates schema 56 electrical Wire styles. Update that adapter to 0.12.0
+for schema 56 sites; rebuilding an old version does not replace its immutable
+release. See [distribution verification](mcp-install.md). Use it with Analog
+Canvas 0.6.0 or newer. It supports independent arrow ends, electrical Wire
+line styles, native component displays and attached Net Labels. The public
+distribution manifest identifies the pinned release artifact and its SHA-256.
+Updating the website does not update an already installed MCP process. Set
+`ANALOG_CANVAS_API_URL` only when connecting to Preview or another
+non-production endpoint.
 
-## Create and edit (MCP 0.5 / Kit 4)
+Sessions have a renewable 30-minute idle deadline. Agent operations and manual
+edits renew it; passive heartbeats do not. A saved connector's deadline may be
+stale after activity in the browser: MCP asks the server whether it can resume,
+rather than discarding the connector based on its local timestamp. Expired or
+revoked server sessions still require a new Claim Code.
+
+Schema 55 arrow objects support independent `styleOverride.arrowStart` and
+`arrowEnd`: `small-arrow`, `medium-arrow`, `large-arrow`, `dot`, `none`, or
+`open-arrow`. Read the `upsert_drafting_object` contract before editing them.
+These fields are arrow-only; legacy `arrowHead`/`arrowHeadAt` remain fallbacks.
+Older 0.9.0 adapters may reject Snapshots containing the new fields. Schema 56
+adds electrical Wire `styleOverride.lineStyle`: `solid`, `dashed`, or `dotted`.
+Route Snapshots expose the complete styleOverride (color, arrow and lineStyle),
+so preserve the other settings when editing one. Older 0.11.0 adapters target
+schema 55 and may reject a schema 56 Snapshot.
+
+## Create and edit
 
 Use `apply_actions` for one atomic edit batch, wire, planned command or focus
 operation per call. Split create and wire phases so new pin geometry comes
@@ -158,11 +183,11 @@ File and Run resources.
    Circuit bindings and declared dependencies. It does not contain another
    structured analyses list. Ordinary Project edits own DUTs, formal ports,
    independent sources and wiring.
-3. Use `simulation_files` to read and edit source/config, or the optional
-   source-preserving helpers. Native code owns analyses, `.param`, `.temp`
-   and control. Config owns Profile/corner, output expressions, device OP,
-   measurements, value-free variable bindings, managed Run Plan and collection.
-   Output/measurement/device-OP helpers write that same config. Warnings and
+3. Use `simulation_files` to read and edit source/config. For code-authoritative
+   experiment config version 2, native code owns analyses, `save`, `meas`,
+   `write`, `.param`, `.temp` and control. Config owns environment and collection.
+   JSON output/measurement/device-OP helpers are for legacy config version 1
+   only. Inspect the actual version before choosing a helper. Warnings and
    invalid drafts remain repairable; they are not session revocations.
 4. `prepare` with
    `source:{kind:"project-folder",folderId,expectedStructureRevision}` freezes the
@@ -178,12 +203,18 @@ File and Run resources.
    saves complete bytes after length/SHA-256 verification. Deck, rawfile,
    JSON, log and CSV share this File Resource. Large receipts set
    `resultPreview`; full result/output artifacts remain available.
-   `export_file` with `artifact:"simulation-plot"`,
-   `simulation:{runId,analysisIndex,format:"svg"}` (or `"png"`) and
-   `outputPath` exports the existing Results renderer without opening GUI.
-   Select the index in `run.outputData.analyses`, or raw analyses if no
-   output data exists. Multiple plotted groups return a ZIP. OP is a table,
-   not a waveform.
+   Read `outputData.specs` or `specs.json` for captured acceptance results, and
+   `specs.csv` for portable tabular results. Native `meas` computes metrics;
+   source comments such as `* @spec peak <= 1.8 unit=V` declare rules.
+   See [Spec annotations](simulation-specs.md). Missing/invalid results are
+   `not-evaluated`, not Failed; measurements without a rule are `unconstrained`.
+   Use raw/CSV to plot or compare externally. Built-in Plot/Compare/OP views
+   and `simulation-plot` image export are retired; native OP still executes.
+   Read waveform numbers from `result.data` or `result.json`, not the legacy
+   `outputData.analyses` array (empty for new runs). There is one complete CSV
+   per analysis record; no automatic measurements or duplicate outputs CSV.
+   If `resultPreview` is true, read `result.json` and `specs.json` by artifact ID.
+   The full Spec reference is bundled as `analog-canvas://reference/simulation-specs`.
 
 ### File ownership and editing
 

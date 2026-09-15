@@ -4,9 +4,19 @@ Use the top **Simulation** button to open Code beside the ordinary Canvas.
 Opening the Editor alone does not load the code editor or start ngspice. This
 workspace is separate from the development-only Digital tool.
 
+Before setup, Simulation shows a three-step Agent guide: connect your Agent,
+describe your goal, and review the results. A prominent status card shows the
+connection state and next action. **Connect Agent** opens the same connection
+panel as the editor's Agent menu; connected sessions offer **Connection details**.
+State changes never open dialogs or start work by themselves. After setup,
+the Agent entry stays compact in the toolbar, including when maximized.
+**Set up manually** creates the same source starter yourself, and
+**Explore examples** expands the optional example projects.
+Save, Run and file operations remain usable without an Agent.
+
 ## Circuit, source and files
 
-Sim Code and Properties share the right dock but remember independent widths.
+Sim Code and Properties occupy independent right-side panes and remember their widths.
 **Explorer** opens a narrow project tree beside the code. Code files appear
 directly under each experiment, without an extra Source directory. On opening a
 Project, only the active experiment is expanded; the others start collapsed.
@@ -151,42 +161,48 @@ refuse a run with a repairable explanation.
 not a newly compiled version of the current source. **Export diagnostic bundle…**
 exports that run's complete evidence, including preparation snapshots, source
 maps, environment/result metadata and execution artifacts. These commands are
-available from More code actions and the active experiment/Run context menus.
+available from the active folder/Run context menus.
 Before any run, the diagnostic export uses the latest prepared input instead.
 Ordinary file-tree downloads contain only the selected visible source/output
 files; hiding diagnostics does not delete them or remove Agent access.
 
-Console, Plot, OP and Compare share one tab row below code. Measurements,
-history and exports stay inside these views. Maximize results temporarily uses the workspace;
-Restore returns to the previous dock size. Maximize Code keeps the editor.
+Specs and Console share the row below Code. Specs shows **Spec / Sim result /
+Expected / Judgment**, evaluated by the shared service from the captured run
+input. There are no built-in Plot, Compare or OP presentation views. Native OP,
+AC, DC, TRAN and Noise execution and complete raw/CSV remain available.
 
-Friendly output labels, complex AC values, solver-recorded DC/time axes and
-Noise density/integrated results use the same numeric adapters as MCP.
-**Operating Point → Show on canvas** paints only exactly mapped, current
-voltages. Changed input pauses that projection. Several OP records require a
-record choice; no value silently wins because it was last.
+Write uniquely named native measurements and ordinary comment annotations:
 
-Saved measurements answer Value, Value at, Minimum, Maximum, Peak to peak,
-Mean or RMS questions about an output. They live in configuration, not in
-frozen result numbers. Mean/RMS use time-weighted TRAN windows. A missing or
-invalid measurement reports its own reason without crashing the whole run.
-Automatic summaries are separate from authored rules. Both export through
-`measurements.csv`.
+```spice
+meas tran peak MAX v(out)
+* @spec peak <= 1.8 unit=V
+```
 
-**Export** downloads visible plots as SVG or PNG, complete output CSV, or a
-complete run ZIP. Explorer exposes authored/generated input, prepared deck,
-rawfile and existing result artifacts. Ctrl/Cmd-select individual rows or use
-Shift for a range, then right-click and choose **Download**. Directories include
-their collapsed descendants; overlapping selections export each file once.
-One file downloads directly and several download as a hierarchy-preserving ZIP.
-Image export follows the visible plot;
-CSV retains full collected numbers. Restricted model data is not bundled.
+These comments are ICM acceptance rules, not SPICE commands. Helper can insert
+an editable example; Agent or manual authoring uses identical files. See the
+[Spec protocol](../agent/simulation-specs.md) for range/target rules and units.
+Missing measurements and invalid rules are Not evaluated, never fabricated
+zeros or Failed. Measured values without a rule have no judgment. Editing input
+marks the previous report stale; it is never reevaluated against live edits.
 
-**Compare** keeps completed results within the session and overlays compatible
-domains/units. Repeated native records require an explicit choice per run;
-equal analysis names do not imply equal records. **Archive** retains up to ten
-verified result archives per Project in this browser. Archives are not embedded
-in Project or synchronized to Cloud; export a run ZIP for portability.
+Explorer contains source files and a run directory. Ctrl/Cmd-select or Shift
+select files, right-click Download, or download a directory with its descendants.
+Raw, full CSV, specs.json and specs.csv are available for external plotting and
+analysis. The Agent reads the same report and artifacts without opening a panel.
+The legacy simulation-plot export returns SIMULATION_PLOT_RETIRED.
+
+Run history is in Explorer. Completed runs are retained in this browser, not
+embedded in the Project or Cloud-synchronized. Open a saved result without
+rerunning it; the Run/folder context menu offers Archive current run, Download
+complete run, and (for an opened archive) Download project + results. Diagnostic
+exports retain the captured netlist, source maps and other evidence without
+showing internal directories in the ordinary tree.
+
+Sim Code is an independent right workspace alongside Library/Gallery and
+Properties. Its minimize, resize and full-window maximize do not close Properties
+or discard editor state. Maximize results temporarily uses the workspace;
+Restore returns to the editor. Completion updates compact status without moving
+keyboard focus or opening a dialog. Use Cancel to stop a run.
 
 Closing a tab is not reliable cancellation of an admitted hosted run. Use Cancel.
 Replacing the Project ends its presentation scope; revoking an Agent affects its

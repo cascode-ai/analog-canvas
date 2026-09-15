@@ -1,3 +1,7 @@
+import { InstanceCodePanel } from "../features/properties/instance-code-panel";
+import { NetlistCodePanel } from "../features/netlist-export/netlist-code-panel";
+import { NetlistProfileCode } from "../features/netlist-export/netlist-profile-code";
+import { useNetlistExportPreferences } from "../features/netlist-export/netlist-export-preferences";
 import {
   DEFAULT_ARROW_PRESET,
   type ArrowPreset,
@@ -22,7 +26,9 @@ import {
   planProjectCellImport,
   planSetCellSymbolPresentation,
   planSetDeviceModelTarget,
+  planSetVddConnectionMode,
   planInstanceUnplacement,
+  planAngledWireRepairs,
   gateRoutingOperationPlan,
   type ProjectStructureEdit,
   type CellResetPlan,
@@ -45,9 +51,15 @@ import {
   resolveDocumentStyleProfile,
   summarizeProjectCells,
   resolveRouteAttachment,
+  resolveAnnotationText,
 } from "@icm/derived";
 import type { HierarchyFrame } from "@icm/derived";
-import { createEmptyProject, createEmptyDocument, createId } from "@icm/model";
+import {
+  createEmptyProject,
+  createEmptyDocument,
+  createId,
+  flattenRichText,
+} from "@icm/model";
 import {
   resolveReviewedExternalBinding,
   reviewedExternalModelSuggestions,
@@ -120,11 +132,8 @@ import {
   type SpiceImportReport,
 } from "../features/editor-shell/editor-file-commands";
 import { EditorStatusbar } from "../features/editor-shell/editor-statusbar";
-import { operatingPointLabels } from "../features/simulation/operating-point-labels";
-import type { OperatingPointCanvasProjection } from "../features/simulation/operating-point-projection";
 import {
   deriveSimulationProbeOptions,
-  resolveSimulationVoltageProbeNetId,
   simulationProbeHierarchyPath,
 } from "../features/simulation/simulation-probe-options";
 import {
@@ -726,6 +735,16 @@ export function App({
     command: string;
   } | null>(null);
   const [netlistPreflightOpen, setNetlistPreflightOpen] = useState(false);
+  const [codePanel, setCodePanel] = useState<
+    "netlist" | "configuration" | "instances" | null
+  >(null);
+  const [netlistFormat, setNetlistFormat] = useState<"spice" | "spectre">(
+    "spice",
+  );
+  const [netlistNamingProfile, setNetlistNamingProfile] = useState<
+    "native" | "cadence-bang"
+  >("native");
+  const netlistPreferences = useNetlistExportPreferences();
   const [documentSettingsOpen, setDocumentSettingsOpen] = useState(false);
   const [projectNameDraft, setProjectNameDraft] = useState<string | null>(null);
   const [publishGalleryOpen, setPublishGalleryOpen] = useState(false);
@@ -815,12 +834,8 @@ export function App({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- evaluated once per dialog open
   }, [publishGalleryOpen]);
-  const [instanceTableOpen, setInstanceTableOpen] = useState(false);
   const [agentFileCandidate, setAgentFileCandidate] =
     useState<AgentFileCandidateSummary | null>(null);
-  const agentSimulationHostForFiles = useRef<BrowserAgentSimulationHost | null>(
-    null,
-  );
   const browserAgentFileHost = useMemo(
     () =>
       new BrowserAgentFileHost({
@@ -832,25 +847,6 @@ export function App({
           ) ?? null,
         getResolver: () => editorDocumentController.resolver,
         onApprovalRequested: setAgentFileCandidate,
-        readSimulationRun: async (runId) => {
-          const host = agentSimulationHostForFiles.current;
-          if (!host)
-            return {
-              ok: false,
-              error: {
-                code: "SIMULATION_HOST_UNAVAILABLE",
-                message: "Simulation host is not available",
-                stage: "read",
-                recovery: "retry-after",
-              },
-            };
-          return host.handle({
-            apiVersion: "3.0",
-            requestId: crypto.randomUUID(),
-            operation: "read",
-            runId,
-          });
-        },
         dispatchProjectTransaction: (request) =>
           browserAgentHost.dispatchProjectTransaction(request),
       }),
@@ -882,7 +878,6 @@ export function App({
       simulationTransport,
     ],
   );
-  agentSimulationHostForFiles.current = browserAgentSimulationHost;
   const browserAgentProjectHost = useMemo(
     () =>
       new BrowserAgentProjectHost({
@@ -896,7 +891,6 @@ export function App({
   const [analogSimulationState, setAnalogSimulationState] = useState<
     "closed" | "open" | "maximized" | "minimized"
   >("closed");
-  const simulationPropertiesOpenBeforeRef = useRef(false);
   const simulationSourceBuffer = useRef<{
     dirty: boolean;
     flush(): Promise<boolean>;
@@ -940,14 +934,11 @@ export function App({
   );
   const openAnalogSimulation = (): void => {
     if (!publicSimulationUiEnabled) return;
-    simulationPropertiesOpenBeforeRef.current = selectionOpen;
-    setSelectionOpen(false);
     setAnalogSimulationState("open");
   };
   const minimizeAnalogSimulation = (): void => {
     setSimulationPickModeState(null);
     setAnalogSimulationState("minimized");
-    setSelectionOpen(simulationPropertiesOpenBeforeRef.current);
   };
   const toggleAnalogSimulationMaximized = (): void => {
     setAnalogSimulationState((current) =>
@@ -959,7 +950,6 @@ export function App({
     void humanSimulationSession?.clear();
     setAnalogSimulationState("closed");
     setSimulationDraftContext(null);
-    setSelectionOpen(simulationPropertiesOpenBeforeRef.current);
   };
   const captureAuthoredProject = async () => {
     if (
@@ -1583,7 +1573,6 @@ export function App({
     routeGeometryRecords,
     highlightedTrace,
     highlightedNet,
-    highlightedNetId,
     selectedHighlightIsActive,
     searchResults,
     flightlines,
@@ -1664,53 +1653,6 @@ export function App({
   );
   const [issuesFocusToken, setIssuesFocusToken] = useState(0);
   const [issuesSectionOpen, setIssuesSectionOpen] = useState(false);
-  /** Run results stay in session view state and never enter Project history. */
-  const [operatingPointProjection, setOperatingPointProjection] =
-    useState<OperatingPointCanvasProjection | null>(null);
-  const currentOccurrence = documentStack.map((frame) => frame.instanceId);
-  const operatingPointVoltages = useMemo(() => {
-    const values = new Map<string, number>();
-    for (const value of operatingPointProjection?.values ?? []) {
-      if (
-        value.documentId !== document.id ||
-        value.occurrence.length !== currentOccurrence.length ||
-        !value.occurrence.every(
-          (instanceId, index) => instanceId === currentOccurrence[index],
-        )
-      )
-        continue;
-      values.set(value.netId, value.volts);
-    }
-    return values;
-  }, [currentOccurrence, document.id, operatingPointProjection]);
-  const operatingPointBadges = useMemo(
-    () =>
-      operatingPointVoltages.size === 0
-        ? []
-        : operatingPointLabels({
-            document,
-            resolver,
-            voltages: operatingPointVoltages,
-            display: operatingPointProjection?.display ?? "named",
-            // "Pointed at" is whichever net the selected wire carries; the
-            // highlight already tracks hover for the net-highlight overlay.
-            selectedNetIds: selectedRouteId
-              ? document.routes
-                  .filter((route) => route.id === selectedRouteId)
-                  .map((route) => route.netId)
-              : [],
-            hoveredNetId: highlightedNetId ?? null,
-          }),
-    [
-      document,
-      resolver,
-      operatingPointVoltages,
-      operatingPointProjection?.display,
-      selectedRouteId,
-      highlightedNetId,
-    ],
-  );
-
   const projectCheck = useProjectCheck({
     project,
     sessionId: projectSessionId,
@@ -1738,6 +1680,15 @@ export function App({
         projectCheck.status === "current" ? visualDiagnostics : [],
       ),
     [visualDiagnostics, projectCheck.status],
+  );
+  const angledWireRepairPlan = useMemo(
+    () =>
+      planAngledWireRepairs(
+        document,
+        resolver,
+        projectConnectivityIndex.documents.get(document.id)?.routingGeometry,
+      ),
+    [document, resolver, projectConnectivityIndex],
   );
   // Independent Netlist adapter: creating the callback is free; only a report
   // or export executes ERC, once per immutable Project/resolver/index tuple.
@@ -2087,7 +2038,6 @@ export function App({
     beginNetLabelEditing,
     cancelNetLabelEditing,
     commitInstancePropertyDraft,
-    commitElectricalMarkerName,
     commitNetLabelScope,
     commitNetLabelEditing,
     commitPendingNetLabelDraft,
@@ -2204,6 +2154,12 @@ export function App({
   const selectedInstanceLabel = selectedInstance
     ? instanceLabelAnnotationFor(document, selectedInstance.id)
     : undefined;
+  const selectedDisplayName =
+    selectedInstanceLabel?.kind === "instance-label"
+      ? flattenRichText(
+          resolveAnnotationText(document, selectedInstanceLabel),
+        ).trim() || null
+      : null;
   const selectedInstanceValue = selectedInstance
     ? instanceValueAnnotation(document, selectedInstance.id)
     : null;
@@ -3216,7 +3172,6 @@ export function App({
   const {
     switchDocument,
     selectDocumentFromHierarchy,
-    openInstanceFromTable,
     jumpToCaller,
     navigateToLocator,
     navigateToNetlistDiagnostic,
@@ -3253,7 +3208,6 @@ export function App({
     selectedHighlightIsActive,
     closeSearch,
     setSelectionOpen,
-    setInstanceTableOpen,
     setCellManagerOpen,
     selectedInstance,
     setStatus,
@@ -3284,6 +3238,7 @@ export function App({
   }, [document, visualSelection]);
 
   function openProperties(): void {
+    setCodePanel(null);
     setImportReviewOpen(false);
     setSelectionOpen(true);
     // Focus the header, not the first field: Q stays a pure toggle and
@@ -3294,6 +3249,7 @@ export function App({
   }
 
   function closeProperties(): void {
+    setCodePanel(null);
     exitCellSymbolLayout();
     setSelectionOpen(false);
     setImportReviewOpen(false);
@@ -3517,8 +3473,8 @@ export function App({
         terminal.interfaceInstanceIds.includes(selectedInstance.id),
       )
     : undefined;
-  // A design routinely carries VDDH and VDDL, or VDD1 and VDD2, at once, so a
-  // supply marker keeps its explicit Global-Net name.
+  // A design routinely carries VDDH and VDDL, or VDD1 and VDD2, at once, so
+  // VDD artwork keeps its authored supply name in either Cell Pin or Global mode.
   const selectedSupplyMarker =
     selectedInstance?.symbolId === "vdd-port" ? selectedInstance : undefined;
   const selectedPortNet =
@@ -3998,9 +3954,17 @@ export function App({
       // electrical verdict belongs to.
       electricalWarningsPresent: () =>
         requestElectricalDiagnostics().length > 0,
+      netlistProfile: netlistPreferences.profile,
+      netlistConfigurationError: netlistPreferences.error,
       guardDirtyReplacement,
       replaceActiveProject,
-      setNetlistPreflightOpen,
+      showNetlist: (format, namingProfile) => {
+        setNetlistFormat(format);
+        setNetlistNamingProfile(namingProfile);
+        setCodePanel("netlist");
+        setSelectionOpen(true);
+        if (compactLayout) setCompactLibraryPanelOpen(false);
+      },
       setImportReport,
       setImportReviewOpen,
       setSelectionOpen,
@@ -4572,6 +4536,20 @@ export function App({
     },
   });
 
+  const openAgentConnection = () => {
+    setAgentPanelOpen(true);
+    if (
+      agentSession.status === "idle" ||
+      agentSession.status === "revoked" ||
+      agentSession.status === "expired" ||
+      (agentSession.status === "waiting-for-agent" &&
+        agentSession.claimExpiresAt !== null &&
+        agentSession.claimExpiresAt <= Date.now())
+    ) {
+      void agentSession.newConnection();
+    }
+  };
+
   return (
     <main className="app-shell">
       {renderCrashRequested() ? <RenderCrashProbe /> : null}
@@ -4645,7 +4623,6 @@ export function App({
           onExportProject: exportProjectFile,
           onExportSvg: exportSvg,
           onExportRaster: (format) => void exportRaster(format),
-          onExportNetlist: exportDesignNetlist,
           onRevert: revertToSavedProjectBaseline,
           onOpenRecovery: openRecoveryDialog,
         }}
@@ -4746,14 +4723,26 @@ export function App({
               })
             : []
         }
-        instanceTableOpen={instanceTableOpen}
+        instanceCodeOpen={codePanel === "instances" && selectionOpen}
         netlistPreflightOpen={netlistPreflightOpen}
         checkAndSave={{
           enabled: !saveBusy && !projectCheck.busy,
           execute: () => void projectCheck.checkAndSave(),
         }}
-        onOpenInstanceTable={() => setInstanceTableOpen(true)}
+        onOpenInstanceCode={() => {
+          setCodePanel("instances");
+          setSelectionOpen(true);
+          if (compactLayout) setCompactLibraryPanelOpen(false);
+        }}
+        netlistProfileId={netlistPreferences.profile.id}
+        netlistFormat={netlistFormat}
+        onOpenNetlistConfiguration={() => {
+          setCodePanel("configuration");
+          setSelectionOpen(true);
+          if (compactLayout) setCompactLibraryPanelOpen(false);
+        }}
         onOpenNetlistPreflight={() => setNetlistPreflightOpen(true)}
+        onExportNetlist={exportDesignNetlist}
         agentAction={
           publicAgentUiEnabled
             ? {
@@ -4761,19 +4750,7 @@ export function App({
                   agentSession.status === "idle"
                     ? "Connect Agent"
                     : "Manage Agent",
-                execute: () => {
-                  setAgentPanelOpen(true);
-                  if (
-                    agentSession.status === "idle" ||
-                    agentSession.status === "revoked" ||
-                    agentSession.status === "expired" ||
-                    (agentSession.status === "waiting-for-agent" &&
-                      agentSession.claimExpiresAt !== null &&
-                      agentSession.claimExpiresAt <= Date.now())
-                  ) {
-                    void agentSession.newConnection();
-                  }
-                },
+                execute: openAgentConnection,
               }
             : null
         }
@@ -4964,27 +4941,6 @@ export function App({
               }
             : null
         }
-        instanceTable={
-          instanceTableOpen
-            ? {
-                open: instanceTableOpen,
-                project,
-                connectivityIndex: projectConnectivityIndex,
-                activeDocumentId: document.id,
-                onClose: () => setInstanceTableOpen(false),
-                onOpenInstance: openInstanceFromTable,
-                onApply: (transactionId, edits) => {
-                  const committed = commitStructure(transactionId, edits);
-                  if (committed) {
-                    setStatus(
-                      `Updated ${edits.length} Cell${edits.length === 1 ? "" : "s"}`,
-                    );
-                  }
-                  return committed;
-                },
-              }
-            : null
-        }
         insertComponent={
           insertDialogOpen
             ? {
@@ -5118,6 +5074,7 @@ export function App({
             ? {
                 open: netlistPreflightOpen,
                 project,
+                profile: netlistPreferences.profile,
                 // The dialog only renders while open, so this IS the
                 // explicit check the author asked for.
                 electricalDiagnostics: requestElectricalDiagnostics(),
@@ -5125,7 +5082,7 @@ export function App({
                 onNavigate: navigateToNetlistDiagnostic,
                 onNavigateElectrical: jumpToProjectDiagnostic,
                 onExport: (format, namingProfile) =>
-                  exportDesignNetlist(format, true, namingProfile),
+                  exportDesignNetlist(format, namingProfile),
               }
             : null
         }
@@ -5334,9 +5291,7 @@ export function App({
             }}
           />
         ) : null}
-        {analogSimulationOpen &&
-        !selectionOpen &&
-        !analogSimulationMaximized ? (
+        {analogSimulationOpen && !analogSimulationMaximized ? (
           <div
             className="simulation-resize-handle"
             role="separator"
@@ -5435,16 +5390,9 @@ export function App({
         ) : null}
         <EditorRightDock
           simulationOpen={analogSimulationOpen}
-          propertiesOpen={selectionOpen}
+          simulationOpened={analogSimulationOpened}
           maximized={analogSimulationMaximized}
-          onSelectProperties={(open) => {
-            if (open && compactLayout) setCompactLibraryPanelOpen(false);
-            if (!open) {
-              exitCellSymbolLayout();
-              setImportReviewOpen(false);
-            }
-            setSelectionOpen(open);
-          }}
+          onRestoreSimulation={openAnalogSimulation}
           code={
             analogSimulationOpened && humanSimulationSession ? (
               <Suspense fallback={null}>
@@ -5469,6 +5417,14 @@ export function App({
                       : (activeSimulationFolder?.id ?? null)
                   }
                   onSelectFolderId={setActiveSimulationFolderId}
+                  agentGuidance={
+                    publicAgentUiEnabled
+                      ? {
+                          status: agentSession.status,
+                          onOpen: openAgentConnection,
+                        }
+                      : undefined
+                  }
                   onOpenExample={async (exampleProject) => {
                     await guardDirtyReplacement(
                       `Open ${exampleProject.name} example`,
@@ -5581,7 +5537,6 @@ export function App({
                   onFocusDiagnostic={(locator) =>
                     navigateToLocator(locator, `Located ${locator.kind}`)
                   }
-                  onOperatingPointProjection={setOperatingPointProjection}
                   onPreviewSignal={(target) => {
                     const hierarchyPath =
                       target &&
@@ -5600,79 +5555,6 @@ export function App({
                         : null,
                     );
                   }}
-                  onFocusProbe={(probe, preparedRootDocumentId) => {
-                    setCodeNetPreview(null);
-                    const targetDocument = project.documents.find(
-                      (candidate) => candidate.id === probe.documentId,
-                    );
-                    const voltageNetId =
-                      probe.kind === "voltage"
-                        ? resolveSimulationVoltageProbeNetId(project, probe)
-                        : undefined;
-                    const targetExists =
-                      probe.kind === "voltage"
-                        ? voltageNetId !== undefined
-                        : targetDocument?.nets.some((net) =>
-                            net.terminals.some(
-                              (terminal) =>
-                                terminal.instanceId === probe.instanceId &&
-                                terminal.pinName === probe.pinName,
-                            ),
-                          ) === true;
-                    if (!targetExists) {
-                      setStatus(
-                        "This Output no longer matches the current Project; update the Setup and run again",
-                      );
-                      return;
-                    }
-                    const input = activeSimulationFolder?.input;
-                    const rootDocumentId =
-                      preparedRootDocumentId ??
-                      ("circuit" in probe
-                        ? input?.circuitBindings.find(
-                            (binding) => binding.id === probe.circuit.bindingId,
-                          )?.documentId
-                        : undefined) ??
-                      input?.circuitBindings.find(
-                        (binding) => binding.emission === "top-level",
-                      )?.documentId ??
-                      probe.documentId;
-                    const hierarchyPath = simulationProbeHierarchyPath(
-                      project,
-                      rootDocumentId,
-                      probe.occurrence,
-                    );
-                    if (hierarchyPath === null) {
-                      setStatus("The Output occurrence no longer exists");
-                      return;
-                    }
-                    navigateToLocator(
-                      probe.kind === "voltage"
-                        ? {
-                            documentId: probe.documentId,
-                            hierarchyPath,
-                            kind: "net",
-                            objectId: voltageNetId!,
-                          }
-                        : {
-                            documentId: probe.documentId,
-                            hierarchyPath,
-                            kind: "instance",
-                            objectId: probe.instanceId,
-                            endpoint: {
-                              kind: "terminal",
-                              instanceId: probe.instanceId,
-                              pinName: probe.pinName,
-                            },
-                          },
-                      probe.kind === "voltage"
-                        ? `Located simulation Net ${voltageNetId}`
-                        : `Located simulation terminal ${probe.instanceId}.${probe.pinName}`,
-                    );
-                    // Back-annotation should not unexpectedly open the ordinary
-                    // Properties dock over the simulation workspace.
-                    setSelectionOpen(false);
-                  }}
                 />
               </Suspense>
             ) : null
@@ -5680,9 +5562,46 @@ export function App({
           properties={
             <EditorPropertiesDock
               open={selectionOpen}
+              configuration={
+                codePanel === "configuration" ? (
+                  <NetlistProfileCode
+                    text={netlistPreferences.text}
+                    error={netlistPreferences.error}
+                    onChange={netlistPreferences.changeText}
+                  />
+                ) : codePanel === "netlist" ? (
+                  <NetlistCodePanel
+                    project={project}
+                    format={netlistFormat}
+                    namingProfile={netlistNamingProfile}
+                    profile={netlistPreferences.profile}
+                    onProfileChange={netlistPreferences.selectProfile}
+                    configurationError={netlistPreferences.error}
+                  />
+                ) : codePanel === "instances" ? (
+                  <InstanceCodePanel
+                    key={projectSessionId}
+                    project={project}
+                    onApply={(edits) => {
+                      const committed = commitStructure(
+                        "edit-instance-code",
+                        edits,
+                      );
+                      if (committed)
+                        setStatus(
+                          `Updated instance code in ${edits.length} Cell${edits.length === 1 ? "" : "s"}`,
+                        );
+                      return committed;
+                    }}
+                  />
+                ) : undefined
+              }
               shelfRef={selectionShelfRef}
               onToggle={() => {
-                if (selectionOpen) exitCellSymbolLayout();
+                if (selectionOpen) {
+                  exitCellSymbolLayout();
+                  setCodePanel(null);
+                }
                 // Narrow layouts have room for one side panel. Whichever the user
                 // just asked for wins.
                 else if (compactLayout) setCompactLibraryPanelOpen(false);
@@ -5852,6 +5771,7 @@ export function App({
                       code: {
                         focusRequest: propertyCodeFocusRequest,
                         instance: selectedInstance,
+                        displayName: selectedDisplayName,
                         defaultForeground: styleProfile.foreground,
                         revision: document.revision,
                         referenceVisible:
@@ -5870,9 +5790,15 @@ export function App({
                           document,
                           selectedInstance,
                         ),
-                        netName: selectedSupplyMarker
-                          ? (selectedPortLogicalName ?? "")
+                        connection: selectedSupplyMarker
+                          ? selectedFormalTerminal
+                            ? "cell-pin"
+                            : "global"
                           : null,
+                        netName:
+                          selectedSupplyMarker && !selectedFormalTerminal
+                            ? (selectedPortLogicalName ?? "")
+                            : null,
                         onApply: (value: ComponentPropertyCodeValue) => {
                           try {
                             const edits: SchematicEdit[] =
@@ -5903,11 +5829,11 @@ export function App({
                                 placement: {
                                   position: {
                                     x: snapCoordinate(
-                                      value.placement.at[0],
+                                      value.placement.coordinate[0],
                                       document.presentation.grid,
                                     ),
                                     y: snapCoordinate(
-                                      value.placement.at[1],
+                                      value.placement.coordinate[1],
                                       document.presentation.grid,
                                     ),
                                   },
@@ -6041,9 +5967,29 @@ export function App({
                                     value.netlistTarget,
                                   )
                                 : [];
+                            const currentConnection = selectedSupplyMarker
+                              ? selectedFormalTerminal
+                                ? "cell-pin"
+                                : "global"
+                              : undefined;
+                            const connectionEdits: ProjectStructureEdit[] =
+                              selectedSupplyMarker &&
+                              value.connection !== undefined &&
+                              value.connection !== currentConnection
+                                ? planSetVddConnectionMode(
+                                    project,
+                                    document.id,
+                                    selectedSupplyMarker.id,
+                                    value.connection,
+                                  )
+                                : [];
+                            const structureEdits = [
+                              ...targetEdits,
+                              ...connectionEdits,
+                            ];
                             if (
                               edits.length === 0 &&
-                              targetEdits.length === 0
+                              structureEdits.length === 0
                             ) {
                               setStatus(
                                 `Canvas properties for ${selectedInstance.id} are already up to date`,
@@ -6051,10 +5997,10 @@ export function App({
                               return { ok: true as const };
                             }
                             let applied: boolean;
-                            if (targetEdits.length > 0) {
-                              // Merge the target planner's document edits with the draft into
+                            if (structureEdits.length > 0) {
+                              // Merge structural document edits with the draft into
                               // one project transaction and one undo boundary.
-                              const documentEdit = targetEdits.find(
+                              const documentEdit = structureEdits.find(
                                 (edit) =>
                                   edit.kind === "transact_document" &&
                                   edit.documentId === document.id,
@@ -6062,7 +6008,7 @@ export function App({
                               if (documentEdit?.kind === "transact_document")
                                 documentEdit.edits.push(...edits);
                               else if (edits.length)
-                                targetEdits.push({
+                                structureEdits.push({
                                   kind: "transact_document",
                                   documentId: document.id,
                                   expectedRevision: document.revision,
@@ -6070,7 +6016,7 @@ export function App({
                                 });
                               applied = commitStructure(
                                 "apply-component-property-code",
-                                targetEdits,
+                                structureEdits,
                               );
                             } else applied = transact(edits).ok;
                             if (!applied) {
@@ -6119,14 +6065,6 @@ export function App({
                         instance: selectedInstance,
                         sourceCode: selectedComponentSourceCode!,
                         revision: document.revision,
-                        formalTerminalSelected: Boolean(selectedFormalTerminal),
-                        portNet: selectedPortNet
-                          ? {
-                              id: selectedPortNet.id,
-                              logicalName: selectedPortLogicalName ?? "",
-                              supply: Boolean(selectedSupplyMarker),
-                            }
-                          : null,
                         targetDescription:
                           selectedInstance.netlist &&
                           !(
@@ -6201,11 +6139,6 @@ export function App({
                                 ),
                               }
                             : null,
-                        onMarkerNameChange: (value) =>
-                          commitElectricalMarkerName(
-                            selectedInstance.id,
-                            value,
-                          ),
                         onReferenceChange: updateSelectedReference,
                         ...(selectedInstanceLabel && selectedInstance.placement
                           ? {
@@ -6443,6 +6376,7 @@ export function App({
                 netLabel: netLabelDraft,
                 color: selectedRoute?.styleOverride?.color,
                 arrow: selectedRoute?.styleOverride?.arrow,
+                lineStyle: selectedRoute?.styleOverride?.lineStyle,
                 defaultColor: styleProfile.foreground,
                 highlightActive: selectedHighlightIsActive,
                 onNetLabelChange: updateNetLabelDraft,
@@ -6496,6 +6430,26 @@ export function App({
                     );
                   }
                 },
+                onLineStyleChange: (lineStyle) => {
+                  if (!selectedRoute) return;
+                  const styleOverride = {
+                    ...(selectedRoute.styleOverride ?? {}),
+                  };
+                  if (lineStyle === "solid") delete styleOverride.lineStyle;
+                  else styleOverride.lineStyle = lineStyle;
+                  const result = transact([
+                    {
+                      kind: "set_route_style_override",
+                      routeId: selectedRoute.id,
+                      styleOverride:
+                        Object.keys(styleOverride).length > 0
+                          ? styleOverride
+                          : null,
+                    },
+                  ]);
+                  if (result.ok)
+                    setStatus(`Updated wire line style to ${lineStyle}`);
+                },
                 onDeleteNetLabel: deleteSelectedRouteNetLabel,
                 onAddCurrentArrow: addCurrentArrow,
                 onToggleHighlight: toggleHighlightedNet,
@@ -6537,6 +6491,22 @@ export function App({
                 onSelectDiagnostic: jumpToProjectDiagnostic,
                 focusRequestToken: issuesFocusToken,
                 onOpenStateChange: setIssuesSectionOpen,
+                angledWireRepair: {
+                  angledSegmentCount: angledWireRepairPlan.angledSegmentCount,
+                  repairableSegmentCount:
+                    angledWireRepairPlan.repairableSegmentCount,
+                  repairableRouteCount:
+                    angledWireRepairPlan.repairableRouteCount,
+                  protectedRouteCount: angledWireRepairPlan.protectedRouteCount,
+                  onRepair: () => {
+                    if (angledWireRepairPlan.edits.length === 0) return;
+                    const result = transact([...angledWireRepairPlan.edits]);
+                    if (!result.ok) return;
+                    setStatus(
+                      `Straightened ${angledWireRepairPlan.repairableSegmentCount} non-standard angled wire segment${angledWireRepairPlan.repairableSegmentCount === 1 ? "" : "s"} in one undoable edit`,
+                    );
+                  },
+                },
               }}
               netTrace={
                 highlightedTrace && highlightedTrace.hops.length > 0
@@ -6686,7 +6656,6 @@ export function App({
             markers: diagnosticMarkers,
             onSelectMarker: jumpToProjectDiagnostic,
           }}
-          operatingPoint={{ badges: operatingPointBadges }}
           netLabelTether={netLabelTether}
           copyPreviewInnerHtml={copyPreviewInnerHtml}
           copyPreviewTransform={copyPreviewTransform}

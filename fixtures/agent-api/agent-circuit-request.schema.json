@@ -1583,6 +1583,14 @@
         "color": {
           "$ref": "#/$defs/__schema36"
         },
+        "lineStyle": {
+          "type": "string",
+          "enum": [
+            "solid",
+            "dashed",
+            "dotted"
+          ]
+        },
         "arrow": {
           "type": "string",
           "enum": [

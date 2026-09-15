@@ -585,10 +585,19 @@ export function useWireInteraction(capabilities: UseWireInteractionOptions) {
           }
         })();
         const result = transactProposal(
-          proposalFor("route-geometry", proposal.edits),
+          proposalFor(
+            "route-geometry",
+            proposal.edits,
+            proposal.expectedElectricalEffect,
+          ),
         );
-        if (result.ok)
-          options.setStatus(`Moved route segment ${record.route.id}`);
+        if (result.ok) {
+          options.setStatus(
+            proposal.expectedElectricalEffect?.kind === "merge"
+              ? `Moved route segment ${record.route.id} and connected it where it touched a pin`
+              : `Moved route segment ${record.route.id}`,
+          );
+        }
       }
     } catch (error) {
       options.setStatus(

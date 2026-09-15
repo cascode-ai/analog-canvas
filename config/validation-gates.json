@@ -31,6 +31,7 @@
       "apps/editor/e2e/drafting.spec.ts",
       "apps/editor/e2e/instance-table.spec.ts",
       "apps/editor/e2e/manual-editor.spec.ts",
+      "apps/editor/e2e/netlist-conversion.spec.ts",
       "apps/editor/e2e/reference-label.spec.ts"
     ],
     "editorCommands": [
@@ -164,8 +165,8 @@
       "apps/editor/e2e/gui-native-simulation.spec.ts",
       "apps/editor/e2e/simulation-batch.spec.ts",
       "apps/editor/e2e/simulation-code-editor.spec.ts",
-      "apps/editor/e2e/simulation-plot-export.spec.ts",
       "apps/editor/e2e/simulation-profile-probes.spec.ts",
+      "apps/editor/e2e/simulation-spec-results.spec.ts",
       "apps/editor/e2e/simulation-setup.spec.ts",
       "apps/editor/e2e/simulation-workspace.spec.ts",
       "packages/simulation-service/**",
@@ -337,8 +338,8 @@
         "apps/editor/e2e/mcp-native-simulation.spec.ts",
         "apps/editor/e2e/simulation-batch.spec.ts",
         "apps/editor/e2e/simulation-code-editor.spec.ts",
-        "apps/editor/e2e/simulation-plot-export.spec.ts",
         "apps/editor/e2e/simulation-profile-probes.spec.ts",
+        "apps/editor/e2e/simulation-spec-results.spec.ts",
         "apps/editor/e2e/simulation-setup.spec.ts",
         "apps/editor/e2e/simulation-workspace.spec.ts"
       ],
@@ -349,8 +350,8 @@
           "apps/editor/e2e/mcp-native-simulation.spec.ts",
           "apps/editor/e2e/simulation-batch.spec.ts",
           "apps/editor/e2e/simulation-code-editor.spec.ts",
-          "apps/editor/e2e/simulation-plot-export.spec.ts",
           "apps/editor/e2e/simulation-profile-probes.spec.ts",
+          "apps/editor/e2e/simulation-spec-results.spec.ts",
           "apps/editor/e2e/simulation-setup.spec.ts",
           "apps/editor/e2e/simulation-workspace.spec.ts"
         ]
@@ -365,7 +366,8 @@
         "pnpm",
         "test:e2e:local",
         "apps/editor/e2e/bound-label-mirror.spec.ts",
-        "apps/editor/e2e/manual-editor.spec.ts"
+        "apps/editor/e2e/manual-editor.spec.ts",
+        "apps/editor/e2e/netlist-conversion.spec.ts"
       ],
       "ci": {
         "e2eArgs": [
@@ -373,6 +375,7 @@
           "apps/editor/e2e/manual-editor.spec.ts",
           "apps/editor/e2e/drafting.spec.ts",
           "apps/editor/e2e/instance-table.spec.ts",
+          "apps/editor/e2e/netlist-conversion.spec.ts",
           "apps/editor/e2e/reference-label.spec.ts"
         ]
       }

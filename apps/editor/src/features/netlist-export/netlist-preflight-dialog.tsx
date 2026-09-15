@@ -1,9 +1,10 @@
-import { analyzeDesignNetlist, printDesignNetlist } from "@icm/netlist";
+import { createDesignNetlistExport } from "@icm/netlist";
 import type { Diagnostic } from "@icm/derived";
 import type {
   NetlistDiagnostic,
   NetlistFormat,
   NetlistNamingProfile,
+  NetlistExportProfile,
 } from "@icm/netlist";
 import type { CircuitProject } from "@icm/model";
 import { useMemo, useState } from "react";
@@ -17,9 +18,11 @@ export function NetlistPreflightDialog({
   onNavigate,
   onNavigateElectrical,
   onExport,
+  profile,
 }: {
   open: boolean;
   project: CircuitProject;
+  profile?: NetlistExportProfile;
   electricalDiagnostics: readonly Diagnostic[];
   onClose(): void;
   onNavigate(diagnostic: NetlistDiagnostic): void;
@@ -30,8 +33,13 @@ export function NetlistPreflightDialog({
   const [namingProfile, setNamingProfile] =
     useState<NetlistNamingProfile>("native");
   const result = useMemo(
-    () => analyzeDesignNetlist(project, { format, namingProfile }),
-    [format, namingProfile, project],
+    () =>
+      createDesignNetlistExport(project, {
+        format,
+        namingProfile,
+        ...(profile ? { profile } : {}),
+      }),
+    [format, namingProfile, project, profile],
   );
   // The same finding repeated once per object says nothing many times over;
   // count it instead. Seven identical lines was most of what the report said.
@@ -60,10 +68,7 @@ export function NetlistPreflightDialog({
     }
     return [...groups.values()];
   }, [result.diagnostics]);
-  const preview = useMemo(
-    () => (result.ir ? printDesignNetlist(format, result.ir).text : null),
-    [format, result.ir],
-  );
+  const preview = result.status === "ready" ? result.file.text : null;
   if (!open) return null;
   const errors = result.diagnostics.filter(
     (diagnostic) => diagnostic.severity === "error",
@@ -91,31 +96,37 @@ export function NetlistPreflightDialog({
         </header>
         <section className="netlist-preflight-summary" aria-label="Readiness">
           <h3>
-            {result.ir
-              ? electricalDiagnostics.length > 0
-                ? "Structure ready; review electrical findings"
-                : "Ready to export"
+            {result.status === "ready"
+              ? result.placeholders.length > 0
+                ? `Incomplete netlist: ${result.placeholders.length} TODO field${result.placeholders.length === 1 ? "" : "s"}`
+                : electricalDiagnostics.length > 0
+                  ? "Structure ready; review electrical findings"
+                  : "Ready to export"
               : `${errors.length} blocking issue${errors.length === 1 ? "" : "s"}`}
           </h3>
-          {result.ir ? (
+          {result.status === "ready" ? (
             <p>
-              {result.ir.cells.length} internal Cell
-              {result.ir.cells.length === 1 ? "" : "s"};{" "}
-              {result.ir.externalMasters?.length ?? 0} external interface
-              {(result.ir.externalMasters?.length ?? 0) === 1 ? "" : "s"}.
+              {result.cellCount} internal Cell
+              {result.cellCount === 1 ? "" : "s"}; {result.externalMasterCount}{" "}
+              external interface
+              {result.externalMasterCount === 1 ? "" : "s"}.
             </p>
           ) : (
-            <p>
-              Resolve each issue before a netlist IR is available for export.
-            </p>
+            <p>Resolve the structural findings before copying a netlist.</p>
           )}
         </section>
+        {result.status === "ready" && result.placeholders.length > 0 ? (
+          <p>
+            Missing values and models are marked TODO in the netlist. Complete
+            them before simulation.
+          </p>
+        ) : null}
         <div
           className="netlist-preflight-body"
-          data-has-preview={result.ir ? "true" : "false"}
+          data-has-preview={result.status === "ready" ? "true" : "false"}
           data-has-diagnostics={hasDiagnostics ? "true" : "false"}
         >
-          {result.ir ? (
+          {result.status === "ready" ? (
             <section
               className="netlist-preflight-export"
               aria-label="Structural netlist"
@@ -153,7 +164,7 @@ export function NetlistPreflightDialog({
                   type="button"
                   onClick={() => onExport(format, namingProfile)}
                 >
-                  Download {format === "spice" ? "SPICE" : "Spectre"} netlist
+                  Copy {format === "spice" ? "SPICE" : "Spectre"} netlist
                 </button>
               </div>
               <pre

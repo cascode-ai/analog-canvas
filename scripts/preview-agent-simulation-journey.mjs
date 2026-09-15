@@ -12,10 +12,11 @@ import {
   replaceSimulationExperimentConfig,
 } from "../packages/model/dist/index.js";
 import { parseProject } from "../packages/project-protocol/dist/index.js";
-import { SimulationOutputDataSchema } from "../packages/simulation-service/dist/contract.js";
+import { SimulationSpecReportSchema } from "../packages/simulation-service/dist/contract.js";
 import { SimulationResultSchema } from "../packages/spice-run/dist/index.js";
 import { materializeSimulationRunEvidence } from "./lib/simulation-run-evidence.mjs";
 import { verifyPreviewCandidate } from "./lib/preview-candidate.mjs";
+import { downloadPublishedMcp } from "./lib/published-mcp.mjs";
 import {
   validateHostedSky130NoiseResult,
   validateHostedSky130Result,
@@ -79,7 +80,7 @@ const program = qualifiedSetup.input.files.find(
 assert(program);
 program.text = program.text.replace(
   ".endc",
-  "noise v(vout) VINP dec 20 1 1000000000\nwrite out.raw noise1.all noise2.all\n.endc",
+  "meas tran vout_peak MAX v(vout)\n* @spec vout_peak range 0 1.8 unit=V\nnoise v(vout) VINP dec 20 1 1000000000\nwrite out.raw noise1.all noise2.all\n.endc",
 );
 const compiled = compileSourceSimulation(project, qualifiedSetup);
 assert(compiled.ok, "The acceptance Project no longer compiles");
@@ -95,6 +96,7 @@ const report = {
 
 let browser;
 let mcp;
+let mcpExecutable = resolve("apps/mcp-server/dist/main.js");
 let paired = false;
 let sequence = 0;
 const pending = new Map();
@@ -141,7 +143,7 @@ async function tool(name, args = {}, allowProblem = false) {
 }
 
 async function startMcp() {
-  mcp = spawn(process.execPath, [resolve("apps/mcp-server/dist/main.js")], {
+  mcp = spawn(process.execPath, [mcpExecutable], {
     cwd: resolve("."),
     env: {
       ...process.env,
@@ -238,6 +240,18 @@ async function startAndRead(prepared) {
 
 try {
   report.candidate = await verifyPreviewCandidate(baseUrl);
+  if (process.env.ICM_ACCEPTANCE_MCP_SOURCE !== "built") {
+    assert(
+      !process.env.ICM_ACCEPTANCE_MCP_SOURCE ||
+        process.env.ICM_ACCEPTANCE_MCP_SOURCE === "published",
+      "Unknown MCP acceptance source",
+    );
+    const published = await downloadPublishedMcp(baseUrl, privateDirectory);
+    mcpExecutable = published.executable;
+    report.mcp = published.receipt;
+  } else {
+    report.mcp = { source: "built", commitSha: report.candidate.commitSha };
+  }
   browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({
     viewport: { width: 1_440, height: 1_000 },
@@ -598,7 +612,7 @@ try {
       );
       return artifact.name === "result.json"
         ? SimulationResultSchema.parse(value)
-        : SimulationOutputDataSchema.parse(value);
+        : SimulationSpecReportSchema.parse(value);
     },
   );
   assert.equal(
@@ -620,50 +634,57 @@ try {
     prepared.prepared.vectors,
     sourceInput,
   );
-  assert(
-    fullRun.outputData?.analyses.length,
-    "The completed OTA run returned no evaluated named outputs",
-  );
-  assert(
-    fullRun.outputData.measurements?.length,
-    "The completed OTA run returned no automatic measurements",
-  );
-  const mosOperatingPoints = fullRun.outputData.deviceOperatingPoints;
-  assert.equal(
-    mosOperatingPoints?.length,
-    2,
-    "The completed OTA run returned no selected MOS operating-point details",
-  );
-  const mosValue = (deviceId, parameter) => {
-    const value = mosOperatingPoints
-      .find((device) => device.instanceId === deviceId)
-      ?.values.find((candidate) => candidate.parameter === parameter);
-    assert.equal(
-      value?.status,
-      "available",
-      `${deviceId}.${parameter} is unavailable`,
-    );
-    assert(
-      Number.isFinite(value.value),
-      `${deviceId}.${parameter} is not finite`,
-    );
-    return value.value;
+  assert.deepEqual(fullRun.outputData.analyses, []);
+  assert.equal(fullRun.outputData.measurements, undefined);
+  assert.equal(fullRun.outputData.deviceOperatingPoints, undefined);
+  // Retain electrical acceptance from captured raw probes, not retired product
+  // summaries. Names below belong to this fixed qualification fixture.
+  const opProbes = fullRun.result.data.analyses.find(
+    (a) => a.analysis === "op",
+  ).probes;
+  const opValue = (name) => {
+    const value = opProbes.find((probe) => probe.name === name)?.value;
+    assert(Number.isFinite(value), `Missing raw OP probe: ${name}`);
+    return value;
   };
-  assert(mosValue("M1", "vgs") > 0, "NMOS VGS polarity is incorrect");
-  assert(mosValue("M1", "id") > 0, "NMOS drain-entering ID is incorrect");
-  assert(mosValue("M3", "vgs") < 0, "PMOS VGS polarity is incorrect");
-  assert(mosValue("M3", "id") < 0, "PMOS drain-entering ID is incorrect");
-  const tailVoltage = fullRun.outputData.analyses
-    .find((analysis) => analysis.analysis === "op")
-    ?.outputs.find((output) => output.id === "probe-tail")?.values[0];
-  assert(Number.isFinite(tailVoltage), "OTA tail OP voltage is unavailable");
   assert(
-    Math.abs(mosValue("M1", "vbs") + tailVoltage) < 1e-9,
-    "NMOS Bulk is grounded: VBS must equal minus the tail voltage",
+    opValue("v(vinp)") - opValue("v(xdut.tail)") > 0,
+    "NMOS VGS polarity is incorrect",
   );
   assert(
-    Math.abs(mosValue("M3", "vbs")) < 1e-9,
-    "PMOS cell-default Bulk did not resolve to its source supply",
+    opValue("i(v.xdut.vicmprb001)") > 0,
+    "NMOS drain-entering ID is incorrect",
+  );
+  assert(
+    opValue("v(xdut.nleft)") - opValue("v(vdd)") < 0,
+    "PMOS VGS polarity is incorrect",
+  );
+  assert(
+    opValue("i(v.xdut.vicmprb009)") < 0,
+    "PMOS drain-entering ID is incorrect",
+  );
+  assert(
+    Math.abs(opValue("v(m.xdut.xm1.msky130_fd_pr__nfet_01v8#body)")) < 1e-9,
+    "NMOS bulk is not grounded",
+  );
+  assert(
+    Math.abs(
+      opValue("v(m.xdut.xm3.msky130_fd_pr__pfet_01v8#body)") -
+        opValue("v(vdd)"),
+    ) < 1e-9,
+    "PMOS bulk did not resolve to its source supply",
+  );
+  assert(
+    !finished.artifacts.some(
+      (a) =>
+        a.name.startsWith("outputs-") ||
+        [
+          "outputs.json",
+          "measurements.csv",
+          "device-operating-points.csv",
+          "native-measurements.json",
+        ].includes(a.name),
+    ),
   );
 
   const resultArtifacts = finished.artifacts
@@ -671,6 +692,7 @@ try {
       (artifact) =>
         artifact.name === "out.raw" ||
         artifact.name === "result.json" ||
+        artifact.name === "specs.json" ||
         artifact.name.endsWith(".csv"),
     )
     .sort((left, right) => left.name.localeCompare(right.name));
@@ -687,19 +709,13 @@ try {
     ),
   );
 
-  const acRecord = fullRun.outputData.analyses.findIndex(
-    (analysis) => analysis.analysis === "ac",
-  );
-  assert(acRecord >= 0);
-  for (const format of ["svg", "png"]) {
-    const exported = await tool("export_file", {
-      artifact: "simulation-plot",
-      simulation: { runId: finished.id, analysisIndex: acRecord, format },
-      outputPath: join(outputDirectory, `ac-plots-${format}.zip`),
-    });
-    assert(exported.ok, JSON.stringify(exported));
-    exports.push(exported);
-  }
+  assert(fullRun.outputData.specs.runId === finished.id);
+  assert.equal(fullRun.outputData.specs.results.length, 1);
+  assert.equal(fullRun.outputData.specs.results[0].name, "vout_peak");
+  assert.equal(fullRun.outputData.specs.results[0].judgment, "pass");
+  assert(Number.isFinite(fullRun.outputData.specs.results[0].value));
+  report.specs = fullRun.outputData.specs;
+  assert(fullRun.artifacts.some((artifact) => artifact.name === "specs.csv"));
   exports.push(savedExport);
   // Managed Batch remains separate from native loops and reuses this saved source.
   const batchPreparation = await tool("simulation", {
@@ -820,12 +836,8 @@ try {
           ? ["noise-output-density", "noise-input-density"]
           : analysis.probes.map((probe) => probe.name),
     })),
-    namedOutputs: fullRun.outputData.analyses.map((analysis) => ({
-      kind: analysis.analysis,
-      outputs: analysis.outputs.map((output) => output.label),
-    })),
-    measurementCount: fullRun.outputData.measurements?.length ?? 0,
-    deviceOperatingPoints: mosOperatingPoints,
+    specCount: fullRun.outputData.specs.results.length,
+    rawOperatingPointChecks: "passed",
     integratedNoise: {
       output: acceptedNoise.integratedOutputNoise,
       input: acceptedNoise.integratedInputNoise,

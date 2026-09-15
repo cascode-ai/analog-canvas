@@ -28,6 +28,12 @@ export function missingPowerMarkerClaims(
     if (instance.symbolId !== "ground" && instance.symbolId !== "vdd-port")
       continue;
     if (
+      document.netlist?.terminals.some((terminal) =>
+        terminal.interfaceInstanceIds.includes(instance.id),
+      )
+    )
+      continue;
+    if (
       document.connectivityEvidence.some(
         (evidence) =>
           evidence.kind === "name-claim" &&

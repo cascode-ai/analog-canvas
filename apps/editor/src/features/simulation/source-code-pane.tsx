@@ -97,7 +97,7 @@ interface Props extends Pick<
   additionalActions?: SimulationCodeWorkspaceProps["additionalActions"];
   console: ReactNode;
   results: ReactNode;
-  outputActions?: ReactNode;
+  history?: ReactNode;
   artifactGroups?: SimulationCodeWorkspaceProps["artifactGroups"];
   artifactPreview?: SimulationCodeWorkspaceProps["artifactPreview"];
   artifactBusy?: string | undefined;
@@ -1244,7 +1244,7 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
         toolbarEnd={props.toolbarEnd}
         console={props.console}
         results={props.results}
-        outputActions={props.outputActions}
+        history={props.history}
         outputPane={props.outputPane}
         onSelectOutputPane={props.onSelectOutputPane}
         maximized={props.maximized}

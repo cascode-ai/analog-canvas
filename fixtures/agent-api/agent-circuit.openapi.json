@@ -2756,6 +2756,14 @@
               "color": {
                 "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema36"
               },
+              "lineStyle": {
+                "type": "string",
+                "enum": [
+                  "solid",
+                  "dashed",
+                  "dotted"
+                ]
+              },
               "arrow": {
                 "type": "string",
                 "enum": [
@@ -18050,6 +18058,30 @@
                                 "bulk-dashed",
                                 "power-rail"
                               ]
+                            },
+                            "styleOverride": {
+                              "type": "object",
+                              "properties": {
+                                "color": {
+                                  "$ref": "#/components/schemas/agentCircuitResponse/$defs/__schema23"
+                                },
+                                "lineStyle": {
+                                  "type": "string",
+                                  "enum": [
+                                    "solid",
+                                    "dashed",
+                                    "dotted"
+                                  ]
+                                },
+                                "arrow": {
+                                  "type": "string",
+                                  "enum": [
+                                    "middle",
+                                    "end"
+                                  ]
+                                }
+                              },
+                              "additionalProperties": false
                             },
                             "polyline": {
                               "anyOf": [

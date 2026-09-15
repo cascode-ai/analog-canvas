@@ -1,7 +1,10 @@
 import { expect, test } from "@playwright/test";
 import { expandedDeviceSymbols, razaviProductSymbols } from "@icm/symbols";
 
-import { chooseComponent } from "./editor-fixtures.js";
+import {
+  chooseComponent,
+  expectComponentCodeField,
+} from "./editor-fixtures.js";
 
 // These are the two canonical sources of placeable Instance tiles. Editor-only
 // Annotation tools and the two-click Power Rail intentionally do not appear in
@@ -13,7 +16,7 @@ const componentSymbolIds = [
 ].map((symbol) => symbol.id);
 
 for (const symbolId of componentSymbolIds) {
-  test(`${symbolId} uses the one text-first component Properties surface`, async ({
+  test(`${symbolId} uses the text-first component Properties surface`, async ({
     page,
   }) => {
     await page.goto("/editor");
@@ -38,6 +41,9 @@ for (const symbolId of componentSymbolIds) {
     await expect(
       properties.getByLabel("Editable Canvas property code"),
     ).toBeVisible();
+    if (symbolId === "vdd-port") {
+      await expectComponentCodeField(page, "connection", "cell-pin");
+    }
     await expect(properties.locator(":scope > *")).toHaveCount(1);
     await expect(properties.locator(":scope > :only-child")).toHaveAttribute(
       "aria-label",

@@ -48,6 +48,7 @@ import type { SchematicEdit } from "./transaction.js";
 import { endpointOwnerNetId } from "./transaction-routing.js";
 import { createContactPlanningDraft } from "./contact-planning-draft.js";
 import { projectRoutingEditGeometry } from "./routing-geometry-projection.js";
+import { newlyTouchedRouteTerminals } from "./transaction-connectivity-normalizer.js";
 import { routeHasExternalOwner } from "./direct-contact-route-normalization.js";
 import { rebuildRoutePath } from "./route-leg-mutation.js";
 import { planPowerRailPinContacts } from "./power-rail-contact-planner.js";
@@ -537,15 +538,42 @@ export function proposeWireSegmentMove(
     segmentIndex,
     target,
   );
+  const edits: SchematicEdit[] = [
+    ...proposal.junctions.map((move): SchematicEdit => ({
+      kind: "move_junction",
+      ...move,
+    })),
+    ...routeEdits(document, proposal.routes),
+  ];
+  const projected = projectRoutingEditGeometry(document, edits);
+  const contacts = newlyTouchedRouteTerminals(
+    document,
+    projected,
+    resolver,
+    new Set(proposal.routes.map((route) => route.routeId)),
+  );
+  const expectedElectricalEffect: ExpectedElectricalEffect | undefined =
+    contacts.length > 0
+      ? {
+          kind: "merge",
+          endpointGroups: contacts.map((contact) => {
+            const route = document.routes.find(
+              (candidate) => candidate.id === contact.routeId,
+            );
+            if (!route) {
+              throw new Error(`Route not found: ${contact.routeId}`);
+            }
+            return [
+              endpointKey(contact.endpoint),
+              ...routeEndpoints(route).map((endpoint) => endpointKey(endpoint)),
+            ];
+          }),
+        }
+      : undefined;
   return {
     routeId,
-    edits: [
-      ...proposal.junctions.map((move): SchematicEdit => ({
-        kind: "move_junction",
-        ...move,
-      })),
-      ...routeEdits(document, proposal.routes),
-    ],
+    edits,
+    ...(expectedElectricalEffect ? { expectedElectricalEffect } : {}),
     preview: proposal,
   };
 }

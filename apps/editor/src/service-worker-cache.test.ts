@@ -13,16 +13,32 @@ import { describe, expect, it } from "vitest";
 type Listener = (event: {
   request: Request;
   respondWith(value: Promise<Response>): void;
+  waitUntil(value: Promise<unknown>): void;
 }) => void;
 
-function loadWorker(fetchImpl: typeof fetch) {
+function loadWorker(
+  fetchImpl: typeof fetch,
+  openGate = Promise.resolve(),
+  failStorage = false,
+) {
   const listeners = new Map<string, Listener>();
   const stored = new Map<string, Response>();
   const cache = {
-    match: (request: Request) =>
-      Promise.resolve(stored.get(new URL(request.url).pathname)),
-    put: (request: Request, response: Response) => {
-      stored.set(new URL(request.url).pathname, response);
+    match: (request: Request | URL) =>
+      Promise.resolve(
+        stored
+          .get(
+            new URL(request instanceof URL ? request.href : request.url)
+              .pathname,
+          )
+          ?.clone(),
+      ),
+    put: (request: Request | URL, response: Response) => {
+      if (failStorage) return Promise.reject(new Error("quota"));
+      stored.set(
+        new URL(request instanceof URL ? request.href : request.url).pathname,
+        response,
+      );
       return Promise.resolve();
     },
     addAll: () => Promise.resolve(),
@@ -33,7 +49,7 @@ function loadWorker(fetchImpl: typeof fetch) {
     registration: { scope: "https://analog-canvas.test/" },
   };
   const caches = {
-    open: () => Promise.resolve(cache),
+    open: () => openGate.then(() => cache),
     keys: () => Promise.resolve([]),
     match: (request: Request) => cache.match(request),
     delete: () => Promise.resolve(true),
@@ -54,16 +70,98 @@ async function requestScript(
   const request = new Request("https://analog-canvas.test/assets/App-abc.js");
   Object.defineProperty(request, "destination", { value: "script" });
   let served: Promise<Response> | null = null;
+  const pending: Promise<unknown>[] = [];
   listeners.get("fetch")!({
     request,
     respondWith: (value) => {
       served = value;
     },
+    waitUntil: (value) => {
+      pending.push(value);
+    },
   });
-  return { stored, served: await served! };
+  const result = await served!;
+  await Promise.all(pending);
+  return { stored, served: result };
 }
 
 describe("static shell cache policy", () => {
+  it.each(["script", "navigate"])(
+    "caches %s even when the browser consumes the body before storage opens",
+    async (kind) => {
+      let release!: () => void;
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const { listeners, stored } = loadWorker(
+        (async () =>
+          new Response("payload", {
+            headers: {
+              "content-type":
+                kind === "script" ? "text/javascript" : "text/html",
+            },
+          })) as typeof fetch,
+        gate,
+      );
+      const request = new Request(
+        `https://analog-canvas.test/${kind === "script" ? "assets/App-abc.js" : "editor"}`,
+      );
+      Object.defineProperty(
+        request,
+        kind === "script" ? "destination" : "mode",
+        { value: kind },
+      );
+      let served!: Promise<Response>;
+      const pending: Promise<unknown>[] = [];
+      listeners.get("fetch")!({
+        request,
+        respondWith: (value) => {
+          served = value;
+        },
+        waitUntil: (value) => {
+          pending.push(value);
+        },
+      });
+      expect(await (await served).text()).toBe("payload");
+      expect(stored.size).toBe(0);
+      release();
+      await Promise.all(pending);
+      expect(pending).toHaveLength(1);
+      expect(
+        await stored
+          .get(kind === "script" ? "/assets/App-abc.js" : "/")!
+          .text(),
+      ).toBe("payload");
+    },
+  );
+
+  it("serves a valid response when storage fails without rejecting background work", async () => {
+    const { listeners, stored } = loadWorker(
+      (async () =>
+        new Response("ok", {
+          headers: { "content-type": "text/javascript" },
+        })) as typeof fetch,
+      Promise.resolve(),
+      true,
+    );
+    const request = new Request("https://analog-canvas.test/assets/App-abc.js");
+    Object.defineProperty(request, "destination", { value: "script" });
+    let served!: Promise<Response>;
+    const pending: Promise<unknown>[] = [];
+    listeners.get("fetch")!({
+      request,
+      respondWith: (value) => {
+        served = value;
+      },
+      waitUntil: (value) => {
+        pending.push(value);
+      },
+    });
+    expect(await (await served).text()).toBe("ok");
+    await expect(Promise.all(pending)).resolves.toEqual([undefined]);
+    expect(stored.size).toBe(0);
+  });
+
   it("keeps a script that really is a script", async () => {
     const { stored } = await requestScript(
       new Response("export const a = 1;", {
@@ -112,6 +210,7 @@ describe("static shell cache policy", () => {
       respondWith: () => {
         responded = true;
       },
+      waitUntil: () => undefined,
     });
     expect(responded).toBe(false);
     expect(stored.size).toBe(0);

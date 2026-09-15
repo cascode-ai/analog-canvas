@@ -6,7 +6,12 @@ import type {
   ExternalSubcircuitDefinition,
   SchematicDocument,
 } from "@icm/model";
-import { deriveStableId, projectCellInterface, routeEnd } from "@icm/model";
+import {
+  deriveStableId,
+  foldNetName,
+  projectCellInterface,
+  routeEnd,
+} from "@icm/model";
 import {
   deviceDescriptor,
   resolveReviewedExternalBinding,
@@ -18,7 +23,10 @@ import {
   externalSubcircuitSymbolId,
   hierarchicalSymbolId,
 } from "@icm/symbols";
-import { resolveEndpointConnection } from "@icm/derived";
+import {
+  resolveDocumentLogicalNets,
+  resolveEndpointConnection,
+} from "@icm/derived";
 
 import type { ProjectStructureEdit } from "./project-transaction.js";
 import {
@@ -790,10 +798,11 @@ export function planCreateCellPin(
   }
   if (
     input.instance.symbolId !== "port" &&
-    input.instance.symbolId !== "port-filled"
+    input.instance.symbolId !== "port-filled" &&
+    input.instance.symbolId !== "vdd-port"
   ) {
     throw new Error(
-      `Cell interface marker must be a Port: ${input.instance.symbolId}`,
+      `Cell interface marker must be a Port or VDD Power: ${input.instance.symbolId}`,
     );
   }
   return [
@@ -811,6 +820,238 @@ export function planCreateCellPin(
         : []),
     ]),
   ];
+}
+
+export type VddConnectionMode = "cell-pin" | "global";
+
+/**
+ * Switch the electrical role of the VDD artwork without touching its Base-Net
+ * membership or geometry. Cell-Pin mode is represented by the existing formal
+ * interface object; Global mode is represented by the existing marker-owned
+ * name claim. Markers sharing one physical Base Net move together so the same
+ * conductor can never be both interface styles at once.
+ */
+export function planSetVddConnectionMode(
+  project: CircuitProject,
+  documentId: string,
+  instanceId: string,
+  mode: VddConnectionMode,
+): ProjectStructureEdit[] {
+  const document = requireDocument(project, documentId);
+  if (!document.netlist) {
+    throw new Error(`Cell has no interface: ${documentId}`);
+  }
+  const selected = document.instances.find(
+    (instance) => instance.id === instanceId,
+  );
+  if (selected?.symbolId !== "vdd-port") {
+    throw new Error(`Instance is not VDD Power: ${instanceId}`);
+  }
+  const net = document.nets.find((candidate) =>
+    candidate.terminals.some(
+      (terminal) =>
+        terminal.instanceId === instanceId && terminal.pinName === "P",
+    ),
+  );
+  if (!net) throw new Error(`VDD Power has no Net: ${instanceId}`);
+
+  const markerIds = new Set(
+    net.terminals.flatMap((terminal) => {
+      const instance = document.instances.find(
+        (candidate) => candidate.id === terminal.instanceId,
+      );
+      return terminal.pinName === "P" && instance?.symbolId === "vdd-port"
+        ? [instance.id]
+        : [];
+    }),
+  );
+  const terminalByMarkerId = new Map(
+    document.netlist.terminals.flatMap((terminal) =>
+      terminal.netId === net.id &&
+      markerIds.has(terminal.interfaceInstanceIds[0]!)
+        ? [[terminal.interfaceInstanceIds[0]!, terminal] as const]
+        : [],
+    ),
+  );
+  const selectedTerminal = terminalByMarkerId.get(instanceId);
+  const ownedClaims = document.connectivityEvidence.filter(
+    (
+      evidence,
+    ): evidence is Extract<
+      SchematicDocument["connectivityEvidence"][number],
+      { kind: "name-claim" }
+    > =>
+      evidence.kind === "name-claim" &&
+      evidence.owner.kind === "power-marker" &&
+      markerIds.has(evidence.owner.objectId) &&
+      evidence.netId === net.id,
+  );
+  const logicalName = resolveDocumentLogicalNets(document).byBaseNetId.get(
+    net.id,
+  )?.name;
+
+  if (mode === "global") {
+    if (!selectedTerminal) return [];
+    const terminals = [...terminalByMarkerId.values()];
+    const names = new Map<string, string>();
+    for (const terminal of terminals) {
+      const folded = foldNetName(terminal.name);
+      if (!names.has(folded)) names.set(folded, terminal.name);
+    }
+    if (names.size !== 1) {
+      throw new Error(
+        "One physical VDD Net exposes several Cell Pin names; unify them before making it Global",
+      );
+    }
+    const retainedFormalOnNet = document.netlist.terminals.find(
+      (terminal) =>
+        terminal.netId === net.id &&
+        !terminalByMarkerId.has(terminal.interfaceInstanceIds[0]!),
+    );
+    if (retainedFormalOnNet) {
+      throw new Error(
+        `Net ${retainedFormalOnNet.name} still has a non-VDD formal Cell Pin; disconnect it before making VDD Global`,
+      );
+    }
+    const name = [...names.values()][0] ?? logicalName ?? "VDD";
+    const annotationEdits: DocumentEdits = [];
+    for (const markerId of markerIds) {
+      const priorClaim = ownedClaims.find(
+        (claim) =>
+          claim.owner.kind === "power-marker" &&
+          claim.owner.objectId === markerId,
+      );
+      annotationEdits.push({
+        kind: "upsert_connectivity_evidence",
+        evidence: {
+          id:
+            priorClaim?.id ??
+            deriveStableId(
+              "connectivity-evidence",
+              document.id,
+              "power-marker",
+              markerId,
+              net.id,
+            ),
+          kind: "name-claim",
+          netId: net.id,
+          name,
+          scope: "global",
+          powerDomain: "vdd",
+          owner: { kind: "power-marker", objectId: markerId },
+        },
+      });
+      for (const annotation of document.annotations) {
+        if (
+          annotation.kind !== "power-label" ||
+          annotation.anchor.kind !== "object" ||
+          annotation.anchor.objectId !== markerId
+        )
+          continue;
+        annotationEdits.push({
+          kind: "upsert_schematic_annotation",
+          annotation: {
+            ...annotation,
+            netId: net.id,
+            binding: { kind: "net-name", netId: net.id },
+          },
+        });
+      }
+    }
+    const removal = planRemoveCellTerminals(
+      project,
+      documentId,
+      terminals.map((terminal) => terminal.id),
+      [],
+    );
+    return removal.map((edit) =>
+      edit.kind === "transact_document" && edit.documentId === documentId
+        ? { ...edit, edits: [...edit.edits, ...annotationEdits] }
+        : edit,
+    );
+  }
+
+  if (selectedTerminal) return [];
+  const blockingClaim = document.connectivityEvidence.find(
+    (evidence) =>
+      evidence.kind === "name-claim" &&
+      evidence.netId === net.id &&
+      evidence.scope === "global" &&
+      !(
+        evidence.owner.kind === "power-marker" &&
+        markerIds.has(evidence.owner.objectId)
+      ),
+  );
+  if (blockingClaim) {
+    throw new Error(
+      "This conductor still has another Global declaration; remove or change that owner before making VDD a Cell Pin",
+    );
+  }
+  const claimNames = new Map<string, string>();
+  for (const claim of ownedClaims) {
+    const folded = foldNetName(claim.name);
+    if (!claimNames.has(folded)) claimNames.set(folded, claim.name);
+  }
+  if (claimNames.size > 1) {
+    throw new Error(
+      "One physical VDD Net has several Global names; unify them before making it a Cell Pin",
+    );
+  }
+  const name = [...claimNames.values()][0] ?? logicalName ?? "VDD";
+  const occupiedIds = new Set([
+    ...document.instances.map((item) => item.id),
+    ...document.nets.map((item) => item.id),
+    ...document.routes.map((item) => item.id),
+    ...document.junctions.map((item) => item.id),
+    ...document.annotations.map((item) => item.id),
+    ...document.connectivityEvidence.map((item) => item.id),
+    ...document.noConnects.map((item) => item.id),
+    ...document.netlist.terminals.map((item) => item.id),
+  ]);
+  const edits: DocumentEdits = ownedClaims.map((claim) => ({
+    kind: "remove_connectivity_evidence" as const,
+    evidenceId: claim.id,
+  }));
+  for (const markerId of markerIds) {
+    const existingTerminal = terminalByMarkerId.get(markerId);
+    let terminalId =
+      existingTerminal?.id ?? `terminal-${markerId.toLowerCase()}`;
+    if (!existingTerminal) {
+      let suffix = 2;
+      while (occupiedIds.has(terminalId)) {
+        terminalId = `terminal-${markerId.toLowerCase()}-${suffix}`;
+        suffix += 1;
+      }
+      occupiedIds.add(terminalId);
+      edits.push({
+        kind: "add_cell_terminal",
+        terminal: {
+          id: terminalId,
+          name,
+          netId: net.id,
+          direction: "inout",
+          interfaceInstanceIds: [markerId],
+        },
+      });
+    }
+    for (const annotation of document.annotations) {
+      if (
+        annotation.kind !== "power-label" ||
+        annotation.anchor.kind !== "object" ||
+        annotation.anchor.objectId !== markerId
+      )
+        continue;
+      edits.push({
+        kind: "upsert_schematic_annotation",
+        annotation: {
+          ...annotation,
+          netId: net.id,
+          binding: { kind: "cell-terminal-name", terminalId },
+        },
+      });
+    }
+  }
+  return [transactDocument(project, documentId, edits)];
 }
 
 export function planUpdateCellTerminalDirection(

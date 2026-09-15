@@ -41,7 +41,7 @@ describe("batch component property code", () => {
       symbol: "resistor",
       parameters: { value: "" },
       display: { visualAnnotation: "", value: false },
-      appearance: { foreground: "" },
+      appearance: { color: "" },
     });
     expect(parseGroupPropertyCode(source, context).ok).toBe(true);
   });
@@ -52,14 +52,14 @@ describe("batch component property code", () => {
       source,
       groupPropertyCodeChanges(source, context, {
         "display.visualAnnotation": true,
-        "appearance.foreground": [220, 38, 38],
+        "appearance.color": [220, 38, 38],
       }),
     );
     expect(JSON.parse(changed)).toEqual({
       symbol: "resistor",
       parameters: { value: "" },
       display: { visualAnnotation: true, value: false },
-      appearance: { foreground: [220, 38, 38] },
+      appearance: { color: [220, 38, 38] },
     });
     expect(parseGroupPropertyCode(changed, context)).toEqual({
       ok: true,
@@ -67,7 +67,7 @@ describe("batch component property code", () => {
         symbol: "resistor",
         parameters: { value: "" },
         display: { visualAnnotation: true, value: false },
-        appearance: { foreground: "#dc2626" },
+        appearance: { color: "#dc2626" },
       },
     });
   });
@@ -92,5 +92,16 @@ describe("batch component property code", () => {
         "display.value": true,
       }),
     ).toEqual([]);
+    for (const retired of ["foreground", "background", "fillColor"]) {
+      expect(
+        parseGroupPropertyCode(
+          source.replace('"color": ""', `"color": "", "${retired}": "auto"`),
+          withoutValue,
+        ),
+      ).toMatchObject({
+        ok: false,
+        message: `appearance.${retired} is not a supported property`,
+      });
+    }
   });
 });

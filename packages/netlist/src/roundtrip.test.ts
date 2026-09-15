@@ -9,7 +9,7 @@ import { describe, expect, it } from "vitest";
 
 import type { DesignNetlistIR } from "./ir.js";
 import { analyzeDesignNetlist } from "./extract.js";
-import { printSpiceNetlist } from "./printers.js";
+import { printSpectreNetlist, printSpiceNetlist } from "./printers.js";
 
 function claimNet(
   document: CircuitProject["documents"][number],
@@ -374,32 +374,40 @@ describe("structural SPICE round trip", () => {
     ).toEqual(cadence.ir);
   });
 
-  it("keeps capacitor plate pin order independent of schematic orientation", () => {
-    const project = structuralProject();
-    const capacitor = project.documents
-      .find((document) => document.id === "leaf")
-      ?.instances.find((instance) => instance.id === "C1");
-    expect(capacitor).toBeDefined();
-    if (!capacitor) return;
-    capacitor.placement = {
-      position: { x: 120, y: 80 },
-      rotation: 90,
-      mirror: "none",
-    };
+  it.each(["capacitor", "capacitor-section"])(
+    "keeps %s plate pin order independent of schematic orientation",
+    (symbolId) => {
+      const project = structuralProject();
+      const capacitor = project.documents
+        .find((document) => document.id === "leaf")
+        ?.instances.find((instance) => instance.id === "C1");
+      expect(capacitor).toBeDefined();
+      if (!capacitor) return;
+      capacitor.symbolId = symbolId;
+      capacitor.placement = {
+        position: { x: 120, y: 80 },
+        rotation: 90,
+        mirror: "none",
+      };
 
-    const analysis = analyzeDesignNetlist(project);
-    expect(analysis.diagnostics).toEqual([
-      expect.objectContaining({ code: "GENERATED_NO_CONNECT_NODE" }),
-    ]);
-    const exported = analysis.ir?.cells
-      .find((cell) => cell.name === "leaf")
-      ?.instances.find((instance) => instance.reference === "C1");
-    expect(exported?.nodes).toEqual([
-      { pinName: "1", netName: "A" },
-      { pinName: "2", netName: "B" },
-    ]);
-    expect(printSpiceNetlist(analysis.ir!)).toContain("C1 A B 2p");
-  });
+      const analysis = analyzeDesignNetlist(project);
+      expect(analysis.diagnostics).toEqual([
+        expect.objectContaining({ code: "GENERATED_NO_CONNECT_NODE" }),
+      ]);
+      const exported = analysis.ir?.cells
+        .find((cell) => cell.name === "leaf")
+        ?.instances.find((instance) => instance.reference === "C1");
+      expect(exported?.nodes).toEqual([
+        { pinName: "1", netName: "A" },
+        { pinName: "2", netName: "B" },
+      ]);
+      expect(printSpiceNetlist(analysis.ir!)).toContain("C1 A B 2p");
+      expect(printSpectreNetlist(analysis.ir!)).toContain(
+        "C1 (A B) capacitor c=2p",
+      );
+      expect(exported?.nodes).toHaveLength(2);
+    },
+  );
 
   it("preserves a real Project's hierarchy, interfaces, globals, opens, and parameters", async () => {
     const beforeAnalysis = analyzeDesignNetlist(structuralProject());

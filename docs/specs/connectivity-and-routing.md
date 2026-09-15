@@ -22,11 +22,12 @@ no longer a branch or loose end once only two arms remain, regardless of its
 historical `branch`/`route-anchor` role: its arms coalesce into one Route,
 continuing straight or folding into an interior bend. An explicit cross-Net Wire
 connection merges compatible Base Nets before the same normalization; passive
-transforms never silently merge different Nets. Power-rail, MOS bulk, and
-locked presentations retain their own authored geometry and do not participate
-in ordinary-Wire coverage union. When differently colored ordinary Routes
-overlap, the Route contributing the most coverage to a normalized path owns
-its style; stable Route identity breaks a tie.
+geometry that does not create an endpoint contact never merges different Nets.
+Power-rail, MOS bulk, and locked presentations retain their own authored
+geometry and do not participate in ordinary-Wire coverage union. When
+differently colored ordinary Routes overlap, the Route contributing the most
+coverage to a normalized path owns its style; stable Route identity breaks a
+tie.
 
 Opening a portable Project file runs the same normalization over an imported
 copy so legacy overlap is repaired immediately and the result is marked dirty
@@ -58,21 +59,19 @@ kernel, stable leg identity, and Route transaction.
   compiler persists only grid landings and ordinary grid bends. An offset
   MOS B anchor therefore uses the same Route transaction as every other pin;
   `bulk-dashed` changes only presentation.
-- Exact visible endpoint coincidence is a zero-length physical contact, but
-  only geometry a transaction INTRODUCES bonds. When a newly placed Instance,
-  an explicit Junction, a drawn power rail, or a typed attach reaches its
-  final coordinates, the Edit Engine deterministically creates or merges the
-  participating Base Net; incompatible power domains or Net-name contracts
-  reject the whole transaction. Passive transformation of existing geometry does not acquire contacts; an
-  explicitly snapped instance move uses the contact planner described below:
-  a move, rotation, mirror, or align that parks endpoints on foreign
-  conductors leaves them visually coincident but electrically separate,
-  exactly like a Crossing — rearranging a schematic can neither silently
-  merge Nets nor be rejected by a merge it never asked for. An explicit
-  `disconnect_endpoint` in the same transaction suppresses normalization so
-  deletion cannot immediately reconnect itself, and it is read the same way
-  by the expected-effect derivation, which never declares an endpoint the
-  edits explicitly released as preserved.
+- Exact visible endpoint coincidence is a zero-length physical contact. When a
+  newly placed Instance, an explicit Junction, a drawn power rail, a typed
+  attach, or edited Route geometry reaches a visible pin endpoint, the Edit
+  Engine deterministically creates or merges the participating Base Net;
+  incompatible power domains or Net-name contracts reject the whole
+  transaction. For an edited Route, only pin points newly covered by the
+  gesture are eligible: a pin that already rested on an unchanged part of the
+  Route is not retroactively connected. Route-interior crossings remain
+  electrically separate because neither conductor supplies an endpoint. An
+  explicit `disconnect_endpoint` in the same transaction suppresses
+  normalization so deletion cannot immediately reconnect itself, and it is
+  read the same way by the expected-effect derivation, which never declares an
+  endpoint the edits explicitly released as preserved.
 - Releasing a wire END on a conductor bonds, whether the end arrived there by
   dragging the whole loose wire or by dragging that one endpoint handle. It is
   the same deliberate act as drawing a wire to that point, and the schematic
@@ -101,10 +100,12 @@ kernel, stable leg identity, and Route transaction.
   labels, constraints and other presentation remain protected from collapse.
 - A Route-segment tap splits geometry at an explicit Junction. A newly
   authored Junction that lands on another ordinary Route joins and splits
-  that conductor as well; an existing Junction carried across a conductor by
-  a transform does not, and a mere route-interior crossing remains
-  disconnected. Pin-to-route attachment remains a snapped typed intent
-  because it changes the selected Route's identity and geometry.
+  that conductor as well. Dragging an existing Route segment onto a visible
+  device pin joins the pin at the exact contact point, splits the Route, and
+  derives the junction dot from the resulting branches. A mere
+  route-interior crossing remains disconnected. Pin-to-route attachment from
+  the wire tool remains a snapped typed intent because it changes the selected
+  Route's identity and geometry.
 - Route splitting is reversible topology, not permanent stroke history. When
   a branch is cut, an unowned degree-two Junction is removed and its surviving
   arms coalesce into one Route, with an angled join retained as an interior
@@ -170,16 +171,19 @@ kernel, stable leg identity, and Route transaction.
 Routes may present as `wire`, `bulk-dashed`, or `power-rail`; presentation does
 not alter Net identity. `bulk-dashed` is used for explicit MOS B routing.
 Manual MOS instances without explicit B membership first use a configured
-cell-default Net; without one, bulk remains unresolved. Starting a
-`bulk-dashed` route from B treats a configured default membership as unowned;
-committing clears the binding before connecting the explicit Net. Deleting the
-explicit route may reconcile only an explicitly configured cell default.
-Source-bound/imported MOS instances remain governed by their fourth-node
-evidence and are never guessed. Legacy persisted `supply-default` bindings are
-readable compatibility data, not a current authoring policy. Cross-Document
-composition materializes an effective source `cell-default` as an
-`instance-override`: the copied B membership remains fixed to its copied Base
-Net and neither consumes nor changes the target Document's Cell default.
+cell-default Net; without one, bulk remains unresolved in the editable graph.
+Netlist extraction supplies global `0` for an omitted NMOS B and global `VDD`
+for an omitted PMOS B without changing routing or persisted membership.
+Starting a `bulk-dashed` route from B treats a configured default membership as
+unowned; committing clears the binding before connecting the explicit Net.
+Deleting the explicit route may reconcile only an explicitly configured cell
+default. Source-bound/imported MOS instances keep their fourth-node evidence;
+the same extraction fallback applies only when it is absent. Legacy persisted
+`supply-default` bindings are readable compatibility data, not a current
+authoring policy. Cross-Document composition materializes an effective source
+`cell-default` as an `instance-override`: the copied B membership remains fixed
+to its copied Base Net and neither consumes nor changes the target Document's
+Cell default.
 
 A `power-rail` Route is valid only on a Base Net with an explicit persisted
 name claim whose `powerDomain` is `vdd`. Rail authoring creates or reuses that

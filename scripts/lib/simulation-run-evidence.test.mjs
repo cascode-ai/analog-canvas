@@ -44,4 +44,29 @@ describe("bounded simulation run evidence", () => {
       ),
     ).rejects.toThrow("no result.json artifact");
   });
+
+  it("hydrates new Spec-only results without a duplicate outputs.json", async () => {
+    const specs = { schemaVersion: 1, runId: "run", results: [] };
+    const read = vi.fn(async ({ name }) =>
+      name === "specs.json" ? specs : { data: { analyses: [] } },
+    );
+    const run = await materializeSimulationRunEvidence(
+      {
+        resultPreview: true,
+        artifacts: [artifact("result.json"), artifact("specs.json")],
+      },
+      read,
+    );
+    expect(run.outputData).toEqual({
+      schemaVersion: 1,
+      analyses: [],
+      diagnostics: [],
+      specs,
+    });
+    expect(run.resultPreview).toBe(false);
+    expect(read.mock.calls.map(([value]) => value.name)).toEqual([
+      "result.json",
+      "specs.json",
+    ]);
+  });
 });

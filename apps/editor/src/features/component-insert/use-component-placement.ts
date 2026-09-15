@@ -497,12 +497,16 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
   };
 
   const placeNewCellPin = (
-    symbolId: "port" | "port-filled",
+    symbolId: "port" | "port-filled" | "vdd-port",
     position: Point,
     placementRequest: PendingComponentPlacement,
   ): void => {
     const id = nextInstanceId(options.document, symbolId);
-    if (placementRequest.kind !== "cell-pin" || !placementRequest.direction)
+    const supply = symbolId === "vdd-port";
+    if (
+      !supply &&
+      (placementRequest.kind !== "cell-pin" || !placementRequest.direction)
+    )
       return;
     const instance = {
       id,
@@ -518,6 +522,7 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
       options.resolver,
       instance,
       options.visibleEndpoints,
+      supply ? { powerMarker: false } : undefined,
     );
     if (contact.rejected || contact.ambiguous) {
       options.setStatus(
@@ -535,9 +540,11 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
       : undefined;
     const connectedName = connectedLogicalNet?.name?.trim();
     const formalName =
-      placementRequest.portName?.trim() ||
+      (placementRequest.kind === "cell-pin"
+        ? placementRequest.portName?.trim()
+        : undefined) ||
       connectedName ||
-      nextCellPinName(options.document);
+      (supply ? "VDD" : nextCellPinName(options.document));
     const baseNetId = `net-cell-pin-${id.toLowerCase()}`;
     let netId = contact.netId ?? baseNetId;
     let netSuffix = 2;
@@ -568,14 +575,37 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
               newNetId: netId,
             },
           ]),
+      ...(supply
+        ? planInitialMosBulkDefault(options.document, "vdd", netId)
+        : []),
     ];
-    const annotations = defaultInstanceDisplayAnnotations(
-      options.document,
-      instance,
-      options.resolver,
-      options.styleProfile,
-      { formalTerminalId: `terminal-${id.toLowerCase()}` },
-    );
+    const terminalId = `terminal-${id.toLowerCase()}`;
+    const resolvedSupply = supply
+      ? options.resolver.resolve(instance.symbolId)
+      : undefined;
+    const annotations =
+      supply && resolvedSupply
+        ? [
+            {
+              ...vddPowerLabelAnnotation({
+                instance,
+                resolved: resolvedSupply,
+                netId,
+                grid: options.document.presentation.grid,
+              }),
+              binding: {
+                kind: "cell-terminal-name" as const,
+                terminalId,
+              },
+            },
+          ]
+        : defaultInstanceDisplayAnnotations(
+            options.document,
+            instance,
+            options.resolver,
+            options.styleProfile,
+            { formalTerminalId: terminalId },
+          );
     const annotation = annotations[0] ? { ...annotations[0] } : undefined;
     const committed = options.transactProject(
       "place-cell-pin",
@@ -583,10 +613,13 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
         instance,
         connectionEdits,
         terminal: {
-          id: `terminal-${id.toLowerCase()}`,
+          id: terminalId,
           name: formalName,
           netId,
-          direction: placementRequest.direction,
+          direction:
+            supply || placementRequest.kind !== "cell-pin"
+              ? "inout"
+              : placementRequest.direction!,
           interfaceInstanceIds: [id],
         },
         ...(annotation ? { annotation } : {}),
@@ -596,7 +629,7 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
     options.selectOnly("instance", [id]);
     options.setComponentPreviewPoint(position);
     options.setStatus(
-      `Added Cell Pin ${formalName} · click to place another · Esc exits`,
+      `Added ${supply ? "VDD Power Cell Pin" : "Cell Pin"} ${formalName} · click to place another · Esc exits`,
     );
   };
 
@@ -889,9 +922,12 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
     } else if (options.pendingComponentPlacement.kind === "retained-instance") {
       const instanceId = options.pendingComponentPlacement.instanceId;
       if (instanceId) placeRetainedInstance(instanceId, point);
-    } else if (options.pendingComponentPlacement.kind === "cell-pin") {
+    } else if (
+      options.pendingComponentPlacement.kind === "cell-pin" ||
+      options.pendingSymbolId === "vdd-port"
+    ) {
       placeNewCellPin(
-        options.pendingSymbolId as "port" | "port-filled",
+        options.pendingSymbolId as "port" | "port-filled" | "vdd-port",
         point,
         options.pendingComponentPlacement,
       );

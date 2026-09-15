@@ -266,6 +266,29 @@ describe("CircuitProject schema", () => {
     expect(SchematicDocumentSchema.safeParse(document).success).toBe(true);
   });
 
+  it("accepts VDD Power as the owner of a formal Cell terminal", () => {
+    const document = createEmptyProject("vdd-cell-pin", "VDD Cell Pin")
+      .documents[0]!;
+    document.instances.push({
+      id: "VDD1",
+      symbolId: "vdd-port",
+      placement: null,
+    });
+    document.nets.push({
+      id: "net-vdd",
+      terminals: [{ instanceId: "VDD1", pinName: "P" }],
+    });
+    document.netlist!.terminals.push({
+      id: "terminal-vdd1",
+      name: "VDD",
+      netId: "net-vdd",
+      direction: "inout",
+      interfaceInstanceIds: ["VDD1"],
+    });
+
+    expect(SchematicDocumentSchema.safeParse(document).success).toBe(true);
+  });
+
   it("holds electrical objects to the Document grid while annotations position freely", () => {
     const document = createEmptyProject("project-grid", "Grid").documents[0]!;
     // Schema 32 retains 1-unit-precise drafting and annotation anchors.

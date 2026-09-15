@@ -159,7 +159,7 @@ function fixture() {
   const service = new SimulationService(files, executor, () => project);
   return { files, executor, service, project, release };
 }
-async function prepareRaw(f: ReturnType<typeof fixture>) {
+async function prepareRaw(f: ReturnType<typeof fixture>, source = deck) {
   const created = await f.files.handle({ action: "create" });
   if (!created.ok || !("workspace" in created)) throw Error("create");
   await f.files.handle({
@@ -168,7 +168,7 @@ async function prepareRaw(f: ReturnType<typeof fixture>) {
     expectedRevision: 0,
     entry: "deck.cir",
     writes: [
-      { path: "deck.cir", text: deck },
+      { path: "deck.cir", text: source },
       {
         path: "experiment.json",
         text: JSON.stringify({
@@ -195,6 +195,170 @@ async function prepareRaw(f: ReturnType<typeof fixture>) {
   return { prepared, workspaceId: created.workspace.id };
 }
 describe("shared simulation lifecycle", () => {
+  it("delivers the same captured Spec report through run reads and artifacts", async () => {
+    const f = fixture();
+    const source = deck
+      .replace(".control", "* @spec peak <= 2 unit=V\n.control")
+      .replace("op\n", "op\nmeas tran peak MAX v(out)\n");
+    vi.mocked(f.executor.execute).mockImplementation(async (input) => ({
+      result: { ...(await result(input)).result, log: "peak = 1.8" },
+      rawfile: "raw numbers",
+    }));
+    const { prepared } = await prepareRaw(f, source);
+    const started = unwrap(
+      await f.service.handle(
+        {
+          operation: "start",
+          preparedId: prepared.id,
+          digest: prepared.digest,
+        },
+        "spec-start",
+      ),
+      "run",
+    );
+    await vi.waitFor(async () =>
+      expect(
+        unwrap(
+          await f.service.handle(
+            { operation: "read", runId: started.id },
+            "spec-read",
+          ),
+          "run",
+        ).state,
+      ).toBe("finished"),
+    );
+    const finished = unwrap(
+      await f.service.handle(
+        { operation: "read", runId: started.id },
+        "spec-final",
+      ),
+      "run",
+    );
+    expect(finished.outputData?.specs).toMatchObject({
+      runId: started.id,
+      preparedId: prepared.id,
+      inputDigest: prepared.digest,
+      results: [{ name: "peak", value: 1.8, judgment: "pass" }],
+    });
+    const artifact = finished.artifacts.find((a) => a.name === "specs.json")!;
+    const read = await f.files.handle({
+      action: "artifact",
+      artifactId: artifact.id,
+    });
+    if (!read.ok || !("text" in read)) throw Error("Missing Spec artifact");
+    expect(JSON.parse(read.text)).toEqual(finished.outputData?.specs);
+    expect(finished.artifacts.map((a) => a.name)).toEqual(
+      expect.arrayContaining(["out.raw", "specs.csv", "log.txt"]),
+    );
+    expect(finished.outputData).toEqual({
+      schemaVersion: 1,
+      analyses: [],
+      diagnostics: [],
+      specs: finished.outputData!.specs,
+    });
+    expect(
+      finished.artifacts
+        .filter((a) => a.name.endsWith(".csv"))
+        .map((a) => a.name)
+        .sort(),
+    ).toEqual(["op-0.csv", "specs.csv"]);
+    expect(finished.artifacts.map((a) => a.name)).not.toEqual(
+      expect.arrayContaining(["outputs.json"]),
+    );
+    expect(finished.artifacts.map((a) => a.name)).not.toEqual(
+      expect.arrayContaining(["native-measurements.json"]),
+    );
+    await f.service.clear();
+  });
+  it("hands off one complete AC CSV and only authored metrics, with no automatic summaries", async () => {
+    const f = fixture();
+    const source = deck.replace(
+      "op\n",
+      "ac dec 80 10 1Meg\nmeas ac gain_at_fc FIND v(out) AT=1591.55\n",
+    );
+    const analysis = {
+      analysis: "ac" as const,
+      plotName: "AC Analysis",
+      frequencyHz: [10, 1591.55],
+      probes: [
+        {
+          name: "v(out)",
+          quantity: "voltage",
+          unit: "V",
+          real: [0.99, 0.5],
+          imag: [-0.01, -0.5],
+        },
+      ],
+    };
+    vi.mocked(f.executor.execute).mockImplementation(async (input) => ({
+      result: {
+        ...(await result(input)).result,
+        log: "gain_at_fc = 0.5",
+        data: { schemaVersion: 1, analyses: [analysis] },
+      },
+      rawfile: "captured raw",
+    }));
+    const { prepared } = await prepareRaw(f, source);
+    const started = unwrap(
+      await f.service.handle(
+        {
+          operation: "start",
+          preparedId: prepared.id,
+          digest: prepared.digest,
+        },
+        "ac-start",
+      ),
+      "run",
+    );
+    await vi.waitFor(async () =>
+      expect(
+        unwrap(
+          await f.service.handle(
+            { operation: "read", runId: started.id },
+            "ac-poll",
+          ),
+          "run",
+        ).state,
+      ).toBe("finished"),
+    );
+    const finished = unwrap(
+      await f.service.handle(
+        { operation: "read", runId: started.id },
+        "ac-read",
+      ),
+      "run",
+    );
+    expect(finished.result?.data?.analyses).toEqual([analysis]);
+    expect(finished.outputData).toEqual({
+      schemaVersion: 1,
+      analyses: [],
+      diagnostics: [],
+      specs: expect.objectContaining({
+        results: [
+          expect.objectContaining({
+            name: "gain_at_fc",
+            value: 0.5,
+            judgment: "unconstrained",
+          }),
+        ],
+      }),
+    });
+    expect(
+      finished.artifacts
+        .filter((a) => a.name.endsWith(".csv"))
+        .map((a) => a.name)
+        .sort(),
+    ).toEqual(["ac-0.csv", "specs.csv"]);
+    const csv = finished.artifacts.find((a) => a.name === "ac-0.csv")!;
+    const read = await f.files.handle({
+      action: "artifact",
+      artifactId: csv.id,
+    });
+    if (!read.ok || !("text" in read)) throw Error("Missing AC CSV");
+    expect(read.text).toContain("1591.55,0.5,-0.5");
+    expect(read.text).toContain("0.99,-0.01");
+    await f.service.clear();
+  });
   it("prepares every saved folder before running a batch sequentially", async () => {
     const files = new SimulationFiles();
     const project = createEmptyProject("batch-project", "Batch", "doc");

@@ -1,6 +1,6 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { galleryEntryMatchesQuery } from "../../gallery-client";
 import { libraryProjectExamples } from "../../examples/library-examples";
@@ -23,6 +23,25 @@ function entry(
 }
 
 describe("ExamplesPanel", () => {
+  it("does not resolve or render example projects while closed", () => {
+    const reads = libraryProjectExamples.map((example) =>
+      vi.spyOn(example, "project", "get").mockImplementation(() => {
+        throw new Error("closed panel read a project");
+      }),
+    );
+    try {
+      const markup = renderToStaticMarkup(
+        createElement(ExamplesPanel, {
+          open: false,
+          onOpenExample: () => undefined,
+        }),
+      );
+      expect(markup).not.toContain("<svg");
+      for (const read of reads) expect(read).not.toHaveBeenCalled();
+    } finally {
+      reads.forEach((read) => read.mockRestore());
+    }
+  });
   it("presents every bundled example outside the Library device panel", () => {
     const markup = renderToStaticMarkup(
       createElement(ExamplesPanel, {
@@ -32,6 +51,7 @@ describe("ExamplesPanel", () => {
     );
 
     expect(markup).toContain('data-testid="examples-panel"');
+    expect(markup).toContain("<svg");
     expect(markup).not.toContain('data-testid="shapes-fold-library"');
     expect(markup.match(/data-testid="shapes-example-/g)).toHaveLength(
       libraryProjectExamples.length,

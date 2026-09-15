@@ -7,7 +7,7 @@ pnpm install --frozen-lockfile
 pnpm dev
 ```
 
-Open the displayed loopback URL. Open **File** and use **Import SPICE** to
+Open the displayed loopback URL. Open **File** and use **Import SPICE / SCS** to
 select one `.cir`, `.sp`, or `.spi` entry plus its local include files.
 Imported instances begin unplaced so that the user can decide the presentation.
 A normal launch starts with a genuinely empty `New Circuit` Document for
@@ -43,16 +43,20 @@ is defined.
   uncommitted bend and `Escape` cancels the session.
 - Select any route segment to expose its movement handle. Drag the handle
   perpendicular to that segment to stretch adjacent geometry without rerouting
-  the rest of the wire. Use the contextual
+  the rest of the wire. If the moved segment lands exactly on a component pin,
+  the pin connects and a junction dot appears; crossing another wire's
+  interior remains unconnected. Use the contextual
   **Remove route geometry** action to keep logical membership while deleting
   only the drawn route.
 - Select a component and press `Q` to open **Properties**. Its editable
   JSON keeps raw parameters (W/L/NF/M and additional
-  netlist overrides), `netlistName` and target netlist together with position as
-  `"at": [x, y]`, plus 45-degree-step
+  netlist overrides), the independent visual `displayName`, `netlistName`, and
+  target netlist together with position as `"coordinate": [x, y]`, plus 45-degree-step
   rotation, mirror, supported Visual annotation/Value visibility, and line color.
-  The `display` block appears first for quick access. The code area is ordinary
-  selectable raw JSON. `netlistName` is the exported electrical instance name;
+  Placement, appearance, and display stay at the top. The code area is ordinary
+  selectable raw JSON. Press Enter to confirm without inserting a line break;
+  use Shift+Enter when you want a new JSON line. `displayName` changes only the
+  drawing label, while `netlistName` is the exported electrical instance name;
   `display.visualAnnotation` only controls the drawing label. Declared parameter
   units appear beside their JSON values without becoming data, and
   `netlistTarget` has a compact inline selector. Type values directly, use the
@@ -61,7 +65,7 @@ is defined.
   `placement.rotation` and `placement.mirror` to rotate clockwise, mirror
   left/right, or mirror top/bottom. Mirror is written as `"horizontal"`,
   `"vertical"`, or `"both"` and never changes the rotation value. Use the color button after
-  `appearance.foreground` for light gray, red, green, blue, black, and one RGB
+  `appearance.color` for light gray, red, green, blue, black, and one RGB
   tuple input such as `[220,38,38]`.
   Differential-input blocks expose `appearance.inputsSwapped`; fully
   differential amplifiers also expose `appearance.outputsSwapped`. Edit these
@@ -71,7 +75,8 @@ is defined.
   These controls are visual only and are absent from selected, copied, and
   saved JSON. Fixed colors display as
   `[R, G, B]` (0–255); hex input also works. Type `"auto"` directly to inherit
-  document ink. Component background color is not authored.
+  document ink. Components expose no `background` or `fillColor`; those belong
+  only to drawable shapes that can contain paint.
   Valid edits update the drawing immediately; invalid or rejected edits keep
   the last accepted drawing. Undo restores prior edits. Parameter values are strings: type unit suffixes
   yourself; `EV` remains `EV`, and `2u` is not changed to `2um`.
@@ -90,6 +95,9 @@ is defined.
   **Draw** lets you make an explicit route. The dashed route follows the MOS
   line color; selecting it shows a Bulk-specific action instead of ordinary
   wire styling controls. Place an unplaced device first.
+- An unconnected Bulk does not block a netlist: NMOS defaults to ground `0` and
+  PMOS defaults to global `VDD`. Drawing or configuring a Bulk connection uses
+  that actual Net instead; the export default does not modify the saved canvas.
 - Right-click an endpoint for the distinct **Disconnect endpoint** and
   **Delete connection** actions.
 - `Delete` on a connected component now removes the component while preserving
@@ -124,7 +132,7 @@ Select components together with Shift-click or a selection rectangle, then
 press `Q`. Properties shows one editable JSON block. Shared colors and values
 are displayed; differences appear as `""`. Color compares the actual document
 ink, so inherited black and explicitly assigned black show the same RGB value.
-Set `appearance.foreground` through its swatch, RGB, or hex to recolor all
+Set `appearance.color` through its swatch, RGB, or hex to recolor all
 selected components, including different types. For one component type, edit
 `parameters.value` (or individual parameters such as MOS `w` and `l`) together.
 Blank parameters keep each component's existing value. The `symbol` field
@@ -255,20 +263,80 @@ runs automatically while drawing. Further edits mark the last check out of
 date and hide its markers; check again to refresh it. Save still proceeds
 when issues exist, and an offline or signed-out save still leaves the local
 check available. This command does not repair Bulk connections or rewrite
-the circuit. **File / Save** and **Ctrl+S** remain save-only.
+the circuit. A Route segment that is neither horizontal, vertical, nor exactly
+45° appears as an actionable wiring issue. **Straighten angled wires in this
+Cell** replaces only those segments with local right-angle corners in one
+undoable edit; intentional 45° segments stay unchanged. Locked and trunk Routes
+remain listed for manual repair. **File / Save** and **Ctrl+S** remain save-only.
 
-For an electrical design netlist, choose **Netlist / Check Report** instead.
-The dialog reports structural netlist findings and current-revision ERC
-readiness separately; the ERC section is the same evidence used by Gallery.
-When a structural IR is available, it previews the deterministic SPICE or
-Spectre text. Use either the dialog's
-download button or **File / Export netlist / SPICE** and **File / Export netlist / Spectre** to
-download it. These files contain structure only: they do not add PDK includes,
-models, corners, stimuli, analyses, or simulator options.
+Click the top **Netlist · SPICE** copy button to put the netlist on the clipboard
+and open its live code in the right sidebar. The adjacent arrow offers
+**Copy Spectre netlist** (SCS) and **Copy SPICE netlist**; either copies immediately
+and remembers that format for the editor session. Editing the circuit refreshes
+the visible code. Clipboard failures leave the code selectable for manual copy.
 
-File-menu export opens the preflight dialog before downloading when warnings
-need review. An explicitly marked NoConnect is shown as a generated floating
-node such as `NC0001`; an unmarked open pin remains a blocking error.
+**Netlist / Instances…** opens the Project's netlist instances as one editable
+JSON document in the right sidebar. Paste whole blocks to change references,
+model bindings and parameters together. Outer keys are Cell IDs; inner keys are
+stable instance IDs. Edit `reference` to renumber, `target` for the typed model
+binding, or `parameters` for values. `symbol` is read-only. Omitted instances and
+fields remain unchanged; a supplied `parameters` object replaces that instance's
+parameter set, so deleting a parameter clears it. Valid edits apply together;
+invalid JSON or conflicting references leave the circuit unchanged. **Edit / Undo**
+and **Redo** undo or restore the complete batch.
+
+**Netlist / Configuration…** opens one raw JSON document in the right Properties
+panel. Copy, paste, or replace the whole configuration. Set `selected` to
+`abstract`, `sky130`, or `custom`; edit the corresponding entry under `profiles`.
+Valid edits apply immediately and are remembered in this browser. Invalid JSON
+pauses copying until corrected. The circuit itself is unchanged.
+
+- `abstract`: ideal R/C/L and generic NMOS/PMOS model names, with editable
+  fallback values and dimensions. No transistor model cards are invented.
+- `sky130`: real SKY130 transistor wrappers, with ideal R/C by default. For
+  physical R/C, set the target to `sky130_fd_pr__res_high_po` or
+  `sky130_fd_pr__cap_mim_m3_1` and supply `w`/`l` in metres (for example `5u`),
+  plus `mult` or `mf`. The resistor's `substrate` defaults to `0`. Ideal values
+  are not converted into geometry. Set `library.path` and `library.section`
+  for your installed PDK. SCS exports use a SPICE-language section for that
+  same SPICE library.
+- `custom`: keep authored component targets, and fill missing fields from your
+  editable defaults. Existing component values always take priority.
+
+For every preset, an omitted MOS bulk uses `0` for NMOS and global `VDD` for
+PMOS. An explicit Bulk connection or NoConnect takes precedence.
+
+Fields still missing after these defaults use undefined `TODO_…` placeholders;
+the sidebar and Check Report identify incomplete output. The Project stays
+unchanged. Existing values, connections, and formal pin order are retained.
+Copied code contains no generated comments; detailed findings remain in Check
+Report. SPICE keeps an empty first title line so a simulator does not consume
+the first directive. An explicitly marked NoConnect becomes a floating node
+such as `NC0001`; structural errors such as an unmarked non-bulk open pin,
+conflicting names, or unsupported devices show an error instead of stale or
+partial code.
+
+Choose the arrow beside Netlist, then **Check Report** to inspect the same
+SPICE/Spectre preview, change the naming profile, or navigate to a finding.
+The report lists structural findings and current-revision ERC readiness
+separately. The export includes the library path/section you configured, but does
+not add model cards, analyses, or a complete testbench. Exporting a file does not
+make the circuit ready for simulation.
+
+## Import Spectre / SCS
+
+Use **File / Import SPICE / SCS…** and select one `.scs` entry together with
+its local include files. `circuit.scs` is recognized as the entry when several
+netlist files are selected. Conversion happens in the browser and works locally.
+The converted structure uses the existing import and placement flow. Errors
+show the source filename and line, and leave your current circuit unchanged.
+
+The converter supports common structural devices, ordered subcircuits, parameters,
+DC/AC/PULSE/SIN/PWL sources and simple OP/AC/DC/TRAN analyses. It preserves a
+SPICE-language section in SCS. Unsupported parameters, native model syntax,
+behavioral expressions and ngspice control scripts cannot be translated into
+native Spectre; they produce an error instead of a partial circuit. Simulation
+source folders remain the place for complete original testbenches.
 
 ## Portable release
 
@@ -276,7 +344,7 @@ Build the versioned bundle and start it with Node 24:
 
 ```powershell
 pnpm release:package
-node output/release/interactive-circuit-maker-v0.6.0/start.mjs
+node output/release/interactive-circuit-maker-v0.7.0/start.mjs
 ```
 
 Open `http://127.0.0.1:4173`. Chromium can install the app from its browser

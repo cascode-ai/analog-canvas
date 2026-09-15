@@ -1362,6 +1362,30 @@
                           "power-rail"
                         ]
                       },
+                      "styleOverride": {
+                        "type": "object",
+                        "properties": {
+                          "color": {
+                            "$ref": "#/$defs/__schema23"
+                          },
+                          "lineStyle": {
+                            "type": "string",
+                            "enum": [
+                              "solid",
+                              "dashed",
+                              "dotted"
+                            ]
+                          },
+                          "arrow": {
+                            "type": "string",
+                            "enum": [
+                              "middle",
+                              "end"
+                            ]
+                          }
+                        },
+                        "additionalProperties": false
+                      },
                       "polyline": {
                         "anyOf": [
                           {

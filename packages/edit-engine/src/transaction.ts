@@ -29,7 +29,10 @@ import {
   reconcileTransformDirectContacts,
   transformMaySeparateDirectContact,
 } from "./transaction-direct-contact.js";
-import { nextPhysicalContactOperation } from "./transaction-connectivity-normalizer.js";
+import {
+  newlyTouchedRouteTerminals,
+  nextPhysicalContactOperation,
+} from "./transaction-connectivity-normalizer.js";
 import { applyCellResetEdit } from "./transaction-cell-reset.js";
 import { applyCellInterfaceEdit } from "./transaction-cell-interface.js";
 import { applyInstanceLifecycleEdit } from "./transaction-instance-lifecycle.js";
@@ -45,6 +48,7 @@ import { applyRouteTopologyEdit } from "./transaction-route-topology.js";
 import { applyPresentationLayoutEdit } from "./transaction-presentation-layout.js";
 import {
   mergeBaseNets,
+  physicalContactPointKey,
   physicalContactLicenseForTransaction,
   preferredPhysicalMergeTarget,
   pruneUnreachableLocalNet,
@@ -691,6 +695,25 @@ export function executeTransaction(
     // an otherwise local edit into a whole-document geometry repair.
     const physicalContactLicense =
       physicalContactLicenseForTransaction(transaction);
+    for (const contact of newlyTouchedRouteTerminals(
+      document,
+      draft,
+      resolver,
+      explicitlyAuthoredRouteIds,
+    )) {
+      // A Route and terminal translated in the same transform preserve their
+      // previous relative geometry. Comparing the terminal's new absolute
+      // point against the old Route can otherwise misclassify an existing
+      // corner overlap as a new contact and short two pins on the moved part.
+      // Explicit instance-drop planners own intentional contacts for moved
+      // terminals; this detector repairs Routes moved onto static terminals.
+      if (transformedInstanceIds.has(contact.endpoint.instanceId)) continue;
+      const points =
+        physicalContactLicense.routeGeometryPoints.get(contact.routeId) ??
+        new Set<string>();
+      points.add(physicalContactPointKey(contact.point));
+      physicalContactLicense.routeGeometryPoints.set(contact.routeId, points);
+    }
     const suppressedPhysicalEndpointKeys = new Set(
       transaction.edits.flatMap((edit) =>
         edit.kind === "disconnect_endpoint" ? [endpointKey(edit.endpoint)] : [],
@@ -916,14 +939,18 @@ export function executeTransaction(
         physicalContactLicense.objectIds.add(split.first.id);
         physicalContactLicense.objectIds.add(split.second.id);
       }
-      const licensedPoints = physicalContactLicense.routePoints.get(route.id);
-      if (licensedPoints) {
-        for (const productId of [split.first.id, split.second.id]) {
-          const points =
-            physicalContactLicense.routePoints.get(productId) ??
-            new Set<string>();
-          for (const point of licensedPoints) points.add(point);
-          physicalContactLicense.routePoints.set(productId, points);
+      for (const routePointLicenses of [
+        physicalContactLicense.routePoints,
+        physicalContactLicense.routeGeometryPoints,
+      ]) {
+        const licensedPoints = routePointLicenses.get(route.id);
+        if (licensedPoints) {
+          for (const productId of [split.first.id, split.second.id]) {
+            const points =
+              routePointLicenses.get(productId) ?? new Set<string>();
+            for (const point of licensedPoints) points.add(point);
+            routePointLicenses.set(productId, points);
+          }
         }
       }
       changedObjectIds.add(route.netId);
@@ -1014,10 +1041,12 @@ export function executeTransaction(
     const message =
       introducedNetContractIssue.code === "CONFLICTING_LOGICAL_NET_SCOPE"
         ? "Transaction introduces conflicting Logical Net scopes"
-        : introducedNetContractIssue.code ===
-            "CONFLICTING_LOGICAL_NET_POWER_DOMAIN"
-          ? "Transaction connects incompatible power markers"
-          : "Transaction introduces conflicting Logical Net names";
+        : introducedNetContractIssue.code === "FORMAL_PORT_GLOBAL_NET_CONFLICT"
+          ? "Transaction makes one Logical Net both a formal Cell Pin and a Global Net"
+          : introducedNetContractIssue.code ===
+              "CONFLICTING_LOGICAL_NET_POWER_DOMAIN"
+            ? "Transaction connects incompatible power markers"
+            : "Transaction introduces conflicting Logical Net names";
     return rejectTransaction(
       document,
       "INVALID_RESULT",

@@ -25,10 +25,12 @@ const PropertyJsonEditor = lazy(
 
 export interface ComponentPropertyCodeEditorProps {
   instance: Instance;
+  displayName?: string | null;
   revision: number;
   referenceVisible: boolean | null;
   valueVisible: boolean | null;
   parameterVisibility?: Record<string, boolean>;
+  connection?: "cell-pin" | "global" | null;
   netName?: string | null;
   defaultForeground?: string;
   details?: ComponentPropertyCodeContext["details"];
@@ -41,10 +43,12 @@ export interface ComponentPropertyCodeEditorProps {
 /** Compact editable JSON for placement, display, and appearance. */
 export function ComponentPropertyCodeEditor({
   instance,
+  displayName,
   revision,
   referenceVisible,
   valueVisible,
   parameterVisibility,
+  connection,
   netName,
   defaultForeground = "#000000",
   details,
@@ -54,17 +58,21 @@ export function ComponentPropertyCodeEditor({
   const context = useMemo<ComponentPropertyCodeContext>(
     () => ({
       instance,
+      ...(displayName !== undefined ? { displayName } : {}),
       referenceVisible,
       valueVisible,
       ...(parameterVisibility ? { parameterVisibility } : {}),
+      ...(connection !== undefined ? { connection } : {}),
       ...(netName !== undefined ? { netName } : {}),
       ...(details ? { details } : {}),
     }),
     [
       instance,
+      displayName,
       referenceVisible,
       valueVisible,
       parameterVisibility,
+      connection,
       netName,
       details,
     ],

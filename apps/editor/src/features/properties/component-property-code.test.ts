@@ -36,12 +36,12 @@ describe("component property code", () => {
   it("formats placement as one coordinate and makes display/style explicit", () => {
     expect(formatComponentPropertyCode(context)).toBe(`{
   "placement": {
-    "at": [360, 240],
+    "coordinate": [360, 240],
     "rotation": 90,
     "mirror": "none"
   },
   "appearance": {
-    "foreground": "auto"
+    "color": "auto"
   },
   "display": {
     "visualAnnotation": true,
@@ -82,14 +82,56 @@ describe("component property code", () => {
       .replace('"rotation": 90', '"rotation": 180')
       .replace('"mirror": "none"', '"mirror": "horizontal"')
       .replace('"value": false', '"value": true')
-      .replace('"foreground": "auto"', '"foreground": "#DC2626"');
+      .replace('"color": "auto"', '"color": "#DC2626"');
     expect(parseComponentPropertyCode(source, context)).toEqual({
       ok: true,
       value: {
-        placement: { at: [420, 240], rotation: 180, mirror: "horizontal" },
+        placement: {
+          coordinate: [420, 240],
+          rotation: 180,
+          mirror: "horizontal",
+        },
         display: { visualAnnotation: true, value: true },
-        appearance: { foreground: "#DC2626" },
+        appearance: { color: "#DC2626" },
       },
+    });
+  });
+
+  it("keeps the visual display name independent from the netlist name", () => {
+    const namedContext = {
+      ...context,
+      displayName: "RL",
+      details: { parameters: [] },
+    };
+    const source = formatComponentPropertyCode(namedContext);
+    const decoded = JSON.parse(source);
+    expect(decoded.displayName).toBe("RL");
+    expect(decoded.netlistName).toBe("R1");
+    decoded.displayName = "load";
+    expect(
+      parseComponentPropertyCode(JSON.stringify(decoded), namedContext),
+    ).toMatchObject({
+      ok: true,
+      value: { displayName: "load", netlistName: "R1" },
+    });
+    delete decoded.displayName;
+    expect(
+      parseComponentPropertyCode(JSON.stringify(decoded), namedContext),
+    ).toEqual({
+      ok: false,
+      message: "displayName is required for this component",
+    });
+  });
+
+  it("rejects the retired placement.at key", () => {
+    const decoded = JSON.parse(formatComponentPropertyCode(context));
+    decoded.placement.at = decoded.placement.coordinate;
+    delete decoded.placement.coordinate;
+    expect(
+      parseComponentPropertyCode(JSON.stringify(decoded), context),
+    ).toEqual({
+      ok: false,
+      message: "placement.at is not a supported property",
     });
   });
 
@@ -103,14 +145,16 @@ describe("component property code", () => {
       message: "placement.rotation must be 0, 45, 90, 135, 180, 225, 270, 315",
     });
 
-    const extra = formatComponentPropertyCode(context).replace(
-      '"foreground": "auto"',
-      '"foreground": "auto", "background": "#ffffff"',
-    );
-    expect(parseComponentPropertyCode(extra, context)).toEqual({
-      ok: false,
-      message: "appearance.background is not a supported property",
-    });
+    for (const retired of ["foreground", "background", "fillColor"]) {
+      const extra = formatComponentPropertyCode(context).replace(
+        '"color": "auto"',
+        `"color": "auto", "${retired}": "#ffffff"`,
+      );
+      expect(parseComponentPropertyCode(extra, context)).toEqual({
+        ok: false,
+        message: `appearance.${retired} is not a supported property`,
+      });
+    }
   });
 
   it("omits display for a component with no display capability", () => {
@@ -124,19 +168,34 @@ describe("component property code", () => {
     expect(parseComponentPropertyCode(source, noDisplayContext).ok).toBe(true);
   });
 
-  it("keeps a supply marker's Net name in the same editable code surface", () => {
+  it("keeps a supply marker's connection and Net name in the same editable code surface", () => {
     const supplyContext = {
       instance: { ...instance, symbolId: "vdd-port", reference: undefined },
       referenceVisible: null,
       valueVisible: null,
+      connection: "global" as const,
       netName: "VDD",
     };
     const decoded = JSON.parse(formatComponentPropertyCode(supplyContext));
+    expect(decoded.connection).toBe("global");
     expect(decoded.netName).toBe("VDD");
+    decoded.connection = "cell-pin";
     decoded.netName = " AVDD ";
     expect(
       parseComponentPropertyCode(JSON.stringify(decoded), supplyContext),
-    ).toMatchObject({ ok: true, value: { netName: "AVDD" } });
+    ).toMatchObject({
+      ok: true,
+      value: { connection: "cell-pin", netName: "AVDD" },
+    });
+
+    decoded.connection = "project";
+    expect(
+      parseComponentPropertyCode(JSON.stringify(decoded), supplyContext),
+    ).toEqual({
+      ok: false,
+      message: 'connection must be "cell-pin" or "global"',
+    });
+    decoded.connection = "global";
 
     delete decoded.netName;
     expect(
@@ -145,6 +204,26 @@ describe("component property code", () => {
       ok: false,
       message: "netName is required for this component",
     });
+    decoded.netName = "VDD";
+    delete decoded.connection;
+    expect(
+      parseComponentPropertyCode(JSON.stringify(decoded), supplyContext),
+    ).toEqual({
+      ok: false,
+      message: "connection is required for this component",
+    });
+
+    const cellPinContext = {
+      ...supplyContext,
+      connection: "cell-pin" as const,
+      netName: null,
+    };
+    const cellPinCode = JSON.parse(formatComponentPropertyCode(cellPinContext));
+    expect(cellPinCode.connection).toBe("cell-pin");
+    expect(cellPinCode).not.toHaveProperty("netName");
+    expect(
+      parseComponentPropertyCode(JSON.stringify(cellPinCode), cellPinContext),
+    ).toMatchObject({ ok: true, value: { connection: "cell-pin" } });
   });
 
   it("keeps tray membership outside free-form property edits", () => {
@@ -160,13 +239,13 @@ describe("component property code", () => {
 
   it("accepts RGB authoring, persists hex, and displays fixed colors as compact RGB", () => {
     const decoded = JSON.parse(formatComponentPropertyCode(context));
-    decoded.appearance.foreground = [255, 0, 128];
+    decoded.appearance.color = [255, 0, 128];
     const parsed = parseComponentPropertyCode(JSON.stringify(decoded), context);
     expect(parsed.ok).toBe(true);
     if (!parsed.ok) throw new Error(parsed.message);
-    expect(parsed.value.appearance).toEqual({ foreground: "#ff0080" });
+    expect(parsed.value.appearance).toEqual({ color: "#ff0080" });
     const formatted = serializeComponentPropertyCode(parsed.value);
-    expect(formatted).toContain('"foreground": [255, 0, 128]');
+    expect(formatted).toContain('"color": [255, 0, 128]');
     expect(parseComponentPropertyCode(formatted, context)).toEqual(parsed);
   });
 
@@ -180,7 +259,7 @@ describe("component property code", () => {
     [null, 0, 0],
   ])("rejects invalid RGB channels %j", (...channels) => {
     const decoded = JSON.parse(formatComponentPropertyCode(context));
-    decoded.appearance.foreground = channels;
+    decoded.appearance.color = channels;
     expect(
       parseComponentPropertyCode(JSON.stringify(decoded), context).ok,
     ).toBe(false);
@@ -202,7 +281,7 @@ describe("component property code", () => {
     };
     const decoded = JSON.parse(formatComponentPropertyCode(opampContext));
     expect(decoded.appearance).toEqual({
-      foreground: "auto",
+      color: "auto",
       internalMark: "G",
       inputsSwapped: false,
     });

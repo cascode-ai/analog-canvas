@@ -189,6 +189,13 @@ export function simulationArtifactCategory(artifact: ArtifactRef): string {
 export function simulationExplorerArtifactCategory(
   artifact: ArtifactRef,
 ): "Results" | "Logs" | null {
+  // Older archives may contain retired projections. Preserve their bytes for
+  // diagnostic export without advertising multiple answers in the Explorer.
+  if (
+    artifact.name.startsWith("outputs-") ||
+    ["measurements.csv", "device-operating-points.csv"].includes(artifact.name)
+  )
+    return null;
   const category = simulationArtifactCategory(artifact);
   return category === "Results"
     ? "Results"

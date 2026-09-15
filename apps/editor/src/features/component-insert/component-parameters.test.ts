@@ -14,6 +14,20 @@ import {
 } from "@icm/devices";
 
 describe("component parameter catalogue", () => {
+  it("exposes a parallel multiplier for both bipolar transistor polarities", () => {
+    for (const symbolId of ["npn", "pnp"]) {
+      expect(componentParameters(symbolId)).toMatchObject([
+        {
+          key: "m",
+          label: "M",
+          defaultValue: "1",
+          help: "Parallel multiplier",
+        },
+      ]);
+      expect(initialComponentParameterValues(symbolId)).toEqual({ m: "1" });
+    }
+  });
+
   it("seeds fixed and adjustable R/L/C values with their physical units", () => {
     expect(componentParameters("resistor")).toMatchObject([
       { key: "value", unit: "Ohm", defaultValue: "1k", help: "Resistance" },

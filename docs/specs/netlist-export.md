@@ -28,7 +28,7 @@ outside this contract.
 - `packages/symbols`: artwork, pin anchors, and Symbol variants validated
   against the device registry
 - `packages/netlist`: extraction, validation, IR, and dialect printers
-- `apps/editor`: authoring, diagnostics, and downloads
+- `apps/editor`: authoring, diagnostics, live output, and clipboard copy
 - `packages/spice`: structural reparse validation for generated `.spi`
 
 ## Terminology
@@ -176,10 +176,12 @@ hint/example/help, and display role). Required export fields are derived from
 
 Pin order names canonical Symbol pins. Hidden or implicit pins remain present.
 Canonical MOS ordering is D/G/S/B. Ground is a Net marker that verifies the
-explicit global Logical Net `0` and emits no instance line. A VDD Port is a
-non-emitting global marker claim with `powerDomain: vdd`. A named Power Rail
-uses the same claim and has no Instance. Only
-an explicitly global Net is emitted through the dialect's global declaration.
+explicit global Logical Net `0` and emits no instance line. Newly authored VDD
+Power is a non-emitting formal Cell Pin with derived `powerDomain: vdd`; its
+Properties connection mode may instead replace that formal terminal with an
+explicit Global marker claim. A named Power Rail has no Instance and defaults
+to a local VDD claim. Only an explicitly global Net is emitted through the
+dialect's global declaration.
 Decorative symbols never have a device definition. An unsupported electrical
 Symbol blocks export.
 
@@ -190,14 +192,19 @@ represented structurally. A display string is not a source specification.
 
 - `Net.terminals` is the only connectivity truth.
 - Named Nets are unique within a cell under case folding.
-- An unnamed local Net receives an ephemeral collision-free `N0001`, `N0002`,
-  ... name in stable Net-ID order. This does not mutate the Project.
+- An unnamed local Net receives an ephemeral collision-free `net0`, `net1`,
+  ... name in stable Logical-Net order. Existing authored names reserve their
+  dialect spelling, so automatic allocation skips conflicts. This does not
+  mutate the Project.
 - Every Net mapped by one projected Formal Port uses that Port name before
   anonymous allocation and therefore receives no generated-name warning.
 - A global Net must have an explicit name.
 - The global Net named `0` is the reference node.
 - Other global Nets are emitted through the dialect's global declaration and
   are not silently converted to cell ports.
+- Except for the established global SPICE ground reference `0`, one Logical
+  Net cannot be both a formal Cell Pin and global; that ambiguity blocks export
+  until the interface mode or the conflicting owner is changed.
 - A terminal belongs to at most one Net.
 - An unconnected terminal must carry an explicit `NoConnect`; otherwise export
   is blocked. Each explicit `NoConnect` receives one deterministic,
@@ -268,12 +275,14 @@ simulator can run them without an external simulation setup.
 ## Diagnostics and failure behavior
 
 Extraction returns structured diagnostics with stable code, severity,
-Document ID, and affected object IDs. Any error prevents printer invocation and
-download. Required error coverage includes:
+Document ID, and affected object IDs. The strict extractor returns no IR when
+any error remains. The copy/export projection below permits explicit TODO
+fields for two omission categories; every other error still prevents printer
+invocation and output. Required error coverage includes:
 
 - invalid cell-terminal, Net, or instance identifiers;
 - missing or mismatched formal terminal mappings;
-- unconnected required terminal without `NoConnect`;
+- unconnected required terminal without `NoConnect`, except an omitted MOS B;
 - unnamed global Net or duplicate explicit Net name;
 - unknown or multiply assigned terminal;
 - missing device definition, required pin, reference, target, or parameter;
@@ -286,6 +295,70 @@ Warnings may report generated local Net names or conflicting directions inside
 one same-name Formal Port group. They cannot downgrade a missing
 electrical fact required for meaningful output.
 
+### Explicit export presets
+
+The export boundary accepts an optional `NetlistExportProfile`. The editor
+ships Abstract, SKY130, and Custom defaults in a single raw JSON configuration
+in the right Properties panel; `selected` chooses the active preset. Valid code
+edits apply immediately, invalid drafts block copying, and browser preferences
+are separate from the Project schema. There are no per-field configuration forms.
+
+Projection copies the Project and visits only the reachable hierarchy. Abstract
+uses ideal R/C/L and generic model names without model cards; SKY130 uses reviewed
+external transistor interfaces and ideal R/C by default; Custom preserves authored
+targets. Defaults fill only missing parameters, case-insensitively. Existing source
+waveforms and AC intent do not acquire a new DC bias from a fallback.
+
+Across all three profiles and strict simulation extraction, an explicit MOS B
+connection wins. If B has neither a Net nor an explicit NoConnect, NMOS emits on
+global `0` and PMOS emits on global `VDD`. The fallback is part of the extracted
+IR only; it does not add a Net, binding, label, or route to the saved Project.
+
+Explicit physical R/C targets use reviewed W/L parameters, never infer geometry
+from an ideal value, and warn when replacing that value. A resistor's existing
+substrate connection wins; an absent substrate may use an explicitly configured
+existing net or exporter-only ground `0`. Reference or target-interface collisions
+block output. Reviewed geometry stays in canonical metres until strict SPICE
+extraction emits the PDK wrapper's micrometre values. Unknown custom subcircuits
+and unresolved hierarchy retain their original interfaces and validation.
+
+Configured library paths and sections are printed as includes outside the pure
+IR printer. SKY130 `.scs` files use `simulator lang=spice` for the same authentic
+SPICE wrapper library; this is not a native Spectre PDK conversion or a claim of
+licensed Spectre qualification. Strict extraction and simulation consumers do not
+implicitly use these export presets.
+
+### Incomplete output
+
+`createDesignNetlistExport` permits output when the only errors are
+`MISSING_MODEL_TARGET` and `MISSING_REQUIRED_PARAMETER`. It copies the Project,
+fills absent model bindings and blank/missing required device parameters with
+undefined `TODO_<cell>_<reference>_<field>` identifiers, and requires that copy
+to pass strict extraction before printing. Authored electrical identifiers and
+expressions are reserved case-insensitively to avoid accidental resolution;
+SPICE parameter placeholders use braces and Spectre uses bare identifiers.
+The returned structured placeholder list and diagnostics identify incomplete output.
+The sidebar and Check Report show that state outside the copied text. The
+projection never writes placeholders into the Project or changes simulation readiness.
+
+Existing conflicting bindings, missing hierarchy interfaces, unsupported devices,
+invalid waveforms, and incomplete connections remain blocking. This projection
+never exports the permissive authoring IR. It cannot omit an invalid device or invent a model definition. Numerical defaults
+and the explicit substrate rule belong only to the selected preset above.
+
+The editor's primary Netlist button copies immediately in its current format
+(SPICE by default) and opens the live right sidebar. Its adjacent menu copies
+the other format and remembers that choice for the session. Clipboard rejection
+leaves selectable code and a status message, without a download fallback.
+
+The copy/export projection removes the strict printer's generated title and
+adds no diagnostic, preset, TODO-summary or library comments. SPICE preserves
+an empty first title line so an entry-file reader does not consume the first
+directive. Native SCS begins with its language declaration before an include.
+Structured diagnostics remain available in the optional Check Report; its
+preview and copy action use the same projection. Strict simulation printers
+and their source locations remain unchanged.
+
 ## Operations and state transitions
 
 ```text
@@ -293,10 +366,12 @@ Project + Symbol definitions
   -> validate and extract DesignNetlistIR
   -> choose SPICE or Spectre printer
   -> deterministic text
-  -> browser download
+  -> live sidebar and clipboard copy
 ```
 
-An electrical edit changes Project revision and invalidates a previous export.
+An electrical edit changes Project revision and refreshes an open netlist sidebar.
+Blocked structure or configuration clears the code instead of displaying stale
+output; copying a blocked result leaves the clipboard unchanged.
 A presentation-only edit may change revision but must not change extracted IR
 or output bytes.
 
@@ -304,8 +379,8 @@ or output bytes.
 
 Cell interfaces and instance electrical data are persisted in the Project.
 Device definitions ship with the Symbol library. Export IR, generated local Net
-names, diagnostics, and output text are transient. PDK libraries and simulation
-profiles are external to this version of the contract.
+names, diagnostics, and output text are transient. PDK model contents and simulation profiles remain external; export preferences
+are browser-local configuration.
 
 ## Valid example
 
@@ -314,18 +389,20 @@ A four-terminal manually authored NMOS has reference `M1`, explicit model
 prints as a model-backed device in both dialects. Moving or rotating it does not
 change either output.
 
-## Rejected example
+## Incomplete and rejected examples
 
 A manually authored NMOS with W/L values but no model target produces a
-blocking missing-target diagnostic. Export must not guess `nmos`, `nch_mac`, or
-a foundry model from its Symbol ID.
+missing-target error in strict analysis. A structural export may mark its
+model `TODO_Main_M1_model` if all other electrical facts are present. Without a selected preset, export must not guess a model. With a preset, the
+configured target and parameter defaults apply. The same
+device with an unconnected, unmarked drain still blocks output.
 
 ## Compatibility boundary
 
 Export accepts only the current Project schema. Retired compatibility
 properties and all non-current schema versions are rejected by persistence
-before extraction. No export path invents a model, child binding, Net
-connection, source specification, library path, or simulator directive.
+before extraction. Only the explicit preset projection may add its documented defaults and library
+include; it never repairs a broken hierarchy or invents foundry model data.
 
 ## Deterministic validation
 
@@ -336,7 +413,7 @@ connection, source specification, library path, or simulator directive.
 - `.spi` reparse and normalized structural equivalence through `packages/spice`
 - Spectre grammar-focused golden tests; licensed simulator parsing only when
   available and never implied otherwise
-- focused editor download and blocked-diagnostic browser flows
+- focused editor clipboard/sidebar, bulk JSON, undo/redo and blocked-diagnostic flows
 - full mainline gate before non-document delivery
 
 ## Deferred simulation-deck contract

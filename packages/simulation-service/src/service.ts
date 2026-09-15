@@ -12,18 +12,8 @@ import {
   type SimulationOperation,
 } from "./contract.js";
 import { SimulationFiles } from "./files.js";
-import {
-  evaluateSimulationOutputs,
-  simulationDeviceOperatingPointsToCsv,
-  simulationOutputAnalysisToCsv,
-} from "./output-evaluation.js";
-import { automaticMeasurementsToCsv } from "./automatic-measurements.js";
-import {
-  nativeMeasurementResults,
-  nativeMeasurementsToCsv,
-} from "./native-measurements.js";
+import { simulationSpecReport, simulationSpecsToCsv } from "./spec-results.js";
 import { vacaskMeasurementResults } from "./vacask-measurements.js";
-import { nativeOutputDeclarations } from "./native-output-semantics.js";
 import { executionArtifactEntries } from "./execution-artifacts.js";
 
 import {
@@ -781,67 +771,37 @@ export class SimulationService {
       );
       if (epoch !== this.epoch) return;
       run.view.result = output.result;
-      if (output.result.data) {
-        run.view.outputData = evaluateSimulationOutputs(
-          output.result.data,
-          run.prepared.vectors,
-          run.prepared.outputs,
-          run.prepared.measurements ?? [],
-          run.prepared.deviceOperatingPoints,
-          true,
-          run.prepared.signalNames,
-          input.language === "vacask"
-            ? new Map()
-            : nativeOutputDeclarations(
-                input.files,
-                input.entryPath ?? "run.cir",
-              ),
-        );
-      }
-      const nativeReports =
-        input.language === "vacask"
-          ? vacaskMeasurementResults(
-              output.result.log,
-              output.result.outcome.status !== "completed-with-dropped-input",
-            )
-          : undefined;
-      const nativeMeasurements =
-        input.language === "vacask"
-          ? nativeReports!.measurements
-          : nativeMeasurementResults(
-              input.files,
-              input.entryPath ?? "run.cir",
-              output.result.log,
-            );
-      if (nativeMeasurements.length || nativeReports?.diagnostics.length) {
-        run.view.outputData ??= {
-          schemaVersion: 1,
-          analyses: [],
-          diagnostics: [],
-        };
-        if (nativeMeasurements.length)
-          run.view.outputData.nativeMeasurements = nativeMeasurements;
-        run.view.outputData.diagnostics.push(
-          ...(nativeReports?.diagnostics ?? []),
-        );
-      }
+      const nativeReports = vacaskMeasurementResults(
+        output.result.log,
+        output.result.outcome.status !== "completed-with-dropped-input",
+      );
+      const nativeMeasurements = nativeReports.measurements;
+      const specs = simulationSpecReport(
+        input.files,
+        input.entryPath ?? "run.cir",
+        nativeMeasurements,
+        {
+          runId: run.view.id,
+          preparedId: run.prepared.id,
+          inputDigest: run.prepared.digest,
+        },
+        output.result.outcome.status === "completed" && !output.cancelled,
+      );
+      // Raw numeric data lives in result.data. Keep legacy output fields readable
+      // for archives, but never produce a second waveform or automatic metrics.
+      run.view.outputData = {
+        schemaVersion: 1,
+        analyses: [],
+        diagnostics: nativeReports.diagnostics,
+        specs,
+      };
       const artifact = async (name: string, type: string, text: string) =>
         run.view.artifacts.push(
           await this.publishArtifact(epoch, name, type, text),
         );
       await artifact("log.txt", "text/plain", output.result.log);
-      if (nativeMeasurements.length)
-        await artifact(
-          "native-measurements.json",
-          "application/json",
-          JSON.stringify(nativeMeasurements, null, 2),
-        );
-      if (nativeMeasurements.length)
-        await artifact(
-          "native-measurements.csv",
-          "text/csv",
-          nativeMeasurementsToCsv(nativeMeasurements),
-        );
+      await artifact("specs.json", "application/json", JSON.stringify(specs));
+      await artifact("specs.csv", "text/csv", simulationSpecsToCsv(specs));
       if (output.rawfile !== undefined)
         await artifact("out.raw", "text/plain", output.rawfile);
       if (output.executedDeck !== undefined)
@@ -877,34 +837,6 @@ export class SimulationService {
           analysis.analysis + "-" + i + ".csv",
           "text/csv",
           simulationAnalysisToCsv(analysis),
-        );
-      if (run.view.outputData)
-        await artifact(
-          "outputs.json",
-          "application/json",
-          JSON.stringify(run.view.outputData),
-        );
-      for (const [i, analysis] of (
-        run.view.outputData?.analyses ?? []
-      ).entries())
-        await artifact(
-          `outputs-${analysis.analysis}-${i}.csv`,
-          "text/csv",
-          simulationOutputAnalysisToCsv(analysis),
-        );
-      if (run.view.outputData?.measurements?.length)
-        await artifact(
-          "measurements.csv",
-          "text/csv",
-          automaticMeasurementsToCsv(run.view.outputData.measurements),
-        );
-      if (run.view.outputData?.deviceOperatingPoints?.length)
-        await artifact(
-          "device-operating-points.csv",
-          "text/csv",
-          simulationDeviceOperatingPointsToCsv(
-            run.view.outputData.deviceOperatingPoints,
-          ),
         );
       const evidenceArtifacts = run.view.artifacts.map((item) => ({ ...item }));
       await artifact(

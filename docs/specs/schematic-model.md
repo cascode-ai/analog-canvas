@@ -5,7 +5,7 @@ Status: `accepted`
 Primary owner: `packages/model`
 
 The Project contains Documents; each Document owns revisioned electrical,
-geometric, and presentation facts. The current model is strict schema 55 and has
+geometric, and presentation facts. The current model is strict schema 56 and has
 no compatibility shape.
 
 ## Coordinate domains
@@ -61,11 +61,13 @@ migration. Invalid coordinates are rejected with their data path.
   Port name supplies interface identity without overwriting that Label.
 
 Canvas `port` and `port-filled` artwork has exactly one meaning: a Cell Pin.
-Each is an ordinary single-pin Instance with pin `P`, owns exactly one ordered
-Cell-Pin declaration, and uses ordinary Net membership and Route endpoints. The
-model has no free-Port branch or separate Port collection. Equal Port Names do
-not merge terminal identity, direction, Base Net, annotations, or lifecycle,
-but they resolve to one Logical Net in the current Document.
+VDD Power also owns a Cell-Pin declaration by default and can be switched
+explicitly to a Global marker in Properties. Each formal owner is an ordinary
+single-pin Instance with pin `P`, owns exactly one ordered Cell-Pin declaration,
+and uses ordinary Net membership and Route endpoints. The model has no
+free-Port branch or separate Port collection. Equal Port Names do not merge
+terminal identity, direction, Base Net, annotations, or lifecycle, but they
+resolve to one Logical Net in the current Document.
 
 Consumers that need a Cell's formal interface use the pure
 `projectCellInterface` read model. It groups declarations by case-insensitive
@@ -75,12 +77,14 @@ It also creates no editing-time connectivity: hierarchy trace/highlight omits
 a multi-member Formal Port unless independent electrical facts already place
 every member on the same Logical Net.
 
-VDD, Ground, route Net Label, and Power Rail all author the same
-`name-claim`. Power Rail is editable Route/Junction presentation rather than a
-separate electrical object. A marker claim owns its scope and optional supply
-role. Power markers default global; ordinary Net Labels default local. `AVDD`
-and `DVDD` are separate Logical Nets because their names differ,
-even though both may carry the `vdd` role. Ground uses global SPICE node `0`.
+Ground, Global VDD, route Net Label, and Power Rail author the same
+`name-claim`. A local VDD Power Cell Pin instead gets its name from the formal
+terminal and derives the `vdd` role from its interface owner. Power Rail is
+editable Route/Junction presentation rather than a separate electrical object.
+A marker claim owns its scope and optional supply role. New VDD and Power Rail
+authoring defaults local; Ground remains global SPICE node `0`. `AVDD` and
+`DVDD` are separate Logical Nets because their names differ, even though both
+may carry the `vdd` role.
 
 High-level GUI Net naming starts from an existing candidate Base Net plus a
 stable Net Label owner. It writes or updates that owner's `name-claim`; it
@@ -93,18 +97,24 @@ global while both authored claims remain unchanged.
 The editor does not normalize from inert legacy Base-Net metadata or coalesce
 Base Nets by text. Compatible same-name claims are ordinary logical identity;
 conflicting claims block electrical export and the introducing transaction.
+A formal Cell Pin combined with a Global declaration on the same Logical Net is
+also a blocking contract conflict; the two interface modes are mutually
+exclusive. The established global SPICE ground reference `0` remains the sole
+exception so Ground keeps its existing placement and routing behavior.
 
 Canonical MOS Instances use `nmos`/`pmos` with D/G/S/B electrical pins. The
 default `textbook-3terminal` variant is presentation-only. B membership is
 explicit first, then materialized from a configured cell-default Net. Without
-either, it remains unresolved; MOS polarity never creates or selects a power
-Net. Existing persisted `supply-default` bindings remain readable for
-compatibility, but current manual authoring does not create them.
+either, it remains unresolved in persisted connectivity; the netlist boundary
+maps an omitted NMOS B to global `0` and an omitted PMOS B to global `VDD`
+without creating Project objects. Existing persisted `supply-default` bindings
+remain readable for compatibility, but current manual authoring does not create
+them.
 Cross-Document composition converts an effective source `cell-default` to an
 instance-owned `instance-override` so target Cell policy cannot retarget the
 copied body.
 Imported/source-bound MOS instances with missing fourth-node evidence remain
-unresolved.
+unresolved in the Project and receive the same non-persisted netlist fallback.
 
 A visible `bulk-dashed` route is an explicit override. The override atomically
 removes the implicit cell-default binding before connecting B to the selected
@@ -203,8 +213,8 @@ ordinary Schematic edits inside one Project structural transaction. The
 Project's `structureRevision` protects this cross-Document boundary and the
 editor records it as one undoable structural commit.
 
-Persistence writes only schema 55. The reader carries every schema in its
-explicit 24→55 upgrade chain forward, then supplies the current model only; no
+Persistence writes only schema 56. The reader carries every schema in its
+explicit 24→56 upgrade chain forward, then supplies the current model only; no
 compatibility shape enters runtime electrical derivation. The 32→33 step
 rejects ownerless equivalence rather than guessing replacement connectivity.
 The 33→34 step converts hidden imported names into non-electrical hints or

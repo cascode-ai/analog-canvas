@@ -31,12 +31,16 @@ const FileRequestBaseSchema = z.strictObject({
 
 export const AgentFileDownloadOptionsSchema = z
   .strictObject({
-    artifact: z.enum(["project", "svg", "png", "pdf", "simulation-plot"]),
+    artifact: z
+      .enum(["project", "svg", "png", "pdf", "simulation-plot"])
+      .describe(
+        "Project and Canvas exports. simulation-plot is a retired compatibility request and returns SIMULATION_PLOT_RETIRED; use simulation-input artifact access for raw/CSV/Spec results.",
+      ),
     documentId: StableIdSchema.optional(),
     simulation: z
       .strictObject({
         runId: StableIdSchema,
-        /** Index in the run's evaluated analyses (raw analyses when no evaluated output exists). */
+        /** Historical plot selection, accepted only to return the retirement error. */
         analysisIndex: z.number().int().nonnegative(),
         format: z.enum(["svg", "png"]),
       })

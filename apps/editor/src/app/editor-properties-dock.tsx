@@ -1,4 +1,9 @@
-import { Suspense, type ComponentProps, type RefObject } from "react";
+import {
+  Suspense,
+  type ComponentProps,
+  type ReactNode,
+  type RefObject,
+} from "react";
 
 import { ToolIcon } from "../features/editor-shell/tool-icon";
 import { DocumentSettingsSection } from "../features/editor-shell/document-settings-section";
@@ -38,6 +43,7 @@ interface ComponentPropertiesModel {
 
 export interface EditorPropertiesDockProps {
   open: boolean;
+  configuration?: ReactNode;
   shelfRef: RefObject<HTMLButtonElement | null>;
   onToggle: () => void;
   summary: string;
@@ -64,6 +70,7 @@ export interface EditorPropertiesDockProps {
 /** Persistent Properties shelf and its cross-domain inspector sections. */
 export function EditorPropertiesDock({
   open,
+  configuration,
   shelfRef,
   onToggle,
   summary,
@@ -123,73 +130,82 @@ export function EditorPropertiesDock({
           </span>
         </button>
         <div className="selection-panel" hidden={!open}>
-          {documentSettings ? (
-            <DocumentSettingsSection {...documentSettings} />
-          ) : null}
-          <MosBulkConnectionSection {...mosBulk} />
-          <RoutingGuidanceSection {...routingGuidance} />
-          {!hasInspectableSelection ? (
-            <p className="inspect-empty">Select an object to inspect.</p>
-          ) : null}
-          <GroupPropertiesSection {...groupProperties} />
-          {component ? (
-            <section
-              className="property-section component-properties"
-              aria-label="Component properties"
-            >
-              <ComponentPropertyCodeEditor
-                key={component.code.instance.id}
-                {...component.code}
-                details={{
-                  parameters: component.electrical.parameters,
-                  ...(component.identity.modelTarget
-                    ? { modelTarget: component.identity.modelTarget }
-                    : {}),
-                  signalFlow: component.signalFlow !== null,
-                }}
-              />
-              {component.cellSymbolLayout ? (
-                <CellSymbolLayoutProperties {...component.cellSymbolLayout} />
+          {configuration ?? (
+            <>
+              {documentSettings ? (
+                <DocumentSettingsSection {...documentSettings} />
               ) : null}
-              {component.identity.propertyTerminal ? (
-                <ComponentIdentityProperties
-                  {...component.identity}
-                  fieldsMovedToCode
+              <MosBulkConnectionSection {...mosBulk} />
+              <RoutingGuidanceSection {...routingGuidance} />
+              {!hasInspectableSelection ? (
+                <p className="inspect-empty">Select an object to inspect.</p>
+              ) : null}
+              <GroupPropertiesSection {...groupProperties} />
+              {component ? (
+                <section
+                  className="property-section component-properties"
+                  aria-label="Component properties"
+                >
+                  <ComponentPropertyCodeEditor
+                    key={component.code.instance.id}
+                    {...component.code}
+                    details={{
+                      parameters: component.electrical.parameters,
+                      ...(component.identity.modelTarget
+                        ? { modelTarget: component.identity.modelTarget }
+                        : {}),
+                      signalFlow: component.signalFlow !== null,
+                    }}
+                  />
+                  {component.cellSymbolLayout ? (
+                    <CellSymbolLayoutProperties
+                      {...component.cellSymbolLayout}
+                    />
+                  ) : null}
+                  {component.identity.propertyTerminal ? (
+                    <ComponentIdentityProperties
+                      {...component.identity}
+                      fieldsMovedToCode
+                    />
+                  ) : null}
+                </section>
+              ) : null}
+              {!groupProperties.active && annotationText ? (
+                <AnnotationColorProperties
+                  key={annotationText.annotation.id}
+                  {...annotationText}
                 />
               ) : null}
-            </section>
-          ) : null}
-          {!groupProperties.active && annotationText ? (
-            <AnnotationColorProperties
-              key={annotationText.annotation.id}
-              {...annotationText}
-            />
-          ) : null}
-          {!groupProperties.active && netName ? (
-            <NetNameProperties {...netName} />
-          ) : null}
-          {!groupProperties.active && drafting ? (
-            <DraftingPropertiesPanel key={drafting.object.id} {...drafting} />
-          ) : null}
-          <PlacementTrayPanel {...placementTray} />
-          {!groupProperties.active ? (
-            <>
-              <RouteActionsSection {...routeActions} />
-              <EndpointActionsSection {...endpointActions} />
-              <AnnotationActionsSection {...annotationActions} />
+              {!groupProperties.active && netName ? (
+                <NetNameProperties {...netName} />
+              ) : null}
+              {!groupProperties.active && drafting ? (
+                <DraftingPropertiesPanel
+                  key={drafting.object.id}
+                  {...drafting}
+                />
+              ) : null}
+              <PlacementTrayPanel {...placementTray} />
+              {!groupProperties.active ? (
+                <>
+                  <RouteActionsSection {...routeActions} />
+                  <EndpointActionsSection {...endpointActions} />
+                  <AnnotationActionsSection {...annotationActions} />
+                </>
+              ) : null}
+              <ProjectDiagnosticsSection {...diagnostics} />
+              {netTrace ? <NetTraceSection {...netTrace} /> : null}
+              {importReview ? (
+                <section className="import-review" aria-label="Import Review">
+                  <h2>Import Review</h2>
+                  <SelectionInspectorDetails {...importReview} />
+                </section>
+              ) : null}
+              <Suspense fallback={null}>
+                {agent ? <LazyAgentPropertiesSection {...agent} /> : null}
+              </Suspense>
             </>
-          ) : null}
-          <ProjectDiagnosticsSection {...diagnostics} />
-          {netTrace ? <NetTraceSection {...netTrace} /> : null}
-          {importReview ? (
-            <section className="import-review" aria-label="Import Review">
-              <h2>Import Review</h2>
-              <SelectionInspectorDetails {...importReview} />
-            </section>
-          ) : null}
-          <Suspense fallback={null}>
-            {agent ? <LazyAgentPropertiesSection {...agent} /> : null}
-          </Suspense>
+          )}
         </div>
       </section>
     </aside>

@@ -175,23 +175,18 @@ export function componentTargetDescription(
 export function ComponentIdentityProperties({
   instance,
   revision,
-  formalTerminalSelected,
-  portNet,
   targetDescription,
   capacitorPlateRows,
   propertyTerminal,
   modelTarget,
   sourceCode,
   onEditAnnotation,
-  onMarkerNameChange,
   onReferenceChange,
   onModelTargetChange,
   fieldsMovedToCode = false,
 }: {
   instance: Instance;
   revision: number;
-  formalTerminalSelected: boolean;
-  portNet: { id: string; logicalName: string; supply: boolean } | null;
   targetDescription: string | null;
   capacitorPlateRows: readonly CapacitorPlatePropertyRow[] | null;
   propertyTerminal?: {
@@ -204,17 +199,13 @@ export function ComponentIdentityProperties({
   modelTarget: ComponentModelTargetView | null;
   sourceCode: ComponentSourceCode;
   onEditAnnotation?: () => void;
-  onMarkerNameChange: (value: string) => void;
   onReferenceChange: (value: string) => boolean | void;
   onModelTargetChange: (value: string) => void;
   fieldsMovedToCode?: boolean;
 }) {
   const reference = instance.reference ?? "";
   const hasEditableIdentityControls = Boolean(
-    (portNet && !formalTerminalSelected) ||
-    instance.reference ||
-    onEditAnnotation ||
-    targetDescription,
+    instance.reference || onEditAnnotation || targetDescription,
   );
   return (
     <>
@@ -224,24 +215,6 @@ export function ComponentIdentityProperties({
           aria-label="Component controls"
         >
           <dl className="component-readonly-fields">
-            {portNet && !formalTerminalSelected ? (
-              <div>
-                <dt>{portNet.supply ? "Supply" : "Net name"}</dt>
-                <dd>
-                  <input
-                    dir="auto"
-                    key={`${portNet.id}-${revision}-net-port-name`}
-                    aria-label={
-                      portNet.supply ? "Supply name" : "Supply Net name"
-                    }
-                    defaultValue={portNet.logicalName}
-                    onBlur={(event) =>
-                      onMarkerNameChange(event.currentTarget.value)
-                    }
-                  />
-                </dd>
-              </div>
-            ) : null}
             {instance.reference && !fieldsMovedToCode ? (
               <div>
                 <dt>Netlist Reference</dt>

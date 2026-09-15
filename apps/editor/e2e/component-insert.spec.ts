@@ -962,7 +962,7 @@ test("places a vertical Power Rail from I and renames it on the canvas", async (
   const avddClaim = document.connectivityEvidence.find(
     (evidence) => evidence.kind === "name-claim" && evidence.name === "AVDD",
   );
-  expect(avddClaim).toMatchObject({ scope: "global", powerDomain: "vdd" });
+  expect(avddClaim).toMatchObject({ scope: "local", powerDomain: "vdd" });
   const avdd = document.nets.find((net) => net.id === avddClaim!.netId);
   expect(avdd).toBeDefined();
   expect(document.routes).toContainEqual(
@@ -1032,7 +1032,20 @@ test("places the VDD power-port device as the default VDD entry", async ({
         scope?: string;
         powerDomain?: string;
       }>;
-      annotations: Array<{ id: string; kind: string; netId: string }>;
+      netlist: {
+        terminals: Array<{
+          id: string;
+          name: string;
+          netId: string;
+          interfaceInstanceIds: string[];
+        }>;
+      };
+      annotations: Array<{
+        id: string;
+        kind: string;
+        netId: string;
+        binding?: { kind: string; terminalId?: string; netId?: string };
+      }>;
     }>;
   };
   const document = saved.documents[0]!;
@@ -1046,17 +1059,21 @@ test("places the VDD power-port device as the default VDD entry", async ({
       evidence.name === "VDD" &&
       evidence.powerDomain === "vdd",
   );
-  expect(vddClaims).toHaveLength(2);
-  expect(vddClaims).toEqual(
-    expect.arrayContaining([
-      expect.objectContaining({ scope: "global" }),
-      expect.objectContaining({ scope: "global" }),
-    ]),
-  );
-  const vddTerminals = vddClaims
+  expect(vddClaims).toHaveLength(0);
+  expect(document.netlist.terminals).toEqual([
+    expect.objectContaining({
+      name: "VDD",
+      interfaceInstanceIds: ["VDD1"],
+    }),
+    expect.objectContaining({
+      name: "VDD",
+      interfaceInstanceIds: ["VDD2"],
+    }),
+  ]);
+  const vddTerminals = document.netlist.terminals
     .flatMap(
-      (claim) =>
-        document.nets.find((net) => net.id === claim.netId)?.terminals ?? [],
+      (terminal) =>
+        document.nets.find((net) => net.id === terminal.netId)?.terminals ?? [],
     )
     .sort((left, right) => left.instanceId.localeCompare(right.instanceId));
   expect(vddTerminals).toEqual([
@@ -1066,8 +1083,20 @@ test("places the VDD power-port device as the default VDD entry", async ({
   expect(
     document.annotations
       .filter((annotation) => annotation.kind === "power-label")
-      .map((annotation) => annotation.id),
-  ).toEqual(["power-label-vdd1", "power-label-vdd2"]);
+      .map((annotation) => ({
+        id: annotation.id,
+        binding: annotation.binding,
+      })),
+  ).toEqual([
+    {
+      id: "power-label-vdd1",
+      binding: expect.objectContaining({ kind: "cell-terminal-name" }),
+    },
+    {
+      id: "power-label-vdd2",
+      binding: expect.objectContaining({ kind: "cell-terminal-name" }),
+    },
+  ]);
 });
 
 test("renames one supply marker without changing its same-name peer", async ({
@@ -1082,12 +1111,14 @@ test("renames one supply marker without changing its same-name peer", async ({
 
   await page.getByTestId("hit-VDD1").click();
   await openSelectionShelf(page);
+  await expectComponentCodeField(page, "connection", "cell-pin");
+  await expect(page.getByLabel("VDD connection mode")).toHaveCount(0);
+  await setComponentCodeField(page, "connection", "global");
+  await expectComponentCodeField(page, "connection", "global");
   await expect(page.getByRole("textbox", { name: "Supply name" })).toHaveCount(
     0,
   );
-  await editComponentPropertyCode(page, (code) => {
-    code.netName = "AVDD";
-  });
+  await setComponentCodeField(page, "netName", "AVDD");
 
   await expectComponentCodeField(page, "netName", "AVDD");
   await expect(
@@ -1354,7 +1385,7 @@ test("carries a default and manual Value through placement and Q property editin
   );
   await expect(page.getByLabel("Component geometry")).toHaveCount(0);
   const propertyCode = page.getByLabel("Editable Canvas property code");
-  await expect(propertyCode).toContainText(/"at": \[/u);
+  await expect(propertyCode).toContainText(/"coordinate": \[/u);
   await expect(propertyCode).toContainText(/"rotation": 0/u);
   await expect(propertyCode).toContainText(/"mirror": "none"/u);
   await expect(page.locator(".selection-overview")).toHaveCount(0);
@@ -1403,6 +1434,7 @@ test("carries a default and manual Value through placement and Q property editin
     "aria-label",
     "Canvas property code",
   );
+  await expectComponentCodeField(page, "displayName", "R1");
   await expectComponentCodeField(page, "netlistName", "R1");
   await editComponentPropertyCode(page, (code) => {
     code.netlistName = "R7";
@@ -1411,6 +1443,21 @@ test("carries a default and manual Value through placement and Q property editin
   await expect(page.getByTestId("revision")).toHaveText("4");
   await expectComponentCodeField(page, "netlistName", "R7");
   await expectComponentCodeField(page, "parameters.tc", "0.1");
+
+  // Enter confirms the current draft without changing its bytes. Shift+Enter
+  // remains the explicit way to add layout whitespace inside the JSON.
+  const singleLine = JSON.stringify(
+    JSON.parse(await readComponentPropertyCode(page)),
+  );
+  await propertyCode.fill(singleLine);
+  await propertyCode.press("ControlOrMeta+End");
+  await propertyCode.press("ArrowLeft");
+  await propertyCode.press("Enter");
+  expect(await readComponentPropertyCode(page)).toBe(singleLine);
+  await propertyCode.press("Shift+Enter");
+  const multiline = await readComponentPropertyCode(page);
+  expect(multiline).toContain("\n}");
+  expect(JSON.parse(multiline)).toEqual(JSON.parse(singleLine));
 });
 
 test("ordinary source property code switches waveforms without erasing inactive values", async ({
@@ -2065,7 +2112,7 @@ test("shows the complete foldable categorized Library, quick-places a device, an
     page
       .getByTestId("shapes-category-passives")
       .locator('[data-testid^="shapes-chip-"]'),
-  ).toHaveCount(4);
+  ).toHaveCount(5);
   await expect(
     page
       .getByTestId("shapes-category-logic-gates")
@@ -2407,4 +2454,50 @@ test("double-clicking a catalog item applies it immediately", async ({
     "Place Resistor on the canvas",
   );
   await page.keyboard.press("Escape");
+});
+
+test("places and edits a two-terminal capacitor section and exports its vector artwork", async ({
+  page,
+}, testInfo) => {
+  await page.goto("/editor");
+  await chooseComponent(page, "capacitor-section");
+  const canvas = page.getByTestId("schematic-canvas");
+  await canvas.click({ position: { x: 360, y: 240 } });
+  await page.keyboard.press("Escape");
+  const symbol = canvas.locator('[data-symbol-id="capacitor-section"]');
+  await expect(symbol).toBeVisible();
+  const bodyPaths = await symbol
+    .locator("polyline")
+    .evaluateAll((elements) =>
+      elements.map((element) => element.getAttribute("points")),
+    );
+  expect(bodyPaths.length).toBeGreaterThanOrEqual(3);
+  const instanceId = await symbol.getAttribute("data-object-id");
+  expect(instanceId).not.toBeNull();
+  await page.getByTestId(`hit-${instanceId}`).click();
+  await page.keyboard.press("q");
+  const initial = JSON.parse(await readComponentPropertyCode(page));
+  expect(initial.parameters.value).toBe("1p");
+  await editComponentPropertyCode(page, (code) => {
+    code.parameters.value = "2p";
+    code.placement.rotation = 90;
+  });
+  const edited = JSON.parse(await readComponentPropertyCode(page));
+  expect(edited.parameters.value).toBe("2p");
+  expect(edited.placement.rotation).toBe(90);
+  await expect(symbol.locator("g").first()).toHaveAttribute(
+    "transform",
+    /rotate\(90\)/,
+  );
+
+  const svg = (await downloadBytes(page, "File", "Export SVG")).toString(
+    "utf8",
+  );
+  expect(svg).toContain('data-symbol-id="capacitor-section"');
+  for (const points of bodyPaths) expect(svg).toContain(`points="${points}"`);
+  expect(svg).not.toContain("<image");
+  await testInfo.attach("capacitor-section.svg", {
+    body: Buffer.from(svg),
+    contentType: "image/svg+xml",
+  });
 });

@@ -8,6 +8,7 @@ import {
 
 import {
   analyzeDesignNetlist as analyzeCurrentDesignNetlist,
+  printDesignNetlist,
   printSpiceNetlist,
   type DesignNetlistAnalysisOptions,
 } from "./index.js";
@@ -85,6 +86,137 @@ function resistorProject(parameters: Record<string, string>) {
 }
 
 describe("current formal cell interface", () => {
+  it("names an unlabeled internal Net from a connected reference and pin", () => {
+    const project = createEmptyProject("project", "Project");
+    const document = project.documents[0]!;
+    document.instances.push(
+      {
+        id: "R1",
+        symbolId: "resistor",
+        placement: null,
+        reference: "R1",
+        netlist: {
+          binding: { kind: "primitive", deviceClass: "resistor" },
+          parameters: { value: "1k" },
+        },
+      },
+      {
+        id: "R2",
+        symbolId: "resistor",
+        placement: null,
+        reference: "R2",
+        netlist: {
+          binding: { kind: "primitive", deviceClass: "resistor" },
+          parameters: { value: "2k" },
+        },
+      },
+    );
+    document.nets.push(
+      {
+        id: "net-in",
+        terminals: [{ instanceId: "R1", pinName: "1" }],
+      },
+      {
+        id: "net-mid",
+        terminals: [
+          { instanceId: "R1", pinName: "2" },
+          { instanceId: "R2", pinName: "1" },
+        ],
+      },
+      {
+        id: "net-ground",
+        terminals: [{ instanceId: "R2", pinName: "2" }],
+      },
+    );
+    claimNet(document, "net-in", "IN");
+    claimNet(document, "net-ground", "0", "global", "ground");
+
+    const result = analyzeDesignNetlist(project);
+
+    expect(
+      result.diagnostics.filter((item) => item.severity === "error"),
+    ).toEqual([]);
+    expect(printSpiceNetlist(result.ir!)).toContain("R1 IN net0 1k");
+    expect(printSpiceNetlist(result.ir!)).toContain("R2 net0 0 2k");
+  });
+
+  it("allocates stable ordinal names without inferring device-pin meaning", () => {
+    const project = createEmptyProject("project", "Project");
+    const document = project.documents[0]!;
+    const mos = (reference: string) => ({
+      id: reference,
+      symbolId: "nmos",
+      placement: null,
+      reference,
+      netlist: {
+        binding: {
+          kind: "model" as const,
+          deviceClass: "mos" as const,
+          name: "NMOS",
+        },
+        parameters: { w: "1u", l: "150n" },
+      },
+    });
+    document.instances.push(mos("M2"), mos("M7"), mos("M8"), mos("M9"));
+    document.nets.push(
+      {
+        id: "net-tail",
+        terminals: [
+          { instanceId: "M2", pinName: "S" },
+          { instanceId: "M9", pinName: "D" },
+        ],
+      },
+      {
+        id: "net-mirror",
+        terminals: [
+          { instanceId: "M2", pinName: "D" },
+          { instanceId: "M7", pinName: "D" },
+          { instanceId: "M7", pinName: "G" },
+          { instanceId: "M8", pinName: "G" },
+        ],
+      },
+    );
+    for (const [instanceId, pinNames] of [
+      ["M2", ["G"]],
+      ["M7", ["S"]],
+      ["M8", ["D", "S"]],
+      ["M9", ["G", "S"]],
+    ] as const) {
+      for (const pinName of pinNames) {
+        document.noConnects.push({
+          id: `nc-${instanceId}-${pinName}`,
+          endpoint: { kind: "terminal", instanceId, pinName },
+        });
+      }
+    }
+
+    const result = analyzeDesignNetlist(project);
+
+    expect(
+      result.diagnostics.filter((item) => item.severity === "error"),
+    ).toEqual([]);
+    const spice = printSpiceNetlist(result.ir!);
+    expect(spice).toContain("M2 net0 NC0001 net1 0");
+    expect(spice).toContain("M7 net0 net0 NC0002 0");
+    expect(spice).toContain("M9 net1 NC0005 NC0006 0");
+    expect(spice).not.toMatch(/M[79]_[DG]/u);
+  });
+
+  it("skips ordinal names already reserved by an authored Net", () => {
+    const project = resistorProject({ value: "10k" });
+    const document = project.documents[0]!;
+    document.annotations = [];
+    document.connectivityEvidence = [];
+    claimNet(document, "net-in", "NET0");
+
+    const result = analyzeDesignNetlist(project);
+
+    expect(
+      result.diagnostics.filter((item) => item.severity === "error"),
+    ).toEqual([]);
+    expect(printSpiceNetlist(result.ir!)).toContain("R1 NET0 net1 10k");
+  });
+
   it("maps formal Cell Pin Instances to the ordered exported interface", () => {
     const project = createEmptyProject("project", "Project");
     const document = project.documents[0]!;
@@ -822,6 +954,91 @@ describe("current formal cell interface", () => {
     expect(result.ir?.globals).toEqual(["0"]);
   });
 
+  it("recovers unnamed visible Ground markers as global node 0", () => {
+    const project = createEmptyProject("project", "Project");
+    const document = project.documents[0]!;
+    for (const suffix of ["1", "2"]) {
+      document.instances.push(
+        {
+          id: `GND${suffix}`,
+          symbolId: "ground",
+          placement: null,
+        },
+        {
+          id: `R${suffix}`,
+          symbolId: "resistor",
+          placement: null,
+          reference: `R${suffix}`,
+          netlist: {
+            binding: { kind: "primitive", deviceClass: "resistor" },
+            parameters: { value: `${suffix}k` },
+          },
+        },
+      );
+      document.nets.push({
+        id: `net-ground-${suffix}`,
+        terminals: [
+          { instanceId: `GND${suffix}`, pinName: "0" },
+          { instanceId: `R${suffix}`, pinName: "1" },
+        ],
+      });
+      document.noConnects.push({
+        id: `nc-R${suffix}`,
+        endpoint: { kind: "terminal", instanceId: `R${suffix}`, pinName: "2" },
+      });
+    }
+
+    const result = analyzeDesignNetlist(project);
+
+    expect(
+      result.diagnostics.filter((item) => item.severity === "error"),
+    ).toEqual([]);
+    expect(result.ir?.globals).toEqual(["0"]);
+    expect(printSpiceNetlist(result.ir!)).toMatch(/R1 0 NC0001 1k/u);
+    expect(printSpiceNetlist(result.ir!)).toMatch(/R2 0 NC0002 2k/u);
+  });
+
+  it("recovers an unnamed visible VDD marker as global node VDD", () => {
+    const project = createEmptyProject("project", "Project");
+    const document = project.documents[0]!;
+    document.instances.push(
+      {
+        id: "VDD1",
+        symbolId: "vdd-port",
+        placement: null,
+      },
+      {
+        id: "R1",
+        symbolId: "resistor",
+        placement: null,
+        reference: "R1",
+        netlist: {
+          binding: { kind: "primitive", deviceClass: "resistor" },
+          parameters: { value: "1k" },
+        },
+      },
+    );
+    document.nets.push({
+      id: "net-vdd",
+      terminals: [
+        { instanceId: "VDD1", pinName: "P" },
+        { instanceId: "R1", pinName: "1" },
+      ],
+    });
+    document.noConnects.push({
+      id: "nc-R1",
+      endpoint: { kind: "terminal", instanceId: "R1", pinName: "2" },
+    });
+
+    const result = analyzeDesignNetlist(project);
+
+    expect(
+      result.diagnostics.filter((item) => item.severity === "error"),
+    ).toEqual([]);
+    expect(result.ir?.globals).toEqual(["VDD"]);
+    expect(printSpiceNetlist(result.ir!)).toMatch(/R1 VDD NC0001 1k/u);
+  });
+
   it("exports a global named VDD Port Net without inventing a marker record", () => {
     const project = createEmptyProject("project", "Project");
     const document = project.documents[0]!;
@@ -847,6 +1064,88 @@ describe("current formal cell interface", () => {
       scope: "global",
     });
     expect(result.ir?.globals).toEqual(["VDD"]);
+  });
+
+  it("exports formal VDD Power as a local Cell Pin and reuses it for an implicit PMOS bulk", () => {
+    const project = createEmptyProject("project", "Project");
+    const document = project.documents[0]!;
+    document.instances.push(
+      { id: "VDD1", symbolId: "vdd-port", placement: null },
+      {
+        id: "M1",
+        symbolId: "pmos",
+        placement: null,
+        reference: "M1",
+        netlist: {
+          binding: { kind: "model", deviceClass: "mos", name: "PMOS_MODEL" },
+          parameters: { w: "1u", l: "150n", m: "1", nf: "1" },
+        },
+      },
+    );
+    document.nets.push({
+      id: "net-vdd",
+      terminals: [{ instanceId: "VDD1", pinName: "P" }],
+    });
+    document.netlist!.terminals.push({
+      id: "terminal-vdd1",
+      name: "VDD",
+      netId: "net-vdd",
+      direction: "inout",
+      interfaceInstanceIds: ["VDD1"],
+    });
+    for (const pinName of ["D", "G", "S"] as const) {
+      const netId = `net-${pinName.toLowerCase()}`;
+      document.nets.push({
+        id: netId,
+        terminals: [{ instanceId: "M1", pinName }],
+      });
+      claimNet(document, netId, pinName);
+    }
+
+    const result = analyzeDesignNetlist(project);
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.ir?.globals).toEqual([]);
+    expect(result.ir?.cells[0]?.ports).toEqual([
+      { id: "net-vdd", name: "VDD", netName: "VDD" },
+    ]);
+    expect(result.ir?.cells[0]?.instances[0]?.nodes[3]).toEqual({
+      pinName: "B",
+      netName: "VDD",
+    });
+    expect(printSpiceNetlist(result.ir!)).not.toContain(".global VDD");
+  });
+
+  it("blocks export when one VDD Net is both formal and Global", () => {
+    const project = createEmptyProject("project", "Project");
+    const document = project.documents[0]!;
+    document.instances.push({
+      id: "VDD1",
+      symbolId: "vdd-port",
+      placement: null,
+    });
+    document.nets.push({
+      id: "net-vdd",
+      terminals: [{ instanceId: "VDD1", pinName: "P" }],
+    });
+    document.netlist!.terminals.push({
+      id: "terminal-vdd1",
+      name: "VDD",
+      netId: "net-vdd",
+      direction: "inout",
+      interfaceInstanceIds: ["VDD1"],
+    });
+    claimNet(document, "net-vdd", "VDD", "global", "vdd");
+
+    const result = analyzeDesignNetlist(project);
+
+    expect(result.ir).toBeNull();
+    expect(result.diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: "FORMAL_PORT_GLOBAL_NET_CONFLICT",
+        objectIds: expect.arrayContaining(["net-vdd", "terminal-vdd1"]),
+      }),
+    );
   });
 
   it("rejects a VDD Port attached to a named non-VDD Net", () => {
@@ -1129,6 +1428,76 @@ describe("current formal cell interface", () => {
       "XM1 DRAIN GATE SOURCE BODY sky130_fd_pr__nfet_01v8 l=0.15 w=2 nf=4",
     );
   });
+
+  it.each(["spice", "spectre"] as const)(
+    "defaults only an unconnected MOS bulk in %s while retaining explicit body bias",
+    (format) => {
+      const project = createEmptyProject("project", "Project");
+      const document = project.documents[0]!;
+      for (const [id, symbolId, model] of [
+        ["M1", "nmos", "NMOS_MODEL"],
+        ["M2", "pmos", "PMOS_MODEL"],
+        ["M3", "nmos", "NMOS_MODEL"],
+        ["M4", "pmos", "PMOS_MODEL"],
+      ] as const) {
+        document.instances.push({
+          id,
+          symbolId,
+          placement: null,
+          reference: id,
+          netlist: {
+            binding: { kind: "model", deviceClass: "mos", name: model },
+            parameters: { w: "1u", l: "150n", m: "1", nf: "1" },
+          },
+        });
+        for (const pinName of ["D", "G", "S"] as const) {
+          const netId = `${id}-${pinName}`;
+          document.nets.push({
+            id: netId,
+            terminals: [{ instanceId: id, pinName }],
+          });
+          claimNet(document, netId, `${id}_${pinName}`);
+        }
+      }
+      document.nets.push(
+        {
+          id: "nmos-body",
+          terminals: [{ instanceId: "M3", pinName: "B" }],
+        },
+        {
+          id: "pmos-body",
+          terminals: [{ instanceId: "M4", pinName: "B" }],
+        },
+      );
+      claimNet(document, "nmos-body", "VSSB");
+      claimNet(document, "pmos-body", "VBP");
+
+      const result = analyzeDesignNetlist(project, { format });
+
+      expect(result.diagnostics).toEqual([]);
+      expect(result.ir?.globals).toEqual(["0", "VDD"]);
+      expect(
+        result.ir?.cells[0]!.instances.map((instance) => instance.nodes[3]),
+      ).toEqual([
+        { pinName: "B", netName: "0" },
+        { pinName: "B", netName: "VDD" },
+        { pinName: "B", netName: "VSSB" },
+        { pinName: "B", netName: "VBP" },
+      ]);
+      const text = printDesignNetlist(format, result.ir!).text;
+      expect(text).toMatch(
+        format === "spice"
+          ? /M1 M1_D M1_G M1_S 0 NMOS_MODEL/u
+          : /M1 \(M1_D M1_G M1_S 0\) NMOS_MODEL/u,
+      );
+      expect(text).toMatch(
+        format === "spice"
+          ? /M2 M2_D M2_G M2_S VDD PMOS_MODEL/u
+          : /M2 \(M2_D M2_G M2_S VDD\) PMOS_MODEL/u,
+      );
+      expect(text).toContain(format === "spice" ? ".global VDD" : "global VDD");
+    },
+  );
 });
 
 describe("voltage-controlled switch", () => {

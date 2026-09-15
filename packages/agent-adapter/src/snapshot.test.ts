@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 
 import { createEmptyDocument } from "@icm/model";
 import { parseProject } from "@icm/project-protocol";
+import { executeTransaction } from "@icm/edit-engine";
 import type { CircuitProject } from "@icm/model";
 import { resolveDocumentRoutingGeometry } from "@icm/derived";
 import { InMemorySymbolResolver, builtInSymbols } from "@icm/symbols";
@@ -11,6 +12,7 @@ import { describe, expect, it } from "vitest";
 import {
   AgentCircuitRequestSchema,
   AgentSessionSnapshotSchema,
+  AgentSchematicEditSchema,
 } from "./schema.js";
 import {
   buildAgentSessionSnapshot,
@@ -32,6 +34,48 @@ function fixtureProject(): CircuitProject {
 }
 
 describe("Agent Document Snapshot", () => {
+  it("reads and edits Route styling without losing color, arrow, or connectivity", () => {
+    const project = fixtureProject();
+    const document = project.documents[0]!;
+    const route = document.routes[0]!;
+    route.styleOverride = { color: "#123456", arrow: "end" };
+    const before = buildAgentSessionSnapshot({ project, document, resolver });
+    const visibleRoute = before.document.routes.find(
+      (item) => item.id === route.id,
+    )!;
+    expect(visibleRoute.styleOverride).toEqual(route.styleOverride);
+    const edit = AgentSchematicEditSchema.parse({
+      kind: "set_route_style_override",
+      routeId: route.id,
+      styleOverride: { ...visibleRoute.styleOverride, lineStyle: "dashed" },
+    });
+    const result = executeTransaction(document, {
+      transactionId: "agent-wire-style",
+      documentId: document.id,
+      expectedRevision: document.revision,
+      actor: { kind: "agent", id: "test" },
+      edits: [edit],
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const after = buildAgentSessionSnapshot({
+      project,
+      document: result.document,
+      resolver,
+    });
+    expect(AgentSessionSnapshotSchema.parse(after)).toEqual(after);
+    expect(
+      after.document.routes.find((item) => item.id === route.id)?.styleOverride,
+    ).toEqual({
+      color: "#123456",
+      arrow: "end",
+      lineStyle: "dashed",
+    });
+    expect(after.document.nets).toEqual(before.document.nets);
+    expect(after.electricalTopologyHash).toBe(before.electricalTopologyHash);
+    expect(route.styleOverride).toEqual({ color: "#123456", arrow: "end" });
+  });
+
   it("provides complete bidirectional topology and presentation facts", () => {
     const project = fixtureProject();
     const document = project.documents[0]!;

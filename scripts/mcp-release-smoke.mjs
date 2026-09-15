@@ -5,18 +5,21 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
+import assert from "node:assert/strict";
 
 const { version } = JSON.parse(await readFile(resolve("package.json"), "utf8"));
 const releaseRoot = resolve(
   `output/release/interactive-circuit-maker-v${version}`,
 );
-const metadata = JSON.parse(
-  await readFile(resolve(releaseRoot, "release.json"), "utf8"),
-);
 // Also verify the independently downloaded immutable release, not just a build.
 const executable = process.argv[2]
   ? resolve(process.argv[2])
-  : resolve(releaseRoot, metadata.mcp);
+  : resolve(
+      releaseRoot,
+      JSON.parse(await readFile(resolve(releaseRoot, "release.json"), "utf8"))
+        .mcp,
+    );
+const children = [];
 const temporary = await mkdtemp(join(tmpdir(), "analog-mcp-smoke-"));
 const connectorPath = join(temporary, "connector.json");
 const exportPath = join(temporary, "exported-project.json");
@@ -45,6 +48,7 @@ function credential(agentToken) {
       "circuit.edit.geometry",
       "project.download",
       "project.import",
+      "simulation.run",
     ],
     projectId: "release-project",
     documentIds: ["main"],
@@ -85,9 +89,60 @@ function snapshot() {
       },
       cellInterface: null,
       instances: [],
-      nets: [],
-      routes: [],
-      junctions: [],
+      nets: [
+        {
+          id: "release-net",
+          name: null,
+          scope: "local",
+          powerDomain: "none",
+          terminals: [],
+          routeIds: ["release-route"],
+          junctionIds: ["release-junction-start", "release-junction-end"],
+        },
+      ],
+      routes: [
+        {
+          id: "release-route",
+          netId: "release-net",
+          start: { kind: "junction", junctionId: "release-junction-start" },
+          legs: [
+            {
+              id: "release-route-leg",
+              to: {
+                kind: "endpoint",
+                endpoint: {
+                  kind: "junction",
+                  junctionId: "release-junction-end",
+                },
+              },
+              mode: "manual",
+            },
+          ],
+          styleOverride: {
+            color: "#123456",
+            arrow: "end",
+            lineStyle: "dashed",
+          },
+          polyline: [
+            { x: 0, y: 0 },
+            { x: 100, y: 0 },
+          ],
+        },
+      ],
+      junctions: [
+        {
+          id: "release-junction-start",
+          netId: "release-net",
+          position: { x: 0, y: 0 },
+          role: "route-anchor",
+        },
+        {
+          id: "release-junction-end",
+          netId: "release-net",
+          position: { x: 100, y: 0 },
+          role: "route-anchor",
+        },
+      ],
       noConnects: [],
       // Keep a schema-54 binding in every response, including connector resume.
       // Older packaged readers reject this field before ordinary tools can run.
@@ -107,7 +162,40 @@ function snapshot() {
           visible: false,
         },
       ],
-      drafting: { objects: [] },
+      drafting: {
+        objects: [
+          {
+            object: {
+              id: "release-arrow",
+              kind: "arrow",
+              locked: false,
+              zIndex: 0,
+              anchor: { kind: "free", position: { x: 0, y: 0 } },
+              from: { kind: "free", position: { x: 0, y: 0 } },
+              to: { kind: "free", position: { x: 100, y: 0 } },
+              styleOverride: { arrowStart: "dot", arrowEnd: "open-arrow" },
+            },
+            resolvedGeometry: {
+              kind: "arrow",
+              from: { x: 0, y: 0 },
+              to: { x: 100, y: 0 },
+              points: [
+                { x: 0, y: 0 },
+                { x: 100, y: 0 },
+              ],
+              vertices: [
+                { x: 0, y: 0 },
+                { x: 100, y: 0 },
+              ],
+              curveControls: [null],
+              center: { x: 50, y: 0 },
+              bounds: { x: 0, y: 0, width: 100, height: 0 },
+              diagnostics: [],
+            },
+            diagnostics: [],
+          },
+        ],
+      },
       layoutGroups: [],
       constraints: [],
       diagnostics: [],
@@ -144,6 +232,51 @@ const relay = createServer(async (request, response) => {
       resumeCount += 1;
       result = json(credential(`resume-bearer-${resumeCount}`));
     }
+  } else if (url.pathname.endsWith("/simulation")) {
+    const body = await requestBody(request);
+    result = json({
+      apiVersion: "3.0",
+      requestId: body.requestId,
+      operation: "read",
+      ok: true,
+      run: {
+        id: "spec-run",
+        preparedId: "spec-prepared",
+        inputRevision: "spec-input",
+        state: "finished",
+        artifacts: [],
+        outputData: {
+          schemaVersion: 1,
+          analyses: [],
+          diagnostics: [],
+          specs: {
+            schemaVersion: 1,
+            runId: "spec-run",
+            preparedId: "spec-prepared",
+            inputDigest: "a".repeat(64),
+            results: [
+              {
+                id: "run.cir:2:1",
+                name: "peak",
+                occurrence: 1,
+                source: {
+                  path: "run.cir",
+                  line: 2,
+                  text: "* @spec peak <= 1.8 unit=V",
+                },
+                unit: "V",
+                expected: { kind: "limit", operator: "<=", value: 1.8 },
+                value: 1.7,
+                judgment: "pass",
+                reason: "satisfied",
+                detail: "Meets the authored specification.",
+                logLine: 5,
+              },
+            ],
+          },
+        },
+      },
+    });
   } else if (url.pathname.endsWith("/circuit")) {
     const body = await requestBody(request);
     if (body.operation === "capabilities") {
@@ -278,6 +411,7 @@ function startMcp() {
       ANALOG_CANVAS_MCP_CONNECTOR: connectorPath,
     },
   });
+  children.push(child);
   let nextId = 1;
   let buffer = "";
   const pending = new Map();
@@ -353,6 +487,30 @@ try {
   )
     throw new Error("Packaged MCP tool surface mismatch");
   await first.tool("connect", { claimCode: `${sessionId}.claim` });
+  const simulation = await first.tool("simulation", {
+    request: { operation: "read", runId: "spec-run" },
+  });
+  assert.equal(
+    simulation.ok,
+    true,
+    "Packaged MCP rejected the current Simulation response",
+  );
+  assert.equal(simulation.run.outputData.specs.results[0].judgment, "pass");
+  assert.equal(simulation.run.outputData.specs.results[0].value, 1.7);
+  assert.deepEqual(simulation.run.outputData.analyses, []);
+  const resources = await first.request("resources/list");
+  assert(
+    resources.resources.some(
+      (r) => r.uri === "analog-canvas://reference/simulation-specs",
+    ),
+    "Packaged MCP is missing the Spec reference",
+  );
+  assert(
+    listed.tools
+      .find((t) => t.name === "export_file")
+      .description.includes("SIMULATION_PLOT_RETIRED"),
+    "Packaged MCP still advertises a retired renderer",
+  );
   const invalidSimulation = await first.request("tools/call", {
     name: "simulation",
     arguments: { request: { operation: "prepare" } },
@@ -368,6 +526,19 @@ try {
       {
         kind: "upsert_schematic_annotation",
         annotation: snapshot().document.annotations[0],
+      },
+      {
+        kind: "upsert_drafting_object",
+        object: snapshot().document.drafting.objects[0].object,
+      },
+      {
+        kind: "set_route_style_override",
+        routeId: "release-route",
+        styleOverride: {
+          color: "#123456",
+          arrow: "end",
+          lineStyle: "dotted",
+        },
       },
     ],
   });
@@ -393,6 +564,12 @@ try {
   });
   await first.close();
 
+  // Browser activity can renew the server deadline without updating this file.
+  // Only the server may decide that a stored connector is no longer resumable.
+  const savedConnector = JSON.parse(await readFile(connectorPath, "utf8"));
+  savedConnector.connectorExpiresAt = Date.now() - 60_000;
+  await writeFile(connectorPath, JSON.stringify(savedConnector), "utf8");
+
   const restarted = startMcp();
   await restarted.request("initialize", { protocolVersion: "2025-03-26" });
   const resumed = await restarted.tool("connect");
@@ -409,6 +586,14 @@ try {
   }
   process.stdout.write("Packaged MCP release smoke passed.\n");
 } finally {
+  // A compatibility rejection must fail promptly, including when testing an
+  // old downloaded executable; never leave its stdio process holding the relay.
+  for (const child of children) {
+    if (child.exitCode !== null || child.signalCode !== null) continue;
+    const exited = once(child, "exit");
+    child.kill();
+    await exited;
+  }
   relay.close();
   await once(relay, "close");
   await rm(temporary, { recursive: true, force: true });

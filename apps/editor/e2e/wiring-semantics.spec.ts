@@ -1,4 +1,4 @@
-import { createEmptyProject } from "@icm/model";
+import { createEmptyProject, createRoutePath } from "@icm/model";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
 import {
@@ -344,6 +344,88 @@ test("dragging a wire's end onto another wire joins them into one net", async ({
   await expect(page.getByTestId("statusbar-issues")).toHaveText(
     "No issues found",
   );
+});
+
+test("dragging a wire segment onto a capacitor pin connects and dots it", async ({
+  page,
+}) => {
+  const project = createEmptyProject("segment-pin", "Segment pin contact");
+  const document = project.documents[0]!;
+  document.instances.push(
+    {
+      id: "R1",
+      symbolId: "resistor",
+      placement: {
+        position: { x: 200, y: 180 },
+        rotation: 0,
+        mirror: "none",
+      },
+    },
+    {
+      id: "R2",
+      symbolId: "resistor",
+      placement: {
+        position: { x: 400, y: 180 },
+        rotation: 0,
+        mirror: "none",
+      },
+    },
+    {
+      id: "C1",
+      symbolId: "capacitor",
+      placement: {
+        position: { x: 300, y: 320 },
+        rotation: 0,
+        mirror: "none",
+      },
+    },
+  );
+  document.nets.push(
+    {
+      id: "wire-net",
+      terminals: [
+        { instanceId: "R1", pinName: "2" },
+        { instanceId: "R2", pinName: "2" },
+      ],
+    },
+    {
+      id: "capacitor-top",
+      terminals: [{ instanceId: "C1", pinName: "1" }],
+    },
+  );
+  document.routes.push(
+    createRoutePath({
+      id: "dragged-wire",
+      netId: "wire-net",
+      start: { kind: "terminal", instanceId: "R1", pinName: "2" },
+      end: { kind: "terminal", instanceId: "R2", pinName: "2" },
+      bends: [],
+      modes: ["manual"],
+    }),
+  );
+
+  await page.goto("/editor");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "segment-pin.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  const canvas = page.getByTestId("schematic-canvas");
+  await awaitCanvasSettled(canvas);
+  const [start, finish] = await onScreen(canvas, [
+    { x: 300, y: 200 },
+    { x: 300, y: 300 },
+  ]);
+  await page.mouse.move(start!.x, start!.y);
+  await page.mouse.down();
+  await page.mouse.move(finish!.x, finish!.y, { steps: 8 });
+  await page.mouse.up();
+
+  await expect(page.getByTestId("status")).toContainText(
+    "connected it where it touched a pin",
+  );
+  await expect(page.locator('[data-canvas-hit-kind="route"]')).toHaveCount(2);
+  await expect(page.locator('g[data-layer="junctions"] circle')).toHaveCount(1);
 });
 
 test("a power rail drawn across the tops of wires connects to them", async ({

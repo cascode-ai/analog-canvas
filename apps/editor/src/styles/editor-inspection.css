@@ -262,6 +262,20 @@
   padding: 0 var(--icm-space-2) var(--icm-space-2);
 }
 
+.angled-wire-repair {
+  display: grid;
+  gap: var(--icm-space-2);
+  margin-bottom: var(--icm-space-2);
+}
+
+.angled-wire-repair button {
+  width: 100%;
+}
+
+.angled-wire-repair p {
+  margin: 0;
+}
+
 .diagnostic-filters {
   display: flex;
   flex-wrap: wrap;

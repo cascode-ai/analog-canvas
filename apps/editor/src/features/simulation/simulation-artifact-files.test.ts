@@ -17,7 +17,12 @@ describe("simulation artifact files", () => {
     const entries = await Promise.all(
       [
         ["out.raw", "Results"],
-        ["outputs-ac-0.csv", "Results"],
+        ["ac-0.csv", "Results"],
+        ["outputs-ac-0.csv", null],
+        ["measurements.csv", null],
+        ["device-operating-points.csv", null],
+        ["specs.csv", "Results"],
+        ["specs.json", null],
         ["simulator.log", "Logs"],
         ["prepared.cir", null],
         ["executed.cir", null],

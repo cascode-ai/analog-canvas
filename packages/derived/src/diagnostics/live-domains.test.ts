@@ -57,9 +57,10 @@ describe("explicit diagnostic producer selection", () => {
     ).toEqual([]);
   });
 
-  it("still reports the electrical rules when asked for them", () => {
-    // On demand is not "not at all": the same sheet, asked directly, still
-    // says everything it said before.
+  it("still reports applicable electrical rules when asked for them", () => {
+    // On demand is not "not at all": the same sheet still reports its
+    // floating gate. Its omitted NMOS bulk is intentionally supply-defaulted
+    // and therefore is no longer unresolved.
     const snapshot = diagnoseProjectSnapshot(
       sheetWithOneTransistor(),
       resolver,
@@ -67,7 +68,7 @@ describe("explicit diagnostic producer selection", () => {
     const codes = snapshot.diagnostics
       .filter((diagnostic) => diagnostic.domain === "erc")
       .map((diagnostic) => diagnostic.code);
-    expect(codes).toContain("ERC_BULK_UNRESOLVED");
+    expect(codes).not.toContain("ERC_BULK_UNRESOLVED");
     expect(codes).toContain("ERC_FLOATING_GATE");
   });
 

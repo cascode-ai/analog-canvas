@@ -47,6 +47,43 @@ const definition = {
 };
 
 describe("render svg", () => {
+  it.each([
+    ["solid", null],
+    ["dashed", "6 4"],
+    ["dotted", "2 3"],
+  ] as const)(
+    "renders %s electrical wires independently of their arrows",
+    (lineStyle, dash) => {
+      const doc = createEmptyDocument("wire-line-style", "Wire line style");
+      doc.nets.push({ id: "net", terminals: [] });
+      doc.junctions.push(
+        { id: "J1", netId: "net", position: { x: 0, y: 0 } },
+        { id: "J2", netId: "net", position: { x: 100, y: 0 } },
+      );
+      doc.routes.push(
+        createRoutePath({
+          id: "styled-wire",
+          netId: "net",
+          start: { kind: "junction", junctionId: "J1" },
+          end: { kind: "junction", junctionId: "J2" },
+          bends: [],
+          modes: ["manual"],
+          styleOverride: { color: "#123456", arrow: "end", lineStyle },
+        }),
+      );
+      const scene = buildSvgScene(doc, new InMemorySymbolResolver([]));
+      const conductor = scene.formalBody.match(
+        /<polyline data-object-id="styled-wire"[^>]*\/>/u,
+      )![0];
+      expect(conductor).toContain('stroke="#123456"');
+      if (dash) expect(conductor).toContain(`stroke-dasharray="${dash}"`);
+      else expect(conductor).not.toContain("stroke-dasharray");
+      expect(conductor).not.toContain('data-route-presentation="bulk-dashed"');
+      expect(scene.formalBody).toContain('data-role="route-direction-arrow"');
+      expect(scene.formalBody).not.toContain("<image");
+    },
+  );
+
   it("paints selected routes using original junction decisions and crops only included geometry", () => {
     const doc = createEmptyDocument("selection", "Selection");
     doc.nets.push({ id: "net", terminals: [] });

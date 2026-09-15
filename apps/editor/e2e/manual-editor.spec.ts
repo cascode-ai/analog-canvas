@@ -16,6 +16,7 @@ import {
   placeText,
   clickNetlistWorkflowCommand,
   downloadBytes,
+  copyNetlistText,
   editComponentPropertyCode,
   readComponentPropertyCode,
   setComponentParameter,
@@ -61,7 +62,10 @@ test("live JSON properties update controls immediately and round-trip raw parame
   const draft = JSON.parse(await readComponentPropertyCode(page));
   expect(draft.placement.rotation).toBe(90);
   expect(draft.display.visualAnnotation).toBe(false);
-  expect(draft.appearance.foreground).toEqual([220, 38, 38]);
+  expect(draft.appearance.color).toEqual([220, 38, 38]);
+  expect(draft.appearance).not.toHaveProperty("foreground");
+  expect(draft.appearance).not.toHaveProperty("background");
+  expect(draft.appearance).not.toHaveProperty("fillColor");
   draft.parameters.w = "EV";
   draft.parameters.l = "L";
   draft.parameters.custom = "{raw_expression}";
@@ -122,7 +126,7 @@ test("live Defaults are undoable and invalid drafts never change the canvas", as
   const code = page.getByLabel("Editable Canvas property code");
   const invalid = JSON.parse(await readComponentPropertyCode(page));
   const lastValidRevision = await page.getByTestId("revision").textContent();
-  invalid.appearance.foreground = [256, 0, 0];
+  invalid.appearance.color = [256, 0, 0];
   await code.fill(JSON.stringify(invalid, null, 2));
   await expect(
     page.getByText(/Canvas keeps the last valid edit/u),
@@ -164,15 +168,15 @@ test("one live JSON edit combines model, dimensions and appearance in one undo b
   await editComponentPropertyCode(page, (code) => {
     code.netlistTarget = "sky130_fd_pr__nfet_01v8";
     code.parameters.w = "5u";
-    code.appearance.foreground = [20, 30, 40];
+    code.appearance.color = [20, 30, 40];
   });
   await expectComponentCodeField(page, "netlistName", "XM1");
   await expectComponentCodeField(page, "parameters.w", "5u");
-  await expectComponentCodeField(page, "appearance.foreground", [20, 30, 40]);
+  await expectComponentCodeField(page, "appearance.color", [20, 30, 40]);
   await clickCommand(page, "Edit", "Undo");
   await expectComponentCodeField(page, "netlistName", "M1");
   await expectComponentCodeField(page, "parameters.w", "1u");
-  await expectComponentCodeField(page, "appearance.foreground", "auto");
+  await expectComponentCodeField(page, "appearance.color", "auto");
   await clickCommand(page, "Edit", "Redo");
   await expectComponentCodeField(page, "netlistName", "XM1");
   await expectComponentCodeField(page, "parameters.w", "5u");
@@ -209,12 +213,12 @@ test("property placement null retains a wired instance and re-places it with gri
     before.documents[0].routes.length,
   );
   await setComponentCodeField(page, "placement", {
-    at: [421, 281],
+    coordinate: [421, 281],
     rotation: 90,
     mirror: "horizontal",
   });
   await expect(page.getByTestId("hit-R1")).toHaveCount(1);
-  await expectComponentCodeField(page, "placement.at", [420, 280]);
+  await expectComponentCodeField(page, "placement.coordinate", [420, 280]);
   await clickCommand(page, "Edit", "Undo");
   await expect(page.getByTestId("hit-R1")).toHaveCount(0);
 });
@@ -399,7 +403,7 @@ for (const width of [300, 540]) {
     ).toBe(true);
     expect(
       await color.evaluate((element) =>
-        element.closest(".cm-line")?.textContent?.includes('"foreground"'),
+        element.closest(".cm-line")?.textContent?.includes('"color"'),
       ),
     ).toBe(true);
     expect(
@@ -486,26 +490,22 @@ for (const width of [300, 540]) {
     await expect(
       page.getByRole("button", { name: "Use Black for line" }),
     ).toBeVisible();
-    await expect(page.getByRole("button", { name: "Reset line" })).toHaveCount(
-      0,
-    );
+    await expect(
+      page.getByRole("button", { name: "Reset line", exact: true }),
+    ).toHaveCount(0);
     await page.getByRole("button", { name: "Use Black for line" }).click();
-    await expectComponentCodeField(page, "appearance.foreground", [0, 0, 0]);
+    await expectComponentCodeField(page, "appearance.color", [0, 0, 0]);
 
     await color.click();
     await page
       .getByRole("button", { name: "Use Red for line", exact: true })
       .click();
-    await expectComponentCodeField(
-      page,
-      "appearance.foreground",
-      [220, 38, 38],
-    );
+    await expectComponentCodeField(page, "appearance.color", [220, 38, 38]);
 
     await color.click();
     await expect(page.getByLabel("Line RGB")).toHaveValue("[220,38,38]");
     await page.getByLabel("Line RGB").fill("[12,38,38]");
-    await expectComponentCodeField(page, "appearance.foreground", [12, 38, 38]);
+    await expectComponentCodeField(page, "appearance.color", [12, 38, 38]);
   });
 }
 
@@ -2512,6 +2512,71 @@ test("fills a closed shape and moves it behind or in front of circuit artwork", 
   });
 });
 
+test("changes wire line style while preserving color, arrow, export and undo", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await placeComponent(page, "resistor", { x: 340, y: 220 });
+  await placeComponent(page, "resistor", { x: 660, y: 220 });
+  await clickDrawTool(page, "wire");
+  await page.getByTestId("terminal-R1-2").click();
+  await page.getByTestId("terminal-R2-1").click();
+  await page.keyboard.press("Escape");
+  await clickRoute(page, "route-ui-1");
+  await openSelectionShelf(page);
+  const style = page.getByLabel("Wire line style");
+  const conductor = page.locator(
+    '[data-layer="routes"] polyline[data-object-id="route-ui-1"]',
+  );
+  await expect(style).toHaveValue("solid");
+  await page.getByLabel("Wire direction arrow").selectOption("end");
+  await page.getByRole("button", { name: "Use Red for wire color" }).click();
+  await style.selectOption("dashed");
+  await expect(conductor).toHaveAttribute("stroke-dasharray", "6 4");
+  await expect(conductor).toHaveAttribute("stroke", "#dc2626");
+  const arrow = page.locator(
+    '[data-layer="routes"] [data-role="route-direction-arrow"]',
+  );
+  await expect(arrow).toHaveAttribute("data-arrow-position", "end");
+  await expect(arrow).toHaveAttribute("fill", "#dc2626");
+  await style.selectOption("dotted");
+  await expect(conductor).toHaveAttribute("stroke-dasharray", "2 3");
+  await clickCommand(page, "Edit", "Undo");
+  await expect(style).toHaveValue("dashed");
+  await expect(conductor).toHaveAttribute("stroke-dasharray", "6 4");
+  await clickCommand(page, "Edit", "Redo");
+  await expect(style).toHaveValue("dotted");
+  const saved = await downloadBytes(page, "File", "Export Project File…");
+  expect(
+    JSON.parse(saved.toString("utf8")).documents[0].routes[0].styleOverride,
+  ).toEqual({
+    lineStyle: "dotted",
+    color: "#dc2626",
+    arrow: "end",
+  });
+  const svg = (await downloadBytes(page, "File", "Export SVG")).toString(
+    "utf8",
+  );
+  expect(svg).toMatch(
+    /<polyline[^>]*data-object-id="route-ui-1"[^>]*stroke-dasharray="2 3"/u,
+  );
+  expect(svg).toContain('data-role="route-direction-arrow"');
+  const pdf = await downloadBytes(page, "File", "Export PDF");
+  expect(pdf.subarray(0, 5).toString("ascii")).toBe("%PDF-");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "styled-wire.icproj.json",
+    mimeType: "application/json",
+    buffer: saved,
+  });
+  await clickRoute(page, "route-ui-1");
+  await openSelectionShelf(page);
+  await expect(style).toHaveValue("dotted");
+  await expect(conductor).toHaveAttribute("stroke", "#dc2626");
+  await style.selectOption("solid");
+  await expect(conductor).not.toHaveAttribute("stroke-dasharray");
+  await expect(arrow).toHaveAttribute("data-arrow-position", "end");
+});
+
 test("places and clears an independent direction arrow on one wire", async ({
   page,
 }) => {
@@ -4160,11 +4225,11 @@ test("resizes Properties and applies component presentation as editable code", a
     .toBeCloseTo(compactWidth + 8, 0);
 
   const edited = JSON.parse(await readComponentPropertyCode(page));
-  edited.placement.at = [420, 280];
+  edited.placement.coordinate = [420, 280];
   edited.placement.rotation = 90;
   edited.placement.mirror = "horizontal";
   edited.display.visualAnnotation = false;
-  edited.appearance.foreground = "#DC2626";
+  edited.appearance.color = "#DC2626";
   await code.fill(JSON.stringify(edited, null, 2));
 
   await expect(page.getByTestId("revision")).toHaveText("2");
@@ -4320,7 +4385,7 @@ test("Select All shows one batch code surface instead of object-specific forms",
   await expect(batch.getByText("2 selected", { exact: true })).toBeVisible();
   expect(JSON.parse(await readComponentPropertyCode(page))).toEqual({
     display: { visualAnnotation: true, value: false },
-    appearance: { foreground: [0, 0, 0] },
+    appearance: { color: [0, 0, 0] },
     parameters: { value: "1k" },
     symbol: "resistor",
   });
@@ -4365,7 +4430,7 @@ test("Properties keeps component and Annotation text colors independent", async 
   const secondLabel = page.locator('[data-object-id="instance-label-R2"]');
 
   await editComponentPropertyCode(page, (value) => {
-    value.appearance.foreground = "#dc2626";
+    value.appearance.color = "#dc2626";
   });
   await expect(symbol).toHaveAttribute("stroke", "#dc2626");
   await expect(
@@ -5665,15 +5730,10 @@ X2 OUT IN EXT_MASTER l=1u nf=4
   await expect(page.getByTestId("status")).toContainText(
     "Imported 2 Documents",
   );
-  await clickCommand(page, "File", "Export SPICE netlist");
-  const report = page.getByRole("dialog", { name: "Check Report" });
-  await expect(report.getByLabel("Electrical findings")).toBeVisible();
-  const downloadPromise = page.waitForEvent("download");
-  await report.getByRole("button", { name: "Download SPICE netlist" }).click();
-  const stream = await (await downloadPromise).createReadStream();
-  const chunks: Buffer[] = [];
-  for await (const chunk of stream) chunks.push(Buffer.from(chunk));
-  const spice = Buffer.concat(chunks).toString("utf8");
+  const spice = await copyNetlistText(page);
+  await expect(page.getByRole("dialog", { name: "Check Report" })).toHaveCount(
+    0,
+  );
   expect(spice).toContain(".subckt leaf A B params: scale=1");
   expect(spice).toContain("X1 IN OUT leaf scale=2");
   expect(spice).toContain("X2 OUT IN EXT_MASTER l=1u nf=4");
@@ -5725,7 +5785,7 @@ R7 IN OUT 10k
   ).toBeVisible();
 });
 
-test("requires warning review before exporting generated NoConnect nodes", async ({
+test("copies generated NoConnect nodes immediately and retains the optional Check Report", async ({
   page,
 }) => {
   const project = createEmptyProject("warning-project", "Warning Project");
@@ -5774,7 +5834,11 @@ test("requires warning review before exporting generated NoConnect nodes", async
     mimeType: "application/json",
     buffer: Buffer.from(JSON.stringify(project)),
   });
-  await clickCommand(page, "File", "Export SPICE netlist");
+  expect(await copyNetlistText(page)).toContain("R1 IN NC0001 10k");
+  await expect(page.getByRole("dialog", { name: "Check Report" })).toHaveCount(
+    0,
+  );
+  await clickCommand(page, "Netlist", "Check Report…");
   const dialog = page.getByRole("dialog", { name: "Check Report" });
   await expect(dialog).toContainText("GENERATED_NO_CONNECT_NODE");
   await expect(dialog.getByTestId("netlist-preview")).toContainText(
@@ -5805,12 +5869,14 @@ test("requires warning review before exporting generated NoConnect nodes", async
     narrowPreviewBox!.y + narrowPreviewBox!.height - 1,
   );
 
-  const downloadPromise = page.waitForEvent("download");
-  await dialog.getByRole("button", { name: "Download SPICE netlist" }).click();
-  const stream = await (await downloadPromise).createReadStream();
-  const chunks: Buffer[] = [];
-  for await (const chunk of stream) chunks.push(Buffer.from(chunk));
-  expect(Buffer.concat(chunks).toString("utf8")).toContain("R1 IN NC0001 10k");
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+  await dialog.getByRole("button", { name: "Copy SPICE netlist" }).click();
+  await expect(page.getByTestId("status")).toContainText(
+    "SPICE netlist copied",
+  );
+  const spice = await page.evaluate(() => navigator.clipboard.readText());
+  expect(spice).toContain("R1 IN NC0001 10k");
+  expect(spice).not.toContain("GENERATED_NO_CONNECT_NODE");
 });
 
 test("exports one formal visual scene as Project, SVG, PNG, and PDF", async ({
@@ -5872,20 +5938,39 @@ test("exports one formal visual scene as Project, SVG, PNG, and PDF", async ({
   }
 });
 
-test("exports structural SPICE and Spectre netlists while exposing instance authoring", async ({
+test("copies structural SPICE and Spectre netlists while exposing instance authoring", async ({
   page,
 }) => {
   await page.goto("/editor");
-  const spice = (
-    await downloadBytes(page, "File", "Export SPICE netlist")
-  ).toString("utf8");
-  expect(spice).toContain("* Generated by Interactive Circuit Maker");
-  const spectre = (
-    await downloadBytes(page, "File", "Export Spectre netlist")
-  ).toString("utf8");
+  const spice = await copyNetlistText(page, "spice");
+  expect(spice).toContain(".subckt Main");
+  expect(spice).not.toMatch(/^(?:\*|\/\/)/mu);
+  const spectre = await copyNetlistText(page, "spectre");
   expect(spectre).toContain("simulator lang=spectre");
+  const primary = page.getByTestId("copy-netlist");
+  await expect(primary).toHaveAccessibleName("Copy Spectre netlist");
+  await expect(primary).toContainText("SCS");
+  expect(await copyNetlistText(page)).toBe(spectre);
+  await expect(page.getByRole("dialog", { name: "Check Report" })).toHaveCount(
+    0,
+  );
 
   await placeComponent(page, "nmos", { x: 360, y: 220 });
+  await expect(
+    page.getByRole("textbox", { name: "Netlist code", exact: true }),
+  ).toHaveValue("");
+  await expect(
+    page.getByRole("region", { name: "Live netlist" }).getByRole("alert"),
+  ).toContainText("not connected");
+  await page.evaluate(() => navigator.clipboard.writeText("unchanged"));
+  await primary.click();
+  await expect(page.getByTestId("status")).toContainText(
+    "Resolve the Check Report",
+  );
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
+    "unchanged",
+  );
+  await page.keyboard.press("q");
   await openSelectionShelf(page);
   const properties = page.getByRole("complementary", { name: "Properties" });
   await expect(properties.getByLabel("Cell netlist name")).toHaveCount(0);
@@ -5893,6 +5978,154 @@ test("exports structural SPICE and Spectre netlists while exposing instance auth
   await expectComponentCodeField(page, "netlistName", "M1");
   await expectComponentCodeField(page, "netlistTarget", "");
   await expect(properties.getByText(/^Model:/u)).toHaveCount(0);
+});
+
+test("shows and copies a live MOS netlist when only bulk terminals are omitted", async ({
+  page,
+}) => {
+  const project = createEmptyProject("implicit-bulk", "Implicit Bulk");
+  const document = project.documents[0]!;
+  for (const [reference, symbolId] of [
+    ["M1", "nmos"],
+    ["M2", "pmos"],
+  ] as const) {
+    document.instances.push({
+      id: reference,
+      reference,
+      symbolId,
+      placement: null,
+      netlist: {
+        parameters: { w: "1u", l: "150n", nf: "1", m: "1" },
+      },
+    });
+    for (const pinName of ["D", "G", "S"] as const)
+      document.nets.push({
+        id: `${reference}-${pinName}`,
+        terminals: [{ instanceId: reference, pinName }],
+      });
+  }
+
+  await page.goto("/editor");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "implicit-bulk.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+
+  const spice = await copyNetlistText(page, "spice");
+  expect(spice).toMatch(/M1 \S+ \S+ \S+ 0 NMOS/u);
+  expect(spice).toMatch(/M2 \S+ \S+ \S+ VDD PMOS/u);
+  expect(spice).toContain(".global VDD");
+  const spectre = await copyNetlistText(page, "spectre");
+  expect(spectre).toMatch(/M1 \(\S+ \S+ \S+ 0\) NMOS/u);
+  expect(spectre).toMatch(/M2 \(\S+ \S+ \S+ VDD\) PMOS/u);
+  await expect(
+    page.getByRole("region", { name: "Live netlist" }).getByRole("alert"),
+  ).toHaveCount(0);
+});
+
+test("edits all netlist presets as raw JSON in Properties and remembers valid changes", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await clickCommand(page, "Netlist", "Configuration…");
+  const panel = page.getByRole("region", {
+    name: "Netlist configuration",
+    exact: true,
+  });
+  const code = panel.getByRole("textbox", {
+    name: "Netlist configuration JSON",
+  });
+  await expect(panel.getByRole("combobox")).toHaveCount(0);
+  await expect(panel.getByRole("button")).toHaveCount(0);
+  const config = JSON.parse(await code.inputValue());
+  config.selected = "sky130";
+  config.profiles.sky130.library.path =
+    "/opt/sky130/continuous/sky130.lib.spice";
+  await code.fill(JSON.stringify(config, null, 2));
+  const sky = await copyNetlistText(page, "spice");
+  expect(sky).toContain('.lib "/opt/sky130/continuous/sky130.lib.spice" tt');
+  const preset = page.getByRole("combobox", { name: "Netlist preset" });
+  await expect(preset).toHaveValue("sky130");
+  await preset.selectOption("tsmc28");
+  await expect(
+    page.getByRole("textbox", { name: "Netlist code", exact: true }),
+  ).toHaveValue(/\.lib "toplevel\.scs" TOP_TT/u);
+  await page.reload();
+  const tsmc28 = await copyNetlistText(page, "spectre");
+  expect(tsmc28).toContain('include "toplevel.scs" section=TOP_TT');
+  await expect(preset).toHaveValue("tsmc28");
+  await clickCommand(page, "Netlist", "Configuration…");
+  config.selected = "custom";
+  config.profiles.custom.devices.nmos.target = "MY_NMOS";
+  await code.fill(JSON.stringify(config, null, 2));
+  await page.reload();
+  await clickCommand(page, "Netlist", "Configuration…");
+  await expect(code).toHaveValue(JSON.stringify(config, null, 2));
+  await code.fill("{");
+  await expect(panel.getByRole("alert")).toContainText("Copying is paused");
+  await page.getByTestId("copy-netlist").click();
+  await expect(page.getByTestId("status")).toContainText(
+    "Fix Netlist configuration",
+  );
+  await clickCommand(page, "Netlist", "Configuration…");
+  config.selected = "abstract";
+  await code.fill(JSON.stringify(config, null, 2));
+  const abstract = await copyNetlistText(page, "spectre");
+  expect(abstract).toContain("simulator lang=spectre");
+});
+
+test("copies an incomplete netlist in one click and previews its TODO fields", async ({
+  page,
+}) => {
+  const project = createEmptyProject("draft-project", "Draft Circuit");
+  const document = project.documents[0]!;
+  document.instances.push({
+    id: "R1",
+    reference: "R1",
+    symbolId: "resistor",
+    placement: null,
+    netlist: {
+      binding: { kind: "primitive", deviceClass: "resistor" },
+      parameters: {},
+    },
+  });
+  document.noConnects.push(
+    ...["1", "2"].map((pinName) => ({
+      id: `open-${pinName}`,
+      endpoint: { kind: "terminal" as const, instanceId: "R1", pinName },
+    })),
+  );
+  await page.goto("/editor");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "draft.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  await clickCommand(page, "Netlist", "Configuration…");
+  const config = page.getByRole("textbox", {
+    name: "Netlist configuration JSON",
+  });
+  const preferences = JSON.parse(await config.inputValue());
+  preferences.profiles.abstract.devices.resistor.parameters.value = "";
+  await config.fill(JSON.stringify(preferences, null, 2));
+  const text = await copyNetlistText(page);
+  expect(text).not.toMatch(/^(?:\*|\/\/)/mu);
+  expect(text).toContain("R1 NC0001 NC0002 {TODO_Main_R1_value}");
+  await expect(page.getByRole("dialog", { name: "Check Report" })).toHaveCount(
+    0,
+  );
+  await expect(page.getByTestId("status")).toContainText("1 TODO field");
+  await clickCommand(page, "Netlist", "Check Report…");
+  const report = page.getByRole("dialog", { name: "Check Report" });
+  await expect(report).toContainText("Incomplete netlist: 1 TODO field");
+  await expect(report.getByTestId("netlist-preview")).toContainText(
+    "R1 NC0001 NC0002 {TODO_Main_R1_value}",
+  );
+  await report.getByLabel("Netlist export format").selectOption("spectre");
+  await expect(report.getByTestId("netlist-preview")).toContainText(
+    "R1 (NC0001 NC0002) resistor r=TODO_Main_R1_value",
+  );
 });
 
 test("edits the transconductance trapezoid from gm to -gmL", async ({
@@ -6337,15 +6570,14 @@ test("keeps the production command surface compact and publishes PWA metadata", 
 }) => {
   await page.goto("/editor");
   const toolbar = page.getByRole("navigation", { name: "Editor commands" });
-  for (const label of ["File", "Edit", "Netlist"]) {
+  for (const label of ["File", "Edit"]) {
     await expect(toolbar.locator("summary", { hasText: label })).toBeVisible();
   }
   await expect(
     toolbar.locator("summary").filter({ hasText: /^Run$/u }),
   ).toHaveCount(0);
-  const netlistSummary = toolbar
-    .locator("summary")
-    .filter({ hasText: /^Netlist$/u });
+  await expect(toolbar.getByTestId("copy-netlist")).toBeVisible();
+  const netlistSummary = toolbar.locator('summary[aria-label="Netlist"]');
   await expect(toolbar.getByTestId("open-analog-simulation")).toBeVisible();
   await expect(page.getByTestId("check-and-save")).toBeHidden();
   await netlistSummary.click();
@@ -8096,12 +8328,12 @@ test("batch Code edits common resistor values and colors atomically and reopens 
   expect(code).toMatchObject({
     symbol: "resistor",
     parameters: { value: "", tc: "" },
-    appearance: { foreground: [0, 0, 0] },
+    appearance: { color: [0, 0, 0] },
   });
   const revision = Number(await page.getByTestId("revision").textContent());
   await editComponentPropertyCode(page, (value) => {
     value.parameters.value = "10k";
-    value.appearance.foreground = [255, 0, 0];
+    value.appearance.color = [255, 0, 0];
     value.display.value = true;
   });
   await expect(page.getByTestId("revision")).toHaveText(String(revision + 1));
@@ -8128,7 +8360,7 @@ test("batch Code edits common resistor values and colors atomically and reopens 
     {
       id: "R2",
       netlist: { parameters: { value: "10k", tc: "2" } },
-      styleOverride: { foreground: "#ff0000", background: "#ffffff" },
+      styleOverride: { foreground: "#ff0000" },
     },
   ]);
   await page.getByTestId("project-file").setInputFiles({
@@ -8144,7 +8376,7 @@ test("batch Code edits common resistor values and colors atomically and reopens 
   expect(JSON.parse(await readComponentPropertyCode(page))).toMatchObject({
     symbol: "resistor",
     parameters: { value: "10k", tc: "" },
-    appearance: { foreground: [255, 0, 0] },
+    appearance: { color: [255, 0, 0] },
   });
   await page.screenshot({ path: "plan/batch-value-properties.png" });
 });
@@ -8158,14 +8390,14 @@ test("batch Code colors different component types while rejecting incompatible v
   await page.getByTestId("hit-R1").click();
   await openSelectionShelf(page);
   await editComponentPropertyCode(page, (code) => {
-    code.appearance.foreground = [0, 0, 255];
+    code.appearance.color = [0, 0, 255];
   });
   await page.getByTestId("hit-C1").click({ modifiers: ["Shift"] });
   const code = JSON.parse(await readComponentPropertyCode(page));
   expect(code).toMatchObject({
     symbol: "",
     parameters: "",
-    appearance: { foreground: "" },
+    appearance: { color: "" },
   });
   const editor = page.getByLabel("Editable Canvas property code");
   const revision = await page.getByTestId("revision").textContent();
@@ -8173,7 +8405,7 @@ test("batch Code colors different component types while rejecting incompatible v
     JSON.stringify({
       ...code,
       parameters: { value: "10k" },
-      appearance: { foreground: [255, 0, 0] },
+      appearance: { color: [255, 0, 0] },
     }),
   );
   await expect(
@@ -8204,7 +8436,7 @@ test("batch Code colors different component types while rejecting incompatible v
   ]);
   await page.getByRole("button", { name: "Undo", exact: true }).click();
   expect(
-    JSON.parse(await readComponentPropertyCode(page)).appearance.foreground,
+    JSON.parse(await readComponentPropertyCode(page)).appearance.color,
   ).toBe("");
 });
 
@@ -8241,4 +8473,38 @@ test("batch Code drafts follow selection identity even when common values are id
       (instance: any) => instance.netlist.parameters.value,
     ),
   ).toEqual(["22k", "22k", "22k"]);
+});
+
+test("keeps the netlist live and selectable when clipboard access fails", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await page.evaluate(() => {
+    Object.defineProperty(navigator.clipboard, "writeText", {
+      configurable: true,
+      value: () => Promise.reject(new Error("Clipboard denied")),
+    });
+  });
+  const downloads: string[] = [];
+  page.on("download", (download) =>
+    downloads.push(download.suggestedFilename()),
+  );
+  await page.getByTestId("copy-netlist").click();
+  const code = page.getByRole("textbox", { name: "Netlist code", exact: true });
+  await expect(code).toHaveValue(/\.subckt Main/u);
+  await expect(page.getByTestId("status")).toContainText(
+    "select the netlist in the sidebar",
+  );
+  await page.getByTestId("spice-files").setInputFiles({
+    name: "live.spi",
+    mimeType: "text/plain",
+    buffer: Buffer.from("\n.subckt live a b\nR1 a b 2k\n.ends live\n"),
+  });
+  await expect(code).toHaveValue(/R1 a b 2k/u);
+  await expect(code).not.toHaveValue(/\.subckt Main/u);
+  await page.setViewportSize({ width: 760, height: 800 });
+  await expect(code).toBeVisible();
+  await code.focus();
+  await code.selectText();
+  expect(downloads).toEqual([]);
 });

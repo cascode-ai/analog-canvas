@@ -1,5 +1,9 @@
-import { analyzeDesignNetlist } from "@icm/netlist";
-import type { NetlistFormat, NetlistNamingProfile } from "@icm/netlist";
+import { convertImportSources } from "../netlist-export/convert-import-sources";
+import type {
+  NetlistFormat,
+  NetlistNamingProfile,
+  NetlistExportProfile,
+} from "@icm/netlist";
 import type { CircuitProject, GridRect, SchematicDocument } from "@icm/model";
 import { importSpiceSources } from "@icm/spice";
 import type { SymbolResolver } from "@icm/symbols";
@@ -24,6 +28,8 @@ export interface EditorFileCommandDependencies {
   resolver: SymbolResolver;
   defaultViewBox: GridRect;
   electricalWarningsPresent: () => boolean;
+  netlistProfile?: NetlistExportProfile;
+  netlistConfigurationError?: string | null;
   guardDirtyReplacement: (
     label: string,
     replace: () => void | Promise<void>,
@@ -33,7 +39,10 @@ export interface EditorFileCommandDependencies {
     viewBox: GridRect,
     options: { source: "spice-import" },
   ) => void;
-  setNetlistPreflightOpen: (open: boolean) => void;
+  showNetlist: (
+    format: NetlistFormat,
+    namingProfile: NetlistNamingProfile,
+  ) => void;
   setImportReport: (report: SpiceImportReport | null) => void;
   setImportReviewOpen: (open: boolean) => void;
   setSelectionOpen: (open: boolean) => void;
@@ -49,9 +58,11 @@ export function createEditorFileCommands({
   resolver,
   defaultViewBox,
   electricalWarningsPresent,
+  netlistProfile,
+  netlistConfigurationError,
   guardDirtyReplacement,
   replaceActiveProject,
-  setNetlistPreflightOpen,
+  showNetlist,
   setImportReport,
   setImportReviewOpen,
   setSelectionOpen,
@@ -72,25 +83,34 @@ export function createEditorFileCommands({
 
   const exportDesignNetlist = (
     format: NetlistFormat,
-    warningsReviewed = false,
     namingProfile: NetlistNamingProfile = "native",
   ): void => {
-    const analysis = analyzeDesignNetlist(project, { format, namingProfile });
-    const hasElectricalWarnings = electricalWarningsPresent();
+    showNetlist(format, namingProfile);
+    if (netlistConfigurationError) {
+      setStatus(`Fix Netlist configuration: ${netlistConfigurationError}`);
+      return;
+    }
     const plan = planDesignNetlistExport({
       format,
-      ir: analysis.ir,
-      warningsPresent: analysis.diagnostics.length > 0 || hasElectricalWarnings,
-      warningsReviewed,
-      projectName: project.name,
+      project,
+      namingProfile,
+      ...(netlistProfile ? { profile: netlistProfile } : {}),
+      electricalWarningsPresent: electricalWarningsPresent(),
     });
     if (plan.status === "blocked") {
-      setNetlistPreflightOpen(true);
       setStatus(plan.message);
       return;
     }
-    requestBrowserDownload(plan.artifact, project.name);
-    setStatus(plan.artifact.report);
+    void (async () => {
+      try {
+        await navigator.clipboard.writeText(String(plan.artifact.bytes));
+        setStatus(plan.artifact.report);
+      } catch {
+        setStatus(
+          "Clipboard unavailable; select the netlist in the sidebar and copy it",
+        );
+      }
+    })();
   };
 
   const exportRaster = async (format: "png" | "pdf"): Promise<void> => {
@@ -123,10 +143,10 @@ export function createEditorFileCommands({
       })),
     );
     const conventionalEntries = sourceInputs.filter((input) =>
-      /\.(?:cir|sp|spi)$/iu.test(input.path),
+      /\.(?:cir|sp|spi|scs)$/iu.test(input.path),
     );
-    const namedCircuitEntries = conventionalEntries.filter(
-      (input) => input.path.split("/").at(-1)?.toLowerCase() === "circuit.spi",
+    const namedCircuitEntries = conventionalEntries.filter((input) =>
+      /^circuit\.(?:spi|scs)$/iu.test(input.path.split("/").at(-1) ?? ""),
     );
     const entryCandidates =
       namedCircuitEntries.length === 1
@@ -134,14 +154,14 @@ export function createEditorFileCommands({
         : conventionalEntries;
     if (entryCandidates.length !== 1) {
       setStatus(
-        `Select one unambiguous .cir, .sp, or .spi entry and its local include files; found ${entryCandidates.length}`,
+        `Select one unambiguous .cir, .sp, .spi, or .scs entry and its local include files; found ${entryCandidates.length}`,
       );
       return;
     }
     setStatus("Importing SPICE sources");
     try {
       const result = await importSpiceSources(
-        sourceInputs,
+        convertImportSources(sourceInputs),
         entryCandidates[0]!.path,
         {},
         { namingProfile },

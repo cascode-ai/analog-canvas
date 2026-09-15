@@ -522,7 +522,10 @@ test("copies a working handoff through the normal local dev relay", async ({
   await panel.getByTestId("agent-copy-instructions").click();
   await expect(panel.getByLabel("Connection setup copied")).toBeVisible();
   const handoff = await page.evaluate(() => navigator.clipboard.readText());
-  expect(handoff).toBe(await panel.getByTestId("agent-copy-text").inputValue());
+  // Windows clipboard text uses CRLF; textarea values use LF on every OS.
+  expect(handoff.replaceAll("\r\n", "\n")).toBe(
+    await panel.getByTestId("agent-copy-text").inputValue(),
+  );
   expect(handoff).toContain(`Connect to Analog Canvas at ${baseURL}.`);
   const kitUrl = handoff.match(/HTTP Agent Kit: (\S+)/u)![1]!;
   expect((await request.get(kitUrl)).ok()).toBe(true);
@@ -633,7 +636,9 @@ test("copies a working handoff through the normal local dev relay", async ({
   const { createServer } = await import("vite");
   const sibling = await createServer({
     root: "apps/editor",
-    server: { host: "127.0.0.1", port: Number(new URL(baseURL!).port) + 1000 },
+    // A human's pnpm dev may already own 5173 while tests use 4173.
+    // Let the OS allocate the sibling port; keep the two-server regression.
+    server: { host: "127.0.0.1", port: 0 },
     optimizeDeps: {
       force: true,
       rolldownOptions: { output: { chunkFileNames: "sibling-[hash].js" } },

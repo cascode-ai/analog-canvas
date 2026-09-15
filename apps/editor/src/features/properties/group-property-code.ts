@@ -24,7 +24,7 @@ export interface GroupPropertyCodeValue {
     value?: GroupPropertyMixedValue;
   };
   appearance: {
-    foreground: GroupPropertyColor;
+    color: GroupPropertyColor;
   };
 }
 
@@ -134,23 +134,20 @@ export function parseGroupPropertyCode(
     }
     if (!isRecord(decoded.appearance))
       throw new Error("appearance must be an object");
-    assertKeys(decoded.appearance, ["foreground"], "appearance");
-    if (!("foreground" in decoded.appearance))
-      throw new Error("appearance.foreground is required");
-    const foreground =
-      decoded.appearance.foreground === ""
+    assertKeys(decoded.appearance, ["color"], "appearance");
+    if (!("color" in decoded.appearance))
+      throw new Error("appearance.color is required");
+    const color =
+      decoded.appearance.color === ""
         ? ""
-        : parseCanvasColor(
-            decoded.appearance.foreground,
-            "appearance.foreground",
-          );
+        : parseCanvasColor(decoded.appearance.color, "appearance.color");
     return {
       ok: true,
       value: {
         symbol: context.symbol,
         parameters,
         display,
-        appearance: { foreground },
+        appearance: { color },
       },
     };
   } catch (error) {
@@ -171,7 +168,7 @@ export function groupPropertyCodeValue(
       visualAnnotation: context.reference,
       ...(context.value === null ? {} : { value: context.value }),
     },
-    appearance: { foreground: context.foreground },
+    appearance: { color: context.foreground },
   };
 }
 
@@ -181,11 +178,10 @@ export function serializeGroupPropertyCode(
   const source = JSON.stringify(
     {
       appearance: {
-        foreground:
-          value.appearance.foreground === "auto" ||
-          value.appearance.foreground === ""
-            ? value.appearance.foreground
-            : colorToRgb(value.appearance.foreground),
+        color:
+          value.appearance.color === "auto" || value.appearance.color === ""
+            ? value.appearance.color
+            : colorToRgb(value.appearance.color),
       },
       display: value.display,
       parameters: value.parameters,
@@ -271,7 +267,7 @@ export function groupForeground(
     instances.map((instance) =>
       parseCanvasColor(
         colorToRgb(instance.styleOverride?.foreground ?? defaultForeground),
-        "foreground",
+        "color",
       ),
     ),
   );

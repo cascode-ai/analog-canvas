@@ -85,12 +85,6 @@ export const LazyProjectSearchDialog = lazyChunk("dialog", () =>
   })),
 );
 
-export const LazyInstanceTableDialog = lazyChunk("dialog", () =>
-  import("../features/properties/instance-table-dialog").then((module) => ({
-    default: module.InstanceTableDialog,
-  })),
-);
-
 export const LazyInsertComponentDialog = lazyChunk("dialog", () =>
   import("../features/component-insert/insert-component-dialog").then(
     (module) => ({ default: module.InsertComponentDialog }),

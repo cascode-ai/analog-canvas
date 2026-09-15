@@ -1,4 +1,9 @@
-import { foldNetName, projectCellInterface, routeEndpoints } from "@icm/model";
+import {
+  deriveStableId,
+  foldNetName,
+  projectCellInterface,
+  routeEndpoints,
+} from "@icm/model";
 import {
   deriveProjectNetNameProjection,
   directObjectLocator,
@@ -8,6 +13,7 @@ import {
 } from "@icm/derived";
 import type {
   CircuitProject,
+  ConnectivityEvidence,
   ExternalSubcircuitDefinition,
   Instance,
   SchematicDocument,
@@ -195,14 +201,80 @@ function encodeCandidate(
   return encodeNetName(name, scope, options.format, options.namingProfile);
 }
 
-function buildNetContext(
+/**
+ * A visible Ground or VDD marker is already an explicit electrical statement.
+ * Older drawings and copied markers can predate the persisted name-claim
+ * ownership record, so recover that statement in the read-only export view.
+ * Ordinary unnamed Nets still receive deterministic net0-style names below.
+ */
+function withNetlistPowerMarkerClaims(
   document: SchematicDocument,
+): SchematicDocument {
+  const logicalNets = resolveDocumentLogicalNets(document);
+  const claimedMarkers = new Set(
+    document.connectivityEvidence.flatMap((evidence) =>
+      evidence.kind === "name-claim" && evidence.owner.kind === "power-marker"
+        ? [evidence.owner.objectId]
+        : [],
+    ),
+  );
+  const additions: ConnectivityEvidence[] = [];
+  for (const instance of document.instances) {
+    const ground = instance.symbolId === "ground";
+    if (
+      (!ground && instance.symbolId !== "vdd-port") ||
+      claimedMarkers.has(instance.id)
+    )
+      continue;
+    const pinName = deviceDescriptor(instance.symbolId)?.pinOrder[0];
+    if (!pinName) continue;
+    const nets = document.nets.filter((net) =>
+      net.terminals.some(
+        (terminal) =>
+          terminal.instanceId === instance.id && terminal.pinName === pinName,
+      ),
+    );
+    if (nets.length !== 1) continue;
+    const logicalNet = logicalNets.byBaseNetId.get(nets[0]!.id);
+    if (
+      !logicalNet ||
+      logicalNet.name ||
+      logicalNet.powerDomain !== "none" ||
+      logicalNet.conflicts.length > 0
+    )
+      continue;
+    additions.push({
+      id: deriveStableId(
+        "connectivity-evidence",
+        "netlist-power-marker",
+        document.id,
+        instance.id,
+      ),
+      kind: "name-claim",
+      netId: nets[0]!.id,
+      name: ground ? "0" : "VDD",
+      scope: "global",
+      powerDomain: ground ? "ground" : "vdd",
+      owner: { kind: "power-marker", objectId: instance.id },
+    });
+  }
+  return additions.length === 0
+    ? document
+    : {
+        ...document,
+        connectivityEvidence: [...document.connectivityEvidence, ...additions],
+      };
+}
+
+function buildNetContext(
+  sourceDocument: SchematicDocument,
   documentsById: Map<string, SchematicDocument>,
   externalDefinitionsById: ReadonlyMap<string, ExternalSubcircuitDefinition>,
   projectedNames: ReadonlyMap<string, ProjectedNetName>,
   options: ResolvedDesignNetlistAnalysisOptions,
   diagnostics: NetlistDiagnostic[],
 ): CellNetContext {
+  const document = withNetlistPowerMarkerClaims(sourceDocument);
   if (document.nets.length > MAX_NETS_PER_CELL) {
     diagnostic(
       diagnostics,
@@ -240,6 +312,19 @@ function buildNetContext(
         "CONFLICTING_LOGICAL_NET_POWER_DOMAIN",
         `Logical Net ${logicalNet.id} connects incompatible power markers`,
         [...logicalNet.baseNetIds, ...logicalNet.evidenceIds],
+      );
+    }
+    if (logicalNet.conflicts.includes("formal-global-conflict")) {
+      diagnostic(
+        diagnostics,
+        document.id,
+        "FORMAL_PORT_GLOBAL_NET_CONFLICT",
+        `Logical Net ${logicalNet.id} is both a formal Cell Pin and a Global Net`,
+        [
+          ...logicalNet.baseNetIds,
+          ...logicalNet.formalTerminalIds,
+          ...logicalNet.evidenceIds,
+        ],
       );
     }
     const projectedName = projectedNames.get(logicalNet.id);
@@ -319,7 +404,7 @@ function buildNetContext(
   }
 
   const nameByNetId = new Map<string, string>();
-  let generatedIndex = 1;
+  let generatedIndex = 0;
   for (const logicalNet of logicalNets.groups) {
     const projectedName = projectedNames.get(logicalNet.id);
     let name =
@@ -403,7 +488,7 @@ function buildNetContext(
     if (!name && logicalNet.scope !== "global") {
       let encodedGenerated: EncodedNetName;
       do {
-        name = `N${String(generatedIndex).padStart(4, "0")}`;
+        name = `net${generatedIndex}`;
         generatedIndex += 1;
         encodedGenerated = encodeCandidate(name, "local", options);
       } while (
@@ -576,6 +661,7 @@ function terminalNetName(
   pinName: string,
   context: CellNetContext,
   diagnostics: NetlistDiagnostic[],
+  implicitName?: string,
 ): string | null {
   const net = context.netByTerminal.get(`${instance.id}\u0000${pinName}`);
   const name = net ? context.nameByNetId.get(net.id) : undefined;
@@ -583,6 +669,18 @@ function terminalNetName(
     `${instance.id}\u0000${pinName}`,
   );
   if (noConnectName) return noConnectName;
+  if (name) return name;
+  if (!net && implicitName) {
+    const existing = context.nets.find(
+      (candidate) =>
+        candidate.name.toLowerCase() === implicitName.toLowerCase(),
+    );
+    if (existing) return existing.name;
+    let id = `implicit-mos-bulk-${implicitName === "0" ? "ground" : implicitName.toLowerCase()}`;
+    while (context.nets.some((candidate) => candidate.id === id)) id += "-new";
+    context.nets.push({ id, name: implicitName, scope: "global" });
+    return implicitName;
+  }
   if (!name) {
     diagnostic(
       diagnostics,
@@ -594,6 +692,15 @@ function terminalNetName(
     return null;
   }
   return name;
+}
+
+function implicitMosBulkNetName(
+  instance: Instance,
+  pinName: string,
+): "0" | "VDD" | undefined {
+  if (pinName.toLowerCase() !== "b") return undefined;
+  const bulkClass = deviceDescriptor(instance.symbolId)?.mosBulkClass;
+  return bulkClass === "nmos" ? "0" : bulkClass === "pmos" ? "VDD" : undefined;
 }
 
 function extractHierarchyInstance(
@@ -825,6 +932,7 @@ function extractExternalSubcircuitInstance(
       terminal.pinName,
       context,
       diagnostics,
+      implicitMosBulkNetName(instance, terminal.pinName),
     );
     return netName ? [{ pinName: terminal.targetName, netName }] : [];
   });
@@ -917,7 +1025,7 @@ function extractDeviceInstance(
         diagnostics,
         document.id,
         "INVALID_NET_MARKER",
-        `Net marker ${instance.id} must connect to an explicitly named Net`,
+        `Net marker ${instance.id} must connect to one valid Net`,
         [instance.id],
       );
     } else if (
@@ -1060,6 +1168,7 @@ function extractDeviceInstance(
       pinName,
       context,
       diagnostics,
+      implicitMosBulkNetName(instance, pinName),
     );
     return netName ? [{ pinName, netName }] : [];
   });

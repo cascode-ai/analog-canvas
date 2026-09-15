@@ -27,7 +27,6 @@ export interface FileCommandMenuProps {
   onExportProject: () => void;
   onExportSvg: () => void;
   onExportRaster: (format: "png" | "pdf") => void;
-  onExportNetlist: (format: "spice" | "spectre") => void;
   onRevert: () => void;
   onOpenRecovery: () => void;
 }
@@ -62,11 +61,7 @@ function ExportSubmenu({
         ref={trigger}
         type="button"
         aria-expanded={open}
-        aria-controls={
-          title === "Export netlist"
-            ? "export-netlist-options"
-            : "export-drawing-options"
-        }
+        aria-controls="export-drawing-options"
         onClick={(event) => {
           event.stopPropagation();
           onToggle();
@@ -90,11 +85,7 @@ function ExportSubmenu({
       </button>
       <div
         className="export-submenu-options"
-        id={
-          title === "Export netlist"
-            ? "export-netlist-options"
-            : "export-drawing-options"
-        }
+        id="export-drawing-options"
         role="group"
         aria-label={title}
         hidden={!open}
@@ -124,20 +115,17 @@ export function FileCommandMenu({
   onExportProject,
   onExportSvg,
   onExportRaster,
-  onExportNetlist,
   onRevert,
   onOpenRecovery,
 }: FileCommandMenuProps) {
-  const [exportGroup, setExportGroup] = useState<"netlist" | "drawing" | null>(
-    null,
-  );
+  const [drawingExportOpen, setDrawingExportOpen] = useState(false);
   return (
     <details
       className="command-menu"
       name="editor-command-menu"
       onToggle={(event) => {
         if (event.currentTarget.open) onRefreshCloudProjects();
-        else setExportGroup(null);
+        else setDrawingExportOpen(false);
       }}
     >
       <summary>File</summary>
@@ -193,11 +181,11 @@ export function FileCommandMenu({
           />
         </label>
         <label className="file-import">
-          Import SPICE…
+          Import SPICE / SCS…
           <input
             data-testid="spice-files"
             type="file"
-            accept=".spi,.cir,.sp,.inc,.lib"
+            accept=".spi,.cir,.sp,.scs,.inc,.lib"
             multiple
             onChange={(event) => onImportSpice(event.currentTarget.files)}
           />
@@ -207,7 +195,7 @@ export function FileCommandMenu({
           <input
             data-testid="cadence-spice-files"
             type="file"
-            accept=".spi,.cir,.sp,.inc,.lib"
+            accept=".spi,.cir,.sp,.scs,.inc,.lib"
             multiple
             onChange={(event) =>
               onImportSpice(event.currentTarget.files, "cadence-bang")
@@ -219,35 +207,10 @@ export function FileCommandMenu({
         </button>
         <div>
           <ExportSubmenu
-            title="Export netlist"
-            open={exportGroup === "netlist"}
-            onToggle={() =>
-              setExportGroup(exportGroup === "netlist" ? null : "netlist")
-            }
-            onClose={() => setExportGroup(null)}
-          >
-            <button
-              type="button"
-              aria-label="Export SPICE netlist"
-              onClick={() => onExportNetlist("spice")}
-            >
-              SPICE
-            </button>
-            <button
-              type="button"
-              aria-label="Export Spectre netlist"
-              onClick={() => onExportNetlist("spectre")}
-            >
-              Spectre
-            </button>
-          </ExportSubmenu>
-          <ExportSubmenu
             title="Export drawing"
-            open={exportGroup === "drawing"}
-            onToggle={() =>
-              setExportGroup(exportGroup === "drawing" ? null : "drawing")
-            }
-            onClose={() => setExportGroup(null)}
+            open={drawingExportOpen}
+            onToggle={() => setDrawingExportOpen(!drawingExportOpen)}
+            onClose={() => setDrawingExportOpen(false)}
           >
             <button type="button" aria-label="Export SVG" onClick={onExportSvg}>
               SVG

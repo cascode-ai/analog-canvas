@@ -18,12 +18,17 @@ describe("property color picker transport", () => {
       ),
     ).toBeUndefined();
     expect(
+      CANVAS_PROPERTY_FIELDS.filter((field) => field.kind === "color").map(
+        (field) => field.path,
+      ),
+    ).toEqual(["appearance.color"]);
+    expect(
       CANVAS_PROPERTY_FIELDS.filter((field) => field.help).length,
     ).toBeGreaterThan(0);
   });
   it("expands inherited short hex colors before populating a native picker", () => {
     expect(colorToRgb("#0aF")).toEqual([0, 170, 255]);
-    expect(parseCanvasColor(colorToRgb("#0aF"), "appearance.foreground")).toBe(
+    expect(parseCanvasColor(colorToRgb("#0aF"), "appearance.color")).toBe(
       "#00aaff",
     );
     expect(colorToRgb("#dc2626")).toEqual([220, 38, 38]);

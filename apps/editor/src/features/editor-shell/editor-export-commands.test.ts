@@ -1,4 +1,4 @@
-import type { DesignNetlistIR } from "@icm/netlist";
+import { createEmptyProject } from "@icm/model";
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -7,58 +7,42 @@ import {
 } from "./editor-export-commands";
 import { importChunk } from "../../components/chunk-import";
 
-const emptyIr: DesignNetlistIR = {
-  topCellId: "top",
-  cells: [],
-  externalMasters: [],
-  globals: [],
-};
-
 describe("editor export commands", () => {
-  it("blocks design netlist export until findings are resolved", () => {
-    expect(
-      planDesignNetlistExport({
-        format: "spice",
-        ir: null,
-        warningsPresent: false,
-        warningsReviewed: false,
-        projectName: "Circuit",
-      }),
-    ).toEqual({
+  it("blocks structurally incomplete extraction", () => {
+    const project = createEmptyProject("project", "Circuit");
+    project.documents[0]!.netlist = undefined;
+    expect(planDesignNetlistExport({ format: "spice", project })).toEqual({
       status: "blocked",
       message: "Resolve the Check Report findings before export",
     });
   });
 
-  it("requires explicit review when warnings remain", () => {
-    expect(
-      planDesignNetlistExport({
-        format: "spectre",
-        ir: emptyIr,
-        warningsPresent: true,
-        warningsReviewed: false,
-        projectName: "Circuit",
-      }),
-    ).toEqual({
-      status: "blocked",
-      message: "Review the Check Report warnings before export",
-    });
-  });
+  it.each(["spice", "spectre"] as const)(
+    "prepares clean %s with findings only in the status",
+    (format) => {
+      const project = createEmptyProject("project", "Circuit");
+      const plan = planDesignNetlistExport({
+        format,
+        project,
+        electricalWarningsPresent: true,
+      });
+      expect(plan.status).toBe("ready");
+      if (plan.status !== "ready") return;
+      expect(plan.artifact.bytes).not.toContain(
+        `${format === "spice" ? "*" : "//"} Electrical findings remain; see Netlist > Check Report.`,
+      );
+      expect(plan.artifact.report).toContain("see Check Report for findings");
+    },
+  );
 
-  it("prepares a printable artifact after warning review", () => {
-    const plan = planDesignNetlistExport({
-      format: "spice",
-      ir: emptyIr,
-      warningsPresent: true,
-      warningsReviewed: true,
-      projectName: "My Circuit",
-    });
-
+  it("prepares a complete printable artifact without a confirmation step", () => {
+    const project = createEmptyProject("project", "My Circuit");
+    const plan = planDesignNetlistExport({ format: "spice", project });
     expect(plan.status).toBe("ready");
     if (plan.status !== "ready") return;
     expect(plan.artifact.extension).toBe("spi");
     expect(plan.artifact.mediaType).toBe("application/x-spice");
-    expect(plan.artifact.report).toBe("Download requested: my-circuit.spi");
+    expect(plan.artifact.report).toBe("SPICE netlist copied");
   });
 });
 

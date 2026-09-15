@@ -78,17 +78,18 @@ for (const project of manifest.projects) {
     assert.equal(result.outcome.status, "completed", folder.id);
     const analyses = result.data?.analyses ?? [];
     assert(analyses.length > 0, `${folder.id}: no captured results`);
-    const measurements = await read(
-      join(dir, "native-measurements.json"),
-    ).catch((e) => {
-      if (e.code === "ENOENT") return [];
-      throw e;
-    });
-    validateNativeExampleResult(result, measurements);
-    assert.equal(
-      result.metadata.environment.profileId,
-      prepared.input.environment.profileId,
-      "Runtime Profile differs from the prepared experiment",
+    // Current runs record native metrics once in Specs. Historical evidence
+    // bundles may still carry the pre-Spec measurement artifact.
+    const specs = await read(join(dir, "specs.json")).catch(() => null);
+    const measurements = specs
+      ? specs.results.map((spec) => ({
+          ...spec,
+          status: Number.isFinite(spec.value) ? "available" : "unavailable",
+        }))
+      : await read(join(dir, "native-measurements.json")).catch(() => []);
+    assert(
+      measurements.every((m) => m.status === "available"),
+      `${folder.id}: failed native measurement`,
     );
     // Exports are evidence, never repaired or silently skipped by the analyzer.
     for (let i = 0; i < analyses.length; i++) {

@@ -2,15 +2,14 @@ import type {
   CircuitProject,
   ObjectLocator,
   ProjectSimulationFolder,
-  SimulationExpression,
-  SimulationSourceExpression,
 } from "@icm/model";
 import type { Problem } from "@icm/simulation-service/contract";
 import type { SimulationSignalTarget } from "@icm/netlist";
 import type { BrowserSimulationSession } from "./browser-simulation-session";
 import type { ProjectRunHistory } from "./project-run-history";
-import type { OperatingPointCanvasProjection } from "./operating-point-projection";
+import type { SimulationAgentGuidanceProps } from "./simulation-agent-guidance";
 export interface SpiceSimulationSurfaceProps {
+  agentGuidance?: SimulationAgentGuidanceProps | undefined;
   open: boolean;
   maximized: boolean;
   project: CircuitProject;
@@ -61,20 +60,9 @@ export interface SpiceSimulationSurfaceProps {
     readonly occurrence?: readonly string[];
   } | null;
   onPickTerminalsChange?(active: boolean): void;
-  onFocusProbe?(
-    probe: Extract<
-      SimulationExpression | SimulationSourceExpression,
-      { kind: "voltage" | "current" }
-    >,
-    rootDocumentId?: string,
-  ): void;
   /** Transient code preview: never changes selection, camera, or active Cell. */
   onPreviewSignal?(target: SimulationSignalTarget | null): void;
   onFocusDiagnostic?(locator: ObjectLocator): void;
-  /** Session-only OP values ready for exact object-addressed canvas display. */
-  onOperatingPointProjection?(
-    projection: OperatingPointCanvasProjection | null,
-  ): void;
 }
 
 export type SimulationFolderSaveResult =

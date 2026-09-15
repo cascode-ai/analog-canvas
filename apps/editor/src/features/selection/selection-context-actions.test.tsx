@@ -98,6 +98,7 @@ describe("selection context actions", () => {
         onNetLabelChange={vi.fn()}
         onColorChange={vi.fn()}
         onArrowChange={vi.fn()}
+        onLineStyleChange={vi.fn()}
         onDeleteNetLabel={vi.fn()}
         onAddCurrentArrow={vi.fn()}
         onToggleHighlight={vi.fn()}
@@ -113,6 +114,8 @@ describe("selection context actions", () => {
     expect(markup).not.toContain("Orange");
     expect(markup).toContain("Use the document ink color");
     expect(markup).toContain('aria-label="Wire direction arrow"');
+    expect(markup).toContain('aria-label="Wire line style"');
+    expect(markup).toContain('<option value="dashed">Dashed</option>');
     expect(markup).toContain('<option value="middle" selected="">');
     expect(markup).toContain("Arrow at end");
     expect(markup).toContain("Add current arrow");
@@ -133,6 +136,7 @@ describe("selection context actions", () => {
         onNetLabelChange={vi.fn()}
         onColorChange={vi.fn()}
         onArrowChange={vi.fn()}
+        onLineStyleChange={vi.fn()}
         onDeleteNetLabel={vi.fn()}
         onAddCurrentArrow={vi.fn()}
         onToggleHighlight={vi.fn()}
@@ -146,6 +150,7 @@ describe("selection context actions", () => {
     expect(markup).not.toContain("Electrical route");
     expect(markup).not.toContain("Wire color");
     expect(markup).not.toContain("Direction arrow");
+    expect(markup).not.toContain("Wire line style");
   });
 
   it("blocks No Connect while a terminal remains connected", () => {

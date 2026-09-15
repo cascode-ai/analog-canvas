@@ -1,4 +1,6 @@
-import { jsonLanguage } from "@codemirror/lang-json";
+// The property model needs syntax ranges, not CodeMirror's editor runtime.
+// Use the same underlying grammar without pulling view/state into App startup.
+import { parser } from "@lezer/json";
 import { magneticDisplayParameters } from "@icm/derived";
 import { reflectOrientation } from "@icm/model";
 import { componentDetailFields } from "./component-property-details";
@@ -12,7 +14,7 @@ import {
   type CanvasPropertyField,
 } from "./component-property-fields";
 
-type JsonNode = ReturnType<typeof jsonLanguage.parser.parse>["topNode"];
+type JsonNode = ReturnType<typeof parser.parse>["topNode"];
 export interface PropertyCodeSpan {
   field: CanvasPropertyField;
   from: number;
@@ -67,7 +69,7 @@ export function propertyCodeSpans(
       }
     }
   }
-  const root = jsonLanguage.parser.parse(source).topNode.getChild("Object");
+  const root = parser.parse(source).topNode.getChild("Object");
   if (root) visit(root, "");
   return spans;
 }

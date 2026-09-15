@@ -366,6 +366,23 @@ describe("ERC engine", () => {
     expect(roleRun(project)).toEqual([]);
   });
 
+  it.each(["nmos", "pmos"] as const)(
+    "does not warn when an omitted %s bulk has a netlist polarity default",
+    (symbolId) => {
+      const project = emptyProject();
+      project.documents[0]!.instances = [
+        { ...instance("M1"), symbolId, symbolVariantId: "textbook-3terminal" },
+      ];
+      connectDrainAndSource(project);
+
+      expect(
+        run(project).filter(
+          (diagnostic) => diagnostic.code === "ERC_BULK_UNRESOLVED",
+        ),
+      ).toEqual([]);
+    },
+  );
+
   it("does not treat MOS bulk pins alone as an external body reference", () => {
     const project = emptyProject();
     const document = project.documents[0]!;
