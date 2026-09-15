@@ -6257,8 +6257,9 @@ test("shows and copies a live MOS netlist when only bulk terminals are omitted",
   await process.selectOption("sky130");
   const skySpectre = await copyNetlistText(page, "spectre");
   expect(skySpectre).toMatch(
-    /^simulator lang=spice\n\.lib "sky130\.lib\.spice" tt\nsimulator lang=spectre\n/u,
+    /^simulator lang=spectre\ninclude "sky130\.lib\.spice" section=tt\n/u,
   );
+  expect(skySpectre).not.toContain("simulator lang=spice");
   expect(skySpectre).toMatch(
     /XM1 \(\S+ \S+ \S+ VSS\) sky130_fd_pr__nfet_01v8 l=0.15 w=1 nf=1 m=1/u,
   );

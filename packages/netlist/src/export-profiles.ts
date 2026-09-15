@@ -234,8 +234,6 @@ function matchingBinding(project: CircuitProject, instance: Instance) {
 export interface ProfiledNetlistProject {
   project: CircuitProject;
   diagnostics: NetlistDiagnostic[];
-  /** The selected model library must be loaded under SPICE before Spectre source resumes. */
-  spiceLibraryDialect: boolean;
 }
 
 /** Apply an explicit export preset only to a copy; no persisted topology edits. */
@@ -246,7 +244,6 @@ export function projectNetlistExportProfile(
 ): ProfiledNetlistProject {
   const project = structuredClone(source);
   const diagnostics: NetlistDiagnostic[] = [];
-  let spiceLibraryDialect = profile?.id === "sky130";
   const add = (
     document: SchematicDocument,
     instance: Instance | undefined,
@@ -272,7 +269,7 @@ export function projectNetlistExportProfile(
       "Correct the netlist defaults or library settings before downloading.",
       "error",
     );
-    return { project, diagnostics, spiceLibraryDialect };
+    return { project, diagnostics };
   }
   const projections = deriveProjectNetNameProjection({
     ...project,
@@ -446,7 +443,6 @@ export function projectNetlistExportProfile(
         continue;
       }
       if (reviewed) {
-        spiceLibraryDialect = true;
         const defaults =
           preserveTarget && target !== rule.target
             ? Object.fromEntries(
@@ -665,5 +661,5 @@ export function projectNetlistExportProfile(
         );
     }
   }
-  return { project, diagnostics, spiceLibraryDialect };
+  return { project, diagnostics };
 }

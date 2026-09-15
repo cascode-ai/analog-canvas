@@ -22,8 +22,8 @@ using the product, not the commits that got there.
 - Choose Format and Process independently in the live Netlist panel, edit the
   selected NMOS and PMOS targets directly, and restore every cached preset with
   one Default action. Copy uses a compact icon and never downloads a file.
-- Emit native Spectre circuit bodies for SKY130 SCS exports while loading its
-  SPICE model library in the required temporary language section.
+- Keep SKY130 SCS exports entirely in Spectre syntax, including a native
+  `include` declaration for the configured model library.
 - Put `VDD VSS` first in generated Cell interfaces and hierarchical calls,
   including blank circuits without drawn supply symbols. Unconnected MOS bulk
   terminals use those module supplies, and generated supplies stay out of the

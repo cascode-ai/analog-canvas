@@ -298,8 +298,8 @@ pauses copying until corrected. The circuit itself is unchanged.
   `sky130_fd_pr__cap_mim_m3_1` and supply `w`/`l` in metres (for example `5u`),
   plus `mult` or `mf`. The resistor's `substrate` defaults to `0`. Ideal values
   are not converted into geometry. Set `library.path` and `library.section`
-  for your installed PDK. SCS exports use a SPICE-language section for that
-  same SPICE library.
+  for your installed PDK. SCS exports stay in Spectre syntax and reference that
+  configured path with a native `include` declaration.
 - `custom`: keep authored component targets, and fill missing fields from your
   editable defaults. Existing component values always take priority.
 

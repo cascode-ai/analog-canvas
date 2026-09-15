@@ -155,11 +155,6 @@ export function createDesignNetlistExport(
       : `.include "${library.path}"`;
     if (format === "spice") {
       file.text = `${spiceLoad}\n${file.text}`;
-    } else if (profiled?.spiceLibraryDialect) {
-      file.text = file.text.replace(
-        "simulator lang=spectre\n",
-        `simulator lang=spice\n${spiceLoad}\nsimulator lang=spectre\n`,
-      );
     } else {
       const spectreLoad = `include "${library.path}"${library.section ? ` section=${library.section}` : ""}`;
       file.text = file.text.replace(

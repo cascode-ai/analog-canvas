@@ -180,8 +180,9 @@ describe("netlist export presets", () => {
     const scs = exported(project, profile, "spectre");
     expect(scs.file.extension).toBe(".scs");
     expect(scs.file.text).toMatch(
-      /^simulator lang=spice\n\.lib "sky130\.lib\.spice" tt\nsimulator lang=spectre\n/u,
+      /^simulator lang=spectre\ninclude "sky130\.lib\.spice" section=tt\n/u,
     );
+    expect(scs.file.text).not.toContain("simulator lang=spice");
     expect(scs.file.text).toContain("subckt dut (VDD VSS)\n");
     expect(scs.file.text).toMatch(
       /XM1 \([^\n]+\) sky130_fd_pr__nfet_01v8 l=0.3 w=2 nf=3 m=2/u,
