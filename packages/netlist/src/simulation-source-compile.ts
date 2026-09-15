@@ -19,7 +19,11 @@ import type {
   CompiledSimulationVector,
 } from "./simulation-compile.js";
 import { printVacaskWithLocations } from "./vacask-printer.js";
-import { nativeCurrentInstrumentation } from "./simulation-native-current.js";
+import {
+  nativeCurrentInstrumentation,
+  nativeTerminalSignals,
+} from "./simulation-native-current.js";
+import { simulationSignals } from "./simulation-signal-names.js";
 import { instrumentTerminalCurrents } from "./terminal-current-instrumentation.js";
 import type {
   PrintedNetlistParameter,
@@ -56,6 +60,7 @@ export type SourceSimulationCompilation =
       /** External model/master names required by the generated electrical IR. */
       requiredModels: string[];
       vectors: CompiledSimulationVector[];
+      signals: ReturnType<typeof simulationSignals>;
       outputs: CompiledSimulationOutput[];
       deviceOperatingPoints: CompiledSimulationDeviceOperatingPoint[];
       warnings: SimulationSourceDiagnostic[];
@@ -183,10 +188,8 @@ export function compileSourceSimulation(
     ...folder.input,
     files: temperature.files.map(({ path, text }) => ({ path, text })),
   };
-  const currents = nativeCurrentInstrumentation(
-    currentInput,
-    nativeSimulationDevices(effective, currentInput),
-  );
+  const currentDevices = nativeSimulationDevices(effective, currentInput);
+  const currents = nativeCurrentInstrumentation(currentInput, currentDevices);
   diagnostics.push(...currents.diagnostics);
   for (const binding of bindings) {
     const result = analyzeDesignNetlist(effective, {
@@ -362,11 +365,12 @@ export function compileSourceSimulation(
   // There is no single authored write filename in VACASK. Collection is a
   // runtime multi-artifact concern; never manufacture an out.raw source setting.
   config.collection = { rawfile: null };
-  const deviceOp = compileNativeDeviceOperatingPoints(
-    nativeSimulationDevices(effective, {
-      ...folder.input,
-      files: temperature.files.map(({ path, text }) => ({ path, text })),
-    }),
+  const deviceOp = compileNativeDeviceOperatingPoints(currentDevices);
+  const terminalSignals = nativeTerminalSignals(
+    effective,
+    currentInput,
+    currentDevices,
+    currents.instrumentations,
   );
   return {
     ok: true,
@@ -405,9 +409,20 @@ export function compileSourceSimulation(
     reachedDocumentIds: [...cells.keys()],
     // Source controls saves. Potential device mappings are captured here; the
     // result reader materializes only returned values, never retired sidecars.
-    vectors: deviceOp.vectors,
+    vectors: [
+      ...deviceOp.vectors,
+      ...Object.keys(terminalSignals).map((vector) => ({
+        probeId: `native:${vector}`,
+        vector,
+        quantity: "current" as const,
+      })),
+    ],
     outputs: [],
     deviceOperatingPoints: deviceOp.deviceOperatingPoints,
+    signals: {
+      ...simulationSignals(effective, currentInput),
+      ...terminalSignals,
+    },
     warnings: diagnostics,
   };
 }

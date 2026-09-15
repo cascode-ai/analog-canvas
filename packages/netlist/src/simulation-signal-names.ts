@@ -13,6 +13,8 @@ export interface SimulationSignalTarget {
   documentId: string;
   netId: string;
   occurrence: string[];
+  /** Present for a terminal-current vector; the Net address is still available. */
+  terminal?: { instanceId: string; pinName: string };
 }
 
 /** Run-local display metadata. Native vector spelling and electrical identity never change. */

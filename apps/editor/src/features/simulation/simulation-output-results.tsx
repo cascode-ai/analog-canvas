@@ -258,14 +258,26 @@ export function SimulationOutputResults({
   for (const [vector, targets] of Object.entries(signalTargets ?? {})) {
     const target = targets[0];
     if (!target) continue;
-    probes.push({
-      id: `native:${vector}`,
-      kind: "voltage",
-      rootDocumentId: target.rootDocumentId,
-      documentId: target.documentId,
-      occurrence: target.occurrence,
-      anchor: { kind: "base-net", netId: target.netId },
-    });
+    probes.push(
+      target.terminal
+        ? {
+            id: `native:${vector}`,
+            kind: "current",
+            rootDocumentId: target.rootDocumentId,
+            documentId: target.documentId,
+            occurrence: target.occurrence,
+            instanceId: target.terminal.instanceId,
+            pinName: target.terminal.pinName,
+          }
+        : {
+            id: `native:${vector}`,
+            kind: "voltage",
+            rootDocumentId: target.rootDocumentId,
+            documentId: target.documentId,
+            occurrence: target.occurrence,
+            anchor: { kind: "base-net", netId: target.netId },
+          },
+    );
   }
   const isVisible = (analysis: SimulationOutputData["analyses"][number]) =>
     view === "all" ||

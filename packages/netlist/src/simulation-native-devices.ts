@@ -3,7 +3,6 @@ import type {
   SimulationCircuitScope,
   SimulationSourceInput,
 } from "@icm/model";
-import { reviewedExternalDeviceBindings } from "@icm/devices";
 import { mosBulkKind, sha256Hex } from "@icm/derived";
 import type {
   CompiledSimulationDeviceOperatingPoint,
@@ -20,7 +19,8 @@ import {
   nativeCurrentSenses,
   type NativeCurrentSense,
 } from "./simulation-native-current.js";
-import { vacaskIdentifier, vacaskProjectValue } from "./vacask-printer.js";
+import { vacaskIdentifier } from "./vacask-printer.js";
+export { nativeTerminalCurrent } from "./simulation-native-current.js";
 import {
   resolveNativeModelLibraries,
   type NativeModelLibrarySymbols,
@@ -243,57 +243,4 @@ export function compileNativeDeviceOperatingPoints(
     }
   }
   return { vectors, deviceOperatingPoints };
-}
-
-export function nativeTerminalCurrent(
-  device: NativeSimulationDevice,
-  pinName: string,
-):
-  | { ok: true; vectors: string[]; directives: string[] }
-  | { ok: false; message: string } {
-  const reviewed = reviewedExternalDeviceBindings.find(
-    (item) => item.id === device.card.reviewedExternalBindingId,
-  );
-  const pin =
-    reviewed?.terminals.find((t) => t.pinName === pinName)?.targetName ??
-    pinName;
-  const index = device.card.nodes.findIndex((node) => node.pinName === pin);
-  if (index < 0)
-    return {
-      ok: false,
-      message: `No mapped terminal ${device.reference}.${pinName}`,
-    };
-  if (
-    device.card.deviceClass === "voltage-source" &&
-    device.nativeDevice &&
-    !/\s/u.test(device.nativeDevice) &&
-    index === 0
-  ) {
-    const factor = device.card.parameters.find((p) =>
-      ["m", "$mfactor"].includes(p.name.toLowerCase()),
-    );
-    // The generated printer does not forward inherited m to ideal voltage
-    // sources. An explicit non-unit factor still makes flow(br) per-instance.
-    let unitFactor = !factor;
-    if (factor) {
-      try {
-        unitFactor = vacaskProjectValue(factor.rawValue) === "1";
-      } catch {
-        /* A symbolic/invalid factor cannot prove terminal-total meaning. */
-      }
-    }
-    if (unitFactor)
-      return {
-        ok: true,
-        vectors: [`i(${vacaskIdentifier(device.nativeDevice)})`],
-        directives: [],
-      };
-  }
-  const sense = device.currentSenses.find((s) => s.pinName === pin);
-  if (!sense || sense.collision)
-    return {
-      ok: false,
-      message: `Cannot allocate a collision-free zero-volt sense source for ${device.reference}.${pinName}; rename the colliding object and select again.`,
-    };
-  return { ok: true, vectors: [sense.save], directives: [] };
 }

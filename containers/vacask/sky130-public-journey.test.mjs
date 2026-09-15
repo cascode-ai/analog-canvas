@@ -222,6 +222,26 @@ it.skipIf(
       expect(output.real).toHaveLength(ac.frequencyHz.length);
       expect(output.imag).toHaveLength(ac.frequencyHz.length);
       const outputs = JSON.parse(await artifact("outputs.json"));
+      for (const device of sensed) {
+        for (const sense of device.currentSenses) {
+          const signal = prepared.signalTargets[sense.vector][0];
+          expect(signal.documentId).toBe(device.documentId);
+          expect(signal.occurrence).toEqual(device.occurrence);
+          expect(signal.terminal).toEqual({
+            instanceId: device.instanceId,
+            pinName: sense.pinName.toUpperCase(),
+          });
+          const label = prepared.signalNames[sense.vector];
+          expect(label).toContain(
+            `${device.instanceId}.${signal.terminal.pinName}`,
+          );
+          const displayed = outputs.analyses
+            .find((a) => a.analysis === "op")
+            .outputs.find((o) => o.id === `native:${sense.vector}`);
+          expect(displayed.label).toBe(`${label} — ${sense.vector}`);
+          expect(displayed.unit).toBe("A");
+        }
+      }
       expect(outputs.deviceOperatingPoints).toHaveLength(1);
       const mapped = outputs.deviceOperatingPoints.find(
         (d) => d.instanceId === "M1",

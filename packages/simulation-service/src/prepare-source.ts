@@ -4,7 +4,6 @@ import type {
   SimulationRunVariant,
 } from "@icm/model";
 import {
-  simulationSignals,
   nativeSimulationDevices,
   compileNativeDeviceOperatingPoints,
   type SimulationSourceDiagnostic,
@@ -111,7 +110,7 @@ export async function prepareSourceExecutionInput(
     dependencies,
     circuitBindings: [],
   });
-  const signals = simulationSignals(project, folder.input);
+  const signals = compiled.signals;
   // Environment-owned includes are now resolved, including the exact corner.
   // This enriches the captured result mapping, not the authored input identity.
   const deviceOp = compileNativeDeviceOperatingPoints(
@@ -151,7 +150,10 @@ export async function prepareSourceExecutionInput(
     ok: true as const,
     input,
     digest: await sha256(JSON.stringify(input)),
-    vectors: deviceOp.vectors,
+    vectors: [
+      ...deviceOp.vectors,
+      ...compiled.vectors.filter((v) => v.quantity === "current"),
+    ],
     signalNames: Object.fromEntries(
       Object.entries(signals).map(([key, s]) => [key, s.label]),
     ),

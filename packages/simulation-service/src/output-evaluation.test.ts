@@ -13,6 +13,58 @@ import {
 import { SimulationOutputDataSchema } from "./contract.js";
 
 describe("simulation output evaluation", () => {
+  it("types native sense values from captured evidence, not spelling, without overriding authored expressions", () => {
+    const name = "X1:sense:flow(br)";
+    const data: SimulationResultData = {
+      schemaVersion: 1,
+      analyses: [
+        {
+          analysis: "ac",
+          plotName: "AC",
+          frequencyHz: [1],
+          probes: [
+            { name, quantity: "notype", unit: null, real: [0.001], imag: [0] },
+          ],
+        },
+      ],
+    };
+    const vectors = [
+      { probeId: `native:${name}`, vector: name, quantity: "current" as const },
+    ];
+    const read = (
+      evidence = vectors,
+      declarations = new Map<string, string | null>(),
+    ) =>
+      evaluateSimulationOutputs(
+        data,
+        evidence,
+        [],
+        [],
+        [],
+        true,
+        { [name]: "I(X1/M1.D)" },
+        declarations,
+      );
+    const result = read();
+    expect(result.analyses[0]!.outputs[0]).toMatchObject({
+      unit: "A",
+      label: `I(X1/M1.D) — ${name}`,
+      values: [0.001],
+      imaginary: [0],
+      semantics: { valueKind: "complex", quantity: "current", origin: "raw" },
+    });
+    expect(read([]).analyses[0]!.outputs[0]!.unit).toBe("");
+    const shadow = read(vectors, new Map([[name, "2"]])).analyses[0]!
+      .outputs[0]!;
+    expect(shadow.unit).not.toBe("A");
+    expect(shadow.semantics?.origin).toBe("expression");
+    expect(
+      data.analyses[0]!.analysis === "ac" && data.analyses[0]!.probes[0]!.unit,
+    ).toBeNull();
+    expect(simulationOutputAnalysisToCsv(result.analyses[0]!)).toContain(
+      "I(X1/M1.D)",
+    );
+  });
   it.each(["op", "dc", "ac", "tran"] as const)(
     "preserves case-distinct %s acquisitions, output IDs, labels and CSV values",
     (kind) => {

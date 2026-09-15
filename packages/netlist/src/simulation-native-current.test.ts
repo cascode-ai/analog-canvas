@@ -107,6 +107,21 @@ describe("native terminal sense compilation", () => {
     const compiled = compileSourceSimulation(f.project, f.folder);
     if (!compiled.ok) throw Error(JSON.stringify(compiled.diagnostics));
     const circuit = compiled.generated[0]!.text;
+    for (const sense of senses) {
+      const signal = compiled.signals[sense.vector]!;
+      expect(signal.label).toBe(
+        `I(${sense.reference.split(":")[0]}/R1.${sense.pinName})`,
+      );
+      expect(signal.targets).toEqual([
+        {
+          rootDocumentId: f.doc.id,
+          documentId: f.doc.id,
+          netId: sense.pinName === "1" ? "P" : "N",
+          occurrence: [],
+          terminal: { instanceId: "r", pinName: sense.pinName },
+        },
+      ]);
+    }
     // One definition, two occurrences: instrument each selected pin once, but
     // preserve all four case-sensitive acquisition paths.
     for (const sense of senses.slice(0, 2))
@@ -131,6 +146,9 @@ describe("native terminal sense compilation", () => {
     f.entry.text = nominal;
     const undo = compileSourceSimulation(f.project, f.folder);
     expect(undo.ok && undo.generated[0]!.text).not.toContain("__icm_sense_");
+    expect(undo.ok && undo.signals[senses[0]!.vector]).toBeUndefined();
+    f.doc.instances[0]!.reference = "R2";
+    expect(compiled.signals[senses[0]!.vector]!.label).toBe("I(X1/R1.1)");
   });
   it("rejects stale generated branch names instead of silently rebinding to another terminal", () => {
     const f = fixture();
@@ -147,6 +165,32 @@ describe("native terminal sense compilation", () => {
           (d) => d.code === "SIMULATION_CURRENT_SENSE_UNRESOLVED",
         ),
       ).toBe(true);
+  });
+  it("captures an existing unit voltage-source branch without adding a sensor", () => {
+    const f = fixture();
+    Object.assign(f.doc.instances[0]!, {
+      reference: "V1",
+      symbolId: "voltage-source",
+      netlist: {
+        binding: { kind: "primitive", deviceClass: "voltage-source" },
+        parameters: { dc: "1" },
+      },
+    });
+    for (const net of f.doc.nets)
+      for (const pin of net.terminals)
+        if (pin.instanceId === "r")
+          pin.pinName = pin.pinName === "1" ? "+" : "-";
+    f.entry.text = f.entry.text
+      .replace("VEXT (out 0) supply dc=1 mag=1\n", "")
+      .replace("x1 (out 0) DUT\n", "");
+    const compiled = compileSourceSimulation(f.project, f.folder);
+    if (!compiled.ok) throw Error(JSON.stringify(compiled.diagnostics));
+    expect(compiled.signals["X1:V1:flow(br)"]!.targets[0]!.terminal).toEqual({
+      instanceId: "r",
+      pinName: "+",
+    });
+    expect(compiled.signals["X1:V1:flow(br)"]!.label).toBe("I(X1/V1.+)");
+    expect(compiled.generated[0]!.text).not.toContain("__icm_sense_");
   });
   it("rejects collisions without changing stable identities or lending model id semantics", () => {
     const f = fixture();

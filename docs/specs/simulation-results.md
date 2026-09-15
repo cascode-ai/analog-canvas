@@ -12,9 +12,25 @@ Owners: `packages/spice-run`, `packages/simulation-service`
 The shared service exposes every returned native vector alongside configured
 expressions, without requiring an output binding for `save` to work. Direct
 acquisition duplicates are suppressed. Prepared `signalNames` is optional,
-derived run-local metadata mapping native voltage vectors to Canvas paths/names;
+derived run-local metadata mapping native voltages and proven terminal-total
+current branches to Canvas paths/names;
 it does not rename the raw data or change connectivity. Native results retain
 their executable spelling alongside friendly names, including in MCP and CSV.
+
+Native compilation captures `signalNames` and `signalTargets` together from the
+same effective input. A current target adds `terminal: { instanceId, pinName }`
+to the existing root/Cell/Net/occurrence address; this is Prepared metadata, not
+another saved Project selection. Reviewed wrapper pins map back to Canvas pin
+names, and the label is `I(occurrence/device.pin)`. Both compiler-generated sense
+branches and proven unit positive voltage-source branches use this path.
+Model-native `id` or `gm` is not relabelled as terminal current. Waveform focus
+dispatches the captured current terminal through existing instance navigation,
+not voltage-Net navigation. Later edits do not rename already captured results;
+normal current-Project existence checks still apply when navigating them.
+VACASK raw variables may be `notype`. The captured current acquisition supplies
+the displayed ampere unit and AC complex semantics; neither the friendly label
+nor a `flow(br)` suffix alone proves them. An authored expression shadowing the
+same vector retains its expression meaning. Raw artifacts/data remain unchanged.
 
 OP samples are not automatic measurements: their value already belongs to the
 OP table. Authored measurement rules remain independent. Historical automatic

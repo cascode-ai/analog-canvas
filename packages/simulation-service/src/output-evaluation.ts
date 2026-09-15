@@ -268,6 +268,9 @@ export function evaluateSimulationOutputs(
   declarations: NativeDeclarations = new Map(),
 ): SimulationOutputData {
   const diagnostics: SimulationOutputData["diagnostics"] = [];
+  const typedNativeVectors = new Map(
+    vectors.filter((v) => v.quantity !== "native").map((v) => [v.vector, v]),
+  );
   const analyses: SimulationOutputData["analyses"] = data.analyses.map(
     (analysis, analysisIndex) => {
       const rawOrigin = analysis.rawPlotOrdinals
@@ -408,10 +411,15 @@ export function evaluateSimulationOutputs(
         );
         for (const probe of analysis.probes) {
           if (represented.has(probe.name)) continue;
+          // Prepared electrical evidence can type an otherwise untyped native
+          // branch, but authored expressions shadowing it retain their meaning.
+          const captured = !declarations.has(probe.name)
+            ? typedNativeVectors.get(probe.name)
+            : undefined;
           const native = {
             probeId: `native:${probe.name}`,
             vector: probe.name,
-            quantity: "native" as const,
+            quantity: captured?.quantity ?? ("native" as const),
           };
           const meaning = nativeProbeMeaning(
             probe,
@@ -431,8 +439,12 @@ export function evaluateSimulationOutputs(
             ...(series.complex ? { imaginary: [...series.imaginary] } : {}),
             semantics: {
               ...meaning.semantics,
-              valueKind:
-                meaning.semantics.valueKind === "real" && series.complex
+              ...(captured ? { quantity: captured.quantity } : {}),
+              valueKind: captured
+                ? series.complex
+                  ? "complex"
+                  : "real"
+                : meaning.semantics.valueKind === "real" && series.complex
                   ? "unknown"
                   : meaning.semantics.valueKind,
             },

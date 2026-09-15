@@ -14,6 +14,84 @@ const { PNG } = loadModule("pngjs") as {
     };
   };
 };
+test("captured terminal current focuses its instance instead of a voltage Net", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await page.evaluate(async () => {
+    const harnessPath = "/e2e/helpers/simulation-output-harness.tsx";
+    const { mountSimulationOutputHarness } = await import(harnessPath);
+    const host = document.createElement("div");
+    host.id = "current-result-regression";
+    host.style.cssText =
+      "position:fixed;inset:0;overflow:auto;background:white;z-index:99999;padding:20px";
+    document.body.append(host);
+    mountSimulationOutputHarness(host, {
+      resultKey: "captured-current",
+      outputs: [],
+      signalTargets: {
+        "X1:sense:flow(br)": [
+          {
+            rootDocumentId: "tb",
+            documentId: "dut",
+            occurrence: ["call-1"],
+            netId: "drain-net",
+            terminal: { instanceId: "m1", pinName: "D" },
+          },
+        ],
+      },
+      onFocusProbe: (probe: unknown) => {
+        host.dataset.focused = JSON.stringify(probe);
+      },
+      data: {
+        schemaVersion: 1,
+        diagnostics: [],
+        analyses: [
+          {
+            analysis: "ac",
+            plotName: "AC",
+            domain: { name: "Frequency", unit: "Hz", values: [1, 100] },
+            outputs: [
+              {
+                id: "native:X1:sense:flow(br)",
+                label: "I(X1/M1.D)",
+                unit: "A",
+                values: [0.001, 0.002],
+                imaginary: [0, 0],
+                semantics: {
+                  valueKind: "complex",
+                  quantity: "current",
+                  origin: "raw",
+                },
+              },
+            ],
+          },
+        ],
+      },
+    });
+  });
+  const root = page.locator("#current-result-regression");
+  await root
+    .getByRole("button", { name: "Hide I(X1/M1.D)", exact: true })
+    .first()
+    .click();
+  await root
+    .getByRole("button", { name: "Show I(X1/M1.D)", exact: true })
+    .first()
+    .click();
+  await expect(root).toHaveAttribute(
+    "data-focused",
+    JSON.stringify({
+      id: "native:X1:sense:flow(br)",
+      kind: "current",
+      rootDocumentId: "tb",
+      documentId: "dut",
+      occurrence: ["call-1"],
+      instanceId: "m1",
+      pinName: "D",
+    }),
+  );
+});
 test("native multi-unit results preserve signs and link only one record", async ({
   page,
 }) => {

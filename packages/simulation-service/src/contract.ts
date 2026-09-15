@@ -174,6 +174,12 @@ export const PreparedSchema = z.strictObject({
           documentId: Id,
           netId: Id,
           occurrence: z.array(Id),
+          terminal: z
+            .strictObject({
+              instanceId: Id,
+              pinName: z.string().min(1).max(128),
+            })
+            .optional(),
         }),
       ),
     )
