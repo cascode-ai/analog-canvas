@@ -2,9 +2,51 @@ import { describe, expect, it } from "vitest";
 import { createEmptyProject, createSimulationFolder } from "@icm/model";
 import { parseProject } from "@icm/project-protocol";
 import ota from "../../../netlists/native-ota-library/legacy-source.icproj.json";
-import { ProjectInputIdentity } from "./input-identity.js";
+import { ProjectInputIdentity, sourceInputRevision } from "./input-identity.js";
+import { compileNgspiceSourceSimulation } from "@icm/netlist";
 
 describe("Project input identity", () => {
+  it("compares an ngspice run against the same compiler used by its captured Prepare", async () => {
+    const project = createEmptyProject("dual", "Dual engine identity");
+    const folder = createSimulationFolder({
+      id: "ng",
+      name: "Divider",
+      profileId: "ngspice-test",
+    });
+    folder.input.circuitBindings = [];
+    folder.input.entry = "divider.cir";
+    folder.input.files = [
+      {
+        path: folder.input.configPath,
+        text: JSON.stringify({
+          version: 2,
+          environment: { profileId: "ngspice-test" },
+        }),
+      },
+      {
+        path: "divider.cir",
+        text: "Divider\nV1 in 0 1\nR1 in mid 1k\nR2 mid 0 1k\n.control\nop\nwrite out.raw all\n.endc\n.end\n",
+      },
+    ];
+    project.simulationFolders = [folder];
+    const prepared = compileNgspiceSourceSimulation(project, folder);
+    expect(prepared.ok).toBe(true);
+    if (!prepared.ok) throw new Error(JSON.stringify(prepared));
+    const cache = new ProjectInputIdentity();
+    const capturedRevision = await sourceInputRevision(folder, prepared);
+    await cache.read(project, folder.id, undefined, "vacask");
+    expect(await cache.read(project, folder.id, undefined, "ngspice")).toBe(
+      capturedRevision,
+    );
+    folder.input.files[1]!.text = folder.input.files[1]!.text.replace(
+      "R2 mid 0 1k",
+      "R2 mid 0 2k",
+    );
+    project.structureRevision++;
+    expect(await cache.read(project, folder.id, undefined, "ngspice")).not.toBe(
+      capturedRevision,
+    );
+  });
   it("reuses a revision and recognizes raw inputs with resolved dependencies", async () => {
     const project = createEmptyProject("p", "test");
     project.simulationFolders.push({

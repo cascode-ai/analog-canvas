@@ -3,7 +3,10 @@ import type {
   ProjectSimulationFolder,
   SimulationRunVariant,
 } from "@icm/model";
-import { compileSourceSimulation } from "@icm/netlist";
+import {
+  compileSourceSimulation,
+  compileNgspiceSourceSimulation,
+} from "@icm/netlist";
 import { sha256 } from "./content-digest.js";
 
 /** Authored/electrical identity is separate from the resolved runtime's prepared digest. */
@@ -38,6 +41,7 @@ export class ProjectInputIdentity {
     project: CircuitProject,
     folderId: string,
     variant?: SimulationRunVariant,
+    engine: "ngspice" | "vacask" = "vacask",
   ): Promise<string | null> {
     // Document edits (including W/L) need not advance structureRevision.
     const revision = JSON.stringify([
@@ -49,14 +53,17 @@ export class ProjectInputIdentity {
       this.pending.clear();
       this.revision = revision;
     }
-    const key = JSON.stringify([folderId, variant ?? null]);
+    const key = JSON.stringify([folderId, variant ?? null, engine]);
     const existing = this.pending.get(key);
     if (existing) return existing;
     const folder = project.simulationFolders.find(
       (item) => item.id === folderId,
     );
     if (!folder) return Promise.resolve(null);
-    const compiled = compileSourceSimulation(project, folder, variant);
+    const compiled =
+      engine === "ngspice"
+        ? compileNgspiceSourceSimulation(project, folder, variant)
+        : compileSourceSimulation(project, folder, variant);
     const reading = compiled.ok
       ? sourceInputRevision(folder, compiled)
       : Promise.resolve(null);

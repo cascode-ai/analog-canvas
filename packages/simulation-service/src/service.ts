@@ -32,6 +32,7 @@ type PrepareSource = Extract<
 >["source"];
 type InternalRun = {
   view: Run;
+  engine: "ngspice" | "vacask";
   prepared: Prepared;
   token: string;
   expiresAt: number;
@@ -165,6 +166,7 @@ export class SimulationService {
               this.getProject(),
               run.source.folderId,
               run.source.variant,
+              run.engine,
             );
             run.view.inputStatus =
               revision === null
@@ -750,6 +752,7 @@ export class SimulationService {
     };
     const entry: InternalRun = {
       view,
+      engine: prepared.input.language === "vacask" ? "vacask" : "ngspice",
       prepared: structuredClone(prepared.view),
       token: crypto.randomUUID(),
       expiresAt: this.now() + TTL,
