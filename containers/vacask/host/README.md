@@ -1,6 +1,6 @@
 # Isolated native candidate topology
 
-This Compose project is a local candidate, not the shared operator deployment.
+This Compose project is an isolated candidate, not the shared operator deployment.
 It reuses the existing credential-owning gateway (currently under
 `containers/ngspice/`); that file does not invoke a simulator. No alternate
 authentication or execution protocol is introduced.
@@ -36,8 +36,22 @@ Remove only this test project's resources when finished:
 docker compose -p icm-vacask-candidate -f containers/vacask/host/compose.yaml down
 ```
 
-No tunnel, DNS, cloud Worker, distributed queue or shared-host deployment is
-created. A cloud candidate still needs separate routing/resources and capacity
-review; this Compose file must not be substituted into the shared host workflow.
+Local startup does not enable the optional `tunnel` profile. The existing
+**Simulator host** workflow now has an explicit `vacask-preview` action. It takes
+a draft asset release (`vacask-preview-assets-*`), the SHA256 of its
+`vacask-candidate-source.tgz`, and the SHA256 of `native-compose-config.json`.
+It checks available host memory/disk, verifies both downloads, builds the image
+on the host, and starts only Compose project `icm-vacask-preview` under
+`~/analog-canvas-vacask-preview/releases/<commit>`.
+
+That opt-in action owns tunnel `analog-canvas-vacask-preview`, DNS
+`vacask-preview-sim.tokenzhang.com`, and Preview secret `VACASK_UPSTREAM_TOKEN`.
+It never edits the shared ngspice stack or Production. Gateway and tunnel tokens
+stay outside the executor and the image. A mismatching existing DNS record is
+refused rather than overwritten. `/health` must match the supplied pinned
+fingerprint, and anonymous `/run` must return 401. The action does **not** deploy
+Worker/editor code or certify an Agent journey; those are subsequent acceptance.
+Failed candidates remain isolated for diagnosis; use only this candidate's
+Compose project for recovery, never a shared-host prune or reset.
 The gateway source is mounted read-only from the checkout, so record the code
 revision with the image and runtime lock. Do not claim the image alone pins it.

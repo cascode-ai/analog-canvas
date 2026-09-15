@@ -20,7 +20,16 @@ on:
         required: true
         default: probe
         type: choice
-        options: [probe, bootstrap-tunnel, deploy]
+        options: [probe, bootstrap-tunnel, deploy, vacask-preview]
+      candidate_assets:
+        description: Draft release tag containing the pinned native build context
+        type: string
+      candidate_sha256:
+        description: SHA256 of vacask-candidate-source.tgz
+        type: string
+      config_sha256:
+        description: SHA256 of native-compose-config.json
+        type: string
   push:
     branches: [main]
     paths:
@@ -44,6 +53,7 @@ env:
 
 jobs:
   host:
+    if: github.event_name != 'workflow_dispatch' || inputs.action != 'vacask-preview'
     name: ${{ github.event_name == 'push' && 'deploy' || inputs.action }}
     runs-on: ubuntu-latest
     # The account id and the deploy token live in this environment's secrets,
@@ -212,3 +222,42 @@ jobs:
           status="$(curl --silent --output /dev/null --write-out '%{http_code}' --max-time 10 -X POST -H 'content-type: application/json' --data '{"deck":"x\n.end\n"}' "https://$SIM_HOSTNAME/run")"
           [ "$status" = "401" ] || { echo "::error::/run answered $status to a caller without the token; it must answer 401"; exit 1; }
           echo "/run without the token: 401, as required"
+
+  vacask-preview:
+    if: github.event_name == 'workflow_dispatch' && inputs.action == 'vacask-preview'
+    runs-on: ubuntu-latest
+    environment: cloudflare-preview
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure existing authenticated SSH access
+        env:
+          SIM_HOST_SSH_KEY: ${{ secrets.SIM_HOST_SSH_KEY }}
+          SIM_HOST_KNOWN_HOSTS: ${{ secrets.SIM_HOST_KNOWN_HOSTS }}
+          SIM_HOST_ADDR: ${{ secrets.SIM_HOST_ADDR }}
+          SIM_HOST_USER: ${{ secrets.SIM_HOST_USER }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$SIM_HOST_SSH_KEY" > ~/.ssh/sim_host
+          chmod 600 ~/.ssh/sim_host
+          printf '%s\n' "$SIM_HOST_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          printf 'Host sim\n HostName %s\n User %s\n IdentityFile ~/.ssh/sim_host\n IdentitiesOnly yes\n BatchMode yes\n ConnectTimeout 20\n' "$SIM_HOST_ADDR" "$SIM_HOST_USER" > ~/.ssh/config
+      - name: Build isolated VACASK executor and verify native identity
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_ASSETS: ${{ inputs.candidate_assets }}
+          CANDIDATE_SHA256: ${{ inputs.candidate_sha256 }}
+          CONFIG_SHA256: ${{ inputs.config_sha256 }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_TUNNEL_API_TOKEN: ${{ secrets.CLOUDFLARE_TUNNEL_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: bash containers/vacask/host/deploy-preview.sh
+      - name: Preserve runtime identity (no credentials)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vacask-preview-health-${{ github.sha }}
+          path: candidate-download/health.json
+          if-no-files-found: ignore
+          retention-days: 14
