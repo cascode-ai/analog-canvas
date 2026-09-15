@@ -2,14 +2,6 @@ import { useId, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import type { EditorTool } from "../../interaction/interaction-state";
 import { ToolIcon } from "./tool-icon";
-import {
-  ArrowStylePicker,
-  ArrowStyleIcon,
-} from "../drafting/arrow-style-picker";
-import {
-  DEFAULT_ARROW_PRESET,
-  type ArrowPreset,
-} from "../drafting/arrow-presets";
 
 interface ToolbarCommand {
   enabled: boolean;
@@ -22,8 +14,6 @@ export interface DrawingToolbarProps {
   projectPanel: "netlist" | "project-code" | null;
   leftPanelsDisabled?: boolean;
   tool: EditorTool;
-  arrowPreset?: ArrowPreset;
-  onArrowPresetChange?: (preset: ArrowPreset) => void;
   documentSettingsOpen: boolean;
   undo: ToolbarCommand;
   redo: ToolbarCommand;
@@ -32,7 +22,6 @@ export interface DrawingToolbarProps {
   onToggleLibrary: () => void;
   onToggleNetlist: () => void;
   onToggleProjectCode: () => void;
-  onInsert: () => void;
   onActivateTool: (tool: EditorTool) => void;
   onAddText: () => void;
   onOpenDocumentSettings: () => void;
@@ -112,8 +101,6 @@ export function DrawingToolbar({
   projectPanel,
   leftPanelsDisabled = false,
   tool,
-  arrowPreset = DEFAULT_ARROW_PRESET,
-  onArrowPresetChange,
   documentSettingsOpen,
   undo,
   redo,
@@ -121,7 +108,6 @@ export function DrawingToolbar({
   onToggleLibrary,
   onToggleNetlist,
   onToggleProjectCode,
-  onInsert,
   onActivateTool,
   onAddText,
   onOpenDocumentSettings,
@@ -164,30 +150,6 @@ export function DrawingToolbar({
         <ToolIcon name="library" />
         <span>Library</span>
       </ImmediatePanelButton>
-      <ImmediatePanelButton
-        testId="netlist-panel-toggle"
-        label="Netlist"
-        tooltip={projectPanel === "netlist" ? "Hide Netlist" : "Show Netlist"}
-        pressed={projectPanel === "netlist"}
-        onClick={onToggleNetlist}
-      >
-        <ToolIcon name="netlist" />
-        <span>Netlist</span>
-      </ImmediatePanelButton>
-      <ImmediatePanelButton
-        testId="project-code-toggle"
-        label="Project Code"
-        tooltip={
-          projectPanel === "project-code"
-            ? "Hide Project Code"
-            : "Show Project Code"
-        }
-        pressed={projectPanel === "project-code"}
-        onClick={onToggleProjectCode}
-      >
-        <ToolIcon name="project-code" />
-        <span>Project Code</span>
-      </ImmediatePanelButton>
       <span className="draw-toolbar-divider" aria-hidden="true" />
       <button
         type="button"
@@ -215,16 +177,6 @@ export function DrawingToolbar({
       <button
         type="button"
         className="draw-tool"
-        data-testid="draw-tool-insert"
-        title="Insert component (I)"
-        onClick={onInsert}
-      >
-        <ToolIcon name="insert" />
-        <span>Insert</span>
-      </button>
-      <button
-        type="button"
-        className="draw-tool"
         data-testid="draw-tool-wire"
         aria-pressed={tool === "wire"}
         title="Wire (W)"
@@ -243,61 +195,6 @@ export function DrawingToolbar({
       >
         <ToolIcon name="text" />
         <span>Text</span>
-      </button>
-      <span className="toolbar-divider" aria-hidden="true" />
-      <div className="arrow-split-tool">
-        <button
-          type="button"
-          className="draw-tool"
-          data-testid="draw-tool-arrow"
-          aria-pressed={tool === "arrow"}
-          title="Arrow"
-          onClick={() => onActivateTool("arrow")}
-        >
-          <ArrowStyleIcon preset={arrowPreset} />
-          <span>Arrow</span>
-        </button>
-        <ArrowStylePicker
-          label="New arrow style"
-          value={arrowPreset}
-          onChange={(preset) => {
-            onActivateTool("arrow");
-            onArrowPresetChange?.(preset);
-          }}
-        />
-      </div>
-      <button
-        type="button"
-        className="draw-tool"
-        data-testid="draw-tool-line"
-        aria-pressed={tool === "construction-line"}
-        title="Construction line (K)"
-        onClick={() => onActivateTool("construction-line")}
-      >
-        <ToolIcon name="line" />
-        <span>Line</span>
-      </button>
-      <button
-        type="button"
-        className="draw-tool"
-        data-testid="draw-tool-rectangle"
-        aria-pressed={tool === "rectangle"}
-        title="Rectangle (R)"
-        onClick={() => onActivateTool("rectangle")}
-      >
-        <ToolIcon name="rectangle" />
-        <span>Rect</span>
-      </button>
-      <button
-        type="button"
-        className="draw-tool"
-        data-testid="draw-tool-circle"
-        aria-pressed={tool === "circle"}
-        title="Circle"
-        onClick={() => onActivateTool("circle")}
-      >
-        <ToolIcon name="circle" />
-        <span>Circle</span>
       </button>
       <span className="toolbar-divider" aria-hidden="true" />
       <button
@@ -324,6 +221,31 @@ export function DrawingToolbar({
           <span>Simulation</span>
         </button>
       ) : null}
+      <span className="toolbar-divider" aria-hidden="true" />
+      <ImmediatePanelButton
+        testId="netlist-panel-toggle"
+        label="Netlist"
+        tooltip={projectPanel === "netlist" ? "Hide Netlist" : "Show Netlist"}
+        pressed={projectPanel === "netlist"}
+        onClick={onToggleNetlist}
+      >
+        <ToolIcon name="netlist" />
+        <span>Netlist</span>
+      </ImmediatePanelButton>
+      <ImmediatePanelButton
+        testId="project-code-toggle"
+        label="Project Code"
+        tooltip={
+          projectPanel === "project-code"
+            ? "Hide Project Code"
+            : "Show Project Code"
+        }
+        pressed={projectPanel === "project-code"}
+        onClick={onToggleProjectCode}
+      >
+        <ToolIcon name="project-code" />
+        <span>Project Code</span>
+      </ImmediatePanelButton>
     </div>
   );
 }

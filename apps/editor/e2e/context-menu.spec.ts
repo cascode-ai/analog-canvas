@@ -7,6 +7,7 @@ import {
   clickDrawTool,
   placeText,
   clickCommand,
+  editDocumentStyleCode,
   openMenu,
   downloadBytes,
 } from "./editor-fixtures";
@@ -174,7 +175,9 @@ for (const grid of [5, 10]) {
     await importProject(Buffer.from(JSON.stringify(project)));
     const labels = page.locator('[data-testid^="drafting-hit-label-"]');
     await expect(labels).toHaveCount(4);
-    await page.getByTestId("annotation-grid-select").selectOption(String(grid));
+    await editDocumentStyleCode(page, (code) => {
+      code.canvas.annotationGrid = grid;
+    });
     const labelRects = () =>
       labels.evaluateAll((elements) =>
         elements.map((element) => {

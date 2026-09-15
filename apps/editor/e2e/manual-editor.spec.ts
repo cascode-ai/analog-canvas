@@ -18,7 +18,9 @@ import {
   downloadBytes,
   copyNetlistText,
   editComponentPropertyCode,
+  editDocumentStyleCode,
   readComponentPropertyCode,
+  readDocumentStyleCode,
   setComponentParameter,
   setComponentCodeField,
   expectComponentCodeField,
@@ -7381,7 +7383,7 @@ test("directional marquee: window needs full coverage, crossing selects on touch
   ).toBe("");
 });
 
-test("docked Document settings scale fonts document-wide and reset", async ({
+test("docked Style code scales fonts document-wide and resets appearance", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -7389,31 +7391,42 @@ test("docked Document settings scale fonts document-wide and reset", async ({
   const label = page.locator('[data-kind="instance-label"]').first();
   await expect(label).toHaveAttribute("font-size", "15.116");
 
-  // The knobs rescale what the canvas is drawing, so they dock beside it
-  // instead of covering it with a modal.
+  // Style stays beside the canvas as one copyable JSON surface.
   await clickDrawTool(page, "document-style");
   const settings = page.getByLabel("Document settings");
   await expect(settings).toBeVisible();
   await expect(page.getByTestId("canvas-empty-state")).toHaveCount(0);
   await expect(page.getByTestId("hit-R1")).toBeVisible();
-  const reset = page.getByTestId("document-style-reset");
-  await expect(reset).toBeDisabled();
+  await expect(
+    settings.getByLabel("Editable document Style code"),
+  ).toBeVisible();
+  await expect(settings.locator("select")).toHaveCount(0);
 
-  await settings.getByLabel("Font size").selectOption("1.5");
+  await editDocumentStyleCode(page, (code) => {
+    code.appearance.fontScale = 1.5;
+  });
   await expect(label).toHaveAttribute("font-size", "22.674");
-  await expect(page.getByTestId("status")).toContainText(
-    "Updated document style",
-  );
-  await expect(reset).toBeEnabled();
+  await expect(page.getByTestId("status")).toContainText("Updated Style code");
 
-  // Document-wide MOS bulk defaults belong to the Document, not to whichever
-  // transistor happens to be selected.
-  await expect(settings.getByLabel("Default NMOS bulk Net")).toBeVisible();
-  await expect(settings.getByLabel("Default PMOS bulk Net")).toBeVisible();
+  const styleSource = await readDocumentStyleCode(page);
+  const style = JSON.parse(styleSource);
+  expect(style.bulkDefaults).toEqual({ nmosNet: null, pmosNet: null });
+  expect(style.canvas).toEqual({
+    showGrid: true,
+    annotationGrid: 5,
+    drawAngle: "free",
+    scrollBehavior: "auto",
+  });
+  await settings
+    .getByLabel("Editable document Style code", { exact: true })
+    .press("Enter");
+  expect(await readDocumentStyleCode(page)).toBe(styleSource);
 
-  await reset.click();
+  await settings.getByRole("button", { name: "Defaults", exact: true }).click();
   await expect(label).toHaveAttribute("font-size", "15.116");
-  await expect(reset).toBeDisabled();
+  expect(
+    JSON.parse(await readDocumentStyleCode(page)).appearance.fontScale,
+  ).toBe(1);
   await clickDrawTool(page, "document-style");
   await expect(settings).toHaveCount(0);
 });

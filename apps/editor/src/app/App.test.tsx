@@ -286,7 +286,7 @@ describe("editor shell", () => {
     expect(markup).not.toContain('aria-label="Tool rail"');
     expect(markup).toContain('aria-label="Shapes"');
     expect(markup).toContain('data-testid="shapes-chip-resistor"');
-    expect(markup).toContain('data-testid="shapes-insert"');
+    expect(markup).not.toContain('data-testid="shapes-insert"');
     expect(markup).toContain('data-testid="library-toggle"');
     expect(markup).toContain('data-testid="shapes-library-panel"');
     expect(markup).toContain('data-testid="examples-toggle"');
@@ -296,7 +296,12 @@ describe("editor shell", () => {
     expect(markup).toContain('data-open="true"');
     expect(markup).toContain(">Library</span>");
     expect(markup).toContain('class="app-statusbar"');
-    expect(markup).toContain("Insert component (I)");
+    expect(markup).toContain("Insert component… (I)");
+    expect(markup).not.toContain('data-testid="draw-tool-insert"');
+    expect(markup).not.toContain('data-testid="draw-tool-arrow"');
+    expect(markup).not.toContain('data-testid="draw-tool-line"');
+    expect(markup).not.toContain('data-testid="draw-tool-rectangle"');
+    expect(markup).not.toContain('data-testid="draw-tool-circle"');
     expect(markup).toContain("Selection filter");
     expect(markup).not.toContain("Symbols &amp; Tools");
     expect(markup).not.toContain("Search components");

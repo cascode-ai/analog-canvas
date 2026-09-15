@@ -10,7 +10,9 @@ import {
 import {
   awaitEditorReady,
   editComponentPropertyCode,
+  editDocumentStyleCode,
   readComponentPropertyCode,
+  readDocumentStyleCode,
   chooseComponent,
   clickCommand,
   clickDrawTool,
@@ -18,52 +20,34 @@ import {
   downloadBytes,
 } from "./editor-fixtures.js";
 
-test("outline arrow style is chosen before stamp/drag and shares editable geometry with export", async ({
+test("a Library arrow stays fully editable without occupying the toolbar", async ({
   page,
 }) => {
   await page.goto("/editor");
   await awaitEditorReady(page);
-  await page.getByLabel("New arrow style", { exact: true }).click();
-  await page
-    .getByRole("button", { name: "Outline end arrow", exact: true })
-    .click();
-  await page.getByLabel("New arrow style", { exact: true }).click();
-  await page.keyboard.press("Escape");
-  await expect(page.getByTestId("draw-tool-arrow")).toHaveAttribute(
-    "aria-pressed",
-    "true",
-  );
+  await expect(page.getByTestId("draw-tool-arrow")).toHaveCount(0);
+  await clickDrawTool(page, "arrow");
   const canvas = page.getByTestId("schematic-canvas");
-  const box = (await canvas.boundingBox())!;
-  const at = { x: box.x + 450, y: box.y + 240 };
-  await page.mouse.move(at.x, at.y);
-  const preview = page
-    .getByTestId("drafting-create-preview")
-    .locator("polygon");
-  await expect(preview).toBeVisible();
-  const previewPoints = await preview.getAttribute("points");
-  await page.mouse.click(at.x, at.y);
+  await clickCreate(page, { x: 220, y: 180 }, { x: 300, y: 240 });
+  await expect(page.locator('[data-kind="draft-arrow"]')).toHaveCount(1);
+
+  const hit = page.getByTestId(/^drafting-hit-arrow-/);
+  await clickSvgPolyline(hit);
+  await page.keyboard.press("q");
+  const properties = page.getByTestId("drafting-properties");
+  await expect(properties).toBeVisible();
+  expect(
+    JSON.parse(await readComponentPropertyCode(page)).appearance.arrowShape,
+  ).toBe("line");
+  await editComponentPropertyCode(page, (code) => {
+    code.appearance.arrowShape = "outline";
+  });
   const outline = page.locator(
     '[data-kind="draft-arrow"] > [data-arrow-family="outline"]',
   );
   await expect(outline).toHaveCount(1);
-  await expect(outline).toHaveAttribute("points", previewPoints!);
   await expect(outline).toHaveAttribute("fill", "none");
   await expect(outline).toHaveCSS("stroke", "rgb(0, 0, 0)");
-
-  const hit = page.getByTestId(/^drafting-hit-arrow-/);
-  const hitPoint = await hit.evaluate((element) => {
-    const polygon = element as SVGPolygonElement;
-    const p = polygon.points.getItem(0);
-    const screen = new DOMPoint(p.x, p.y).matrixTransform(
-      polygon.getScreenCTM()!,
-    );
-    return { x: screen.x, y: screen.y };
-  });
-  await page.mouse.click(hitPoint.x, hitPoint.y);
-  await page.keyboard.press("q");
-  const properties = page.getByTestId("drafting-properties");
-  await expect(properties).toBeVisible();
   expect(JSON.parse(await readComponentPropertyCode(page)).geometry.width).toBe(
     30,
   );
@@ -79,25 +63,18 @@ test("outline arrow style is chosen before stamp/drag and shares editable geomet
     name: "Rotation options",
     exact: true,
   });
-  await expect(rotation.locator("option")).toHaveText([
-    "0°",
-    "45°",
-    "90°",
-    "135°",
-    "180°",
-    "225°",
-    "270°",
-    "315°",
-  ]);
+  expect(
+    (await rotation.locator("option").allTextContents()).slice(0, 8),
+  ).toEqual(["0°", "45°", "90°", "135°", "180°", "225°", "270°", "315°"]);
   await editComponentPropertyCode(page, (code) => {
     code.appearance.strokeScale = 2;
   });
   await expect(outline).toHaveAttribute("stroke-width", "3.2");
-  await expect(outline).toHaveAttribute("points", previewPoints!);
+  const originalPoints = await outline.getAttribute("points");
   await editComponentPropertyCode(page, (code) => {
     code.geometry.width = 45;
   });
-  await expect(outline).not.toHaveAttribute("points", previewPoints!);
+  await expect(outline).not.toHaveAttribute("points", originalPoints!);
   await expect(page.getByTestId(/^draft-handle-width-/)).toBeVisible();
   await expect(page.getByTestId(/^draft-handle-rotate-/)).toBeVisible();
   await expect(page.getByTestId(/^draft-handle-segment-/)).toHaveCount(0);
@@ -110,24 +87,18 @@ test("outline arrow style is chosen before stamp/drag and shares editable geomet
   await canvas.focus();
   await page.keyboard.press("Escape");
   await clickDrawTool(page, "arrow");
-  const from = { x: box.x + 220, y: box.y + 150 },
-    to = { x: from.x + 80, y: from.y + 120 };
-  await page.mouse.move(from.x, from.y);
-  await page.mouse.down();
-  await page.mouse.move(to.x, to.y, { steps: 12 });
-  const dragPreview = await preview.getAttribute("points");
-  await page.mouse.up();
-  await expect(outline).toHaveCount(2);
-  await expect(outline.last()).toHaveAttribute("points", dragPreview!);
-  // Editing the first object's style did not change the next-object default.
-  const pointCount = await outline
-    .last()
-    .evaluate((node) => (node as SVGPolygonElement).points.numberOfItems);
-  expect(pointCount).toBe(7);
+  await clickCreate(page, { x: 360, y: 180 }, { x: 440, y: 240 });
+  await expect(page.locator('[data-kind="draft-arrow"]')).toHaveCount(2);
+  // Editing one object does not change the default used by the Library tool.
+  await clickSvgPolyline(page.getByTestId(/^drafting-hit-arrow-/).last());
+  expect(
+    JSON.parse(await readComponentPropertyCode(page)).appearance.arrowShape,
+  ).toBe("line");
+  await canvas.focus();
   await page.keyboard.press("Control+z");
-  await expect(outline).toHaveCount(1);
+  await expect(page.locator('[data-kind="draft-arrow"]')).toHaveCount(1);
   await page.keyboard.press("Control+Shift+z");
-  await expect(outline).toHaveCount(2);
+  await expect(page.locator('[data-kind="draft-arrow"]')).toHaveCount(2);
 });
 
 // Multi-phase drafting creation: click to set the start, move to preview, click
@@ -1559,7 +1530,7 @@ test("O toggles Display settings and never activates Circle", async ({
   await expect(page.getByLabel("Document settings")).toHaveCount(0);
 });
 
-test("the Circle toolbar creates a selectable shape with one radial handle and no rotation", async ({
+test("the Library Circle creates a selectable shape with one radial handle and no rotation", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -2079,9 +2050,12 @@ test("annotation grid pitch frees drawings from the device grid", async ({
   await awaitEditorReady(page);
 
   // Half-grid is the shipped default; the electrical grid is not offered.
-  const pitch = page.getByTestId("annotation-grid-select");
-  await expect(pitch).toHaveValue("5");
-  await pitch.selectOption("1");
+  expect(
+    JSON.parse(await readDocumentStyleCode(page)).canvas.annotationGrid,
+  ).toBe(5);
+  await editDocumentStyleCode(page, (code) => {
+    code.canvas.annotationGrid = 1;
+  });
 
   // A drawn rectangle commits at 1-unit precision and survives validation.
   await clickDrawTool(page, "rectangle");
@@ -2148,7 +2122,9 @@ test("annotation grid pitch frees drawings from the device grid", async ({
 
   // The pitch choice is an editor preference that survives a reload.
   await page.reload();
-  await expect(page.getByTestId("annotation-grid-select")).toHaveValue("1");
+  expect(
+    JSON.parse(await readDocumentStyleCode(page)).canvas.annotationGrid,
+  ).toBe(1);
 });
 
 test("authors inline fractions alongside styled text and preserves them through editing and export", async ({

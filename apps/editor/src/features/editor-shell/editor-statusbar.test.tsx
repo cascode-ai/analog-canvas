@@ -15,21 +15,13 @@ describe("editor statusbar", () => {
         wireRoutingMode="orthogonal"
         wireCornerOrder="horizontal-first"
         recoveryLabel="Saved locally"
-        gridDotsVisible
-        drawAngleMode="free"
-        wheelBehavior="auto"
-        onWheelBehaviorChange={vi.fn()}
-        onDrawAngleModeChange={vi.fn()}
-        annotationGrid={5}
         zoomPercent={100}
         selectionFilterSummary={null}
         onOpenSelectionFilter={vi.fn()}
         onToggleWireOptions={vi.fn()}
         onWireRoutingModeChange={vi.fn()}
         onWireCornerOrderChange={vi.fn()}
-        onToggleGridDots={vi.fn()}
         onOpenAnalytics={vi.fn()}
-        onAnnotationGridChange={vi.fn()}
         onZoomOut={vi.fn()}
         onZoomIn={vi.fn()}
         onFitView={vi.fn()}
@@ -38,7 +30,10 @@ describe("editor statusbar", () => {
     expect(markup).toContain('data-testid="wire-options"');
     expect(markup).toContain("Saved locally");
     expect(markup).toContain('aria-label="Current zoom"');
-    expect(markup).toContain('aria-label="Annotation grid"');
+    expect(markup).not.toContain('aria-label="Annotation grid"');
+    expect(markup).not.toContain('aria-label="Draw angle"');
+    expect(markup).not.toContain('aria-label="Scroll wheel"');
+    expect(markup).not.toContain("background dots");
   });
 
   function statusbarWithIssues(issues: {
@@ -57,12 +52,6 @@ describe("editor statusbar", () => {
         wireRoutingMode="orthogonal"
         wireCornerOrder="auto"
         recoveryLabel={null}
-        gridDotsVisible
-        drawAngleMode="free"
-        wheelBehavior="auto"
-        onWheelBehaviorChange={vi.fn()}
-        onDrawAngleModeChange={vi.fn()}
-        annotationGrid={5}
         zoomPercent={100}
         selectionFilterSummary={null}
         onOpenSelectionFilter={vi.fn()}
@@ -70,9 +59,7 @@ describe("editor statusbar", () => {
         onToggleWireOptions={vi.fn()}
         onWireRoutingModeChange={vi.fn()}
         onWireCornerOrderChange={vi.fn()}
-        onToggleGridDots={vi.fn()}
         onOpenAnalytics={vi.fn()}
-        onAnnotationGridChange={vi.fn()}
         onZoomOut={vi.fn()}
         onZoomIn={vi.fn()}
         onFitView={vi.fn()}
@@ -103,21 +90,13 @@ describe("editor statusbar", () => {
         wireRoutingMode="orthogonal"
         wireCornerOrder="auto"
         recoveryLabel={null}
-        gridDotsVisible
-        drawAngleMode="free"
-        wheelBehavior="auto"
-        onWheelBehaviorChange={vi.fn()}
-        onDrawAngleModeChange={vi.fn()}
-        annotationGrid={5}
         zoomPercent={100}
         selectionFilterSummary="Filter: Wires"
         onOpenSelectionFilter={vi.fn()}
         onToggleWireOptions={vi.fn()}
         onWireRoutingModeChange={vi.fn()}
         onWireCornerOrderChange={vi.fn()}
-        onToggleGridDots={vi.fn()}
         onOpenAnalytics={vi.fn()}
-        onAnnotationGridChange={vi.fn()}
         onZoomOut={vi.fn()}
         onZoomIn={vi.fn()}
         onFitView={vi.fn()}

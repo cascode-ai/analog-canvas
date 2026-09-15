@@ -132,6 +132,8 @@ import {
   type SpiceImportReport,
 } from "../features/editor-shell/editor-file-commands";
 import { EditorStatusbar } from "../features/editor-shell/editor-statusbar";
+import { documentSettingsCodeValue } from "../features/editor-shell/document-settings-code";
+import { normalizedStyleOverrides } from "../features/editor-shell/style-knobs";
 import {
   deriveSimulationProbeOptions,
   simulationProbeHierarchyPath,
@@ -684,8 +686,7 @@ export function App({
       // Storage may be unavailable; the choice still applies to this session.
     }
   };
-  const [arrowPreset, setArrowPresetState] =
-    useState<ArrowPreset>(DEFAULT_ARROW_PRESET);
+  const arrowPreset: ArrowPreset = DEFAULT_ARROW_PRESET;
   const [drawAngleMode, setDrawAngleModeState] = useState<DrawAngleMode>(() => {
     if (typeof window === "undefined") return "free";
     const stored = window.localStorage.getItem("icm.draw-angle.v1");
@@ -3628,21 +3629,6 @@ export function App({
     setStatus(command + " cancelled");
   }
 
-  function updateMosBulkDefault(
-    kind: "nmos" | "pmos",
-    netId: string | null,
-  ): void {
-    const result = transact([
-      ...planMosBulkDefaultUpdate(document, kind, netId),
-    ]);
-    if (!result.ok) return;
-    setStatus(
-      `${kind === "nmos" ? "NMOS" : "PMOS"} bulk default ${
-        netId ? "updated" : "cleared"
-      }`,
-    );
-  }
-
   function nextRoutingSuffix(): number {
     routeCounter.current =
       Math.max(routeCounter.current, maxRoutingCounter(document)) + 1;
@@ -4694,6 +4680,12 @@ export function App({
         searchOpen={searchOpen}
         selectionFilterOpen={selectionFilterOpen}
         onManageCells={() => setCellManagerOpen(true)}
+        onInsertComponent={() =>
+          editorCommands.execute({
+            id: "insert.start",
+            launch: fullInsertLaunch(),
+          })
+        }
         placeProjectCell={{
           enabled: cellInsertCandidates.length > 0,
           execute: placeCellInstance,
@@ -4831,16 +4823,6 @@ export function App({
         helpOpen={helpOpen}
         onOpenHelp={() => setHelpOpen(true)}
         drawingToolbar={{
-          arrowPreset,
-          onArrowPresetChange: (preset) => {
-            clearDraftingCreate();
-            setArrowPresetState(preset);
-            setStatus(
-              preset.family === "outline"
-                ? "Outline arrow: click to place, or drag to size (Esc cancels)"
-                : "Arrow: click the start point",
-            );
-          },
           leftPanelMode,
           libraryPanelOpen: visibleLibraryPanelOpen,
           projectPanel:
@@ -4864,11 +4846,6 @@ export function App({
           onToggleLibrary: toggleLibraryPanel,
           onToggleNetlist: () => toggleProjectPanel("netlist"),
           onToggleProjectCode: () => toggleProjectPanel("project-code"),
-          onInsert: () =>
-            editorCommands.execute({
-              id: "insert.start",
-              launch: fullInsertLaunch(),
-            }),
           onActivateTool: (nextTool) =>
             editorCommands.execute({
               id: "tool.activate",
@@ -5633,11 +5610,7 @@ export function App({
           }
           project={
             projectPanel ? (
-              <EditorProjectDock
-                mode={projectPanel}
-                onSelect={showProjectPanel}
-                onClose={closeProjectPanel}
-              >
+              <EditorProjectDock onClose={closeProjectPanel}>
                 {projectPanel === "netlist-configuration" ? (
                   <NetlistProfileCode
                     text={netlistPreferences.text}
@@ -5758,24 +5731,72 @@ export function App({
                 documentSettingsOpen
                   ? {
                       document,
-                      onApplyStyle: (styleOverrides) => {
-                        const result = transact([
-                          {
+                      canvas: {
+                        showGrid: gridDotsVisible,
+                        annotationGrid,
+                        drawAngle: drawAngleMode,
+                        scrollBehavior: wheelBehavior,
+                      },
+                      onApply: (value) => {
+                        const current = documentSettingsCodeValue(document, {
+                          showGrid: gridDotsVisible,
+                          annotationGrid,
+                          drawAngle: drawAngleMode,
+                          scrollBehavior: wheelBehavior,
+                        });
+                        const edits: SchematicEdit[] = [];
+                        if (
+                          JSON.stringify(value.appearance) !==
+                          JSON.stringify(current.appearance)
+                        ) {
+                          edits.push({
                             kind: "set_presentation_style",
                             styleProfileId:
                               document.presentation.styleProfileId,
-                            styleOverrides,
-                          },
-                        ]);
-                        if (result.ok) {
-                          setStatus(
-                            styleOverrides
-                              ? "Updated document style"
-                              : "Reset document style to profile defaults",
-                          );
+                            styleOverrides: normalizedStyleOverrides(
+                              value.appearance,
+                            ),
+                          });
                         }
+                        if (
+                          value.bulkDefaults.nmosNet !==
+                          current.bulkDefaults.nmosNet
+                        )
+                          edits.push(
+                            ...planMosBulkDefaultUpdate(
+                              document,
+                              "nmos",
+                              value.bulkDefaults.nmosNet,
+                            ),
+                          );
+                        if (
+                          value.bulkDefaults.pmosNet !==
+                          current.bulkDefaults.pmosNet
+                        )
+                          edits.push(
+                            ...planMosBulkDefaultUpdate(
+                              document,
+                              "pmos",
+                              value.bulkDefaults.pmosNet,
+                            ),
+                          );
+                        if (edits.length > 0 && !transact(edits).ok) {
+                          return {
+                            ok: false as const,
+                            message: "Style code was rejected",
+                          };
+                        }
+                        if (value.canvas.showGrid !== gridDotsVisible)
+                          setGridDotsVisible(value.canvas.showGrid);
+                        if (value.canvas.annotationGrid !== annotationGrid)
+                          setAnnotationGrid(value.canvas.annotationGrid);
+                        if (value.canvas.drawAngle !== drawAngleMode)
+                          setDrawAngleMode(value.canvas.drawAngle);
+                        if (value.canvas.scrollBehavior !== wheelBehavior)
+                          setWheelBehavior(value.canvas.scrollBehavior);
+                        setStatus("Updated Style code");
+                        return { ok: true as const };
                       },
-                      onChangeBulkDefault: updateMosBulkDefault,
                     }
                   : null
               }
@@ -7255,13 +7276,6 @@ export function App({
         wireRoutingMode={wireRoutingMode}
         wireCornerOrder={wireCornerOrder}
         recoveryLabel={isDirtyWork() ? recoveryStateLabel(recoveryState) : null}
-        gridDotsVisible={gridDotsVisible}
-        annotationGrid={annotationGrid}
-        onAnnotationGridChange={setAnnotationGrid}
-        drawAngleMode={drawAngleMode}
-        onDrawAngleModeChange={setDrawAngleMode}
-        wheelBehavior={wheelBehavior}
-        onWheelBehaviorChange={setWheelBehavior}
         zoomPercent={zoomPercent}
         selectionFilterSummary={selectionFilterSummary(selectionFilter)}
         onOpenSelectionFilter={() =>
@@ -7276,14 +7290,6 @@ export function App({
         onToggleWireOptions={() => setWireOptionsOpen((open) => !open)}
         onWireRoutingModeChange={setWireRoutingMode}
         onWireCornerOrderChange={setWireCornerOrder}
-        onToggleGridDots={() =>
-          setGridDotsVisible((visible) => {
-            setStatus(
-              visible ? "Background dots hidden" : "Background dots shown",
-            );
-            return !visible;
-          })
-        }
         onOpenAnalytics={() => {
           void guardDirtyReplacement("Open Analytics", () => {
             allowNextBrowserUnload();

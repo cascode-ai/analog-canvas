@@ -224,47 +224,6 @@
   pointer-events: none;
 }
 
-.shapes-panel-footer {
-  display: grid;
-  gap: var(--icm-space-2);
-  padding: var(--icm-space-2) var(--icm-space-3) var(--icm-space-3);
-  border-top: 1px solid var(--icm-border);
-  background: var(--icm-surface);
-}
-
-.shapes-insert {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--icm-space-2);
-  width: 100%;
-  min-height: var(--icm-control-h-lg);
-  padding: 0 var(--icm-space-3);
-  border: 1px solid transparent;
-  border-radius: var(--icm-radius-sm);
-  color: #fff;
-  background: var(--icm-accent);
-  box-shadow: none;
-  font-size: var(--icm-font-md);
-  font-weight: 600;
-}
-
-.shapes-insert:hover:not(:disabled) {
-  border-color: transparent;
-  filter: brightness(0.97);
-  background: var(--icm-accent);
-}
-
-.shapes-insert kbd {
-  padding: 1px 5px;
-  border: 1px solid rgb(255 255 255 / 35%);
-  border-radius: 4px;
-  background: rgb(255 255 255 / 16%);
-  font: inherit;
-  font-size: var(--icm-font-xs);
-  font-weight: 600;
-}
-
 .shapes-panel-body {
   display: flex;
   flex: 1 1 auto;

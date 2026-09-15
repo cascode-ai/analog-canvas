@@ -70,7 +70,6 @@ export async function clickNetlistWorkflowCommand(
 }
 
 export type DrawTool =
-  | "insert"
   | "wire"
   | "text"
   | "arrow"
@@ -79,9 +78,25 @@ export type DrawTool =
   | "circle"
   | "document-style";
 
-/** Activate one tool from the always-visible drawing toolbar. */
+/** Activate a toolbar command or an annotation tool from the Library. */
 export async function clickDrawTool(page: Page, tool: DrawTool): Promise<void> {
-  await page.getByTestId(`draw-tool-${tool}`).click();
+  const annotationTools: Partial<Record<DrawTool, string>> = {
+    arrow: "annotation-arrow",
+    line: "annotation-line",
+    rectangle: "annotation-rectangle",
+    circle: "annotation-circle",
+  };
+  const symbolId = annotationTools[tool];
+  if (!symbolId) {
+    await page.getByTestId(`draw-tool-${tool}`).click();
+    return;
+  }
+  const chip = page.getByTestId(`shapes-chip-${symbolId}`);
+  if (!(await chip.isVisible())) {
+    await page.getByTestId("library-toggle").click();
+    await expect(chip).toBeVisible();
+  }
+  await chip.click();
 }
 
 /** Place a free text note, leaving its editor open for the calling scenario. */
@@ -101,9 +116,9 @@ export async function chooseComponent(
   symbolId: string,
 ): Promise<void> {
   // Route-level code splitting means `page.goto()` can resolve before the
-  // editor bundle has mounted. Clicking the toolbar both waits for the editor
-  // shell and avoids dropping a shortcut during that loading window.
-  await clickDrawTool(page, "insert");
+  // editor bundle has mounted. Opening the Edit command also waits for the
+  // editor shell and avoids dropping a shortcut during that loading window.
+  await clickCommand(page, "Edit", "Insert component… (I)");
   const dialog = page.getByRole("dialog", { name: "Insert Component" });
   await dialog.getByLabel("Component search").fill(symbolId);
   // Clicking a tile starts placement immediately; the quick-pick grid has no
@@ -136,6 +151,44 @@ export async function readComponentPropertyCode(page: Page): Promise<string> {
     }),
   ).toBeVisible();
   return page.evaluate(() => navigator.clipboard.readText());
+}
+
+/** Edit the Document-wide Style JSON and let the editor apply valid code live. */
+export async function editDocumentStyleCode(
+  page: Page,
+  update: (value: Record<string, any>) => void,
+): Promise<void> {
+  const input = await documentStyleCodeEditor(page);
+  const value = JSON.parse(await readDocumentStyleCode(page)) as Record<
+    string,
+    any
+  >;
+  update(value);
+  await input.fill(JSON.stringify(value, null, 2));
+}
+
+/** Read the Style JSON through its real copy command. */
+export async function readDocumentStyleCode(page: Page): Promise<string> {
+  const input = await documentStyleCodeEditor(page);
+  await expect(input).toBeVisible();
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+  const settings = page.getByLabel("Document settings", { exact: true });
+  await settings
+    .getByRole("button", { name: "Copy Style JSON", exact: true })
+    .click();
+  await expect(
+    settings.getByText("Style JSON copied", { exact: true }),
+  ).toBeVisible();
+  return page.evaluate(() => navigator.clipboard.readText());
+}
+
+async function documentStyleCodeEditor(page: Page): Promise<Locator> {
+  const input = page.getByLabel("Editable document Style code", {
+    exact: true,
+  });
+  if (!(await input.isVisible())) await clickDrawTool(page, "document-style");
+  await expect(input).toBeVisible();
+  return input;
 }
 
 export async function setComponentParameter(

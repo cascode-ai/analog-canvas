@@ -44,6 +44,7 @@ export interface EditorAppChromeProps {
   onOpenGallery: () => void;
   fileCommands: ComponentProps<typeof FileCommandMenu>;
   searchOpen: boolean;
+  onInsertComponent: () => void;
   onManageCells: () => void;
   onNewTestbench?: () => void;
   placeProjectCell: CommandAction;
@@ -108,6 +109,7 @@ export function EditorAppChrome({
   onOpenGallery,
   fileCommands,
   searchOpen,
+  onInsertComponent,
   onManageCells,
   onNewTestbench,
   placeProjectCell,
@@ -225,6 +227,9 @@ export function EditorAppChrome({
             <details className="command-menu" name="editor-command-menu">
               <summary>Edit</summary>
               <div className="command-popover">
+                <button type="button" onClick={onInsertComponent}>
+                  Insert component… (I)
+                </button>
                 <button
                   type="button"
                   data-testid="edit-manage-cells"

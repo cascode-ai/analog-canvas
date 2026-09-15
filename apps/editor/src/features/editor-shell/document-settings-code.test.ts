@@ -1,0 +1,123 @@
+import { describe, expect, it } from "vitest";
+
+import { createEmptyDocument } from "@icm/model";
+
+import {
+  defaultDocumentSettingsCode,
+  documentSettingsCodeValue,
+  parseDocumentSettingsCode,
+  serializeDocumentSettingsCode,
+  type CanvasPreferenceCodeValue,
+  type DocumentSettingsCodeValue,
+} from "./document-settings-code";
+
+const canvas: CanvasPreferenceCodeValue = {
+  showGrid: true,
+  annotationGrid: 5,
+  drawAngle: "free",
+  scrollBehavior: "auto",
+};
+
+function editableValue(): DocumentSettingsCodeValue {
+  return {
+    appearance: {
+      fontScale: 1,
+      wireStrokeScale: 1,
+      symbolStrokeScale: 1,
+      annotationStrokeScale: 1,
+      junctionRadiusScale: 1,
+    },
+    bulkDefaults: { nmosNet: null, pmosNet: null },
+    canvas: { ...canvas },
+  };
+}
+
+describe("document Style code", () => {
+  it("serializes the complete appearance and canvas preference surface", () => {
+    const document = createEmptyDocument("document-main", "Main");
+    expect(documentSettingsCodeValue(document, canvas)).toEqual(
+      editableValue(),
+    );
+    expect(JSON.parse(serializeDocumentSettingsCode(editableValue()))).toEqual(
+      editableValue(),
+    );
+  });
+
+  it("accepts supported values and a Net id present in the Cell", () => {
+    const document = createEmptyDocument("document-main", "Main");
+    document.nets.push({ id: "net-ground", terminals: [] });
+    const value = editableValue();
+    value.appearance.fontScale = 1.5;
+    value.bulkDefaults.nmosNet = "net-ground";
+    value.canvas = {
+      showGrid: false,
+      annotationGrid: 1,
+      drawAngle: "45",
+      scrollBehavior: "pan",
+    };
+
+    expect(
+      parseDocumentSettingsCode(serializeDocumentSettingsCode(value), document),
+    ).toEqual({ ok: true, value });
+  });
+
+  it.each([
+    ["appearance.fontScale", 0.49, "from 0.5 to 2"],
+    ["appearance.wireStrokeScale", 2.01, "from 0.5 to 2"],
+    ["canvas.annotationGrid", 2, "must be 1, 5, or 10"],
+    ["canvas.drawAngle", "diagonal", 'must be "free", "45", or "orthogonal"'],
+    ["canvas.scrollBehavior", "smooth", 'must be "auto", "zoom", or "pan"'],
+  ])("rejects an unsupported %s value", (path, invalid, message) => {
+    const document = createEmptyDocument("document-main", "Main");
+    const value = editableValue() as unknown as Record<string, any>;
+    const parts = path.split(".");
+    const field = parts.pop()!;
+    const owner = parts.reduce((entry, part) => entry[part], value);
+    owner[field] = invalid;
+    const result = parseDocumentSettingsCode(JSON.stringify(value), document);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.message).toContain(message);
+  });
+
+  it("rejects unknown fields and bulk Nets outside the Cell", () => {
+    const document = createEmptyDocument("document-main", "Main");
+    const unknown = { ...editableValue(), extra: true };
+    expect(
+      parseDocumentSettingsCode(JSON.stringify(unknown), document),
+    ).toEqual({
+      ok: false,
+      message: "style.extra is not supported",
+    });
+
+    const missingNet = editableValue();
+    missingNet.bulkDefaults.pmosNet = "net-missing";
+    const parsed = parseDocumentSettingsCode(
+      JSON.stringify(missingNet),
+      document,
+    );
+    expect(parsed.ok).toBe(false);
+    if (!parsed.ok)
+      expect(parsed.message).toContain("does not name a Net in this Cell");
+  });
+
+  it("resets appearance while preserving bulk and canvas choices", () => {
+    const document = createEmptyDocument("document-main", "Main");
+    document.nets.push({ id: "net-ground", terminals: [] });
+    document.presentation.styleOverrides = { fontScale: 1.5 };
+    document.mosBulkDefaults = { nmosNetId: "net-ground" };
+    const changedCanvas: CanvasPreferenceCodeValue = {
+      showGrid: false,
+      annotationGrid: 10,
+      drawAngle: "orthogonal",
+      scrollBehavior: "zoom",
+    };
+
+    expect(
+      JSON.parse(defaultDocumentSettingsCode(document, changedCanvas)),
+    ).toEqual({
+      ...editableValue(),
+      bulkDefaults: { nmosNet: "net-ground", pmosNet: null },
+      canvas: changedCanvas,
+    });
+  });
+});

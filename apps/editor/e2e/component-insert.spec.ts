@@ -7,6 +7,7 @@ import {
   clickCommand,
   downloadBytes,
   editComponentPropertyCode,
+  editDocumentStyleCode,
   setComponentParameter,
   setComponentCodeField,
   expectComponentCodeField,
@@ -171,10 +172,15 @@ test("blocks destructive browser refresh shortcuts and uses the stronger grid", 
     "alive",
   );
 
-  await page.getByRole("button", { name: "Hide background dots" }).click();
+  await editDocumentStyleCode(page, (code) => {
+    code.canvas.showGrid = false;
+  });
   await expect(page.getByTestId("canvas-grid-dots")).toHaveCount(0);
-  await page.getByRole("button", { name: "Show background dots" }).click();
+  await editDocumentStyleCode(page, (code) => {
+    code.canvas.showGrid = true;
+  });
   await expect(page.getByTestId("canvas-grid-dots")).toBeVisible();
+  await page.getByTestId("draw-tool-document-style").click();
 
   await page.keyboard.press("i");
   const dialog = page.getByRole("dialog", { name: "Insert Component" });
@@ -686,20 +692,17 @@ test("groups drafting tools and editable polarity labels under Annotations", asy
     "shapes-chip-annotation-ellipsis",
   ]);
 
-  // The Library entries reuse the authoritative toolbar tools rather than
-  // creating fixed-size decorative symbols.
+  // Annotation drawing tools live in the Library instead of crowding the
+  // toolbar with duplicate entry points.
   await annotations.getByTestId("shapes-chip-annotation-arrow").click();
-  await expect(page.getByTestId("draw-tool-arrow")).toHaveAttribute(
-    "aria-pressed",
-    "true",
+  await expect(page.getByTestId("status")).toContainText(
+    "Arrow: click the canvas to start",
   );
+  await expect(page.getByTestId("draw-tool-arrow")).toHaveCount(0);
   await page.keyboard.press("Escape");
-  await expect(page.getByTestId("draw-tool-arrow")).not.toHaveAttribute(
-    "aria-pressed",
-    "true",
-  );
-  await expect(page.getByTestId("draw-tool-rectangle")).toBeVisible();
-  await expect(page.getByTestId("draw-tool-circle")).toBeVisible();
+  await expect(page.getByTestId("draw-tool-line")).toHaveCount(0);
+  await expect(page.getByTestId("draw-tool-rectangle")).toHaveCount(0);
+  await expect(page.getByTestId("draw-tool-circle")).toHaveCount(0);
 
   await annotations.getByTestId("shapes-chip-annotation-polarity-both").click();
   const canvas = page.getByTestId("schematic-canvas");
@@ -2422,7 +2425,7 @@ test("Library rail folds the sidebar; Insert opens the catalog", async ({
   await page.getByTestId("library-toggle").click();
   await expect(panel).toHaveAttribute("data-open", "true");
 
-  await page.getByTestId("shapes-insert").click();
+  await clickCommand(page, "Edit", "Insert component… (I)");
   await expect(
     page.getByRole("dialog", { name: "Insert Component" }),
   ).toBeVisible();
@@ -2431,10 +2434,11 @@ test("Library rail folds the sidebar; Insert opens the catalog", async ({
     page.getByRole("dialog", { name: "Insert Component" }),
   ).toHaveCount(0);
 
-  // No title banner competes with the footer button or the shortcut.
+  // No title banner or duplicate Insert footer competes with the shortcut.
   await expect(panel.getByRole("button", { name: /Quick place/ })).toHaveCount(
     0,
   );
+  await expect(page.getByTestId("shapes-insert")).toHaveCount(0);
   await page.keyboard.press("i");
   await expect(
     page.getByRole("dialog", { name: "Insert Component" }),
