@@ -80,7 +80,8 @@ The published 0.10.0 package predates Spec reports and rejects
 `outputData.specs`. MCP 0.11.0 carries the converged Simulation contract and
 captured Spec support but predates Project schema 56 electrical Wire styles.
 Those immutable assets cannot be replaced. MCP 0.12.0 adds schema 56 support
-while retaining the Spec contract. Each new version is published through
+while retaining the Spec contract. MCP 0.13.0 adds relay Session status and
+the host-independent `--http` entry using the same shared client. Each new version is published through
 Publish MCP with its verified Linux tarball hash pinned in the distribution
 declaration, then passes public-package Preview acceptance. Local compilation
 with an old version label is not a distribution update.

@@ -1,4 +1,5 @@
 import {
+  parseAgentCircuitRequest,
   AgentCapabilitiesResponseSchema,
   AgentRenderResponseSchema,
   AgentTransactionPayloadSchema,
@@ -138,7 +139,10 @@ export class AgentSessionClient {
   private readonly networkRetryAttempts: number;
   private readonly tokenExpiryGraceMs: number;
   private readonly connectorStore: ConnectorStore | undefined;
-  private readonly inflight = new Map<string, Promise<AgentCircuitResponse>>();
+  private readonly inflight = new Map<
+    string,
+    { payload: string; promise: Promise<AgentCircuitResponse> }
+  >();
   private session: ActiveSession | null = null;
   private observation: AgentSessionStatusResponse | null = null;
   private capabilitiesCache: AgentCapabilitiesResponse | null = null;
@@ -282,6 +286,21 @@ export class AgentSessionClient {
       tokenValid: this.session ? this.tokenValid(this.session) : false,
       cachedDocuments: [...this.cache.documents()],
     };
+  }
+
+  /** Canonical HTTP requests retain caller-owned IDs through every retry. */
+  async request(input: unknown): Promise<AgentCircuitResponse> {
+    const parsed = parseAgentCircuitRequest(input);
+    if (!parsed.success)
+      throw new Error(
+        "Invalid Agent Circuit request; consult the published OpenAPI schema",
+      );
+    const request = parsed.data;
+    try {
+      return await this.send(request);
+    } finally {
+      if (request.operation === "transact") this.cache.clear();
+    }
   }
 
   /** Invoke the canonical browser-hosted file-resource contract. */
@@ -683,9 +702,16 @@ export class AgentSessionClient {
     request: AgentCircuitRequest,
   ): Promise<AgentCircuitResponse> {
     const existing = this.inflight.get(request.requestId);
-    if (existing) return existing;
+    const payload = JSON.stringify(request);
+    if (existing) {
+      if (existing.payload !== payload)
+        throw new Error(
+          "Request ID already in flight with a different payload",
+        );
+      return existing.promise;
+    }
     const pending = this.dispatch(request);
-    this.inflight.set(request.requestId, pending);
+    this.inflight.set(request.requestId, { payload, promise: pending });
     try {
       return await pending;
     } finally {
@@ -799,7 +825,6 @@ export class AgentSessionClient {
   private async resumeConnectorOnce(): Promise<ActiveSession | null> {
     const stored = await this.connectorStore?.load();
     if (!stored || stored.apiBaseUrl !== this.http.baseUrl) {
-      if (stored) await this.connectorStore?.clear();
       return null;
     }
     // Other Agent operations or manual edits can renew the session after this

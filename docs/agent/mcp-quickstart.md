@@ -15,9 +15,19 @@ examples below are MCP-specific mappings, not a separate operating policy.
 Production and Preview both expose the Agent UI. Their accounts, Projects and
 connector bindings remain separate.
 
-MCP 0.12.0 supports API 3.0, Project schema 56, setup v4 source/config files
+MCP 0.13.0 adds lightweight Session observations and a direct HTTP executable
+entry through the same client. Use `analog-canvas-mcp --http list-tools` to
+discover commands; pass JSON tool arguments on stdin, not on a command line.
+`--http resource` reads a resource URI from stdin. `--http circuit` accepts the
+canonical OpenAPI request with caller-owned IDs for exact retries. Set the same
+API origin for MCP and HTTP; their default credential files are isolated by
+origin. The connector override is a **file path**, never a credential value.
+The new origin-scoped defaults do not adopt the old shared `connector.json`;
+use one new claim, or explicitly point at a matching existing credential file.
+
+MCP 0.13.0 supports API 3.0, Project schema 56, setup v4 source/config files
 and captured Spec reports. The published 0.11.0 binary supports Spec reports
-but predates schema 56 electrical Wire styles. Update that adapter to 0.12.0
+but predates schema 56 electrical Wire styles. Update that adapter to 0.13.0
 for schema 56 sites; rebuilding an old version does not replace its immutable
 release. See [distribution verification](mcp-install.md). Use it with Analog
 Canvas 0.6.0 or newer. It supports independent arrow ends, electrical Wire
