@@ -5,6 +5,7 @@ import {
   buildProjectConnectivityIndex,
   evaluateSubmissionGates,
   resolveDocumentLogicalNets,
+  resolveVisualAnchor,
   runErcChecks,
 } from "@icm/derived";
 import {
@@ -64,6 +65,31 @@ describe("bundled Library Project examples", () => {
           (document) => document.id === example.project.topDocumentId,
         ),
       ).toBe(true);
+    }
+  });
+
+  it("keeps every bundled annotation attached to visible geometry", () => {
+    for (const example of libraryProjectExamples) {
+      const resolver = projectResolver(example.project);
+      const unresolved = example.project.documents.flatMap((document) =>
+        document.annotations.flatMap((annotation) => {
+          const resolved = resolveVisualAnchor(
+            document,
+            resolver,
+            annotation.anchor,
+          );
+          return resolved.resolved
+            ? []
+            : [
+                {
+                  documentId: document.id,
+                  annotationId: annotation.id,
+                  message: resolved.diagnostic?.message,
+                },
+              ];
+        }),
+      );
+      expect(unresolved, example.id).toEqual([]);
     }
   });
 
