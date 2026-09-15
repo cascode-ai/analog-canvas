@@ -449,7 +449,7 @@ test("declares a top Formal Cell Pin and exports the top interface", async ({
   await clickCommand(page, "Netlist", "Check Report…");
   const preflight = page.getByRole("dialog", { name: "Check Report" });
   await expect(preflight.getByTestId("netlist-preview")).toContainText(
-    ".subckt Main VIN VDD VSS",
+    ".subckt Main VDD VSS VIN",
   );
   await expect(preflight).not.toContainText("GENERATED_NET_NAME");
   await expect(preflight).not.toContainText("MISSING_DEVICE_DEFINITION");

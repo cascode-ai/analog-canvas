@@ -8,7 +8,7 @@
 * circuit: see issue #551. A circuit written past the bin ceiling is refused
 * by ngspice before any of this is exercised, which would test the library
 * rather than the export.
-.subckt ota_5t vss ibias vdd vinn vinp vout
+.subckt ota_5t vdd vss ibias vinn vinp vout
 XM1 nleft vinp tail vss sky130_fd_pr__nfet_01v8 l=1.0 w=96 nf=12
 XM2 vout vinn tail vss sky130_fd_pr__nfet_01v8 l=1.0 w=96 nf=12
 XM3 nleft nleft vdd vdd sky130_fd_pr__pfet_01v8 l=1.0 w=64 nf=8

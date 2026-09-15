@@ -92,7 +92,7 @@ test("complete example Projects preserve their circuits and use native source-on
     }
     expect(
       closed.input.files.find((f) => f.path === "testbench.spice").text,
-    ).toContain("XDUT 0 ibias vdd vout vinp vout ota_5t");
+    ).toContain("XDUT vdd 0 ibias vout vinp vout ota_5t");
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }

@@ -48,6 +48,13 @@ const MAX_INSTANCES_PER_CELL = 100_000;
 const MAX_NETS_PER_CELL = 100_000;
 const DEFAULT_CELL_SUPPLY_PORTS = ["VDD", "VSS"] as const;
 
+function supplyPortRank(name: string): number {
+  const index = DEFAULT_CELL_SUPPLY_PORTS.findIndex(
+    (supply) => foldNetName(supply) === foldNetName(name),
+  );
+  return index < 0 ? DEFAULT_CELL_SUPPLY_PORTS.length : index;
+}
+
 function isIdentifier(value: string, allowGround = false): boolean {
   return (allowGround && value === "0") || IDENTIFIER.test(value);
 }
@@ -722,7 +729,9 @@ function cellPortsWithDefaultSupplies(
     ...DEFAULT_CELL_SUPPLY_PORTS.filter(
       (name) => !keys.has(foldNetName(name)),
     ).map((name) => ({ name, implicit: true })),
-  ];
+  ].sort(
+    (left, right) => supplyPortRank(left.name) - supplyPortRank(right.name),
+  );
 }
 
 function extractHierarchyInstance(
@@ -1346,6 +1355,11 @@ function extractCell(
     const netName = existingNet?.name ?? encodedPort.token;
     if (!existingNet) context.nets.push({ id, name: netName, scope: "local" });
     ports.push({ id, name: encodedPort.token, netName });
+  }
+  if (!document.sourceBinding) {
+    ports.sort(
+      (left, right) => supplyPortRank(left.name) - supplyPortRank(right.name),
+    );
   }
 
   const referenceIndex = createReferenceIndex(document);

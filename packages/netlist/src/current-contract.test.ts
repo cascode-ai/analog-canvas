@@ -260,8 +260,6 @@ describe("current formal cell interface", () => {
     const result = analyzeDesignNetlist(project);
     expect(result.diagnostics).toEqual([]);
     expect(result.ir?.cells[0]?.ports).toEqual([
-      { id: "net-in", name: "VIN", netName: "VIN" },
-      { id: "net-out", name: "VOUT", netName: "VOUT" },
       {
         id: deriveStableId("default-cell-supply", document.id, "VDD"),
         name: "VDD",
@@ -272,6 +270,8 @@ describe("current formal cell interface", () => {
         name: "VSS",
         netName: "VSS",
       },
+      { id: "net-in", name: "VIN", netName: "VIN" },
+      { id: "net-out", name: "VOUT", netName: "VOUT" },
     ]);
     expect(result.ir?.cells[0]?.nets.map((net) => net.name)).toEqual([
       "VIN",
@@ -346,13 +346,13 @@ describe("current formal cell interface", () => {
       }),
     ]);
     expect(result.ir?.cells[0]?.ports).toEqual([
+      expect.objectContaining({ name: "VDD", netName: "VDD" }),
+      expect.objectContaining({ name: "VSS", netName: "VSS" }),
       {
         id: "net-vin-a",
         name: "VIN",
         netName: "VIN",
       },
-      expect.objectContaining({ name: "VDD", netName: "VDD" }),
-      expect.objectContaining({ name: "VSS", netName: "VSS" }),
     ]);
     expect(result.ir?.cells[0]?.instances[0]?.nodes).toEqual([
       { pinName: "1", netName: "VIN" },
@@ -364,7 +364,7 @@ describe("current formal cell interface", () => {
       expect.objectContaining({ name: "VSS", scope: "local" }),
     ]);
     expect(printSpiceNetlist(result.ir!)).toContain(
-      ".subckt same_name_ports VIN VDD VSS\nR1 VIN VIN 1k",
+      ".subckt same_name_ports VDD VSS VIN\nR1 VIN VIN 1k",
     );
     expect(project).toEqual(before);
   });

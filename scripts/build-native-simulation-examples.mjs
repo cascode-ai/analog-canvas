@@ -694,7 +694,7 @@ experiment(
   { docId: tb, model: true },
 );
 const closedTb =
-  "* Unity follower: vout feeds VINN; only the DUT is generated from Canvas.\nVDD vdd 0 1.8\nVINP vinp 0 DC 0.9 AC 1 PULSE(0.9 0.91 1u 1n 1n 2u 5u)\nIBIAS vdd ibias 15u\nXDUT 0 ibias vdd vout vinp vout ota_5t\nCL vout 0 1p\n";
+  "* Unity follower: vout feeds VINN; only the DUT is generated from Canvas.\nVDD vdd 0 1.8\nVINP vinp 0 DC 0.9 AC 1 PULSE(0.9 0.91 1u 1n 1n 2u 5u)\nIBIAS vdd ibias 15u\nXDUT vdd 0 ibias vout vinp vout ota_5t\nCL vout 0 1p\n";
 experiment(
   ota,
   "ota-closed",
@@ -714,7 +714,7 @@ experiment(
     docId: "document-ota-5t",
     dut: {
       name: "ota_5t",
-      ports: ["0", "ibias", "vdd", "vinn", "vinp", "vout"],
+      ports: ["vdd", "0", "ibias", "vinn", "vinp", "vout"],
     },
     tb: closedTb,
     model: true,

@@ -294,6 +294,17 @@ describe("the bundled five-transistor Sky130 OTA", () => {
       "vinp",
       "vout",
     ]);
+    const exportedDut = analyzeDesignNetlist(project).ir?.cells.find(
+      (cell) => cell.id === dut.id,
+    );
+    expect(exportedDut?.ports.map((port) => port.name)).toEqual([
+      "vdd",
+      "vss",
+      "ibias",
+      "vinn",
+      "vinp",
+      "vout",
+    ]);
     const call = testbench.instances.find(
       (instance) => instance.netlist?.binding?.kind === "subcircuit",
     );

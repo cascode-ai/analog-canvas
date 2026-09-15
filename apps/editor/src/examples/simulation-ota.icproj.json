@@ -3127,7 +3127,7 @@
         "files": [
           {
             "path": "testbench.spice",
-            "text": "* Text testbench: sources, feedback and load are defined here.\n* DUT port order: vss ibias vdd vinn vinp vout\n* Connect vinn to vout for unity negative feedback.\nVDD vdd 0 1.8\nVINP vinp 0 DC 0.9 AC 1 PULSE(0.9 0.91 1u 1n 1n 2u 5u)\nIBIAS vdd ibias 15u\nXDUT 0 ibias vdd vout vinp vout ota_5t\nCL vout 0 1p\n"
+            "text": "* Text testbench: sources, feedback and load are defined here.\n* DUT port order: vdd vss ibias vinn vinp vout\n* Connect vinn to vout for unity negative feedback.\nVDD vdd 0 1.8\nVINP vinp 0 DC 0.9 AC 1 PULSE(0.9 0.91 1u 1n 1n 2u 5u)\nIBIAS vdd ibias 15u\nXDUT vdd 0 ibias vout vinp vout ota_5t\nCL vout 0 1p\n"
           },
           {
             "path": "run.cir",

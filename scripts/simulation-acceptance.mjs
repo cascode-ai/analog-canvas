@@ -90,7 +90,7 @@ Vdd vdd 0 1.8
 Vinp vinp 0 0.9 AC 1
 Vinn vinn 0 0.9 AC 0
 Ibias vdd ibias 15u
-Xdut 0 ibias vdd vinn vinp vout ota_5t
+Xdut vdd 0 ibias vinn vinp vout ota_5t
 CL vout 0 1p
 .control
 op
