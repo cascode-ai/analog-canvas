@@ -12,6 +12,7 @@ import subprocess
 import sys
 import tempfile
 from copy import deepcopy
+from lib.vacask_model_binning import source_bin_guards
 
 VACASK_REV = "c1a1c84f1b2b9aa71c0cddf06e555441434db7b7"
 MODELS_REV = "403964dc7f9cca5ec1a8cc7b4f2a6f532b781676"
@@ -102,17 +103,15 @@ class RelativeIncludeConverter(Converter):
             return super().process_instance_m(lws, line, eol, annot, in_sec, in_sub)
         params = self.process_instance_params(annot['words'][5:], 'm', handle_m=True, in_sub=in_sub)
         values = dict(params)
-        length = '('+values['l']+')*$scale'
-        width = '('+values['w']+')*$scale/('+values.get('nf', '1')+')'
         prefix = annot['output_name']+' ('+' '.join(self.process_terminals(annot['words'][:4]))+') '
         formatted, _, _ = self.format_params(params)
         lines = []
-        # Same local/global lookup and scaled per-finger geometry as the pinned
-        # C++ translator, with declaration-order identity matching model output.
-        for index, bin_data in enumerate(bins):
-            lmin, lmax, wmin, wmax = self.get_bin_boundaries(bin_data[-1])
-            guard = f'{length}>={lmin} && {length}<{lmax} && {width}>={wmin} && {width}<{wmax}'
-            lines.append(('@if ' if index == 0 else '@elseif ')+guard)
+        # Preserve the source Profile's bin semantics, not the native foreign
+        # parser's different edge/order rules. Model identities retain their
+        # original declaration ordinals even though search order is reversed.
+        boundaries = [self.get_bin_boundaries(bin_data[-1]) for bin_data in bins]
+        for index, guard in source_bin_guards(values, boundaries):
+            lines.append(('@if ' if not lines else '@elseif ')+guard)
             lines.append(prefix+annot['output_mod_name']+f'__{index} (\n'+formatted+'\n)')
         # This is an error guard, not another implementation of the MOS.
         # Keep every valid bin's instance path unchanged. A distinct guard name
@@ -213,6 +212,8 @@ report = {
     "converterRevision": VACASK_REV,
     "modelRevision": MODELS_REV,
     "recipeSha256": digest(Path(__file__)),
+    "binningRecipeSha256": digest(Path(__file__).parent / 'lib/vacask_model_binning.py'),
+    "binning": {"source": "ngspice-46", "defaultWnflag": 0, "edgeToleranceM": 1e-9, "priority": "last-declared"},
     "scope": "combined_models/continuous tree; only the seven baseline wrappers are acceptance targets",
     "limitations": [
         "BSIM4 4.5/4.62 declarations execute with the module's 4.8.3 equations",

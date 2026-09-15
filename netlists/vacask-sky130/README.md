@@ -47,22 +47,40 @@ not one sample.
 
 The offline upstream converter needed corrections for integral float model
 levels, relative include ownership, quoted/whitespace-containing expressions,
-bin labels versus declaration ordinals, local bin scope, scaled per-finger
-geometry, ordinary `rbody` resistors, `tref`/`rgeomod` names, subcircuit `m`
+bin labels versus declaration ordinals, local bin scope, source bin-boundary
+selection, ordinary `rbody` resistors, `tref`/`rgeomod` names, subcircuit `m`
 forwarding and library-owned primitive masters. Parameter-name mappings and
-bin geometry follow the pinned simulator's `lib/netlistrs.cpp` behavior.
+parameter lowering follow the pinned simulator's native device interfaces.
+
+Bin selection preserves the source Profile's ngspice 46 semantics: reverse
+declaration priority, a strict `< 1e-9 m` tolerance at either edge, and total
+W unless an explicit instance `wnflag` requests W/NF. W and NF passed into the
+compact model are unchanged. See the fixed reference's
+[range/width rules](https://sourceforge.net/p/ngspice/ngspice/ci/ebdaf58ec76a06ffaac7e0f138360dd1cf5ee4b6/tree/src/spicelib/parser/inpgmod.c)
+and [model insertion order](https://sourceforge.net/p/ngspice/ngspice/ci/ebdaf58ec76a06ffaac7e0f138360dd1cf5ee4b6/tree/src/spicelib/parser/inpmkmod.c).
+The recipe records this policy and its helper digest. It does not adopt the
+native foreign parser's different bin rules or add an executable fallback.
 
 The directory named `continuous` still contains binned models. Its name is not
 a promise that every W/L/NF is supported. The seven baseline wrappers remain
 the acceptance target; other included wrappers are not qualified.
 
-On Linux VACASK 0.3.4, all seven wrappers solve at TT/FF/SS/FS/SF. The 50 probe
-values matched a same-kernel diagnostic run reading the original model syntax.
-That diagnostic path is not a product fallback. Against the frozen hosted
-ngspice 46 references, MOS discrepancies remain, up to about 1.12% at these
-points. The original absolute tolerances are retained and **do not pass**.
-The model trees are not proven identical, so these differences are not
-attributed solely to solver error.
+On Linux VACASK 0.3.4, all seven wrappers solve at TT/FF/SS/FS/SF. An earlier
+conversion matched all 50 same-kernel foreign-parser values yet differed from
+the hosted reference by up to 1.12%. That comparison shared the wrong source
+bin selection and was not sufficient conversion evidence.
+
+The frozen hosted binary has now reproduced the TT/FF reference locally. Its
+four MOS model bodies and all five FET corner parameter files match this
+source after comment/whitespace normalization. At L=0.5 um the original
+ngspice selects nshort_model.6; the old lowering selected .5. Corrected bin
+selection removes the large FF/SS differences. With default native solver
+options 15/50 comparisons still fail (maximum relative error about 0.00342%).
+An explicit diagnostic run with reltol=1e-8, abstol=1e-15, vntol=1e-10 reduces
+that to five LVT PFET current differences, maximum about 0.000843%. This is
+not a product default change. The original acceptance thresholds remain
+unchanged and **do not pass**. The remaining differences require investigation;
+neither model-version warnings nor solver tolerance alone explains them.
 
 The source declares BSIM4 4.5/4.62; the installed `sp_bsim4v8` module warns
 that it executes 4.8.3. This warning is preserved. Geometry/bias/multiplicity

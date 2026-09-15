@@ -22,10 +22,12 @@ const models = resolve(
   process.env.ICM_SKY130_MODEL_SOURCE ?? "plan/upstream/sky130",
 );
 const python = process.env.ICM_PYTHON ?? "python";
+const pythonAvailable =
+  spawnSync(python, ["--version"], { windowsHide: true }).status === 0;
 const available =
   existsSync(join(upstream, "python/ng2vclib/converter.py")) &&
   existsSync(join(models, "combined_models/sky130.lib.spice")) &&
-  spawnSync(python, ["--version"], { windowsHide: true }).status === 0;
+  pythonAvailable;
 const output = available
   ? mkdtempSync(join(tmpdir(), "icm-native-model-test-"))
   : undefined;
@@ -66,6 +68,47 @@ function converted(corners) {
   return { directory, report };
 }
 
+describe.skipIf(!pythonAvailable)("source model binning semantics", () => {
+  it("retains edge tolerance, last-declared priority and explicit W/NF selection", () => {
+    const inputs = [
+      { l: "0.5", w: "3", nf: "2" },
+      { l: "0.5", w: "3", nf: "2", wnflag: "0" },
+      { l: "0.5", w: "3", nf: "2", wnflag: "1" },
+      { l: "0.5005", w: "3" },
+      { l: "0.5011", w: "3" },
+      { l: "0.4989", w: "3" },
+      { l: "0.1", w: "3" },
+      { l: "0.75", w: "2" },
+      { l: "0.75", w: "2.0011" },
+    ];
+    const run = spawnSync(
+      python,
+      [
+        "-c",
+        `
+import json, sys
+from scripts.lib.vacask_model_binning import source_bin_guards
+boundaries = [(5e-7,1e-6,2e-6,4e-6),(2.5e-7,5e-7,2e-6,4e-6),
+              (5e-7,1e-6,1e-6,2e-6),(2.5e-7,5e-7,1e-6,2e-6)]
+print(json.dumps([source_bin_guards(v,boundaries) for v in json.loads(sys.stdin.read())]))
+`,
+      ],
+      { input: JSON.stringify(inputs), encoding: "utf8", windowsHide: true },
+    );
+    expect(run.status, run.stderr).toBe(0);
+    const guards = JSON.parse(run.stdout);
+    // Native scalar comparison/boolean/ternary syntax here is also valid JS.
+    // Evaluate only our emitted guards, never circuit/user input.
+    const selected = guards.map(
+      (cases) =>
+        cases.find(([, guard]) =>
+          new Function("$scale", "abs", `return ${guard}`)(1e-6, Math.abs),
+        )?.[0] ?? null,
+    );
+    expect(selected).toEqual([1, 1, 3, 1, 0, 1, null, 2, 0]);
+  });
+});
+
 // Requires the two clean, pinned source checkouts. This is an offline conversion
 // integration test, not simulator/model qualification. No downloads in unit CI.
 describe.skipIf(!available)("pinned native SKY130 conversion", () => {
@@ -90,7 +133,17 @@ describe.skipIf(!available)("pinned native SKY130 conversion", () => {
       ])
         expect(text).toContain(`subckt sky130_fd_pr__${name}(`);
       expect(text).toContain('version="4.5"');
-      expect(text).toContain("(w)*$scale/(nf)");
+      expect(text).toContain("(w)*$scale");
+      expect(text).not.toContain("(w)*$scale/(nf)");
+      expect(report.binning).toEqual({
+        source: "ngspice-46",
+        defaultWnflag: 0,
+        edgeToleranceM: 1e-9,
+        priority: "last-declared",
+      });
+      expect(report.binningRecipeSha256).toBe(
+        hash("scripts/lib/vacask_model_binning.py"),
+      );
       expect(text).toContain("model nshort_model__0 sp_bsim4v8");
       expect(text).toContain("rbody (rb r1) rbody_model");
       expect(text).toContain("dw=(-sw_activecd-nfom_dw/2) tnom=30");
@@ -188,6 +241,7 @@ control
  options scale=1e-6 rawfile="ascii" strictsave=2
  save p('XN:msky130_fd_pr__nfet_01v8',gm) p('XP:msky130_fd_pr__pfet_01v8',gm)
  analysis bias op
+ print instance("XN:msky130_fd_pr__nfet_01v8", "XP:msky130_fd_pr__pfet_01v8")
 endc
 `,
         );
@@ -202,6 +256,9 @@ endc
             env: {
               ...process.env,
               SIM_MODULE_PATH: process.env.VACASK_MODULES,
+              ...(process.env.ICM_VACASK_LIBRARY_PATH
+                ? { LD_LIBRARY_PATH: process.env.ICM_VACASK_LIBRARY_PATH }
+                : {}),
               HOME: cwd,
               USERPROFILE: cwd,
               OMP_NUM_THREADS: "1",
@@ -216,6 +273,12 @@ endc
           expect(existsSync(join(cwd, "bias.raw"))).toBe(false);
         } else {
           expect(run.status, log).toBe(0);
+          if (length === 0.5) {
+            // Source .6 is zero-based declaration ordinal 5. At the shared
+            // 0.5 um edge the source parser chooses it, not adjacent .5.
+            expect(log).toContain("of model XN:nshort_model__5");
+            expect(log).toContain("of model XP:pshort_model__5");
+          }
           const parsed = parseVacaskRawfile(
             readFileSync(join(cwd, "bias.raw"), "utf8"),
           );
