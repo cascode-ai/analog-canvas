@@ -45,6 +45,7 @@ const transitions: Readonly<
     "expired",
   ],
   reconnecting: [
+    "paused",
     "waiting-for-agent",
     "connected",
     "offline",

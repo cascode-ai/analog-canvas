@@ -264,6 +264,7 @@ import { ProjectRunHistory } from "../features/simulation/project-run-history";
 import { createAgentSemanticIntentHandler } from "../agent/agent-semantic-intent-handler";
 import { PUBLIC_AGENT_UI_ENABLED } from "../agent/public-agent-ui";
 import { useAgentSession } from "../agent/use-agent-session";
+import { peekAgentSessionRecovery } from "../agent/session-recovery";
 import type { AgentFileCandidateSummary } from "@icm/agent-adapter";
 import { referencedDocumentId } from "../document/editor-session";
 import { useInteractionState } from "../interaction/interaction-state";
@@ -547,6 +548,18 @@ export function App({
     readSessionProject: readRecoveryProject,
     deleteSession: deleteRecoverySession,
   } = useRecoveryCoordinator(setStatus);
+  const [agentStartupRecovery] = useState(() => {
+    const search = new URLSearchParams(window.location.search);
+    if (
+      initialGalleryEntryId !== null ||
+      search.has("example") ||
+      search.has("project") ||
+      search.get("new") === "1"
+    )
+      return null;
+    const saved = peekAgentSessionRecovery(window.sessionStorage);
+    return saved?.projectSessionId === recoveryWorkingCopyId ? saved : null;
+  });
   const {
     project,
     document,
@@ -973,6 +986,7 @@ export function App({
     startupCloudProjectId,
     canRestoreStartupCloudProject,
     restoreAfterRefresh,
+    startupRestoreReady,
     setRecoveryDialogOpen,
     isDirtyWork,
     hasUnsafeWork,
@@ -998,6 +1012,7 @@ export function App({
     openProjectFile,
     openCloudProjectById,
   } = useProjectFileLifecycle({
+    restoreWorkingSession: agentStartupRecovery !== null,
     hasPendingEdits: () => simulationSourceBuffer.current?.dirty === true,
     beforeSnapshot: captureAuthoredProject,
     onRecoverBuffers: recoverSourceDrafts,
@@ -1077,9 +1092,20 @@ export function App({
     startupCloudProjectId,
   ]);
   const agentSession = useAgentSession({
-    enabled: publicAgentUiEnabled,
+    recover: !hasExplicitBootTarget,
+    beforeConnect: async () => {
+      const snapshot = await captureAuthoredProject();
+      if (snapshot) {
+        stageRecovery(snapshot);
+        await flushRecovery();
+      }
+    },
+    enabled:
+      publicAgentUiEnabled &&
+      (startupRestoreReady ||
+        recoveryWorkingCopyId !== agentStartupRecovery?.projectSessionId),
     project,
-    projectSessionId,
+    projectSessionId: recoveryWorkingCopyId,
     host: browserAgentHost,
     fileHost: browserAgentFileHost,
     simulationHost: browserAgentSimulationHost,
@@ -4571,7 +4597,11 @@ export function App({
         onProjectNameCommit={commitProjectName}
         onProjectNameCancel={() => setProjectNameDraft(null)}
         onOpenGallery={() => {
-          void guardDirtyReplacement("Go to Gallery", () => {
+          void guardDirtyReplacement("Go to Gallery", async () => {
+            const snapshot = await captureAuthoredProject();
+            if (!snapshot) return;
+            stageRecovery(snapshot);
+            await flushRecovery();
             allowNextBrowserUnload();
             window.location.assign("/");
           });

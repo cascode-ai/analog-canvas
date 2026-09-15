@@ -16,6 +16,18 @@ stores only its verifier, and session revoke invalidates both credentials.
 
 ## Resources
 
+Browser reconnect credentials are scoped to the current tab's sessionStorage,
+using the existing durable recovery working-copy ID rather than a mount-local
+Project counter. Refresh and Gallery return restore that working copy before
+attaching the editor socket. An explicit new/import target does not auto-attach
+the old pairing. Gallery displays saved local pairing evidence, never online
+status; it does not execute Agent requests. Old localStorage credentials are
+not adopted across this identity boundary: existing sessions need one new
+pairing after upgrading. No Project content is duplicated in connector storage.
+
+Manual pause remains authoritative across request completion, socket recovery,
+and connector bearer renewal. A transport failure does not revoke a pairing.
+
 ```text
 GET  /api/agent/kit
 POST /api/agent/claims

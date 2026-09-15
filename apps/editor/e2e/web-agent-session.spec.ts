@@ -150,7 +150,7 @@ test("grants a browser Agent, edits through the live host, and shares undo", asy
         scopes: string[];
       };
       expect(body.projectId).toBe("project-main");
-      expect(body.projectSessionId).toMatch(/^project-main:\d+$/u);
+      expect(body.projectSessionId).toBeTruthy();
       expect(body.documentIds).toEqual(["document-main"]);
       expect([...body.scopes].sort()).toEqual(
         [
@@ -493,6 +493,94 @@ test("grants a browser Agent, edits through the live host, and shares undo", asy
   expect(sessionCreates).toBe(3);
 });
 
+test("restores the same paired working copy through refresh and Gallery without resuming a pause", async ({
+  page,
+  baseURL,
+}) => {
+  await page.goto("/editor");
+  await page.getByTestId("open-agent").click();
+  const panel = page.getByTestId("connect-agent-panel");
+  const handoff = await panel.getByTestId("agent-copy-text").inputValue();
+  const { claimCode } = JSON.parse(handoff.match(/Claim: (.+)/u)![1]!);
+  const client = new AgentHttpClient({ baseUrl: baseURL! });
+  const session = await client.claim(claimCode);
+  await expect(panel.getByTestId("agent-status")).toHaveText("Connected");
+  const documentId = session.documentIds[0]!;
+  await client.circuit(session.sessionId, session.agentToken, {
+    apiVersion: "3.0",
+    requestId: "recovery-edit",
+    operation: "transact",
+    documentId,
+    transactionId: "recovery-edit",
+    expectedRevision: 0,
+    edits: [
+      {
+        kind: "add_instance",
+        instance: {
+          id: "recovery-R",
+          symbolId: "resistor",
+          placement: {
+            position: { x: 300, y: 200 },
+            rotation: 0,
+            mirror: "none",
+          },
+        },
+      },
+    ],
+  });
+  await expect(page.getByTestId("active-instance-count")).toHaveText("1");
+  await panel.getByTestId("agent-pause").click();
+  await expect(panel.getByTestId("agent-status")).toHaveText("Paused");
+  // The existing explicit refresh flushes recovery before navigation.
+  await panel.getByRole("button", { name: "Close Agent dialog" }).click();
+  // Let the existing durable recovery scheduler finish, not a second snapshot store.
+  await expect
+    .poll(() =>
+      page.evaluate(async () => {
+        const dbs = await indexedDB.databases();
+        return dbs.length;
+      }),
+    )
+    .toBeGreaterThan(0);
+  await page.waitForTimeout(600);
+  page.on("dialog", (dialog) => void dialog.accept());
+  await page.reload();
+  await expect(page.getByTestId("active-instance-count")).toHaveText("1");
+  await page.getByTestId("open-agent").click();
+  await expect(panel.getByTestId("agent-status")).toHaveText("Paused");
+  expect(
+    await client.status(session.sessionId, session.agentToken),
+  ).toMatchObject({ authorization: "paused", editor: "attached" });
+  await page.goto("/");
+  await expect(page.getByTestId("gallery-agent-return")).toBeVisible();
+  await expect
+    .poll(
+      async () =>
+        (await client.status(session.sessionId, session.agentToken)).editor,
+    )
+    .toBe("detached");
+  await page.getByTestId("gallery-agent-return").click();
+  await expect(page.getByTestId("active-instance-count")).toHaveText("1");
+  await page.getByTestId("open-agent").click();
+  await expect(panel.getByTestId("agent-status")).toHaveText("Paused");
+  await panel.getByTestId("agent-resume").click();
+  const snapshot = await client.circuit(session.sessionId, session.agentToken, {
+    apiVersion: "3.0",
+    requestId: "restored-snapshot",
+    operation: "snapshot",
+    documentId,
+  });
+  expect(snapshot).toMatchObject({ ok: true, revision: 1 });
+  await page.goto("/editor?new=1");
+  await expect(page.getByTestId("active-instance-count")).toHaveText("0");
+  await expect
+    .poll(
+      async () =>
+        (await client.status(session.sessionId, session.agentToken)).editor,
+    )
+    .toBe("detached");
+});
+
 test("copies a working handoff through the normal local dev relay", async ({
   page,
   context,
@@ -549,7 +637,7 @@ test("copies a working handoff through the normal local dev relay", async ({
   const readIdleDeadline = () =>
     page.evaluate(() => {
       const record = JSON.parse(
-        localStorage.getItem("icm.agent-session-recovery.v1") ?? "null",
+        sessionStorage.getItem("icm.agent-session-recovery.v1") ?? "null",
       );
       return record?.expiresAt ?? 0;
     });
@@ -840,7 +928,7 @@ test("keeps browser recovery on the renewed idle deadline and expires after inac
   const recovery = () =>
     page.evaluate(() =>
       JSON.parse(
-        localStorage.getItem("icm.agent-session-recovery.v1") ?? "null",
+        sessionStorage.getItem("icm.agent-session-recovery.v1") ?? "null",
       ),
     );
   await page.goto("/editor");

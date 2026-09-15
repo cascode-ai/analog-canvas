@@ -437,8 +437,12 @@ export class AgentSessionDO {
         allowedOrigin,
       );
     }
-    this.emit({ type: "session.ready", sessionId: machine.sessionId });
-    this.notifyEditor({ type: "session.ready", sessionId: machine.sessionId });
+    const type =
+      machine.statusAt(Date.now()) === "paused"
+        ? "session.paused"
+        : "session.ready";
+    this.emit({ type, sessionId: machine.sessionId });
+    this.notifyEditor({ type, sessionId: machine.sessionId });
     return jsonResponse(
       {
         ok: true,

@@ -70,6 +70,19 @@ export function clearAgentSessionRecovery(storage: BrowserStorageLike): void {
   storage.removeItem(AGENT_SESSION_RECOVERY_STORAGE_KEY);
 }
 
+/** Local recovery evidence, not an observation of relay availability. */
+export function peekAgentSessionRecovery(
+  storage: BrowserStorageLike,
+): AgentSessionRecoveryRecord | null {
+  try {
+    return parseRecord(
+      JSON.parse(storage.getItem(AGENT_SESSION_RECOVERY_STORAGE_KEY) ?? "null"),
+    );
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Reads a same-browser reconnect proof only when it belongs to the Project that is
  * currently open. Any malformed, expired, or Project-mismatched record is
