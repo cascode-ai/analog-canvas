@@ -3,7 +3,31 @@
 Notable changes to Analog Canvas. Entries describe what changed for the person
 using the product, not the commits that got there.
 
-## 0.6.0 (Preview candidate)
+## 0.7.0 (Preview candidate)
+
+### Netlist export
+
+- Choose compact Abstract, SKY130, TSMC 28, TSMC 180, or Custom presets in
+  the live Netlist panel. The last choice and edited profile remain cached in
+  the browser.
+- Export TSMC 28 MOS devices with `nch_ulvt_mac` / `pch_ulvt_mac` and `multi`,
+  or TSMC 180 MOS devices with `nch` / `pch` and `m`. NPN and PNP devices also
+  support an authored multiplier.
+- Recover `0` and `VDD` from visible power markers in older and copied
+  drawings. Unnamed internal networks use stable `net0`, `net1`, ... names,
+  skipping authored name collisions without guessing meaning from device pins.
+
+### Drawing repair
+
+- Find historical wire segments whose angles are neither orthogonal nor 45
+  degrees in Properties Issues, then straighten every repairable segment in
+  the current Cell with one undoable action. Protected trunk and locked routes
+  remain listed for manual review.
+
+Project schema 56 is unchanged. Existing drawings are not rewritten by
+opening them; the angled-wire repair runs only when selected from Issues.
+
+## 0.6.0 (2026-09-15)
 
 ### Drawing and properties
 
