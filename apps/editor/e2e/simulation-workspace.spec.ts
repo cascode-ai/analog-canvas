@@ -2100,7 +2100,7 @@ test("Simulation creates an ordinary testbench and defaults a new experiment to 
   const taskbar = page.locator(".simulation-taskbar");
   await expect(taskbar).toHaveCount(1);
   await expect(
-    page.getByRole("button", { name: "Sim Code", exact: true }),
+    page.getByRole("complementary", { name: "Sim Code", exact: true }),
   ).toBeVisible();
   await expect(page.locator(".simulation-brand")).toHaveCount(0);
   const initialBar = await taskbar.boundingBox();
@@ -2242,6 +2242,33 @@ async function openWorkspace(page: Page) {
   await page.getByTestId("open-analog-simulation").click();
   return page.getByRole("region", { name: "Simulation Code workspace" });
 }
+
+test("Simulation and Properties remain independent through minimization", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1600, height: 900 });
+  const workspace = await openWorkspace(page);
+  const editor = workspace.getByRole("textbox", {
+    name: "Simulation source editor",
+  });
+  await editor.fill("* independent draft\n");
+  const shelf = page.getByTestId("selection-shelf");
+  if ((await shelf.getAttribute("aria-expanded")) !== "true")
+    await shelf.click();
+  await expect(editor).toBeVisible();
+  await expect(shelf).toHaveAttribute("aria-expanded", "true");
+  const codeBox = await page.locator(".editor-simulation-dock").boundingBox();
+  const propsBox = await page
+    .getByRole("complementary", { name: "Properties", exact: true })
+    .boundingBox();
+  expect(codeBox!.x).toBeGreaterThanOrEqual(propsBox!.x + propsBox!.width - 1);
+  await page
+    .getByRole("button", { name: "Minimize simulation", exact: true })
+    .click();
+  await expect(shelf).toHaveAttribute("aria-expanded", "true");
+  await page.getByRole("button", { name: "Sim Code", exact: true }).click();
+  await expect(editor).toContainText("independent draft");
+});
 
 test("maximized simulation reclaims chrome at narrow width and minimizes without losing source", async ({
   page,

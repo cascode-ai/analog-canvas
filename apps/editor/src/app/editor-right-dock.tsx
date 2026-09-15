@@ -1,44 +1,40 @@
 import type { ReactNode } from "react";
 
-/** One dock, two independent presentations. Hidden Code keeps drafts and run ownership alive. */
+/** Independent workspace siblings. Hiding Code preserves drafts and run ownership. */
 export function EditorRightDock(props: {
   simulationOpen: boolean;
-  propertiesOpen: boolean;
+  simulationOpened: boolean;
   maximized: boolean;
-  onSelectProperties(open: boolean): void;
+  onRestoreSimulation(): void;
   code: ReactNode;
   properties: ReactNode;
 }) {
-  const showCode =
-    props.simulationOpen && (!props.propertiesOpen || props.maximized);
   return (
-    <aside
-      className={`editor-right-dock${props.simulationOpen ? " with-code" : ""}${showCode ? " showing-code" : ""}`}
-    >
-      {props.simulationOpen && !props.maximized ? (
-        <nav className="editor-right-dock-tabs" aria-label="Sidebar view">
+    <>
+      <aside className="editor-right-dock" hidden={props.maximized}>
+        {props.properties}
+      </aside>
+      <aside
+        className={`editor-simulation-dock${props.simulationOpen ? " open" : ""}`}
+        hidden={!props.simulationOpened}
+        aria-label="Sim Code"
+      >
+        {!props.simulationOpen ? (
           <button
-            type="button"
-            aria-pressed={showCode}
-            onClick={() => props.onSelectProperties(false)}
+            className="simulation-restore-rail"
+            onClick={props.onRestoreSimulation}
+            title="Restore Sim Code"
           >
             Sim Code
           </button>
-          <button
-            type="button"
-            aria-pressed={!showCode}
-            onClick={() => props.onSelectProperties(true)}
-          >
-            Properties
-          </button>
-        </nav>
-      ) : null}
-      <div className="editor-right-dock-code" hidden={!showCode}>
-        {props.code}
-      </div>
-      <div className="editor-right-dock-properties" hidden={showCode}>
-        {props.properties}
-      </div>
-    </aside>
+        ) : null}
+        <div
+          className="editor-simulation-content"
+          hidden={!props.simulationOpen}
+        >
+          {props.code}
+        </div>
+      </aside>
+    </>
   );
 }

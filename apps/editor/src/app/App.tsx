@@ -896,7 +896,6 @@ export function App({
   const [analogSimulationState, setAnalogSimulationState] = useState<
     "closed" | "open" | "maximized" | "minimized"
   >("closed");
-  const simulationPropertiesOpenBeforeRef = useRef(false);
   const simulationSourceBuffer = useRef<{
     dirty: boolean;
     flush(): Promise<boolean>;
@@ -940,14 +939,11 @@ export function App({
   );
   const openAnalogSimulation = (): void => {
     if (!publicSimulationUiEnabled) return;
-    simulationPropertiesOpenBeforeRef.current = selectionOpen;
-    setSelectionOpen(false);
     setAnalogSimulationState("open");
   };
   const minimizeAnalogSimulation = (): void => {
     setSimulationPickModeState(null);
     setAnalogSimulationState("minimized");
-    setSelectionOpen(simulationPropertiesOpenBeforeRef.current);
   };
   const toggleAnalogSimulationMaximized = (): void => {
     setAnalogSimulationState((current) =>
@@ -959,7 +955,6 @@ export function App({
     void humanSimulationSession?.clear();
     setAnalogSimulationState("closed");
     setSimulationDraftContext(null);
-    setSelectionOpen(simulationPropertiesOpenBeforeRef.current);
   };
   const captureAuthoredProject = async () => {
     if (
@@ -5336,9 +5331,7 @@ export function App({
             }}
           />
         ) : null}
-        {analogSimulationOpen &&
-        !selectionOpen &&
-        !analogSimulationMaximized ? (
+        {analogSimulationOpen && !analogSimulationMaximized ? (
           <div
             className="simulation-resize-handle"
             role="separator"
@@ -5437,16 +5430,9 @@ export function App({
         ) : null}
         <EditorRightDock
           simulationOpen={analogSimulationOpen}
-          propertiesOpen={selectionOpen}
+          simulationOpened={analogSimulationOpened}
           maximized={analogSimulationMaximized}
-          onSelectProperties={(open) => {
-            if (open && compactLayout) setCompactLibraryPanelOpen(false);
-            if (!open) {
-              exitCellSymbolLayout();
-              setImportReviewOpen(false);
-            }
-            setSelectionOpen(open);
-          }}
+          onRestoreSimulation={openAnalogSimulation}
           code={
             analogSimulationOpened && humanSimulationSession ? (
               <Suspense fallback={null}>
