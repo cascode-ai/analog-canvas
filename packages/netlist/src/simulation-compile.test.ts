@@ -891,7 +891,8 @@ describe("compiling a structured simulation folder", () => {
   it("declares a global Net with the definitions, ahead of the testbench", async () => {
     const project = hierarchicalProject();
     const dut = project.documents.find((item) => item.id === "dut")!;
-    claimNet(dut, "dut-net-a", "VDD", "global", "vdd");
+    dut.nets.push({ id: "dut-global-vdd", terminals: [] });
+    claimNet(dut, "dut-global-vdd", "VDD", "global", "vdd");
 
     const result = await compile(
       project,

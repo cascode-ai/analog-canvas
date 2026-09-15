@@ -314,6 +314,19 @@ function buildNetContext(
         [...logicalNet.baseNetIds, ...logicalNet.evidenceIds],
       );
     }
+    if (logicalNet.conflicts.includes("formal-global-conflict")) {
+      diagnostic(
+        diagnostics,
+        document.id,
+        "FORMAL_PORT_GLOBAL_NET_CONFLICT",
+        `Logical Net ${logicalNet.id} is both a formal Cell Pin and a Global Net`,
+        [
+          ...logicalNet.baseNetIds,
+          ...logicalNet.formalTerminalIds,
+          ...logicalNet.evidenceIds,
+        ],
+      );
+    }
     const projectedName = projectedNames.get(logicalNet.id);
     const explicitName = logicalNet.name
       ? (projectedName?.preferredSpelling ?? logicalNet.name)

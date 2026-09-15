@@ -69,6 +69,33 @@ function fixture() {
 }
 
 describe("power marker ownership across physical editing", () => {
+  it("does not duplicate a formal VDD Cell Pin as marker-owned name evidence", () => {
+    const document = createEmptyDocument("vdd", "VDD");
+    document.instances.push({
+      id: "VDD1",
+      symbolId: "vdd-port",
+      placement: null,
+    });
+    document.nets.push({
+      id: "net-vdd",
+      terminals: [{ instanceId: "VDD1", pinName: "P" }],
+    });
+    document.netlist!.terminals.push({
+      id: "terminal-vdd1",
+      name: "VDD",
+      netId: "net-vdd",
+      direction: "inout",
+      interfaceInstanceIds: ["VDD1"],
+    });
+
+    expect(resolveDocumentLogicalNets(document).groups[0]).toMatchObject({
+      name: "VDD",
+      scope: "local",
+      powerDomain: "vdd",
+    });
+    expect(missingPowerMarkerClaims(document)).toEqual([]);
+  });
+
   it("keeps untouched ground branches logically joined but releases the actually cut pin", () => {
     const document = fixture();
     const before = structuredClone(document);

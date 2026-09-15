@@ -962,7 +962,7 @@ test("places a vertical Power Rail from I and renames it on the canvas", async (
   const avddClaim = document.connectivityEvidence.find(
     (evidence) => evidence.kind === "name-claim" && evidence.name === "AVDD",
   );
-  expect(avddClaim).toMatchObject({ scope: "global", powerDomain: "vdd" });
+  expect(avddClaim).toMatchObject({ scope: "local", powerDomain: "vdd" });
   const avdd = document.nets.find((net) => net.id === avddClaim!.netId);
   expect(avdd).toBeDefined();
   expect(document.routes).toContainEqual(
@@ -1032,7 +1032,20 @@ test("places the VDD power-port device as the default VDD entry", async ({
         scope?: string;
         powerDomain?: string;
       }>;
-      annotations: Array<{ id: string; kind: string; netId: string }>;
+      netlist: {
+        terminals: Array<{
+          id: string;
+          name: string;
+          netId: string;
+          interfaceInstanceIds: string[];
+        }>;
+      };
+      annotations: Array<{
+        id: string;
+        kind: string;
+        netId: string;
+        binding?: { kind: string; terminalId?: string; netId?: string };
+      }>;
     }>;
   };
   const document = saved.documents[0]!;
@@ -1046,17 +1059,21 @@ test("places the VDD power-port device as the default VDD entry", async ({
       evidence.name === "VDD" &&
       evidence.powerDomain === "vdd",
   );
-  expect(vddClaims).toHaveLength(2);
-  expect(vddClaims).toEqual(
-    expect.arrayContaining([
-      expect.objectContaining({ scope: "global" }),
-      expect.objectContaining({ scope: "global" }),
-    ]),
-  );
-  const vddTerminals = vddClaims
+  expect(vddClaims).toHaveLength(0);
+  expect(document.netlist.terminals).toEqual([
+    expect.objectContaining({
+      name: "VDD",
+      interfaceInstanceIds: ["VDD1"],
+    }),
+    expect.objectContaining({
+      name: "VDD",
+      interfaceInstanceIds: ["VDD2"],
+    }),
+  ]);
+  const vddTerminals = document.netlist.terminals
     .flatMap(
-      (claim) =>
-        document.nets.find((net) => net.id === claim.netId)?.terminals ?? [],
+      (terminal) =>
+        document.nets.find((net) => net.id === terminal.netId)?.terminals ?? [],
     )
     .sort((left, right) => left.instanceId.localeCompare(right.instanceId));
   expect(vddTerminals).toEqual([
@@ -1066,8 +1083,20 @@ test("places the VDD power-port device as the default VDD entry", async ({
   expect(
     document.annotations
       .filter((annotation) => annotation.kind === "power-label")
-      .map((annotation) => annotation.id),
-  ).toEqual(["power-label-vdd1", "power-label-vdd2"]);
+      .map((annotation) => ({
+        id: annotation.id,
+        binding: annotation.binding,
+      })),
+  ).toEqual([
+    {
+      id: "power-label-vdd1",
+      binding: expect.objectContaining({ kind: "cell-terminal-name" }),
+    },
+    {
+      id: "power-label-vdd2",
+      binding: expect.objectContaining({ kind: "cell-terminal-name" }),
+    },
+  ]);
 });
 
 test("renames one supply marker without changing its same-name peer", async ({
@@ -1082,12 +1111,11 @@ test("renames one supply marker without changing its same-name peer", async ({
 
   await page.getByTestId("hit-VDD1").click();
   await openSelectionShelf(page);
-  await expect(page.getByRole("textbox", { name: "Supply name" })).toHaveCount(
-    0,
-  );
-  await editComponentPropertyCode(page, (code) => {
-    code.netName = "AVDD";
-  });
+  await page.getByLabel("VDD connection mode").selectOption("global");
+  const supplyName = page.getByRole("textbox", { name: "Supply name" });
+  await expect(supplyName).toHaveCount(1);
+  await supplyName.fill("AVDD");
+  await supplyName.blur();
 
   await expectComponentCodeField(page, "netName", "AVDD");
   await expect(

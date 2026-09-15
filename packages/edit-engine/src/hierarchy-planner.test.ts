@@ -14,6 +14,7 @@ import {
   planRenameCellTerminal,
   planSetDeviceModelTarget,
   planSetMosModelTarget,
+  planSetVddConnectionMode,
 } from "./hierarchy-planner.js";
 import { executeProjectTransaction } from "./project-transaction.js";
 
@@ -285,6 +286,134 @@ describe("hierarchy domain planners", () => {
         ],
       },
     });
+  });
+
+  it("switches VDD Power between one physical Cell interface and Global ownership", () => {
+    const project = createEmptyProject("project", "Project");
+    const document = project.documents[0]!;
+    document.instances.push(
+      { id: "VDD1", symbolId: "vdd-port", placement: null },
+      { id: "VDD2", symbolId: "vdd-port", placement: null },
+    );
+    document.nets.push({
+      id: "net-vdd",
+      terminals: [
+        { instanceId: "VDD1", pinName: "P" },
+        { instanceId: "VDD2", pinName: "P" },
+      ],
+    });
+    document.netlist!.terminals.push(
+      {
+        id: "terminal-vdd1",
+        name: "VDD",
+        netId: "net-vdd",
+        direction: "inout",
+        interfaceInstanceIds: ["VDD1"],
+      },
+      {
+        id: "terminal-vdd2",
+        name: "VDD",
+        netId: "net-vdd",
+        direction: "inout",
+        interfaceInstanceIds: ["VDD2"],
+      },
+    );
+    document.annotations.push(
+      {
+        id: "power-label-vdd1",
+        kind: "power-label",
+        binding: { kind: "cell-terminal-name", terminalId: "terminal-vdd1" },
+        netId: "net-vdd",
+        anchor: {
+          kind: "object",
+          objectId: "VDD1",
+          localOffset: { x: 0, y: -10 },
+          fallbackPosition: { x: 0, y: -10 },
+        },
+        alignment: "middle",
+        rotation: 0,
+        locked: false,
+      },
+      {
+        id: "power-label-vdd2",
+        kind: "power-label",
+        binding: { kind: "cell-terminal-name", terminalId: "terminal-vdd2" },
+        netId: "net-vdd",
+        anchor: {
+          kind: "object",
+          objectId: "VDD2",
+          localOffset: { x: 0, y: -10 },
+          fallbackPosition: { x: 0, y: -10 },
+        },
+        alignment: "middle",
+        rotation: 0,
+        locked: false,
+      },
+    );
+
+    const global = executeProjectTransaction(project, {
+      transactionId: "vdd-global",
+      projectId: project.id,
+      expectedStructureRevision: project.structureRevision,
+      actor: { kind: "human", id: "test" },
+      edits: planSetVddConnectionMode(project, document.id, "VDD1", "global"),
+    });
+    expect(global.ok).toBe(true);
+    if (!global.ok) return;
+    const globalDocument = global.project.documents[0]!;
+    expect(globalDocument.netlist?.terminals).toEqual([]);
+    expect(globalDocument.connectivityEvidence).toEqual([
+      expect.objectContaining({
+        kind: "name-claim",
+        name: "VDD",
+        scope: "global",
+        owner: { kind: "power-marker", objectId: "VDD1" },
+      }),
+      expect.objectContaining({
+        kind: "name-claim",
+        name: "VDD",
+        scope: "global",
+        owner: { kind: "power-marker", objectId: "VDD2" },
+      }),
+    ]);
+    expect(
+      globalDocument.annotations.map((annotation) => annotation.binding),
+    ).toEqual([
+      { kind: "net-name", netId: "net-vdd" },
+      { kind: "net-name", netId: "net-vdd" },
+    ]);
+
+    const local = executeProjectTransaction(global.project, {
+      transactionId: "vdd-local",
+      projectId: project.id,
+      expectedStructureRevision: global.project.structureRevision,
+      actor: { kind: "human", id: "test" },
+      edits: planSetVddConnectionMode(
+        global.project,
+        document.id,
+        "VDD1",
+        "cell-pin",
+      ),
+    });
+    expect(local.ok).toBe(true);
+    if (!local.ok) return;
+    const localDocument = local.project.documents[0]!;
+    expect(localDocument.connectivityEvidence).toEqual([]);
+    expect(localDocument.netlist?.terminals).toEqual([
+      expect.objectContaining({
+        name: "VDD",
+        netId: "net-vdd",
+        interfaceInstanceIds: ["VDD1"],
+      }),
+      expect.objectContaining({
+        name: "VDD",
+        netId: "net-vdd",
+        interfaceInstanceIds: ["VDD2"],
+      }),
+    ]);
+    expect(
+      localDocument.annotations.map((annotation) => annotation.binding?.kind),
+    ).toEqual(["cell-terminal-name", "cell-terminal-name"]);
   });
 
   it("returns no reorder transaction at an interface boundary", () => {

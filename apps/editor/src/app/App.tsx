@@ -26,6 +26,7 @@ import {
   planProjectCellImport,
   planSetCellSymbolPresentation,
   planSetDeviceModelTarget,
+  planSetVddConnectionMode,
   planInstanceUnplacement,
   planAngledWireRepairs,
   gateRoutingOperationPlan,
@@ -3473,8 +3474,8 @@ export function App({
         terminal.interfaceInstanceIds.includes(selectedInstance.id),
       )
     : undefined;
-  // A design routinely carries VDDH and VDDL, or VDD1 and VDD2, at once, so a
-  // supply marker keeps its explicit Global-Net name.
+  // A design routinely carries VDDH and VDDL, or VDD1 and VDD2, at once, so
+  // VDD artwork keeps its authored supply name in either Cell Pin or Global mode.
   const selectedSupplyMarker =
     selectedInstance?.symbolId === "vdd-port" ? selectedInstance : undefined;
   const selectedPortNet =
@@ -3506,6 +3507,32 @@ export function App({
   function commitProjectName(): void {
     setProjectNameDraft(null);
     renameProject(projectNameDraft);
+  }
+
+  function setSelectedVddConnectionMode(mode: "cell-pin" | "global"): void {
+    if (!selectedSupplyMarker) return;
+    try {
+      const edits = planSetVddConnectionMode(
+        project,
+        document.id,
+        selectedSupplyMarker.id,
+        mode,
+      );
+      if (edits.length === 0) return;
+      if (commitStructure("set-vdd-connection-mode", edits)) {
+        setStatus(
+          mode === "global"
+            ? "VDD Power now declares a Global Net"
+            : "VDD Power now exposes a formal Cell Pin",
+        );
+      }
+    } catch (error) {
+      setStatus(
+        error instanceof Error
+          ? error.message
+          : "Could not change VDD connection mode",
+      );
+    }
   }
 
   function approveAgentFileCandidate(): void {
@@ -5790,9 +5817,10 @@ export function App({
                           document,
                           selectedInstance,
                         ),
-                        netName: selectedSupplyMarker
-                          ? (selectedPortLogicalName ?? "")
-                          : null,
+                        netName:
+                          selectedSupplyMarker && !selectedFormalTerminal
+                            ? (selectedPortLogicalName ?? "")
+                            : null,
                         onApply: (value: ComponentPropertyCodeValue) => {
                           try {
                             const edits: SchematicEdit[] =
@@ -6097,6 +6125,14 @@ export function App({
                                 },
                               }
                             : null,
+                        supplyConnection: selectedSupplyMarker
+                          ? {
+                              mode: selectedFormalTerminal
+                                ? "cell-pin"
+                                : "global",
+                              onChange: setSelectedVddConnectionMode,
+                            }
+                          : null,
                         modelTarget:
                           selectedInstance.netlist &&
                           (selectedInstance.netlist.binding?.kind === "model" ||

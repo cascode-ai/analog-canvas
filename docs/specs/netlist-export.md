@@ -176,10 +176,12 @@ hint/example/help, and display role). Required export fields are derived from
 
 Pin order names canonical Symbol pins. Hidden or implicit pins remain present.
 Canonical MOS ordering is D/G/S/B. Ground is a Net marker that verifies the
-explicit global Logical Net `0` and emits no instance line. A VDD Port is a
-non-emitting global marker claim with `powerDomain: vdd`. A named Power Rail
-uses the same claim and has no Instance. Only
-an explicitly global Net is emitted through the dialect's global declaration.
+explicit global Logical Net `0` and emits no instance line. Newly authored VDD
+Power is a non-emitting formal Cell Pin with derived `powerDomain: vdd`; its
+Properties connection mode may instead replace that formal terminal with an
+explicit Global marker claim. A named Power Rail has no Instance and defaults
+to a local VDD claim. Only an explicitly global Net is emitted through the
+dialect's global declaration.
 Decorative symbols never have a device definition. An unsupported electrical
 Symbol blocks export.
 
@@ -200,6 +202,9 @@ represented structurally. A display string is not a source specification.
 - The global Net named `0` is the reference node.
 - Other global Nets are emitted through the dialect's global declaration and
   are not silently converted to cell ports.
+- Except for the established global SPICE ground reference `0`, one Logical
+  Net cannot be both a formal Cell Pin and global; that ambiguity blocks export
+  until the interface mode or the conflicting owner is changed.
 - A terminal belongs to at most one Net.
 - An unconnected terminal must carry an explicit `NoConnect`; otherwise export
   is blocked. Each explicit `NoConnect` receives one deterministic,

@@ -189,11 +189,13 @@ export const SchematicDocumentSchema = SchematicDocumentBaseSchema.superRefine(
           );
           if (
             !interfaceInstance ||
-            !["port", "port-filled"].includes(interfaceInstance.symbolId)
+            !["port", "port-filled", "vdd-port"].includes(
+              interfaceInstance.symbolId,
+            )
           ) {
             context.addIssue({
               code: "custom",
-              message: `Cell terminal requires a port or port-filled interface Instance: ${interfaceInstanceId}`,
+              message: `Cell terminal requires a Port or VDD Power interface Instance: ${interfaceInstanceId}`,
               path: [
                 "netlist",
                 "terminals",

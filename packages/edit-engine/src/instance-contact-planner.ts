@@ -180,6 +180,8 @@ export function proposePlacementContact(
   options: {
     mode?: "placement" | "move";
     instances?: readonly Instance[];
+    /** False when VDD artwork is being authored as a formal Cell Pin. */
+    powerMarker?: boolean;
   } = {},
 ): PlacementContactProposal {
   const contacts: Array<{
@@ -356,7 +358,7 @@ export function proposePlacementContact(
         };
   }
   const power =
-    options.mode === "move"
+    options.mode === "move" || options.powerMarker === false
       ? undefined
       : POWER_CONNECTION_BY_SYMBOL[
           instance.symbolId as keyof typeof POWER_CONNECTION_BY_SYMBOL

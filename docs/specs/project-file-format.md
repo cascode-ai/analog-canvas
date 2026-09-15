@@ -107,9 +107,10 @@ Versions older than 24 or newer than 56 are rejected.
   independent from emitted netlist parameters.
 - Hierarchy is an acyclic graph of ordinary Instances whose typed subcircuit
   bindings resolve to child Documents; orphan Cell definitions are allowed.
-- Canvas `port` and `port-filled` objects are Cell Pin marker Instances
-  with terminal `P`; their connectivity is stored in `Net.terminals` and
-  ordinary terminal Route endpoints.
+- Canvas `port` and `port-filled` objects are Cell Pin marker Instances with
+  terminal `P`. A `vdd-port` Instance may use the same formal-terminal protocol
+  or, mutually exclusively, own a Global VDD name claim. Their connectivity is
+  stored in `Net.terminals` and ordinary terminal Route endpoints.
 - Base `Net.terminals` is the physical membership authority.
 - `Document.connectivityEvidence` records owner-addressed name claims, explicit
   imported global declarations, non-electrical source-name hints, and
@@ -119,8 +120,9 @@ Versions older than 24 or newer than 56 are rejected.
 - Route endpoints are terminal or Junction references only.
 - A marker claim may classify its Logical Net as `vdd` or `ground`; role never
   substitutes for name identity.
-- A named Power Rail uses an ordinary Base Net, Route/Junction geometry, the
-  same global name claim as a VDD marker, and a bound RichText annotation.
+- A named Power Rail uses an ordinary Base Net, Route/Junction geometry, a
+  local VDD name claim by default, and a bound RichText annotation. Explicitly
+  targeting an existing Global Net retains that Net's scope.
 - Every visible editable label is a RichText annotation. `instance-reference`
   projects only `Instance.reference`; `instance-value`, `net-name`, and
   `cell-terminal-name` project their own typed facts. Other attached labels,

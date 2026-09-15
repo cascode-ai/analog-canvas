@@ -13,7 +13,7 @@ const componentSymbolIds = [
 ].map((symbol) => symbol.id);
 
 for (const symbolId of componentSymbolIds) {
-  test(`${symbolId} uses the one text-first component Properties surface`, async ({
+  test(`${symbolId} uses the text-first component Properties surface`, async ({
     page,
   }) => {
     await page.goto("/editor");
@@ -38,6 +38,12 @@ for (const symbolId of componentSymbolIds) {
     await expect(
       properties.getByLabel("Editable Canvas property code"),
     ).toBeVisible();
+    if (symbolId === "vdd-port") {
+      await expect(properties.getByLabel("VDD connection mode")).toHaveValue(
+        "cell-pin",
+      );
+      return;
+    }
     await expect(properties.locator(":scope > *")).toHaveCount(1);
     await expect(properties.locator(":scope > :only-child")).toHaveAttribute(
       "aria-label",

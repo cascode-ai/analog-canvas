@@ -30,7 +30,8 @@ export function instanceLabelAnnotationFor(
   const candidates = document.annotations.filter(
     (annotation) =>
       (annotation.kind === "instance-label" ||
-        annotation.kind === "net-label") &&
+        annotation.kind === "net-label" ||
+        annotation.kind === "power-label") &&
       ((!annotation.binding && annotation.kind === "instance-label") ||
         annotation.binding?.kind === "instance-reference" ||
         annotation.binding?.kind === "cell-terminal-name" ||

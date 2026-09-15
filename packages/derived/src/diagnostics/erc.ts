@@ -310,6 +310,22 @@ export function runErcChecks(
           ),
           parameters: { count: issue.netIds.length },
         });
+      } else if (issue.code === "FORMAL_PORT_GLOBAL_NET_CONFLICT") {
+        diagnostics.push({
+          id: `erc:formal-global-net-conflict:${document.id}:${primaryId}`,
+          domain: "erc",
+          code: "ERC_FORMAL_PORT_GLOBAL_NET_CONFLICT",
+          severity: "error",
+          confidence: "high",
+          gateEligible: true,
+          message:
+            "One Logical Net cannot be both a formal Cell Pin and a Global Net",
+          primary: directObjectLocator(document.id, "net", primaryId!),
+          related: relatedIds.map((netId) =>
+            directObjectLocator(document.id, "net", netId),
+          ),
+          parameters: { count: issue.netIds.length },
+        });
       }
       // Power-domain conflicts are emitted above with the established
       // ERC_POWER_DOMAIN_CONFLICT code so existing diagnostic navigation and

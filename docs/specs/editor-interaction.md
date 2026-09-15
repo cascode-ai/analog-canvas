@@ -247,19 +247,22 @@ behavioral blocks remain manual-only; a structural netlist requires an explicit
 implementation mapping.
 
 Ground is the `ground` component connected through pin `0`; placement reuses an
-existing global ground supply Net. Power Rail is a virtual Library item presented
+existing global ground supply Net. VDD Power is placed as a local formal Cell
+Pin by default; Properties can switch its unchanged artwork and physical Net to
+an explicit Global declaration. Power Rail is a virtual Library item presented
 through the same I-dialog, Library, and placement input plane as components.
 Its editor-local VDD artwork is preview-only and is not registered with the
 product Symbol Resolver. Before the first click the artwork follows the
 pointer; after the first click the preview becomes a straight horizontal or
 vertical rail, selected by the pointer's dominant axis. The second click
-creates a Base Net with the selected global supply claim, creates two route-anchor
+creates a Base Net with the selected local supply claim, creates two route-anchor
 Junctions and one `power-rail` Route, and persists one net-name-bound RichText
 power-label annotation. Same-name supply claims resolve to one Logical Net
 without a physical merge. The Route is the only rail geometry: the annotation adds no
 supply bar or terminal stub, and the semantic name uses the shared Razavi
 schematic-math style. It creates no VDD Instance and exits placement after the
-commit. Deleting the rail also deletes its power label and rail-only Junctions;
+commit. A rail explicitly drawn onto an existing Global supply retains that
+electrical connection. Deleting the rail also deletes its power label and rail-only Junctions;
 an otherwise-unused local Net follows the ordinary orphan lifecycle.
 
 ## Project sessions

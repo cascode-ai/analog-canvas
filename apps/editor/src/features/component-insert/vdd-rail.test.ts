@@ -97,7 +97,7 @@ describe("drawn VDD rail construction", () => {
         endJunctionId: "junction-vdd3-end",
         labelId: "label-VDD3",
         netName: "VDD",
-        scope: "global",
+        scope: "local",
         powerDomain: "vdd",
         start: { x: 80, y: 40 },
         end: { x: 260, y: 40 },
@@ -215,7 +215,7 @@ describe("drawn VDD rail construction", () => {
       resolveDocumentLogicalNets(result.document).byBaseNetId.get(
         "net-power-vdd1",
       ),
-    ).toMatchObject({ name: "VDD", powerDomain: "vdd", scope: "global" });
+    ).toMatchObject({ name: "VDD", powerDomain: "vdd", scope: "local" });
     expect(result.document.routes).toMatchObject([
       { presentation: "power-rail", netId: "net-power-vdd1" },
     ]);
@@ -360,7 +360,7 @@ describe("drawn VDD rail construction", () => {
     expect(deleted.document.nets).toEqual([]);
   });
 
-  it("keeps a rail Base Net separate while joining the Port's AVDD Logical Net", () => {
+  it("keeps a new local rail separate from an existing Global AVDD Net", () => {
     const document = createEmptyDocument("main", "Main");
     document.nets.push({
       id: "net-port-avdd",
@@ -390,7 +390,7 @@ describe("drawn VDD rail construction", () => {
           kind: "add_power_rail",
           netId: "net-power-vdd1",
           netName: "AVDD",
-          scope: "global",
+          scope: "local",
         },
         { kind: "set_mos_bulk_defaults", pmosNetId: "net-power-vdd1" },
         { kind: "reconcile_mos_bulk" },

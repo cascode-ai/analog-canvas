@@ -1041,10 +1041,12 @@ export function executeTransaction(
     const message =
       introducedNetContractIssue.code === "CONFLICTING_LOGICAL_NET_SCOPE"
         ? "Transaction introduces conflicting Logical Net scopes"
-        : introducedNetContractIssue.code ===
-            "CONFLICTING_LOGICAL_NET_POWER_DOMAIN"
-          ? "Transaction connects incompatible power markers"
-          : "Transaction introduces conflicting Logical Net names";
+        : introducedNetContractIssue.code === "FORMAL_PORT_GLOBAL_NET_CONFLICT"
+          ? "Transaction makes one Logical Net both a formal Cell Pin and a Global Net"
+          : introducedNetContractIssue.code ===
+              "CONFLICTING_LOGICAL_NET_POWER_DOMAIN"
+            ? "Transaction connects incompatible power markers"
+            : "Transaction introduces conflicting Logical Net names";
     return rejectTransaction(
       document,
       "INVALID_RESULT",

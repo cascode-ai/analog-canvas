@@ -108,6 +108,38 @@ describe("component identity properties", () => {
     expect(markup).not.toContain('aria-label="Component label"');
   });
 
+  it("offers an explicit Cell Pin or Global mode for VDD Power", () => {
+    const document = createEmptyDocument("cell", "Cell");
+    const instance: (typeof document.instances)[number] = {
+      id: "VDD1",
+      symbolId: "vdd-port",
+      placement: null,
+    };
+    const markup = renderToStaticMarkup(
+      <ComponentIdentityProperties
+        instance={instance}
+        revision={1}
+        formalTerminalSelected
+        portNet={{ id: "net-vdd", logicalName: "VDD", supply: true }}
+        targetDescription={null}
+        capacitorPlateRows={null}
+        supplyConnection={{ mode: "cell-pin", onChange: vi.fn() }}
+        modelTarget={null}
+        sourceCode={{ code: "* VDD Cell Pin", exact: true, note: null }}
+        onMarkerNameChange={vi.fn()}
+        onReferenceChange={vi.fn()}
+        onModelTargetChange={vi.fn()}
+      />,
+    );
+
+    expect(markup).toContain('aria-label="VDD connection mode"');
+    expect(markup).toContain(
+      '<option value="cell-pin" selected="">Cell Pin</option>',
+    );
+    expect(markup).toContain('<option value="global">Global</option>');
+    expect(markup).not.toContain('aria-label="Supply name"');
+  });
+
   it("offers one rich-editor action beside the Netlist Reference", () => {
     const document = createEmptyDocument("cell", "Cell");
     const instance: (typeof document.instances)[number] = {

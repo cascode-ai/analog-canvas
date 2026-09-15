@@ -1066,6 +1066,88 @@ describe("current formal cell interface", () => {
     expect(result.ir?.globals).toEqual(["VDD"]);
   });
 
+  it("exports formal VDD Power as a local Cell Pin and reuses it for an implicit PMOS bulk", () => {
+    const project = createEmptyProject("project", "Project");
+    const document = project.documents[0]!;
+    document.instances.push(
+      { id: "VDD1", symbolId: "vdd-port", placement: null },
+      {
+        id: "M1",
+        symbolId: "pmos",
+        placement: null,
+        reference: "M1",
+        netlist: {
+          binding: { kind: "model", deviceClass: "mos", name: "PMOS_MODEL" },
+          parameters: { w: "1u", l: "150n", m: "1", nf: "1" },
+        },
+      },
+    );
+    document.nets.push({
+      id: "net-vdd",
+      terminals: [{ instanceId: "VDD1", pinName: "P" }],
+    });
+    document.netlist!.terminals.push({
+      id: "terminal-vdd1",
+      name: "VDD",
+      netId: "net-vdd",
+      direction: "inout",
+      interfaceInstanceIds: ["VDD1"],
+    });
+    for (const pinName of ["D", "G", "S"] as const) {
+      const netId = `net-${pinName.toLowerCase()}`;
+      document.nets.push({
+        id: netId,
+        terminals: [{ instanceId: "M1", pinName }],
+      });
+      claimNet(document, netId, pinName);
+    }
+
+    const result = analyzeDesignNetlist(project);
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.ir?.globals).toEqual([]);
+    expect(result.ir?.cells[0]?.ports).toEqual([
+      { id: "net-vdd", name: "VDD", netName: "VDD" },
+    ]);
+    expect(result.ir?.cells[0]?.instances[0]?.nodes[3]).toEqual({
+      pinName: "B",
+      netName: "VDD",
+    });
+    expect(printSpiceNetlist(result.ir!)).not.toContain(".global VDD");
+  });
+
+  it("blocks export when one VDD Net is both formal and Global", () => {
+    const project = createEmptyProject("project", "Project");
+    const document = project.documents[0]!;
+    document.instances.push({
+      id: "VDD1",
+      symbolId: "vdd-port",
+      placement: null,
+    });
+    document.nets.push({
+      id: "net-vdd",
+      terminals: [{ instanceId: "VDD1", pinName: "P" }],
+    });
+    document.netlist!.terminals.push({
+      id: "terminal-vdd1",
+      name: "VDD",
+      netId: "net-vdd",
+      direction: "inout",
+      interfaceInstanceIds: ["VDD1"],
+    });
+    claimNet(document, "net-vdd", "VDD", "global", "vdd");
+
+    const result = analyzeDesignNetlist(project);
+
+    expect(result.ir).toBeNull();
+    expect(result.diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: "FORMAL_PORT_GLOBAL_NET_CONFLICT",
+        objectIds: expect.arrayContaining(["net-vdd", "terminal-vdd1"]),
+      }),
+    );
+  });
+
   it("rejects a VDD Port attached to a named non-VDD Net", () => {
     const project = createEmptyProject("project", "Project");
     const document = project.documents[0]!;

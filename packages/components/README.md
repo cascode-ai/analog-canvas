@@ -163,9 +163,10 @@ Razavi catalog. Their default visual variant is `textbook-3terminal`; explicit
 bulk-capable variants remain properties of the same canonical assets. Optional
 families such as high-voltage DMOS and Razavi-compatible depletion MOS live in
 the separate Extended Devices catalog and do not claim Razavi visual
-authority. The drawn VDD rail remains
-the explicit Net/Route authoring form; `vdd-port` is its reviewed marker Symbol
-for placed-device authoring on the same global VDD Net. There is no legacy
+authority. The drawn VDD rail remains the explicit Net/Route authoring form;
+`vdd-port` is its reviewed marker Symbol for placed-device authoring. New rails
+and VDD Power default to local scope; VDD Power is a formal Cell Pin unless the
+user explicitly selects Global. There is no legacy
 symbol catalog or generic fallback. A device without a reviewed Razavi symbol
 or an explicit Extended Devices entry is an unsupported import error.
 

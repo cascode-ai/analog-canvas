@@ -180,6 +180,7 @@ export function ComponentIdentityProperties({
   targetDescription,
   capacitorPlateRows,
   propertyTerminal,
+  supplyConnection,
   modelTarget,
   sourceCode,
   onEditAnnotation,
@@ -201,6 +202,10 @@ export function ComponentIdentityProperties({
     options: readonly { netId: string; label: string }[];
     onChange: (netId: string | null) => void;
   } | null;
+  supplyConnection?: {
+    mode: "cell-pin" | "global";
+    onChange: (mode: "cell-pin" | "global") => void;
+  } | null;
   modelTarget: ComponentModelTargetView | null;
   sourceCode: ComponentSourceCode;
   onEditAnnotation?: () => void;
@@ -212,6 +217,7 @@ export function ComponentIdentityProperties({
   const reference = instance.reference ?? "";
   const hasEditableIdentityControls = Boolean(
     (portNet && !formalTerminalSelected) ||
+    supplyConnection ||
     instance.reference ||
     onEditAnnotation ||
     targetDescription,
@@ -224,6 +230,25 @@ export function ComponentIdentityProperties({
           aria-label="Component controls"
         >
           <dl className="component-readonly-fields">
+            {supplyConnection ? (
+              <div>
+                <dt>Connection</dt>
+                <dd>
+                  <select
+                    aria-label="VDD connection mode"
+                    value={supplyConnection.mode}
+                    onChange={(event) =>
+                      supplyConnection.onChange(
+                        event.currentTarget.value as "cell-pin" | "global",
+                      )
+                    }
+                  >
+                    <option value="cell-pin">Cell Pin</option>
+                    <option value="global">Global</option>
+                  </select>
+                </dd>
+              </div>
+            ) : null}
             {portNet && !formalTerminalSelected ? (
               <div>
                 <dt>{portNet.supply ? "Supply" : "Net name"}</dt>
