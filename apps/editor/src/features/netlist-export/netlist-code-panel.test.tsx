@@ -4,7 +4,10 @@ import { describe, expect, it, vi } from "vitest";
 import { createEmptyProject } from "@icm/model";
 import { createNetlistExportProfile } from "@icm/netlist";
 
-import { NetlistCodePanel } from "./netlist-code-panel";
+import {
+  NetlistCodePanel,
+  netlistEditorVisibleLines,
+} from "./netlist-code-panel";
 
 describe("live netlist controls", () => {
   it("keeps process and format independently selectable", () => {
@@ -16,7 +19,7 @@ describe("live netlist controls", () => {
         profile={createNetlistExportProfile("tsmc28")}
         onProfileChange={vi.fn()}
         onFormatChange={vi.fn()}
-        onMosTargetChange={vi.fn()}
+        onDeviceTargetChange={vi.fn()}
         onCopy={vi.fn()}
         onReset={vi.fn()}
         configurationError={null}
@@ -45,12 +48,27 @@ describe("live netlist controls", () => {
     expect(markup).toContain('aria-label="PMOS netlist target"');
     expect(markup).toContain('value="pch_ulvt_mac"');
     expect(markup).toContain('value="pch_lvt_mac"');
-    expect(markup.match(/<select/g)).toHaveLength(4);
+    expect(markup).toContain('aria-label="R netlist target"');
+    expect(markup).toContain('aria-label="C netlist target"');
+    expect(markup).toContain('aria-label="L netlist target"');
+    expect(markup.match(/<select/g)).toHaveLength(7);
     expect(markup).not.toContain("<input");
     expect(markup).toContain(">Default</button>");
     expect(markup).toMatch(
-      /aria-label="MOS device mapping"[\s\S]*aria-label="NMOS netlist target"[\s\S]*aria-label="PMOS netlist target"[\s\S]*>Default<\/button><\/div>/u,
+      /aria-label="Netlist device mapping"[\s\S]*aria-label="NMOS netlist target"[\s\S]*aria-label="PMOS netlist target"[\s\S]*aria-label="R netlist target"[\s\S]*aria-label="C netlist target"[\s\S]*aria-label="L netlist target"[\s\S]*>Default<\/button><\/div>/u,
     );
+    expect(markup).toContain('class="netlist-code-viewport"');
+    expect(markup).toContain('data-visible-lines="10"');
     expect(markup).not.toContain("<h2>Netlist</h2>");
+  });
+
+  it("sizes the code viewport from ten through twenty visible lines", () => {
+    expect(netlistEditorVisibleLines("")).toBe(10);
+    expect(netlistEditorVisibleLines(Array(15).fill("line").join("\n"))).toBe(
+      15,
+    );
+    expect(netlistEditorVisibleLines(Array(21).fill("line").join("\n"))).toBe(
+      20,
+    );
   });
 });

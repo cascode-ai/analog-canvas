@@ -3,9 +3,11 @@ import {
   createNetlistExportProfile,
   isNetlistExportProfile,
   NETLIST_PROFILE_IDS,
+  setNetlistDefaultTarget,
   type NetlistExportProfile,
   type NetlistFormat,
   type NetlistProfileId,
+  type NetlistQuickTargetFamily,
 } from "@icm/netlist";
 
 export const NETLIST_EXPORT_PREFERENCES_KEY = "icm.netlist-export.v1";
@@ -87,13 +89,16 @@ export function selectNetlistExportFormat(
   return { ...preferences, format };
 }
 
-export function setNetlistExportMosTarget(
+export function setNetlistExportDeviceTarget(
   preferences: NetlistExportPreferences,
-  family: "nmos" | "pmos",
+  family: NetlistQuickTargetFamily,
   target: string,
 ): NetlistExportPreferences {
-  const profile = structuredClone(preferences.profiles[preferences.selected]);
-  profile.devices[family].target = target;
+  const profile = setNetlistDefaultTarget(
+    preferences.profiles[preferences.selected],
+    family,
+    target,
+  );
   return {
     ...preferences,
     profiles: { ...preferences.profiles, [preferences.selected]: profile },
@@ -145,9 +150,12 @@ export function useNetlistExportPreferences() {
     setText(source);
     setError(null);
   };
-  const setMosTarget = (family: "nmos" | "pmos", target: string) => {
+  const setDeviceTarget = (
+    family: NetlistQuickTargetFamily,
+    target: string,
+  ) => {
     if (target && !/^[A-Za-z_][A-Za-z0-9_]*$/u.test(target)) return;
-    const next = setNetlistExportMosTarget(preferences, family, target);
+    const next = setNetlistExportDeviceTarget(preferences, family, target);
     const source = JSON.stringify(next, null, 2);
     setPreferences(next);
     setText(source);
@@ -168,7 +176,7 @@ export function useNetlistExportPreferences() {
     changeText,
     selectProfile,
     selectFormat,
-    setMosTarget,
+    setDeviceTarget,
     reset,
   };
 }

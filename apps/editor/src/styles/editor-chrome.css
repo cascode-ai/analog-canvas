@@ -264,7 +264,8 @@
 }
 .project-source-editor,
 .project-code-panel > textarea,
-.netlist-profile-code > textarea {
+.netlist-profile-code > textarea,
+.netlist-code-viewport > textarea {
   width: 100%;
   height: 60dvh;
   min-height: 24rem;
@@ -278,13 +279,15 @@
   tab-size: 2;
 }
 .project-code-panel > textarea,
-.netlist-profile-code > textarea {
+.netlist-profile-code > textarea,
+.netlist-code-viewport > textarea {
   padding: 10px;
   resize: vertical;
 }
 .project-source-editor[data-invalid="true"],
 .project-code-panel > textarea[aria-invalid="true"],
-.netlist-profile-code > textarea[aria-invalid="true"] {
+.netlist-profile-code > textarea[aria-invalid="true"],
+.netlist-code-viewport > textarea[aria-invalid="true"] {
   border-color: var(--icm-error);
 }
 .project-source-editor:focus-within {
@@ -328,9 +331,17 @@
 .project-source-editor .cm-activeLineGutter {
   background: color-mix(in srgb, var(--icm-accent) 7%, transparent);
 }
+.netlist-code-viewport {
+  min-height: 0;
+}
+.netlist-code-viewport > .project-source-editor,
+.netlist-code-viewport > textarea {
+  height: var(--netlist-editor-height);
+  min-height: 0;
+}
 .netlist-device-mapping {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   align-items: center;
   gap: 8px;
   padding-top: 2px;

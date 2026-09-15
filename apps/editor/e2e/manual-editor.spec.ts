@@ -6283,14 +6283,40 @@ test("shows and copies a live MOS netlist when only bulk terminals are omitted",
   expect(skySpectre).toContain("subckt dut (VDD VSS)");
   expect(skySpectre).not.toContain(".subckt");
   expect(skySpectre).not.toContain(".global");
+  const codeViewport = panel.locator(".netlist-code-viewport");
+  await expect(codeViewport).toHaveAttribute("data-visible-lines", "10");
+  await expect(codeViewport.locator(".cm-lineNumbers")).toBeVisible();
   const nmos = panel.getByLabel("NMOS netlist target");
   const pmos = panel.getByLabel("PMOS netlist target");
+  const resistor = panel.getByLabel("R netlist target");
+  const capacitor = panel.getByLabel("C netlist target");
+  const inductor = panel.getByLabel("L netlist target");
   const defaultButton = panel.getByRole("button", {
     name: "Default",
     exact: true,
   });
   await expect(nmos).toHaveValue("sky130_fd_pr__nfet_01v8");
   await expect(pmos).toHaveValue("sky130_fd_pr__pfet_01v8");
+  await expect(resistor).toHaveValue("");
+  await expect(capacitor).toHaveValue("");
+  await expect(inductor).toHaveValue("");
+  await expect(resistor.locator("option")).toContainText([
+    "Ideal",
+    "sky130_fd_pr__res_high_po",
+    "sky130_fd_pr__res_xhigh_po",
+  ]);
+  await expect(capacitor.locator("option")).toContainText([
+    "Ideal",
+    "sky130_fd_pr__cap_mim_m3_1",
+    "sky130_fd_pr__cap_mim_m3_2",
+    "sky130_fd_pr__cap_var_lvt",
+  ]);
+  await expect(inductor.locator("option")).toContainText([
+    "Ideal",
+    "sky130_fd_pr__ind_03_90",
+    "sky130_fd_pr__ind_05_125",
+    "sky130_fd_pr__ind_05_220",
+  ]);
   await nmos.selectOption("sky130_fd_pr__nfet_01v8_lvt");
   await pmos.selectOption("sky130_fd_pr__pfet_01v8_lvt");
   await expect(panel.getByLabel("Netlist code")).toContainText(
@@ -6299,25 +6325,32 @@ test("shows and copies a live MOS netlist when only bulk terminals are omitted",
   await expect(panel.getByLabel("Netlist code")).toContainText(
     "sky130_fd_pr__pfet_01v8_lvt",
   );
-  const mappingBoxes = await Promise.all(
-    [nmos, pmos, defaultButton].map((control) => control.boundingBox()),
-  );
-  expect(mappingBoxes.every(Boolean)).toBe(true);
-  const mappingCenters = mappingBoxes.map((box) => box!.y + box!.height / 2);
-  expect(
-    Math.max(...mappingCenters) - Math.min(...mappingCenters),
-  ).toBeLessThanOrEqual(2);
-  const selectionPanelBox = await panel.locator("..").boundingBox();
+  for (const pair of [
+    [nmos, pmos],
+    [resistor, capacitor],
+    [inductor, defaultButton],
+  ]) {
+    const boxes = await Promise.all(
+      pair.map((control) => control.boundingBox()),
+    );
+    expect(boxes.every(Boolean)).toBe(true);
+    expect(
+      Math.abs(
+        boxes[0]!.y +
+          boxes[0]!.height / 2 -
+          (boxes[1]!.y + boxes[1]!.height / 2),
+      ),
+    ).toBeLessThanOrEqual(2);
+  }
+  const codeViewportBox = await codeViewport.boundingBox();
   const mappingBarBox = await panel
-    .getByLabel("MOS device mapping")
+    .getByLabel("Netlist device mapping")
     .boundingBox();
-  expect(selectionPanelBox).not.toBeNull();
+  expect(codeViewportBox).not.toBeNull();
   expect(mappingBarBox).not.toBeNull();
   expect(
-    selectionPanelBox!.y +
-      selectionPanelBox!.height -
-      (mappingBarBox!.y + mappingBarBox!.height),
-  ).toBeLessThanOrEqual(16);
+    mappingBarBox!.y - (codeViewportBox!.y + codeViewportBox!.height),
+  ).toBeLessThanOrEqual(12);
   await page.reload();
   await page.getByTestId("netlist-panel-toggle").click();
   await expect(panel.getByLabel("NMOS netlist target")).toHaveValue(
@@ -6332,6 +6365,9 @@ test("shows and copies a live MOS netlist when only bulk terminals are omitted",
   await expect(panel.getByLabel("Netlist process")).toHaveValue("abstract");
   await expect(panel.getByLabel("NMOS netlist target")).toHaveValue("NMOS");
   await expect(panel.getByLabel("PMOS netlist target")).toHaveValue("PMOS");
+  await expect(panel.getByLabel("R netlist target")).toHaveValue("");
+  await expect(panel.getByLabel("C netlist target")).toHaveValue("");
+  await expect(panel.getByLabel("L netlist target")).toHaveValue("");
   await expect(panel.getByLabel("Netlist code")).toContainText(
     ".subckt dut VDD VSS",
   );
@@ -6339,6 +6375,54 @@ test("shows and copies a live MOS netlist when only bulk terminals are omitted",
   await page.getByTestId("netlist-panel-toggle").click();
   await expect(panel.getByLabel("Netlist format")).toHaveValue("spice");
   await expect(panel.getByLabel("Netlist process")).toHaveValue("abstract");
+});
+
+test("caps a long live netlist at twenty visible lines with internal scrolling", async ({
+  page,
+}) => {
+  const project = createEmptyProject("long-netlist", "Long Netlist");
+  const document = project.documents[0]!;
+  for (let index = 1; index <= 24; index++) {
+    const id = `R${index}`;
+    document.instances.push({
+      id,
+      reference: id,
+      symbolId: "resistor",
+      placement: null,
+      netlist: { parameters: { value: `${index}k` } },
+    });
+    for (const pinName of ["1", "2"])
+      document.nets.push({
+        id: `${id}-${pinName}`,
+        terminals: [{ instanceId: id, pinName }],
+      });
+  }
+
+  await page.goto("/editor");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "long-netlist.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  await page.getByTestId("netlist-panel-toggle").click();
+  const panel = page.getByRole("region", { name: "Live netlist", exact: true });
+  const viewport = panel.locator(".netlist-code-viewport");
+  await expect(viewport).toHaveAttribute("data-visible-lines", "20");
+  await expect(viewport.locator(".cm-lineNumbers")).toBeVisible();
+  expect(
+    await viewport
+      .locator(".cm-scroller")
+      .evaluate((scroller) => scroller.scrollHeight > scroller.clientHeight),
+  ).toBe(true);
+  const viewportBox = await viewport.boundingBox();
+  const mappingBox = await panel
+    .getByLabel("Netlist device mapping")
+    .boundingBox();
+  expect(viewportBox).not.toBeNull();
+  expect(mappingBox).not.toBeNull();
+  expect(
+    mappingBox!.y - (viewportBox!.y + viewportBox!.height),
+  ).toBeLessThanOrEqual(12);
 });
 
 test("edits process configuration as raw JSON and remembers process and format independently", async ({

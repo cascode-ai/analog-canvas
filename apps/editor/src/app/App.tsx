@@ -5617,7 +5617,7 @@ export function App({
                     profile={netlistPreferences.profile}
                     onProfileChange={netlistPreferences.selectProfile}
                     onFormatChange={netlistPreferences.selectFormat}
-                    onMosTargetChange={netlistPreferences.setMosTarget}
+                    onDeviceTargetChange={netlistPreferences.setDeviceTarget}
                     onReset={netlistPreferences.reset}
                     onCopy={() =>
                       exportDesignNetlist(

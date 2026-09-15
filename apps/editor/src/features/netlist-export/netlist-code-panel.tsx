@@ -1,14 +1,16 @@
-import { lazy, Suspense, useMemo } from "react";
+import { lazy, Suspense, useMemo, type CSSProperties } from "react";
 import type { CircuitProject } from "@icm/model";
 import {
   createDesignNetlistExport,
-  NETLIST_MOS_TARGET_OPTIONS,
+  NETLIST_DEVICE_TARGET_OPTIONS,
   NETLIST_PROFILE_IDS,
   NETLIST_PROFILE_LABELS,
+  NETLIST_QUICK_TARGET_FAMILIES,
   type NetlistExportProfile,
   type NetlistFormat,
   type NetlistNamingProfile,
   type NetlistProfileId,
+  type NetlistQuickTargetFamily,
 } from "@icm/netlist";
 
 const ProjectTextEditor = lazy(
@@ -23,7 +25,7 @@ export function NetlistCodePanel({
   profile,
   onProfileChange,
   onFormatChange,
-  onMosTargetChange,
+  onDeviceTargetChange,
   onCopy,
   onReset,
   configurationError,
@@ -34,7 +36,7 @@ export function NetlistCodePanel({
   profile: NetlistExportProfile;
   onProfileChange(profile: NetlistProfileId): void;
   onFormatChange(format: NetlistFormat): void;
-  onMosTargetChange(family: "nmos" | "pmos", target: string): void;
+  onDeviceTargetChange(family: NetlistQuickTargetFamily, target: string): void;
   onCopy(): void;
   onReset(): void;
   configurationError: string | null;
@@ -57,6 +59,7 @@ export function NetlistCodePanel({
           ?.message ?? "Resolve the Check Report findings before copying")
       : null;
   const source = result?.status === "ready" ? result.file.text : "";
+  const visibleLines = netlistEditorVisibleLines(source);
   return (
     <section
       className="netlist-profile-code netlist-live-code"
@@ -112,43 +115,56 @@ export function NetlistCodePanel({
           </svg>
         </button>
       </div>
-      <Suspense
-        fallback={
-          <textarea
-            aria-label="Loading Netlist code editor"
-            value={source}
-            readOnly
-          />
+      <div
+        className="netlist-code-viewport"
+        data-visible-lines={visibleLines}
+        style={
+          {
+            "--netlist-editor-height": `${visibleLines * 19.2 + 22}px`,
+          } as CSSProperties
         }
       >
-        <ProjectTextEditor
-          ariaLabel="Netlist code"
-          language="netlist"
-          value={source}
-          readOnly
-          invalid={!!error}
-        />
-      </Suspense>
-      <div className="netlist-device-mapping" aria-label="MOS device mapping">
-        {(["nmos", "pmos"] as const).map((family) => (
+        <Suspense
+          fallback={
+            <textarea
+              aria-label="Loading Netlist code editor"
+              value={source}
+              readOnly
+            />
+          }
+        >
+          <ProjectTextEditor
+            ariaLabel="Netlist code"
+            language="netlist"
+            value={source}
+            readOnly
+            invalid={!!error}
+          />
+        </Suspense>
+      </div>
+      <div
+        className="netlist-device-mapping"
+        aria-label="Netlist device mapping"
+      >
+        {NETLIST_QUICK_TARGET_FAMILIES.map((family) => (
           <label key={family}>
-            <span>{family.toUpperCase()}</span>
+            <span>{deviceFamilyLabel(family)}</span>
             <select
-              aria-label={`${family.toUpperCase()} netlist target`}
+              aria-label={`${deviceFamilyLabel(family)} netlist target`}
               value={profile.devices[family].target}
-              title={profile.devices[family].target}
+              title={profile.devices[family].target || "Ideal"}
               onChange={(event) =>
-                onMosTargetChange(family, event.currentTarget.value)
+                onDeviceTargetChange(family, event.currentTarget.value)
               }
             >
               {[
                 ...new Set([
                   profile.devices[family].target,
-                  ...NETLIST_MOS_TARGET_OPTIONS[profile.id][family],
+                  ...NETLIST_DEVICE_TARGET_OPTIONS[profile.id][family],
                 ]),
               ].map((target) => (
                 <option key={target || "unspecified"} value={target}>
-                  {target || "Unspecified"}
+                  {target || "Ideal"}
                 </option>
               ))}
             </select>
@@ -172,4 +188,16 @@ export function NetlistCodePanel({
       ) : null}
     </section>
   );
+}
+
+export function netlistEditorVisibleLines(source: string): number {
+  const lineCount = source.split(/\r\n?|\n/u).length;
+  return Math.max(10, Math.min(20, lineCount));
+}
+
+function deviceFamilyLabel(family: NetlistQuickTargetFamily): string {
+  if (family === "resistor") return "R";
+  if (family === "capacitor") return "C";
+  if (family === "inductor") return "L";
+  return family.toUpperCase();
 }

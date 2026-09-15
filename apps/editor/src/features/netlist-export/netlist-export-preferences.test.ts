@@ -4,7 +4,7 @@ import {
   readNetlistExportPreferences,
   selectNetlistExportFormat,
   selectNetlistExportProfile,
-  setNetlistExportMosTarget,
+  setNetlistExportDeviceTarget,
 } from "./netlist-export-preferences.js";
 
 describe("netlist export preferences", () => {
@@ -72,12 +72,16 @@ describe("netlist export preferences", () => {
     expect(selected.selected).toBe("abstract");
     expect(selected.profiles).toBe(preferences.profiles);
   });
-  it("edits MOS targets only in the selected process", () => {
+  it("edits device targets only in the selected process and loads target defaults", () => {
     const preferences = readNetlistExportPreferences(null);
     preferences.selected = "tsmc28";
 
-    const nmos = setNetlistExportMosTarget(preferences, "nmos", "custom_nch");
-    const pmos = setNetlistExportMosTarget(nmos, "pmos", "custom_pch");
+    const nmos = setNetlistExportDeviceTarget(
+      preferences,
+      "nmos",
+      "custom_nch",
+    );
+    const pmos = setNetlistExportDeviceTarget(nmos, "pmos", "custom_pch");
 
     expect(pmos.profiles.tsmc28.devices.nmos.target).toBe("custom_nch");
     expect(pmos.profiles.tsmc28.devices.pmos.target).toBe("custom_pch");
@@ -86,6 +90,17 @@ describe("netlist export preferences", () => {
     expect(preferences.profiles.tsmc28.devices.nmos.target).toBe(
       "nch_ulvt_mac",
     );
+
+    preferences.selected = "sky130";
+    const resistor = setNetlistExportDeviceTarget(
+      preferences,
+      "resistor",
+      "sky130_fd_pr__res_xhigh_po",
+    );
+    expect(resistor.profiles.sky130.devices.resistor).toMatchObject({
+      target: "sky130_fd_pr__res_xhigh_po",
+      parameters: { w: "1u", l: "5.5u", mult: "1" },
+    });
   });
   it("rebuilds every preset when restoring defaults", () => {
     const preferences = readNetlistExportPreferences(null);

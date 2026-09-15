@@ -3,7 +3,7 @@ import { deviceDescriptor } from "@icm/devices";
 import { describe, it, expect } from "vitest";
 import {
   createNetlistExportProfile,
-  NETLIST_MOS_TARGET_OPTIONS,
+  NETLIST_DEVICE_TARGET_OPTIONS,
   NETLIST_PROFILE_LABELS,
   projectNetlistExportProfile,
   setNetlistDefaultTarget,
@@ -53,7 +53,7 @@ function exported(
 }
 
 describe("netlist export presets", () => {
-  it("offers process-specific MOS target choices including every default", () => {
+  it("offers process-specific device target choices including every default", () => {
     for (const id of [
       "abstract",
       "sky130",
@@ -62,18 +62,45 @@ describe("netlist export presets", () => {
       "custom",
     ] as const) {
       const profile = createNetlistExportProfile(id);
-      expect(NETLIST_MOS_TARGET_OPTIONS[id].nmos).toContain(
+      expect(NETLIST_DEVICE_TARGET_OPTIONS[id].nmos).toContain(
         profile.devices.nmos.target,
       );
-      expect(NETLIST_MOS_TARGET_OPTIONS[id].pmos).toContain(
+      expect(NETLIST_DEVICE_TARGET_OPTIONS[id].pmos).toContain(
         profile.devices.pmos.target,
       );
+      expect(NETLIST_DEVICE_TARGET_OPTIONS[id].resistor).toContain(
+        profile.devices.resistor.target,
+      );
+      expect(NETLIST_DEVICE_TARGET_OPTIONS[id].capacitor).toContain(
+        profile.devices.capacitor.target,
+      );
+      expect(NETLIST_DEVICE_TARGET_OPTIONS[id].inductor).toContain(
+        profile.devices.inductor.target,
+      );
     }
-    expect(NETLIST_MOS_TARGET_OPTIONS.sky130.nmos).toContain(
+    expect(NETLIST_DEVICE_TARGET_OPTIONS.sky130.nmos).toContain(
       "sky130_fd_pr__nfet_01v8_lvt",
     );
-    expect(NETLIST_MOS_TARGET_OPTIONS.tsmc28.pmos).toContain("pch_lvt_mac");
-    expect(NETLIST_MOS_TARGET_OPTIONS.tsmc180.nmos).toEqual(["nch", "nch_mac"]);
+    expect(NETLIST_DEVICE_TARGET_OPTIONS.sky130.nmos).toContain(
+      "sky130_fd_pr__nfet_03v3_nvt",
+    );
+    expect(NETLIST_DEVICE_TARGET_OPTIONS.sky130.pmos).toContain(
+      "sky130_fd_pr__pfet_01v8_hvt",
+    );
+    expect(NETLIST_DEVICE_TARGET_OPTIONS.sky130.resistor).toContain(
+      "sky130_fd_pr__res_xhigh_po",
+    );
+    expect(NETLIST_DEVICE_TARGET_OPTIONS.sky130.capacitor).toContain(
+      "sky130_fd_pr__cap_var_lvt",
+    );
+    expect(NETLIST_DEVICE_TARGET_OPTIONS.sky130.inductor).toContain(
+      "sky130_fd_pr__ind_05_220",
+    );
+    expect(NETLIST_DEVICE_TARGET_OPTIONS.tsmc28.pmos).toContain("pch_lvt_mac");
+    expect(NETLIST_DEVICE_TARGET_OPTIONS.tsmc180.nmos).toEqual([
+      "nch",
+      "nch_mac",
+    ]);
   });
 
   it("maps TSMC 28 ULVT wrappers, model entry, and m to multi", () => {
@@ -290,6 +317,40 @@ describe("netlist export presets", () => {
     expect(createDesignNetlistExport(project, { profile }).status).toBe(
       "blocked",
     );
+  });
+
+  it("maps a two-pin inductor to the reviewed SKY130 CT/substrate interface", () => {
+    const project = circuit();
+    const document = project.documents[0]!;
+    document.instances.push({
+      id: "L1",
+      reference: "L1",
+      symbolId: "inductor",
+      placement: null,
+      netlist: { parameters: { value: "4n" } },
+    });
+    for (const pinName of deviceDescriptor("inductor")!.pinOrder)
+      document.nets.push({
+        id: `L1-${pinName}`,
+        terminals: [{ instanceId: "L1", pinName }],
+      });
+    const profile = setNetlistDefaultTarget(
+      createNetlistExportProfile("sky130"),
+      "inductor",
+      "sky130_fd_pr__ind_05_220",
+    );
+
+    const result = exported(project, profile);
+
+    expect(result.file.text).toMatch(
+      /XL1 \S+ \S+ net\d+ 0 sky130_fd_pr__ind_05_220/u,
+    );
+    expect(result.file.text).not.toContain("4n");
+    expect(
+      result.diagnostics.some(
+        (item) => item.code === "EXPORT_FLOATING_TERMINAL_DEFAULT",
+      ),
+    ).toBe(true);
   });
 
   it("uses editable custom defaults only for absent values and targets", () => {
