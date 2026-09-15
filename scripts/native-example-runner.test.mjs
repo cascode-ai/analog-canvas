@@ -9,10 +9,85 @@ import {
   assertNativeCapabilities,
   collectNativeRunEvidence,
 } from "./lib/native-example-runner.mjs";
-import { runNativeExamples } from "./run-native-simulation-examples.mjs";
+import {
+  runNativeExamples,
+  prepareNativeExampleEvidence,
+} from "./run-native-simulation-examples.mjs";
+import { parseProject } from "../packages/project-protocol/dist/index.js";
 import { createSimulationEnvironmentMetadata } from "../packages/spice-run/dist/index.js";
 
 const sha = (text) => createHash("sha256").update(text).digest("hex");
+
+it("compares executed examples with Profile-projected Prepare input, not bare compilation", async () => {
+  const symbols = JSON.parse(
+    await readFile(
+      "netlists/vacask-sky130/model-symbols-sections.json",
+      "utf8",
+    ),
+  );
+  const capabilities = {
+    configured: true,
+    inputs: ["source"],
+    rawfileCollection: "native-multi-ascii",
+    analyses: ["op", "dc", "ac", "tran", "noise"],
+    parsedAnalyses: ["op", "dc", "ac", "tran", "noise"],
+    profiles: [
+      {
+        id: "vacask-sky130-candidate",
+        corners: symbols.sections,
+        dependencies: [symbols.dependency],
+        modelSymbols: symbols.modelSymbols,
+        modelLibrary: {
+          dependencyId: symbols.dependency.id,
+          defaultSection: "tt",
+          defaultScale: 1e-6,
+        },
+      },
+    ],
+    maxTimeoutMs: 15000,
+  };
+  let count = 0;
+  for (const name of [
+    "simulation-rc",
+    "simulation-rlc",
+    "simulation-common-source",
+    "simulation-ota",
+    "five-transistor-ota-sky130",
+  ]) {
+    const project = parseProject(
+      await readFile(
+        "apps/editor/src/examples/" + name + ".icproj.json",
+        "utf8",
+      ),
+    );
+    const before = structuredClone(project);
+    const inputs = await prepareNativeExampleEvidence(project, capabilities);
+    expect(inputs.size).toBe(project.simulationFolders.length);
+    for (const folder of project.simulationFolders) {
+      const input = inputs.get(folder.id);
+      const entry = input.files.find((f) => f.path === folder.input.entry).text;
+      const original = folder.input.files.find(
+        (f) => f.path === folder.input.entry,
+      ).text;
+      if (folder.input.dependencies.length) {
+        expect(entry).toContain("options scale=0.000001");
+        expect(original).not.toContain("options scale=");
+        expect(input.environment.corner).toBe(
+          original.match(/section=(tt|ff|ss|fs|sf)/u)[1],
+        );
+      } else {
+        expect(entry).not.toContain("Profile model scale");
+      }
+      count++;
+    }
+    expect(project).toEqual(before);
+    await expect(
+      prepareNativeExampleEvidence(project, { ...capabilities, profiles: [] }),
+    ).rejects.toThrow("SIMULATION_PROFILE");
+  }
+  expect(count).toBe(31);
+});
+
 const environment = await createSimulationEnvironmentMetadata({
   executor: "local-host",
   reproducibility: "observed",

@@ -10,6 +10,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { chromium } from "@playwright/test";
 import { parseProject } from "../packages/project-protocol/dist/index.js";
 import { compileSourceSimulation } from "../packages/netlist/dist/index.js";
+import { prepareSourceExecutionInput } from "../packages/simulation-service/dist/index.js";
 import { verifySimulationEnvironmentMetadata } from "../packages/spice-run/dist/index.js";
 import { verifyPreviewCandidate } from "./lib/preview-candidate.mjs";
 import {
@@ -18,6 +19,20 @@ import {
   assertNativeCapabilities,
   collectNativeRunEvidence,
 } from "./lib/native-example-runner.mjs";
+
+export async function prepareNativeExampleEvidence(project, capabilities) {
+  const inputs = new Map();
+  for (const folder of project.simulationFolders) {
+    const prepared = await prepareSourceExecutionInput(
+      project,
+      folder,
+      capabilities,
+    );
+    assert(prepared.ok, JSON.stringify(prepared));
+    inputs.set(folder.id, prepared.input);
+  }
+  return inputs;
+}
 
 export async function runNativeExamples(argv = process.argv.slice(2)) {
   const options = nativeRunnerOptions(argv),
@@ -83,7 +98,7 @@ export async function runNativeExamples(argv = process.argv.slice(2)) {
       };
     });
     assert(folders.length, "Project has no experiments");
-    projects.push({ ...entry, folders });
+    projects.push({ ...entry, project: p, folders });
   }
   assert(
     projects.length,
@@ -245,6 +260,10 @@ export async function runNativeExamples(argv = process.argv.slice(2)) {
           await tool("simulation", { request: { operation: "capabilities" } })
         ).capabilities;
         assertNativeCapabilities(report.capabilities, project.folders);
+        const expectedInputs = await prepareNativeExampleEvidence(
+          project.project,
+          report.capabilities,
+        );
         console.log(project.slug, "connected; native capabilities verified");
         for (const folder of project.folders) {
           const listed = await tool("simulation_files", {
@@ -317,7 +336,7 @@ export async function runNativeExamples(argv = process.argv.slice(2)) {
               tool,
               run,
               directory: join(dir, item.id),
-              compiled: folder.compiled,
+              compiled: expectedInputs.get(folder.id),
               expectedEnvironment: environments.get(folder.profileId),
             });
             report.runs.push({ folderId: item.id, ...evidence });

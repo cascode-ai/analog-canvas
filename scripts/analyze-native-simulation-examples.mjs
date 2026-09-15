@@ -7,7 +7,7 @@ import {
   analyzeNativeExampleRuns,
   validateNativeExampleResult,
 } from "./lib/native-example-acceptance.mjs";
-import { compileSourceSimulation } from "../packages/netlist/dist/index.js";
+import { prepareSourceExecutionInput } from "../packages/simulation-service/dist/index.js";
 
 const root = resolve(process.argv[2] ?? "output/native-simulation-examples");
 const read = async (path) => JSON.parse(await readFile(path, "utf8"));
@@ -58,12 +58,17 @@ for (const project of manifest.projects) {
         `${folder.id}: stale or corrupt ${artifact.name}`,
       );
     }
-    const compiled = compileSourceSimulation(
+    assert(
+      receipt.capabilities,
+      "Receipt must retain the capabilities used by Prepare",
+    );
+    const prepared = await prepareSourceExecutionInput(
       currentProject,
       currentProject.simulationFolders.find((f) => f.id === folder.id),
+      receipt.capabilities,
     );
-    assert(compiled.ok, `${folder.id}: current Project does not compile`);
-    for (const file of compiled.files)
+    assert(prepared.ok, JSON.stringify(prepared));
+    for (const file of prepared.input.files)
       assert.equal(
         await readFile(join(dir, "executed", file.path), "utf8"),
         file.text,
@@ -82,7 +87,7 @@ for (const project of manifest.projects) {
     validateNativeExampleResult(result, measurements);
     assert.equal(
       result.metadata.environment.profileId,
-      compiled.config.environment.profileId,
+      prepared.input.environment.profileId,
       "Runtime Profile differs from the prepared experiment",
     );
     // Exports are evidence, never repaired or silently skipped by the analyzer.

@@ -47,6 +47,20 @@ function fixture(mode) {
   );
   const receipt = {
     status: "passed",
+    ...(mode === "missing-capabilities"
+      ? {}
+      : {
+          capabilities: {
+            configured: true,
+            inputs: ["source"],
+            rawfileCollection: "native-multi-ascii",
+            analyses: ["op", "dc", "ac", "tran", "noise"],
+            profiles: [
+              { id: compiled.config.environment.profileId, corners: [] },
+            ],
+            maxTimeoutMs: 15000,
+          },
+        }),
     runs: [{ folderId: folder.id, runId: "run-test" }],
     ...(mode === "export-error"
       ? { exportWarnings: [{ message: "plot failed" }] }
@@ -108,6 +122,7 @@ function fixture(mode) {
 describe("native acceptance CLI evidence boundary", () => {
   it.each([
     ["valid-subset", "all 19"],
+    ["missing-capabilities", "Receipt must retain"],
     ["run-error", "evidence publication failed"],
     ["export-error", "Browser/export errors"],
     ["corrupt", "stale or corrupt result.json"],
