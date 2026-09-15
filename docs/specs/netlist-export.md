@@ -28,7 +28,7 @@ outside this contract.
 - `packages/symbols`: artwork, pin anchors, and Symbol variants validated
   against the device registry
 - `packages/netlist`: extraction, validation, IR, and dialect printers
-- `apps/editor`: authoring, diagnostics, and downloads
+- `apps/editor`: authoring, diagnostics, live output, and clipboard copy
 - `packages/spice`: structural reparse validation for generated `.spi`
 
 ## Terminology
@@ -269,9 +269,9 @@ simulator can run them without an external simulation setup.
 
 Extraction returns structured diagnostics with stable code, severity,
 Document ID, and affected object IDs. The strict extractor returns no IR when
-any error remains. The download-only projection below permits explicit TODO
+any error remains. The copy/export projection below permits explicit TODO
 fields for two omission categories; every other error still prevents printer
-invocation and download. Required error coverage includes:
+invocation and output. Required error coverage includes:
 
 - invalid cell-terminal, Net, or instance identifiers;
 - missing or mismatched formal terminal mappings;
@@ -290,10 +290,10 @@ electrical fact required for meaningful output.
 
 ### Explicit export presets
 
-The download boundary accepts an optional `NetlistExportProfile`. The editor
+The export boundary accepts an optional `NetlistExportProfile`. The editor
 ships Abstract, SKY130, and Custom defaults in a single raw JSON configuration
 in the right Properties panel; `selected` chooses the active preset. Valid code
-edits apply immediately, invalid drafts block downloads, and browser preferences
+edits apply immediately, invalid drafts block copying, and browser preferences
 are separate from the Project schema. There are no per-field configuration forms.
 
 Projection copies the Project and visits only the reachable hierarchy. Abstract
@@ -314,31 +314,38 @@ Configured library paths and sections are printed as includes outside the pure
 IR printer. SKY130 `.scs` files use `simulator lang=spice` for the same authentic
 SPICE wrapper library; this is not a native Spectre PDK conversion or a claim of
 licensed Spectre qualification. Strict extraction and simulation consumers do not
-implicitly use these download presets.
+implicitly use these export presets.
 
-### Incomplete downloads
+### Incomplete output
 
-`createDesignNetlistExport` permits a download when the only errors are
+`createDesignNetlistExport` permits output when the only errors are
 `MISSING_MODEL_TARGET` and `MISSING_REQUIRED_PARAMETER`. It copies the Project,
 fills absent model bindings and blank/missing required device parameters with
 undefined `TODO_<cell>_<reference>_<field>` identifiers, and requires that copy
 to pass strict extraction before printing. Authored electrical identifiers and
 expressions are reserved case-insensitively to avoid accidental resolution;
 SPICE parameter placeholders use braces and Spectre uses bare identifiers.
-The download has an `INCOMPLETE NETLIST` comment header and a field list. It
-never writes placeholders into the Project or changes simulation readiness.
+The returned structured placeholder list and diagnostics identify incomplete output.
+The sidebar and Check Report show that state outside the copied text. The
+projection never writes placeholders into the Project or changes simulation readiness.
 
 Existing conflicting bindings, missing hierarchy interfaces, unsupported devices,
 invalid waveforms, and incomplete connections remain blocking. This projection
 never exports the permissive authoring IR. It cannot omit an invalid device or invent a model definition. Numerical defaults
 and the explicit substrate rule belong only to the selected preset above.
 
-The editor's primary Netlist button downloads immediately in its current format
-(SPICE by default); its adjacent menu downloads the other format and remembers
-that choice for the session. Structural warnings are included as comments, and
-ERC findings are signposted without a modal confirmation. The optional Check
-Report previews the same complete or incomplete export and retains navigable
-findings. Strict extraction consumers, including simulation, remain unchanged.
+The editor's primary Netlist button copies immediately in its current format
+(SPICE by default) and opens the live right sidebar. Its adjacent menu copies
+the other format and remembers that choice for the session. Clipboard rejection
+leaves selectable code and a status message, without a download fallback.
+
+The copy/export projection removes the strict printer's generated title and
+adds no diagnostic, preset, TODO-summary or library comments. SPICE preserves
+an empty first title line so an entry-file reader does not consume the first
+directive. Native SCS begins with its language declaration before an include.
+Structured diagnostics remain available in the optional Check Report; its
+preview and copy action use the same projection. Strict simulation printers
+and their source locations remain unchanged.
 
 ## Operations and state transitions
 
@@ -347,10 +354,12 @@ Project + Symbol definitions
   -> validate and extract DesignNetlistIR
   -> choose SPICE or Spectre printer
   -> deterministic text
-  -> browser download
+  -> live sidebar and clipboard copy
 ```
 
-An electrical edit changes Project revision and invalidates a previous export.
+An electrical edit changes Project revision and refreshes an open netlist sidebar.
+Blocked structure or configuration clears the code instead of displaying stale
+output; copying a blocked result leaves the clipboard unchanged.
 A presentation-only edit may change revision but must not change extracted IR
 or output bytes.
 
@@ -358,7 +367,7 @@ or output bytes.
 
 Cell interfaces and instance electrical data are persisted in the Project.
 Device definitions ship with the Symbol library. Export IR, generated local Net
-names, diagnostics, and output text are transient. PDK model contents and simulation profiles remain external; download preferences
+names, diagnostics, and output text are transient. PDK model contents and simulation profiles remain external; export preferences
 are browser-local configuration.
 
 ## Valid example
@@ -371,10 +380,10 @@ change either output.
 ## Incomplete and rejected examples
 
 A manually authored NMOS with W/L values but no model target produces a
-missing-target error in strict analysis. A structural download may mark its
+missing-target error in strict analysis. A structural export may mark its
 model `TODO_Main_M1_model` if all other electrical facts are present. Without a selected preset, export must not guess a model. With a preset, the
 configured target and parameter defaults apply. The same
-device with an unconnected, unmarked drain still blocks download.
+device with an unconnected, unmarked drain still blocks output.
 
 ## Compatibility boundary
 
@@ -392,7 +401,7 @@ include; it never repairs a broken hierarchy or invents foundry model data.
 - `.spi` reparse and normalized structural equivalence through `packages/spice`
 - Spectre grammar-focused golden tests; licensed simulator parsing only when
   available and never implied otherwise
-- focused editor download and blocked-diagnostic browser flows
+- focused editor clipboard/sidebar, bulk JSON, undo/redo and blocked-diagnostic flows
 - full mainline gate before non-document delivery
 
 ## Deferred simulation-deck contract
