@@ -386,8 +386,9 @@ ordinary click.
 
 Escape cancels the active preview without mutation. A committed gesture is one
 atomic transaction. Hover, geometric crossing, selection, and preview never
-change connectivity. A wire endpoint or explicit segment tap is required to
-create contact.
+change connectivity. A wire endpoint, explicit segment tap, or a moved Route
+segment landing exactly on a visible device pin creates contact. Two Route
+interiors crossing still do not connect.
 
 ## Movement closure
 

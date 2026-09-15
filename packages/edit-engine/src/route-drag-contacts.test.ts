@@ -9,7 +9,12 @@ import {
   type Point,
 } from "@icm/model";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
-import { resolveEndpointConnection, resolveRouteGeometry } from "@icm/derived";
+import {
+  contactRequiresJunctionDot,
+  deriveDocumentContactEvidence,
+  resolveEndpointConnection,
+  resolveRouteGeometry,
+} from "@icm/derived";
 import {
   proposeLooseRouteTranslation,
   proposeRouteEndpointMove,
@@ -71,12 +76,19 @@ function port(
     interfaceInstanceIds: [id],
   });
 }
-function commit(d: SchematicDocument, edits: readonly SchematicEdit[]) {
+function commit(
+  d: SchematicDocument,
+  edits: readonly SchematicEdit[],
+  expectedElectricalEffect?: ReturnType<
+    typeof proposeWireSegmentMove
+  >["expectedElectricalEffect"],
+) {
   expect(SchematicDocumentSchema.safeParse(d).success).toBe(true);
   const plan = createRoutingOperationPlan(d, {
     intent: "route-geometry",
     edits,
     diagnostics: [],
+    ...(expectedElectricalEffect ? { expectedElectricalEffect } : {}),
   });
   const result = gateRoutingOperationPlan(d, plan, {
     symbolResolver: resolver,
@@ -313,4 +325,97 @@ describe("terminal-aware shortening", () => {
       }
     },
   );
+});
+
+describe("segment landing on a component pin", () => {
+  it("connects and dots a capacitor pin touched by the moved segment", () => {
+    const d = createEmptyDocument("segment-pin", "Segment pin contact");
+    d.presentation.grid = 10;
+    d.instances.push(
+      {
+        id: "R1",
+        symbolId: "resistor",
+        placement: {
+          position: { x: 0, y: -20 },
+          rotation: 0,
+          mirror: "none",
+        },
+      },
+      {
+        id: "R2",
+        symbolId: "resistor",
+        placement: {
+          position: { x: 100, y: -20 },
+          rotation: 0,
+          mirror: "none",
+        },
+      },
+      {
+        id: "C1",
+        symbolId: "capacitor",
+        placement: {
+          position: { x: 50, y: 120 },
+          rotation: 0,
+          mirror: "none",
+        },
+      },
+    );
+    d.nets.push({
+      id: "n",
+      terminals: [
+        { instanceId: "R1", pinName: "2" },
+        { instanceId: "R2", pinName: "2" },
+      ],
+    });
+    d.nets.push({
+      id: "capacitor-top",
+      terminals: [{ instanceId: "C1", pinName: "1" }],
+    });
+    d.routes.push(
+      createRoutePath({
+        id: "r",
+        netId: "n",
+        start: { kind: "terminal", instanceId: "R1", pinName: "2" },
+        end: { kind: "terminal", instanceId: "R2", pinName: "2" },
+        bends: [],
+        modes: ["manual"],
+      }),
+    );
+
+    // Pull the straight wire down into a U. Its new horizontal segment lands
+    // on C1.1 at (50,100), the same gesture as the reported capacitor case.
+    const proposal = proposeWireSegmentMove(d, resolver, "r", 0, {
+      x: 50,
+      y: 100,
+    });
+    const final = commit(d, proposal.edits, proposal.expectedElectricalEffect);
+
+    const capacitorNetId = final.nets.find((net) =>
+      net.terminals.some(
+        (terminal) => terminal.instanceId === "C1" && terminal.pinName === "1",
+      ),
+    )?.id;
+    expect(capacitorNetId).toBe(final.routes[0]?.netId);
+    expect(conductorNets(final).size).toBe(1);
+    expect(final.routes).toHaveLength(2);
+    const contact = deriveDocumentContactEvidence(
+      final,
+      resolver,
+    ).contacts.find(
+      (candidate) => candidate.point.x === 50 && candidate.point.y === 100,
+    );
+    expect(contact).toBeDefined();
+    expect(contactRequiresJunctionDot(contact!)).toBe(true);
+  });
+
+  it("keeps two moved wire interiors as an unconnected crossing", () => {
+    const d = looseWires();
+    const proposal = proposeWireSegmentMove(d, resolver, "r", 0, {
+      x: 50,
+      y: 50,
+    });
+    const final = commit(d, proposal.edits);
+
+    expect(conductorNets(final).size).toBe(2);
+  });
 });

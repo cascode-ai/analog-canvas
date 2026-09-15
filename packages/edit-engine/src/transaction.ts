@@ -29,7 +29,10 @@ import {
   reconcileTransformDirectContacts,
   transformMaySeparateDirectContact,
 } from "./transaction-direct-contact.js";
-import { nextPhysicalContactOperation } from "./transaction-connectivity-normalizer.js";
+import {
+  newlyTouchedRouteTerminals,
+  nextPhysicalContactOperation,
+} from "./transaction-connectivity-normalizer.js";
 import { applyCellResetEdit } from "./transaction-cell-reset.js";
 import { applyCellInterfaceEdit } from "./transaction-cell-interface.js";
 import { applyInstanceLifecycleEdit } from "./transaction-instance-lifecycle.js";
@@ -45,6 +48,7 @@ import { applyRouteTopologyEdit } from "./transaction-route-topology.js";
 import { applyPresentationLayoutEdit } from "./transaction-presentation-layout.js";
 import {
   mergeBaseNets,
+  physicalContactPointKey,
   physicalContactLicenseForTransaction,
   preferredPhysicalMergeTarget,
   pruneUnreachableLocalNet,
@@ -691,6 +695,18 @@ export function executeTransaction(
     // an otherwise local edit into a whole-document geometry repair.
     const physicalContactLicense =
       physicalContactLicenseForTransaction(transaction);
+    for (const contact of newlyTouchedRouteTerminals(
+      document,
+      draft,
+      resolver,
+      explicitlyAuthoredRouteIds,
+    )) {
+      const points =
+        physicalContactLicense.routeGeometryPoints.get(contact.routeId) ??
+        new Set<string>();
+      points.add(physicalContactPointKey(contact.point));
+      physicalContactLicense.routeGeometryPoints.set(contact.routeId, points);
+    }
     const suppressedPhysicalEndpointKeys = new Set(
       transaction.edits.flatMap((edit) =>
         edit.kind === "disconnect_endpoint" ? [endpointKey(edit.endpoint)] : [],
@@ -916,14 +932,18 @@ export function executeTransaction(
         physicalContactLicense.objectIds.add(split.first.id);
         physicalContactLicense.objectIds.add(split.second.id);
       }
-      const licensedPoints = physicalContactLicense.routePoints.get(route.id);
-      if (licensedPoints) {
-        for (const productId of [split.first.id, split.second.id]) {
-          const points =
-            physicalContactLicense.routePoints.get(productId) ??
-            new Set<string>();
-          for (const point of licensedPoints) points.add(point);
-          physicalContactLicense.routePoints.set(productId, points);
+      for (const routePointLicenses of [
+        physicalContactLicense.routePoints,
+        physicalContactLicense.routeGeometryPoints,
+      ]) {
+        const licensedPoints = routePointLicenses.get(route.id);
+        if (licensedPoints) {
+          for (const productId of [split.first.id, split.second.id]) {
+            const points =
+              routePointLicenses.get(productId) ?? new Set<string>();
+            for (const point of licensedPoints) points.add(point);
+            routePointLicenses.set(productId, points);
+          }
         }
       }
       changedObjectIds.add(route.netId);

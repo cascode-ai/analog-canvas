@@ -43,7 +43,9 @@ is defined.
   uncommitted bend and `Escape` cancels the session.
 - Select any route segment to expose its movement handle. Drag the handle
   perpendicular to that segment to stretch adjacent geometry without rerouting
-  the rest of the wire. Use the contextual
+  the rest of the wire. If the moved segment lands exactly on a component pin,
+  the pin connects and a junction dot appears; crossing another wire's
+  interior remains unconnected. Use the contextual
   **Remove route geometry** action to keep logical membership while deleting
   only the drawn route.
 - Select a component and press `Q` to open **Properties**. Its editable
