@@ -17,7 +17,11 @@ import {
   simulationOutputAnalysisToCsv,
 } from "./output-evaluation.js";
 import { automaticMeasurementsToCsv } from "./automatic-measurements.js";
-import { nativeMeasurementResults } from "./native-measurements.js";
+import {
+  nativeMeasurementResults,
+  nativeMeasurementsToCsv,
+} from "./native-measurements.js";
+import { vacaskMeasurementResults } from "./vacask-measurements.js";
 import { nativeOutputDeclarations } from "./native-output-semantics.js";
 import { executionArtifactEntries } from "./execution-artifacts.js";
 
@@ -783,23 +787,32 @@ export class SimulationService {
               ),
         );
       }
-      // VACASK control is not an ngspice .control/let/meas program. Native
-      // postprocessor measurements need their own proven result declarations.
+      const nativeReports =
+        input.language === "vacask"
+          ? vacaskMeasurementResults(
+              output.result.log,
+              output.result.outcome.status !== "completed-with-dropped-input",
+            )
+          : undefined;
       const nativeMeasurements =
         input.language === "vacask"
-          ? []
+          ? nativeReports!.measurements
           : nativeMeasurementResults(
               input.files,
               input.entryPath ?? "run.cir",
               output.result.log,
             );
-      if (nativeMeasurements.length) {
+      if (nativeMeasurements.length || nativeReports?.diagnostics.length) {
         run.view.outputData ??= {
           schemaVersion: 1,
           analyses: [],
           diagnostics: [],
         };
-        run.view.outputData.nativeMeasurements = nativeMeasurements;
+        if (nativeMeasurements.length)
+          run.view.outputData.nativeMeasurements = nativeMeasurements;
+        run.view.outputData.diagnostics.push(
+          ...(nativeReports?.diagnostics ?? []),
+        );
       }
       const artifact = async (name: string, type: string, text: string) =>
         run.view.artifacts.push(
@@ -811,6 +824,12 @@ export class SimulationService {
           "native-measurements.json",
           "application/json",
           JSON.stringify(nativeMeasurements, null, 2),
+        );
+      if (nativeMeasurements.length)
+        await artifact(
+          "native-measurements.csv",
+          "text/csv",
+          nativeMeasurementsToCsv(nativeMeasurements),
         );
       if (output.rawfile !== undefined)
         await artifact("out.raw", "text/plain", output.rawfile);

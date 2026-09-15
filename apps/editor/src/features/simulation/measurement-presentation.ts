@@ -11,6 +11,9 @@ export function unrepresentedConsoleMeasurements(
   const reports = data.nativeMeasurements ?? [];
   const scalars = data.analyses.flatMap((analysis) => analysis.scalars ?? []);
   return reports.filter((report) => {
+    // Authored postprocessor names are case-sensitive and are not declarations
+    // of equivalence to a simulator raw vector, even when numbers happen to match.
+    if (report.origin === "postprocessor") return true;
     if (report.status !== "available") return true;
     const name = report.name.toLowerCase();
     if (reports.filter((r) => r.name.toLowerCase() === name).length !== 1)

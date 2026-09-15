@@ -88,6 +88,65 @@ capability dependency declarations must match the runtime registry. A hosted
 runtime requires an accepted pinned environment, read-only assets and a pinned
 image; copying this local example does not meet that requirement.
 
+## Native postprocessor measurements
+
+The native source remains authoritative. VACASK's `postprocess(...)` runs the
+author's program; the editor does not translate Python into another measurement
+language or evaluate a parallel JSON experiment. The exported
+`vacaskMeasurementPythonSource()` helper in `@icm/netlist` supplies ordinary,
+editable, standard-library-only Python defining:
+
+```python
+report_measurement("gain", lambda: abs(gain_at_1khz), "1")
+report_measurement("settling", lambda: find_settling_time(), "s")
+```
+
+Put that helper text and the computation in an authored file or a native
+`embed` block, then invoke it with native `postprocess(PYTHON, "reports.py")`.
+The helper does not include a waveform reader: the program can use the runtime's
+qualified reader/library, or its own code, to read the actual run artifacts.
+Interpreter/library availability and version qualification remain runtime
+obligations; the helper itself imports only Python's `json`, `math` and `numbers`.
+
+Each evaluated callable emits one console line prefixed `ICM_MEASUREMENT_V1 `
+followed by an explicit JSON report:
+
+```json
+{ "name": "gain", "status": "available", "value": 12.5, "unit": "1" }
+```
+
+An exception or nonfinite/non-scalar result emits `status: "unavailable"` and a
+`detail` string instead of `value`; later calls can continue. Names are
+case-sensitive, available repetitions retain separate report numbers, and
+units are author-declared rather than inferred from names. Ordinary printed
+numbers are not interpreted as measurements. Invalid/incomplete framed lines
+produce output diagnostics without discarding valid neighboring reports.
+Reports from a run with dropped electrical input have their values withheld.
+
+These are **output evidence**, not persisted input declarations or an assertion
+that the editor verified the author's computation. The existing shared
+`nativeMeasurements` result contains the postprocessor origin and available
+values' console line evidence. GUI and API readers consume that same result;
+the File Resource exposes `native-measurements.json` and
+`native-measurements.csv`. Unavailable CSV values are empty, never zero.
+The GUI labels these unbound reports **Run measurements**, including in OP
+view; no raw plot/analysis association is guessed. Original console/source
+artifacts remain available. A program that fails before reporting cannot be
+used to infer an expected name, value or successful measurement.
+
+The real local service/process test also uses the shared helper and reads an
+actual OP artifact before reporting; it verifies failure recovery, repeated
+reports and File Resource export. Run it with explicit `VACASK_BIN`,
+`VACASK_MODULES` and an absolute `ICM_PYTHON` interpreter path:
+
+```sh
+pnpm test:local containers/vacask/native-measurement-journey.test.mjs
+```
+
+This is not a hosted Python/sandbox qualification or a completed GUI/MCP
+authoring-helper catalog. Derived waveform expressions and richer measurement
+helpers remain separate unfinished migration work.
+
 ## Real hierarchical OTA journey
 
 After the dependency build, run the original shipped OTA through Prepare/Start,

@@ -563,11 +563,14 @@ export function SimulationOutputResults({
             !isRedundantOpMeasurement(data, measurement),
         )}
       />
-      {view !== "op" ? (
-        <NativeMeasurementResults
-          measurements={unrepresentedConsoleMeasurements(data)}
-        />
-      ) : null}
+      <NativeMeasurementResults
+        measurements={unrepresentedConsoleMeasurements(data).filter(
+          // Explicit postprocessor reports are run-level, not guessed to be
+          // TRAN or OP from their names. Keep them visible in an OP-only run.
+          (measurement) =>
+            view !== "op" || measurement.origin === "postprocessor",
+        )}
+      />
     </div>
   );
 }

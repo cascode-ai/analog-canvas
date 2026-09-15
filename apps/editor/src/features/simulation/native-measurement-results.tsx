@@ -11,7 +11,11 @@ export function NativeMeasurementResults({
       className="simulation-measurement-results"
       aria-label="Native measurements"
     >
-      <h4>Measurements</h4>
+      <h4>
+        {measurements.some((m) => m.origin === "postprocessor")
+          ? "Run measurements"
+          : "Measurements"}
+      </h4>
       <table>
         <thead>
           <tr>
@@ -28,12 +32,12 @@ export function NativeMeasurementResults({
               <td>{measurement.occurrence || "—"}</td>
               <td>
                 {measurement.status === "available"
-                  ? measurement.value.toPrecision(7)
+                  ? `${measurement.value.toPrecision(7)}${measurement.unit ? ` ${measurement.unit}` : ""}`
                   : "Unavailable"}
               </td>
               <td title={measurement.detail}>
                 {measurement.status === "available"
-                  ? `Console line ${measurement.logLine}`
+                  ? `${measurement.origin === "postprocessor" ? "Postprocessor · " : ""}Console line ${measurement.logLine}`
                   : measurement.detail}
               </td>
             </tr>

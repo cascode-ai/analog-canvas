@@ -14,6 +14,8 @@ describe("native measurement evidence", () => {
             value: 0.5,
             logLine: 2,
             detail: "peak = 0.5",
+            unit: "V",
+            origin: "postprocessor",
           },
           {
             name: "peak",
@@ -36,5 +38,7 @@ describe("native measurement evidence", () => {
     expect(html).toContain("Console line 4");
     expect(html).toContain("Unavailable");
     expect(html).toContain("Not reported");
+    expect(html).toContain("0.5000000 V");
+    expect(html).toContain("Postprocessor · Console line 2");
   });
 });

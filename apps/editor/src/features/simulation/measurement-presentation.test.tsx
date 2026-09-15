@@ -38,6 +38,23 @@ function fixture(): SimulationOutputData {
   };
 }
 describe("measurement presentation", () => {
+  it("does not equate authored postprocessor reports to same-valued raw scalars", () => {
+    const data = fixture();
+    data.nativeMeasurements![0]!.origin = "postprocessor";
+    expect(unrepresentedConsoleMeasurements(data)).toEqual(
+      data.nativeMeasurements,
+    );
+    const html = renderToStaticMarkup(
+      <SimulationOutputResults
+        resultKey="run-report"
+        data={data}
+        outputs={[]}
+        view="op"
+      />,
+    );
+    expect(html).toContain("Run measurements");
+    expect(html).toContain("Postprocessor · Console line 10");
+  });
   it("shows the high-pass Step scalar once while retaining its original Console evidence", () => {
     const data = fixture();
     const before = structuredClone(data);
