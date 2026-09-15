@@ -63,6 +63,7 @@ export interface EditorAppChromeProps {
   checkAndSave: CommandAction;
   onOpenInstanceTable: () => void;
   onOpenNetlistPreflight: () => void;
+  onExportNetlist: (format: "spice" | "spectre") => void;
   agentAction: { label: string; execute: () => void } | null;
   simulationAction?: () => void;
   simulationState?: "closed" | "open" | "maximized" | "minimized";
@@ -123,6 +124,7 @@ export function EditorAppChrome({
   checkAndSave,
   onOpenInstanceTable,
   onOpenNetlistPreflight,
+  onExportNetlist,
   agentAction,
   simulationAction,
   simulationState = "closed",
@@ -333,6 +335,15 @@ export function EditorAppChrome({
             <details className="command-menu" name="editor-command-menu">
               <summary>Netlist</summary>
               <div className="command-popover">
+                <button type="button" onClick={() => onExportNetlist("spice")}>
+                  Export SPICE netlist
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onExportNetlist("spectre")}
+                >
+                  Export Spectre netlist
+                </button>
                 <span className="command-group-label">Authoring</span>
                 <button
                   type="button"

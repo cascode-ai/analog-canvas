@@ -734,7 +734,7 @@ test("visual clipboard reports denied access and empty selection without downloa
   expect(downloads).toEqual([]);
 });
 
-test("File exports are folded into exclusive drawing and netlist submenus", async ({
+test("Netlist exposes direct SPICE and Spectre exports while File keeps drawing exports", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -745,18 +745,29 @@ test("File exports are folded into exclusive drawing and netlist submenus", asyn
   await expect(
     menu.getByRole("button", { name: "Export SVG", exact: true }),
   ).toBeHidden();
-  await menu
-    .getByRole("button", { name: "Export netlist", exact: true })
-    .click();
   await expect(
     menu.getByRole("button", { name: "Export SPICE netlist", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    menu.getByRole("button", { name: "Export Spectre netlist", exact: true }),
+  ).toHaveCount(0);
+  const netlistMenu = await openMenu(page, "Netlist");
+  await expect(
+    netlistMenu.getByRole("button", {
+      name: "Export SPICE netlist",
+      exact: true,
+    }),
   ).toBeVisible();
+  await expect(
+    netlistMenu.getByRole("button", {
+      name: "Export Spectre netlist",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await openMenu(page, "File");
   await menu
     .getByRole("button", { name: "Export drawing", exact: true })
     .click();
-  await expect(
-    menu.getByRole("button", { name: "Export SPICE netlist", exact: true }),
-  ).toBeHidden();
   await expect(
     menu.getByRole("button", { name: "Export SVG", exact: true }),
   ).toBeVisible();

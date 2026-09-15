@@ -35,7 +35,6 @@ describe("FileCommandMenu", () => {
         onExportProject={vi.fn()}
         onExportSvg={vi.fn()}
         onExportRaster={vi.fn()}
-        onExportNetlist={vi.fn()}
         onRevert={vi.fn()}
         onOpenRecovery={vi.fn()}
       />,
@@ -51,6 +50,8 @@ describe("FileCommandMenu", () => {
     expect(markup).toContain("Import Cadence SPICE (`!` globals)…");
     expect(markup).toContain('data-testid="cadence-spice-files"');
     expect(markup).toContain("Export Project File…");
+    expect(markup).not.toContain("Export SPICE netlist");
+    expect(markup).not.toContain("Export Spectre netlist");
     expect(markup).not.toContain("Download Backup");
     expect(markup).not.toContain("Previous Project");
     expect(markup).not.toContain("cloud snapshot");
@@ -77,7 +78,6 @@ describe("FileCommandMenu", () => {
         onExportProject={vi.fn()}
         onExportSvg={vi.fn()}
         onExportRaster={vi.fn()}
-        onExportNetlist={vi.fn()}
         onRevert={vi.fn()}
         onOpenRecovery={vi.fn()}
       />,

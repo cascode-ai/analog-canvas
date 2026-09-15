@@ -99,8 +99,6 @@ describe("editor shell", () => {
     const markup = renderToStaticMarkup(<App project={project} />);
     expect(markup).toContain("Smoke Project");
     expect(markup).toContain("Schematic canvas");
-    expect(markup).toContain("Export SPICE netlist");
-    expect(markup).toContain("Export Spectre netlist");
     expect(markup).not.toContain("Cell netlist interface");
     expect(markup).not.toContain("Netlist Reference");
     expect(markup).not.toContain("Component model");
@@ -117,6 +115,8 @@ describe("editor shell", () => {
     const netlistEnd = markup.indexOf("</details>", netlistStart);
     const netlistMenu = markup.slice(netlistStart, netlistEnd);
     expect(netlistStart).toBeGreaterThan(-1);
+    expect(netlistMenu).toContain("Export SPICE netlist");
+    expect(netlistMenu).toContain("Export Spectre netlist");
     expect(markup).toContain("Check Report…");
     expect(netlistMenu).not.toContain('data-testid="open-analog-simulation"');
     expect(markup).toContain('data-testid="open-analog-simulation"');

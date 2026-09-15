@@ -4659,7 +4659,6 @@ export function App({
           onExportProject: exportProjectFile,
           onExportSvg: exportSvg,
           onExportRaster: (format) => void exportRaster(format),
-          onExportNetlist: exportDesignNetlist,
           onRevert: revertToSavedProjectBaseline,
           onOpenRecovery: openRecoveryDialog,
         }}
@@ -4768,6 +4767,7 @@ export function App({
         }}
         onOpenInstanceTable={() => setInstanceTableOpen(true)}
         onOpenNetlistPreflight={() => setNetlistPreflightOpen(true)}
+        onExportNetlist={exportDesignNetlist}
         agentAction={
           publicAgentUiEnabled
             ? {

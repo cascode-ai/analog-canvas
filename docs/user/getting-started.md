@@ -262,11 +262,11 @@ The dialog reports structural netlist findings and current-revision ERC
 readiness separately; the ERC section is the same evidence used by Gallery.
 When a structural IR is available, it previews the deterministic SPICE or
 Spectre text. Use either the dialog's
-download button or **File / Export netlist / SPICE** and **File / Export netlist / Spectre** to
+download button or **Netlist / Export SPICE netlist** and **Netlist / Export Spectre netlist** to
 download it. These files contain structure only: they do not add PDK includes,
 models, corners, stimuli, analyses, or simulator options.
 
-File-menu export opens the preflight dialog before downloading when warnings
+Netlist-menu export opens the preflight dialog before downloading when warnings
 need review. An explicitly marked NoConnect is shown as a generated floating
 node such as `NC0001`; an unmarked open pin remains a blocking error.
 
