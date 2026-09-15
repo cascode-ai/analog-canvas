@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { AgentHttpClient } from "../../../packages/agent-client/src/http-client.js";
 import {
   createEmptyProject,
   createRoutePath,
@@ -235,6 +236,84 @@ test("Cloud Save updates one binding while local export stays interchange", asyn
   await expect(page).toHaveURL(/\/editor\?new=1$/u);
   await expect(page.getByTestId("canvas-empty-state")).toBeVisible();
   await expect(page.getByTestId("hit-R1")).toHaveCount(0);
+});
+
+test("paired refresh and Gallery return preserve the saved Cloud binding", async ({
+  page,
+  baseURL,
+}) => {
+  const cloud = await mockCloudProjects(page);
+  await page.goto("/editor");
+  await chooseComponent(page, "resistor");
+  await page
+    .getByTestId("schematic-canvas")
+    .click({ position: { x: 360, y: 230 } });
+  await page.keyboard.press("Escape");
+  await page.keyboard.press("Control+s");
+  await expect.poll(() => cloud.stored()?.revision).toBe(1);
+  await page.getByTestId("open-agent").click();
+  const panel = page.getByTestId("connect-agent-panel");
+  const handoff = await panel.getByTestId("agent-copy-text").inputValue();
+  const { claimCode } = JSON.parse(handoff.match(/Claim: (.+)/u)![1]!);
+  const client = new AgentHttpClient({ baseUrl: baseURL! });
+  const session = await client.claim(claimCode);
+  await expect(panel.getByTestId("agent-status")).toHaveText("Connected");
+  await page.reload();
+  await expect(page.getByTestId("active-instance-count")).toHaveText("1");
+  await expect(page.getByTestId("project-unsaved-indicator")).toHaveCount(0);
+  await page.keyboard.press("Control+s");
+  await expect.poll(() => cloud.stored()?.revision).toBe(2);
+  const documentId = session.documentIds[0]!;
+  const snapshot = await client.circuit(session.sessionId, session.agentToken, {
+    apiVersion: "3.0",
+    requestId: "bound-before-edit",
+    operation: "snapshot",
+    documentId,
+  });
+  if (!snapshot.ok || snapshot.operation !== "snapshot")
+    throw new Error("Snapshot failed");
+  await client.circuit(session.sessionId, session.agentToken, {
+    apiVersion: "3.0",
+    requestId: "bound-edit",
+    operation: "transact",
+    documentId,
+    transactionId: "bound-edit",
+    expectedRevision: snapshot.revision,
+    edits: [
+      {
+        kind: "add_instance",
+        instance: {
+          id: "paired-R",
+          symbolId: "resistor",
+          placement: {
+            position: { x: 500, y: 200 },
+            rotation: 0,
+            mirror: "none",
+          },
+        },
+      },
+    ],
+  });
+  await expect
+    .poll(async () =>
+      (await recoveryProjectTexts(page)).includes("paired-R"),
+    )
+    .toBe(true);
+  page.on("dialog", (dialog) => void dialog.accept());
+  await page.reload();
+  await expect(page.getByTestId("active-instance-count")).toHaveText("2");
+  await expect(page.getByTestId("project-unsaved-indicator")).toBeVisible();
+  await page.keyboard.press("Control+s");
+  await expect.poll(() => cloud.stored()?.revision).toBe(3);
+  await page.getByRole("link", { name: "Back to the gallery" }).click();
+  await page.getByTestId("gallery-agent-return").click();
+  await expect(page.getByTestId("active-instance-count")).toHaveText("2");
+  await expect(page.getByTestId("project-unsaved-indicator")).toHaveCount(0);
+  await page.keyboard.press("Control+s");
+  await expect.poll(() => cloud.stored()?.revision).toBe(4);
+  expect(
+    await client.status(session.sessionId, session.agentToken),
+  ).toMatchObject({ editor: "attached" });
 });
 
 test("Gallery navigation uses the replacement decision without a second browser prompt", async ({

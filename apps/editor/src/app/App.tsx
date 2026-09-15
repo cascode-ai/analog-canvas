@@ -581,7 +581,7 @@ export function App({
     // (audit #8). The session's own commit runs after its cleanup, so this
     // is a no-op for ordinary drags.
     canvasDragSessionRef.current?.cancel();
-    stageRecovery(project);
+    stageRecovery(project, { cloudBinding });
   });
   const projectConnectivityIndex = useMemo(
     () => buildProjectConnectivityIndex(project, resolver),
@@ -1097,7 +1097,10 @@ export function App({
     beforeConnect: async () => {
       const snapshot = await captureAuthoredProject();
       if (snapshot) {
-        stageRecovery(snapshot);
+        stageRecovery(snapshot, {
+          unsavedAtSnapshot: isDirtyWork() || snapshot !== project,
+          cloudBinding,
+        });
         await flushRecovery();
       }
     },
@@ -4601,7 +4604,10 @@ export function App({
           void guardDirtyReplacement("Go to Gallery", async () => {
             const snapshot = await captureAuthoredProject();
             if (!snapshot) return;
-            stageRecovery(snapshot);
+            stageRecovery(snapshot, {
+              unsavedAtSnapshot: isDirtyWork() || snapshot !== project,
+              cloudBinding,
+            });
             await flushRecovery();
             allowNextBrowserUnload();
             window.location.assign("/");
