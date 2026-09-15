@@ -1,0 +1,15 @@
+OTA DC transfer
+// 1. Edit the input sweep or sources on Canvas.
+// 2. Click Run.
+// 3. Plot output and tail against input voltage.
+ground 0
+include "models/library.inc"
+include "circuit.spice"
+control
+abort always
+options rawfile="ascii" strictsave=2 temp=27 reltol=1e-8 abstol=1e-12 vntol=1e-10
+save v(vinp) v(vout) v('XDUT:tail')
+alter instance("VINP") type="dc"
+sweep input instance="VINP" parameter="dc" from=0.86 to=0.94 step=0.001
+analysis transfer op
+endc

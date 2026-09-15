@@ -13,20 +13,18 @@ Cancelling either prompt must leave the original Project installed. Never infer
 that a Project is empty from its currently visible Cell.
 
 The starter programs cover 4 RC, 3 RLC, 4 common-source and 8 OTA experiments.
-On the VACASK migration branch, four RC, three RLC and four common-source
-experiments are translated to native VACASK; see
+On the VACASK migration branch, all 19 starter experiments are native VACASK; see
 [RC acceptance](../../../../netlists/native-rc-filters/README.md),
 [RLC acceptance](../../../../netlists/native-rlc-filter/README.md) and
-[common-source acceptance](../../../../netlists/native-common-source/README.md).
+[common-source acceptance](../../../../netlists/native-common-source/README.md) and
+[OTA acceptance](../../../../netlists/native-ota/README.md).
 Their Canvas data is preserved; only executable source, report files and requested
 Profile change. AC exposes a complex Gain trace with common dB/phase views.
-The OTA recipes still contain legacy ngspice programs and
-are not yet runnable through the native compiler. Tests intentionally continue
-to reject those unfinished conversions; a Code-only config does not establish
-that its executable source is native. Historical numerical
-acceptance lives in the local `output/native-simulation-examples` evidence, not
-inside the bundled Project. Adding comments does not establish a new electrical
-qualification; no solver or model values were changed in this import.
+Historical numerical acceptance remains separate from these source migrations:
+compiling a native program does not establish equivalence to the old simulator.
+The saved local `output/native-simulation-examples` evidence is not a golden
+inside the bundled Projects. Legacy Library/other user experiments are not
+implicitly converted by the starter migration.
 
 The subsequent common-source conversion requests an explicit BSIM4 4.8.3 TT
 candidate; this is a model-version upgrade requiring separate qualification,
@@ -62,9 +60,8 @@ Existing evidence is never overwritten. `manifest.json` is written last with
 does not run or qualify an environment, and no cloud endpoint is contacted.
 
 Omitting `--project` selects all four Projects and all 19 folders. Every selected
-folder must compile before any output is written: unfinished model-backed
-conversions remain explicit failures, not silently skipped entries. The full
-library test remains an acceptance obligation alongside the focused passive
-export test. The former optional external OTA input is retired; the reviewed
+folder must compile before any output is written; failures are not silently
+skipped. The full starter-library test remains an acceptance obligation alongside
+focused export tests. The former optional external OTA input is retired; the reviewed
 bundled OTA is the single source, as for the other examples. This command does
 not authorize using the older fixed-Preview remote runner for VACASK acceptance.

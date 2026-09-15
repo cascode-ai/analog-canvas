@@ -1,0 +1,12 @@
+// Text TB: preserve DUT port order vss ibias vdd vinn vinp vout.
+// Connect vinn to vout for unity negative feedback.
+// Voltage/current sources are native built-ins, not OSDI libraries.
+load "capacitor.osdi"
+model tb_voltage vsource
+model tb_current isource
+model tb_capacitor capacitor
+VDD (vdd 0) tb_voltage dc=1.8
+VINP (vinp 0) tb_voltage dc=0.9 mag=1 type="pulse" val0=0.9 val1=0.91 delay=1u rise=1n fall=1n width=2u period=5u
+IBIAS (vdd ibias) tb_current dc=15u
+XDUT (0 ibias vdd vout vinp vout) ota_5t
+CL (vout 0) tb_capacitor c=1p

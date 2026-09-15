@@ -20,7 +20,7 @@ describe("simulation starter projects", () => {
         const code = folder.input.files.find(
           (file) => file.path === folder.input.entry,
         )!.text;
-        const comment = example.id === "ota" ? "*" : "//";
+        const comment = "//";
         expect(code).toContain(`${comment} 1.`);
         expect(code).toContain(`${comment} 2. Click Run.`);
         expect(code).toContain(`${comment} 3.`);

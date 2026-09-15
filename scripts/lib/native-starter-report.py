@@ -51,14 +51,28 @@ def sample(axis, values, target):
     )
 
 
+def window_values(axis, values, start, stop):
+    window = [v for t, v in zip(axis, values) if start < t < stop]
+    return window + [sample(axis, values, start), sample(axis, values, stop)]
+
+
+def falling_crossing(axis, values, target):
+    for i in range(1, len(values)):
+        if values[i-1] > target >= values[i]:
+            return axis[i-1] + (axis[i] - axis[i-1]) * (
+                (target - values[i-1]) / (values[i] - values[i-1]))
+    raise ValueError("No falling crossing in the returned samples")
+
+
 mode = sys.argv[1]
-if mode not in ("ac", "step", "rlc", "cs-ac", "cs-tran"):
+if mode not in ("ac", "step", "rlc", "cs-ac", "cs-tran", "ota-op", "ota-ac", "ota-tran", "ota-closed"):
     raise ValueError("Unknown starter report mode")
 
-if mode in ("ac", "rlc", "cs-ac"):
+if mode in ("ac", "rlc", "cs-ac", "ota-ac", "ota-closed"):
     data = read_ascii("frequency.raw")
     frequency = [v.real for v in data["frequency"]]
-    gain = [out / inp for inp, out in zip(data["in"], data["out"])]
+    input_name, output_name = ("vinp", "vout") if mode.startswith("ota-") else ("in", "out")
+    gain = [out / inp for inp, out in zip(data[input_name], data[output_name])]
     # Preserve the complex transfer. The common Plot UI supplies dB and phase
     # rather than representing already-logarithmic values as complex voltages.
     lines = ["Title: Voltage transfer", "Date: Current run", "Plotname: Gain",
@@ -75,6 +89,12 @@ if mode in ("ac", "rlc", "cs-ac"):
     elif mode == "cs-ac":
         report_measurement("gain_db_1khz", lambda: sample(
             frequency, [20 * log10(abs(v)) for v in gain], 1e3), "dB")
+    elif mode in ("ota-ac", "ota-closed"):
+        db = [20 * log10(abs(v)) for v in gain]
+        report_measurement("dc_gain_db" if mode == "ota-ac" else "closed_gain_db",
+                           lambda: sample(frequency, db, 1), "dB")
+        if mode == "ota-ac":
+            report_measurement("unity_gain_hz", lambda: falling_crossing(frequency, db, 0), "Hz")
     else:
         report_measurement("peak_gain_db", lambda: max(20 * log10(abs(v)) for v in gain), "dB")
 
@@ -115,3 +135,16 @@ if mode == "cs-tran":
             return max(window) - min(window)
         report_measurement("output_pp", peak_to_peak, "V")
         start = end
+
+if mode == "ota-op":
+    data = read_ascii("bias.raw")
+    report_measurement("supply_current", lambda: -data["VDD:flow(br)"][0], "A")
+
+if mode in ("ota-tran", "ota-closed"):
+    data = read_ascii("step.raw")
+    if mode == "ota-tran":
+        report_measurement("output_max", lambda: max(data["vout"]), "V")
+        report_measurement("output_min", lambda: min(data["vout"]), "V")
+    else:
+        report_measurement("output_at_2us", lambda: sample(data["time"], data["vout"], 2e-6), "V")
+        report_measurement("output_peak", lambda: max(window_values(data["time"], data["vout"], 1e-6, 3e-6)), "V")

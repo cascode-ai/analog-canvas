@@ -1,0 +1,12 @@
+OTA input and output noise
+// 1. Edit frequency limits or circuit parameters on Canvas.
+// 2. Click Run.
+// 3. Plot native noise spectra and inspect the documented numerical integral.
+ground 0
+include "models/library.inc"
+include "circuit.spice"
+control
+abort always
+options rawfile="ascii" strictsave=2 temp=27 reltol=1e-8 abstol=1e-12 vntol=1e-10
+analysis spectrum noise out="vout" in="VINP" from=1 to=1G mode="dec" points=30
+endc

@@ -20,6 +20,137 @@ import {
 } from "../../packages/netlist/src/simulation-native-devices.js";
 import { parseVacaskRawfile } from "../../packages/spice-run/src/vacask-rawfile.js";
 
+function assertOtaResult(id, data, measurements) {
+  const get = (plot, name) => plot.probes.find((p) => p.name === name);
+  const measured = (name) => measurements.find((m) => m.name === name).value;
+  const sample = (axis, values, target) => {
+    const i = axis.findIndex((x) => x >= target);
+    if (i < 0) throw Error("Measurement outside returned data");
+    if (axis[i] === target) return values[i];
+    if (!i) throw Error("Measurement precedes returned data");
+    return (
+      values[i - 1] +
+      ((values[i] - values[i - 1]) * (target - axis[i - 1])) /
+        (axis[i] - axis[i - 1])
+    );
+  };
+  if (id === "ota-op") {
+    const op = data.analyses.find((a) => a.analysis === "op");
+    const parameters = op.probes.filter(
+      (p) => p.name.startsWith("XDUT:XM") && p.name.includes("."),
+    );
+    expect(parameters).toHaveLength(54);
+    expect(parameters.every((p) => Number.isFinite(p.value))).toBe(true);
+    for (const name of ["vout", "N0001", "XDUT:tail", "XDUT:nleft"]) {
+      expect(get(op, name).value).toBeGreaterThan(0);
+      expect(get(op, name).value).toBeLessThan(1.8);
+    }
+    expect(measured("supply_current")).toBe(-get(op, "VDD:flow(br)").value);
+  } else if (id === "ota-dc") {
+    const dc = data.analyses.find((a) => a.analysis === "dc");
+    expect(dc.sweep.values).toHaveLength(81);
+    for (const [i, v] of dc.sweep.values.entries()) {
+      expect(v).toBeCloseTo(0.86 + i * 0.001, 10);
+      expect(get(dc, "vinp").value[i]).toBeCloseTo(v, 10);
+    }
+    expect(get(dc, "vout").value.every(Number.isFinite)).toBe(true);
+  } else if (id === "ota-noise") {
+    const noise = data.analyses.find((a) => a.analysis === "noise");
+    expect(noise.frequencyHz).toHaveLength(271);
+    expect(noise.frequencyHz[0]).toBe(1);
+    expect(noise.frequencyHz.at(-1)).toBeCloseTo(1e9, 3);
+    expect(noise.integrationMethod).toBe("trapezoidal-psd");
+    for (const [density, total] of [
+      [noise.inputNoiseDensity, noise.integratedInputNoise],
+      [noise.outputNoiseDensity, noise.integratedOutputNoise],
+    ]) {
+      expect(density.every((v) => Number.isFinite(v) && v > 0)).toBe(true);
+      const sum = density
+        .slice(1)
+        .reduce(
+          (acc, v, i) =>
+            acc +
+            ((noise.frequencyHz[i + 1] - noise.frequencyHz[i]) *
+              (v * v + density[i] * density[i])) /
+              2,
+          0,
+        );
+      expect(Math.abs(total / Math.sqrt(sum) - 1)).toBeLessThan(1e-12);
+    }
+  }
+  if (id.startsWith("ota-ac-") || id === "ota-closed") {
+    const raw = data.analyses.find(
+      (a) => a.analysis === "ac" && !a.postprocessor,
+    );
+    const ac = data.analyses.find(
+      (a) => a.analysis === "ac" && a.postprocessor,
+    );
+    expect(ac.frequencyHz).toHaveLength(541);
+    expect(ac.frequencyHz).toEqual(raw.frequencyHz);
+    const gain = get(ac, "Gain"),
+      input = get(raw, "vinp"),
+      output = get(raw, "vout");
+    for (let i = 0; i < gain.real.length; i++) {
+      const denominator = input.real[i] ** 2 + input.imag[i] ** 2;
+      expect(
+        Math.abs(
+          gain.real[i] -
+            (output.real[i] * input.real[i] + output.imag[i] * input.imag[i]) /
+              denominator,
+        ),
+      ).toBeLessThan(1e-12);
+      expect(
+        Math.abs(
+          gain.imag[i] -
+            (output.imag[i] * input.real[i] - output.real[i] * input.imag[i]) /
+              denominator,
+        ),
+      ).toBeLessThan(1e-12);
+    }
+    const db = gain.real.map(
+      (v, i) => 20 * Math.log10(Math.hypot(v, gain.imag[i])),
+    );
+    expect(
+      measured(id === "ota-closed" ? "closed_gain_db" : "dc_gain_db"),
+    ).toBeCloseTo(db[0], 10);
+    if (id !== "ota-closed") {
+      const i = db.findIndex((v, i) => i > 0 && db[i - 1] > 0 && v <= 0);
+      expect(i).toBeGreaterThan(0);
+      const crossing =
+        ac.frequencyHz[i - 1] +
+        ((ac.frequencyHz[i] - ac.frequencyHz[i - 1]) * -db[i - 1]) /
+          (db[i] - db[i - 1]);
+      expect(measured("unity_gain_hz")).toBeCloseTo(crossing, 7);
+    }
+  }
+  if (id === "ota-tran" || id === "ota-closed") {
+    const tran = data.analyses.find((a) => a.analysis === "tran");
+    const time = tran.timeSeconds,
+      output = get(tran, "vout").value,
+      input = get(tran, "vinp").value;
+    expect(time.at(-1)).toBeCloseTo(6e-6, 12);
+    expect(output.every(Number.isFinite)).toBe(true);
+    expect(sample(time, input, 0.5e-6)).toBeCloseTo(0.9, 9);
+    expect(sample(time, input, 1.5e-6)).toBeCloseTo(0.91, 9);
+    expect(sample(time, input, 2.5e-6)).toBeCloseTo(
+      id === "ota-closed" ? 0.91 : 0.9,
+      9,
+    );
+    if (id === "ota-tran") {
+      expect(measured("output_max")).toBe(Math.max(...output));
+      expect(measured("output_min")).toBe(Math.min(...output));
+    } else {
+      expect(measured("output_at_2us")).toBeCloseTo(
+        sample(time, output, 2e-6),
+        12,
+      );
+      const window = output.filter((_, i) => time[i] > 1e-6 && time[i] < 3e-6);
+      window.push(sample(time, output, 1e-6), sample(time, output, 3e-6));
+      expect(measured("output_peak")).toBeCloseTo(Math.max(...window), 12);
+    }
+  }
+}
+
 // These are source/result-fidelity and circuit-law checks, not new foundry
 // qualification tolerances or a substitute for the frozen cross-engine oracle.
 function assertCommonSourceResult(id, data, measurements, originalSweep) {
@@ -257,7 +388,7 @@ function assertRlcResult(data, measurements, resistance) {
 }
 
 const projects = await Promise.all(
-  ["rc", "rlc", "common-source"].map(async (kind) => ({
+  ["rc", "rlc", "common-source", "ota"].map(async (kind) => ({
     kind,
     project: parseProject(
       await readFile(
@@ -290,6 +421,92 @@ const { library } = JSON.parse(
     "utf8",
   ),
 );
+const cornerLibraries = Object.fromEntries(
+  await Promise.all(
+    ["tt", "ff", "ss"].map(async (corner) => [
+      corner,
+      JSON.parse(
+        await readFile(
+          new URL(
+            `../../netlists/vacask-sky130/model-symbols-${corner}.json`,
+            import.meta.url,
+          ),
+          "utf8",
+        ),
+      ).library,
+    ]),
+  ),
+);
+
+it("ships all eight OTA native folders without substituting corners or the code-owned feedback testbench", async () => {
+  const { project } = projects.find((p) => p.kind === "ota");
+  expect(project.simulationFolders).toHaveLength(8);
+  for (const folder of project.simulationFolders) {
+    const corner = folder.id.startsWith("ota-ac-") ? folder.id.slice(-2) : "tt";
+    const mode = folder.id.startsWith("ota-ac-") ? "ac" : folder.id.slice(4);
+    const template = (
+      await readFile(
+        new URL(`../../netlists/native-ota/${mode}.sim`, import.meta.url),
+        "utf8",
+      )
+    ).replaceAll("\r\n", "\n");
+    const code = folder.input.files.find(
+      (f) => f.path === folder.input.entry,
+    ).text;
+    expect(code).toBe(
+      folder.name + "\n" + template.slice(template.indexOf("\n") + 1),
+    );
+    const compiled = compileSourceSimulation(project, folder);
+    expect(compiled.ok, JSON.stringify(compiled)).toBe(true);
+    expect(compiled.config.environment.profileId).toBe(
+      `vacask-sky130-${corner}-candidate`,
+    );
+    const lib = cornerLibraries[corner];
+    expect(folder.input.dependencies).toEqual([
+      {
+        id: lib.dependencyId,
+        sha256: lib.sha256,
+        mountPath: "models/library.inc",
+      },
+    ]);
+    if (mode === "op") {
+      const ops = nativeSimulationDevices(project, folder.input, [lib])
+        .filter((d) => d.polarity)
+        .flatMap((d) => nativeDeviceOpAcquisitions(d));
+      expect(ops).toHaveLength(54);
+      for (const op of ops) expect(code).toContain(op.save);
+    }
+    if (mode === "closed") {
+      expect(folder.input.circuitBindings[0]).toMatchObject({
+        documentId: "document-ota-5t",
+        emission: "subcircuit",
+      });
+      expect(
+        folder.input.files.find((f) => f.path === "testbench.spice").text,
+      ).toBe(
+        (
+          await readFile(
+            new URL("../../netlists/native-ota/testbench.sim", import.meta.url),
+            "utf8",
+          )
+        ).replaceAll("\r\n", "\n"),
+      );
+    }
+    if (!["dc", "noise"].includes(mode)) {
+      expect(folder.input.files.find((f) => f.path === "report.py").text).toBe(
+        (
+          await readFile(
+            new URL(
+              "../../scripts/lib/native-starter-report.py",
+              import.meta.url,
+            ),
+            "utf8",
+          )
+        ).replaceAll("\r\n", "\n"),
+      );
+    }
+  }
+});
 
 it("ships four native common-source experiments with converter-checked wrapper selectors and explicit candidate identity", async () => {
   const { project } = projects.find((p) => p.kind === "common-source");
@@ -355,7 +572,7 @@ it("ships four native common-source experiments with converter-checked wrapper s
   expect(project).toEqual(before);
 });
 
-it.each(projects.filter((p) => p.kind !== "common-source"))(
+it.each(projects.filter((p) => ["rc", "rlc"].includes(p.kind)))(
   "ships $kind experiments as native source with editable shared report helpers",
   async ({ kind, project }) => {
     const before = structuredClone(project);
@@ -414,19 +631,29 @@ it
       !process.env.ICM_PYTHON ||
       !process.env.ICM_PYTHON_LIBRARIES,
   )
-  .each(projects)(
-  "runs bundled $kind experiments through Prepare/Run/Read, measurements and CSV",
-  async ({ kind, project }, context) => {
+  .each(
+    projects.flatMap((p) =>
+      p.kind === "ota"
+        ? ["tt", "ff", "ss"].map((corner) => ({ ...p, corner }))
+        : [{ ...p, corner: "tt" }],
+    ),
+  )(
+  "runs bundled $kind $corner experiments through Prepare/Run/Read, measurements and CSV",
+  async ({ kind, project, corner }, context) => {
     const commonSource = kind === "common-source";
-    if (commonSource && !process.env.ICM_VACASK_CONVERTED_TT) context.skip();
-    const profile = commonSource
+    const modelBacked = commonSource || kind === "ota";
+    const lib = cornerLibraries[corner];
+    const modelPath =
+      process.env[`ICM_VACASK_CONVERTED_${corner.toUpperCase()}`];
+    if (modelBacked && !modelPath) context.skip();
+    const profile = modelBacked
       ? {
-          id: "vacask-sky130-tt-candidate",
+          id: `vacask-sky130-${corner}-candidate`,
           corners: [],
-          dependencies: [{ id: library.dependencyId, sha256: library.sha256 }],
-          modelSymbols: [library],
+          dependencies: [{ id: lib.dependencyId, sha256: lib.sha256 }],
+          modelSymbols: [lib],
           modelLibrary: {
-            dependencyId: library.dependencyId,
+            dependencyId: lib.dependencyId,
             defaultScale: 1e-6,
           },
         }
@@ -450,13 +677,13 @@ it
           binary: resolve(process.env.ICM_PYTHON),
           libraries: process.env.ICM_PYTHON_LIBRARIES.split(delimiter),
         },
-        ...(commonSource
+        ...(modelBacked
           ? {
               dependencies: [
                 {
-                  id: library.dependencyId,
-                  sha256: library.sha256,
-                  runtimePath: resolve(process.env.ICM_VACASK_CONVERTED_TT),
+                  id: lib.dependencyId,
+                  sha256: lib.sha256,
+                  runtimePath: resolve(modelPath),
                 },
               ],
             }
@@ -468,7 +695,7 @@ it
       const limits = {
         maxInputBytes: 65536,
         maxInputFiles: 12,
-        maxOutputBytes: commonSource ? 8 * 1048576 : 1048576,
+        maxOutputBytes: modelBacked ? 8 * 1048576 : 1048576,
         maxLogBytes: 65536,
         maxRawFiles: 16,
         maxEntries: 256,
@@ -477,8 +704,8 @@ it
         configured: true,
         rawfileCollection: "native-multi-ascii",
         inputs: ["source"],
-        analyses: ["op", "dc", "ac", "tran"],
-        parsedAnalyses: ["op", "dc", "ac", "tran"],
+        analyses: ["op", "dc", "ac", "tran", "noise"],
+        parsedAnalyses: ["op", "dc", "ac", "tran", "noise"],
         profiles: [profile],
         maxTimeoutMs: 15000,
         maxInputBytes: limits.maxInputBytes,
@@ -507,6 +734,12 @@ it
         () => project,
       );
       for (const folder of project.simulationFolders) {
+        if (
+          kind === "ota" &&
+          (folder.id.startsWith("ota-ac-") ? folder.id.slice(-2) : "tt") !==
+            corner
+        )
+          continue;
         const prepared = await service.handle(
           {
             operation: "prepare",
@@ -571,7 +804,7 @@ it
           ? JSON.parse(await artifactText("native-measurements.json"))
           : [];
         const result = JSON.parse(await artifactText("result.json"));
-        if (commonSource && process.env.ICM_VACASK_EVIDENCE_DIR) {
+        if (modelBacked && process.env.ICM_VACASK_EVIDENCE_DIR) {
           const parent = resolve(process.env.ICM_VACASK_EVIDENCE_DIR);
           await mkdir(parent, { recursive: true });
           const evidence = await mkdtemp(join(parent, `${folder.id}-public-`));
@@ -591,7 +824,7 @@ it
             join(evidence, "circuit.sim"),
             await artifactText("executed/circuit.spice"),
           );
-          console.info("Common-source-public-artifacts", evidence);
+          console.info("Model-starter-public-artifacts", evidence);
         }
         console.info(
           "Starter-native-evidence",
@@ -611,6 +844,14 @@ it
           JSON.stringify(measurements),
         ).toBe(true);
         const high = folder.id.includes("-hp-");
+        if (kind === "ota") {
+          assertOtaResult(folder.id, result.data, measurements);
+          for (const item of run.artifacts.filter((a) =>
+            a.name.endsWith(".csv"),
+          ))
+            expect((await artifactText(item.name)).length).toBeGreaterThan(20);
+          continue;
+        }
         if (commonSource) {
           assertCommonSourceResult(
             folder.id,

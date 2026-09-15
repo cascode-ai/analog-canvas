@@ -1,0 +1,14 @@
+OTA open-loop pulse
+// 1. Edit the input pulse on Canvas or the time limits below.
+// 2. Click Run.
+// 3. Plot input/output and inspect the full-run output extrema.
+ground 0
+include "models/library.inc"
+include "circuit.spice"
+control
+abort always
+options rawfile="ascii" strictsave=2 temp=27 reltol=1e-8 abstol=1e-12 vntol=1e-10
+save v(vinp) v(vout)
+analysis step tran stop=6u step=2n maxstep=2n
+postprocess(PYTHON,"report.py","ota-tran")
+endc

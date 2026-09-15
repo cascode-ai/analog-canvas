@@ -1,0 +1,51 @@
+{
+  "status": "derived-not-qualified",
+  "source": {
+    "converterRevision": "c1a1c84f1b2b9aa71c0cddf06e555441434db7b7",
+    "modelRevision": "403964dc7f9cca5ec1a8cc7b4f2a6f532b781676",
+    "recipe": "scripts/vacask-sky130-convert.py",
+    "corner": "ff"
+  },
+  "library": {
+    "dependencyId": "sky130-native-ff",
+    "sha256": "c92a1e840e3ed749dc1d51218f8771358a0dc80b1e9ab339348fd3870fe5b849",
+    "masters": [
+      {
+        "name": "sky130_fd_pr__nfet_01v8",
+        "primitives": [
+          {
+            "path": ["msky130_fd_pr__nfet_01v8"],
+            "module": "sp_bsim4v8"
+          }
+        ]
+      },
+      {
+        "name": "sky130_fd_pr__pfet_01v8",
+        "primitives": [
+          {
+            "path": ["msky130_fd_pr__pfet_01v8"],
+            "module": "sp_bsim4v8"
+          }
+        ]
+      },
+      {
+        "name": "sky130_fd_pr__nfet_01v8_lvt",
+        "primitives": [
+          {
+            "path": ["msky130_fd_pr__nfet_01v8_lvt"],
+            "module": "sp_bsim4v8"
+          }
+        ]
+      },
+      {
+        "name": "sky130_fd_pr__pfet_01v8_lvt",
+        "primitives": [
+          {
+            "path": ["msky130_fd_pr__pfet_01v8_lvt"],
+            "module": "sp_bsim4v8"
+          }
+        ]
+      }
+    ]
+  }
+}
