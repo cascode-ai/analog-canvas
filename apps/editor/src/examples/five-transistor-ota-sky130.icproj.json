@@ -4127,11 +4127,11 @@
         "files": [
           {
             "path": "run.cir",
-            "text": "OTA OP, DC, AC, and TRAN\n// Native BSIM4 4.8.3 candidate; historical ngspice acceptance is separate.\nground 0\ninclude \"models/library.inc\"\ninclude \"circuit.spice\"\ncontrol\nabort always\noptions rawfile=\"ascii\" strictsave=2 temp=27 reltol=1e-8 abstol=1e-12 vntol=1e-10\nsave v(vout) v(ibias) v('XDUT:tail') v('XDUT:nleft')\nanalysis bias op\nalter instance(\"VINP\") type=\"dc\"\nsweep input instance=\"VINP\" parameter=\"dc\" from=0.88 to=0.92 step=0.005\nanalysis transfer op\n// Restore the Canvas source after DC, before subsequent analyses.\nalter instance(\"VINP\") type=\"pulse\" dc=0.9\nanalysis frequency ac from=1 to=1000000000 mode=\"dec\" points=10\nanalysis signal tran stop=0.000004 step=2e-8 maxstep=2e-8\npostprocess(PYTHON,\"report.py\",\"simulation-setup-ota-op-ac\")\nendc\n"
+            "text": "OTA OP, DC, AC, and TRAN\n// Native BSIM4 4.8.3 candidate; historical ngspice acceptance is separate.\nground 0\ninclude \"models/library.inc\" section=tt\ninclude \"circuit.spice\"\ncontrol\nabort always\noptions rawfile=\"ascii\" strictsave=2 temp=27 reltol=1e-8 abstol=1e-12 vntol=1e-10\nsave v(vout) v(ibias) v('XDUT:tail') v('XDUT:nleft')\nanalysis bias op\nalter instance(\"VINP\") type=\"dc\"\nsweep input instance=\"VINP\" parameter=\"dc\" from=0.88 to=0.92 step=0.005\nanalysis transfer op\n// Restore the Canvas source after DC, before subsequent analyses.\nalter instance(\"VINP\") type=\"pulse\" dc=0.9\nanalysis frequency ac from=1 to=1000000000 mode=\"dec\" points=10\nanalysis signal tran stop=0.000004 step=2e-8 maxstep=2e-8\npostprocess(PYTHON,\"report.py\",\"simulation-setup-ota-op-ac\")\nendc\n"
           },
           {
             "path": "experiment.json",
-            "text": "{\n  \"version\": 2,\n  \"environment\": {\n    \"profileId\": \"vacask-sky130-tt-candidate\"\n  }\n}\n"
+            "text": "{\n  \"version\": 2,\n  \"environment\": {\n    \"profileId\": \"vacask-sky130-candidate\"\n  }\n}\n"
           },
           {
             "path": "report.py",
@@ -4156,8 +4156,8 @@
         ],
         "dependencies": [
           {
-            "id": "sky130-native-tt",
-            "sha256": "3e7d81854cf3a26eb8c89fcec4c748fb718b16b1e113a75ed112dc9089acf224",
+            "id": "sky130-native-sections",
+            "sha256": "64234ef53dfecb8dd6ea0094c05d65c071c0220563917b3113b78be146bc021c",
             "mountPath": "models/library.inc"
           }
         ]
@@ -4174,11 +4174,11 @@
         "files": [
           {
             "path": "run.cir",
-            "text": "Complete OP, DC, AC, TRAN, and Noise (TT)\n// Native BSIM4 4.8.3 candidate; historical ngspice acceptance is separate.\nground 0\ninclude \"models/library.inc\"\ninclude \"circuit.spice\"\ncontrol\nabort always\noptions rawfile=\"ascii\" strictsave=2 temp=27 reltol=1e-8 abstol=1e-12 vntol=1e-10\nsave v(vout) v(vinp) v(ibias) v('XDUT:tail') v('XDUT:nleft') i(VDD)\nsave p('XDUT:XM1:msky130_fd_pr__nfet_01v8',id) p('XDUT:XM1:msky130_fd_pr__nfet_01v8',vgs) p('XDUT:XM1:msky130_fd_pr__nfet_01v8',vds) p('XDUT:XM1:msky130_fd_pr__nfet_01v8',vbs) p('XDUT:XM1:msky130_fd_pr__nfet_01v8',gm) p('XDUT:XM1:msky130_fd_pr__nfet_01v8',gds) p('XDUT:XM1:msky130_fd_pr__nfet_01v8',gmbs) p('XDUT:XM1:msky130_fd_pr__nfet_01v8',vth) p('XDUT:XM1:msky130_fd_pr__nfet_01v8',vdsat)\nsave p('XDUT:XM3:msky130_fd_pr__pfet_01v8',id) p('XDUT:XM3:msky130_fd_pr__pfet_01v8',vgs) p('XDUT:XM3:msky130_fd_pr__pfet_01v8',vds) p('XDUT:XM3:msky130_fd_pr__pfet_01v8',vbs) p('XDUT:XM3:msky130_fd_pr__pfet_01v8',gm) p('XDUT:XM3:msky130_fd_pr__pfet_01v8',gds) p('XDUT:XM3:msky130_fd_pr__pfet_01v8',gmbs) p('XDUT:XM3:msky130_fd_pr__pfet_01v8',vth) p('XDUT:XM3:msky130_fd_pr__pfet_01v8',vdsat)\nanalysis bias op\n// Device parameters are OP-only; do not repeat them in waveform records.\nclear saves\nsave v(vout) v(vinp) v(ibias) v('XDUT:tail') v('XDUT:nleft') i(VDD)\nalter instance(\"VINP\") type=\"dc\"\nsweep input instance=\"VINP\" parameter=\"dc\" from=0.86 to=0.94 step=0.001\nanalysis transfer op\n// Restore the Canvas source after DC, before subsequent analyses.\nalter instance(\"VINP\") type=\"pulse\" dc=0.9\nanalysis frequency ac from=1 to=1000000000 mode=\"dec\" points=40\nanalysis signal tran stop=0.000006 step=1e-8 maxstep=1e-8\nanalysis spectrum noise out=\"vout\" in=\"VINP\" from=1 to=1000000000 mode=\"dec\" points=40\npostprocess(PYTHON,\"report.py\",\"simulation-setup-ota-full-tt\")\nendc\n"
+            "text": "Complete OP, DC, AC, TRAN, and Noise (TT)\n// Native BSIM4 4.8.3 candidate; historical ngspice acceptance is separate.\nground 0\ninclude \"models/library.inc\" section=tt\ninclude \"circuit.spice\"\ncontrol\nabort always\noptions rawfile=\"ascii\" strictsave=2 temp=27 reltol=1e-8 abstol=1e-12 vntol=1e-10\nsave v(vout) v(vinp) v(ibias) v('XDUT:tail') v('XDUT:nleft') i(VDD)\nsave p('XDUT:XM1:msky130_fd_pr__nfet_01v8',id) p('XDUT:XM1:msky130_fd_pr__nfet_01v8',vgs) p('XDUT:XM1:msky130_fd_pr__nfet_01v8',vds) p('XDUT:XM1:msky130_fd_pr__nfet_01v8',vbs) p('XDUT:XM1:msky130_fd_pr__nfet_01v8',gm) p('XDUT:XM1:msky130_fd_pr__nfet_01v8',gds) p('XDUT:XM1:msky130_fd_pr__nfet_01v8',gmbs) p('XDUT:XM1:msky130_fd_pr__nfet_01v8',vth) p('XDUT:XM1:msky130_fd_pr__nfet_01v8',vdsat)\nsave p('XDUT:XM3:msky130_fd_pr__pfet_01v8',id) p('XDUT:XM3:msky130_fd_pr__pfet_01v8',vgs) p('XDUT:XM3:msky130_fd_pr__pfet_01v8',vds) p('XDUT:XM3:msky130_fd_pr__pfet_01v8',vbs) p('XDUT:XM3:msky130_fd_pr__pfet_01v8',gm) p('XDUT:XM3:msky130_fd_pr__pfet_01v8',gds) p('XDUT:XM3:msky130_fd_pr__pfet_01v8',gmbs) p('XDUT:XM3:msky130_fd_pr__pfet_01v8',vth) p('XDUT:XM3:msky130_fd_pr__pfet_01v8',vdsat)\nanalysis bias op\n// Device parameters are OP-only; do not repeat them in waveform records.\nclear saves\nsave v(vout) v(vinp) v(ibias) v('XDUT:tail') v('XDUT:nleft') i(VDD)\nalter instance(\"VINP\") type=\"dc\"\nsweep input instance=\"VINP\" parameter=\"dc\" from=0.86 to=0.94 step=0.001\nanalysis transfer op\n// Restore the Canvas source after DC, before subsequent analyses.\nalter instance(\"VINP\") type=\"pulse\" dc=0.9\nanalysis frequency ac from=1 to=1000000000 mode=\"dec\" points=40\nanalysis signal tran stop=0.000006 step=1e-8 maxstep=1e-8\nanalysis spectrum noise out=\"vout\" in=\"VINP\" from=1 to=1000000000 mode=\"dec\" points=40\npostprocess(PYTHON,\"report.py\",\"simulation-setup-ota-full-tt\")\nendc\n"
           },
           {
             "path": "experiment.json",
-            "text": "{\n  \"version\": 2,\n  \"environment\": {\n    \"profileId\": \"vacask-sky130-tt-candidate\"\n  }\n}\n"
+            "text": "{\n  \"version\": 2,\n  \"environment\": {\n    \"profileId\": \"vacask-sky130-candidate\"\n  }\n}\n"
           },
           {
             "path": "report.py",
@@ -4203,8 +4203,8 @@
         ],
         "dependencies": [
           {
-            "id": "sky130-native-tt",
-            "sha256": "3e7d81854cf3a26eb8c89fcec4c748fb718b16b1e113a75ed112dc9089acf224",
+            "id": "sky130-native-sections",
+            "sha256": "64234ef53dfecb8dd6ea0094c05d65c071c0220563917b3113b78be146bc021c",
             "mountPath": "models/library.inc"
           }
         ]
@@ -4221,11 +4221,11 @@
         "files": [
           {
             "path": "run.cir",
-            "text": "Bias point (TT)\n// Native BSIM4 4.8.3 candidate; historical ngspice acceptance is separate.\nground 0\ninclude \"models/library.inc\"\ninclude \"circuit.spice\"\ncontrol\nabort always\noptions rawfile=\"ascii\" strictsave=2 temp=27 reltol=1e-8 abstol=1e-12 vntol=1e-10\nsave v(vout) v(vinp) v(ibias) v('XDUT:tail') v('XDUT:nleft') i(VDD)\nsave p('XDUT:XM1:msky130_fd_pr__nfet_01v8',id) p('XDUT:XM1:msky130_fd_pr__nfet_01v8',vgs) p('XDUT:XM1:msky130_fd_pr__nfet_01v8',vds) p('XDUT:XM1:msky130_fd_pr__nfet_01v8',vbs) p('XDUT:XM1:msky130_fd_pr__nfet_01v8',gm) p('XDUT:XM1:msky130_fd_pr__nfet_01v8',gds) p('XDUT:XM1:msky130_fd_pr__nfet_01v8',gmbs) p('XDUT:XM1:msky130_fd_pr__nfet_01v8',vth) p('XDUT:XM1:msky130_fd_pr__nfet_01v8',vdsat)\nsave p('XDUT:XM3:msky130_fd_pr__pfet_01v8',id) p('XDUT:XM3:msky130_fd_pr__pfet_01v8',vgs) p('XDUT:XM3:msky130_fd_pr__pfet_01v8',vds) p('XDUT:XM3:msky130_fd_pr__pfet_01v8',vbs) p('XDUT:XM3:msky130_fd_pr__pfet_01v8',gm) p('XDUT:XM3:msky130_fd_pr__pfet_01v8',gds) p('XDUT:XM3:msky130_fd_pr__pfet_01v8',gmbs) p('XDUT:XM3:msky130_fd_pr__pfet_01v8',vth) p('XDUT:XM3:msky130_fd_pr__pfet_01v8',vdsat)\nanalysis bias op\npostprocess(PYTHON,\"report.py\",\"simulation-setup-ota-bias-tt\")\nendc\n"
+            "text": "Bias point (TT)\n// Native BSIM4 4.8.3 candidate; historical ngspice acceptance is separate.\nground 0\ninclude \"models/library.inc\" section=tt\ninclude \"circuit.spice\"\ncontrol\nabort always\noptions rawfile=\"ascii\" strictsave=2 temp=27 reltol=1e-8 abstol=1e-12 vntol=1e-10\nsave v(vout) v(vinp) v(ibias) v('XDUT:tail') v('XDUT:nleft') i(VDD)\nsave p('XDUT:XM1:msky130_fd_pr__nfet_01v8',id) p('XDUT:XM1:msky130_fd_pr__nfet_01v8',vgs) p('XDUT:XM1:msky130_fd_pr__nfet_01v8',vds) p('XDUT:XM1:msky130_fd_pr__nfet_01v8',vbs) p('XDUT:XM1:msky130_fd_pr__nfet_01v8',gm) p('XDUT:XM1:msky130_fd_pr__nfet_01v8',gds) p('XDUT:XM1:msky130_fd_pr__nfet_01v8',gmbs) p('XDUT:XM1:msky130_fd_pr__nfet_01v8',vth) p('XDUT:XM1:msky130_fd_pr__nfet_01v8',vdsat)\nsave p('XDUT:XM3:msky130_fd_pr__pfet_01v8',id) p('XDUT:XM3:msky130_fd_pr__pfet_01v8',vgs) p('XDUT:XM3:msky130_fd_pr__pfet_01v8',vds) p('XDUT:XM3:msky130_fd_pr__pfet_01v8',vbs) p('XDUT:XM3:msky130_fd_pr__pfet_01v8',gm) p('XDUT:XM3:msky130_fd_pr__pfet_01v8',gds) p('XDUT:XM3:msky130_fd_pr__pfet_01v8',gmbs) p('XDUT:XM3:msky130_fd_pr__pfet_01v8',vth) p('XDUT:XM3:msky130_fd_pr__pfet_01v8',vdsat)\nanalysis bias op\npostprocess(PYTHON,\"report.py\",\"simulation-setup-ota-bias-tt\")\nendc\n"
           },
           {
             "path": "experiment.json",
-            "text": "{\n  \"version\": 2,\n  \"environment\": {\n    \"profileId\": \"vacask-sky130-tt-candidate\"\n  }\n}\n"
+            "text": "{\n  \"version\": 2,\n  \"environment\": {\n    \"profileId\": \"vacask-sky130-candidate\"\n  }\n}\n"
           },
           {
             "path": "report.py",
@@ -4250,8 +4250,8 @@
         ],
         "dependencies": [
           {
-            "id": "sky130-native-tt",
-            "sha256": "3e7d81854cf3a26eb8c89fcec4c748fb718b16b1e113a75ed112dc9089acf224",
+            "id": "sky130-native-sections",
+            "sha256": "64234ef53dfecb8dd6ea0094c05d65c071c0220563917b3113b78be146bc021c",
             "mountPath": "models/library.inc"
           }
         ]
@@ -4268,11 +4268,11 @@
         "files": [
           {
             "path": "run.cir",
-            "text": "DC transfer (TT)\n// Native BSIM4 4.8.3 candidate; historical ngspice acceptance is separate.\nground 0\ninclude \"models/library.inc\"\ninclude \"circuit.spice\"\ncontrol\nabort always\noptions rawfile=\"ascii\" strictsave=2 temp=27 reltol=1e-8 abstol=1e-12 vntol=1e-10\nsave v(vout) v(vinp) v('XDUT:tail')\nalter instance(\"VINP\") type=\"dc\"\nsweep input instance=\"VINP\" parameter=\"dc\" from=0.86 to=0.94 step=0.001\nanalysis transfer op\n// Restore the Canvas source after DC, before subsequent analyses.\nalter instance(\"VINP\") type=\"pulse\" dc=0.9\npostprocess(PYTHON,\"report.py\",\"simulation-setup-ota-dc-transfer-tt\")\nendc\n"
+            "text": "DC transfer (TT)\n// Native BSIM4 4.8.3 candidate; historical ngspice acceptance is separate.\nground 0\ninclude \"models/library.inc\" section=tt\ninclude \"circuit.spice\"\ncontrol\nabort always\noptions rawfile=\"ascii\" strictsave=2 temp=27 reltol=1e-8 abstol=1e-12 vntol=1e-10\nsave v(vout) v(vinp) v('XDUT:tail')\nalter instance(\"VINP\") type=\"dc\"\nsweep input instance=\"VINP\" parameter=\"dc\" from=0.86 to=0.94 step=0.001\nanalysis transfer op\n// Restore the Canvas source after DC, before subsequent analyses.\nalter instance(\"VINP\") type=\"pulse\" dc=0.9\npostprocess(PYTHON,\"report.py\",\"simulation-setup-ota-dc-transfer-tt\")\nendc\n"
           },
           {
             "path": "experiment.json",
-            "text": "{\n  \"version\": 2,\n  \"environment\": {\n    \"profileId\": \"vacask-sky130-tt-candidate\"\n  }\n}\n"
+            "text": "{\n  \"version\": 2,\n  \"environment\": {\n    \"profileId\": \"vacask-sky130-candidate\"\n  }\n}\n"
           },
           {
             "path": "report.py",
@@ -4297,8 +4297,8 @@
         ],
         "dependencies": [
           {
-            "id": "sky130-native-tt",
-            "sha256": "3e7d81854cf3a26eb8c89fcec4c748fb718b16b1e113a75ed112dc9089acf224",
+            "id": "sky130-native-sections",
+            "sha256": "64234ef53dfecb8dd6ea0094c05d65c071c0220563917b3113b78be146bc021c",
             "mountPath": "models/library.inc"
           }
         ]
@@ -4315,11 +4315,11 @@
         "files": [
           {
             "path": "run.cir",
-            "text": "AC response (TT)\n// Native BSIM4 4.8.3 candidate; historical ngspice acceptance is separate.\nground 0\ninclude \"models/library.inc\"\ninclude \"circuit.spice\"\ncontrol\nabort always\noptions rawfile=\"ascii\" strictsave=2 temp=27 reltol=1e-8 abstol=1e-12 vntol=1e-10\nsave v(vinp) v(vout)\nanalysis frequency ac from=1 to=1000000000 mode=\"dec\" points=40\npostprocess(PYTHON,\"report.py\",\"simulation-setup-ota-ac-tt\")\nendc\n"
+            "text": "AC response (TT)\n// Native BSIM4 4.8.3 candidate; historical ngspice acceptance is separate.\nground 0\ninclude \"models/library.inc\" section=tt\ninclude \"circuit.spice\"\ncontrol\nabort always\noptions rawfile=\"ascii\" strictsave=2 temp=27 reltol=1e-8 abstol=1e-12 vntol=1e-10\nsave v(vinp) v(vout)\nanalysis frequency ac from=1 to=1000000000 mode=\"dec\" points=40\npostprocess(PYTHON,\"report.py\",\"simulation-setup-ota-ac-tt\")\nendc\n"
           },
           {
             "path": "experiment.json",
-            "text": "{\n  \"version\": 2,\n  \"environment\": {\n    \"profileId\": \"vacask-sky130-tt-candidate\"\n  }\n}\n"
+            "text": "{\n  \"version\": 2,\n  \"environment\": {\n    \"profileId\": \"vacask-sky130-candidate\"\n  }\n}\n"
           },
           {
             "path": "report.py",
@@ -4344,8 +4344,8 @@
         ],
         "dependencies": [
           {
-            "id": "sky130-native-tt",
-            "sha256": "3e7d81854cf3a26eb8c89fcec4c748fb718b16b1e113a75ed112dc9089acf224",
+            "id": "sky130-native-sections",
+            "sha256": "64234ef53dfecb8dd6ea0094c05d65c071c0220563917b3113b78be146bc021c",
             "mountPath": "models/library.inc"
           }
         ]
@@ -4362,11 +4362,11 @@
         "files": [
           {
             "path": "run.cir",
-            "text": "AC response (FF)\n// Native BSIM4 4.8.3 candidate; historical ngspice acceptance is separate.\nground 0\ninclude \"models/library.inc\"\ninclude \"circuit.spice\"\ncontrol\nabort always\noptions rawfile=\"ascii\" strictsave=2 temp=27 reltol=1e-8 abstol=1e-12 vntol=1e-10\nsave v(vinp) v(vout)\nanalysis frequency ac from=1 to=1000000000 mode=\"dec\" points=40\npostprocess(PYTHON,\"report.py\",\"simulation-setup-ota-ac-ff\")\nendc\n"
+            "text": "AC response (FF)\n// Native BSIM4 4.8.3 candidate; historical ngspice acceptance is separate.\nground 0\ninclude \"models/library.inc\" section=ff\ninclude \"circuit.spice\"\ncontrol\nabort always\noptions rawfile=\"ascii\" strictsave=2 temp=27 reltol=1e-8 abstol=1e-12 vntol=1e-10\nsave v(vinp) v(vout)\nanalysis frequency ac from=1 to=1000000000 mode=\"dec\" points=40\npostprocess(PYTHON,\"report.py\",\"simulation-setup-ota-ac-ff\")\nendc\n"
           },
           {
             "path": "experiment.json",
-            "text": "{\n  \"version\": 2,\n  \"environment\": {\n    \"profileId\": \"vacask-sky130-ff-candidate\"\n  }\n}\n"
+            "text": "{\n  \"version\": 2,\n  \"environment\": {\n    \"profileId\": \"vacask-sky130-candidate\"\n  }\n}\n"
           },
           {
             "path": "report.py",
@@ -4391,8 +4391,8 @@
         ],
         "dependencies": [
           {
-            "id": "sky130-native-ff",
-            "sha256": "c92a1e840e3ed749dc1d51218f8771358a0dc80b1e9ab339348fd3870fe5b849",
+            "id": "sky130-native-sections",
+            "sha256": "64234ef53dfecb8dd6ea0094c05d65c071c0220563917b3113b78be146bc021c",
             "mountPath": "models/library.inc"
           }
         ]
@@ -4409,11 +4409,11 @@
         "files": [
           {
             "path": "run.cir",
-            "text": "AC response (SS)\n// Native BSIM4 4.8.3 candidate; historical ngspice acceptance is separate.\nground 0\ninclude \"models/library.inc\"\ninclude \"circuit.spice\"\ncontrol\nabort always\noptions rawfile=\"ascii\" strictsave=2 temp=27 reltol=1e-8 abstol=1e-12 vntol=1e-10\nsave v(vinp) v(vout)\nanalysis frequency ac from=1 to=1000000000 mode=\"dec\" points=40\npostprocess(PYTHON,\"report.py\",\"simulation-setup-ota-ac-ss\")\nendc\n"
+            "text": "AC response (SS)\n// Native BSIM4 4.8.3 candidate; historical ngspice acceptance is separate.\nground 0\ninclude \"models/library.inc\" section=ss\ninclude \"circuit.spice\"\ncontrol\nabort always\noptions rawfile=\"ascii\" strictsave=2 temp=27 reltol=1e-8 abstol=1e-12 vntol=1e-10\nsave v(vinp) v(vout)\nanalysis frequency ac from=1 to=1000000000 mode=\"dec\" points=40\npostprocess(PYTHON,\"report.py\",\"simulation-setup-ota-ac-ss\")\nendc\n"
           },
           {
             "path": "experiment.json",
-            "text": "{\n  \"version\": 2,\n  \"environment\": {\n    \"profileId\": \"vacask-sky130-ss-candidate\"\n  }\n}\n"
+            "text": "{\n  \"version\": 2,\n  \"environment\": {\n    \"profileId\": \"vacask-sky130-candidate\"\n  }\n}\n"
           },
           {
             "path": "report.py",
@@ -4438,8 +4438,8 @@
         ],
         "dependencies": [
           {
-            "id": "sky130-native-ss",
-            "sha256": "839b5fce374d8b2af0949a6534778308410cb2ca9c8e914eaf1db76b2c0a5827",
+            "id": "sky130-native-sections",
+            "sha256": "64234ef53dfecb8dd6ea0094c05d65c071c0220563917b3113b78be146bc021c",
             "mountPath": "models/library.inc"
           }
         ]
@@ -4456,11 +4456,11 @@
         "files": [
           {
             "path": "run.cir",
-            "text": "AC response (FS)\n// Native BSIM4 4.8.3 candidate; historical ngspice acceptance is separate.\nground 0\ninclude \"models/library.inc\"\ninclude \"circuit.spice\"\ncontrol\nabort always\noptions rawfile=\"ascii\" strictsave=2 temp=27 reltol=1e-8 abstol=1e-12 vntol=1e-10\nsave v(vinp) v(vout)\nanalysis frequency ac from=1 to=1000000000 mode=\"dec\" points=40\npostprocess(PYTHON,\"report.py\",\"simulation-setup-ota-ac-fs\")\nendc\n"
+            "text": "AC response (FS)\n// Native BSIM4 4.8.3 candidate; historical ngspice acceptance is separate.\nground 0\ninclude \"models/library.inc\" section=fs\ninclude \"circuit.spice\"\ncontrol\nabort always\noptions rawfile=\"ascii\" strictsave=2 temp=27 reltol=1e-8 abstol=1e-12 vntol=1e-10\nsave v(vinp) v(vout)\nanalysis frequency ac from=1 to=1000000000 mode=\"dec\" points=40\npostprocess(PYTHON,\"report.py\",\"simulation-setup-ota-ac-fs\")\nendc\n"
           },
           {
             "path": "experiment.json",
-            "text": "{\n  \"version\": 2,\n  \"environment\": {\n    \"profileId\": \"vacask-sky130-fs-candidate\"\n  }\n}\n"
+            "text": "{\n  \"version\": 2,\n  \"environment\": {\n    \"profileId\": \"vacask-sky130-candidate\"\n  }\n}\n"
           },
           {
             "path": "report.py",
@@ -4485,8 +4485,8 @@
         ],
         "dependencies": [
           {
-            "id": "sky130-native-fs",
-            "sha256": "934e30da6f937ff0532b24ccfb7a8b477b5ea9a108da9b0bfd53266cdc9fa596",
+            "id": "sky130-native-sections",
+            "sha256": "64234ef53dfecb8dd6ea0094c05d65c071c0220563917b3113b78be146bc021c",
             "mountPath": "models/library.inc"
           }
         ]
@@ -4503,11 +4503,11 @@
         "files": [
           {
             "path": "run.cir",
-            "text": "AC response (SF)\n// Native BSIM4 4.8.3 candidate; historical ngspice acceptance is separate.\nground 0\ninclude \"models/library.inc\"\ninclude \"circuit.spice\"\ncontrol\nabort always\noptions rawfile=\"ascii\" strictsave=2 temp=27 reltol=1e-8 abstol=1e-12 vntol=1e-10\nsave v(vinp) v(vout)\nanalysis frequency ac from=1 to=1000000000 mode=\"dec\" points=40\npostprocess(PYTHON,\"report.py\",\"simulation-setup-ota-ac-sf\")\nendc\n"
+            "text": "AC response (SF)\n// Native BSIM4 4.8.3 candidate; historical ngspice acceptance is separate.\nground 0\ninclude \"models/library.inc\" section=sf\ninclude \"circuit.spice\"\ncontrol\nabort always\noptions rawfile=\"ascii\" strictsave=2 temp=27 reltol=1e-8 abstol=1e-12 vntol=1e-10\nsave v(vinp) v(vout)\nanalysis frequency ac from=1 to=1000000000 mode=\"dec\" points=40\npostprocess(PYTHON,\"report.py\",\"simulation-setup-ota-ac-sf\")\nendc\n"
           },
           {
             "path": "experiment.json",
-            "text": "{\n  \"version\": 2,\n  \"environment\": {\n    \"profileId\": \"vacask-sky130-sf-candidate\"\n  }\n}\n"
+            "text": "{\n  \"version\": 2,\n  \"environment\": {\n    \"profileId\": \"vacask-sky130-candidate\"\n  }\n}\n"
           },
           {
             "path": "report.py",
@@ -4532,8 +4532,8 @@
         ],
         "dependencies": [
           {
-            "id": "sky130-native-sf",
-            "sha256": "2d4a6f8363a32171618fea8d1146dca3db5bb783eca1242cb92b5472f2641fdd",
+            "id": "sky130-native-sections",
+            "sha256": "64234ef53dfecb8dd6ea0094c05d65c071c0220563917b3113b78be146bc021c",
             "mountPath": "models/library.inc"
           }
         ]
@@ -4550,11 +4550,11 @@
         "files": [
           {
             "path": "run.cir",
-            "text": "Transient PULSE step (TT)\n// Native BSIM4 4.8.3 candidate; historical ngspice acceptance is separate.\nground 0\ninclude \"models/library.inc\"\ninclude \"circuit.spice\"\ncontrol\nabort always\noptions rawfile=\"ascii\" strictsave=2 temp=27 reltol=1e-8 abstol=1e-12 vntol=1e-10\nsave v(vinp) v(vout)\nanalysis signal tran stop=0.000006 step=1e-8 maxstep=1e-8\npostprocess(PYTHON,\"report.py\",\"simulation-setup-ota-tran-tt\")\nendc\n"
+            "text": "Transient PULSE step (TT)\n// Native BSIM4 4.8.3 candidate; historical ngspice acceptance is separate.\nground 0\ninclude \"models/library.inc\" section=tt\ninclude \"circuit.spice\"\ncontrol\nabort always\noptions rawfile=\"ascii\" strictsave=2 temp=27 reltol=1e-8 abstol=1e-12 vntol=1e-10\nsave v(vinp) v(vout)\nanalysis signal tran stop=0.000006 step=1e-8 maxstep=1e-8\npostprocess(PYTHON,\"report.py\",\"simulation-setup-ota-tran-tt\")\nendc\n"
           },
           {
             "path": "experiment.json",
-            "text": "{\n  \"version\": 2,\n  \"environment\": {\n    \"profileId\": \"vacask-sky130-tt-candidate\"\n  }\n}\n"
+            "text": "{\n  \"version\": 2,\n  \"environment\": {\n    \"profileId\": \"vacask-sky130-candidate\"\n  }\n}\n"
           },
           {
             "path": "report.py",
@@ -4579,8 +4579,8 @@
         ],
         "dependencies": [
           {
-            "id": "sky130-native-tt",
-            "sha256": "3e7d81854cf3a26eb8c89fcec4c748fb718b16b1e113a75ed112dc9089acf224",
+            "id": "sky130-native-sections",
+            "sha256": "64234ef53dfecb8dd6ea0094c05d65c071c0220563917b3113b78be146bc021c",
             "mountPath": "models/library.inc"
           }
         ]
@@ -4597,11 +4597,11 @@
         "files": [
           {
             "path": "run.cir",
-            "text": "Noise response (TT)\n// Native BSIM4 4.8.3 candidate; historical ngspice acceptance is separate.\nground 0\ninclude \"models/library.inc\"\ninclude \"circuit.spice\"\ncontrol\nabort always\noptions rawfile=\"ascii\" strictsave=2 temp=27 reltol=1e-8 abstol=1e-12 vntol=1e-10\nsave v(vout) v(vinp) v(ibias) v('XDUT:tail') v('XDUT:nleft') i(VDD)\nanalysis spectrum noise out=\"vout\" in=\"VINP\" from=1 to=1000000000 mode=\"dec\" points=40\npostprocess(PYTHON,\"report.py\",\"simulation-setup-ota-noise-tt\")\nendc\n"
+            "text": "Noise response (TT)\n// Native BSIM4 4.8.3 candidate; historical ngspice acceptance is separate.\nground 0\ninclude \"models/library.inc\" section=tt\ninclude \"circuit.spice\"\ncontrol\nabort always\noptions rawfile=\"ascii\" strictsave=2 temp=27 reltol=1e-8 abstol=1e-12 vntol=1e-10\nsave v(vout) v(vinp) v(ibias) v('XDUT:tail') v('XDUT:nleft') i(VDD)\nanalysis spectrum noise out=\"vout\" in=\"VINP\" from=1 to=1000000000 mode=\"dec\" points=40\npostprocess(PYTHON,\"report.py\",\"simulation-setup-ota-noise-tt\")\nendc\n"
           },
           {
             "path": "experiment.json",
-            "text": "{\n  \"version\": 2,\n  \"environment\": {\n    \"profileId\": \"vacask-sky130-tt-candidate\"\n  }\n}\n"
+            "text": "{\n  \"version\": 2,\n  \"environment\": {\n    \"profileId\": \"vacask-sky130-candidate\"\n  }\n}\n"
           },
           {
             "path": "report.py",
@@ -4626,8 +4626,8 @@
         ],
         "dependencies": [
           {
-            "id": "sky130-native-tt",
-            "sha256": "3e7d81854cf3a26eb8c89fcec4c748fb718b16b1e113a75ed112dc9089acf224",
+            "id": "sky130-native-sections",
+            "sha256": "64234ef53dfecb8dd6ea0094c05d65c071c0220563917b3113b78be146bc021c",
             "mountPath": "models/library.inc"
           }
         ]
@@ -4644,11 +4644,11 @@
         "files": [
           {
             "path": "run.cir",
-            "text": "Transient SIN response (TT)\n// Native BSIM4 4.8.3 candidate; historical ngspice acceptance is separate.\nground 0\ninclude \"models/library.inc\"\ninclude \"circuit.spice\"\ncontrol\nabort always\noptions rawfile=\"ascii\" strictsave=2 temp=27 reltol=1e-8 abstol=1e-12 vntol=1e-10\nsave v(vinp) v(vout)\nanalysis signal tran stop=0.000005 step=5e-9 maxstep=5e-9\npostprocess(PYTHON,\"report.py\",\"simulation-setup-ota-tran-sin-tt\")\nendc\n"
+            "text": "Transient SIN response (TT)\n// Native BSIM4 4.8.3 candidate; historical ngspice acceptance is separate.\nground 0\ninclude \"models/library.inc\" section=tt\ninclude \"circuit.spice\"\ncontrol\nabort always\noptions rawfile=\"ascii\" strictsave=2 temp=27 reltol=1e-8 abstol=1e-12 vntol=1e-10\nsave v(vinp) v(vout)\nanalysis signal tran stop=0.000005 step=5e-9 maxstep=5e-9\npostprocess(PYTHON,\"report.py\",\"simulation-setup-ota-tran-sin-tt\")\nendc\n"
           },
           {
             "path": "experiment.json",
-            "text": "{\n  \"version\": 2,\n  \"environment\": {\n    \"profileId\": \"vacask-sky130-tt-candidate\"\n  }\n}\n"
+            "text": "{\n  \"version\": 2,\n  \"environment\": {\n    \"profileId\": \"vacask-sky130-candidate\"\n  }\n}\n"
           },
           {
             "path": "report.py",
@@ -4673,8 +4673,8 @@
         ],
         "dependencies": [
           {
-            "id": "sky130-native-tt",
-            "sha256": "3e7d81854cf3a26eb8c89fcec4c748fb718b16b1e113a75ed112dc9089acf224",
+            "id": "sky130-native-sections",
+            "sha256": "64234ef53dfecb8dd6ea0094c05d65c071c0220563917b3113b78be146bc021c",
             "mountPath": "models/library.inc"
           }
         ]

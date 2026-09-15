@@ -36,10 +36,12 @@ interpolation of sampled dB against frequency. Missing crossings report an
 unavailable measurement; they do not erase the waveform. No frontend evaluator
 or parallel JSON analysis configuration is introduced.
 
-Each model folder requests `vacask-sky130-{tt,ff,ss}-candidate`. The matching
-dependency digest and primitive map are in `netlists/vacask-sky130/model-symbols-*.json`,
-derived by `inspectVacaskModelArtifact()` from each actual converted file.
-Each candidate Profile owns the `defaultScale=1e-6` wrapper policy and requires
+Each bundled model folder requests `vacask-sky130-candidate`, with the native
+include selecting its original `section=tt`, `ff`, or `ss`. The single dependency
+digest and section-specific primitive maps are in
+`netlists/vacask-sky130/model-symbols-sections.json`, derived by
+`inspectVacaskModelArtifact()` from the packaged converted files.
+The Profile owns `defaultSection=tt`, the `defaultScale=1e-6` wrapper policy, and requires
 the reviewed BSIM4 4.8.3 native module and declared Python runtime. These are local
 candidate identities, **not registered/qualified hosted Profiles**.
 
@@ -48,15 +50,15 @@ candidate identities, **not registered/qualified hosted Profiles**.
 `containers/vacask/starter-journey.test.mjs` compiles all eight folders and uses
 the public Prepare/Start/Read and paged File resources for actual native runs.
 Set `VACASK_BIN`, `VACASK_MODULES`, `ICM_PYTHON`, `ICM_PYTHON_LIBRARIES`, and the
-explicit `ICM_VACASK_CONVERTED_TT`, `_FF`, `_SS` file paths. Optional
+explicit `ICM_VACASK_SECTIONED_MANIFEST` package-manifest path. Optional
 `ICM_VACASK_EVIDENCE_DIR` preserves fresh per-folder public artifacts and executed
 inputs, rather than replacing previous observations.
 
 Checks cover all 54 OP outputs, 81 DC inputs, 541 AC points in each corner,
 271 noise points, both distinct pulse stimuli, authored measurements recomputed
 from arrays, and CSV availability. All 19 starter programs are exercised because
-the report is shared. This is source/result fidelity, not a replacement for the
-strict cross-engine qualification in the [migration plan](../../docs/roadmap/vacask-migration.md).
+the report is shared. This is native source/result fidelity, as required by the
+[migration plan](../../docs/roadmap/vacask-migration.md), not cross-engine equivalence.
 
 BSIM4 4.8.3 is a user-approved model-version upgrade. Native noise integration
 is labelled `trapezoidal-psd`, not passed off as ngspice's per-source integral.

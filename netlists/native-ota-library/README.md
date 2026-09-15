@@ -27,8 +27,9 @@ and cannot replace this twelve-experiment fixture.
 Native TRAN uses the old step as the maximum adaptive step as well as the initial
 step; it does not promise the same sample grid as ngspice. Combined programs
 restore `VINP` to its Canvas pulse/DC value after the DC sweep. Model scale stays
-Profile-owned. Each corner requests `vacask-sky130-<corner>-candidate` with the
-actual converted model digest; a missing Profile remains a repairable environment
+Profile-owned. All corners request `vacask-sky130-candidate` with the same
+sectioned model digest; the authored include selects its original section.
+A missing Profile remains a repairable environment
 error, not a reason to use TT or the previous simulator.
 
 M1/M3 parameters are saved only for OP. The full experiment uses `clear saves`
@@ -58,8 +59,8 @@ source/report identity, wrapper-selected device parameters, all twelve public
 Prepare/Run/Read flows, measurements independently recomputed from returned
 arrays, analysis ranges, original waveforms, and downloadable CSVs. Runtime
 checks require the explicit VACASK/Python/model variables documented in the
-adjacent starter READMEs, with `ICM_VACASK_CONVERTED_FS` and
-`ICM_VACASK_CONVERTED_SF` in addition to TT/FF/SS.
+adjacent starter READMEs, with `ICM_VACASK_SECTIONED_MANIFEST` selecting the
+package containing all five sections. No per-corner runtime or Profile is needed.
 
 Local execution with VACASK 0.3.4, corrected BSIM4 4.8.3 and Python 3.12 passes
 all sixteen source/runtime tests, exercising 31 folders (19 starters plus these

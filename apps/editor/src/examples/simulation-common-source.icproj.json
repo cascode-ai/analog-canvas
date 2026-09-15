@@ -1159,8 +1159,8 @@
         "configPath": "experiment.json",
         "dependencies": [
           {
-            "id": "sky130-native-tt",
-            "sha256": "3e7d81854cf3a26eb8c89fcec4c748fb718b16b1e113a75ed112dc9089acf224",
+            "id": "sky130-native-sections",
+            "sha256": "64234ef53dfecb8dd6ea0094c05d65c071c0220563917b3113b78be146bc021c",
             "mountPath": "models/library.inc"
           }
         ],
@@ -1168,11 +1168,11 @@
         "files": [
           {
             "path": "run.cir",
-            "text": "01 Bias | Native Device OP\n// 1. Adjust sources or device parameters on Canvas.\n// 2. Click Run.\n// 3. Open Operating Point for node voltages and native model values.\nground 0\ninclude \"models/library.inc\"\ninclude \"circuit.spice\"\ncontrol\nabort always\noptions rawfile=\"ascii\" strictsave=2 temp=27 reltol=1e-8 abstol=1e-12 vntol=1e-10\nsave v(in) v(out) i(VDD)\nsave p('XM1:msky130_fd_pr__nfet_01v8',id) p('XM1:msky130_fd_pr__nfet_01v8',vgs) p('XM1:msky130_fd_pr__nfet_01v8',vds) p('XM1:msky130_fd_pr__nfet_01v8',vbs) p('XM1:msky130_fd_pr__nfet_01v8',gm) p('XM1:msky130_fd_pr__nfet_01v8',gds) p('XM1:msky130_fd_pr__nfet_01v8',gmbs) p('XM1:msky130_fd_pr__nfet_01v8',vth) p('XM1:msky130_fd_pr__nfet_01v8',vdsat)\nanalysis bias op\nendc\n"
+            "text": "01 Bias | Native Device OP\n// 1. Adjust sources or device parameters on Canvas.\n// 2. Click Run.\n// 3. Open Operating Point for node voltages and native model values.\nground 0\ninclude \"models/library.inc\" section=tt\ninclude \"circuit.spice\"\ncontrol\nabort always\noptions rawfile=\"ascii\" strictsave=2 temp=27 reltol=1e-8 abstol=1e-12 vntol=1e-10\nsave v(in) v(out) i(VDD)\nsave p('XM1:msky130_fd_pr__nfet_01v8',id) p('XM1:msky130_fd_pr__nfet_01v8',vgs) p('XM1:msky130_fd_pr__nfet_01v8',vds) p('XM1:msky130_fd_pr__nfet_01v8',vbs) p('XM1:msky130_fd_pr__nfet_01v8',gm) p('XM1:msky130_fd_pr__nfet_01v8',gds) p('XM1:msky130_fd_pr__nfet_01v8',gmbs) p('XM1:msky130_fd_pr__nfet_01v8',vth) p('XM1:msky130_fd_pr__nfet_01v8',vdsat)\nanalysis bias op\nendc\n"
           },
           {
             "path": "experiment.json",
-            "text": "{\n  \"version\": 2,\n  \"environment\": {\n    \"profileId\": \"vacask-sky130-tt-candidate\"\n  }\n}\n"
+            "text": "{\n  \"version\": 2,\n  \"environment\": {\n    \"profileId\": \"vacask-sky130-candidate\"\n  }\n}\n"
           }
         ],
         "kind": "source"
@@ -1194,8 +1194,8 @@
         "configPath": "experiment.json",
         "dependencies": [
           {
-            "id": "sky130-native-tt",
-            "sha256": "3e7d81854cf3a26eb8c89fcec4c748fb718b16b1e113a75ed112dc9089acf224",
+            "id": "sky130-native-sections",
+            "sha256": "64234ef53dfecb8dd6ea0094c05d65c071c0220563917b3113b78be146bc021c",
             "mountPath": "models/library.inc"
           }
         ],
@@ -1203,11 +1203,11 @@
         "files": [
           {
             "path": "run.cir",
-            "text": "02 DC transfer\n// 1. Edit the VIN sweep below; Canvas still owns the circuit.\n// 2. Click Run.\n// 3. Plot out against the input sweep.\nground 0\ninclude \"models/library.inc\"\ninclude \"circuit.spice\"\ncontrol\nabort always\noptions rawfile=\"ascii\" strictsave=2 temp=27 reltol=1e-8 abstol=1e-12 vntol=1e-10\nsave v(in) v(out) i(VDD)\n// A native sine source must explicitly enter DC mode for this parameter sweep.\nalter instance(\"VIN\") type=\"dc\"\nsweep input instance=\"VIN\" parameter=\"dc\" from=0.3 to=1.2 step=0.005\nanalysis transfer op\nendc\n"
+            "text": "02 DC transfer\n// 1. Edit the VIN sweep below; Canvas still owns the circuit.\n// 2. Click Run.\n// 3. Plot out against the input sweep.\nground 0\ninclude \"models/library.inc\" section=tt\ninclude \"circuit.spice\"\ncontrol\nabort always\noptions rawfile=\"ascii\" strictsave=2 temp=27 reltol=1e-8 abstol=1e-12 vntol=1e-10\nsave v(in) v(out) i(VDD)\n// A native sine source must explicitly enter DC mode for this parameter sweep.\nalter instance(\"VIN\") type=\"dc\"\nsweep input instance=\"VIN\" parameter=\"dc\" from=0.3 to=1.2 step=0.005\nanalysis transfer op\nendc\n"
           },
           {
             "path": "experiment.json",
-            "text": "{\n  \"version\": 2,\n  \"environment\": {\n    \"profileId\": \"vacask-sky130-tt-candidate\"\n  }\n}\n"
+            "text": "{\n  \"version\": 2,\n  \"environment\": {\n    \"profileId\": \"vacask-sky130-candidate\"\n  }\n}\n"
           }
         ],
         "kind": "source"
@@ -1229,8 +1229,8 @@
         "configPath": "experiment.json",
         "dependencies": [
           {
-            "id": "sky130-native-tt",
-            "sha256": "3e7d81854cf3a26eb8c89fcec4c748fb718b16b1e113a75ed112dc9089acf224",
+            "id": "sky130-native-sections",
+            "sha256": "64234ef53dfecb8dd6ea0094c05d65c071c0220563917b3113b78be146bc021c",
             "mountPath": "models/library.inc"
           }
         ],
@@ -1238,11 +1238,11 @@
         "files": [
           {
             "path": "run.cir",
-            "text": "03 AC gain and bandwidth\n// 1. Edit frequency limits below or circuit parameters on Canvas.\n// 2. Click Run.\n// 3. Plot Gain in dB/phase and read gain_db_1khz from Measurements.\nground 0\ninclude \"models/library.inc\"\ninclude \"circuit.spice\"\ncontrol\nabort always\noptions rawfile=\"ascii\" strictsave=2 temp=27 reltol=1e-8 abstol=1e-12 vntol=1e-10\nsave v(in) v(out)\nanalysis frequency ac from=10 to=1G mode=\"dec\" points=80\npostprocess(PYTHON,\"report.py\",\"cs-ac\")\nendc\n"
+            "text": "03 AC gain and bandwidth\n// 1. Edit frequency limits below or circuit parameters on Canvas.\n// 2. Click Run.\n// 3. Plot Gain in dB/phase and read gain_db_1khz from Measurements.\nground 0\ninclude \"models/library.inc\" section=tt\ninclude \"circuit.spice\"\ncontrol\nabort always\noptions rawfile=\"ascii\" strictsave=2 temp=27 reltol=1e-8 abstol=1e-12 vntol=1e-10\nsave v(in) v(out)\nanalysis frequency ac from=10 to=1G mode=\"dec\" points=80\npostprocess(PYTHON,\"report.py\",\"cs-ac\")\nendc\n"
           },
           {
             "path": "experiment.json",
-            "text": "{\n  \"version\": 2,\n  \"environment\": {\n    \"profileId\": \"vacask-sky130-tt-candidate\"\n  }\n}\n"
+            "text": "{\n  \"version\": 2,\n  \"environment\": {\n    \"profileId\": \"vacask-sky130-candidate\"\n  }\n}\n"
           },
           {
             "path": "report.py",
@@ -1272,8 +1272,8 @@
         "configPath": "experiment.json",
         "dependencies": [
           {
-            "id": "sky130-native-tt",
-            "sha256": "3e7d81854cf3a26eb8c89fcec4c748fb718b16b1e113a75ed112dc9089acf224",
+            "id": "sky130-native-sections",
+            "sha256": "64234ef53dfecb8dd6ea0094c05d65c071c0220563917b3113b78be146bc021c",
             "mountPath": "models/library.inc"
           }
         ],
@@ -1281,11 +1281,11 @@
         "files": [
           {
             "path": "run.cir",
-            "text": "04 Small and large signal | Native loop\n// 1. Edit the native amplitude sweep; keep both cases for comparison.\n// 2. Click Run.\n// 3. Plot the two signal records; output_pp uses 200-400 us for each case.\nground 0\ninclude \"models/library.inc\"\ninclude \"circuit.spice\"\ncontrol\nabort always\noptions rawfile=\"ascii\" strictsave=2 temp=27 reltol=1e-8 abstol=1e-12 vntol=1e-10\nsave v(in) v(out)\nalter instance(\"VIN\") type=\"sine\" sinedc=0.7 freq=10k\nsweep amplitude instance=\"VIN\" parameter=\"ampl\" values=[0.01,0.2] continuation=0\nanalysis signal tran stop=400u step=0.2u maxstep=0.2u\n// Split by the returned amplitude column, not guessed point counts or frontend state.\npostprocess(PYTHON,\"report.py\",\"cs-tran\")\nendc\n"
+            "text": "04 Small and large signal | Native loop\n// 1. Edit the native amplitude sweep; keep both cases for comparison.\n// 2. Click Run.\n// 3. Plot the two signal records; output_pp uses 200-400 us for each case.\nground 0\ninclude \"models/library.inc\" section=tt\ninclude \"circuit.spice\"\ncontrol\nabort always\noptions rawfile=\"ascii\" strictsave=2 temp=27 reltol=1e-8 abstol=1e-12 vntol=1e-10\nsave v(in) v(out)\nalter instance(\"VIN\") type=\"sine\" sinedc=0.7 freq=10k\nsweep amplitude instance=\"VIN\" parameter=\"ampl\" values=[0.01,0.2] continuation=0\nanalysis signal tran stop=400u step=0.2u maxstep=0.2u\n// Split by the returned amplitude column, not guessed point counts or frontend state.\npostprocess(PYTHON,\"report.py\",\"cs-tran\")\nendc\n"
           },
           {
             "path": "experiment.json",
-            "text": "{\n  \"version\": 2,\n  \"environment\": {\n    \"profileId\": \"vacask-sky130-tt-candidate\"\n  }\n}\n"
+            "text": "{\n  \"version\": 2,\n  \"environment\": {\n    \"profileId\": \"vacask-sky130-candidate\"\n  }\n}\n"
           },
           {
             "path": "report.py",

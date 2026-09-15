@@ -316,9 +316,11 @@ describe("the bundled five-transistor Sky130 OTA", () => {
         return [
           folder.id,
           sourcePresentation(folder).analysisLabel,
-          parsed.config.environment.profileId
-            .replace("vacask-sky130-", "")
-            .replace("-candidate", ""),
+          folder.input.files
+            .find((f) => f.path === folder.input.entry)
+            ?.text.match(
+              /include "models\/library\.inc" section=(tt|ff|ss|fs|sf)/u,
+            )?.[1],
         ];
       }),
     ).toEqual(expected);

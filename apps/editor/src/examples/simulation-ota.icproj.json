@@ -2873,8 +2873,8 @@
         "configPath": "experiment.json",
         "dependencies": [
           {
-            "id": "sky130-native-tt",
-            "sha256": "3e7d81854cf3a26eb8c89fcec4c748fb718b16b1e113a75ed112dc9089acf224",
+            "id": "sky130-native-sections",
+            "sha256": "64234ef53dfecb8dd6ea0094c05d65c071c0220563917b3113b78be146bc021c",
             "mountPath": "models/library.inc"
           }
         ],
@@ -2882,11 +2882,11 @@
         "files": [
           {
             "path": "run.cir",
-            "text": "01 Bias | Native Device OP\n// 1. Adjust sources or device parameters on Canvas.\n// 2. Click Run.\n// 3. Open Operating Point for native model outputs; Measurements reports supply current.\nground 0\ninclude \"models/library.inc\"\ninclude \"circuit.spice\"\ncontrol\nabort always\noptions rawfile=\"ascii\" strictsave=2 temp=27 reltol=1e-8 abstol=1e-12 vntol=1e-10\n// N0001 is the current IR name of the Canvas IBIAS/XDUT.ibias connection.\nsave v(vout) v(N0001) v('XDUT:tail') v('XDUT:nleft') i(VDD)\nsave p('XDUT:XM1:msky130_fd_pr__nfet_01v8',id) p('XDUT:XM1:msky130_fd_pr__nfet_01v8',vgs) p('XDUT:XM1:msky130_fd_pr__nfet_01v8',vds) p('XDUT:XM1:msky130_fd_pr__nfet_01v8',vbs) p('XDUT:XM1:msky130_fd_pr__nfet_01v8',gm) p('XDUT:XM1:msky130_fd_pr__nfet_01v8',gds) p('XDUT:XM1:msky130_fd_pr__nfet_01v8',gmbs) p('XDUT:XM1:msky130_fd_pr__nfet_01v8',vth) p('XDUT:XM1:msky130_fd_pr__nfet_01v8',vdsat)\nsave p('XDUT:XM2:msky130_fd_pr__nfet_01v8',id) p('XDUT:XM2:msky130_fd_pr__nfet_01v8',vgs) p('XDUT:XM2:msky130_fd_pr__nfet_01v8',vds) p('XDUT:XM2:msky130_fd_pr__nfet_01v8',vbs) p('XDUT:XM2:msky130_fd_pr__nfet_01v8',gm) p('XDUT:XM2:msky130_fd_pr__nfet_01v8',gds) p('XDUT:XM2:msky130_fd_pr__nfet_01v8',gmbs) p('XDUT:XM2:msky130_fd_pr__nfet_01v8',vth) p('XDUT:XM2:msky130_fd_pr__nfet_01v8',vdsat)\nsave p('XDUT:XM3:msky130_fd_pr__pfet_01v8',id) p('XDUT:XM3:msky130_fd_pr__pfet_01v8',vgs) p('XDUT:XM3:msky130_fd_pr__pfet_01v8',vds) p('XDUT:XM3:msky130_fd_pr__pfet_01v8',vbs) p('XDUT:XM3:msky130_fd_pr__pfet_01v8',gm) p('XDUT:XM3:msky130_fd_pr__pfet_01v8',gds) p('XDUT:XM3:msky130_fd_pr__pfet_01v8',gmbs) p('XDUT:XM3:msky130_fd_pr__pfet_01v8',vth) p('XDUT:XM3:msky130_fd_pr__pfet_01v8',vdsat)\nsave p('XDUT:XM4:msky130_fd_pr__pfet_01v8',id) p('XDUT:XM4:msky130_fd_pr__pfet_01v8',vgs) p('XDUT:XM4:msky130_fd_pr__pfet_01v8',vds) p('XDUT:XM4:msky130_fd_pr__pfet_01v8',vbs) p('XDUT:XM4:msky130_fd_pr__pfet_01v8',gm) p('XDUT:XM4:msky130_fd_pr__pfet_01v8',gds) p('XDUT:XM4:msky130_fd_pr__pfet_01v8',gmbs) p('XDUT:XM4:msky130_fd_pr__pfet_01v8',vth) p('XDUT:XM4:msky130_fd_pr__pfet_01v8',vdsat)\nsave p('XDUT:XM5:msky130_fd_pr__nfet_01v8',id) p('XDUT:XM5:msky130_fd_pr__nfet_01v8',vgs) p('XDUT:XM5:msky130_fd_pr__nfet_01v8',vds) p('XDUT:XM5:msky130_fd_pr__nfet_01v8',vbs) p('XDUT:XM5:msky130_fd_pr__nfet_01v8',gm) p('XDUT:XM5:msky130_fd_pr__nfet_01v8',gds) p('XDUT:XM5:msky130_fd_pr__nfet_01v8',gmbs) p('XDUT:XM5:msky130_fd_pr__nfet_01v8',vth) p('XDUT:XM5:msky130_fd_pr__nfet_01v8',vdsat)\nsave p('XDUT:XM6:msky130_fd_pr__nfet_01v8',id) p('XDUT:XM6:msky130_fd_pr__nfet_01v8',vgs) p('XDUT:XM6:msky130_fd_pr__nfet_01v8',vds) p('XDUT:XM6:msky130_fd_pr__nfet_01v8',vbs) p('XDUT:XM6:msky130_fd_pr__nfet_01v8',gm) p('XDUT:XM6:msky130_fd_pr__nfet_01v8',gds) p('XDUT:XM6:msky130_fd_pr__nfet_01v8',gmbs) p('XDUT:XM6:msky130_fd_pr__nfet_01v8',vth) p('XDUT:XM6:msky130_fd_pr__nfet_01v8',vdsat)\nanalysis bias op\npostprocess(PYTHON,\"report.py\",\"ota-op\")\nendc\n"
+            "text": "01 Bias | Native Device OP\n// 1. Adjust sources or device parameters on Canvas.\n// 2. Click Run.\n// 3. Open Operating Point for native model outputs; Measurements reports supply current.\nground 0\ninclude \"models/library.inc\" section=tt\ninclude \"circuit.spice\"\ncontrol\nabort always\noptions rawfile=\"ascii\" strictsave=2 temp=27 reltol=1e-8 abstol=1e-12 vntol=1e-10\n// N0001 is the current IR name of the Canvas IBIAS/XDUT.ibias connection.\nsave v(vout) v(N0001) v('XDUT:tail') v('XDUT:nleft') i(VDD)\nsave p('XDUT:XM1:msky130_fd_pr__nfet_01v8',id) p('XDUT:XM1:msky130_fd_pr__nfet_01v8',vgs) p('XDUT:XM1:msky130_fd_pr__nfet_01v8',vds) p('XDUT:XM1:msky130_fd_pr__nfet_01v8',vbs) p('XDUT:XM1:msky130_fd_pr__nfet_01v8',gm) p('XDUT:XM1:msky130_fd_pr__nfet_01v8',gds) p('XDUT:XM1:msky130_fd_pr__nfet_01v8',gmbs) p('XDUT:XM1:msky130_fd_pr__nfet_01v8',vth) p('XDUT:XM1:msky130_fd_pr__nfet_01v8',vdsat)\nsave p('XDUT:XM2:msky130_fd_pr__nfet_01v8',id) p('XDUT:XM2:msky130_fd_pr__nfet_01v8',vgs) p('XDUT:XM2:msky130_fd_pr__nfet_01v8',vds) p('XDUT:XM2:msky130_fd_pr__nfet_01v8',vbs) p('XDUT:XM2:msky130_fd_pr__nfet_01v8',gm) p('XDUT:XM2:msky130_fd_pr__nfet_01v8',gds) p('XDUT:XM2:msky130_fd_pr__nfet_01v8',gmbs) p('XDUT:XM2:msky130_fd_pr__nfet_01v8',vth) p('XDUT:XM2:msky130_fd_pr__nfet_01v8',vdsat)\nsave p('XDUT:XM3:msky130_fd_pr__pfet_01v8',id) p('XDUT:XM3:msky130_fd_pr__pfet_01v8',vgs) p('XDUT:XM3:msky130_fd_pr__pfet_01v8',vds) p('XDUT:XM3:msky130_fd_pr__pfet_01v8',vbs) p('XDUT:XM3:msky130_fd_pr__pfet_01v8',gm) p('XDUT:XM3:msky130_fd_pr__pfet_01v8',gds) p('XDUT:XM3:msky130_fd_pr__pfet_01v8',gmbs) p('XDUT:XM3:msky130_fd_pr__pfet_01v8',vth) p('XDUT:XM3:msky130_fd_pr__pfet_01v8',vdsat)\nsave p('XDUT:XM4:msky130_fd_pr__pfet_01v8',id) p('XDUT:XM4:msky130_fd_pr__pfet_01v8',vgs) p('XDUT:XM4:msky130_fd_pr__pfet_01v8',vds) p('XDUT:XM4:msky130_fd_pr__pfet_01v8',vbs) p('XDUT:XM4:msky130_fd_pr__pfet_01v8',gm) p('XDUT:XM4:msky130_fd_pr__pfet_01v8',gds) p('XDUT:XM4:msky130_fd_pr__pfet_01v8',gmbs) p('XDUT:XM4:msky130_fd_pr__pfet_01v8',vth) p('XDUT:XM4:msky130_fd_pr__pfet_01v8',vdsat)\nsave p('XDUT:XM5:msky130_fd_pr__nfet_01v8',id) p('XDUT:XM5:msky130_fd_pr__nfet_01v8',vgs) p('XDUT:XM5:msky130_fd_pr__nfet_01v8',vds) p('XDUT:XM5:msky130_fd_pr__nfet_01v8',vbs) p('XDUT:XM5:msky130_fd_pr__nfet_01v8',gm) p('XDUT:XM5:msky130_fd_pr__nfet_01v8',gds) p('XDUT:XM5:msky130_fd_pr__nfet_01v8',gmbs) p('XDUT:XM5:msky130_fd_pr__nfet_01v8',vth) p('XDUT:XM5:msky130_fd_pr__nfet_01v8',vdsat)\nsave p('XDUT:XM6:msky130_fd_pr__nfet_01v8',id) p('XDUT:XM6:msky130_fd_pr__nfet_01v8',vgs) p('XDUT:XM6:msky130_fd_pr__nfet_01v8',vds) p('XDUT:XM6:msky130_fd_pr__nfet_01v8',vbs) p('XDUT:XM6:msky130_fd_pr__nfet_01v8',gm) p('XDUT:XM6:msky130_fd_pr__nfet_01v8',gds) p('XDUT:XM6:msky130_fd_pr__nfet_01v8',gmbs) p('XDUT:XM6:msky130_fd_pr__nfet_01v8',vth) p('XDUT:XM6:msky130_fd_pr__nfet_01v8',vdsat)\nanalysis bias op\npostprocess(PYTHON,\"report.py\",\"ota-op\")\nendc\n"
           },
           {
             "path": "experiment.json",
-            "text": "{\n  \"version\": 2,\n  \"environment\": {\n    \"profileId\": \"vacask-sky130-tt-candidate\"\n  }\n}\n"
+            "text": "{\n  \"version\": 2,\n  \"environment\": {\n    \"profileId\": \"vacask-sky130-candidate\"\n  }\n}\n"
           },
           {
             "path": "report.py",
@@ -2916,8 +2916,8 @@
         "configPath": "experiment.json",
         "dependencies": [
           {
-            "id": "sky130-native-tt",
-            "sha256": "3e7d81854cf3a26eb8c89fcec4c748fb718b16b1e113a75ed112dc9089acf224",
+            "id": "sky130-native-sections",
+            "sha256": "64234ef53dfecb8dd6ea0094c05d65c071c0220563917b3113b78be146bc021c",
             "mountPath": "models/library.inc"
           }
         ],
@@ -2925,11 +2925,11 @@
         "files": [
           {
             "path": "run.cir",
-            "text": "02 DC transfer\n// 1. Edit the input sweep or sources on Canvas.\n// 2. Click Run.\n// 3. Plot output and tail against input voltage.\nground 0\ninclude \"models/library.inc\"\ninclude \"circuit.spice\"\ncontrol\nabort always\noptions rawfile=\"ascii\" strictsave=2 temp=27 reltol=1e-8 abstol=1e-12 vntol=1e-10\nsave v(vinp) v(vout) v('XDUT:tail')\nalter instance(\"VINP\") type=\"dc\"\nsweep input instance=\"VINP\" parameter=\"dc\" from=0.86 to=0.94 step=0.001\nanalysis transfer op\nendc\n"
+            "text": "02 DC transfer\n// 1. Edit the input sweep or sources on Canvas.\n// 2. Click Run.\n// 3. Plot output and tail against input voltage.\nground 0\ninclude \"models/library.inc\" section=tt\ninclude \"circuit.spice\"\ncontrol\nabort always\noptions rawfile=\"ascii\" strictsave=2 temp=27 reltol=1e-8 abstol=1e-12 vntol=1e-10\nsave v(vinp) v(vout) v('XDUT:tail')\nalter instance(\"VINP\") type=\"dc\"\nsweep input instance=\"VINP\" parameter=\"dc\" from=0.86 to=0.94 step=0.001\nanalysis transfer op\nendc\n"
           },
           {
             "path": "experiment.json",
-            "text": "{\n  \"version\": 2,\n  \"environment\": {\n    \"profileId\": \"vacask-sky130-tt-candidate\"\n  }\n}\n"
+            "text": "{\n  \"version\": 2,\n  \"environment\": {\n    \"profileId\": \"vacask-sky130-candidate\"\n  }\n}\n"
           }
         ],
         "kind": "source"
@@ -2951,8 +2951,8 @@
         "configPath": "experiment.json",
         "dependencies": [
           {
-            "id": "sky130-native-tt",
-            "sha256": "3e7d81854cf3a26eb8c89fcec4c748fb718b16b1e113a75ed112dc9089acf224",
+            "id": "sky130-native-sections",
+            "sha256": "64234ef53dfecb8dd6ea0094c05d65c071c0220563917b3113b78be146bc021c",
             "mountPath": "models/library.inc"
           }
         ],
@@ -2960,11 +2960,11 @@
         "files": [
           {
             "path": "run.cir",
-            "text": "03 Open-loop AC | TT\n// 1. Edit the frequency range or sources on Canvas; the folder requests its corner Profile.\n// 2. Click Run.\n// 3. Plot Gain in dB/phase; Measurements reports DC gain and first falling unity crossing.\nground 0\ninclude \"models/library.inc\"\ninclude \"circuit.spice\"\ncontrol\nabort always\noptions rawfile=\"ascii\" strictsave=2 temp=27 reltol=1e-8 abstol=1e-12 vntol=1e-10\nsave v(vinp) v(vout)\n// AC is a small-signal response, not an output-swing test.\nanalysis frequency ac from=1 to=1G mode=\"dec\" points=60\npostprocess(PYTHON,\"report.py\",\"ota-ac\")\nendc\n"
+            "text": "03 Open-loop AC | TT\n// 1. Edit the frequency range or sources on Canvas; the folder requests its corner Profile.\n// 2. Click Run.\n// 3. Plot Gain in dB/phase; Measurements reports DC gain and first falling unity crossing.\nground 0\ninclude \"models/library.inc\" section=tt\ninclude \"circuit.spice\"\ncontrol\nabort always\noptions rawfile=\"ascii\" strictsave=2 temp=27 reltol=1e-8 abstol=1e-12 vntol=1e-10\nsave v(vinp) v(vout)\n// AC is a small-signal response, not an output-swing test.\nanalysis frequency ac from=1 to=1G mode=\"dec\" points=60\npostprocess(PYTHON,\"report.py\",\"ota-ac\")\nendc\n"
           },
           {
             "path": "experiment.json",
-            "text": "{\n  \"version\": 2,\n  \"environment\": {\n    \"profileId\": \"vacask-sky130-tt-candidate\"\n  }\n}\n"
+            "text": "{\n  \"version\": 2,\n  \"environment\": {\n    \"profileId\": \"vacask-sky130-candidate\"\n  }\n}\n"
           },
           {
             "path": "report.py",
@@ -2994,8 +2994,8 @@
         "configPath": "experiment.json",
         "dependencies": [
           {
-            "id": "sky130-native-ff",
-            "sha256": "c92a1e840e3ed749dc1d51218f8771358a0dc80b1e9ab339348fd3870fe5b849",
+            "id": "sky130-native-sections",
+            "sha256": "64234ef53dfecb8dd6ea0094c05d65c071c0220563917b3113b78be146bc021c",
             "mountPath": "models/library.inc"
           }
         ],
@@ -3003,11 +3003,11 @@
         "files": [
           {
             "path": "run.cir",
-            "text": "04 Open-loop AC | FF\n// 1. Edit the frequency range or sources on Canvas; the folder requests its corner Profile.\n// 2. Click Run.\n// 3. Plot Gain in dB/phase; Measurements reports DC gain and first falling unity crossing.\nground 0\ninclude \"models/library.inc\"\ninclude \"circuit.spice\"\ncontrol\nabort always\noptions rawfile=\"ascii\" strictsave=2 temp=27 reltol=1e-8 abstol=1e-12 vntol=1e-10\nsave v(vinp) v(vout)\n// AC is a small-signal response, not an output-swing test.\nanalysis frequency ac from=1 to=1G mode=\"dec\" points=60\npostprocess(PYTHON,\"report.py\",\"ota-ac\")\nendc\n"
+            "text": "04 Open-loop AC | FF\n// 1. Edit the frequency range or sources on Canvas; the folder requests its corner Profile.\n// 2. Click Run.\n// 3. Plot Gain in dB/phase; Measurements reports DC gain and first falling unity crossing.\nground 0\ninclude \"models/library.inc\" section=ff\ninclude \"circuit.spice\"\ncontrol\nabort always\noptions rawfile=\"ascii\" strictsave=2 temp=27 reltol=1e-8 abstol=1e-12 vntol=1e-10\nsave v(vinp) v(vout)\n// AC is a small-signal response, not an output-swing test.\nanalysis frequency ac from=1 to=1G mode=\"dec\" points=60\npostprocess(PYTHON,\"report.py\",\"ota-ac\")\nendc\n"
           },
           {
             "path": "experiment.json",
-            "text": "{\n  \"version\": 2,\n  \"environment\": {\n    \"profileId\": \"vacask-sky130-ff-candidate\"\n  }\n}\n"
+            "text": "{\n  \"version\": 2,\n  \"environment\": {\n    \"profileId\": \"vacask-sky130-candidate\"\n  }\n}\n"
           },
           {
             "path": "report.py",
@@ -3037,8 +3037,8 @@
         "configPath": "experiment.json",
         "dependencies": [
           {
-            "id": "sky130-native-ss",
-            "sha256": "839b5fce374d8b2af0949a6534778308410cb2ca9c8e914eaf1db76b2c0a5827",
+            "id": "sky130-native-sections",
+            "sha256": "64234ef53dfecb8dd6ea0094c05d65c071c0220563917b3113b78be146bc021c",
             "mountPath": "models/library.inc"
           }
         ],
@@ -3046,11 +3046,11 @@
         "files": [
           {
             "path": "run.cir",
-            "text": "05 Open-loop AC | SS\n// 1. Edit the frequency range or sources on Canvas; the folder requests its corner Profile.\n// 2. Click Run.\n// 3. Plot Gain in dB/phase; Measurements reports DC gain and first falling unity crossing.\nground 0\ninclude \"models/library.inc\"\ninclude \"circuit.spice\"\ncontrol\nabort always\noptions rawfile=\"ascii\" strictsave=2 temp=27 reltol=1e-8 abstol=1e-12 vntol=1e-10\nsave v(vinp) v(vout)\n// AC is a small-signal response, not an output-swing test.\nanalysis frequency ac from=1 to=1G mode=\"dec\" points=60\npostprocess(PYTHON,\"report.py\",\"ota-ac\")\nendc\n"
+            "text": "05 Open-loop AC | SS\n// 1. Edit the frequency range or sources on Canvas; the folder requests its corner Profile.\n// 2. Click Run.\n// 3. Plot Gain in dB/phase; Measurements reports DC gain and first falling unity crossing.\nground 0\ninclude \"models/library.inc\" section=ss\ninclude \"circuit.spice\"\ncontrol\nabort always\noptions rawfile=\"ascii\" strictsave=2 temp=27 reltol=1e-8 abstol=1e-12 vntol=1e-10\nsave v(vinp) v(vout)\n// AC is a small-signal response, not an output-swing test.\nanalysis frequency ac from=1 to=1G mode=\"dec\" points=60\npostprocess(PYTHON,\"report.py\",\"ota-ac\")\nendc\n"
           },
           {
             "path": "experiment.json",
-            "text": "{\n  \"version\": 2,\n  \"environment\": {\n    \"profileId\": \"vacask-sky130-ss-candidate\"\n  }\n}\n"
+            "text": "{\n  \"version\": 2,\n  \"environment\": {\n    \"profileId\": \"vacask-sky130-candidate\"\n  }\n}\n"
           },
           {
             "path": "report.py",
@@ -3080,8 +3080,8 @@
         "configPath": "experiment.json",
         "dependencies": [
           {
-            "id": "sky130-native-tt",
-            "sha256": "3e7d81854cf3a26eb8c89fcec4c748fb718b16b1e113a75ed112dc9089acf224",
+            "id": "sky130-native-sections",
+            "sha256": "64234ef53dfecb8dd6ea0094c05d65c071c0220563917b3113b78be146bc021c",
             "mountPath": "models/library.inc"
           }
         ],
@@ -3089,11 +3089,11 @@
         "files": [
           {
             "path": "run.cir",
-            "text": "06 Open-loop input pulse\n// 1. Edit the input pulse on Canvas or the time limits below.\n// 2. Click Run.\n// 3. Plot input/output and inspect the full-run output extrema.\nground 0\ninclude \"models/library.inc\"\ninclude \"circuit.spice\"\ncontrol\nabort always\noptions rawfile=\"ascii\" strictsave=2 temp=27 reltol=1e-8 abstol=1e-12 vntol=1e-10\nsave v(vinp) v(vout)\nanalysis step tran stop=6u step=2n maxstep=2n\npostprocess(PYTHON,\"report.py\",\"ota-tran\")\nendc\n"
+            "text": "06 Open-loop input pulse\n// 1. Edit the input pulse on Canvas or the time limits below.\n// 2. Click Run.\n// 3. Plot input/output and inspect the full-run output extrema.\nground 0\ninclude \"models/library.inc\" section=tt\ninclude \"circuit.spice\"\ncontrol\nabort always\noptions rawfile=\"ascii\" strictsave=2 temp=27 reltol=1e-8 abstol=1e-12 vntol=1e-10\nsave v(vinp) v(vout)\nanalysis step tran stop=6u step=2n maxstep=2n\npostprocess(PYTHON,\"report.py\",\"ota-tran\")\nendc\n"
           },
           {
             "path": "experiment.json",
-            "text": "{\n  \"version\": 2,\n  \"environment\": {\n    \"profileId\": \"vacask-sky130-tt-candidate\"\n  }\n}\n"
+            "text": "{\n  \"version\": 2,\n  \"environment\": {\n    \"profileId\": \"vacask-sky130-candidate\"\n  }\n}\n"
           },
           {
             "path": "report.py",
@@ -3123,8 +3123,8 @@
         "configPath": "experiment.json",
         "dependencies": [
           {
-            "id": "sky130-native-tt",
-            "sha256": "3e7d81854cf3a26eb8c89fcec4c748fb718b16b1e113a75ed112dc9089acf224",
+            "id": "sky130-native-sections",
+            "sha256": "64234ef53dfecb8dd6ea0094c05d65c071c0220563917b3113b78be146bc021c",
             "mountPath": "models/library.inc"
           }
         ],
@@ -3132,11 +3132,11 @@
         "files": [
           {
             "path": "run.cir",
-            "text": "07 Input and output noise\n// 1. Edit frequency limits or circuit parameters on Canvas.\n// 2. Click Run.\n// 3. Plot native noise spectra and inspect the documented numerical integral.\nground 0\ninclude \"models/library.inc\"\ninclude \"circuit.spice\"\ncontrol\nabort always\noptions rawfile=\"ascii\" strictsave=2 temp=27 reltol=1e-8 abstol=1e-12 vntol=1e-10\nanalysis spectrum noise out=\"vout\" in=\"VINP\" from=1 to=1G mode=\"dec\" points=30\nendc\n"
+            "text": "07 Input and output noise\n// 1. Edit frequency limits or circuit parameters on Canvas.\n// 2. Click Run.\n// 3. Plot native noise spectra and inspect the documented numerical integral.\nground 0\ninclude \"models/library.inc\" section=tt\ninclude \"circuit.spice\"\ncontrol\nabort always\noptions rawfile=\"ascii\" strictsave=2 temp=27 reltol=1e-8 abstol=1e-12 vntol=1e-10\nanalysis spectrum noise out=\"vout\" in=\"VINP\" from=1 to=1G mode=\"dec\" points=30\nendc\n"
           },
           {
             "path": "experiment.json",
-            "text": "{\n  \"version\": 2,\n  \"environment\": {\n    \"profileId\": \"vacask-sky130-tt-candidate\"\n  }\n}\n"
+            "text": "{\n  \"version\": 2,\n  \"environment\": {\n    \"profileId\": \"vacask-sky130-candidate\"\n  }\n}\n"
           }
         ],
         "kind": "source"
@@ -3158,8 +3158,8 @@
         "configPath": "experiment.json",
         "dependencies": [
           {
-            "id": "sky130-native-tt",
-            "sha256": "3e7d81854cf3a26eb8c89fcec4c748fb718b16b1e113a75ed112dc9089acf224",
+            "id": "sky130-native-sections",
+            "sha256": "64234ef53dfecb8dd6ea0094c05d65c071c0220563917b3113b78be146bc021c",
             "mountPath": "models/library.inc"
           }
         ],
@@ -3167,11 +3167,11 @@
         "files": [
           {
             "path": "run.cir",
-            "text": "08 Unity feedback | AC + Step\n// 1. Edit the DUT on Canvas; edit sources, load and feedback in testbench.spice.\n// 2. Click Run.\n// 3. Plot closed-loop Gain and step; inspect the requested time-window measurements.\n// Only the DUT comes from Canvas; the visible open-loop TB is not instantiated.\nground 0\ninclude \"models/library.inc\"\ninclude \"circuit.spice\"\ninclude \"testbench.spice\"\ncontrol\nabort always\noptions rawfile=\"ascii\" strictsave=2 temp=27 reltol=1e-8 abstol=1e-12 vntol=1e-10\nsave v(vinp) v(vout) i(VDD)\nanalysis frequency ac from=1 to=1G mode=\"dec\" points=60\nanalysis step tran stop=6u step=1n maxstep=1n\npostprocess(PYTHON,\"report.py\",\"ota-closed\")\nendc\n"
+            "text": "08 Unity feedback | AC + Step\n// 1. Edit the DUT on Canvas; edit sources, load and feedback in testbench.spice.\n// 2. Click Run.\n// 3. Plot closed-loop Gain and step; inspect the requested time-window measurements.\n// Only the DUT comes from Canvas; the visible open-loop TB is not instantiated.\nground 0\ninclude \"models/library.inc\" section=tt\ninclude \"circuit.spice\"\ninclude \"testbench.spice\"\ncontrol\nabort always\noptions rawfile=\"ascii\" strictsave=2 temp=27 reltol=1e-8 abstol=1e-12 vntol=1e-10\nsave v(vinp) v(vout) i(VDD)\nanalysis frequency ac from=1 to=1G mode=\"dec\" points=60\nanalysis step tran stop=6u step=1n maxstep=1n\npostprocess(PYTHON,\"report.py\",\"ota-closed\")\nendc\n"
           },
           {
             "path": "experiment.json",
-            "text": "{\n  \"version\": 2,\n  \"environment\": {\n    \"profileId\": \"vacask-sky130-tt-candidate\"\n  }\n}\n"
+            "text": "{\n  \"version\": 2,\n  \"environment\": {\n    \"profileId\": \"vacask-sky130-candidate\"\n  }\n}\n"
           },
           {
             "path": "testbench.spice",

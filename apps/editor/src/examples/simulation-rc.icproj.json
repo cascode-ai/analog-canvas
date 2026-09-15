@@ -1256,7 +1256,7 @@
           },
           {
             "path": "experiment.json",
-            "text": "{\n  \"version\": 2,\n  \"environment\": {\n    \"profileId\": \"vacask-passives-v1\"\n  }\n}\n"
+            "text": "{\n  \"version\": 2,\n  \"environment\": {\n    \"profileId\": \"vacask-sky130-candidate\"\n  }\n}\n"
           }
         ],
         "kind": "source"
@@ -1293,7 +1293,7 @@
           },
           {
             "path": "experiment.json",
-            "text": "{\n  \"version\": 2,\n  \"environment\": {\n    \"profileId\": \"vacask-passives-v1\"\n  }\n}\n"
+            "text": "{\n  \"version\": 2,\n  \"environment\": {\n    \"profileId\": \"vacask-sky130-candidate\"\n  }\n}\n"
           }
         ],
         "kind": "source"
@@ -1330,7 +1330,7 @@
           },
           {
             "path": "experiment.json",
-            "text": "{\n  \"version\": 2,\n  \"environment\": {\n    \"profileId\": \"vacask-passives-v1\"\n  }\n}\n"
+            "text": "{\n  \"version\": 2,\n  \"environment\": {\n    \"profileId\": \"vacask-sky130-candidate\"\n  }\n}\n"
           }
         ],
         "kind": "source"
@@ -1367,7 +1367,7 @@
           },
           {
             "path": "experiment.json",
-            "text": "{\n  \"version\": 2,\n  \"environment\": {\n    \"profileId\": \"vacask-passives-v1\"\n  }\n}\n"
+            "text": "{\n  \"version\": 2,\n  \"environment\": {\n    \"profileId\": \"vacask-sky130-candidate\"\n  }\n}\n"
           }
         ],
         "kind": "source"

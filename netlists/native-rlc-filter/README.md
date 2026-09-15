@@ -25,7 +25,7 @@ ngspice runtime is added. RC and RLC copies are checked against one report sourc
   are maxima of returned samples, not fitted continuous-time peak estimates;
   final voltage is sampled at 1 ms. Original arrays remain available.
 
-`vacask-passives-v1` is an observed local candidate Profile request requiring
+`vacask-sky130-candidate` is an observed local candidate Profile request requiring
 native resistor/capacitor/inductor modules, voltage sources and declared Python3.
 It is not an already deployed/qualified hosted environment. Python uses only
 its standard library plus the copied reporting helpers. See the

@@ -34,8 +34,10 @@ frontend evaluator, new persisted analysis plan, or ngspice fallback is added.
 
 ## Environment and acceptance boundary
 
-`vacask-sky130-tt-candidate` requests the converted TT dependency and exact digest
-in [model-symbols-tt.json](../vacask-sky130/model-symbols-tt.json). Its Profile must
+`vacask-sky130-candidate` requests the single sectioned dependency and exact digest
+in [model-symbols-sections.json](../vacask-sky130/model-symbols-sections.json).
+The bundled source selects `include "models/library.inc" section=tt`; the templates
+here retain their unsectioned conversion-input include. Its Profile must
 declare wrapper `defaultScale=1e-6`; Canvas dimensions and source do not inject a
 second scale. It needs native BSIM4 4.8.3 with the reviewed chain-rule correction,
 the native R/C/source modules, and a declared Python 3 standard library.
@@ -51,7 +53,7 @@ is rerun because report code is shared.
 
 These checks establish example and result fidelity, **not equivalence to the old
 BSIM4 4.5/4.62 baseline**. Upgrading to 4.8.3 is user-authorized; coefficients are
-not retuned. Strict cross-engine/corner/model qualification remains governed by
-the [migration plan](../../docs/roadmap/vacask-migration.md), including unresolved
-OTA AC/TRAN differences. Local execution does not establish cloud isolation,
+not retuned. Native execution and complete finite results, not cross-engine
+numerical equivalence, are the [migration plan](../../docs/roadmap/vacask-migration.md)
+acceptance. Local execution does not establish cloud isolation,
 resource acceptance or production readiness.

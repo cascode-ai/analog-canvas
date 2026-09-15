@@ -1,5 +1,5 @@
 import { mkdir, mkdtemp, readFile, writeFile, rm } from "node:fs/promises";
-import { delimiter, join, resolve } from "node:path";
+import { delimiter, dirname, join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { afterAll, expect, it, vi } from "vitest";
 import { analyzeNativeExampleRuns } from "../../scripts/lib/native-example-acceptance.mjs";
@@ -637,31 +637,19 @@ const reference = (kind, name) =>
     "utf8",
   );
 
-const { library } = JSON.parse(
+const sectioned = JSON.parse(
   await readFile(
     new URL(
-      "../../netlists/vacask-sky130/model-symbols-tt.json",
+      "../../netlists/vacask-sky130/model-symbols-sections.json",
       import.meta.url,
     ),
     "utf8",
   ),
 );
 const cornerLibraries = Object.fromEntries(
-  await Promise.all(
-    ["tt", "ff", "ss", "fs", "sf"].map(async (corner) => [
-      corner,
-      JSON.parse(
-        await readFile(
-          new URL(
-            `../../netlists/vacask-sky130/model-symbols-${corner}.json`,
-            import.meta.url,
-          ),
-          "utf8",
-        ),
-      ).library,
-    ]),
-  ),
+  sectioned.modelSymbols.map((library) => [library.section, library]),
 );
+const library = cornerLibraries.tt;
 
 it("preserves all twelve Library OTA experiments, their circuits and native report source", async () => {
   const { project } = projects.find((p) => p.kind === "ota-library");
@@ -729,12 +717,19 @@ it("ships all eight OTA native folders without substituting corners or the code-
       (f) => f.path === folder.input.entry,
     ).text;
     expect(code).toBe(
-      folder.name + "\n" + template.slice(template.indexOf("\n") + 1),
+      folder.name +
+        "\n" +
+        template
+          .slice(template.indexOf("\n") + 1)
+          .replace(
+            'include "models/library.inc"',
+            'include "models/library.inc" section=' + corner,
+          ),
     );
     const compiled = compileSourceSimulation(project, folder);
     expect(compiled.ok, JSON.stringify(compiled)).toBe(true);
     expect(compiled.config.environment.profileId).toBe(
-      `vacask-sky130-${corner}-candidate`,
+      "vacask-sky130-candidate",
     );
     const lib = cornerLibraries[corner];
     expect(folder.input.dependencies).toEqual([
@@ -812,12 +807,19 @@ it("ships four native common-source experiments with converter-checked wrapper s
       (f) => f.path === folder.input.entry,
     ).text;
     expect(code).toBe(
-      folder.name + "\n" + template.slice(template.indexOf("\n") + 1),
+      folder.name +
+        "\n" +
+        template
+          .slice(template.indexOf("\n") + 1)
+          .replace(
+            'include "models/library.inc"',
+            'include "models/library.inc" section=tt',
+          ),
     );
     const compiled = compileSourceSimulation(project, folder);
     expect(compiled.ok, JSON.stringify(compiled)).toBe(true);
     expect(compiled.config.environment.profileId).toBe(
-      "vacask-sky130-tt-candidate",
+      "vacask-sky130-candidate",
     );
     expect(folder.input.dependencies).toEqual([
       {
@@ -889,7 +891,9 @@ it.each(projects.filter((p) => ["rc", "rlc"].includes(p.kind)))(
       );
       const compiled = compileSourceSimulation(project, folder);
       expect(compiled.ok, JSON.stringify(compiled)).toBe(true);
-      expect(compiled.config.environment.profileId).toBe("vacask-passives-v1");
+      expect(compiled.config.environment.profileId).toBe(
+        "vacask-sky130-candidate",
+      );
       expect(
         compiled.files.find((f) => f.path === "circuit.spice").text,
       ).toContain('load "capacitor.osdi"');
@@ -904,7 +908,8 @@ it
     !process.env.VACASK_BIN ||
       !process.env.VACASK_MODULES ||
       !process.env.ICM_PYTHON ||
-      !process.env.ICM_PYTHON_LIBRARIES,
+      !process.env.ICM_PYTHON_LIBRARIES ||
+      !process.env.ICM_VACASK_SECTIONED_MANIFEST,
   )
   .each(
     projects.flatMap((p) =>
@@ -916,25 +921,26 @@ it
     ),
   )(
   "runs bundled $kind $corner experiments through Prepare/Run/Read, measurements and CSV",
-  async ({ kind, project, corner }, context) => {
+  async ({ kind, project, corner }) => {
     const commonSource = kind === "common-source";
     const modelBacked = commonSource || kind.startsWith("ota");
     const lib = cornerLibraries[corner];
-    const modelPath =
-      process.env[`ICM_VACASK_CONVERTED_${corner.toUpperCase()}`];
-    if (modelBacked && !modelPath) context.skip();
-    const profile = modelBacked
-      ? {
-          id: `vacask-sky130-${corner}-candidate`,
-          corners: [],
-          dependencies: [{ id: lib.dependencyId, sha256: lib.sha256 }],
-          modelSymbols: [lib],
-          modelLibrary: {
-            dependencyId: lib.dependencyId,
-            defaultScale: 1e-6,
-          },
-        }
-      : { id: "vacask-passives-v1", corners: [] };
+    const manifestPath = resolve(process.env.ICM_VACASK_SECTIONED_MANIFEST);
+    const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+    expect(manifest.dependency).toEqual(sectioned.dependency);
+    expect(manifest.modelSymbols).toEqual(sectioned.modelSymbols);
+    const modelPath = join(dirname(manifestPath), manifest.library);
+    const profile = {
+      id: "vacask-sky130-candidate",
+      corners: sectioned.sections,
+      dependencies: [sectioned.dependency],
+      modelSymbols: sectioned.modelSymbols,
+      modelLibrary: {
+        dependencyId: lib.dependencyId,
+        defaultSection: "tt",
+        defaultScale: 1e-6,
+      },
+    };
     const before = structuredClone(project);
     const root = await mkdtemp(join(tmpdir(), `icm-${kind}-starters-`));
     try {
@@ -954,17 +960,13 @@ it
           binary: resolve(process.env.ICM_PYTHON),
           libraries: process.env.ICM_PYTHON_LIBRARIES.split(delimiter),
         },
-        ...(modelBacked
-          ? {
-              dependencies: [
-                {
-                  id: lib.dependencyId,
-                  sha256: lib.sha256,
-                  runtimePath: resolve(modelPath),
-                },
-              ],
-            }
-          : {}),
+        dependencies: [
+          {
+            id: lib.dependencyId,
+            sha256: lib.sha256,
+            runtimePath: resolve(modelPath),
+          },
+        ],
         ...(process.env.ICM_VACASK_LIBRARY_PATH
           ? { libraryPath: process.env.ICM_VACASK_LIBRARY_PATH }
           : {}),
@@ -1013,10 +1015,9 @@ it
       for (const folder of project.simulationFolders) {
         if (
           modelBacked &&
-          JSON.parse(
-            folder.input.files.find((f) => f.path === folder.input.configPath)
-              .text,
-          ).environment.profileId !== profile.id
+          compileSourceSimulation(project, folder).includes.find(
+            (load) => load.target === "models/library.inc",
+          )?.section !== corner
         )
           continue;
         const prepared = await service.handle(

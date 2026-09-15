@@ -15,7 +15,7 @@ unchanged. No Gallery data is modified.
 
 ## Environment and semantics
 
-The requested `vacask-passives-v1` Profile needs native resistor/capacitor OSDI,
+The requested `vacask-sky130-candidate` Profile needs native resistor/capacitor OSDI,
 voltage sources and a declared Python 3 runtime. This is a local candidate name,
 not an available or qualified hosted Profile. Select/configure an actual matching
 native environment before Run; no ngspice fallback or automatic Profile swap.
