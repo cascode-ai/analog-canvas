@@ -1,0 +1,77 @@
+Title: Illustrative BSIM4 output semantics, not foundry qualification
+Date: Tue Sep 15 14:14:27 2026
+Plotname: Operating Point
+Flags: real
+No. Variables: 34
+No. Points: 1               
+Variables:
+	0	dn1	notype
+	1	gn	notype
+	2	dn3	notype
+	3	dp1	notype
+	4	gp	notype
+	5	dp3	notype
+	6	VDN1:flow(br)	notype
+	7	VDN3:flow(br)	notype
+	8	VDP1:flow(br)	notype
+	9	VDP3:flow(br)	notype
+	10	VGN:flow(br)	notype
+	11	VGP:flow(br)	notype
+	12	N1.id	notype
+	13	N3.id	notype
+	14	P1.id	notype
+	15	P3.id	notype
+	16	N1.gm	notype
+	17	N3.gm	notype
+	18	P1.gm	notype
+	19	P3.gm	notype
+	20	N1.vgs	notype
+	21	P1.vgs	notype
+	22	N1.vds	notype
+	23	P1.vds	notype
+	24	N1.vbs	notype
+	25	P1.vbs	notype
+	26	N1.gds	notype
+	27	P1.gds	notype
+	28	N1.gmbs	notype
+	29	P1.gmbs	notype
+	30	N1.vth	notype
+	31	P1.vth	notype
+	32	N1.vdsat	notype
+	33	P1.vdsat	notype
+Values:
+ 0	1.800000000000000e+00
+	1.000000000000000e+00
+	1.800000000000000e+00
+	-1.800000000000000e+00
+	-1.000000000000000e+00
+	-1.800000000000000e+00
+	-6.575927009750153e-04
+	-1.972778102925046e-03
+	2.729007790083491e-04
+	8.187023370250473e-04
+	0.000000000000000e+00
+	0.000000000000000e+00
+	6.575926991750152e-04
+	6.575926991750152e-04
+	2.729007772083491e-04
+	2.729007772083491e-04
+	1.309350751915338e-03
+	1.309350751915338e-03
+	5.722452079940578e-04
+	5.722452079940578e-04
+	1.000000000000000e+00
+	1.000000000000000e+00
+	1.800000000000000e+00
+	1.800000000000000e+00
+	0.000000000000000e+00
+	-0.000000000000000e+00
+	3.091886717332579e-05
+	1.300594597890353e-05
+	1.598394042957351e-04
+	6.915935293488319e-05
+	2.218429570833015e-01
+	2.218429570833015e-01
+	6.122630384088328e-01
+	6.866411071234303e-01
+

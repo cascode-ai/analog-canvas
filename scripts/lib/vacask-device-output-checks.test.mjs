@@ -3,12 +3,12 @@ import { describe, expect, it } from "vitest";
 import { parseVacaskRawfile } from "../../packages/spice-run/src/vacask-rawfile.js";
 import { deviceOutputChecks } from "./vacask-device-output-checks.mjs";
 
-function captured() {
+function captured(prefix = "") {
   return ["bias", "small", "nderivative", "pderivative"].map((name) => {
     const parsed = parseVacaskRawfile(
       readFileSync(
         new URL(
-          `../../netlists/vacask-device-outputs/${name}.raw`,
+          `../../netlists/vacask-device-outputs/${prefix}${name}.raw`,
           import.meta.url,
         ),
         "utf8",
@@ -22,6 +22,14 @@ const vector = (plot, name) =>
   plot.vectors.find((v) => v.variable.name === name).real;
 
 describe("VACASK device output semantics qualification", () => {
+  it("accepts real chain-rule-corrected Linux model outputs without rescaling OP fields", () => {
+    const plots = captured("chainrule-corrected/");
+    const before = structuredClone(plots);
+    const checks = deviceOutputChecks(...plots);
+    expect(checks).toHaveLength(25);
+    expect(checks.filter((check) => !check.passed)).toEqual([]);
+    expect(plots).toEqual(before);
+  });
   it("retains captured gm mapping discrepancies while independently passing terminal AC/DC and multiplicity", () => {
     const plots = captured();
     const before = structuredClone(plots);

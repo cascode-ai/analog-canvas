@@ -69,3 +69,51 @@ Source references: [save and output syntax](https://codeberg.org/arpadbuermen/VA
 and [the SPICE-derived BSIM4 source](https://codeberg.org/arpadbuermen/VACASK/src/commit/c1a1c84f1b2b9aa71c0cddf06e555441434db7b7/devices/spice/bsim4v8.va).
 Source inspection is supporting context; the package digests above identify the
 actual measurements. Windows evidence is not Linux or Production acceptance.
+
+## Isolated chain-rule correction (2026-09-15, Linux x86_64)
+
+The supplied `spice/bsim4v8.va` drops three chain-rule terms when converting
+`Ids * Vdseff` to the stored gm/gds/gmbs values: `tmp3` becomes zero and the
+two other temporaries omit their Gm contribution. The source-end velocity
+limiter also omits `Gm * T11`. The C BSIM4 implementation contains those
+terms ([ngspice source](https://github.com/ngspice/ngspice/blob/master/src/spicelib/devices/bsim4/b4ld.c)).
+This source link is supporting context, not the pinned ngspice 46 reference.
+The supplied VA source and repaired output are hash-locked by the local tool.
+
+Restoring these four terms in an isolated source copy passes all 25 existing
+device checks. `chainrule-corrected/` contains the four unmodified raw outputs;
+the original failing package outputs above are deliberately retained. Compiling
+the **unmodified** supplied source reproduces the original mismatches and OTA
+noise exactly, ruling out recompilation alone as the explanation.
+
+Reproduce with the unpacked official package and the existing qualification tool:
+
+```text
+node scripts/vacask-bsim4-build.mjs --package <unpacked-package>
+node scripts/vacask-qualification.mjs --binary <vacask> --modules <printed-candidate-modules> --device-outputs
+```
+
+The builder never edits the package or registers its output. Its fresh candidate
+directory retains corrected source, compiler log and a `build.json` containing
+input/output/compiler/module digests and compile arguments. Unknown source
+revisions are refused; this is not a general model converter. Foundry model
+parameters and numeric acceptance thresholds are unchanged.
+
+Captured identities:
+
+- VACASK binary: `bb606780f55d0b4f4b0e50503381d991cd2fd12298f85563bb4438b33c1abb13`.
+- OpenVAF-reloaded binary: `6b1511f6663ce48f25955b06ffd5182528b82f5ecc9d94016098a4e557d95e47`.
+- Original VA: `f1eecd715b90ab8a038c397a955beeb7ed4387b798791a2d9173122974034daa`.
+- Corrected VA: `54c0e4a241831bac826f977627ceb62708c62a15a53e531abd17e5427e34a0e2`.
+- Corrected module: `5c06ffb2aec8d96c2bbfdbde854e788ac704cbdf2f8d60ae90146aa22e3659a9`.
+
+This does **not** establish parity with the existing SKY130 hosted Profile.
+Its source selects BSIM4 4.5, whereas this VACASK module implements 4.8.3
+despite accepting a `version="4.5"` model parameter. At 1 MHz the original
+module's OTA output noise amplitude is about 40.8% below the frozen reference;
+the corrected module is about 5.75% above it (and 18.58% above at 1 GHz).
+Only a diagnostic ngspice run explicitly selecting **4.8.3** agrees with the
+corrected candidate at the sampled 1 Hz/10 kHz/1 MHz/1 GHz points to within
+2e-10 relative. That altered reference is version sensitivity evidence, not
+a replacement baseline or permission to call the hosted model scope qualified.
+The full migration must resolve model-version semantics before release.

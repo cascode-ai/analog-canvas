@@ -30,3 +30,7 @@ netlists/vacask-device-outputs/bias.raw -text !eol whitespace=-blank-at-eol,-bla
 netlists/vacask-device-outputs/small.raw -text !eol whitespace=-blank-at-eol,-blank-at-eof
 netlists/vacask-device-outputs/nderivative.raw -text !eol whitespace=-blank-at-eol,-blank-at-eof
 netlists/vacask-device-outputs/pderivative.raw -text !eol whitespace=-blank-at-eol,-blank-at-eof
+netlists/vacask-device-outputs/chainrule-corrected/bias.raw -text !eol whitespace=-blank-at-eol,-blank-at-eof
+netlists/vacask-device-outputs/chainrule-corrected/small.raw -text !eol whitespace=-blank-at-eol,-blank-at-eof
+netlists/vacask-device-outputs/chainrule-corrected/nderivative.raw -text !eol whitespace=-blank-at-eol,-blank-at-eof
+netlists/vacask-device-outputs/chainrule-corrected/pderivative.raw -text !eol whitespace=-blank-at-eol,-blank-at-eof
