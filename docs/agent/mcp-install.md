@@ -65,3 +65,22 @@ For a deployment check, `pnpm release:verify` builds the browser release,
 bundles and packs MCP, and runs a local golden path covering initial claim,
 inspection, atomic edit, verification, render, export, staged import, process
 restart, and connector resume.
+
+Package smoke also reads a complete captured Spec response through the adapter's
+actual HTTP response validator. Run `node scripts/mcp-release-smoke.mjs <executable>`
+against an independently downloaded/verified executable, not just its source build.
+Preview's public MCP journey downloads the exact package in the served manifest,
+verifies its SHA-256, and records its distribution identity in the acceptance receipt.
+It must not fall back to the locally built adapter when that package fails.
+The journey defaults to the published package on either hosted channel. An
+explicit `ICM_ACCEPTANCE_MCP_SOURCE=built` is available for local development;
+its receipt says `source: built` and is not distribution acceptance.
+
+The published 0.10.0 package predates Spec reports and rejects
+`outputData.specs`. MCP 0.11.0 carries the converged Simulation contract and
+captured Spec support but predates Project schema 56 electrical Wire styles.
+Those immutable assets cannot be replaced. MCP 0.12.0 adds schema 56 support
+while retaining the Spec contract. Each new version is published through
+Publish MCP with its verified Linux tarball hash pinned in the distribution
+declaration, then passes public-package Preview acceptance. Local compilation
+with an old version label is not a distribution update.

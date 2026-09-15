@@ -178,7 +178,6 @@ function archivePath(path: string): string {
 
 export function simulationArtifactCategory(artifact: ArtifactRef): string {
   const name = artifact.name.toLocaleLowerCase();
-  if (name === "specs.json") return "Results";
   if (name.endsWith(".cir") || name.endsWith(".spi")) return "Netlist";
   if (name.endsWith(".raw") || name.endsWith(".csv")) return "Results";
   if (name.endsWith(".json")) return "Evidence";
@@ -190,6 +189,13 @@ export function simulationArtifactCategory(artifact: ArtifactRef): string {
 export function simulationExplorerArtifactCategory(
   artifact: ArtifactRef,
 ): "Results" | "Logs" | null {
+  // Older archives may contain retired projections. Preserve their bytes for
+  // diagnostic export without advertising multiple answers in the Explorer.
+  if (
+    artifact.name.startsWith("outputs-") ||
+    ["measurements.csv", "device-operating-points.csv"].includes(artifact.name)
+  )
+    return null;
   const category = simulationArtifactCategory(artifact);
   return category === "Results"
     ? "Results"

@@ -9,30 +9,20 @@ Owners: `packages/spice-run`, `packages/simulation-service`
 
 ## Result data
 
-The shared service exposes every returned native vector alongside configured
-expressions, without requiring an output binding for `save` to work. Direct
-acquisition duplicates are suppressed. Prepared `signalNames` is optional,
-derived run-local metadata mapping native voltage vectors to Canvas paths/names;
-it does not rename the raw data or change connectivity. Native results retain
-their executable spelling alongside friendly names, including in MCP and CSV.
+The shared service exposes captured native vectors in `result.data`, without
+requiring an Output binding for `save` to work. Prepared `signalNames` is optional
+run-local Canvas metadata; it never renames raw vectors or changes connectivity.
+New runs do not compute a second evaluated waveform set, automatic measurement
+summaries or a product-specific device OP table. Native OP remains a raw analysis;
+repeated records keep their identity even when their numbers happen to match.
 
-OP samples are not automatic measurements: their value already belongs to the
-OP table. Authored measurement rules remain independent. Historical automatic
-OP copies are suppressed in the editor only when their record, output, unit and
-value corroborate the original sample; failures and inconsistent evidence remain.
-The MOS details own native OP parameters when the saved Prepared acquisition
-mapping proves the same device occurrence, record and parameter. Those samples
-are omitted from the generic OP table, not from raw data or numeric exports.
-Unknown parameters and receipts without sufficient mapping remain visible.
-Repeated OP records keep separate labels; equal values are not duplicate identity.
-
-Numbers are read from ngspice's ASCII rawfile, never from console text. The
+Waveform numbers are read from ngspice's ASCII rawfile, never from console text. The
 parsed result extends `SimulationResult` with:
 
 - `op`: one entry per probe with `value` and `unit`;
 - `ac`: `frequencyHz` and, per probe, `real` and `imag` arrays of the same
-  length; magnitude and phase are derived from these, and a magnitude is
-  labelled a gain only when the author has named an input and an output;
+  length; any magnitude, gain or phase processing belongs to authored native
+  code or the consuming Agent, not a second product evaluator;
 - `tran`: `timeSeconds` as computed by the solver and, per probe, a `value`
   array of the same length; different plots keep their own axes and are not
   resampled to share a table.
@@ -222,24 +212,18 @@ sweep data. Constant waveforms and single-point sweeps without that declaration
 remain waveforms. Unsupported short arrays and malformed dimensions produce
 diagnostics instead of being plotted against the wrong axis.
 
-The evaluated record also carries `scalars`, separate from curve `outputs`.
-Results shows these in a compact **Measurements** table per record, preserving signed
-and complex numbers. They do not generate curve min/max/span/RMS summaries and
-are not image-export traces. Both raw and evaluated CSV append a separately
-headed scalar table. Unknown units stay explicitly unknown; a variable suffix
-such as `_db` does not establish a unit.
+Raw analysis CSV appends a separately headed scalar table, preserving signed and
+complex numbers. Scalars are not padded into waveforms or automatically promoted
+to acceptance metrics. Unknown units stay unknown; a suffix such as `_db` does
+not establish a unit. There is no second evaluated CSV or built-in plot renderer.
 
 Console measurement reports remain separate evidence: only declarations reached
 from the executed entry/include graph participate, and repeated report names
 retain Console order. The UI does not invent an association between Console
-lines and raw records. A unique raw scalar is preferred over a unique same-name
-Console report when their real values agree at the Console's explicitly printed
-precision. This only suppresses a redundant presentation row; both original
-sources remain in the Run, Console and exported artifacts. Repeated names,
-multiple captures, differing values and complex captures are not collapsed.
-Console-only and failed reports remain visible. The OP view never renders
-run-wide Console measurements from other analyses. View filtering retains the
-original record indices and scopes analysis diagnostics as well as summaries.
+lines and raw records. Native `meas` reports enter the captured Spec report; raw
+scalars stay in raw data/CSV. Neither source is substituted for the other merely
+because names match. Repeated or missing measurement names follow the explicit
+ambiguity and non-evaluated rules in [Spec annotations](../agent/simulation-specs.md).
 
 Hosted responses with numeric data and explicit rawfile dimensions are re-read
 by the same canonical reader to handle executor-image version skew. Missing
@@ -249,15 +233,12 @@ the corrected result.
 
 ### Authored measurements
 
-An authored measurement references one enabled analysis and one named Output.
-It stores a stable ID, display label, and one scalar reduction: OP `value`,
-`sample-at`, `minimum`, `maximum`, `peak-to-peak`, or time-weighted TRAN
-`mean`/`rms`. Minimum, maximum, and peak-to-peak may use the complete analysis
-or an explicit SI-domain window; mean and RMS require a time window. The rule,
-not its observed number, is Project state. A Run evaluates rules after Output
-expressions and returns authored rows beside separately identified automatic
-summaries. A rule that is outside returned data or cannot reduce a complex
-Output is locally `unavailable`; it does not fail an otherwise successful Run.
+Native `meas` computes authored scalar metrics. Optional `* @spec` source comments
+declare acceptance limits, inclusive ranges or targets with absolute tolerance.
+The shared Spec report evaluates captured input only; missing/ambiguous metrics
+are not-evaluated, and metrics without rules are unconstrained. Legacy JSON
+measurement configuration and historical output schemas remain readable, but
+new runs do not regenerate those old reduction tables.
 
 ### CSV
 
@@ -274,16 +255,12 @@ shape follows the analysis rather than one universal table:
 Values are written as the shortest decimal that reads back as the same double,
 so a round trip through the CSV loses nothing the rawfile carried.
 
-Structured evaluated outputs also carry conservative automatic measurements.
-OP contributes its scalar value; DC, AC, and TRAN contribute minimum, maximum,
-and span (complex AC outputs use magnitude); TRAN additionally contributes
-time-weighted mean and RMS over its actual, possibly nonuniform time samples.
-Each row is independently `available` or `unavailable` with a reason. A missing
-crossing or insufficient sample window must not become zero and must not change
-an otherwise completed Run into a failed Run. The service is the sole numerical
-owner: GUI, Agent responses, and `measurements.csv` consume the same rows.
+There is one `<analysis>-<record-index>.csv` per captured analysis, plus `specs.csv`
+for the acceptance table. `specs.json` exposes the same report to machine clients
+and diagnostic exports. No `outputs-*.csv`, automatic `measurements.csv` or
+specialized device-operating-point CSV is generated for new runs.
 
-## Plot semantics and grouping
+## Historical output compatibility
 
 Evaluated outputs may carry `semantics`: `valueKind` (`real`, `complex`, or
 `unknown`), the raw `quantity`, `origin` (`raw` or `expression`), and the
@@ -299,17 +276,10 @@ or phase transformation. Source inference is deliberately bounded; conflicting
 assignments, dynamic control programs and unsupported expressions stay unknown.
 It does not execute ngspice or replace its numeric results.
 
-Waveform views group compatible units and representations, with independent
-vertical axes. Unknown outputs are isolated, not labelled dimensionless.
-Users may separate each trace for scale differences and declare an unknown
-display unit; declarations label existing values rather than converting them.
-Within one analysis record, plots share horizontal range, history and cursors.
-Repeated records remain separate, with independent view state. These preferences
-are session-only and do not modify Code, the Project, or the simulation input.
-Image exports use the same renderer; raw numeric exports retain recorded values.
-Older archives without sufficient semantics use conservative raw/real display
-for unknown values instead of guessing from names. XY plots, cross-run alignment
-and persisted plot templates are outside this contract.
+These fields describe retained legacy archives, not a second result pipeline
+for new runs. Archived `outputs.json` remains readable for old run recovery.
+Plots, comparison, display grouping and image export are no longer product
+features; external consumers choose their own transformations and presentation.
 
 ## Validation evidence
 

@@ -15,12 +15,16 @@ examples below are MCP-specific mappings, not a separate operating policy.
 Production and Preview both expose the Agent UI. Their accounts, Projects and
 connector bindings remain separate.
 
-MCP 0.11.0 supports API 3.0, Project schema 56 and setup v4 source/config files.
-Use it with Analog Canvas 0.6.0 or newer. It supports independent arrow ends,
-electrical Wire line styles, native component displays and attached Net Labels.
-The public distribution manifest identifies the pinned release artifact and its
-SHA-256. Updating the website does not update an already installed MCP process.
-Set `ANALOG_CANVAS_API_URL` only when connecting to Preview or another
+MCP 0.12.0 supports API 3.0, Project schema 56, setup v4 source/config files
+and captured Spec reports. The published 0.11.0 binary supports Spec reports
+but predates schema 56 electrical Wire styles. Update that adapter to 0.12.0
+for schema 56 sites; rebuilding an old version does not replace its immutable
+release. See [distribution verification](mcp-install.md). Use it with Analog
+Canvas 0.6.0 or newer. It supports independent arrow ends, electrical Wire
+line styles, native component displays and attached Net Labels. The public
+distribution manifest identifies the pinned release artifact and its SHA-256.
+Updating the website does not update an already installed MCP process. Set
+`ANALOG_CANVAS_API_URL` only when connecting to Preview or another
 non-production endpoint.
 
 Sessions have a renewable 30-minute idle deadline. Agent operations and manual
@@ -36,7 +40,7 @@ These fields are arrow-only; legacy `arrowHead`/`arrowHeadAt` remain fallbacks.
 Older 0.9.0 adapters may reject Snapshots containing the new fields. Schema 56
 adds electrical Wire `styleOverride.lineStyle`: `solid`, `dashed`, or `dotted`.
 Route Snapshots expose the complete styleOverride (color, arrow and lineStyle),
-so preserve the other settings when editing one. Older 0.10.0 adapters target
+so preserve the other settings when editing one. Older 0.11.0 adapters target
 schema 55 and may reject a schema 56 Snapshot.
 
 ## Create and edit
@@ -206,6 +210,11 @@ File and Run resources.
    `not-evaluated`, not Failed; measurements without a rule are `unconstrained`.
    Use raw/CSV to plot or compare externally. Built-in Plot/Compare/OP views
    and `simulation-plot` image export are retired; native OP still executes.
+   Read waveform numbers from `result.data` or `result.json`, not the legacy
+   `outputData.analyses` array (empty for new runs). There is one complete CSV
+   per analysis record; no automatic measurements or duplicate outputs CSV.
+   If `resultPreview` is true, read `result.json` and `specs.json` by artifact ID.
+   The full Spec reference is bundled as `analog-canvas://reference/simulation-specs`.
 
 ### File ownership and editing
 

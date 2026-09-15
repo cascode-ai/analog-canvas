@@ -15,6 +15,49 @@ function jsonResponse(status: number, body: unknown): Response {
 }
 
 describe("agent http client", () => {
+  it("reads captured Specs without legacy waveform projections and still rejects unknown fields", async () => {
+    const outputData = {
+      schemaVersion: 1,
+      analyses: [],
+      diagnostics: [],
+      specs: {
+        schemaVersion: 1,
+        runId: "run",
+        preparedId: "prepared",
+        inputDigest: "a".repeat(64),
+        results: [],
+      },
+    };
+    const body = {
+      apiVersion: "3.0",
+      requestId: "spec-read",
+      operation: "read",
+      ok: true,
+      run: {
+        id: "run",
+        preparedId: "prepared",
+        inputRevision: "input",
+        state: "finished",
+        artifacts: [],
+        outputData,
+      },
+    };
+    const http = new AgentHttpClient({
+      baseUrl: BASE,
+      fetch: async () => jsonResponse(200, body),
+    });
+    const request = {
+      apiVersion: "3.0" as const,
+      requestId: "spec-read",
+      operation: "read" as const,
+      runId: "run",
+    };
+    expect(await http.simulation("session", "token", request)).toEqual(body);
+    Object.assign(outputData.specs, { unknown: true });
+    await expect(http.simulation("session", "token", request)).rejects.toThrow(
+      "schema validation",
+    );
+  });
   it("reads hidden schema-54 parameter bindings without relaxing unknown-field checks", async () => {
     const body = snapshotResponse("req-54");
     if (!body.ok || body.operation !== "snapshot")

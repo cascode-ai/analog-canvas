@@ -227,6 +227,15 @@ value, expected condition, judgment and reason. \`specs.csv\` is portable. Missi
 metrics, duplicate names, invalid rules and incomplete runs are not-evaluated;
 no rule means unconstrained, never Pass. Reports are not reevaluated after edits.
 Read raw/CSV through the existing authorized file API and plot externally.
+Raw numbers live in \`result.data\` or \`result.json\`, with one complete
+\`<analysis>-<record-index>.csv\` per record. New runs do not generate
+\`outputs-*.csv\`, \`measurements.csv\`, \`device-operating-points.csv\`,
+\`outputs.json\` or \`native-measurements.json\`. The legacy
+\`outputData.analyses\` array is empty; do not read it for waveforms.
+Only authored native meas values enter Specs; there are no automatic summaries.
+Explorer presents \`specs.csv\`; \`specs.json\` remains available through File
+Resource and full diagnostic export. Large receipts may omit inline outputs:
+read \`result.json\` and \`specs.json\` by artifact ID instead.
 Built-in Plot, Compare, OP presentation and simulation-plot image export are
 retired; OP simulation itself is unchanged. No GUI or Helper step is required.
 

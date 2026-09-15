@@ -258,17 +258,40 @@ try {
   );
   const runEntries = await downloadArtifactGroup("Run", "run.zip");
   assert(
-    Object.keys(runEntries).every(
-      (path) =>
-        /\.(raw|csv|log|txt)$/.test(path) || basename(path) === "specs.json",
-    ),
+    Object.keys(runEntries).every((path) => /\.(raw|csv|log|txt)$/.test(path)),
   );
   await panel.getByRole("button", { name: "Maximize results" }).click();
   const input = JSON.parse(entryFromZip(diagnosticEntries, "prepared.json"));
   const result = JSON.parse(entryFromZip(diagnosticEntries, "result.json"));
-  const outputs = JSON.parse(entryFromZip(diagnosticEntries, "outputs.json"));
-  const specs = JSON.parse(entryFromZip(runEntries, "specs.json"));
-  assert.deepEqual(specs, outputs.specs);
+  const specs = JSON.parse(entryFromZip(diagnosticEntries, "specs.json"));
+  assert(
+    !Object.keys(runEntries).some((path) => basename(path) === "specs.json"),
+  );
+  assert(
+    !Object.keys(diagnosticEntries).some(
+      (path) =>
+        basename(path).startsWith("outputs-") ||
+        [
+          "outputs.json",
+          "measurements.csv",
+          "device-operating-points.csv",
+        ].includes(basename(path)),
+    ),
+  );
+  assert.deepEqual(
+    Object.keys(runEntries)
+      .map((path) => basename(path))
+      .filter((name) => name.endsWith(".csv"))
+      .sort(),
+    [
+      "op-0.csv",
+      "dc-1.csv",
+      "ac-2.csv",
+      "tran-3.csv",
+      "noise-4.csv",
+      "specs.csv",
+    ].sort(),
+  );
   assert(specs.inputDigest);
   assert.equal(specs.results.length, 1);
   assert.equal(specs.results[0].name, "vout_peak");
@@ -293,13 +316,6 @@ try {
     input.inputRevision,
     compiled.vectors,
     input,
-  );
-  assert(outputs.measurements.length > 0);
-  assert.equal(outputs.deviceOperatingPoints.length, 2);
-  assert(
-    outputs.analyses.some((record) =>
-      record.outputs.some((output) => output.label),
-    ),
   );
   assert(
     entryFromZip(diagnosticEntries, "prepared.cir").includes("noise v(vout)"),
