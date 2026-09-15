@@ -179,10 +179,7 @@ try {
     mimeType: "application/json",
     buffer: Buffer.from(fixtureText),
   });
-  await page
-    .locator("summary")
-    .filter({ hasText: /^Netlist$/u })
-    .click();
+  await page.locator('summary[aria-label="Netlist"]').click();
   await page.getByTestId("open-analog-simulation").click();
   panel = page.getByRole("region", { name: "Analog simulation" });
   await expect(
@@ -371,10 +368,7 @@ try {
     .getByTestId("startup-recovery-banner")
     .getByRole("button", { name: "Restore", exact: true })
     .click();
-  await page
-    .locator("summary")
-    .filter({ hasText: /^Netlist$/u })
-    .click();
+  await page.locator('summary[aria-label="Netlist"]').click();
   await page.getByTestId("open-analog-simulation").click();
   await expect(
     panel.getByRole("textbox", { name: "Simulation source editor" }),

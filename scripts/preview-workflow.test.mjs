@@ -188,6 +188,13 @@ describe("the preview deploy", () => {
     );
   });
 
+  it("opens the icon-only Netlist menu through its accessible name", () => {
+    expect(
+      sourceGuiJourney.match(/summary\[aria-label="Netlist"\]/gu),
+    ).toHaveLength(2);
+    expect(sourceGuiJourney).not.toContain("hasText: /^Netlist$/u");
+  });
+
   it("imports a Cloud Project Cell before compiling the cross-Project Testbench", () => {
     expect(crossProjectJourney).toContain('action: "list-projects"');
     expect(crossProjectJourney).toContain('action: "list-cells"');
