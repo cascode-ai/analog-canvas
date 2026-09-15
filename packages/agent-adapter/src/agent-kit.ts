@@ -217,6 +217,19 @@ current capabilities for authority. Never send an MCP tool envelope to HTTP.
 
 ## Shared simulation and result handoff
 
+Native meas computes metrics; source comments define optional acceptance rules:
+\`* @spec peak <= 1.8 unit=V\`, \`* @spec bias range 0.4 0.6 unit=V\`,
+\`* @spec delay target 1e-6 tol 1e-8 unit=s\`. Decimal/scientific literals only;
+units declare the native numerical unit, with no implicit conversion. Use one
+rule per uniquely declared measurement name. The shared \`outputData.specs\` and
+\`specs.json\` report includes captured inputDigest, runId, source path/line,
+value, expected condition, judgment and reason. \`specs.csv\` is portable. Missing
+metrics, duplicate names, invalid rules and incomplete runs are not-evaluated;
+no rule means unconstrained, never Pass. Reports are not reevaluated after edits.
+Read raw/CSV through the existing authorized file API and plot externally.
+Built-in Plot, Compare, OP presentation and simulation-plot image export are
+retired; OP simulation itself is unchanged. No GUI or Helper step is required.
+
 For results the human should inspect in the Project, use a \`project-folder\`
 source, not a private session workspace. Create a canonical folder with
 \`upsert_simulation_folder\` inside \`transact.structureEdits\` (MCP

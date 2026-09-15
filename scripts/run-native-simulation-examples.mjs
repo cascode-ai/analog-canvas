@@ -1,14 +1,7 @@
 import assert from "node:assert/strict";
 import { spawn, execFileSync } from "node:child_process";
 import { createInterface } from "node:readline";
-import {
-  readFile,
-  writeFile,
-  mkdir,
-  mkdtemp,
-  rm,
-  rename,
-} from "node:fs/promises";
+import { readFile, writeFile, mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve, basename } from "node:path";
 import { createHash, randomUUID } from "node:crypto";
@@ -258,25 +251,6 @@ for (const project of manifest.projects.filter(
           artifact.sha256,
         );
         artifacts.push({ name: artifact.name, sha256: artifact.sha256 });
-      }
-      const analyses =
-        run.outputData?.analyses ?? run.result?.data?.analyses ?? [];
-      for (let index = 0; index < analyses.length; index++) {
-        if (analyses[index].analysis === "op") continue;
-        try {
-          await tool("export_file", {
-            artifact: "simulation-plot",
-            simulation: { runId: run.id, analysisIndex: index, format: "svg" },
-            outputPath: join(runDir, `plot-${index}.svg`),
-          });
-          const plot = join(runDir, `plot-${index}.svg`);
-          if ((await readFile(plot)).subarray(0, 2).toString() === "PK") {
-            await rename(plot, join(runDir, `plot-${index}.zip`));
-          }
-        } catch (e) {
-          report.exportWarnings ??= [];
-          report.exportWarnings.push({ folder: item.id, message: e.message });
-        }
       }
       report.runs.push({
         folderId: item.id,

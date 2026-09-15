@@ -178,6 +178,7 @@ function archivePath(path: string): string {
 
 export function simulationArtifactCategory(artifact: ArtifactRef): string {
   const name = artifact.name.toLocaleLowerCase();
+  if (name === "specs.json") return "Results";
   if (name.endsWith(".cir") || name.endsWith(".spi")) return "Netlist";
   if (name.endsWith(".raw") || name.endsWith(".csv")) return "Results";
   if (name.endsWith(".json")) return "Evidence";

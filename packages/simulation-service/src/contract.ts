@@ -296,8 +296,20 @@ export const AutomaticMeasurementSchema = z.discriminatedUnion("status", [
     reason: z.string(),
   }),
 ]);
+import { SimulationSpecReportSchema } from "./spec-contract.js";
+export {
+  SimulationSpecReportSchema,
+  SimulationSpecResultSchema,
+  SimulationSpecConditionSchema,
+  formatSimulationSpec,
+  type SimulationSpecReport,
+  type SimulationSpecResult,
+  type SimulationSpecCondition,
+} from "./spec-contract.js";
+
 export const SimulationOutputDataSchema = z.strictObject({
   schemaVersion: z.literal(1),
+  specs: SimulationSpecReportSchema.optional(),
   nativeMeasurements: z
     .array(
       z.discriminatedUnion("status", [

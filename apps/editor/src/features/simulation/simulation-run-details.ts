@@ -34,7 +34,7 @@ export class SimulationRunDetails {
       if (!details.result && !details.outputData)
         throw new Error("Missing result artifacts");
       this.cached.set(key, details);
-      // Mirrors the UI's bounded comparison retention, not a second run registry.
+      // Bound materialized history in memory; this is not a second run registry.
       if (this.cached.size > 5)
         this.cached.delete(this.cached.keys().next().value!);
       return { ok: true, run: { ...run, ...details, resultPreview: false } };

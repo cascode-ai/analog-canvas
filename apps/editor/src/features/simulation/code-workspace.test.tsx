@@ -62,7 +62,7 @@ describe("approved simulation Code layout", () => {
           outputPane="console"
           onSelectOutputPane={() => {}}
           console={<p>Run console</p>}
-          results={<p>Plot</p>}
+          results={<p>Spec results</p>}
         >
           <div>Source input</div>
         </SimulationCodeWorkspace>
@@ -76,8 +76,10 @@ describe("approved simulation Code layout", () => {
       markup.indexOf("Run console"),
     );
     expect(markup).not.toContain("Settings");
-    expect(markup).toContain(">Compare</button>");
-    expect(markup).toContain(">OP</button>");
+    expect(markup).toContain(">Specs</button>");
+    expect(markup).not.toContain(">Plot</button>");
+    expect(markup).not.toContain(">Compare</button>");
+    expect(markup).not.toContain(">OP</button>");
     expect(markup).not.toContain(">Files</button>");
     expect(markup).not.toContain(">Results</button>");
     expect(markup).toContain('aria-label="Close run.cir"');

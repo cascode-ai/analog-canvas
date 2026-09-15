@@ -203,7 +203,7 @@ no automatic simulator or PDK discovery.
 
 [Simulation execution](specs/simulation-execution.md) owns queue, deadline,
 retention, result, and error contracts. Neither managed retention nor browser
-comparison stores run history in the Project.
+archives store run history in the Project.
 
 ## External resource retirement
 

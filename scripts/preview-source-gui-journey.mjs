@@ -59,7 +59,7 @@ const program =
     .find((file) => file.path === folder.input.entry)
     .text.replace(
       ".endc",
-      "noise v(vout) VINP dec 20 1 1000000000\nwrite out.raw noise1.all noise2.all\n.endc",
+      "meas tran vout_peak MAX v(vout)\n* @spec vout_peak range 0 1.8 unit=V\nnoise v(vout) VINP dec 20 1 1000000000\nwrite out.raw noise1.all noise2.all\n.endc",
     ) + "\n* Source workspace GUI acceptance\n";
 config.deviceOperatingPoints = ["M1", "M3"].map((instanceId) => ({
   id: `gui-op-${instanceId}`,
@@ -258,12 +258,23 @@ try {
   );
   const runEntries = await downloadArtifactGroup("Run", "run.zip");
   assert(
-    Object.keys(runEntries).every((path) => /\.(raw|csv|log|txt)$/.test(path)),
+    Object.keys(runEntries).every(
+      (path) =>
+        /\.(raw|csv|log|txt)$/.test(path) || basename(path) === "specs.json",
+    ),
   );
   await panel.getByRole("button", { name: "Maximize results" }).click();
   const input = JSON.parse(entryFromZip(diagnosticEntries, "prepared.json"));
   const result = JSON.parse(entryFromZip(diagnosticEntries, "result.json"));
   const outputs = JSON.parse(entryFromZip(diagnosticEntries, "outputs.json"));
+  const specs = JSON.parse(entryFromZip(runEntries, "specs.json"));
+  assert.deepEqual(specs, outputs.specs);
+  assert(specs.inputDigest);
+  assert.equal(specs.results.length, 1);
+  assert.equal(specs.results[0].name, "vout_peak");
+  assert.equal(specs.results[0].judgment, "pass", JSON.stringify(specs));
+  assert(Number.isFinite(specs.results[0].value));
+  report.specs = specs;
   assert.equal(
     result.outcome.status,
     "completed",
@@ -299,21 +310,14 @@ try {
   report.environment = result.metadata.environment;
   report.recoveredInputError = true;
 
-  await panel.getByRole("tab", { name: "Plot", exact: true }).click();
+  await panel.getByRole("tab", { name: "Specs", exact: true }).click();
   await expect(
-    panel.getByRole("heading", { name: "AC Analysis" }),
+    panel.getByRole("region", { name: "Specification results" }),
   ).toBeVisible();
-  const plotExport = panel.locator("details.simulation-result-export");
-  await plotExport.locator("summary").click();
-  await download(
-    plotExport.getByRole("button", { name: "Visible plots · SVG" }),
-    "plots-svg.zip",
-  );
-  await download(
-    plotExport.getByRole("button", { name: "Visible plots · PNG" }),
-    "plots-png.zip",
-  );
-  await plotExport.locator("summary").click();
+  assert(entryFromZip(runEntries, "specs.csv").includes("judgment"));
+  await expect(
+    panel.getByRole("row").filter({ hasText: "vout_peak" }),
+  ).toContainText("Pass");
   await page.screenshot({ path: join(outputDirectory, "results.png") });
   await panel.getByRole("button", { name: "Restore results" }).click();
 

@@ -18,6 +18,8 @@ describe("simulation artifact files", () => {
       [
         ["out.raw", "Results"],
         ["outputs-ac-0.csv", "Results"],
+        ["specs.csv", "Results"],
+        ["specs.json", "Results"],
         ["simulator.log", "Logs"],
         ["prepared.cir", null],
         ["executed.cir", null],

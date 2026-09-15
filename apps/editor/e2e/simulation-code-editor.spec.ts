@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test("native save result focuses its captured Canvas address after code preview ends", async ({
+test("Specs clears source Canvas preview without changing authored source", async ({
   page,
 }) => {
   const editor = page.getByRole("textbox", {
@@ -13,21 +13,12 @@ test("native save result focuses its captured Canvas address after code preview 
     "data-focused-signal",
     "v(out)",
   );
-  await page.getByRole("tab", { name: "Plot", exact: true }).click();
+  await page.getByRole("tab", { name: "Specs", exact: true }).click();
   await expect(page.locator("body")).toHaveAttribute("data-focused-signal", "");
-  await page.getByRole("button", { name: "Hide Output", exact: true }).click();
-  await page.getByRole("button", { name: "Show Output", exact: true }).click();
-  await expect(page.locator("body")).toHaveAttribute(
-    "data-chart-target",
-    JSON.stringify({
-      id: "native:v(out)",
-      kind: "voltage",
-      rootDocumentId: "root",
-      documentId: "child",
-      occurrence: ["dut"],
-      anchor: { kind: "base-net", netId: "output-net" },
-    }),
-  );
+  await expect(
+    page.getByRole("region", { name: "Specification results" }),
+  ).toBeVisible();
+  await expect(editor).toContainText("save v(out)");
 });
 
 test("native save and dc arguments open automatically and preview their Canvas target", async ({
@@ -113,6 +104,26 @@ test("flat Helper finds an analysis by purpose and ghost arguments never enter s
   );
 });
 
+test("Spec Helper inserts an ordinary editable source comment", async ({
+  page,
+}) => {
+  const editor = page.getByRole("textbox", {
+    name: "Simulation source editor",
+  });
+  await editor.fill("* test\n.control\nmeas tran peak MAX v(out)");
+  await page.getByRole("button", { name: "Helper", exact: true }).click();
+  await page
+    .getByRole("textbox", { name: "Search commands or purpose" })
+    .fill("spec");
+  await page.getByRole("option", { name: "Spec acceptance rule…" }).click();
+  await page.keyboard.insertText("peak");
+  await page.keyboard.press("ControlOrMeta+s");
+  await expect(page.getByTestId("saved-source")).toContainText(
+    "* @spec peak <= 1 unit=V",
+  );
+  await expect(editor).toContainText("meas tran peak MAX v(out)");
+});
+
 test("unknown input offers explicit help and Escape suppresses parameter ghosts", async ({
   page,
 }) => {
@@ -186,10 +197,10 @@ test("Explorer opens sideways, configuration is advanced, and results maximize/r
     page.getByRole("tab", { name: "Configuration" }),
   ).toHaveAttribute("aria-selected", "true");
   await expect(editor).toContainText('"version"');
-  await page.getByRole("tab", { name: "Plot", exact: true }).click();
+  await page.getByRole("tab", { name: "Specs", exact: true }).click();
   await page.getByRole("button", { name: "Maximize results" }).click();
   await expect(editor).not.toBeVisible();
-  await expect(page.locator(".simulation-output-results")).toBeVisible();
+  await expect(page.locator(".simulation-spec-results")).toBeVisible();
   await page.getByRole("button", { name: "Restore results" }).click();
   await expect(editor).toBeVisible();
   await expect(

@@ -9,7 +9,6 @@ import {
 import { clickNetlistWorkflowCommand } from "./editor-fixtures.js";
 import { profile } from "./simulation-e2e-fixtures.js";
 import { createSimulationFolder, createEmptyProject } from "@icm/model";
-import { unzipSync, strFromU8 } from "fflate";
 import { createHash } from "node:crypto";
 
 // No MCP, Agent client, Project fixture import, or injected relay messages.
@@ -326,6 +325,7 @@ test("HTTP Kit alone authors native objects and hands off a Project-folder run",
   // No Agent read is needed for the browser observer to finish the handoff.
   await panel.getByRole("button", { name: "Close Agent dialog" }).click();
   await clickNetlistWorkflowCommand(page, "open-analog-simulation");
+  await page.locator(".simulation-run-history > summary").click();
   const records = page.getByRole("region", {
     name: "Project runs",
     exact: true,
@@ -335,8 +335,8 @@ test("HTTP Kit alone authors native objects and hands off a Project-folder run",
   ).toBeEnabled();
   await records.getByRole("button", { name: "Open result" }).click();
   await expect(
-    page.getByRole("button", { name: "Project + results ZIP" }),
-  ).toBeVisible();
+    page.getByRole("region", { name: "Analog simulation" }).getByRole("status"),
+  ).toHaveText("completed");
   expect(executions).toBe(1);
   expect(
     (await send("simulation", { operation: "read", runId: run.id })).run.state,
@@ -357,6 +357,7 @@ test("HTTP Kit alone authors native objects and hands off a Project-folder run",
     buffer: bytes,
   });
   await clickNetlistWorkflowCommand(page, "open-analog-simulation");
+  await page.locator(".simulation-run-history > summary").click();
   await expect(
     page.getByRole("region", { name: "Saved folder results" }),
   ).toContainText("Agent");
@@ -619,6 +620,7 @@ for (const sourceKind of ["workspace", "project-folder"] as const)
         page.getByRole("region", { name: "Analog simulation" }),
       ).toHaveCount(0);
       await clickNetlistWorkflowCommand(page, "open-analog-simulation");
+      await page.locator(".simulation-run-history > summary").click();
       const records = page.getByRole("region", {
         name: "Project runs",
         exact: true,
@@ -628,9 +630,13 @@ for (const sourceKind of ["workspace", "project-folder"] as const)
         records.getByRole("button", { name: "Open result" }),
       ).toBeEnabled();
       await records.getByRole("button", { name: "Open result" }).click();
+      await page
+        .getByRole("treeitem", { name: "Folder Divider", exact: true })
+        .click({ button: "right" });
       await expect(
-        page.getByRole("button", { name: "Project + results ZIP" }),
-      ).toBeVisible();
+        page.getByRole("menuitem", { name: "Download project + results…" }),
+      ).toBeEnabled();
+      await page.keyboard.press("Escape");
       expect(executions).toBe(1);
     }
     let finished: any;
@@ -658,52 +664,27 @@ for (const sourceKind of ["workspace", "project-folder"] as const)
         })
       ).result.text,
     ).toContain("0.5");
-    const recordIndex = finished.outputData
-      ? finished.outputData.analyses.findIndex(
-          (analysis: { analysis: string }) => analysis.analysis === "ac",
-        )
-      : finished.result.data.analyses.findIndex(
-          (analysis: { analysis: string }) => analysis.analysis === "ac",
-        );
-    expect(recordIndex).toBeGreaterThanOrEqual(0);
-    const image = await send("file", {
-      operation: "download",
-      artifact: "simulation-plot",
-      simulation: { runId: run.id, analysisIndex: recordIndex, format: "svg" },
-    });
-    expect(image.ok, JSON.stringify(image)).toBe(true);
-    const imageBytes = Buffer.from(image.artifact.data, "base64");
-    const svgs =
-      image.artifact.mediaType === "application/zip"
-        ? Object.values(unzipSync(imageBytes)).map((bytes) => strFromU8(bytes))
-        : [imageBytes.toString("utf8")];
-    expect(svgs.length).toBeGreaterThan(0);
-    for (const svg of svgs) {
-      expect(svg).toContain('fill="white"');
-      expect(svg).toMatch(/<(?:path|polyline)/u);
-      expect(svg).toContain("stroke:");
-    }
-    const raster = await send("file", {
-      operation: "download",
-      artifact: "simulation-plot",
-      simulation: { runId: run.id, analysisIndex: recordIndex, format: "png" },
-    });
-    expect(raster.ok, JSON.stringify(raster)).toBe(true);
-    const rasterBytes = Buffer.from(raster.artifact.data, "base64");
-    const pngs =
-      raster.artifact.mediaType === "application/zip"
-        ? Object.values(unzipSync(rasterBytes))
-        : [rasterBytes];
-    for (const png of pngs)
-      expect([...png.slice(0, 8)]).toEqual([137, 80, 78, 71, 13, 10, 26, 10]);
-    await expect(page.locator(".simulation-file-export")).toHaveCount(0);
     expect(
       await send("file", {
         operation: "download",
         artifact: "simulation-plot",
-        simulation: { runId: run.id, analysisIndex: 999, format: "svg" },
+        simulation: { runId: run.id, analysisIndex: 0, format: "svg" },
       }),
-    ).toMatchObject({ ok: false, error: { code: "FILE_EXPORT_FAILED" } });
+    ).toMatchObject({ ok: false, error: { code: "SIMULATION_PLOT_RETIRED" } });
+    const report = finished.artifacts.find(
+      (a: { name: string }) => a.name === "specs.json",
+    );
+    expect(report).toBeDefined();
+    expect(
+      JSON.parse(
+        (
+          await send("file", {
+            operation: "simulation-input",
+            input: { action: "artifact", artifactId: report.id },
+          })
+        ).result.text,
+      ).runId,
+    ).toBe(run.id);
     expect(
       (await send("simulation", { operation: "read", runId: run.id })).run.id,
     ).toBe(run.id);
@@ -721,12 +702,15 @@ for (const sourceKind of ["workspace", "project-folder"] as const)
         buffer: Buffer.from(exported.artifact.data, "base64"),
       });
       await clickNetlistWorkflowCommand(page, "open-analog-simulation");
+      await page.locator(".simulation-run-history > summary").click();
       const saved = page.getByRole("region", { name: "Saved folder results" });
       await expect(saved).toContainText("Agent");
       await saved.getByRole("button", { name: "Open result" }).click();
       await expect(
-        page.getByRole("button", { name: "Project + results ZIP" }),
-      ).toBeVisible();
+        page
+          .getByRole("region", { name: "Analog simulation" })
+          .getByRole("status"),
+      ).toHaveText("completed");
       expect(executions).toBe(1);
     }
   });
