@@ -12,7 +12,14 @@ import type {
 import { analyzeDesignNetlist } from "./extract.js";
 import type { DesignNetlistCell, DesignNetlistInstance } from "./ir.js";
 import { inspectVacaskSourceGraph } from "./vacask-source.js";
-import { vacaskCircuitScopes } from "./vacask-source-scopes.js";
+import {
+  vacaskCircuitScopes,
+  vacaskAuthoredCircuitEvents,
+} from "./vacask-source-scopes.js";
+import {
+  nativeCurrentSenses,
+  type NativeCurrentSense,
+} from "./simulation-native-current.js";
 import { vacaskIdentifier, vacaskProjectValue } from "./vacask-printer.js";
 import {
   resolveNativeModelLibraries,
@@ -29,6 +36,7 @@ export interface NativeSimulationDevice {
   /** Exact native primitive path, never a guessed primitive inside a wrapper. */
   nativeDevice?: string;
   modelPrimitives: { reference: string; module: string }[];
+  currentSenses: NativeCurrentSense[];
   polarity?: "nmos" | "pmos";
 }
 
@@ -40,6 +48,23 @@ export function nativeSimulationDevices(
 ): NativeSimulationDevice[] {
   const graph = inspectVacaskSourceGraph(input);
   const result: NativeSimulationDevice[] = [];
+  const generatedPaths = new Set(input.circuitBindings.map((b) => b.path));
+  const authoredRootNames = new Set<string>();
+  const authoredGlobals = new Set<string>();
+  let depth = 0;
+  for (const event of vacaskAuthoredCircuitEvents({
+    ...graph,
+    statements: graph.statements.filter((s) => !generatedPaths.has(s.path)),
+  })) {
+    if (event.kind === "definition") depth++;
+    else if (event.kind === "end") depth--;
+    else if (event.kind === "globals") {
+      for (const name of event.names) authoredGlobals.add(name);
+    } else if (event.kind === "call" && depth === 0) {
+      authoredRootNames.add(event.name);
+      for (const node of event.nodes) authoredRootNames.add(node);
+    }
+  }
   for (const binding of input.circuitBindings) {
     if (!graph.paths.includes(binding.path)) continue;
     const ir = analyzeDesignNetlist(project, {
@@ -67,6 +92,18 @@ export function nativeSimulationDevices(
       ) {
         if (++visits > 4096 || ancestors.has(cell.id)) return;
         const document = project.documents.find((d) => d.id === cell.id)!;
+        // One name inventory per visited Cell, not a full scan for every pin.
+        const occupied = new Set([
+          ...cell.instances.map((i) => i.reference),
+          ...cell.ports.flatMap((p) => [p.name, p.netName]),
+          ...cell.nets.map((n) => n.name),
+          ...cell.instances.flatMap((i) => i.nodes.map((n) => n.netName)),
+          ...ir!.globals,
+          ...authoredGlobals,
+          ...(binding.emission === "top-level" && cell.id === ir!.topCellId
+            ? authoredRootNames
+            : []),
+        ]);
         for (const card of cell.instances) {
           const reference = [...path, card.reference].join(":");
           const authored = document.instances.find((i) => i.id === card.id);
@@ -91,6 +128,7 @@ export function nativeSimulationDevices(
             reference,
             card,
             modelPrimitives,
+            currentSenses: nativeCurrentSenses(cell, card, path, occupied),
             ...(nativeDevice ? { nativeDevice } : {}),
             ...(polarity ? { polarity } : {}),
           });
@@ -251,8 +289,11 @@ export function nativeTerminalCurrent(
         directives: [],
       };
   }
-  return {
-    ok: false,
-    message: `Terminal current at ${device.reference}.${pinName} requires a zero-volt sense source. Native model id is not a signed terminal-total current, and VACASK does not accept the old .probe directive. Insert an explicit sense source and save its branch current; automatic terminal instrumentation remains a migration gap.`,
-  };
+  const sense = device.currentSenses.find((s) => s.pinName === pin);
+  if (!sense || sense.collision)
+    return {
+      ok: false,
+      message: `Cannot allocate a collision-free zero-volt sense source for ${device.reference}.${pinName}; rename the colliding object and select again.`,
+    };
+  return { ok: true, vectors: [sense.save], directives: [] };
 }

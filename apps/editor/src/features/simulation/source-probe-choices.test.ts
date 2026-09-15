@@ -144,9 +144,10 @@ describe("source Probe discovery", () => {
     )!;
     expect(mos.nativeDevice).toBeUndefined();
     expect(nativeTerminalCurrent(mos, "D")).toMatchObject({
-      ok: false,
+      ok: true,
+      vectors: [mos.currentSenses.find((s) => s.pinName === "D")!.save],
     });
-    expect(nativeTerminalCurrent(mos, "G")).toMatchObject({ ok: false });
+    expect(nativeTerminalCurrent(mos, "G")).toMatchObject({ ok: true });
     const choices = sourceProbeChoices(project, input);
     expect(
       choices.some(

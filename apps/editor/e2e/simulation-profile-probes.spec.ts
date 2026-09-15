@@ -87,5 +87,18 @@ test("Profile-backed OP picker discovers an implicit library without writing its
   await expect(editor).toContainText(gm.save);
   await expect(editor).not.toContainText("icm-models");
   await expect(picker.getByRole("status")).toHaveCount(0);
+  await picker.getByRole("button", { name: "Done", exact: true }).click();
+  await page.getByRole("button", { name: "Helper", exact: true }).click();
+  await page
+    .getByRole("option", { name: "Save terminal current…", exact: true })
+    .click();
+  const current = picker.getByRole("button", { name: /M1\.D current/ });
+  await current.click();
+  await expect(current).toContainText("Added");
+  const sense = device.currentSenses.find(
+    (s) => s.pinName === "D" || s.pinName === "d",
+  )!;
+  await expect(editor).toContainText(sense.save);
+  await expect(editor).not.toContainText(".probe");
   expect(executions).toBe(0);
 });

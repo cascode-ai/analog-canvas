@@ -19,6 +19,8 @@ import type {
   CompiledSimulationVector,
 } from "./simulation-compile.js";
 import { printVacaskWithLocations } from "./vacask-printer.js";
+import { nativeCurrentInstrumentation } from "./simulation-native-current.js";
+import { instrumentTerminalCurrents } from "./terminal-current-instrumentation.js";
 import type {
   PrintedNetlistParameter,
   PrintedNetlistInstance,
@@ -177,6 +179,15 @@ export function compileSourceSimulation(
   if (diagnostics.some((d) => d.severity === "error"))
     return { ok: false, diagnostics };
   const plans = new Map<string, DesignNetlistIR>();
+  const currentInput = {
+    ...folder.input,
+    files: temperature.files.map(({ path, text }) => ({ path, text })),
+  };
+  const currents = nativeCurrentInstrumentation(
+    currentInput,
+    nativeSimulationDevices(effective, currentInput),
+  );
+  diagnostics.push(...currents.diagnostics);
   for (const binding of bindings) {
     const result = analyzeDesignNetlist(effective, {
       format: "spice",
@@ -190,7 +201,11 @@ export function compileSourceSimulation(
         field: d.documentId,
       })),
     );
-    if (result.ir) plans.set(binding.id, result.ir);
+    if (result.ir)
+      plans.set(
+        binding.id,
+        instrumentTerminalCurrents(result.ir, currents.instrumentations),
+      );
   }
   if (diagnostics.some((d) => d.severity === "error"))
     return { ok: false, diagnostics };

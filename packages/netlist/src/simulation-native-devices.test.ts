@@ -182,10 +182,10 @@ describe("native Canvas device acquisitions", () => {
         semantics: "model-native",
       });
       expect(nativeTerminalCurrent(device, "D")).toMatchObject({
-        ok: false,
-        message: expect.stringContaining("zero-volt sense source"),
+        ok: true,
+        vectors: [device.currentSenses.find((s) => s.pinName === "D")!.save],
       });
-      expect(nativeTerminalCurrent(device, "G").ok).toBe(false);
+      expect(nativeTerminalCurrent(device, "G").ok).toBe(true);
     }
     expect({ project, folder }).toEqual(before);
     const compiled = compileSourceSimulation(project, folder);
@@ -290,7 +290,7 @@ include "dut.inc"`,
     }
   });
 
-  it("keeps voltage-source branch selection native and refuses non-unit total-current aliases", () => {
+  it("keeps unit voltage-source branches native and senses other terminal-total currents", () => {
     const { project, folder, document } = fixture();
     const instance = document.instances.find((i) => i.id === "mos")!;
     instance.reference = "V1";
@@ -318,9 +318,15 @@ include "dut.inc"`,
       vectors: ["i('X1:V1')"],
       directives: [],
     });
-    expect(nativeTerminalCurrent(device, "-").ok).toBe(false);
+    expect(nativeTerminalCurrent(device, "-")).toMatchObject({
+      ok: true,
+      vectors: [device.currentSenses.find((s) => s.pinName === "-")!.save],
+    });
     device.card.parameters.push({ name: "m", rawValue: "3" });
-    expect(nativeTerminalCurrent(device, "+").ok).toBe(false);
+    expect(nativeTerminalCurrent(device, "+")).toMatchObject({
+      ok: true,
+      vectors: [device.currentSenses.find((s) => s.pinName === "+")!.save],
+    });
   });
 });
 

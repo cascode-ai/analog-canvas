@@ -128,9 +128,20 @@ conflicting alternatives remain unresolved; no geometry condition is evaluated.
 The SKY130 converter keeps valid MOS paths unchanged and gives the invalid-bin
 error instance a distinct name. This separates failure from model identity;
 it does not qualify geometry, model numbers or the hosted environment.
-Voltage-source branch current is supported, but arbitrary terminal current
-still requires explicit zero-volt sensing; automatic sensing remains a migration
-gap. Unsupported picks do not modify the Project or invoke old `.probe` syntax.
+Terminal-current Helper writes ordinary native `save i('branch')`. A unit
+positive voltage-source terminal uses its existing branch; other Canvas terminals
+use deterministic compiler-owned `__icm_sense_` branch names. Reached literal
+native saves (including equivalent `v('branch:flow(br)')`) request a series
+zero-volt source in derived Circuit IR, never a saved Canvas instance or sidecar
+selection. Positive current enters the selected terminal. The generated source
+and private node appear in Circuit and executed artifacts, but are not editable
+Canvas source bodies. Removing the save removes unneeded instrumentation.
+Shared Cell definitions receive one sensor per selected pin, with separate
+case-sensitive acquisition paths for each occurrence. Stale identities and
+instance/node/global collisions produce located repairable diagnostics, not
+silent rebinding. Model-native `id`/`gm` remain distinct from terminal-total
+current. Dynamic computed acquisition names are not inferred by this Helper;
+authored native circuitry and explicit sense sources remain available.
 
 Native `meas` results are finite scalar reports read from the simulator log, with
 report order and Console line retained. Missing results are unavailable, not zero.
@@ -261,15 +272,15 @@ or implicit default enters saved/exported/executed text. Parameter guidance is
 advisory: users and Agents may continue writing native syntax beyond the catalog.
 Parameter descriptions remain visible without a permanent Tab/Shift+Tab legend.
 
-Helper signal actions insert native `save`/`.save` statements, not a parallel
+Helper signal actions insert native `save` statements, not a parallel
 voltage-output configuration. Signal selection stays open for successive additions;
 added choices are marked and cannot insert duplicates within that selection session.
 Canvas picking continues until Done or Escape. Successive picks extend the session's
 save statement without focusing the editor; the file row exposes picking status
 and Done. Failed additions keep the selection available and report their cause.
-Terminal-current picks write native `.probe` or a model-native `save` vector.
-They never create new legacy configuration instrumentation or silently widen
-an explicit save list to `all`.
+Terminal-current picks write the native branch saves described above. They
+never create legacy configuration selections or silently widen an explicit
+save list to `all`.
 Discovery and completion use the compiler's authored call-path mapping; they
 show the Canvas name alongside the executable native vector. Native vectors
 remain available for text-only or statically unresolvable scopes.
@@ -475,10 +486,10 @@ Profile paths resolve through the existing dependency resolver, never through
 client machine paths. Known model-backed acquisition and execution eligibility
 remain Profile-governed; unknown static syntax is not a new analysis blacklist.
 
-Legacy terminal-current sense sources stay in prepared IR for compatibility.
-Native Helper acquisition is defined in source (`.probe` or model vectors), not
-in that legacy IR instrumentation path. Keep hierarchy aliases and exact object
-mappings; never guess MOS currents from `i(m1)`.
+Native terminal-current requests reuse the shared derived-IR series-source
+transform, with source-owned requests and deterministic branch allocation;
+they do not execute legacy setup compilation. Keep hierarchy aliases and exact
+object mappings; never guess MOS terminal currents from model `id` or `i(m1)`.
 
 ### Frozen first collection boundary
 

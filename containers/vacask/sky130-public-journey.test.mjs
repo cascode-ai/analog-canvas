@@ -10,6 +10,8 @@ import { CapabilitiesSchema } from "../../packages/simulation-service/src/contra
 import { initializeVacaskRuntime } from "./runtime.mjs";
 import { createVacaskHttpServer } from "./http-server.mjs";
 import { createLocalSimulationHandler } from "../../apps/local-host/src/index.js";
+import { nativeSimulationDevices } from "../../packages/netlist/src/simulation-native-devices.js";
+import { nativeAcquisitionEdit } from "../../packages/netlist/src/simulation-native-save-edit.js";
 
 function unwrap(reply, key) {
   if (!reply.ok || !(key in reply)) throw Error(JSON.stringify(reply));
@@ -27,6 +29,21 @@ it.skipIf(
   async () => {
     const { project, folder, profile, library, acquisitions } =
       nativeSky130OtaFixture();
+    const devices = nativeSimulationDevices(project, folder.input);
+    const sensed = ["nmos", "pmos"].map((polarity) => {
+      const device = devices.find((d) => d.polarity === polarity);
+      expect(device, polarity).toBeDefined();
+      return device;
+    });
+    const entry = folder.input.files.find((f) => f.path === folder.input.entry);
+    const edit = nativeAcquisitionEdit(
+      entry.text,
+      entry.text.indexOf("analysis "),
+      sensed.flatMap((d) => d.currentSenses.map((s) => s.save)),
+      true,
+    );
+    if (!edit.ok) throw Error(JSON.stringify(edit));
+    entry.text = edit.text;
     const before = structuredClone(project);
     expect(
       folder.input.files.some((file) => /options\s+scale=/u.test(file.text)),
@@ -164,6 +181,33 @@ it.skipIf(
       const ac = result.data.analyses.find((a) => a.analysis === "ac");
       expect(op).toBeDefined();
       expect(ac).toBeDefined();
+      for (const device of sensed) {
+        const pins = device.currentSenses.map((s) => {
+          const probe = op.probes.find((p) => p.name === s.vector);
+          expect(probe, s.vector).toBeDefined();
+          expect(Number.isFinite(probe.value)).toBe(true);
+          if (s.pinName.toLowerCase() === "d")
+            expect(
+              probe.value * (device.polarity === "pmos" ? -1 : 1),
+            ).toBeGreaterThan(0);
+          return probe.value;
+        });
+        expect(pins).toHaveLength(4);
+        expect(pins.reduce((sum, value) => sum + value, 0)).toBeCloseTo(0, 10);
+        const traces = device.currentSenses.map((s) =>
+          ac.probes.find((p) => p.name === s.vector),
+        );
+        for (let i = 0; i < ac.frequencyHz.length; i++) {
+          expect(traces.reduce((sum, p) => sum + p.real[i], 0)).toBeCloseTo(
+            0,
+            10,
+          );
+          expect(traces.reduce((sum, p) => sum + p.imag[i], 0)).toBeCloseTo(
+            0,
+            10,
+          );
+        }
+      }
       for (const acquisition of acquisitions) {
         const probe = op.probes.find((p) => p.name === acquisition.vector);
         expect(probe, acquisition.vector).toBeDefined();

@@ -83,6 +83,12 @@ import {
 import type { SimulationAnalysis, SimulationRequest } from "@icm/spice-run";
 
 import { analyzeDesignNetlist } from "./extract.js";
+import {
+  instrumentationKey,
+  instrumentTerminalCurrents,
+  type TerminalCurrentInstrumentation,
+} from "./terminal-current-instrumentation.js";
+export type { TerminalCurrentInstrumentation } from "./terminal-current-instrumentation.js";
 import type {
   DesignNetlistCell,
   DesignNetlistInstance,
@@ -133,14 +139,6 @@ interface ResolvedSimulationProbe {
   readonly writeVector: string;
   /** Ephemeral Cell instrumentation required before printing the netlist. */
   readonly netlistInstrumentation?: TerminalCurrentInstrumentation;
-}
-
-export interface TerminalCurrentInstrumentation {
-  readonly cellId: StableId;
-  readonly instanceId: StableId;
-  readonly pinName: string;
-  readonly senseReference: string;
-  readonly senseNode: string;
 }
 
 export type CompiledSimulationExpression =
@@ -498,15 +496,6 @@ function resolveOccurrence(
   return { document, cell, path, hierarchyPath };
 }
 
-function instrumentationKey(
-  instrumentation: Pick<
-    TerminalCurrentInstrumentation,
-    "cellId" | "instanceId" | "pinName"
-  >,
-): string {
-  return `${instrumentation.cellId}\u0000${instrumentation.instanceId}\u0000${instrumentation.pinName}`;
-}
-
 /**
  * Allocate names from the extracted Cell, not from output order. This makes
  * the generated deck deterministic when an author reorders outputs and keeps
@@ -572,62 +561,6 @@ function ensureTerminalCurrentInstrumentation(
     }
     serial += 1;
   }
-}
-
-/**
- * Put a zero-volt source in series with each selected terminal. The source's
- * positive node is the external Net and its negative node is the private sense
- * node, so ngspice's positive branch current is current entering the terminal.
- */
-function instrumentTerminalCurrents(
-  ir: DesignNetlistIR,
-  instrumentations: ReadonlyMap<string, TerminalCurrentInstrumentation>,
-): DesignNetlistIR {
-  if (instrumentations.size === 0) return ir;
-  return {
-    ...ir,
-    cells: ir.cells.map((cell) => ({
-      ...cell,
-      instances: cell.instances.flatMap((instance) => {
-        const selected = instance.nodes.flatMap((node) => {
-          const instrumentation = instrumentations.get(
-            instrumentationKey({
-              cellId: cell.id,
-              instanceId: instance.id,
-              pinName: node.pinName,
-            }),
-          );
-          return instrumentation ? [{ node, instrumentation }] : [];
-        });
-        if (selected.length === 0) return [instance];
-        return [
-          {
-            ...instance,
-            nodes: instance.nodes.map((node) => {
-              const selectedNode = selected.find(
-                (item) => item.node.pinName === node.pinName,
-              );
-              return selectedNode
-                ? { ...node, netName: selectedNode.instrumentation.senseNode }
-                : node;
-            }),
-          },
-          ...selected.map(({ node, instrumentation }) => ({
-            id: `${instance.id}:simulation-current-sense:${instrumentation.senseReference}`,
-            reference: instrumentation.senseReference,
-            invocationKind: "primitive" as const,
-            deviceClass: "voltage-source" as const,
-            target: null,
-            nodes: [
-              { pinName: "+", netName: node.netName },
-              { pinName: "-", netName: instrumentation.senseNode },
-            ],
-            parameters: [{ name: "dc", rawValue: "0" }],
-          })),
-        ];
-      }),
-    })),
-  };
 }
 
 function netVoltageAddress(

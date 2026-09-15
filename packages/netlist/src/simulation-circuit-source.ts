@@ -198,9 +198,9 @@ export function generateCircuitSource(
       parameters,
       sourceBodies: printed.instances.flatMap((span): EditableSourceBody[] => {
         const cell = ir.cells.find((cell) => cell.id === span.documentId)!;
-        const card = cell.instances.find(
-          (card) => card.id === span.instanceId,
-        )!;
+        const card = cell.instances.find((card) => card.id === span.instanceId);
+        // Derived current sensors have no editable Canvas source body.
+        if (!card) return [];
         if (
           !["voltage-source", "current-source"].includes(card.deviceClass) ||
           normalizeIndependentSource(card.parameters).extraParameters.length
