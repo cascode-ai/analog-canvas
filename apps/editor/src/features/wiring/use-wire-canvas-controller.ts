@@ -27,7 +27,10 @@ import {
   looseRouteAnchorIds,
   type RouteGeometryRecord,
 } from "./route-interaction-geometry";
-import type { RouteStretchPreview } from "./use-wire-interaction";
+import type {
+  CurrentWireSession,
+  RouteStretchPreview,
+} from "./use-wire-interaction";
 import {
   buildWireCanvasSnapIndex,
   resolveWireCanvasSnap as resolveWireCanvasSnapModel,
@@ -48,7 +51,6 @@ export interface UseWireCanvasControllerOptions {
   };
   session: {
     wireSource: WireSource | null;
-    wireWaypoints: readonly Point[];
     wireDraftSteps: readonly WireDraftStep[];
     wireRoutingMode: WireRoutingMode;
     wireCornerOrder: WireCornerOrder;
@@ -62,6 +64,7 @@ export interface UseWireCanvasControllerOptions {
     setWireDraftSteps: (steps: WireDraftStep[]) => void;
     setWireRoutingMode: (mode: WireRoutingMode) => void;
     setWireCornerOrder: (order: WireCornerOrder) => void;
+    readCurrentWireSession: () => CurrentWireSession;
   };
   selection: {
     selectedInstanceIds: readonly string[];
@@ -121,7 +124,6 @@ export function useWireCanvasController({
   },
   session: {
     wireSource,
-    wireWaypoints,
     wireDraftSteps,
     wireRoutingMode,
     wireCornerOrder,
@@ -135,6 +137,7 @@ export function useWireCanvasController({
     setWireDraftSteps,
     setWireRoutingMode,
     setWireCornerOrder,
+    readCurrentWireSession,
   },
   selection: {
     selectedInstanceIds,
@@ -185,32 +188,35 @@ export function useWireCanvasController({
     point: Point,
     svg: SVGSVGElement,
     suppressSnap: boolean,
-  ): WireCanvasSnapResult =>
-    resolveWireCanvasSnapModel(
+  ): WireCanvasSnapResult => {
+    const wire = readCurrentWireSession();
+    return resolveWireCanvasSnapModel(
       {
         document,
         resolver,
         wiringEndpoints,
         routeGeometryRecords,
         contactComponents,
-        wireSource,
-        wireWaypoints,
+        wireSource: wire.source,
+        wireWaypoints: wire.steps.map((step) => step.point),
         captureTolerance: logicalRadiusForPixels(svg, SNAP_CAPTURE_RADIUS_PX),
         snapIndex: wireCanvasSnapIndex,
       },
       point,
       suppressSnap,
     );
+  };
 
   const cycleWireCornerShape = (): void => {
+    const wire = readCurrentWireSession();
     const next = nextWireCornerShape(
-      wireRoutingMode,
-      wireCornerOrder,
-      wireSource,
-      wireDraftSteps,
+      wire.routingMode,
+      wire.cornerOrder,
+      wire.source,
+      wire.steps,
     );
     lastWireShapeRef.current = next;
-    if (next.routingMode !== wireRoutingMode) {
+    if (next.routingMode !== wire.routingMode) {
       setWireRoutingMode(next.routingMode);
     }
     setWireCornerOrder(next.cornerOrder);
@@ -225,9 +231,10 @@ export function useWireCanvasController({
   ): void => {
     const resolved = resolveWireCanvasSnap(rawPoint, svg, suppressSnap);
     paintSnapGuides([]);
+    const liveSource = readCurrentWireSession().source;
     // A double-click ends an existing wire and never starts a fresh one after
     // the first click has already committed onto an endpoint or Route.
-    if (finish && !wireSource) return;
+    if (finish && !liveSource) return;
     if (resolved.ambiguous) {
       setStatus(
         "Ambiguous connection: choose one endpoint or conductor away from the overlap",
@@ -248,13 +255,13 @@ export function useWireCanvasController({
       setStatus("That connection target is no longer on the sheet");
       return;
     }
-    if (!wireSource) {
+    if (!liveSource) {
       setWireSource(candidate, document.revision);
       setWirePreview(freeWireDraftTarget(candidate.connection.contactPoint));
       setWireDraftSteps([]);
       return;
     }
-    if (endpointKey(wireSource.endpoint) === endpointKey(candidate.endpoint)) {
+    if (endpointKey(liveSource.endpoint) === endpointKey(candidate.endpoint)) {
       setStatus("Choose a different endpoint");
       return;
     }

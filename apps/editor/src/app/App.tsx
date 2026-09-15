@@ -1142,10 +1142,8 @@ export function App({
     pendingSymbolId,
     pendingComponentPlacement,
     wireSource,
-    wireSourceRevision,
     wirePreviewPoint,
     wirePreviewTarget,
-    wireWaypoints,
     wireDraftSteps,
     wireRoutingMode,
     wireCornerOrder,
@@ -1188,6 +1186,24 @@ export function App({
     beginSelectionMove: beginSelectionMoveInteraction,
     cancelInteraction,
   } = useInteractionState<SchematicClipboard>();
+  const readCurrentWireSession = () => {
+    const current = getCurrentInteractionState();
+    return current.kind === "wire"
+      ? {
+          source: current.source,
+          sourceRevision: current.sourceRevision,
+          steps: current.steps,
+          routingMode: current.routingMode,
+          cornerOrder: current.cornerOrder,
+        }
+      : {
+          source: null,
+          sourceRevision: null,
+          steps: [],
+          routingMode: "orthogonal" as const,
+          cornerOrder: "auto" as const,
+        };
+  };
   const { commitStructure, transact, transactConnectivity } =
     createEditorTransactionCommands({
       project,
@@ -2323,12 +2339,7 @@ export function App({
       setSelectedEndpoint,
     },
     session: {
-      wireSource,
-      wireSourceRevision,
-      wireWaypoints,
-      wireDraftSteps,
-      wireRoutingMode,
-      wireCornerOrder,
+      readCurrentWireSession,
       setTool,
       setWireSource,
       setWirePreview,
@@ -2745,6 +2756,7 @@ export function App({
     wireSource && wirePreviewTarget
       ? resolveWireDraftPreview({
           document,
+          resolver,
           source: wireSource,
           target: wirePreviewTarget,
           steps: wireDraftSteps,
@@ -2919,7 +2931,6 @@ export function App({
     },
     session: {
       wireSource,
-      wireWaypoints,
       wireDraftSteps,
       wireRoutingMode,
       wireCornerOrder,
@@ -2935,6 +2946,7 @@ export function App({
       setWireDraftSteps,
       setWireRoutingMode,
       setWireCornerOrder,
+      readCurrentWireSession,
     },
     selection: {
       selectedInstanceIds: selectedIds,

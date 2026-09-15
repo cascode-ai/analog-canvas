@@ -2295,6 +2295,62 @@ test("connects one MOS Gate to Drain without false contact ambiguity", async ({
   ).toHaveCount(0);
 });
 
+test("commits two endpoint presses even before React publishes the first one", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await placeComponent(page, "resistor", { x: 340, y: 220 });
+  await placeComponent(page, "resistor", { x: 660, y: 220 });
+  await clickDrawTool(page, "wire");
+
+  // Both presses run in one browser task. The interaction reducer has already
+  // accepted the first endpoint, but React has no chance to render that source
+  // into the second handler's closure. The handler must read the synchronous
+  // interaction state or this silently replaces the source with R2.
+  await page.evaluate(() => {
+    for (const id of ["terminal-R1-2", "terminal-R2-1"]) {
+      const endpoint = document.querySelector(`[data-testid="${id}"]`);
+      if (!endpoint) throw new Error(`Missing ${id}`);
+      endpoint.dispatchEvent(
+        new PointerEvent("pointerdown", {
+          bubbles: true,
+          button: 0,
+          pointerId: 1,
+        }),
+      );
+    }
+  });
+
+  await expect(page.getByTestId("status")).toContainText("Committed route");
+  await expect(page.locator('[data-layer="routes"] polyline')).toHaveCount(1);
+});
+
+test("automatic endpoint wiring chooses a clear orthogonal corner", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await placeComponent(page, "nmos", { x: 200, y: 200 });
+  await placeComponent(page, "nmos", { x: 600, y: 400 });
+  await placeComponent(page, "resistor", { x: 400, y: 200 });
+  await clickDrawTool(page, "wire");
+  await page.getByTestId("terminal-M1-G").click();
+  await page.getByTestId("terminal-M2-G").hover();
+
+  const preview = await page.getByTestId("wire-preview").evaluate((element) =>
+    Array.from((element as SVGPolylineElement).points).map(({ x, y }) => ({
+      x,
+      y,
+    })),
+  );
+  expect(preview.length).toBeGreaterThanOrEqual(3);
+  expect(preview[1]!.x).toBe(preview[0]!.x);
+  expect(preview[1]!.y).not.toBe(preview[0]!.y);
+
+  await page.getByTestId("terminal-M2-G").click();
+  await expect(page.getByTestId("status")).toContainText("Committed route");
+  expect(await readRoutePoints(page, "route-ui-1")).toEqual(preview);
+});
+
 test("keeps three collinear MOS Gates connected without a junction dot", async ({
   page,
 }) => {

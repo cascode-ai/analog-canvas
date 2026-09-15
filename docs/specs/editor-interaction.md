@@ -349,6 +349,11 @@ any angle ([ADR 0014](../adr/0014-resolved-route-geometry.md));
 a middle-button drag pans as usual. F3 opens Wire options including corner
 order. Existing authored legs are immutable under mode switches; Backspace
 removes the latest authored step rather than an automatically compiled elbow.
+A fresh automatic orthogonal connection compares both right-angle corners and
+simple one-grid-clear corridors around symbol ink, then uses the shortest path
+that does not cross a component. A visible pin on the original path remains an
+intentional electrical contact. Any fixed point, explicit corner order,
+45-degree mode, or free-angle mode bypasses this assistance.
 
 Activating the same tool is idempotent: repeated C, W, A, or selection of the
 same Library item preserves the active session. Activating a different creation

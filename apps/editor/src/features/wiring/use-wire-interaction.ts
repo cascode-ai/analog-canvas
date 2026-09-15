@@ -63,6 +63,7 @@ import {
   routeTapPoint,
   type RouteGeometryRecord,
 } from "./route-interaction-geometry";
+import { automaticWireDraftSteps } from "./automatic-wire-routing";
 
 export interface RouteStretchPreview {
   routeId: string;
@@ -89,6 +90,14 @@ export interface RouteStretchPreview {
   suffix?: string;
 }
 
+export interface CurrentWireSession {
+  source: WireSource | null;
+  sourceRevision: number | null;
+  steps: readonly WireDraftStep[];
+  routingMode: WireRoutingMode;
+  cornerOrder: WireCornerOrder;
+}
+
 type TransactionResult = {
   ok: boolean;
   revision: number;
@@ -112,12 +121,7 @@ export interface UseWireInteractionOptions {
     setSelectedEndpoint: (endpoint: WireSource | null) => void;
   };
   session: {
-    wireSource: WireSource | null;
-    wireSourceRevision: number | null;
-    wireWaypoints: readonly Point[];
-    wireDraftSteps: readonly WireDraftStep[];
-    wireRoutingMode: WireRoutingMode;
-    wireCornerOrder: WireCornerOrder;
+    readCurrentWireSession: () => CurrentWireSession;
     setTool: (tool: "wire") => void;
     setWireSource: (source: WireSource | null, revision: number | null) => void;
     setWirePreview: (target: WireDraftTarget | null) => void;
@@ -196,36 +200,46 @@ export function useWireInteraction(capabilities: UseWireInteractionOptions) {
     wireSourceForTarget(
       options.document,
       target,
-      options.wireSource?.netId ?? null,
+      options.readCurrentWireSession().source?.netId ?? null,
       () => wireDraftTargetIdsForSuffix(target, options.nextRoutingSuffix()),
     );
 
   const commitWire = (candidate: WireSource): void => {
-    if (!options.wireSource) return;
-    if (options.wireSourceRevision !== options.document.revision) {
+    const wire = options.readCurrentWireSession();
+    if (!wire.source) return;
+    if (wire.sourceRevision !== options.document.revision) {
       options.clearTransientCanvasState();
       options.cancelInteraction();
       options.setBulkDrawInstanceId(null);
       options.setStatus("Wire cancelled because its source revision is stale");
       return;
     }
-    const proposal = proposeWireCommitThroughContacts(
-      options.wireSource,
+    const plannedSteps = automaticWireDraftSteps(
+      options.document,
+      options.resolver,
+      wire.source,
       candidate,
-      options.wireWaypoints,
+      wire.steps,
+      wire.routingMode,
+      wire.cornerOrder,
+    );
+    const proposal = proposeWireCommitThroughContacts(
+      wire.source,
+      candidate,
+      plannedSteps.map((step) => step.point),
       wirePassThroughContacts(options.visibleEndpoints, {
-        from: options.wireSource,
+        from: wire.source,
         to: candidate,
-        steps: options.wireDraftSteps,
+        steps: plannedSteps,
       }),
       options.nextRoutingSuffix(),
       {
-        steps: options.wireDraftSteps,
-        routingMode: options.wireRoutingMode,
-        cornerOrder: options.wireCornerOrder,
+        steps: plannedSteps,
+        routingMode: wire.routingMode,
+        cornerOrder: wire.cornerOrder,
       },
     );
-    const bulkEndpoint = [options.wireSource.endpoint, candidate.endpoint].find(
+    const bulkEndpoint = [wire.source.endpoint, candidate.endpoint].find(
       (endpoint) => endpoint.kind === "terminal" && endpoint.pinName === "B",
     );
     const defaultBoundInstance =
@@ -284,7 +298,8 @@ export function useWireInteraction(capabilities: UseWireInteractionOptions) {
       return;
     }
     options.setTool("wire");
-    if (!options.wireSource) {
+    const wire = options.readCurrentWireSession();
+    if (!wire.source) {
       options.setWireSource(candidate, options.document.revision);
       options.setWirePreview(
         freeWireDraftTarget(candidate.connection.contactPoint),
@@ -293,10 +308,7 @@ export function useWireInteraction(capabilities: UseWireInteractionOptions) {
       options.setStatus(`Wire source: ${endpointKey(candidate.endpoint)}`);
       return;
     }
-    if (
-      endpointKey(options.wireSource.endpoint) ===
-      endpointKey(candidate.endpoint)
-    ) {
+    if (endpointKey(wire.source.endpoint) === endpointKey(candidate.endpoint)) {
       options.setStatus("Choose a different endpoint");
       return;
     }
@@ -341,14 +353,14 @@ export function useWireInteraction(capabilities: UseWireInteractionOptions) {
         : {}),
     };
     options.setTool("wire");
-    if (options.wireSource) {
+    const wire = options.readCurrentWireSession();
+    if (wire.source) {
       const candidate =
-        endpointKey(options.wireSource.endpoint) === endpointKey(from.endpoint)
+        endpointKey(wire.source.endpoint) === endpointKey(from.endpoint)
           ? to
           : from;
       if (
-        endpointKey(options.wireSource.endpoint) !==
-        endpointKey(candidate.endpoint)
+        endpointKey(wire.source.endpoint) !== endpointKey(candidate.endpoint)
       ) {
         commitWire(candidate);
       }
@@ -908,14 +920,15 @@ export function useWireInteraction(capabilities: UseWireInteractionOptions) {
     }
     const segment = record.geometry.segments[tap.address.segmentIndex];
     if (!segment) return;
+    const currentWire = options.readCurrentWireSession();
     const tapPoint = routeTapPoint(
       tap.point,
       segment.from,
       segment.to,
       options.document.presentation.grid,
-      options.wireSource
-        ? (options.wireWaypoints.at(-1) ??
-            options.wireSource.connection.gridLanding)
+      currentWire.source
+        ? (currentWire.steps.at(-1)?.point ??
+            currentWire.source.connection.gridLanding)
         : null,
     );
     const overlappingTargets = options.routeGeometryRecords.flatMap(
@@ -962,7 +975,7 @@ export function useWireInteraction(capabilities: UseWireInteractionOptions) {
       options.setStatus("That conductor segment is no longer on the sheet");
       return;
     }
-    if (!options.wireSource) {
+    if (!currentWire.source) {
       options.setWireSource(anchor, options.document.revision);
       options.setWirePreview(freeWireDraftTarget(tapPoint));
       options.setWireDraftSteps([]);
@@ -973,7 +986,8 @@ export function useWireInteraction(capabilities: UseWireInteractionOptions) {
   };
 
   const fixWirePoint = (point: Point): void => {
-    if (!options.wireSource) {
+    const wire = options.readCurrentWireSession();
+    if (!wire.source) {
       const source = sourceForTarget(freeWireDraftTarget(point))!;
       options.setWireSource(source, options.document.revision);
       options.setWirePreview(freeWireDraftTarget(point));
@@ -982,11 +996,11 @@ export function useWireInteraction(capabilities: UseWireInteractionOptions) {
       return;
     }
     options.setWireDraftSteps([
-      ...options.wireDraftSteps,
+      ...wire.steps,
       {
         point,
-        routingMode: options.wireRoutingMode,
-        cornerOrder: options.wireCornerOrder,
+        routingMode: wire.routingMode,
+        cornerOrder: wire.cornerOrder,
       },
     ]);
     options.setWirePreview(freeWireDraftTarget(point));
@@ -994,7 +1008,7 @@ export function useWireInteraction(capabilities: UseWireInteractionOptions) {
   };
 
   const finishWireAtPoint = (point: Point): void => {
-    if (!options.wireSource) {
+    if (!options.readCurrentWireSession().source) {
       fixWirePoint(point);
       return;
     }

@@ -184,6 +184,7 @@ function previewFor(
 ) {
   return resolveWireDraftPreview({
     document,
+    resolver,
     source,
     target,
     steps: draft.steps ?? [],
