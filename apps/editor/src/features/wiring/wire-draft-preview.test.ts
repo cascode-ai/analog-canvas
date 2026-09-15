@@ -24,6 +24,7 @@ import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
 
 import type { WireDraftTarget } from "../../interaction/interaction-state";
+import { automaticWireDraftSteps } from "./automatic-wire-routing";
 import {
   resolveWireDraftPreview,
   wirePassThroughContacts,
@@ -123,18 +124,27 @@ function committedCenterline(
   to: WireSource,
   draft: Draft,
 ): Point[] {
+  const steps = automaticWireDraftSteps(
+    document,
+    resolver,
+    source,
+    to,
+    draft.steps ?? [],
+    draft.routingMode ?? "orthogonal",
+    draft.cornerOrder ?? "auto",
+  );
   const proposal = proposeWireCommitThroughContacts(
     source,
     to,
-    (draft.steps ?? []).map((step) => step.point),
+    steps.map((step) => step.point),
     wirePassThroughContacts(visibleTerminals(document), {
       from: source,
       to,
-      steps: draft.steps ?? [],
+      steps,
     }),
     1,
     {
-      steps: draft.steps ?? [],
+      steps,
       routingMode: draft.routingMode ?? "orthogonal",
       cornerOrder: draft.cornerOrder ?? "auto",
     },
@@ -291,41 +301,43 @@ describe("the wire a draft preview promises is the wire that lands", () => {
     // Named outright so the equality above cannot pass on two empty answers.
     expect(preview.points).toEqual([
       { x: 180, y: 200 },
-      { x: 480, y: 200 },
+      { x: 170, y: 200 },
+      { x: 170, y: 400 },
       { x: 480, y: 400 },
     ]);
     expect(preview.contacts).toEqual([]);
   });
 
   it("crosses a pin without stopping on it", () => {
-    // M2's gate sits exactly on the straight run from M1's gate to M3's gate.
+    // M2's source sits exactly on the straight run from M1's drain to M3's
+    // source. Both endpoint directions agree with that vertical run.
     // The commit makes that contact and splits the gesture into two Routes;
     // a preview that draws one unbroken line is describing a wire the editor
     // will not build.
     const build = () => {
       const document = createEmptyDocument("main", "Main");
-      nmos(document, "M1", { x: 200, y: 200 });
-      nmos(document, "M2", { x: 400, y: 200 });
-      nmos(document, "M3", { x: 600, y: 200 });
+      nmos(document, "M1", { x: 370, y: 600 });
+      nmos(document, "M2", { x: 400, y: 400 });
+      nmos(document, "M3", { x: 370, y: 200 });
       return document;
     };
     const { preview, committed } = bothWays(
       build,
-      terminal("M1", "G"),
+      terminal("M1", "D"),
       (document) => ({
         kind: "endpoint",
         point: resolveEndpointConnection(
           document,
           resolver,
-          terminal("M3", "G"),
+          terminal("M3", "S"),
         )!.contactPoint,
-        source: wireSource(document, terminal("M3", "G")),
+        source: wireSource(document, terminal("M3", "S")),
       }),
     );
 
     expect(preview.points).toEqual(committed);
     // The crossed pin is a contact the drawing has to show, not a coincidence.
-    expect(preview.contacts).toEqual([{ x: 380, y: 200 }]);
+    expect(preview.contacts).toEqual([{ x: 380, y: 400 }]);
   });
 
   it("is dropped on empty canvas", () => {
@@ -494,19 +506,19 @@ describe("wirePassThroughContacts", () => {
     // complete pin list: the same wire, the same contacts.
     const build = () => {
       const wide = createEmptyDocument("main", "Main");
-      nmos(wide, "M1", { x: 200, y: 200 });
-      nmos(wide, "M2", { x: 400, y: 200 });
-      nmos(wide, "M3", { x: 600, y: 200 });
+      nmos(wide, "M1", { x: 370, y: 600 });
+      nmos(wide, "M2", { x: 400, y: 400 });
+      nmos(wide, "M3", { x: 370, y: 200 });
       nmos(wide, "Far", { x: 2000, y: 2000 });
       return wide;
     };
     const wide = build();
-    const source = wireSource(wide, terminal("M1", "G"));
+    const source = wireSource(wide, terminal("M1", "D"));
     const target: WireDraftTarget = {
       kind: "endpoint",
-      point: resolveEndpointConnection(wide, resolver, terminal("M3", "G"))!
+      point: resolveEndpointConnection(wide, resolver, terminal("M3", "S"))!
         .contactPoint,
-      source: wireSource(wide, terminal("M3", "G")),
+      source: wireSource(wide, terminal("M3", "S")),
     };
     const narrowed = wirePassThroughContacts(visibleTerminals(wide), {
       from: source,
@@ -522,7 +534,7 @@ describe("wirePassThroughContacts", () => {
       ),
     ).toBe(false);
     expect(previewFor(wide, source, target).contacts).toEqual([
-      { x: 380, y: 200 },
+      { x: 380, y: 400 },
     ]);
   });
 });

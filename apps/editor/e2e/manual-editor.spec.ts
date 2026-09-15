@@ -2343,10 +2343,36 @@ test("automatic endpoint wiring chooses a clear orthogonal corner", async ({
     })),
   );
   expect(preview.length).toBeGreaterThanOrEqual(3);
-  expect(preview[1]!.x).toBe(preview[0]!.x);
-  expect(preview[1]!.y).not.toBe(preview[0]!.y);
+  expect(preview[1]!.x).toBeLessThan(preview[0]!.x);
+  expect(preview[1]!.y).toBe(preview[0]!.y);
 
   await page.getByTestId("terminal-M2-G").click();
+  await expect(page.getByTestId("status")).toContainText("Committed route");
+  expect(await readRoutePoints(page, "route-ui-1")).toEqual(preview);
+});
+
+test("automatic endpoint wiring enters a MOS bottom pin from below", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await placeComponent(page, "nmos", { x: 200, y: 400 });
+  await placeComponent(page, "nmos", { x: 600, y: 200 });
+  await clickDrawTool(page, "wire");
+  await page.getByTestId("terminal-M1-G").click();
+  await page.getByTestId("terminal-M2-S").hover();
+
+  const preview = await page.getByTestId("wire-preview").evaluate((element) =>
+    Array.from((element as SVGPolylineElement).points).map(({ x, y }) => ({
+      x,
+      y,
+    })),
+  );
+  const target = preview.at(-1)!;
+  const beforeTarget = preview.at(-2)!;
+  expect(beforeTarget.x).toBe(target.x);
+  expect(beforeTarget.y).toBeGreaterThan(target.y);
+
+  await page.getByTestId("terminal-M2-S").click();
   await expect(page.getByTestId("status")).toContainText("Committed route");
   expect(await readRoutePoints(page, "route-ui-1")).toEqual(preview);
 });

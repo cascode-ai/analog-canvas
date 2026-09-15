@@ -1,4 +1,4 @@
-import { visibleSymbolInkBounds } from "@icm/derived";
+import { resolveRouteGeometry, visibleSymbolInkBounds } from "@icm/derived";
 import {
   compileWireDraft,
   type WireCornerOrder,
@@ -19,6 +19,13 @@ interface Candidate {
   collisions: number;
   length: number;
 }
+
+interface Obstacle {
+  instanceId: string;
+  box: Rect;
+}
+
+type Axis = "horizontal" | "vertical";
 
 function samePoint(left: Point, right: Point): boolean {
   return left.x === right.x && left.y === right.y;
@@ -89,13 +96,49 @@ function endpointOwner(source: WireSource): string | null {
     : null;
 }
 
+function cardinalOutward(source: WireSource): Point | null {
+  const outward = source.connection.outward;
+  if (!outward) return null;
+  if (
+    (outward.x === 0 && Math.abs(outward.y) === 1) ||
+    (outward.y === 0 && Math.abs(outward.x) === 1)
+  ) {
+    return outward;
+  }
+  return null;
+}
+
+function splitRouteAxis(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  source: WireSource,
+): Axis | null {
+  const split = source.preludeEdits.find(
+    (edit) => edit.kind === "add_junction" && edit.split,
+  );
+  if (split?.kind !== "add_junction" || !split.split) return null;
+  const route = document.routes.find(
+    (candidate) => candidate.id === split.split!.routeId,
+  );
+  if (!route) return null;
+  const segment = resolveRouteGeometry(
+    document,
+    resolver,
+    route,
+  )?.segments.find(({ address }) => address.legId === split.split!.legId);
+  if (!segment) return null;
+  if (segment.from.y === segment.to.y) return "horizontal";
+  if (segment.from.x === segment.to.x) return "vertical";
+  return null;
+}
+
 function obstacleBounds(
   document: SchematicDocument,
   resolver: SymbolResolver,
   from: WireSource,
   to: WireSource,
   baseline: readonly Point[],
-): Rect[] {
+): Obstacle[] {
   const endpointOwners = new Set(
     [endpointOwner(from), endpointOwner(to)].filter(
       (id): id is string => id !== null,
@@ -103,7 +146,7 @@ function obstacleBounds(
   );
   const clearance = document.presentation.grid;
   return document.instances.flatMap((instance) => {
-    if (!instance.placement || endpointOwners.has(instance.id)) return [];
+    if (!instance.placement) return [];
     const resolved = resolver.resolve(
       instance.symbolId,
       instance.symbolVariantId,
@@ -122,7 +165,7 @@ function obstacleBounds(
       .some((point) => pointOnPath(point, baseline));
     // A line deliberately running through a visible pin is an electrical
     // contact. Preserve that existing contract instead of routing around it.
-    if (baselineMakesContact) return [];
+    if (!endpointOwners.has(instance.id) && baselineMakesContact) return [];
 
     const local = visibleSymbolInkBounds(
       resolved,
@@ -142,27 +185,152 @@ function obstacleBounds(
     const top = Math.min(...ys) - clearance;
     return [
       {
-        x: left,
-        y: top,
-        width: Math.max(...xs) + clearance - left,
-        height: Math.max(...ys) + clearance - top,
+        instanceId: instance.id,
+        box: {
+          x: left,
+          y: top,
+          width: Math.max(...xs) + clearance - left,
+          height: Math.max(...ys) + clearance - top,
+        },
       },
     ];
   });
 }
 
+function escapePoint(
+  source: WireSource,
+  owner: Obstacle | undefined,
+  grid: number,
+): Point {
+  const point = source.connection.gridLanding;
+  const outward = cardinalOutward(source);
+  if (!outward) return point;
+  if (!owner) {
+    return { x: point.x + outward.x * grid, y: point.y + outward.y * grid };
+  }
+
+  const { box } = owner;
+  const edge =
+    outward.x < 0
+      ? box.x
+      : outward.x > 0
+        ? box.x + box.width
+        : outward.y < 0
+          ? box.y
+          : box.y + box.height;
+  const coordinate = outward.x === 0 ? point.y : point.x;
+  const signedDistance = (edge - coordinate) * (outward.x || outward.y);
+  const cells = Math.max(1, Math.ceil((signedDistance - 1e-9) / grid));
+  return {
+    x: point.x + outward.x * cells * grid,
+    y: point.y + outward.y * cells * grid,
+  };
+}
+
+function routingEscapePoints(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  source: WireSource,
+  owner: Obstacle | undefined,
+): Point[] {
+  const point = source.connection.gridLanding;
+  if (cardinalOutward(source)) {
+    return [escapePoint(source, owner, document.presentation.grid)];
+  }
+  const routeAxis = splitRouteAxis(document, resolver, source);
+  const grid = document.presentation.grid;
+  if (routeAxis === "horizontal") {
+    return [
+      { x: point.x, y: point.y - grid },
+      { x: point.x, y: point.y + grid },
+    ];
+  }
+  if (routeAxis === "vertical") {
+    return [
+      { x: point.x - grid, y: point.y },
+      { x: point.x + grid, y: point.y },
+    ];
+  }
+  return [point];
+}
+
+function leavesTerminalOutward(
+  from: Point,
+  to: Point,
+  source: WireSource,
+): boolean {
+  const outward = cardinalOutward(source);
+  return Boolean(
+    outward && (to.x - from.x) * outward.x + (to.y - from.y) * outward.y > 0,
+  );
+}
+
+function entersTerminalFromOutward(
+  from: Point,
+  to: Point,
+  target: WireSource,
+): boolean {
+  const outward = cardinalOutward(target);
+  return Boolean(
+    outward && (from.x - to.x) * outward.x + (from.y - to.y) * outward.y > 0,
+  );
+}
+
+function segmentAxis(from: Point, to: Point): Axis | null {
+  if (from.y === to.y && from.x !== to.x) return "horizontal";
+  if (from.x === to.x && from.y !== to.y) return "vertical";
+  return null;
+}
+
+function baselineRespectsEndpoint(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  points: readonly Point[],
+  source: WireSource,
+  atStart: boolean,
+): boolean {
+  if (points.length < 2) return true;
+  const segmentFrom = atStart ? points[0]! : points.at(-2)!;
+  const segmentTo = atStart ? points[1]! : points.at(-1)!;
+  const outward = cardinalOutward(source);
+  if (outward) {
+    return atStart
+      ? leavesTerminalOutward(segmentFrom, segmentTo, source)
+      : entersTerminalFromOutward(segmentFrom, segmentTo, source);
+  }
+  const routeAxis = splitRouteAxis(document, resolver, source);
+  const approachAxis = segmentAxis(segmentFrom, segmentTo);
+  return !routeAxis || !approachAxis || routeAxis !== approachAxis;
+}
+
 function score(
   points: readonly Point[],
-  obstacles: readonly Rect[],
+  obstacles: readonly Obstacle[],
+  from: WireSource,
+  to: WireSource,
 ): Candidate {
+  const fromOwner = endpointOwner(from);
+  const toOwner = endpointOwner(to);
+  const lastSegment = points.length - 2;
   const collisions = obstacles.reduce(
-    (total, box) =>
+    (total, obstacle) =>
       total +
-      (points
-        .slice(0, -1)
-        .some((from, index) =>
-          segmentCrossesInterior(from, points[index + 1]!, box),
-        )
+      (points.slice(0, -1).some((segmentFrom, index) => {
+        const segmentTo = points[index + 1]!;
+        const allowedSourceEscape =
+          obstacle.instanceId === fromOwner &&
+          index === 0 &&
+          leavesTerminalOutward(segmentFrom, segmentTo, from);
+        const allowedTargetEscape =
+          obstacle.instanceId === toOwner &&
+          index === lastSegment &&
+          entersTerminalFromOutward(segmentFrom, segmentTo, to);
+        return (
+          !allowedSourceEscape &&
+          !allowedTargetEscape &&
+          segmentCrossesInterior(segmentFrom, segmentTo, obstacle.box)
+        );
+      })
         ? 1
         : 0),
     0,
@@ -172,6 +340,18 @@ function score(
     return total + Math.abs(to.x - from.x) + Math.abs(to.y - from.y);
   }, 0);
   return { points: [...points], collisions, length };
+}
+
+function joinPathParts(...parts: readonly (readonly Point[])[]): Point[] {
+  const result: Point[] = [];
+  for (const part of parts) {
+    for (const point of part) {
+      if (!result.at(-1) || !samePoint(result.at(-1)!, point)) {
+        result.push({ ...point });
+      }
+    }
+  }
+  return result;
 }
 
 /**
@@ -206,26 +386,82 @@ export function automaticWireDraftSteps(
     cornerOrder,
   ).points;
   const obstacles = obstacleBounds(document, resolver, from, to, baseline);
-  if (obstacles.length === 0 || score(baseline, obstacles).collisions === 0) {
+  const baselineIsClear = score(baseline, obstacles, from, to).collisions === 0;
+  const baselineApproachIsValid =
+    baselineRespectsEndpoint(document, resolver, baseline, from, true) &&
+    baselineRespectsEndpoint(document, resolver, baseline, to, false);
+  if (baselineIsClear && baselineApproachIsValid) {
     return steps;
   }
 
-  const paths: Point[][] = [
-    simplify([start, { x: end.x, y: start.y }, end]),
-    simplify([start, { x: start.x, y: end.y }, end]),
-  ];
-  for (const box of obstacles) {
-    for (const x of [box.x, box.x + box.width]) {
-      paths.push(simplify([start, { x, y: start.y }, { x, y: end.y }, end]));
-    }
-    for (const y of [box.y, box.y + box.height]) {
-      paths.push(simplify([start, { x: start.x, y }, { x: end.x, y }, end]));
+  const sourceEscapes = routingEscapePoints(
+    document,
+    resolver,
+    from,
+    obstacles.find(({ instanceId }) => instanceId === endpointOwner(from)),
+  );
+  const targetEscapes = routingEscapePoints(
+    document,
+    resolver,
+    to,
+    obstacles.find(({ instanceId }) => instanceId === endpointOwner(to)),
+  );
+
+  const grid = document.presentation.grid;
+  const paths: Point[][] = [];
+  for (const sourceEscape of sourceEscapes) {
+    for (const targetEscape of targetEscapes) {
+      const corePaths: Point[][] = [
+        simplify([
+          sourceEscape,
+          { x: targetEscape.x, y: sourceEscape.y },
+          targetEscape,
+        ]),
+        simplify([
+          sourceEscape,
+          { x: sourceEscape.x, y: targetEscape.y },
+          targetEscape,
+        ]),
+      ];
+      for (const { box } of obstacles) {
+        for (const x of [
+          Math.floor(box.x / grid) * grid,
+          Math.ceil((box.x + box.width) / grid) * grid,
+        ]) {
+          corePaths.push(
+            simplify([
+              sourceEscape,
+              { x, y: sourceEscape.y },
+              { x, y: targetEscape.y },
+              targetEscape,
+            ]),
+          );
+        }
+        for (const y of [
+          Math.floor(box.y / grid) * grid,
+          Math.ceil((box.y + box.height) / grid) * grid,
+        ]) {
+          corePaths.push(
+            simplify([
+              sourceEscape,
+              { x: sourceEscape.x, y },
+              { x: targetEscape.x, y },
+              targetEscape,
+            ]),
+          );
+        }
+      }
+      paths.push(
+        ...corePaths.map((core) =>
+          joinPathParts([start, sourceEscape], core, [targetEscape, end]),
+        ),
+      );
     }
   }
 
   const unique = new Map(paths.map((path) => [JSON.stringify(path), path]));
   const best = [...unique.values()]
-    .map((path) => score(path, obstacles))
+    .map((path) => score(path, obstacles, from, to))
     .sort(
       (left, right) =>
         left.collisions - right.collisions ||
