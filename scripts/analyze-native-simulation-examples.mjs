@@ -80,13 +80,19 @@ for (const project of manifest.projects) {
     assert(analyses.length > 0, `${folder.id}: no captured results`);
     // Current runs record native metrics once in Specs. Historical evidence
     // bundles may still carry the pre-Spec measurement artifact.
-    const specs = await read(join(dir, "specs.json")).catch(() => null);
+    const specs = await read(join(dir, "specs.json")).catch((error) => {
+      if (error.code === "ENOENT") return null;
+      throw error;
+    });
     const measurements = specs
       ? specs.results.map((spec) => ({
           ...spec,
           status: Number.isFinite(spec.value) ? "available" : "unavailable",
         }))
-      : await read(join(dir, "native-measurements.json")).catch(() => []);
+      : await read(join(dir, "native-measurements.json")).catch((error) => {
+          if (error.code === "ENOENT") return [];
+          throw error;
+        });
     assert(
       measurements.every((m) => m.status === "available"),
       `${folder.id}: failed native measurement`,

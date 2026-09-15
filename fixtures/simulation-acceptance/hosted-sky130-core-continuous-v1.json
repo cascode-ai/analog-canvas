@@ -5,7 +5,7 @@
   "devices": ["sky130_fd_pr__nfet_01v8", "sky130_fd_pr__pfet_01v8"],
   "analyses": ["op", "dc", "ac", "tran", "noise"],
   "inputs": {
-    "project": "apps/editor/src/examples/five-transistor-ota-sky130.icproj.json",
+    "project": "netlists/ngspice-ota-qualification/source.icproj.json",
     "netlist": "fixtures/simulation-acceptance/ota-5t.spi",
     "testbench": "fixtures/simulation-acceptance/ota-5t-hosted.testbench.spice"
   },
