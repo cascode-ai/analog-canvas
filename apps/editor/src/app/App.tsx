@@ -5565,6 +5565,7 @@ export function App({
                     format={netlistFormat}
                     namingProfile={netlistNamingProfile}
                     profile={netlistPreferences.profile}
+                    onProfileChange={netlistPreferences.selectProfile}
                     configurationError={netlistPreferences.error}
                   />
                 ) : codePanel === "instances" ? (

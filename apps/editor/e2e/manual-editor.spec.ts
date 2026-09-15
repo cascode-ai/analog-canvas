@@ -6045,6 +6045,16 @@ test("edits all netlist presets as raw JSON in Properties and remembers valid ch
   await code.fill(JSON.stringify(config, null, 2));
   const sky = await copyNetlistText(page, "spice");
   expect(sky).toContain('.lib "/opt/sky130/continuous/sky130.lib.spice" tt');
+  const preset = page.getByRole("combobox", { name: "Netlist preset" });
+  await expect(preset).toHaveValue("sky130");
+  await preset.selectOption("tsmc28");
+  await expect(
+    page.getByRole("textbox", { name: "Netlist code", exact: true }),
+  ).toHaveValue(/\.lib "toplevel\.scs" TOP_TT/u);
+  await page.reload();
+  const tsmc28 = await copyNetlistText(page, "spectre");
+  expect(tsmc28).toContain('include "toplevel.scs" section=TOP_TT');
+  await expect(preset).toHaveValue("tsmc28");
   await clickCommand(page, "Netlist", "Configuration…");
   config.selected = "custom";
   config.profiles.custom.devices.nmos.target = "MY_NMOS";

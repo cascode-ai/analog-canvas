@@ -14,8 +14,9 @@ export function NetlistProfileCode({
     >
       <h2>Netlist configuration</h2>
       <p>
-        Edit or paste the complete JSON. Set <code>selected</code> to{" "}
-        <code>abstract</code>, <code>sky130</code>, or <code>custom</code>.
+        Edit or paste the complete JSON. The compact selector in the live
+        Netlist panel changes <code>selected</code>. TSMC presets use the
+        reference device names; point each library path at your installed PDK.
         Existing component values take priority.
       </p>
       <textarea

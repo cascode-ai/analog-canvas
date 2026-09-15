@@ -3,6 +3,7 @@ import { deviceDescriptor } from "@icm/devices";
 import { describe, it, expect } from "vitest";
 import {
   createNetlistExportProfile,
+  NETLIST_PROFILE_LABELS,
   projectNetlistExportProfile,
   setNetlistDefaultTarget,
 } from "./export-profiles.js";
@@ -51,6 +52,84 @@ function exported(
 }
 
 describe("netlist export presets", () => {
+  it("maps TSMC 28 ULVT wrappers, model entry, and m to multi", () => {
+    const profile = createNetlistExportProfile("tsmc28");
+    expect(profile.devices.nmos.target).toBe("nch_ulvt_mac");
+    expect(profile.devices.pmos.target).toBe("pch_ulvt_mac");
+    expect(profile.devices.nmos.parameters).toMatchObject({
+      l: "30n",
+      w: "1u",
+      nf: "1",
+      multi: "1",
+    });
+    expect(profile.devices.nmos.parameters).not.toHaveProperty("m");
+    expect(profile.library).toEqual({
+      path: "toplevel.scs",
+      section: "TOP_TT",
+    });
+    expect(NETLIST_PROFILE_LABELS.tsmc28).toBe("TSMC 28");
+
+    const result = exported(circuit(), profile, "spectre");
+
+    expect(result.placeholders).toEqual([]);
+    expect(result.file.text).toMatch(
+      /^simulator lang=spectre\ninclude "toplevel\.scs" section=TOP_TT\n/u,
+    );
+    expect(result.file.text).toContain("nch_ulvt_mac l=300n multi=2 nf=3 w=2u");
+    expect(result.file.text).toContain("pch_ulvt_mac l=30n multi=1 nf=1 w=1u");
+    expect(result.file.text).not.toMatch(/\bm=/u);
+    expect(result.file.text).toMatch(/\nR1 .* resistor r=22k\n/u);
+    expect(result.file.text).toMatch(/\nC1 .* capacitor c=1p\n/u);
+  });
+
+  it("maps TSMC 180 native MOS names while retaining m", () => {
+    const profile = createNetlistExportProfile("tsmc180");
+    expect(profile.devices.nmos.target).toBe("nch");
+    expect(profile.devices.pmos.target).toBe("pch");
+    expect(profile.devices.nmos.parameters).toMatchObject({
+      l: "180n",
+      w: "1u",
+      nf: "1",
+      m: "1",
+    });
+    expect(profile.devices.pnp).toMatchObject({
+      target: "pnp10_5_rpo",
+      parameters: { m: "1" },
+    });
+    expect(profile.library).toEqual({
+      path: "cmn018_gp2a_5v_v1d4_usage.scs",
+      section: "tt_lib",
+    });
+    expect(NETLIST_PROFILE_LABELS.tsmc180).toBe("TSMC 180");
+
+    const project = circuit();
+    const document = project.documents[0]!;
+    document.instances.push({
+      id: "Q1",
+      reference: "Q1",
+      symbolId: "pnp",
+      placement: null,
+      netlist: { parameters: { m: "4" } },
+    });
+    for (const pinName of deviceDescriptor("pnp")!.pinOrder)
+      document.nets.push({
+        id: `Q1-${pinName}`,
+        terminals: [{ instanceId: "Q1", pinName }],
+      });
+    const result = exported(project, profile, "spectre");
+
+    expect(result.placeholders).toEqual([]);
+    expect(result.file.text).toMatch(
+      /^simulator lang=spectre\ninclude "cmn018_gp2a_5v_v1d4_usage\.scs" section=tt_lib\n/u,
+    );
+    expect(result.file.text).toContain("nch l=300n m=2 nf=3 w=2u");
+    expect(result.file.text).toContain("pch l=180n m=1 nf=1 w=1u");
+    expect(result.file.text).toMatch(/\nQ1 .* pnp10_5_rpo m=4\n/u);
+    expect(result.file.text).not.toContain("multi=");
+    expect(result.file.text).toMatch(/\nR1 .* resistor r=22k\n/u);
+    expect(result.file.text).toMatch(/\nC1 .* capacitor c=1p\n/u);
+  });
+
   it.each(["spice", "spectre"] as const)(
     "supplies abstract %s targets and defaults while retaining authored values",
     (format) => {

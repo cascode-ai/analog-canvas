@@ -628,7 +628,18 @@ export const componentDeviceDescriptors: readonly DeviceDescriptor[] = [
     pinOrder: ["C", "B", "E"],
     seriesInsertionPinPair: ["C", "E"],
     targetPolicy: "required-model",
-    parameters: [],
+    parameters: [
+      {
+        name: "m",
+        label: "M",
+        required: false,
+        editor: "decimal",
+        placeholder: "1",
+        defaultValue: "1",
+        help: "Parallel multiplier",
+        displayRole: "multiplier",
+      },
+    ],
     dialects: ["spice", "spectre"],
     capabilities: {
       supportsModel: true,
@@ -644,7 +655,18 @@ export const componentDeviceDescriptors: readonly DeviceDescriptor[] = [
     pinOrder: ["C", "B", "E"],
     seriesInsertionPinPair: ["C", "E"],
     targetPolicy: "required-model",
-    parameters: [],
+    parameters: [
+      {
+        name: "m",
+        label: "M",
+        required: false,
+        editor: "decimal",
+        placeholder: "1",
+        defaultValue: "1",
+        help: "Parallel multiplier",
+        displayRole: "multiplier",
+      },
+    ],
     dialects: ["spice", "spectre"],
     capabilities: {
       supportsModel: true,

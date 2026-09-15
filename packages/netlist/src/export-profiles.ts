@@ -10,11 +10,19 @@ import {
 import type { CircuitProject, Instance, SchematicDocument } from "@icm/model";
 import type { NetlistDiagnostic } from "./ir.js";
 
-export const NETLIST_PROFILE_IDS = ["abstract", "sky130", "custom"] as const;
+export const NETLIST_PROFILE_IDS = [
+  "abstract",
+  "sky130",
+  "tsmc28",
+  "tsmc180",
+  "custom",
+] as const;
 export type NetlistProfileId = (typeof NETLIST_PROFILE_IDS)[number];
 export const NETLIST_PROFILE_LABELS = {
   abstract: "Abstract",
   sky130: "SKY130 PDK",
+  tsmc28: "TSMC 28",
+  tsmc180: "TSMC 180",
   custom: "Custom",
 } as const;
 export const NETLIST_DEVICE_FAMILIES = [
@@ -58,6 +66,15 @@ const SKY130_TARGETS: Partial<Record<NetlistDeviceFamily, string>> = {
   npn: "sky130_fd_pr__npn_05v5_W1p00L1p00",
   pnp: "sky130_fd_pr__pnp_05v5_W0p68L0p68",
 };
+const TSMC28_TARGETS: Partial<Record<NetlistDeviceFamily, string>> = {
+  nmos: "nch_ulvt_mac",
+  pmos: "pch_ulvt_mac",
+};
+const TSMC180_TARGETS: Partial<Record<NetlistDeviceFamily, string>> = {
+  nmos: "nch",
+  pmos: "pch",
+  pnp: "pnp10_5_rpo",
+};
 
 export function netlistDeviceFamily(
   symbolId: string,
@@ -79,6 +96,15 @@ export function netlistDeviceFamily(
 export function createNetlistExportProfile(
   id: NetlistProfileId,
 ): NetlistExportProfile {
+  const foundryProfile = id === "tsmc28" || id === "tsmc180";
+  const foundryTargets =
+    id === "sky130"
+      ? SKY130_TARGETS
+      : id === "tsmc28"
+        ? TSMC28_TARGETS
+        : id === "tsmc180"
+          ? TSMC180_TARGETS
+          : undefined;
   const devices = Object.fromEntries(
     NETLIST_DEVICE_FAMILIES.map((family) => {
       const parameters = Object.fromEntries(
@@ -91,14 +117,23 @@ export function createNetlistExportProfile(
           )
           .map((parameter) => [parameter.name, parameter.defaultValue!]),
       );
+      if (["nmos", "pmos"].includes(family)) {
+        if (id === "tsmc28") {
+          parameters.l = "30n";
+          delete parameters.m;
+          parameters.multi = "1";
+        } else if (id === "tsmc180") {
+          parameters.l = "180n";
+        }
+      }
       if (family === "voltage-source") parameters.dc = "1.8";
       if (family === "current-source") parameters.dc = "100u";
       return [
         family,
         {
           target:
-            (id === "sky130" ? SKY130_TARGETS[family] : undefined) ??
-            GENERIC_TARGETS[family] ??
+            foundryTargets?.[family] ??
+            (foundryProfile ? undefined : GENERIC_TARGETS[family]) ??
             "",
           parameters,
           substrate: family === "pmos" ? "VDD" : "0",
@@ -110,8 +145,22 @@ export function createNetlistExportProfile(
     id,
     devices,
     library: {
-      path: id === "sky130" ? "sky130.lib.spice" : "",
-      section: id === "sky130" ? "tt" : "",
+      path:
+        id === "sky130"
+          ? "sky130.lib.spice"
+          : id === "tsmc28"
+            ? "toplevel.scs"
+            : id === "tsmc180"
+              ? "cmn018_gp2a_5v_v1d4_usage.scs"
+              : "",
+      section:
+        id === "sky130"
+          ? "tt"
+          : id === "tsmc28"
+            ? "TOP_TT"
+            : id === "tsmc180"
+              ? "tt_lib"
+              : "",
     },
   };
 }
@@ -272,6 +321,22 @@ export function projectNetlistExportProfile(
         `${document.netlist?.name}/${instance.reference}: ${key}=${value} (preset default)`,
       );
     }
+  };
+  const renameParameter = (
+    parameters: Record<string, string>,
+    from: string,
+    to: string,
+  ) => {
+    const source = Object.keys(parameters).find(
+      (name) => name.toLowerCase() === from.toLowerCase(),
+    );
+    if (!source) return;
+    const target = Object.keys(parameters).find(
+      (name) => name.toLowerCase() === to.toLowerCase(),
+    );
+    if (!target || !parameters[target]?.trim())
+      parameters[target ?? to] = parameters[source]!;
+    if (source.toLowerCase() !== to.toLowerCase()) delete parameters[source];
   };
   const reference = (
     document: SchematicDocument,
@@ -584,6 +649,10 @@ export function projectNetlistExportProfile(
                 }
               : undefined
             : { kind: "primitive", deviceClass: descriptor.deviceClass };
+        // The TSMC 28 `_mac` wrapper interface calls the parallel device
+        // multiplier `multi`; the editor's portable MOS property is `m`.
+        if (profile.id === "tsmc28" && ["nmos", "pmos"].includes(family))
+          renameParameter(data.parameters, "m", "multi");
         fill(document, instance, rule.parameters);
       }
       if (!preserveTarget && target)
