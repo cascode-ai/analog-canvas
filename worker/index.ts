@@ -1,3 +1,4 @@
+import { handleNetlistConversionRequest } from "../packages/spice/src/conversion-request.js";
 import {
   queryAnalyticsSummary,
   queryVisitStats,
@@ -126,6 +127,9 @@ export default {
 
 async function route(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
+
+  const conversion = await handleNetlistConversionRequest(request);
+  if (conversion) return conversion;
 
   // The channel is a fact about the deployment, answered before anything
   // that depends on it; the preview's robots answer and its refusal of

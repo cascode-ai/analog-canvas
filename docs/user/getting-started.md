@@ -7,7 +7,7 @@ pnpm install --frozen-lockfile
 pnpm dev
 ```
 
-Open the displayed loopback URL. Open **File** and use **Import SPICE** to
+Open the displayed loopback URL. Open **File** and use **Import SPICE / SCS** to
 select one `.cir`, `.sp`, or `.spi` entry plus its local include files.
 Imported instances begin unplaced so that the user can decide the presentation.
 A normal launch starts with a genuinely empty `New Circuit` Document for
@@ -295,6 +295,21 @@ The report lists structural findings and current-revision ERC readiness
 separately. The export includes the library path/section you configured, but does
 not add model cards, analyses, or a complete testbench. Exporting a file does not
 make the circuit ready for simulation.
+
+## Import Spectre / SCS
+
+Use **File / Import SPICE / SCS…** and select one `.scs` entry together with
+its local include files. `circuit.scs` is recognized as the entry when several
+netlist files are selected. Conversion happens in the browser and works locally.
+The converted structure uses the existing import and placement flow. Errors
+show the source filename and line, and leave your current circuit unchanged.
+
+The converter supports common structural devices, ordered subcircuits, parameters,
+DC/AC/PULSE/SIN/PWL sources and simple OP/AC/DC/TRAN analyses. It preserves a
+SPICE-language section in SCS. Unsupported parameters, native model syntax,
+behavioral expressions and ngspice control scripts cannot be translated into
+native Spectre; they produce an error instead of a partial circuit. Simulation
+source folders remain the place for complete original testbenches.
 
 ## Portable release
 

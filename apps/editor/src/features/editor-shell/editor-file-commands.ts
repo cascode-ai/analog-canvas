@@ -1,3 +1,4 @@
+import { convertImportSources } from "../netlist-export/convert-import-sources";
 import type {
   NetlistFormat,
   NetlistNamingProfile,
@@ -131,10 +132,10 @@ export function createEditorFileCommands({
       })),
     );
     const conventionalEntries = sourceInputs.filter((input) =>
-      /\.(?:cir|sp|spi)$/iu.test(input.path),
+      /\.(?:cir|sp|spi|scs)$/iu.test(input.path),
     );
-    const namedCircuitEntries = conventionalEntries.filter(
-      (input) => input.path.split("/").at(-1)?.toLowerCase() === "circuit.spi",
+    const namedCircuitEntries = conventionalEntries.filter((input) =>
+      /^circuit\.(?:spi|scs)$/iu.test(input.path.split("/").at(-1) ?? ""),
     );
     const entryCandidates =
       namedCircuitEntries.length === 1
@@ -142,14 +143,14 @@ export function createEditorFileCommands({
         : conventionalEntries;
     if (entryCandidates.length !== 1) {
       setStatus(
-        `Select one unambiguous .cir, .sp, or .spi entry and its local include files; found ${entryCandidates.length}`,
+        `Select one unambiguous .cir, .sp, .spi, or .scs entry and its local include files; found ${entryCandidates.length}`,
       );
       return;
     }
     setStatus("Importing SPICE sources");
     try {
       const result = await importSpiceSources(
-        sourceInputs,
+        convertImportSources(sourceInputs),
         entryCandidates[0]!.path,
         {},
         { namingProfile },

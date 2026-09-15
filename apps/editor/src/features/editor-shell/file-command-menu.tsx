@@ -181,11 +181,11 @@ export function FileCommandMenu({
           />
         </label>
         <label className="file-import">
-          Import SPICE…
+          Import SPICE / SCS…
           <input
             data-testid="spice-files"
             type="file"
-            accept=".spi,.cir,.sp,.inc,.lib"
+            accept=".spi,.cir,.sp,.scs,.inc,.lib"
             multiple
             onChange={(event) => onImportSpice(event.currentTarget.files)}
           />
@@ -195,7 +195,7 @@ export function FileCommandMenu({
           <input
             data-testid="cadence-spice-files"
             type="file"
-            accept=".spi,.cir,.sp,.inc,.lib"
+            accept=".spi,.cir,.sp,.scs,.inc,.lib"
             multiple
             onChange={(event) =>
               onImportSpice(event.currentTarget.files, "cadence-bang")

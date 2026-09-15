@@ -20,7 +20,7 @@ edit model.
   Cell Pins, place reusable hierarchical blocks, and navigate between callers
   and child Cells.
 - **Projects and interchange:** save a private Cloud Project, import/export
-  canonical `.icproj.json`, import structural `.cir`, `.sp`, and `.spi` files, and export
+  canonical `.icproj.json`, import structural `.cir`, `.sp`, `.spi`, and `.scs` files, and export
   deterministic structural SPICE or Spectre. The hosted editor also provides
   saved simulation source folders and a fixed ngspice/SKY130 environment for qualified
   OP, DC, AC, TRAN, and Noise runs.
@@ -73,7 +73,7 @@ pnpm dev
 
 Open the displayed loopback URL and choose **New Circuit**, or open its
 `/editor` route directly. Create a circuit from the component palette, or
-import one `.cir`, `.sp`, or `.spi` entry together with its local include
+import one `.cir`, `.sp`, `.spi`, or `.scs` entry together with its local include
 files.
 
 Click **Agent** to open a connection message, then copy it into your Agent
@@ -121,6 +121,16 @@ The [Razavi reference manifest](fixtures/visual-reference/razavi-reference-v1/)
 is the sole visual authority. Merges to `main` deploy Preview; Production is
 promoted from a release tag or explicit commit dispatch after Preview acceptance.
 See [deployment](docs/deployment.md) for the release and recovery contract.
+
+## Netlist conversion
+
+`POST /api/netlist/convert` accepts `{ "text": "...", "source": "spice", "target": "spectre" }`
+and returns translated text or line-specific diagnostics. The Worker and local
+Vite server expose the same pure converter; SCS import uses it locally too.
+No Python daemon, simulator or account is required. The structural subset adapts
+[netlist-crawler](https://github.com/Arcadia-1/netlist-crawler) under its MIT license.
+See the [conversion contract](docs/specs/netlist-conversion.md) for supported
+syntax and the [attribution](packages/spice/third-party/netlist-crawler/README.md).
 
 ## License
 

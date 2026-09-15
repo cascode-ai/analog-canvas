@@ -4,6 +4,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import react from "@vitejs/plugin-react";
 import { defineConfig, type Plugin } from "vite";
 
+import { localNetlistConversion } from "./dev/netlist-conversion";
 import { localAgentRelay } from "./dev/agent-relay";
 import { editorPreload } from "./build/editor-preload";
 
@@ -53,6 +54,7 @@ export default defineConfig({
     isolateDevDependencyCache(),
     react(),
     localAgentRelay(),
+    localNetlistConversion(),
     editorPreload(),
     versionStaticServiceWorker(),
   ],
