@@ -25,7 +25,7 @@ describe("portable local host", () => {
       expect(response.headers.get("cache-control")).toBe("no-cache");
       expect(await (await fetch(`${running.origin}/healthz`)).json()).toEqual({
         status: "ok",
-        version: "0.7.0",
+        version: "0.8.0",
       });
       expect((await fetch(`${running.origin}/..%2Fsecret.txt`)).status).toBe(
         404,

@@ -3,6 +3,38 @@
 Notable changes to Analog Canvas. Entries describe what changed for the person
 using the product, not the commits that got there.
 
+## 0.8.0 (Preview candidate)
+
+### Project authoring
+
+- Open complete Project Code and a live Netlist from the main toolbar. Both
+  editors show line numbers and syntax colors; Project Code applies validated
+  JSON as one undoable edit and protects drafts when the Canvas changes.
+- Edit component and drawing Style as concise JSON. The toolbar keeps Gallery
+  and Library on the left and Project Code and Netlist on the right, while
+  drawing tools remain in the Library instead of taking permanent toolbar
+  space.
+- New blank circuits use `dut` as the Cell and netlist module name. Existing
+  authored Cell names and real Testbench Cells keep their names.
+
+### Netlist export
+
+- Choose Format and Process independently in the live Netlist panel, edit the
+  selected NMOS and PMOS targets directly, and restore every cached preset with
+  one Default action. Copy uses a compact icon and never downloads a file.
+- Emit native Spectre circuit bodies for SKY130 SCS exports while loading its
+  SPICE model library in the required temporary language section.
+- Put `VDD VSS` first in generated Cell interfaces and hierarchical calls,
+  including blank circuits without drawn supply symbols. Unconnected MOS bulk
+  terminals use those module supplies, and generated supplies stay out of the
+  Canvas probe list.
+- Keep visible VDD Power connectivity explicit and editable through component
+  property JSON. Built-in OTA labels retain their route positions instead of
+  falling back to the upper-left corner.
+
+Project schema 56 is unchanged. Existing Projects are not renamed or rewritten
+when opened.
+
 ## 0.7.0 (Preview candidate)
 
 ### Netlist export
