@@ -194,12 +194,13 @@ File and Run resources.
    saves complete bytes after length/SHA-256 verification. Deck, rawfile,
    JSON, log and CSV share this File Resource. Large receipts set
    `resultPreview`; full result/output artifacts remain available.
-   `export_file` with `artifact:"simulation-plot"`,
-   `simulation:{runId,analysisIndex,format:"svg"}` (or `"png"`) and
-   `outputPath` exports the existing Results renderer without opening GUI.
-   Select the index in `run.outputData.analyses`, or raw analyses if no
-   output data exists. Multiple plotted groups return a ZIP. OP is a table,
-   not a waveform.
+   Read `outputData.specs` or `specs.json` for captured acceptance results, and
+   `specs.csv` for portable tabular results. Native `meas` computes metrics;
+   source comments such as `* @spec peak <= 1.8 unit=V` declare rules.
+   See [Spec annotations](simulation-specs.md). Missing/invalid results are
+   `not-evaluated`, not Failed; measurements without a rule are `unconstrained`.
+   Use raw/CSV to plot or compare externally. Built-in Plot/Compare/OP views
+   and `simulation-plot` image export are retired; native OP still executes.
 
 ### File ownership and editing
 

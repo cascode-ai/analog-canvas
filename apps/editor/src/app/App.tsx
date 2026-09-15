@@ -120,11 +120,8 @@ import {
   type SpiceImportReport,
 } from "../features/editor-shell/editor-file-commands";
 import { EditorStatusbar } from "../features/editor-shell/editor-statusbar";
-import { operatingPointLabels } from "../features/simulation/operating-point-labels";
-import type { OperatingPointCanvasProjection } from "../features/simulation/operating-point-projection";
 import {
   deriveSimulationProbeOptions,
-  resolveSimulationVoltageProbeNetId,
   simulationProbeHierarchyPath,
 } from "../features/simulation/simulation-probe-options";
 import {
@@ -818,9 +815,6 @@ export function App({
   const [instanceTableOpen, setInstanceTableOpen] = useState(false);
   const [agentFileCandidate, setAgentFileCandidate] =
     useState<AgentFileCandidateSummary | null>(null);
-  const agentSimulationHostForFiles = useRef<BrowserAgentSimulationHost | null>(
-    null,
-  );
   const browserAgentFileHost = useMemo(
     () =>
       new BrowserAgentFileHost({
@@ -832,25 +826,6 @@ export function App({
           ) ?? null,
         getResolver: () => editorDocumentController.resolver,
         onApprovalRequested: setAgentFileCandidate,
-        readSimulationRun: async (runId) => {
-          const host = agentSimulationHostForFiles.current;
-          if (!host)
-            return {
-              ok: false,
-              error: {
-                code: "SIMULATION_HOST_UNAVAILABLE",
-                message: "Simulation host is not available",
-                stage: "read",
-                recovery: "retry-after",
-              },
-            };
-          return host.handle({
-            apiVersion: "3.0",
-            requestId: crypto.randomUUID(),
-            operation: "read",
-            runId,
-          });
-        },
         dispatchProjectTransaction: (request) =>
           browserAgentHost.dispatchProjectTransaction(request),
       }),
@@ -882,7 +857,6 @@ export function App({
       simulationTransport,
     ],
   );
-  agentSimulationHostForFiles.current = browserAgentSimulationHost;
   const browserAgentProjectHost = useMemo(
     () =>
       new BrowserAgentProjectHost({
@@ -1578,7 +1552,6 @@ export function App({
     routeGeometryRecords,
     highlightedTrace,
     highlightedNet,
-    highlightedNetId,
     selectedHighlightIsActive,
     searchResults,
     flightlines,
@@ -1659,53 +1632,6 @@ export function App({
   );
   const [issuesFocusToken, setIssuesFocusToken] = useState(0);
   const [issuesSectionOpen, setIssuesSectionOpen] = useState(false);
-  /** Run results stay in session view state and never enter Project history. */
-  const [operatingPointProjection, setOperatingPointProjection] =
-    useState<OperatingPointCanvasProjection | null>(null);
-  const currentOccurrence = documentStack.map((frame) => frame.instanceId);
-  const operatingPointVoltages = useMemo(() => {
-    const values = new Map<string, number>();
-    for (const value of operatingPointProjection?.values ?? []) {
-      if (
-        value.documentId !== document.id ||
-        value.occurrence.length !== currentOccurrence.length ||
-        !value.occurrence.every(
-          (instanceId, index) => instanceId === currentOccurrence[index],
-        )
-      )
-        continue;
-      values.set(value.netId, value.volts);
-    }
-    return values;
-  }, [currentOccurrence, document.id, operatingPointProjection]);
-  const operatingPointBadges = useMemo(
-    () =>
-      operatingPointVoltages.size === 0
-        ? []
-        : operatingPointLabels({
-            document,
-            resolver,
-            voltages: operatingPointVoltages,
-            display: operatingPointProjection?.display ?? "named",
-            // "Pointed at" is whichever net the selected wire carries; the
-            // highlight already tracks hover for the net-highlight overlay.
-            selectedNetIds: selectedRouteId
-              ? document.routes
-                  .filter((route) => route.id === selectedRouteId)
-                  .map((route) => route.netId)
-              : [],
-            hoveredNetId: highlightedNetId ?? null,
-          }),
-    [
-      document,
-      resolver,
-      operatingPointVoltages,
-      operatingPointProjection?.display,
-      selectedRouteId,
-      highlightedNetId,
-    ],
-  );
-
   const projectCheck = useProjectCheck({
     project,
     sessionId: projectSessionId,
@@ -5577,7 +5503,6 @@ export function App({
                   onFocusDiagnostic={(locator) =>
                     navigateToLocator(locator, `Located ${locator.kind}`)
                   }
-                  onOperatingPointProjection={setOperatingPointProjection}
                   onPreviewSignal={(target) => {
                     const hierarchyPath =
                       target &&
@@ -5595,79 +5520,6 @@ export function App({
                           }
                         : null,
                     );
-                  }}
-                  onFocusProbe={(probe, preparedRootDocumentId) => {
-                    setCodeNetPreview(null);
-                    const targetDocument = project.documents.find(
-                      (candidate) => candidate.id === probe.documentId,
-                    );
-                    const voltageNetId =
-                      probe.kind === "voltage"
-                        ? resolveSimulationVoltageProbeNetId(project, probe)
-                        : undefined;
-                    const targetExists =
-                      probe.kind === "voltage"
-                        ? voltageNetId !== undefined
-                        : targetDocument?.nets.some((net) =>
-                            net.terminals.some(
-                              (terminal) =>
-                                terminal.instanceId === probe.instanceId &&
-                                terminal.pinName === probe.pinName,
-                            ),
-                          ) === true;
-                    if (!targetExists) {
-                      setStatus(
-                        "This Output no longer matches the current Project; update the Setup and run again",
-                      );
-                      return;
-                    }
-                    const input = activeSimulationFolder?.input;
-                    const rootDocumentId =
-                      preparedRootDocumentId ??
-                      ("circuit" in probe
-                        ? input?.circuitBindings.find(
-                            (binding) => binding.id === probe.circuit.bindingId,
-                          )?.documentId
-                        : undefined) ??
-                      input?.circuitBindings.find(
-                        (binding) => binding.emission === "top-level",
-                      )?.documentId ??
-                      probe.documentId;
-                    const hierarchyPath = simulationProbeHierarchyPath(
-                      project,
-                      rootDocumentId,
-                      probe.occurrence,
-                    );
-                    if (hierarchyPath === null) {
-                      setStatus("The Output occurrence no longer exists");
-                      return;
-                    }
-                    navigateToLocator(
-                      probe.kind === "voltage"
-                        ? {
-                            documentId: probe.documentId,
-                            hierarchyPath,
-                            kind: "net",
-                            objectId: voltageNetId!,
-                          }
-                        : {
-                            documentId: probe.documentId,
-                            hierarchyPath,
-                            kind: "instance",
-                            objectId: probe.instanceId,
-                            endpoint: {
-                              kind: "terminal",
-                              instanceId: probe.instanceId,
-                              pinName: probe.pinName,
-                            },
-                          },
-                      probe.kind === "voltage"
-                        ? `Located simulation Net ${voltageNetId}`
-                        : `Located simulation terminal ${probe.instanceId}.${probe.pinName}`,
-                    );
-                    // Back-annotation should not unexpectedly open the ordinary
-                    // Properties dock over the simulation workspace.
-                    setSelectionOpen(false);
                   }}
                 />
               </Suspense>
@@ -6682,7 +6534,6 @@ export function App({
             markers: diagnosticMarkers,
             onSelectMarker: jumpToProjectDiagnostic,
           }}
-          operatingPoint={{ badges: operatingPointBadges }}
           netLabelTether={netLabelTether}
           copyPreviewInnerHtml={copyPreviewInnerHtml}
           copyPreviewTransform={copyPreviewTransform}

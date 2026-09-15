@@ -21,7 +21,6 @@ import { importSpiceSources } from "@icm/spice";
 import type { SymbolResolver } from "@icm/symbols";
 import { prepareDocumentFormulaArtifacts } from "../features/text-editing/formula-artifacts";
 import { importChunk } from "../components/chunk-import";
-import type { SimulationReply } from "@icm/simulation-service/contract";
 
 type StoredCandidate = {
   project: CircuitProject;
@@ -34,7 +33,6 @@ export interface BrowserAgentFileHostOptions {
   getDocument: (documentId: string) => SchematicDocument | null;
   getResolver: () => SymbolResolver;
   onApprovalRequested: (candidate: AgentFileCandidateSummary) => void;
-  readSimulationRun?: (runId: string) => Promise<SimulationReply>;
   dispatchProjectTransaction?: (
     request: ProjectTransaction,
   ) => ProjectTransactionResult;
@@ -165,40 +163,10 @@ export class BrowserAgentFileHost {
   ): Promise<AgentFileResourceResponse> {
     try {
       if (request.artifact === "simulation-plot") {
-        const reply = await this.options.readSimulationRun?.(
-          request.simulation!.runId,
-        );
-        if (!reply || !reply.ok || !("run" in reply))
-          return this.error(
-            request,
-            reply && !reply.ok
-              ? reply.error.code
-              : "SIMULATION_RUN_UNAVAILABLE",
-            reply && !reply.ok
-              ? reply.error.message
-              : "This run is not available in the authorized session",
-          );
-        const { buildSimulationRunPlotDownload } = await importChunk(
-          "Simulation plot export",
-          () => import("../features/simulation/simulation-run-plot-export"),
-        );
-        const download = await buildSimulationRunPlotDownload(
-          this.simulationFiles,
-          reply.run,
-          request.simulation!.analysisIndex,
-          request.simulation!.format,
-        );
-        if (this.options.getProjectSessionId() !== this.boundProjectSessionId)
-          return this.error(
-            request,
-            "PROJECT_REPLACED",
-            "The Project changed during plot export",
-          );
-        return this.artifactResponse(
+        return this.error(
           request,
-          download.name,
-          download.type,
-          download.bytes,
+          "SIMULATION_PLOT_RETIRED",
+          "Built-in simulation plots are retired. Read raw/CSV artifacts through simulation_files and plot externally.",
         );
       }
       if (request.artifact === "project") {

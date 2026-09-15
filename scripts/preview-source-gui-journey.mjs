@@ -299,21 +299,11 @@ try {
   report.environment = result.metadata.environment;
   report.recoveredInputError = true;
 
-  await panel.getByRole("tab", { name: "Plot", exact: true }).click();
+  await panel.getByRole("tab", { name: "Specs", exact: true }).click();
   await expect(
-    panel.getByRole("heading", { name: "AC Analysis" }),
+    panel.getByRole("region", { name: "Specification results" }),
   ).toBeVisible();
-  const plotExport = panel.locator("details.simulation-result-export");
-  await plotExport.locator("summary").click();
-  await download(
-    plotExport.getByRole("button", { name: "Visible plots · SVG" }),
-    "plots-svg.zip",
-  );
-  await download(
-    plotExport.getByRole("button", { name: "Visible plots · PNG" }),
-    "plots-png.zip",
-  );
-  await plotExport.locator("summary").click();
+  assert(entryFromZip(runEntries, "specs.csv").includes("judgment"));
   await page.screenshot({ path: join(outputDirectory, "results.png") });
   await panel.getByRole("button", { name: "Restore results" }).click();
 

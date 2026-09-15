@@ -7,7 +7,6 @@ import {
   CanvasInputPlanes,
   NetHighlightOverlay,
   DiagnosticMarkersOverlay,
-  OperatingPointOverlay,
   WireUnderSymbolOverlay,
   NetLabelTetherOverlay,
   type NetLabelTether,
@@ -59,7 +58,6 @@ export interface EditorCanvasSurfaceProps {
   netHighlight: ComponentProps<typeof NetHighlightOverlay>;
   wireUnderSymbol: ComponentProps<typeof WireUnderSymbolOverlay>;
   diagnosticMarkers: ComponentProps<typeof DiagnosticMarkersOverlay>;
-  operatingPoint: ComponentProps<typeof OperatingPointOverlay>;
   netLabelTether: NetLabelTether | null;
   copyPreviewInnerHtml: { __html: string } | null;
   copyPreviewTransform: string | undefined;
@@ -100,7 +98,6 @@ export function EditorCanvasSurface({
   netHighlight,
   wireUnderSymbol,
   diagnosticMarkers,
-  operatingPoint,
   netLabelTether,
   copyPreviewInnerHtml,
   copyPreviewTransform,
@@ -264,7 +261,6 @@ export function EditorCanvasSurface({
           <DiagnosticMarkersOverlay {...diagnosticMarkers} />
           {/* Above the diagnostics so a voltage is never hidden by a marker,
               and below the handles so it never covers something grabbable. */}
-          <OperatingPointOverlay {...operatingPoint} />
           <EditorDraftingHandles {...draftingHandles} />
           <EditorInteractionPreviews {...interactionPreviews} />
         </g>

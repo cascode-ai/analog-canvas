@@ -1,11 +1,11 @@
 import type { ComponentProps } from "react";
 import { createRoot } from "react-dom/client";
 
-import { SimulationOutputResults } from "../../src/features/simulation/simulation-output-results";
+import { SimulationSpecResults } from "../../src/features/simulation/simulation-spec-results";
 
 export function mountSimulationOutputHarness(
   host: HTMLElement,
-  props: ComponentProps<typeof SimulationOutputResults>,
+  props: ComponentProps<typeof SimulationSpecResults>,
 ) {
-  createRoot(host).render(<SimulationOutputResults {...props} />);
+  createRoot(host).render(<SimulationSpecResults {...props} />);
 }

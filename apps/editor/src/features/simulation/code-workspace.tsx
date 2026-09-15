@@ -72,8 +72,8 @@ export interface SimulationCodeWorkspaceProps {
   sourceContext?: ReactNode;
   console: ReactNode;
   results: ReactNode;
-  outputActions?: ReactNode;
-  outputPane: "console" | "plot" | "operating-point" | "compare";
+  history?: ReactNode;
+  outputPane: "console" | "specs";
   onSelectOutputPane(pane: SimulationCodeWorkspaceProps["outputPane"]): void;
   maximized?: boolean;
   onToggleMaximize?(): void;
@@ -241,6 +241,7 @@ export function SimulationCodeWorkspace(props: SimulationCodeWorkspaceProps) {
             aria-label="Simulation files"
           >
             <SimulationFileTree {...props} onSelectFile={openFile} />
+            {props.history}
           </aside>
         ) : null}
         {filesOpen ? (
@@ -466,35 +467,27 @@ export function SimulationCodeWorkspace(props: SimulationCodeWorkspaceProps) {
       >
         <header className="simulation-code-output-tabs">
           <div role="tablist" aria-label="Code output view">
-            {(["console", "plot", "operating-point", "compare"] as const).map(
-              (pane) => (
-                <button
-                  key={pane}
-                  type="button"
-                  role="tab"
-                  aria-selected={pane === props.outputPane}
-                  aria-label={
-                    pane === "operating-point" ? "Operating Point" : undefined
-                  }
-                  onClick={() => {
-                    props.onSelectOutputPane(pane);
-                    setCollapsed(false);
-                  }}
-                >
+            {(["specs", "console"] as const).map((pane) => (
+              <button
+                key={pane}
+                type="button"
+                role="tab"
+                aria-selected={pane === props.outputPane}
+                onClick={() => {
+                  props.onSelectOutputPane(pane);
+                  setCollapsed(false);
+                }}
+              >
+                {
                   {
-                    {
-                      console: "Console",
-                      plot: "Plot",
-                      "operating-point": "OP",
-                      compare: "Compare",
-                    }[pane]
-                  }
-                </button>
-              ),
-            )}
+                    console: "Console",
+                    specs: "Specs",
+                  }[pane]
+                }
+              </button>
+            ))}
           </div>
           <span className="simulation-code-output-spacer" />
-          {props.outputActions}
           <button
             type="button"
             aria-label={

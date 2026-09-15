@@ -687,19 +687,8 @@ try {
     ),
   );
 
-  const acRecord = fullRun.outputData.analyses.findIndex(
-    (analysis) => analysis.analysis === "ac",
-  );
-  assert(acRecord >= 0);
-  for (const format of ["svg", "png"]) {
-    const exported = await tool("export_file", {
-      artifact: "simulation-plot",
-      simulation: { runId: finished.id, analysisIndex: acRecord, format },
-      outputPath: join(outputDirectory, `ac-plots-${format}.zip`),
-    });
-    assert(exported.ok, JSON.stringify(exported));
-    exports.push(exported);
-  }
+  assert(fullRun.outputData.specs.runId === finished.id);
+  assert(fullRun.artifacts.some((artifact) => artifact.name === "specs.csv"));
   exports.push(savedExport);
   // Managed Batch remains separate from native loops and reuses this saved source.
   const batchPreparation = await tool("simulation", {

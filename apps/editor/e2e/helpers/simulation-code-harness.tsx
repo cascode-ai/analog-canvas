@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import SimulationCodeEditor from "../../src/features/simulation/code-editor";
-import { SimulationOutputResults } from "../../src/features/simulation/simulation-output-results";
+import { SimulationSpecResults } from "../../src/features/simulation/simulation-spec-results";
 import {
   SimulationCodeWorkspace,
   type SimulationCodeWorkspaceProps,
@@ -49,46 +49,11 @@ function Harness() {
           onSelectOutputPane={setPane}
           console={<div>Component console — no simulator attached</div>}
           results={
-            <SimulationOutputResults
-              resultKey="native-run"
-              outputs={[]}
-              signalTargets={{
-                "v(out)": [
-                  {
-                    rootDocumentId: "root",
-                    documentId: "child",
-                    netId: "output-net",
-                    occurrence: ["dut"],
-                  },
-                ],
-              }}
-              onFocusProbe={(probe) => {
-                document.body.dataset.chartTarget = JSON.stringify(probe);
-              }}
-              data={{
-                schemaVersion: 1,
-                diagnostics: [],
-                analyses: [
-                  {
-                    analysis: "ac",
-                    plotName: "AC",
-                    domain: {
-                      name: "Frequency",
-                      unit: "Hz",
-                      values: [1, 10, 100],
-                    },
-                    outputs: [
-                      {
-                        id: "native:v(out)",
-                        label: "Output",
-                        unit: "V",
-                        values: [1, 0.9, 0.1],
-                        imaginary: [0, -0.1, -0.2],
-                      },
-                    ],
-                  },
-                ],
-              }}
+            <SimulationSpecResults
+              report={undefined}
+              hasRun={false}
+              stale={false}
+              onSource={() => {}}
             />
           }
           status={`Revision ${revision}`}
