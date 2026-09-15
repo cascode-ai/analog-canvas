@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 
 import { describe, expect, it } from "vitest";
 
@@ -194,12 +195,56 @@ describe("the preview deploy", () => {
     expect(crossProjectJourney).toContain('action: "import-cell"');
     expect(crossProjectJourney).toContain('kind: "add_document"');
     expect(crossProjectJourney).toContain('kind: "upsert_simulation_folder"');
-    expect(crossProjectJourney).toContain(
-      '.filter((output) => output.id === "probe-vout")',
-    );
+    expect(crossProjectJourney).toContain("nativeImportedTestbench(");
+    expect(crossProjectJourney).toContain("collectNativeRunEvidence({");
+    expect(crossProjectJourney).toContain("expectedEnvironment");
+    expect(crossProjectJourney).toContain('probe.name === "vout"');
     expect(crossProjectJourney).toContain('operation: "prepare"');
     expect(crossProjectJourney).toContain('operation: "start"');
     expect(crossProjectJourney).toContain('operation: "read"');
     expect(crossProjectJourney).toContain("acceptance-report.json");
+  });
+
+  it("refuses missing or shared migration targets before starting cross-Project acceptance", () => {
+    for (const url of [
+      undefined,
+      "https://analog-canvas-preview.tokenzhang.com",
+      "https://analog-canvas.tokenzhang.com",
+    ]) {
+      const args = url
+        ? [
+            "--url",
+            url,
+            "--mcp-bundle",
+            "does-not-exist.mjs",
+            "--mcp-sha256",
+            "a".repeat(64),
+            "--environment",
+            "does-not-exist.json",
+          ]
+        : [];
+      let failure;
+      try {
+        execFileSync(
+          process.execPath,
+          ["scripts/preview-cross-project-simulation-journey.mjs", ...args],
+          {
+            encoding: "utf8",
+            stdio: "pipe",
+            timeout: 15000,
+            windowsHide: true,
+          },
+        );
+      } catch (error) {
+        failure = error;
+      }
+      expect(failure?.status).toBe(1);
+      expect(failure?.stderr).toContain(
+        url
+          ? "Do not run migration acceptance on Production or shared Preview"
+          : "Supply --url",
+      );
+      expect(failure?.stderr).not.toContain("ENOENT");
+    }
   });
 });
