@@ -1,5 +1,6 @@
 import type { SimulationCircuitBinding } from "@icm/model";
 import type { DesignNetlistIR } from "./ir.js";
+import type { ResolvedNativeModelLibrarySymbols } from "./vacask-model-symbols.js";
 import {
   authoredCircuitScopes,
   type AuthoredCircuitEvent,
@@ -26,9 +27,10 @@ export function vacaskCircuitScopes(
   graph: SourceFileGraph<VacaskSourceStatement>,
   binding: SimulationCircuitBinding,
   circuit: DesignNetlistIR,
+  libraries: readonly ResolvedNativeModelLibrarySymbols[] = [],
 ) {
   return authoredCircuitScopes(
-    vacaskAuthoredCircuitEvents(graph),
+    vacaskAuthoredCircuitEvents(graph, libraries),
     binding,
     circuit,
     {
@@ -42,13 +44,14 @@ export function vacaskCircuitScopes(
  * Control programs are never evaluated to guess an instance or node identity. */
 export function vacaskAuthoredCircuitEvents(
   graph: SourceFileGraph<VacaskSourceStatement>,
+  libraries: readonly ResolvedNativeModelLibrarySymbols[] = [],
 ): AuthoredCircuitEvent[] {
   const events: AuthoredCircuitEvent[] = [];
   let conditionalDepth = 0;
   let control = false;
   const words = (tokens: VacaskSourceToken[]) =>
     tokens.every((t) => t.kind === "word");
-  for (const { statement } of graph.statements) {
+  for (const { path, statement } of graph.statements) {
     if (bare(statement, "control")) {
       control = true;
       continue;
@@ -67,6 +70,26 @@ export function vacaskAuthoredCircuitEvents(
     }
     const [head, name] = statement.tokens;
     if (!head) continue;
+    if (bare(statement, "include")) {
+      const load = graph.includes.find(
+        (i) =>
+          i.path === path &&
+          i.sourceRef.start.offset === statement.sourceRef.start.offset,
+      );
+      if (load)
+        for (const library of libraries)
+          if (
+            library.mountPath === load.target &&
+            library.section === load.section
+          )
+            for (const master of library.masters)
+              events.push({
+                kind: "opaque-master",
+                name: master.name,
+                ...(conditionalDepth ? {} : { primitives: master.primitives }),
+              });
+      continue;
+    }
     if (bare(statement, "global") || bare(statement, "ground")) {
       const names = statement.tokens.slice(1);
       if (words(names))

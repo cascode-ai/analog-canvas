@@ -6,6 +6,20 @@ process supervisor. It never falls back to ngspice.
 
 ## Run locally
 
+For a flattened native model artifact, derive read-only symbol evidence with
+`node scripts/vacask-model-symbols.mjs --library <file> --dependency-id <id> --master <wrapper> --output <new-json-file>`
+after building the service dependencies below. Repeat `--master` for each public
+wrapper; use `--section` only for a sectioned native library. The tool refuses
+missing includes or overwriting an existing report. `report.library` can populate
+the selected capability Profile's `modelSymbols`; it names the same dependency
+ID/digest as `dependencies`, never an editable Project model.
+
+Boot verifies those symbols against the actual bounded model file, not just a
+copied hash. A mismatch leaves the executor not-ready. This inspection currently
+supports flattened regular files up to 16 MiB, not arbitrary dependency trees.
+Unresolved conditional primitives remain explicit in the report; a successful
+inspection is not model/electrical qualification or authorization to deploy.
+
 Use the repository's supported Node version and build the service dependencies:
 
 ```sh

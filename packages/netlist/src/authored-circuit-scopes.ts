@@ -8,7 +8,12 @@ import type { DesignNetlistIR } from "./ir.js";
 export type AuthoredCircuitEvent =
   | { kind: "definition"; name: string; ports: string[]; conditional?: boolean }
   | { kind: "end" }
-  | { kind: "opaque-master"; name: string; module?: string }
+  | {
+      kind: "opaque-master";
+      name: string;
+      module?: string;
+      primitives?: ModelPrimitive[];
+    }
   | { kind: "globals"; names: string[] }
   | {
       kind: "call";
@@ -18,13 +23,21 @@ export type AuthoredCircuitEvent =
       conditional?: boolean;
     };
 
+export interface ModelPrimitive {
+  path: string[];
+  module: string;
+}
+
 type Call = Extract<AuthoredCircuitEvent, { kind: "call" }>;
 interface Definition {
   name: string;
   ports: string[];
   calls: Call[];
   definitions: Map<string, Definition[]>;
-  opaque: Map<string, (string | undefined)[]>;
+  opaque: Map<
+    string,
+    Extract<AuthoredCircuitEvent, { kind: "opaque-master" }>[]
+  >;
   conditional: boolean;
 }
 export type ResolvedAuthoredScope =
@@ -36,17 +49,9 @@ export type ResolvedAuthoredScope =
     }
   | { ok: false; message: string };
 
-/** One resolver owns enumeration and explicit resolution, including formal-port
- * substitution. Adapters own lexical identity and simulator path spelling. */
-export function authoredCircuitScopes(
+function authoredDeclarations(
   events: readonly AuthoredCircuitEvent[],
-  binding: SimulationCircuitBinding,
-  circuit: DesignNetlistIR,
-  syntax: {
-    key(name: string): string;
-    separator: string;
-    flatDefinitions?: boolean;
-  },
+  syntax: { key(name: string): string; flatDefinitions?: boolean },
 ) {
   const make = (name: string, ports: string[] = []): Definition => ({
     name,
@@ -59,7 +64,7 @@ export function authoredCircuitScopes(
   const top = make("");
   const parents = [top];
   const key = syntax.key;
-  const globals = new Set(["0", ...circuit.globals.map(key)]);
+  const globals = new Set(["0"]);
   for (const event of events) {
     const parent = parents.at(-1)!;
     if (event.kind === "definition") {
@@ -78,12 +83,106 @@ export function authoredCircuitScopes(
       for (const name of event.names) globals.add(key(name));
     } else if (event.kind === "opaque-master") {
       const name = key(event.name);
-      parent.opaque.set(name, [
-        ...(parent.opaque.get(name) ?? []),
-        event.module,
-      ]);
+      parent.opaque.set(name, [...(parent.opaque.get(name) ?? []), event]);
     } else parent.calls.push(event);
   }
+  /** Literal model primitives inside a top-level master used by generated IR.
+   * Reuses the same declaration/shadowing rules as occurrence resolution.
+   * Unknown dependencies, conditional or ambiguous instances are not guessed.
+   * This is source identity, not a promise that a module has qualified numbers. */
+  function primitiveModels(master: string) {
+    const result: { path: string[]; module: string }[] = [];
+    let visits = 0;
+    function visit(
+      parent: Definition,
+      name: string,
+      path: string[],
+      ancestors: Set<Definition>,
+    ) {
+      if (path.length >= 64 || ++visits > 4096) return;
+      for (const owner of parent === top ? [top] : [parent, top]) {
+        const modules = owner.opaque.get(key(name));
+        const definitions = owner.definitions.get(key(name));
+        if (modules) {
+          if (!definitions && modules.length === 1 && modules[0]) {
+            const model = modules[0];
+            if (model.module) result.push({ path, module: model.module });
+            else if (model.primitives)
+              result.push(
+                ...model.primitives.map((p) => ({
+                  path: [...path, ...p.path],
+                  module: p.module,
+                })),
+              );
+          }
+          return;
+        }
+        if (!definitions) continue;
+        const definition =
+          definitions.length === 1 ? definitions[0] : undefined;
+        if (!definition || definition.conditional || ancestors.has(definition))
+          return;
+        const counts = new Map<string, number>();
+        for (const call of definition.calls)
+          counts.set(key(call.name), (counts.get(key(call.name)) ?? 0) + 1);
+        for (const call of definition.calls)
+          if (
+            call.master &&
+            !call.conditional &&
+            counts.get(key(call.name)) === 1
+          )
+            visit(
+              definition,
+              call.master,
+              [...path, key(call.name)],
+              new Set([...ancestors, definition]),
+            );
+        return;
+      }
+    }
+    visit(top, master, [], new Set());
+    return result;
+  }
+  return { make, top, globals, primitiveModels };
+}
+
+/** A source-only query of the same declaration table used by Canvas scopes. */
+export function authoredModelSymbols(
+  events: readonly AuthoredCircuitEvent[],
+  names: readonly string[],
+  syntax: { key(name: string): string; flatDefinitions?: boolean },
+) {
+  const { top, primitiveModels } = authoredDeclarations(events, syntax);
+  return [...new Set(names)]
+    .filter(
+      (name) =>
+        top.definitions.has(syntax.key(name)) ||
+        top.opaque.has(syntax.key(name)),
+    )
+    .map((name) => ({
+      name,
+      primitives: primitiveModels(name),
+    }));
+}
+
+/** One resolver owns enumeration and explicit resolution, including formal-port
+ * substitution. Adapters own lexical identity and simulator path spelling. */
+export function authoredCircuitScopes(
+  events: readonly AuthoredCircuitEvent[],
+  binding: SimulationCircuitBinding,
+  circuit: DesignNetlistIR,
+  syntax: {
+    key(name: string): string;
+    separator: string;
+    flatDefinitions?: boolean;
+  },
+) {
+  const { make, top, globals, primitiveModels } = authoredDeclarations(
+    events,
+    syntax,
+  );
+  const key = syntax.key;
+  for (const name of circuit.globals) globals.add(key(name));
   const root = circuit.cells.find((cell) => cell.id === circuit.topCellId);
   const generated = root
     ? make(
@@ -197,54 +296,6 @@ export function authoredCircuitScopes(
       }
     }
     visit(top, [], new Set([top]));
-    return result;
-  }
-  /** Literal model primitives inside a top-level master used by generated IR.
-   * Reuses the same declaration/shadowing rules as occurrence resolution.
-   * Unknown dependencies, conditional or ambiguous instances are not guessed.
-   * This is source identity, not a promise that a module has qualified numbers. */
-  function primitiveModels(master: string) {
-    const result: { path: string[]; module: string }[] = [];
-    let visits = 0;
-    function visit(
-      parent: Definition,
-      name: string,
-      path: string[],
-      ancestors: Set<Definition>,
-    ) {
-      if (path.length >= 64 || ++visits > 4096) return;
-      for (const owner of parent === top ? [top] : [parent, top]) {
-        const modules = owner.opaque.get(key(name));
-        const definitions = owner.definitions.get(key(name));
-        if (modules) {
-          if (!definitions && modules.length === 1 && modules[0])
-            result.push({ path, module: modules[0] });
-          return;
-        }
-        if (!definitions) continue;
-        const definition =
-          definitions.length === 1 ? definitions[0] : undefined;
-        if (!definition || definition.conditional || ancestors.has(definition))
-          return;
-        const counts = new Map<string, number>();
-        for (const call of definition.calls)
-          counts.set(key(call.name), (counts.get(key(call.name)) ?? 0) + 1);
-        for (const call of definition.calls)
-          if (
-            call.master &&
-            !call.conditional &&
-            counts.get(key(call.name)) === 1
-          )
-            visit(
-              definition,
-              call.master,
-              [...path, key(call.name)],
-              new Set([...ancestors, definition]),
-            );
-        return;
-      }
-    }
-    visit(top, master, [], new Set());
     return result;
   }
   return { resolve, list, primitiveModels };

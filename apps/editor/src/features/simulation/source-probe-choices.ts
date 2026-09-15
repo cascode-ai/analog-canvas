@@ -12,6 +12,7 @@ import {
   nativeSimulationDevices,
   nativeDeviceOpAcquisitions,
   vacaskIdentifier,
+  type NativeModelLibrarySymbols,
 } from "@icm/netlist";
 import { deriveSimulationProbeOptions } from "./simulation-probe-options";
 
@@ -23,10 +24,11 @@ export interface SourceProbeChoice {
 export function sourceProbeChoices(
   project: CircuitProject,
   input: SimulationSourceInput,
+  libraries: readonly NativeModelLibrarySymbols[] = [],
 ): SourceProbeChoice[] {
   const graph = inspectVacaskSourceGraph(input);
   const choices: SourceProbeChoice[] = [];
-  for (const device of nativeSimulationDevices(project, input))
+  for (const device of nativeSimulationDevices(project, input, libraries))
     for (const acquisition of nativeDeviceOpAcquisitions(device))
       choices.push({
         kind: "device-op",

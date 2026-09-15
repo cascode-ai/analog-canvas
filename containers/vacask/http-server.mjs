@@ -3,6 +3,7 @@ import { CapabilitiesSchema } from "@icm/simulation-service";
 import { verifySimulationEnvironmentMetadata } from "@icm/spice-run";
 import { executeVacask } from "./execute.mjs";
 import { validVacaskLimits } from "./run-job.mjs";
+import { verifyVacaskModelSymbols } from "./model-symbols.mjs";
 import {
   resolveRunTimeout,
   SimulationRunSupervisor,
@@ -73,6 +74,7 @@ export function createVacaskHttpServer({
         )
       )
         throw new Error("Native capability/runtime contract mismatch.");
+      await verifyVacaskModelSymbols(profile.modelSymbols, value.dependencies);
       runtime = value;
       caps = declared;
     })

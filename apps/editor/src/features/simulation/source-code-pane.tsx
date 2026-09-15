@@ -38,6 +38,7 @@ import { sha256 } from "@icm/simulation-service/files";
 import type {
   Problem,
   SimulationSourceLocation,
+  Capabilities,
 } from "@icm/simulation-service/contract";
 import SimulationCodeEditor from "./code-editor";
 import { downloadTextArtifact } from "../../document/project-file-service";
@@ -85,6 +86,7 @@ interface Props extends Pick<
   selectedCircuitObject?:
     { documentId: string; instanceId: string } | undefined;
   folder: ProjectSimulationFolder;
+  capabilities?: Capabilities | undefined;
   files: SimulationFiles;
   actions: ReactNode;
   toolbarEnd?: ReactNode;
@@ -231,17 +233,33 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
     const probeChoices = useMemo(
       () =>
         probePicker
-          ? sourceProbeChoices(props.project, {
-              ...input,
-              files: input.files.map((file) => ({
-                ...file,
-                text:
-                  drafts.current.get(`${props.folder.id}\u0000${file.path}`)
-                    ?.text ?? file.text,
-              })),
-            })
+          ? sourceProbeChoices(
+              props.project,
+              {
+                ...input,
+                files: input.files.map((file) => ({
+                  ...file,
+                  text:
+                    drafts.current.get(`${props.folder.id}\u0000${file.path}`)
+                      ?.text ?? file.text,
+                })),
+              },
+              props.capabilities?.profiles.find((p) => {
+                const config = readSimulationExperimentConfig(props.folder);
+                return (
+                  config.ok && p.id === config.config.environment.profileId
+                );
+              })?.modelSymbols,
+            )
           : [],
-      [props.project, input, draftRevision, probePicker],
+      [
+        props.project,
+        input,
+        draftRevision,
+        probePicker,
+        props.capabilities,
+        props.folder,
+      ],
     );
     const binding = input.circuitBindings.find(
       (b) => b.emission === "top-level",

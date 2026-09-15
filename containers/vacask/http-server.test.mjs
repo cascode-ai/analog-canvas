@@ -2,6 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createSimulationEnvironmentMetadata } from "@icm/spice-run";
 import { createVacaskHttpServer } from "./http-server.mjs";
 import { executeVacask } from "./execute.mjs";
+import { mkdtemp, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { inspectVacaskModelArtifact } from "./model-symbols.mjs";
 vi.mock("./execute.mjs", () => ({ executeVacask: vi.fn() }));
 const servers = [];
 let runtime, capabilities, limits, supervisor;
@@ -78,6 +82,29 @@ async function start(options = {}) {
 }
 const token = "11111111-1111-1111-1111-111111111111";
 describe("native HTTP transport", () => {
+  it("publishes only the model symbols verified against the runtime dependency", async () => {
+    const root = await mkdtemp(join(tmpdir(), "vacask-symbol-health-"));
+    const runtimePath = join(root, "library.inc");
+    await writeFile(runtimePath, "model core sp_bsim4v8\n");
+    const symbols = await inspectVacaskModelArtifact(runtimePath, ["core"]);
+    runtime.dependencies = [
+      { id: "models", sha256: symbols.sha256, runtimePath },
+    ];
+    capabilities.profiles[0].dependencies = [
+      { id: "models", sha256: symbols.sha256 },
+    ];
+    capabilities.profiles[0].modelSymbols = [
+      { dependencyId: "models", ...symbols },
+    ];
+    const { base, post } = await start();
+    await vi.waitFor(async () =>
+      expect((await fetch(base + "/health")).status).toBe(200),
+    );
+    expect(
+      (await (await post({ operation: "capabilities" })).json()).profiles[0]
+        .modelSymbols,
+    ).toEqual(capabilities.profiles[0].modelSymbols);
+  });
   it("keeps health and unavailable capabilities responsive until identity is measured", async () => {
     let finish;
     const { base, post } = await start({

@@ -14,6 +14,10 @@ import type { DesignNetlistCell, DesignNetlistInstance } from "./ir.js";
 import { inspectVacaskSourceGraph } from "./vacask-source.js";
 import { vacaskCircuitScopes } from "./vacask-source-scopes.js";
 import { vacaskIdentifier, vacaskProjectValue } from "./vacask-printer.js";
+import {
+  resolveNativeModelLibraries,
+  type NativeModelLibrarySymbols,
+} from "./vacask-model-symbols.js";
 
 export interface NativeSimulationDevice {
   documentId: string;
@@ -32,6 +36,7 @@ export interface NativeSimulationDevice {
 export function nativeSimulationDevices(
   project: CircuitProject,
   input: SimulationSourceInput,
+  libraries: readonly NativeModelLibrarySymbols[] = [],
 ): NativeSimulationDevice[] {
   const graph = inspectVacaskSourceGraph(input);
   const result: NativeSimulationDevice[] = [];
@@ -44,7 +49,12 @@ export function nativeSimulationDevices(
     if (!ir) continue;
     const root = ir.cells.find((cell) => cell.id === ir.topCellId);
     if (!root) continue;
-    const scopes = vacaskCircuitScopes(graph, binding, ir);
+    const scopes = vacaskCircuitScopes(
+      graph,
+      binding,
+      ir,
+      resolveNativeModelLibraries(input, libraries),
+    );
     for (const circuit of scopes.list()) {
       const resolved = scopes.resolve(circuit);
       if (!resolved.ok) continue;

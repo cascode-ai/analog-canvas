@@ -1918,6 +1918,7 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
       {selectedFolder ? (
         <SourceCodePane
           ref={codeRef}
+          capabilities={capabilities}
           diagnostics={activeProblem?.diagnostics}
           project={project}
           activeDocumentId={props.activeDocumentId}

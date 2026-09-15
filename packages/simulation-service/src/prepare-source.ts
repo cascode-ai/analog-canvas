@@ -11,6 +11,8 @@ import {
   inspectVacaskSource,
   inspectVacaskSourceGraph,
   locateSimulationText,
+  nativeSimulationDevices,
+  compileNativeDeviceOperatingPoints,
   type VacaskSourceStatement,
   type SimulationSourceDiagnostic,
 } from "@icm/netlist";
@@ -312,6 +314,19 @@ export async function prepareSourceExecutionInput(
     circuitBindings: [],
   });
   const signals = simulationSignals(project, folder.input);
+  // Environment-owned includes are now resolved, including the exact corner.
+  // This enriches the captured result mapping, not the authored input identity.
+  const deviceOp = compileNativeDeviceOperatingPoints(
+    nativeSimulationDevices(
+      project,
+      {
+        ...folder.input,
+        files,
+        dependencies,
+      },
+      profile.modelSymbols,
+    ),
+  );
   const volume = outputVolumeWarning(
     native.analyses,
     Math.max(1, Object.keys(signals).length),
@@ -338,7 +353,7 @@ export async function prepareSourceExecutionInput(
     ok: true as const,
     input,
     digest: await sha256(JSON.stringify(input)),
-    vectors: compiled.vectors,
+    vectors: deviceOp.vectors,
     signalNames: Object.fromEntries(
       Object.entries(signals).map(([key, s]) => [key, s.label]),
     ),
@@ -346,7 +361,7 @@ export async function prepareSourceExecutionInput(
       Object.entries(signals).map(([key, s]) => [key, s.targets]),
     ),
     outputs: compiled.outputs,
-    deviceOperatingPoints: compiled.deviceOperatingPoints,
+    deviceOperatingPoints: deviceOp.deviceOperatingPoints,
     measurements: compiled.config.measurements,
     warnings: [
       ...compiled.warnings.map((w) => w.message),
