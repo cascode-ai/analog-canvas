@@ -225,6 +225,10 @@ jobs:
 
   vacask-preview:
     if: github.event_name == 'workflow_dispatch' && inputs.action == 'vacask-preview'
+    # GitHub restricts draft-release visibility to write-capable repository tokens.
+    # The script only downloads the explicitly named draft; it never publishes it.
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     environment: cloudflare-preview
     timeout-minutes: 30
