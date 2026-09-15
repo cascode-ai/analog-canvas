@@ -39,7 +39,6 @@ function dependencies(
     selectedHighlightIsActive,
     closeSearch: vi.fn(),
     setSelectionOpen: vi.fn(),
-    setInstanceTableOpen: vi.fn(),
     setCellManagerOpen: vi.fn(),
     selectedInstance: undefined,
     setStatus: vi.fn(),

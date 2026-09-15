@@ -124,8 +124,8 @@ test("a failed dialog chunk degrades to a scoped notice, not the crash screen", 
 
   // A tab that survives a redeploy asks for chunk names the server no longer
   // has. Aborting the request reproduces the same rejected dynamic import.
-  await page.route("**/instance-table-dialog*", (route) => route.abort());
-  await clickCommand(page, "Netlist", "Instance Table…");
+  await page.route("**/cell-manager-dialog*", (route) => route.abort());
+  await clickCommand(page, "Edit", "Manage Cells…");
 
   const fallback = page.getByTestId("dialog-chunk-load-fallback");
   await expect(fallback).toBeVisible();
@@ -138,9 +138,9 @@ test("a failed dialog chunk degrades to a scoped notice, not the crash screen", 
   await expect(page.getByTestId("hit-R1")).toBeVisible();
 
   // Refreshing from the notice restores the circuit automatically.
-  await clickCommand(page, "Netlist", "Instance Table…");
+  await clickCommand(page, "Edit", "Manage Cells…");
   const navigated = page.waitForEvent("framenavigated");
-  await page.unroute("**/instance-table-dialog*");
+  await page.unroute("**/cell-manager-dialog*");
   await page
     .getByTestId("dialog-chunk-load-fallback")
     .getByRole("button", { name: "Refresh app" })

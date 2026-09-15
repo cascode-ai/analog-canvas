@@ -1,28 +1,65 @@
 import { expect, test } from "@playwright/test";
+import { clickCommand, copyNetlistText } from "./editor-fixtures.js";
 
-import { chooseComponent, clickCommand } from "./editor-fixtures.js";
-
-test("edits compatible selected instances through the explicit Instance Table", async ({
+test("bulk edits instance JSON in the sidebar with atomic undo and live netlist updates", async ({
   page,
 }) => {
   await page.goto("/editor");
-  await chooseComponent(page, "nmos");
-  const canvas = page.getByTestId("schematic-canvas");
-  await canvas.click({ position: { x: 220, y: 180 } });
-  await page.keyboard.press("Escape");
-  await chooseComponent(page, "nmos");
-  await canvas.click({ position: { x: 380, y: 180 } });
-  await page.keyboard.press("Escape");
+  await page.getByTestId("spice-files").setInputFiles({
+    name: "circuit.spi",
+    mimeType: "text/plain",
+    buffer: Buffer.from("\n.subckt top a b\nR1 a b 1k\nR2 b a 2k\n.ends top\n"),
+  });
+  await clickCommand(page, "Netlist", "Instances…");
+  const panel = page.getByRole("region", {
+    name: "Instance code",
+    exact: true,
+  });
+  const code = panel.getByRole("textbox", { name: "Instance JSON" });
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(panel.getByRole("combobox")).toHaveCount(0);
+  await expect(panel.getByRole("button")).toHaveCount(0);
+  const original = await code.inputValue();
+  const values = JSON.parse(original);
+  const rows = Object.values(values)[0] as Record<string, any>;
+  for (const row of Object.values(rows)) row.parameters.value = "10k";
+  const pasted = JSON.stringify(values, null, 4);
+  await code.fill(pasted);
+  // Live acknowledgement must preserve bulk-paste formatting/caret ownership.
+  await expect(code).toHaveValue(pasted);
+  await clickCommand(page, "Edit", "Undo");
+  await expect(code).toHaveValue(original);
+  await clickCommand(page, "Edit", "Redo");
+  await expect
+    .poll(async () =>
+      Object.values(
+        Object.values(JSON.parse(await code.inputValue()))[0] as Record<
+          string,
+          any
+        >,
+      ).map((row) => row.parameters.value),
+    )
+    .toEqual(["10k", "10k"]);
 
-  await clickCommand(page, "Netlist", "Instance Table…");
-  const table = page.getByRole("dialog", { name: "Instance Table" });
-  await expect(table).toBeVisible();
-  await expect(table.getByRole("button", { name: "M1" })).toBeVisible();
-  await expect(table.getByRole("button", { name: "M2" })).toBeVisible();
-  await table.getByRole("button", { name: "Select visible" }).click();
-  await table.getByLabel("Parameter name").fill("l");
-  await table.getByLabel("Batch value").fill("120n");
-  await expect(table.getByText("2 ready", { exact: false })).toBeVisible();
-  await table.getByRole("button", { name: "Apply to 2" }).click();
-  await expect(table.getByText("l=120n", { exact: false })).toHaveCount(2);
+  await code.fill("{");
+  await expect(panel.getByRole("alert")).toContainText("valid JSON");
+  expect(await copyNetlistText(page)).toMatch(/R1 a b 10k\nR2 b a 10k/u);
+  await clickCommand(page, "Edit", "Undo");
+  const live = page.getByRole("textbox", { name: "Netlist code", exact: true });
+  await expect(live).toHaveValue(/R1 a b 1k\nR2 b a 2k/u);
+  await clickCommand(page, "Edit", "Redo");
+  await expect(live).toHaveValue(/R1 a b 10k\nR2 b a 10k/u);
+
+  await clickCommand(page, "Netlist", "Instances…");
+  const rejected = JSON.parse(await code.inputValue());
+  const invalidRows = Object.values(rejected)[0] as Record<string, any>;
+  Object.values(invalidRows)[0]!.parameters.value = "99k";
+  Object.values(invalidRows)[1]!.reference = "R1";
+  await code.fill(JSON.stringify(rejected));
+  await expect(panel.getByRole("alert")).toContainText("Edit rejected");
+  expect(await copyNetlistText(page)).toMatch(/R1 a b 10k\nR2 b a 10k/u);
+  await clickCommand(page, "Netlist", "Instances…");
+  await page.setViewportSize({ width: 760, height: 800 });
+  await expect(code).toBeVisible();
+  await code.selectText();
 });

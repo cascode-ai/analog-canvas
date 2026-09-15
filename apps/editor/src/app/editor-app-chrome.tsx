@@ -59,10 +59,10 @@ export interface EditorAppChromeProps {
   mirrorLeftRight: CommandAction;
   mirrorTopBottom: CommandAction;
   alignmentActions: readonly AlignmentAction[];
-  instanceTableOpen: boolean;
+  instanceCodeOpen: boolean;
   netlistPreflightOpen: boolean;
   checkAndSave: CommandAction;
-  onOpenInstanceTable: () => void;
+  onOpenInstanceCode: () => void;
   onOpenNetlistPreflight: () => void;
   onOpenNetlistConfiguration: () => void;
   netlistProfileId: NetlistProfileId;
@@ -123,10 +123,10 @@ export function EditorAppChrome({
   mirrorLeftRight,
   mirrorTopBottom,
   alignmentActions,
-  instanceTableOpen,
+  instanceCodeOpen,
   netlistPreflightOpen,
   checkAndSave,
-  onOpenInstanceTable,
+  onOpenInstanceCode,
   onOpenNetlistPreflight,
   netlistProfileId,
   netlistFormat,
@@ -395,11 +395,10 @@ export function EditorAppChrome({
                   <span className="command-group-label">Authoring</span>
                   <button
                     type="button"
-                    aria-haspopup="dialog"
-                    aria-expanded={instanceTableOpen}
-                    onClick={onOpenInstanceTable}
+                    aria-expanded={instanceCodeOpen}
+                    onClick={onOpenInstanceCode}
                   >
-                    Instance Table…
+                    Instances…
                   </button>
                   <span className="command-group-label">Check</span>
                   <button

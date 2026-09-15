@@ -110,7 +110,7 @@ describe("editor shell", () => {
     expect(markup).not.toContain('data-testid="cell-command-menu"');
     expect(markup).toContain("Manage Cells…");
     expect(markup).toContain("New Testbench Cell…");
-    expect(markup).toContain("Instance Table…");
+    expect(markup).toContain("Instances…");
     const netlistStart = markup.indexOf('aria-label="Netlist"');
     const netlistEnd = markup.indexOf("</details>", netlistStart);
     const netlistMenu = markup.slice(netlistStart, netlistEnd);

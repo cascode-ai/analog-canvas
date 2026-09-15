@@ -77,7 +77,6 @@ export interface EditorNavigationControllerDependencies {
   selectedHighlightIsActive: boolean;
   closeSearch: () => void;
   setSelectionOpen: (open: boolean) => void;
-  setInstanceTableOpen: (open: boolean) => void;
   setCellManagerOpen: (open: boolean) => void;
   selectedInstance: Instance | null | undefined;
   setStatus: (status: string) => void;
@@ -107,7 +106,6 @@ export function createEditorNavigationController({
   selectedHighlightIsActive,
   closeSearch,
   setSelectionOpen,
-  setInstanceTableOpen,
   setCellManagerOpen,
   selectedInstance,
   setStatus,
@@ -141,26 +139,6 @@ export function createEditorNavigationController({
         `Opened shared Cell without caller context (${paths.length} instance paths)`,
       );
     }
-  };
-
-  const openInstanceFromTable = (
-    documentId: string,
-    instanceId: string,
-  ): void => {
-    const paths = findHierarchyPaths(
-      connectivityIndex,
-      project.topDocumentId,
-      documentId,
-    );
-    setDocumentStack(paths?.[0] ? [...paths[0]] : []);
-    switchDocument(documentId);
-    selectOnly("instance", [instanceId]);
-    setInstanceTableOpen(false);
-    setStatus(
-      paths && paths.length > 1
-        ? `Opened ${documentId}.${instanceId} via one of ${paths.length} caller paths`
-        : `Opened ${documentId}.${instanceId}`,
-    );
   };
 
   const jumpToCaller = (parentDocumentId: string, instanceId: string): void => {
@@ -468,7 +446,6 @@ export function createEditorNavigationController({
   return {
     switchDocument,
     selectDocumentFromHierarchy,
-    openInstanceFromTable,
     jumpToCaller,
     navigateToLocator,
     navigateToNetlistDiagnostic,

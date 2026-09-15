@@ -1,3 +1,4 @@
+import { InstanceCodePanel } from "../features/properties/instance-code-panel";
 import { NetlistCodePanel } from "../features/netlist-export/netlist-code-panel";
 import { NetlistProfileCode } from "../features/netlist-export/netlist-profile-code";
 import { useNetlistExportPreferences } from "../features/netlist-export/netlist-export-preferences";
@@ -729,9 +730,9 @@ export function App({
     command: string;
   } | null>(null);
   const [netlistPreflightOpen, setNetlistPreflightOpen] = useState(false);
-  const [netlistConfigurationOpen, setNetlistConfigurationOpen] =
-    useState(false);
-  const [netlistCodeOpen, setNetlistCodeOpen] = useState(false);
+  const [codePanel, setCodePanel] = useState<
+    "netlist" | "configuration" | "instances" | null
+  >(null);
   const [netlistFormat, setNetlistFormat] = useState<"spice" | "spectre">(
     "spice",
   );
@@ -828,7 +829,6 @@ export function App({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- evaluated once per dialog open
   }, [publishGalleryOpen]);
-  const [instanceTableOpen, setInstanceTableOpen] = useState(false);
   const [agentFileCandidate, setAgentFileCandidate] =
     useState<AgentFileCandidateSummary | null>(null);
   const agentSimulationHostForFiles = useRef<BrowserAgentSimulationHost | null>(
@@ -3229,7 +3229,6 @@ export function App({
   const {
     switchDocument,
     selectDocumentFromHierarchy,
-    openInstanceFromTable,
     jumpToCaller,
     navigateToLocator,
     navigateToNetlistDiagnostic,
@@ -3266,7 +3265,6 @@ export function App({
     selectedHighlightIsActive,
     closeSearch,
     setSelectionOpen,
-    setInstanceTableOpen,
     setCellManagerOpen,
     selectedInstance,
     setStatus,
@@ -3297,8 +3295,7 @@ export function App({
   }, [document, visualSelection]);
 
   function openProperties(): void {
-    setNetlistConfigurationOpen(false);
-    setNetlistCodeOpen(false);
+    setCodePanel(null);
     setImportReviewOpen(false);
     setSelectionOpen(true);
     // Focus the header, not the first field: Q stays a pure toggle and
@@ -3309,8 +3306,7 @@ export function App({
   }
 
   function closeProperties(): void {
-    setNetlistConfigurationOpen(false);
-    setNetlistCodeOpen(false);
+    setCodePanel(null);
     exitCellSymbolLayout();
     setSelectionOpen(false);
     setImportReviewOpen(false);
@@ -4022,8 +4018,7 @@ export function App({
       showNetlist: (format, namingProfile) => {
         setNetlistFormat(format);
         setNetlistNamingProfile(namingProfile);
-        setNetlistConfigurationOpen(false);
-        setNetlistCodeOpen(true);
+        setCodePanel("netlist");
         setSelectionOpen(true);
         if (compactLayout) setCompactLibraryPanelOpen(false);
       },
@@ -4785,18 +4780,21 @@ export function App({
               })
             : []
         }
-        instanceTableOpen={instanceTableOpen}
+        instanceCodeOpen={codePanel === "instances" && selectionOpen}
         netlistPreflightOpen={netlistPreflightOpen}
         checkAndSave={{
           enabled: !saveBusy && !projectCheck.busy,
           execute: () => void projectCheck.checkAndSave(),
         }}
-        onOpenInstanceTable={() => setInstanceTableOpen(true)}
+        onOpenInstanceCode={() => {
+          setCodePanel("instances");
+          setSelectionOpen(true);
+          if (compactLayout) setCompactLibraryPanelOpen(false);
+        }}
         netlistProfileId={netlistPreferences.profile.id}
         netlistFormat={netlistFormat}
         onOpenNetlistConfiguration={() => {
-          setNetlistCodeOpen(false);
-          setNetlistConfigurationOpen(true);
+          setCodePanel("configuration");
           setSelectionOpen(true);
           if (compactLayout) setCompactLibraryPanelOpen(false);
         }}
@@ -4997,27 +4995,6 @@ export function App({
                 onQueryChange: setSearchQuery,
                 onSelect: selectSearchResult,
                 onClose: closeSearch,
-              }
-            : null
-        }
-        instanceTable={
-          instanceTableOpen
-            ? {
-                open: instanceTableOpen,
-                project,
-                connectivityIndex: projectConnectivityIndex,
-                activeDocumentId: document.id,
-                onClose: () => setInstanceTableOpen(false),
-                onOpenInstance: openInstanceFromTable,
-                onApply: (transactionId, edits) => {
-                  const committed = commitStructure(transactionId, edits);
-                  if (committed) {
-                    setStatus(
-                      `Updated ${edits.length} Cell${edits.length === 1 ? "" : "s"}`,
-                    );
-                  }
-                  return committed;
-                },
               }
             : null
         }
@@ -5726,13 +5703,13 @@ export function App({
             <EditorPropertiesDock
               open={selectionOpen}
               configuration={
-                netlistConfigurationOpen ? (
+                codePanel === "configuration" ? (
                   <NetlistProfileCode
                     text={netlistPreferences.text}
                     error={netlistPreferences.error}
                     onChange={netlistPreferences.changeText}
                   />
-                ) : netlistCodeOpen ? (
+                ) : codePanel === "netlist" ? (
                   <NetlistCodePanel
                     project={project}
                     format={netlistFormat}
@@ -5740,14 +5717,29 @@ export function App({
                     profile={netlistPreferences.profile}
                     configurationError={netlistPreferences.error}
                   />
+                ) : codePanel === "instances" ? (
+                  <InstanceCodePanel
+                    key={projectSessionId}
+                    project={project}
+                    onApply={(edits) => {
+                      const committed = commitStructure(
+                        "edit-instance-code",
+                        edits,
+                      );
+                      if (committed)
+                        setStatus(
+                          `Updated instance code in ${edits.length} Cell${edits.length === 1 ? "" : "s"}`,
+                        );
+                      return committed;
+                    }}
+                  />
                 ) : undefined
               }
               shelfRef={selectionShelfRef}
               onToggle={() => {
                 if (selectionOpen) {
                   exitCellSymbolLayout();
-                  setNetlistConfigurationOpen(false);
-                  setNetlistCodeOpen(false);
+                  setCodePanel(null);
                 }
                 // Narrow layouts have room for one side panel. Whichever the user
                 // just asked for wins.

@@ -263,6 +263,16 @@ and open its live code in the right sidebar. The adjacent arrow offers
 and remembers that format for the editor session. Editing the circuit refreshes
 the visible code. Clipboard failures leave the code selectable for manual copy.
 
+**Netlist / Instances…** opens the Project's netlist instances as one editable
+JSON document in the right sidebar. Paste whole blocks to change references,
+model bindings and parameters together. Outer keys are Cell IDs; inner keys are
+stable instance IDs. Edit `reference` to renumber, `target` for the typed model
+binding, or `parameters` for values. `symbol` is read-only. Omitted instances and
+fields remain unchanged; a supplied `parameters` object replaces that instance's
+parameter set, so deleting a parameter clears it. Valid edits apply together;
+invalid JSON or conflicting references leave the circuit unchanged. **Edit / Undo**
+and **Redo** undo or restore the complete batch.
+
 **Netlist / Configuration…** opens one raw JSON document in the right Properties
 panel. Copy, paste, or replace the whole configuration. Set `selected` to
 `abstract`, `sky130`, or `custom`; edit the corresponding entry under `profiles`.
