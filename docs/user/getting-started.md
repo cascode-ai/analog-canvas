@@ -263,7 +263,11 @@ runs automatically while drawing. Further edits mark the last check out of
 date and hide its markers; check again to refresh it. Save still proceeds
 when issues exist, and an offline or signed-out save still leaves the local
 check available. This command does not repair Bulk connections or rewrite
-the circuit. **File / Save** and **Ctrl+S** remain save-only.
+the circuit. A Route segment that is neither horizontal, vertical, nor exactly
+45° appears as an actionable wiring issue. **Straighten angled wires in this
+Cell** replaces only those segments with local right-angle corners in one
+undoable edit; intentional 45° segments stay unchanged. Locked and trunk Routes
+remain listed for manual repair. **File / Save** and **Ctrl+S** remain save-only.
 
 Click the top **Netlist · SPICE** copy button to put the netlist on the clipboard
 and open its live code in the right sidebar. The adjacent arrow offers

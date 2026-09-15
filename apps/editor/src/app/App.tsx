@@ -27,6 +27,7 @@ import {
   planSetCellSymbolPresentation,
   planSetDeviceModelTarget,
   planInstanceUnplacement,
+  planAngledWireRepairs,
   gateRoutingOperationPlan,
   type ProjectStructureEdit,
   type CellResetPlan,
@@ -1678,6 +1679,15 @@ export function App({
         projectCheck.status === "current" ? visualDiagnostics : [],
       ),
     [visualDiagnostics, projectCheck.status],
+  );
+  const angledWireRepairPlan = useMemo(
+    () =>
+      planAngledWireRepairs(
+        document,
+        resolver,
+        projectConnectivityIndex.documents.get(document.id)?.routingGeometry,
+      ),
+    [document, resolver, projectConnectivityIndex],
   );
   // Independent Netlist adapter: creating the callback is free; only a report
   // or export executes ERC, once per immutable Project/resolver/index tuple.
@@ -6468,6 +6478,22 @@ export function App({
                 onSelectDiagnostic: jumpToProjectDiagnostic,
                 focusRequestToken: issuesFocusToken,
                 onOpenStateChange: setIssuesSectionOpen,
+                angledWireRepair: {
+                  angledSegmentCount: angledWireRepairPlan.angledSegmentCount,
+                  repairableSegmentCount:
+                    angledWireRepairPlan.repairableSegmentCount,
+                  repairableRouteCount:
+                    angledWireRepairPlan.repairableRouteCount,
+                  protectedRouteCount: angledWireRepairPlan.protectedRouteCount,
+                  onRepair: () => {
+                    if (angledWireRepairPlan.edits.length === 0) return;
+                    const result = transact([...angledWireRepairPlan.edits]);
+                    if (!result.ok) return;
+                    setStatus(
+                      `Straightened ${angledWireRepairPlan.repairableSegmentCount} non-standard angled wire segment${angledWireRepairPlan.repairableSegmentCount === 1 ? "" : "s"} in one undoable edit`,
+                    );
+                  },
+                },
               }}
               netTrace={
                 highlightedTrace && highlightedTrace.hops.length > 0

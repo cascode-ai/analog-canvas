@@ -139,6 +139,31 @@ describe("selection inspector details", () => {
     expect(markup).toContain("Issues (1)");
   });
 
+  it("offers one-click angled-wire repair and reports protected routes", () => {
+    const markup = renderToStaticMarkup(
+      <ProjectDiagnosticsSection
+        snapshot={null}
+        checkStatus="unchecked"
+        documentLabel={() => "Main Cell"}
+        onSelectDiagnostic={() => undefined}
+        focusRequestToken={1}
+        angledWireRepair={{
+          angledSegmentCount: 5,
+          repairableSegmentCount: 4,
+          repairableRouteCount: 3,
+          protectedRouteCount: 1,
+          onRepair: () => undefined,
+        }}
+      />,
+    );
+
+    expect(markup).toContain('data-testid="repair-angled-wires"');
+    expect(markup).toContain("Straighten angled wires in this Cell (4)");
+    expect(markup).toContain(
+      "1 locked or trunk route must be repaired manually",
+    );
+  });
+
   it("expands the issues section when a focus request token arrives", () => {
     const markup = renderToStaticMarkup(
       <ProjectDiagnosticsSection

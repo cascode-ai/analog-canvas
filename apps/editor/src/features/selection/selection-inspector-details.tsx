@@ -145,6 +145,13 @@ export interface ProjectDiagnosticsSectionProps {
   focusRequestToken?: number;
   /** Reports the section's expanded state — the canvas review-mode gate. */
   onOpenStateChange?(open: boolean): void;
+  angledWireRepair?: {
+    angledSegmentCount: number;
+    repairableSegmentCount: number;
+    repairableRouteCount: number;
+    protectedRouteCount: number;
+    onRepair(): void;
+  };
 }
 
 export interface NetTraceSectionProps {
@@ -255,6 +262,7 @@ export function ProjectDiagnosticsSection({
   onSelectDiagnostic,
   focusRequestToken = 0,
   onOpenStateChange,
+  angledWireRepair,
 }: ProjectDiagnosticsSectionProps) {
   const diagnostics = snapshot?.diagnostics ?? [];
   const [severityFilter, setSeverityFilter] =
@@ -331,6 +339,30 @@ export function ProjectDiagnosticsSection({
           <span>{hasBlockingIssue ? "Action required" : "Review"}</span>
         </summary>
         <div className="diagnostics-body">
+          {angledWireRepair && angledWireRepair.angledSegmentCount > 0 ? (
+            <div
+              className="angled-wire-repair"
+              data-testid="angled-wire-repair"
+            >
+              {angledWireRepair.repairableRouteCount > 0 ? (
+                <button
+                  type="button"
+                  data-testid="repair-angled-wires"
+                  onClick={angledWireRepair.onRepair}
+                >
+                  Straighten angled wires in this Cell (
+                  {angledWireRepair.repairableSegmentCount})
+                </button>
+              ) : null}
+              {angledWireRepair.protectedRouteCount > 0 ? (
+                <p>
+                  {angledWireRepair.protectedRouteCount} locked or trunk route
+                  {angledWireRepair.protectedRouteCount === 1 ? "" : "s"} must
+                  be repaired manually.
+                </p>
+              ) : null}
+            </div>
+          ) : null}
           {checkStatus !== "current" ? (
             <p data-testid="diagnostic-check-state" role="status">
               {checkStatus === "stale"

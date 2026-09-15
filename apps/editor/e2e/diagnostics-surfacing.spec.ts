@@ -1,6 +1,8 @@
 import { expect, test } from "@playwright/test";
+import { createEmptyProject, createRoutePath } from "@icm/model";
 
 import {
+  awaitEditorReady,
   chooseComponent,
   clickNetlistWorkflowCommand,
 } from "./editor-fixtures";
@@ -98,4 +100,65 @@ test("signed-out Save does not suppress ERC or visual check results", async ({
     "VISUAL_SYMBOL_OVERLAP",
   );
   await expect(page.getByTestId("project-unsaved-indicator")).toBeVisible();
+});
+
+test("repairs non-standard wire angles in one undoable action", async ({
+  page,
+}) => {
+  const project = createEmptyProject("angled-wire-project", "Angled wires");
+  const document = project.documents[0]!;
+  document.nets.push(
+    { id: "net-bad", terminals: [] },
+    { id: "net-45", terminals: [] },
+  );
+  document.junctions.push(
+    { id: "bad-from", netId: "net-bad", position: { x: 200, y: 200 } },
+    { id: "bad-to", netId: "net-bad", position: { x: 260, y: 230 } },
+    { id: "diag-from", netId: "net-45", position: { x: 300, y: 200 } },
+    { id: "diag-to", netId: "net-45", position: { x: 330, y: 230 } },
+  );
+  document.routes.push(
+    createRoutePath({
+      id: "route-bad",
+      netId: "net-bad",
+      start: { kind: "junction", junctionId: "bad-from" },
+      end: { kind: "junction", junctionId: "bad-to" },
+      bends: [],
+      modes: ["manual"],
+    }),
+    createRoutePath({
+      id: "route-45",
+      netId: "net-45",
+      start: { kind: "junction", junctionId: "diag-from" },
+      end: { kind: "junction", junctionId: "diag-to" },
+      bends: [],
+      modes: ["manual"],
+    }),
+  );
+
+  await page.goto("/editor");
+  await awaitEditorReady(page);
+  await page.getByTestId("project-file").setInputFiles({
+    name: "angled-wires.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  const badRoute = page.locator('polyline[data-object-id="route-bad"]');
+  const diagonalRoute = page.locator('polyline[data-object-id="route-45"]');
+  await expect(badRoute).toHaveAttribute("points", "200,200 260,230");
+  await expect(diagonalRoute).toHaveAttribute("points", "300,200 330,230");
+
+  await clickNetlistWorkflowCommand(page, "check-and-save");
+  await expect(page.getByTestId("project-diagnostics")).toContainText(
+    "VISUAL_NON_STANDARD_WIRE_ANGLE",
+  );
+  await page.getByTestId("repair-angled-wires").click();
+  await expect(page.getByTestId("status")).toContainText(
+    "Straightened 1 non-standard angled wire segment",
+  );
+  await expect(badRoute).toHaveAttribute("points", "200,200 260,200 260,230");
+  await expect(diagonalRoute).toHaveAttribute("points", "300,200 330,230");
+
+  await page.keyboard.press("Control+z");
+  await expect(badRoute).toHaveAttribute("points", "200,200 260,230");
 });

@@ -1,6 +1,7 @@
 export * from "./drafting-transform.js";
 export * from "./history.js";
 export * from "./route-geometry-edit.js";
+export * from "./angled-wire-repair.js";
 export * from "./route-operations.js";
 export * from "./routing-planner.js";
 export * from "./series-splice-planner.js";
