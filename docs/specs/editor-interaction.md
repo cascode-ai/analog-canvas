@@ -81,7 +81,7 @@ properties together as strict, editable JSON. For example, a resistor:
     "value": false
   },
   "appearance": {
-    "foreground": "auto"
+    "color": "auto"
   }
 }
 ```
@@ -145,13 +145,16 @@ buttons after `placement.rotation` and `placement.mirror` rotate clockwise by
 to accept all eight 45-degree orientations. Horizontal
 and vertical reflection are persisted independently; mirror actions never
 rewrite `placement.rotation`, and applying both records `"both"`. A matching color
-button after `appearance.foreground` opens an anchored chooser for light gray,
+button after `appearance.color` opens an anchored chooser for light gray,
 red, green, blue, black, and one compact bounded RGB tuple input. `"auto"`
 remains available through direct JSON editing. These controls never enter the
 document, so selection, Copy JSON, and saving contain only authored JSON. Their
 changes edit the same draft as typing and valid edits transact immediately
 through the existing planner. Invalid syntax or values disable the controls
 until the code is valid again.
+Component code exposes no background or fill field. Shape code uses
+`appearance.fillColor` only for objects with an independently fillable body,
+such as rectangles and circles.
 Invalid or rejected drafts preserve the last accepted canvas state. External
 undo/redo synchronizes the editor without replaying edits; Escape blurs this
 editor without applying legacy form drafts or discarding incomplete text.

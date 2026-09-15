@@ -51,7 +51,7 @@ describe("batch property planning", () => {
       ),
     ).toBe("#aabbcc");
   });
-  it("patches just the assigned value and keeps backgrounds, names, placement and other parameters", () => {
+  it("patches the assigned value and color while retiring component background paint", () => {
     const a = resistor("R1", "1k"),
       b = resistor("R2", "2k");
     a.styleOverride = { foreground: "#000", background: "#ffffff" };
@@ -66,12 +66,12 @@ describe("batch property planning", () => {
     const value = groupPropertyCodeValue(ctx);
     expect(planGroupPropertyCodeEdits([a, b], value, ctx)).toEqual([]);
     value.parameters = { value: "10k", tc: "" };
-    value.appearance.foreground = "#dc2626";
+    value.appearance.color = "#dc2626";
     expect(planGroupPropertyCodeEdits([a, b], value, ctx)).toEqual([
       {
         kind: "set_instance_style_override",
         instanceId: "R1",
-        styleOverride: { foreground: "#dc2626", background: "#ffffff" },
+        styleOverride: { foreground: "#dc2626" },
       },
       {
         kind: "patch_instance_netlist_parameters",
@@ -122,7 +122,7 @@ describe("batch property planning", () => {
     expect(ctx).toMatchObject({ symbol: "", parameters: null });
     const code = JSON.parse(formatGroupPropertyCode(ctx));
     expect(code).toMatchObject({ symbol: "", parameters: "" });
-    code.appearance.foreground = [255, 0, 0];
+    code.appearance.color = [255, 0, 0];
     const parsed = parseGroupPropertyCode(JSON.stringify(code), ctx);
     expect(parsed.ok).toBe(true);
     if (parsed.ok)
@@ -150,7 +150,7 @@ describe("batch property planning", () => {
     const ctx = contextFor(instances);
     const code = JSON.parse(formatGroupPropertyCode(ctx));
     code.parameters.value = "";
-    code.appearance.foreground = "";
+    code.appearance.color = "";
     const parsed = parseGroupPropertyCode(JSON.stringify(code), ctx);
     expect(parsed.ok).toBe(true);
     if (parsed.ok)
@@ -167,19 +167,19 @@ describe("batch property planning", () => {
         parseGroupPropertyCode(JSON.stringify({ ...code, parameters }), ctx).ok,
       ).toBe(false);
   });
-  it("resets only ink and keeps independently authored background paint", () => {
+  it("resets component color and retires obsolete background paint", () => {
     const instance = {
       ...resistor("R1", "1k"),
       styleOverride: { foreground: "#dc2626", background: "#ffffff" },
     };
     const ctx = contextFor([instance]);
     const value = groupPropertyCodeValue(ctx);
-    value.appearance.foreground = "auto";
+    value.appearance.color = "auto";
     expect(planGroupPropertyCodeEdits([instance], value, ctx)).toEqual([
       {
         kind: "set_instance_style_override",
         instanceId: "R1",
-        styleOverride: { background: "#ffffff" },
+        styleOverride: null,
       },
     ]);
   });

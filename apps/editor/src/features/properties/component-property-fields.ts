@@ -80,11 +80,11 @@ export const CANVAS_PROPERTY_FIELDS: readonly CanvasPropertyField[] = [
     description: "",
   },
   {
-    path: "appearance.foreground",
+    path: "appearance.color",
     label: "Line",
     kind: "color",
     description: "",
-    help: "Use the swatch to open presets and a custom color picker. RGB channels are 0–255; hex is accepted. Global inherits document ink.",
+    help: "Color for the component lines and text. Use the swatch for presets or a custom color. RGB channels are 0–255; hex is accepted. Auto inherits document ink.",
   },
   {
     path: "appearance.internalMark",

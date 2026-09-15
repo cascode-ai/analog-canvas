@@ -1036,7 +1036,7 @@ function showForegroundColorPopover(
     close();
   });
   popover.append(header, presets, custom);
-  if (path !== "appearance.foreground") popover.append(reset);
+  popover.append(reset);
   popover.addEventListener("toggle", () => {
     if (!popover.matches(":popover-open")) popover.remove();
   });

@@ -41,7 +41,7 @@ describe("component property code", () => {
     "mirror": "none"
   },
   "appearance": {
-    "foreground": "auto"
+    "color": "auto"
   },
   "display": {
     "visualAnnotation": true,
@@ -82,13 +82,13 @@ describe("component property code", () => {
       .replace('"rotation": 90', '"rotation": 180')
       .replace('"mirror": "none"', '"mirror": "horizontal"')
       .replace('"value": false', '"value": true')
-      .replace('"foreground": "auto"', '"foreground": "#DC2626"');
+      .replace('"color": "auto"', '"color": "#DC2626"');
     expect(parseComponentPropertyCode(source, context)).toEqual({
       ok: true,
       value: {
         placement: { at: [420, 240], rotation: 180, mirror: "horizontal" },
         display: { visualAnnotation: true, value: true },
-        appearance: { foreground: "#DC2626" },
+        appearance: { color: "#DC2626" },
       },
     });
   });
@@ -103,14 +103,16 @@ describe("component property code", () => {
       message: "placement.rotation must be 0, 45, 90, 135, 180, 225, 270, 315",
     });
 
-    const extra = formatComponentPropertyCode(context).replace(
-      '"foreground": "auto"',
-      '"foreground": "auto", "background": "#ffffff"',
-    );
-    expect(parseComponentPropertyCode(extra, context)).toEqual({
-      ok: false,
-      message: "appearance.background is not a supported property",
-    });
+    for (const retired of ["foreground", "background", "fillColor"]) {
+      const extra = formatComponentPropertyCode(context).replace(
+        '"color": "auto"',
+        `"color": "auto", "${retired}": "#ffffff"`,
+      );
+      expect(parseComponentPropertyCode(extra, context)).toEqual({
+        ok: false,
+        message: `appearance.${retired} is not a supported property`,
+      });
+    }
   });
 
   it("omits display for a component with no display capability", () => {
@@ -160,13 +162,13 @@ describe("component property code", () => {
 
   it("accepts RGB authoring, persists hex, and displays fixed colors as compact RGB", () => {
     const decoded = JSON.parse(formatComponentPropertyCode(context));
-    decoded.appearance.foreground = [255, 0, 128];
+    decoded.appearance.color = [255, 0, 128];
     const parsed = parseComponentPropertyCode(JSON.stringify(decoded), context);
     expect(parsed.ok).toBe(true);
     if (!parsed.ok) throw new Error(parsed.message);
-    expect(parsed.value.appearance).toEqual({ foreground: "#ff0080" });
+    expect(parsed.value.appearance).toEqual({ color: "#ff0080" });
     const formatted = serializeComponentPropertyCode(parsed.value);
-    expect(formatted).toContain('"foreground": [255, 0, 128]');
+    expect(formatted).toContain('"color": [255, 0, 128]');
     expect(parseComponentPropertyCode(formatted, context)).toEqual(parsed);
   });
 
@@ -180,7 +182,7 @@ describe("component property code", () => {
     [null, 0, 0],
   ])("rejects invalid RGB channels %j", (...channels) => {
     const decoded = JSON.parse(formatComponentPropertyCode(context));
-    decoded.appearance.foreground = channels;
+    decoded.appearance.color = channels;
     expect(
       parseComponentPropertyCode(JSON.stringify(decoded), context).ok,
     ).toBe(false);
@@ -202,7 +204,7 @@ describe("component property code", () => {
     };
     const decoded = JSON.parse(formatComponentPropertyCode(opampContext));
     expect(decoded.appearance).toEqual({
-      foreground: "auto",
+      color: "auto",
       internalMark: "G",
       inputsSwapped: false,
     });

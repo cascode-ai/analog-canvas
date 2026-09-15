@@ -133,9 +133,9 @@ export function planComponentPropertyCodeEdits(
   }
 
   const styleOverride = {
-    ...(value.appearance.foreground === "auto"
+    ...(value.appearance.color === "auto"
       ? {}
-      : { foreground: value.appearance.foreground }),
+      : { foreground: value.appearance.color }),
   };
   const nextStyle = Object.keys(styleOverride).length ? styleOverride : null;
   if (!sameStyle(instance.styleOverride ?? null, nextStyle)) {

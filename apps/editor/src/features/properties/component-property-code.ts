@@ -43,7 +43,7 @@ export interface ComponentPropertyCodeValue extends ComponentPropertyDetailsValu
   placement: ComponentPropertyPlacementCode | null;
   display?: ComponentPropertyDisplayCode;
   appearance: {
-    foreground: ComponentPropertyColor;
+    color: ComponentPropertyColor;
     internalMark?: string;
     inputPolarity?: boolean;
     inputsSwapped?: boolean;
@@ -211,16 +211,15 @@ function parseAppearance(
     inputsSwapped: componentInputsSwapped(context.instance.symbolId),
     outputsSwapped: componentOutputsSwapped(context.instance.symbolId),
   };
-  const supported = new Set<string>(["foreground"]);
+  const supported = new Set<string>(["color"]);
   if (internalMark !== undefined) supported.add("internalMark");
   for (const [key, state] of Object.entries(booleanStates))
     if (state !== undefined) supported.add(key);
   const unknown = unexpectedKey(value, supported, "appearance");
   if (unknown) throw new Error(unknown);
-  if (!("foreground" in value))
-    throw new Error("appearance.foreground is required");
+  if (!("color" in value)) throw new Error("appearance.color is required");
   const appearance: ComponentPropertyCodeValue["appearance"] = {
-    foreground: parseCanvasColor(value.foreground, "appearance.foreground"),
+    color: parseCanvasColor(value.color, "appearance.color"),
   };
   if (internalMark !== undefined) {
     if (!("internalMark" in value))
@@ -282,7 +281,7 @@ export function componentPropertyCodeValue(
       : null,
     ...(Object.keys(display).length > 0 ? { display } : {}),
     appearance: {
-      foreground: formattedColor(instance.styleOverride?.foreground),
+      color: formattedColor(instance.styleOverride?.foreground),
       ...(internalMark !== undefined ? { internalMark } : {}),
       ...(inputPolarity !== undefined ? { inputPolarity } : {}),
       ...(inputsSwapped !== undefined ? { inputsSwapped } : {}),
@@ -306,10 +305,8 @@ export function serializeComponentPropertyCode(
     {
       placement,
       appearance: {
-        foreground:
-          appearance.foreground === "auto"
-            ? "auto"
-            : colorToRgb(appearance.foreground),
+        color:
+          appearance.color === "auto" ? "auto" : colorToRgb(appearance.color),
         ...(appearance.internalMark !== undefined
           ? { internalMark: appearance.internalMark }
           : {}),
@@ -429,7 +426,7 @@ export function defaultComponentPropertyCode(
   if (value.placement)
     value.placement = { ...value.placement, rotation: 0, mirror: "none" };
   value.appearance = {
-    foreground: "auto",
+    color: "auto",
     ...(value.appearance.internalMark !== undefined
       ? { internalMark: NO_INTERNAL_MARK }
       : {}),

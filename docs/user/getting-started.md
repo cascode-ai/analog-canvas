@@ -61,7 +61,7 @@ is defined.
   `placement.rotation` and `placement.mirror` to rotate clockwise, mirror
   left/right, or mirror top/bottom. Mirror is written as `"horizontal"`,
   `"vertical"`, or `"both"` and never changes the rotation value. Use the color button after
-  `appearance.foreground` for light gray, red, green, blue, black, and one RGB
+  `appearance.color` for light gray, red, green, blue, black, and one RGB
   tuple input such as `[220,38,38]`.
   Differential-input blocks expose `appearance.inputsSwapped`; fully
   differential amplifiers also expose `appearance.outputsSwapped`. Edit these
@@ -71,7 +71,8 @@ is defined.
   These controls are visual only and are absent from selected, copied, and
   saved JSON. Fixed colors display as
   `[R, G, B]` (0–255); hex input also works. Type `"auto"` directly to inherit
-  document ink. Component background color is not authored.
+  document ink. Components expose no `background` or `fillColor`; those belong
+  only to drawable shapes that can contain paint.
   Valid edits update the drawing immediately; invalid or rejected edits keep
   the last accepted drawing. Undo restores prior edits. Parameter values are strings: type unit suffixes
   yourself; `EV` remains `EV`, and `2u` is not changed to `2um`.
@@ -124,7 +125,7 @@ Select components together with Shift-click or a selection rectangle, then
 press `Q`. Properties shows one editable JSON block. Shared colors and values
 are displayed; differences appear as `""`. Color compares the actual document
 ink, so inherited black and explicitly assigned black show the same RGB value.
-Set `appearance.foreground` through its swatch, RGB, or hex to recolor all
+Set `appearance.color` through its swatch, RGB, or hex to recolor all
 selected components, including different types. For one component type, edit
 `parameters.value` (or individual parameters such as MOS `w` and `l`) together.
 Blank parameters keep each component's existing value. The `symbol` field

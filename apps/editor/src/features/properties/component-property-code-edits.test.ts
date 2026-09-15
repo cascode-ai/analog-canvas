@@ -38,7 +38,7 @@ describe("planComponentPropertyCodeEdits", () => {
                 const edits = planComponentPropertyCodeEdits(document, source, {
                   ...baseline,
                   appearance: {
-                    foreground: "auto",
+                    color: "auto",
                     inputsSwapped,
                     outputsSwapped,
                     internalMark,
@@ -82,7 +82,7 @@ describe("planComponentPropertyCodeEdits", () => {
       planComponentPropertyCodeEdits(document, instance, {
         placement: null,
         appearance: {
-          foreground: "auto",
+          color: "auto",
           inputPolarity: false,
           inputsSwapped: true,
         },
@@ -113,7 +113,7 @@ describe("planComponentPropertyCodeEdits", () => {
       planComponentPropertyCodeEdits(document, instance, {
         placement: { at: [123, 177], rotation: 90, mirror: "horizontal" },
         display: { visualAnnotation: true, value: false },
-        appearance: { foreground: "#DC2626" },
+        appearance: { color: "#DC2626" },
       }),
     ).toEqual([
       {
@@ -148,7 +148,7 @@ describe("planComponentPropertyCodeEdits", () => {
       planComponentPropertyCodeEdits(document, instance, {
         placement: { at: [100, 100], rotation: 0, mirror: "none" },
         display: { visualAnnotation: true, value: false },
-        appearance: { foreground: "auto" },
+        appearance: { color: "auto" },
       }),
     ).toEqual([]);
   });
@@ -169,7 +169,7 @@ describe("planComponentPropertyCodeEdits", () => {
     expect(
       planComponentPropertyCodeEdits(document, instance, {
         placement: { at: [100, 100], rotation: 0, mirror: "none" },
-        appearance: { foreground: "auto" },
+        appearance: { color: "auto" },
       }),
     ).toEqual([
       {
@@ -191,7 +191,7 @@ describe("planComponentPropertyCodeEdits", () => {
     expect(
       planComponentPropertyCodeEdits(document, plain, {
         placement: null,
-        appearance: { foreground: "auto", internalMark: "A" },
+        appearance: { color: "auto", internalMark: "A" },
       }),
     ).toEqual([
       {
@@ -203,7 +203,7 @@ describe("planComponentPropertyCodeEdits", () => {
     expect(
       planComponentPropertyCodeEdits(document, plain, {
         placement: null,
-        appearance: { foreground: "auto", internalMark: "G" },
+        appearance: { color: "auto", internalMark: "G" },
       }),
     ).toEqual([
       {
@@ -226,7 +226,7 @@ describe("planComponentPropertyCodeEdits", () => {
     expect(
       planComponentPropertyCodeEdits(document, marked, {
         placement: null,
-        appearance: { foreground: "auto", internalMark: "none" },
+        appearance: { color: "auto", internalMark: "none" },
       }),
     ).toEqual([
       {
@@ -253,7 +253,7 @@ describe("planComponentPropertyCodeEdits", () => {
     expect(
       planComponentPropertyCodeEdits(document, instance, {
         placement: null,
-        appearance: { foreground: "auto", inputPolarity: false },
+        appearance: { color: "auto", inputPolarity: false },
       }),
     ).toEqual([
       {

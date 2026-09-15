@@ -62,7 +62,10 @@ test("live JSON properties update controls immediately and round-trip raw parame
   const draft = JSON.parse(await readComponentPropertyCode(page));
   expect(draft.placement.rotation).toBe(90);
   expect(draft.display.visualAnnotation).toBe(false);
-  expect(draft.appearance.foreground).toEqual([220, 38, 38]);
+  expect(draft.appearance.color).toEqual([220, 38, 38]);
+  expect(draft.appearance).not.toHaveProperty("foreground");
+  expect(draft.appearance).not.toHaveProperty("background");
+  expect(draft.appearance).not.toHaveProperty("fillColor");
   draft.parameters.w = "EV";
   draft.parameters.l = "L";
   draft.parameters.custom = "{raw_expression}";
@@ -123,7 +126,7 @@ test("live Defaults are undoable and invalid drafts never change the canvas", as
   const code = page.getByLabel("Editable Canvas property code");
   const invalid = JSON.parse(await readComponentPropertyCode(page));
   const lastValidRevision = await page.getByTestId("revision").textContent();
-  invalid.appearance.foreground = [256, 0, 0];
+  invalid.appearance.color = [256, 0, 0];
   await code.fill(JSON.stringify(invalid, null, 2));
   await expect(
     page.getByText(/Canvas keeps the last valid edit/u),
@@ -165,15 +168,15 @@ test("one live JSON edit combines model, dimensions and appearance in one undo b
   await editComponentPropertyCode(page, (code) => {
     code.netlistTarget = "sky130_fd_pr__nfet_01v8";
     code.parameters.w = "5u";
-    code.appearance.foreground = [20, 30, 40];
+    code.appearance.color = [20, 30, 40];
   });
   await expectComponentCodeField(page, "netlistName", "XM1");
   await expectComponentCodeField(page, "parameters.w", "5u");
-  await expectComponentCodeField(page, "appearance.foreground", [20, 30, 40]);
+  await expectComponentCodeField(page, "appearance.color", [20, 30, 40]);
   await clickCommand(page, "Edit", "Undo");
   await expectComponentCodeField(page, "netlistName", "M1");
   await expectComponentCodeField(page, "parameters.w", "1u");
-  await expectComponentCodeField(page, "appearance.foreground", "auto");
+  await expectComponentCodeField(page, "appearance.color", "auto");
   await clickCommand(page, "Edit", "Redo");
   await expectComponentCodeField(page, "netlistName", "XM1");
   await expectComponentCodeField(page, "parameters.w", "5u");
@@ -400,7 +403,7 @@ for (const width of [300, 540]) {
     ).toBe(true);
     expect(
       await color.evaluate((element) =>
-        element.closest(".cm-line")?.textContent?.includes('"foreground"'),
+        element.closest(".cm-line")?.textContent?.includes('"color"'),
       ),
     ).toBe(true);
     expect(
@@ -491,22 +494,18 @@ for (const width of [300, 540]) {
       0,
     );
     await page.getByRole("button", { name: "Use Black for line" }).click();
-    await expectComponentCodeField(page, "appearance.foreground", [0, 0, 0]);
+    await expectComponentCodeField(page, "appearance.color", [0, 0, 0]);
 
     await color.click();
     await page
       .getByRole("button", { name: "Use Red for line", exact: true })
       .click();
-    await expectComponentCodeField(
-      page,
-      "appearance.foreground",
-      [220, 38, 38],
-    );
+    await expectComponentCodeField(page, "appearance.color", [220, 38, 38]);
 
     await color.click();
     await expect(page.getByLabel("Line RGB")).toHaveValue("[220,38,38]");
     await page.getByLabel("Line RGB").fill("[12,38,38]");
-    await expectComponentCodeField(page, "appearance.foreground", [12, 38, 38]);
+    await expectComponentCodeField(page, "appearance.color", [12, 38, 38]);
   });
 }
 
@@ -4230,7 +4229,7 @@ test("resizes Properties and applies component presentation as editable code", a
   edited.placement.rotation = 90;
   edited.placement.mirror = "horizontal";
   edited.display.visualAnnotation = false;
-  edited.appearance.foreground = "#DC2626";
+  edited.appearance.color = "#DC2626";
   await code.fill(JSON.stringify(edited, null, 2));
 
   await expect(page.getByTestId("revision")).toHaveText("2");
@@ -4386,7 +4385,7 @@ test("Select All shows one batch code surface instead of object-specific forms",
   await expect(batch.getByText("2 selected", { exact: true })).toBeVisible();
   expect(JSON.parse(await readComponentPropertyCode(page))).toEqual({
     display: { visualAnnotation: true, value: false },
-    appearance: { foreground: [0, 0, 0] },
+    appearance: { color: [0, 0, 0] },
     parameters: { value: "1k" },
     symbol: "resistor",
   });
@@ -4431,7 +4430,7 @@ test("Properties keeps component and Annotation text colors independent", async 
   const secondLabel = page.locator('[data-object-id="instance-label-R2"]');
 
   await editComponentPropertyCode(page, (value) => {
-    value.appearance.foreground = "#dc2626";
+    value.appearance.color = "#dc2626";
   });
   await expect(symbol).toHaveAttribute("stroke", "#dc2626");
   await expect(
@@ -8275,12 +8274,12 @@ test("batch Code edits common resistor values and colors atomically and reopens 
   expect(code).toMatchObject({
     symbol: "resistor",
     parameters: { value: "", tc: "" },
-    appearance: { foreground: [0, 0, 0] },
+    appearance: { color: [0, 0, 0] },
   });
   const revision = Number(await page.getByTestId("revision").textContent());
   await editComponentPropertyCode(page, (value) => {
     value.parameters.value = "10k";
-    value.appearance.foreground = [255, 0, 0];
+    value.appearance.color = [255, 0, 0];
     value.display.value = true;
   });
   await expect(page.getByTestId("revision")).toHaveText(String(revision + 1));
@@ -8307,7 +8306,7 @@ test("batch Code edits common resistor values and colors atomically and reopens 
     {
       id: "R2",
       netlist: { parameters: { value: "10k", tc: "2" } },
-      styleOverride: { foreground: "#ff0000", background: "#ffffff" },
+      styleOverride: { foreground: "#ff0000" },
     },
   ]);
   await page.getByTestId("project-file").setInputFiles({
@@ -8323,7 +8322,7 @@ test("batch Code edits common resistor values and colors atomically and reopens 
   expect(JSON.parse(await readComponentPropertyCode(page))).toMatchObject({
     symbol: "resistor",
     parameters: { value: "10k", tc: "" },
-    appearance: { foreground: [255, 0, 0] },
+    appearance: { color: [255, 0, 0] },
   });
   await page.screenshot({ path: "plan/batch-value-properties.png" });
 });
@@ -8337,14 +8336,14 @@ test("batch Code colors different component types while rejecting incompatible v
   await page.getByTestId("hit-R1").click();
   await openSelectionShelf(page);
   await editComponentPropertyCode(page, (code) => {
-    code.appearance.foreground = [0, 0, 255];
+    code.appearance.color = [0, 0, 255];
   });
   await page.getByTestId("hit-C1").click({ modifiers: ["Shift"] });
   const code = JSON.parse(await readComponentPropertyCode(page));
   expect(code).toMatchObject({
     symbol: "",
     parameters: "",
-    appearance: { foreground: "" },
+    appearance: { color: "" },
   });
   const editor = page.getByLabel("Editable Canvas property code");
   const revision = await page.getByTestId("revision").textContent();
@@ -8352,7 +8351,7 @@ test("batch Code colors different component types while rejecting incompatible v
     JSON.stringify({
       ...code,
       parameters: { value: "10k" },
-      appearance: { foreground: [255, 0, 0] },
+      appearance: { color: [255, 0, 0] },
     }),
   );
   await expect(
@@ -8383,7 +8382,7 @@ test("batch Code colors different component types while rejecting incompatible v
   ]);
   await page.getByRole("button", { name: "Undo", exact: true }).click();
   expect(
-    JSON.parse(await readComponentPropertyCode(page)).appearance.foreground,
+    JSON.parse(await readComponentPropertyCode(page)).appearance.color,
   ).toBe("");
 });
 

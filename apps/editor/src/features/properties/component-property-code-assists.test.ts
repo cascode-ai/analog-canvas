@@ -88,14 +88,14 @@ describe("Canvas property assistance", () => {
   });
   it("flips a valid orientation while preserving an invalid color", () => {
     const source = formatComponentPropertyCode(context).replace(
-      '"foreground": "auto"',
-      '"foreground": [256, 0, 0]',
+      '"color": "auto"',
+      '"color": [256, 0, 0]',
     );
     const changed = apply(
       source,
       reflectedPropertyCode(source, context, "left-right"),
     );
-    expect(JSON.parse(changed).appearance.foreground).toEqual([256, 0, 0]);
+    expect(JSON.parse(changed).appearance.color).toEqual([256, 0, 0]);
     expect(JSON.parse(changed).placement).not.toEqual(
       JSON.parse(source).placement,
     );
@@ -108,7 +108,7 @@ describe("Canvas property assistance", () => {
       "placement.rotation",
       "placement.mirror",
       "appearance",
-      "appearance.foreground",
+      "appearance.color",
       "display.visualAnnotation",
       "display.value",
     ]);
