@@ -9,6 +9,73 @@ import {
   createAgentNativeExecutor,
 } from "./native-simulation-executor.mjs";
 
+for (const profileId of [undefined, "native-service-profile"]) {
+  test(`GUI creates native experiments with ${profileId ?? "offline candidate"} identity`, async ({
+    page,
+  }) => {
+    const project = parseProject(
+      await readFile(
+        "apps/editor/src/examples/simulation-rc.icproj.json",
+        "utf8",
+      ),
+    );
+    project.simulationFolders = [];
+    await page.route("**/api/simulate", (route) =>
+      route.fulfill({
+        json: {
+          configured: profileId !== undefined,
+          rawfileCollection: "native-multi-ascii",
+          inputs: ["source"],
+          analyses: ["op"],
+          parsedAnalyses: ["op"],
+          profiles: profileId
+            ? [{ id: profileId, corners: [], dependencies: [] }]
+            : [],
+          maxTimeoutMs: 15000,
+          maxInputBytes: 1048576,
+          cancel: true,
+        },
+      }),
+    );
+    await page.goto("/editor");
+    await page.getByTestId("project-file").setInputFiles({
+      name: "no-experiments.icproj.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(JSON.stringify(project)),
+    });
+    await page.getByTestId("open-analog-simulation").click();
+    const panel = page.getByRole("region", { name: "Analog simulation" });
+    await panel.getByRole("button", { name: "Set up", exact: true }).click();
+    const name = panel.getByRole("textbox", {
+      name: "New simulation folder name",
+    });
+    await name.fill("Native first experiment");
+    await name.press("Enter");
+    await expect(
+      panel.getByRole("treeitem", {
+        name: "Folder Native first experiment",
+        exact: true,
+      }),
+    ).toBeVisible();
+    const saved = parseProject(
+      (await downloadBytes(page, "File", "Export Project File…")).toString(),
+    );
+    const folder = saved.simulationFolders[0]!;
+    const config = JSON.parse(
+      folder.input.files.find((f) => f.path === folder.input.configPath)!.text,
+    );
+    expect(config).toEqual({
+      version: 2,
+      environment: { profileId: profileId ?? "vacask-sky130-candidate" },
+    });
+    const entry = folder.input.files.find(
+      (f) => f.path === folder.input.entry,
+    )!.text;
+    expect(entry).toContain("analysis");
+    expect(entry).not.toContain(".control");
+  });
+}
+
 // Real Canvas compilation + human Run + native process + portable Project.
 // The local HTTP seam is test-owned, not a cloud/deployment acceptance.
 test("GUI imports a Canvas-bound project, runs native AC, exports and reloads it", async ({

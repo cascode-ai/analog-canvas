@@ -27,7 +27,6 @@ export type {
   SpiceSimulationSurfaceProps,
   SimulationFolderSaveResult,
 } from "./simulation-surface-types";
-import authoringProfile from "../../../../../containers/ngspice/hosted-sky130-profile.json";
 import {
   SourceCodePane,
   type SourceCodeHandle,
@@ -1124,7 +1123,9 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
         ...identity,
         mode: "circuit",
         documentId: selection.documentId,
-        profileId: capabilities?.profiles[0]?.id ?? authoringProfile.id,
+        // Offline authoring uses the same candidate as the native starters.
+        // Prepare still requires that the connected service advertises it.
+        profileId: capabilities?.profiles[0]?.id ?? "vacask-sky130-candidate",
         template: "op",
       });
       if (!result.ok) {
