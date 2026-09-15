@@ -549,6 +549,7 @@ export function App({
     deleteSession: deleteRecoverySession,
   } = useRecoveryCoordinator(setStatus);
   const [agentStartupRecovery] = useState(() => {
+    if (typeof window === "undefined") return null;
     const search = new URLSearchParams(window.location.search);
     if (
       initialGalleryEntryId !== null ||
