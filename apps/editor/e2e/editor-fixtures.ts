@@ -253,3 +253,36 @@ export async function recoveryProjectTexts(page: Page): Promise<string> {
   const records = await readRecoveryRecords(page);
   return records.map((record) => record.projectText).join("\n");
 }
+
+/** Copy through the real clipboard and prove it matches the live sidebar. */
+export async function copyNetlistText(
+  page: Page,
+  format?: "spice" | "spectre",
+): Promise<string> {
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+  let downloads = 0;
+  const downloaded = () => {
+    downloads += 1;
+  };
+  page.on("download", downloaded);
+  await page.evaluate(() =>
+    navigator.clipboard.writeText("clipboard sentinel"),
+  );
+  if (format)
+    await clickCommand(
+      page,
+      "Netlist",
+      `Copy ${format === "spice" ? "SPICE" : "Spectre"} netlist`,
+    );
+  else await page.getByTestId("copy-netlist").click();
+  await expect
+    .poll(() => page.evaluate(() => navigator.clipboard.readText()))
+    .not.toBe("clipboard sentinel");
+  const text = await page.evaluate(() => navigator.clipboard.readText());
+  await expect(
+    page.getByRole("textbox", { name: "Netlist code", exact: true }),
+  ).toHaveValue(text);
+  expect(downloads).toBe(0);
+  page.off("download", downloaded);
+  return text;
+}

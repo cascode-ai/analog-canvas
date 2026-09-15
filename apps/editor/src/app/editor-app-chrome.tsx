@@ -1,5 +1,5 @@
 import { NETLIST_PROFILE_LABELS, type NetlistProfileId } from "@icm/netlist";
-import { useState, type ComponentProps, type RefObject } from "react";
+import { type ComponentProps, type RefObject } from "react";
 
 import { AccountMenu } from "../components/account";
 import { BugReportLink } from "../components/bug-report-link";
@@ -66,6 +66,7 @@ export interface EditorAppChromeProps {
   onOpenNetlistPreflight: () => void;
   onOpenNetlistConfiguration: () => void;
   netlistProfileId: NetlistProfileId;
+  netlistFormat: "spice" | "spectre";
   onExportNetlist: (format: "spice" | "spectre") => void;
   agentAction: { label: string; execute: () => void } | null;
   simulationAction?: () => void;
@@ -128,6 +129,7 @@ export function EditorAppChrome({
   onOpenInstanceTable,
   onOpenNetlistPreflight,
   netlistProfileId,
+  netlistFormat,
   onOpenNetlistConfiguration,
   onExportNetlist,
   agentAction,
@@ -144,11 +146,7 @@ export function EditorAppChrome({
   releaseChannel,
 }: EditorAppChromeProps) {
   const displayedProjectName = projectNameDraft ?? projectName;
-  const [netlistFormat, setNetlistFormat] = useState<"spice" | "spectre">(
-    "spice",
-  );
-  const downloadNetlist = (format: "spice" | "spectre") => {
-    setNetlistFormat(format);
+  const copyNetlist = (format: "spice" | "spectre") => {
     dismissOpenCommandMenus();
     onExportNetlist(format);
   };
@@ -345,14 +343,14 @@ export function EditorAppChrome({
                 ) : null}
               </div>
             </details>
-            <div className="netlist-download-group">
+            <div className="netlist-copy-group">
               <button
                 type="button"
-                className="toolbar-button netlist-download"
-                data-testid="download-netlist"
-                aria-label={`Download ${netlistFormat === "spice" ? "SPICE" : "Spectre"} netlist`}
-                title={`Download ${NETLIST_PROFILE_LABELS[netlistProfileId]} ${netlistFormat === "spice" ? "SPICE (.spi)" : "Spectre (.scs)"} netlist`}
-                onClick={() => downloadNetlist(netlistFormat)}
+                className="toolbar-button netlist-copy"
+                data-testid="copy-netlist"
+                aria-label={`Copy ${netlistFormat === "spice" ? "SPICE" : "Spectre"} netlist`}
+                title={`Copy ${NETLIST_PROFILE_LABELS[netlistProfileId]} ${netlistFormat === "spice" ? "SPICE (.spi)" : "Spectre (.scs)"} netlist`}
+                onClick={() => copyNetlist(netlistFormat)}
               >
                 <svg
                   viewBox="0 0 20 20"
@@ -360,7 +358,7 @@ export function EditorAppChrome({
                   aria-hidden="true"
                 >
                   <path
-                    d="M10 3v9m-3-3 3 3 3-3M4 13v4h12v-4"
+                    d="M7 7h10v10H7z M13 7V3H3v10h4"
                     fill="none"
                     stroke="currentColor"
                     strokeWidth="1.5"
@@ -382,20 +380,14 @@ export function EditorAppChrome({
                   <button type="button" onClick={onOpenNetlistConfiguration}>
                     Configuration…
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => downloadNetlist("spice")}
-                  >
-                    Export SPICE netlist
+                  <button type="button" onClick={() => copyNetlist("spice")}>
+                    Copy SPICE netlist
                     <span className="netlist-extension" aria-hidden="true">
                       .spi
                     </span>
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => downloadNetlist("spectre")}
-                  >
-                    Export Spectre netlist
+                  <button type="button" onClick={() => copyNetlist("spectre")}>
+                    Copy Spectre netlist
                     <span className="netlist-extension" aria-hidden="true">
                       .scs
                     </span>

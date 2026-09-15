@@ -39,7 +39,10 @@ export interface EditorFileCommandDependencies {
     viewBox: GridRect,
     options: { source: "spice-import" },
   ) => void;
-  setNetlistPreflightOpen: (open: boolean) => void;
+  showNetlist: (
+    format: NetlistFormat,
+    namingProfile: NetlistNamingProfile,
+  ) => void;
   setImportReport: (report: SpiceImportReport | null) => void;
   setImportReviewOpen: (open: boolean) => void;
   setSelectionOpen: (open: boolean) => void;
@@ -59,7 +62,7 @@ export function createEditorFileCommands({
   netlistConfigurationError,
   guardDirtyReplacement,
   replaceActiveProject,
-  setNetlistPreflightOpen,
+  showNetlist,
   setImportReport,
   setImportReviewOpen,
   setSelectionOpen,
@@ -82,6 +85,7 @@ export function createEditorFileCommands({
     format: NetlistFormat,
     namingProfile: NetlistNamingProfile = "native",
   ): void => {
+    showNetlist(format, namingProfile);
     if (netlistConfigurationError) {
       setStatus(`Fix Netlist configuration: ${netlistConfigurationError}`);
       return;
@@ -94,12 +98,19 @@ export function createEditorFileCommands({
       electricalWarningsPresent: electricalWarningsPresent(),
     });
     if (plan.status === "blocked") {
-      setNetlistPreflightOpen(true);
       setStatus(plan.message);
       return;
     }
-    requestBrowserDownload(plan.artifact, project.name);
-    setStatus(plan.artifact.report);
+    void (async () => {
+      try {
+        await navigator.clipboard.writeText(String(plan.artifact.bytes));
+        setStatus(plan.artifact.report);
+      } catch {
+        setStatus(
+          "Clipboard unavailable; select the netlist in the sidebar and copy it",
+        );
+      }
+    })();
   };
 
   const exportRaster = async (format: "png" | "pdf"): Promise<void> => {

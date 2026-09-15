@@ -115,8 +115,8 @@ describe("editor shell", () => {
     const netlistEnd = markup.indexOf("</details>", netlistStart);
     const netlistMenu = markup.slice(netlistStart, netlistEnd);
     expect(netlistStart).toBeGreaterThan(-1);
-    expect(netlistMenu).toContain("Export SPICE netlist");
-    expect(netlistMenu).toContain("Export Spectre netlist");
+    expect(netlistMenu).toContain("Copy SPICE netlist");
+    expect(netlistMenu).toContain("Copy Spectre netlist");
     expect(markup).toContain("Check Report…");
     expect(netlistMenu).not.toContain('data-testid="open-analog-simulation"');
     expect(markup).toContain('data-testid="open-analog-simulation"');

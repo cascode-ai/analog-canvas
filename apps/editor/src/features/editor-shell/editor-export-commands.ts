@@ -83,22 +83,18 @@ export function planDesignNetlistExport({
     };
   }
   const printed = result.file;
-  const comment = format === "spice" ? "*" : "//";
-  const electricalNote = electricalWarningsPresent
-    ? `${comment} Electrical findings remain; see Netlist > Check Report.\n`
-    : "";
   const note = result.placeholders.length
     ? `; incomplete netlist: ${result.placeholders.length} TODO field${result.placeholders.length === 1 ? "" : "s"}`
     : result.diagnostics.length || electricalWarningsPresent
-      ? "; findings included; see Check Report"
+      ? "; see Check Report for findings"
       : "";
   return {
     status: "ready",
     artifact: {
-      bytes: electricalNote + printed.text,
+      bytes: printed.text,
       mediaType: printed.mediaType,
       extension: printed.extension.slice(1),
-      report: `Download requested: ${safeExportBaseName(project.name)}${printed.extension}${note}`,
+      report: `${format === "spice" ? "SPICE" : "Spectre"} netlist copied${note}`,
     },
   };
 }

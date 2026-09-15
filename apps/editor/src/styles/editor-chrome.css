@@ -421,24 +421,24 @@
   position: relative;
 }
 
-.netlist-download-group {
+.netlist-copy-group {
   display: inline-flex;
   align-items: center;
   gap: 0;
 }
 
-.netlist-download-group > .netlist-download {
+.netlist-copy-group > .netlist-copy {
   gap: 5px;
   border-radius: var(--icm-radius-sm) 0 0 var(--icm-radius-sm);
 }
 
-.netlist-download-group .command-menu > summary {
+.netlist-copy-group .command-menu > summary {
   padding: 0 7px;
   border-radius: 0 var(--icm-radius-sm) var(--icm-radius-sm) 0;
   border-left-color: var(--icm-border);
 }
 
-.netlist-download-group .command-popover {
+.netlist-copy-group .command-popover {
   left: auto;
   right: 0;
 }
@@ -449,7 +449,7 @@
   font-size: var(--icm-font-xs);
 }
 
-.netlist-download > .netlist-format {
+.netlist-copy > .netlist-format {
   display: inline;
 }
 

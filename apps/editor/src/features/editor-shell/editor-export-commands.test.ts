@@ -18,7 +18,7 @@ describe("editor export commands", () => {
   });
 
   it.each(["spice", "spectre"] as const)(
-    "downloads %s immediately with an electrical findings comment",
+    "prepares clean %s with findings only in the status",
     (format) => {
       const project = createEmptyProject("project", "Circuit");
       const plan = planDesignNetlistExport({
@@ -28,10 +28,10 @@ describe("editor export commands", () => {
       });
       expect(plan.status).toBe("ready");
       if (plan.status !== "ready") return;
-      expect(plan.artifact.bytes).toContain(
+      expect(plan.artifact.bytes).not.toContain(
         `${format === "spice" ? "*" : "//"} Electrical findings remain; see Netlist > Check Report.`,
       );
-      expect(plan.artifact.report).toContain("findings included");
+      expect(plan.artifact.report).toContain("see Check Report for findings");
     },
   );
 
@@ -42,7 +42,7 @@ describe("editor export commands", () => {
     if (plan.status !== "ready") return;
     expect(plan.artifact.extension).toBe("spi");
     expect(plan.artifact.mediaType).toBe("application/x-spice");
-    expect(plan.artifact.report).toBe("Download requested: my-circuit.spi");
+    expect(plan.artifact.report).toBe("SPICE netlist copied");
   });
 });
 

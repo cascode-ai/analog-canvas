@@ -746,21 +746,21 @@ test("Netlist exposes direct SPICE and Spectre exports while File keeps drawing 
     menu.getByRole("button", { name: "Export SVG", exact: true }),
   ).toBeHidden();
   await expect(
-    menu.getByRole("button", { name: "Export SPICE netlist", exact: true }),
+    menu.getByRole("button", { name: "Copy SPICE netlist", exact: true }),
   ).toHaveCount(0);
   await expect(
-    menu.getByRole("button", { name: "Export Spectre netlist", exact: true }),
+    menu.getByRole("button", { name: "Copy Spectre netlist", exact: true }),
   ).toHaveCount(0);
   const netlistMenu = await openMenu(page, "Netlist");
   await expect(
     netlistMenu.getByRole("button", {
-      name: "Export SPICE netlist",
+      name: "Copy SPICE netlist",
       exact: true,
     }),
   ).toBeVisible();
   await expect(
     netlistMenu.getByRole("button", {
-      name: "Export Spectre netlist",
+      name: "Copy Spectre netlist",
       exact: true,
     }),
   ).toBeVisible();

@@ -87,7 +87,8 @@ describe("netlist export presets", () => {
       ).toEqual(instance.nodes);
     }
     const result = exported(project, profile);
-    expect(result.file.text).toContain('.lib "sky130.lib.spice" tt');
+    expect(result.file.text).toMatch(/^\n\.lib "sky130.lib.spice" tt\n/u);
+    expect(result.file.text).not.toMatch(/^(?:\*|\/\/)/mu);
     expect(result.file.text).toMatch(
       /XM1 .* sky130_fd_pr__nfet_01v8 l=0.3 w=2 nf=3 m=2/u,
     );
@@ -99,10 +100,7 @@ describe("netlist export presets", () => {
     expect(project).toEqual(before);
     const scs = exported(project, profile, "spectre");
     expect(scs.file.extension).toBe(".scs");
-    expect(scs.file.text).toBe(
-      "// SKY130 SPICE library and device wrappers\nsimulator lang=spice\n" +
-        result.file.text,
-    );
+    expect(scs.file.text).toBe("simulator lang=spice\n" + result.file.text);
   });
 
   it("supports explicit physical R/C geometry and a default substrate without converting ideal values", () => {
@@ -125,8 +123,14 @@ describe("netlist export presets", () => {
     expect(result.file.text).toMatch(
       /XC1 \S+ \S+ sky130_fd_pr__cap_mim_m3_1 w=5 l=5 mf=1/u,
     );
-    expect(result.file.text).toContain("ideal value 22k is not converted");
-    expect(result.file.text).toContain("uses substrate 0");
+    expect(
+      result.diagnostics.some((d) =>
+        d.message.includes("ideal value 22k is not converted"),
+      ),
+    ).toBe(true);
+    expect(
+      result.diagnostics.some((d) => d.message.includes("uses substrate 0")),
+    ).toBe(true);
     expect(project).toEqual(before);
     profile.devices.resistor.substrate = "nonexistent";
     expect(createDesignNetlistExport(project, { profile }).status).toBe(
@@ -157,6 +161,9 @@ describe("netlist export presets", () => {
     expect(result.file.text).toContain("CUSTOM_P");
     expect(result.file.text).toMatch(/\nC1 .* 7p\n/u);
     expect(result.file.text).toContain('.lib "models/my-pdk.lib" fast');
+    expect(exported(project, profile, "spectre").file.text).toMatch(
+      /^simulator lang=spectre\ninclude "models\/my-pdk.lib" section=fast\n/u,
+    );
     expect(result.file.text).not.toContain("FALLBACK_N");
     expect(result.file.text).not.toContain("w=9u");
   });

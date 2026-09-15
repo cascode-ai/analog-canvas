@@ -86,10 +86,11 @@ function cards(text: string) {
   return text
     .split("\n")
     .filter((line) => !/^(?:\*|\/\/)/u.test(line))
-    .join("\n");
+    .join("\n")
+    .trim();
 }
 
-describe("download-only netlist projection", () => {
+describe("copy/export netlist projection", () => {
   it("keeps hierarchy, formal port order and per-cell placeholders while ignoring presentation names", async () => {
     const source = `
 .subckt leaf OUT IN params: scale=2
@@ -137,12 +138,10 @@ R1 A B 5k
       expect(result.status).toBe("ready");
       if (result.status !== "ready") return;
       expect(result.placeholders).toHaveLength(5);
-      expect(result.file.text).toContain("INCOMPLETE NETLIST");
+      expect(result.file.text).not.toMatch(/^(?:\*|\/\/)/mu);
       expect(result.file.text).toContain("l=150n m=1 nf=1 w=1u");
       for (const item of result.placeholders) {
-        expect(result.file.text).toContain(
-          `${item.token}: Main/${item.reference} ${item.field}`,
-        );
+        expect(result.file.text).toContain(item.token);
       }
       expect(result.file.text).toContain(
         format === "spice" ? "{TODO_Main_R1_value}" : "r=TODO_Main_R1_value",
@@ -181,7 +180,7 @@ R1 A B 5k
   );
 
   it.each(["spice", "spectre"] as const)(
-    "keeps complete %s cards unchanged and includes warnings as comments",
+    "keeps complete %s cards unchanged and keeps warnings outside the code",
     (format) => {
       const project = completeFixture();
       const strict = analyzeDesignNetlist(project, { format });
@@ -192,7 +191,15 @@ R1 A B 5k
       expect(cards(result.file.text)).toBe(
         cards(printDesignNetlist(format, strict.ir!).text),
       );
-      expect(result.file.text).toContain("GENERATED_NET_NAME");
+      expect(result.file.text).not.toMatch(/^(?:\*|\/\/)/mu);
+      expect(
+        result.diagnostics.some((item) => item.code === "GENERATED_NET_NAME"),
+      ).toBe(true);
+      expect(
+        result.file.text.startsWith(
+          format === "spice" ? "\n" : "simulator lang=spectre\n",
+        ),
+      ).toBe(true);
     },
   );
 

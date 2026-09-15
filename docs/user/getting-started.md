@@ -257,16 +257,17 @@ when issues exist, and an offline or signed-out save still leaves the local
 check available. This command does not repair Bulk connections or rewrite
 the circuit. **File / Save** and **Ctrl+S** remain save-only.
 
-Click the top **Netlist · SPICE** download button to get a `.spi` file in one
-click. The adjacent arrow offers **Export Spectre netlist** (`.scs`) and
-**Export SPICE netlist**; choosing either downloads immediately and sets the
-main button's format for the rest of the editor session.
+Click the top **Netlist · SPICE** copy button to put the netlist on the clipboard
+and open its live code in the right sidebar. The adjacent arrow offers
+**Copy Spectre netlist** (SCS) and **Copy SPICE netlist**; either copies immediately
+and remembers that format for the editor session. Editing the circuit refreshes
+the visible code. Clipboard failures leave the code selectable for manual copy.
 
 **Netlist / Configuration…** opens one raw JSON document in the right Properties
 panel. Copy, paste, or replace the whole configuration. Set `selected` to
 `abstract`, `sky130`, or `custom`; edit the corresponding entry under `profiles`.
 Valid edits apply immediately and are remembered in this browser. Invalid JSON
-pauses downloads until corrected. The circuit itself is unchanged.
+pauses copying until corrected. The circuit itself is unchanged.
 
 - `abstract`: ideal R/C/L and generic NMOS/PMOS model names, with editable
   fallback values and dimensions. No transistor model cards are invented.
@@ -280,14 +281,14 @@ pauses downloads until corrected. The circuit itself is unchanged.
 - `custom`: keep authored component targets, and fill missing fields from your
   editable defaults. Existing component values always take priority.
 
-Fields still missing after these defaults are exported as undefined `TODO_…`
-placeholders, with an **INCOMPLETE NETLIST** header listing what to fill in.
-The Project stays unchanged. Existing values, connections, and formal pin order
-are retained. Findings are included as comments and do not require a confirmation
-before downloading. An explicitly marked NoConnect becomes a floating node such
+Fields still missing after these defaults use undefined `TODO_…` placeholders;
+the sidebar and Check Report identify incomplete output. The Project stays
+unchanged. Existing values, connections, and formal pin order are retained.
+Copied code contains no generated comments; detailed findings remain in Check
+Report. SPICE keeps an empty first title line so a simulator does not consume
+the first directive. An explicitly marked NoConnect becomes a floating node such
 as `NC0001`; structural errors such as an unmarked open pin, conflicting names,
-or unsupported devices still open the Check Report instead of exporting a
-partial circuit.
+or unsupported devices show an error instead of stale or partial code.
 
 Choose the arrow beside Netlist, then **Check Report** to inspect the same
 SPICE/Spectre preview, change the naming profile, or navigate to a finding.

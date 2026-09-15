@@ -1,3 +1,4 @@
+import { NetlistCodePanel } from "../features/netlist-export/netlist-code-panel";
 import { NetlistProfileCode } from "../features/netlist-export/netlist-profile-code";
 import { useNetlistExportPreferences } from "../features/netlist-export/netlist-export-preferences";
 import {
@@ -730,6 +731,13 @@ export function App({
   const [netlistPreflightOpen, setNetlistPreflightOpen] = useState(false);
   const [netlistConfigurationOpen, setNetlistConfigurationOpen] =
     useState(false);
+  const [netlistCodeOpen, setNetlistCodeOpen] = useState(false);
+  const [netlistFormat, setNetlistFormat] = useState<"spice" | "spectre">(
+    "spice",
+  );
+  const [netlistNamingProfile, setNetlistNamingProfile] = useState<
+    "native" | "cadence-bang"
+  >("native");
   const netlistPreferences = useNetlistExportPreferences();
   const [documentSettingsOpen, setDocumentSettingsOpen] = useState(false);
   const [projectNameDraft, setProjectNameDraft] = useState<string | null>(null);
@@ -3290,6 +3298,7 @@ export function App({
 
   function openProperties(): void {
     setNetlistConfigurationOpen(false);
+    setNetlistCodeOpen(false);
     setImportReviewOpen(false);
     setSelectionOpen(true);
     // Focus the header, not the first field: Q stays a pure toggle and
@@ -3300,6 +3309,8 @@ export function App({
   }
 
   function closeProperties(): void {
+    setNetlistConfigurationOpen(false);
+    setNetlistCodeOpen(false);
     exitCellSymbolLayout();
     setSelectionOpen(false);
     setImportReviewOpen(false);
@@ -4008,7 +4019,14 @@ export function App({
       netlistConfigurationError: netlistPreferences.error,
       guardDirtyReplacement,
       replaceActiveProject,
-      setNetlistPreflightOpen,
+      showNetlist: (format, namingProfile) => {
+        setNetlistFormat(format);
+        setNetlistNamingProfile(namingProfile);
+        setNetlistConfigurationOpen(false);
+        setNetlistCodeOpen(true);
+        setSelectionOpen(true);
+        if (compactLayout) setCompactLibraryPanelOpen(false);
+      },
       setImportReport,
       setImportReviewOpen,
       setSelectionOpen,
@@ -4775,7 +4793,9 @@ export function App({
         }}
         onOpenInstanceTable={() => setInstanceTableOpen(true)}
         netlistProfileId={netlistPreferences.profile.id}
+        netlistFormat={netlistFormat}
         onOpenNetlistConfiguration={() => {
+          setNetlistCodeOpen(false);
           setNetlistConfigurationOpen(true);
           setSelectionOpen(true);
           if (compactLayout) setCompactLibraryPanelOpen(false);
@@ -5712,6 +5732,14 @@ export function App({
                     error={netlistPreferences.error}
                     onChange={netlistPreferences.changeText}
                   />
+                ) : netlistCodeOpen ? (
+                  <NetlistCodePanel
+                    project={project}
+                    format={netlistFormat}
+                    namingProfile={netlistNamingProfile}
+                    profile={netlistPreferences.profile}
+                    configurationError={netlistPreferences.error}
+                  />
                 ) : undefined
               }
               shelfRef={selectionShelfRef}
@@ -5719,6 +5747,7 @@ export function App({
                 if (selectionOpen) {
                   exitCellSymbolLayout();
                   setNetlistConfigurationOpen(false);
+                  setNetlistCodeOpen(false);
                 }
                 // Narrow layouts have room for one side panel. Whichever the user
                 // just asked for wins.

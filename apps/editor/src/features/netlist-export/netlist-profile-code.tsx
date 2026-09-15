@@ -30,7 +30,7 @@ export function NetlistProfileCode({
       />
       {error ? (
         <p role="alert">
-          {error} Downloads are paused until the configuration is valid.
+          {error} Copying is paused until the configuration is valid.
         </p>
       ) : (
         <p>

@@ -50,8 +50,8 @@ describe("FileCommandMenu", () => {
     expect(markup).toContain("Import Cadence SPICE (`!` globals)…");
     expect(markup).toContain('data-testid="cadence-spice-files"');
     expect(markup).toContain("Export Project File…");
-    expect(markup).not.toContain("Export SPICE netlist");
-    expect(markup).not.toContain("Export Spectre netlist");
+    expect(markup).not.toContain("Copy SPICE netlist");
+    expect(markup).not.toContain("Copy Spectre netlist");
     expect(markup).not.toContain("Download Backup");
     expect(markup).not.toContain("Previous Project");
     expect(markup).not.toContain("cloud snapshot");

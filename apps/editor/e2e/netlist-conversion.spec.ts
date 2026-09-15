@@ -1,6 +1,7 @@
+import { copyNetlistText } from "./editor-fixtures.js";
 import { expect, test } from "@playwright/test";
 
-test("imports SCS and local includes, downloads SPICE, and retains the circuit after unsupported input", async ({
+test("imports SCS and local includes, copies SPICE, and retains the circuit after unsupported input", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -23,12 +24,7 @@ test("imports SCS and local includes, downloads SPICE, and retains the circuit a
   await expect(page.getByTestId("status")).toContainText(
     "Imported 2 Documents",
   );
-  const download = page.waitForEvent("download");
-  await page.getByTestId("download-netlist").click();
-  const stream = await (await download).createReadStream();
-  const chunks: Buffer[] = [];
-  for await (const chunk of stream) chunks.push(Buffer.from(chunk));
-  const text = Buffer.concat(chunks).toString("utf8");
+  const text = await copyNetlistText(page);
   expect(text).toContain(".subckt top z a");
   expect(text).toContain("X1 z a leaf scale=2");
   expect(text).toContain(".subckt leaf out in params: scale=1");
@@ -41,9 +37,7 @@ test("imports SCS and local includes, downloads SPICE, and retains the circuit a
   await expect(page.getByTestId("status")).toContainText(
     "broken.scs:2: Unsupported parameters: tc1",
   );
-  const again = page.waitForEvent("download");
-  await page.getByTestId("download-netlist").click();
-  expect((await again).suggestedFilename()).toMatch(/\.spi$/u);
+  expect(await copyNetlistText(page)).toBe(text);
 });
 
 test("serves the backend conversion protocol from the local development server", async ({

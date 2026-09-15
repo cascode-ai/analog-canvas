@@ -7,7 +7,6 @@ import {
 import type { NetlistDiagnostic } from "./ir.js";
 import {
   projectNetlistExportProfile,
-  NETLIST_PROFILE_LABELS,
   type NetlistExportProfile,
 } from "./export-profiles.js";
 import { printDesignNetlist, type NetlistFileDescriptor } from "./printers.js";
@@ -33,7 +32,7 @@ export type DesignNetlistExportResult = {
 );
 
 /**
- * Download-only projection. Missing device values/models become undefined
+ * Copy/export projection. Missing device values/models become undefined
  * tokens on a copy, which must then pass strict extraction. Never expose the
  * permissive authoring IR as an export or change simulation readiness.
  */
@@ -145,24 +144,10 @@ export function createDesignNetlistExport(
     if (!ir) return blocked;
   }
   const file = printDesignNetlist(format, ir);
-  const comments = [
-    ...(options.profile
-      ? [
-          `Netlist preset: ${NETLIST_PROFILE_LABELS[options.profile.id]}. Circuit values override preset defaults.`,
-        ]
-      : []),
-    ...(placeholders.length
-      ? [
-          "INCOMPLETE NETLIST - replace TODO fields before simulation.",
-          "No missing values or models have been inferred.",
-          ...placeholders.map(
-            (item) =>
-              `${item.token}: ${item.cellName}/${item.reference} ${item.field}`,
-          ),
-        ]
-      : []),
-    ...analysis.diagnostics.map((item) => `${item.code}: ${item.message}`),
-  ];
+  // Presentation export omits the strict printer's title. Keep that printer
+  // unchanged for simulation/source offsets; a blank SPICE title below keeps
+  // the first directive intact when this structural file is used as an entry.
+  file.text = file.text.slice(file.text.indexOf("\n") + 1).trimStart();
   const library = options.profile?.library;
   if (library?.path) {
     const load =
@@ -171,21 +156,15 @@ export function createDesignNetlistExport(
           ? `.lib "${library.path}" ${library.section}`
           : `.include "${library.path}"`
         : `include "${library.path}"${library.section ? ` section=${library.section}` : ""}`;
-    // SPICE's first line is a title. Keep a comment there when this structural
-    // file is used as a simulator entry, so the library load cannot disappear.
     file.text =
-      `${format === "spice" ? "*" : "//"} Model library (configured export path)\n${load}\n` +
-      file.text;
+      format === "spice"
+        ? `${load}\n${file.text}`
+        : file.text.replace(
+            "simulator lang=spectre\n",
+            `simulator lang=spectre\n${load}\n`,
+          );
   }
-  const prefix = format === "spice" ? "*" : "//";
-  if (comments.length) {
-    // Every line stays a comment even when an authored name contains newlines.
-    file.text =
-      comments
-        .flatMap((line) => line.split(/\r\n?|\n/u))
-        .map((line) => `${prefix} ${line}\n`)
-        .join("") + file.text;
-  }
+  if (format === "spice") file.text = `\n${file.text}`;
   return {
     status: "ready",
     diagnostics: analysis.diagnostics,
@@ -195,9 +174,7 @@ export function createDesignNetlistExport(
             ...file,
             extension: ".scs",
             mediaType: "application/x-spectre",
-            text:
-              "// SKY130 SPICE library and device wrappers\nsimulator lang=spice\n" +
-              file.text,
+            text: "simulator lang=spice\n" + file.text,
           }
         : file,
     placeholders,

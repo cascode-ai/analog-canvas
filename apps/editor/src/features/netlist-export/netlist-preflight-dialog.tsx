@@ -112,12 +112,12 @@ export function NetlistPreflightDialog({
               {result.externalMasterCount === 1 ? "" : "s"}.
             </p>
           ) : (
-            <p>Resolve the structural findings before downloading a netlist.</p>
+            <p>Resolve the structural findings before copying a netlist.</p>
           )}
         </section>
         {result.status === "ready" && result.placeholders.length > 0 ? (
           <p>
-            Missing values and models are marked TODO in the download. Complete
+            Missing values and models are marked TODO in the netlist. Complete
             them before simulation.
           </p>
         ) : null}
@@ -164,7 +164,7 @@ export function NetlistPreflightDialog({
                   type="button"
                   onClick={() => onExport(format, namingProfile)}
                 >
-                  Download {format === "spice" ? "SPICE" : "Spectre"} netlist
+                  Copy {format === "spice" ? "SPICE" : "Spectre"} netlist
                 </button>
               </div>
               <pre
