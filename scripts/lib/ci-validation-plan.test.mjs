@@ -39,6 +39,7 @@ describe("CI validation planning", () => {
       mode: "focused",
       e2eArgs: [
         "apps/editor/e2e/agent-simulation.spec.ts",
+        "apps/editor/e2e/gui-native-simulation.spec.ts",
         "apps/editor/e2e/mcp-native-simulation.spec.ts",
         "apps/editor/e2e/simulation-batch.spec.ts",
         "apps/editor/e2e/simulation-code-editor.spec.ts",
@@ -48,6 +49,19 @@ describe("CI validation planning", () => {
         "apps/editor/e2e/simulation-workspace.spec.ts",
       ],
     });
+  });
+
+  it("selects native GUI coverage for simulation implementation and spec edits", () => {
+    for (const path of [
+      "apps/editor/src/features/simulation/spice-simulation-surface.tsx",
+      "apps/editor/e2e/gui-native-simulation.spec.ts",
+    ]) {
+      const plan = ciPlan([path]);
+      expect(plan.mode, path).toBe("focused");
+      expect(plan.e2eArgs, path).toContain(
+        "apps/editor/e2e/gui-native-simulation.spec.ts",
+      );
+    }
   });
 
   it("selects native MCP acceptance for MCP implementation and spec edits", () => {

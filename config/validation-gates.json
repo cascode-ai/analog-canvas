@@ -161,6 +161,7 @@
     ],
     "analogSimulation": [
       "apps/editor/src/features/simulation/**",
+      "apps/editor/e2e/gui-native-simulation.spec.ts",
       "apps/editor/e2e/simulation-batch.spec.ts",
       "apps/editor/e2e/simulation-code-editor.spec.ts",
       "apps/editor/e2e/simulation-plot-export.spec.ts",
@@ -332,6 +333,7 @@
         "pnpm",
         "test:e2e:local",
         "apps/editor/e2e/agent-simulation.spec.ts",
+        "apps/editor/e2e/gui-native-simulation.spec.ts",
         "apps/editor/e2e/mcp-native-simulation.spec.ts",
         "apps/editor/e2e/simulation-batch.spec.ts",
         "apps/editor/e2e/simulation-code-editor.spec.ts",
@@ -343,6 +345,7 @@
       "ci": {
         "e2eArgs": [
           "apps/editor/e2e/agent-simulation.spec.ts",
+          "apps/editor/e2e/gui-native-simulation.spec.ts",
           "apps/editor/e2e/mcp-native-simulation.spec.ts",
           "apps/editor/e2e/simulation-batch.spec.ts",
           "apps/editor/e2e/simulation-code-editor.spec.ts",
