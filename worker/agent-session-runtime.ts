@@ -494,7 +494,7 @@ export function fileOperationScopes(
 }
 
 /**
- * `capabilities` is free, exactly as it is on the Circuit endpoint: asking
+ * `capabilities` and static `authoring-help` are free: asking
  * what a deployment can do is not doing it, and an Agent that must hold a
  * spending scope merely to discover it has none is being told to guess.
  * Running costs the deployment simulator time, so `run` needs its own grant.
@@ -504,6 +504,7 @@ export function simulationOperationScopes(
 ): AgentSessionScope[] {
   switch (request.operation) {
     case "capabilities":
+    case "authoring-help":
       return [];
     case "prepare":
     case "start":

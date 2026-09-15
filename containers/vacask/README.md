@@ -90,6 +90,37 @@ image; copying this local example does not meet that requirement.
 
 ## Native postprocessor measurements
 
+### Shared authoring entry points
+
+In Code, **Helper → embed** (outside `control`) inserts editable Python scalar
+and curve-report functions. **Helper → postprocess** (inside `control`, after
+the required analyses) inserts the native invocation. Sample calculations stay
+commented until the author supplies real expressions and data reading. Check
+the `reports.py` filename against existing files; insertion does not silently
+replace a companion file. These are source edits with the editor's normal
+draft, undo and save behavior, not a separate configuration form.
+
+The same catalogue is available through the existing Simulation Resource and
+the MCP `simulation` tool, without calling or requiring a configured executor:
+
+```json
+{
+  "request": {
+    "operation": "authoring-help",
+    "context": "circuit",
+    "name": "embed"
+  }
+}
+```
+
+Omit `name`/`context` to list helpers. Returned items contain the signature,
+summary, upstream web reference and an editable `source` skeleton. Apply source
+through revision-guarded `simulation_files` edits. Skeleton names are examples,
+not collision-checked edits against the user's current Project. An unknown name
+returns `SIMULATION_HELPER_NOT_FOUND`; it does not disable the session or forbid
+native commands absent from the catalogue. Helpers do not install Python or
+certify its runtime/library environment.
+
 ### Derived waveforms
 
 `vacaskPlotPythonSource()` from `@icm/netlist` supplies ordinary Python defining
@@ -128,8 +159,9 @@ The helper deliberately supplies neither a numeric evaluator nor a rawfile
 writer: authors use their program/library. The real local journey test below
 now reads actual native AC arrays, computes a complex expression in Python,
 writes a new record, and checks result arrays, provenance, units and CSV export.
-It is not GUI/MCP transport or hosted acceptance. GUI/MCP helper discovery,
-qualified Python libraries and hosted isolation remain migration work.
+It is not full GUI/MCP simulation-journey or hosted acceptance. Shared helper
+discovery is available above; qualified Python libraries and hosted isolation
+remain migration work.
 
 ### Scalar measurements
 
@@ -186,9 +218,10 @@ reports and File Resource export. Run it with explicit `VACASK_BIN`,
 pnpm test:local containers/vacask/native-measurement-journey.test.mjs
 ```
 
-This is not a hosted Python/sandbox qualification or a completed GUI/MCP
-authoring-helper catalog. Derived waveform expressions and richer measurement
-helpers remain separate unfinished migration work.
+This is not a hosted Python/sandbox qualification or a complete GUI/MCP
+simulation journey. Derived curves can be reported as described above; reusable
+numeric computation/writing libraries and richer measurement recipes remain
+separate migration work, not features of the declaration helper.
 
 ## Real hierarchical OTA journey
 

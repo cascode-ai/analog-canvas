@@ -329,7 +329,7 @@ const TOOLS: readonly ToolEntry[] = [
     definition: {
       name: "simulation",
       description:
-        "Prepare one saved Project folder or a raw File Resource workspace, or prepare and sequentially run a bounded batch of saved folders. Start, poll/read, cancel, and list run artifacts through the shared Simulation Resource. Supply the SAME requestId for a start retry. Ordinary failures are recoverable result objects, not session failures. Configure named settings through simulation_folder or full typed replacement through advanced_transact; use ordinary Cell/source edits for DUT/testbench.",
+        "Prepare one saved Project folder or a raw File Resource workspace, or prepare and sequentially run a bounded batch of saved folders. Start, poll/read, cancel, and list run artifacts through the shared Simulation Resource. authoring-help lists the same native VACASK helpers as Code; filter by name/context (embed supplies Python scalar/curve reports). It is read-only and needs no configured executor; returned skeleton names must be adapted before revision-guarded simulation_files edits. Supply the SAME requestId for a start retry. Ordinary failures are recoverable result objects, not session failures. Native source owns settings; use ordinary Cell/source edits for DUT/testbench.",
       inputSchema: jsonSchemaOf(SimulationArgs),
     },
     handle: async (args, session) => {

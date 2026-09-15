@@ -6,6 +6,7 @@ import { spawnSync } from "node:child_process";
 import {
   lookupNativeHelp,
   nativeHelpInsertion,
+  nativeAuthoringHelp,
   inspectNativeLanguage,
   nativeControlContext,
   nativeVoltageSelectorNode,
@@ -13,6 +14,33 @@ import {
 import { parseVacaskRawfile } from "../../spice-run/src/vacask-rawfile.js";
 
 describe("native language helpers", () => {
+  it("shares inspectable postprocess helpers without evaluating or inventing measurements", () => {
+    const help = nativeAuthoringHelp({ name: "embed", context: "circuit" });
+    expect(help).toHaveLength(1);
+    const text = nativeHelpInsertion(
+      lookupNativeHelp("embed", "circuit")!,
+      "Title\n",
+    );
+    expect(help[0]!.source).toBe(text);
+    expect(text).toContain("def report_measurement(");
+    expect(text).toContain("def report_plot(");
+    expect(text).toContain('# report_measurement("gain"');
+    expect(
+      inspectNativeLanguage("run.sim", `Title\n${text}`, true).diagnostics,
+    ).toEqual([]);
+    expect(nativeAuthoringHelp({ name: "postprocess" })[0]!.source).toBe(
+      'postprocess(PYTHON, "reports.py")',
+    );
+    expect(nativeAuthoringHelp({ name: "meas" })).toEqual([]);
+    expect(
+      nativeAuthoringHelp({ context: "control" }).every(
+        (h) => h.context === "control",
+      ),
+    ).toBe(true);
+    expect(help[0]!.reference).toMatch(
+      /^https:\/\/codeberg.org\/.*\/input-embed.md$/u,
+    );
+  });
   it("does not skip the first declaration of an included file when allocating names", () => {
     const help = lookupNativeHelp("voltage source", "circuit")!;
     expect(

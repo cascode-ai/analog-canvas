@@ -181,7 +181,7 @@ async function read(
       ok: false as const,
       result: failure(
         "SIMULATION_NATIVE_CODE_REQUIRED",
-        "This experiment is Code-authoritative. Read/edit save, .probe, let and meas through simulation_files; Device OP uses save @device[parameter] followed by op. Legacy JSON helpers cannot downgrade it or add another electrical authority.",
+        "This experiment is native VACASK Code-authoritative. Use simulation_files for native save v/dv/i/di/p selectors and analysis commands; derived quantities use authored postprocess Python. Read simulation authoring-help for shared source helpers. Legacy JSON helpers cannot downgrade it or add another electrical authority.",
       ),
     };
   return {
@@ -309,7 +309,7 @@ export const simulationAuthoringTools: readonly Entry[] = [
   ),
   tool(
     "simulation_output",
-    "Legacy version-1 experiments only: manage output ASTs in their configuration file. Code-authoritative version-2 experiments require simulation_files to edit save/.probe/let and cannot be downgraded by this helper. Missing runtime vectors diagnose at prepare/result time.",
+    "Legacy version-1 experiments only: manage output ASTs in their configuration file. Native Code experiments use simulation_files to edit save selectors and postprocess Python, not .probe/let. Read simulation authoring-help for shared examples. This helper cannot downgrade native source or create parallel JSON rules.",
     OutputArgs,
     async (parsed, session) => {
       const result = await read(session, parsed.folderId, parsed.documentId);
@@ -343,7 +343,7 @@ export const simulationAuthoringTools: readonly Entry[] = [
   ),
   tool(
     "simulation_measurement",
-    "Legacy version-1 experiments only: manage saved per-record scalar measurements. Code-authoritative version-2 experiments use native meas through simulation_files; ngspice evaluates them and the app displays reported evidence. This helper cannot add JSON measurement rules to version 2.",
+    "Legacy version-1 experiments only: manage saved per-record scalar measurements. Native VACASK experiments compute measurements in authored postprocess Python, not ngspice meas. simulation authoring-help with name embed supplies editable scalar/curve report helpers; apply source with simulation_files. This helper cannot add JSON measurement rules to native experiments.",
     MeasurementArgs,
     async (parsed, session) => {
       const result = await read(session, parsed.folderId, parsed.documentId);
@@ -378,7 +378,7 @@ export const simulationAuthoringTools: readonly Entry[] = [
   ),
   tool(
     "simulation_device_operating_point",
-    "Legacy version-1 experiments only: select MOS occurrences for terminal-derived VGS/VDS/VBS/ID. Code-authoritative version-2 experiments use simulation_files to write native save @device[parameter], then op and write. This helper cannot create JSON selections in version 2.",
+    "Legacy version-1 experiments only: select MOS occurrences for terminal-derived VGS/VDS/VBS/ID. Native VACASK experiments use simulation_files for save p(instance,parameter) and analysis name op; available quantities depend on the native device module. Arbitrary terminal currents require the supported acquisition helper, not a guessed i(pin). This helper cannot add JSON selections to native experiments.",
     DeviceArgs,
     async (parsed, session) => {
       const result = await read(session, parsed.folderId, parsed.documentId);

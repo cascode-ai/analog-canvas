@@ -854,7 +854,10 @@ export class AgentSessionDO {
         transportStatus(begin.code),
         allowedOrigin,
       );
-    if (simulationRequest.operation !== "capabilities")
+    if (
+      simulationRequest.operation !== "capabilities" &&
+      simulationRequest.operation !== "authoring-help"
+    )
       machine.recordActivity(Date.now());
     await this.persist();
     this.emit({
@@ -869,7 +872,10 @@ export class AgentSessionDO {
         "simulation-request",
       );
       machine.completeRequest(simulationRequest.requestId, result, Date.now());
-      if (simulationRequest.operation !== "capabilities")
+      if (
+        simulationRequest.operation !== "capabilities" &&
+        simulationRequest.operation !== "authoring-help"
+      )
         machine.recordActivity(Date.now());
       await this.persist();
       this.emit({

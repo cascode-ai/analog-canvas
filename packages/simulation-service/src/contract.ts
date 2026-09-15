@@ -398,6 +398,11 @@ export const SimulationBatchItemRequestSchema = z.strictObject({
 /** The transient service consumes the same sweep-axis contract persisted by a Setup. */
 export const SimulationSweepAxisSchema = SimulationRunPlanAxisSchema;
 export const SimulationOperationSchema = z.discriminatedUnion("operation", [
+  z.strictObject({
+    operation: z.literal("authoring-help"),
+    name: z.string().min(1).max(128).optional(),
+    context: z.enum(["circuit", "control"]).optional(),
+  }),
   z.strictObject({ operation: z.literal("capabilities") }),
   z.strictObject({
     operation: z.literal("prepare"),
@@ -635,6 +640,19 @@ export const SimulationBatchSchema = z.strictObject({
 });
 export type SimulationBatch = z.infer<typeof SimulationBatchSchema>;
 export const SimulationReplySchema = z.union([
+  z.strictObject({
+    ok: z.literal(true),
+    helpers: z.array(
+      z.strictObject({
+        name: z.string(),
+        context: z.enum(["circuit", "control"]),
+        signature: z.string(),
+        summary: z.string(),
+        reference: z.string(),
+        source: z.string(),
+      }),
+    ),
+  }),
   z.strictObject({ ok: z.literal(false), error: ProblemSchema }),
   z.strictObject({ ok: z.literal(true), capabilities: CapabilitiesSchema }),
   z.strictObject({ ok: z.literal(true), prepared: PreparedSchema }),

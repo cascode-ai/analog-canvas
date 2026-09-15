@@ -1,5 +1,41 @@
 import { expect, test } from "@playwright/test";
 
+test("native postprocessor Helper inserts editable report source and preserves undo/save", async ({
+  page,
+}) => {
+  const editor = page.getByRole("textbox", {
+    name: "Simulation source editor",
+  });
+  await editor.fill("Native reports\n");
+  const before = await page.getByTestId("draft-source").textContent();
+  await page.getByRole("button", { name: "Helper", exact: true }).click();
+  await page
+    .getByRole("textbox", { name: "Search commands or purpose" })
+    .fill("embed");
+  await page.getByRole("option").click();
+  await expect(editor).toContainText('embed "reports.py" <<<ICM_REPORTS');
+  await expect(editor).toContainText("def report_measurement(");
+  await expect(editor).toContainText("def report_plot(");
+  const inserted = await page.getByTestId("draft-source").textContent();
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect(page.getByTestId("draft-source")).toHaveText(before!);
+  await page.keyboard.press(
+    await page.evaluate(() =>
+      /Mac|iPhone|iPad/.test(navigator.platform) ? "Meta+Shift+z" : "Control+y",
+    ),
+  );
+  await expect(page.getByTestId("draft-source")).toHaveText(inserted!);
+  await page.keyboard.press("ControlOrMeta+s");
+  await expect(page.getByTestId("saved-source")).toHaveText(inserted!);
+  await editor.fill("Native reports\ncontrol\n");
+  await page.getByRole("button", { name: "Helper", exact: true }).click();
+  await page
+    .getByRole("textbox", { name: "Search commands or purpose" })
+    .fill("postprocess");
+  await page.getByRole("option").click();
+  await expect(editor).toContainText('postprocess(PYTHON, "reports.py")');
+});
+
 test("source Helper writes native model and instance skeletons with no electrical defaults", async ({
   page,
 }) => {

@@ -2,6 +2,7 @@ import { prepareExecutionInput } from "./prepare-input.js";
 import type { CircuitProject } from "@icm/model";
 import { readSimulationExperimentConfig } from "@icm/model";
 import { simulationAnalysisToCsv } from "@icm/spice-run";
+import { nativeAuthoringHelp } from "@icm/netlist";
 import {
   SimulationOperationSchema,
   problem,
@@ -102,6 +103,16 @@ export class SimulationService {
       );
     const op = parsed.data;
     try {
+      if (op.operation === "authoring-help") {
+        const helpers = nativeAuthoringHelp(op);
+        return op.name && !helpers.length
+          ? problem(
+              "SIMULATION_HELPER_NOT_FOUND",
+              "No matching helper; omit name to list available native helpers. This catalogue is not an execution allow-list.",
+              "read",
+            )
+          : { ok: true, helpers };
+      }
       this.prune();
       if (op.operation === "capabilities")
         return {
@@ -194,7 +205,7 @@ export class SimulationService {
           message:
             "This operation failed; the session and authored input remain available.",
           stage:
-            op.operation === "capabilities"
+            op.operation === "capabilities" || op.operation === "authoring-help"
               ? "read"
               : op.operation === "prepare-batch"
                 ? "prepare"

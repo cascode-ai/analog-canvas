@@ -262,6 +262,13 @@ describe("MCP / browser Simulation Resource parity", () => {
       return JSON.parse(reply.content[0]!.text!);
     };
     try {
+      const help = await invoke("simulation", {
+        request: { operation: "authoring-help", name: "embed" },
+      });
+      expect(help.ok).toBe(true);
+      expect(help.helpers[0].source).toContain("def report_measurement(");
+      expect(help.helpers[0].source).toContain("def report_plot(");
+      expect(executions).toBe(0);
       const bad = await invoke("simulation", {
         request: {
           operation: "prepare",

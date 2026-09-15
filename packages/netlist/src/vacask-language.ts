@@ -2,6 +2,10 @@ import {
   inspectVacaskSource,
   type VacaskSourceToken,
 } from "./vacask-source.js";
+import {
+  vacaskMeasurementPythonSource,
+  vacaskPlotPythonSource,
+} from "./vacask-postprocess.js";
 
 export type NativeLanguageContext = "circuit" | "control";
 export interface NativeParameterHint {
@@ -94,6 +98,26 @@ function rule(
 /** Shared authoring catalogue, not an executor allow-list. Native commands not
  * described here remain editable and pass through to the selected runtime. */
 export const nativeLanguageHelp: readonly NativeLanguageHelp[] = [
+  rule(
+    "postprocess",
+    "control",
+    'postprocess(PYTHON, "reports.py")',
+    "Run authored Python after analyses. Requires the environment's Python; use the embed helper for optional ICM scalar/curve reports, not ngspice let/meas.",
+    "cmd-postprocess",
+    "Observe",
+    [],
+    "measurement expression curve scalar 后处理 测量 波形",
+  ),
+  rule(
+    "embed",
+    "circuit",
+    'embed "reports.py" <<<ICM_REPORTS ... >>>ICM_REPORTS',
+    "Embed editable Python report helpers outside control. Add computation reading actual raw files, then invoke postprocess inside control. Does not write an analysis or choose electrical defaults.",
+    "input-embed",
+    "Files",
+    [],
+    "Python measurement report waveform 后处理 测量 波形",
+  ),
   ...(
     [
       [
@@ -510,6 +534,20 @@ export function nativeHelpInsertion(
   text: string,
   entry = true,
 ) {
+  if (help.name === "postprocess") return 'postprocess(PYTHON, "reports.py")';
+  if (help.name === "embed")
+    return [
+      'embed "reports.py" <<<ICM_REPORTS',
+      vacaskMeasurementPythonSource(),
+      vacaskPlotPythonSource(),
+      "# Read this run's rawfiles and compute your quantities here.",
+      '# report_measurement("gain", lambda: gain_at_1khz, "1")',
+      "# After writing a new native ASCII rawfile:",
+      '# report_plot("gain.raw", "ac", axis="frequency",',
+      '#             probes=[{"name": "Gain", "quantity": "transfer", "unit": "1"}])',
+      ">>>ICM_REPORTS",
+      "",
+    ].join("\n");
   if (help.primitive) {
     const tokens = inspectVacaskSource("names", text, entry).statements.flatMap(
       (s) => s.tokens.map((t) => t.value),
@@ -544,4 +582,28 @@ export function nativeHelpInsertion(
   let n = 1;
   while (names.has(`${help.analysisType}${n}`)) n++;
   return `analysis ${help.analysisType}${n} ${help.analysisType}${help.parameters?.length ? " " : ""}`;
+}
+
+/** Read-only view of the same helper catalogue used by Code. Skeleton identities
+ * are examples, not edits against a Project; callers own insertion and revision guards. */
+export function nativeAuthoringHelp(
+  filter: {
+    name?: string | undefined;
+    context?: NativeLanguageContext | undefined;
+  } = {},
+) {
+  return nativeLanguageHelp
+    .filter(
+      (h) =>
+        (filter.name === undefined || h.name === filter.name) &&
+        (filter.context === undefined || h.context === filter.context),
+    )
+    .map((h) => ({
+      name: h.name,
+      context: h.context,
+      signature: h.signature,
+      summary: h.summary,
+      reference: `${VACASK_LANGUAGE_REFERENCE}${h.section}.md`,
+      source: nativeHelpInsertion(h, "", false),
+    }));
 }
