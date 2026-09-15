@@ -940,9 +940,9 @@ describe("instance value fraction rendering", () => {
     expect(svg).toContain('data-role="fraction-bar"');
     expect(svg).toContain(">10um<");
     expect(svg).toContain(">150nm<");
-    // Fraction parts render three A+ levels (30%) above the subscript scale:
-    // 15.116 × (0.76 × 1.3) ≈ 14.93px, roughly level with the reference label.
-    expect(svg).toContain('font-size="14.93"');
+    // W/L stays compact beside the device while retaining the same bold face:
+    // 15.116 × (0.76 × 1.1) ≈ 12.64px.
+    expect(svg).toContain('font-size="12.64"');
   });
 
   it("keeps the bar when a multiplier follows the fraction", () => {

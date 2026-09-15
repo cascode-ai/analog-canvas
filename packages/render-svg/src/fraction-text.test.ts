@@ -87,6 +87,14 @@ describe("mixed fraction text", () => {
     const baselines = [
       ...svg.matchAll(/data-role="fraction-bar"[^>]+y1="([^"]+)"/g),
     ].map((match) => Number(match[1]));
-    expect(baselines[1]! - baselines[0]!).toBeGreaterThan(options.fontSize * 2);
+    const lineHeight = measureRichTextDocument(
+      { runs: [fraction("<1>", "g&x")] },
+      {
+        ...richTextMetrics(razaviTextbookProfile),
+        fontSize: options.fontSize,
+        fractionText: true,
+      },
+    ).height;
+    expect(baselines[1]! - baselines[0]!).toBeCloseTo(lineHeight, 5);
   });
 });

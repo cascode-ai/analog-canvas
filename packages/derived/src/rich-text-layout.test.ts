@@ -204,11 +204,11 @@ describe("shared rich-text layout", () => {
     expect(measure("中文", true)).toBeCloseTo(metrics.fontSize * 2);
   });
 
-  it("renders fraction parts three A+ levels above the subscript scale", () => {
-    expect(fractionPartScale(0.76)).toBeCloseTo(0.988, 6);
+  it("renders fraction parts one A+ level above the subscript scale", () => {
+    expect(fractionPartScale(0.76)).toBeCloseTo(0.836, 6);
     // The boost is a multiplier, so any profile's subscript scale keeps the
-    // 30% proportion rather than a fixed pixel offset.
-    expect(fractionPartScale(0.5)).toBeCloseTo(0.65, 6);
+    // 10% proportion rather than a fixed pixel offset.
+    expect(fractionPartScale(0.5)).toBeCloseTo(0.55, 6);
   });
 
   it("uses path-renderer metrics for an atomic formula", async () => {
