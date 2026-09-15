@@ -25,7 +25,6 @@ export interface CanvasTextEditorOverlayProps {
   onCommit(): void;
   onCancel(): void;
   onDelete(): void;
-  onReverseCurrentArrow?(): void;
   onRestoreReference?(): TextEditingSession["content"] | undefined;
 }
 
@@ -166,7 +165,6 @@ export function CanvasTextEditorOverlay({
   onCommit,
   onCancel,
   onDelete,
-  onReverseCurrentArrow,
   onRestoreReference,
 }: CanvasTextEditorOverlayProps) {
   const anchorRef = useRef<SVGGElement | null>(null);
@@ -335,7 +333,6 @@ export function CanvasTextEditorOverlay({
             ? { onRestoreReference }
             : {})}
           onLayoutHeightChange={handleLayoutHeightChange}
-          {...(onReverseCurrentArrow ? { onReverseCurrentArrow } : {})}
         />
       </foreignObject>
     </g>

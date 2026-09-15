@@ -146,7 +146,6 @@ describe("selection context actions", () => {
         defaultColor="#000"
         highlightActive
         onApply={vi.fn(() => ({ ok: true }))}
-        onAddCurrentArrow={vi.fn()}
         onToggleHighlight={vi.fn()}
         onDeleteWire={vi.fn()}
       />,
@@ -158,7 +157,7 @@ describe("selection context actions", () => {
     expect(markup).not.toContain('aria-label="Electrical Net label"');
     expect(markup).not.toContain('aria-label="Wire direction arrow"');
     expect(markup).not.toContain('aria-label="Wire line style"');
-    expect(markup).toContain("Add current arrow");
+    expect(markup).not.toContain("current arrow");
     expect(markup).toContain("Clear Net highlight (H)");
   });
 
@@ -174,7 +173,6 @@ describe("selection context actions", () => {
         defaultColor="#000"
         highlightActive={false}
         onApply={vi.fn(() => ({ ok: true }))}
-        onAddCurrentArrow={vi.fn()}
         onToggleHighlight={vi.fn()}
         onDeleteWire={vi.fn()}
       />,

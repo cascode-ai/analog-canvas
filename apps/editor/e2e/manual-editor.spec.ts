@@ -3350,9 +3350,6 @@ test("moves internal wiring with a selected group and copies the routed subgraph
   await page.getByTestId("terminal-R1-2").click();
   await page.getByTestId("terminal-R2-1").click();
   await page.keyboard.press("Escape");
-  await clickRoute(page, "route-ui-1", 0.5, 0);
-  await openSelectionShelf(page);
-  await page.getByRole("button", { name: "Add current arrow" }).click();
 
   await page.keyboard.press("Control+a");
   await expect(page.getByTestId("selected-internal-route-count")).toHaveText(
@@ -3377,7 +3374,7 @@ test("moves internal wiring with a selected group and copies the routed subgraph
       await expect(page.getByTestId("schematic-canvas")).toHaveClass(
         /semantic-move-preview/u,
       );
-      await expect(page.getByTestId("revision")).toHaveText("4");
+      await expect(page.getByTestId("revision")).toHaveText("3");
       expect(
         await page
           .locator('[data-layer="routes"] [data-object-id="route-ui-1"]')
@@ -3446,88 +3443,6 @@ test("keeps an internal junction with the live group preview", async ({
   const junctionAfter = await junctionHit.boundingBox();
   expect(junctionAfter?.x).not.toBe(junctionBefore?.x);
   expect(junctionAfter?.y).not.toBe(junctionBefore?.y);
-});
-
-test("drags a current marker directly along and around its route", async ({
-  page,
-}) => {
-  await page.goto("/editor");
-  await placeComponent(page, "resistor", { x: 320, y: 220 });
-  await placeComponent(page, "resistor", { x: 520, y: 220 });
-  await clickDrawTool(page, "wire");
-  await page.getByTestId("terminal-R1-2").click();
-  await page.getByTestId("terminal-R2-1").click();
-  await page.keyboard.press("Escape");
-  await clickRoute(page, "route-ui-1", 0.5, 0);
-  await openSelectionShelf(page);
-  await page.getByRole("button", { name: "Add current arrow" }).click();
-
-  const hit = page.getByTestId("annotation-hit-current-1");
-  await expect(hit).toHaveClass(/hit-target/u);
-  await expect(hit).toHaveClass(/selected/u);
-  await expect(
-    page.getByRole("button", { name: "Move closer to wire" }),
-  ).toHaveCount(0);
-  const routeBefore = await readRoutePoints(page, "route-ui-1");
-  const before = await hit.boundingBox();
-  if (!before) throw new Error("Current marker is not measurable");
-  const start = {
-    x: before.x + before.width / 2,
-    y: before.y + before.height / 2,
-  };
-  const paintedMarker = page.locator(
-    '[data-layer="annotations"] [data-object-id="current-1"]',
-  );
-  // A live current-marker preview must not replace the formal SVG scene. A
-  // private marker on the existing node lets this assertion distinguish the
-  // intended local transform from a freshly rendered lookalike node.
-  await paintedMarker.evaluate((element) =>
-    element.setAttribute("data-preview-node", "preserved"),
-  );
-  const paintedBefore = await paintedMarker.boundingBox();
-  await page.mouse.move(start.x, start.y);
-  await page.mouse.down();
-  await page.mouse.move(start.x + 58, start.y + 24, { steps: 4 });
-  await expect
-    .poll(async () => (await paintedMarker.boundingBox())?.x)
-    .not.toBe(paintedBefore?.x);
-  await expect(paintedMarker).toHaveAttribute("data-preview-node", "preserved");
-  await expect(page.getByTestId("revision")).toHaveText("4");
-  await page.mouse.up();
-  const after = await hit.boundingBox();
-  expect(after?.x).not.toBe(before?.x);
-  expect(after?.y).not.toBe(before?.y);
-  expect(await readRoutePoints(page, "route-ui-1")).toEqual(routeBefore);
-  await expect(page.getByTestId("revision")).toHaveText("5");
-
-  await placeComponent(page, "resistor", { x: 420, y: 420 });
-  const markerBeforeSplit = await hit.boundingBox();
-  const projectBeforeSplit = JSON.parse(
-    (await downloadBytes(page, "File", "Export Project File…")).toString(
-      "utf8",
-    ),
-  );
-  const markerDataBeforeSplit =
-    projectBeforeSplit.documents[0].annotations.find(
-      (annotation: { id: string }) => annotation.id === "current-1",
-    );
-  await clickDrawTool(page, "wire");
-  await clickRoute(page, "route-ui-1", 0.2, 0);
-  await page.getByTestId("terminal-R3-1").click();
-  const markerAfterSplit = await hit.boundingBox();
-  const projectAfterSplit = JSON.parse(
-    (await downloadBytes(page, "File", "Export Project File…")).toString(
-      "utf8",
-    ),
-  );
-  const markerDataAfterSplit = projectAfterSplit.documents[0].annotations.find(
-    (annotation: { id: string }) => annotation.id === "current-1",
-  );
-  expect(markerDataAfterSplit.position).toEqual(markerDataBeforeSplit.position);
-  expect(markerDataAfterSplit.anchor.routeId).not.toBe("route-ui-1");
-  expect(markerAfterSplit?.x).toBeCloseTo(markerBeforeSplit?.x ?? 0, 0);
-  expect(markerAfterSplit?.y).toBeCloseTo(markerBeforeSplit?.y ?? 0, 0);
-  await expect(page.getByTestId("revision")).toHaveText("7");
 });
 
 test("moves an unselected component in one thresholded drag", async ({
@@ -3842,34 +3757,6 @@ test("keeps Net names literal in the compact single-line editor", async ({
   );
   await expect(page.getByTestId("status")).not.toContainText(
     "Could not update Cell structure",
-  );
-});
-
-test("edits a current marker in a compact single-line field", async ({
-  page,
-}) => {
-  await page.goto("/editor");
-  await placeComponent(page, "resistor", { x: 280, y: 180 });
-  await placeComponent(page, "resistor", { x: 480, y: 180 });
-  await clickDrawTool(page, "wire");
-  await page.getByTestId("terminal-R1-2").click();
-  await page.getByTestId("terminal-R2-1").click();
-  await page.keyboard.press("Escape");
-  await clickRoute(page, "route-ui-1", 0.5, 0);
-  await openSelectionShelf(page);
-  await page.getByRole("button", { name: "Add current arrow" }).click();
-
-  await page.getByTestId("annotation-hit-current-1").dblclick();
-  const editor = page.getByRole("textbox", { name: "Canvas text editor" });
-  await expect(editor).toHaveAttribute("data-editor-kind", "route-marker");
-  const editorBox = await editor.boundingBox();
-  expect(editorBox?.width).toBeGreaterThan(150);
-  expect(editorBox?.width).toBeLessThan(190);
-  await expect(page.getByRole("button", { name: "Italic" })).toHaveCount(0);
-  await editor.fill("Iout");
-  await editor.press("Enter");
-  await expect(page.locator('[data-object-id="current-1"]')).toContainText(
-    "Iout",
   );
 });
 

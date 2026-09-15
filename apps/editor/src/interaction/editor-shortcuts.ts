@@ -14,7 +14,6 @@ export interface EditorShortcutContext {
   /** Blank circuits let the browser refresh; there is nothing to protect. */
   hasUnsavedWork: boolean;
   interactionMode: InteractionMode;
-  hasRoutedMarkerSelection: boolean;
   canRotate: boolean;
   canMirror: boolean;
   hasDraftingSelection: boolean;
@@ -35,7 +34,6 @@ export type EditorShortcutIntent =
   | { kind: "block-browser-refresh" }
   | { kind: "block-browser-bookmark" }
   | { kind: "save" | "open" }
-  | { kind: "reverse-current-marker" }
   | { kind: "edit-net-label" | "toggle-display-settings" }
   | { kind: "toggle-net-highlight" }
   | {
@@ -187,12 +185,6 @@ export function resolveEditorShortcut(
     }
     if (plain && key === "l") return { kind: "edit-net-label" };
     if (plain && key === "o") return { kind: "toggle-display-settings" };
-    if (plain && key === "k") {
-      return {
-        kind: "run-command",
-        command: { id: "tool.activate", tool: "construction-line" },
-      };
-    }
     if (plain && event.shiftKey && key === "r" && context.canMirror) {
       return {
         kind: "run-command",
@@ -244,7 +236,6 @@ export function resolveEditorShortcut(
       m: "Move",
       t: "Text",
       h: "Net Highlight",
-      x: "Current Marker",
       e: "Enter Cell",
       r: "Rotate or Mirror",
       "[": "Drafting Style",
@@ -271,9 +262,6 @@ export function resolveEditorShortcut(
       : { kind: "hierarchy-selection-required" };
   }
 
-  if (plain && key === "x" && context.hasRoutedMarkerSelection) {
-    return { kind: "reverse-current-marker" };
-  }
   if (plain && key === "c") {
     return { kind: "run-command", command: { id: "selection.copy" } };
   }
@@ -334,12 +322,6 @@ export function resolveEditorShortcut(
     (context.hasHighlightableNet || context.hasActiveNetHighlight)
   ) {
     return { kind: "toggle-net-highlight" };
-  }
-  if (plain && key === "k") {
-    return {
-      kind: "run-command",
-      command: { id: "tool.activate", tool: "construction-line" },
-    };
   }
   if (plain && key === "o") return { kind: "toggle-display-settings" };
   if (plain && key === "q") {

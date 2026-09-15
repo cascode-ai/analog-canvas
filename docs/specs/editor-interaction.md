@@ -350,7 +350,7 @@ a middle-button drag pans as usual. F3 opens Wire options including corner
 order. Existing authored legs are immutable under mode switches; Backspace
 removes the latest authored step rather than an automatically compiled elbow.
 
-Activating the same tool is idempotent: repeated C, W, A, K, or selection of the
+Activating the same tool is idempotent: repeated C, W, A, or selection of the
 same Library item preserves the active session. Activating a different creation
 tool replaces the current interaction atomically after drag and snap cleanup.
 During component or Copy Placement, `R` turns the transient preview by 90 degrees;
@@ -689,7 +689,7 @@ topology hash, history, recovery, or formal export.
 ## Deterministic validation
 
 - state-transition, shortcut focus-guard, and command-by-interaction matrix
-  tests, including repeated C/W/A/K, I/Escape/re-entry, and render-free
+  tests, including repeated C/W/A, unbound K, I/Escape/re-entry, and render-free
   `Escape -> C` bursts after NMOS, PMOS, and passive placement;
 - component placement and ordinary terminal connectivity for both
   interface-marker assets;

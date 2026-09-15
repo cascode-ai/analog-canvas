@@ -341,7 +341,6 @@ import { planSelectionMove } from "../features/selection/selection-move-plan";
 import {
   annotationAnchor,
   annotationHitBox,
-  effectiveRouteAttachment,
   instanceValueAnnotation,
   isRoutedMarker,
   netLabelPlacementTargetAtPoint,
@@ -2044,7 +2043,6 @@ export function App({
     updateSelectedModelTarget,
     updateSelectedReference,
     deleteSelectedAnnotation,
-    reverseSelectedCurrentArrow,
   } = createSelectionPropertyCommands({
     project,
     document,
@@ -2780,7 +2778,6 @@ export function App({
     setDraftingStacking,
     toggleDraftingLock,
     addPlainText,
-    addCurrentArrow,
   } = createDraftingCommands({
     document,
     annotationGrid,
@@ -2788,15 +2785,8 @@ export function App({
     selection: visualSelection,
     selectedDrafting,
     inspectorSegment: draftingInspectorSegment,
-    selectedRoute,
-    selectedRouteSegmentIndex,
-    routeGeometryRecords,
     transact,
     setStatus,
-    nextId: (prefix) => {
-      uniqueSuffixCounter.current += 1;
-      return `${prefix}-${uniqueSuffixCounter.current}`;
-    },
     beginTextPlacement: () =>
       startInsertFromHook({
         kind: "quick",
@@ -2809,7 +2799,6 @@ export function App({
           editAfterPlacement: true,
         },
       }),
-    selectAnnotation: (id) => selectOnly("annotation", [id]),
   });
   const {
     snapPoint: snapDraftingPoint,
@@ -4158,9 +4147,6 @@ export function App({
         isTyping: isTypingTarget(event.target),
         hasUnsavedWork: hasUnsafeWork(),
         interactionMode: currentInteraction.kind,
-        hasRoutedMarkerSelection: Boolean(
-          selectedAnnotation && isRoutedMarker(selectedAnnotation),
-        ),
         canRotate: editorCommands.state({ id: "transform.rotate" }).enabled,
         canMirror: editorCommands.state({
           id: "transform.mirror",
@@ -4206,9 +4192,6 @@ export function App({
           return;
         case "open":
           projectInputRef.current?.click();
-          return;
-        case "reverse-current-marker":
-          reverseSelectedCurrentArrow();
           return;
         case "edit-net-label":
           activateTool("pointer");
@@ -6531,7 +6514,6 @@ export function App({
                 defaultColor: styleProfile.foreground,
                 highlightActive: selectedHighlightIsActive,
                 onApply: applyRouteProperties,
-                onAddCurrentArrow: addCurrentArrow,
                 onToggleHighlight: toggleHighlightedNet,
                 onDeleteWire: deleteSelectedRouteConnection,
               }}
@@ -6556,7 +6538,6 @@ export function App({
                       ? "net-label"
                       : null,
                 highlightActive: selectedHighlightIsActive,
-                onReverseCurrentArrow: reverseSelectedCurrentArrow,
                 onDeleteCurrentArrow: deleteSelectedAnnotation,
                 onToggleHighlight: toggleHighlightedNet,
               }}
@@ -7099,11 +7080,6 @@ export function App({
             },
             onTextDelete: deleteTextEditing,
             onRestoreReference: restoreTextReference,
-            ...(editingAnnotation &&
-            isRoutedMarker(editingAnnotation) &&
-            effectiveRouteAttachment(editingAnnotation)
-              ? { onReverseCurrentArrow: reverseSelectedCurrentArrow }
-              : {}),
           }}
         />
         {canvasContextMenu ? (

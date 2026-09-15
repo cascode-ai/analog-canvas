@@ -1055,7 +1055,7 @@ test("switching creation tools discards the incompatible draft session", async (
   await expect(page.getByTestId("active-tool")).toHaveText("pointer");
 });
 
-test("A is unbound while K preserves the current drafting session", async ({
+test("A and K are unbound and preserve the current drafting session", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -1070,15 +1070,12 @@ test("A is unbound while K preserves the current drafting session", async ({
   await expect(page.getByTestId("drafting-create-preview")).toBeVisible();
   await page.keyboard.press("a");
   await expect(page.getByTestId("drafting-create-preview")).toBeVisible();
+  await page.keyboard.press("k");
+  await expect(page.getByTestId("drafting-create-preview")).toBeVisible();
   await page.keyboard.press("Escape");
 
   await page.keyboard.press("k");
-  await canvas.click({ position: { x: 220, y: 300 } });
-  await canvas.hover({ position: { x: 420, y: 340 } });
-  await expect(page.getByTestId("drafting-create-preview")).toBeVisible();
-  await page.keyboard.press("k");
-  await expect(page.getByTestId("drafting-create-preview")).toBeVisible();
-  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("active-tool")).toHaveText("pointer");
 
   await expect(page.getByTestId("revision")).toHaveText("0");
 });

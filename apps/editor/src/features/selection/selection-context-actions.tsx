@@ -135,7 +135,6 @@ export function RouteActionsSection({
   defaultColor,
   highlightActive,
   onApply,
-  onAddCurrentArrow,
   onToggleHighlight,
   onDeleteWire,
 }: {
@@ -147,7 +146,6 @@ export function RouteActionsSection({
   defaultColor: string;
   highlightActive: boolean;
   onApply: (value: RoutePropertyCodeValue) => { ok: boolean; message?: string };
-  onAddCurrentArrow: () => void;
   onToggleHighlight: () => void;
   onDeleteWire: () => void;
 }) {
@@ -176,9 +174,6 @@ export function RouteActionsSection({
         onApply={onApply}
         actions={
           <div className="route-property-code-actions">
-            <button type="button" onClick={onAddCurrentArrow}>
-              Add current arrow
-            </button>
             <button type="button" onClick={onToggleHighlight}>
               {highlightActive
                 ? "Clear Net highlight (H)"
@@ -247,13 +242,11 @@ export function EndpointActionsSection({
 export function AnnotationActionsSection({
   kind,
   highlightActive,
-  onReverseCurrentArrow,
   onDeleteCurrentArrow,
   onToggleHighlight,
 }: {
   kind: "current-arrow" | "net-label" | null;
   highlightActive: boolean;
-  onReverseCurrentArrow: () => void;
   onDeleteCurrentArrow: () => void;
   onToggleHighlight: () => void;
 }) {
@@ -261,10 +254,7 @@ export function AnnotationActionsSection({
     return (
       <section className="context-actions" aria-label="Current arrow actions">
         <h2>Current arrow</h2>
-        <button type="button" onClick={onReverseCurrentArrow}>
-          Reverse direction (X)
-        </button>
-        <small>Drag to slide along the wire or move its label.</small>
+        <small>This legacy annotation can be removed from the drawing.</small>
         <button type="button" onClick={onDeleteCurrentArrow}>
           Delete current arrow
         </button>

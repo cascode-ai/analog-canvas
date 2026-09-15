@@ -10,7 +10,6 @@ const baseContext: EditorShortcutContext = {
   isTyping: false,
   hasUnsavedWork: true,
   interactionMode: "idle",
-  hasRoutedMarkerSelection: false,
   canRotate: false,
   canMirror: false,
   hasDraftingSelection: false,
@@ -200,9 +199,8 @@ describe("editor shortcut contract", () => {
       command({ id: "tool.activate", tool: "wire" }),
     );
     expect(resolve("a")).toBeNull();
-    expect(resolve("k")).toEqual(
-      command({ id: "tool.activate", tool: "construction-line" }),
-    );
+    expect(resolve("k")).toBeNull();
+    expect(resolve("k", { interactionMode: "drawing" })).toBeNull();
     expect(resolve("o")).toEqual({ kind: "toggle-display-settings" });
     expect(resolve("p")).toEqual(command({ id: "insert.cell-pin" }));
     expect(resolve("m")).toEqual(command({ id: "selection.move" }));
@@ -240,9 +238,6 @@ describe("editor shortcut contract", () => {
     expect(resolve("f")).toEqual(command({ id: "view.fit" }));
     expect(resolve("f", {}, { shiftKey: true })).toBeNull();
     expect(resolve("Home")).toEqual(command({ id: "view.fit" }));
-    expect(resolve("x", { hasRoutedMarkerSelection: true })).toEqual({
-      kind: "reverse-current-marker",
-    });
     expect(resolve("x")).toBeNull();
   });
 

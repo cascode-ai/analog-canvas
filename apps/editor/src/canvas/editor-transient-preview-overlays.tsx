@@ -123,7 +123,6 @@ export function EditorInteractionPreviews({
   onTextCommit,
   onTextCancel,
   onTextDelete,
-  onReverseCurrentArrow,
   onRestoreReference,
 }: {
   boxPreview: BoxPreview | null;
@@ -143,7 +142,6 @@ export function EditorInteractionPreviews({
   onTextCommit: () => void;
   onTextCancel: () => void;
   onTextDelete: () => void;
-  onReverseCurrentArrow?: () => void;
   onRestoreReference?: CanvasTextEditorOverlayProps["onRestoreReference"];
 }) {
   return (
@@ -195,7 +193,6 @@ export function EditorInteractionPreviews({
           onCommit={onTextCommit}
           onCancel={onTextCancel}
           onDelete={onTextDelete}
-          {...(onReverseCurrentArrow ? { onReverseCurrentArrow } : {})}
           {...(onRestoreReference ? { onRestoreReference } : {})}
         />
       ) : null}
