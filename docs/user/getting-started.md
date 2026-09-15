@@ -95,6 +95,9 @@ is defined.
   **Draw** lets you make an explicit route. The dashed route follows the MOS
   line color; selecting it shows a Bulk-specific action instead of ordinary
   wire styling controls. Place an unplaced device first.
+- An unconnected Bulk does not block a netlist: NMOS defaults to ground `0` and
+  PMOS defaults to global `VDD`. Drawing or configuring a Bulk connection uses
+  that actual Net instead; the export default does not modify the saved canvas.
 - Right-click an endpoint for the distinct **Disconnect endpoint** and
   **Delete connection** actions.
 - `Delete` on a connected component now removes the component while preserving
@@ -296,14 +299,18 @@ pauses copying until corrected. The circuit itself is unchanged.
 - `custom`: keep authored component targets, and fill missing fields from your
   editable defaults. Existing component values always take priority.
 
+For every preset, an omitted MOS bulk uses `0` for NMOS and global `VDD` for
+PMOS. An explicit Bulk connection or NoConnect takes precedence.
+
 Fields still missing after these defaults use undefined `TODO_…` placeholders;
 the sidebar and Check Report identify incomplete output. The Project stays
 unchanged. Existing values, connections, and formal pin order are retained.
 Copied code contains no generated comments; detailed findings remain in Check
 Report. SPICE keeps an empty first title line so a simulator does not consume
-the first directive. An explicitly marked NoConnect becomes a floating node such
-as `NC0001`; structural errors such as an unmarked open pin, conflicting names,
-or unsupported devices show an error instead of stale or partial code.
+the first directive. An explicitly marked NoConnect becomes a floating node
+such as `NC0001`; structural errors such as an unmarked non-bulk open pin,
+conflicting names, or unsupported devices show an error instead of stale or
+partial code.
 
 Choose the arrow beside Netlist, then **Check Report** to inspect the same
 SPICE/Spectre preview, change the naming profile, or navigate to a finding.

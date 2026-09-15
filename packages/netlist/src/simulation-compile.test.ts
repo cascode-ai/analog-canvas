@@ -416,7 +416,7 @@ describe("compiling a structured simulation folder", () => {
     expect(result.request.netlist).toContain("VICMPRB");
   });
 
-  it("refuses a selected MOS with unavailable Bulk instead of guessing", async () => {
+  it("compiles selected MOS operating points with polarity bulk defaults", async () => {
     const project = CircuitProjectSchema.parse(
       currentFiveTransistorOtaCircuitSource(),
     );
@@ -427,11 +427,15 @@ describe("compiling a structured simulation folder", () => {
     dut.nets = dut.nets.map((net) => ({
       ...net,
       terminals: net.terminals.filter(
-        (terminal) => terminal.instanceId !== "M1" || terminal.pinName !== "B",
+        (terminal) =>
+          !["M1", "M3"].includes(terminal.instanceId) ||
+          terminal.pinName !== "B",
       ),
     }));
-    const m1 = dut.instances.find((instance) => instance.id === "M1")!;
-    m1.mosBulkBinding = undefined;
+    for (const instanceId of ["M1", "M3"])
+      dut.instances.find(
+        (instance) => instance.id === instanceId,
+      )!.mosBulkBinding = undefined;
 
     const result = await compile(
       project,
@@ -446,14 +450,28 @@ describe("compiling a structured simulation folder", () => {
             instanceId: "M1",
             occurrence: ["XDUT"],
           },
+          {
+            id: "op-m3",
+            documentId: "document-ota-5t",
+            instanceId: "M3",
+            occurrence: ["XDUT"],
+          },
         ],
       }),
     );
 
-    expect(result.ok).toBe(false);
-    // Structural extraction owns the stronger invariant: a model/subcircuit
-    // MOS may not reach simulation with its B terminal missing at all.
-    expect(codes(result)).toContain("MISSING_PIN_NET");
+    expect(result.ok, JSON.stringify(result.diagnostics)).toBe(true);
+    if (!result.ok) return;
+    expect(result.request.netlist).toMatch(
+      /XM1 \S+ \S+ \S+ 0 sky130_fd_pr__nfet_01v8/u,
+    );
+    expect(result.request.netlist).toMatch(
+      /XM3 \S+ \S+ \S+ vdd sky130_fd_pr__pfet_01v8/iu,
+    );
+    expect(result.deviceOperatingPoints.map((item) => item.id)).toEqual([
+      "op-m1",
+      "op-m3",
+    ]);
   });
 
   it("compiles Noise against a root independent source and writes both plots", async () => {

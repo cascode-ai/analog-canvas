@@ -97,14 +97,16 @@ conflicting claims block electrical export and the introducing transaction.
 Canonical MOS Instances use `nmos`/`pmos` with D/G/S/B electrical pins. The
 default `textbook-3terminal` variant is presentation-only. B membership is
 explicit first, then materialized from a configured cell-default Net. Without
-either, it remains unresolved; MOS polarity never creates or selects a power
-Net. Existing persisted `supply-default` bindings remain readable for
-compatibility, but current manual authoring does not create them.
+either, it remains unresolved in persisted connectivity; the netlist boundary
+maps an omitted NMOS B to global `0` and an omitted PMOS B to global `VDD`
+without creating Project objects. Existing persisted `supply-default` bindings
+remain readable for compatibility, but current manual authoring does not create
+them.
 Cross-Document composition converts an effective source `cell-default` to an
 instance-owned `instance-override` so target Cell policy cannot retarget the
 copied body.
 Imported/source-bound MOS instances with missing fourth-node evidence remain
-unresolved.
+unresolved in the Project and receive the same non-persisted netlist fallback.
 
 A visible `bulk-dashed` route is an explicit override. The override atomically
 removes the implicit cell-default binding before connecting B to the selected

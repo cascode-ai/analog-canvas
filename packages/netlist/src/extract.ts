@@ -576,6 +576,7 @@ function terminalNetName(
   pinName: string,
   context: CellNetContext,
   diagnostics: NetlistDiagnostic[],
+  implicitName?: string,
 ): string | null {
   const net = context.netByTerminal.get(`${instance.id}\u0000${pinName}`);
   const name = net ? context.nameByNetId.get(net.id) : undefined;
@@ -583,6 +584,18 @@ function terminalNetName(
     `${instance.id}\u0000${pinName}`,
   );
   if (noConnectName) return noConnectName;
+  if (name) return name;
+  if (!net && implicitName) {
+    const existing = context.nets.find(
+      (candidate) =>
+        candidate.name.toLowerCase() === implicitName.toLowerCase(),
+    );
+    if (existing) return existing.name;
+    let id = `implicit-mos-bulk-${implicitName === "0" ? "ground" : implicitName.toLowerCase()}`;
+    while (context.nets.some((candidate) => candidate.id === id)) id += "-new";
+    context.nets.push({ id, name: implicitName, scope: "global" });
+    return implicitName;
+  }
   if (!name) {
     diagnostic(
       diagnostics,
@@ -594,6 +607,15 @@ function terminalNetName(
     return null;
   }
   return name;
+}
+
+function implicitMosBulkNetName(
+  instance: Instance,
+  pinName: string,
+): "0" | "VDD" | undefined {
+  if (pinName.toLowerCase() !== "b") return undefined;
+  const bulkClass = deviceDescriptor(instance.symbolId)?.mosBulkClass;
+  return bulkClass === "nmos" ? "0" : bulkClass === "pmos" ? "VDD" : undefined;
 }
 
 function extractHierarchyInstance(
@@ -825,6 +847,7 @@ function extractExternalSubcircuitInstance(
       terminal.pinName,
       context,
       diagnostics,
+      implicitMosBulkNetName(instance, terminal.pinName),
     );
     return netName ? [{ pinName: terminal.targetName, netName }] : [];
   });
@@ -1060,6 +1083,7 @@ function extractDeviceInstance(
       pinName,
       context,
       diagnostics,
+      implicitMosBulkNetName(instance, pinName),
     );
     return netName ? [{ pinName, netName }] : [];
   });

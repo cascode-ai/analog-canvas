@@ -625,7 +625,8 @@ function netVoltageNode(
           )?.netId
         : anchor.kind === "route"
           ? document.routes.find((route) => route.id === anchor.routeId)?.netId
-          : document.nets.find((net) => net.id === anchor.netId)?.id;
+          : (document.nets.find((net) => net.id === anchor.netId)?.id ??
+            cell.nets.find((net) => net.id === anchor.netId)?.id);
   if (!netId) {
     const primary: ObjectLocator =
       anchor.kind === "terminal"
@@ -657,9 +658,10 @@ function netVoltageNode(
   // name from being derived twice and disagreeing once.
   const logicalNet =
     resolveDocumentLogicalNets(document).byBaseNetId.get(netId);
-  const netName = cell.nets.find(
+  const exportedNet = cell.nets.find(
     (net) => net.id === (logicalNet?.id ?? netId),
-  )?.name;
+  );
+  const netName = exportedNet?.name;
   if (!netName) {
     diagnostics.push(
       diagnostic(
@@ -672,6 +674,7 @@ function netVoltageNode(
     );
     return null;
   }
+  if (exportedNet.scope === "global") return netName.toLowerCase();
   let resolvedName = netName;
   let depth = hierarchyPath.length;
   let resolvedCell = cell;
@@ -1197,7 +1200,15 @@ export function buildSimulationPlan(
       occurrence.document,
       authoredInstance,
     );
-    if (!bulk?.net) {
+    const implicitBulkName = polarity === "nmos" ? "0" : "VDD";
+    const implicitBulkNet =
+      bulk?.status === "unresolved"
+        ? occurrence.cell.nets.find(
+            (net) => net.name.toLowerCase() === implicitBulkName.toLowerCase(),
+          )
+        : undefined;
+    const bulkNetId = bulk?.net?.id ?? implicitBulkNet?.id;
+    if (!bulkNetId) {
       diagnostics.push(
         diagnostic(
           "SIMULATION_DEVICE_OPERATING_POINT_BULK_UNAVAILABLE",
@@ -1239,7 +1250,7 @@ export function buildSimulationPlan(
         parameter: "vbs" as const,
         label: "VBS" as const,
         unit: "V" as const,
-        expression: difference(voltageOnNet(request, bulk.net.id), source),
+        expression: difference(voltageOnNet(request, bulkNetId), source),
       },
       {
         parameter: "id" as const,

@@ -275,7 +275,7 @@ invocation and output. Required error coverage includes:
 
 - invalid cell-terminal, Net, or instance identifiers;
 - missing or mismatched formal terminal mappings;
-- unconnected required terminal without `NoConnect`;
+- unconnected required terminal without `NoConnect`, except an omitted MOS B;
 - unnamed global Net or duplicate explicit Net name;
 - unknown or multiply assigned terminal;
 - missing device definition, required pin, reference, target, or parameter;
@@ -301,6 +301,11 @@ uses ideal R/C/L and generic model names without model cards; SKY130 uses review
 external transistor interfaces and ideal R/C by default; Custom preserves authored
 targets. Defaults fill only missing parameters, case-insensitively. Existing source
 waveforms and AC intent do not acquire a new DC bias from a fallback.
+
+Across all three profiles and strict simulation extraction, an explicit MOS B
+connection wins. If B has neither a Net nor an explicit NoConnect, NMOS emits on
+global `0` and PMOS emits on global `VDD`. The fallback is part of the extracted
+IR only; it does not add a Net, binding, label, or route to the saved Project.
 
 Explicit physical R/C targets use reviewed W/L parameters, never infer geometry
 from an ideal value, and warn when replacing that value. A resistor's existing

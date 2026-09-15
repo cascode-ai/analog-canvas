@@ -400,7 +400,11 @@ export function runErcChecks(
             resolution?.status === "cell-default" ||
             resolution?.status === "instance-override" ||
             resolution?.status === "supply-default";
-          if (!bulkAssessment.electricallySatisfied && !configuredDefault) {
+          if (
+            netId &&
+            !bulkAssessment.electricallySatisfied &&
+            !configuredDefault
+          ) {
             diagnostics.push({
               id: `erc:bulk-unresolved:${document.id}:${instance.id}:${pin.name}`,
               domain: "erc",

@@ -8,6 +8,7 @@ import {
 
 import {
   analyzeDesignNetlist as analyzeCurrentDesignNetlist,
+  printDesignNetlist,
   printSpiceNetlist,
   type DesignNetlistAnalysisOptions,
 } from "./index.js";
@@ -1129,6 +1130,76 @@ describe("current formal cell interface", () => {
       "XM1 DRAIN GATE SOURCE BODY sky130_fd_pr__nfet_01v8 l=0.15 w=2 nf=4",
     );
   });
+
+  it.each(["spice", "spectre"] as const)(
+    "defaults only an unconnected MOS bulk in %s while retaining explicit body bias",
+    (format) => {
+      const project = createEmptyProject("project", "Project");
+      const document = project.documents[0]!;
+      for (const [id, symbolId, model] of [
+        ["M1", "nmos", "NMOS_MODEL"],
+        ["M2", "pmos", "PMOS_MODEL"],
+        ["M3", "nmos", "NMOS_MODEL"],
+        ["M4", "pmos", "PMOS_MODEL"],
+      ] as const) {
+        document.instances.push({
+          id,
+          symbolId,
+          placement: null,
+          reference: id,
+          netlist: {
+            binding: { kind: "model", deviceClass: "mos", name: model },
+            parameters: { w: "1u", l: "150n", m: "1", nf: "1" },
+          },
+        });
+        for (const pinName of ["D", "G", "S"] as const) {
+          const netId = `${id}-${pinName}`;
+          document.nets.push({
+            id: netId,
+            terminals: [{ instanceId: id, pinName }],
+          });
+          claimNet(document, netId, `${id}_${pinName}`);
+        }
+      }
+      document.nets.push(
+        {
+          id: "nmos-body",
+          terminals: [{ instanceId: "M3", pinName: "B" }],
+        },
+        {
+          id: "pmos-body",
+          terminals: [{ instanceId: "M4", pinName: "B" }],
+        },
+      );
+      claimNet(document, "nmos-body", "VSSB");
+      claimNet(document, "pmos-body", "VBP");
+
+      const result = analyzeDesignNetlist(project, { format });
+
+      expect(result.diagnostics).toEqual([]);
+      expect(result.ir?.globals).toEqual(["0", "VDD"]);
+      expect(
+        result.ir?.cells[0]!.instances.map((instance) => instance.nodes[3]),
+      ).toEqual([
+        { pinName: "B", netName: "0" },
+        { pinName: "B", netName: "VDD" },
+        { pinName: "B", netName: "VSSB" },
+        { pinName: "B", netName: "VBP" },
+      ]);
+      const text = printDesignNetlist(format, result.ir!).text;
+      expect(text).toMatch(
+        format === "spice"
+          ? /M1 M1_D M1_G M1_S 0 NMOS_MODEL/u
+          : /M1 \(M1_D M1_G M1_S 0\) NMOS_MODEL/u,
+      );
+      expect(text).toMatch(
+        format === "spice"
+          ? /M2 M2_D M2_G M2_S VDD PMOS_MODEL/u
+          : /M2 \(M2_D M2_G M2_S VDD\) PMOS_MODEL/u,
+      );
+      expect(text).toContain(format === "spice" ? ".global VDD" : "global VDD");
+    },
+  );
 });
 
 describe("voltage-controlled switch", () => {

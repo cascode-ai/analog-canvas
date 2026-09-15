@@ -171,16 +171,19 @@ kernel, stable leg identity, and Route transaction.
 Routes may present as `wire`, `bulk-dashed`, or `power-rail`; presentation does
 not alter Net identity. `bulk-dashed` is used for explicit MOS B routing.
 Manual MOS instances without explicit B membership first use a configured
-cell-default Net; without one, bulk remains unresolved. Starting a
-`bulk-dashed` route from B treats a configured default membership as unowned;
-committing clears the binding before connecting the explicit Net. Deleting the
-explicit route may reconcile only an explicitly configured cell default.
-Source-bound/imported MOS instances remain governed by their fourth-node
-evidence and are never guessed. Legacy persisted `supply-default` bindings are
-readable compatibility data, not a current authoring policy. Cross-Document
-composition materializes an effective source `cell-default` as an
-`instance-override`: the copied B membership remains fixed to its copied Base
-Net and neither consumes nor changes the target Document's Cell default.
+cell-default Net; without one, bulk remains unresolved in the editable graph.
+Netlist extraction supplies global `0` for an omitted NMOS B and global `VDD`
+for an omitted PMOS B without changing routing or persisted membership.
+Starting a `bulk-dashed` route from B treats a configured default membership as
+unowned; committing clears the binding before connecting the explicit Net.
+Deleting the explicit route may reconcile only an explicitly configured cell
+default. Source-bound/imported MOS instances keep their fourth-node evidence;
+the same extraction fallback applies only when it is absent. Legacy persisted
+`supply-default` bindings are readable compatibility data, not a current
+authoring policy. Cross-Document composition materializes an effective source
+`cell-default` as an `instance-override`: the copied B membership remains fixed
+to its copied Base Net and neither consumes nor changes the target Document's
+Cell default.
 
 A `power-rail` Route is valid only on a Base Net with an explicit persisted
 name claim whose `powerDomain` is `vdd`. Rail authoring creates or reuses that

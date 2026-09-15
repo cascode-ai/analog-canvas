@@ -101,7 +101,7 @@ export function createNetlistExportProfile(
             GENERIC_TARGETS[family] ??
             "",
           parameters,
-          substrate: "0",
+          substrate: family === "pmos" ? "VDD" : "0",
         },
       ];
     }),

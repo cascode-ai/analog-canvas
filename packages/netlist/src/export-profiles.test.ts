@@ -103,6 +103,32 @@ describe("netlist export presets", () => {
     expect(scs.file.text).toBe("simulator lang=spice\n" + result.file.text);
   });
 
+  it.each(["spice", "spectre"] as const)(
+    "keeps SKY130 export available when MOS bulk is omitted in %s",
+    (format) => {
+      const project = circuit();
+      const document = project.documents[0]!;
+      for (const instanceId of ["M1", "M2"])
+        for (const net of document.nets)
+          net.terminals = net.terminals.filter(
+            (terminal) =>
+              terminal.instanceId !== instanceId || terminal.pinName !== "B",
+          );
+      const profile = createNetlistExportProfile("sky130");
+
+      expect(profile.devices.nmos.substrate).toBe("0");
+      expect(profile.devices.pmos.substrate).toBe("VDD");
+      const result = exported(project, profile, format);
+      expect(result.file.text).toMatch(
+        /XM1 \S+ \S+ \S+ 0 sky130_fd_pr__nfet_01v8/u,
+      );
+      expect(result.file.text).toMatch(
+        /XM2 \S+ \S+ \S+ VDD sky130_fd_pr__pfet_01v8/u,
+      );
+      expect(result.file.text).toContain(".global VDD");
+    },
+  );
+
   it("supports explicit physical R/C geometry and a default substrate without converting ideal values", () => {
     const project = circuit();
     const before = structuredClone(project);

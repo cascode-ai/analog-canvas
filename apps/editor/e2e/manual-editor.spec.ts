@@ -5980,6 +5980,50 @@ test("copies structural SPICE and Spectre netlists while exposing instance autho
   await expect(properties.getByText(/^Model:/u)).toHaveCount(0);
 });
 
+test("shows and copies a live MOS netlist when only bulk terminals are omitted", async ({
+  page,
+}) => {
+  const project = createEmptyProject("implicit-bulk", "Implicit Bulk");
+  const document = project.documents[0]!;
+  for (const [reference, symbolId] of [
+    ["M1", "nmos"],
+    ["M2", "pmos"],
+  ] as const) {
+    document.instances.push({
+      id: reference,
+      reference,
+      symbolId,
+      placement: null,
+      netlist: {
+        parameters: { w: "1u", l: "150n", nf: "1", m: "1" },
+      },
+    });
+    for (const pinName of ["D", "G", "S"] as const)
+      document.nets.push({
+        id: `${reference}-${pinName}`,
+        terminals: [{ instanceId: reference, pinName }],
+      });
+  }
+
+  await page.goto("/editor");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "implicit-bulk.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+
+  const spice = await copyNetlistText(page, "spice");
+  expect(spice).toMatch(/M1 \S+ \S+ \S+ 0 NMOS/u);
+  expect(spice).toMatch(/M2 \S+ \S+ \S+ VDD PMOS/u);
+  expect(spice).toContain(".global VDD");
+  const spectre = await copyNetlistText(page, "spectre");
+  expect(spectre).toMatch(/M1 \(\S+ \S+ \S+ 0\) NMOS/u);
+  expect(spectre).toMatch(/M2 \(\S+ \S+ \S+ VDD\) PMOS/u);
+  await expect(
+    page.getByRole("region", { name: "Live netlist" }).getByRole("alert"),
+  ).toHaveCount(0);
+});
+
 test("edits all netlist presets as raw JSON in Properties and remembers valid changes", async ({
   page,
 }) => {
