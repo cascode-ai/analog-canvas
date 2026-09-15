@@ -77,7 +77,15 @@ function routeContainsAuthoredPoint(
   point: Point,
 ): boolean {
   const route = document.routes.find((candidate) => candidate.id === routeId);
-  if (!route || route.presentation === "bulk-dashed") return false;
+  // Power rails own a dedicated contact planner which keeps off-grid artwork
+  // tips connected through grid-aligned taps. Generic Route contact repair
+  // would split the rail at the artwork tip and create a second topology.
+  if (
+    !route ||
+    route.presentation === "bulk-dashed" ||
+    route.presentation === "power-rail"
+  )
+    return false;
   return findRouteSegmentsAtPoint(geometry, point).some((address) => {
     if (address.routeId !== routeId) return false;
     const segment = geometry.routes
@@ -124,6 +132,13 @@ export function newlyTouchedRouteTerminals(
     for (const routeId of [...routeIds].sort((left, right) =>
       left.localeCompare(right, "en"),
     )) {
+      // A newly pasted/drawn Route is handled by its authoring planner. This
+      // detector is for an existing conductor whose geometry moved onto a
+      // previously separate pin; treating every new Route as a drag also
+      // connected copied circuits to unrelated objects under the paste ghost.
+      if (!before.routes.some((candidate) => candidate.id === routeId)) {
+        continue;
+      }
       const route = after.routes.find((candidate) => candidate.id === routeId);
       if (!route) continue;
       if (
@@ -256,8 +271,9 @@ export function nextPhysicalContactOperation(
       // that lead can short pins inside the symbol and destabilize the Route
       // whenever the symbol moves.
       if (segment.mode === "escape") continue;
-      // A wholesale license (introduced conductor) bonds anywhere along the
-      // Route; a typed attach only bonds at the exact point it named.
+      // Introduced conductors license explicit Junction incidence. Terminal
+      // interiors require either the exact point newly covered by a moved
+      // Route or the typed endpoint/point pair supplied by an attach planner.
       const introducedRouteLicensed = license.objectIds.has(route.id);
       const typedRoutePointLicensed =
         license.routePoints
@@ -273,8 +289,7 @@ export function nextPhysicalContactOperation(
             introducedRouteLicensed ||
             typedRoutePointLicensed ||
             changedRoutePointLicensed
-          : introducedRouteLicensed ||
-            changedRoutePointLicensed ||
+          : changedRoutePointLicensed ||
             (endpointIsLicensed && typedRoutePointLicensed);
       if (!contactLicensed) continue;
       if (

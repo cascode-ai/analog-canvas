@@ -252,13 +252,14 @@ export function uniquePhysicalContactId(
  * exact pin point newly covered by edited Route geometry. Unrelated contact
  * that already existed before the gesture stays inert.
  *
- * The license is deliberately tiered: introduced objects bond at every
- * contact they make, but a typed attach names one endpoint and one exact
- * conductor point, and bonds nothing beyond them — the instance's other
- * pins and the rest of the conductor stay inert.
+ * The license is deliberately tiered: introduced endpoints bond at direct
+ * contact, introduced conductors bond explicit Junction incidence, and a
+ * typed attach names one endpoint and one exact conductor point. A moved
+ * existing Route separately licenses only the pin points its new geometry
+ * covers.
  */
 export type PhysicalContactLicense = {
-  /** Objects the transaction introduces; every contact they make bonds. */
+  /** Objects introduced by the transaction and eligible for typed contact. */
   readonly objectIds: Set<string>;
   /** Endpoints a typed attach names; only that pin or Junction bonds. */
   readonly endpointKeys: Set<string>;
