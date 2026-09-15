@@ -1,7 +1,7 @@
 # RC starter: native VACASK migration
 
 `circuit.spi` remains structural SPICE interchange. `ac.sim`, `step.sim` and
-[the shared passive report](../../scripts/lib/native-passive-report.py) are
+[the shared starter report](../../scripts/lib/native-starter-report.py) are
 the native executable recipe sources for the four bundled RC
 experiments in `apps/editor/src/examples/simulation-rc.icproj.json`. They expect
 the normal Canvas binding to generate `circuit.spice` as native VACASK source;
@@ -37,7 +37,7 @@ The report uses only Python's standard library and the copied report helpers.
 
 ## Acceptance
 
-`containers/vacask/passive-starter-journey.test.mjs` always checks all four bundled
+`containers/vacask/starter-journey.test.mjs` always checks all four bundled
 source folders against these recipes and the native compiler. With explicit
 `VACASK_BIN`, `VACASK_MODULES`, `ICM_PYTHON`, `ICM_PYTHON_LIBRARIES` (and Linux
 loader paths when required), it runs the exact Project through the public local

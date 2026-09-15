@@ -1,0 +1,17 @@
+Common-source small and large signal
+// 1. Edit the native amplitude sweep; keep both cases for comparison.
+// 2. Click Run.
+// 3. Plot the two signal records; output_pp uses 200-400 us for each case.
+ground 0
+include "models/library.inc"
+include "circuit.spice"
+control
+abort always
+options rawfile="ascii" strictsave=2 temp=27 reltol=1e-8 abstol=1e-12 vntol=1e-10
+save v(in) v(out)
+alter instance("VIN") type="sine" sinedc=0.7 freq=10k
+sweep amplitude instance="VIN" parameter="ampl" values=[0.01,0.2] continuation=0
+analysis signal tran stop=400u step=0.2u maxstep=0.2u
+// Split by the returned amplitude column, not guessed point counts or frontend state.
+postprocess(PYTHON,"report.py","cs-tran")
+endc

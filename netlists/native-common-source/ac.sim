@@ -1,0 +1,14 @@
+Common-source AC gain
+// 1. Edit frequency limits below or circuit parameters on Canvas.
+// 2. Click Run.
+// 3. Plot Gain in dB/phase and read gain_db_1khz from Measurements.
+ground 0
+include "models/library.inc"
+include "circuit.spice"
+control
+abort always
+options rawfile="ascii" strictsave=2 temp=27 reltol=1e-8 abstol=1e-12 vntol=1e-10
+save v(in) v(out)
+analysis frequency ac from=10 to=1G mode="dec" points=80
+postprocess(PYTHON,"report.py","cs-ac")
+endc

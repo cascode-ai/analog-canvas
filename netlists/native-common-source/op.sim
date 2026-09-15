@@ -1,0 +1,14 @@
+Common-source operating point
+// 1. Adjust sources or device parameters on Canvas.
+// 2. Click Run.
+// 3. Open Operating Point for node voltages and native model values.
+ground 0
+include "models/library.inc"
+include "circuit.spice"
+control
+abort always
+options rawfile="ascii" strictsave=2 temp=27 reltol=1e-8 abstol=1e-12 vntol=1e-10
+save v(in) v(out) i(VDD)
+save p('XM1:msky130_fd_pr__nfet_01v8',id) p('XM1:msky130_fd_pr__nfet_01v8',vgs) p('XM1:msky130_fd_pr__nfet_01v8',vds) p('XM1:msky130_fd_pr__nfet_01v8',vbs) p('XM1:msky130_fd_pr__nfet_01v8',gm) p('XM1:msky130_fd_pr__nfet_01v8',gds) p('XM1:msky130_fd_pr__nfet_01v8',gmbs) p('XM1:msky130_fd_pr__nfet_01v8',vth) p('XM1:msky130_fd_pr__nfet_01v8',vdsat)
+analysis bias op
+endc

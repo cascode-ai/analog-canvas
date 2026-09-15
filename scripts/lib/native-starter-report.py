@@ -1,4 +1,4 @@
-"""Editable passive example calculations, using this run's native ASCII outputs only.
+"""Editable starter calculations, using this run's native ASCII outputs only.
 
 No numpy dependency, hidden frontend evaluator, or ngspice subprocess. The
 shared icm_reports.py helper reports results; it does not perform the math.
@@ -52,16 +52,16 @@ def sample(axis, values, target):
 
 
 mode = sys.argv[1]
-if mode not in ("ac", "step", "rlc"):
-    raise ValueError("Expected ac, step, or rlc example analyses")
+if mode not in ("ac", "step", "rlc", "cs-ac", "cs-tran"):
+    raise ValueError("Unknown starter report mode")
 
-if mode in ("ac", "rlc"):
+if mode in ("ac", "rlc", "cs-ac"):
     data = read_ascii("frequency.raw")
     frequency = [v.real for v in data["frequency"]]
     gain = [out / inp for inp, out in zip(data["in"], data["out"])]
     # Preserve the complex transfer. The common Plot UI supplies dB and phase
     # rather than representing already-logarithmic values as complex voltages.
-    lines = ["Title: Passive transfer", "Date: Current run", "Plotname: Gain",
+    lines = ["Title: Voltage transfer", "Date: Current run", "Plotname: Gain",
              "Flags: complex", "No. Variables: 2", f"No. Points: {len(gain)}",
              "Variables:", "0 frequency notype", "1 Gain notype", "Values:"]
     for index, (freq, value) in enumerate(zip(frequency, gain)):
@@ -72,6 +72,9 @@ if mode in ("ac", "rlc"):
     if mode == "ac":
         report_measurement("gain_at_fc", lambda: sample(
             frequency, [20 * log10(abs(v)) for v in gain], 1591.549431), "dB")
+    elif mode == "cs-ac":
+        report_measurement("gain_db_1khz", lambda: sample(
+            frequency, [20 * log10(abs(v)) for v in gain], 1e3), "dB")
     else:
         report_measurement("peak_gain_db", lambda: max(20 * log10(abs(v)) for v in gain), "dB")
 
@@ -82,3 +85,33 @@ if mode in ("step", "rlc"):
     else:
         report_measurement("peak_output", lambda: max(data["out"]), "V")
     report_measurement("final_value", lambda: sample(data["time"], data["out"], 1e-3), "V")
+
+if mode == "cs-tran":
+    data = read_ascii("signal.raw")
+    # Native outer sweeps concatenate sample groups. Preserve every returned
+    # case as an explicit record, with its amplitude in the plot title. The
+    # original multi-axis raw file remains available for independent inspection.
+    start = 0
+    for end in range(1, len(data["amplitude"]) + 1):
+        if end < len(data["amplitude"]) and data["amplitude"][end] == data["amplitude"][start]:
+            continue
+        amplitude = data["amplitude"][start]
+        time = data["time"][start:end]
+        values = data["out"][start:end]
+        index = start
+        path = f"signal-{index}.raw"
+        lines = [f"Title: Input amplitude {amplitude:g} V", "Date: Current run",
+                 f"Plotname: Signal ({amplitude:g} V input)", "Flags: real",
+                 "No. Variables: 3", f"No. Points: {len(time)}", "Variables:",
+                 "0 time notype", "1 in notype", "2 out notype", "Values:"]
+        for i, (t, inp, out) in enumerate(zip(time, data["in"][start:end], values)):
+            lines.extend([f"{i} {t:.17e}", f" {inp:.17e}", f" {out:.17e}"])
+        Path(path).write_text("\n".join(lines) + "\n")
+        report_plot(path, "tran", axis="time", probes=[
+            {"name": name, "quantity": "voltage", "unit": "V"} for name in ("in", "out")])
+        def peak_to_peak():
+            window = [v for t, v in zip(time, values) if 200e-6 < t < 400e-6]
+            window.extend(sample(time, values, t) for t in (200e-6, 400e-6))
+            return max(window) - min(window)
+        report_measurement("output_pp", peak_to_peak, "V")
+        start = end

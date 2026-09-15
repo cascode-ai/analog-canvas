@@ -38,6 +38,11 @@ test.each([
     args: ["--project", "rc", "--project", "rlc"],
     counts: [4, 3],
   },
+  {
+    scope: "common-source selection",
+    args: ["--project", "common-source"],
+    counts: [4],
+  },
   { scope: "complete library", args: [], counts: [4, 3, 4, 8] },
 ])(
   "exports the $scope without reconstructing any reviewed Project",

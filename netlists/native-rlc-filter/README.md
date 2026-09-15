@@ -8,7 +8,7 @@ This native control command changes only this Run, not the Canvas value.
 
 The generated `circuit.spice` binding contains native source despite its stable
 filename. Each folder has editable copies of the template,
-[shared passive report](../../scripts/lib/native-passive-report.py), and the
+[shared starter report](../../scripts/lib/native-starter-report.py), and the
 existing measurement/plot reporting helpers. No JSON analysis protocol or
 ngspice runtime is added. RC and RLC copies are checked against one report source.
 
@@ -33,7 +33,7 @@ its standard library plus the copied reporting helpers. See the
 
 ## Acceptance
 
-`containers/vacask/passive-starter-journey.test.mjs` checks all three source
+`containers/vacask/starter-journey.test.mjs` checks all three source
 folders and, with explicit native environment paths, executes their actual
 Canvas-bound inputs through Prepare/Start/Read, paged artifacts and CSV.
 

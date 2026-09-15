@@ -13,18 +13,26 @@ Cancelling either prompt must leave the original Project installed. Never infer
 that a Project is empty from its currently visible Cell.
 
 The starter programs cover 4 RC, 3 RLC, 4 common-source and 8 OTA experiments.
-On the VACASK migration branch, four RC and three RLC experiments are translated
-to native VACASK; see [RC acceptance](../../../../netlists/native-rc-filters/README.md)
-and [RLC acceptance](../../../../netlists/native-rlc-filter/README.md).
+On the VACASK migration branch, four RC, three RLC and four common-source
+experiments are translated to native VACASK; see
+[RC acceptance](../../../../netlists/native-rc-filters/README.md),
+[RLC acceptance](../../../../netlists/native-rlc-filter/README.md) and
+[common-source acceptance](../../../../netlists/native-common-source/README.md).
 Their Canvas data is preserved; only executable source, report files and requested
 Profile change. AC exposes a complex Gain trace with common dB/phase views.
-The common-source and OTA recipes still contain legacy ngspice programs and
+The OTA recipes still contain legacy ngspice programs and
 are not yet runnable through the native compiler. Tests intentionally continue
 to reject those unfinished conversions; a Code-only config does not establish
 that its executable source is native. Historical numerical
 acceptance lives in the local `output/native-simulation-examples` evidence, not
 inside the bundled Project. Adding comments does not establish a new electrical
 qualification; no solver or model values were changed in this import.
+
+The subsequent common-source conversion requests an explicit BSIM4 4.8.3 TT
+candidate; this is a model-version upgrade requiring separate qualification,
+not a declaration of equality to the original ngspice model. Four missing GND
+claims were materialized with the existing File/Open normalization so direct
+compilation has the same electrical input as the GUI. Geometry is unchanged.
 
 OTA experiment 08 intentionally uses Canvas only for the `ota_5t` subcircuit.
 Its sources, load and feedback are in `testbench.spice`; the visible open-loop

@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, writeFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile, rm } from "node:fs/promises";
 import { delimiter, join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { expect, it, vi } from "vitest";
@@ -14,6 +14,141 @@ import { CapabilitiesSchema } from "../../packages/simulation-service/src/contra
 import { initializeVacaskRuntime } from "./runtime.mjs";
 import { executeVacask } from "./execute.mjs";
 import { SimulationRunSupervisor } from "../ngspice/run-supervisor.mjs";
+import {
+  nativeSimulationDevices,
+  nativeDeviceOpAcquisitions,
+} from "../../packages/netlist/src/simulation-native-devices.js";
+import { parseVacaskRawfile } from "../../packages/spice-run/src/vacask-rawfile.js";
+
+// These are source/result-fidelity and circuit-law checks, not new foundry
+// qualification tolerances or a substitute for the frozen cross-engine oracle.
+function assertCommonSourceResult(id, data, measurements, originalSweep) {
+  const analyses = data.analyses;
+  const get = (plot, name) => plot.probes.find((p) => p.name === name);
+  if (id === "cs-op") {
+    const op = analyses.find((a) => a.analysis === "op");
+    const value = (name) => get(op, name).value;
+    const model = (name) => value(`XM1:msky130_fd_pr__nfet_01v8.${name}`);
+    expect(value("in")).toBeCloseTo(0.7, 10);
+    expect(value("out")).toBeGreaterThan(0);
+    expect(value("out")).toBeLessThan(1.8);
+    // Model outputs use g_int/d_int/b_int/s_int, not external terminals.
+    // Series resistance makes Vgs slightly less than the 0.7 V source; do not
+    // relabel intrinsic voltages as terminal measurements or tune the model.
+    expect(model("vgs")).toBeGreaterThan(0);
+    expect(model("vgs")).toBeLessThanOrEqual(value("in"));
+    expect(model("vds")).toBeGreaterThan(0);
+    expect(model("vds")).toBeLessThanOrEqual(value("out"));
+    const drainCurrent = (1.8 - value("out")) / 1e4;
+    // Model-native id is a channel output, not the complete terminal branch
+    // current (which also contains junction/gate leakage). KCL below compares
+    // external supply and resistor currents only.
+    expect(model("id")).toBeGreaterThan(0);
+    expect(Math.abs(value("VDD:flow(br)") + drainCurrent)).toBeLessThan(1e-9);
+    for (const name of [
+      "id",
+      "vgs",
+      "vds",
+      "vbs",
+      "gm",
+      "gds",
+      "gmbs",
+      "vth",
+      "vdsat",
+    ])
+      expect(Number.isFinite(model(name)), name).toBe(true);
+    expect(model("gm")).toBeGreaterThan(0);
+  } else if (id === "cs-dc") {
+    const dc = analyses.find((a) => a.analysis === "dc");
+    expect(dc.sweep.values).toHaveLength(181);
+    const out = get(dc, "out").value,
+      input = get(dc, "in").value;
+    const current = get(dc, "VDD:flow(br)").value;
+    for (const [i, v] of dc.sweep.values.entries()) {
+      expect(v).toBeCloseTo(0.3 + i * 0.005, 10);
+      expect(input[i]).toBeCloseTo(v, 10);
+      expect(Math.abs(current[i] + (1.8 - out[i]) / 1e4)).toBeLessThan(1e-9);
+      if (i) expect(out[i] - out[i - 1]).toBeLessThan(1e-6);
+    }
+    expect(out[0]).toBeGreaterThan(out.at(-1));
+  } else if (id === "cs-ac") {
+    const raw = analyses.find((a) => a.analysis === "ac" && !a.postprocessor);
+    const ac = analyses.find((a) => a.analysis === "ac" && a.postprocessor);
+    expect(ac.frequencyHz).toEqual(raw.frequencyHz);
+    expect(ac.frequencyHz).toHaveLength(641);
+    const gain = get(ac, "Gain"),
+      inp = get(raw, "in"),
+      out = get(raw, "out");
+    for (let i = 0; i < gain.real.length; i++) {
+      const denominator = inp.real[i] ** 2 + inp.imag[i] ** 2;
+      expect(
+        Math.abs(
+          gain.real[i] -
+            (out.real[i] * inp.real[i] + out.imag[i] * inp.imag[i]) /
+              denominator,
+        ),
+      ).toBeLessThan(1e-12);
+      expect(
+        Math.abs(
+          gain.imag[i] -
+            (out.imag[i] * inp.real[i] - out.real[i] * inp.imag[i]) /
+              denominator,
+        ),
+      ).toBeLessThan(1e-12);
+    }
+    expect(gain.real[0]).toBeLessThan(-1);
+    const index = ac.frequencyHz.findIndex((f) => Math.abs(f - 1000) < 1e-6);
+    expect(index).toBeGreaterThan(0);
+    expect(measurements).toHaveLength(1);
+    expect(measurements[0].name).toBe("gain_db_1khz");
+    expect(measurements[0].value).toBeCloseTo(
+      20 * Math.log10(Math.hypot(gain.real[index], gain.imag[index])),
+      9,
+    );
+  } else {
+    const plots = analyses.filter((a) => a.analysis === "tran");
+    expect(plots).toHaveLength(2);
+    expect(measurements.map((m) => m.name)).toEqual(["output_pp", "output_pp"]);
+    const parsed = parseVacaskRawfile(originalSweep);
+    expect(parsed.ok, JSON.stringify(parsed)).toBe(true);
+    const vectors = new Map(
+      parsed.plots[0].vectors.map((v) => [v.variable.name, v.real]),
+    );
+    for (const [i, amplitude] of [0.01, 0.2].entries()) {
+      const plot = plots[i],
+        time = plot.timeSeconds;
+      expect(plot.plotName).toContain(`${amplitude} V input`);
+      expect(time[0]).toBe(0);
+      expect(time.at(-1)).toBeCloseTo(400e-6, 12);
+      const indices = vectors
+        .get("amplitude")
+        .flatMap((a, index) => (a === amplitude ? [index] : []));
+      expect(time).toEqual(indices.map((index) => vectors.get("time")[index]));
+      for (const name of ["in", "out"])
+        expect(get(plot, name).value).toEqual(
+          indices.map((index) => vectors.get(name)[index]),
+        );
+      const input = get(plot, "in").value,
+        output = get(plot, "out").value;
+      for (const [index, t] of time.entries())
+        expect(
+          Math.abs(
+            input[index] - (0.7 + amplitude * Math.sin(2 * Math.PI * 1e4 * t)),
+          ),
+        ).toBeLessThan(1e-9);
+      const window = output.filter(
+        (_, index) => time[index] >= 200e-6 && time[index] <= 400e-6,
+      );
+      // Sine extrema lie inside this two-period window; interpolated endpoints
+      // in the report cannot change the sampled peak-to-peak extrema.
+      expect(measurements[i].value).toBeCloseTo(
+        Math.max(...window) - Math.min(...window),
+        12,
+      );
+    }
+    expect(measurements[1].value).toBeGreaterThan(measurements[0].value);
+  }
+}
 
 // Analytical series RLC, output across C. Integrate the unit-step response
 // over the unchanged 100 ns source ramp; do not approximate it as an ideal step.
@@ -122,7 +257,7 @@ function assertRlcResult(data, measurements, resistance) {
 }
 
 const projects = await Promise.all(
-  ["rc", "rlc"].map(async (kind) => ({
+  ["rc", "rlc", "common-source"].map(async (kind) => ({
     kind,
     project: parseProject(
       await readFile(
@@ -146,7 +281,81 @@ const reference = (kind, name) =>
     "utf8",
   );
 
-it.each(projects)(
+const { library } = JSON.parse(
+  await readFile(
+    new URL(
+      "../../netlists/vacask-sky130/model-symbols-tt.json",
+      import.meta.url,
+    ),
+    "utf8",
+  ),
+);
+
+it("ships four native common-source experiments with converter-checked wrapper selectors and explicit candidate identity", async () => {
+  const { project } = projects.find((p) => p.kind === "common-source");
+  const before = structuredClone(project);
+  const report = (
+    await readFile(
+      new URL("../../scripts/lib/native-starter-report.py", import.meta.url),
+      "utf8",
+    )
+  ).replaceAll("\r\n", "\n");
+  expect(project.simulationFolders.map((f) => f.id)).toEqual([
+    "cs-op",
+    "cs-dc",
+    "cs-ac",
+    "cs-tran",
+  ]);
+  for (const folder of project.simulationFolders) {
+    const template = (
+      await readFile(
+        new URL(
+          `../../netlists/native-common-source/${folder.id.slice(3)}.sim`,
+          import.meta.url,
+        ),
+        "utf8",
+      )
+    ).replaceAll("\r\n", "\n");
+    const code = folder.input.files.find(
+      (f) => f.path === folder.input.entry,
+    ).text;
+    expect(code).toBe(
+      folder.name + "\n" + template.slice(template.indexOf("\n") + 1),
+    );
+    const compiled = compileSourceSimulation(project, folder);
+    expect(compiled.ok, JSON.stringify(compiled)).toBe(true);
+    expect(compiled.config.environment.profileId).toBe(
+      "vacask-sky130-tt-candidate",
+    );
+    expect(folder.input.dependencies).toEqual([
+      {
+        id: library.dependencyId,
+        sha256: library.sha256,
+        mountPath: "models/library.inc",
+      },
+    ]);
+    expect(code).not.toMatch(/options\s+scale=/u);
+    if (folder.id === "cs-op") {
+      const device = nativeSimulationDevices(project, folder.input, [
+        library,
+      ]).find((d) => d.instanceId === "XM1");
+      const acquisitions = nativeDeviceOpAcquisitions(device);
+      expect(acquisitions).toHaveLength(9);
+      for (const op of acquisitions) expect(code).toContain(op.save);
+    }
+    if (["cs-ac", "cs-tran"].includes(folder.id)) {
+      expect(folder.input.files.find((f) => f.path === "report.py").text).toBe(
+        report,
+      );
+      expect(
+        folder.input.files.find((f) => f.path === "icm_reports.py").text,
+      ).toBe(vacaskMeasurementPythonSource() + "\n" + vacaskPlotPythonSource());
+    }
+  }
+  expect(project).toEqual(before);
+});
+
+it.each(projects.filter((p) => p.kind !== "common-source"))(
   "ships $kind experiments as native source with editable shared report helpers",
   async ({ kind, project }) => {
     const before = structuredClone(project);
@@ -176,7 +385,7 @@ it.each(projects)(
         (
           await readFile(
             new URL(
-              "../../scripts/lib/native-passive-report.py",
+              "../../scripts/lib/native-starter-report.py",
               import.meta.url,
             ),
             "utf8",
@@ -206,8 +415,22 @@ it
       !process.env.ICM_PYTHON_LIBRARIES,
   )
   .each(projects)(
-  "runs bundled $kind AC and step through Prepare/Run/Read, measurements and CSV",
-  async ({ kind, project }) => {
+  "runs bundled $kind experiments through Prepare/Run/Read, measurements and CSV",
+  async ({ kind, project }, context) => {
+    const commonSource = kind === "common-source";
+    if (commonSource && !process.env.ICM_VACASK_CONVERTED_TT) context.skip();
+    const profile = commonSource
+      ? {
+          id: "vacask-sky130-tt-candidate",
+          corners: [],
+          dependencies: [{ id: library.dependencyId, sha256: library.sha256 }],
+          modelSymbols: [library],
+          modelLibrary: {
+            dependencyId: library.dependencyId,
+            defaultScale: 1e-6,
+          },
+        }
+      : { id: "vacask-passives-v1", corners: [] };
     const before = structuredClone(project);
     const root = await mkdtemp(join(tmpdir(), `icm-${kind}-starters-`));
     try {
@@ -218,7 +441,7 @@ it
       );
       const runtime = await initializeVacaskRuntime({
         executor: "local-host",
-        profileId: "vacask-passives-v1",
+        profileId: profile.id,
         binary: resolve(process.env.VACASK_BIN),
         modules: resolve(process.env.VACASK_MODULES),
         startupPath,
@@ -227,6 +450,17 @@ it
           binary: resolve(process.env.ICM_PYTHON),
           libraries: process.env.ICM_PYTHON_LIBRARIES.split(delimiter),
         },
+        ...(commonSource
+          ? {
+              dependencies: [
+                {
+                  id: library.dependencyId,
+                  sha256: library.sha256,
+                  runtimePath: resolve(process.env.ICM_VACASK_CONVERTED_TT),
+                },
+              ],
+            }
+          : {}),
         ...(process.env.ICM_VACASK_LIBRARY_PATH
           ? { libraryPath: process.env.ICM_VACASK_LIBRARY_PATH }
           : {}),
@@ -234,7 +468,7 @@ it
       const limits = {
         maxInputBytes: 65536,
         maxInputFiles: 12,
-        maxOutputBytes: 1048576,
+        maxOutputBytes: commonSource ? 8 * 1048576 : 1048576,
         maxLogBytes: 65536,
         maxRawFiles: 16,
         maxEntries: 256,
@@ -243,9 +477,9 @@ it
         configured: true,
         rawfileCollection: "native-multi-ascii",
         inputs: ["source"],
-        analyses: ["ac", "tran"],
-        parsedAnalyses: ["ac", "tran"],
-        profiles: [{ id: "vacask-passives-v1", corners: [] }],
+        analyses: ["op", "dc", "ac", "tran"],
+        parsedAnalyses: ["op", "dc", "ac", "tran"],
+        profiles: [profile],
         maxTimeoutMs: 15000,
         maxInputBytes: limits.maxInputBytes,
         maxInputFiles: limits.maxInputFiles,
@@ -331,12 +565,36 @@ it
           } while (offset !== null);
           return text;
         };
-        const measurements = JSON.parse(
-          await artifactText("native-measurements.json"),
-        );
+        const measurements = run.artifacts.some(
+          (a) => a.name === "native-measurements.json",
+        )
+          ? JSON.parse(await artifactText("native-measurements.json"))
+          : [];
         const result = JSON.parse(await artifactText("result.json"));
+        if (commonSource && process.env.ICM_VACASK_EVIDENCE_DIR) {
+          const parent = resolve(process.env.ICM_VACASK_EVIDENCE_DIR);
+          await mkdir(parent, { recursive: true });
+          const evidence = await mkdtemp(join(parent, `${folder.id}-public-`));
+          for (const name of [
+            "result.json",
+            "outputs.json",
+            "evidence.json",
+            "native-measurements.json",
+          ])
+            if (run.artifacts.some((a) => a.name === name))
+              await writeFile(join(evidence, name), await artifactText(name));
+          await writeFile(
+            join(evidence, "input.sim"),
+            await artifactText(`executed/${folder.input.entry}`),
+          );
+          await writeFile(
+            join(evidence, "circuit.sim"),
+            await artifactText("executed/circuit.spice"),
+          );
+          console.info("Common-source-public-artifacts", evidence);
+        }
         console.info(
-          "Passive-native-evidence",
+          "Starter-native-evidence",
           JSON.stringify({
             folderId: folder.id,
             metadata: result.metadata,
@@ -353,7 +611,22 @@ it
           JSON.stringify(measurements),
         ).toBe(true);
         const high = folder.id.includes("-hp-");
-        if (kind === "rlc") {
+        if (commonSource) {
+          assertCommonSourceResult(
+            folder.id,
+            result.data,
+            measurements,
+            folder.id === "cs-tran"
+              ? await artifactText("raw/signal.raw")
+              : undefined,
+          );
+          // Every numerical record is downloadable, including both sweep cases.
+          const csv = run.artifacts.filter((a) => a.name.endsWith(".csv"));
+          expect(csv.length).toBeGreaterThan(0);
+          for (const item of csv)
+            expect((await artifactText(item.name)).length).toBeGreaterThan(20);
+          continue;
+        } else if (kind === "rlc") {
           assertRlcResult(result.data, measurements, resistanceFor(folder.id));
         } else if (folder.id.endsWith("-ac")) {
           const transfer = result.data.analyses.find((a) => a.postprocessor);
