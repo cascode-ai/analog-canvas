@@ -15,7 +15,7 @@ export interface NetlistExportPreferences {
   profiles: Record<NetlistProfileId, NetlistExportProfile>;
 }
 
-function defaultNetlistExportPreferences(): NetlistExportPreferences {
+export function createDefaultNetlistExportPreferences(): NetlistExportPreferences {
   return {
     selected: "abstract",
     format: "spice",
@@ -69,7 +69,7 @@ export function readNetlistExportPreferences(
       migrateStoredNetlistExportPreferences(raw ?? "null"),
     );
   } catch {
-    return defaultNetlistExportPreferences();
+    return createDefaultNetlistExportPreferences();
   }
 }
 
@@ -153,6 +153,12 @@ export function useNetlistExportPreferences() {
     setText(source);
     setError(null);
   };
+  const reset = () => {
+    const next = createDefaultNetlistExportPreferences();
+    setPreferences(next);
+    setText(JSON.stringify(next, null, 2));
+    setError(null);
+  };
   return {
     selected: preferences.selected,
     format: preferences.format,
@@ -163,5 +169,6 @@ export function useNetlistExportPreferences() {
     selectProfile,
     selectFormat,
     setMosTarget,
+    reset,
   };
 }

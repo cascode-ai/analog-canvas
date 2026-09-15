@@ -18,6 +18,7 @@ describe("live netlist controls", () => {
         onFormatChange={vi.fn()}
         onMosTargetChange={vi.fn()}
         onCopy={vi.fn()}
+        onReset={vi.fn()}
         configurationError={null}
       />,
     );
@@ -35,10 +36,17 @@ describe("live netlist controls", () => {
     expect(markup).toContain(">Custom<");
     expect(markup).toContain('value="spectre" selected=""');
     expect(markup).toContain('data-testid="copy-netlist-panel"');
+    expect(markup).toContain('aria-label="Copy netlist"');
+    expect(markup).toContain("<svg");
+    expect(markup).not.toContain(">Copy</button>");
     expect(markup).toContain('aria-label="NMOS netlist target"');
     expect(markup).toContain('value="nch_ulvt_mac"');
     expect(markup).toContain('aria-label="PMOS netlist target"');
     expect(markup).toContain('value="pch_ulvt_mac"');
+    expect(markup).toContain(">Default</button>");
+    expect(markup.indexOf(">Default</button>")).toBeGreaterThan(
+      markup.indexOf('aria-label="MOS device mapping"'),
+    );
     expect(markup).not.toContain("<h2>Netlist</h2>");
   });
 });

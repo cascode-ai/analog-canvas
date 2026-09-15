@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  createDefaultNetlistExportPreferences,
   readNetlistExportPreferences,
   selectNetlistExportFormat,
   selectNetlistExportProfile,
@@ -85,6 +86,19 @@ describe("netlist export preferences", () => {
     expect(preferences.profiles.tsmc28.devices.nmos.target).toBe(
       "nch_ulvt_mac",
     );
+  });
+  it("rebuilds every preset when restoring defaults", () => {
+    const preferences = readNetlistExportPreferences(null);
+    preferences.selected = "tsmc28";
+    preferences.format = "spectre";
+    preferences.profiles.tsmc28.devices.nmos.target = "custom_nch";
+
+    const restored = createDefaultNetlistExportPreferences();
+
+    expect(restored).toEqual(readNetlistExportPreferences(null));
+    expect(restored.selected).toBe("abstract");
+    expect(restored.format).toBe("spice");
+    expect(restored.profiles.tsmc28.devices.nmos.target).toBe("nch_ulvt_mac");
   });
   it.each(["{", "null", "[]", '{"selected":"custom","profiles":{}}'])(
     "recovers malformed preferences: %s",

@@ -372,7 +372,6 @@ export function EditorAppChrome({
                   />
                 </svg>
                 Netlist
-                <span className="netlist-format">Copy</span>
               </button>
               <details className="command-menu" name="editor-command-menu">
                 <summary

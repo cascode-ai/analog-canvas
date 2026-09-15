@@ -24,6 +24,7 @@ export function NetlistCodePanel({
   onFormatChange,
   onMosTargetChange,
   onCopy,
+  onReset,
   configurationError,
 }: {
   project: CircuitProject;
@@ -34,6 +35,7 @@ export function NetlistCodePanel({
   onFormatChange(format: NetlistFormat): void;
   onMosTargetChange(family: "nmos" | "pmos", target: string): void;
   onCopy(): void;
+  onReset(): void;
   configurationError: string | null;
 }) {
   const result = useMemo(
@@ -86,8 +88,24 @@ export function NetlistCodePanel({
             ))}
           </select>
         </label>
-        <button type="button" data-testid="copy-netlist-panel" onClick={onCopy}>
-          Copy
+        <button
+          type="button"
+          className="netlist-code-copy"
+          data-testid="copy-netlist-panel"
+          aria-label="Copy netlist"
+          title="Copy netlist"
+          onClick={onCopy}
+        >
+          <svg viewBox="0 0 20 20" aria-hidden="true">
+            <path
+              d="M7 7h10v10H7z M13 7V3H3v10h4"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
         </button>
       </div>
       <Suspense
@@ -132,6 +150,11 @@ export function NetlistCodePanel({
           Report.
         </p>
       ) : null}
+      <div className="netlist-default-action">
+        <button type="button" onClick={onReset}>
+          Default
+        </button>
+      </div>
     </section>
   );
 }
