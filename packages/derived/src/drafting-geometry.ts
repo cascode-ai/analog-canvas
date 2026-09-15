@@ -52,6 +52,7 @@ export type ResolvedDraftingGeometry =
       position: DerivedPoint;
       /** Center of the editable text, which may shift between polarity marks. */
       textPosition: DerivedPoint;
+      /** Layout bearing for multipart notation. Text and marks stay upright. */
       rotation: Rotation;
       polarityLines: Array<{
         role: "positive-horizontal" | "positive-vertical" | "negative";
@@ -222,10 +223,10 @@ function resolveAnchorWithRole(
   return { anchor: resolved, diagnostics };
 }
 
-// P1: frozen final-rotation semantics. The renderer, export bounds, and
-// Snapshot all use the geometry.rotation reported here. For a "follow" route
-// anchor the anchor's own rotation composes with the object's persisted
-// rotation; for free/object anchors the object rotation stands alone.
+// The resolved rotation is the layout bearing for multipart text notation.
+// For a "follow" route anchor the anchor's own rotation composes with the
+// object's persisted rotation; for free/object anchors the object rotation
+// stands alone. Glyphs and notation strokes themselves remain screen-upright.
 function composeRotation(
   anchorRotation: Rotation,
   objectRotation: Rotation,
@@ -279,10 +280,16 @@ function resolveText(
   );
   const content = draftTextLayoutContent(document, object, metrics);
   const polarity = object.polarity
-    ? resolvePolarityTextGeometry(position, object.polarity, content, metrics)
+    ? resolvePolarityTextGeometry(
+        position,
+        object.polarity,
+        content,
+        metrics,
+        rotation,
+      )
     : null;
   const textPosition = polarity?.textPosition ?? position;
-  const unrotatedTextBounds = textBounds(
+  const resolvedTextBounds = textBounds(
     textPosition,
     object.alignment,
     0,
@@ -291,19 +298,15 @@ function resolveText(
   );
   const barePolarity =
     object.polarity === "positive" || object.polarity === "negative";
-  const unrotatedBounds = polarity
+  const bounds = polarity
     ? unionRects([
-        ...(barePolarity ? [] : [unrotatedTextBounds]),
+        ...(barePolarity ? [] : [resolvedTextBounds]),
         paddedBounds(
           unionBounds(polarity.lines.flatMap((line) => [line.from, line.to])),
           STROKE_PADDING / 2,
         ),
       ])
-    : unrotatedTextBounds;
-  const bounds =
-    rotation === 0
-      ? unrotatedBounds
-      : rotatedRectBounds(unrotatedBounds, position, rotation);
+    : resolvedTextBounds;
   return {
     kind: "text" as const,
     position,
@@ -315,11 +318,12 @@ function resolveText(
   };
 }
 
-function resolvePolarityTextGeometry(
+export function resolvePolarityTextGeometry(
   position: DerivedPoint,
   polarity: "both" | "positive" | "negative",
   content: RichTextDocument,
   metrics: ReturnType<typeof richTextMetrics>,
+  rotation: Rotation,
 ): {
   textPosition: DerivedPoint;
   lines: Extract<ResolvedDraftingGeometry, { kind: "text" }>["polarityLines"];
@@ -328,7 +332,6 @@ function resolvePolarityTextGeometry(
   const textHalfHeight = layout.height / 2;
   const markerHalfArm = metrics.fontSize * 0.23;
   const separation = textHalfHeight + markerHalfArm + metrics.fontSize * 0.18;
-  let textOffset = 0;
   let positiveOffset: number | null = null;
   let negativeOffset: number | null = null;
   if (polarity === "both") {
@@ -343,31 +346,38 @@ function resolvePolarityTextGeometry(
     ResolvedDraftingGeometry,
     { kind: "text" }
   >["polarityLines"] = [];
+  const markerCenter = (offsetY: number): DerivedPoint => {
+    const radians = (rotation * Math.PI) / 180;
+    return {
+      x: position.x - offsetY * Math.sin(radians),
+      y: position.y + offsetY * Math.cos(radians),
+    };
+  };
   if (positiveOffset !== null) {
-    const y = position.y + positiveOffset;
+    const center = markerCenter(positiveOffset);
     lines.push(
       {
         role: "positive-horizontal",
-        from: { x: position.x - markerHalfArm, y },
-        to: { x: position.x + markerHalfArm, y },
+        from: { x: center.x - markerHalfArm, y: center.y },
+        to: { x: center.x + markerHalfArm, y: center.y },
       },
       {
         role: "positive-vertical",
-        from: { x: position.x, y: y - markerHalfArm },
-        to: { x: position.x, y: y + markerHalfArm },
+        from: { x: center.x, y: center.y - markerHalfArm },
+        to: { x: center.x, y: center.y + markerHalfArm },
       },
     );
   }
   if (negativeOffset !== null) {
-    const y = position.y + negativeOffset;
+    const center = markerCenter(negativeOffset);
     lines.push({
       role: "negative",
-      from: { x: position.x - markerHalfArm, y },
-      to: { x: position.x + markerHalfArm, y },
+      from: { x: center.x - markerHalfArm, y: center.y },
+      to: { x: center.x + markerHalfArm, y: center.y },
     });
   }
   return {
-    textPosition: { x: position.x, y: position.y + textOffset },
+    textPosition: position,
     lines,
   };
 }

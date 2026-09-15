@@ -2,11 +2,19 @@ import {
   DEFAULT_ARROW_PRESET,
   type ArrowPreset,
 } from "../features/drafting/arrow-presets";
-import type { DerivedRect, GridRect, Point } from "@icm/model";
+import {
+  defaultDraftTextDocument,
+  type DerivedRect,
+  type GridRect,
+  type Point,
+} from "@icm/model";
 import {
   razaviTextbookProfile,
+  resolvePolarityTextGeometry,
+  richTextMetrics,
   type SchematicStyleProfile,
 } from "@icm/derived";
+import { renderRichTextDocument } from "@icm/render-svg";
 import type { SymbolDefinition } from "@icm/symbols";
 
 import {
@@ -33,6 +41,7 @@ export function EditorPlacementPreview({
   pendingSymbolId,
   pendingSymbol,
   draftingText,
+  draftingPolarity,
   styleProfile = razaviTextbookProfile,
   rotation,
   mirror,
@@ -45,6 +54,7 @@ export function EditorPlacementPreview({
   pendingSymbolId: string | null;
   pendingSymbol?: SymbolDefinition;
   draftingText?: string;
+  draftingPolarity?: "both" | "positive" | "negative";
   styleProfile?: SchematicStyleProfile;
   rotation: ComponentPlacementPreviewProps["rotation"];
   mirror: NonNullable<ComponentPlacementPreviewProps["mirror"]>;
@@ -70,25 +80,67 @@ export function EditorPlacementPreview({
       />
     );
   }
-  if (draftingText !== undefined) {
+  if (draftingText !== undefined || draftingPolarity !== undefined) {
+    const barePolarity =
+      draftingPolarity === "positive" || draftingPolarity === "negative";
+    const content = draftingPolarity
+      ? barePolarity
+        ? { runs: [{ kind: "line-break" as const }] }
+        : defaultDraftTextDocument("Vx")
+      : { runs: [{ kind: "text" as const, value: draftingText! }] };
+    const metrics = richTextMetrics(styleProfile, "label");
+    const polarityGeometry = draftingPolarity
+      ? resolvePolarityTextGeometry(
+          { x: 0, y: 0 },
+          draftingPolarity,
+          content,
+          metrics,
+          rotation,
+        )
+      : null;
+    const textPosition = polarityGeometry?.textPosition ?? { x: 0, y: 0 };
+    const baselineY = draftingPolarity
+      ? textPosition.y + metrics.fontSize * 0.35
+      : textPosition.y;
     return (
       <g
         data-testid="text-placement-preview"
         className="component-placement-preview"
-        transform={`translate(${previewPoint.x} ${previewPoint.y}) rotate(${rotation})`}
+        transform={`translate(${previewPoint.x} ${previewPoint.y})`}
       >
-        <text
-          x={0}
-          y={0}
-          textAnchor="middle"
-          fontSize={styleProfile.typography.annotationFontSize}
-          fontFamily={styleProfile.typography.fontFamily}
-          fontWeight="bold"
-          fontStyle="normal"
-          fill="currentColor"
-        >
-          {draftingText}
-        </text>
+        {polarityGeometry?.lines.map((line) => (
+          <line
+            key={line.role}
+            data-role={`polarity-${line.role}`}
+            x1={line.from.x}
+            y1={line.from.y}
+            x2={line.to.x}
+            y2={line.to.y}
+            stroke="currentColor"
+            strokeWidth={styleProfile.strokes.annotation}
+            strokeLinecap={styleProfile.lineCap}
+          />
+        ))}
+        {!barePolarity ? (
+          <text
+            x={textPosition.x}
+            y={baselineY}
+            textAnchor="middle"
+            fontSize={metrics.fontSize}
+            fontFamily={styleProfile.typography.fontFamily}
+            fontWeight="bold"
+            fontStyle="normal"
+            fill="currentColor"
+            dangerouslySetInnerHTML={{
+              __html: renderRichTextDocument(content, styleProfile, {
+                lineOriginX: textPosition.x,
+                fontSize: metrics.fontSize,
+                defaultBold: true,
+                defaultItalic: false,
+              }),
+            }}
+          />
+        ) : null}
       </g>
     );
   }

@@ -6742,9 +6742,15 @@ export function App({
           }}
           placementPreview={{
             styleProfile,
-            ...(pendingComponentPlacement?.kind === "drafting-text" &&
-            pendingComponentPlacement.editAfterPlacement
-              ? { draftingText: pendingComponentPlacement.text }
+            ...(pendingComponentPlacement?.kind === "drafting-text"
+              ? {
+                  ...(pendingComponentPlacement.text !== undefined
+                    ? { draftingText: pendingComponentPlacement.text }
+                    : {}),
+                  ...(pendingComponentPlacement.polarity
+                    ? { draftingPolarity: pendingComponentPlacement.polarity }
+                    : {}),
+                }
               : {}),
             vddRailMode,
             vddRailStart,

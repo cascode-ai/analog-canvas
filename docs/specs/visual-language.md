@@ -127,6 +127,9 @@ active symbol variant's visible geometry and clusters repeated overlaps.
   every negative-polarity bar remains horizontal on the page at all rotations.
   Symbol assets identify those bars with an `upright-*-polarity-negative`
   primitive part instead of relying on geometric guesses in the renderer.
+- Drafting text, formulas, fractions, and polarity marks keep their glyphs and
+  strokes upright. Rotation may change a multipart polarity annotation's
+  layout direction, but never rotates the notation itself.
 - Instance and pin text is emitted outside component transforms, so component
   rotation and mirroring cannot rotate or mirror its glyphs.
 - Object and layer ordering is deterministic by stable ID and fixed layer

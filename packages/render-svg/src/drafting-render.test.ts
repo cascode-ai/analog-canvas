@@ -1,4 +1,4 @@
-import { createEmptyDocument, transformPoint } from "@icm/model";
+import { createEmptyDocument } from "@icm/model";
 import type { RichTextRun } from "@icm/model";
 import {
   resolveDraftingObjectGeometry,
@@ -221,7 +221,7 @@ describe("drafting layer rendering", () => {
             ],
           },
           alignment: "middle",
-          rotation: 0,
+          rotation: 90,
         },
       ],
     };
@@ -237,6 +237,61 @@ describe("drafting layer rendering", () => {
     expect(svg).toContain("data-icm-formula=");
     expect(svg).toContain("<path");
     expect(svg).not.toContain("<foreignObject");
+    expect(
+      svg.match(
+        /<g data-object-id="formula-1" data-kind="draft-text"[^>]*>/u,
+      )?.[0],
+    ).not.toContain("transform=");
+  });
+
+  it("keeps ordinary glyphs and fractions upright at nonzero rotation", () => {
+    const document = createEmptyDocument("doc", "Upright drafting text");
+    document.drafting = {
+      objects: [
+        {
+          id: "greater-than",
+          kind: "text",
+          locked: false,
+          zIndex: 0,
+          anchor: { kind: "free", position: { x: 40, y: 40 } },
+          content: { runs: [{ kind: "text", value: ">" }] },
+          alignment: "middle",
+          rotation: 90,
+        },
+        {
+          id: "fraction",
+          kind: "text",
+          locked: false,
+          zIndex: 1,
+          anchor: { kind: "free", position: { x: 80, y: 40 } },
+          content: {
+            runs: [
+              {
+                kind: "fraction",
+                numerator: { runs: [{ kind: "text", value: "A" }] },
+                denominator: { runs: [{ kind: "text", value: "B" }] },
+              },
+            ],
+          },
+          alignment: "middle",
+          rotation: 270,
+        },
+      ],
+    };
+
+    const svg = renderDocumentSvg(document, resolver);
+    const glyph = svg.match(
+      /<text data-object-id="greater-than" data-kind="draft-text"[^>]*>/u,
+    )?.[0];
+    const fraction = svg.match(
+      /<g data-object-id="fraction" data-kind="draft-text"[^>]*>/u,
+    )?.[0];
+    expect(glyph).toBeDefined();
+    expect(glyph).not.toContain("transform=");
+    expect(svg).toContain(">&gt;</text>");
+    expect(fraction).toBeDefined();
+    expect(fraction).not.toContain("transform=");
+    expect(svg).toContain('data-role="fraction-bar"');
   });
 
   it.each([
@@ -273,24 +328,17 @@ describe("drafting layer rendering", () => {
       )?.[0];
       expect(group).toBeDefined();
       expect(group?.match(/data-role="polarity-/gu)).toHaveLength(lineCount);
-      expect(group).toContain('transform="rotate(90 100 100)"');
+      expect(group).not.toContain("transform=");
       expect(group).toContain("V_x");
-      if (polarity !== "positive") {
-        const negative = group?.match(
-          /<line data-role="polarity-negative" x1="([^"]+)" y1="([^"]+)" x2="([^"]+)" y2="([^"]+)"/u,
+      for (const horizontalRole of ["positive-horizontal", "negative"]) {
+        const line = group?.match(
+          new RegExp(
+            `<line data-role="polarity-${horizontalRole}" x1="([^"]+)" y1="([^"]+)" x2="([^"]+)" y2="([^"]+)"`,
+            "u",
+          ),
         );
-        expect(negative).not.toBeNull();
-        const worldStart = transformPoint(
-          { x: Number(negative![1]), y: Number(negative![2]) },
-          { x: 100, y: 100 },
-          { rotation: 90, mirror: "none" },
-        );
-        const worldEnd = transformPoint(
-          { x: Number(negative![3]), y: Number(negative![4]) },
-          { x: 100, y: 100 },
-          { rotation: 90, mirror: "none" },
-        );
-        expect(worldStart.y).toBeCloseTo(worldEnd.y, 6);
+        if (!line) continue;
+        expect(Number(line[2])).toBeCloseTo(Number(line[4]), 6);
       }
     },
   );

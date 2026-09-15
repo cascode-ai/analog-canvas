@@ -6,6 +6,7 @@ import {
   createEmptyProject,
   flattenRichText,
 } from "@icm/model";
+import { fractionGeometry } from "@icm/derived";
 
 import {
   awaitEditorReady,
@@ -780,7 +781,7 @@ test("T previews text at the pointer without creating it and Escape cancels", as
   await expect(preview).toHaveText("Design note");
   await expect(preview).toHaveAttribute(
     "transform",
-    `translate(${expected.x} ${expected.y}) rotate(0)`,
+    `translate(${expected.x} ${expected.y})`,
   );
   await expect(preview).toHaveCSS("pointer-events", "none");
   expect(
@@ -797,7 +798,7 @@ test("T previews text at the pointer without creating it and Escape cancels", as
   const next = await snappedCanvasPoint(canvas, moved, 1);
   await expect(preview).toHaveAttribute(
     "transform",
-    `translate(${next.x} ${next.y}) rotate(0)`,
+    `translate(${next.x} ${next.y})`,
   );
   await page.keyboard.press("Escape");
   await expect(preview).toHaveCount(0);
@@ -856,12 +857,12 @@ test("places Text at its preview after zoom and pan, then edits and undoes it", 
   const preview = page.getByTestId("text-placement-preview");
   await expect(preview).toHaveAttribute(
     "transform",
-    `translate(${expected.x} ${expected.y}) rotate(0)`,
+    `translate(${expected.x} ${expected.y})`,
   );
   await page.keyboard.press("r");
   await expect(preview).toHaveAttribute(
     "transform",
-    `translate(${expected.x} ${expected.y}) rotate(90)`,
+    `translate(${expected.x} ${expected.y})`,
   );
   await expect(preview.locator("text")).toHaveAttribute("font-weight", "bold");
   const previewBounds = await preview.locator("text").boundingBox();
@@ -898,7 +899,7 @@ test("places Text at its preview after zoom and pan, then edits and undoes it", 
     "utf8",
   );
   expect(svg).toContain("Custom text");
-  expect(svg).toContain(`rotate(90 ${expected.x} ${expected.y})`);
+  expect(svg).not.toContain(`rotate(90 ${expected.x} ${expected.y})`);
   expect(svg).not.toContain("text-placement-preview");
   await clickCommand(page, "Edit", "Undo");
   await expect(texts).toHaveText("Design note");
@@ -909,7 +910,7 @@ test("places Text at its preview after zoom and pan, then edits and undoes it", 
   await expect(texts).toHaveText("Custom text");
 });
 
-test("previews a copied text at the cursor and commits its rotated pose atomically", async ({
+test("previews copied text upright and commits its pose atomically", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -965,9 +966,11 @@ test("previews a copied text at the cursor and commits its rotated pose atomical
   await page.keyboard.press("r");
   await expect(previewText).toBeInViewport();
   const rotatedPreview = (await previewText.boundingBox())!;
-  // One R step is a quarter-turn, so this wide label becomes taller than it
-  // is wide while the source remains unchanged.
-  expect(rotatedPreview.height).toBeGreaterThan(rotatedPreview.width);
+  // Rotation metadata may change a multipart annotation's layout, but an
+  // ordinary note keeps its glyphs upright and its source remains unchanged.
+  expect(rotatedPreview.width).toBeGreaterThan(rotatedPreview.height);
+  expect(rotatedPreview.width).toBeCloseTo(origin.width, 1);
+  expect(rotatedPreview.height).toBeCloseTo(origin.height, 1);
   await canvas.click({ position: { x: 420, y: 380 } });
   await page.keyboard.press("Escape");
 
@@ -2212,7 +2215,7 @@ test("authors inline fractions alongside styled text and preserves them through 
   await page.getByRole("button", { name: "Apply text changes" }).click();
   await expect(page.getByTestId("revision")).toHaveText(revision!);
 
-  await expect(note).toHaveAttribute("transform", /rotate\(90 /u);
+  expect(await note.getAttribute("transform")).toBeNull();
   const svg = (await downloadBytes(page, "File", "Export SVG")).toString(
     "utf8",
   );
@@ -2403,10 +2406,17 @@ test("centers fraction parts on a content-sized bar and defaults notes to bold",
         top: bounds("numerator"),
         bottom: bounds("denominator"),
         bar: bounds("bar"),
+        partFontSize: parseFloat(
+          getComputedStyle(
+            element.querySelector<SVGTextElement>(
+              '[data-role="fraction-numerator"] text',
+            )!,
+          ).fontSize,
+        ),
       };
     });
   const check = async (target: Locator) => {
-    const { top, bottom, bar } = await measure(target);
+    const { top, bottom, bar, partFontSize } = await measure(target);
     for (const part of [top, bottom]) {
       expect(Math.abs(part.center - bar.center)).toBeLessThan(0.02);
       expect(part.x).toBeGreaterThan(bar.x);
@@ -2414,7 +2424,7 @@ test("centers fraction parts on a content-sized bar and defaults notes to bold",
     }
     // Fixed small overhang; the line must not grow independently of the text.
     expect(bar.width - Math.max(top.width, bottom.width)).toBeCloseTo(
-      15.116 * 0.988 * 0.105 * 2,
+      partFontSize * fractionGeometry.barOverhangEm * 2,
       2,
     );
     return bar.width;
