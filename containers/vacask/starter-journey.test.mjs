@@ -1,7 +1,8 @@
 import { mkdir, mkdtemp, readFile, writeFile, rm } from "node:fs/promises";
 import { delimiter, join, resolve } from "node:path";
 import { tmpdir } from "node:os";
-import { expect, it, vi } from "vitest";
+import { afterAll, expect, it, vi } from "vitest";
+import { analyzeNativeExampleRuns } from "../../scripts/lib/native-example-acceptance.mjs";
 import { parseProject } from "../../packages/project-protocol/src/index.js";
 import { compileSourceSimulation } from "../../packages/netlist/src/simulation-source-compile.js";
 import {
@@ -29,6 +30,26 @@ const legacyLibraryOta = JSON.parse(
     "utf8",
   ),
 );
+
+// Opt-in aggregate checks consume actual public-service results, not mocked
+// acceptance records. Partial/focused executions cannot satisfy this gate.
+const starterAcceptanceRuns = new Map();
+afterAll(async () => {
+  if (process.env.ICM_VACASK_STARTER_SANITY !== "1") return;
+  const summary = analyzeNativeExampleRuns(starterAcceptanceRuns);
+  if (process.env.ICM_VACASK_EVIDENCE_DIR) {
+    const directory = await mkdtemp(
+      join(resolve(process.env.ICM_VACASK_EVIDENCE_DIR), "starter-sanity-"),
+    );
+    await writeFile(
+      join(directory, "acceptance.json"),
+      JSON.stringify(summary, null, 2),
+      { flag: "wx" },
+    );
+    console.info("Starter sanity evidence", directory);
+  }
+  expect(summary.status, JSON.stringify(summary.checks)).toBe("passed");
+});
 
 function assertLibraryOtaResult(id, data, measurements) {
   const original = legacyLibraryOta.simulationSetups.find(
@@ -1066,14 +1087,16 @@ it
           ? JSON.parse(await artifactText("native-measurements.json"))
           : [];
         const result = JSON.parse(await artifactText("result.json"));
-        if (modelBacked && process.env.ICM_VACASK_EVIDENCE_DIR) {
+        if (kind !== "ota-library")
+          starterAcceptanceRuns.set(folder.id, { result, measurements });
+        if (process.env.ICM_VACASK_EVIDENCE_DIR) {
           const parent = resolve(process.env.ICM_VACASK_EVIDENCE_DIR);
           await mkdir(parent, { recursive: true });
           const evidence = await mkdtemp(join(parent, `${folder.id}-public-`));
           for (const name of [
             "result.json",
             "outputs.json",
-            "evidence.json",
+            "evidence-manifest.json",
             "native-measurements.json",
           ])
             if (run.artifacts.some((a) => a.name === name))
@@ -1086,7 +1109,7 @@ it
             join(evidence, "circuit.sim"),
             await artifactText("executed/circuit.spice"),
           );
-          console.info("Model-starter-public-artifacts", evidence);
+          console.info("Starter-public-artifacts", evidence);
         }
         console.info(
           "Starter-native-evidence",
