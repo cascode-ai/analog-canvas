@@ -123,6 +123,47 @@ the original models nor the old reference JSON is changed. Successful reference
 acquisition does not itself mean VACASK has passed a comparison. It is not a
 product runner, a runtime fallback, or a cloud model installation tool.
 
+For sampling convergence, add `--noise-points 200` (points per decade; default
+20), or `--noise-details` to capture each source contribution as well as the
+total spectrum and integrals. The selected settings are recorded in
+`reference.json`. Other analyses, source values, models and solver settings do
+not change. Runs retain the existing timeout; a very dense capture may fail
+rather than silently returning fewer points.
+
+### Noise integration is a separate numerical contract
+
+At TT with the upgraded BSIM4 4.8.3 reference, all 181 input/output noise ASD
+samples agree with the corrected native model within relative 1e-8 plus
+absolute 1e-15. This does **not** mean the two engines' integral labels denote
+the same algorithm. The product explicitly integrates the recorded total PSD
+by the trapezoidal rule and refers each frequency through its own power gain.
+It labels these values `trapezoidal-psd`, including in CSV and output semantics.
+
+The following independent ngspice 46 measurements hold all other inputs fixed
+(1 Hz–1 GHz; values in V RMS):
+
+| Points/decade | Reported output | Total-PSD trapezoidal output | Reported input | Total-PSD trapezoidal input |
+| ------------- | --------------- | ---------------------------- | -------------- | --------------------------- |
+| 20            | 0.002520668164  | 0.002523919919               | 0.000784694629 | 0.000755139535              |
+| 200           | 0.002521052765  | 0.002521085282               | 0.000757983909 | 0.000755058836              |
+| 2000          | 0.002521056615  | 0.002521056938               | 0.000755350238 | 0.000755058025              |
+
+The current product's 20-point integrals are 0.002523919919 and 0.000755139535:
+they match the **same method applied to the reference spectrum**, not the
+reported ngspice totals. Summing the 84 captured BSIM noise-source integrals
+with a power-law fit and the interval's right-end gain reproduces the reported
+input value to relative 2e-13. Thus changing the native model to match that
+scalar would be incorrect. The upstream [noise integrator](https://github.com/ngspice/ngspice/blob/master/src/spicelib/analysis/ninteg.c)
+and [BSIM noise source integration](https://github.com/ngspice/ngspice/blob/master/src/spicelib/devices/bsim4/b4noi.c)
+explain the mechanism; these moving source links are explanatory, not the
+identity of our independently hashed ngspice 46 binary.
+
+Qualification must compare spectra and like-for-like integrals, retain the
+simulator-reported totals separately, and assess sampling convergence. This
+finding neither relaxes the spectrum tolerance nor qualifies the remaining
+AC, TRAN, full model domain or hosted Profile. Product integration behavior
+was not changed to chase the reference totals.
+
 Offline conversion integration tests use `ICM_VACASK_CONVERTER_SOURCE` and
 `ICM_SKY130_MODEL_SOURCE` (defaulting to the local `plan/upstream` checkouts).
 They skip when those optional dependencies are unavailable; CI does not

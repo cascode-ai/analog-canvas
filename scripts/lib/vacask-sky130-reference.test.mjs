@@ -6,7 +6,39 @@ import { createHash } from "node:crypto";
 import {
   upgradeReferenceModelVersions,
   referenceModelTreeSha256,
+  otaReferenceDeck,
 } from "./vacask-sky130-reference.mjs";
+
+describe("independent OTA reference sampling", () => {
+  const input = { circuit: "* DUT", testbench: "* TB", corner: "ff" };
+  it("changes only noise sampling and capture, not other electrical settings", () => {
+    const original = otaReferenceDeck(input);
+    expect(original).toContain('"../models/sky130.lib.spice" ff');
+    expect(original).toContain("noise v(vout) VINP dec 20 1 1g\n");
+    const dense = otaReferenceDeck({
+      ...input,
+      noisePointsPerDecade: 2000,
+      noiseSourceDetails: true,
+    });
+    expect(dense).toBe(
+      original
+        .replace("dec 20 1 1g\n", "dec 2000 1 1g 1\n")
+        .replace("noise.raw onoise_spectrum inoise_spectrum", "noise.raw all")
+        .replace(
+          "integrated.raw onoise_total inoise_total",
+          "integrated.raw all",
+        ),
+    );
+  });
+  it.each([0, -1, 2.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1])(
+    "refuses invalid sampling %s instead of acquiring an accidental reference",
+    (noisePointsPerDecade) => {
+      expect(() =>
+        otaReferenceDeck({ ...input, noisePointsPerDecade }),
+      ).toThrow("positive safe integer");
+    },
+  );
+});
 
 describe("explicit reference model upgrade", () => {
   it("hashes the complete tree with the hosted byte/path convention", () => {

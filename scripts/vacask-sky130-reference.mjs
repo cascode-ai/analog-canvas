@@ -13,6 +13,7 @@ import {
   referenceModelTreeSha256,
   upgradeReferenceModelVersions,
   sha256,
+  otaReferenceDeck,
 } from "./lib/vacask-sky130-reference.mjs";
 
 // Offline independent reference only, not a fallback runtime. The original
@@ -22,15 +23,28 @@ const { values } = parseArgs({
     binary: { type: "string" },
     models: { type: "string" },
     output: { type: "string", default: "output/vacask-qualification" },
+    "noise-points": { type: "string", default: "20" },
+    "noise-details": { type: "boolean", default: false },
   },
 });
 if (!values.binary || !values.models)
   throw Error(
-    "Use --binary <original pinned ngspice 46> --models <original /opt/sky130 tree> [--output <parent>]",
+    "Use --binary <original pinned ngspice 46> --models <original /opt/sky130 tree> [--output <parent>] [--noise-points <points-per-decade>] [--noise-details]",
   );
 const binary = resolve(values.binary),
   modelRoot = resolve(values.models);
 const models = join(modelRoot, "continuous");
+const noiseSampling = {
+  noisePointsPerDecade: Number(values["noise-points"]),
+  noiseSourceDetails: values["noise-details"],
+};
+// Check before expensive model hashing/copying or simulator execution.
+otaReferenceDeck({
+  circuit: "",
+  testbench: "",
+  corner: "tt",
+  ...noiseSampling,
+});
 const profile = JSON.parse(
   readFileSync(
     new URL(
@@ -56,6 +70,7 @@ const report = {
   originalModelTreeSha256: profile.models.contentSha256,
   originalContinuousTreeSha256: referenceModelTreeSha256(models),
   modelVersion: "4.8.3",
+  noiseSampling,
   files: {},
   cases: [],
 };
@@ -84,30 +99,12 @@ console.log(`Evidence: ${output}`);
 for (const corner of profile.models.library.sections) {
   const cwd = join(output, corner);
   mkdirSync(cwd);
-  const deck = `Independent OTA BSIM4 4.8.3 ${corner}
-.lib "../models/sky130.lib.spice" ${corner}
-${circuit}
-${tb}
-.options reltol=1e-8 abstol=1e-12 vntol=1e-10
-.control
-set filetype=ascii
-op
-write op.raw v(vout) v(ibias) v(xdut.tail) v(xdut.nleft)
-dc VINP 0.88 0.92 0.005
-write dc.raw v(vout) v(ibias) v(xdut.tail) v(xdut.nleft)
-ac dec 10 1 1g
-write ac.raw v(vout) v(ibias) v(xdut.tail) v(xdut.nleft)
-tran 20n 4u 0 2n
-write tran.raw v(vout) v(ibias) v(xdut.tail) v(xdut.nleft)
-noise v(vout) VINP dec 20 1 1g
-setplot noise1
-write noise.raw onoise_spectrum inoise_spectrum
-setplot noise2
-write integrated.raw onoise_total inoise_total
-quit
-.endc
-.end
-`;
+  const deck = otaReferenceDeck({
+    circuit,
+    testbench: tb,
+    corner,
+    ...noiseSampling,
+  });
   writeFileSync(join(cwd, "run.cir"), deck);
   const run = spawnSync(binary, ["-n", "-b", "run.cir"], {
     cwd,
@@ -145,7 +142,7 @@ quit
       ["dc", 9],
       ["ac", 91],
       ["tran", null],
-      ["noise", 181],
+      ["noise", noiseSampling.noisePointsPerDecade * 9 + 1],
       ["integrated", 1],
     ]) {
       const bytes = readFileSync(join(cwd, name + ".raw"));

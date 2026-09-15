@@ -5,6 +5,43 @@ import { join, relative } from "node:path";
 export const sha256 = (bytes) =>
   createHash("sha256").update(bytes).digest("hex");
 
+// Reference acquisition must expose sampling: ngspice's source-by-source
+// integrated noise is not the same quantity as a sampled total-PSD estimate.
+export function otaReferenceDeck({
+  circuit,
+  testbench,
+  corner,
+  noisePointsPerDecade = 20,
+  noiseSourceDetails = false,
+}) {
+  if (!Number.isSafeInteger(noisePointsPerDecade) || noisePointsPerDecade < 1)
+    throw Error("Noise points per decade must be a positive safe integer");
+  return `Independent OTA BSIM4 4.8.3 ${corner}
+.lib "../models/sky130.lib.spice" ${corner}
+${circuit}
+${testbench}
+.options reltol=1e-8 abstol=1e-12 vntol=1e-10
+.control
+set filetype=ascii
+op
+write op.raw v(vout) v(ibias) v(xdut.tail) v(xdut.nleft)
+dc VINP 0.88 0.92 0.005
+write dc.raw v(vout) v(ibias) v(xdut.tail) v(xdut.nleft)
+ac dec 10 1 1g
+write ac.raw v(vout) v(ibias) v(xdut.tail) v(xdut.nleft)
+tran 20n 4u 0 2n
+write tran.raw v(vout) v(ibias) v(xdut.tail) v(xdut.nleft)
+noise v(vout) VINP dec ${noisePointsPerDecade} 1 1g${noiseSourceDetails ? " 1" : ""}
+setplot noise1
+write noise.raw ${noiseSourceDetails ? "all" : "onoise_spectrum inoise_spectrum"}
+setplot noise2
+write integrated.raw ${noiseSourceDetails ? "all" : "onoise_total inoise_total"}
+quit
+.endc
+.end
+`;
+}
+
 // Same byte identity convention as the historical hosted Profile. Reference
 // acquisition is local/read-only; this helper is never a product executor.
 export function referenceModelTreeSha256(root) {

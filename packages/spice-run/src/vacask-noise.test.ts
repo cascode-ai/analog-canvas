@@ -47,6 +47,27 @@ const closeRelative = (actual: number | null | undefined, expected: number) => {
   expect(Math.abs(actual / expected - 1)).toBeLessThan(1e-12);
 };
 
+// Authored analytical adapter input, not a claimed simulator capture.
+function analyticalSpectrum(
+  frequency: number[],
+  psd: number[],
+  gain: number[],
+) {
+  return `Title: Analytical noise integration
+Date: analytical test input
+Plotname: noise
+Flags: real
+No. Variables: 3
+No. Points: ${frequency.length}
+Variables:
+0 frequency frequency
+1 onoise notype
+2 gain notype
+Values:
+${frequency.map((f, i) => `${i} ${f}\n ${psd[i]}\n ${gain[i]}`).join("\n")}
+`;
+}
+
 describe("native noise numerical semantics", () => {
   it.each(["voltage", "current"] as const)(
     "qualifies captured %s-input output against 4kTR",
@@ -150,6 +171,44 @@ Values:
     expect(csv.find((line) => line.startsWith("input-referred noise,"))).toBe(
       "input-referred noise,,V",
     );
+  });
+
+  it("refers each endpoint through its own power gain before integrating", () => {
+    // Flat output PSD, changing gain: input PSD endpoints are 0.01 and 0.04.
+    // Using the right-end gain for the whole interval would wrongly yield 0.4.
+    const { noise } = read(analyticalSpectrum([10, 20], [1, 1], [100, 25]));
+    closeRelative(noise.integratedOutputNoise, Math.sqrt(10));
+    closeRelative(noise.integratedInputNoise, Math.sqrt(0.25));
+    expect(noise.inputNoiseDensity).toEqual([0.1, 0.2]);
+  });
+
+  it("converges to the closed-form 1/f integral as log sampling is refined", () => {
+    const exact = Math.sqrt(Math.log(100));
+    const error = (pointsPerDecade: number) => {
+      const frequency = Array.from(
+        { length: 2 * pointsPerDecade + 1 },
+        (_, i) => 10 ** (i / pointsPerDecade),
+      );
+      const { noise } = read(
+        analyticalSpectrum(
+          frequency,
+          frequency.map((f) => 1 / f),
+          frequency.map(() => 1),
+        ),
+      );
+      expect(noise.integratedOutputNoise).toBe(noise.integratedInputNoise);
+      return noise.integratedOutputNoise! / exact - 1;
+    };
+    // Convex PSD makes the trapezoidal estimate an overestimate; its error
+    // decreases quadratically. An ngspice-reported integral is not the oracle
+    // for this explicitly labelled sampled-spectrum numerical method.
+    const coarse = error(20),
+      fine = error(200);
+    expect(coarse).toBeGreaterThan(0);
+    expect(coarse).toBeLessThan(0.002);
+    expect(fine).toBeGreaterThan(0);
+    expect(fine).toBeLessThan(coarse / 90);
+    expect(fine).toBeLessThan(0.00002);
   });
 
   it("does not infer bandwidth from a single frequency", () => {
