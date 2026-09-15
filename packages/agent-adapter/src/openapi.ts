@@ -20,6 +20,7 @@ import {
   AgentConnectionCredentialResponseJsonSchema,
   AgentConnectorResumeRequestJsonSchema,
   AgentTransportErrorResponseJsonSchema,
+  AgentSessionStatusResponseJsonSchema,
 } from "./envelope.js";
 
 function componentSchema(
@@ -372,6 +373,35 @@ export const agentCircuitOpenApi = {
     version: AGENT_API_VERSION,
   },
   paths: {
+    "/api/agent/sessions/{sessionId}/status": {
+      get: {
+        operationId: "agentSessionStatus",
+        description:
+          "Read authenticated relay observations without contacting the editor or renewing the idle deadline. Attachment is not execution readiness. Paused sessions remain readable.",
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: "sessionId",
+            in: "path",
+            required: true,
+            schema: { type: "string", minLength: 1 },
+          },
+        ],
+        responses: {
+          "200": {
+            description: "Session observation",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/agentSessionStatus" },
+              },
+            },
+          },
+          "401": transportErrorResponse(agentTransportErrorExamples["401"]),
+          "404": transportErrorResponse(agentTransportErrorExamples["404"]),
+          "409": transportErrorResponse(agentTransportErrorExamples["409"]),
+        },
+      },
+    },
     "/api/agent/claims": {
       post: {
         operationId: "agentClaimRedeem",
@@ -508,6 +538,10 @@ export const agentCircuitOpenApi = {
       bearerAuth: { type: "http", scheme: "bearer" },
     },
     schemas: {
+      agentSessionStatus: componentSchema(
+        AgentSessionStatusResponseJsonSchema as Record<string, unknown>,
+        "agentSessionStatus",
+      ),
       agentClaimRequest: agentClaimRequestSchema,
       agentConnectorResumeRequest: agentConnectorResumeRequestSchema,
       agentTransportErrorResponse: agentTransportErrorResponseSchema,

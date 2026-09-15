@@ -472,6 +472,7 @@ describe("public Agent session routes", () => {
       "/api/agent/sessions/{sessionId}/files",
       "/api/agent/sessions/{sessionId}/projects",
       "/api/agent/sessions/{sessionId}/simulation",
+      "/api/agent/sessions/{sessionId}/status",
     ]);
   });
 

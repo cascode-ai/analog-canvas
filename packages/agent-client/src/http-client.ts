@@ -12,6 +12,8 @@ import {
   type AgentProjectResourceRequest,
   type AgentProjectResourceResponse,
   AgentProjectResourceResponseSchema,
+  AgentSessionStatusResponseSchema,
+  type AgentSessionStatusResponse,
 } from "@icm/agent-adapter";
 import {
   invalidResponseFailure,
@@ -245,6 +247,23 @@ export class AgentHttpClient {
       const body: unknown = await response.json().catch(() => null);
       throw this.transportError(response.status, body);
     }
+  }
+
+  async status(
+    sessionId: string,
+    agentToken: string,
+  ): Promise<AgentSessionStatusResponse> {
+    const response = await this.send(
+      `/api/agent/sessions/${encodeURIComponent(sessionId)}/status`,
+      { method: "GET", headers: { authorization: `Bearer ${agentToken}` } },
+      3_000,
+    );
+    const body: unknown = await response.json().catch(() => null);
+    if (!response.ok) throw this.transportError(response.status, body);
+    const parsed = AgentSessionStatusResponseSchema.safeParse(body);
+    if (!parsed.success)
+      throw invalidResponseFailure("Session status failed schema validation");
+    return parsed.data;
   }
 
   private async send(

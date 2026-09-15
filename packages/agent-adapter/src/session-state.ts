@@ -441,11 +441,18 @@ export class AgentSessionMachine {
 
   /** Validate an Agent bearer token and return the authorized session. */
   authorize(token: string, now: number): SessionAuthorizationResult {
-    const lifecycle = this.lifecycleCode(now);
-    if (lifecycle) return { ok: false, code: lifecycle };
+    const auth = this.authorizeStatus(token, now);
+    if (!auth.ok) return auth;
     if (this.internals.status === "paused") {
       return { ok: false, code: "SESSION_PAUSED" };
     }
+    return auth;
+  }
+
+  /** A paused session may inspect its status without resuming or renewing it. */
+  authorizeStatus(token: string, now: number): SessionAuthorizationResult {
+    const lifecycle = this.lifecycleCode(now);
+    if (lifecycle) return { ok: false, code: lifecycle };
     const record = this.internals.token;
     if (!record || !constantTimeEqual(secretVerifier(token), record.verifier)) {
       return { ok: false, code: "TOKEN_INVALID" };

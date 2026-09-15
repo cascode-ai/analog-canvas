@@ -18,6 +18,25 @@ export const AGENT_HEARTBEAT_INTERVAL_MS = 15_000;
 export const AGENT_HEARTBEAT_TIMEOUT_MS = 45_000;
 export const AGENT_SSE_KEEPALIVE_INTERVAL_MS = 25_000;
 
+/** Relay observations, not a guarantee that the editor can execute a request. */
+export const AgentSessionStatusResponseSchema = z.strictObject({
+  ok: z.literal(true),
+  sessionId: z.string().min(1),
+  projectId: z.string().min(1),
+  documentIds: z.array(z.string().min(1)),
+  authorization: z.enum(["active", "paused"]),
+  editor: z.enum(["attached", "detached"]),
+  observedAt: z.number().int().nonnegative(),
+  expiresAt: z.number().int().nonnegative(),
+});
+export type AgentSessionStatusResponse = z.infer<
+  typeof AgentSessionStatusResponseSchema
+>;
+export const AgentSessionStatusResponseJsonSchema = z.toJSONSchema(
+  AgentSessionStatusResponseSchema,
+  { target: "draft-2020-12", reused: "ref" },
+);
+
 const OpaqueIdSchema = z.string().min(1);
 const IsoTimestampSchema = z
   .string()

@@ -13,6 +13,7 @@ import {
   type AgentSimulationResourceResponse,
   type AgentProjectResourceRequest,
   type AgentProjectResourceResponse,
+  type AgentSessionStatusResponse,
 } from "@icm/agent-adapter";
 import { z } from "zod";
 import {
@@ -78,6 +79,7 @@ export interface ConnectReport {
 }
 
 export interface StatusReport extends ConnectionSnapshot {
+  observation: AgentSessionStatusResponse | null;
   sessionId: string | null;
   projectId: string | null;
   documentIds: string[];
@@ -138,6 +140,7 @@ export class AgentSessionClient {
   private readonly connectorStore: ConnectorStore | undefined;
   private readonly inflight = new Map<string, Promise<AgentCircuitResponse>>();
   private session: ActiveSession | null = null;
+  private observation: AgentSessionStatusResponse | null = null;
   private capabilitiesCache: AgentCapabilitiesResponse | null = null;
   private resumePromise: Promise<ActiveSession | null> | null = null;
 
@@ -175,6 +178,7 @@ export class AgentSessionClient {
       this.cache.clear();
       this.receipts.length = 0;
       this.capabilitiesCache = null;
+      this.observation = null;
       this.session = this.activeSession(claim);
       await this.persistConnector(claim);
       return await this.establishContext("claimed");
@@ -252,22 +256,25 @@ export class AgentSessionClient {
   }
 
   async status(options: { refresh?: boolean } = {}): Promise<StatusReport> {
-    if (options.refresh && this.session) {
+    if (options.refresh && (this.session || this.connectorStore)) {
       try {
-        await this.capabilities({ force: true });
+        this.observation = await this.withAuthorization((session) =>
+          this.http.status(session.sessionId, session.agentToken),
+        );
+        this.connection.observe(this.observation);
+        this.updateDocumentRoster(this.observation.documentIds);
       } catch (error) {
         if (!(error instanceof AgentSessionError)) throw error;
-        // dispatch already records offline/revoked. Other failed probes must
-        // not leave a stale green status (nor destroy a usable credential).
-        if (
-          error.category !== "editor-offline" &&
-          error.category !== "unrecoverable-credential"
-        )
-          this.connection.apply("transport-interrupted", error.code);
+        // A failed observation is not proof of a detached browser. Preserve
+        // the last timestamped evidence and let only authorization failures
+        // discard a pairing.
+        if (error.category !== "unrecoverable-credential")
+          this.connection.observe(null, error.code);
       }
     }
     return {
       ...this.connection.snapshot,
+      observation: this.observation,
       sessionId: this.session?.sessionId ?? null,
       projectId: this.session?.projectId ?? null,
       documentIds: [...(this.session?.documentIds ?? [])],
@@ -721,6 +728,7 @@ export class AgentSessionClient {
   }
 
   private async discardCredential(code: string): Promise<void> {
+    this.observation = null;
     this.connection.apply("credential-revoked", code);
     this.session = null;
     this.capabilitiesCache = null;

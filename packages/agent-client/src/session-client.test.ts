@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -32,14 +32,14 @@ describe("agent session client", () => {
   it("probes status and clears a replaced project instead of reporting cached online", async () => {
     const { client, http } = await freshClient();
     await client.connect("session-1.code");
-    http.circuitHandler = async () => {
+    vi.spyOn(http, "status").mockImplementation(async () => {
       throw new AgentSessionError(
         "PROJECT_REPLACED",
         "replaced",
         "unrecoverable-credential",
         410,
       );
-    };
+    });
     expect((await client.status()).state).toBe("online");
     expect(await client.status({ refresh: true })).toMatchObject({
       state: "revoked",
@@ -63,6 +63,50 @@ describe("agent session client", () => {
     const calls = http.circuitCalls.length;
     await client.capabilities();
     expect(http.circuitCalls.length).toBe(calls);
+  });
+
+  it("reads relay observations without a Circuit probe and retains pairing on network failure", async () => {
+    const { client, http } = await freshClient();
+    await client.connect("session-1.code");
+    const calls = http.circuitCalls.length;
+    const probe = vi.spyOn(http, "status").mockResolvedValue({
+      ok: true,
+      sessionId: "session-1",
+      projectId: "project-1",
+      documentIds: ["main"],
+      authorization: "paused",
+      editor: "attached",
+      observedAt: 1000,
+      expiresAt: 999999,
+    });
+    expect(await client.status({ refresh: true })).toMatchObject({
+      state: "paused",
+    });
+    probe.mockRejectedValueOnce(
+      new AgentSessionError("NETWORK_FAILURE", "timeout", "network"),
+    );
+    expect(await client.status({ refresh: true })).toMatchObject({
+      state: "unknown",
+      projectId: "project-1",
+      tokenValid: true,
+    });
+    probe.mockResolvedValue({
+      ok: true,
+      sessionId: "session-1",
+      projectId: "project-1",
+      documentIds: ["main"],
+      authorization: "active",
+      editor: "attached",
+      observedAt: 2000,
+      expiresAt: 999999,
+    });
+    expect(await client.status({ refresh: true })).toMatchObject({
+      state: "attached",
+    });
+    expect(http.circuitCalls).toHaveLength(calls);
+    await client.snapshot("main", { refresh: true });
+    expect((await client.status()).state).toBe("online");
+    expect(http.claims).toHaveLength(1);
   });
 
   it("never exposes the token through status or connect reports", async () => {
