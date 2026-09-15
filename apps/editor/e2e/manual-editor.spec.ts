@@ -6005,6 +6005,11 @@ test("edits the complete Project Code with one undo boundary and protects a stal
   const apply = page.getByRole("button", { name: "Apply", exact: true });
   const reload = page.getByRole("button", { name: "Reload", exact: true });
   await expect(projectCode).toBeVisible();
+  await expect(
+    page
+      .getByRole("region", { name: "Project Code", exact: true })
+      .getByRole("heading"),
+  ).toHaveCount(0);
   const projectEditor = page.locator(
     '.project-source-editor[data-language="json"]',
   );
@@ -6113,9 +6118,27 @@ test("shows and copies a live MOS netlist when only bulk terminals are omitted",
   const spectre = await copyNetlistText(page, "spectre");
   expect(spectre).toMatch(/M1 \(\S+ \S+ \S+ 0\) NMOS/u);
   expect(spectre).toMatch(/M2 \(\S+ \S+ \S+ VDD\) PMOS/u);
-  await expect(
-    page.getByRole("region", { name: "Live netlist" }).getByRole("alert"),
-  ).toHaveCount(0);
+  const panel = page.getByRole("region", {
+    name: "Live netlist",
+    exact: true,
+  });
+  const nmos = panel.getByLabel("NMOS netlist target");
+  const pmos = panel.getByLabel("PMOS netlist target");
+  await expect(nmos).toHaveValue("NMOS");
+  await expect(pmos).toHaveValue("PMOS");
+  await nmos.fill("CUSTOM_NMOS");
+  await pmos.fill("CUSTOM_PMOS");
+  await expect(panel.getByLabel("Netlist code")).toContainText("CUSTOM_NMOS");
+  await expect(panel.getByLabel("Netlist code")).toContainText("CUSTOM_PMOS");
+  await page.reload();
+  await page.getByTestId("netlist-panel-toggle").click();
+  await expect(panel.getByLabel("NMOS netlist target")).toHaveValue(
+    "CUSTOM_NMOS",
+  );
+  await expect(panel.getByLabel("PMOS netlist target")).toHaveValue(
+    "CUSTOM_PMOS",
+  );
+  await expect(panel.getByRole("alert")).toHaveCount(0);
 });
 
 test("edits process configuration as raw JSON and remembers process and format independently", async ({

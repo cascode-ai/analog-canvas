@@ -16,6 +16,7 @@ describe("live netlist controls", () => {
         profile={createNetlistExportProfile("tsmc28")}
         onProfileChange={vi.fn()}
         onFormatChange={vi.fn()}
+        onMosTargetChange={vi.fn()}
         onCopy={vi.fn()}
         configurationError={null}
       />,
@@ -23,6 +24,9 @@ describe("live netlist controls", () => {
 
     expect(markup).toContain('aria-label="Netlist process"');
     expect(markup).toContain('aria-label="Netlist format"');
+    expect(markup.indexOf("Netlist format")).toBeLessThan(
+      markup.indexOf("Netlist process"),
+    );
     expect(markup).toContain(">Abstract<");
     expect(markup).toContain(">SKY130 PDK<");
     expect(markup).toContain('value="tsmc28" selected=""');
@@ -31,5 +35,10 @@ describe("live netlist controls", () => {
     expect(markup).toContain(">Custom<");
     expect(markup).toContain('value="spectre" selected=""');
     expect(markup).toContain('data-testid="copy-netlist-panel"');
+    expect(markup).toContain('aria-label="NMOS netlist target"');
+    expect(markup).toContain('value="nch_ulvt_mac"');
+    expect(markup).toContain('aria-label="PMOS netlist target"');
+    expect(markup).toContain('value="pch_ulvt_mac"');
+    expect(markup).not.toContain("<h2>Netlist</h2>");
   });
 });

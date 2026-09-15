@@ -87,6 +87,19 @@ export function selectNetlistExportFormat(
   return { ...preferences, format };
 }
 
+export function setNetlistExportMosTarget(
+  preferences: NetlistExportPreferences,
+  family: "nmos" | "pmos",
+  target: string,
+): NetlistExportPreferences {
+  const profile = structuredClone(preferences.profiles[preferences.selected]);
+  profile.devices[family].target = target;
+  return {
+    ...preferences,
+    profiles: { ...preferences.profiles, [preferences.selected]: profile },
+  };
+}
+
 /** Raw JSON is the complete configuration surface; valid edits apply immediately. */
 export function useNetlistExportPreferences() {
   const [initial] = useState(() => {
@@ -132,6 +145,14 @@ export function useNetlistExportPreferences() {
     setText(source);
     setError(null);
   };
+  const setMosTarget = (family: "nmos" | "pmos", target: string) => {
+    if (target && !/^[A-Za-z_][A-Za-z0-9_]*$/u.test(target)) return;
+    const next = setNetlistExportMosTarget(preferences, family, target);
+    const source = JSON.stringify(next, null, 2);
+    setPreferences(next);
+    setText(source);
+    setError(null);
+  };
   return {
     selected: preferences.selected,
     format: preferences.format,
@@ -141,5 +162,6 @@ export function useNetlistExportPreferences() {
     changeText,
     selectProfile,
     selectFormat,
+    setMosTarget,
   };
 }

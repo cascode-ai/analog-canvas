@@ -119,7 +119,8 @@
 }
 
 .project-tool-dock .selection-panel > section > header,
-.project-tool-dock .project-code-heading {
+.project-tool-dock .project-code-actions,
+.project-tool-dock .netlist-code-controls {
   padding-right: 38px;
 }
 
@@ -151,20 +152,10 @@
   gap: var(--icm-space-2);
 }
 
-.project-code-heading {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--icm-space-2);
-}
-
-.project-code-heading h2,
-.project-code-heading p,
 .project-code-panel > p {
   margin: 0;
 }
 
-.project-code-heading p,
 .project-code-panel > p {
   color: var(--icm-text-muted);
   font-size: var(--icm-font-xs);
@@ -172,6 +163,7 @@
 
 .project-code-actions {
   display: flex;
+  justify-content: flex-end;
   gap: var(--icm-space-1);
 }
 

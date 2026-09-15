@@ -213,19 +213,9 @@
   display: grid;
   gap: 8px;
 }
-.netlist-profile-code h2 {
-  font-size: 14px;
-  margin: 0;
-}
-.netlist-code-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
 .netlist-code-controls {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 0.7fr) auto;
+  grid-template-columns: minmax(0, 0.7fr) minmax(0, 1fr) auto;
   align-items: end;
   gap: 8px;
 }
@@ -319,6 +309,35 @@
 .project-source-editor .cm-activeLine,
 .project-source-editor .cm-activeLineGutter {
   background: color-mix(in srgb, var(--icm-accent) 7%, transparent);
+}
+.netlist-device-mapping {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding-top: 2px;
+}
+.netlist-device-mapping label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--icm-text-muted);
+  font: 600 var(--icm-font-xs) / 1.4 var(--font-mono);
+}
+.netlist-device-mapping input {
+  width: min(10rem, 30vw);
+  min-width: 0;
+  padding: 3px 2px;
+  border: 0;
+  border-bottom: 1px solid var(--icm-border-strong);
+  border-radius: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--icm-text);
+  font: 12px/1.4 var(--font-mono);
+}
+.netlist-device-mapping input:focus {
+  border-bottom-color: var(--icm-accent);
 }
 
 .netlist-preflight-header p,

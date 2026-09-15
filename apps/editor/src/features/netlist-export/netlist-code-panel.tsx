@@ -22,6 +22,7 @@ export function NetlistCodePanel({
   profile,
   onProfileChange,
   onFormatChange,
+  onMosTargetChange,
   onCopy,
   configurationError,
 }: {
@@ -31,6 +32,7 @@ export function NetlistCodePanel({
   profile: NetlistExportProfile;
   onProfileChange(profile: NetlistProfileId): void;
   onFormatChange(format: NetlistFormat): void;
+  onMosTargetChange(family: "nmos" | "pmos", target: string): void;
   onCopy(): void;
   configurationError: string | null;
 }) {
@@ -54,10 +56,20 @@ export function NetlistCodePanel({
   const source = result?.status === "ready" ? result.file.text : "";
   return (
     <section className="netlist-profile-code" aria-label="Live netlist">
-      <header className="netlist-code-header">
-        <h2>Netlist</h2>
-      </header>
       <div className="netlist-code-controls">
+        <label>
+          Format
+          <select
+            aria-label="Netlist format"
+            value={format}
+            onChange={(event) =>
+              onFormatChange(event.currentTarget.value as NetlistFormat)
+            }
+          >
+            <option value="spice">SPICE</option>
+            <option value="spectre">SCS</option>
+          </select>
+        </label>
         <label>
           Process
           <select
@@ -72,19 +84,6 @@ export function NetlistCodePanel({
                 {NETLIST_PROFILE_LABELS[id]}
               </option>
             ))}
-          </select>
-        </label>
-        <label>
-          Format
-          <select
-            aria-label="Netlist format"
-            value={format}
-            onChange={(event) =>
-              onFormatChange(event.currentTarget.value as NetlistFormat)
-            }
-          >
-            <option value="spice">SPICE</option>
-            <option value="spectre">SCS</option>
           </select>
         </label>
         <button type="button" data-testid="copy-netlist-panel" onClick={onCopy}>
@@ -108,6 +107,23 @@ export function NetlistCodePanel({
           invalid={!!error}
         />
       </Suspense>
+      <div className="netlist-device-mapping" aria-label="MOS device mapping">
+        {(["nmos", "pmos"] as const).map((family) => (
+          <label key={family}>
+            <span>{family.toUpperCase()}</span>
+            <input
+              aria-label={`${family.toUpperCase()} netlist target`}
+              value={profile.devices[family].target}
+              onChange={(event) =>
+                onMosTargetChange(family, event.currentTarget.value.trim())
+              }
+              spellCheck={false}
+              autoCapitalize="off"
+              autoCorrect="off"
+            />
+          </label>
+        ))}
+      </div>
       {error ? (
         <p role="alert">{error}</p>
       ) : result?.status === "ready" && result.placeholders.length ? (

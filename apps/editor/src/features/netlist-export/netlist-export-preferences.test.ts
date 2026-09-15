@@ -3,6 +3,7 @@ import {
   readNetlistExportPreferences,
   selectNetlistExportFormat,
   selectNetlistExportProfile,
+  setNetlistExportMosTarget,
 } from "./netlist-export-preferences.js";
 
 describe("netlist export preferences", () => {
@@ -69,6 +70,21 @@ describe("netlist export preferences", () => {
     expect(selected.format).toBe("spectre");
     expect(selected.selected).toBe("abstract");
     expect(selected.profiles).toBe(preferences.profiles);
+  });
+  it("edits MOS targets only in the selected process", () => {
+    const preferences = readNetlistExportPreferences(null);
+    preferences.selected = "tsmc28";
+
+    const nmos = setNetlistExportMosTarget(preferences, "nmos", "custom_nch");
+    const pmos = setNetlistExportMosTarget(nmos, "pmos", "custom_pch");
+
+    expect(pmos.profiles.tsmc28.devices.nmos.target).toBe("custom_nch");
+    expect(pmos.profiles.tsmc28.devices.pmos.target).toBe("custom_pch");
+    expect(pmos.profiles.abstract.devices.nmos.target).toBe("NMOS");
+    expect(pmos.profiles.abstract.devices.pmos.target).toBe("PMOS");
+    expect(preferences.profiles.tsmc28.devices.nmos.target).toBe(
+      "nch_ulvt_mac",
+    );
   });
   it.each(["{", "null", "[]", '{"selected":"custom","profiles":{}}'])(
     "recovers malformed preferences: %s",

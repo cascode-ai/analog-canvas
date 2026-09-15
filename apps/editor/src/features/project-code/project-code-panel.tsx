@@ -86,27 +86,18 @@ export function ProjectCodePanel({
 
   return (
     <section className="project-code-panel" aria-label="Project Code">
-      <div className="project-code-heading">
-        <div>
-          <h2>Project Code</h2>
-          <p>
-            Complete <code>.icproj.json</code>. Canvas and Agent edits appear
-            here automatically.
-          </p>
-        </div>
-        <div className="project-code-actions">
-          <button type="button" onClick={reload} disabled={!dirty}>
-            Reload
-          </button>
-          <button
-            type="button"
-            className="primary"
-            onClick={apply}
-            disabled={!dirty || !parsed.ok || changedOutsideDraft}
-          >
-            Apply
-          </button>
-        </div>
+      <div className="project-code-actions">
+        <button type="button" onClick={reload} disabled={!dirty}>
+          Reload
+        </button>
+        <button
+          type="button"
+          className="primary"
+          onClick={apply}
+          disabled={!dirty || !parsed.ok || changedOutsideDraft}
+        >
+          Apply
+        </button>
       </div>
       <Suspense
         fallback={
