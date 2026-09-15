@@ -1,19 +1,24 @@
 import { test, expect, type WebSocketRoute } from "@playwright/test";
-import { readFileSync } from "node:fs";
-import {
-  createSimulationEnvironmentMetadata,
-  createSimulationInputMetadata,
-  readSimulationData,
-} from "@icm/spice-run";
 
 import { clickNetlistWorkflowCommand } from "./editor-fixtures.js";
-import { profile } from "./simulation-e2e-fixtures.js";
 import { createSimulationFolder, createEmptyProject } from "@icm/model";
 import { unzipSync, strFromU8 } from "fflate";
+import {
+  agentNativeSource,
+  agentNativeProfile,
+  createAgentNativeExecutor,
+} from "./native-simulation-executor.mjs";
+const closers: Array<() => Promise<void>> = [];
+test.afterEach(async () => {
+  for (const close of closers.splice(0)) await close();
+});
 for (const sourceKind of ["workspace", "project-folder"] as const)
   test(`Agent ${sourceKind} simulation recovers errors, exports and hands off project results`, async ({
     page,
   }) => {
+    test.setTimeout(60000);
+    const executor = await createAgentNativeExecutor();
+    closers.push(() => executor.close());
     const id = "simulation-e2e",
       secret = "simulation-editor-secret";
     let socket: WebSocketRoute | undefined;
@@ -48,73 +53,16 @@ for (const sourceKind of ["workspace", "project-folder"] as const)
         });
       } else await route.fulfill({ json: { ok: true, status: "active" } });
     });
-    const rawfile =
-      readFileSync(
-        new URL(
-          "../../../fixtures/ngspice-rawfile/divider-op.raw",
-          import.meta.url,
-        ),
-        "utf8",
-      ) +
-      "\n" +
-      readFileSync(
-        new URL("../../../fixtures/ngspice-rawfile/rc-ac.raw", import.meta.url),
-        "utf8",
-      );
     await page.route("**/api/simulate", async (route) => {
       const body = route.request().postDataJSON();
       if (body.operation === "capabilities")
         return route.fulfill({
-          json: {
-            configured: true,
-            rawfileCollection: "declared-single-ascii",
-            inputs: ["structured", "raw"],
-            analyses: ["op", "ac"],
-            parsedAnalyses: ["op", "ac", "tran"],
-            profiles: [{ id: profile.id, corners: ["tt"] }],
-            maxTimeoutMs: 120000,
-            maxInputBytes: 1048576,
-            cancel: true,
-          },
+          json: executor.capabilities,
         });
       executions++;
       await hold;
-      const reading = readSimulationData(rawfile);
-      if (reading.status !== "read") throw Error("raw fixture");
       await route.fulfill({
-        json: {
-          outcome: { status: "completed" },
-          diagnostics: [],
-          log: "ngspice OP",
-          durationMs: 1,
-          data: reading.data,
-          rawfile,
-          executedDeck: body.preparedDeck,
-          cancelled: false,
-          metadata: {
-            schemaVersion: 1,
-            input: await createSimulationInputMetadata({
-              inputRevision: body.inputRevision,
-              netlist: body.netlist,
-              testbench: body.testbench,
-              deck: body.preparedDeck,
-            }),
-            configuration: { modelLibrary: null },
-            environment: await createSimulationEnvironmentMetadata({
-              executor: "local-host",
-              reproducibility: "observed",
-              profileId: profile.id,
-              platform: "linux/x64",
-              simulator: {
-                name: "ngspice",
-                version: profile.simulator.version,
-                binarySha256: null,
-              },
-              models: null,
-              startupSha256: null,
-            }),
-          },
-        },
+        json: await executor.execute(body),
       });
     });
     await page.goto("/editor");
@@ -127,7 +75,7 @@ for (const sourceKind of ["workspace", "project-folder"] as const)
         createSimulationFolder({
           id: "e2e",
           name: "Divider",
-          profileId: profile.id,
+          profileId: agentNativeProfile,
         }),
       );
       await page.getByTestId("project-file").setInputFiles({
@@ -208,9 +156,9 @@ for (const sourceKind of ["workspace", "project-folder"] as const)
     const sourceSetup = createSimulationFolder({
       id: "e2e",
       name: "Divider",
-      profileId: profile.id,
+      profileId: agentNativeProfile,
     });
-    await send("file", {
+    const updated = await send("file", {
       operation: "simulation-input",
       input: {
         action: "update",
@@ -219,11 +167,11 @@ for (const sourceKind of ["workspace", "project-folder"] as const)
             ? { kind: "session-workspace", workspaceId: workspace.id }
             : { kind: "project-folder", folderId: "e2e" },
         expectedRevision: 0,
-        entry: "main.cir",
+        entry: "main.sim",
         writes: [
           {
-            path: "main.cir",
-            text: "divider\nV1 in 0 1\nR1 in mid 1k\nR2 mid 0 1k\n.control\nset appendwrite\nop\nwrite out.raw\nac dec 10 1 1e6\nwrite out.raw\n.endc\n.end",
+            path: "main.sim",
+            text: `${agentNativeSource}\ninclude "missing.sim"\n`,
           },
           ...sourceSetup.input.files.filter(
             (file) => file.path === sourceSetup.input.configPath,
@@ -231,23 +179,45 @@ for (const sourceKind of ["workspace", "project-folder"] as const)
         ],
       },
     });
-    const prepared = (
-      await send("simulation", {
-        operation: "prepare",
-        source:
-          sourceKind === "project-folder"
-            ? {
-                kind: "project-folder",
-                folderId: "e2e",
-                expectedStructureRevision: 1,
-              }
-            : {
-                kind: "workspace",
-                workspaceId: workspace.id,
-                expectedRevision: 1,
-              },
-      })
-    ).prepared;
+    expect(updated.ok, JSON.stringify(updated)).toBe(true);
+    const sourceAt = (revision: number) =>
+      sourceKind === "project-folder"
+        ? {
+            kind: "project-folder",
+            folderId: "e2e",
+            expectedStructureRevision: revision,
+          }
+        : {
+            kind: "workspace",
+            workspaceId: workspace.id,
+            expectedRevision: revision,
+          };
+    const rejected = await send("simulation", {
+      operation: "prepare",
+      source: sourceAt(1),
+    });
+    expect(rejected.ok, JSON.stringify(rejected)).toBe(false);
+    expect(JSON.stringify(rejected)).toContain("SIMULATION_FILE_MISSING");
+    expect(executions).toBe(0);
+    const repaired = await send("file", {
+      operation: "simulation-input",
+      input: {
+        action: "update",
+        owner:
+          sourceKind === "workspace"
+            ? { kind: "session-workspace", workspaceId: workspace.id }
+            : { kind: "project-folder", folderId: "e2e" },
+        expectedRevision: 1,
+        writes: [{ path: "main.sim", text: agentNativeSource }],
+      },
+    });
+    expect(repaired.ok, JSON.stringify(repaired)).toBe(true);
+    const preparation = await send("simulation", {
+      operation: "prepare",
+      source: sourceAt(2),
+    });
+    expect(preparation.ok, JSON.stringify(preparation)).toBe(true);
+    const prepared = preparation.prepared;
     expect(executions).toBe(0);
     const start = {
       operation: "start",
@@ -289,13 +259,38 @@ for (const sourceKind of ["workspace", "project-folder"] as const)
         return finished.state;
       })
       .toBe("finished");
-    expect(finished.result.data.analyses[0].probes).toEqual(
+    await test.info().attach("native-agent-run", {
+      body: Buffer.from(
+        JSON.stringify(
+          {
+            executionMode:
+              process.env.ICM_E2E_VACASK_REAL === "1"
+                ? "real-native"
+                : "captured-native",
+            run: finished,
+          },
+          null,
+          2,
+        ),
+      ),
+      contentType: "application/json",
+    });
+    expect(
+      finished.result.outcome.status,
+      JSON.stringify(finished.result.diagnostics),
+    ).toBe("completed");
+    expect(finished.result.metadata.environment.simulator.name).toBe("vacask");
+    const opIndex = finished.result.data.analyses.findIndex(
+      (analysis: { analysis: string }) => analysis.analysis === "op",
+    );
+    expect(opIndex).toBeGreaterThanOrEqual(0);
+    expect(finished.result.data.analyses[opIndex].probes).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ name: "v(mid)", value: 0.5 }),
+        expect.objectContaining({ name: "mid", value: 0.5 }),
       ]),
     );
     const csv = finished.artifacts.find(
-      (a: { name: string }) => a.name === "op-0.csv",
+      (a: { name: string }) => a.name === `op-${opIndex}.csv`,
     );
     expect(
       (
@@ -313,6 +308,15 @@ for (const sourceKind of ["workspace", "project-folder"] as const)
           (analysis: { analysis: string }) => analysis.analysis === "ac",
         );
     expect(recordIndex).toBeGreaterThanOrEqual(0);
+    const ac = finished.result.data.analyses.find(
+      (analysis: { analysis: string }) => analysis.analysis === "ac",
+    );
+    const mid = ac.probes.find(
+      (probe: { name: string }) => probe.name === "mid",
+    );
+    expect(mid.real).toHaveLength(7);
+    for (const value of mid.real) expect(value).toBeCloseTo(0.5, 12);
+    for (const value of mid.imag) expect(value).toBeCloseTo(0, 12);
     const image = await send("file", {
       operation: "download",
       artifact: "simulation-plot",
@@ -375,5 +379,14 @@ for (const sourceKind of ["workspace", "project-folder"] as const)
         page.getByRole("button", { name: "Project + results ZIP" }),
       ).toBeVisible();
       expect(executions).toBe(1);
+      // The same saved source remains executable from GUI after Agent handoff.
+      const panel = page.getByRole("region", { name: "Analog simulation" });
+      await panel.getByRole("button", { name: "Run", exact: true }).click();
+      await expect.poll(() => executions).toBe(2);
+      await expect(panel.getByRole("status")).toHaveText("completed");
+      await panel.getByRole("tab", { name: "Console", exact: true }).click();
+      await expect(panel.locator(".simulation-console-view")).toContainText(
+        "Running analysis 'agent_ac'",
+      );
     }
   });
