@@ -136,11 +136,11 @@ describe("current formal cell interface", () => {
     expect(
       result.diagnostics.filter((item) => item.severity === "error"),
     ).toEqual([]);
-    expect(printSpiceNetlist(result.ir!)).toContain("R1 IN R1_2 1k");
-    expect(printSpiceNetlist(result.ir!)).toContain("R2 R1_2 0 2k");
+    expect(printSpiceNetlist(result.ir!)).toContain("R1 IN net0 1k");
+    expect(printSpiceNetlist(result.ir!)).toContain("R2 net0 0 2k");
   });
 
-  it("prefers diode-connected and drain landmarks for generated node names", () => {
+  it("allocates stable ordinal names without inferring device-pin meaning", () => {
     const project = createEmptyProject("project", "Project");
     const document = project.documents[0]!;
     const mos = (reference: string) => ({
@@ -196,9 +196,25 @@ describe("current formal cell interface", () => {
       result.diagnostics.filter((item) => item.severity === "error"),
     ).toEqual([]);
     const spice = printSpiceNetlist(result.ir!);
-    expect(spice).toContain("M7_DG");
-    expect(spice).toContain("M9_D");
-    expect(spice).not.toContain("N000");
+    expect(spice).toContain("M2 net0 NC0001 net1 0");
+    expect(spice).toContain("M7 net0 net0 NC0002 0");
+    expect(spice).toContain("M9 net1 NC0005 NC0006 0");
+    expect(spice).not.toMatch(/M[79]_[DG]/u);
+  });
+
+  it("skips ordinal names already reserved by an authored Net", () => {
+    const project = resistorProject({ value: "10k" });
+    const document = project.documents[0]!;
+    document.annotations = [];
+    document.connectivityEvidence = [];
+    claimNet(document, "net-in", "NET0");
+
+    const result = analyzeDesignNetlist(project);
+
+    expect(
+      result.diagnostics.filter((item) => item.severity === "error"),
+    ).toEqual([]);
+    expect(printSpiceNetlist(result.ir!)).toContain("R1 NET0 net1 10k");
   });
 
   it("maps formal Cell Pin Instances to the ordered exported interface", () => {

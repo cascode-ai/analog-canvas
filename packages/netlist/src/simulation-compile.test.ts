@@ -940,7 +940,7 @@ describe("compiling a structured simulation folder", () => {
       "GENERATED_NET_NAME",
     ]);
     expect(result.vectors).toEqual([
-      { probeId: "probe-mid", vector: "v(r1_2)", quantity: "voltage" },
+      { probeId: "probe-mid", vector: "v(net0)", quantity: "voltage" },
     ]);
   });
 

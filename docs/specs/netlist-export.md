@@ -190,8 +190,10 @@ represented structurally. A display string is not a source specification.
 
 - `Net.terminals` is the only connectivity truth.
 - Named Nets are unique within a cell under case folding.
-- An unnamed local Net receives an ephemeral collision-free `N0001`, `N0002`,
-  ... name in stable Net-ID order. This does not mutate the Project.
+- An unnamed local Net receives an ephemeral collision-free `net0`, `net1`,
+  ... name in stable Logical-Net order. Existing authored names reserve their
+  dialect spelling, so automatic allocation skips conflicts. This does not
+  mutate the Project.
 - Every Net mapped by one projected Formal Port uses that Port name before
   anonymous allocation and therefore receives no generated-name warning.
 - A global Net must have an explicit name.
