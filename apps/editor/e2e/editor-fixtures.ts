@@ -91,11 +91,13 @@ export async function clickDrawTool(page: Page, tool: DrawTool): Promise<void> {
     await page.getByTestId(`draw-tool-${tool}`).click();
     return;
   }
+  const libraryToggle = page.getByTestId("library-toggle");
   const chip = page.getByTestId(`shapes-chip-${symbolId}`);
-  if (!(await chip.isVisible())) {
-    await page.getByTestId("library-toggle").click();
-    await expect(chip).toBeVisible();
+  if ((await libraryToggle.getAttribute("aria-expanded")) !== "true") {
+    await libraryToggle.click();
   }
+  await expect(libraryToggle).toHaveAttribute("aria-expanded", "true");
+  await expect(chip).toBeVisible();
   await chip.click();
 }
 
