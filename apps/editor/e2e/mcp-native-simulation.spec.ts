@@ -1,9 +1,10 @@
 import { expect, test } from "@playwright/test";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
+import { createHash } from "node:crypto";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { createSimulationFolder } from "@icm/model";
 import { collectNativeRunEvidence } from "../../../scripts/lib/native-example-runner.mjs";
 import {
@@ -25,6 +26,27 @@ test("public MCP connects to the real local relay and executes native source", a
     "Requires explicit native executable/module paths and built MCP dependencies.",
   );
   test.setTimeout(120000);
+  const bundle = process.env.ICM_E2E_MCP_BUNDLE;
+  if (bundle) {
+    expect(
+      process.env.ICM_E2E_MCP_BUNDLE_SHA256,
+      "A packaged MCP test requires its expected digest",
+    ).toMatch(/^[a-f0-9]{64}$/);
+    expect(
+      createHash("sha256")
+        .update(await readFile(bundle))
+        .digest("hex"),
+    ).toBe(process.env.ICM_E2E_MCP_BUNDLE_SHA256);
+    await test.info().attach("mcp-package-identity", {
+      body: Buffer.from(
+        JSON.stringify({
+          entry: resolve(bundle),
+          sha256: process.env.ICM_E2E_MCP_BUNDLE_SHA256,
+        }),
+      ),
+      contentType: "application/json",
+    });
+  }
   const root = await mkdtemp(join(tmpdir(), "icm-native-mcp-"));
   let executor:
     Awaited<ReturnType<typeof createAgentNativeExecutor>> | undefined;
@@ -245,8 +267,10 @@ test("public MCP connects to the real local relay and executes native source", a
 function startMcp(baseUrl: string, connectorPath: string) {
   const processHandle = spawn(
     process.execPath,
-    [resolve("apps/mcp-server/dist/main.js")],
+    [resolve(process.env.ICM_E2E_MCP_BUNDLE ?? "apps/mcp-server/dist/main.js")],
     {
+      // The distributable must resolve itself without the repository as cwd.
+      cwd: dirname(connectorPath),
       stdio: ["pipe", "pipe", "pipe"],
       windowsHide: true,
       env: {
