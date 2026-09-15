@@ -2114,9 +2114,9 @@ test("shows the complete foldable categorized Library, quick-places a device, an
       .getByTestId("shapes-category-passives")
       .locator('[data-testid^="shapes-chip-"]'),
   ).toHaveCount(4);
-  await expect(
-    page.getByTestId("shapes-chip-capacitor-section"),
-  ).toHaveCount(0);
+  await expect(page.getByTestId("shapes-chip-capacitor-section")).toHaveCount(
+    0,
+  );
   await expect(
     page
       .getByTestId("shapes-category-logic-gates")
