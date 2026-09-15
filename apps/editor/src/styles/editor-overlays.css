@@ -201,7 +201,7 @@
 /* Recovery banners float over the canvas so they never resize it. */
 .recovery-banner {
   position: fixed;
-  z-index: 40;
+  z-index: 19;
   top: 4.6rem;
   left: 50%;
   translate: -50% 0;
