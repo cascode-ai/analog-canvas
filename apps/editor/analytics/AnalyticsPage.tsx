@@ -1,12 +1,11 @@
 import { useEffect, useId, useMemo, useState, type ReactNode } from "react";
-import "../analytics.css";
-import land from "../data/land-110m.json";
+import land from "./land-110m.json";
 import {
   landPathsForWorld,
   WORLD_BOUNDS,
   type FeatureCollection,
-} from "../lib/world-map";
-import { BugReportLink } from "./bug-report-link";
+} from "./worldMap";
+import { BugReportLink } from "../src/components/bug-report-link";
 
 type DayRow = { date: string; pv: number; uv: number };
 type BreakdownRow = { pv?: number; uv?: number; count?: number };

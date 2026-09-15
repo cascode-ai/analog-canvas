@@ -1,10 +1,23 @@
-const VISITOR_COOKIE = "canvas_vid";
-const SESSION_COOKIE = "canvas_sid";
+/**
+ * These values locate the already-deployed analytics namespace and identify
+ * returning browsers. Changing one starts a separate data or visitor history.
+ */
+export const ANALYTICS_PERSISTENCE_IDENTITY = {
+  binding: "ANALYTICS",
+  durableObjectClass: "AnalyticsDO",
+  objectName: "global",
+  visitorCookie: "canvas_vid",
+  sessionCookie: "canvas_sid",
+  routes: ["/api/track", "/api/stats", "/api/analytics"],
+} as const;
+
+const VISITOR_COOKIE = ANALYTICS_PERSISTENCE_IDENTITY.visitorCookie;
+const SESSION_COOKIE = ANALYTICS_PERSISTENCE_IDENTITY.sessionCookie;
 const VISITOR_COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
 const SESSION_COOKIE_MAX_AGE = 30 * 60;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const RETAINED_DAYS = 400;
-const DURABLE_OBJECT_NAME = "global";
+const DURABLE_OBJECT_NAME = ANALYTICS_PERSISTENCE_IDENTITY.objectName;
 const OTHER_KEY = "__other__";
 const MAX_BREAKDOWN_ROWS = 256;
 const MAX_POINT_ROWS = 2000;

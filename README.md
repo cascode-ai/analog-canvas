@@ -96,7 +96,9 @@ and [delivery cadence](docs/deployment.md#development-and-publication-cadence).
 ## What the repository contains
 
 - `apps/editor/`: React/SVG editor plus the Gallery, account, moderation, and
-  analytics screens.
+  project surfaces.
+- `apps/editor/analytics/`: the complete first-party analytics module: page,
+  styles, browser reporting, HTTP routes, map data, and Durable Object backend.
 - `apps/local-host/`: loopback-only production host for the installable PWA.
 - `apps/mcp-server/`: packaged stdio MCP adapter for authorized Agent sessions.
 - `packages/model/`, `packages/project-protocol/`, and `packages/edit-engine/`:
@@ -112,8 +114,8 @@ and [delivery cadence](docs/deployment.md#development-and-publication-cadence).
   output.
 - `packages/agent-adapter/`, `packages/agent-client/`, and
   `packages/agent-routing/`: shared Agent contract, client, and routing logic.
-- `worker/`: Cloudflare Worker and Durable Objects for static hosting, Gallery,
-  accounts, first-party analytics, and Agent relay sessions.
+- `worker/`: Cloudflare Worker host and Durable Objects for static hosting,
+  Gallery, accounts, simulation, and Agent relay sessions.
 - `docs/`: current architecture, user guides, normative contracts, ADRs, and
   delivery plans.
 

@@ -198,7 +198,7 @@
       "packages/exporters/**",
       "worker/index.ts",
       "worker/index.test.ts",
-      "worker/analytics.ts",
+      "apps/editor/analytics/worker.ts",
       "wrangler.jsonc"
     ],
     "gateContract": [
