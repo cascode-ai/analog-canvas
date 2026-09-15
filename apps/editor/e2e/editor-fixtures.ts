@@ -28,9 +28,12 @@ export async function awaitRecoveryStoreReady(page: Page): Promise<void> {
 }
 
 export async function openMenu(page: Page, name: string): Promise<Locator> {
-  const summary = page.locator("summary", { hasText: name }).filter({
-    hasText: new RegExp(`^${name}$`, "u"),
-  });
+  const summary =
+    name === "Netlist"
+      ? page.locator('summary[aria-label="Netlist"]')
+      : page.locator("summary", { hasText: name }).filter({
+          hasText: new RegExp(`^${name}$`, "u"),
+        });
   const details = summary.locator("..");
   if ((await details.getAttribute("open")) === null) await summary.click();
   return details;

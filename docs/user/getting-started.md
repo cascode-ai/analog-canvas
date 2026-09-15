@@ -257,18 +257,26 @@ when issues exist, and an offline or signed-out save still leaves the local
 check available. This command does not repair Bulk connections or rewrite
 the circuit. **File / Save** and **Ctrl+S** remain save-only.
 
-For an electrical design netlist, choose **Netlist / Check Report** instead.
-The dialog reports structural netlist findings and current-revision ERC
-readiness separately; the ERC section is the same evidence used by Gallery.
-When a structural IR is available, it previews the deterministic SPICE or
-Spectre text. Use either the dialog's
-download button or **Netlist / Export SPICE netlist** and **Netlist / Export Spectre netlist** to
-download it. These files contain structure only: they do not add PDK includes,
-models, corners, stimuli, analyses, or simulator options.
+Click the top **Netlist · SPICE** download button to get a `.spi` file in one
+click. The adjacent arrow offers **Export Spectre netlist** (`.scs`) and
+**Export SPICE netlist**; choosing either downloads immediately and sets the
+main button's format for the rest of the editor session.
 
-Netlist-menu export opens the preflight dialog before downloading when warnings
-need review. An explicitly marked NoConnect is shown as a generated floating
-node such as `NC0001`; an unmarked open pin remains a blocking error.
+Missing device values or model targets are exported as undefined `TODO_…`
+placeholders, with an **INCOMPLETE NETLIST** header listing what to fill in.
+The Project stays unchanged. Existing values, connections, and formal pin order
+are retained. Findings are included as comments and do not require a confirmation
+before downloading. An explicitly marked NoConnect becomes a floating node such
+as `NC0001`; structural errors such as an unmarked open pin, conflicting names,
+or unsupported devices still open the Check Report instead of exporting a
+partial circuit.
+
+Choose the arrow beside Netlist, then **Check Report** to inspect the same
+SPICE/Spectre preview, change the naming profile, or navigate to a finding.
+The report lists structural findings and current-revision ERC readiness
+separately. These files contain structure only: they do not add PDK includes,
+models, corners, stimuli, analyses, or simulator options. Exporting a draft does
+not make the circuit ready for simulation.
 
 ## Portable release
 

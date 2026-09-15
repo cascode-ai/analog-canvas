@@ -5730,11 +5730,11 @@ X2 OUT IN EXT_MASTER l=1u nf=4
   await expect(page.getByTestId("status")).toContainText(
     "Imported 2 Documents",
   );
-  await clickCommand(page, "Netlist", "Export SPICE netlist");
-  const report = page.getByRole("dialog", { name: "Check Report" });
-  await expect(report.getByLabel("Electrical findings")).toBeVisible();
   const downloadPromise = page.waitForEvent("download");
-  await report.getByRole("button", { name: "Download SPICE netlist" }).click();
+  await page.getByTestId("download-netlist").click();
+  await expect(page.getByRole("dialog", { name: "Check Report" })).toHaveCount(
+    0,
+  );
   const stream = await (await downloadPromise).createReadStream();
   const chunks: Buffer[] = [];
   for await (const chunk of stream) chunks.push(Buffer.from(chunk));
@@ -5790,7 +5790,7 @@ R7 IN OUT 10k
   ).toBeVisible();
 });
 
-test("requires warning review before exporting generated NoConnect nodes", async ({
+test("downloads generated NoConnect nodes immediately and retains the optional Check Report", async ({
   page,
 }) => {
   const project = createEmptyProject("warning-project", "Warning Project");
@@ -5839,7 +5839,15 @@ test("requires warning review before exporting generated NoConnect nodes", async
     mimeType: "application/json",
     buffer: Buffer.from(JSON.stringify(project)),
   });
-  await clickCommand(page, "Netlist", "Export SPICE netlist");
+  const directDownload = page.waitForEvent("download");
+  await page.getByTestId("download-netlist").click();
+  expect((await directDownload).suggestedFilename()).toBe(
+    "warning-project.spi",
+  );
+  await expect(page.getByRole("dialog", { name: "Check Report" })).toHaveCount(
+    0,
+  );
+  await clickCommand(page, "Netlist", "Check Report…");
   const dialog = page.getByRole("dialog", { name: "Check Report" });
   await expect(dialog).toContainText("GENERATED_NO_CONNECT_NODE");
   await expect(dialog.getByTestId("netlist-preview")).toContainText(
@@ -5949,6 +5957,15 @@ test("exports structural SPICE and Spectre netlists while exposing instance auth
     await downloadBytes(page, "Netlist", "Export Spectre netlist")
   ).toString("utf8");
   expect(spectre).toContain("simulator lang=spectre");
+  const primary = page.getByTestId("download-netlist");
+  await expect(primary).toHaveAccessibleName("Download Spectre netlist");
+  await expect(primary).toContainText("SCS");
+  const repeatDownload = page.waitForEvent("download");
+  await primary.click();
+  expect((await repeatDownload).suggestedFilename()).toMatch(/\.scs$/u);
+  await expect(page.getByRole("dialog", { name: "Check Report" })).toHaveCount(
+    0,
+  );
 
   await placeComponent(page, "nmos", { x: 360, y: 220 });
   await openSelectionShelf(page);
@@ -5958,6 +5975,60 @@ test("exports structural SPICE and Spectre netlists while exposing instance auth
   await expectComponentCodeField(page, "netlistName", "M1");
   await expectComponentCodeField(page, "netlistTarget", "");
   await expect(properties.getByText(/^Model:/u)).toHaveCount(0);
+});
+
+test("downloads an incomplete netlist in one click and previews its TODO fields", async ({
+  page,
+}) => {
+  const project = createEmptyProject("draft-project", "Draft Circuit");
+  const document = project.documents[0]!;
+  document.instances.push({
+    id: "R1",
+    reference: "R1",
+    symbolId: "resistor",
+    placement: null,
+    netlist: {
+      binding: { kind: "primitive", deviceClass: "resistor" },
+      parameters: {},
+    },
+  });
+  document.noConnects.push(
+    ...["1", "2"].map((pinName) => ({
+      id: `open-${pinName}`,
+      endpoint: { kind: "terminal" as const, instanceId: "R1", pinName },
+    })),
+  );
+  await page.goto("/editor");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "draft.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  const downloadPromise = page.waitForEvent("download");
+  // Keyboard activation is the same single action as a mouse click.
+  await page.getByTestId("download-netlist").press("Enter");
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toBe("draft-circuit.spi");
+  const stream = await download.createReadStream();
+  const chunks: Buffer[] = [];
+  for await (const chunk of stream) chunks.push(Buffer.from(chunk));
+  const text = Buffer.concat(chunks).toString("utf8");
+  expect(text).toContain("INCOMPLETE NETLIST");
+  expect(text).toContain("R1 NC0001 NC0002 {TODO_Main_R1_value}");
+  await expect(page.getByRole("dialog", { name: "Check Report" })).toHaveCount(
+    0,
+  );
+  await expect(page.getByTestId("status")).toContainText("1 TODO field");
+  await clickCommand(page, "Netlist", "Check Report…");
+  const report = page.getByRole("dialog", { name: "Check Report" });
+  await expect(report).toContainText("Incomplete netlist: 1 TODO field");
+  await expect(report.getByTestId("netlist-preview")).toContainText(
+    "R1 NC0001 NC0002 {TODO_Main_R1_value}",
+  );
+  await report.getByLabel("Netlist export format").selectOption("spectre");
+  await expect(report.getByTestId("netlist-preview")).toContainText(
+    "R1 (NC0001 NC0002) resistor r=TODO_Main_R1_value",
+  );
 });
 
 test("edits the transconductance trapezoid from gm to -gmL", async ({
@@ -6402,15 +6473,14 @@ test("keeps the production command surface compact and publishes PWA metadata", 
 }) => {
   await page.goto("/editor");
   const toolbar = page.getByRole("navigation", { name: "Editor commands" });
-  for (const label of ["File", "Edit", "Netlist"]) {
+  for (const label of ["File", "Edit"]) {
     await expect(toolbar.locator("summary", { hasText: label })).toBeVisible();
   }
   await expect(
     toolbar.locator("summary").filter({ hasText: /^Run$/u }),
   ).toHaveCount(0);
-  const netlistSummary = toolbar
-    .locator("summary")
-    .filter({ hasText: /^Netlist$/u });
+  await expect(toolbar.getByTestId("download-netlist")).toBeVisible();
+  const netlistSummary = toolbar.locator('summary[aria-label="Netlist"]');
   await expect(toolbar.getByTestId("open-analog-simulation")).toBeVisible();
   await expect(page.getByTestId("check-and-save")).toBeHidden();
   await netlistSummary.click();

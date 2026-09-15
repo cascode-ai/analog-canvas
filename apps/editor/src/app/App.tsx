@@ -5127,7 +5127,7 @@ export function App({
                 onNavigate: navigateToNetlistDiagnostic,
                 onNavigateElectrical: jumpToProjectDiagnostic,
                 onExport: (format, namingProfile) =>
-                  exportDesignNetlist(format, true, namingProfile),
+                  exportDesignNetlist(format, namingProfile),
               }
             : null
         }

@@ -392,6 +392,42 @@
   position: relative;
 }
 
+.netlist-download-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+}
+
+.netlist-download-group > .netlist-download {
+  gap: 5px;
+  border-radius: var(--icm-radius-sm) 0 0 var(--icm-radius-sm);
+}
+
+.netlist-download-group .command-menu > summary {
+  padding: 0 7px;
+  border-radius: 0 var(--icm-radius-sm) var(--icm-radius-sm) 0;
+  border-left-color: var(--icm-border);
+}
+
+.netlist-download-group .command-popover {
+  left: auto;
+  right: 0;
+}
+
+.netlist-format,
+.netlist-extension {
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
+}
+
+.netlist-download > .netlist-format {
+  display: inline;
+}
+
+.netlist-extension {
+  margin-left: auto;
+}
+
 .command-menu summary {
   display: inline-flex;
   align-items: center;

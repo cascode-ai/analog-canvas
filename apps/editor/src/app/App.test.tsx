@@ -111,7 +111,7 @@ describe("editor shell", () => {
     expect(markup).toContain("Manage Cells…");
     expect(markup).toContain("New Testbench Cell…");
     expect(markup).toContain("Instance Table…");
-    const netlistStart = markup.indexOf("<summary>Netlist</summary>");
+    const netlistStart = markup.indexOf('aria-label="Netlist"');
     const netlistEnd = markup.indexOf("</details>", netlistStart);
     const netlistMenu = markup.slice(netlistStart, netlistEnd);
     expect(netlistStart).toBeGreaterThan(-1);

@@ -268,8 +268,10 @@ simulator can run them without an external simulation setup.
 ## Diagnostics and failure behavior
 
 Extraction returns structured diagnostics with stable code, severity,
-Document ID, and affected object IDs. Any error prevents printer invocation and
-download. Required error coverage includes:
+Document ID, and affected object IDs. The strict extractor returns no IR when
+any error remains. The download-only projection below permits explicit TODO
+fields for two omission categories; every other error still prevents printer
+invocation and download. Required error coverage includes:
 
 - invalid cell-terminal, Net, or instance identifiers;
 - missing or mismatched formal terminal mappings;
@@ -285,6 +287,30 @@ download. Required error coverage includes:
 Warnings may report generated local Net names or conflicting directions inside
 one same-name Formal Port group. They cannot downgrade a missing
 electrical fact required for meaningful output.
+
+### Incomplete downloads
+
+`createDesignNetlistExport` permits a download when the only errors are
+`MISSING_MODEL_TARGET` and `MISSING_REQUIRED_PARAMETER`. It copies the Project,
+fills absent model bindings and blank/missing required device parameters with
+undefined `TODO_<cell>_<reference>_<field>` identifiers, and requires that copy
+to pass strict extraction before printing. Authored electrical identifiers and
+expressions are reserved case-insensitively to avoid accidental resolution;
+SPICE parameter placeholders use braces and Spectre uses bare identifiers.
+The download has an `INCOMPLETE NETLIST` comment header and a field list. It
+never writes placeholders into the Project or changes simulation readiness.
+
+Existing conflicting bindings, missing hierarchy interfaces, unsupported devices,
+invalid waveforms, and incomplete connections remain blocking. This projection
+never exports the permissive authoring IR. It cannot omit an invalid device or
+invent a connection, numerical value, model definition, or stimulus.
+
+The editor's primary Netlist button downloads immediately in its current format
+(SPICE by default); its adjacent menu downloads the other format and remembers
+that choice for the session. Structural warnings are included as comments, and
+ERC findings are signposted without a modal confirmation. The optional Check
+Report previews the same complete or incomplete export and retains navigable
+findings. Strict extraction consumers, including simulation, remain unchanged.
 
 ## Operations and state transitions
 
@@ -314,11 +340,13 @@ A four-terminal manually authored NMOS has reference `M1`, explicit model
 prints as a model-backed device in both dialects. Moving or rotating it does not
 change either output.
 
-## Rejected example
+## Incomplete and rejected examples
 
 A manually authored NMOS with W/L values but no model target produces a
-blocking missing-target diagnostic. Export must not guess `nmos`, `nch_mac`, or
-a foundry model from its Symbol ID.
+missing-target error in strict analysis. A structural download may mark its
+model `TODO_Main_M1_model` if all other electrical facts are present. Export
+must not guess `nmos`, `nch_mac`, or a foundry model from its Symbol ID. The same
+device with an unconnected, unmarked drain still blocks download.
 
 ## Compatibility boundary
 

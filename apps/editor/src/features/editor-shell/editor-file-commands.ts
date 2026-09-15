@@ -1,4 +1,3 @@
-import { analyzeDesignNetlist } from "@icm/netlist";
 import type { NetlistFormat, NetlistNamingProfile } from "@icm/netlist";
 import type { CircuitProject, GridRect, SchematicDocument } from "@icm/model";
 import { importSpiceSources } from "@icm/spice";
@@ -72,17 +71,13 @@ export function createEditorFileCommands({
 
   const exportDesignNetlist = (
     format: NetlistFormat,
-    warningsReviewed = false,
     namingProfile: NetlistNamingProfile = "native",
   ): void => {
-    const analysis = analyzeDesignNetlist(project, { format, namingProfile });
-    const hasElectricalWarnings = electricalWarningsPresent();
     const plan = planDesignNetlistExport({
       format,
-      ir: analysis.ir,
-      warningsPresent: analysis.diagnostics.length > 0 || hasElectricalWarnings,
-      warningsReviewed,
-      projectName: project.name,
+      project,
+      namingProfile,
+      electricalWarningsPresent: electricalWarningsPresent(),
     });
     if (plan.status === "blocked") {
       setNetlistPreflightOpen(true);

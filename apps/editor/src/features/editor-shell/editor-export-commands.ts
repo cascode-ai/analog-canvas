@@ -1,7 +1,7 @@
 import { createFormalExportSource, safeExportBaseName } from "@icm/exporters";
-import { printDesignNetlist } from "@icm/netlist";
-import type { DesignNetlistIR, NetlistFormat } from "@icm/netlist";
-import type { SchematicDocument } from "@icm/model";
+import { createDesignNetlistExport } from "@icm/netlist";
+import type { NetlistFormat, NetlistNamingProfile } from "@icm/netlist";
+import type { CircuitProject, SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 import { prepareDocumentFormulaArtifacts } from "../text-editing/formula-artifacts";
 import {
@@ -56,37 +56,39 @@ export async function createSvgExportArtifact(
 
 export function planDesignNetlistExport({
   format,
-  ir,
-  warningsPresent,
-  warningsReviewed,
-  projectName,
+  project,
+  namingProfile = "native",
+  electricalWarningsPresent = false,
 }: {
   format: NetlistFormat;
-  ir: DesignNetlistIR | null;
-  warningsPresent: boolean;
-  warningsReviewed: boolean;
-  projectName: string;
+  project: CircuitProject;
+  namingProfile?: NetlistNamingProfile;
+  electricalWarningsPresent?: boolean;
 }): DesignNetlistExportPlan {
-  if (!ir) {
+  const result = createDesignNetlistExport(project, { format, namingProfile });
+  if (result.status === "blocked") {
     return {
       status: "blocked",
       message: "Resolve the Check Report findings before export",
     };
   }
-  if (warningsPresent && !warningsReviewed) {
-    return {
-      status: "blocked",
-      message: "Review the Check Report warnings before export",
-    };
-  }
-  const printed = printDesignNetlist(format, ir);
+  const printed = result.file;
+  const comment = format === "spice" ? "*" : "//";
+  const electricalNote = electricalWarningsPresent
+    ? `${comment} Electrical findings remain; see Netlist > Check Report.\n`
+    : "";
+  const note = result.placeholders.length
+    ? `; incomplete netlist: ${result.placeholders.length} TODO field${result.placeholders.length === 1 ? "" : "s"}`
+    : result.diagnostics.length || electricalWarningsPresent
+      ? "; findings included; see Check Report"
+      : "";
   return {
     status: "ready",
     artifact: {
-      bytes: printed.text,
+      bytes: electricalNote + printed.text,
       mediaType: printed.mediaType,
       extension: printed.extension.slice(1),
-      report: `Download requested: ${safeExportBaseName(projectName)}${printed.extension}`,
+      report: `Download requested: ${safeExportBaseName(project.name)}${printed.extension}${note}`,
     },
   };
 }

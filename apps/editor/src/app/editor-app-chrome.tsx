@@ -1,4 +1,4 @@
-import type { ComponentProps, RefObject } from "react";
+import { useState, type ComponentProps, type RefObject } from "react";
 
 import { AccountMenu } from "../components/account";
 import { BugReportLink } from "../components/bug-report-link";
@@ -139,6 +139,14 @@ export function EditorAppChrome({
   releaseChannel,
 }: EditorAppChromeProps) {
   const displayedProjectName = projectNameDraft ?? projectName;
+  const [netlistFormat, setNetlistFormat] = useState<"spice" | "spectre">(
+    "spice",
+  );
+  const downloadNetlist = (format: "spice" | "spectre") => {
+    setNetlistFormat(format);
+    dismissOpenCommandMenus();
+    onExportNetlist(format);
+  };
   return (
     <header className="app-chrome">
       <div className="app-chrome-main">
@@ -332,48 +340,89 @@ export function EditorAppChrome({
                 ) : null}
               </div>
             </details>
-            <details className="command-menu" name="editor-command-menu">
-              <summary>Netlist</summary>
-              <div className="command-popover">
-                <button type="button" onClick={() => onExportNetlist("spice")}>
-                  Export SPICE netlist
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onExportNetlist("spectre")}
+            <div className="netlist-download-group">
+              <button
+                type="button"
+                className="toolbar-button netlist-download"
+                data-testid="download-netlist"
+                aria-label={`Download ${netlistFormat === "spice" ? "SPICE" : "Spectre"} netlist`}
+                title={`Download ${netlistFormat === "spice" ? "SPICE (.spi)" : "Spectre (.scs)"} netlist`}
+                onClick={() => downloadNetlist(netlistFormat)}
+              >
+                <svg
+                  viewBox="0 0 20 20"
+                  className="tool-icon"
+                  aria-hidden="true"
                 >
-                  Export Spectre netlist
-                </button>
-                <span className="command-group-label">Authoring</span>
-                <button
-                  type="button"
-                  aria-haspopup="dialog"
-                  aria-expanded={instanceTableOpen}
-                  onClick={onOpenInstanceTable}
-                >
-                  Instance Table…
-                </button>
-                <span className="command-group-label">Check</span>
-                <button
-                  type="button"
-                  aria-haspopup="dialog"
-                  aria-expanded={netlistPreflightOpen}
-                  onClick={onOpenNetlistPreflight}
-                >
-                  Check Report…
-                </button>
-                <button
-                  type="button"
-                  data-testid="check-and-save"
-                  disabled={!checkAndSave.enabled}
-                  onClick={checkAndSave.execute}
-                  title={`Check ERC and visual issues, and save this ${fileCommands.projectStoreItemLabel}`}
-                >
-                  <span className="toolbar-check-glyph" aria-hidden="true" />
-                  Check and Save
-                </button>
-              </div>
-            </details>
+                  <path
+                    d="M10 3v9m-3-3 3 3 3-3M4 13v4h12v-4"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+                Netlist
+                <span className="netlist-format">
+                  {netlistFormat === "spice" ? "SPICE" : "SCS"}
+                </span>
+              </button>
+              <details className="command-menu" name="editor-command-menu">
+                <summary
+                  aria-label="Netlist"
+                  title="Netlist formats and checks"
+                />
+                <div className="command-popover">
+                  <button
+                    type="button"
+                    onClick={() => downloadNetlist("spice")}
+                  >
+                    Export SPICE netlist
+                    <span className="netlist-extension" aria-hidden="true">
+                      .spi
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => downloadNetlist("spectre")}
+                  >
+                    Export Spectre netlist
+                    <span className="netlist-extension" aria-hidden="true">
+                      .scs
+                    </span>
+                  </button>
+                  <span className="command-group-label">Authoring</span>
+                  <button
+                    type="button"
+                    aria-haspopup="dialog"
+                    aria-expanded={instanceTableOpen}
+                    onClick={onOpenInstanceTable}
+                  >
+                    Instance Table…
+                  </button>
+                  <span className="command-group-label">Check</span>
+                  <button
+                    type="button"
+                    aria-haspopup="dialog"
+                    aria-expanded={netlistPreflightOpen}
+                    onClick={onOpenNetlistPreflight}
+                  >
+                    Check Report…
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="check-and-save"
+                    disabled={!checkAndSave.enabled}
+                    onClick={checkAndSave.execute}
+                    title={`Check ERC and visual issues, and save this ${fileCommands.projectStoreItemLabel}`}
+                  >
+                    <span className="toolbar-check-glyph" aria-hidden="true" />
+                    Check and Save
+                  </button>
+                </div>
+              </details>
+            </div>
             {simulationAction ? (
               <button
                 type="button"
