@@ -110,6 +110,10 @@ test("GUI imports a Canvas-bound project, runs native AC, exports and reloads it
     /^postprocess\(PYTHON,.*\)\r?\n/mu,
     "",
   );
+  sourceFile.text = sourceFile.text.replace(
+    "analysis ",
+    "analysis bias op\nanalysis ",
+  );
   const direct = process.env.ICM_E2E_NATIVE_TRANSPORT === "vite";
   const executor = direct ? undefined : await createAgentNativeExecutor();
   let environment = executor?.environment;
@@ -169,6 +173,16 @@ test("GUI imports a Canvas-bound project, runs native AC, exports and reloads it
     expect(ac.frequencyHz).toHaveLength(401);
     expect(ac.probes.some((p) => p.name === "out")).toBe(true);
     expect(results[0]!.metadata!.environment).toEqual(environment);
+    await panel
+      .getByRole("tab", { name: "Operating Point", exact: true })
+      .click();
+    await expect(
+      panel.getByRole("button", { name: "Show on canvas", exact: true }),
+    ).toBeEnabled();
+    await panel
+      .getByRole("button", { name: "Show on canvas", exact: true })
+      .click();
+    await expect(page.getByTestId("operating-point-badges")).toContainText("V");
     const bytes = await downloadBytes(page, "File", "Export Project File…");
     const saved = parseProject(bytes.toString());
     expect(saved.documents).toEqual(

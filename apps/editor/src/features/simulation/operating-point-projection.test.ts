@@ -1,9 +1,187 @@
 import { createEmptyProject } from "@icm/model";
 import { describe, expect, it } from "vitest";
+import type {
+  Prepared,
+  SimulationOutputData,
+} from "@icm/simulation-service/contract";
 
 import { deriveOperatingPointCanvasProjection } from "./operating-point-projection";
 
 describe("deriveOperatingPointCanvasProjection", () => {
+  it("maps native untyped nodes only through captured voltage addresses and preserves occurrences", () => {
+    const project = createEmptyProject("native-op", "Native OP");
+    const document = project.documents[0]!;
+    document.nets.push({ id: "n", terminals: [] });
+    const target = {
+      rootDocumentId: document.id,
+      documentId: document.id,
+      netId: "n",
+      occurrence: [] as string[],
+    };
+    const signals: Prepared["signalTargets"] = {
+      "X1:out": [{ ...target, occurrence: ["x1"] }],
+      "X2:out": [{ ...target, occurrence: ["x2"] }],
+      current: [{ ...target, terminal: { instanceId: "m", pinName: "D" } }],
+      expression: [target],
+      missing: [{ ...target, netId: "removed" }],
+    };
+    const raw = (name: string, value: number) => ({
+      id: `native:${name}`,
+      label: "same display label",
+      unit: "",
+      values: [value],
+      semantics: {
+        origin: "raw" as const,
+        quantity: "notype",
+        valueKind: "real" as const,
+      },
+    });
+    const data: SimulationOutputData = {
+      schemaVersion: 1,
+      diagnostics: [],
+      analyses: [
+        {
+          analysis: "op",
+          plotName: "bias",
+          outputs: [
+            raw("X1:out", 1),
+            raw("X2:out", 2),
+            raw("x1:out", 3),
+            raw("current", 4),
+            raw("missing", 5),
+            {
+              ...raw("expression", 6),
+              semantics: {
+                origin: "expression",
+                quantity: "notype",
+                valueKind: "real",
+              },
+            },
+          ],
+        },
+      ],
+    };
+    const derive = (selected?: number) =>
+      deriveOperatingPointCanvasProjection(
+        project,
+        document.id,
+        "rev",
+        data,
+        [],
+        "all",
+        selected,
+        signals,
+      );
+    expect(derive().values.map((v) => [v.occurrence, v.volts])).toEqual([
+      [["x1"], 1],
+      [["x2"], 2],
+    ]);
+    // Multiple bias records require explicit selection, not accidental last-write wins.
+    data.analyses.push({ ...data.analyses[0]!, plotName: "second bias" });
+    expect(derive().values).toEqual([]);
+    expect(derive(1).values).toHaveLength(2);
+    expect(
+      deriveOperatingPointCanvasProjection(
+        project,
+        document.id,
+        "rev",
+        data,
+        [],
+        "all",
+        1,
+      ).values,
+    ).toEqual([]);
+    data.analyses = [data.analyses[0]!];
+    data.analyses[0]!.outputs = [raw("X1:out", 1)];
+    data.analyses[0]!.postprocessor = { logLine: 7 };
+    expect(
+      deriveOperatingPointCanvasProjection(
+        project,
+        document.id,
+        "rev",
+        data,
+        [],
+        "all",
+        undefined,
+        signals,
+      ).values,
+    ).toEqual([]);
+  });
+
+  it("does not project postprocessor results or non-scalar/complex native values", () => {
+    const project = createEmptyProject("native-op-filter", "Native OP");
+    const document = project.documents[0]!;
+    document.nets.push({ id: "n", terminals: [] });
+    const output = {
+      id: "native:out",
+      label: "out",
+      unit: "V",
+      values: [1],
+      semantics: {
+        origin: "raw" as const,
+        quantity: "voltage",
+        valueKind: "real" as const,
+      },
+    };
+    const signals = {
+      out: [
+        {
+          rootDocumentId: document.id,
+          documentId: document.id,
+          netId: "n",
+          occurrence: [],
+        },
+      ],
+    };
+    for (const values of [[null], [1, 2]]) {
+      const data: SimulationOutputData = {
+        schemaVersion: 1,
+        diagnostics: [],
+        analyses: [
+          {
+            analysis: "op",
+            plotName: "bias",
+            outputs: [{ ...output, values }],
+          },
+        ],
+      };
+      expect(
+        deriveOperatingPointCanvasProjection(
+          project,
+          document.id,
+          "rev",
+          data,
+          [],
+          "all",
+          undefined,
+          signals,
+        ).values,
+      ).toEqual([]);
+    }
+    const data: SimulationOutputData = {
+      schemaVersion: 1,
+      diagnostics: [],
+      analyses: [
+        {
+          analysis: "op",
+          plotName: "bias",
+          outputs: [{ ...output, imaginary: [1] }],
+        },
+      ],
+    };
+    expect(
+      deriveOperatingPointCanvasProjection(
+        project,
+        document.id,
+        "rev",
+        data,
+        [],
+        "all",
+        undefined,
+        signals,
+      ).values,
+    ).toEqual([]);
+  });
   it("maps only direct finite OP voltages through authored object anchors", () => {
     const project = createEmptyProject("op-projection", "OP");
     const document = project.documents[0]!;

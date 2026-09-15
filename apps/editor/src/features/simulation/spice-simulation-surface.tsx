@@ -315,6 +315,7 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
             presentation.outputs,
             canvasOpDisplay,
             opRecord?.runId === reply.run.id ? opRecord.index : undefined,
+            presentation.prepared.signalTargets,
           ),
         );
       } else props.onOperatingPointProjection?.(null);
@@ -867,6 +868,7 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
           runPresentation.outputs,
           canvasOpDisplay,
           opRecord?.runId === run.id ? opRecord.index : undefined,
+          runPresentation.prepared.signalTargets,
         )
       : undefined;
   const currentComparisonRun: SimulationComparisonRun | undefined =
