@@ -6259,7 +6259,7 @@ test("copies an incomplete netlist in one click and previews its TODO fields", a
   await config.fill(JSON.stringify(preferences, null, 2));
   const text = await copyNetlistText(page);
   expect(text).not.toMatch(/^(?:\*|\/\/)/mu);
-  expect(text).toContain("R1 NC0001 NC0002 {TODO_Main_R1_value}");
+  expect(text).toContain("R1 NC0001 NC0002 {TODO_dut_R1_value}");
   await expect(page.getByRole("dialog", { name: "Check Report" })).toHaveCount(
     0,
   );
@@ -6268,7 +6268,7 @@ test("copies an incomplete netlist in one click and previews its TODO fields", a
   const report = page.getByRole("dialog", { name: "Check Report" });
   await expect(report).toContainText("Incomplete netlist: 1 TODO field");
   await expect(report.getByTestId("netlist-preview")).toContainText(
-    "R1 NC0001 NC0002 {TODO_Main_R1_value}",
+    "R1 NC0001 NC0002 {TODO_dut_R1_value}",
   );
   await report.getByTestId("check-report-close").click();
   await page
@@ -6276,7 +6276,7 @@ test("copies an incomplete netlist in one click and previews its TODO fields", a
     .selectOption("spectre");
   await clickCommand(page, "Netlist", "Check Report…");
   await expect(report.getByTestId("netlist-preview")).toContainText(
-    "R1 (NC0001 NC0002) resistor r=TODO_Main_R1_value",
+    "R1 (NC0001 NC0002) resistor r=TODO_dut_R1_value",
   );
 });
 
