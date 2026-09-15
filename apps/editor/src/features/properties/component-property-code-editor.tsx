@@ -30,6 +30,7 @@ export interface ComponentPropertyCodeEditorProps {
   referenceVisible: boolean | null;
   valueVisible: boolean | null;
   parameterVisibility?: Record<string, boolean>;
+  connection?: "cell-pin" | "global" | null;
   netName?: string | null;
   defaultForeground?: string;
   details?: ComponentPropertyCodeContext["details"];
@@ -47,6 +48,7 @@ export function ComponentPropertyCodeEditor({
   referenceVisible,
   valueVisible,
   parameterVisibility,
+  connection,
   netName,
   defaultForeground = "#000000",
   details,
@@ -60,6 +62,7 @@ export function ComponentPropertyCodeEditor({
       referenceVisible,
       valueVisible,
       ...(parameterVisibility ? { parameterVisibility } : {}),
+      ...(connection !== undefined ? { connection } : {}),
       ...(netName !== undefined ? { netName } : {}),
       ...(details ? { details } : {}),
     }),
@@ -69,6 +72,7 @@ export function ComponentPropertyCodeEditor({
       referenceVisible,
       valueVisible,
       parameterVisibility,
+      connection,
       netName,
       details,
     ],

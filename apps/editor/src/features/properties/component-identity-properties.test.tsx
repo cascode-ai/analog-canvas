@@ -38,8 +38,6 @@ describe("component identity properties", () => {
       <ComponentIdentityProperties
         instance={instance}
         revision={0}
-        formalTerminalSelected={false}
-        portNet={{ id: "net", logicalName: "VDD", supply: true }}
         targetDescription={null}
         capacitorPlateRows={null}
         modelTarget={{
@@ -52,13 +50,12 @@ describe("component identity properties", () => {
           exact: true,
           note: null,
         }}
-        onMarkerNameChange={vi.fn()}
         onReferenceChange={vi.fn()}
         onEditAnnotation={vi.fn()}
         onModelTargetChange={vi.fn()}
       />,
     );
-    expect(markup).toContain('aria-label="Supply name"');
+    expect(markup).not.toContain('aria-label="Supply name"');
     expect(markup).not.toContain("Identity");
     expect(markup).not.toContain("<details");
     expect(markup).not.toContain("Cell");
@@ -82,8 +79,6 @@ describe("component identity properties", () => {
       <ComponentIdentityProperties
         instance={instance}
         revision={1}
-        formalTerminalSelected={false}
-        portNet={null}
         targetDescription={null}
         capacitorPlateRows={null}
         modelTarget={null}
@@ -92,7 +87,6 @@ describe("component identity properties", () => {
           exact: false,
           note: "Subcircuit template — choose a concrete model before export.",
         }}
-        onMarkerNameChange={vi.fn()}
         onReferenceChange={vi.fn()}
         onEditAnnotation={vi.fn()}
         onModelTargetChange={vi.fn()}
@@ -106,38 +100,6 @@ describe("component identity properties", () => {
     expect(markup).not.toContain('aria-label="Netlist Reference"');
     // A retained Instance has nowhere to stand a label yet.
     expect(markup).not.toContain('aria-label="Component label"');
-  });
-
-  it("offers an explicit Cell Pin or Global mode for VDD Power", () => {
-    const document = createEmptyDocument("cell", "Cell");
-    const instance: (typeof document.instances)[number] = {
-      id: "VDD1",
-      symbolId: "vdd-port",
-      placement: null,
-    };
-    const markup = renderToStaticMarkup(
-      <ComponentIdentityProperties
-        instance={instance}
-        revision={1}
-        formalTerminalSelected
-        portNet={{ id: "net-vdd", logicalName: "VDD", supply: true }}
-        targetDescription={null}
-        capacitorPlateRows={null}
-        supplyConnection={{ mode: "cell-pin", onChange: vi.fn() }}
-        modelTarget={null}
-        sourceCode={{ code: "* VDD Cell Pin", exact: true, note: null }}
-        onMarkerNameChange={vi.fn()}
-        onReferenceChange={vi.fn()}
-        onModelTargetChange={vi.fn()}
-      />,
-    );
-
-    expect(markup).toContain('aria-label="VDD connection mode"');
-    expect(markup).toContain(
-      '<option value="cell-pin" selected="">Cell Pin</option>',
-    );
-    expect(markup).toContain('<option value="global">Global</option>');
-    expect(markup).not.toContain('aria-label="Supply name"');
   });
 
   it("offers one rich-editor action beside the Netlist Reference", () => {
@@ -160,13 +122,10 @@ describe("component identity properties", () => {
       <ComponentIdentityProperties
         instance={instance}
         revision={2}
-        formalTerminalSelected={false}
-        portNet={null}
         targetDescription={null}
         capacitorPlateRows={null}
         modelTarget={null}
         sourceCode={{ code: "R1 net1 net2 10k", exact: true, note: null }}
-        onMarkerNameChange={vi.fn()}
         onReferenceChange={vi.fn()}
         onEditAnnotation={vi.fn()}
         onModelTargetChange={vi.fn()}

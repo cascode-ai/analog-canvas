@@ -168,19 +168,34 @@ describe("component property code", () => {
     expect(parseComponentPropertyCode(source, noDisplayContext).ok).toBe(true);
   });
 
-  it("keeps a supply marker's Net name in the same editable code surface", () => {
+  it("keeps a supply marker's connection and Net name in the same editable code surface", () => {
     const supplyContext = {
       instance: { ...instance, symbolId: "vdd-port", reference: undefined },
       referenceVisible: null,
       valueVisible: null,
+      connection: "global" as const,
       netName: "VDD",
     };
     const decoded = JSON.parse(formatComponentPropertyCode(supplyContext));
+    expect(decoded.connection).toBe("global");
     expect(decoded.netName).toBe("VDD");
+    decoded.connection = "cell-pin";
     decoded.netName = " AVDD ";
     expect(
       parseComponentPropertyCode(JSON.stringify(decoded), supplyContext),
-    ).toMatchObject({ ok: true, value: { netName: "AVDD" } });
+    ).toMatchObject({
+      ok: true,
+      value: { connection: "cell-pin", netName: "AVDD" },
+    });
+
+    decoded.connection = "project";
+    expect(
+      parseComponentPropertyCode(JSON.stringify(decoded), supplyContext),
+    ).toEqual({
+      ok: false,
+      message: 'connection must be "cell-pin" or "global"',
+    });
+    decoded.connection = "global";
 
     delete decoded.netName;
     expect(
@@ -189,6 +204,26 @@ describe("component property code", () => {
       ok: false,
       message: "netName is required for this component",
     });
+    decoded.netName = "VDD";
+    delete decoded.connection;
+    expect(
+      parseComponentPropertyCode(JSON.stringify(decoded), supplyContext),
+    ).toEqual({
+      ok: false,
+      message: "connection is required for this component",
+    });
+
+    const cellPinContext = {
+      ...supplyContext,
+      connection: "cell-pin" as const,
+      netName: null,
+    };
+    const cellPinCode = JSON.parse(formatComponentPropertyCode(cellPinContext));
+    expect(cellPinCode.connection).toBe("cell-pin");
+    expect(cellPinCode).not.toHaveProperty("netName");
+    expect(
+      parseComponentPropertyCode(JSON.stringify(cellPinCode), cellPinContext),
+    ).toMatchObject({ ok: true, value: { connection: "cell-pin" } });
   });
 
   it("keeps tray membership outside free-form property edits", () => {

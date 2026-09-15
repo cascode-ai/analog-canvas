@@ -145,6 +145,29 @@ describe("Canvas property assistance", () => {
       propertyCodeChanges(source, context, { "placement.mirror": "y" }),
     ).toEqual([]);
   });
+  it("edits the VDD connection choice inside the JSON surface", () => {
+    const vddContext = {
+      ...context,
+      instance: { ...context.instance, symbolId: "vdd-port" },
+      connection: "cell-pin" as const,
+    };
+    const source = formatComponentPropertyCode(vddContext);
+    const connection = propertyCodeSpans(source, vddContext).find(
+      (span) => span.field.path === "connection",
+    );
+    expect(connection?.field.kind).toBe("choice");
+    expect(
+      JSON.parse(
+        apply(
+          source,
+          propertyCodeChanges(source, vddContext, { connection: "global" }),
+        ),
+      ).connection,
+    ).toBe("global");
+    expect(
+      propertyCodeChanges(source, vddContext, { connection: "project" }),
+    ).toEqual([]);
+  });
   it("does not repair invalid JSON implicitly, overwrite invalid drafts, or invent unsupported controls", () => {
     const source = formatComponentPropertyCode(context);
     expect(

@@ -1111,11 +1111,14 @@ test("renames one supply marker without changing its same-name peer", async ({
 
   await page.getByTestId("hit-VDD1").click();
   await openSelectionShelf(page);
-  await page.getByLabel("VDD connection mode").selectOption("global");
-  const supplyName = page.getByRole("textbox", { name: "Supply name" });
-  await expect(supplyName).toHaveCount(1);
-  await supplyName.fill("AVDD");
-  await supplyName.blur();
+  await expectComponentCodeField(page, "connection", "cell-pin");
+  await expect(page.getByLabel("VDD connection mode")).toHaveCount(0);
+  await setComponentCodeField(page, "connection", "global");
+  await expectComponentCodeField(page, "connection", "global");
+  await expect(page.getByRole("textbox", { name: "Supply name" })).toHaveCount(
+    0,
+  );
+  await setComponentCodeField(page, "netName", "AVDD");
 
   await expectComponentCodeField(page, "netName", "AVDD");
   await expect(

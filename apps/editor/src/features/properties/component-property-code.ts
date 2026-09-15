@@ -38,6 +38,8 @@ export interface ComponentPropertyDisplayCode {
 }
 
 export interface ComponentPropertyCodeValue extends ComponentPropertyDetailsValue {
+  /** Electrical role of VDD Power; absent for every other component. */
+  connection?: "cell-pin" | "global";
   /** Global Net name owned by a supply marker. */
   netName?: string;
   /** Visual instance annotation, independent from the exported netlist name. */
@@ -60,6 +62,8 @@ export interface ComponentPropertyCodeContext {
   referenceVisible: boolean | null;
   valueVisible: boolean | null;
   parameterVisibility?: Record<string, boolean>;
+  /** Null when this component is not VDD Power. */
+  connection?: "cell-pin" | "global" | null;
   /** Null when this component does not own an editable electrical marker name. */
   netName?: string | null;
   details?: ComponentPropertyDetailsContext;
@@ -74,6 +78,7 @@ const ROOT_KEYS = new Set([
   "display",
   "displayName",
   "appearance",
+  "connection",
   "netName",
   "netlistName",
   "parameters",
@@ -273,6 +278,9 @@ export function componentPropertyCodeValue(
       ]),
     );
   return {
+    ...(context.connection !== undefined && context.connection !== null
+      ? { connection: context.connection }
+      : {}),
     ...(context.netName !== undefined && context.netName !== null
       ? { netName: context.netName }
       : {}),
@@ -309,6 +317,8 @@ export function serializeComponentPropertyCode(
     appearance,
     display,
     displayName,
+    connection,
+    netName,
     netlistName,
     netlistTarget,
     ...details
@@ -316,6 +326,8 @@ export function serializeComponentPropertyCode(
   const source = JSON.stringify(
     {
       placement,
+      ...(connection !== undefined ? { connection } : {}),
+      ...(netName !== undefined ? { netName } : {}),
       appearance: {
         color:
           appearance.color === "auto" ? "auto" : colorToRgb(appearance.color),
@@ -357,7 +369,7 @@ export function formatComponentPropertyCode(
   return serializeComponentPropertyCode(componentPropertyCodeValue(context));
 }
 
-/** Parse the strict, component-local JSON surface. Connectivity is deliberately absent. */
+/** Parse the strict component-local JSON surface; physical connectivity stays outside it. */
 export function parseComponentPropertyCode(
   source: string,
   context: ComponentPropertyCodeContext,
@@ -402,6 +414,22 @@ export function parseComponentPropertyCode(
         );
       }
     }
+    const connectionAvailable =
+      context.connection !== undefined && context.connection !== null;
+    if (!connectionAvailable && "connection" in decoded) {
+      throw new Error("connection is not available for this component");
+    }
+    if (connectionAvailable) {
+      if (!("connection" in decoded)) {
+        throw new Error("connection is required for this component");
+      }
+      if (
+        decoded.connection !== "cell-pin" &&
+        decoded.connection !== "global"
+      ) {
+        throw new Error('connection must be "cell-pin" or "global"');
+      }
+    }
     const netNameAvailable =
       context.netName !== undefined && context.netName !== null;
     if (!netNameAvailable && "netName" in decoded) {
@@ -424,6 +452,11 @@ export function parseComponentPropertyCode(
     return {
       ok: true,
       value: {
+        ...(connectionAvailable
+          ? {
+              connection: decoded.connection as "cell-pin" | "global",
+            }
+          : {}),
         ...(displayNameAvailable
           ? { displayName: (decoded.displayName as string).trim() }
           : {}),

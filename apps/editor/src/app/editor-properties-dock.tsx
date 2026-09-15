@@ -162,8 +162,7 @@ export function EditorPropertiesDock({
                       {...component.cellSymbolLayout}
                     />
                   ) : null}
-                  {component.identity.propertyTerminal ||
-                  component.identity.supplyConnection ? (
+                  {component.identity.propertyTerminal ? (
                     <ComponentIdentityProperties
                       {...component.identity}
                       fieldsMovedToCode

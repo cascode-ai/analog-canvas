@@ -175,24 +175,18 @@ export function componentTargetDescription(
 export function ComponentIdentityProperties({
   instance,
   revision,
-  formalTerminalSelected,
-  portNet,
   targetDescription,
   capacitorPlateRows,
   propertyTerminal,
-  supplyConnection,
   modelTarget,
   sourceCode,
   onEditAnnotation,
-  onMarkerNameChange,
   onReferenceChange,
   onModelTargetChange,
   fieldsMovedToCode = false,
 }: {
   instance: Instance;
   revision: number;
-  formalTerminalSelected: boolean;
-  portNet: { id: string; logicalName: string; supply: boolean } | null;
   targetDescription: string | null;
   capacitorPlateRows: readonly CapacitorPlatePropertyRow[] | null;
   propertyTerminal?: {
@@ -202,25 +196,16 @@ export function ComponentIdentityProperties({
     options: readonly { netId: string; label: string }[];
     onChange: (netId: string | null) => void;
   } | null;
-  supplyConnection?: {
-    mode: "cell-pin" | "global";
-    onChange: (mode: "cell-pin" | "global") => void;
-  } | null;
   modelTarget: ComponentModelTargetView | null;
   sourceCode: ComponentSourceCode;
   onEditAnnotation?: () => void;
-  onMarkerNameChange: (value: string) => void;
   onReferenceChange: (value: string) => boolean | void;
   onModelTargetChange: (value: string) => void;
   fieldsMovedToCode?: boolean;
 }) {
   const reference = instance.reference ?? "";
   const hasEditableIdentityControls = Boolean(
-    (portNet && !formalTerminalSelected) ||
-    supplyConnection ||
-    instance.reference ||
-    onEditAnnotation ||
-    targetDescription,
+    instance.reference || onEditAnnotation || targetDescription,
   );
   return (
     <>
@@ -230,43 +215,6 @@ export function ComponentIdentityProperties({
           aria-label="Component controls"
         >
           <dl className="component-readonly-fields">
-            {supplyConnection ? (
-              <div>
-                <dt>Connection</dt>
-                <dd>
-                  <select
-                    aria-label="VDD connection mode"
-                    value={supplyConnection.mode}
-                    onChange={(event) =>
-                      supplyConnection.onChange(
-                        event.currentTarget.value as "cell-pin" | "global",
-                      )
-                    }
-                  >
-                    <option value="cell-pin">Cell Pin</option>
-                    <option value="global">Global</option>
-                  </select>
-                </dd>
-              </div>
-            ) : null}
-            {portNet && !formalTerminalSelected ? (
-              <div>
-                <dt>{portNet.supply ? "Supply" : "Net name"}</dt>
-                <dd>
-                  <input
-                    dir="auto"
-                    key={`${portNet.id}-${revision}-net-port-name`}
-                    aria-label={
-                      portNet.supply ? "Supply name" : "Supply Net name"
-                    }
-                    defaultValue={portNet.logicalName}
-                    onBlur={(event) =>
-                      onMarkerNameChange(event.currentTarget.value)
-                    }
-                  />
-                </dd>
-              </div>
-            ) : null}
             {instance.reference && !fieldsMovedToCode ? (
               <div>
                 <dt>Netlist Reference</dt>

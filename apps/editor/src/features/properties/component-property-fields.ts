@@ -39,6 +39,17 @@ export interface CanvasPropertyField {
 
 export const CANVAS_PROPERTY_FIELDS: readonly CanvasPropertyField[] = [
   {
+    path: "connection",
+    label: "Connection",
+    kind: "choice",
+    options: [
+      { value: "cell-pin", label: "Cell Pin" },
+      { value: "global", label: "Global" },
+    ],
+    description: "",
+    help: "Choose whether VDD Power exposes a Cell Pin or declares a Global Net.",
+  },
+  {
     path: "placement.coordinate",
     label: "Coordinate",
     kind: "coordinate",

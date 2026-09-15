@@ -326,7 +326,9 @@ export function createPropertyEditPlanner({
     scope: "local" | "global",
   ): SchematicEdit[] | null => {
     if (annotation.kind !== "net-label") {
-      setStatus("Use VDD connection mode to change a supply marker's scope");
+      setStatus(
+        "Use the VDD Power connection property to change a supply marker's scope",
+      );
       return null;
     }
     const claim = document.connectivityEvidence.find(

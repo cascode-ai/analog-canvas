@@ -2038,7 +2038,6 @@ export function App({
     beginNetLabelEditing,
     cancelNetLabelEditing,
     commitInstancePropertyDraft,
-    commitElectricalMarkerName,
     commitNetLabelScope,
     commitNetLabelEditing,
     commitPendingNetLabelDraft,
@@ -3507,32 +3506,6 @@ export function App({
   function commitProjectName(): void {
     setProjectNameDraft(null);
     renameProject(projectNameDraft);
-  }
-
-  function setSelectedVddConnectionMode(mode: "cell-pin" | "global"): void {
-    if (!selectedSupplyMarker) return;
-    try {
-      const edits = planSetVddConnectionMode(
-        project,
-        document.id,
-        selectedSupplyMarker.id,
-        mode,
-      );
-      if (edits.length === 0) return;
-      if (commitStructure("set-vdd-connection-mode", edits)) {
-        setStatus(
-          mode === "global"
-            ? "VDD Power now declares a Global Net"
-            : "VDD Power now exposes a formal Cell Pin",
-        );
-      }
-    } catch (error) {
-      setStatus(
-        error instanceof Error
-          ? error.message
-          : "Could not change VDD connection mode",
-      );
-    }
   }
 
   function approveAgentFileCandidate(): void {
@@ -5817,6 +5790,11 @@ export function App({
                           document,
                           selectedInstance,
                         ),
+                        connection: selectedSupplyMarker
+                          ? selectedFormalTerminal
+                            ? "cell-pin"
+                            : "global"
+                          : null,
                         netName:
                           selectedSupplyMarker && !selectedFormalTerminal
                             ? (selectedPortLogicalName ?? "")
@@ -5989,9 +5967,29 @@ export function App({
                                     value.netlistTarget,
                                   )
                                 : [];
+                            const currentConnection = selectedSupplyMarker
+                              ? selectedFormalTerminal
+                                ? "cell-pin"
+                                : "global"
+                              : undefined;
+                            const connectionEdits: ProjectStructureEdit[] =
+                              selectedSupplyMarker &&
+                              value.connection !== undefined &&
+                              value.connection !== currentConnection
+                                ? planSetVddConnectionMode(
+                                    project,
+                                    document.id,
+                                    selectedSupplyMarker.id,
+                                    value.connection,
+                                  )
+                                : [];
+                            const structureEdits = [
+                              ...targetEdits,
+                              ...connectionEdits,
+                            ];
                             if (
                               edits.length === 0 &&
-                              targetEdits.length === 0
+                              structureEdits.length === 0
                             ) {
                               setStatus(
                                 `Canvas properties for ${selectedInstance.id} are already up to date`,
@@ -5999,10 +5997,10 @@ export function App({
                               return { ok: true as const };
                             }
                             let applied: boolean;
-                            if (targetEdits.length > 0) {
-                              // Merge the target planner's document edits with the draft into
+                            if (structureEdits.length > 0) {
+                              // Merge structural document edits with the draft into
                               // one project transaction and one undo boundary.
-                              const documentEdit = targetEdits.find(
+                              const documentEdit = structureEdits.find(
                                 (edit) =>
                                   edit.kind === "transact_document" &&
                                   edit.documentId === document.id,
@@ -6010,7 +6008,7 @@ export function App({
                               if (documentEdit?.kind === "transact_document")
                                 documentEdit.edits.push(...edits);
                               else if (edits.length)
-                                targetEdits.push({
+                                structureEdits.push({
                                   kind: "transact_document",
                                   documentId: document.id,
                                   expectedRevision: document.revision,
@@ -6018,7 +6016,7 @@ export function App({
                                 });
                               applied = commitStructure(
                                 "apply-component-property-code",
-                                targetEdits,
+                                structureEdits,
                               );
                             } else applied = transact(edits).ok;
                             if (!applied) {
@@ -6067,14 +6065,6 @@ export function App({
                         instance: selectedInstance,
                         sourceCode: selectedComponentSourceCode!,
                         revision: document.revision,
-                        formalTerminalSelected: Boolean(selectedFormalTerminal),
-                        portNet: selectedPortNet
-                          ? {
-                              id: selectedPortNet.id,
-                              logicalName: selectedPortLogicalName ?? "",
-                              supply: Boolean(selectedSupplyMarker),
-                            }
-                          : null,
                         targetDescription:
                           selectedInstance.netlist &&
                           !(
@@ -6125,14 +6115,6 @@ export function App({
                                 },
                               }
                             : null,
-                        supplyConnection: selectedSupplyMarker
-                          ? {
-                              mode: selectedFormalTerminal
-                                ? "cell-pin"
-                                : "global",
-                              onChange: setSelectedVddConnectionMode,
-                            }
-                          : null,
                         modelTarget:
                           selectedInstance.netlist &&
                           (selectedInstance.netlist.binding?.kind === "model" ||
@@ -6157,11 +6139,6 @@ export function App({
                                 ),
                               }
                             : null,
-                        onMarkerNameChange: (value) =>
-                          commitElectricalMarkerName(
-                            selectedInstance.id,
-                            value,
-                          ),
                         onReferenceChange: updateSelectedReference,
                         ...(selectedInstanceLabel && selectedInstance.placement
                           ? {

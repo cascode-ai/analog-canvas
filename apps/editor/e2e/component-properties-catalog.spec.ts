@@ -1,7 +1,10 @@
 import { expect, test } from "@playwright/test";
 import { expandedDeviceSymbols, razaviProductSymbols } from "@icm/symbols";
 
-import { chooseComponent } from "./editor-fixtures.js";
+import {
+  chooseComponent,
+  expectComponentCodeField,
+} from "./editor-fixtures.js";
 
 // These are the two canonical sources of placeable Instance tiles. Editor-only
 // Annotation tools and the two-click Power Rail intentionally do not appear in
@@ -39,10 +42,7 @@ for (const symbolId of componentSymbolIds) {
       properties.getByLabel("Editable Canvas property code"),
     ).toBeVisible();
     if (symbolId === "vdd-port") {
-      await expect(properties.getByLabel("VDD connection mode")).toHaveValue(
-        "cell-pin",
-      );
-      return;
+      await expectComponentCodeField(page, "connection", "cell-pin");
     }
     await expect(properties.locator(":scope > *")).toHaveCount(1);
     await expect(properties.locator(":scope > :only-child")).toHaveAttribute(
