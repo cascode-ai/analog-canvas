@@ -60,6 +60,26 @@ describe("unified text editing", () => {
     });
   });
 
+  it("uses compact single-line sessions for Net names and Route markers", () => {
+    const netLabel = {
+      ...annotation(),
+      binding: { kind: "net-name" as const, netId: "net-1" },
+    };
+    expect(
+      createTextEditingSession({ owner: "annotation", object: netLabel }),
+    ).toMatchObject({ plainTextKind: "net-label" });
+    expect(
+      createTextEditingSession({
+        owner: "annotation",
+        object: {
+          ...annotation(),
+          kind: "route-marker",
+          markerKind: "current",
+        },
+      }),
+    ).toMatchObject({ plainTextKind: "route-marker" });
+  });
+
   it("keeps untouched bold defaults revision-free and persists explicit normal text", () => {
     const object = draftingText();
     const document = {

@@ -1363,7 +1363,6 @@ export function App({
   const selectionShelfRef = useRef<HTMLButtonElement>(null);
   const instanceValueInputRef = useRef<HTMLInputElement>(null);
   const [propertyCodeFocusRequest, setPropertyCodeFocusRequest] = useState(0);
-  const netLabelPropertyInputRef = useRef<HTMLInputElement>(null);
   const netLabelEditorInputRef = useRef<HTMLInputElement>(null);
   const documentViewBoxes = useRef(new Map<string, GridRect>());
   const [projectedMovePreviewDocument, setProjectedMovePreviewDocument] =
@@ -2067,6 +2066,7 @@ export function App({
   const {
     restoreTextReference,
     addAdditionalParameter,
+    applyRouteProperties,
     additionalParameterDraft,
     additionalParameterDraftChanges,
     applyAdditionalParameters,
@@ -2082,12 +2082,10 @@ export function App({
     commitTextEditing,
     clearTextEditing,
     cancelAdditionalParameters,
-    deleteSelectedRouteNetLabel,
     deleteTextEditing,
     discardInstancePropertyDraft,
     hasInstancePropertyDraftChanges,
     instancePropertyDraft,
-    netLabelDraft,
     netLabelPlacement,
     placeNetLabel,
     removeAdditionalParameter,
@@ -2098,7 +2096,6 @@ export function App({
     updateInstancePropertyDraft,
     updateAdditionalParameter,
     updateTextEditing,
-    updateNetLabelDraft,
     updateNetLabelPlacementDraft,
     updateNetLabelPlacementPosition,
   } = usePropertiesEditor({
@@ -6469,6 +6466,7 @@ export function App({
                   : null
               }
               netName={
+                selectedRouteId === null &&
                 selectedNetNameAnnotation &&
                 selectedNetNameClaim?.kind === "name-claim"
                   ? {
@@ -6526,86 +6524,13 @@ export function App({
               }}
               routeActions={{
                 active: selectedRouteId !== null,
+                document,
+                route: selectedRoute ?? null,
+                netLabel: selectedRouteNetLabel ?? null,
                 bulkOwnerLabel: selectedMosBulkOwnerLabel,
-                netLabelInputRef: netLabelPropertyInputRef,
-                netLabel: netLabelDraft,
-                color: selectedRoute?.styleOverride?.color,
-                arrow: selectedRoute?.styleOverride?.arrow,
-                lineStyle: selectedRoute?.styleOverride?.lineStyle,
                 defaultColor: styleProfile.foreground,
                 highlightActive: selectedHighlightIsActive,
-                onNetLabelChange: updateNetLabelDraft,
-                onColorChange: (color) => {
-                  if (!selectedRoute) return;
-                  const styleOverride = {
-                    ...(selectedRoute.styleOverride ?? {}),
-                  };
-                  if (color) styleOverride.color = color;
-                  else delete styleOverride.color;
-                  const result = transact([
-                    {
-                      kind: "set_route_style_override",
-                      routeId: selectedRoute.id,
-                      styleOverride:
-                        Object.keys(styleOverride).length > 0
-                          ? styleOverride
-                          : null,
-                    },
-                  ]);
-                  if (result.ok) {
-                    setStatus(
-                      color
-                        ? `Updated wire color for ${selectedRoute.id}`
-                        : `Reset wire color for ${selectedRoute.id}`,
-                    );
-                  }
-                },
-                onArrowChange: (arrow) => {
-                  if (!selectedRoute) return;
-                  const styleOverride = {
-                    ...(selectedRoute.styleOverride ?? {}),
-                  };
-                  if (arrow) styleOverride.arrow = arrow;
-                  else delete styleOverride.arrow;
-                  const result = transact([
-                    {
-                      kind: "set_route_style_override",
-                      routeId: selectedRoute.id,
-                      styleOverride:
-                        Object.keys(styleOverride).length > 0
-                          ? styleOverride
-                          : null,
-                    },
-                  ]);
-                  if (result.ok) {
-                    setStatus(
-                      arrow
-                        ? `Placed wire arrow at ${arrow} for ${selectedRoute.id}`
-                        : `Removed wire arrow from ${selectedRoute.id}`,
-                    );
-                  }
-                },
-                onLineStyleChange: (lineStyle) => {
-                  if (!selectedRoute) return;
-                  const styleOverride = {
-                    ...(selectedRoute.styleOverride ?? {}),
-                  };
-                  if (lineStyle === "solid") delete styleOverride.lineStyle;
-                  else styleOverride.lineStyle = lineStyle;
-                  const result = transact([
-                    {
-                      kind: "set_route_style_override",
-                      routeId: selectedRoute.id,
-                      styleOverride:
-                        Object.keys(styleOverride).length > 0
-                          ? styleOverride
-                          : null,
-                    },
-                  ]);
-                  if (result.ok)
-                    setStatus(`Updated wire line style to ${lineStyle}`);
-                },
-                onDeleteNetLabel: deleteSelectedRouteNetLabel,
+                onApply: applyRouteProperties,
                 onAddCurrentArrow: addCurrentArrow,
                 onToggleHighlight: toggleHighlightedNet,
                 onDeleteWire: deleteSelectedRouteConnection,
@@ -6841,6 +6766,7 @@ export function App({
             mirror: componentPlacementMirror,
           }}
           wiring={{
+            viewBox,
             netLabelPlacement,
             netLabelEditorInputRef,
             onNetLabelDraftChange: updateNetLabelPlacementDraft,

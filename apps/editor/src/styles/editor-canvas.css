@@ -46,18 +46,38 @@
 .net-label-editor input {
   box-sizing: border-box;
   width: 100%;
-  height: 32px;
-  padding: 4px 8px;
-  border: 1px solid var(--icm-accent);
-  border-radius: var(--icm-radius-sm);
+  height: 28px;
+  padding: 3px 6px;
+  border: 0;
+  border-bottom: 2px solid var(--icm-accent);
+  border-radius: 2px 2px 0 0;
   outline: none;
   color: var(--icm-text);
   background: var(--icm-surface);
-  box-shadow: 0 0 0 2px rgb(var(--icm-accent-rgb) / 20%);
+  box-shadow: 0 1px 4px rgb(15 23 42 / 16%);
   font:
     13px "Google Sans Code Variable",
     ui-monospace,
     monospace;
+}
+
+.inline-canvas-text-editor {
+  box-sizing: border-box;
+  width: 100%;
+  height: 28px;
+  padding: 3px 6px;
+  border: 0;
+  border-bottom: 2px solid var(--icm-accent);
+  border-radius: 2px 2px 0 0;
+  outline: none;
+  color: var(--icm-text);
+  background: rgb(255 255 255 / 96%);
+  box-shadow: 0 1px 4px rgb(15 23 42 / 16%);
+  font:
+    13px "Google Sans Code Variable",
+    ui-monospace,
+    monospace;
+  font-weight: 700;
 }
 
 .net-label-placement-preview {

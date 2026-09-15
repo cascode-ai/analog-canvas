@@ -38,6 +38,10 @@ import {
 import type { TextEditingSession } from "../text-editing/text-editing";
 import { planElectricalMarkerName } from "./electrical-marker-name";
 import type { NetLabelPlacementTarget } from "../wiring/route-interaction-geometry";
+import {
+  routePropertyCodeValue,
+  type RoutePropertyCodeValue,
+} from "./route-property-code";
 
 export interface InstancePropertyDraft {
   instanceId: string | null;
@@ -487,6 +491,96 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
         `Net Label ${flattenRichText(resolveAnnotationText(options.document, annotation))} is now ${scope}`,
       );
     }
+  };
+
+  const applyRouteProperties = (
+    value: RoutePropertyCodeValue,
+  ): { ok: boolean; message?: string } => {
+    const route = options.selectedRoute;
+    if (!route) return { ok: false, message: "Selected Route is unavailable" };
+    const existingLabel = options.netLabelForRoute(route) ?? null;
+    const current = routePropertyCodeValue(
+      options.document,
+      route,
+      existingLabel,
+    );
+    const name = value.net.name.trim();
+    const scope = name ? value.net.scope : "local";
+
+    const edits: SchematicEdit[] = [];
+    const nameChanged = name !== current.net.name;
+    if (nameChanged) {
+      const nameEdits = options.netLabelEditsForRoute(route, name);
+      if (!nameEdits) {
+        return {
+          ok: false,
+          message: "The Net name could not be applied",
+        };
+      }
+      const labelId = existingLabel?.id ?? `net-label-${route.id}`;
+      // The name planner authors a local claim by default. Route JSON owns
+      // name and scope together, so rewrite that new claim before the one
+      // atomic transaction when the pasted code requests global scope.
+      edits.push(
+        ...nameEdits.map((edit): SchematicEdit => {
+          if (
+            edit.kind === "upsert_connectivity_evidence" &&
+            edit.evidence.kind === "name-claim" &&
+            edit.evidence.owner.kind === "net-label" &&
+            edit.evidence.owner.annotationId === labelId
+          ) {
+            return {
+              ...edit,
+              evidence: { ...edit.evidence, scope },
+            };
+          }
+          return edit;
+        }),
+      );
+    } else if (existingLabel && scope !== current.net.scope) {
+      const scopeEdits = options.netLabelScopeEdit(existingLabel, scope);
+      if (!scopeEdits) {
+        return {
+          ok: false,
+          message: "The Net scope could not be applied",
+        };
+      }
+      edits.push(...scopeEdits);
+    }
+
+    const styleOverride = { ...(route.styleOverride ?? {}) };
+    if (value.appearance.color === "auto") delete styleOverride.color;
+    else styleOverride.color = value.appearance.color;
+    if (value.appearance.lineStyle === "solid") delete styleOverride.lineStyle;
+    else styleOverride.lineStyle = value.appearance.lineStyle;
+    if (value.appearance.directionArrow === "none") delete styleOverride.arrow;
+    else styleOverride.arrow = value.appearance.directionArrow;
+    const nextStyle =
+      Object.keys(styleOverride).length > 0 ? styleOverride : null;
+    if (
+      JSON.stringify(route.styleOverride ?? null) !== JSON.stringify(nextStyle)
+    ) {
+      edits.push({
+        kind: "set_route_style_override",
+        routeId: route.id,
+        styleOverride: nextStyle,
+      });
+    }
+
+    if (edits.length === 0) return { ok: true };
+    const committed =
+      nameChanged || scope !== current.net.scope
+        ? transactNamedNet(edits)
+        : options.transact(edits).ok;
+    if (!committed) {
+      return {
+        ok: false,
+        message: "The Route properties could not be applied",
+      };
+    }
+    if (!name && existingLabel) options.replaceSelectionKind("annotation", []);
+    options.setStatus(`Updated Route ${route.id}`);
+    return { ok: true };
   };
 
   const commitInstancePropertyDraft = (): boolean => {
@@ -974,6 +1068,7 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
       additionalParameterBaselineRef.current,
     ),
     addAdditionalParameter,
+    applyRouteProperties,
     applyNetLabel,
     applyAdditionalParameters,
     beginAnnotationTextEditing,

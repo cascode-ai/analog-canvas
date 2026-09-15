@@ -1,6 +1,6 @@
-import { createRef } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
+import { createEmptyDocument, createRoutePath } from "@icm/model";
 
 import {
   EndpointActionsSection,
@@ -11,6 +11,56 @@ import {
 } from "./selection-context-actions";
 
 describe("selection context actions", () => {
+  const routeFixture = () => {
+    const document = createEmptyDocument("doc", "Route properties");
+    document.nets.push({ id: "net-1", terminals: [] });
+    document.junctions.push(
+      {
+        id: "j1",
+        netId: "net-1",
+        position: { x: 0, y: 0 },
+        role: "route-anchor",
+      },
+      {
+        id: "j2",
+        netId: "net-1",
+        position: { x: 100, y: 0 },
+        role: "route-anchor",
+      },
+    );
+    const route = createRoutePath({
+      id: "route-1",
+      netId: "net-1",
+      start: { kind: "junction", junctionId: "j1" },
+      end: { kind: "junction", junctionId: "j2" },
+      bends: [],
+      modes: ["manual"],
+    });
+    route.styleOverride = { arrow: "middle" };
+    document.routes.push(route);
+    const netLabel = {
+      id: "net-label-route-1",
+      kind: "net-label" as const,
+      netId: "net-1",
+      binding: { kind: "net-name" as const, netId: "net-1" },
+      anchor: { kind: "free" as const, position: { x: 50, y: -8 } },
+      alignment: "middle" as const,
+      rotation: 0 as const,
+      locked: false,
+      content: { runs: [{ kind: "text" as const, value: "OUT" }] },
+    };
+    document.annotations.push(netLabel);
+    document.connectivityEvidence.push({
+      id: "claim-1",
+      kind: "name-claim",
+      netId: "net-1",
+      name: "OUT",
+      scope: "local",
+      owner: { kind: "net-label", annotationId: netLabel.id },
+    });
+    return { document, route, netLabel };
+  };
+
   it("uses one code surface for a multi-component selection", () => {
     const markup = renderToStaticMarkup(
       <GroupPropertiesSection
@@ -86,58 +136,44 @@ describe("selection context actions", () => {
   });
 
   it("renders route label and highlight actions", () => {
+    const { document, route, netLabel } = routeFixture();
     const markup = renderToStaticMarkup(
       <RouteActionsSection
         active
-        netLabelInputRef={createRef<HTMLInputElement>()}
-        netLabel="OUT"
-        color={undefined}
-        arrow="middle"
+        document={document}
+        route={route}
+        netLabel={netLabel}
         defaultColor="#000"
         highlightActive
-        onNetLabelChange={vi.fn()}
-        onColorChange={vi.fn()}
-        onArrowChange={vi.fn()}
-        onLineStyleChange={vi.fn()}
-        onDeleteNetLabel={vi.fn()}
+        onApply={vi.fn(() => ({ ok: true }))}
         onAddCurrentArrow={vi.fn()}
         onToggleHighlight={vi.fn()}
         onDeleteWire={vi.fn()}
       />,
     );
-    expect(markup).toContain('aria-label="Electrical Net label"');
-    expect(markup).toContain('value="OUT"');
-    expect(markup).not.toContain('type="color"');
-    expect(markup).toContain('aria-label="Wire color custom RGB"');
-    expect(markup).toContain("Light gray · #9ca3af");
-    expect(markup.match(/component-color-swatch/gu)).toHaveLength(4);
-    expect(markup).not.toContain("Orange");
-    expect(markup).toContain("Use the document ink color");
-    expect(markup).toContain('aria-label="Wire direction arrow"');
-    expect(markup).toContain('aria-label="Wire line style"');
-    expect(markup).toContain('<option value="dashed">Dashed</option>');
-    expect(markup).toContain('<option value="middle" selected="">');
-    expect(markup).toContain("Arrow at end");
+    expect(markup).toContain('aria-label="Annotation property code"');
+    expect(markup).toContain("Route");
+    expect(markup).toContain("OUT");
+    expect(markup).toContain("directionArrow");
+    expect(markup).not.toContain('aria-label="Electrical Net label"');
+    expect(markup).not.toContain('aria-label="Wire direction arrow"');
+    expect(markup).not.toContain('aria-label="Wire line style"');
     expect(markup).toContain("Add current arrow");
     expect(markup).toContain("Clear Net highlight (H)");
   });
 
   it("presents a MOS bulk route as instance-owned instead of a generic wire", () => {
+    const { document, route } = routeFixture();
     const markup = renderToStaticMarkup(
       <RouteActionsSection
         active
+        document={document}
+        route={route}
+        netLabel={null}
         bulkOwnerLabel="M1"
-        netLabelInputRef={createRef<HTMLInputElement>()}
-        netLabel=""
-        color="#059669"
-        arrow="middle"
         defaultColor="#000"
         highlightActive={false}
-        onNetLabelChange={vi.fn()}
-        onColorChange={vi.fn()}
-        onArrowChange={vi.fn()}
-        onLineStyleChange={vi.fn()}
-        onDeleteNetLabel={vi.fn()}
+        onApply={vi.fn(() => ({ ok: true }))}
         onAddCurrentArrow={vi.fn()}
         onToggleHighlight={vi.fn()}
         onDeleteWire={vi.fn()}

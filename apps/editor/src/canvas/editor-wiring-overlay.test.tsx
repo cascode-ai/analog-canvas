@@ -18,6 +18,7 @@ describe("editor wiring overlay", () => {
     const markup = renderToStaticMarkup(
       <svg>
         <EditorWiringOverlay
+          viewBox={{ x: 0, y: 0, width: 960, height: 640 }}
           netLabelPlacement={{
             phase: "naming",
             draft: "OUT",
@@ -58,6 +59,7 @@ describe("editor wiring overlay", () => {
     const markup = renderToStaticMarkup(
       <svg>
         <EditorWiringOverlay
+          viewBox={{ x: 0, y: 0, width: 960, height: 640 }}
           netLabelPlacement={{
             phase: "placing",
             draft: "SIGNAL",
