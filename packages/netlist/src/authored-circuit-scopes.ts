@@ -88,60 +88,81 @@ function authoredDeclarations(
   }
   /** Literal model primitives inside a top-level master used by generated IR.
    * Reuses the same declaration/shadowing rules as occurrence resolution.
-   * Unknown dependencies, conditional or ambiguous instances are not guessed.
+   * Ordinary occurrence queries exclude conditional calls. Library queries can
+   * report potential paths whose alternatives all prove the same module; they
+   * never assert that a branch is active or guess unknown/ambiguous masters.
    * This is source identity, not a promise that a module has qualified numbers. */
-  function primitiveModels(master: string) {
-    const result: { path: string[]; module: string }[] = [];
+  function primitiveModels(master: string, conditionalCandidates = false) {
     let visits = 0;
     function visit(
       parent: Definition,
       name: string,
       path: string[],
       ancestors: Set<Definition>,
-    ) {
-      if (path.length >= 64 || ++visits > 4096) return;
+    ): ModelPrimitive[] {
+      if (path.length >= 64 || ++visits > 4096) return [];
       for (const owner of parent === top ? [top] : [parent, top]) {
         const modules = owner.opaque.get(key(name));
         const definitions = owner.definitions.get(key(name));
         if (modules) {
           if (!definitions && modules.length === 1 && modules[0]) {
             const model = modules[0];
-            if (model.module) result.push({ path, module: model.module });
-            else if (model.primitives)
-              result.push(
-                ...model.primitives.map((p) => ({
-                  path: [...path, ...p.path],
-                  module: p.module,
-                })),
-              );
+            if (model.module) return [{ path, module: model.module }];
+            if (model.primitives)
+              return model.primitives.map((p) => ({
+                path: [...path, ...p.path],
+                module: p.module,
+              }));
           }
-          return;
+          return [];
         }
         if (!definitions) continue;
         const definition =
           definitions.length === 1 ? definitions[0] : undefined;
         if (!definition || definition.conditional || ancestors.has(definition))
-          return;
-        const counts = new Map<string, number>();
-        for (const call of definition.calls)
-          counts.set(key(call.name), (counts.get(key(call.name)) ?? 0) + 1);
-        for (const call of definition.calls)
+          return [];
+        const groups = new Map<string, Call[]>();
+        for (const call of definition.calls) {
+          const id = key(call.name);
+          groups.set(id, [...(groups.get(id) ?? []), call]);
+        }
+        const result: ModelPrimitive[] = [];
+        for (const [id, calls] of groups) {
+          const unconditional = calls.length === 1 && !calls[0]!.conditional;
           if (
-            call.master &&
-            !call.conditional &&
-            counts.get(key(call.name)) === 1
+            !unconditional &&
+            !(conditionalCandidates && calls.every((c) => c.conditional))
           )
-            visit(
-              definition,
-              call.master,
-              [...path, key(call.name)],
-              new Set([...ancestors, definition]),
-            );
-        return;
+            continue;
+          const alternatives = calls.map((call) =>
+            call.master
+              ? visit(
+                  definition,
+                  call.master,
+                  [...path, id],
+                  new Set([...ancestors, definition]),
+                )
+              : [],
+          );
+          // A potential primitive is not a claim that its branch is active.
+          // Every possible declaration at that path must prove the same module.
+          // Unknown/ambiguous alternatives contribute no proof, never a fallback.
+          const signature = (p: ModelPrimitive) =>
+            JSON.stringify([p.path, p.module]);
+          const signatures = alternatives
+            .slice(1)
+            .map((items) => new Set(items.map(signature)));
+          result.push(
+            ...(alternatives[0] ?? []).filter((p) =>
+              signatures.every((s) => s.has(signature(p))),
+            ),
+          );
+        }
+        return result;
       }
+      return [];
     }
-    visit(top, master, [], new Set());
-    return result;
+    return visit(top, master, [], new Set());
   }
   return { make, top, globals, primitiveModels };
 }
@@ -161,7 +182,7 @@ export function authoredModelSymbols(
     )
     .map((name) => ({
       name,
-      primitives: primitiveModels(name),
+      primitives: primitiveModels(name, true),
     }));
 }
 

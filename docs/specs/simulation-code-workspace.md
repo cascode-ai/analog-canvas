@@ -110,9 +110,12 @@ identities. The public capabilities and picker share this summary; Prepare also
 resolves it after the Profile's automatic include/corner projection. The picker
 currently requires an explicitly declared dependency/include in the source.
 The provisioning inspector and executor boot verifier use the same model bytes
-and scope table. Missing and conditional internal identities remain unresolved,
-not guessed from SKY130 conventions. The current converted SKY130 MOS wrappers
-have geometry-dependent branches: their OP identity qualification remains open.
+and scope table. A conditional internal path is a potential acquisition only
+when every declaration at that path resolves to the same module. Missing or
+conflicting alternatives remain unresolved; no geometry condition is evaluated.
+The SKY130 converter keeps valid MOS paths unchanged and gives the invalid-bin
+error instance a distinct name. This separates failure from model identity;
+it does not qualify geometry, model numbers or the hosted environment.
 Voltage-source branch current is supported, but arbitrary terminal current
 still requires explicit zero-volt sensing; automatic sensing remains a migration
 gap. Unsupported picks do not modify the Project or invoke old `.probe` syntax.

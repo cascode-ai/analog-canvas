@@ -17,8 +17,11 @@ ID/digest as `dependencies`, never an editable Project model.
 Boot verifies those symbols against the actual bounded model file, not just a
 copied hash. A mismatch leaves the executor not-ready. This inspection currently
 supports flattened regular files up to 16 MiB, not arbitrary dependency trees.
-Unresolved conditional primitives remain explicit in the report; a successful
-inspection is not model/electrical qualification or authorization to deploy.
+Conditional paths are potential acquisitions only when every declaration at
+that path proves the same module. Unknown or conflicting alternatives remain
+unresolved; no geometry expression is evaluated. Only returned numeric records
+establish that a potential acquisition actually exists. A successful inspection
+is not model/electrical qualification or authorization to deploy.
 
 Use the repository's supported Node version and build the service dependencies:
 

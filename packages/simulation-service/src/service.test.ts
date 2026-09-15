@@ -1,5 +1,11 @@
 import { readFileSync } from "node:fs";
-import { migrateSimulationSetupToSource } from "@icm/netlist";
+import {
+  nativeAcquisitionEdit,
+  nativeDeviceOpAcquisitions,
+  nativeSimulationDevices,
+  nativeVoltageAcquisition,
+  type NativeModelLibrarySymbols,
+} from "@icm/netlist";
 import { describe, it, expect, vi } from "vitest";
 import {
   createEmptyProject,
@@ -8,7 +14,6 @@ import {
   type SimulationSourceInput,
   CircuitProjectSchema,
   type CircuitProject,
-  type LegacySimulationSetup as SimulationFolderInput,
 } from "@icm/model";
 import { currentFiveTransistorOtaCircuitSource } from "../../../apps/editor/src/examples/five-transistor-ota.test-support.js";
 import { createSimulationEnvironmentMetadata } from "@icm/spice-run";
@@ -99,18 +104,6 @@ function nativeOtaFolder(
   return folder;
 }
 const SETUP_ID = "folder-1";
-function saveSetup(
-  project: CircuitProject,
-  folder: SimulationFolderInput,
-): void {
-  project.simulationFolders = [
-    migrateSimulationSetupToSource(project, {
-      id: SETUP_ID,
-      name: "Setup 1",
-      ...structuredClone(folder),
-    }).folder,
-  ];
-}
 // Lifecycle tests mock process scheduling, but use recorded native plot bytes
 // and the real result assembler. Real execution is covered by the public journey.
 async function result(input: ExecutionInput) {
@@ -1029,59 +1022,81 @@ describe("shared simulation lifecycle", () => {
       ).toBe("finished"),
     );
   });
-  it("compiles the shipped hierarchical OTA through the public structured prepare path", async () => {
+  it("prepares the shipped hierarchical OTA with native voltage and evidence-backed model OP acquisitions", async () => {
     const project = CircuitProjectSchema.parse(
       currentFiveTransistorOtaCircuitSource(),
     );
     const profileId = "test";
-    saveSetup(project, {
-      version: 3,
-      input: {
-        kind: "structured",
-        designVariables: [],
-        runPlan: { mode: "nominal" },
-        rootDocumentId: project.topDocumentId,
-        analyses: [
-          { kind: "op" },
-          { kind: "ac", sweep: "dec", points: 10, startHz: 1, stopHz: 1e6 },
-        ],
-        outputs: [
-          {
-            id: "out",
-            label: "out",
-            expression: {
-              kind: "voltage",
-              documentId: project.topDocumentId,
-              anchor: {
-                kind: "terminal",
-                instanceId: "XDUT",
-                pinName: "vout",
-              },
-              occurrence: [],
-            },
-          },
-        ],
-        deviceOperatingPoints: [
-          {
-            id: "op-m1",
-            documentId: "document-ota-5t",
-            instanceId: "M1",
-            occurrence: ["XDUT"],
-          },
-        ],
-        environment: { profileId, corner: "tt" },
+    // Captured from the real converted TT model bytes. The converter integration
+    // test checks its digest and paths; this service test is not PDK qualification.
+    const { library }: { library: NativeModelLibrarySymbols } = JSON.parse(
+      readFileSync(
+        new URL(
+          "../../../netlists/vacask-sky130/model-symbols-tt.json",
+          import.meta.url,
+        ),
+        "utf8",
+      ),
+    );
+    const folder = nativeOtaFolder(
+      project,
+      "analysis bias op\nanalysis response ac from=1 to=1e6 dec=10",
+    );
+    const entry = folder.input.files.find(
+      (f) => f.path === folder.input.entry,
+    )!;
+    entry.text = entry.text.replace(
+      'include "models/library.inc" section=tt',
+      'include "models/library.inc"',
+    );
+    folder.input.dependencies = [
+      {
+        id: library.dependencyId,
+        sha256: library.sha256,
+        mountPath: "models/library.inc",
       },
+    ];
+    const voltage = nativeVoltageAcquisition(project, folder.input, {
+      kind: "voltage",
+      documentId: project.topDocumentId,
+      circuit: { bindingId: folder.input.circuitBindings[0]!.id, callPath: [] },
+      anchor: { kind: "terminal", instanceId: "XDUT", pinName: "vout" },
+      occurrence: [],
     });
+    if (!voltage.ok) throw Error(voltage.message);
+    expect(voltage.vector).toBe("vout");
+    const m1 = nativeSimulationDevices(project, folder.input, [library]).find(
+      (d) =>
+        d.documentId === "document-ota-5t" &&
+        d.instanceId === "M1" &&
+        JSON.stringify(d.occurrence) === JSON.stringify(["XDUT"]),
+    );
+    expect(m1).toBeDefined();
+    const acquisitions = nativeDeviceOpAcquisitions(m1!);
+    expect(acquisitions).toHaveLength(9);
+    expect(
+      acquisitions.every(
+        (a) => a.reference === "XDUT:XM1:msky130_fd_pr__nfet_01v8",
+      ),
+    ).toBe(true);
+    const edit = nativeAcquisitionEdit(
+      entry.text,
+      entry.text.indexOf("analysis bias"),
+      [voltage.save, ...acquisitions.map((a) => a.save)],
+      true,
+    );
+    if (!edit.ok) throw Error(edit.error.message);
+    entry.text = edit.text;
+    const profile = {
+      id: profileId,
+      corners: [],
+      dependencies: [{ id: library.dependencyId, sha256: library.sha256 }],
+      modelSymbols: [library],
+    };
     const f = fixture();
     f.executor.capabilities = async () => ({
       ...caps,
-      profiles: [
-        {
-          id: profileId,
-          corners: ["tt"],
-          dependencies: [{ id: "models", sha256: "a".repeat(64) }],
-        },
-      ],
+      profiles: [profile],
       maxOutputBytes: 100,
     });
     const service = new SimulationService(f.files, f.executor, () => project);
@@ -1100,13 +1115,17 @@ describe("shared simulation lifecycle", () => {
       "prepared",
     );
     expect(prepared.vectors.length).toBeGreaterThan(0);
-    expect(prepared.deviceOperatingPoints).toEqual([
-      expect.objectContaining({
-        id: "op-m1",
-        reference: "XM1",
-        polarity: "nmos",
-      }),
-    ]);
+    expect(prepared.deviceOperatingPoints).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          documentId: "document-ota-5t",
+          instanceId: "M1",
+          occurrence: ["XDUT"],
+          reference: "XDUT:XM1:msky130_fd_pr__nfet_01v8",
+          polarity: "nmos",
+        }),
+      ]),
+    );
     expect(prepared.mode).toBe("source");
     expect(prepared.warnings).toEqual([
       expect.stringContaining("run remains allowed"),
@@ -1116,13 +1135,7 @@ describe("shared simulation lifecycle", () => {
     f.executor.capabilities = async () => ({
       ...caps,
       analyses: ["op"],
-      profiles: [
-        {
-          id: profileId,
-          corners: ["tt"],
-          dependencies: [{ id: "models", sha256: "a".repeat(64) }],
-        },
-      ],
+      profiles: [profile],
     });
     expect(
       await service.handle(

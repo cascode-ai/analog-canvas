@@ -114,7 +114,12 @@ class RelativeIncludeConverter(Converter):
             guard = f'{length}>={lmin} && {length}<{lmax} && {width}>={wmin} && {width}<{wmax}'
             lines.append(('@if ' if index == 0 else '@elseif ')+guard)
             lines.append(prefix+annot['output_mod_name']+f'__{index} (\n'+formatted+'\n)')
-        lines.extend(['@else', prefix+'icm_bin_not_found', '@end'])
+        # This is an error guard, not another implementation of the MOS.
+        # Keep every valid bin's instance path unchanged. A distinct guard name
+        # also prevents an undefined error master from masquerading as a valid
+        # alternative model for the MOS's output-variable identity.
+        guard_prefix = annot['output_name']+'__icm_invalid_bin'+prefix[len(annot['output_name']):]
+        lines.extend(['@else', guard_prefix+'icm_bin_not_found', '@end'])
         return '\n'.join(lines)
 
     def preprocess_line(self, line):
