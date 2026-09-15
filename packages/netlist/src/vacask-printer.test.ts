@@ -413,10 +413,13 @@ it.skipIf(!process.env.VACASK_BIN || !process.env.VACASK_MODULES)(
         "voltage-source",
         {
           waveform: "sin",
+          dc: "7.5",
           offset: "1",
           amplitude: "2",
           frequency: "1k",
           phase: "30",
+          delay: "100u",
+          damping: "100",
           acMagnitude: "1",
           acPhase: "90",
         },
@@ -427,6 +430,30 @@ it.skipIf(!process.env.VACASK_BIN || !process.env.VACASK_MODULES)(
         "voltage-source",
         { waveform: "pwl", pwlPoints: "0 0, 1m 1, 2m 0" },
         ["pwl", "0"],
+      ),
+      ...(["voltage-source", "current-source"] as const).flatMap(
+        (kind, index) => [
+          card(
+            `V${index}pulse`,
+            kind,
+            {
+              waveform: "pulse",
+              dc: "9",
+              low: "0.2",
+              high: "0.8",
+              delay: "100u",
+              rise: "100u",
+              fall: "100u",
+              width: "300u",
+              period: "1m",
+            },
+            index === 0 ? ["pulse0", "0"] : ["0", "pulse1"],
+          ),
+          card(`R${index}pulse`, "resistor", { value: "1" }, [
+            `pulse${index}`,
+            "0",
+          ]),
+        ],
       ),
     ]);
     ir.cells.push({
@@ -448,7 +475,7 @@ it.skipIf(!process.env.VACASK_BIN || !process.env.VACASK_MODULES)(
     ir.cells.push(...multiplied.cells.slice(1));
     const source =
       printed(ir).text +
-      '\ncontrol\n abort always\n options rawfile="ascii" strictsave=2\n save default\n analysis op1 op\n analysis ac1 ac from=1k to=1k mode="lin" points=1\n analysis tran1 tran stop=2m step=20u maxstep=20u\nendc\n';
+      '\ncontrol\n abort always\n options rawfile="ascii" strictsave=2\n save default\n analysis op1 op\n alter instance("Vs") type="dc"\n alter instance("V0pulse") type="dc"\n alter instance("V1pulse") type="dc"\n analysis dcBias op\n alter instance("Vs") type="sine"\n alter instance("V0pulse") type="pulse"\n alter instance("V1pulse") type="pulse"\n analysis ac1 ac from=1k to=1k mode="lin" points=1\n analysis tran1 tran stop=2m step=20u maxstep=20u\nendc\n';
     const cwd = mkdtempSync(join(tmpdir(), "icm-vacask-printer-"));
     writeFileSync(join(cwd, "circuit.sim"), source);
     const startup = join(cwd, "vacaskrc.toml");
@@ -463,6 +490,9 @@ it.skipIf(!process.env.VACASK_BIN || !process.env.VACASK_MODULES)(
           SIM_MODULE_PATH: process.env.VACASK_MODULES,
           OMP_NUM_THREADS: "1",
           OPENBLAS_NUM_THREADS: "1",
+          ...(process.env.ICM_VACASK_LIBRARY_PATH
+            ? { LD_LIBRARY_PATH: process.env.ICM_VACASK_LIBRARY_PATH }
+            : {}),
         },
         encoding: "utf8",
         windowsHide: true,
@@ -488,6 +518,12 @@ it.skipIf(!process.env.VACASK_BIN || !process.env.VACASK_MODULES)(
     expect(v(op, "X1out").real[0]).toBeCloseTo(2, 9);
     expect(v(op, "X2out").real[0]).toBeCloseTo(1.5, 9);
     expect(v(op, "sine").real[0]).toBeCloseTo(2, 9);
+    const dcBias = plot("dcBias.raw");
+    expect(v(dcBias, "sine").real[0]).toBeCloseTo(7.5, 9);
+    for (const node of ["pulse0", "pulse1"]) {
+      expect(v(op, node).real[0]).toBeCloseTo(0.2, 9);
+      expect(v(dcBias, node).real[0]).toBeCloseTo(9, 9);
+    }
     expect(v(op, "logvalue").real[0]).toBeCloseTo(Math.log(100), 9);
     for (const [n, multiplier] of [
       [1, 2],
@@ -509,13 +545,31 @@ it.skipIf(!process.env.VACASK_BIN || !process.env.VACASK_MODULES)(
     expect(v(ac, "sine").imag![0]).toBeCloseTo(1, 9);
     v(tran, "time").real.forEach((time, index) => {
       expect(v(tran, "sine").real[index]).toBeCloseTo(
-        1 + 2 * Math.sin(2 * Math.PI * 1000 * time + Math.PI / 6),
+        time < 0.0001
+          ? 2
+          : 1 +
+              2 *
+                Math.sin(2 * Math.PI * 1000 * (time - 0.0001) + Math.PI / 6) *
+                Math.exp(-100 * (time - 0.0001)),
         8,
       );
       expect(v(tran, "pwl").real[index]).toBeCloseTo(
         time <= 0.001 ? time / 0.001 : (0.002 - time) / 0.001,
         8,
       );
+      const t = time < 0.0001 ? -1 : (time - 0.0001) % 0.001;
+      const pulse =
+        t < 0
+          ? 0.2
+          : t < 0.0001
+            ? 0.2 + (0.6 * t) / 0.0001
+            : t < 0.0004
+              ? 0.8
+              : t < 0.0005
+                ? 0.8 - (0.6 * (t - 0.0004)) / 0.0001
+                : 0.2;
+      for (const node of ["pulse0", "pulse1"])
+        expect(v(tran, node).real[index]).toBeCloseTo(pulse, 8);
     });
   },
   20000,

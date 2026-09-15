@@ -1,6 +1,8 @@
 import { LegacyProjectSimulationSetupSchema } from "@icm/model";
 import { describe, expect, it } from "vitest";
 import {
+  createEmptyProject,
+  createSimulationFolder,
   CircuitProjectSchema,
   ProjectSimulationFolderSchema,
   type ProjectSimulationFolder,
@@ -47,6 +49,73 @@ function raw(text: string) {
   });
 }
 describe("source simulation compiler", () => {
+  it.each(["pulse", "sin", "pwl"])(
+    "explains mode-specific DC for %s without blocking or rewriting the native program",
+    (waveform) => {
+      const p = createEmptyProject("p", "Bias modes", "d");
+      const d = p.documents[0]!;
+      d.instances.push({
+        id: "source",
+        reference: "V1",
+        symbolId: "voltage-source",
+        placement: null,
+        netlist: {
+          binding: { kind: "primitive", deviceClass: "voltage-source" },
+          parameters: {
+            waveform,
+            dc: "3",
+            low: "0",
+            high: "1",
+            delay: "1u",
+            rise: "1n",
+            fall: "1n",
+            width: "1u",
+            period: "3u",
+            offset: "1",
+            amplitude: "1",
+            frequency: "1k",
+            pwlPoints: "0 0, 1m 1",
+          },
+        },
+      });
+      d.nets.push(
+        { id: "p", terminals: [{ instanceId: "source", pinName: "+" }] },
+        { id: "n", terminals: [{ instanceId: "source", pinName: "-" }] },
+      );
+      const folder = createSimulationFolder({
+        id: "f",
+        name: "Native modes",
+        profileId: "local",
+        documentId: d.id,
+      });
+      const before = structuredClone({ p, folder });
+      const compiled = compileSourceSimulation(p, folder);
+      if (!compiled.ok) throw Error(JSON.stringify(compiled.diagnostics));
+      const notices = compiled.warnings.filter(
+        (w) => w.code === "SIMULATION_NATIVE_SOURCE_DC_MODE",
+      );
+      expect(notices).toHaveLength(1);
+      expect(notices[0]).toMatchObject({
+        severity: "info",
+        path: "circuit.spice",
+        field: `${d.id}.source.dc`,
+      });
+      expect(notices[0]!.message).toContain('alter instance("V1") type="dc"');
+      expect({ p, folder }).toEqual(before);
+      expect(compiled.authoredFiles).toEqual(folder.input.files);
+      expect(
+        compiled.files.find((f) => f.path === folder.input.entry)!.text,
+      ).not.toContain("alter instance");
+      d.instances[0]!.netlist!.parameters.waveform = "dc";
+      const dc = compileSourceSimulation(p, folder);
+      expect(
+        dc.ok &&
+          dc.warnings.some(
+            (w) => w.code === "SIMULATION_NATIVE_SOURCE_DC_MODE",
+          ),
+      ).toBe(false);
+    },
+  );
   it("never prepares stale committed bytes while an unapplied saved draft exists", () => {
     const folder = raw("Test\ncontrol\nanalysis bias op\nendc\n");
     expect(compileSourceSimulation(project(), folder).ok).toBe(true);

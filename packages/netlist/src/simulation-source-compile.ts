@@ -24,6 +24,7 @@ import {
   nativeTerminalSignals,
 } from "./simulation-native-current.js";
 import { simulationSignals } from "./simulation-signal-names.js";
+import { normalizeIndependentSource } from "./source-waveform.js";
 import { instrumentTerminalCurrents } from "./terminal-current-instrumentation.js";
 import type {
   PrintedNetlistParameter,
@@ -189,6 +190,30 @@ export function compileSourceSimulation(
     files: temperature.files.map(({ path, text }) => ({ path, text })),
   };
   const currentDevices = nativeSimulationDevices(effective, currentInput);
+  const notedSources = new Set<string>();
+  for (const device of currentDevices) {
+    if (!["voltage-source", "current-source"].includes(device.card.deviceClass))
+      continue;
+    const source = normalizeIndependentSource(device.card.parameters);
+    const key = JSON.stringify([device.documentId, device.instanceId]);
+    if (
+      source.dc === undefined ||
+      source.transient.kind === "dc" ||
+      notedSources.has(key)
+    )
+      continue;
+    notedSources.add(key);
+    diagnostics.push({
+      code: "SIMULATION_NATIVE_SOURCE_DC_MODE",
+      severity: "info",
+      path:
+        currentInput.circuitBindings.find(
+          (b) => b.id === device.circuit.bindingId,
+        )?.path ?? currentInput.entry,
+      field: `${device.documentId}.${device.instanceId}.dc`,
+      message: `${device.reference}: native ${source.transient.kind.toUpperCase()} uses its waveform value for bias; dc is used only with type="dc". For a separate DC bias, explicitly alter instance(${JSON.stringify(device.reference)}) type="dc" before the bias analysis and restore the waveform type before transient. Source and analysis text are not changed automatically.`,
+    });
+  }
   const currents = nativeCurrentInstrumentation(currentInput, currentDevices);
   diagnostics.push(...currents.diagnostics);
   for (const binding of bindings) {

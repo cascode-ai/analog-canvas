@@ -420,7 +420,27 @@ reached Document revision and folder state needed for that generation.
   and changing the transient waveform. Removing a clause unsets its mapped
   parameters through the same atomic transaction, not an empty-string override.
   This Canvas subset retains explicit DC and complete seven-argument PULSE
-  waveforms; arbitrary native source syntax belongs in authored files. Model identity,
+  waveforms; explicit DC is a native **mode-specific** parameter, not an
+  independent operating-point override for PULSE/SINE/PWL. The pinned VACASK
+  source implementation evaluates the selected waveform at time zero for OP;
+  `dc` takes effect only with `type="dc"`. Prepare reports
+  `SIMULATION_NATIVE_SOURCE_DC_MODE` as a non-blocking informational finding
+  when a generated waveform source also carries `dc`. It does not rewrite
+  analyses, change waveform levels or insert mode switches. For a separate bias,
+  the author/Agent explicitly switches the source in ordinary native Code:
+
+  ```text
+  alter instance("V1") type="dc"
+  analysis bias op
+  // AC around that bias may run here; mag/phase are independent of source type.
+  alter instance("V1") type="pulse"
+  analysis response tran stop=2m step=20u maxstep=20u
+  ```
+
+  Restore the actual source type (`"sine"` for Canvas SIN), and address each
+  intended hierarchical source occurrence explicitly. The compiler does not
+  emulate ngspice's separate DC/transient bias semantics. Arbitrary native
+  source syntax belongs in authored files. Model identity,
   pin order, nodes, references, device class and arbitrary model text are locked.
   Numeric literals and delimited native parameter expressions share those spans.
 - Descriptor-backed does not imply reversibility. The compiler must report the

@@ -1062,6 +1062,7 @@ describe("shared simulation lifecycle", () => {
     );
     expect(prepared.mode).toBe("source");
     expect(prepared.warnings).toEqual([
+      expect.stringContaining('dc is used only with type="dc"'),
       expect.stringContaining("run remains allowed"),
     ]);
     expect(f.executor.execute).not.toHaveBeenCalled();
@@ -1124,6 +1125,7 @@ describe("shared simulation lifecycle", () => {
     );
     expect(prepared.mode).toBe("source");
     expect(prepared.warnings).toEqual([
+      expect.stringContaining('dc is used only with type="dc"'),
       expect.stringContaining("run remains allowed"),
     ]);
     expect(f.executor.execute).not.toHaveBeenCalled();
