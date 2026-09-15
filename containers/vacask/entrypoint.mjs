@@ -81,7 +81,11 @@ export async function startVacaskService(configuration) {
     await stop();
     throw error;
   }
-  return { server, ready, stop };
+  // Readiness includes capability and model-symbol validation, not only binary
+  // measurement. Otherwise CLI stderr omits failures which keep /health at 503.
+  const initialized = server.initialized.then(() => ready);
+  void initialized.catch(() => {});
+  return { server, ready: initialized, stop };
 }
 
 async function main() {

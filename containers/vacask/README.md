@@ -35,6 +35,9 @@ must also be absolute for that host. The CLI prints a `vacask-listening` JSON
 event with its actual address/port; listening is not proof of runtime readiness.
 Check `GET /health` before using it. Startup identity failures remain not-ready
 and are logged to the operator's stderr; there is no implicit executable search.
+The exported `ready` promise also includes capability and model-symbol validation.
+Those failures are reported through the same `vacask-runtime-not-ready` event;
+successful binary measurement alone is not readiness.
 
 The operator-owned file composes existing contracts, not a new Project or Profile
 format. A minimal **local OP test** configuration is:

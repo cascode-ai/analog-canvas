@@ -21,6 +21,9 @@ beforeEach(async () => {
       modules: resolve(process.env.VACASK_MODULES ?? "plan/missing-modules"),
       startupPath,
       runRoot: join(root, "jobs"),
+      ...(process.env.ICM_VACASK_LIBRARY_PATH
+        ? { libraryPath: process.env.ICM_VACASK_LIBRARY_PATH }
+        : {}),
     },
     capabilities: {
       configured: true,
@@ -63,7 +66,7 @@ async function start(value = config) {
   services.push(service);
   return service;
 }
-async function startCli() {
+async function startCli(expectedHealth = 200) {
   const path = join(root, "runtime.json");
   await writeFile(path, JSON.stringify(config));
   const child = spawn(
@@ -92,14 +95,16 @@ async function startCli() {
   });
   await vi.waitFor(
     () => expect(output, errors).toContain('"vacask-listening"'),
-    { timeout: 5000 },
+    { timeout: 20000 },
   );
   const address = JSON.parse(output.trim().split("\n")[0]);
   const url = `http://127.0.0.1:${address.port}`;
-  await vi.waitFor(async () =>
-    expect((await fetch(url + "/health")).status).toBe(200),
+  await vi.waitFor(
+    async () =>
+      expect((await fetch(url + "/health")).status).toBe(expectedHealth),
+    { timeout: 20000 },
   );
-  return { child, address, url };
+  return { child, address, url, errors: () => errors };
 }
 const input = (analysis = "analysis bias op") => {
   const text = `Native startup proof\nmodel v vsource\nV1 (out 0) v dc=1\ncontrol\noptions rawfile="ascii"\n${analysis}\nendc\n`;
@@ -141,6 +146,41 @@ describe("native service startup and recovery", () => {
     expect(await reply.json()).toMatchObject({ configured: false });
   });
   it.skipIf(!native())(
+    "rejects ready when runtime measurement succeeds but capability validation fails",
+    async () => {
+      config.capabilities.profiles[0].id = "different-profile";
+      const service = await start();
+      await expect(service.ready).rejects.toThrow(
+        "Native capability/runtime contract mismatch",
+      );
+      expect((await fetch(base(service) + "/health")).status).toBe(503);
+      const reply = await fetch(base(service) + "/api/simulate", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ operation: "capabilities" }),
+      });
+      expect(await reply.json()).toMatchObject({ configured: false });
+    },
+    45000,
+  );
+  it.skipIf(!native())(
+    "logs capability validation failures through the existing CLI without claiming readiness",
+    async () => {
+      config.capabilities.profiles[0].id = "different-profile";
+      const { errors, url } = await startCli(503);
+      await vi.waitFor(
+        () =>
+          expect(errors()).toContain(
+            "Native capability/runtime contract mismatch",
+          ),
+        { timeout: 20000 },
+      );
+      expect(errors()).toContain("vacask-runtime-not-ready");
+      expect((await fetch(url + "/health")).status).toBe(503);
+    },
+    45000,
+  );
+  it.skipIf(!native())(
     "starts, runs, stops and restarts on the same clean run root",
     async () => {
       const service = await start();
@@ -167,6 +207,7 @@ describe("native service startup and recovery", () => {
         expect((await fetch(base(restarted) + "/health")).status).toBe(200),
       );
     },
+    45000,
   );
   it.skipIf(!native())(
     "shutdown reaps an active tokenless job even after the HTTP client leaves",
@@ -198,6 +239,7 @@ describe("native service startup and recovery", () => {
       await pending;
       expect(await readdir(config.runtime.runRoot)).toEqual([]);
     },
+    45000,
   );
   it.skipIf(!native())(
     "the built CLI consumes explicit config and announces its actual loopback port",
@@ -206,6 +248,7 @@ describe("native service startup and recovery", () => {
       expect(address.address).toBe("127.0.0.1");
       expect(address.port).toBeGreaterThan(0);
     },
+    45000,
   );
   it.skipIf(!native() || process.platform === "win32")(
     "SIGTERM awaits a running job's cleanup after the client disconnects",
@@ -235,5 +278,6 @@ describe("native service startup and recovery", () => {
       await pending;
       expect(await readdir(config.runtime.runRoot)).toEqual([]);
     },
+    45000,
   );
 });

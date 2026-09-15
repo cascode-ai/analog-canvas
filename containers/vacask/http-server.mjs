@@ -50,7 +50,7 @@ export function createVacaskHttpServer({
     );
   let runtime, caps;
   // Keep health responsive while boot identity is measured, including failure.
-  Promise.resolve(runtimeReady)
+  const initialized = Promise.resolve(runtimeReady)
     .then(async (value) => {
       const measured = await verifySimulationEnvironmentMetadata(
         value.environment,
@@ -84,10 +84,14 @@ export function createVacaskHttpServer({
       runtime = value;
       caps = declared;
     })
-    .catch(() => {
+    .catch((error) => {
       runtime = undefined;
       caps = undefined;
+      throw error;
     });
+  // Embedders may keep the unavailable health endpoint alive. The standalone
+  // launcher awaits this same validation and reports boot errors to its operator.
+  void initialized.catch(() => {});
   const cancelled = new Map();
   const ready = () =>
     runtime && caps && supervisor.snapshot().state !== "fatal";
@@ -261,5 +265,6 @@ export function createVacaskHttpServer({
   );
   // Bound simultaneous request buffers without creating another execution queue.
   server.maxConnections = maxConnections;
+  server.initialized = initialized;
   return server;
 }
