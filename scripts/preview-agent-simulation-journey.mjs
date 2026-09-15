@@ -79,7 +79,7 @@ const program = qualifiedSetup.input.files.find(
 assert(program);
 program.text = program.text.replace(
   ".endc",
-  "noise v(vout) VINP dec 20 1 1000000000\nwrite out.raw noise1.all noise2.all\n.endc",
+  "meas tran vout_peak MAX v(vout)\n* @spec vout_peak range 0 1.8 unit=V\nnoise v(vout) VINP dec 20 1 1000000000\nwrite out.raw noise1.all noise2.all\n.endc",
 );
 const compiled = compileSourceSimulation(project, qualifiedSetup);
 assert(compiled.ok, "The acceptance Project no longer compiles");
@@ -688,6 +688,11 @@ try {
   );
 
   assert(fullRun.outputData.specs.runId === finished.id);
+  assert.equal(fullRun.outputData.specs.results.length, 1);
+  assert.equal(fullRun.outputData.specs.results[0].name, "vout_peak");
+  assert.equal(fullRun.outputData.specs.results[0].judgment, "pass");
+  assert(Number.isFinite(fullRun.outputData.specs.results[0].value));
+  report.specs = fullRun.outputData.specs;
   assert(fullRun.artifacts.some((artifact) => artifact.name === "specs.csv"));
   exports.push(savedExport);
   // Managed Batch remains separate from native loops and reuses this saved source.
