@@ -123,7 +123,7 @@ function fixture() {
   const service = new SimulationService(files, executor, () => project);
   return { files, executor, service, project, release };
 }
-async function prepareRaw(f: ReturnType<typeof fixture>) {
+async function prepareRaw(f: ReturnType<typeof fixture>, source = deck) {
   const created = await f.files.handle({ action: "create" });
   if (!created.ok || !("workspace" in created)) throw Error("create");
   await f.files.handle({
@@ -132,7 +132,7 @@ async function prepareRaw(f: ReturnType<typeof fixture>) {
     expectedRevision: 0,
     entry: "deck.cir",
     writes: [
-      { path: "deck.cir", text: deck },
+      { path: "deck.cir", text: source },
       {
         path: "experiment.json",
         text: JSON.stringify({
@@ -159,6 +159,63 @@ async function prepareRaw(f: ReturnType<typeof fixture>) {
   return { prepared, workspaceId: created.workspace.id };
 }
 describe("shared simulation lifecycle", () => {
+  it("delivers the same captured Spec report through run reads and artifacts", async () => {
+    const f = fixture();
+    const source = deck
+      .replace(".control", "* @spec peak <= 2 unit=V\n.control")
+      .replace("op\n", "op\nmeas tran peak MAX v(out)\n");
+    vi.mocked(f.executor.execute).mockImplementation(async (input) => ({
+      result: { ...(await result(input)), log: "peak = 1.8" },
+      rawfile: "raw numbers",
+    }));
+    const { prepared } = await prepareRaw(f, source);
+    const started = unwrap(
+      await f.service.handle(
+        {
+          operation: "start",
+          preparedId: prepared.id,
+          digest: prepared.digest,
+        },
+        "spec-start",
+      ),
+      "run",
+    );
+    await vi.waitFor(async () =>
+      expect(
+        unwrap(
+          await f.service.handle(
+            { operation: "read", runId: started.id },
+            "spec-read",
+          ),
+          "run",
+        ).state,
+      ).toBe("finished"),
+    );
+    const finished = unwrap(
+      await f.service.handle(
+        { operation: "read", runId: started.id },
+        "spec-final",
+      ),
+      "run",
+    );
+    expect(finished.outputData?.specs).toMatchObject({
+      runId: started.id,
+      preparedId: prepared.id,
+      inputDigest: prepared.digest,
+      results: [{ name: "peak", value: 1.8, judgment: "pass" }],
+    });
+    const artifact = finished.artifacts.find((a) => a.name === "specs.json")!;
+    const read = await f.files.handle({
+      action: "artifact",
+      artifactId: artifact.id,
+    });
+    if (!read.ok || !("text" in read)) throw Error("Missing Spec artifact");
+    expect(JSON.parse(read.text)).toEqual(finished.outputData?.specs);
+    expect(finished.artifacts.map((a) => a.name)).toEqual(
+      expect.arrayContaining(["out.raw", "specs.csv", "log.txt"]),
+    );
+    await f.service.clear();
+  });
   it("prepares every saved folder before running a batch sequentially", async () => {
     const files = new SimulationFiles();
     const project = createEmptyProject("batch-project", "Batch", "doc");

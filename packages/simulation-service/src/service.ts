@@ -18,6 +18,7 @@ import {
 } from "./output-evaluation.js";
 import { automaticMeasurementsToCsv } from "./automatic-measurements.js";
 import { nativeMeasurementResults } from "./native-measurements.js";
+import { simulationSpecReport, simulationSpecsToCsv } from "./spec-results.js";
 import { nativeOutputDeclarations } from "./native-output-semantics.js";
 
 import {
@@ -786,11 +787,30 @@ export class SimulationService {
         };
         run.view.outputData.nativeMeasurements = nativeMeasurements;
       }
+      const specs = simulationSpecReport(
+        input.files,
+        input.entryPath ?? "run.cir",
+        nativeMeasurements,
+        {
+          runId: run.view.id,
+          preparedId: run.prepared.id,
+          inputDigest: run.prepared.digest,
+        },
+        output.result.outcome.status === "completed" && !output.cancelled,
+      );
+      run.view.outputData ??= {
+        schemaVersion: 1,
+        analyses: [],
+        diagnostics: [],
+      };
+      run.view.outputData.specs = specs;
       const artifact = async (name: string, type: string, text: string) =>
         run.view.artifacts.push(
           await this.publishArtifact(epoch, name, type, text),
         );
       await artifact("log.txt", "text/plain", output.result.log);
+      await artifact("specs.json", "application/json", JSON.stringify(specs));
+      await artifact("specs.csv", "text/csv", simulationSpecsToCsv(specs));
       if (nativeMeasurements.length)
         await artifact(
           "native-measurements.json",
