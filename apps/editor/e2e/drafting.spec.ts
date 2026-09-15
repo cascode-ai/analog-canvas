@@ -288,17 +288,26 @@ test("adds formatted drafting text and undo/redo restores it", async ({
         .then((bounds) => bounds?.width),
     )
     .toBeCloseTo(332, 0);
-  const [narrowBoldTop, narrowIncreaseTop, narrowApplyTop, narrowCancelTop] =
-    await Promise.all([
-      controlTop(page.getByRole("button", { name: "Bold" })),
-      controlTop(page.getByRole("button", { name: "Increase text size" })),
-      controlTop(page.getByRole("button", { name: "Apply text changes" })),
-      controlTop(page.getByRole("button", { name: "Cancel text changes" })),
-    ]);
+  const [narrowBoldTop, narrowIncreaseTop] = await Promise.all([
+    controlTop(page.getByRole("button", { name: "Bold" })),
+    controlTop(page.getByRole("button", { name: "Increase text size" })),
+  ]);
   expect(Math.abs(narrowIncreaseTop - narrowBoldTop)).toBeLessThan(1);
-  // Browser font metrics may shift text-only button boxes by a few pixels;
-  // both actions must still occupy the deliberate second toolbar row.
-  expect(Math.abs(narrowCancelTop - narrowApplyTop)).toBeLessThan(8);
+  // Chromium may report one intermediate foreignObject layout immediately
+  // after the viewport changes. Keep the same row contract, but assert the
+  // settled layout rather than sampling that transient frame.
+  await expect
+    .poll(async () => {
+      const [applyTop, cancelTop] = await Promise.all([
+        controlTop(page.getByRole("button", { name: "Apply text changes" })),
+        controlTop(page.getByRole("button", { name: "Cancel text changes" })),
+      ]);
+      return Math.abs(cancelTop - applyTop);
+    })
+    .toBeLessThan(8);
+  const narrowApplyTop = await controlTop(
+    page.getByRole("button", { name: "Apply text changes" }),
+  );
   expect(narrowApplyTop).toBeGreaterThan(narrowBoldTop);
   await page.getByLabel("Insert circuit symbol").click();
   const [symbolMenuBounds, narrowEditorBounds] = await Promise.all([
