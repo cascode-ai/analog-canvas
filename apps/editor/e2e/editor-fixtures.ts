@@ -254,7 +254,7 @@ export async function recoveryProjectTexts(page: Page): Promise<string> {
   return records.map((record) => record.projectText).join("\n");
 }
 
-/** Copy through the real clipboard and prove it matches the live sidebar. */
+/** Copy through the real clipboard and prove its content matches the live sidebar. */
 export async function copyNetlistText(
   page: Page,
   format?: "spice" | "spectre",
@@ -279,10 +279,13 @@ export async function copyNetlistText(
     .poll(() => page.evaluate(() => navigator.clipboard.readText()))
     .not.toBe("clipboard sentinel");
   const text = await page.evaluate(() => navigator.clipboard.readText());
+  // Windows normalizes clipboard lines to CRLF while textarea values retain
+  // the application's LF spelling. The text contract is line-ending neutral.
+  const normalizedText = text.replace(/\r\n?/gu, "\n");
   await expect(
     page.getByRole("textbox", { name: "Netlist code", exact: true }),
-  ).toHaveValue(text);
+  ).toHaveValue(normalizedText);
   expect(downloads).toBe(0);
   page.off("download", downloaded);
-  return text;
+  return normalizedText;
 }
