@@ -1,13 +1,20 @@
-import { test } from "node:test";
+import { afterEach, test } from "vitest";
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 
+const temporaryDirectories = [];
+afterEach(() => {
+  for (const directory of temporaryDirectories.splice(0))
+    rmSync(directory, { recursive: true, force: true });
+});
+
 test("model symbols are derived from exact section bytes and never overwrite evidence", () => {
   const directory = mkdtempSync(join(tmpdir(), "vacask-model-symbols-"));
+  temporaryDirectories.push(directory);
   const library = join(directory, "library.inc"),
     output = join(directory, "symbols.json");
   const text =
@@ -48,5 +55,6 @@ test("model symbols are derived from exact section bytes and never overwrite evi
   ]);
   result = run();
   assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /EEXIST/u);
   assert.deepEqual(JSON.parse(readFileSync(output, "utf8")), report);
 });
