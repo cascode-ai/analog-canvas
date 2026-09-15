@@ -61,13 +61,13 @@ The integration owner owns M0-M6 until an explicit handoff is recorded.
 
 | Package | Owned paths / outcome | Required exit |
 | --- | --- | --- |
-| M0 baseline | This roadmap; acceptance inventory | Every existing simulation capability has a disposition, fixture and owner; tolerances are agreed before model comparison |
+| M0 baseline | This roadmap; acceptance inventory | Every existing simulation capability has a disposition, native fixture and owner; no cross-simulator numerical-equivalence gate |
 | M1 isolated cloud | Dedicated deployment config/workflow and host target | Branch worker, auth, DOs, queues, R2, executor, credentials, volumes and network are isolated; no existing endpoint is replaced |
-| M2 runtime/models | VACASK runtime, model artifacts and Profile | Fixed simulator/compiler/model/OSDI identities; analytical and qualified-model fixtures pass on target Linux runtime |
+| M2 runtime/models | VACASK runtime, model artifacts and Profile | Fixed simulator/compiler/model/OSDI identities; real native model fixtures execute with correct mappings and complete results on target Linux runtime |
 | M3 authoring/compiler | model/netlist/spice language/helpers | Canvas and code-only experiments compile to native VACASK; hierarchy/units/source maps retained; one source authority |
 | M4 execution/results | simulation-service/runtime/result reader | Public execution contract, lifecycle, diagnostics and mapped numeric results work for all required analyses |
 | M5 integration/retirement | editor/MCP/data/examples/docs | Existing interactions work; owned examples converted; old input preserved; no reachable ngspice execution path remains |
-| M6 acceptance/delivery | Existing test/evidence and release boundaries | One candidate passes numerical, GUI, public MCP, resource and isolation journeys; user review precedes Production |
+| M6 acceptance/delivery | Existing test/evidence and release boundaries | One candidate passes native result-integrity, GUI, public MCP, resource and isolation journeys; user review precedes Production |
 
 Start M2 before expensive UI adaptation. Build one native end-to-end slice early,
 then expand analysis/model coverage. M1 can proceed independently once its
@@ -88,15 +88,20 @@ an explicit release gap; do not silently substitute generic devices or drop an
 existing advertised capability. Model scope changes require a product decision.
 
 The product owner approved upgrading the MOS equation implementation from the
-source models' BSIM4 4.5/4.62 declarations to **4.8.3**, with requalification and
-explicit reporting of differences from historical results. The converter must
+source models' BSIM4 4.5/4.62 declarations to **4.8.3**. The converter must
 emit 4.8.3 and retain the original versions in its evidence. Do not claim that a
 4.5 parameter string selects 4.5 equations inside `sp_bsim4v8`. The original
-ngspice baseline remains historical evidence, not a same-version oracle. New
-acceptance must use an independently identified 4.8.3 reference, verify the
-native module's chain-rule correction, and cover the complete analysis/device
-scope above. This decision changes neither foundry coefficients nor the current
-hosted environment; it does not waive model validation or authorize deployment.
+ngspice baseline remains historical evidence, not an acceptance oracle.
+
+The product owner's revised acceptance decision is **native VACASK execution,
+not numerical equivalence to another simulator**. Neither a same-version ngspice
+reference nor AC/TRAN/Noise cross-simulator error thresholds block migration.
+Do not tune model coefficients, solver settings or sampling solely to reproduce
+old results. Existing comparison reports remain research evidence; discrepancies
+alone are not release failures. A demonstrated native implementation defect is
+still a defect: retain regression protection for the module's chain-rule fix.
+This decision changes neither foundry coefficients nor the current hosted
+environment and does not authorize deployment.
 
 Record the actual VACASK build, platform, binary digest, OpenVAF revision,
 OSDI ABI, compiled module digests, model source/digests/licenses, startup policy
@@ -116,12 +121,16 @@ Acceptance layers:
    the chosen compiler and loaded by the chosen runtime, without using it as
    a replacement for foundry data.
 
-Define absolute/relative tolerances per physical observable before running the
-comparison. Compare transient outputs at declared metrics or analysis-only
-common sample points while retaining original solver axes. Never modify raw
-artifacts or fill missing results. An ngspice offline reference is permitted;
-it is not shipped as a target-product fallback. Record discrepancies and their
-explanation rather than widening tolerances to fit the result.
+For the declared device/corner/analysis scope, require native model loading,
+correct terminal/parameter/unit mapping, successful analyses, complete finite
+results with correct axes/units, and readable/exportable raw and numeric evidence.
+Exit zero alone is insufficient. Do not silently ignore unsupported parameters,
+substitute illustrative models, fill missing results or rewrite raw artifacts.
+Use analytical checks and basic circuit invariants to catch mapping/parser bugs;
+these are not a demand that different simulators produce identical numbers.
+Existing strict cross-simulator comparisons are optional research only and must
+not be part of the native release gate. Full GUI/MCP and isolated-cloud journeys
+below remain required; local native runs do not by themselves authorize release.
 
 ## Functional acceptance inventory
 

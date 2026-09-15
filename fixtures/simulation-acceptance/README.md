@@ -96,7 +96,9 @@ pnpm test:local containers/vacask/starter-journey.test.mjs
 Missing runtime/model configuration cannot produce a passing aggregate. Optional
 `ICM_VACASK_EVIDENCE_DIR` retains per-run result artifacts and a fresh
 `starter-sanity-*/acceptance.json`. This is local service/numerical evidence, not
-GUI/MCP, isolated-cloud acceptance or fixed-reference model qualification.
+GUI/MCP or isolated-cloud acceptance. The migration does not require numerical
+equivalence to an ngspice reference; see the
+[native acceptance decision](../../docs/roadmap/vacask-migration.md#environment-and-electrical-acceptance).
 
 `scripts/lib/native-example-acceptance.mjs` supplies those same checks to the
 offline `analyze-native-simulation-examples.mjs` command. The CLI additionally
@@ -115,8 +117,9 @@ RC/RLC theory, the common-source load line and small-signal model, and nominal
 OTA bias/feedback behavior, complex phase unwrapping, small/large-signal harmonic
 distortion, and integrated noise recomputed from the returned PSD. Noise integration
 is explicitly `trapezoidal-psd`, not ngspice's per-source integration. Existing
-electrical sanity tolerances are unchanged; they are not the stricter M2 numerical
-qualification thresholds. Treat missing results or failed checks as incomplete
+electrical sanity checks protect native mapping and result handling; they do not
+establish cross-simulator equivalence, which is not an M2 release requirement.
+Treat missing results or failed checks as incomplete
 acceptance, even if a simulator process exited successfully.
 
 The generator contract test checks importable structure, clean diagnostics,
