@@ -43,6 +43,12 @@ Use a fresh writable evidence directory. The smoke records exact inputs,
 results and environment, verifies complete finite native results and executed
 files, and checks scratch cleanup after stopping the service.
 
+It then injects a syntax error, an intentionally long native transient run,
+concurrent admission, active cancellation and a 100 ms deadline. Each failure
+must release its lease and scratch before a subsequent five-analysis run can
+succeed. The busy request must return 429, not start a parallel simulator. These
+are executor lifecycle tests, not a distributed queue or forced-host-restart test.
+
 ```sh
 docker run --rm --network none --read-only --cap-drop ALL \
   --security-opt no-new-privileges --memory 1g --cpus 1 --pids-limit 128 \

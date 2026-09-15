@@ -1,6 +1,8 @@
 // Run inside the built candidate with read-only root, no network and a private
 // /var/lib/vacask tmpfs. Inputs are captured public Prepare outputs, not new decks.
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
+import { setTimeout as delay } from "node:timers/promises";
 import { readFile, writeFile, readdir } from "node:fs/promises";
 import { startVacaskService } from "/opt/harness/vacask-harness.mjs";
 import { validateNativeExampleResult } from "/proof/native-example-acceptance.mjs";
@@ -111,6 +113,79 @@ try {
       `Native image: ${input.environment.corner} OP/DC/AC/TRAN/Noise passed`,
     );
   }
+  const origin = `http://127.0.0.1:${service.server.address().port}`;
+  const post = async (body, path = "/run") => {
+    const response = await fetch(origin + path, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(45000),
+    });
+    return { status: response.status, body: await response.json() };
+  };
+  const health = async () => (await fetch(origin + "/health")).json();
+  const makeInput = (control) => {
+    const text = `Native lifecycle fault injection\nground 0\nmodel supply vsource\nV1 (out 0) supply dc=1\ncontrol\noptions rawfile="ascii"\nsave v(out)\n${control}\nendc\n`;
+    return {
+      ...inputs[0],
+      netlist: "",
+      testbench: text,
+      preparedDeck: text,
+      inputRevision: "container-lifecycle-fault-injection",
+      dependencies: [],
+      files: [{ path: inputs[0].entryPath, text }],
+      runToken: randomUUID(),
+    };
+  };
+  const record = async (name, reply) => {
+    await writeFile(`/evidence/${name}.json`, JSON.stringify(reply), {
+      flag: "wx",
+    });
+    assert.equal(reply.status, 200, JSON.stringify(reply));
+    assert.equal((await health()).activity.state, "idle");
+    assert.deepEqual(await readdir("/var/lib/vacask"), []);
+  };
+  const recover = async (name) => {
+    const reply = await post(inputs[0]);
+    await record(name, reply);
+    validateNativeExampleResult(reply.body);
+  };
+  const failed = await post(makeInput("not valid syntax ?"));
+  await record("syntax-failure", failed);
+  assert.equal(failed.body.outcome.status, "failed");
+  await recover("after-syntax-failure");
+
+  const slow = makeInput("analysis slow tran stop=100 step=1p maxstep=1p");
+  const pending = post(slow);
+  const deadline = Date.now() + 10000;
+  while ((await health()).activity.phase !== "running") {
+    assert(Date.now() < deadline, "Native child never reached running state");
+    await delay(20);
+  }
+  const busy = await post(inputs[0]);
+  assert.equal(busy.status, 429);
+  assert.equal(busy.body.error, "simulator-busy");
+  assert.equal(
+    (await post({ runToken: slow.runToken }, "/cancel")).status,
+    200,
+  );
+  const cancelled = await pending;
+  await record("cancelled", cancelled);
+  assert.equal(cancelled.body.cancelled, true);
+  await recover("after-cancel");
+
+  const timedOut = await post({
+    ...slow,
+    runToken: randomUUID(),
+    timeoutMs: 100,
+  });
+  await record("timeout", timedOut);
+  assert.equal(timedOut.body.outcome.status, "timed-out");
+  assert.equal(timedOut.body.outcome.timeoutMs, 100);
+  await recover("after-timeout");
+  console.log(
+    "Native image: syntax failure, busy rejection, active cancellation, timeout and subsequent recovery passed",
+  );
 } finally {
   await service.stop();
 }
