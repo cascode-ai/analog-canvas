@@ -136,7 +136,8 @@ export function createNetlistExportProfile(
             (foundryProfile ? undefined : GENERIC_TARGETS[family]) ??
             "",
           parameters,
-          substrate: family === "pmos" ? "VDD" : "0",
+          substrate:
+            family === "pmos" ? "VDD" : family === "nmos" ? "VSS" : "0",
         },
       ];
     }),

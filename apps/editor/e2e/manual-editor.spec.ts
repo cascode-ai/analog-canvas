@@ -6112,13 +6112,13 @@ test("shows and copies a live MOS netlist when only bulk terminals are omitted",
   });
 
   const spice = await copyNetlistText(page, "spice");
-  expect(spice).toMatch(/M1 \S+ \S+ \S+ 0 NMOS/u);
+  expect(spice).toMatch(/M1 \S+ \S+ \S+ VSS NMOS/u);
   expect(spice).toMatch(/M2 \S+ \S+ \S+ VDD PMOS/u);
-  expect(spice).toContain(".global 0 VDD");
+  expect(spice).toContain(".subckt Main VDD VSS");
   const spectre = await copyNetlistText(page, "spectre");
-  expect(spectre).toMatch(/M1 \(\S+ \S+ \S+ 0\) NMOS/u);
+  expect(spectre).toMatch(/M1 \(\S+ \S+ \S+ VSS\) NMOS/u);
   expect(spectre).toMatch(/M2 \(\S+ \S+ \S+ VDD\) PMOS/u);
-  expect(spectre).toContain("global 0 VDD");
+  expect(spectre).toContain("subckt Main (VDD VSS)");
   const panel = page.getByRole("region", {
     name: "Live netlist",
     exact: true,
@@ -6130,12 +6130,12 @@ test("shows and copies a live MOS netlist when only bulk terminals are omitted",
     /^simulator lang=spice\n\.lib "sky130\.lib\.spice" tt\nsimulator lang=spectre\n/u,
   );
   expect(skySpectre).toMatch(
-    /XM1 \(\S+ \S+ \S+ 0\) sky130_fd_pr__nfet_01v8 l=0.15 w=1 nf=1 m=1/u,
+    /XM1 \(\S+ \S+ \S+ VSS\) sky130_fd_pr__nfet_01v8 l=0.15 w=1 nf=1 m=1/u,
   );
   expect(skySpectre).toMatch(
     /XM2 \(\S+ \S+ \S+ VDD\) sky130_fd_pr__pfet_01v8 l=0.15 w=1 nf=1 m=1/u,
   );
-  expect(skySpectre).toContain("global 0 VDD");
+  expect(skySpectre).toContain("subckt Main (VDD VSS)");
   expect(skySpectre).not.toContain(".subckt");
   expect(skySpectre).not.toContain(".global");
   await process.selectOption("abstract");

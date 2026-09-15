@@ -139,9 +139,6 @@ R1 A B 5k
       if (result.status !== "ready") return;
       expect(result.placeholders).toHaveLength(5);
       expect(result.file.text).not.toMatch(/^(?:\*|\/\/)/mu);
-      expect(result.file.text).toContain(
-        format === "spice" ? ".global 0 VDD" : "global 0 VDD",
-      );
       expect(result.file.text).toContain("l=150n m=1 nf=1 w=1u");
       for (const item of result.placeholders) {
         expect(result.file.text).toContain(item.token);
@@ -195,9 +192,6 @@ R1 A B 5k
         cards(printDesignNetlist(format, strict.ir!).text),
       );
       expect(result.file.text).not.toMatch(/^(?:\*|\/\/)/mu);
-      expect(result.file.text).toContain(
-        format === "spice" ? ".global 0 VDD" : "global 0 VDD",
-      );
       expect(
         result.diagnostics.some((item) => item.code === "GENERATED_NET_NAME"),
       ).toBe(true);
