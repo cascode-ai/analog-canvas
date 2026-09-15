@@ -32,6 +32,12 @@ export function simulationSignals(
   input: SimulationSourceInput,
 ): Record<string, { label: string; targets: SimulationSignalTarget[] }> {
   const graph = inspectSimulationSourceGraph(input);
+  const authoredNetIds = new Map(
+    project.documents.map((document) => [
+      document.id,
+      new Set(document.nets.map((net) => net.id)),
+    ]),
+  );
   const labels = new Map<string, Set<string>>();
   const targets = new Map<string, SimulationSignalTarget[]>();
   for (const binding of input.circuitBindings) {
@@ -65,6 +71,10 @@ export function simulationSignals(
               net.scope === "global" ? net.name : [...path, net.name].join("."),
             );
           local.set(key, node);
+          // Export may synthesize default module supply ports. They are needed
+          // to print and traverse the netlist, but do not name a selectable
+          // Canvas Net until the author actually wires one in this Document.
+          if (!authoredNetIds.get(cell.id)?.has(net.id)) continue;
           const vector = `v(${node})`.toLowerCase();
           const name = [...scope.callPath, ...path, net.name].join("/");
           const names = labels.get(vector) ?? new Set<string>();
