@@ -704,13 +704,17 @@ test("groups drafting tools and editable polarity labels under Annotations", asy
 
   await annotations.getByTestId("shapes-chip-annotation-polarity-both").click();
   const canvas = page.getByTestId("schematic-canvas");
-  await canvas.hover({ position: { x: 460, y: 260 } });
-  const preview = page.getByTestId("component-placement-preview");
+  // The empty-canvas Quick Start card occupies the upper-right area until the
+  // first object lands. Start below it so this exercises the canvas rather
+  // than asking a covered coordinate to produce a placement preview.
+  await canvas.hover({ position: { x: 460, y: 520 } });
+  const preview = page.getByTestId("text-placement-preview");
   await expect(preview).toBeVisible();
   await page.keyboard.press("r");
-  await expect(preview).toHaveAttribute("transform", /rotate\(90\)/u);
+  await expect(preview).toHaveAttribute("transform", /^translate\(/u);
+  await expect(preview).not.toHaveAttribute("transform", /rotate/u);
 
-  await canvas.click({ position: { x: 460, y: 260 } });
+  await canvas.click({ position: { x: 460, y: 520 } });
   const editor = page.getByRole("textbox", { name: "Canvas text editor" });
   await expect(editor).toBeVisible();
   await expect(editor).toHaveText("Vx");
@@ -730,7 +734,7 @@ test("groups drafting tools and editable polarity labels under Annotations", asy
   await page.getByRole("button", { name: "Apply text changes" }).click();
 
   await expect(polarity).toBeVisible();
-  await expect(polarity).toHaveAttribute("transform", /rotate\(90 /u);
+  await expect(polarity).not.toHaveAttribute("transform", /rotate/u);
   await expect(
     polarity.locator('[data-role^="polarity-positive"]'),
   ).toHaveCount(2);
@@ -888,7 +892,7 @@ test("groups drafting tools and editable polarity labels under Annotations", asy
   });
   await expect(ellipsis).toBeVisible();
   await expect(ellipsis).toHaveText("...");
-  await expect(ellipsis).toHaveAttribute("transform", /rotate\(90\b/u);
+  await expect(ellipsis).not.toHaveAttribute("transform", /rotate/u);
   await expect(
     canvas.locator('[data-testid^="drafting-hit-text-"]'),
   ).toHaveClass(/hit-target annotation-text-hit selected/u);
@@ -898,6 +902,9 @@ test("groups drafting tools and editable polarity labels under Annotations", asy
   await expect
     .poll(() => recoveryProjectTexts(page))
     .toContain('"value": "..."');
+  await expect
+    .poll(() => recoveryProjectTexts(page))
+    .toContain('"rotation": 90');
 });
 
 test("places a vertical Power Rail from I and renames it on the canvas", async ({
