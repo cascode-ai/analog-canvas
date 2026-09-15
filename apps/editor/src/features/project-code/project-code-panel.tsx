@@ -1,7 +1,16 @@
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  lazy,
+  Suspense,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type { CircuitProject } from "@icm/model";
 
 import { formatProjectCode, validateProjectCode } from "./project-code";
+
+const ProjectTextEditor = lazy(() => import("./project-text-editor"));
 
 export interface ProjectCodeApplyOutcome {
   ok: boolean;
@@ -99,22 +108,24 @@ export function ProjectCodePanel({
           </button>
         </div>
       </div>
-      <textarea
-        aria-label="Project code"
-        value={draft}
-        onChange={(event) => change(event.currentTarget.value)}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
-            event.preventDefault();
-            apply();
-          }
-        }}
-        spellCheck={false}
-        autoCapitalize="off"
-        autoCorrect="off"
-        wrap="off"
-        aria-invalid={!!error || changedOutsideDraft}
-      />
+      <Suspense
+        fallback={
+          <textarea
+            aria-label="Loading Project code editor"
+            value={draft}
+            readOnly
+          />
+        }
+      >
+        <ProjectTextEditor
+          ariaLabel="Project code"
+          language="json"
+          value={draft}
+          invalid={!!error || changedOutsideDraft}
+          onChange={change}
+          onModEnter={apply}
+        />
+      </Suspense>
       {changedOutsideDraft ? (
         <p role="alert">
           The live Project changed. Reload before applying so an Agent or canvas

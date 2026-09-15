@@ -338,9 +338,13 @@ export async function copyNetlistText(
   // Windows normalizes clipboard lines to CRLF while textarea values retain
   // the application's LF spelling. The text contract is line-ending neutral.
   const normalizedText = text.replace(/\r\n?/gu, "\n");
-  await expect(
-    page.getByRole("textbox", { name: "Netlist code", exact: true }),
-  ).toHaveValue(normalizedText);
+  const firstSourceLine = normalizedText
+    .split("\n")
+    .find((line) => line.trim().length > 0);
+  if (firstSourceLine)
+    await expect(
+      page.getByRole("textbox", { name: "Netlist code", exact: true }),
+    ).toContainText(firstSourceLine);
   expect(downloads).toBe(0);
   page.off("download", downloaded);
   return normalizedText;

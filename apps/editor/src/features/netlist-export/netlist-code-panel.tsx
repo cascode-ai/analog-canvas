@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { lazy, Suspense, useMemo } from "react";
 import type { CircuitProject } from "@icm/model";
 import {
   createDesignNetlistExport,
@@ -9,6 +9,10 @@ import {
   type NetlistNamingProfile,
   type NetlistProfileId,
 } from "@icm/netlist";
+
+const ProjectTextEditor = lazy(
+  () => import("../project-code/project-text-editor"),
+);
 
 /** Live structural output. Diagnostics belong outside the copyable code. */
 export function NetlistCodePanel({
@@ -47,6 +51,7 @@ export function NetlistCodePanel({
       ? (result.diagnostics.find((item) => item.severity === "error")
           ?.message ?? "Resolve the Check Report findings before copying")
       : null;
+  const source = result?.status === "ready" ? result.file.text : "";
   return (
     <section className="netlist-profile-code" aria-label="Live netlist">
       <header className="netlist-code-header">
@@ -86,13 +91,23 @@ export function NetlistCodePanel({
           Copy
         </button>
       </div>
-      <textarea
-        aria-label="Netlist code"
-        value={result?.status === "ready" ? result.file.text : ""}
-        readOnly
-        spellCheck={false}
-        wrap="off"
-      />
+      <Suspense
+        fallback={
+          <textarea
+            aria-label="Loading Netlist code editor"
+            value={source}
+            readOnly
+          />
+        }
+      >
+        <ProjectTextEditor
+          ariaLabel="Netlist code"
+          language="netlist"
+          value={source}
+          readOnly
+          invalid={!!error}
+        />
+      </Suspense>
       {error ? (
         <p role="alert">{error}</p>
       ) : result?.status === "ready" && result.placeholders.length ? (

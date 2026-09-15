@@ -180,23 +180,9 @@
   padding: 0 var(--icm-space-2);
 }
 
-.project-code-panel textarea {
+.project-code-panel > .project-source-editor,
+.project-code-panel > textarea {
   flex: 1 1 auto;
-  width: 100%;
-  min-height: 60dvh;
-  box-sizing: border-box;
-  resize: vertical;
-  padding: 10px;
-  border: 1px solid var(--icm-border);
-  border-radius: var(--icm-radius-sm);
-  background: var(--icm-surface);
-  color: var(--icm-text);
-  font: 12px/1.55 monospace;
-  tab-size: 2;
-}
-
-.project-code-panel textarea[aria-invalid="true"] {
-  border-color: var(--icm-danger, #c44);
 }
 
 .selection-overview {

@@ -5968,7 +5968,7 @@ test("copies structural SPICE and Spectre netlists while exposing instance autho
   await placeComponent(page, "nmos", { x: 360, y: 220 });
   await expect(
     page.getByRole("textbox", { name: "Netlist code", exact: true }),
-  ).toHaveValue("");
+  ).toHaveText("");
   await expect(
     page.getByRole("region", { name: "Live netlist" }).getByRole("alert"),
   ).toContainText("not connected");
@@ -5994,18 +5994,38 @@ test("edits the complete Project Code with one undo boundary and protects a stal
   page,
 }) => {
   await page.goto("/editor");
+  const original = createEmptyProject("project-code-e2e", "Project Code E2E");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "project-code-e2e.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(original)),
+  });
   await page.getByTestId("project-code-toggle").click();
   const projectCode = page.getByRole("textbox", { name: "Project code" });
   const apply = page.getByRole("button", { name: "Apply", exact: true });
   const reload = page.getByRole("button", { name: "Reload", exact: true });
   await expect(projectCode).toBeVisible();
+  const projectEditor = page.locator(
+    '.project-source-editor[data-language="json"]',
+  );
+  await expect(projectEditor.locator(".cm-lineNumbers")).toBeVisible();
+  await expect(
+    projectEditor.locator(".cm-gutterElement").filter({ hasText: /^1$/u }),
+  ).toBeVisible();
+  expect(
+    await projectEditor.locator(".cm-content").evaluate((content) => {
+      const colors = [getComputedStyle(content).color];
+      for (const token of content.querySelectorAll("span"))
+        colors.push(getComputedStyle(token).color);
+      return new Set(colors).size;
+    }),
+  ).toBeGreaterThan(1);
 
-  const original = JSON.parse(await projectCode.inputValue());
   const edited = structuredClone(original);
   edited.name = "Edited Project";
-  edited.documents[0].name = "Edited Main";
+  edited.documents[0]!.name = "Edited Main";
   await projectCode.fill(JSON.stringify(edited, null, 2));
-  await apply.click();
+  await projectCode.press("ControlOrMeta+Enter");
   await expect(page.getByTestId("project-name-input")).toHaveValue(
     "Edited Project",
   );
@@ -6021,7 +6041,7 @@ test("edits the complete Project Code with one undo boundary and protects a stal
     original.name,
   );
   await expect(page.getByTestId("active-document-name")).toHaveText(
-    original.documents[0].name,
+    original.documents[0]!.name,
   );
 
   await projectCode.fill("{");
@@ -6029,7 +6049,7 @@ test("edits the complete Project Code with one undo boundary and protects a stal
   await expect(page.getByRole("alert")).toBeVisible();
   await reload.click();
 
-  const staleDraft = JSON.parse(await projectCode.inputValue());
+  const staleDraft = structuredClone(original);
   staleDraft.name = "Draft Project";
   await projectCode.fill(JSON.stringify(staleDraft, null, 2));
   const projectName = page.getByTestId("project-name-input");
@@ -6038,7 +6058,7 @@ test("edits the complete Project Code with one undo boundary and protects a stal
   await expect(page.getByRole("alert")).toContainText("live Project changed");
   await expect(apply).toBeDisabled();
   await reload.click();
-  await expect(projectCode).toHaveValue(/"name": "Canvas changed"/u);
+  await expect(projectCode).toContainText('"name": "Canvas changed"');
 });
 
 test("shows the component-library tooltip without a native hover delay", async ({
@@ -6124,7 +6144,7 @@ test("edits process configuration as raw JSON and remembers process and format i
   await preset.selectOption("tsmc28");
   await expect(
     page.getByRole("textbox", { name: "Netlist code", exact: true }),
-  ).toHaveValue(/\.lib "toplevel\.scs" TOP_TT/u);
+  ).toContainText('.lib "toplevel.scs" TOP_TT');
   await page.reload();
   const tsmc28 = await copyNetlistText(page, "spectre");
   expect(tsmc28).toContain('include "toplevel.scs" section=TOP_TT');
@@ -8582,7 +8602,22 @@ test("keeps the netlist live and selectable when clipboard access fails", async 
   );
   await page.getByTestId("copy-netlist").click();
   const code = page.getByRole("textbox", { name: "Netlist code", exact: true });
-  await expect(code).toHaveValue(/\.subckt Main/u);
+  await expect(code).toContainText(".subckt Main");
+  const netlistEditor = page.locator(
+    '.project-source-editor[data-language="netlist"]',
+  );
+  await expect(netlistEditor.locator(".cm-lineNumbers")).toBeVisible();
+  await expect(
+    netlistEditor.locator(".cm-gutterElement").filter({ hasText: /^1$/u }),
+  ).toBeVisible();
+  expect(
+    await netlistEditor.locator(".cm-content").evaluate((content) => {
+      const colors = [getComputedStyle(content).color];
+      for (const token of content.querySelectorAll("span"))
+        colors.push(getComputedStyle(token).color);
+      return new Set(colors).size;
+    }),
+  ).toBeGreaterThan(1);
   await expect(page.getByTestId("status")).toContainText(
     "select the netlist in the sidebar",
   );
@@ -8591,8 +8626,8 @@ test("keeps the netlist live and selectable when clipboard access fails", async 
     mimeType: "text/plain",
     buffer: Buffer.from("\n.subckt live a b\nR1 a b 2k\n.ends live\n"),
   });
-  await expect(code).toHaveValue(/R1 a b 2k/u);
-  await expect(code).not.toHaveValue(/\.subckt Main/u);
+  await expect(code).toContainText("R1 a b 2k");
+  await expect(code).not.toContainText(".subckt Main");
   await page.setViewportSize({ width: 760, height: 800 });
   await expect(code).toBeVisible();
   await code.focus();
