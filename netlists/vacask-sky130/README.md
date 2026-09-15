@@ -164,6 +164,52 @@ finding neither relaxes the spectrum tolerance nor qualifies the remaining
 AC, TRAN, full model domain or hosted Profile. Product integration behavior
 was not changed to chase the reference totals.
 
+### OTA time-discretization investigation (not full acceptance)
+
+With the same upgraded model tree and corrected native module, tighter
+Newton tolerances alone do not remove the small AC residual. At reltol=1e-10,
+vntol=1e-12 and a 1 fA current floor for OP/AC, the worst Vout real-component
+difference is 3.075e-8 at approximately 50.1 kHz (gain approximately 117.61),
+or about 2.6e-10 relative. This remains outside the historical 1e-8 absolute
+check and is recorded as unresolved, not silently accepted as roundoff.
+
+For TRAN, both engines used the original 1 ns-rise pulse, reltol=1e-10,
+vntol=1e-12 and a 1 pA current floor. Reducing the maximum step demonstrates
+that the large Vout discrepancy is time-discretization dependent:
+
+| Maximum step in both engines | Comparison coverage                              | Worst interpolated Vout difference |
+| ---------------------------- | ------------------------------------------------ | ---------------------------------- |
+| 0.2 ns                       | Original 0–4 us run                              | 50.25 uV                           |
+| 0.02 ns                      | Original 0–4 us run                              | 0.4992 uV                          |
+| 0.002 ns                     | Original circuit, recorded 1–1.05 us edge window | 0.009208 uV                        |
+
+The 0.2-to-0.02 ns change shows approximately second-order convergence. The
+last row is deliberately a **short-window diagnostic**, not a claim that the
+complete waveform or all nets pass. The edge-window tail, mirror and bias
+node differences still exceed 1e-8 V (approximately 0.235 uV, 0.168 uV and
+0.0105 uV respectively), concentrated at pulse corners. Comparisons interpolate
+only within recorded reference coverage; neither simulator's raw axis or
+values are rewritten. Default sampling and the original historical baseline
+remain unchanged.
+
+To reproduce the convergence experiment, use the captured public compiled
+OTA circuit and its independent reference circuit, select Vout, bias, tail
+and mirror-node voltages, and run OP/AC with the stated 1 fA floor. Before
+TRAN change only the floor to 1 pA, then vary the maximum step in both engines.
+For the short window, keep the pulse delay at 1 us, retain the initial OP,
+integrate from zero, record from 1 us and stop at 1.05 us. Do not use UIC or
+shift the pulse to simulate an isolated edge with a different initial state.
+
+These are offline numerical investigations, not proposed product defaults.
+At 0.02 ns the native full run contains 202,413 samples and its four-voltage
+raw artifact is about 24.6 MB, above the public journey's 8 MiB output budget.
+A 0.1 pA floor instead of 1 pA causes the native transient to abort, both with
+and without inserted current-sense sources; the process still exits zero but
+produces no transient raw file. Artifact presence and declared analysis
+completion remain mandatory. Neither a missing waveform nor tighter settings
+that fail to converge count as qualification. Full model-domain/observable
+acceptance and efficient public-runtime sampling remain open.
+
 Offline conversion integration tests use `ICM_VACASK_CONVERTER_SOURCE` and
 `ICM_SKY130_MODEL_SOURCE` (defaulting to the local `plan/upstream` checkouts).
 They skip when those optional dependencies are unavailable; CI does not
