@@ -8,19 +8,25 @@ function implementationPaths(plan) {
 }
 
 const fallbackBrowserArgs = [
-  "apps/editor/e2e/manual-editor.spec.ts",
+  "apps/editor/e2e/component-insert.spec.ts",
   "apps/editor/e2e/runtime-crash-safety.spec.ts",
-  "apps/editor/e2e/web-agent-session.spec.ts",
 ];
 
 function canAffectBrowser(path) {
+  // Unit/module tests and package metadata do not ship to the browser. Their
+  // production owners still select browser coverage when those owners change,
+  // while Core contracts validate these files directly.
+  if (/\.test\.(?:mjs|ts|tsx)$/u.test(path)) return false;
+  if (/(?:^|\/)package\.json$/u.test(path) || path === "pnpm-lock.yaml")
+    return false;
+  if (
+    path.startsWith("apps/local-host/") ||
+    path.startsWith("packages/platform-node/")
+  )
+    return false;
   return (
-    /^(?:apps\/editor|apps\/local-host|apps\/mcp-server|packages|worker)\//u.test(
-      path,
-    ) ||
-    /^(?:package\.json|pnpm-lock\.yaml|vite\.config\.[^/]+|wrangler(?:\.[^/]+)?\.jsonc)$/u.test(
-      path,
-    )
+    /^(?:apps\/editor|apps\/mcp-server|packages|worker)\//u.test(path) ||
+    /^(?:vite\.config\.[^/]+|wrangler(?:\.[^/]+)?\.jsonc)$/u.test(path)
   );
 }
 

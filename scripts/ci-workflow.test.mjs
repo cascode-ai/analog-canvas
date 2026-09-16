@@ -10,15 +10,16 @@ describe("CI workflow", () => {
     expect(workflow).not.toContain("merge_group");
   });
 
-  it("uses one core runner and one affected-browser runner for pull requests", () => {
+  it("uses runner Chrome for one core and one affected-browser job", () => {
     for (const name of ["Core contracts", "Browser tests"])
       expect(workflow).toContain(`name: ${name}`);
     expect(workflow).toContain(
       "if: github.event_name == 'pull_request' && needs.changes.outputs.browser == 'true'",
     );
     expect(workflow).toContain(
-      'git config --global --add safe.directory "$GITHUB_WORKSPACE"',
+      "PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH: /usr/bin/google-chrome",
     );
+    expect(workflow).not.toContain("mcr.microsoft.com/playwright");
     expect(workflow).not.toContain("playwright install --with-deps chromium");
   });
 

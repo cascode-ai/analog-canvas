@@ -6,6 +6,7 @@ import { join, resolve } from "node:path";
 import { createInterface } from "node:readline";
 
 import { chromium } from "@playwright/test";
+import { previewBrowserLaunchOptions } from "./lib/preview-browser.mjs";
 import { compileNgspiceSourceSimulation as compileSourceSimulation } from "../packages/netlist/dist/index.js";
 import {
   readSimulationExperimentConfig,
@@ -252,7 +253,7 @@ try {
   } else {
     report.mcp = { source: "built", commitSha: report.candidate.commitSha };
   }
-  browser = await chromium.launch({ headless: true });
+  browser = await chromium.launch(previewBrowserLaunchOptions());
   const context = await browser.newContext({
     viewport: { width: 1_440, height: 1_000 },
   });

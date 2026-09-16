@@ -3,7 +3,9 @@ import { EventEmitter } from "node:events";
 import { describe, expect, it } from "vitest";
 
 import {
+  fastPreviewAcceptanceGroups,
   previewAcceptanceGroups,
+  previewAcceptanceGroupsForMode,
   runPreviewAcceptance,
 } from "./run-preview-acceptance.mjs";
 
@@ -26,6 +28,23 @@ describe("Preview acceptance runner", () => {
         "scripts/preview-cross-project-simulation-journey.mjs",
       ],
     ]);
+  });
+
+  it("keeps the fast path to one managed-engine and one GUI journey", () => {
+    expect(
+      fastPreviewAcceptanceGroups.map((group) =>
+        group.commands.map((command) => [command.script, ...command.args]),
+      ),
+    ).toEqual([
+      [["scripts/preview-dual-engine-smoke.mjs"]],
+      [["scripts/preview-source-gui-journey.mjs"]],
+    ]);
+    expect(previewAcceptanceGroupsForMode("fast")).toBe(
+      fastPreviewAcceptanceGroups,
+    );
+    expect(previewAcceptanceGroupsForMode("deep")).toBe(
+      previewAcceptanceGroups,
+    );
   });
 
   it("starts both lanes together while retaining order inside each lane", async () => {
@@ -64,6 +83,31 @@ describe("Preview acceptance runner", () => {
       "scripts/preview-cross-project-simulation-journey.mjs",
     );
     children[4].emit("exit", 0, null);
+    await running;
+  });
+
+  it("runs both fast smoke lanes together", async () => {
+    const started = [];
+    const children = [];
+    const spawnProcess = (_executable, args) => {
+      const child = new EventEmitter();
+      started.push(args[0]);
+      children.push(child);
+      return child;
+    };
+    const running = runPreviewAcceptance("https://preview.example", {
+      mode: "fast",
+      spawnProcess,
+      environment: {},
+      logger: { log() {} },
+    });
+
+    await flush();
+    expect(started).toEqual([
+      "scripts/preview-dual-engine-smoke.mjs",
+      "scripts/preview-source-gui-journey.mjs",
+    ]);
+    for (const child of children) child.emit("exit", 0, null);
     await running;
   });
 });

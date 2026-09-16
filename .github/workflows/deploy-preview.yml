@@ -21,6 +21,7 @@ concurrency:
 
 env:
   PREVIEW_URL: https://analog-canvas-preview.tokenzhang.com
+  PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH: /usr/bin/google-chrome
 
 jobs:
   preview:
@@ -31,6 +32,19 @@ jobs:
       url: https://analog-canvas-preview.tokenzhang.com
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - id: acceptance_plan
+        name: Plan hosted acceptance depth
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            node scripts/preview-acceptance-plan.mjs --force-deep --github-output
+          else
+            node scripts/preview-acceptance-plan.mjs --base "$BEFORE_SHA" --github-output
+          fi
       - uses: pnpm/action-setup@v4
         with:
           version: 11.16.0
@@ -39,8 +53,7 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @icm/spice-run build
-      - run: pnpm --filter @icm/editor... build
+      - run: pnpm --filter @icm/spice-run... --filter @icm/editor... --filter @icm/mcp-server... build
         env:
           VITE_ICM_TIMING_UI: disabled
           # Both hosted channels expose the accepted Simulation/Agent surfaces;
@@ -48,7 +61,6 @@ jobs:
           VITE_ICM_SIMULATION_UI: enabled
           VITE_ICM_AGENT_UI: enabled
           VITE_ICM_SIMULATION_TRANSPORT: managed
-      - run: pnpm --filter @icm/mcp-server... build
       # Build the Worker bundle once. Preview deploys these exact bytes, and a
       # successful run preserves them for Production promotion.
       - name: Build immutable deployment candidate
@@ -65,8 +77,8 @@ jobs:
             "$CANDIDATE_DIR" "$GITHUB_SHA" "$WORKER_BUNDLE_DIR"
           node scripts/deployment-candidate.mjs verify \
             "$CANDIDATE_DIR" "$GITHUB_SHA"
-      - run: pnpm exec playwright install --with-deps chromium
       - name: Reconcile managed simulation resources
+        if: steps.acceptance_plan.outputs.mode == 'deep'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -239,44 +251,20 @@ jobs:
             echo "Anonymous Preview Projects must require sign-in, got: $projects"
             exit 1
           fi
-      # The simulation qualification and product journeys are independent.
-      # Run them in two lanes on this already-prepared runner instead of paying
-      # their combined latency serially. Each lane retains its internal order
-      # so the simulator sees at most two acceptance streams at once.
-      - name: Run Preview acceptance in two parallel lanes
-        run: node scripts/run-preview-acceptance.mjs "$PREVIEW_URL"
+      # Ordinary editor changes prove one published-MCP managed run and one GUI
+      # journey. Agent, Simulation and deployment-boundary changes retain the
+      # complete qualification and product journeys.
+      - name: Run risk-selected Preview acceptance
+        run: node scripts/run-preview-acceptance.mjs "$PREVIEW_URL" --mode "$ACCEPTANCE_MODE"
         env:
+          ACCEPTANCE_MODE: ${{ steps.acceptance_plan.outputs.mode }}
           ICM_PREVIEW_ACCEPTANCE_TOKEN: ${{ secrets.PREVIEW_ACCEPTANCE_TOKEN }}
-      - name: Preserve dual-engine candidate receipt
+      - name: Preserve Preview acceptance receipts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: preview-dual-engine-${{ github.sha }}
-          path: test-results/preview-dual-ota/
-          if-no-files-found: ignore
-          retention-days: 14
-      - name: Preserve the Agent/MCP simulation receipt
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: preview-agent-simulation-${{ github.sha }}
-          path: test-results/preview-agent-simulation/
-          if-no-files-found: error
-          retention-days: 14
-      - name: Preserve the cross-Project simulation receipt
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: preview-cross-project-simulation-${{ github.sha }}
-          path: test-results/preview-cross-project-simulation/
-          if-no-files-found: error
-          retention-days: 14
-      - name: Preserve the source workspace GUI receipt
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: preview-source-gui-${{ github.sha }}
-          path: test-results/preview-source-gui/
+          name: preview-acceptance-${{ github.sha }}
+          path: test-results/preview-*/
           if-no-files-found: error
           retention-days: 14
       # This is the only Production input. It is published only after every

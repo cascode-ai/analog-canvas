@@ -30,6 +30,29 @@ export const previewAcceptanceGroups = [
   },
 ];
 
+export const fastPreviewAcceptanceGroups = [
+  {
+    id: "managed-engine-smoke",
+    commands: [
+      {
+        script: "scripts/preview-dual-engine-smoke.mjs",
+        args: [],
+        env: { ICM_ACCEPTANCE_MCP_SOURCE: "published" },
+      },
+    ],
+  },
+  {
+    id: "source-gui-smoke",
+    commands: [{ script: "scripts/preview-source-gui-journey.mjs", args: [] }],
+  },
+];
+
+export function previewAcceptanceGroupsForMode(mode) {
+  if (mode === "fast") return fastPreviewAcceptanceGroups;
+  if (mode === "deep") return previewAcceptanceGroups;
+  throw new Error(`Unknown Preview acceptance mode: ${mode}`);
+}
+
 function runCommand(command, baseUrl, { spawnProcess, environment }) {
   return new Promise((resolve, reject) => {
     const child = spawnProcess(
@@ -55,15 +78,21 @@ function runCommand(command, baseUrl, { spawnProcess, environment }) {
 
 export async function runPreviewAcceptance(
   baseUrl,
-  { spawnProcess = spawn, environment = process.env, logger = console } = {},
+  {
+    mode = "deep",
+    spawnProcess = spawn,
+    environment = process.env,
+    logger = console,
+  } = {},
 ) {
   const origin = new URL(baseUrl).origin;
+  const groups = previewAcceptanceGroupsForMode(mode);
   const outcomes = await Promise.allSettled(
-    previewAcceptanceGroups.map(async (group) => {
-      logger.log(`Starting Preview acceptance lane: ${group.id}`);
+    groups.map(async (group) => {
+      logger.log(`Starting Preview ${mode} acceptance lane: ${group.id}`);
       for (const command of group.commands)
         await runCommand(command, origin, { spawnProcess, environment });
-      logger.log(`Completed Preview acceptance lane: ${group.id}`);
+      logger.log(`Completed Preview ${mode} acceptance lane: ${group.id}`);
     }),
   );
   const failures = outcomes.flatMap((outcome) =>
@@ -75,11 +104,13 @@ export async function runPreviewAcceptance(
 
 async function main() {
   const baseUrl = process.argv[2];
+  const modeIndex = process.argv.indexOf("--mode");
+  const mode = modeIndex >= 0 ? process.argv[modeIndex + 1] : "deep";
   if (!baseUrl)
     throw new Error(
-      "usage: node scripts/run-preview-acceptance.mjs https://preview.example",
+      "usage: node scripts/run-preview-acceptance.mjs https://preview.example [--mode fast|deep]",
     );
-  await runPreviewAcceptance(baseUrl);
+  await runPreviewAcceptance(baseUrl, { mode });
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href)

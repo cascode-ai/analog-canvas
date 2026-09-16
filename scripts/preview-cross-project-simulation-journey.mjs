@@ -7,6 +7,7 @@ import { createInterface } from "node:readline";
 import { createHash, randomUUID } from "node:crypto";
 
 import { chromium } from "@playwright/test";
+import { previewBrowserLaunchOptions } from "./lib/preview-browser.mjs";
 import { createEmptyProject } from "../packages/model/dist/index.js";
 import {
   parseProject,
@@ -283,7 +284,7 @@ async function cloudRequest(path, options = {}) {
 
 try {
   report.candidate = await verifyPreviewCandidate(baseUrl);
-  browser = await chromium.launch({ headless: true });
+  browser = await chromium.launch(previewBrowserLaunchOptions());
   context = await browser.newContext({
     viewport: { width: 1_440, height: 1_000 },
   });

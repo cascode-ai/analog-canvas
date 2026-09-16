@@ -82,13 +82,18 @@ describe("the preview deploy", () => {
       "Anonymous Preview Projects must require sign-in",
     );
     expect(preview).toContain(
-      'node scripts/run-preview-acceptance.mjs "$PREVIEW_URL"',
+      'node scripts/run-preview-acceptance.mjs "$PREVIEW_URL" --mode "$ACCEPTANCE_MODE"',
     );
     expect(preview).toContain("VITE_ICM_SIMULATION_UI: enabled");
     expect(preview).toContain("VITE_ICM_AGENT_UI: enabled");
     expect(preview).toContain("VITE_ICM_SIMULATION_TRANSPORT: managed");
-    expect(preview).toContain("pnpm --filter @icm/mcp-server... build");
-    expect(preview).toContain("playwright install --with-deps chromium");
+    expect(preview).toContain("--filter @icm/mcp-server... build");
+    expect(preview).toContain(
+      "PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH: /usr/bin/google-chrome",
+    );
+    expect(preview).not.toContain("playwright install --with-deps chromium");
+    expect(preview).toContain("Plan hosted acceptance depth");
+    expect(preview).toContain("preview-acceptance-plan.mjs");
     expect(acceptanceRunner).toContain(
       'script: "scripts/preview-simulation-smoke.mjs"',
     );
@@ -98,15 +103,11 @@ describe("the preview deploy", () => {
     expect(acceptanceRunner).toContain(
       'script: "scripts/preview-source-gui-journey.mjs"',
     );
-    expect(preview).toContain("preview-source-gui-${{ github.sha }}");
     expect(acceptanceRunner).toContain(
       'script: "scripts/preview-cross-project-simulation-journey.mjs"',
     );
     expect(preview).toContain("PREVIEW_ACCEPTANCE_TOKEN");
-    expect(preview).toContain("preview-agent-simulation-${{ github.sha }}");
-    expect(preview).toContain(
-      "preview-cross-project-simulation-${{ github.sha }}",
-    );
+    expect(preview).toContain("preview-acceptance-${{ github.sha }}");
     // The reusable smoke is responsible for explicit transport selection,
     // numeric validation, and environment parity; the workflow must not
     // quietly restore an inline, default-executor-only probe.
@@ -119,7 +120,7 @@ describe("the preview deploy", () => {
     const build = preview.indexOf("Build immutable deployment candidate");
     const deploy = preview.indexOf("Deploy to preview");
     const lastAcceptance = preview.indexOf(
-      "Run Preview acceptance in two parallel lanes",
+      "Run risk-selected Preview acceptance",
     );
     const preserve = preview.indexOf("Preserve accepted deployment candidate");
     expect(build).toBeGreaterThan(-1);

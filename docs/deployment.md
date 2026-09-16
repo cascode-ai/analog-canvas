@@ -5,11 +5,11 @@
 Use three stages so deployment work is paid per accepted batch rather than per
 small edit:
 
-| Stage      | Unit of work                                                               | Completion                                                                                                                    |
-| ---------- | -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| Local      | One bounded feature, fix, or improvement on the current local batch branch | Local feedback through `pnpm dev`, focused validation, and an explanatory local commit                                        |
-| Preview    | At least 10 completed changes in one batch PR                              | Whole-batch delivery checks, one required PR check pass against current `main`, one main merge, and hosted Preview acceptance |
-| Production | A Preview-accepted candidate with release authorization                    | Version-tag or explicit-dispatch deployment and Production verification                                                       |
+| Stage      | Unit of work                                                               | Completion                                                                                                                 |
+| ---------- | -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| Local      | One bounded feature, fix, or improvement on the current local batch branch | Local feedback through `pnpm dev`, focused validation, and an explanatory local commit                                     |
+| Preview    | At least 10 completed changes in one batch PR                              | Whole-batch delivery checks, both required PR checks against current `main`, one main merge, and hosted Preview acceptance |
+| Production | A Preview-accepted candidate with release authorization                    | Version-tag or explicit-dispatch deployment and Production verification                                                    |
 
 Ten changes means ten independently useful outcomes, not ten commits or files.
 Supporting tests and follow-up repairs belong to their original change. Keep
@@ -28,9 +28,12 @@ the workflow's existing deployment exclusions.
 The same immutable candidate receives one complete required CI pass. A current
 branch merges directly after that pass; it does not enter a second merge-queue
 run. If another change reaches `main` first, update the branch and rerun because
-the candidate has changed. Preview runs independent simulation qualification
-and product journeys in two parallel lanes, then Production promotes those
-accepted bytes without rebuilding.
+the candidate has changed. Preview selects hosted acceptance from the merged
+paths. Ordinary editor work runs one published-MCP managed-engine smoke and one
+GUI source journey in parallel. Agent, Simulation, simulator/netlist execution,
+and deployment-boundary changes retain the complete qualification and product
+journeys. Manual Preview runs are deep by default. Production promotes the
+accepted bytes without rebuilding in either case.
 
 Choose any release version while preparing the candidate for Preview. After
 acceptance, Production publication is a separate release decision, covered by
