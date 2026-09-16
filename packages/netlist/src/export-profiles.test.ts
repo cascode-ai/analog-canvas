@@ -234,7 +234,7 @@ describe("netlist export presets", () => {
       /^simulator lang=spectre\ninclude "sky130\.lib\.spice" section=tt\n/u,
     );
     expect(scs.file.text).not.toContain("simulator lang=spice");
-    expect(scs.file.text).toContain("subckt dut (VDD VSS)\n");
+    expect(scs.file.text).toContain("subckt dut\n");
     expect(scs.file.text).toMatch(
       /XM1 \([^\n]+\) sky130_fd_pr__nfet_01v8 l=0.3 w=2 nf=3 m=2/u,
     );
@@ -243,7 +243,7 @@ describe("netlist export presets", () => {
   });
 
   it.each(["spice", "spectre"] as const)(
-    "keeps SKY130 export available when MOS bulk is omitted in %s",
+    "rejects SKY130 export when MOS bulk is omitted in %s",
     (format) => {
       const project = circuit();
       const document = project.documents[0]!;
@@ -255,27 +255,11 @@ describe("netlist export presets", () => {
           );
       const profile = createNetlistExportProfile("sky130");
 
-      expect(profile.devices.nmos.substrate).toBe("VSS");
-      expect(profile.devices.pmos.substrate).toBe("VDD");
-      const result = exported(project, profile, format);
-      if (format === "spice") {
-        expect(result.file.text).toMatch(
-          /XM1 \S+ \S+ \S+ VSS sky130_fd_pr__nfet_01v8/u,
-        );
-        expect(result.file.text).toMatch(
-          /XM2 \S+ \S+ \S+ VDD sky130_fd_pr__pfet_01v8/u,
-        );
-        expect(result.file.text).toContain(".subckt dut VDD VSS");
-      } else {
-        expect(result.file.text).toMatch(
-          /XM1 \(\S+ \S+ \S+ VSS\) sky130_fd_pr__nfet_01v8/u,
-        );
-        expect(result.file.text).toMatch(
-          /XM2 \(\S+ \S+ \S+ VDD\) sky130_fd_pr__pfet_01v8/u,
-        );
-        expect(result.file.text).toContain("subckt dut (VDD VSS)");
-        expect(result.file.text).not.toContain(".global VDD");
-      }
+      const result = createDesignNetlistExport(project, { format, profile });
+      expect(result.status).toBe("blocked");
+      expect(
+        result.diagnostics.filter((item) => item.code === "MISSING_PIN_NET"),
+      ).toHaveLength(2);
     },
   );
 

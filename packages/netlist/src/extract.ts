@@ -46,14 +46,6 @@ const IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/u;
 const MAX_CELLS = 1024;
 const MAX_INSTANCES_PER_CELL = 100_000;
 const MAX_NETS_PER_CELL = 100_000;
-const DEFAULT_CELL_SUPPLY_PORTS = ["VDD", "VSS"] as const;
-
-function supplyPortRank(name: string): number {
-  const index = DEFAULT_CELL_SUPPLY_PORTS.findIndex(
-    (supply) => foldNetName(supply) === foldNetName(name),
-  );
-  return index < 0 ? DEFAULT_CELL_SUPPLY_PORTS.length : index;
-}
 
 function isIdentifier(value: string, allowGround = false): boolean {
   return (allowGround && value === "0") || IDENTIFIER.test(value);
@@ -669,7 +661,6 @@ function terminalNetName(
   pinName: string,
   context: CellNetContext,
   diagnostics: NetlistDiagnostic[],
-  implicitName?: string,
 ): string | null {
   const net = context.netByTerminal.get(`${instance.id}\u0000${pinName}`);
   const name = net ? context.nameByNetId.get(net.id) : undefined;
@@ -678,17 +669,8 @@ function terminalNetName(
   );
   if (noConnectName) return noConnectName;
   if (name) return name;
-  if (!net && implicitName) {
-    const existing = context.nets.find(
-      (candidate) =>
-        candidate.name.toLowerCase() === implicitName.toLowerCase(),
-    );
-    if (existing) return existing.name;
-    let id = `implicit-cell-supply-${implicitName.toLowerCase()}`;
-    while (context.nets.some((candidate) => candidate.id === id)) id += "-new";
-    context.nets.push({ id, name: implicitName, scope: "local" });
-    return implicitName;
-  }
+  // Missing connectivity is an error, not permission to infer a supply from
+  // device polarity or a matching Net name elsewhere in the Cell.
   if (!name) {
     diagnostic(
       diagnostics,
@@ -700,38 +682,6 @@ function terminalNetName(
     return null;
   }
   return name;
-}
-
-function implicitMosBulkNetName(
-  instance: Instance,
-  pinName: string,
-): "VDD" | "VSS" | undefined {
-  if (pinName.toLowerCase() !== "b") return undefined;
-  const bulkClass = deviceDescriptor(instance.symbolId)?.mosBulkClass;
-  return bulkClass === "nmos"
-    ? "VSS"
-    : bulkClass === "pmos"
-      ? "VDD"
-      : undefined;
-}
-
-function cellPortsWithDefaultSupplies(
-  document: SchematicDocument,
-): Array<{ name: string; implicit: boolean }> {
-  const authored = projectCellInterface(document.netlist).ports.map((port) => ({
-    name: port.name,
-    implicit: false,
-  }));
-  if (document.sourceBinding) return authored;
-  const keys = new Set(authored.map((port) => foldNetName(port.name)));
-  return [
-    ...authored,
-    ...DEFAULT_CELL_SUPPLY_PORTS.filter(
-      (name) => !keys.has(foldNetName(name)),
-    ).map((name) => ({ name, implicit: true })),
-  ].sort(
-    (left, right) => supplyPortRank(left.name) - supplyPortRank(right.name),
-  );
 }
 
 function extractHierarchyInstance(
@@ -781,14 +731,14 @@ function extractHierarchyInstance(
     child.netlist.formalParameters,
     diagnostics,
   );
-  const nodes = cellPortsWithDefaultSupplies(child).flatMap((port) => {
+  // Callers and definitions share the authored interface, including its order.
+  const nodes = projectCellInterface(child.netlist).ports.flatMap((port) => {
     const netName = terminalNetName(
       document,
       instance,
       port.name,
       context,
       diagnostics,
-      port.implicit ? port.name : undefined,
     );
     return netName ? [{ pinName: port.name, netName }] : [];
   });
@@ -963,7 +913,6 @@ function extractExternalSubcircuitInstance(
       terminal.pinName,
       context,
       diagnostics,
-      implicitMosBulkNetName(instance, terminal.pinName),
     );
     return netName ? [{ pinName: terminal.targetName, netName }] : [];
   });
@@ -1189,7 +1138,6 @@ function extractDeviceInstance(
       pinName,
       context,
       diagnostics,
-      implicitMosBulkNetName(instance, pinName),
     );
     return netName ? [{ pinName, netName }] : [];
   });
@@ -1331,37 +1279,6 @@ function extractCell(
       return [{ id: representativeNetId, name: encodedPort.token, netName }];
     },
   );
-  const portKeys = new Set(ports.map((port) => foldNetName(port.name)));
-  for (const name of document.sourceBinding ? [] : DEFAULT_CELL_SUPPLY_PORTS) {
-    if (portKeys.has(foldNetName(name))) continue;
-    const encodedPort = encodeCandidate(name, "local", options);
-    if (!encodedPort.ok) {
-      diagnostic(
-        diagnostics,
-        document.id,
-        encodedPort.code,
-        `Default port ${name} cannot be encoded for ${options.format}: ${encodedPort.message}`,
-      );
-      continue;
-    }
-    const existingNet = context.nets.find(
-      (net) =>
-        encodedNetNameCollisionKey(net.name, options.format) ===
-        encodedPort.collisionKey,
-    );
-    const id =
-      existingNet?.id ??
-      deriveStableId("default-cell-supply", document.id, name);
-    const netName = existingNet?.name ?? encodedPort.token;
-    if (!existingNet) context.nets.push({ id, name: netName, scope: "local" });
-    ports.push({ id, name: encodedPort.token, netName });
-  }
-  if (!document.sourceBinding) {
-    ports.sort(
-      (left, right) => supplyPortRank(left.name) - supplyPortRank(right.name),
-    );
-  }
-
   const referenceIndex = createReferenceIndex(document);
   const reportedDuplicateReferences = new Set<string>();
   for (const issue of referenceIndex.issues) {
@@ -1524,62 +1441,6 @@ function analyzeDesign(
   attachDiagnosticLocators(project, diagnostics);
   if (!authoring && diagnostics.some((item) => item.severity === "error")) {
     return { ir: null, diagnostics };
-  }
-  const globalSupplyKeys = new Set(
-    cells.flatMap((cell) =>
-      cell.nets
-        .filter(
-          (net) =>
-            net.scope === "global" &&
-            DEFAULT_CELL_SUPPLY_PORTS.some(
-              (name) => foldNetName(name) === foldNetName(net.name),
-            ),
-        )
-        .map((net) =>
-          encodedNetNameCollisionKey(net.name, resolvedOptions.format),
-        ),
-    ),
-  );
-  const omittedImplicitSuppliesByCell = new Map<string, Set<string>>();
-  for (const cell of cells) {
-    const sourceDocument = documentsById.get(cell.id);
-    const authoredPortKeys = new Set(
-      sourceDocument
-        ? projectCellInterface(sourceDocument.netlist).ports.map((port) =>
-            foldNetName(port.name),
-          )
-        : [],
-    );
-    const omittedPorts = cell.ports.filter(
-      (port) =>
-        !authoredPortKeys.has(foldNetName(port.name)) &&
-        globalSupplyKeys.has(
-          encodedNetNameCollisionKey(port.name, resolvedOptions.format),
-        ),
-    );
-    if (omittedPorts.length === 0) continue;
-    const omittedIds = new Set(omittedPorts.map((port) => port.id));
-    const omittedNames = new Set(
-      omittedPorts.map((port) => foldNetName(port.name)),
-    );
-    omittedImplicitSuppliesByCell.set(foldNetName(cell.name), omittedNames);
-    cell.ports = cell.ports.filter((port) => !omittedIds.has(port.id));
-    cell.nets = cell.nets.filter(
-      (net) =>
-        !omittedIds.has(net.id) || !net.id.startsWith("default-cell-supply-"),
-    );
-  }
-  for (const cell of cells) {
-    for (const instance of cell.instances) {
-      if (instance.deviceClass !== "hierarchical" || !instance.target) continue;
-      const omitted = omittedImplicitSuppliesByCell.get(
-        foldNetName(instance.target),
-      );
-      if (!omitted) continue;
-      instance.nodes = instance.nodes.filter(
-        (node) => !omitted.has(foldNetName(node.pinName)),
-      );
-    }
   }
   const globals = [
     ...new Set(

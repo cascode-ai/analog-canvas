@@ -95,9 +95,12 @@ is defined.
   **Draw** lets you make an explicit route. The dashed route follows the MOS
   line color; selecting it shows a Bulk-specific action instead of ordinary
   wire styling controls. Place an unplaced device first.
-- An unconnected Bulk does not block a netlist: NMOS defaults to ground `0` and
-  PMOS defaults to global `VDD`. Drawing or configuring a Bulk connection uses
-  that actual Net instead; the export default does not modify the saved canvas.
+- Export uses actual Bulk connections, including connections established by
+  placement defaults. A missing Bulk blocks export; the exporter never guesses
+  a supply from MOS polarity. Cell interfaces contain only authored formal
+  Pins, in their declared order: no extra `VDD` or `VSS` Pins are added.
+  Separate supplies such as `AVDD` and `DVDD` retain their actual connections;
+  explicit Global supplies do not create formal Pins. Ground remains node `0`.
 - Right-click an endpoint for the distinct **Disconnect endpoint** and
   **Delete connection** actions.
 - `Delete` on a connected component now removes the component while preserving
