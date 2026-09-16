@@ -7,7 +7,7 @@ import {
 } from "react";
 
 import type { DerivedRect, GridRect } from "@icm/model";
-import { flattenRichText } from "@icm/model";
+import { flattenRichText, semanticTextDocument } from "@icm/model";
 
 import { RichTextEditor } from "./rich-text-editor";
 import type { TextEditingSession } from "./text-editing";
@@ -25,7 +25,6 @@ export interface CanvasTextEditorOverlayProps {
   onCommit(): void;
   onCancel(): void;
   onDelete(): void;
-  onReverseCurrentArrow?(): void;
   onRestoreReference?(): TextEditingSession["content"] | undefined;
 }
 
@@ -48,6 +47,8 @@ const EDITOR_LAYOUT_MIN_HEIGHT = 150;
  * has reported its screen dimensions.
  */
 const EDITOR_FALLBACK_VIEW_FRACTION = 1 / 2;
+const INLINE_EDITOR_LAYOUT_WIDTH = 176;
+const INLINE_EDITOR_LAYOUT_HEIGHT = 30;
 
 export interface CanvasTextEditorFrame {
   /** Where the panel sits, in Document units. */
@@ -119,6 +120,42 @@ export function resolveCanvasTextEditorFrame(
   };
 }
 
+export function resolveInlineTextEditorFrame(
+  bounds: DerivedRect,
+  viewBox: GridRect,
+  pixelsPerUnit?: number | null,
+): CanvasTextEditorFrame {
+  const viewportInset = 8;
+  const scale =
+    pixelsPerUnit && pixelsPerUnit > 0
+      ? 1 / pixelsPerUnit
+      : (viewBox.width * 0.28) / INLINE_EDITOR_LAYOUT_WIDTH;
+  const availableWidth = Math.max(0, viewBox.width - viewportInset * 2);
+  const width = Math.min(availableWidth, INLINE_EDITOR_LAYOUT_WIDTH * scale);
+  const layoutWidth = width / scale;
+  const height = INLINE_EDITOR_LAYOUT_HEIGHT * scale;
+  const minX = viewBox.x + viewportInset;
+  const maxX = viewBox.x + viewBox.width - width - viewportInset;
+  const minY = viewBox.y + viewportInset;
+  const maxY = viewBox.y + viewBox.height - height - viewportInset;
+  const above = bounds.y - height - 6;
+  const below = bounds.y + bounds.height + 6;
+  return {
+    x: Math.max(minX, Math.min(maxX, bounds.x - 4)),
+    y:
+      above >= minY
+        ? above
+        : below <= maxY
+          ? below
+          : Math.max(minY, Math.min(maxY, above)),
+    width,
+    height,
+    scale,
+    layoutWidth,
+    layoutHeight: INLINE_EDITOR_LAYOUT_HEIGHT,
+  };
+}
+
 export function CanvasTextEditorOverlay({
   session,
   bounds,
@@ -128,7 +165,6 @@ export function CanvasTextEditorOverlay({
   onCommit,
   onCancel,
   onDelete,
-  onReverseCurrentArrow,
   onRestoreReference,
 }: CanvasTextEditorOverlayProps) {
   const anchorRef = useRef<SVGGElement | null>(null);
@@ -181,6 +217,18 @@ export function CanvasTextEditorOverlay({
       : null,
     measuredLayoutHeight,
   );
+  const pixelsPerUnit =
+    canvasSize && viewBox.width > 0 && viewBox.height > 0
+      ? Math.min(
+          canvasSize.width / viewBox.width,
+          canvasSize.height / viewBox.height,
+        )
+      : null;
+  const inlineFrame = resolveInlineTextEditorFrame(
+    bounds,
+    viewBox,
+    pixelsPerUnit,
+  );
   const sourceOnly =
     // A Symbol's body text is a plain string in the Symbol's own script
     // syntax. Offering bold, an overbar or the formula tool on a field that
@@ -189,6 +237,58 @@ export function CanvasTextEditorOverlay({
     (session.bound &&
       session.bindingKind !== "net-name" &&
       session.bindingKind !== "cell-terminal-name");
+
+  if (session.plainTextKind) {
+    return (
+      <g
+        ref={anchorRef}
+        transform={`translate(${inlineFrame.x} ${inlineFrame.y}) scale(${inlineFrame.scale})`}
+      >
+        <foreignObject
+          data-testid="canvas-text-editor"
+          className="canvas-text-editor-overlay inline-canvas-text-editor-overlay"
+          pointerEvents="all"
+          x={0}
+          y={0}
+          width={inlineFrame.layoutWidth}
+          height={inlineFrame.layoutHeight}
+          onPointerDown={(event) => event.stopPropagation()}
+          onPointerMove={(event) => event.stopPropagation()}
+          onPointerUp={(event) => event.stopPropagation()}
+          onClick={(event) => event.stopPropagation()}
+          onDoubleClick={(event) => event.stopPropagation()}
+          onContextMenu={(event) => event.stopPropagation()}
+          onWheel={(event) => event.stopPropagation()}
+        >
+          <input
+            autoFocus
+            className="inline-canvas-text-editor"
+            aria-label="Canvas text editor"
+            data-editor-kind={session.plainTextKind}
+            disabled={disabled}
+            value={flattenRichText(session.content)}
+            onChange={(event) =>
+              onUpdate({
+                content: semanticTextDocument(
+                  event.currentTarget.value,
+                  session.plainTextKind!,
+                ),
+              })
+            }
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                onCommit();
+              } else if (event.key === "Escape") {
+                event.preventDefault();
+                onCancel();
+              }
+            }}
+          />
+        </foreignObject>
+      </g>
+    );
+  }
 
   return (
     <g
@@ -233,7 +333,6 @@ export function CanvasTextEditorOverlay({
             ? { onRestoreReference }
             : {})}
           onLayoutHeightChange={handleLayoutHeightChange}
-          {...(onReverseCurrentArrow ? { onReverseCurrentArrow } : {})}
         />
       </foreignObject>
     </g>

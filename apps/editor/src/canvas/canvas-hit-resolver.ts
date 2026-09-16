@@ -32,16 +32,18 @@ const KIND_PRIORITY: Record<CanvasHitKind, number> = {
 const SELECTED_BONUS = 25;
 
 function readHit(element: Element): CanvasHit | null {
-  const kind = element.getAttribute(
+  const hitElement =
+    element.closest?.("[data-canvas-hit-kind][data-canvas-hit-id]") ?? element;
+  const kind = hitElement.getAttribute(
     "data-canvas-hit-kind",
   ) as CanvasHitKind | null;
-  const id = element.getAttribute("data-canvas-hit-id");
+  const id = hitElement.getAttribute("data-canvas-hit-id");
   if (!kind || !id || !(kind in KIND_PRIORITY)) return null;
   return {
     kind,
     id,
-    selected: element.classList.contains("selected"),
-    element,
+    selected: hitElement.classList.contains("selected"),
+    element: hitElement,
   };
 }
 

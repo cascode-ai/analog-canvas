@@ -635,7 +635,7 @@ describe("compiling a structured simulation folder", () => {
     expect(result.request.netlist).toContain("VICMPRB");
   });
 
-  it("compiles selected MOS operating points with polarity bulk defaults", async () => {
+  it("rejects selected MOS operating points when bulk connections are missing", async () => {
     const project = CircuitProjectSchema.parse(
       currentFiveTransistorOtaCircuitSource(),
     );
@@ -679,18 +679,10 @@ describe("compiling a structured simulation folder", () => {
       }),
     );
 
-    expect(result.ok, JSON.stringify(result.diagnostics)).toBe(true);
-    if (!result.ok) return;
-    expect(result.request.netlist).toMatch(
-      /XM1 \S+ \S+ \S+ 0 sky130_fd_pr__nfet_01v8/u,
-    );
-    expect(result.request.netlist).toMatch(
-      /XM3 \S+ \S+ \S+ vdd sky130_fd_pr__pfet_01v8/iu,
-    );
-    expect(result.deviceOperatingPoints.map((item) => item.id)).toEqual([
-      "op-m1",
-      "op-m3",
-    ]);
+    expect(result.ok).toBe(false);
+    expect(
+      result.diagnostics.filter((item) => item.code === "MISSING_PIN_NET"),
+    ).toHaveLength(2);
   });
 
   it("compiles Noise against a root independent source and writes both plots", async () => {

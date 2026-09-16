@@ -44,7 +44,6 @@ export interface RichTextEditorProps {
   onCommit(): void;
   onCancel(): void;
   onDelete(): void;
-  onReverseCurrentArrow?(): void;
   /** Electrical name represented by this editor, when Formula is constrained. */
   formulaSemanticText?: string;
   /** Restore this visual annotation to its live Netlist Reference. */
@@ -522,7 +521,6 @@ export function RichTextEditor({
   onCommit,
   onCancel,
   onDelete,
-  onReverseCurrentArrow,
   formulaSemanticText,
   onRestoreReference,
   onLayoutHeightChange,
@@ -1122,17 +1120,6 @@ export function RichTextEditor({
             title="Replace this annotation with the live netlist instance name"
           >
             Use netlist name
-          </button>
-        ) : null}
-        {onReverseCurrentArrow ? (
-          <button
-            type="button"
-            aria-label="Reverse current arrow"
-            disabled={disabled}
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={onReverseCurrentArrow}
-          >
-            Reverse arrow
           </button>
         ) : null}
       </div>

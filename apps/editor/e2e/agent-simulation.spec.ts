@@ -350,7 +350,9 @@ test("HTTP Kit alone authors native objects and hands off a Project-folder run",
   expect(createHash("sha256").update(bytes).digest("hex")).toBe(
     exported.artifact.sha256,
   );
-  await page.reload();
+  // Test portable import into a new workspace; paired reload now restores
+  // the original dirty Project and correctly requires replacement approval.
+  await page.goto("/editor?new=1");
   await page.getByTestId("project-file").setInputFiles({
     name: "http.icproj.json",
     mimeType: "application/json",

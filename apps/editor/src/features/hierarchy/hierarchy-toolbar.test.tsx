@@ -49,7 +49,7 @@ describe("HierarchyToolbar", () => {
     );
 
     expect(markup).toContain('data-testid="cell-navigation"');
-    expect(markup).toContain("Main (top)");
+    expect(markup).toContain("dut (top)");
     expect(markup).toContain("Child");
     expect(markup).toContain("Enter Cell");
     expect(markup).toContain("Manage Cells…");

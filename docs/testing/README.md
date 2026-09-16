@@ -61,6 +61,17 @@ select itself. The gate-planner tests enumerate the directory so adding a spec
 without routing ownership fails deterministically instead of silently making
 that path fall back to the complete browser suite.
 
+The editor's browser workflows have separate owners: `manual-editor.spec.ts`
+retains connected editing and general integration, `component-property-workflows.spec.ts`
+owns live property/model/display edits, and `netlist-workflows.spec.ts` owns
+import, authoring and export. Shared app/canvas dependencies select all three;
+wire-tool changes retain connected-edit checks without selecting the unrelated
+property and netlist UI workflows. Their small shared fixture module also
+selects every consumer. The full component catalog is checked by
+`component-property-catalog.test.ts`; browser catalog checks cover representative
+capabilities and the VDD exception rather than repeating the same UI for every
+symbol. Keep specialized history, rejection, hierarchy and terminal tests.
+
 ## Local iteration and batch validation
 
 Day-to-day changes accumulate on a local batch branch. Use the development

@@ -1,10 +1,7 @@
 import { useState } from "react";
 
 import type { ComponentInsertRequest } from "../component-insert/component-insert-request";
-import {
-  fullInsertLaunch,
-  type InsertLaunch,
-} from "../component-insert/insert-launch";
+import type { InsertLaunch } from "../component-insert/insert-launch";
 import { SymbolArtwork } from "../component-insert/symbol-artwork";
 import { initialComponentParameterValues } from "../component-insert/component-parameters";
 import {
@@ -40,7 +37,6 @@ const COMPACT_LIBRARY_LABELS: Readonly<Record<string, string>> = {
   "voltage-amplifier-lettered": "V Amp A",
   inductor: "Ind L",
   "inductor-compact": "Ind",
-  "capacitor-section": "Cap Sec",
   ndmos: "NDMOS",
   npn: "NPN",
   opamp: "OpAmp",
@@ -278,19 +274,6 @@ export function ShapesPanel({
           </div>
         </details>
       </div>
-
-      <footer className="shapes-panel-footer">
-        <button
-          type="button"
-          className="shapes-insert"
-          data-testid="shapes-insert"
-          onClick={() => onStartInsert(fullInsertLaunch())}
-          title="Insert component with parameters (I)"
-        >
-          Insert
-          <kbd>I</kbd>
-        </button>
-      </footer>
     </aside>
   );
 }

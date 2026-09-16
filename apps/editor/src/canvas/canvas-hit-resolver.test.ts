@@ -14,6 +14,20 @@ function element(kind: string, id: string, selected = false): Element {
   } as unknown as Element;
 }
 
+function childOf(parent: Element): Element {
+  return {
+    closest(selector: string) {
+      return selector === "[data-canvas-hit-kind][data-canvas-hit-id]"
+        ? parent
+        : null;
+    },
+    getAttribute() {
+      return null;
+    },
+    classList: { contains: () => false },
+  } as unknown as Element;
+}
+
 describe("resolveCanvasHit", () => {
   it("prefers electrical geometry over incidental text in ordinary selection", () => {
     const route = element("route", "wire-1");
@@ -55,6 +69,18 @@ describe("resolveCanvasHit", () => {
       kind: "drafting",
       id: "arrow-1",
       element: first,
+    });
+  });
+
+  it("reads one semantic instance from a child of its shaped hit root", () => {
+    const instance = element("instance", "U1", true);
+    expect(
+      resolveCanvasHit([childOf(instance), childOf(instance)]),
+    ).toMatchObject({
+      kind: "instance",
+      id: "U1",
+      selected: true,
+      element: instance,
     });
   });
 

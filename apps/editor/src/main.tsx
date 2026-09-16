@@ -1,8 +1,10 @@
-import { lazy, StrictMode, Suspense, useEffect, useState } from "react";
+import { lazy, StrictMode, Suspense } from "react";
 import { createRoot } from "react-dom/client";
 
+import { useVisitStats } from "../analytics/client";
 import { EditorErrorBoundary } from "./components/editor-error-boundary";
 import { guardedRouteChunk } from "./components/route-chunk-loader";
+import "../analytics/analytics.css";
 import "./styles.css";
 
 const container = document.getElementById("root");
@@ -10,8 +12,6 @@ const container = document.getElementById("root");
 if (!container) {
   throw new Error("Editor root element is missing");
 }
-
-type VisitStats = { pv: number; uv: number; scope: "all" };
 
 const EditorApp = lazy(
   guardedRouteChunk(() =>
@@ -23,7 +23,7 @@ const EditorApp = lazy(
 
 const AnalyticsPage = lazy(
   guardedRouteChunk(() =>
-    import("./components/analytics-page").then((module) => ({
+    import("../analytics/AnalyticsPage").then((module) => ({
       default: module.AnalyticsPage,
     })),
   ),
@@ -61,53 +61,7 @@ function galleryEntryIdOf(path: string): string | null {
 
 function Root() {
   const path = window.location.pathname;
-  const [stats, setStats] = useState<VisitStats | null>(null);
-
-  useEffect(() => {
-    const analyticsHost =
-      window.location.hostname === "analog-canvas.tokenzhang.com" ||
-      window.location.hostname.endsWith(".workers.dev");
-    if (!analyticsHost || /^\/analytics\/?$/.test(path)) {
-      return;
-    }
-    // The statusbar readout is a public counter, not tracking: it loads for
-    // every visitor — Do Not Track included — and never depends on whether
-    // the beacon below chose to report.
-    void fetch("/api/stats", { cache: "no-store" })
-      .then(async (response) =>
-        response.ok ? ((await response.json()) as VisitStats) : null,
-      )
-      .then((value) => {
-        if (value) setStats(value);
-      })
-      .catch(() => {
-        // Analytics must never interfere with editor startup.
-      });
-    if (navigator.doNotTrack === "1") return;
-    let referrerOrigin = "";
-    try {
-      const referrer = new URL(document.referrer);
-      if (/^https?:$/.test(referrer.protocol)) referrerOrigin = referrer.origin;
-    } catch {
-      // Direct visit or opaque referrer.
-    }
-    const source =
-      new URLSearchParams(window.location.search)
-        .get("utm_source")
-        ?.trim()
-        .toLowerCase()
-        .slice(0, 40) ?? "";
-    void fetch("/api/track", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      credentials: "same-origin",
-      keepalive: true,
-      cache: "no-store",
-      body: JSON.stringify({ p: path, r: referrerOrigin, s: source }),
-    }).catch(() => {
-      // The beacon is fire-and-forget.
-    });
-  }, [path]);
+  const stats = useVisitStats(path);
 
   if (/^\/analytics\/?$/.test(path)) {
     return (

@@ -8,7 +8,6 @@ import {
 
 import {
   analyzeDesignNetlist as analyzeCurrentDesignNetlist,
-  printDesignNetlist,
   printSpiceNetlist,
   type DesignNetlistAnalysisOptions,
 } from "./index.js";
@@ -158,6 +157,14 @@ describe("current formal cell interface", () => {
       },
     });
     document.instances.push(mos("M2"), mos("M7"), mos("M8"), mos("M9"));
+    document.nets.push({
+      id: "body",
+      terminals: ["M2", "M7", "M8", "M9"].map((instanceId) => ({
+        instanceId,
+        pinName: "B",
+      })),
+    });
+    claimNet(document, "body", "BODY");
     document.nets.push(
       {
         id: "net-tail",
@@ -196,9 +203,9 @@ describe("current formal cell interface", () => {
       result.diagnostics.filter((item) => item.severity === "error"),
     ).toEqual([]);
     const spice = printSpiceNetlist(result.ir!);
-    expect(spice).toContain("M2 net0 NC0001 net1 0");
-    expect(spice).toContain("M7 net0 net0 NC0002 0");
-    expect(spice).toContain("M9 net1 NC0005 NC0006 0");
+    expect(spice).toContain("M2 net0 NC0001 net1 BODY");
+    expect(spice).toContain("M7 net0 net0 NC0002 BODY");
+    expect(spice).toContain("M9 net1 NC0005 NC0006 BODY");
     expect(spice).not.toMatch(/M[79]_[DG]/u);
   });
 
@@ -268,6 +275,91 @@ describe("current formal cell interface", () => {
       "VOUT",
     ]);
   });
+
+  it.each(["spice", "spectre"] as const)(
+    "preserves authored multi-domain interfaces and caller order in %s",
+    (format) => {
+      const project = createEmptyProject("project", "Project");
+      const top = project.documents[0]!;
+      const child = createEmptyDocument("child", "child");
+      project.documents.push(child);
+      top.instances.push({
+        id: "X1",
+        symbolId: "child-symbol",
+        reference: "X1",
+        placement: null,
+        netlist: {
+          binding: { kind: "subcircuit", childDocumentId: child.id },
+          parameters: {},
+        },
+      });
+      const names = ["IN", "AVDD", "DVDD", "VDD"];
+      child.netlist = { name: "child", terminals: [], formalParameters: [] };
+      for (const name of names) {
+        child.instances.push({ id: name, symbolId: "port", placement: null });
+        child.nets.push({
+          id: name,
+          terminals: [{ instanceId: name, pinName: "P" }],
+        });
+        child.netlist.terminals.push({
+          id: `terminal-${name}`,
+          name,
+          netId: name,
+          direction: "inout",
+          interfaceInstanceIds: [name],
+        });
+        top.nets.push({
+          id: name,
+          terminals: [{ instanceId: "X1", pinName: name }],
+        });
+        claimNet(top, name, `TB_${name}`);
+      }
+      for (const [id, domain] of [
+        ["M1", "AVDD"],
+        ["M2", "DVDD"],
+      ] as const) {
+        child.instances.push({
+          id,
+          reference: id,
+          symbolId: "pmos",
+          placement: null,
+          mosBulkBinding: { netId: domain, origin: "instance-override" },
+          netlist: {
+            binding: { kind: "model", deviceClass: "mos", name: "PMOS" },
+            parameters: { w: "1u", l: "150n" },
+          },
+        });
+        child.nets
+          .find((net) => net.id === domain)!
+          .terminals.push(
+            ...["D", "S", "B"].map((pinName) => ({ instanceId: id, pinName })),
+          );
+        child.nets
+          .find((net) => net.id === "IN")!
+          .terminals.push({ instanceId: id, pinName: "G" });
+      }
+      const before = structuredClone(project);
+      const result = analyzeDesignNetlist(project, { format });
+      expect(result.diagnostics).toEqual([]);
+      const cell = result.ir!.cells.find((item) => item.id === child.id)!;
+      expect(cell.ports.map((port) => port.name)).toEqual(names);
+      expect(
+        cell.instances.map((instance) => instance.nodes[3]?.netName),
+      ).toEqual(["AVDD", "DVDD"]);
+      const caller = result.ir!.cells.find((item) => item.id === top.id)!;
+      expect(caller.ports).toEqual([]);
+      expect(caller.instances[0]!.nodes).toEqual(
+        names.map((name) => ({ pinName: name, netName: `TB_${name}` })),
+      );
+      expect(result.ir!.globals).toEqual([]);
+      expect(
+        result
+          .ir!.cells.flatMap((item) => item.nets)
+          .some((net) => net.name === "VSS"),
+      ).toBe(false);
+      expect(project).toEqual(before);
+    },
+  );
 
   it("groups same-name independent Pins only in the exported interface", () => {
     const project = createEmptyProject("project", "Project");
@@ -1064,9 +1156,11 @@ describe("current formal cell interface", () => {
       scope: "global",
     });
     expect(result.ir?.globals).toEqual(["VDD"]);
+    expect(result.ir?.cells[0]?.ports).toEqual([]);
+    expect(printSpiceNetlist(result.ir!)).toContain(".subckt dut");
   });
 
-  it("exports formal VDD Power as a local Cell Pin and reuses it for an implicit PMOS bulk", () => {
+  it("exports formal VDD Power as a local Cell Pin and preserves its connected PMOS bulk", () => {
     const project = createEmptyProject("project", "Project");
     const document = project.documents[0]!;
     document.instances.push(
@@ -1084,7 +1178,10 @@ describe("current formal cell interface", () => {
     );
     document.nets.push({
       id: "net-vdd",
-      terminals: [{ instanceId: "VDD1", pinName: "P" }],
+      terminals: [
+        { instanceId: "VDD1", pinName: "P" },
+        { instanceId: "M1", pinName: "B" },
+      ],
     });
     document.netlist!.terminals.push({
       id: "terminal-vdd1",
@@ -1430,7 +1527,7 @@ describe("current formal cell interface", () => {
   });
 
   it.each(["spice", "spectre"] as const)(
-    "defaults only an unconnected MOS bulk in %s while retaining explicit body bias",
+    "rejects missing MOS bulk in %s without guessing a power domain",
     (format) => {
       const project = createEmptyProject("project", "Project");
       const document = project.documents[0]!;
@@ -1474,28 +1571,33 @@ describe("current formal cell interface", () => {
 
       const result = analyzeDesignNetlist(project, { format });
 
-      expect(result.diagnostics).toEqual([]);
-      expect(result.ir?.globals).toEqual(["0", "VDD"]);
+      expect(result.ir).toBeNull();
       expect(
-        result.ir?.cells[0]!.instances.map((instance) => instance.nodes[3]),
+        result.diagnostics.filter((item) => item.severity === "error"),
       ).toEqual([
-        { pinName: "B", netName: "0" },
-        { pinName: "B", netName: "VDD" },
+        expect.objectContaining({ code: "MISSING_PIN_NET", objectIds: ["M1"] }),
+        expect.objectContaining({ code: "MISSING_PIN_NET", objectIds: ["M2"] }),
+      ]);
+      // Once the author connects the two missing bodies to their actual domains,
+      // no implicit VDD/VSS nodes or formal ports are needed.
+      document.nets
+        .find((net) => net.id === "nmos-body")!
+        .terminals.push({ instanceId: "M1", pinName: "B" });
+      document.nets
+        .find((net) => net.id === "pmos-body")!
+        .terminals.push({ instanceId: "M2", pinName: "B" });
+      const connected = analyzeDesignNetlist(project, { format });
+      expect(connected.diagnostics).toEqual([]);
+      expect(connected.ir?.cells[0]?.ports).toEqual([]);
+      expect(connected.ir?.globals).toEqual([]);
+      expect(
+        connected.ir?.cells[0]?.instances.map((instance) => instance.nodes[3]),
+      ).toEqual([
+        { pinName: "B", netName: "VSSB" },
+        { pinName: "B", netName: "VBP" },
         { pinName: "B", netName: "VSSB" },
         { pinName: "B", netName: "VBP" },
       ]);
-      const text = printDesignNetlist(format, result.ir!).text;
-      expect(text).toMatch(
-        format === "spice"
-          ? /M1 M1_D M1_G M1_S 0 NMOS_MODEL/u
-          : /M1 \(M1_D M1_G M1_S 0\) NMOS_MODEL/u,
-      );
-      expect(text).toMatch(
-        format === "spice"
-          ? /M2 M2_D M2_G M2_S VDD PMOS_MODEL/u
-          : /M2 \(M2_D M2_G M2_S VDD\) PMOS_MODEL/u,
-      );
-      expect(text).toContain(format === "spice" ? ".global VDD" : "global VDD");
     },
   );
 });

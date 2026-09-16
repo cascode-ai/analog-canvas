@@ -1,6 +1,10 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import { awaitEditorReady } from "./editor-fixtures";
+import {
+  awaitEditorReady,
+  editDocumentStyleCode,
+  readDocumentStyleCode,
+} from "./editor-fixtures";
 
 /** Dispatch one wheel event with a chosen device signature. */
 async function wheel(
@@ -36,8 +40,9 @@ test("a wheel zooms and a trackpad pans, and the setting overrides both", async 
 }) => {
   await page.goto("/editor");
   await awaitEditorReady(page);
-  const setting = page.getByLabel("Scroll wheel");
-  await expect(setting).toHaveValue("auto");
+  expect(
+    JSON.parse(await readDocumentStyleCode(page)).canvas.scrollBehavior,
+  ).toBe("auto");
 
   // A detent-quantized signature zooms even though its deltaY is tiny —
   // the case that made a slowly turned mouse wheel pan. Scrolling up
@@ -53,12 +58,16 @@ test("a wheel zooms and a trackpad pans, and the setting overrides both", async 
 
   // An explicit choice wins over any evidence: the same trackpad
   // signature now zooms.
-  await setting.selectOption("zoom");
+  await editDocumentStyleCode(page, (code) => {
+    code.canvas.scrollBehavior = "zoom";
+  });
   await wheel(page, { deltaY: -40, wheelDeltaY: 120 });
   await expect.poll(() => width(page)).toBeLessThan(afterWheel);
 
   // And a mouse detent pans once the person says the device is a surface.
-  await setting.selectOption("pan");
+  await editDocumentStyleCode(page, (code) => {
+    code.canvas.scrollBehavior = "pan";
+  });
   const beforePan = await width(page);
   await wheel(page, { deltaY: -4, wheelDeltaY: 120 });
   await expect.poll(() => width(page)).toBe(beforePan);
@@ -66,7 +75,9 @@ test("a wheel zooms and a trackpad pans, and the setting overrides both", async 
   // The choice survives a reload.
   await page.reload();
   await awaitEditorReady(page);
-  await expect(page.getByLabel("Scroll wheel")).toHaveValue("pan");
+  expect(
+    JSON.parse(await readDocumentStyleCode(page)).canvas.scrollBehavior,
+  ).toBe("pan");
 });
 
 test("arrow keys pan the camera by one stable screen-space step", async ({

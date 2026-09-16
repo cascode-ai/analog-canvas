@@ -51,7 +51,7 @@ export function createDesignNetlistExport(
       )
     : undefined;
   const project = profiled?.project ?? source;
-  const format = profiled?.spiceLibraryDialect ? "spice" : requestedFormat;
+  const format = requestedFormat;
   const analysisOptions = { ...options, format };
   const extracted = analyzeDesignNetlist(project, analysisOptions);
   const analysis = {
@@ -150,33 +150,24 @@ export function createDesignNetlistExport(
   file.text = file.text.slice(file.text.indexOf("\n") + 1).trimStart();
   const library = options.profile?.library;
   if (library?.path) {
-    const load =
-      format === "spice"
-        ? library.section
-          ? `.lib "${library.path}" ${library.section}`
-          : `.include "${library.path}"`
-        : `include "${library.path}"${library.section ? ` section=${library.section}` : ""}`;
-    file.text =
-      format === "spice"
-        ? `${load}\n${file.text}`
-        : file.text.replace(
-            "simulator lang=spectre\n",
-            `simulator lang=spectre\n${load}\n`,
-          );
+    const spiceLoad = library.section
+      ? `.lib "${library.path}" ${library.section}`
+      : `.include "${library.path}"`;
+    if (format === "spice") {
+      file.text = `${spiceLoad}\n${file.text}`;
+    } else {
+      const spectreLoad = `include "${library.path}"${library.section ? ` section=${library.section}` : ""}`;
+      file.text = file.text.replace(
+        "simulator lang=spectre\n",
+        `simulator lang=spectre\n${spectreLoad}\n`,
+      );
+    }
   }
   if (format === "spice") file.text = `\n${file.text}`;
   return {
     status: "ready",
     diagnostics: analysis.diagnostics,
-    file:
-      requestedFormat === "spectre" && format === "spice"
-        ? {
-            ...file,
-            extension: ".scs",
-            mediaType: "application/x-spectre",
-            text: "simulator lang=spice\n" + file.text,
-          }
-        : file,
+    file,
     placeholders,
     cellCount: ir.cells.length,
     externalMasterCount: ir.externalMasters?.length ?? 0,

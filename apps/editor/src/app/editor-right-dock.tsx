@@ -7,12 +7,13 @@ export function EditorRightDock(props: {
   maximized: boolean;
   onRestoreSimulation(): void;
   code: ReactNode;
+  project?: ReactNode;
   properties: ReactNode;
 }) {
   return (
     <>
       <aside className="editor-right-dock" hidden={props.maximized}>
-        {props.properties}
+        {props.project ?? props.properties}
       </aside>
       <aside
         className={`editor-simulation-dock${props.simulationOpen ? " open" : ""}`}

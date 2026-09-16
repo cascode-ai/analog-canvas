@@ -15,6 +15,39 @@ function jsonResponse(status: number, body: unknown): Response {
 }
 
 describe("agent http client", () => {
+  it("reads the canonical Session status using bearer authentication and a short deadline", async () => {
+    const observation = {
+      ok: true,
+      sessionId: "s",
+      projectId: "p",
+      documentIds: ["d"],
+      authorization: "paused",
+      editor: "detached",
+      observedAt: 100,
+      expiresAt: 200,
+    };
+    let invalid = false;
+    const client = new AgentHttpClient({
+      baseUrl: BASE,
+      fetch: async (url, init) => {
+        expect(String(url)).toBe(`${BASE}/api/agent/sessions/s/status`);
+        expect(init?.method).toBe("GET");
+        expect(new Headers(init?.headers).get("authorization")).toBe(
+          "Bearer private",
+        );
+        expect(init?.signal).toBeInstanceOf(AbortSignal);
+        return jsonResponse(
+          200,
+          invalid ? { ...observation, agentToken: "leak" } : observation,
+        );
+      },
+    });
+    expect(await client.status("s", "private")).toEqual(observation);
+    invalid = true;
+    await expect(client.status("s", "private")).rejects.toMatchObject({
+      code: "INVALID_RESPONSE",
+    });
+  });
   it("reads captured Specs without legacy waveform projections and still rejects unknown fields", async () => {
     const outputData = {
       schemaVersion: 1,

@@ -3175,7 +3175,7 @@
           },
           {
             "path": "testbench.spice",
-            "text": "// Text TB: preserve DUT port order vss ibias vdd vinn vinp vout.\n// Connect vinn to vout for unity negative feedback.\n// Voltage/current sources are native built-ins, not OSDI libraries.\nload \"capacitor.osdi\"\nmodel tb_voltage vsource\nmodel tb_current isource\nmodel tb_capacitor capacitor\nVDD (vdd 0) tb_voltage dc=1.8\nVINP (vinp 0) tb_voltage dc=0.9 mag=1 type=\"pulse\" val0=0.9 val1=0.91 delay=1u rise=1n fall=1n width=2u period=5u\nIBIAS (vdd ibias) tb_current dc=15u\nXDUT (0 ibias vdd vout vinp vout) ota_5t\nCL (vout 0) tb_capacitor c=1p\n"
+            "text": "// Text TB: preserve DUT port order vdd vss ibias vinn vinp vout.\n// Connect vinn to vout for unity negative feedback.\n// Voltage/current sources are native built-ins, not OSDI libraries.\nload \"capacitor.osdi\"\nmodel tb_voltage vsource\nmodel tb_current isource\nmodel tb_capacitor capacitor\nVDD (vdd 0) tb_voltage dc=1.8\nVINP (vinp 0) tb_voltage dc=0.9 mag=1 type=\"pulse\" val0=0.9 val1=0.91 delay=1u rise=1n fall=1n width=2u period=5u\nIBIAS (vdd ibias) tb_current dc=15u\nXDUT (vdd 0 ibias vout vinp vout) ota_5t\nCL (vout 0) tb_capacitor c=1p\n"
           },
           {
             "path": "report.py",

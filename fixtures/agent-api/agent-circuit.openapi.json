@@ -5,6 +5,91 @@
     "version": "3.0"
   },
   "paths": {
+    "/api/agent/sessions/{sessionId}/status": {
+      "get": {
+        "operationId": "agentSessionStatus",
+        "description": "Read authenticated relay observations without contacting the editor or renewing the idle deadline. Attachment is not execution readiness. Paused sessions remain readable.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Session observation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/agentSessionStatus"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Typed Agent session transport error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/agentTransportErrorResponse"
+                },
+                "example": {
+                  "ok": false,
+                  "error": {
+                    "code": "TOKEN_INVALID",
+                    "message": "Bearer token is missing or unknown"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Typed Agent session transport error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/agentTransportErrorResponse"
+                },
+                "example": {
+                  "ok": false,
+                  "error": {
+                    "code": "SESSION_NOT_FOUND",
+                    "message": "Session is unknown or expired"
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Typed Agent session transport error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/agentTransportErrorResponse"
+                },
+                "example": {
+                  "ok": false,
+                  "error": {
+                    "code": "REQUEST_ID_REUSED",
+                    "message": "requestId was already used with a different payload"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/agent/claims": {
       "post": {
         "operationId": "agentClaimRedeem",
@@ -1073,6 +1158,65 @@
       }
     },
     "schemas": {
+      "agentSessionStatus": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "const": true
+          },
+          "sessionId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "projectId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "documentIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "authorization": {
+            "type": "string",
+            "enum": [
+              "active",
+              "paused"
+            ]
+          },
+          "editor": {
+            "type": "string",
+            "enum": [
+              "attached",
+              "detached"
+            ]
+          },
+          "observedAt": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "expiresAt": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "ok",
+          "sessionId",
+          "projectId",
+          "documentIds",
+          "authorization",
+          "editor",
+          "observedAt",
+          "expiresAt"
+        ],
+        "additionalProperties": false
+      },
       "agentClaimRequest": {
         "type": "object",
         "properties": {
@@ -31316,7 +31460,8 @@
                   "png",
                   "pdf",
                   "simulation-plot"
-                ]
+                ],
+                "description": "Project and Canvas exports. simulation-plot is a retired compatibility request and returns SIMULATION_PLOT_RETIRED; use simulation-input artifact access for raw/CSV/Spec results."
               },
               "documentId": {
                 "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema1"
@@ -34533,6 +34678,218 @@
                       "schemaVersion": {
                         "type": "number",
                         "const": 1
+                      },
+                      "specs": {
+                        "type": "object",
+                        "properties": {
+                          "schemaVersion": {
+                            "type": "number",
+                            "const": 1
+                          },
+                          "runId": {
+                            "type": "string"
+                          },
+                          "preparedId": {
+                            "type": "string"
+                          },
+                          "inputDigest": {
+                            "type": "string"
+                          },
+                          "results": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "occurrence": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                "source": {
+                                  "type": "object",
+                                  "properties": {
+                                    "path": {
+                                      "type": "string"
+                                    },
+                                    "line": {
+                                      "type": "integer",
+                                      "exclusiveMinimum": 0,
+                                      "maximum": 9007199254740991
+                                    },
+                                    "text": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "path",
+                                    "line",
+                                    "text"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                "unit": {
+                                  "type": "string"
+                                },
+                                "expected": {
+                                  "anyOf": [
+                                    {
+                                      "oneOf": [
+                                        {
+                                          "type": "object",
+                                          "properties": {
+                                            "kind": {
+                                              "type": "string",
+                                              "const": "limit"
+                                            },
+                                            "operator": {
+                                              "type": "string",
+                                              "enum": [
+                                                "<",
+                                                "<=",
+                                                ">",
+                                                ">="
+                                              ]
+                                            },
+                                            "value": {
+                                              "type": "number"
+                                            }
+                                          },
+                                          "required": [
+                                            "kind",
+                                            "operator",
+                                            "value"
+                                          ],
+                                          "additionalProperties": false
+                                        },
+                                        {
+                                          "type": "object",
+                                          "properties": {
+                                            "kind": {
+                                              "type": "string",
+                                              "const": "range"
+                                            },
+                                            "minimum": {
+                                              "type": "number"
+                                            },
+                                            "maximum": {
+                                              "type": "number"
+                                            }
+                                          },
+                                          "required": [
+                                            "kind",
+                                            "minimum",
+                                            "maximum"
+                                          ],
+                                          "additionalProperties": false
+                                        },
+                                        {
+                                          "type": "object",
+                                          "properties": {
+                                            "kind": {
+                                              "type": "string",
+                                              "const": "target"
+                                            },
+                                            "value": {
+                                              "type": "number"
+                                            },
+                                            "tolerance": {
+                                              "type": "number",
+                                              "minimum": 0
+                                            }
+                                          },
+                                          "required": [
+                                            "kind",
+                                            "value",
+                                            "tolerance"
+                                          ],
+                                          "additionalProperties": false
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "value": {
+                                  "anyOf": [
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "judgment": {
+                                  "type": "string",
+                                  "enum": [
+                                    "pass",
+                                    "failed",
+                                    "not-evaluated",
+                                    "unconstrained"
+                                  ]
+                                },
+                                "reason": {
+                                  "type": "string",
+                                  "enum": [
+                                    "satisfied",
+                                    "outside-spec",
+                                    "no-spec",
+                                    "invalid-spec",
+                                    "duplicate-spec",
+                                    "ambiguous-measurement",
+                                    "measurement-missing",
+                                    "run-incomplete"
+                                  ]
+                                },
+                                "detail": {
+                                  "type": "string"
+                                },
+                                "logLine": {
+                                  "anyOf": [
+                                    {
+                                      "type": "integer",
+                                      "exclusiveMinimum": 0,
+                                      "maximum": 9007199254740991
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "name",
+                                "occurrence",
+                                "source",
+                                "unit",
+                                "expected",
+                                "value",
+                                "judgment",
+                                "reason",
+                                "detail",
+                                "logLine"
+                              ],
+                              "additionalProperties": false
+                            }
+                          }
+                        },
+                        "required": [
+                          "schemaVersion",
+                          "runId",
+                          "preparedId",
+                          "inputDigest",
+                          "results"
+                        ],
+                        "additionalProperties": false
                       },
                       "nativeMeasurements": {
                         "type": "array",

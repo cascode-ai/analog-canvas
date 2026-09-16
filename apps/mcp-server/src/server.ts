@@ -18,7 +18,7 @@ import {
 import type { McpServerHandler, McpServerInfo } from "./protocol.js";
 
 export const MCP_SERVER_NAME = "analog-canvas";
-export const MCP_SERVER_VERSION = "0.12.0";
+export const MCP_SERVER_VERSION = "0.13.0";
 
 export interface McpServerConfig {
   apiBaseUrl: string;
@@ -28,10 +28,11 @@ export interface McpServerConfig {
 export function resolveConfig(
   env: Record<string, string | undefined> = process.env,
 ): McpServerConfig {
+  const apiBaseUrl =
+    env.ANALOG_CANVAS_API_URL ?? "https://analog-canvas.tokenzhang.com";
   return {
-    apiBaseUrl:
-      env.ANALOG_CANVAS_API_URL ?? "https://analog-canvas.tokenzhang.com",
-    connectorPath: defaultConnectorFilePath(homedir(), env),
+    apiBaseUrl,
+    connectorPath: defaultConnectorFilePath(homedir(), env, apiBaseUrl),
   };
 }
 

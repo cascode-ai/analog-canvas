@@ -7,6 +7,7 @@ import {
   clickDrawTool,
   placeText,
   clickCommand,
+  editDocumentStyleCode,
   openMenu,
   downloadBytes,
 } from "./editor-fixtures";
@@ -174,7 +175,9 @@ for (const grid of [5, 10]) {
     await importProject(Buffer.from(JSON.stringify(project)));
     const labels = page.locator('[data-testid^="drafting-hit-label-"]');
     await expect(labels).toHaveCount(4);
-    await page.getByTestId("annotation-grid-select").selectOption(String(grid));
+    await editDocumentStyleCode(page, (code) => {
+      code.canvas.annotationGrid = grid;
+    });
     const labelRects = () =>
       labels.evaluateAll((elements) =>
         elements.map((element) => {
@@ -734,7 +737,7 @@ test("visual clipboard reports denied access and empty selection without downloa
   expect(downloads).toEqual([]);
 });
 
-test("Netlist exposes direct SPICE and Spectre exports while File keeps drawing exports", async ({
+test("Netlist keeps format selection in the project panel while File keeps drawing exports", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -757,13 +760,41 @@ test("Netlist exposes direct SPICE and Spectre exports while File keeps drawing 
       name: "Copy SPICE netlist",
       exact: true,
     }),
-  ).toBeVisible();
+  ).toHaveCount(0);
   await expect(
     netlistMenu.getByRole("button", {
       name: "Copy Spectre netlist",
       exact: true,
     }),
-  ).toBeVisible();
+  ).toHaveCount(0);
+  await page.getByTestId("netlist-panel-toggle").click();
+  const projectPanel = page.getByRole("region", {
+    name: "Live netlist",
+    exact: true,
+  });
+  await expect(projectPanel.getByLabel("Netlist process")).toBeVisible();
+  await expect(projectPanel.getByLabel("Netlist format")).toBeVisible();
+  await expect(projectPanel.getByRole("heading")).toHaveCount(0);
+  expect(
+    await projectPanel
+      .locator("select")
+      .evaluateAll((selects) =>
+        selects.map((select) => select.getAttribute("aria-label")),
+      ),
+  ).toEqual([
+    "Netlist format",
+    "Netlist process",
+    "NMOS netlist target",
+    "PMOS netlist target",
+    "R netlist target",
+    "C netlist target",
+    "L netlist target",
+  ]);
+  await expect(
+    page
+      .getByRole("complementary", { name: "Project tools", exact: true })
+      .getByRole("tab"),
+  ).toHaveCount(0);
   await openMenu(page, "File");
   await menu
     .getByRole("button", { name: "Export drawing", exact: true })

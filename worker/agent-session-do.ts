@@ -10,6 +10,7 @@ import {
   AgentSessionMachine,
   AgentSessionMessageSchema,
   AgentSessionScopeSchema,
+  AgentSessionStatusResponseSchema,
   invalidAgentRequestResponse,
   parseAgentCircuitRequest,
   parseAgentFileResourceRequest,
@@ -94,6 +95,34 @@ export class AgentSessionDO {
     }
     if (url.pathname === "/editor") {
       return this.connectEditor(request, machine);
+    }
+    if (request.method === "GET" && url.pathname === "/status") {
+      const now = Date.now();
+      const auth = machine.authorizeStatus(bearerToken(request), now);
+      if (!auth.ok)
+        return jsonResponse(
+          errorBody(auth.code, errorMessage(auth.code)),
+          transportStatus(auth.code),
+          allowedOrigin,
+        );
+      return jsonResponse(
+        AgentSessionStatusResponseSchema.parse({
+          ok: true,
+          sessionId: machine.sessionId,
+          projectId: machine.projectId,
+          documentIds: machine.documentIds,
+          authorization: machine.statusAt(now),
+          editor: (this.state.getWebSockets?.(EDITOR_SOCKET_TAG) ?? []).some(
+            (socket) => socket.readyState === WebSocket.OPEN,
+          )
+            ? "attached"
+            : "detached",
+          observedAt: now,
+          expiresAt: machine.expiresAt,
+        }),
+        200,
+        allowedOrigin,
+      );
     }
     if (request.method === "POST" && url.pathname === "/circuit") {
       return this.circuit(request, machine, allowedOrigin);
@@ -408,8 +437,12 @@ export class AgentSessionDO {
         allowedOrigin,
       );
     }
-    this.emit({ type: "session.ready", sessionId: machine.sessionId });
-    this.notifyEditor({ type: "session.ready", sessionId: machine.sessionId });
+    const type =
+      machine.statusAt(Date.now()) === "paused"
+        ? "session.paused"
+        : "session.ready";
+    this.emit({ type, sessionId: machine.sessionId });
+    this.notifyEditor({ type, sessionId: machine.sessionId });
     return jsonResponse(
       {
         ok: true,

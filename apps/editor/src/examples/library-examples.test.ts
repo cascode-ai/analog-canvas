@@ -5,6 +5,7 @@ import {
   buildProjectConnectivityIndex,
   evaluateSubmissionGates,
   resolveDocumentLogicalNets,
+  resolveVisualAnchor,
   runErcChecks,
 } from "@icm/derived";
 import {
@@ -64,6 +65,31 @@ describe("bundled Library Project examples", () => {
           (document) => document.id === example.project.topDocumentId,
         ),
       ).toBe(true);
+    }
+  });
+
+  it("keeps every bundled annotation attached to visible geometry", () => {
+    for (const example of libraryProjectExamples) {
+      const resolver = projectResolver(example.project);
+      const unresolved = example.project.documents.flatMap((document) =>
+        document.annotations.flatMap((annotation) => {
+          const resolved = resolveVisualAnchor(
+            document,
+            resolver,
+            annotation.anchor,
+          );
+          return resolved.resolved
+            ? []
+            : [
+                {
+                  documentId: document.id,
+                  annotationId: annotation.id,
+                  message: resolved.diagnostic?.message,
+                },
+              ];
+        }),
+      );
+      expect(unresolved, example.id).toEqual([]);
     }
   });
 
@@ -221,7 +247,10 @@ function expectConnectivityEquivalent(
   // with an unparsed reference on everything.
   expect(reference.devices.size).toBe(6);
   expect(reference.ports.length).toBe(6);
-  expect(actual.ports).toEqual(reference.ports);
+  // The saved schematic and standalone reference declare different port
+  // orders. Compare topology through named ports; the interface test below
+  // separately protects authored order and the matching hierarchy call.
+  expect([...actual.ports].sort()).toEqual([...reference.ports].sort());
   expect([...actual.devices.keys()].sort()).toEqual(
     [...reference.devices.keys()].sort(),
   );
@@ -233,9 +262,7 @@ function expectConnectivityEquivalent(
     forward.set(left, right);
     backward.set(right, left);
   };
-  actual.ports.forEach((port, index) =>
-    unify(port, reference.ports[index]!, "port"),
-  );
+  actual.ports.forEach((port) => unify(port, port, "port"));
   for (const [designator, device] of actual.devices) {
     const other = reference.devices.get(designator)!;
     expect(device.model, designator).toBe(other.model);
@@ -268,6 +295,17 @@ describe("the bundled five-transistor Sky130 OTA", () => {
       "vinp",
       "vout",
     ]);
+    const exportedDut = analyzeDesignNetlist(project).ir?.cells.find(
+      (cell) => cell.id === dut.id,
+    );
+    expect(exportedDut?.ports.map((port) => port.name)).toEqual([
+      "vss",
+      "ibias",
+      "vdd",
+      "vinn",
+      "vinp",
+      "vout",
+    ]);
     const call = testbench.instances.find(
       (instance) => instance.netlist?.binding?.kind === "subcircuit",
     );
@@ -275,6 +313,12 @@ describe("the bundled five-transistor Sky130 OTA", () => {
       reference: "XDUT",
       netlist: { binding: { kind: "subcircuit", childDocumentId: dut.id } },
     });
+    const exportedCall = analyzeDesignNetlist(project)
+      .ir?.cells.find((cell) => cell.id === testbench.id)
+      ?.instances.find((instance) => instance.id === call!.id);
+    expect(exportedCall?.nodes.map((node) => node.pinName)).toEqual(
+      exportedDut?.ports.map((port) => port.name),
+    );
     // The stimulus a reader needs before an operating point means anything.
     expect(
       Object.fromEntries(

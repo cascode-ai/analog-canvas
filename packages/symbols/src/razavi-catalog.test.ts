@@ -160,7 +160,6 @@ describe("Razavi symbol catalog", () => {
       ["and-gate", "reviewed", "razavi-reference-v1"],
       ["buffer", "reviewed", "razavi-reference-v1"],
       ["capacitor", "reviewed", "razavi-reference-v1"],
-      ["capacitor-section", "reviewed", "razavi-reference-v1"],
       ["closed-switch", "reviewed", "razavi-reference-v1"],
       ["comparator", "reviewed", "razavi-reference-v1"],
       ["comparator-inputs-swapped", "reviewed", "razavi-reference-v1"],
@@ -736,7 +735,7 @@ describe("Razavi symbol catalog", () => {
   });
 
   it("uses reviewed catalog objects as the sole built-in product library", () => {
-    expect(razaviCatalogSymbols).toHaveLength(70);
+    expect(razaviCatalogSymbols).toHaveLength(69);
     for (const catalogSymbol of razaviProductSymbols) {
       expect(
         builtInSymbols.find((symbol) => symbol.id === catalogSymbol.id),
@@ -751,7 +750,6 @@ describe("Razavi symbol catalog", () => {
       "and-gate",
       "buffer",
       "capacitor",
-      "capacitor-section",
       "closed-switch",
       "comparator",
       "current-source",

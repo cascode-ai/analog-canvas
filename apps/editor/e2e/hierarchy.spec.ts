@@ -110,7 +110,7 @@ test("reviews an unreferenced top Symbol and places that DUT in an ordinary new 
   await runCellCommand(page, "Place Cell");
   await page
     .getByRole("dialog", { name: "Place Hierarchical Cell" })
-    .getByRole("option", { name: /Main/u })
+    .getByRole("option", { name: /dut/u })
     .click();
   await page
     .getByTestId("schematic-canvas")
@@ -151,13 +151,13 @@ test("creates a Testbench and places a same-Project Cell from Edit", async ({
     .getByLabel("Place the DUT Symbol View after creating the testbench")
     .uncheck();
   await dialog.getByRole("button", { name: "Create Testbench" }).click();
-  await expect(page.getByTestId("active-document-name")).toHaveText("Main_tb");
+  await expect(page.getByTestId("active-document-name")).toHaveText("dut_tb");
   await expect(page.getByTestId("active-instance-count")).toHaveText("0");
 
   await clickCommand(page, "Edit", "Place Cell from this Project…");
   await page
     .getByRole("dialog", { name: "Place Hierarchical Cell" })
-    .getByRole("option", { name: /Main/u })
+    .getByRole("option", { name: /dut/u })
     .click();
   await canvas.click({ position: { x: 360, y: 220 } });
   await page.keyboard.press("Escape");
@@ -169,7 +169,7 @@ test("creates a Testbench and places a same-Project Cell from Edit", async ({
   );
   expect(project.topDocumentId).toBe("document-main");
   const testbench = project.documents.find(
-    (candidate: { name: string }) => candidate.name === "Main_tb",
+    (candidate: { name: string }) => candidate.name === "dut_tb",
   );
   expect(testbench.instances).toHaveLength(1);
   expect(testbench.instances[0].netlist.binding).toEqual({
@@ -449,7 +449,7 @@ test("declares a top Formal Cell Pin and exports the top interface", async ({
   await clickCommand(page, "Netlist", "Check Report…");
   const preflight = page.getByRole("dialog", { name: "Check Report" });
   await expect(preflight.getByTestId("netlist-preview")).toContainText(
-    ".subckt Main VIN",
+    ".subckt dut VIN",
   );
   await expect(preflight).not.toContainText("GENERATED_NET_NAME");
   await expect(preflight).not.toContainText("MISSING_DEVICE_DEFINITION");
@@ -505,7 +505,7 @@ test("copies and independently deletes Formal Cell Pins", async ({ page }) => {
     page
       .getByRole("dialog", { name: "Check Report" })
       .getByTestId("netlist-preview"),
-  ).toContainText(".subckt Main VIN");
+  ).toContainText(".subckt dut VIN");
 });
 
 test("edits a Cell Pin name and RichText presentation in place", async ({
@@ -549,7 +549,7 @@ test("edits a Cell Pin name and RichText presentation in place", async ({
   const preflight = page.getByRole("dialog", { name: "Check Report" });
   await expect(preflight).not.toContainText("MISSING_DEVICE_DEFINITION");
   await expect(preflight.getByTestId("netlist-preview")).toContainText(
-    ".subckt Main VINP",
+    ".subckt dut VINP",
   );
 });
 
@@ -793,7 +793,7 @@ test("same-name Cell Pins stay independent while the final interface groups them
     .getByRole("dialog", { name: "Check Report" })
     .getByTestId("netlist-preview")
     .innerText();
-  expect(preview).toContain(".subckt Main VIN");
+  expect(preview).toContain(".subckt dut VIN");
   expect(preview).not.toContain("ALIAS");
   await page.getByTestId("check-report-close").click();
 

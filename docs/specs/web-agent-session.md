@@ -16,10 +16,23 @@ stores only its verifier, and session revoke invalidates both credentials.
 
 ## Resources
 
+Browser reconnect credentials are scoped to the current tab's sessionStorage,
+using the existing durable recovery working-copy ID rather than a mount-local
+Project counter. Refresh and Gallery return restore that working copy before
+attaching the editor socket. An explicit new/import target does not auto-attach
+the old pairing. Gallery displays saved local pairing evidence, never online
+status; it does not execute Agent requests. Old localStorage credentials are
+not adopted across this identity boundary: existing sessions need one new
+pairing after upgrading. No Project content is duplicated in connector storage.
+
+Manual pause remains authoritative across request completion, socket recovery,
+and connector bearer renewal. A transport failure does not revoke a pairing.
+
 ```text
 GET  /api/agent/kit
 POST /api/agent/claims
 POST /api/agent/connectors/resume
+GET  /api/agent/sessions/{sessionId}/status
 POST /api/agent/sessions/{sessionId}/circuit
 POST /api/agent/sessions/{sessionId}/files
 POST /api/agent/sessions/{sessionId}/simulation
@@ -93,6 +106,22 @@ local MCP Helper may persist only the connector in its private user profile;
 browser recovery persists neither Agent credential.
 
 ## Transport state machine
+
+The Session status resource authenticates the existing bearer (including while
+paused) and reads relay observations without forwarding to the browser. Its
+canonical schema lives in `packages/agent-adapter/src/envelope.ts`, alongside
+the existing Session envelopes. `authorization` is active or paused; revoked
+and expired sessions return the existing typed errors. `editor` is attached or
+detached, with `observedAt` and the authoritative idle `expiresAt`. Attachment
+only means an open socket was observed, not that an operation will succeed.
+The read does not resume the session, renew its deadline, or enter the Circuit
+request ledger. It is not a fifth Circuit operation.
+
+MCP and direct clients use this same resource for status. The shared client
+retains pairing on a failed network probe and reports unknown; its previous
+observation remains timestamped evidence, not current confirmation. Only an
+actual Circuit response establishes online execution transport. Normal Circuit
+operations do not require a status request first.
 
 The official thin browser states are:
 

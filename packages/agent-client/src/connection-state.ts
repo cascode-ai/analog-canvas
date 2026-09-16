@@ -4,7 +4,12 @@
  * or an idle host does not change the state, only claim, editor attachment,
  * revocation, and transport outcomes do.
  */
+import type { AgentSessionStatusResponse } from "@icm/agent-adapter";
+
 export type AgentConnectionState =
+  | "attached"
+  | "paused"
+  | "unknown"
   | "unpaired"
   | "connecting"
   | "online"
@@ -42,28 +47,43 @@ const TRANSITIONS: Record<
     "editor-offline": "connecting",
   },
   "request-succeeded": {
+    attached: "online",
+    paused: "online",
+    unknown: "online",
     connecting: "online",
     online: "online",
     "editor-offline": "online",
     reconnecting: "online",
   },
   "editor-detached": {
+    attached: "editor-offline",
+    paused: "editor-offline",
+    unknown: "editor-offline",
     online: "editor-offline",
     connecting: "editor-offline",
     reconnecting: "editor-offline",
   },
   "transport-interrupted": {
+    attached: "reconnecting",
+    paused: "reconnecting",
+    unknown: "reconnecting",
     connecting: "reconnecting",
     online: "reconnecting",
     "editor-offline": "reconnecting",
   },
   "credential-revoked": {
+    attached: "revoked",
+    paused: "revoked",
+    unknown: "revoked",
     connecting: "revoked",
     online: "revoked",
     "editor-offline": "revoked",
     reconnecting: "revoked",
   },
   reset: {
+    attached: "unpaired",
+    paused: "unpaired",
+    unknown: "unpaired",
     revoked: "unpaired",
     "editor-offline": "unpaired",
     online: "unpaired",
@@ -104,6 +124,20 @@ export class ConnectionTracker {
       since: this.since,
       lastErrorCode: this.lastErrorCode,
     };
+  }
+
+  observe(status: AgentSessionStatusResponse | null, errorCode?: string): void {
+    const next: AgentConnectionState =
+      status === null
+        ? "unknown"
+        : status.authorization === "paused"
+          ? "paused"
+          : status.editor === "attached"
+            ? "attached"
+            : "editor-offline";
+    if (next !== this.state) this.since = this.now();
+    this.state = next;
+    this.lastErrorCode = errorCode ?? null;
   }
 
   apply(event: ConnectionEvent, errorCode?: string): AgentConnectionState {

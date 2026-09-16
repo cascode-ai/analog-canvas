@@ -75,6 +75,7 @@ interface Props {
   adapter?: PropertyJsonEditorAdapter;
   defaultForeground: string;
   focusRequest: number;
+  ariaLabel?: string;
   onChange(source: string): void;
 }
 const externalUpdate = Annotation.define<boolean>();
@@ -141,7 +142,7 @@ export default function ComponentPropertyJsonEditor(props: Props) {
           tokenField,
           EditorView.lineWrapping,
           EditorView.contentAttributes.of({
-            "aria-label": "Editable Canvas property code",
+            "aria-label": read().ariaLabel ?? "Editable Canvas property code",
             spellcheck: "false",
           }),
           keymap.of([

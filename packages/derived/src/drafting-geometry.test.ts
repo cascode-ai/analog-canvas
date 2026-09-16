@@ -335,7 +335,7 @@ describe("polarity drafting text", () => {
     }
   });
 
-  it("rotates the complete three-part annotation around its center", () => {
+  it("rotates the polarity layout while keeping every mark upright", () => {
     const horizontal = polarityText("both", 0);
     const vertical = polarityText("both", 90);
     const horizontalGeometry = resolveDraftingObjectGeometry(
@@ -355,12 +355,20 @@ describe("polarity drafting text", () => {
       throw new Error("expected text geometry");
     }
 
-    expect(verticalGeometry.bounds.width).toBeCloseTo(
-      horizontalGeometry.bounds.height,
-    );
-    expect(verticalGeometry.bounds.height).toBeCloseTo(
-      horizontalGeometry.bounds.width,
-    );
+    const horizontalPositive = horizontalGeometry.polarityLines[0]!;
+    const horizontalNegative = horizontalGeometry.polarityLines[2]!;
+    const verticalPositive = verticalGeometry.polarityLines[0]!;
+    const verticalPositiveStem = verticalGeometry.polarityLines[1]!;
+    const verticalNegative = verticalGeometry.polarityLines[2]!;
+
+    expect(horizontalPositive.from.y).toBeLessThan(80);
+    expect(horizontalNegative.from.y).toBeGreaterThan(80);
+    expect(verticalPositive.from.x).toBeGreaterThan(100);
+    expect(verticalNegative.from.x).toBeLessThan(100);
+    expect(verticalPositive.from.y).toBeCloseTo(verticalPositive.to.y);
+    expect(verticalNegative.from.y).toBeCloseTo(verticalNegative.to.y);
+    expect(verticalPositiveStem.from.x).toBeCloseTo(verticalPositiveStem.to.x);
     expect(verticalGeometry.position).toEqual({ x: 100, y: 80 });
+    expect(verticalGeometry.textPosition).toEqual({ x: 100, y: 80 });
   });
 });

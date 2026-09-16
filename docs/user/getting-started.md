@@ -95,9 +95,12 @@ is defined.
   **Draw** lets you make an explicit route. The dashed route follows the MOS
   line color; selecting it shows a Bulk-specific action instead of ordinary
   wire styling controls. Place an unplaced device first.
-- An unconnected Bulk does not block a netlist: NMOS defaults to ground `0` and
-  PMOS defaults to global `VDD`. Drawing or configuring a Bulk connection uses
-  that actual Net instead; the export default does not modify the saved canvas.
+- Export uses actual Bulk connections, including connections established by
+  placement defaults. A missing Bulk blocks export; the exporter never guesses
+  a supply from MOS polarity. Cell interfaces contain only authored formal
+  Pins, in their declared order: no extra `VDD` or `VSS` Pins are added.
+  Separate supplies such as `AVDD` and `DVDD` retain their actual connections;
+  explicit Global supplies do not create formal Pins. Ground remains node `0`.
 - Right-click an endpoint for the distinct **Disconnect endpoint** and
   **Delete connection** actions.
 - `Delete` on a connected component now removes the component while preserving
@@ -117,7 +120,7 @@ is defined.
   Double-click a note or visual annotation to edit its fractions again.
   Both parts stay centered under the same axis, and the bar follows the wider part.
   Use **ƒx** for a complete mathematical formula such as `\frac{1}{g_{mN}} + R_1`.
-- Press `R` to rotate, `F` to fit, `X` to reverse a selected current arrow,
+- Press `R` to rotate, `F` to fit,
   `Ctrl+Z` to undo, and `Ctrl+Y` or `Ctrl+Shift+Z` to redo. Shortcuts do not
   fire while typing in a field.
 - Use `Ctrl`+mouse wheel to zoom around the cursor and middle-button drag to
@@ -298,8 +301,8 @@ pauses copying until corrected. The circuit itself is unchanged.
   `sky130_fd_pr__cap_mim_m3_1` and supply `w`/`l` in metres (for example `5u`),
   plus `mult` or `mf`. The resistor's `substrate` defaults to `0`. Ideal values
   are not converted into geometry. Set `library.path` and `library.section`
-  for your installed PDK. SCS exports use a SPICE-language section for that
-  same SPICE library.
+  for your installed PDK. SCS exports stay in Spectre syntax and reference that
+  configured path with a native `include` declaration.
 - `custom`: keep authored component targets, and fill missing fields from your
   editable defaults. Existing component values always take priority.
 
@@ -344,7 +347,7 @@ Build the versioned bundle and start it with Node 24:
 
 ```powershell
 pnpm release:package
-node output/release/interactive-circuit-maker-v0.7.0/start.mjs
+node output/release/interactive-circuit-maker-v0.9.0/start.mjs
 ```
 
 Open `http://127.0.0.1:4173`. Chromium can install the app from its browser

@@ -19,17 +19,18 @@ export function NetlistPreflightDialog({
   onNavigateElectrical,
   onExport,
   profile,
+  format,
 }: {
   open: boolean;
   project: CircuitProject;
   profile?: NetlistExportProfile;
+  format: NetlistFormat;
   electricalDiagnostics: readonly Diagnostic[];
   onClose(): void;
   onNavigate(diagnostic: NetlistDiagnostic): void;
   onNavigateElectrical(diagnostic: Diagnostic): void;
-  onExport(format: NetlistFormat, namingProfile: NetlistNamingProfile): void;
+  onExport(namingProfile: NetlistNamingProfile): void;
 }) {
-  const [format, setFormat] = useState<NetlistFormat>("spice");
   const [namingProfile, setNamingProfile] =
     useState<NetlistNamingProfile>("native");
   const result = useMemo(
@@ -133,19 +134,6 @@ export function NetlistPreflightDialog({
             >
               <div className="netlist-preflight-export-controls">
                 <label>
-                  Structural format
-                  <select
-                    aria-label="Netlist export format"
-                    value={format}
-                    onChange={(event) =>
-                      setFormat(event.currentTarget.value as NetlistFormat)
-                    }
-                  >
-                    <option value="spice">SPICE (.spi)</option>
-                    <option value="spectre">Spectre (.scs)</option>
-                  </select>
-                </label>
-                <label>
                   Naming profile
                   <select
                     aria-label="Netlist naming profile"
@@ -160,10 +148,7 @@ export function NetlistPreflightDialog({
                     <option value="cadence-bang">Cadence `!` globals</option>
                   </select>
                 </label>
-                <button
-                  type="button"
-                  onClick={() => onExport(format, namingProfile)}
-                >
+                <button type="button" onClick={() => onExport(namingProfile)}>
                   Copy {format === "spice" ? "SPICE" : "Spectre"} netlist
                 </button>
               </div>

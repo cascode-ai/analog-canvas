@@ -84,14 +84,16 @@ test("Analog Block hit boxes closely enclose browser-rendered artwork", async ({
   const measurements = await page.getByTestId("schematic-canvas").evaluate(
     (canvas, ids) =>
       ids.map((id) => {
-        const artwork = canvas
-          .querySelector<SVGGraphicsElement>(
-            `[data-layer="symbols"] [data-object-id="${id}"]`,
-          )!
-          .getBBox();
-        const hit = canvas
-          .querySelector<SVGGraphicsElement>(`[data-testid="hit-${id}"]`)!
-          .getBBox();
+        const artworkElement = canvas.querySelector<SVGGraphicsElement>(
+          `[data-layer="symbols"] [data-object-id="${id}"]`,
+        )!;
+        const hitElement = canvas.querySelector<SVGGraphicsElement>(
+          `[data-testid="hit-${id}"]`,
+        )!;
+        const artwork = artworkElement.getBoundingClientRect();
+        const hit = hitElement.getBoundingClientRect();
+        const matrix = artworkElement.getScreenCTM()!;
+        const scale = Math.hypot(matrix.a, matrix.b);
         return {
           id,
           margins: [
@@ -99,7 +101,7 @@ test("Analog Block hit boxes closely enclose browser-rendered artwork", async ({
             artwork.y - hit.y,
             hit.x + hit.width - artwork.x - artwork.width,
             hit.y + hit.height - artwork.y - artwork.height,
-          ],
+          ].map((margin) => margin / scale),
         };
       }),
     instances.map((instance) => instance.id),
@@ -118,7 +120,7 @@ test("Analog Block hit boxes closely enclose browser-rendered artwork", async ({
   }
 });
 
-test("FD Amp blank space does not capture clicks or marquees; body and pins remain usable", async ({
+test("FD Amp blank space does not capture clicks; body and pins remain usable", async ({
   page,
 }) => {
   await importInstances(page, [
@@ -146,7 +148,9 @@ test("FD Amp blank space does not capture clicks or marquees; body and pins rema
     await page.mouse.move(to.x, to.y, { steps: 8 });
     await page.mouse.up();
   };
-  const blank = await screenPoint(page, 238, 200);
+  // This point is inside the old rectangular hit box but well above the
+  // triangle edge and output leads.
+  const blank = await screenPoint(page, 215, 175);
   await page.mouse.click(blank.x, blank.y);
   await expect(hit).not.toHaveClass(/selected/);
 
@@ -158,11 +162,9 @@ test("FD Amp blank space does not capture clicks or marquees; body and pins rema
   await expect(hit).toHaveClass(/selected/);
 
   await drag(190, 200, 290, 260);
-  await expect(hit).toHaveAttribute("x", "256");
-  await expect(hit).toHaveAttribute("y", "226");
+  await expect(hit).toHaveAttribute("transform", /^translate\(300 260\)/u);
   await page.keyboard.press("ControlOrMeta+z");
-  await expect(hit).toHaveAttribute("x", "156");
-  await expect(hit).toHaveAttribute("y", "166");
+  await expect(hit).toHaveAttribute("transform", /^translate\(200 200\)/u);
 
   await page.keyboard.press("Escape");
   await clickDrawTool(page, "wire");

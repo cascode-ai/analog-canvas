@@ -1,17 +1,10 @@
 import { applyArrowPreset, type ArrowPreset } from "./arrow-presets";
 import type { SchematicEdit } from "@icm/edit-engine";
 import { resolveDraftingObjectGeometry } from "@icm/derived";
-import {
-  semanticTextDocument,
-  snapGridPoint,
-  type DraftingObject,
-  type Point,
-  type SchematicDocument,
-} from "@icm/model";
+import type { DraftingObject, Point, SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
 import type { VisualSelection } from "../selection/visual-selection";
-import type { RouteGeometryRecord } from "../wiring/route-interaction-geometry";
 import {
   applyDraftingGeometryPatch,
   applyDraftingStylePatch,
@@ -26,7 +19,6 @@ import {
   type DraftingStylePatch,
 } from "./drafting-manipulation";
 
-type Route = SchematicDocument["routes"][number];
 type TransactionResult = { ok: boolean };
 
 export function createDraftingCommands({
@@ -36,14 +28,9 @@ export function createDraftingCommands({
   selection,
   selectedDrafting,
   inspectorSegment,
-  selectedRoute,
-  selectedRouteSegmentIndex,
-  routeGeometryRecords,
   transact,
   setStatus,
-  nextId,
   beginTextPlacement,
-  selectAnnotation,
 }: {
   document: SchematicDocument;
   /** Rounding pitch for drafting geometry edits. */
@@ -52,14 +39,9 @@ export function createDraftingCommands({
   selection: VisualSelection;
   selectedDrafting: DraftingObject | undefined;
   inspectorSegment: { objectId: string; index: number } | null;
-  selectedRoute: Route | undefined;
-  selectedRouteSegmentIndex: number | null;
-  routeGeometryRecords: readonly RouteGeometryRecord[];
   transact: (edits: SchematicEdit[]) => TransactionResult;
   setStatus: (status: string) => void;
-  nextId: (prefix: string) => string;
   beginTextPlacement: () => void;
-  selectAnnotation: (id: string) => void;
 }) {
   const insertConstructionVertex = (
     object: Extract<DraftingObject, { kind: "construction-line" }>,
@@ -274,60 +256,6 @@ export function createDraftingCommands({
     beginTextPlacement();
   };
 
-  const addCurrentArrow = (): void => {
-    if (!selectedRoute) {
-      setStatus("Select a wire segment before adding a current arrow");
-      return;
-    }
-    const segmentIndex = Math.min(
-      selectedRouteSegmentIndex ?? 0,
-      selectedRoute.legs.length - 1,
-    );
-    const record = routeGeometryRecords.find(
-      ({ route }) => route.id === selectedRoute.id,
-    );
-    const from = record?.geometry.centerline[segmentIndex];
-    const to = record?.geometry.centerline[segmentIndex + 1];
-    if (!from || !to) {
-      setStatus("Selected wire segment cannot accept a current arrow");
-      return;
-    }
-    const id = nextId("current");
-    const fallbackPosition = snapGridPoint(
-      { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 },
-      document.presentation.grid,
-    );
-    if (
-      transact([
-        {
-          kind: "upsert_schematic_annotation",
-          annotation: {
-            id,
-            kind: "route-marker",
-            markerKind: "current",
-            content: semanticTextDocument("I_x", "route-marker"),
-            anchor: {
-              kind: "route",
-              routeId: selectedRoute.id,
-              legId: selectedRoute.legs[segmentIndex]!.id,
-              t: 0.5,
-              normalOffset: -14,
-              direction: "forward",
-              orientation: "follow",
-              fallbackPosition,
-            },
-            alignment: "middle",
-            rotation: 0,
-            locked: false,
-          },
-        },
-      ]).ok
-    ) {
-      selectAnnotation(id);
-      setStatus(`Added current arrow on ${selectedRoute.id}`);
-    }
-  };
-
   return {
     insertConstructionVertex,
     insertArrowWaypoint,
@@ -340,6 +268,5 @@ export function createDraftingCommands({
     setDraftingBearing,
     toggleDraftingLock,
     addPlainText,
-    addCurrentArrow,
   };
 }

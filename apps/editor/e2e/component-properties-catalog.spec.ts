@@ -1,19 +1,25 @@
 import { expect, test } from "@playwright/test";
-import { expandedDeviceSymbols, razaviProductSymbols } from "@icm/symbols";
 
 import {
   chooseComponent,
   expectComponentCodeField,
 } from "./editor-fixtures.js";
 
-// These are the two canonical sources of placeable Instance tiles. Editor-only
-// Annotation tools and the two-click Power Rail intentionally do not appear in
-// either list because they own drawing-specific Properties rather than a
-// component Instance.
+// Full catalog projection/parse coverage lives in component-property-catalog.test.ts.
+// These exercise distinct UI capabilities through placement, selection and Q:
+// passive, model, waveform, variant, internal mark, formula, electrical marker,
+// expanded-library device and independent magnetic parameter display.
 const componentSymbolIds = [
-  ...razaviProductSymbols,
-  ...expandedDeviceSymbols,
-].map((symbol) => symbol.id);
+  "resistor",
+  "nmos",
+  "pulse-voltage-source",
+  "ideal-switch",
+  "voltage-amplifier",
+  "discrete-time-integrator",
+  "vdd-port",
+  "ndmos",
+  "xfmr",
+];
 
 for (const symbolId of componentSymbolIds) {
   test(`${symbolId} uses the text-first component Properties surface`, async ({

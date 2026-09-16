@@ -232,6 +232,17 @@ const relay = createServer(async (request, response) => {
       resumeCount += 1;
       result = json(credential(`resume-bearer-${resumeCount}`));
     }
+  } else if (url.pathname.endsWith("/status")) {
+    result = json({
+      ok: true,
+      sessionId,
+      projectId: "release-project",
+      documentIds: ["main"],
+      authorization: "active",
+      editor: "attached",
+      observedAt: Date.now(),
+      expiresAt: Date.now() + 60_000,
+    });
   } else if (url.pathname.endsWith("/simulation")) {
     const body = await requestBody(request);
     result = json({
@@ -401,6 +412,33 @@ const address = relay.address();
 if (typeof address === "string" || address === null)
   throw new Error("No relay port");
 const apiBaseUrl = `http://127.0.0.1:${address.port}`;
+
+async function httpCommand(command, input = {}) {
+  const child = spawn(process.execPath, [executable, "--http", command], {
+    stdio: ["pipe", "pipe", "pipe"],
+    env: {
+      ...process.env,
+      ANALOG_CANVAS_API_URL: apiBaseUrl,
+      ANALOG_CANVAS_MCP_CONNECTOR: connectorPath,
+    },
+    timeout: 30_000,
+  });
+  children.push(child);
+  let output = "";
+  child.stdout.on("data", (chunk) => {
+    output += chunk.toString("utf8");
+  });
+  child.stderr.resume();
+  const closed = once(child, "close");
+  child.stdin.end(JSON.stringify(input));
+  const [code] = await closed;
+  assert.equal(code, 0, "Direct HTTP command failed");
+  assert.ok(
+    !output.includes(connectorToken),
+    "HTTP output leaked the connector",
+  );
+  return JSON.parse(output);
+}
 
 function startMcp() {
   const child = spawn(process.execPath, [executable], {
@@ -576,6 +614,17 @@ try {
   if (resumed.mode !== "resumed" || resumeCount !== 1) {
     throw new Error("Packaged MCP did not resume the saved connector");
   }
+  const observed = await httpCommand("connection_status");
+  assert.equal(JSON.parse(observed.content[0].text).state, "attached");
+  const raw = await httpCommand("circuit", {
+    apiVersion: "3.0",
+    requestId: "http-smoke-exact-id",
+    operation: "snapshot",
+    documentId: "main",
+  });
+  assert.equal(raw.requestId, "http-smoke-exact-id");
+  assert.equal(raw.ok, true);
+  assert.equal(resumeCount, 3, "HTTP invocations must reuse the MCP connector");
   await restarted.tool("disconnect");
   await restarted.close();
   if ((await readFile(connectorPath).catch(() => null)) !== null) {

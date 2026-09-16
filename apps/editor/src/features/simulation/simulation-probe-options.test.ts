@@ -350,7 +350,7 @@ describe("simulation probe choices", () => {
     const options = deriveSimulationProbeOptions(project, document.id).voltage;
 
     expect(options).toHaveLength(1);
-    expect(options[0]?.label).toBe("Main · 0");
+    expect(options[0]?.label).toBe("dut · 0");
     expect(options[0]?.key).toContain(":logical:net-ground-a");
   });
 
@@ -402,6 +402,6 @@ describe("simulation probe choices", () => {
     ).voltage.map((option) => option.label);
 
     expect(labels.some((label) => label.includes("ghost"))).toBe(false);
-    expect(labels).toContain("Main · in");
+    expect(labels).toContain("dut · in");
   });
 });

@@ -74,10 +74,6 @@ export function EditorStatusbar({
   wireRoutingMode,
   wireCornerOrder,
   recoveryLabel,
-  gridDotsVisible,
-  annotationGrid,
-  drawAngleMode,
-  wheelBehavior,
   zoomPercent,
   issues,
   selectionFilterSummary,
@@ -85,11 +81,7 @@ export function EditorStatusbar({
   onToggleWireOptions,
   onWireRoutingModeChange,
   onWireCornerOrderChange,
-  onToggleGridDots,
   onOpenAnalytics,
-  onAnnotationGridChange,
-  onDrawAngleModeChange,
-  onWheelBehaviorChange,
   onZoomOut,
   onZoomIn,
   onFitView,
@@ -103,10 +95,6 @@ export function EditorStatusbar({
   wireRoutingMode: WireRoutingMode;
   wireCornerOrder: WireCornerOrder;
   recoveryLabel: string | null;
-  gridDotsVisible: boolean;
-  annotationGrid: 1 | 5 | 10;
-  drawAngleMode: "free" | "45" | "orthogonal";
-  wheelBehavior: "auto" | "zoom" | "pan";
   zoomPercent: number;
   selectionFilterSummary: string | null;
   issues?: {
@@ -118,11 +106,7 @@ export function EditorStatusbar({
   onToggleWireOptions: () => void;
   onWireRoutingModeChange: (mode: WireRoutingMode) => void;
   onWireCornerOrderChange: (order: WireCornerOrder) => void;
-  onToggleGridDots: () => void;
   onOpenAnalytics: () => void;
-  onAnnotationGridChange: (pitch: 1 | 5 | 10) => void;
-  onDrawAngleModeChange: (mode: "free" | "45" | "orthogonal") => void;
-  onWheelBehaviorChange: (behavior: "auto" | "zoom" | "pan") => void;
   onZoomOut: () => void;
   onZoomIn: () => void;
   onFitView: () => void;
@@ -248,64 +232,6 @@ export function EditorStatusbar({
         </a>
       ) : null}
       <div className="canvas-controls" aria-label="Canvas view controls">
-        <button
-          type="button"
-          aria-label={
-            gridDotsVisible ? "Hide background dots" : "Show background dots"
-          }
-          aria-pressed={gridDotsVisible}
-          title={
-            gridDotsVisible ? "Hide background dots" : "Show background dots"
-          }
-          onClick={onToggleGridDots}
-        >
-          <ToolIcon name="grid" />
-        </button>
-        <select
-          aria-label="Annotation grid"
-          data-testid="annotation-grid-select"
-          title="Placement pitch for text and drawing annotations. Devices, wires, and junctions always stay on the 10-unit grid."
-          value={annotationGrid}
-          onChange={(event) =>
-            onAnnotationGridChange(
-              Number(event.currentTarget.value) as 1 | 5 | 10,
-            )
-          }
-        >
-          <option value="10">±10</option>
-          <option value="5">±5</option>
-          <option value="1">±1</option>
-        </select>
-        <select
-          aria-label="Draw angle"
-          data-testid="draw-angle-select"
-          title="Angle lock for the Arrow and Line tools. Shift while drawing always locks to the 45-degree family; wires stay orthogonal."
-          value={drawAngleMode}
-          onChange={(event) =>
-            onDrawAngleModeChange(
-              event.currentTarget.value as "free" | "45" | "orthogonal",
-            )
-          }
-        >
-          <option value="free">Free</option>
-          <option value="45">45°</option>
-          <option value="orthogonal">Ortho</option>
-        </select>
-        <select
-          aria-label="Scroll wheel"
-          data-testid="wheel-behavior-select"
-          title="What a plain scroll does. Auto reads the device from the event: a mouse wheel zooms, a trackpad pans. Pick one explicitly if your device is read wrongly. Pinch and Cmd+scroll always zoom."
-          value={wheelBehavior}
-          onChange={(event) =>
-            onWheelBehaviorChange(
-              event.currentTarget.value as "auto" | "zoom" | "pan",
-            )
-          }
-        >
-          <option value="auto">Scroll: Auto</option>
-          <option value="zoom">Scroll: Zoom</option>
-          <option value="pan">Scroll: Pan</option>
-        </select>
         <button
           type="button"
           aria-label="Zoom out"

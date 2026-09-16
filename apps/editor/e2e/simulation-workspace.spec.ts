@@ -1711,9 +1711,7 @@ test("Simulation creates an ordinary testbench and defaults a new experiment to 
   const saved = JSON.parse(
     (await downloadBytes(page, "File", "Export Project File…")).toString(),
   );
-  const tb = saved.documents.find(
-    (d: { name: string }) => d.name === "Main_tb",
-  );
+  const tb = saved.documents.find((d: { name: string }) => d.name === "dut_tb");
   expect(tb.instances[0].netlist.binding).toEqual({
     kind: "subcircuit",
     childDocumentId: "document-main",

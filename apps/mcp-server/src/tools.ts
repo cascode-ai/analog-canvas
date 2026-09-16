@@ -282,7 +282,7 @@ const TOOLS: readonly ToolEntry[] = [
     definition: {
       name: "connection_status",
       description:
-        "Report pairing and editor-attachment state (unpaired/connecting/online/editor-offline/reconnecting/revoked) plus token validity. Tokens themselves are never returned.",
+        "Read lightweight Session observations without waiting for the editor. attached means a browser socket exists, not verified execution readiness; unknown means the relay could not be checked. Reports pause, observation time and token validity without exposing credentials or renewing the session.",
       inputSchema: jsonSchemaOf(z.strictObject({})),
     },
     handle: async (_args, session) => session.client.status({ refresh: true }),

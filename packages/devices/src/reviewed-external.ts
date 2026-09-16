@@ -6,8 +6,19 @@ export type ReviewedExternalBindingId =
   | "sky130-pfet-01v8"
   | "sky130-nfet-01v8-lvt"
   | "sky130-pfet-01v8-lvt"
+  | "sky130-nfet-03v3-nvt"
+  | "sky130-nfet-05v0-nvt"
+  | "sky130-nfet-g5v0d10v5"
+  | "sky130-pfet-01v8-hvt"
+  | "sky130-pfet-g5v0d10v5"
   | "sky130-res-high-po"
+  | "sky130-res-xhigh-po"
   | "sky130-cap-mim-m3-1"
+  | "sky130-cap-mim-m3-2"
+  | "sky130-cap-var-lvt"
+  | "sky130-ind-03-90"
+  | "sky130-ind-05-125"
+  | "sky130-ind-05-220"
   | "sky130-pnp-05v5-w0p68l0p68"
   | "sky130-npn-05v5-w1p00l1p00";
 
@@ -18,7 +29,7 @@ export interface ReviewedExternalTerminalBinding {
   readonly pinName: string;
   /** Property terminals have no Symbol pin and cannot be routed on canvas. */
   readonly interaction: "canvas" | "property";
-  readonly role?: "substrate";
+  readonly role?: "substrate" | "floating";
 }
 
 export interface ReviewedExternalParameterBinding extends DeviceParameterDefinition {
@@ -32,8 +43,9 @@ export interface ReviewedExternalDeviceBinding {
   readonly libraryId: "sky130_fd_pr";
   readonly masterName: string;
   readonly invocationKind: "external-subcircuit";
-  readonly symbolId: "nmos" | "pmos" | "resistor" | "capacitor" | "npn" | "pnp";
-  readonly deviceClass: "mos" | "resistor" | "capacitor" | "bjt";
+  readonly symbolId:
+    "nmos" | "pmos" | "resistor" | "capacitor" | "inductor" | "npn" | "pnp";
+  readonly deviceClass: "mos" | "resistor" | "capacitor" | "inductor" | "bjt";
   readonly terminals: readonly ReviewedExternalTerminalBinding[];
   readonly parameters: readonly ReviewedExternalParameterBinding[];
 }
@@ -60,7 +72,7 @@ const geometry = (
 });
 
 const count = (
-  name: "nf" | "m" | "mult" | "mf",
+  name: "nf" | "m" | "mult" | "mf" | "vm",
   label: string,
   help: string,
   spiceOrder: number,
@@ -75,6 +87,179 @@ const count = (
   displayRole: name === "nf" ? "finger-count" : "multiplier",
   targetDefaultValue: "1",
   spiceOrder,
+});
+
+const SPICE_SUFFIX: Readonly<Record<string, number>> = {
+  t: 1e12,
+  g: 1e9,
+  meg: 1e6,
+  k: 1e3,
+  m: 1e-3,
+  u: 1e-6,
+  n: 1e-9,
+  p: 1e-12,
+  f: 1e-15,
+  a: 1e-18,
+};
+
+function parseSpiceNumber(value: string): number {
+  const text = value.trim().toLowerCase();
+  const match = /^([+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?)\s*([a-z]*)$/u.exec(
+    text,
+  );
+  if (!match) throw new Error(`Geometry is not a SPICE number: ${value}`);
+  const magnitude = Number(match[1]);
+  const suffix = match[2] ?? "";
+  if (!Number.isFinite(magnitude)) {
+    throw new Error(`Geometry is not a SPICE number: ${value}`);
+  }
+  if (!suffix) return magnitude;
+  const known = suffix.startsWith("meg") ? "meg" : suffix[0]!;
+  const factor = SPICE_SUFFIX[known];
+  if (factor === undefined) {
+    throw new Error(`Geometry has an unknown SPICE suffix: ${value}`);
+  }
+  return magnitude * factor;
+}
+
+/** Canonical Project length (metres) to the reviewed SKY130 plain-um form. */
+export function projectLengthToSky130Micrometres(value: string): string {
+  const expression = parameterExpressionBody(value);
+  if (expression !== undefined) {
+    const inverse = /^\((.*)\) \* 1u$/u.exec(expression);
+    return inverse ? `{${inverse[1]}}` : `{(${expression}) / 1u}`;
+  }
+  return `${Number((parseSpiceNumber(value) / 1e-6).toPrecision(12))}`;
+}
+
+const mosTerminals = (): readonly ReviewedExternalTerminalBinding[] =>
+  ["D", "G", "S", "B"].map((name) => ({
+    targetName: name,
+    pinName: name,
+    interaction: "canvas" as const,
+  }));
+
+const sky130MosBinding = (
+  id: ReviewedExternalBindingId,
+  masterName: string,
+  symbolId: "nmos" | "pmos",
+  width: string,
+  length: string,
+): ReviewedExternalDeviceBinding => ({
+  id,
+  libraryId: "sky130_fd_pr",
+  masterName,
+  invocationKind: "external-subcircuit",
+  symbolId,
+  deviceClass: "mos",
+  terminals: mosTerminals(),
+  parameters: [
+    geometry("w", "W", width, projectLengthToSky130Micrometres(width), 1),
+    geometry("l", "L", length, projectLengthToSky130Micrometres(length), 0),
+    count("nf", "NF", "Finger count", 2),
+    count("m", "M", "ngspice X-line parallel multiplier", 3),
+  ],
+});
+
+const sky130ResistorBinding = (
+  id: ReviewedExternalBindingId,
+  masterName: string,
+): ReviewedExternalDeviceBinding => ({
+  id,
+  libraryId: "sky130_fd_pr",
+  masterName,
+  invocationKind: "external-subcircuit",
+  symbolId: "resistor",
+  deviceClass: "resistor",
+  terminals: [
+    { targetName: "R0", pinName: "1", interaction: "canvas" },
+    { targetName: "R1", pinName: "2", interaction: "canvas" },
+    {
+      targetName: "B",
+      pinName: "B",
+      interaction: "property",
+      role: "substrate",
+    },
+  ],
+  parameters: [
+    geometry("w", "W", "1u", "1", 0),
+    geometry("l", "L", "5.5u", "5.5", 1),
+    count("mult", "MULT", "SKY130 resistor wrapper multiplier", 2),
+  ],
+});
+
+const sky130MimCapBinding = (
+  id: ReviewedExternalBindingId,
+  masterName: string,
+): ReviewedExternalDeviceBinding => ({
+  id,
+  libraryId: "sky130_fd_pr",
+  masterName,
+  invocationKind: "external-subcircuit",
+  symbolId: "capacitor",
+  deviceClass: "capacitor",
+  terminals: [
+    { targetName: "C0", pinName: "1", interaction: "canvas" },
+    { targetName: "C1", pinName: "2", interaction: "canvas" },
+  ],
+  parameters: [
+    geometry("w", "W", "5u", "5", 0),
+    geometry("l", "L", "5u", "5", 1),
+    count("mf", "MF", "SKY130 MIM wrapper multiplicity", 2),
+  ],
+});
+
+const sky130VaractorBinding = (): ReviewedExternalDeviceBinding => ({
+  id: "sky130-cap-var-lvt",
+  libraryId: "sky130_fd_pr",
+  masterName: "sky130_fd_pr__cap_var_lvt",
+  invocationKind: "external-subcircuit",
+  symbolId: "capacitor",
+  deviceClass: "capacitor",
+  terminals: [
+    { targetName: "C0", pinName: "1", interaction: "canvas" },
+    { targetName: "C1", pinName: "2", interaction: "canvas" },
+    {
+      targetName: "B",
+      pinName: "B",
+      interaction: "property",
+      role: "substrate",
+    },
+  ],
+  parameters: [
+    geometry("w", "W", "5u", "5", 0),
+    geometry("l", "L", "500n", "0.5", 1),
+    count("vm", "VM", "SKY130 varactor multiplicity", 2),
+  ],
+});
+
+const sky130InductorBinding = (
+  id: ReviewedExternalBindingId,
+  masterName: string,
+): ReviewedExternalDeviceBinding => ({
+  id,
+  libraryId: "sky130_fd_pr",
+  masterName,
+  invocationKind: "external-subcircuit",
+  symbolId: "inductor",
+  deviceClass: "inductor",
+  terminals: [
+    { targetName: "A", pinName: "1", interaction: "canvas" },
+    { targetName: "B", pinName: "2", interaction: "canvas" },
+    {
+      targetName: "CT",
+      pinName: "CT",
+      interaction: "property",
+      role: "floating",
+    },
+    {
+      targetName: "SUB",
+      pinName: "SUB",
+      interaction: "property",
+      role: "substrate",
+    },
+  ],
+  parameters: [],
 });
 
 const bjtCanvasTerminals = (): readonly ReviewedExternalTerminalBinding[] =>
@@ -97,122 +282,77 @@ const bjtTerminalsWithSubstrate =
 
 export const reviewedExternalDeviceBindings: readonly ReviewedExternalDeviceBinding[] =
   [
-    {
-      id: "sky130-nfet-01v8",
-      libraryId: "sky130_fd_pr",
-      masterName: "sky130_fd_pr__nfet_01v8",
-      invocationKind: "external-subcircuit",
-      symbolId: "nmos",
-      deviceClass: "mos",
-      terminals: ["D", "G", "S", "B"].map((name) => ({
-        targetName: name,
-        pinName: name,
-        interaction: "canvas" as const,
-      })),
-      parameters: [
-        geometry("w", "W", "1u", "1", 1),
-        geometry("l", "L", "150n", "0.15", 0),
-        count("nf", "NF", "Finger count", 2),
-        count("m", "M", "ngspice X-line parallel multiplier", 3),
-      ],
-    },
-    {
-      id: "sky130-pfet-01v8",
-      libraryId: "sky130_fd_pr",
-      masterName: "sky130_fd_pr__pfet_01v8",
-      invocationKind: "external-subcircuit",
-      symbolId: "pmos",
-      deviceClass: "mos",
-      terminals: ["D", "G", "S", "B"].map((name) => ({
-        targetName: name,
-        pinName: name,
-        interaction: "canvas" as const,
-      })),
-      parameters: [
-        geometry("w", "W", "1u", "1", 1),
-        geometry("l", "L", "150n", "0.15", 0),
-        count("nf", "NF", "Finger count", 2),
-        count("m", "M", "ngspice X-line parallel multiplier", 3),
-      ],
-    },
-    {
-      id: "sky130-nfet-01v8-lvt",
-      libraryId: "sky130_fd_pr",
-      masterName: "sky130_fd_pr__nfet_01v8_lvt",
-      invocationKind: "external-subcircuit",
-      symbolId: "nmos",
-      deviceClass: "mos",
-      terminals: ["D", "G", "S", "B"].map((name) => ({
-        targetName: name,
-        pinName: name,
-        interaction: "canvas" as const,
-      })),
-      parameters: [
-        geometry("w", "W", "1.65u", "1.65", 1),
-        geometry("l", "L", "150n", "0.15", 0),
-        count("nf", "NF", "Finger count", 2),
-        count("m", "M", "ngspice X-line parallel multiplier", 3),
-      ],
-    },
-    {
-      id: "sky130-pfet-01v8-lvt",
-      libraryId: "sky130_fd_pr",
-      masterName: "sky130_fd_pr__pfet_01v8_lvt",
-      invocationKind: "external-subcircuit",
-      symbolId: "pmos",
-      deviceClass: "mos",
-      terminals: ["D", "G", "S", "B"].map((name) => ({
-        targetName: name,
-        pinName: name,
-        interaction: "canvas" as const,
-      })),
-      parameters: [
-        geometry("w", "W", "3u", "3", 1),
-        geometry("l", "L", "350n", "0.35", 0),
-        count("nf", "NF", "Finger count", 2),
-        count("m", "M", "ngspice X-line parallel multiplier", 3),
-      ],
-    },
-    {
-      id: "sky130-res-high-po",
-      libraryId: "sky130_fd_pr",
-      masterName: "sky130_fd_pr__res_high_po",
-      invocationKind: "external-subcircuit",
-      symbolId: "resistor",
-      deviceClass: "resistor",
-      terminals: [
-        { targetName: "R0", pinName: "1", interaction: "canvas" },
-        { targetName: "R1", pinName: "2", interaction: "canvas" },
-        {
-          targetName: "B",
-          pinName: "B",
-          interaction: "property",
-          role: "substrate",
-        },
-      ],
-      parameters: [
-        geometry("w", "W", "1u", "1", 0),
-        geometry("l", "L", "5.5u", "5.5", 1),
-        count("mult", "MULT", "SKY130 resistor wrapper multiplier", 2),
-      ],
-    },
-    {
-      id: "sky130-cap-mim-m3-1",
-      libraryId: "sky130_fd_pr",
-      masterName: "sky130_fd_pr__cap_mim_m3_1",
-      invocationKind: "external-subcircuit",
-      symbolId: "capacitor",
-      deviceClass: "capacitor",
-      terminals: [
-        { targetName: "C0", pinName: "1", interaction: "canvas" },
-        { targetName: "C1", pinName: "2", interaction: "canvas" },
-      ],
-      parameters: [
-        geometry("w", "W", "5u", "5", 0),
-        geometry("l", "L", "5u", "5", 1),
-        count("mf", "MF", "SKY130 MIM wrapper multiplicity", 2),
-      ],
-    },
+    sky130MosBinding(
+      "sky130-nfet-01v8",
+      "sky130_fd_pr__nfet_01v8",
+      "nmos",
+      "1u",
+      "150n",
+    ),
+    sky130MosBinding(
+      "sky130-pfet-01v8",
+      "sky130_fd_pr__pfet_01v8",
+      "pmos",
+      "1u",
+      "150n",
+    ),
+    sky130MosBinding(
+      "sky130-nfet-01v8-lvt",
+      "sky130_fd_pr__nfet_01v8_lvt",
+      "nmos",
+      "1.65u",
+      "150n",
+    ),
+    sky130MosBinding(
+      "sky130-pfet-01v8-lvt",
+      "sky130_fd_pr__pfet_01v8_lvt",
+      "pmos",
+      "3u",
+      "350n",
+    ),
+    sky130MosBinding(
+      "sky130-nfet-03v3-nvt",
+      "sky130_fd_pr__nfet_03v3_nvt",
+      "nmos",
+      "1u",
+      "500n",
+    ),
+    sky130MosBinding(
+      "sky130-nfet-05v0-nvt",
+      "sky130_fd_pr__nfet_05v0_nvt",
+      "nmos",
+      "1u",
+      "900n",
+    ),
+    sky130MosBinding(
+      "sky130-nfet-g5v0d10v5",
+      "sky130_fd_pr__nfet_g5v0d10v5",
+      "nmos",
+      "10u",
+      "500n",
+    ),
+    sky130MosBinding(
+      "sky130-pfet-01v8-hvt",
+      "sky130_fd_pr__pfet_01v8_hvt",
+      "pmos",
+      "1u",
+      "150n",
+    ),
+    sky130MosBinding(
+      "sky130-pfet-g5v0d10v5",
+      "sky130_fd_pr__pfet_g5v0d10v5",
+      "pmos",
+      "20u",
+      "500n",
+    ),
+    sky130ResistorBinding("sky130-res-high-po", "sky130_fd_pr__res_high_po"),
+    sky130ResistorBinding("sky130-res-xhigh-po", "sky130_fd_pr__res_xhigh_po"),
+    sky130MimCapBinding("sky130-cap-mim-m3-1", "sky130_fd_pr__cap_mim_m3_1"),
+    sky130MimCapBinding("sky130-cap-mim-m3-2", "sky130_fd_pr__cap_mim_m3_2"),
+    sky130VaractorBinding(),
+    sky130InductorBinding("sky130-ind-03-90", "sky130_fd_pr__ind_03_90"),
+    sky130InductorBinding("sky130-ind-05-125", "sky130_fd_pr__ind_05_125"),
+    sky130InductorBinding("sky130-ind-05-220", "sky130_fd_pr__ind_05_220"),
     {
       id: "sky130-pnp-05v5-w0p68l0p68",
       libraryId: "sky130_fd_pr",
@@ -276,49 +416,6 @@ export function reviewedExternalModelSuggestions(
   return reviewedExternalDeviceBindings
     .filter((binding) => binding.symbolId === symbolId)
     .map((binding) => binding.masterName);
-}
-
-const SPICE_SUFFIX: Readonly<Record<string, number>> = {
-  t: 1e12,
-  g: 1e9,
-  meg: 1e6,
-  k: 1e3,
-  m: 1e-3,
-  u: 1e-6,
-  n: 1e-9,
-  p: 1e-12,
-  f: 1e-15,
-  a: 1e-18,
-};
-
-function parseSpiceNumber(value: string): number {
-  const text = value.trim().toLowerCase();
-  const match = /^([+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?)\s*([a-z]*)$/u.exec(
-    text,
-  );
-  if (!match) throw new Error(`Geometry is not a SPICE number: ${value}`);
-  const magnitude = Number(match[1]);
-  const suffix = match[2] ?? "";
-  if (!Number.isFinite(magnitude)) {
-    throw new Error(`Geometry is not a SPICE number: ${value}`);
-  }
-  if (!suffix) return magnitude;
-  const known = suffix.startsWith("meg") ? "meg" : suffix[0]!;
-  const factor = SPICE_SUFFIX[known];
-  if (factor === undefined) {
-    throw new Error(`Geometry has an unknown SPICE suffix: ${value}`);
-  }
-  return magnitude * factor;
-}
-
-/** Canonical Project length (metres) to the reviewed SKY130 plain-um form. */
-export function projectLengthToSky130Micrometres(value: string): string {
-  const expression = parameterExpressionBody(value);
-  if (expression !== undefined) {
-    const inverse = /^\((.*)\) \* 1u$/u.exec(expression);
-    return inverse ? `{${inverse[1]}}` : `{(${expression}) / 1u}`;
-  }
-  return `${Number((parseSpiceNumber(value) / 1e-6).toPrecision(12))}`;
 }
 
 /** Reviewed SKY130 plain-um input to the canonical Project length spelling. */

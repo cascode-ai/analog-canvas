@@ -42,6 +42,11 @@
   background: var(--icm-surface);
 }
 
+.draw-toolbar-project-spacer {
+  flex: 1 1 auto;
+  min-width: var(--icm-space-2);
+}
+
 .draw-tool {
   display: inline-flex;
   align-items: center;
@@ -66,6 +71,23 @@
   background: var(--icm-accent-soft);
   color: var(--icm-accent);
   font-weight: 600;
+}
+
+.instant-toolbar-tooltip {
+  position: fixed;
+  z-index: 1000;
+  transform: translateX(-50%);
+  max-width: min(22rem, calc(100vw - 16px));
+  padding: 6px 9px;
+  border: 1px solid var(--icm-border-strong);
+  border-radius: var(--icm-radius-sm);
+  background: var(--icm-surface);
+  color: var(--icm-text);
+  box-shadow: var(--icm-shadow-md);
+  font-size: var(--icm-font-sm);
+  line-height: var(--icm-line-tight);
+  pointer-events: none;
+  white-space: nowrap;
 }
 
 .toolbar-group {
@@ -191,19 +213,27 @@
   display: grid;
   gap: 8px;
 }
-.netlist-profile-code h2 {
-  font-size: 14px;
-  margin: 0;
-}
-.netlist-code-header {
-  display: flex;
+.netlist-code-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 0.7fr) minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
   gap: 8px;
 }
-.netlist-code-header select {
+.netlist-code-controls label,
+.netlist-device-mapping label {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
   min-width: 0;
-  max-width: 70%;
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
+  font-weight: 600;
+}
+.netlist-code-controls select,
+.netlist-device-mapping select {
+  min-width: 0;
+  width: 100%;
   padding: 4px 24px 4px 8px;
   border: 1px solid var(--icm-border);
   border-radius: 6px;
@@ -211,25 +241,113 @@
   color: var(--icm-text);
   font: inherit;
 }
+.netlist-code-controls button {
+  min-height: 30px;
+}
+.netlist-code-copy {
+  display: inline-grid;
+  width: 30px;
+  padding: 5px;
+  place-items: center;
+}
+.netlist-code-copy svg {
+  width: 18px;
+  height: 18px;
+}
+.netlist-default-action {
+  min-height: 30px;
+  min-width: 76px;
+}
 .netlist-profile-code p {
   font-size: 12px;
   color: var(--icm-text-dim);
 }
-.netlist-profile-code textarea {
+.project-source-editor,
+.project-code-panel > textarea,
+.netlist-profile-code > textarea,
+.netlist-code-viewport > textarea {
   width: 100%;
-  min-height: 60dvh;
-  resize: vertical;
+  height: 60dvh;
+  min-height: 24rem;
   box-sizing: border-box;
-  padding: 10px;
+  overflow: hidden;
   border: 1px solid var(--icm-border);
   border-radius: 6px;
   background: var(--icm-surface);
   color: var(--icm-text);
-  font: 12px/1.6 monospace;
+  font: 12px/1.6 var(--font-mono);
   tab-size: 2;
 }
-.netlist-profile-code textarea[aria-invalid="true"] {
-  border-color: #c44;
+.project-code-panel > textarea,
+.netlist-profile-code > textarea,
+.netlist-code-viewport > textarea {
+  padding: 10px;
+  resize: vertical;
+}
+.project-source-editor[data-invalid="true"],
+.project-code-panel > textarea[aria-invalid="true"],
+.netlist-profile-code > textarea[aria-invalid="true"],
+.netlist-code-viewport > textarea[aria-invalid="true"] {
+  border-color: var(--icm-error);
+}
+.project-source-editor:focus-within {
+  border-color: var(--icm-accent);
+  outline: 2px solid var(--icm-accent-soft);
+  outline-offset: 0;
+}
+.project-source-editor[data-invalid="true"]:focus-within {
+  border-color: var(--icm-error);
+}
+.project-source-editor .cm-editor {
+  height: 100%;
+  border-radius: inherit;
+  background: transparent;
+}
+.project-source-editor .cm-editor.cm-focused {
+  outline: none;
+}
+.project-source-editor .cm-scroller {
+  overflow: auto;
+  font-family: inherit;
+  line-height: 1.6;
+}
+.project-source-editor .cm-gutters {
+  border-right: 1px solid var(--icm-border);
+  background: var(--icm-surface-muted);
+  color: var(--icm-text-muted);
+}
+.project-source-editor .cm-lineNumbers .cm-gutterElement {
+  min-width: 2.25rem;
+  padding: 0 9px 0 6px;
+}
+.project-source-editor .cm-content {
+  padding: 10px 0;
+  caret-color: var(--icm-text);
+}
+.project-source-editor .cm-line {
+  padding: 0 12px 0 10px;
+}
+.project-source-editor .cm-activeLine,
+.project-source-editor .cm-activeLineGutter {
+  background: color-mix(in srgb, var(--icm-accent) 7%, transparent);
+}
+.netlist-code-viewport {
+  min-height: 0;
+}
+.netlist-code-viewport > .project-source-editor,
+.netlist-code-viewport > textarea {
+  height: var(--netlist-editor-height);
+  min-height: 0;
+}
+.netlist-device-mapping {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: center;
+  gap: 8px;
+  padding-top: 2px;
+}
+.netlist-device-mapping select {
+  font-family: var(--font-mono);
 }
 
 .netlist-preflight-header p,
@@ -463,10 +581,6 @@
 .netlist-extension {
   color: var(--icm-text-muted);
   font-size: var(--icm-font-xs);
-}
-
-.netlist-copy > .netlist-format {
-  display: inline;
 }
 
 .netlist-extension {

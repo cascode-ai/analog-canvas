@@ -31,8 +31,8 @@
       "apps/editor/e2e/drafting.spec.ts",
       "apps/editor/e2e/instance-table.spec.ts",
       "apps/editor/e2e/manual-editor.spec.ts",
-      "apps/editor/e2e/netlist-conversion.spec.ts",
-      "apps/editor/e2e/reference-label.spec.ts"
+      "apps/editor/e2e/reference-label.spec.ts",
+      "apps/editor/e2e/manual-editor-fixtures.ts"
     ],
     "editorCommands": [
       "apps/editor/src/app/editor-transaction-commands*",
@@ -201,7 +201,7 @@
       "packages/exporters/**",
       "worker/index.ts",
       "worker/index.test.ts",
-      "worker/analytics.ts",
+      "apps/editor/analytics/worker.ts",
       "wrangler.jsonc"
     ],
     "gateContract": [
@@ -217,6 +217,45 @@
       "scripts/lib/test-impact*.mjs",
       "scripts/lib/ci-validation-plan*.mjs",
       "scripts/lib/validation-gates*.mjs"
+    ],
+    "editorProperties": [
+      "apps/editor/src/app/**",
+      "apps/editor/src/canvas/**",
+      "apps/editor/src/commands/**",
+      "apps/editor/src/interaction/**",
+      "apps/editor/src/presentation/**",
+      "apps/editor/src/snap/**",
+      "apps/editor/src/features/clipboard/**",
+      "apps/editor/src/features/drafting/**",
+      "apps/editor/src/features/instance-display/**",
+      "apps/editor/src/features/netlist-export/**",
+      "apps/editor/src/features/properties/**",
+      "apps/editor/src/features/search/**",
+      "apps/editor/src/features/selection/**",
+      "apps/editor/src/features/text-editing/**",
+      "apps/editor/src/features/component-insert/**",
+      "apps/editor/e2e/component-property-workflows.spec.ts",
+      "apps/editor/e2e/manual-editor-fixtures.ts"
+    ],
+    "editorNetlist": [
+      "apps/editor/src/app/**",
+      "apps/editor/src/canvas/**",
+      "apps/editor/src/commands/**",
+      "apps/editor/src/interaction/**",
+      "apps/editor/src/presentation/**",
+      "apps/editor/src/snap/**",
+      "apps/editor/src/features/clipboard/**",
+      "apps/editor/src/features/drafting/**",
+      "apps/editor/src/features/instance-display/**",
+      "apps/editor/src/features/netlist-export/**",
+      "apps/editor/src/features/properties/**",
+      "apps/editor/src/features/search/**",
+      "apps/editor/src/features/selection/**",
+      "apps/editor/src/features/text-editing/**",
+      "apps/editor/src/document/**",
+      "apps/editor/e2e/netlist-workflows.spec.ts",
+      "apps/editor/e2e/netlist-conversion.spec.ts",
+      "apps/editor/e2e/manual-editor-fixtures.ts"
     ]
   },
   "gates": [
@@ -366,8 +405,7 @@
         "pnpm",
         "test:e2e:local",
         "apps/editor/e2e/bound-label-mirror.spec.ts",
-        "apps/editor/e2e/manual-editor.spec.ts",
-        "apps/editor/e2e/netlist-conversion.spec.ts"
+        "apps/editor/e2e/manual-editor.spec.ts"
       ],
       "ci": {
         "e2eArgs": [
@@ -375,9 +413,40 @@
           "apps/editor/e2e/manual-editor.spec.ts",
           "apps/editor/e2e/drafting.spec.ts",
           "apps/editor/e2e/instance-table.spec.ts",
-          "apps/editor/e2e/netlist-conversion.spec.ts",
           "apps/editor/e2e/reference-label.spec.ts"
         ]
+      }
+    },
+    {
+      "id": "editor-netlist-browser",
+      "stage": "affected",
+      "groups": ["editorNetlist"],
+      "description": "Validate netlist authoring, import, conversion and export workflows.",
+      "command": [
+        "pnpm",
+        "test:e2e:local",
+        "apps/editor/e2e/netlist-workflows.spec.ts",
+        "apps/editor/e2e/netlist-conversion.spec.ts"
+      ],
+      "ci": {
+        "e2eArgs": [
+          "apps/editor/e2e/netlist-workflows.spec.ts",
+          "apps/editor/e2e/netlist-conversion.spec.ts"
+        ]
+      }
+    },
+    {
+      "id": "editor-properties-browser",
+      "stage": "affected",
+      "groups": ["editorProperties"],
+      "description": "Validate live component property editing, models, display and history.",
+      "command": [
+        "pnpm",
+        "test:e2e:local",
+        "apps/editor/e2e/component-property-workflows.spec.ts"
+      ],
+      "ci": {
+        "e2eArgs": ["apps/editor/e2e/component-property-workflows.spec.ts"]
       }
     },
     {
@@ -573,7 +642,9 @@
         "empty-label-ghost-browser",
         "symbol-body-text-browser",
         "release-verification",
-        "branch-verification"
+        "branch-verification",
+        "editor-properties-browser",
+        "editor-netlist-browser"
       ]
     }
   ],

@@ -268,14 +268,27 @@ because the run started or a source Project was exported.
 
 ## HTTP client responsibilities
 
-HTTP has the same server validation and permissions, not MCP's local helper.
+HTTP uses the same server validation and permissions. The version-pinned package
+in the MCP bootstrap manifest also runs without an MCP host: execute its binary
+with --http followed by a published tool name (connect, connection_status,
+get_context, etc.), supplying that tool's JSON arguments on standard input.
+Use --http list-tools to read the exact argument schemas, and --http resource
+with a resource URI on standard input for quickstart and authoring references.
+This is a local entry into the same AgentSessionClient and tool handlers, not
+another network protocol; no host installation or restart is required.
+Set ANALOG_CANVAS_API_URL to this exact server. The default connector file is
+isolated by origin; ANALOG_CANVAS_MCP_CONNECTOR overrides a file path, never a token.
+For caller-managed exact retries, --http circuit accepts the published Circuit
+request unchanged, including its requestId and transactionId. Keep that request
+before sending; after an uncertain process exit retry it unchanged, never repeat
+a higher-level write tool that would allocate a new ID.
 Keep bearers in memory and connectors in private credential storage. Resume
 through the server even if a saved connector deadline is stale; browser activity
 may have renewed it. Respect terminal revocation/expiry. Retry uncertain writes
 only with the identical request ID and payload; honor Retry-After for 429 with
 bounded retries. Verify artifact byte length and SHA-256 before saving downloads.
-Reuse an available trusted client rather than rebuilding this logic each turn;
-the Kit is operating material, not an installed HTTP client executable.
+Reuse this shared client rather than rebuilding lifecycle logic each turn.
+Raw HTTP clients remain supported by the same published OpenAPI.
 `,
     },
     {

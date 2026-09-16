@@ -1,11 +1,12 @@
-import type { Ref } from "react";
 import type { MosBulkResolution } from "@icm/derived";
+import type { Annotation, SchematicDocument } from "@icm/model";
 
-import { ColorOverrideControl } from "../properties/color-override-control";
 import {
   GroupPropertyCodeEditor,
   type GroupPropertyCodeEditorProps,
 } from "../properties/group-property-code-editor";
+import { RoutePropertyCodeEditor } from "../properties/route-property-code-editor";
+import type { RoutePropertyCodeValue } from "../properties/route-property-code";
 import { ToolIcon } from "../editor-shell/tool-icon";
 
 export function MosBulkConnectionSection({
@@ -127,42 +128,28 @@ export function GroupPropertiesSection({
 
 export function RouteActionsSection({
   active,
-  bulkOwnerLabel,
-  netLabelInputRef,
+  document,
+  route,
   netLabel,
-  color,
-  arrow,
-  lineStyle,
+  bulkOwnerLabel,
   defaultColor,
   highlightActive,
-  onNetLabelChange,
-  onColorChange,
-  onArrowChange,
-  onLineStyleChange,
-  onDeleteNetLabel,
-  onAddCurrentArrow,
+  onApply,
   onToggleHighlight,
   onDeleteWire,
 }: {
   active: boolean;
+  document: SchematicDocument;
+  route: SchematicDocument["routes"][number] | null;
+  netLabel: Annotation | null;
   bulkOwnerLabel?: string | null;
-  netLabelInputRef: Ref<HTMLInputElement>;
-  netLabel: string;
-  color: string | undefined;
-  arrow: "middle" | "end" | undefined;
-  lineStyle?: "solid" | "dashed" | "dotted" | undefined;
   defaultColor: string;
   highlightActive: boolean;
-  onNetLabelChange: (value: string) => void;
-  onColorChange: (value: string | undefined) => void;
-  onArrowChange: (value: "middle" | "end" | undefined) => void;
-  onLineStyleChange: (value: "solid" | "dashed" | "dotted") => void;
-  onDeleteNetLabel: () => void;
-  onAddCurrentArrow: () => void;
+  onApply: (value: RoutePropertyCodeValue) => { ok: boolean; message?: string };
   onToggleHighlight: () => void;
   onDeleteWire: () => void;
 }) {
-  if (!active) return null;
+  if (!active || !route) return null;
   if (bulkOwnerLabel) {
     return (
       <section className="context-actions" aria-label="MOS bulk route actions">
@@ -178,68 +165,26 @@ export function RouteActionsSection({
   }
   return (
     <section className="context-actions" aria-label="Route actions">
-      <h2>Electrical route</h2>
-      <label>
-        Electrical Net label
-        <input
-          ref={netLabelInputRef}
-          aria-label="Electrical Net label"
-          value={netLabel}
-          onChange={(event) => onNetLabelChange(event.currentTarget.value)}
-        />
-      </label>
-      <button type="button" onClick={onDeleteNetLabel}>
-        Delete Net label
-      </button>
-      <ColorOverrideControl
-        label="Wire color"
-        value={color}
-        fallback={defaultColor}
-        onChange={onColorChange}
+      <RoutePropertyCodeEditor
+        key={route.id}
+        document={document}
+        route={route}
+        netLabel={netLabel}
+        defaultColor={defaultColor}
+        onApply={onApply}
+        actions={
+          <div className="route-property-code-actions">
+            <button type="button" onClick={onToggleHighlight}>
+              {highlightActive
+                ? "Clear Net highlight (H)"
+                : "Highlight Net (H)"}
+            </button>
+            <button type="button" onClick={onDeleteWire}>
+              Delete wire
+            </button>
+          </div>
+        }
       />
-      <label>
-        Line style
-        <select
-          aria-label="Wire line style"
-          value={lineStyle ?? "solid"}
-          onChange={(event) =>
-            onLineStyleChange(
-              event.currentTarget.value as "solid" | "dashed" | "dotted",
-            )
-          }
-        >
-          <option value="solid">Solid</option>
-          <option value="dashed">Dashed</option>
-          <option value="dotted">Dotted</option>
-        </select>
-      </label>
-      <label>
-        Direction arrow
-        <select
-          aria-label="Wire direction arrow"
-          value={arrow ?? "none"}
-          onChange={(event) =>
-            onArrowChange(
-              event.currentTarget.value === "none"
-                ? undefined
-                : (event.currentTarget.value as "middle" | "end"),
-            )
-          }
-        >
-          <option value="none">No arrow</option>
-          <option value="middle">Arrow at middle</option>
-          <option value="end">Arrow at end</option>
-        </select>
-      </label>
-      <button type="button" onClick={onAddCurrentArrow}>
-        Add current arrow
-      </button>
-      <button type="button" onClick={onToggleHighlight}>
-        {highlightActive ? "Clear Net highlight (H)" : "Highlight Net (H)"}
-      </button>
-      <button type="button" onClick={onDeleteWire}>
-        Delete wire
-      </button>
     </section>
   );
 }
@@ -297,13 +242,11 @@ export function EndpointActionsSection({
 export function AnnotationActionsSection({
   kind,
   highlightActive,
-  onReverseCurrentArrow,
   onDeleteCurrentArrow,
   onToggleHighlight,
 }: {
   kind: "current-arrow" | "net-label" | null;
   highlightActive: boolean;
-  onReverseCurrentArrow: () => void;
   onDeleteCurrentArrow: () => void;
   onToggleHighlight: () => void;
 }) {
@@ -311,10 +254,7 @@ export function AnnotationActionsSection({
     return (
       <section className="context-actions" aria-label="Current arrow actions">
         <h2>Current arrow</h2>
-        <button type="button" onClick={onReverseCurrentArrow}>
-          Reverse direction (X)
-        </button>
-        <small>Drag to slide along the wire or move its label.</small>
+        <small>This legacy annotation can be removed from the drawing.</small>
         <button type="button" onClick={onDeleteCurrentArrow}>
           Delete current arrow
         </button>

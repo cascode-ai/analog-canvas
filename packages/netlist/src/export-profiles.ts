@@ -25,6 +25,122 @@ export const NETLIST_PROFILE_LABELS = {
   tsmc180: "TSMC 180",
   custom: "Custom",
 } as const;
+export const NETLIST_QUICK_TARGET_FAMILIES = [
+  "nmos",
+  "pmos",
+  "resistor",
+  "capacitor",
+  "inductor",
+] as const;
+export type NetlistQuickTargetFamily =
+  (typeof NETLIST_QUICK_TARGET_FAMILIES)[number];
+
+const SKY130_QUICK_TARGETS = {
+  sky130: {
+    nmos: [
+      "sky130_fd_pr__nfet_01v8",
+      "sky130_fd_pr__nfet_01v8_lvt",
+      "sky130_fd_pr__nfet_03v3_nvt",
+      "sky130_fd_pr__nfet_05v0_nvt",
+      "sky130_fd_pr__nfet_g5v0d10v5",
+    ],
+    pmos: [
+      "sky130_fd_pr__pfet_01v8",
+      "sky130_fd_pr__pfet_01v8_lvt",
+      "sky130_fd_pr__pfet_01v8_hvt",
+      "sky130_fd_pr__pfet_g5v0d10v5",
+    ],
+    resistor: ["", "sky130_fd_pr__res_high_po", "sky130_fd_pr__res_xhigh_po"],
+    capacitor: [
+      "",
+      "sky130_fd_pr__cap_mim_m3_1",
+      "sky130_fd_pr__cap_mim_m3_2",
+      "sky130_fd_pr__cap_var_lvt",
+    ],
+    inductor: [
+      "",
+      "sky130_fd_pr__ind_03_90",
+      "sky130_fd_pr__ind_05_125",
+      "sky130_fd_pr__ind_05_220",
+    ],
+  },
+} as const;
+
+export const NETLIST_DEVICE_TARGET_OPTIONS: Readonly<
+  Record<
+    NetlistProfileId,
+    Readonly<Record<NetlistQuickTargetFamily, readonly string[]>>
+  >
+> = {
+  abstract: {
+    nmos: ["NMOS"],
+    pmos: ["PMOS"],
+    resistor: [""],
+    capacitor: [""],
+    inductor: [""],
+  },
+  ...SKY130_QUICK_TARGETS,
+  tsmc28: {
+    nmos: [
+      "nch_ulvt_mac",
+      "nch_lvt_mac",
+      "nch_mac",
+      "nch_hvt_mac",
+      "nch_ehvt_mac",
+      "nch_18_mac",
+    ],
+    pmos: [
+      "pch_ulvt_mac",
+      "pch_lvt_mac",
+      "pch_mac",
+      "pch_ehvt_mac",
+      "pch_18_mac",
+    ],
+    resistor: [""],
+    capacitor: [""],
+    inductor: [""],
+  },
+  tsmc180: {
+    nmos: ["nch", "nch_mac"],
+    pmos: ["pch", "pch_mac"],
+    resistor: [""],
+    capacitor: [""],
+    inductor: [""],
+  },
+  custom: {
+    nmos: [
+      "NMOS",
+      "sky130_fd_pr__nfet_01v8",
+      "sky130_fd_pr__nfet_01v8_lvt",
+      "sky130_fd_pr__nfet_03v3_nvt",
+      "sky130_fd_pr__nfet_05v0_nvt",
+      "sky130_fd_pr__nfet_g5v0d10v5",
+      "nch_ulvt_mac",
+      "nch_lvt_mac",
+      "nch_mac",
+      "nch_hvt_mac",
+      "nch_ehvt_mac",
+      "nch_18_mac",
+      "nch",
+    ],
+    pmos: [
+      "PMOS",
+      "sky130_fd_pr__pfet_01v8",
+      "sky130_fd_pr__pfet_01v8_lvt",
+      "sky130_fd_pr__pfet_01v8_hvt",
+      "sky130_fd_pr__pfet_g5v0d10v5",
+      "pch_ulvt_mac",
+      "pch_lvt_mac",
+      "pch_mac",
+      "pch_ehvt_mac",
+      "pch_18_mac",
+      "pch",
+    ],
+    resistor: [...SKY130_QUICK_TARGETS.sky130.resistor],
+    capacitor: [...SKY130_QUICK_TARGETS.sky130.capacitor],
+    inductor: [...SKY130_QUICK_TARGETS.sky130.inductor],
+  },
+};
 export const NETLIST_DEVICE_FAMILIES = [
   "nmos",
   "pmos",
@@ -136,7 +252,8 @@ export function createNetlistExportProfile(
             (foundryProfile ? undefined : GENERIC_TARGETS[family]) ??
             "",
           parameters,
-          substrate: family === "pmos" ? "VDD" : "0",
+          substrate:
+            family === "pmos" ? "VDD" : family === "nmos" ? "VSS" : "0",
         },
       ];
     }),
@@ -233,8 +350,6 @@ function matchingBinding(project: CircuitProject, instance: Instance) {
 export interface ProfiledNetlistProject {
   project: CircuitProject;
   diagnostics: NetlistDiagnostic[];
-  /** Open SKY130 wrappers use the SPICE dialect, also inside .scs files. */
-  spiceLibraryDialect: boolean;
 }
 
 /** Apply an explicit export preset only to a copy; no persisted topology edits. */
@@ -245,7 +360,6 @@ export function projectNetlistExportProfile(
 ): ProfiledNetlistProject {
   const project = structuredClone(source);
   const diagnostics: NetlistDiagnostic[] = [];
-  let spiceLibraryDialect = profile?.id === "sky130";
   const add = (
     document: SchematicDocument,
     instance: Instance | undefined,
@@ -271,7 +385,7 @@ export function projectNetlistExportProfile(
       "Correct the netlist defaults or library settings before downloading.",
       "error",
     );
-    return { project, diagnostics, spiceLibraryDialect };
+    return { project, diagnostics };
   }
   const projections = deriveProjectNetNameProjection({
     ...project,
@@ -445,7 +559,6 @@ export function projectNetlistExportProfile(
         continue;
       }
       if (reviewed) {
-        spiceLibraryDialect = true;
         const defaults =
           preserveTarget && target !== rule.target
             ? Object.fromEntries(
@@ -459,13 +572,13 @@ export function projectNetlistExportProfile(
           if (allowed.has(key.toLowerCase()) || current) continue;
           if (
             key.toLowerCase() === "value" &&
-            ["resistor", "capacitor"].includes(family)
+            ["resistor", "capacitor", "inductor"].includes(family)
           ) {
             add(
               document,
               instance,
               "EXPORT_PHYSICAL_PASSIVE",
-              `${instance.reference}: physical ${family} uses W/L; the ideal value ${data.parameters[key]} is not converted.`,
+              `${instance.reference}: the selected physical ${family} has its own PDK geometry; the ideal value ${data.parameters[key]} is not converted.`,
             );
             delete data.parameters[key];
           } else {
@@ -562,6 +675,21 @@ export function projectNetlistExportProfile(
             )
           )
             continue;
+          if (pin.role === "floating") {
+            let id = `export-floating-${instance.id}-${pin.pinName}`;
+            while (document.nets.some((net) => net.id === id)) id += "-new";
+            document.nets.push({
+              id,
+              terminals: [{ instanceId: instance.id, pinName: pin.pinName }],
+            });
+            add(
+              document,
+              instance,
+              "EXPORT_FLOATING_TERMINAL_DEFAULT",
+              `${instance.reference}.${pin.pinName} uses an isolated internal Net (preset default).`,
+            );
+            continue;
+          }
           const matched = substrateNets.get(rule.substrate.toLowerCase());
           let net = document.nets.find((n) => n.id === matched);
           if (!net && rule.substrate === "0") {
@@ -664,5 +792,5 @@ export function projectNetlistExportProfile(
         );
     }
   }
-  return { project, diagnostics, spiceLibraryDialect };
+  return { project, diagnostics };
 }

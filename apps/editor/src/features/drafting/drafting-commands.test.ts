@@ -37,14 +37,9 @@ describe("drafting commands", () => {
       },
       selectedDrafting: primary,
       inspectorSegment: null,
-      selectedRoute: undefined,
-      selectedRouteSegmentIndex: null,
-      routeGeometryRecords: [],
       transact,
       setStatus: vi.fn(),
-      nextId: () => "unused",
       beginTextPlacement: vi.fn(),
-      selectAnnotation: vi.fn(),
     });
     const outline = ARROW_PRESETS.find((p) => p.id === "outline-end")!;
     commands.setArrowPreset(outline);
@@ -90,14 +85,9 @@ describe("drafting commands", () => {
       },
       selectedDrafting: undefined,
       inspectorSegment: null,
-      selectedRoute: undefined,
-      selectedRouteSegmentIndex: null,
-      routeGeometryRecords: [],
       transact,
       setStatus,
-      nextId: () => "note-1",
       beginTextPlacement,
-      selectAnnotation: vi.fn(),
     });
 
     commands.addPlainText();
@@ -147,14 +137,9 @@ describe("drafting commands", () => {
       },
       selectedDrafting: shape,
       inspectorSegment: null,
-      selectedRoute: undefined,
-      selectedRouteSegmentIndex: null,
-      routeGeometryRecords: [],
       transact,
       setStatus: vi.fn(),
-      nextId: () => "unused",
       beginTextPlacement: vi.fn(),
-      selectAnnotation: vi.fn(),
     });
 
     commands.setDraftingStacking("back");

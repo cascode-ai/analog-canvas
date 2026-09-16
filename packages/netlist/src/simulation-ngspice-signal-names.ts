@@ -34,6 +34,12 @@ export function ngspiceSignals(
   selectedScope?: import("@icm/model").SimulationCircuitScope,
 ): Record<string, { label: string; targets: NgspiceSignalTarget[] }> {
   const graph = inspectSimulationSourceGraph(input);
+  const authoredNetIds = new Map(
+    project.documents.map((document) => [
+      document.id,
+      new Set(document.nets.map((net) => net.id)),
+    ]),
+  );
   const labels = new Map<string, Set<string>>();
   const targets = new Map<string, NgspiceSignalTarget[]>();
   for (const binding of input.circuitBindings) {
@@ -74,6 +80,7 @@ export function ngspiceSignals(
               net.scope === "global" ? net.name : [...path, net.name].join("."),
             );
           local.set(key, node);
+          if (!authoredNetIds.get(cell.id)?.has(net.id)) continue;
           const vector = `v(${node})`.toLowerCase();
           const name = [...scope.callPath, ...path, net.name].join("/");
           const names = labels.get(vector) ?? new Set<string>();

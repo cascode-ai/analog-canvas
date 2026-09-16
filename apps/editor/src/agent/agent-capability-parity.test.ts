@@ -358,7 +358,7 @@ describe("MCP → API → shared editor parity", () => {
           (annotation) => annotation.id === "instance-master-xdut",
         )!.content!,
       ),
-    ).toBe("Main");
+    ).toBe("dut");
     expect(controller.resolver.resolve(instance.symbolId)).toBeTruthy();
     expect(
       (await client.applyActions([{ kind: "undo" }], { documentId: "tb" })).ok,

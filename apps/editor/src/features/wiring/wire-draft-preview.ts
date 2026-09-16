@@ -11,12 +11,14 @@ import {
   type WireSource,
 } from "@icm/edit-engine";
 import { routeEnd, type Point, type SchematicDocument } from "@icm/model";
+import type { SymbolResolver } from "@icm/symbols";
 
 import {
   freeWireDraftTarget,
   type WireDraftTarget,
 } from "../../interaction/interaction-state";
 import type { WireCanvasSnapResult } from "./wire-canvas-snap";
+import { automaticWireDraftSteps } from "./automatic-wire-routing";
 
 /** Identity for the anchors a target may have to create. */
 export interface WireDraftTargetIds {
@@ -171,6 +173,7 @@ export const EMPTY_WIRE_DRAFT_PREVIEW: WireDraftPreview = {
 
 export interface WireDraftPreviewInput {
   document: SchematicDocument;
+  resolver: SymbolResolver;
   source: WireSource;
   target: WireDraftTarget;
   steps: readonly WireDraftStep[];
@@ -261,6 +264,7 @@ function proposedWireGeometry(
  */
 export function resolveWireDraftPreview({
   document,
+  resolver,
   source,
   target,
   steps,
@@ -275,18 +279,27 @@ export function resolveWireDraftPreview({
     () => PREVIEW_TARGET_IDS,
   );
   if (!to) return EMPTY_WIRE_DRAFT_PREVIEW;
+  const plannedSteps = automaticWireDraftSteps(
+    document,
+    resolver,
+    source,
+    to,
+    steps,
+    routingMode,
+    cornerOrder,
+  );
   const contacts = wirePassThroughContacts(visibleEndpoints, {
     from: source,
     to,
-    steps,
+    steps: plannedSteps,
   });
   const proposal = proposeWireCommitThroughContacts(
     source,
     to,
-    steps.map((step) => step.point),
+    plannedSteps.map((step) => step.point),
     contacts,
     PREVIEW_IDS,
-    { steps, routingMode, cornerOrder },
+    { steps: plannedSteps, routingMode, cornerOrder },
   );
   return proposedWireGeometry(proposal.edits, [source, to, ...contacts]);
 }

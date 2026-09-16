@@ -661,7 +661,6 @@ function terminalNetName(
   pinName: string,
   context: CellNetContext,
   diagnostics: NetlistDiagnostic[],
-  implicitName?: string,
 ): string | null {
   const net = context.netByTerminal.get(`${instance.id}\u0000${pinName}`);
   const name = net ? context.nameByNetId.get(net.id) : undefined;
@@ -670,17 +669,8 @@ function terminalNetName(
   );
   if (noConnectName) return noConnectName;
   if (name) return name;
-  if (!net && implicitName) {
-    const existing = context.nets.find(
-      (candidate) =>
-        candidate.name.toLowerCase() === implicitName.toLowerCase(),
-    );
-    if (existing) return existing.name;
-    let id = `implicit-mos-bulk-${implicitName === "0" ? "ground" : implicitName.toLowerCase()}`;
-    while (context.nets.some((candidate) => candidate.id === id)) id += "-new";
-    context.nets.push({ id, name: implicitName, scope: "global" });
-    return implicitName;
-  }
+  // Missing connectivity is an error, not permission to infer a supply from
+  // device polarity or a matching Net name elsewhere in the Cell.
   if (!name) {
     diagnostic(
       diagnostics,
@@ -692,15 +682,6 @@ function terminalNetName(
     return null;
   }
   return name;
-}
-
-function implicitMosBulkNetName(
-  instance: Instance,
-  pinName: string,
-): "0" | "VDD" | undefined {
-  if (pinName.toLowerCase() !== "b") return undefined;
-  const bulkClass = deviceDescriptor(instance.symbolId)?.mosBulkClass;
-  return bulkClass === "nmos" ? "0" : bulkClass === "pmos" ? "VDD" : undefined;
 }
 
 function extractHierarchyInstance(
@@ -750,6 +731,7 @@ function extractHierarchyInstance(
     child.netlist.formalParameters,
     diagnostics,
   );
+  // Callers and definitions share the authored interface, including its order.
   const nodes = projectCellInterface(child.netlist).ports.flatMap((port) => {
     const netName = terminalNetName(
       document,
@@ -825,7 +807,6 @@ function extractExternalSubcircuitInstance(
   instance: Instance,
   definition: ExternalSubcircuitDefinition | undefined,
   context: CellNetContext,
-  options: ResolvedDesignNetlistAnalysisOptions,
   diagnostics: NetlistDiagnostic[],
 ): DesignNetlistInstance | null {
   const netlist = instance.netlist;
@@ -932,7 +913,6 @@ function extractExternalSubcircuitInstance(
       terminal.pinName,
       context,
       diagnostics,
-      implicitMosBulkNetName(instance, terminal.pinName),
     );
     return netName ? [{ pinName: terminal.targetName, netName }] : [];
   });
@@ -948,16 +928,6 @@ function extractExternalSubcircuitInstance(
             if (!entry) return [];
             let rawValue = entry[1];
             if (parameter.targetUnit === "micrometre") {
-              if (options.format !== "spice") {
-                diagnostic(
-                  diagnostics,
-                  document.id,
-                  "UNSUPPORTED_REVIEWED_BINDING_DIALECT",
-                  `${reviewed.masterName} geometry projection is reviewed only for SPICE/ngspice`,
-                  [instance.id],
-                );
-                return [];
-              }
               try {
                 rawValue = projectLengthToSky130Micrometres(rawValue);
               } catch (error) {
@@ -1168,7 +1138,6 @@ function extractDeviceInstance(
       pinName,
       context,
       diagnostics,
-      implicitMosBulkNetName(instance, pinName),
     );
     return netName ? [{ pinName, netName }] : [];
   });
@@ -1272,43 +1241,44 @@ function extractCell(
     diagnostics,
   );
   const interfaceProjection = projectCellInterface(document.netlist);
-  const ports = interfaceProjection.ports.flatMap((port) => {
-    let hasMissingNet = false;
-    for (const netId of port.netIds) {
-      if (document.nets.some((candidate) => candidate.id === netId)) continue;
-      hasMissingNet = true;
-      diagnostic(
-        diagnostics,
-        document.id,
-        "MISSING_INTERFACE_NET",
-        `Netlist terminal ${port.name} references unknown Net ${netId}`,
-        [netId],
+  const ports: DesignNetlistCell["ports"] = interfaceProjection.ports.flatMap(
+    (port) => {
+      let hasMissingNet = false;
+      for (const netId of port.netIds) {
+        if (document.nets.some((candidate) => candidate.id === netId)) continue;
+        hasMissingNet = true;
+        diagnostic(
+          diagnostics,
+          document.id,
+          "MISSING_INTERFACE_NET",
+          `Netlist terminal ${port.name} references unknown Net ${netId}`,
+          [netId],
+        );
+      }
+      if (hasMissingNet) return [];
+      const logicalNet = resolveDocumentLogicalNets(document).byBaseNetId.get(
+        port.netIds[0]!,
       );
-    }
-    if (hasMissingNet) return [];
-    const logicalNet = resolveDocumentLogicalNets(document).byBaseNetId.get(
-      port.netIds[0]!,
-    );
-    const encodedPort = encodeCandidate(
-      port.name,
-      logicalNet?.scope ?? "local",
-      options,
-    );
-    if (!encodedPort.ok) {
-      diagnostic(
-        diagnostics,
-        document.id,
-        encodedPort.code,
-        `Port ${port.name} cannot be encoded for ${options.format}: ${encodedPort.message}`,
-        [...port.netIds],
+      const encodedPort = encodeCandidate(
+        port.name,
+        logicalNet?.scope ?? "local",
+        options,
       );
-      return [];
-    }
-    const representativeNetId = port.netIds[0]!;
-    const netName = context.nameByNetId.get(representativeNetId) ?? port.name;
-    return [{ id: representativeNetId, name: encodedPort.token, netName }];
-  });
-
+      if (!encodedPort.ok) {
+        diagnostic(
+          diagnostics,
+          document.id,
+          encodedPort.code,
+          `Port ${port.name} cannot be encoded for ${options.format}: ${encodedPort.message}`,
+          [...port.netIds],
+        );
+        return [];
+      }
+      const representativeNetId = port.netIds[0]!;
+      const netName = context.nameByNetId.get(representativeNetId) ?? port.name;
+      return [{ id: representativeNetId, name: encodedPort.token, netName }];
+    },
+  );
   const referenceIndex = createReferenceIndex(document);
   const reportedDuplicateReferences = new Set<string>();
   for (const issue of referenceIndex.issues) {
@@ -1372,7 +1342,6 @@ function extractCell(
                 (definition) => definition.id === binding.definitionId,
               ),
               context,
-              options,
               diagnostics,
             )
           : extractDeviceInstance(document, instance, context, diagnostics);

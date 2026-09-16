@@ -1,4 +1,8 @@
-import type { PointerEvent as ReactPointerEvent, ReactNode } from "react";
+import type {
+  MouseEvent as ReactMouseEvent,
+  PointerEvent as ReactPointerEvent,
+  ReactNode,
+} from "react";
 
 import {
   derivePowerRailComponent,
@@ -9,12 +13,19 @@ import {
 } from "@icm/derived";
 import type { WireSource } from "@icm/edit-engine";
 import {
+  mirrorScale,
   routeEnd,
   type Annotation,
   type RouteBranch,
   type SchematicDocument,
 } from "@icm/model";
-import type { SymbolResolver } from "@icm/symbols";
+import {
+  getRazaviCatalogEntry,
+  resolveAdaptiveSignalFlowBlockLayout,
+  type ResolvedSymbol,
+  type SymbolPrimitive,
+  type SymbolResolver,
+} from "@icm/symbols";
 
 import {
   annotationHitBox,
@@ -36,6 +47,152 @@ type RouteGeometryRecord = {
   route: RouteBranch;
   geometry: ResolvedRouteGeometry;
 };
+
+function instanceTransform(instance: Instance): string {
+  const placement = instance.placement!;
+  const scale = mirrorScale(placement.mirror);
+  const mirror =
+    scale.x === 1 && scale.y === 1 ? "" : ` scale(${scale.x} ${scale.y})`;
+  return `translate(${placement.position.x} ${placement.position.y})${mirror} rotate(${placement.rotation})`;
+}
+
+function analogBlockHitPrimitives(
+  instance: Instance,
+  resolved: ResolvedSymbol,
+): SymbolPrimitive[] {
+  const adaptive = resolveAdaptiveSignalFlowBlockLayout(
+    resolved.definition,
+    instance.signalFlowParameters,
+  );
+  if (adaptive) {
+    const { body, pinSpan, shape } = adaptive;
+    const center = resolved.definition.formulaPresentation!.center;
+    const bodyRight = body.x + body.width;
+    const bodyBottom = body.y + body.height;
+    const frame: SymbolPrimitive =
+      shape === "right-tapered-trapezoid"
+        ? {
+            kind: "polygon",
+            points: [
+              { x: body.x, y: body.y },
+              { x: bodyRight, y: body.y + body.height / 4 },
+              { x: bodyRight, y: bodyBottom - body.height / 4 },
+              { x: body.x, y: bodyBottom },
+            ],
+            fill: "none",
+            stroke: "foreground",
+          }
+        : {
+            kind: "polygon",
+            points: [
+              { x: body.x, y: body.y },
+              { x: bodyRight, y: body.y },
+              { x: bodyRight, y: bodyBottom },
+              { x: body.x, y: bodyBottom },
+            ],
+            fill: "none",
+            stroke: "foreground",
+          };
+    return [
+      {
+        kind: "line",
+        from: { x: center.x - pinSpan, y: center.y },
+        to: { x: body.x, y: center.y },
+      },
+      frame,
+      {
+        kind: "line",
+        from: { x: bodyRight, y: center.y },
+        to: { x: center.x + pinSpan, y: center.y },
+      },
+    ];
+  }
+
+  const hiddenParts = new Set(resolved.variant?.hiddenPrimitiveParts ?? []);
+  return [
+    ...resolved.definition.primitives,
+    ...(resolved.variant?.additionalPrimitives ?? []),
+  ].filter((primitive) => !primitive.part || !hiddenParts.has(primitive.part));
+}
+
+function AnalogBlockHitGeometry({
+  instance,
+  resolved,
+  selected,
+  pointerEvents,
+}: {
+  instance: Instance;
+  resolved: ResolvedSymbol;
+  selected: boolean;
+  pointerEvents: "none" | undefined;
+}) {
+  const primitives = analogBlockHitPrimitives(instance, resolved);
+  const renderPrimitive = (
+    primitive: SymbolPrimitive,
+    index: number,
+    outline: boolean,
+  ) => {
+    const key = `${outline ? "outline" : "hit"}-${index}`;
+    const filled =
+      primitive.kind === "polygon" ||
+      primitive.kind === "circle" ||
+      (primitive.kind === "path" && /z\s*$/iu.test(primitive.data));
+    const common = outline
+      ? {
+          className: "analog-block-hit-outline",
+          pointerEvents: "none" as const,
+        }
+      : {
+          className: `analog-block-hit-area${filled ? " filled" : ""}${selected ? " selected" : ""}`,
+          pointerEvents,
+        };
+    switch (primitive.kind) {
+      case "line":
+        return (
+          <line
+            key={key}
+            {...common}
+            x1={primitive.from.x}
+            y1={primitive.from.y}
+            x2={primitive.to.x}
+            y2={primitive.to.y}
+          />
+        );
+      case "polyline":
+      case "polygon": {
+        const points = serializePolylinePoints(primitive.points);
+        return primitive.kind === "polygon" ? (
+          <polygon key={key} {...common} points={points} />
+        ) : (
+          <polyline key={key} {...common} points={points} />
+        );
+      }
+      case "circle":
+        return (
+          <circle
+            key={key}
+            {...common}
+            cx={primitive.center.x}
+            cy={primitive.center.y}
+            r={primitive.radius}
+          />
+        );
+      case "path":
+        return <path key={key} {...common} d={primitive.data} />;
+    }
+  };
+
+  return (
+    <>
+      {primitives.map((primitive, index) =>
+        renderPrimitive(primitive, index, false),
+      )}
+      {primitives.map((primitive, index) =>
+        renderPrimitive(primitive, index, true),
+      )}
+    </>
+  );
+}
 
 interface SelectionHitTargetProps {
   document: SchematicDocument;
@@ -168,6 +325,84 @@ function SelectionHitTargets({
           const hitBox = instanceHitBox(instance, resolver);
           if (!hitBox || cellSymbolLayoutInstanceId === instance.id)
             return null;
+          const resolved = resolver.resolve(
+            instance.symbolId,
+            instance.symbolVariantId,
+          );
+          const analogBlock =
+            resolved &&
+            getRazaviCatalogEntry(instance.symbolId)?.category ===
+              "analog-block";
+          const selected = selectedInstanceIds.includes(instance.id);
+          const wouldMove = wouldMoveIds.has(instance.id);
+          const className = selected
+            ? "hit-target selected"
+            : wouldMove
+              ? "hit-target would-move"
+              : "hit-target";
+          const onClick = (event: ReactMouseEvent<SVGElement>) => {
+            if (
+              !selectionPolicy.allowsCanvasHit(
+                { kind: "instance", id: instance.id },
+                "select",
+              )
+            )
+              return;
+            event.stopPropagation();
+            onInstanceClick(instance, event.shiftKey || event.ctrlKey);
+          };
+          const onDoubleClick = (event: ReactMouseEvent<SVGElement>) => {
+            if (
+              !selectionPolicy.allowsCanvasHit(
+                { kind: "instance", id: instance.id },
+                "edit",
+              )
+            )
+              return;
+            event.stopPropagation();
+            onInstanceOpen(instance);
+          };
+          const onContextMenu = (event: ReactMouseEvent<SVGElement>) => {
+            if (
+              !selectionPolicy.allowsCanvasHit(
+                { kind: "instance", id: instance.id },
+                "context-menu",
+              )
+            )
+              return;
+            event.preventDefault();
+            event.stopPropagation();
+            onInstanceContextMenu(instance, event.clientX, event.clientY);
+          };
+          if (analogBlock) {
+            return (
+              <g
+                key={instance.id}
+                data-testid={`hit-${instance.id}`}
+                data-canvas-hit-kind="instance"
+                data-canvas-hit-id={instance.id}
+                data-drag-object-id={instance.id}
+                className={
+                  selected
+                    ? "analog-block-hit-target selected"
+                    : wouldMove
+                      ? "analog-block-hit-target would-move"
+                      : "analog-block-hit-target"
+                }
+                transform={instanceTransform(instance)}
+                onClick={onClick}
+                onDoubleClick={onDoubleClick}
+                onContextMenu={onContextMenu}
+              >
+                <AnalogBlockHitGeometry
+                  instance={instance}
+                  resolved={resolved}
+                  selected={selected}
+                  pointerEvents={tool === "wire" ? "none" : undefined}
+                />
+              </g>
+            );
+          }
           return (
             <rect
               key={instance.id}
@@ -176,47 +411,10 @@ function SelectionHitTargets({
               data-canvas-hit-id={instance.id}
               data-drag-object-id={instance.id}
               {...hitBox}
-              className={
-                selectedInstanceIds.includes(instance.id)
-                  ? "hit-target selected"
-                  : wouldMoveIds.has(instance.id)
-                    ? "hit-target would-move"
-                    : "hit-target"
-              }
-              onClick={(event) => {
-                if (
-                  !selectionPolicy.allowsCanvasHit(
-                    { kind: "instance", id: instance.id },
-                    "select",
-                  )
-                )
-                  return;
-                event.stopPropagation();
-                onInstanceClick(instance, event.shiftKey || event.ctrlKey);
-              }}
-              onDoubleClick={(event) => {
-                if (
-                  !selectionPolicy.allowsCanvasHit(
-                    { kind: "instance", id: instance.id },
-                    "edit",
-                  )
-                )
-                  return;
-                event.stopPropagation();
-                onInstanceOpen(instance);
-              }}
-              onContextMenu={(event) => {
-                if (
-                  !selectionPolicy.allowsCanvasHit(
-                    { kind: "instance", id: instance.id },
-                    "context-menu",
-                  )
-                )
-                  return;
-                event.preventDefault();
-                event.stopPropagation();
-                onInstanceContextMenu(instance, event.clientX, event.clientY);
-              }}
+              className={className}
+              onClick={onClick}
+              onDoubleClick={onDoubleClick}
+              onContextMenu={onContextMenu}
               pointerEvents={tool === "wire" ? "none" : undefined}
             />
           );

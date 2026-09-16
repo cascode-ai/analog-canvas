@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -29,17 +29,40 @@ async function freshClient(
 }
 
 describe("agent session client", () => {
+  it("retains a canonical request ID and payload through network recovery", async () => {
+    const { client, http } = await freshClient();
+    await client.connect("session-1.code");
+    const circuit = vi.spyOn(http, "circuit");
+    circuit.mockRejectedValueOnce(
+      new AgentSessionError("NETWORK_FAILURE", "lost response", "network"),
+    );
+    const request = {
+      apiVersion: "3.0",
+      operation: "snapshot",
+      documentId: "main",
+      requestId: "caller-owned-id",
+    };
+    expect(await client.request(request)).toMatchObject({ ok: true });
+    expect(circuit).toHaveBeenCalledTimes(2);
+    expect(circuit.mock.calls.map((call) => call[2])).toEqual([
+      request,
+      request,
+    ]);
+    await expect(
+      client.request({ ...request, secret: "invalid" }),
+    ).rejects.toThrow("Invalid Agent Circuit request");
+  });
   it("probes status and clears a replaced project instead of reporting cached online", async () => {
     const { client, http } = await freshClient();
     await client.connect("session-1.code");
-    http.circuitHandler = async () => {
+    vi.spyOn(http, "status").mockImplementation(async () => {
       throw new AgentSessionError(
         "PROJECT_REPLACED",
         "replaced",
         "unrecoverable-credential",
         410,
       );
-    };
+    });
     expect((await client.status()).state).toBe("online");
     expect(await client.status({ refresh: true })).toMatchObject({
       state: "revoked",
@@ -63,6 +86,50 @@ describe("agent session client", () => {
     const calls = http.circuitCalls.length;
     await client.capabilities();
     expect(http.circuitCalls.length).toBe(calls);
+  });
+
+  it("reads relay observations without a Circuit probe and retains pairing on network failure", async () => {
+    const { client, http } = await freshClient();
+    await client.connect("session-1.code");
+    const calls = http.circuitCalls.length;
+    const probe = vi.spyOn(http, "status").mockResolvedValue({
+      ok: true,
+      sessionId: "session-1",
+      projectId: "project-1",
+      documentIds: ["main"],
+      authorization: "paused",
+      editor: "attached",
+      observedAt: 1000,
+      expiresAt: 999999,
+    });
+    expect(await client.status({ refresh: true })).toMatchObject({
+      state: "paused",
+    });
+    probe.mockRejectedValueOnce(
+      new AgentSessionError("NETWORK_FAILURE", "timeout", "network"),
+    );
+    expect(await client.status({ refresh: true })).toMatchObject({
+      state: "unknown",
+      projectId: "project-1",
+      tokenValid: true,
+    });
+    probe.mockResolvedValue({
+      ok: true,
+      sessionId: "session-1",
+      projectId: "project-1",
+      documentIds: ["main"],
+      authorization: "active",
+      editor: "attached",
+      observedAt: 2000,
+      expiresAt: 999999,
+    });
+    expect(await client.status({ refresh: true })).toMatchObject({
+      state: "attached",
+    });
+    expect(http.circuitCalls).toHaveLength(calls);
+    await client.snapshot("main", { refresh: true });
+    expect((await client.status()).state).toBe("online");
+    expect(http.claims).toHaveLength(1);
   });
 
   it("never exposes the token through status or connect reports", async () => {
@@ -102,6 +169,30 @@ describe("agent session client", () => {
       expect(JSON.stringify(await restarted.status())).not.toContain(
         "connectorToken",
       );
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("does not delete another origin's connector from an explicit shared path", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "analog-origin-"));
+    try {
+      const store = new ConnectorStore(join(directory, "connector.json"));
+      const saved = {
+        version: 1 as const,
+        apiBaseUrl: "https://other.test",
+        sessionId: "other",
+        connectorToken: "private",
+        connectorExpiresAt: 1,
+        storedAt: 0,
+      };
+      await store.save(saved);
+      const client = new AgentSessionClient({
+        http: new FakeAgentHttp(),
+        connectorStore: store,
+      });
+      await expect(client.connect()).rejects.toThrow();
+      expect(await store.load()).toEqual(saved);
     } finally {
       await rm(directory, { recursive: true, force: true });
     }

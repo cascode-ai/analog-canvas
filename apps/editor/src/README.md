@@ -3,6 +3,10 @@
 The editor source tree is organized by ownership rather than file type. Keep
 tests beside the implementation whose contract they protect.
 
+The sibling `../analytics/` directory is the complete cross-runtime first-party
+analytics module: dashboard, styles, browser tracking, HTTP routes, map data,
+and Durable Object storage. `src/` and the top-level Worker only mount it.
+
 ## Directory Responsibilities
 
 - `app/`: top-level editor composition and orchestration.

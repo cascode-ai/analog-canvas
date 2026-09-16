@@ -17,6 +17,7 @@
 }
 
 .schematic-canvas.component-mode .hit-target,
+.schematic-canvas.component-mode .analog-block-hit-area,
 .schematic-canvas.component-mode .route-hit,
 .schematic-canvas.component-mode .annotation-hit,
 .schematic-canvas.component-mode .route-handle,

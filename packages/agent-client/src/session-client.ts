@@ -1,4 +1,5 @@
 import {
+  parseAgentCircuitRequest,
   AgentCapabilitiesResponseSchema,
   AgentRenderResponseSchema,
   AgentTransactionPayloadSchema,
@@ -13,6 +14,7 @@ import {
   type AgentSimulationResourceResponse,
   type AgentProjectResourceRequest,
   type AgentProjectResourceResponse,
+  type AgentSessionStatusResponse,
 } from "@icm/agent-adapter";
 import { z } from "zod";
 import {
@@ -78,6 +80,7 @@ export interface ConnectReport {
 }
 
 export interface StatusReport extends ConnectionSnapshot {
+  observation: AgentSessionStatusResponse | null;
   sessionId: string | null;
   projectId: string | null;
   documentIds: string[];
@@ -136,8 +139,12 @@ export class AgentSessionClient {
   private readonly networkRetryAttempts: number;
   private readonly tokenExpiryGraceMs: number;
   private readonly connectorStore: ConnectorStore | undefined;
-  private readonly inflight = new Map<string, Promise<AgentCircuitResponse>>();
+  private readonly inflight = new Map<
+    string,
+    { payload: string; promise: Promise<AgentCircuitResponse> }
+  >();
   private session: ActiveSession | null = null;
+  private observation: AgentSessionStatusResponse | null = null;
   private capabilitiesCache: AgentCapabilitiesResponse | null = null;
   private resumePromise: Promise<ActiveSession | null> | null = null;
 
@@ -175,6 +182,7 @@ export class AgentSessionClient {
       this.cache.clear();
       this.receipts.length = 0;
       this.capabilitiesCache = null;
+      this.observation = null;
       this.session = this.activeSession(claim);
       await this.persistConnector(claim);
       return await this.establishContext("claimed");
@@ -252,22 +260,25 @@ export class AgentSessionClient {
   }
 
   async status(options: { refresh?: boolean } = {}): Promise<StatusReport> {
-    if (options.refresh && this.session) {
+    if (options.refresh && (this.session || this.connectorStore)) {
       try {
-        await this.capabilities({ force: true });
+        this.observation = await this.withAuthorization((session) =>
+          this.http.status(session.sessionId, session.agentToken),
+        );
+        this.connection.observe(this.observation);
+        this.updateDocumentRoster(this.observation.documentIds);
       } catch (error) {
         if (!(error instanceof AgentSessionError)) throw error;
-        // dispatch already records offline/revoked. Other failed probes must
-        // not leave a stale green status (nor destroy a usable credential).
-        if (
-          error.category !== "editor-offline" &&
-          error.category !== "unrecoverable-credential"
-        )
-          this.connection.apply("transport-interrupted", error.code);
+        // A failed observation is not proof of a detached browser. Preserve
+        // the last timestamped evidence and let only authorization failures
+        // discard a pairing.
+        if (error.category !== "unrecoverable-credential")
+          this.connection.observe(null, error.code);
       }
     }
     return {
       ...this.connection.snapshot,
+      observation: this.observation,
       sessionId: this.session?.sessionId ?? null,
       projectId: this.session?.projectId ?? null,
       documentIds: [...(this.session?.documentIds ?? [])],
@@ -275,6 +286,21 @@ export class AgentSessionClient {
       tokenValid: this.session ? this.tokenValid(this.session) : false,
       cachedDocuments: [...this.cache.documents()],
     };
+  }
+
+  /** Canonical HTTP requests retain caller-owned IDs through every retry. */
+  async request(input: unknown): Promise<AgentCircuitResponse> {
+    const parsed = parseAgentCircuitRequest(input);
+    if (!parsed.success)
+      throw new Error(
+        "Invalid Agent Circuit request; consult the published OpenAPI schema",
+      );
+    const request = parsed.data;
+    try {
+      return await this.send(request);
+    } finally {
+      if (request.operation === "transact") this.cache.clear();
+    }
   }
 
   /** Invoke the canonical browser-hosted file-resource contract. */
@@ -676,9 +702,16 @@ export class AgentSessionClient {
     request: AgentCircuitRequest,
   ): Promise<AgentCircuitResponse> {
     const existing = this.inflight.get(request.requestId);
-    if (existing) return existing;
+    const payload = JSON.stringify(request);
+    if (existing) {
+      if (existing.payload !== payload)
+        throw new Error(
+          "Request ID already in flight with a different payload",
+        );
+      return existing.promise;
+    }
     const pending = this.dispatch(request);
-    this.inflight.set(request.requestId, pending);
+    this.inflight.set(request.requestId, { payload, promise: pending });
     try {
       return await pending;
     } finally {
@@ -721,6 +754,7 @@ export class AgentSessionClient {
   }
 
   private async discardCredential(code: string): Promise<void> {
+    this.observation = null;
     this.connection.apply("credential-revoked", code);
     this.session = null;
     this.capabilitiesCache = null;
@@ -791,7 +825,6 @@ export class AgentSessionClient {
   private async resumeConnectorOnce(): Promise<ActiveSession | null> {
     const stored = await this.connectorStore?.load();
     if (!stored || stored.apiBaseUrl !== this.http.baseUrl) {
-      if (stored) await this.connectorStore?.clear();
       return null;
     }
     // Other Agent operations or manual edits can renew the session after this

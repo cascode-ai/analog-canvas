@@ -59,8 +59,8 @@ export function richTextAdvanceEm(value: string): number {
  * overhang 0.08, gap 0.26, ascent 0.12).
  */
 export const fractionGeometry = {
-  /** Fraction parts render three A+ levels (30%) above the profile subscript scale. */
-  partScaleMultiplier: 1.3,
+  /** Fraction parts render one A+ level (10%) above the profile subscript scale. */
+  partScaleMultiplier: 1.1,
   /** Fraction bar height above the anchor baseline, em of the part font. */
   barRiseEm: 0.395,
   /** Numerator baseline above the anchor baseline, em of the part font. */
@@ -76,9 +76,9 @@ export const fractionGeometry = {
 } as const;
 
 /**
- * Fraction part font scale relative to the base font: three A+ levels above
- * the profile subscript scale. The single knob behind every fraction render
- * and measure so the parts stay proportionally large.
+ * Fraction part font scale relative to the base font: one A+ level above the
+ * profile subscript scale. The single knob behind every fraction render and
+ * measure keeps labels, hit bounds, and exported SVG in agreement.
  */
 export function fractionPartScale(subscriptScale: number): number {
   return subscriptScale * fractionGeometry.partScaleMultiplier;

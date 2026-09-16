@@ -46,9 +46,11 @@ test("bulk edits instance JSON in the sidebar with atomic undo and live netlist 
   expect(await copyNetlistText(page)).toMatch(/R1 a b 10k\nR2 b a 10k/u);
   await clickCommand(page, "Edit", "Undo");
   const live = page.getByRole("textbox", { name: "Netlist code", exact: true });
-  await expect(live).toHaveValue(/R1 a b 1k\nR2 b a 2k/u);
+  await expect(live).toContainText("R1 a b 1k");
+  await expect(live).toContainText("R2 b a 2k");
   await clickCommand(page, "Edit", "Redo");
-  await expect(live).toHaveValue(/R1 a b 10k\nR2 b a 10k/u);
+  await expect(live).toContainText("R1 a b 10k");
+  await expect(live).toContainText("R2 b a 10k");
 
   await clickCommand(page, "Netlist", "Instances…");
   const rejected = JSON.parse(await code.inputValue());

@@ -1333,18 +1333,3 @@
   justify-content: space-between;
   gap: 8px;
 }
-.arrow-split-tool {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-}
-.arrow-split-tool > .draw-tool > svg {
-  width: 32px;
-  height: 24px;
-}
-.arrow-split-tool > .arrow-style-picker > summary > svg {
-  display: none;
-}
-.arrow-split-tool > .arrow-style-picker > summary {
-  height: 30px;
-}

@@ -3,19 +3,24 @@ import {
   createNetlistExportProfile,
   isNetlistExportProfile,
   NETLIST_PROFILE_IDS,
+  setNetlistDefaultTarget,
   type NetlistExportProfile,
+  type NetlistFormat,
   type NetlistProfileId,
+  type NetlistQuickTargetFamily,
 } from "@icm/netlist";
 
 export const NETLIST_EXPORT_PREFERENCES_KEY = "icm.netlist-export.v1";
 export interface NetlistExportPreferences {
   selected: NetlistProfileId;
+  format: NetlistFormat;
   profiles: Record<NetlistProfileId, NetlistExportProfile>;
 }
 
-function defaultNetlistExportPreferences(): NetlistExportPreferences {
+export function createDefaultNetlistExportPreferences(): NetlistExportPreferences {
   return {
     selected: "abstract",
+    format: "spice",
     profiles: Object.fromEntries(
       NETLIST_PROFILE_IDS.map((id) => [id, createNetlistExportProfile(id)]),
     ) as NetlistExportPreferences["profiles"],
@@ -33,7 +38,7 @@ function migrateStoredNetlistExportPreferences(raw: string): string {
   for (const id of ["tsmc28", "tsmc180"] as const) {
     profiles[id] ??= createNetlistExportProfile(id);
   }
-  return JSON.stringify({ ...parsed, profiles });
+  return JSON.stringify({ format: "spice", ...parsed, profiles });
 }
 
 export function parseNetlistExportPreferences(
@@ -44,6 +49,8 @@ export function parseNetlistExportPreferences(
     throw new Error(
       `selected must be one of: ${NETLIST_PROFILE_IDS.join(", ")}.`,
     );
+  if (parsed.format !== "spice" && parsed.format !== "spectre")
+    throw new Error("format must be spice or spectre.");
   if (
     !NETLIST_PROFILE_IDS.every(
       (id) =>
@@ -64,7 +71,7 @@ export function readNetlistExportPreferences(
       migrateStoredNetlistExportPreferences(raw ?? "null"),
     );
   } catch {
-    return defaultNetlistExportPreferences();
+    return createDefaultNetlistExportPreferences();
   }
 }
 
@@ -73,6 +80,29 @@ export function selectNetlistExportProfile(
   selected: NetlistProfileId,
 ): NetlistExportPreferences {
   return { ...preferences, selected };
+}
+
+export function selectNetlistExportFormat(
+  preferences: NetlistExportPreferences,
+  format: NetlistFormat,
+): NetlistExportPreferences {
+  return { ...preferences, format };
+}
+
+export function setNetlistExportDeviceTarget(
+  preferences: NetlistExportPreferences,
+  family: NetlistQuickTargetFamily,
+  target: string,
+): NetlistExportPreferences {
+  const profile = setNetlistDefaultTarget(
+    preferences.profiles[preferences.selected],
+    family,
+    target,
+  );
+  return {
+    ...preferences,
+    profiles: { ...preferences.profiles, [preferences.selected]: profile },
+  };
 }
 
 /** Raw JSON is the complete configuration surface; valid edits apply immediately. */
@@ -113,12 +143,40 @@ export function useNetlistExportPreferences() {
     setText(source);
     setError(null);
   };
+  const selectFormat = (format: NetlistFormat) => {
+    const next = selectNetlistExportFormat(preferences, format);
+    const source = JSON.stringify(next, null, 2);
+    setPreferences(next);
+    setText(source);
+    setError(null);
+  };
+  const setDeviceTarget = (
+    family: NetlistQuickTargetFamily,
+    target: string,
+  ) => {
+    if (target && !/^[A-Za-z_][A-Za-z0-9_]*$/u.test(target)) return;
+    const next = setNetlistExportDeviceTarget(preferences, family, target);
+    const source = JSON.stringify(next, null, 2);
+    setPreferences(next);
+    setText(source);
+    setError(null);
+  };
+  const reset = () => {
+    const next = createDefaultNetlistExportPreferences();
+    setPreferences(next);
+    setText(JSON.stringify(next, null, 2));
+    setError(null);
+  };
   return {
     selected: preferences.selected,
+    format: preferences.format,
     profile: preferences.profiles[preferences.selected],
     text,
     error,
     changeText,
     selectProfile,
+    selectFormat,
+    setDeviceTarget,
+    reset,
   };
 }

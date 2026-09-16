@@ -323,10 +323,11 @@ extraction emits the PDK wrapper's micrometre values. Unknown custom subcircuits
 and unresolved hierarchy retain their original interfaces and validation.
 
 Configured library paths and sections are printed as includes outside the pure
-IR printer. SKY130 `.scs` files use `simulator lang=spice` for the same authentic
-SPICE wrapper library; this is not a native Spectre PDK conversion or a claim of
-licensed Spectre qualification. Strict extraction and simulation consumers do not
-implicitly use these export presets.
+IR printer. SCS output remains entirely in `simulator lang=spectre`, including
+SKY130; the configured model library is referenced with native Spectre `include`
+syntax. This does not convert the model library itself or claim licensed Spectre
+qualification. Strict extraction and simulation consumers do not implicitly use
+these export presets.
 
 ### Incomplete output
 

@@ -1079,14 +1079,14 @@
           "anchor": {
             "kind": "route",
             "routeId": "route-ui-3",
-            "legId": "route-leg-3de2f026488177e2",
+            "legId": "route-leg-950eb45aec291af5",
             "t": 0.5,
             "normalOffset": -10,
             "direction": "forward",
             "orientation": "follow",
             "fallbackPosition": {
-              "x": 0,
-              "y": 0
+              "x": 530,
+              "y": 150
             }
           },
           "netId": "net-tb-vdd",
@@ -1110,8 +1110,8 @@
             "direction": "forward",
             "orientation": "follow",
             "fallbackPosition": {
-              "x": 0,
-              "y": 0
+              "x": 536,
+              "y": 240
             }
           },
           "netId": "tb-ibias-net",
@@ -1129,14 +1129,14 @@
           "anchor": {
             "kind": "route",
             "routeId": "tb-vinp-route",
-            "legId": "route-leg-db9df17a18d56e33",
+            "legId": "route-leg-db9df07a18d56c80",
             "t": 0.5,
             "normalOffset": -10,
             "direction": "forward",
             "orientation": "follow",
             "fallbackPosition": {
-              "x": 0,
-              "y": 0
+              "x": 450,
+              "y": 290
             }
           },
           "netId": "tb-vinp-net",
@@ -1154,14 +1154,14 @@
           "anchor": {
             "kind": "route",
             "routeId": "tb-vinn-route",
-            "legId": "route-leg-42de78b6b7306d55",
+            "legId": "route-leg-42de77b6b7306ba2",
             "t": 0.5,
             "normalOffset": -10,
             "direction": "forward",
             "orientation": "follow",
             "fallbackPosition": {
-              "x": 0,
-              "y": 0
+              "x": 450,
+              "y": 340
             }
           },
           "netId": "tb-vinn-net",
@@ -3921,14 +3921,14 @@
           "anchor": {
             "kind": "route",
             "routeId": "route-ui-3",
-            "legId": "route-leg-3de2f026488177e2",
+            "legId": "route-leg-950eb45aec291af5",
             "t": 0.5,
             "normalOffset": -10,
             "direction": "forward",
             "orientation": "follow",
             "fallbackPosition": {
-              "x": 0,
-              "y": 0
+              "x": 530,
+              "y": 150
             }
           },
           "netId": "net-tb-vdd",
@@ -3952,8 +3952,8 @@
             "direction": "forward",
             "orientation": "follow",
             "fallbackPosition": {
-              "x": 0,
-              "y": 0
+              "x": 536,
+              "y": 240
             }
           },
           "netId": "tb-ibias-net",
@@ -3971,14 +3971,14 @@
           "anchor": {
             "kind": "route",
             "routeId": "tb-vinp-route",
-            "legId": "route-leg-db9df17a18d56e33",
+            "legId": "route-leg-db9df07a18d56c80",
             "t": 0.5,
             "normalOffset": -10,
             "direction": "forward",
             "orientation": "follow",
             "fallbackPosition": {
-              "x": 0,
-              "y": 0
+              "x": 450,
+              "y": 290
             }
           },
           "netId": "tb-vinp-net",
@@ -3996,14 +3996,14 @@
           "anchor": {
             "kind": "route",
             "routeId": "tb-vinn-route",
-            "legId": "route-leg-42de78b6b7306d55",
+            "legId": "route-leg-42de77b6b7306ba2",
             "t": 0.5,
             "normalOffset": -10,
             "direction": "forward",
             "orientation": "follow",
             "fallbackPosition": {
-              "x": 0,
-              "y": 0
+              "x": 450,
+              "y": 340
             }
           },
           "netId": "tb-vinn-net",

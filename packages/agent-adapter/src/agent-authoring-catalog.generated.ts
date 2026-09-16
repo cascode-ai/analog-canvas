@@ -80,28 +80,6 @@ export const agentRazaviAuthoringCatalog = {
       variants: [],
     },
     {
-      symbolId: "capacitor-section",
-      name: "Capacitor Section",
-      category: "passive",
-      defaultVariantId: null,
-      labelVisibility: "shown",
-      pins: [
-        {
-          name: "1",
-          role: "passive",
-          direction: "north",
-          visibility: "visible",
-        },
-        {
-          name: "2",
-          role: "passive",
-          direction: "west",
-          visibility: "visible",
-        },
-      ],
-      variants: [],
-    },
-    {
       symbolId: "closed-switch",
       name: "Closed Switch",
       category: "switch",

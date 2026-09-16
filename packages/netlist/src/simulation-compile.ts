@@ -1190,7 +1190,7 @@ export function buildSimulationPlan(
       occurrence.document,
       authoredInstance,
     );
-    const implicitBulkName = polarity === "nmos" ? "0" : "VDD";
+    const implicitBulkName = polarity === "nmos" ? "VSS" : "VDD";
     const implicitBulkNet =
       bulk?.status === "unresolved"
         ? occurrence.cell.nets.find(

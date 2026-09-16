@@ -1,5 +1,6 @@
 import { chmod, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { createHash } from "node:crypto";
 
 /** Persistent M4 pairing record. Short-lived Circuit bearers are never stored. */
 export interface StoredConnectorCredential {
@@ -58,8 +59,11 @@ export class ConnectorStore {
 export function defaultConnectorFilePath(
   home: string,
   env: Record<string, string | undefined>,
+  apiBaseUrl = "https://analog-canvas.tokenzhang.com",
 ): string {
   const override = env.ANALOG_CANVAS_MCP_CONNECTOR;
   if (override?.trim()) return override;
-  return join(home, ".analog-canvas", "connector.json");
+  const origin = new URL(apiBaseUrl).origin;
+  const key = createHash("sha256").update(origin).digest("hex");
+  return join(home, ".analog-canvas", "connectors", `${key}.json`);
 }

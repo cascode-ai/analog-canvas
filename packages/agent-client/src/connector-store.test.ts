@@ -53,9 +53,22 @@ describe("connector store", () => {
   });
 
   it("uses a user-level default path and supports an override", () => {
-    expect(defaultConnectorFilePath("/home/person", {})).toBe(
-      join("/home/person", ".analog-canvas", "connector.json"),
-    );
+    const production = defaultConnectorFilePath("/home/person", {});
+    expect(production).toContain(join(".analog-canvas", "connectors"));
+    expect(
+      defaultConnectorFilePath(
+        "/home/person",
+        {},
+        "https://analog-canvas-preview.tokenzhang.com",
+      ),
+    ).not.toBe(production);
+    expect(
+      defaultConnectorFilePath(
+        "/home/person",
+        {},
+        "https://analog-canvas.tokenzhang.com/",
+      ),
+    ).toBe(production);
     expect(
       defaultConnectorFilePath("/home/person", {
         ANALOG_CANVAS_MCP_CONNECTOR: "/private/connector.json",

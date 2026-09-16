@@ -1,7 +1,13 @@
-import type { MouseEvent as ReactMouseEvent, Ref } from "react";
+import {
+  useLayoutEffect,
+  useRef,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+  type Ref,
+} from "react";
 
 import type { Flightline } from "@icm/derived";
-import type { Point } from "@icm/model";
+import type { GridRect, Point } from "@icm/model";
 
 import type { WireDraftPreview } from "../features/wiring/wire-draft-preview";
 import { serializePolylinePoints } from "./canvas-geometry";
@@ -17,6 +23,7 @@ export function EditorWiringOverlay({
   wireDraftPreview,
   bulkRoutePreview,
   snapGuideLayerRef,
+  viewBox,
 }: {
   netLabelPlacement: {
     phase: "naming" | "placing";
@@ -35,42 +42,91 @@ export function EditorWiringOverlay({
   wireDraftPreview: WireDraftPreview;
   bulkRoutePreview: boolean;
   snapGuideLayerRef: Ref<SVGGElement>;
+  viewBox: GridRect;
 }) {
+  const labelAnchorRef = useRef<SVGGElement | null>(null);
+  const [pixelsPerUnit, setPixelsPerUnit] = useState<number | null>(null);
+  useLayoutEffect(() => {
+    const svg = labelAnchorRef.current?.ownerSVGElement;
+    if (!svg || viewBox.width <= 0 || viewBox.height <= 0) return;
+    const measure = () => {
+      const rect = svg.getBoundingClientRect();
+      setPixelsPerUnit(
+        Math.min(rect.width / viewBox.width, rect.height / viewBox.height),
+      );
+    };
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(svg);
+    return () => observer.disconnect();
+  }, [netLabelPlacement?.phase, viewBox.height, viewBox.width]);
+  const labelScale =
+    pixelsPerUnit && pixelsPerUnit > 0
+      ? 1 / pixelsPerUnit
+      : (viewBox.width * 0.26) / 164;
+  const labelWidth = Math.max(
+    0,
+    Math.min(164, (viewBox.width - 16) / labelScale),
+  );
+  const labelHeight = 30;
+  const labelX = netLabelPlacement
+    ? Math.max(
+        viewBox.x + 8,
+        Math.min(
+          viewBox.x + viewBox.width - labelWidth * labelScale - 8,
+          netLabelPlacement.position.x + 8,
+        ),
+      )
+    : 0;
+  const labelY = netLabelPlacement
+    ? Math.max(
+        viewBox.y + 8,
+        Math.min(
+          viewBox.y + viewBox.height - labelHeight * labelScale - 8,
+          netLabelPlacement.position.y - labelHeight * labelScale - 8,
+        ),
+      )
+    : 0;
   return (
     <>
       {netLabelPlacement?.phase === "naming" ? (
-        <foreignObject
-          data-testid="net-label-editor"
-          x={netLabelPlacement.position.x + 8}
-          y={netLabelPlacement.position.y - 42}
-          width="160"
-          height="34"
+        <g
+          ref={labelAnchorRef}
+          transform={`translate(${labelX} ${labelY}) scale(${labelScale})`}
         >
-          <form
-            className="net-label-editor"
-            onPointerDown={(event) => event.stopPropagation()}
-            onClick={(event) => event.stopPropagation()}
-            onSubmit={(event) => {
-              event.preventDefault();
-              onNetLabelSubmit();
-            }}
+          <foreignObject
+            data-testid="net-label-editor"
+            width={labelWidth}
+            height={labelHeight}
           >
-            <input
-              ref={netLabelEditorInputRef}
-              aria-label="Net Label"
-              value={netLabelPlacement.draft}
-              onChange={(event) =>
-                onNetLabelDraftChange(event.currentTarget.value)
-              }
-              onKeyDown={(event) => {
-                if (event.key === "Escape") {
-                  event.preventDefault();
-                  onNetLabelEscape();
-                }
+            <form
+              className="net-label-editor"
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={(event) => event.stopPropagation()}
+              onSubmit={(event) => {
+                event.preventDefault();
+                onNetLabelSubmit();
               }}
-            />
-          </form>
-        </foreignObject>
+            >
+              <input
+                ref={netLabelEditorInputRef}
+                aria-label="Net Label"
+                autoComplete="off"
+                value={netLabelPlacement.draft}
+                onChange={(event) =>
+                  onNetLabelDraftChange(event.currentTarget.value)
+                }
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") {
+                    event.preventDefault();
+                    onNetLabelEscape();
+                  }
+                }}
+              />
+            </form>
+          </foreignObject>
+        </g>
       ) : null}
       {netLabelPlacement?.phase === "placing" ? (
         <g data-testid="net-label-placement-preview" pointerEvents="none">

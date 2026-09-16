@@ -46,18 +46,38 @@
 .net-label-editor input {
   box-sizing: border-box;
   width: 100%;
-  height: 32px;
-  padding: 4px 8px;
-  border: 1px solid var(--icm-accent);
-  border-radius: var(--icm-radius-sm);
+  height: 28px;
+  padding: 3px 6px;
+  border: 0;
+  border-bottom: 2px solid var(--icm-accent);
+  border-radius: 2px 2px 0 0;
   outline: none;
   color: var(--icm-text);
   background: var(--icm-surface);
-  box-shadow: 0 0 0 2px rgb(var(--icm-accent-rgb) / 20%);
+  box-shadow: 0 1px 4px rgb(15 23 42 / 16%);
   font:
     13px "Google Sans Code Variable",
     ui-monospace,
     monospace;
+}
+
+.inline-canvas-text-editor {
+  box-sizing: border-box;
+  width: 100%;
+  height: 28px;
+  padding: 3px 6px;
+  border: 0;
+  border-bottom: 2px solid var(--icm-accent);
+  border-radius: 2px 2px 0 0;
+  outline: none;
+  color: var(--icm-text);
+  background: rgb(255 255 255 / 96%);
+  box-shadow: 0 1px 4px rgb(15 23 42 / 16%);
+  font:
+    13px "Google Sans Code Variable",
+    ui-monospace,
+    monospace;
+  font-weight: 700;
 }
 
 .net-label-placement-preview {
@@ -100,6 +120,43 @@
   stroke-width: 2;
   cursor: default;
   pointer-events: all;
+}
+
+/* Analog Blocks are tapered or triangular. A rectangular interaction plane
+   made the empty corners beside those bodies behave like component artwork.
+   Their hit layer follows the authored body and leads instead: closed shapes
+   own their interior, while lines keep a small screen-space aiming band. */
+.analog-block-hit-target {
+  cursor: default;
+}
+
+.analog-block-hit-target.selected {
+  cursor: move;
+}
+
+.analog-block-hit-area {
+  fill: rgb(0 0 0 / 0.1%);
+  stroke: rgb(0 0 0 / 0.1%);
+  stroke-width: 10;
+  cursor: inherit;
+  pointer-events: stroke;
+  vector-effect: non-scaling-stroke;
+}
+
+.analog-block-hit-area.filled {
+  pointer-events: all;
+}
+
+.analog-block-hit-outline {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 2;
+  stroke-dasharray: 3 5;
+  vector-effect: non-scaling-stroke;
+}
+
+.analog-block-hit-target:hover:not(.selected) .analog-block-hit-outline {
+  stroke: rgb(var(--icm-accent-rgb) / 22%);
 }
 
 .text-format-tools {
@@ -367,6 +424,7 @@
    presentation attributes. Disable those overlays at the canvas level while
    wiring, leaving only endpoint and route hit targets above the input plane. */
 .schematic-canvas.wire-mode .hit-target,
+.schematic-canvas.wire-mode .analog-block-hit-area,
 .schematic-canvas.wire-mode .annotation-hit,
 .schematic-canvas.wire-mode .route-handle {
   pointer-events: none;

@@ -1615,7 +1615,7 @@ function renderDraftText(
   profile: SchematicStyleProfile,
   unresolved: string,
 ): string {
-  const { position, textPosition, rotation } = geometry;
+  const { textPosition } = geometry;
   const color = object.styleOverride?.color ?? profile.foreground;
   const fontSize =
     typographyFontSize(object.typographyToken ?? "body", profile) *
@@ -1674,13 +1674,10 @@ function renderDraftText(
     const strokeWidth =
       profile.strokes.annotation * (object.styleOverride?.strokeScale ?? 1);
     const markers = geometry.polarityLines
-      .map((line) => {
-        const rendered =
-          line.role === "negative"
-            ? screenUprightLine(line, { rotation, mirror: "none" })
-            : line;
-        return `<line data-role="polarity-${line.role}" x1="${rendered.from.x}" y1="${rendered.from.y}" x2="${rendered.to.x}" y2="${rendered.to.y}" stroke="${color}" stroke-width="${strokeWidth}" stroke-linecap="${profile.lineCap}"/>`;
-      })
+      .map(
+        (line) =>
+          `<line data-role="polarity-${line.role}" x1="${line.from.x}" y1="${line.from.y}" x2="${line.to.x}" y2="${line.to.y}" stroke="${color}" stroke-width="${strokeWidth}" stroke-linecap="${profile.lineCap}"/>`,
+      )
       .join("");
     const text =
       fractions ??
@@ -1689,19 +1686,19 @@ function renderDraftText(
         : positioned
           ? `<text x="${textPosition.x}" y="${baselineY}" text-anchor="start" font-size="${fontSize}" font-weight="${weight}" font-style="${italic}" fill="${color}">${positioned.tspans}</text>${positioned.decorations}`
           : `<text x="${textPosition.x}" y="${baselineY}" text-anchor="${object.alignment}" font-size="${fontSize}" font-weight="${weight}" font-style="${italic}" fill="${color}">${renderRichTextDocument(content, profile, { lineOriginX: textPosition.x, fontSize, defaultBold: weight === "bold", defaultItalic: italic === "italic" })}</text>`);
-    return `<g data-object-id="${object.id}" data-kind="draft-text" data-polarity="${object.polarity}"${unresolved} transform="rotate(${rotation} ${position.x} ${position.y})">${markers}${text}</g>`;
+    return `<g data-object-id="${object.id}" data-kind="draft-text" data-polarity="${object.polarity}"${unresolved}>${markers}${text}</g>`;
   }
-  // P1: the renderer consumes geometry.rotation (the single rotation truth),
-  // not the raw persisted object rotation. The rotation pivot stays on the
-  // resolved anchor so centered labels rotate about their center.
+  // Drafting text is notation: its glyphs stay upright at every persisted or
+  // route-follow rotation. Multipart polarity layout is already resolved into
+  // screen coordinates by the shared derived geometry.
   if (fractions) {
-    return `<g data-object-id="${object.id}" data-kind="draft-text"${unresolved} transform="rotate(${rotation} ${position.x} ${position.y})">${fractions}</g>`;
+    return `<g data-object-id="${object.id}" data-kind="draft-text"${unresolved}>${fractions}</g>`;
   }
   if (formula) {
-    return `<g data-object-id="${object.id}" data-kind="draft-text"${unresolved} transform="rotate(${rotation} ${position.x} ${position.y})">${formula}</g>`;
+    return `<g data-object-id="${object.id}" data-kind="draft-text"${unresolved}>${formula}</g>`;
   }
   if (positioned) {
-    return `<g transform="rotate(${rotation} ${position.x} ${position.y})"><text data-object-id="${object.id}" data-kind="draft-text"${unresolved} x="${textPosition.x}" y="${baselineY}" text-anchor="start" font-size="${fontSize}" font-weight="${weight}" font-style="${italic}" fill="${color}">${positioned.tspans}</text>${positioned.decorations}</g>`;
+    return `<g><text data-object-id="${object.id}" data-kind="draft-text"${unresolved} x="${textPosition.x}" y="${baselineY}" text-anchor="start" font-size="${fontSize}" font-weight="${weight}" font-style="${italic}" fill="${color}">${positioned.tspans}</text>${positioned.decorations}</g>`;
   }
   const markup = renderRichTextDocument(content, profile, {
     lineOriginX: textPosition.x,
@@ -1709,7 +1706,7 @@ function renderDraftText(
     defaultBold: weight === "bold",
     defaultItalic: italic === "italic",
   });
-  return `<text data-object-id="${object.id}" data-kind="draft-text"${unresolved} x="${textPosition.x}" y="${baselineY}" text-anchor="${object.alignment}" transform="rotate(${rotation} ${position.x} ${position.y})" font-size="${fontSize}" font-weight="${weight}" font-style="${italic}" fill="${color}">${markup}</text>`;
+  return `<text data-object-id="${object.id}" data-kind="draft-text"${unresolved} x="${textPosition.x}" y="${baselineY}" text-anchor="${object.alignment}" font-size="${fontSize}" font-weight="${weight}" font-style="${italic}" fill="${color}">${markup}</text>`;
 }
 
 /** Glyph cap height is ~0.7 em; dropping the baseline by 0.35 em sits the
