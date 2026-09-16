@@ -94,7 +94,11 @@ export async function routeSimulationRequest(
       : "cloudflare-container",
   };
   if (nativeId && profileId === nativeId)
-    return routeVacaskSimulationRequest(request, nativeEnv, runnerKey);
+    return annotateEngine(
+      await routeVacaskSimulationRequest(request, nativeEnv, runnerKey),
+      body.operation,
+      "vacask",
+    );
   if (body.language !== undefined)
     return Response.json(
       { error: "simulation-engine-profile-mismatch" },
@@ -105,7 +109,11 @@ export async function routeSimulationRequest(
       { error: "simulation-cancel-profile-required" },
       { status: 400 },
     );
-  const response = await routeNgspiceSimulationRequest(request, env, runnerKey);
+  const response = await annotateEngine(
+    await routeNgspiceSimulationRequest(request, env, runnerKey),
+    body.operation,
+    "ngspice",
+  );
   if (
     body.operation !== "capabilities" ||
     profileId !== undefined ||
@@ -133,8 +141,26 @@ export async function routeSimulationRequest(
     };
     if (caps.configured) {
       defaults.configured = true;
-      defaults.profiles.push(...caps.profiles);
+      defaults.profiles.push(
+        ...caps.profiles.map((profile) => ({
+          ...(profile as object),
+          engine: "vacask",
+        })),
+      );
     }
   }
   return Response.json(defaults);
+}
+
+async function annotateEngine(
+  response: Response | null,
+  operation: unknown,
+  engine: "ngspice" | "vacask",
+) {
+  if (operation !== "capabilities" || !response?.ok) return response;
+  const caps = (await response.json()) as { profiles: object[] };
+  return Response.json({
+    ...caps,
+    profiles: caps.profiles.map((profile) => ({ ...profile, engine })),
+  });
 }

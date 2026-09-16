@@ -36,6 +36,10 @@ describe("dual-engine Profile routing", () => {
       ngspiceProfile.id,
       nativeEnvironment.profileId,
     ]);
+    expect(all.profiles.map((p: { engine: string }) => p.engine)).toEqual([
+      "ngspice",
+      "vacask",
+    ]);
     for (const [profileId, collection] of [
       [ngspiceProfile.id, "declared-single-ascii"],
       [nativeEnvironment.profileId, "native-multi-ascii"],

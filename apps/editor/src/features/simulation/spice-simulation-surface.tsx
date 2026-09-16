@@ -13,6 +13,7 @@ import {
   type SimulationRunPlanAxis,
 } from "@icm/model";
 import { createSimulationStarter } from "@icm/netlist";
+import { profileEngine } from "@icm/simulation-service";
 import type { SimulationCodeWorkspaceProps } from "./code-workspace";
 import type {
   ArtifactRef,
@@ -949,6 +950,19 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
         );
         return;
       }
+      const profile = capabilities?.profiles[0];
+      const engine = profile
+        ? profileEngine(profile, capabilities?.rawfileCollection)
+        : "vacask";
+      if (!engine) {
+        setProblem(
+          uiProblem(
+            "SIMULATION_ENGINE_UNAVAILABLE",
+            "The selected Profile does not declare an execution dialect.",
+          ),
+        );
+        return;
+      }
       const result = createSimulationStarter(namingProject, {
         ...identity,
         mode: "circuit",
@@ -956,6 +970,7 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
         // Offline authoring uses the same candidate as the native starters.
         // Prepare still requires that the connected service advertises it.
         profileId: capabilities?.profiles[0]?.id ?? "vacask-sky130-candidate",
+        engine,
         template: "op",
       });
       if (!result.ok) {

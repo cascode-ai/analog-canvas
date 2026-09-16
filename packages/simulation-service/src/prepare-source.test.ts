@@ -587,6 +587,14 @@ describe("source execution preparation", () => {
     for (const source of ota.simulationSetups) {
       const legacy = LegacyProjectSimulationSetupSchema.parse(source);
       const folder = migrateSimulationSetupToSource(circuit, legacy).folder;
+      // Dialect rejection is tested with a selected, advertised native Profile;
+      // an unknown historical Profile now correctly fails selection first.
+      const configFile = folder.input.files.find(
+        (f) => f.path === folder.input.configPath,
+      )!;
+      const config = JSON.parse(configFile.text);
+      config.environment.profileId = caps.profiles[0]!.id;
+      configFile.text = JSON.stringify(config);
       const before = structuredClone(folder);
       expect(
         await prepareSourceExecutionInput(circuit, folder, caps),

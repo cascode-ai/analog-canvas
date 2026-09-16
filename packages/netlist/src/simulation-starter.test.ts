@@ -3,6 +3,7 @@ import { parseProject } from "@icm/project-protocol";
 import ota from "../../../netlists/native-ota-library/legacy-source.icproj.json";
 import { createSimulationStarter } from "./simulation-starter.js";
 import { compileSourceSimulation } from "./simulation-source-compile.js";
+import { compileNgspiceSourceSimulation } from "./simulation-source-ngspice.js";
 import { inspectVacaskSourceGraph } from "./vacask-source.js";
 import { analyzeDesignNetlist } from "./extract.js";
 import { vacaskCircuitScopes } from "./vacask-source-scopes.js";
@@ -15,6 +16,26 @@ const options = {
   documentId: "document-ota-5t",
 };
 describe("simulation starting points", () => {
+  it.each(["circuit", "dut", "text"] as const)(
+    "creates a genuine ngspice %s starter without VACASK syntax",
+    (mode) => {
+      const result = createSimulationStarter(project, {
+        ...options,
+        mode,
+        engine: "ngspice",
+        template: "ac",
+      });
+      if (!result.ok) throw new Error(result.message);
+      const source = result.folder.input.files.find(
+        (f) => f.path === result.folder.input.entry,
+      )!.text;
+      expect(source).toContain(".control\nset filetype=ascii");
+      expect(source).toContain("ac dec 20 1 1G");
+      expect(source).not.toContain("ground 0");
+      const compiled = compileNgspiceSourceSimulation(project, result.folder);
+      expect(compiled.ok, JSON.stringify(compiled)).toBe(true);
+    },
+  );
   it.each(["circuit", "dut", "text"] as const)(
     "preserves the selected analysis template for a %s folder",
     (mode) => {

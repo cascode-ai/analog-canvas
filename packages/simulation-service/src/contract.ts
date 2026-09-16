@@ -533,6 +533,8 @@ export const CapabilitiesSchema = z.strictObject({
         id: Id,
         /** Human-facing name. Automation continues to select the stable id. */
         label: z.string().min(1).max(128).optional(),
+        /** Execution dialect owned by this Profile, never inferred from filenames. */
+        engine: z.enum(["ngspice", "vacask"]).optional(),
         corners: z.array(z.string()),
         /** Exact model or wrapper names qualified on this hosted environment. */
         devices: z.array(z.string().min(1).max(256)).optional(),
