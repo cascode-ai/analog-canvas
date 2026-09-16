@@ -459,9 +459,7 @@ for (const width of [300, 540]) {
   });
 }
 
-test("a black-box part exposes its generated Reference", async ({
-  page,
-}) => {
+test("a black-box part exposes its generated Reference", async ({ page }) => {
   await page.goto("/editor");
   await awaitEditorReady(page);
   // Analog Blocks are exported as unresolved subcircuits, so their visible
