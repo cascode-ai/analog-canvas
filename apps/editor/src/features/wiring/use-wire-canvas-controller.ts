@@ -246,8 +246,25 @@ export function useWireCanvasController({
     // click acts on.
     const target = wireDraftTargetFromSnap(resolved);
     if (target.kind === "free") {
-      if (finish) finishWireAtPoint(target.point);
-      else fixWirePoint(target.point);
+      if (finish) {
+        // A browser double-click dispatches one ordinary click before its
+        // dblclick event. The ordinary click fixes this exact point as a wire
+        // step, which disables automatic routing and can swap the elbow from
+        // the previewed vertical-first path to horizontal-first at commit.
+        // Remove only that trailing duplicate; an intentional earlier step at
+        // the same point remains immediately before it.
+        const wire = readCurrentWireSession();
+        const lastStep = wire.steps.at(-1);
+        if (
+          lastStep?.point.x === target.point.x &&
+          lastStep.point.y === target.point.y
+        ) {
+          setWireDraftSteps(wire.steps.slice(0, -1));
+        }
+        finishWireAtPoint(target.point);
+      } else {
+        fixWirePoint(target.point);
+      }
       return;
     }
     const candidate = sourceForTarget(target);

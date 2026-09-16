@@ -6137,6 +6137,33 @@ test("double-click ends the wire even when it lands on another wire", async ({
   await expect(page.getByTestId("status")).toContainText("Wire finished");
 });
 
+test("double-click preserves the previewed corner order from a transistor pin", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await placeComponent(page, "pmos", { x: 700, y: 180 });
+  const canvas = page.getByTestId("schematic-canvas");
+  await clickDrawTool(page, "wire");
+  await page.getByTestId("terminal-M1-D").click();
+
+  // Automatic routing respects the drain's downward outward direction. The
+  // reported failure previews this correctly, then swaps to horizontal-first
+  // when the first click inside the double-click becomes a fixed waypoint.
+  const target = { x: 360, y: 430 };
+  await canvas.hover({ position: target });
+  const preview = await page.getByTestId("wire-preview").evaluate((element) =>
+    Array.from((element as SVGPolylineElement).points).map(({ x, y }) => ({
+      x,
+      y,
+    })),
+  );
+
+  await canvas.dblclick({ position: target });
+  await expect(page.getByTestId("status")).toContainText("Committed route");
+  const committed = await readRoutePoints(page, await onlyRouteId(page));
+  expect(committed).toEqual(preview);
+});
+
 test("dragging a wire previews the orthogonal path it will commit", async ({
   page,
 }) => {
