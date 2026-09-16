@@ -449,7 +449,7 @@ test("declares a top Formal Cell Pin and exports the top interface", async ({
   await clickCommand(page, "Netlist", "Check Report…");
   const preflight = page.getByRole("dialog", { name: "Check Report" });
   await expect(preflight.getByTestId("netlist-preview")).toContainText(
-    ".subckt dut VDD VSS VIN",
+    ".subckt dut VIN",
   );
   await expect(preflight).not.toContainText("GENERATED_NET_NAME");
   await expect(preflight).not.toContainText("MISSING_DEVICE_DEFINITION");
@@ -505,7 +505,7 @@ test("copies and independently deletes Formal Cell Pins", async ({ page }) => {
     page
       .getByRole("dialog", { name: "Check Report" })
       .getByTestId("netlist-preview"),
-  ).toContainText(".subckt dut VDD VSS VIN");
+  ).toContainText(".subckt dut VIN");
 });
 
 test("edits a Cell Pin name and RichText presentation in place", async ({
@@ -549,7 +549,7 @@ test("edits a Cell Pin name and RichText presentation in place", async ({
   const preflight = page.getByRole("dialog", { name: "Check Report" });
   await expect(preflight).not.toContainText("MISSING_DEVICE_DEFINITION");
   await expect(preflight.getByTestId("netlist-preview")).toContainText(
-    ".subckt dut VDD VSS VINP",
+    ".subckt dut VINP",
   );
 });
 
@@ -793,7 +793,7 @@ test("same-name Cell Pins stay independent while the final interface groups them
     .getByRole("dialog", { name: "Check Report" })
     .getByTestId("netlist-preview")
     .innerText();
-  expect(preview).toContain(".subckt dut VDD VSS VIN");
+  expect(preview).toContain(".subckt dut VIN");
   expect(preview).not.toContain("ALIAS");
   await page.getByTestId("check-report-close").click();
 
