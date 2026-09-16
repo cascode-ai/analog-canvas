@@ -5,11 +5,11 @@
 Use three stages so deployment work is paid per accepted batch rather than per
 small edit:
 
-| Stage | Unit of work | Completion |
-| --- | --- | --- |
-| Local | One bounded feature, fix, or improvement on the current local batch branch | Local feedback through `pnpm dev`, focused validation, and an explanatory local commit |
-| Preview | At least 10 completed changes in one batch PR | Whole-batch delivery checks, required PR/merge-queue checks, one main merge, and hosted Preview acceptance |
-| Production | A Preview-accepted candidate with release authorization | Version-tag or explicit-dispatch deployment and Production verification |
+| Stage      | Unit of work                                                               | Completion                                                                                                                    |
+| ---------- | -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Local      | One bounded feature, fix, or improvement on the current local batch branch | Local feedback through `pnpm dev`, focused validation, and an explanatory local commit                                        |
+| Preview    | At least 10 completed changes in one batch PR                              | Whole-batch delivery checks, one required PR check pass against current `main`, one main merge, and hosted Preview acceptance |
+| Production | A Preview-accepted candidate with release authorization                    | Version-tag or explicit-dispatch deployment and Production verification                                                       |
 
 Ten changes means ten independently useful outcomes, not ten commits or files.
 Supporting tests and follow-up repairs belong to their original change. Keep
@@ -24,6 +24,13 @@ diff once for delivery and merge one PR; merging ten separate PRs would still
 trigger repeated Preview deployments. Review the combined risk, including
 interactions between otherwise small changes. Documentation-only work retains
 the workflow's existing deployment exclusions.
+
+The same immutable candidate receives one complete required CI pass. A current
+branch merges directly after that pass; it does not enter a second merge-queue
+run. If another change reaches `main` first, update the branch and rerun because
+the candidate has changed. Preview runs independent simulation qualification
+and product journeys in two parallel lanes, then Production promotes those
+accepted bytes without rebuilding.
 
 Choose any release version while preparing the candidate for Preview. After
 acceptance, Production publication is a separate release decision, covered by

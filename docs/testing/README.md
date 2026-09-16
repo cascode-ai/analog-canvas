@@ -76,8 +76,8 @@ symbol. Keep specialized history, rejection, hierarchy and terminal tests.
 
 Day-to-day changes accumulate on a local batch branch. Use the development
 server and the smallest checks that prove each target's behavior and direct
-dependencies, then commit it locally. Do not start a full delivery run, PR,
-merge queue, or deployment merely because one small target is complete.
+dependencies, then commit it locally. Do not start a full delivery run, PR, or
+deployment merely because one small target is complete.
 
 Keep validation scope distinct from publication scope. Before a local commit,
 `pnpm gate:plan -- --base HEAD` describes its uncommitted delta. After one
@@ -115,9 +115,10 @@ Every implementation pull request keeps the inexpensive broad protection:
   itself changed, all four checks automatically run the complete browser
   suite.
 
-The merge queue, nightly schedule, and manual workflow always force complete
-browser coverage. CI does not repeat on the subsequent `main` push; the
-Preview workflow builds, deploys, and verifies the merged candidate.
+Nightly and manual workflows always force complete browser coverage. A PR based
+on current `main` merges after its required checks without repeating them in a
+merge queue. CI does not repeat on the subsequent `main` push; the Preview
+workflow builds, deploys, and verifies the merged candidate.
 Production is a separate release-tag or explicit-commit promotion after Preview
 acceptance. [Deployment](../deployment.md) owns that sequence and recovery.
 

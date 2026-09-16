@@ -239,13 +239,14 @@ jobs:
             echo "Anonymous Preview Projects must require sign-in, got: $projects"
             exit 1
           fi
-      # A divider checks the transport and the persisted OTA Project checks the
-      # product compiler plus OP/DC/AC/TRAN/Noise model evidence. Both run on the preview's
-      # simulator host; a green status without numbers is not acceptance.
-      - name: Run both engines through the managed public MCP path
-        run: node scripts/preview-dual-engine-smoke.mjs "$PREVIEW_URL" --ota --failures
+      # The simulation qualification and product journeys are independent.
+      # Run them in two lanes on this already-prepared runner instead of paying
+      # their combined latency serially. Each lane retains its internal order
+      # so the simulator sees at most two acceptance streams at once.
+      - name: Run Preview acceptance in two parallel lanes
+        run: node scripts/run-preview-acceptance.mjs "$PREVIEW_URL"
         env:
-          ICM_ACCEPTANCE_MCP_SOURCE: published
+          ICM_PREVIEW_ACCEPTANCE_TOKEN: ${{ secrets.PREVIEW_ACCEPTANCE_TOKEN }}
       - name: Preserve dual-engine candidate receipt
         if: always()
         uses: actions/upload-artifact@v4
@@ -254,28 +255,6 @@ jobs:
           path: test-results/preview-dual-ota/
           if-no-files-found: ignore
           retention-days: 14
-      - name: Run the preview's numerical and vertical simulation acceptance
-        run: node scripts/preview-simulation-smoke.mjs "$PREVIEW_URL"
-      - name: Run the public Agent/MCP simulation journey
-        run: node scripts/preview-agent-simulation-journey.mjs "$PREVIEW_URL"
-        env:
-          # A locally rebuilt adapter cannot certify the package users install.
-          ICM_ACCEPTANCE_MCP_SOURCE: published
-      - name: Run the source workspace GUI simulation journey
-        run: node scripts/preview-source-gui-journey.mjs "$PREVIEW_URL"
-      - name: Run the cross-Project Agent/MCP simulation journey
-        run: node scripts/preview-cross-project-simulation-journey.mjs "$PREVIEW_URL"
-        env:
-          ICM_PREVIEW_ACCEPTANCE_TOKEN: ${{ secrets.PREVIEW_ACCEPTANCE_TOKEN }}
-      # This is the only Production input. It is published only after every
-      # deployed Preview acceptance above has passed.
-      - name: Preserve accepted deployment candidate
-        uses: actions/upload-artifact@v4
-        with:
-          name: preview-candidate-${{ github.sha }}
-          path: ${{ runner.temp }}/analog-canvas-candidate
-          if-no-files-found: error
-          retention-days: 90
       - name: Preserve the Agent/MCP simulation receipt
         if: always()
         uses: actions/upload-artifact@v4
@@ -300,3 +279,12 @@ jobs:
           path: test-results/preview-source-gui/
           if-no-files-found: error
           retention-days: 14
+      # This is the only Production input. It is published only after every
+      # deployed Preview acceptance above has passed and its evidence exists.
+      - name: Preserve accepted deployment candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: preview-candidate-${{ github.sha }}
+          path: ${{ runner.temp }}/analog-canvas-candidate
+          if-no-files-found: error
+          retention-days: 90

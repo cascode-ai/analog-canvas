@@ -192,7 +192,7 @@ describe("CI validation planning", () => {
     });
   });
 
-  it("forces complete validation for scheduled and merge-queue events", () => {
+  it("forces complete validation for scheduled and manual events", () => {
     expect(
       ciPlan(["docs/user/getting-started.md"], { forceFull: true }),
     ).toMatchObject({ heavy: true, mode: "full", e2eArgs: [] });

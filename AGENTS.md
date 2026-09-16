@@ -27,8 +27,8 @@ local stage unless the user explicitly requests a later stage.
    independently useful feature, fix, or improvement; supporting tests, repair
    commits, files, and formatting do not count as extra changes. The user may
    request an earlier Preview delivery or hold a ready batch. Run the mainline
-   delivery gate against the whole batch, wait for required PR and merge-queue
-   checks, then merge and verify the deployed Preview. Prepare any intended
+   delivery gate against the whole batch, wait for the required PR checks,
+   then merge and verify the deployed Preview. Prepare any intended
    release version before this acceptance so the accepted candidate can be
    promoted without another code change.
 3. **Production release.** Promote a Preview-accepted candidate when the user
@@ -208,16 +208,18 @@ Before a non-document change is merged or pushed to `main`:
    `pnpm install --frozen-lockfile`. Run `pnpm setup:e2e` once on a machine that
    does not yet have the matching Playwright Chromium installation.
 2. Run `pnpm gate:preflight -- --base <base-ref>`.
-3. When the printed plan selects `full-delivery`, run `pnpm gate:full` once;
-   the complete gate supersedes affected static, unit, focused-browser,
-   release, and branch checks. Otherwise run
-   `pnpm gate:affected -- --base <base-ref>`. Shared core, production
-   boundaries, gate-policy changes, and unclassified code take the
-   conservative full path without repeating its covered work locally.
+3. Run `pnpm gate:affected -- --base <base-ref>` when the plan selects bounded
+   affected gates. When it selects `full-delivery`, run the target's focused
+   checks locally and let the required PR checks own the single complete
+   delivery run. Do not run the same full suite both locally and remotely just
+   because publication is next. Run `pnpm gate:full` locally when actual risk
+   calls for pre-push full evidence or remote CI is unavailable.
 4. Push a review branch and wait for all seven GitHub required checks. Static,
    full unit, and release/performance checks run for every implementation PR;
    the four browser checks run focused specs or automatically fall back to the
-   complete suite. Merge-queue, nightly, and manual CI runs are always full.
+   complete suite. The branch must still be based on current `main`; if `main`
+   changes while checks run, update once and revalidate. Current branches merge
+   directly after this one CI pass. Nightly and manual CI runs are always full.
 5. If a remote check fails, keep the target active: inspect its log, repair the
    reported cause, and repeat verification. A successful `git push` is not a
    completed delivery.

@@ -22,6 +22,10 @@ const sourceGuiJourney = readFileSync(
   "scripts/preview-source-gui-journey.mjs",
   "utf8",
 );
+const acceptanceRunner = readFileSync(
+  "scripts/run-preview-acceptance.mjs",
+  "utf8",
+);
 
 describe("the preview deploy", () => {
   it("deploys the preview configuration file and nothing else", () => {
@@ -78,22 +82,25 @@ describe("the preview deploy", () => {
       "Anonymous Preview Projects must require sign-in",
     );
     expect(preview).toContain(
-      'node scripts/preview-simulation-smoke.mjs "$PREVIEW_URL"',
+      'node scripts/run-preview-acceptance.mjs "$PREVIEW_URL"',
     );
     expect(preview).toContain("VITE_ICM_SIMULATION_UI: enabled");
     expect(preview).toContain("VITE_ICM_AGENT_UI: enabled");
     expect(preview).toContain("VITE_ICM_SIMULATION_TRANSPORT: managed");
     expect(preview).toContain("pnpm --filter @icm/mcp-server... build");
     expect(preview).toContain("playwright install --with-deps chromium");
-    expect(preview).toContain(
-      'node scripts/preview-agent-simulation-journey.mjs "$PREVIEW_URL"',
+    expect(acceptanceRunner).toContain(
+      'script: "scripts/preview-simulation-smoke.mjs"',
     );
-    expect(preview).toContain(
-      'node scripts/preview-source-gui-journey.mjs "$PREVIEW_URL"',
+    expect(acceptanceRunner).toContain(
+      'script: "scripts/preview-agent-simulation-journey.mjs"',
+    );
+    expect(acceptanceRunner).toContain(
+      'script: "scripts/preview-source-gui-journey.mjs"',
     );
     expect(preview).toContain("preview-source-gui-${{ github.sha }}");
-    expect(preview).toContain(
-      'node scripts/preview-cross-project-simulation-journey.mjs "$PREVIEW_URL"',
+    expect(acceptanceRunner).toContain(
+      'script: "scripts/preview-cross-project-simulation-journey.mjs"',
     );
     expect(preview).toContain("PREVIEW_ACCEPTANCE_TOKEN");
     expect(preview).toContain("preview-agent-simulation-${{ github.sha }}");
@@ -112,7 +119,7 @@ describe("the preview deploy", () => {
     const build = preview.indexOf("Build immutable deployment candidate");
     const deploy = preview.indexOf("Deploy to preview");
     const lastAcceptance = preview.indexOf(
-      "Run the cross-Project Agent/MCP simulation journey",
+      "Run Preview acceptance in two parallel lanes",
     );
     const preserve = preview.indexOf("Preserve accepted deployment candidate");
     expect(build).toBeGreaterThan(-1);
