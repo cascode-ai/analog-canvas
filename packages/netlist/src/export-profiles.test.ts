@@ -57,6 +57,118 @@ function exported(
 }
 
 describe("netlist export presets", () => {
+  it.each([false, true])(
+    "exports a local supply as a Pin only when formally declared (formal: %s)",
+    (formal) => {
+      const project = circuit();
+      const document = project.documents[0]!;
+      document.instances.push({
+        id: "power",
+        symbolId: "vdd-port",
+        placement: null,
+      });
+      document.nets
+        .find((net) => net.id === "M2-B")!
+        .terminals.push({ instanceId: "power", pinName: "P" });
+      document.connectivityEvidence.push({
+        id: "power-claim",
+        kind: "name-claim",
+        netId: "M2-B",
+        name: "VDD",
+        scope: "local",
+        powerDomain: "vdd",
+        owner: { kind: "power-marker", objectId: "power" },
+      });
+      document.netlist!.terminals.push({
+        id: "signal",
+        name: "SIG",
+        netId: "M1-G",
+        direction: "input",
+        interfaceInstanceIds: [],
+      });
+      if (formal)
+        document.netlist!.terminals.push({
+          id: "supply",
+          name: "VDD",
+          netId: "M2-B",
+          direction: "inout",
+          interfaceInstanceIds: ["power"],
+        });
+      const result = exported(project);
+      expect(result.file.text).toContain(
+        formal ? ".subckt dut SIG VDD\n" : ".subckt dut SIG\n",
+      );
+      expect(result.file.text).not.toContain(".global");
+      expect(result.file.text).not.toContain("VSS");
+    },
+  );
+  it.each(["spice", "spectre"] as const)(
+    "preserves explicit AVDD/DVDD pin order and ground 0 without adding supplies in %s",
+    (format) => {
+      const project = circuit();
+      const document = project.documents[0]!;
+      for (const [name, netId] of [
+        ["SIG", "M1-G"],
+        ["DVDD", "M2-B"],
+        ["AVDD", "M2-S"],
+      ]) {
+        document.instances.push({
+          id: name!,
+          symbolId: "port",
+          placement: null,
+        });
+        document.nets
+          .find((net) => net.id === netId)!
+          .terminals.push({ instanceId: name!, pinName: "P" });
+        document.netlist!.terminals.push({
+          id: `terminal-${name}`,
+          name: name!,
+          netId: netId!,
+          direction: "inout",
+          interfaceInstanceIds: [name!],
+        });
+      }
+      document.instances.push({
+        id: "GND",
+        symbolId: "ground",
+        placement: null,
+      });
+      document.nets
+        .find((net) => net.id === "M1-B")!
+        .terminals.push({
+          instanceId: "GND",
+          pinName: deviceDescriptor("ground")!.pinOrder[0]!,
+        });
+      document.connectivityEvidence.push({
+        id: "ground-claim",
+        kind: "name-claim",
+        netId: "M1-B",
+        name: "0",
+        scope: "global",
+        powerDomain: "ground",
+        owner: { kind: "power-marker", objectId: "GND" },
+      });
+      const before = structuredClone(project);
+      const result = exported(project, undefined, format);
+      expect(result.file.text).toContain(
+        format === "spice"
+          ? ".subckt dut SIG DVDD AVDD\n"
+          : "subckt dut (SIG DVDD AVDD)\n",
+      );
+      expect(result.file.text).toMatch(
+        format === "spice"
+          ? /M1 \S+ SIG \S+ 0 NMOS/u
+          : /M1 \(\S+ SIG \S+ 0\) NMOS/u,
+      );
+      expect(result.file.text).toMatch(
+        format === "spice"
+          ? /M2 \S+ \S+ AVDD DVDD PMOS/u
+          : /M2 \(\S+ \S+ AVDD DVDD\) PMOS/u,
+      );
+      expect(result.file.text).not.toMatch(/\b(?:VDD|VSS)\b/u);
+      expect(project).toEqual(before);
+    },
+  );
   it("offers process-specific device target choices including every default", () => {
     for (const id of [
       "abstract",
@@ -204,7 +316,7 @@ describe("netlist export presets", () => {
   );
 
   it.each(["spice", "spectre"] as const)(
-    "places VDD and VSS first on every Canvas module and hierarchy call in %s",
+    "preserves authored module interfaces and hierarchy calls without supplies in %s",
     (format) => {
       const project = createEmptyProject("hierarchy", "Hierarchy", "top");
       const top = project.documents[0]!;
@@ -255,13 +367,13 @@ describe("netlist export presets", () => {
       );
 
       if (format === "spice") {
-        expect(result.file.text).toContain(".subckt child VDD VSS SIG");
-        expect(result.file.text).toMatch(/X1 VDD VSS net\d+ child/u);
-        expect(result.file.text).toContain(".subckt top VDD VSS");
+        expect(result.file.text).toContain(".subckt child SIG\n");
+        expect(result.file.text).toMatch(/X1 net\d+ child/u);
+        expect(result.file.text).toContain(".subckt top\n");
       } else {
-        expect(result.file.text).toContain("subckt child (VDD VSS SIG)");
-        expect(result.file.text).toMatch(/X1 \(VDD VSS net\d+\) child/u);
-        expect(result.file.text).toContain("subckt top (VDD VSS)");
+        expect(result.file.text).toContain("subckt child (SIG)");
+        expect(result.file.text).toMatch(/X1 \(net\d+\) child/u);
+        expect(result.file.text).toContain("subckt top");
       }
       expect(project).toEqual(before);
     },
@@ -302,7 +414,7 @@ describe("netlist export presets", () => {
       /^simulator lang=spectre\ninclude "sky130\.lib\.spice" section=tt\n/u,
     );
     expect(scs.file.text).not.toContain("simulator lang=spice");
-    expect(scs.file.text).toContain("subckt dut (VDD VSS)\n");
+    expect(scs.file.text).toContain("subckt dut\n");
     expect(scs.file.text).toMatch(
       /XM1 \([^\n]+\) sky130_fd_pr__nfet_01v8 l=0.3 w=2 nf=3 m=2/u,
     );
@@ -311,103 +423,86 @@ describe("netlist export presets", () => {
   });
 
   it.each(["abstract", "sky130"] as const)(
-    "defaults a manually authored PMOS bulk to the existing VDD Net for %s",
+    "does not invent a missing MOS Bulk or supply with the %s preset",
     (profileId) => {
+      for (const instanceId of ["M1", "M2"]) {
+        const project = circuit();
+        const document = project.documents[0]!;
+        for (const net of document.nets)
+          net.terminals = net.terminals.filter(
+            (terminal) =>
+              terminal.instanceId !== instanceId || terminal.pinName !== "B",
+          );
+        const before = structuredClone(project);
+        const profile = createNetlistExportProfile(profileId);
+        const projected = projectNetlistExportProfile(project, profile);
+        expect(projected.project.documents[0]!.nets).toEqual(document.nets);
+        expect(projected.project.documents[0]!.connectivityEvidence).toEqual(
+          document.connectivityEvidence,
+        );
+        const result = createDesignNetlistExport(project, { profile });
+        expect(result.status).toBe("blocked");
+        expect(result.diagnostics).toContainEqual(
+          expect.objectContaining({
+            code: "MISSING_PIN_NET",
+            objectIds: [instanceId],
+          }),
+        );
+        expect(project).toEqual(before);
+      }
+    },
+  );
+
+  it.each(["spice", "spectre"] as const)(
+    "preserves explicit global VDD and actual PMOS Bulk in %s",
+    (format) => {
       const project = circuit();
       const document = project.documents[0]!;
-      for (const net of document.nets)
-        net.terminals = net.terminals.filter(
-          (terminal) =>
-            terminal.instanceId !== "M2" || terminal.pinName !== "B",
-        );
       document.instances.push({
         id: "VDD1",
         symbolId: "vdd-port",
         placement: null,
       });
       document.nets
-        .find((net) => net.id === "M2-S")!
-        .terminals.push({ instanceId: "VDD1", pinName: "P" });
+        .find((net) => net.id === "M2-B")!
+        .terminals.push({
+          instanceId: "VDD1",
+          pinName: "P",
+        });
       document.connectivityEvidence.push({
         id: "vdd-claim",
         kind: "name-claim",
-        netId: "M2-S",
+        netId: "M2-B",
         name: "VDD",
-        owner: { kind: "power-marker", objectId: "VDD1" },
         scope: "global",
         powerDomain: "vdd",
+        owner: { kind: "power-marker", objectId: "VDD1" },
       });
-      expect(CircuitProjectSchema.safeParse(project).success).toBe(true);
       const before = structuredClone(project);
-      const profile = createNetlistExportProfile(profileId);
-
+      const profile = createNetlistExportProfile("abstract");
       const projected = projectNetlistExportProfile(project, profile);
-      const vdd = projected.project.documents[0]!.nets.find(
-        (net) => net.id === "M2-S",
-      )!;
-      expect(vdd.terminals).toContainEqual({
-        instanceId: "M2",
-        pinName: "B",
-      });
-      expect(
-        projected.diagnostics.filter(
-          (item) => item.code === "EXPORT_SUBSTRATE_DEFAULT",
-        ),
-      ).toHaveLength(1);
-      expect(
-        projected.project.documents[0]!.connectivityEvidence.find(
-          (item) => item.id === "vdd-claim",
-        ),
-      ).toMatchObject({ scope: "local" });
+      expect(projected.project.documents[0]!.connectivityEvidence).toEqual(
+        document.connectivityEvidence,
+      );
+      const result = exported(project, profile, format);
+      expect(result.file.text).toContain(
+        format === "spice" ? ".global VDD" : "global VDD",
+      );
+      expect(result.file.text).toContain(
+        format === "spice" ? ".subckt dut\n" : "subckt dut\n",
+      );
+      expect(result.file.text).not.toContain("VSS");
       expect(project).toEqual(before);
 
-      const result = createDesignNetlistExport(project, { profile });
-      expect(result.status, JSON.stringify(result.diagnostics)).toBe("ready");
-      if (result.status === "ready") {
-        expect(result.file.text).toMatch(/\.subckt dut VDD VSS/u);
-      }
+      // A named global supply elsewhere must not repair a missing Bulk.
+      document.nets.find((net) => net.id === "M2-B")!.terminals = [
+        { instanceId: "VDD1", pinName: "P" },
+      ];
       expect(
-        result.diagnostics.filter((item) => item.code === "MISSING_PIN_NET"),
-      ).toEqual([]);
+        createDesignNetlistExport(project, { profile, format }).status,
+      ).toBe("blocked");
     },
   );
-
-  it("creates an exporter-only VDD Net for a manually authored PMOS when the drawing has none", () => {
-    const project = circuit();
-    const document = project.documents[0]!;
-    for (const net of document.nets)
-      net.terminals = net.terminals.filter(
-        (terminal) => terminal.instanceId !== "M2" || terminal.pinName !== "B",
-      );
-    const before = structuredClone(project);
-
-    const projected = projectNetlistExportProfile(
-      project,
-      createNetlistExportProfile("abstract"),
-    );
-    const defaultNet = projected.project.documents[0]!.nets.find((net) =>
-      net.terminals.some(
-        (terminal) => terminal.instanceId === "M2" && terminal.pinName === "B",
-      ),
-    )!;
-    expect(projected.project.documents[0]!.connectivityEvidence).toContainEqual(
-      expect.objectContaining({
-        kind: "name-claim",
-        netId: defaultNet.id,
-        name: "VDD",
-        scope: "local",
-      }),
-    );
-    expect(CircuitProjectSchema.safeParse(projected.project).success).toBe(
-      true,
-    );
-    expect(project).toEqual(before);
-    expect(
-      createDesignNetlistExport(project, {
-        profile: createNetlistExportProfile("abstract"),
-      }).status,
-    ).toBe("ready");
-  });
 
   it("keeps an explicit PMOS Bulk NoConnect instead of applying the preset default", () => {
     const project = circuit();

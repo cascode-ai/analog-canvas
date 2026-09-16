@@ -309,20 +309,18 @@ external transistor interfaces and ideal R/C by default; Custom preserves author
 targets. Defaults fill only missing parameters, case-insensitively. Existing source
 waveforms and AC intent do not acquire a new DC bias from a fallback.
 
-Strict extraction and simulation use actual MOS B connectivity, including
-placement-materialized defaults. Without membership or an explicit NoConnect
-they report `MISSING_PIN_NET`; polarity does not invent a supply. Profiled copy
-export is the bounded exception: for a manually authored PMOS with neither an
-explicit B connection nor NoConnect, projection connects B to the profile's
-PMOS `substrate` (`VDD` by default). It reuses an existing named Net or creates
-an exporter-only global Net, never mutates the Project, and never repairs an
-imported/source-bound MOS or an inconsistent persisted binding. After strict
-extraction, profiled user export adds `VDD` and `VSS` as the first two ports of
-every Canvas-authored module and adds the same ordered nodes to hierarchy calls.
-Source-bound imported modules retain their declared interfaces. An explicitly
-global VDD or VSS remains global and suppresses only the matching implicit port;
-actual ground remains node `0`. These supply ports exist only in the transient
-export IR and do not change the Project or strict simulation interface.
+Strict extraction, simulation, and profiled copy export use actual MOS B
+connectivity, including placement-materialized defaults. Without membership or
+an explicit NoConnect they report `MISSING_PIN_NET`; polarity and preset substrate
+settings do not invent MOS connections. Export preserves declared Cell interfaces
+and their ordering in hierarchy calls. It never adds VDD/VSS ports, promotes a
+local rail to a formal Pin, or rewrites a Global marker to local. Ground remains
+node `0`; it does not imply a VSS interface.
+
+Built-in Analog Blocks retain their library-declared fixed supply names, but
+those names must resolve to authored named Nets in the Cell. Missing supplies
+produce `MISSING_BLOCK_SUPPLY`, not synthetic Nets or ports. For different supply
+domains, use an explicit external definition with the intended terminal mapping.
 
 Explicit physical R/C targets use reviewed W/L parameters, never infer geometry
 from an ideal value, and warn when replacing that value. A resistor's existing

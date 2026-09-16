@@ -95,17 +95,12 @@ is defined.
   **Draw** lets you make an explicit route. The dashed route follows the MOS
   line color; selecting it shows a Bulk-specific action instead of ordinary
   wire styling controls. Place an unplaced device first.
-- Strict extraction and simulation use actual Bulk connections, including
-  connections established by placement defaults. The editable netlist export
-  preset additionally connects a manually authored PMOS with no B connection
-  to its configured substrate (`VDD` by default), on the export copy only.
-  Explicit Bulk and No Connect choices take priority, and imported PMOS devices
-  remain strict. Profiled netlist export places `VDD` and `VSS` first on every
-  Canvas-authored module interface and on matching hierarchy calls, ahead of
-  the authored signal Pins. Source-imported modules retain their declared
-  interface. An explicitly Global supply remains global and suppresses only the
-  matching implicit port. Separate supplies such as `AVDD` and `DVDD` retain
-  their actual connections; Ground remains node `0`.
+- Netlist export and simulation use actual Bulk connections, including those
+  established by placement defaults. Connect a missing Bulk or mark it NoConnect;
+  export presets do not repair it. Module interfaces and hierarchy calls retain
+  their authored Pins and order: no VDD/VSS interface is added automatically.
+  Explicitly Global supplies stay global, and separate supplies such as `AVDD`
+  and `DVDD` retain their connections. Ground remains node `0`, not a VSS Pin.
 - Right-click an endpoint for the distinct **Disconnect endpoint** and
   **Delete connection** actions.
 - `Delete` on a connected component now removes the component while preserving
@@ -311,12 +306,11 @@ pauses copying until corrected. The circuit itself is unchanged.
 - `custom`: keep authored component targets, and fill missing fields from your
   editable defaults. Existing component values always take priority.
 
-Every preset keeps an explicit Bulk connection or NoConnect. For a manually
-authored PMOS with neither, the export copy uses the PMOS `substrate` setting,
-which defaults to `VDD`; an exporter-only VDD Net is created when the drawing
-does not contain one. This does not modify the Project or change strict
-simulation extraction. Imported/source-bound PMOS devices still require their
-authored fourth terminal or an explicit NoConnect.
+Every preset requires an actual MOS Bulk connection or an explicit NoConnect.
+Missing connections block export rather than creating an invisible VDD Net.
+Built-in Analog Blocks require their library-declared supply Nets to exist;
+export reports missing supplies instead of adding Cell Pins. Use an explicit
+external definition when the block needs a different supply interface.
 
 Fields still missing after these defaults use undefined `TODO_…` placeholders;
 the sidebar and Check Report identify incomplete output. The Project stays

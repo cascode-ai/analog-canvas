@@ -464,11 +464,11 @@ test("shows and copies a live MOS netlist with explicitly connected bulk termina
   const spice = await copyNetlistText(page, "spice");
   expect(spice).toMatch(/M1 \S+ \S+ (\S+) \1 NMOS/u);
   expect(spice).toMatch(/M2 \S+ \S+ (\S+) \1 PMOS/u);
-  expect(spice).toContain(".subckt dut VDD VSS\n");
+  expect(spice).toContain(".subckt dut\n");
   const spectre = await copyNetlistText(page, "spectre");
   expect(spectre).toMatch(/M1 \(\S+ \S+ (\S+) \1\) NMOS/u);
   expect(spectre).toMatch(/M2 \(\S+ \S+ (\S+) \1\) PMOS/u);
-  expect(spectre).toContain("subckt dut (VDD VSS)\n");
+  expect(spectre).toContain("subckt dut\n");
   const panel = page.getByRole("region", {
     name: "Live netlist",
     exact: true,
@@ -500,7 +500,7 @@ test("shows and copies a live MOS netlist with explicitly connected bulk termina
   expect(skySpectre).toMatch(
     /XM2 \(\S+ \S+ (\S+) \1\) sky130_fd_pr__pfet_01v8 l=0.15 w=1 nf=1 m=1/u,
   );
-  expect(skySpectre).toContain("subckt dut (VDD VSS)\n");
+  expect(skySpectre).toContain("subckt dut\n");
   expect(skySpectre).not.toContain(".subckt");
   expect(skySpectre).not.toContain(".global");
   const codeViewport = panel.locator(".netlist-code-viewport");
@@ -588,9 +588,7 @@ test("shows and copies a live MOS netlist with explicitly connected bulk termina
   await expect(panel.getByLabel("R netlist target")).toHaveValue("");
   await expect(panel.getByLabel("C netlist target")).toHaveValue("");
   await expect(panel.getByLabel("L netlist target")).toHaveValue("");
-  await expect(panel.getByLabel("Netlist code")).toContainText(
-    ".subckt dut VDD VSS\n",
-  );
+  await expect(panel.getByLabel("Netlist code")).toContainText(".subckt dut\n");
   await page.reload();
   await page.getByTestId("netlist-panel-toggle").click();
   await expect(panel.getByLabel("Netlist format")).toHaveValue("spice");

@@ -182,6 +182,7 @@ function reachableDocuments(
 
 interface CellNetContext {
   nameByNetId: Map<string, string>;
+  nameByAuthoredName: Map<string, string>;
   netByTerminal: Map<string, ResolvedLogicalNet>;
   noConnectNameByTerminal: Map<string, string>;
   nets: DesignNetlistCell["nets"];
@@ -637,6 +638,12 @@ function buildNetContext(
   const emittedNetNames = new Set<string>();
   return {
     nameByNetId,
+    nameByAuthoredName: new Map(
+      logicalNets.groups.flatMap((net) => {
+        const name = nameByNetId.get(net.baseNetIds[0]!);
+        return net.name && name ? [[foldNetName(net.name), name] as const] : [];
+      }),
+    ),
     netByTerminal,
     noConnectNameByTerminal,
     nets: [
@@ -1019,7 +1026,18 @@ function extractBuiltInSubcircuitInstance(
   }
   const nodes = definition.ports.flatMap((port) => {
     if (port.supply) {
-      return [{ pinName: port.name, netName: port.supply }];
+      // The library declares a fixed named supply, not permission to invent
+      // a Net or a Cell interface. Resolve authored identity before encoding.
+      const netName = context.nameByAuthoredName.get(foldNetName(port.supply));
+      if (netName) return [{ pinName: port.name, netName }];
+      diagnostic(
+        diagnostics,
+        document.id,
+        "MISSING_BLOCK_SUPPLY",
+        `Analog Block ${reference} requires an authored ${port.supply} Net; declare its supply explicitly or use an external definition with the intended interface`,
+        [instance.id],
+      );
+      return [];
     }
     const netName = terminalNetName(
       document,

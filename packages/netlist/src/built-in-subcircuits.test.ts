@@ -21,6 +21,21 @@ function analogBlockProject(
   const project = createEmptyProject("analog-blocks", "Analog Blocks", "dut");
   const document = project.documents[0]!;
   document.netlist!.name = "dut";
+  // These are authored interfaces, not ports synthesized by the exporter.
+  for (const name of ["VDD", "VSS"]) {
+    document.instances.push({ id: name, symbolId: "port", placement: null });
+    document.nets.push({
+      id: name,
+      terminals: [{ instanceId: name, pinName: "P" }],
+    });
+    document.netlist!.terminals.push({
+      id: `terminal-${name}`,
+      name,
+      netId: name,
+      direction: "inout",
+      interfaceInstanceIds: [name],
+    });
+  }
   for (const [instanceIndex, symbolId] of symbols.entries()) {
     const instanceId = `block-${instanceIndex + 1}`;
     document.instances.push({
@@ -59,6 +74,35 @@ function analogBlockProject(
 }
 
 describe("built-in Analog Block subcircuits", () => {
+  it.each([undefined, createNetlistExportProfile("abstract")])(
+    "blocks absent block supplies without synthesizing interfaces (profile: %s)",
+    (profile) => {
+      const project = analogBlockProject(
+        ["opamp-differential"],
+        differentialNets,
+      );
+      const document = project.documents[0]!;
+      document.netlist!.terminals = [];
+      document.instances = document.instances.filter(
+        (instance) => !["VDD", "VSS"].includes(instance.id),
+      );
+      document.nets = document.nets.filter(
+        (net) => !["VDD", "VSS"].includes(net.id),
+      );
+      const before = structuredClone(project);
+      const result = createDesignNetlistExport(
+        project,
+        profile ? { profile } : {},
+      );
+      expect(result.status).toBe("blocked");
+      expect(
+        result.diagnostics.filter(
+          (diagnostic) => diagnostic.code === "MISSING_BLOCK_SUPPLY",
+        ),
+      ).toHaveLength(2);
+      expect(project).toEqual(before);
+    },
+  );
   it.each([
     {
       symbolId: "voltage-amplifier",
@@ -220,7 +264,7 @@ describe("built-in Analog Block subcircuits", () => {
     expect(upper.status).toBe("ready");
     expect(lower.status).toBe("ready");
     if (upper.status !== "ready" || lower.status !== "ready") return;
-    expect(upper.file.text).toContain(".subckt dut VDD VSS VIN");
-    expect(lower.file.text).toContain(".subckt dut vdd vss vin");
+    expect(upper.file.text).toContain(".subckt dut VIN\n");
+    expect(lower.file.text).toContain(".subckt dut vin\n");
   });
 });
