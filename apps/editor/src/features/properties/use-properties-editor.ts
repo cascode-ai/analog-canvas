@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { deferFocus } from "../../interaction/deferred-focus";
 import type { MutableRefObject } from "react";
 
 import {
@@ -702,9 +703,7 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
       commitAfterNaming: target !== null,
     });
     options.setStatus("Type a Net Label name, then press Enter to place it");
-    requestAnimationFrame(() =>
-      options.netLabelEditorInputRef.current?.focus(),
-    );
+    deferFocus(() => options.netLabelEditorInputRef.current);
   };
 
   const commitNetLabelAtTarget = (
@@ -738,9 +737,7 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
     const draft = netLabelPlacement.draft.trim();
     if (!draft) {
       options.setStatus("Net Label name cannot be empty");
-      requestAnimationFrame(() =>
-        options.netLabelEditorInputRef.current?.focus(),
-      );
+      deferFocus(() => options.netLabelEditorInputRef.current);
       return;
     }
     const ready = { ...netLabelPlacement, draft, phase: "placing" as const };

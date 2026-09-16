@@ -134,7 +134,6 @@ export function AnnotationPropertyCodeEditor<T>({
           historyKey={historyKey}
           adapter={adapter}
           defaultForeground={defaultColor}
-          focusRequest={0}
           onChange={change}
         />
       </Suspense>

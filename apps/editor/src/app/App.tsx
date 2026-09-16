@@ -292,6 +292,7 @@ import {
 } from "../features/selection/selection-filter";
 import { deriveSelectionInspectionModel } from "../features/selection/selection-inspection-model";
 import { usePropertiesEditor } from "../features/properties/use-properties-editor";
+import { deferFocus } from "../interaction/deferred-focus";
 import { createPropertyEditPlanner } from "../features/properties/property-edit-planner";
 import {
   instanceParameterVisibility,
@@ -1362,7 +1363,6 @@ export function App({
   const suppressInstanceClick = useRef(false);
   const projectInputRef = useRef<HTMLInputElement>(null);
   const selectionShelfRef = useRef<HTMLButtonElement>(null);
-  const [propertyCodeFocusRequest, setPropertyCodeFocusRequest] = useState(0);
   const netLabelEditorInputRef = useRef<HTMLInputElement>(null);
   const documentViewBoxes = useRef(new Map<string, GridRect>());
   const [projectedMovePreviewDocument, setProjectedMovePreviewDocument] =
@@ -3254,9 +3254,7 @@ export function App({
     setSelectionOpen(true);
     // Focus the header, not the first field: Q stays a pure toggle and
     // editing starts only when the user clicks an input.
-    requestAnimationFrame(() => {
-      selectionShelfRef.current?.focus();
-    });
+    deferFocus(() => selectionShelfRef.current);
   }
 
   function closeProperties(): void {
@@ -3322,7 +3320,6 @@ export function App({
     setImportReviewOpen(false);
     setSelectionOpen(true);
     setStatus(`Properties for ${instanceId}`);
-    setPropertyCodeFocusRequest((current) => current + 1);
   }
 
   function toggleExamplesPanel(): void {
@@ -5895,7 +5892,6 @@ export function App({
                 selectedInstance
                   ? {
                       code: {
-                        focusRequest: propertyCodeFocusRequest,
                         instance: selectedInstance,
                         displayName: selectedDisplayName,
                         defaultForeground: styleProfile.foreground,

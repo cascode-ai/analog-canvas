@@ -1,5 +1,6 @@
 import type { SearchResult } from "@icm/derived";
 import { useEffect, useRef } from "react";
+import { deferFocus } from "../../interaction/deferred-focus";
 
 export interface ProjectSearchDialogProps {
   open: boolean;
@@ -20,7 +21,7 @@ export function ProjectSearchDialog({
 }: ProjectSearchDialogProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
-    if (open) requestAnimationFrame(() => inputRef.current?.focus());
+    if (open) return deferFocus(() => inputRef.current);
   }, [open]);
   if (!open) return null;
   return (

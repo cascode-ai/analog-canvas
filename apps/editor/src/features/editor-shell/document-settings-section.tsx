@@ -168,7 +168,6 @@ export function DocumentSettingsSection({
           historyKey={historyKey}
           adapter={adapter}
           defaultForeground="#000000"
-          focusRequest={0}
           ariaLabel="Editable document Style code"
           onChange={change}
         />

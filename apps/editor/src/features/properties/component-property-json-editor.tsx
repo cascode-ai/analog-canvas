@@ -74,7 +74,6 @@ interface Props {
   context?: ComponentPropertyCodeContext;
   adapter?: PropertyJsonEditorAdapter;
   defaultForeground: string;
-  focusRequest: number;
   ariaLabel?: string;
   onChange(source: string): void;
 }
@@ -223,10 +222,6 @@ export default function ComponentPropertyJsonEditor(props: Props) {
   useLayoutEffect(() => {
     viewRef.current?.dispatch({ effects: refreshDecorations.of(null) });
   }, [props.context, props.adapter, props.defaultForeground]);
-
-  useLayoutEffect(() => {
-    if (props.focusRequest > 0) viewRef.current?.focus();
-  }, [props.focusRequest]);
 
   return <div className="component-json-editor" ref={parent} />;
 }

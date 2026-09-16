@@ -18,6 +18,52 @@ import {
   openSelectionShelf,
 } from "./manual-editor-fixtures.js";
 
+test("property inspection and remounts keep canvas keyboard ownership", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await placeComponent(page, "resistor", { x: 350, y: 220 });
+  await placeComponent(page, "resistor", { x: 550, y: 320 });
+  const canvas = page.getByTestId("schematic-canvas");
+  await page.getByTestId("hit-R1").dblclick();
+  const code = page.getByLabel("Editable Canvas property code");
+  await expect(code).toBeVisible();
+  await expect(canvas).toBeFocused();
+  await page.getByTestId("hit-R2").click();
+  await expect(code).toContainText("R2");
+  await expect(canvas).toBeFocused();
+  await page.keyboard.press("r");
+  await expectComponentCodeField(page, "placement.rotation", 90);
+  await page.keyboard.press("Delete");
+  await expect(page.getByTestId("hit-R2")).toHaveCount(0);
+  await expect(page.getByTestId("hit-R1")).toHaveCount(1);
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect(page.getByTestId("hit-R2")).toHaveCount(1);
+  await page.getByTestId("hit-R1").click();
+  await expect(code).toContainText("R1");
+  await expect(canvas).toBeFocused();
+});
+
+test("explicit property typing keeps Delete local and returns shortcuts to canvas", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await placeComponent(page, "resistor", { x: 350, y: 220 });
+  await page.getByTestId("hit-R1").dblclick();
+  const code = page.getByLabel("Editable Canvas property code");
+  await code.click();
+  await expect(code).toBeFocused();
+  await page.keyboard.press("ControlOrMeta+Home");
+  await page.keyboard.press("Delete");
+  await expect(page.getByTestId("hit-R1")).toHaveCount(1);
+  await expect(code).toBeFocused();
+  await page.keyboard.press("ControlOrMeta+z");
+  await page.getByTestId("hit-R1").click();
+  await expect(page.getByTestId("schematic-canvas")).toBeFocused();
+  await page.keyboard.press("Delete");
+  await expect(page.getByTestId("hit-R1")).toHaveCount(0);
+});
+
 test("live JSON properties update controls immediately and round-trip raw parameter strings", async ({
   page,
 }) => {

@@ -167,7 +167,6 @@ export function GroupPropertyCodeEditor({
           historyKey={historyKey}
           adapter={adapter}
           defaultForeground={defaultForeground}
-          focusRequest={0}
           onChange={change}
         />
       </Suspense>

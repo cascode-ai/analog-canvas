@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { deferFocus } from "../../interaction/deferred-focus";
 
 import type { SymbolDefinition } from "@icm/symbols";
 
@@ -170,8 +171,7 @@ export function InsertComponentDialog({
     setSelectedId(initialSelectionId);
     // A quick pick always reopens showing everything.
     setHiddenCategories(new Set());
-    const frame = requestAnimationFrame(() => inputRef.current?.focus());
-    return () => cancelAnimationFrame(frame);
+    return deferFocus(() => inputRef.current);
   }, [initialSelectionId, open]);
 
   const clearAllCategories = (): void => {
