@@ -1141,19 +1141,21 @@ test("incomplete circuit opens Code and saves invalid parameter drafts across re
   if (!source.ok) throw Error("Expected incomplete authoring projection");
   const original = source.source.text;
   await editor.press("ControlOrMeta+A");
-  await page.keyboard.insertText(original.replace("<value>", "bad-value"));
-  await expect(editor).toContainText("bad-value");
+  // `bad-value` is valid native subtraction, not an invalid numeric draft.
+  // A trailing operator is incomplete in either dialect and cannot be applied.
+  await page.keyboard.insertText(original.replace("<value>", "bad-value+"));
+  await expect(editor).toContainText("bad-value+");
   const saveSource = panel.getByRole("button", {
     name: "Save source",
     exact: true,
   });
   await saveSource.click();
   await expect(saveSource).toHaveAttribute("data-save-state", "failed");
-  await expect(editor).toContainText("bad-value");
+  await expect(editor).toContainText("bad-value+");
   const bytes = await downloadBytes(page, "File", "Export Project File…");
   const saved = parseProject(bytes.toString());
   expect(saved.simulationFolders[0]!.input.drafts?.[0]?.text).toContain(
-    "bad-value",
+    "bad-value+",
   );
   expect(
     saved.documents
@@ -1168,7 +1170,7 @@ test("incomplete circuit opens Code and saves invalid parameter drafts across re
   });
   await page.getByTestId("open-analog-simulation").click();
   await panel.getByRole("tab", { name: "circuit.spice", exact: false }).click();
-  await expect(editor).toContainText("bad-value");
+  await expect(editor).toContainText("bad-value+");
   await panel
     .getByRole("treeitem", { name: "Folder Draft", exact: true })
     .click({ button: "right" });
