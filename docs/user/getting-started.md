@@ -4,8 +4,13 @@
 
 ```powershell
 pnpm install --frozen-lockfile
+pnpm build
 pnpm dev
 ```
+
+Run `pnpm build` once after installing, and again after pulling package
+changes: the development server's Vite configuration loads some workspace
+packages from their built `dist/` output.
 
 Open the displayed loopback URL. Open **File** and use **Import SPICE / SCS…**
 to select one `.cir`, `.sp`, `.spi`, or `.scs` entry plus its local include

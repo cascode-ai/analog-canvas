@@ -68,8 +68,13 @@ Requires Node.js 24 or newer and pnpm 11.16.0 or newer.
 
 ```powershell
 pnpm install --frozen-lockfile
+pnpm build
 pnpm dev
 ```
+
+Run `pnpm build` once after installing, and again after pulling package
+changes: the development server's Vite configuration loads some workspace
+packages from their built `dist/` output.
 
 Open the displayed loopback URL and choose **New Circuit**, or open its
 `/editor` route directly. Create a circuit from the component palette, or

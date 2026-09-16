@@ -23,7 +23,7 @@ diagnosed. Humans and authorized Agents share the typed Edit Engine.
 ```bash
 pnpm install --frozen-lockfile    # setup
 pnpm dev                          # editor dev server (Vite, http://localhost:5173) + local Agent relay, netlist conversion, simulation proxy (ICM_SIMULATION_URL)
-pnpm build                        # build everything (pnpm -r, topological order)
+pnpm build                        # build everything (pnpm -r, topological order); needed once after install
 pnpm typecheck                    # single root tsc pass (also the only typecheck of test files)
 pnpm format:check                 # Prettier for code/JSON/YAML (pnpm format to write); Markdown is not covered
 pnpm docs:check                   # Markdown links + ADR/spec index contracts
@@ -131,7 +131,7 @@ Dependencies flow strictly downward and pnpm's topological order is the only bui
 ### Build mechanics
 
 - Packages and `apps/{local-host,mcp-server}` build with plain `tsc`; only `apps/editor` uses Vite (MCP release packaging also bundles with Vite). Build order comes solely from pnpm topological ordering (no `tsc -b` project references).
-- The `development` package-export condition maps `@icm/*` to `src/*.ts` (every package except `platform-node`), so Vite dev and Vitest run from source with no build. Node consumers (`scripts/*.mjs`, mcp-server, packaged release) resolve `dist/` — that is why those npm scripts are prefixed with a build.
+- The `development` package-export condition maps `@icm/*` to `src/*.ts` (every package except `platform-node`), so the browser code served by Vite dev and Vitest run from source with no build. Node consumers (`scripts/*.mjs`, mcp-server, packaged release) resolve `dist/` — that is why those npm scripts are prefixed with a build. The Vite config loader and the Node-side Playwright specs also resolve `dist/`, so a fresh checkout needs `pnpm build` before `pnpm dev` or browser tests; `ci:e2e` compiles every non-editor workspace project first.
 - `pnpm typecheck` (`tsconfig.check.json`) maps `@icm/*` straight to source and covers `apps/`, `packages/`, and `worker/`, including the `*.test.ts` files that package builds exclude.
 
 ### Editor internals
