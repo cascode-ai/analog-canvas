@@ -1,4 +1,5 @@
 import { readFile, mkdir, stat } from "node:fs/promises";
+import { realpathSync } from "node:fs";
 import { isAbsolute, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { isIP } from "node:net";
@@ -132,7 +133,8 @@ async function main() {
 }
 if (
   process.argv[1] &&
-  resolve(process.argv[1]) === fileURLToPath(import.meta.url)
+  realpathSync(resolve(process.argv[1])) ===
+    realpathSync(fileURLToPath(import.meta.url))
 )
   main().catch((error) => {
     console.error(

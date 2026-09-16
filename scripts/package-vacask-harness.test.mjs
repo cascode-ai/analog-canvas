@@ -1,5 +1,5 @@
 import { it, expect, beforeAll } from "vitest";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFile, execSync } from "node:child_process";
@@ -27,11 +27,20 @@ it("packages the real entrypoint and starts outside the workspace without node_m
     expect(manifest.status).toBe("packaged-not-deployed");
     // Invalid operator configuration reaches the real entrypoint, rather than
     // failing an unresolved workspace/package import on the deployment host.
+    // Invoke it through a directory alias because macOS presents /var as
+    // /private/var and deployment mounts can have the same real-path mismatch.
+    const alias = join(root, "bundle-alias");
+    await symlink(
+      output,
+      alias,
+      process.platform === "win32" ? "junction" : "dir",
+    );
+    const aliasedEntry = join(alias, manifest.entry);
     const config = join(root, "invalid.json");
     await writeFile(config, "{}");
     let failure;
     try {
-      await promisify(execFile)(process.execPath, [entry, config], {
+      await promisify(execFile)(process.execPath, [aliasedEntry, config], {
         cwd: root,
         windowsHide: true,
         timeout: 20000,
