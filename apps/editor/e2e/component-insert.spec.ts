@@ -2393,7 +2393,7 @@ test("keeps a usable canvas while toggling Library at the narrow breakpoint", as
   ).toEqual({ horizontal: false, vertical: false });
 });
 
-test("double-clicking a placed device opens Properties for editing", async ({
+test("double-clicking a placed device reveals Properties without entering typing", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -2418,6 +2418,8 @@ test("double-clicking a placed device opens Properties for editing", async ({
   );
   const propertyValue = page.getByLabel("Editable Canvas property code");
   await expect(propertyValue).toBeVisible();
+  await expect(canvas).toBeFocused();
+  await propertyValue.click();
   await expect(propertyValue).toBeFocused();
 });
 
