@@ -50,6 +50,14 @@ import { json, jsonParseLinter } from "@codemirror/lang-json";
 import { linter, lintGutter, type Diagnostic } from "@codemirror/lint";
 import { searchKeymap } from "@codemirror/search";
 import type { SimulationSourceDiagnostic } from "@icm/netlist";
+import { inspectSimulationSource } from "@icm/spice";
+import {
+  spiceCodeLanguage,
+  spiceCompletion,
+  spiceHoverHelp,
+} from "./code-spice-language";
+import * as spiceGuide from "./code-spice-parameter-guide";
+import { ngspiceAcquisitionEdit } from "@icm/netlist";
 import {
   nativeCodeLanguage,
   nativeCompletion,
@@ -88,7 +96,7 @@ export interface SimulationCodeEditorProps {
   text: string;
   /** A committed revision/history boundary. Do not change this while typing a local draft. */
   historyKey: string;
-  mode?: "native" | "json";
+  mode?: "native" | "ngspice" | "json";
   entry?: boolean;
   readOnly?: boolean;
   diagnostics?: readonly SimulationSourceDiagnostic[] | undefined;
@@ -262,7 +270,9 @@ export default function SimulationCodeEditor(props: SimulationCodeEditorProps) {
               const guide =
                 callbacks.current.mode === "json"
                   ? null
-                  : parameterGuide(update.state);
+                  : callbacks.current.mode === "ngspice"
+                    ? spiceGuide.parameterGuide(update.state)
+                    : parameterGuide(update.state);
               setArgumentHint(guide?.parameters[guide.index]?.label ?? "");
               const line = update.state.doc.lineAt(
                 update.state.selection.main.head,
@@ -270,7 +280,11 @@ export default function SimulationCodeEditor(props: SimulationCodeEditorProps) {
               const word = line.text.trim();
               setUnknownCommand(
                 /^[\p{L}]{2,}$/u.test(word) &&
-                  !nativeCompletion(
+                  !(
+                    callbacks.current.mode === "ngspice"
+                      ? spiceCompletion
+                      : nativeCompletion
+                  )(
                     new CompletionContext(
                       update.state,
                       update.state.selection.main.head,
@@ -404,7 +418,21 @@ export default function SimulationCodeEditor(props: SimulationCodeEditorProps) {
       return;
     handledDeclaration.current = props.declarationRequest;
     const text = editor.state.field(exactSourceField);
-    const edit = nativeParameterDeclarationEdit(text, true);
+    const edit =
+      props.mode === "ngspice"
+        ? (() => {
+            const from =
+              text.indexOf("\n") < 0 ? text.length : text.indexOf("\n") + 1;
+            const insert =
+              (from && text[from - 1] !== "\n" ? "\n" : "") +
+              ".param variable=1\n";
+            return {
+              text: text.slice(0, from) + insert + text.slice(from),
+              anchor: from + insert.length - 1,
+              changes: [{ from, insert }],
+            };
+          })()
+        : nativeParameterDeclarationEdit(text, true);
     const { from, insert } = edit.changes[0]!;
     editor.dispatch({
       changes: { from: editorOffset(text, from), insert },
@@ -431,7 +459,9 @@ export default function SimulationCodeEditor(props: SimulationCodeEditorProps) {
       props.mode === "json"
     )
       return;
-    const edit = nativeAcquisitionEdit(
+    const edit = (
+      props.mode === "ngspice" ? ngspiceAcquisitionEdit : nativeAcquisitionEdit
+    )(
       editor.state.doc.toString(),
       saveAnchor.current?.session === props.saveRequest.session &&
         saveAnchor.current.path === props.path
@@ -512,7 +542,10 @@ export default function SimulationCodeEditor(props: SimulationCodeEditorProps) {
         (helperOpen && (
           <CodeHelperList
             language={props.mode ?? "native"}
-            control={controlContext(
+            control={(props.mode === "ngspice"
+              ? (text: string, _entry: boolean) =>
+                  spiceGuide.controlContext(text)
+              : controlContext)(
               view.current?.state.doc.sliceString(
                 0,
                 view.current.state.selection.main.head,
@@ -563,13 +596,23 @@ export default function SimulationCodeEditor(props: SimulationCodeEditorProps) {
               );
               // Replace an unfinished command only. Existing populated code is preserved.
               if (/^\s*[.\p{L}\w]*$/u.test(line.text))
-                insertNativeHelp(editor, rule);
+                props.mode === "ngspice"
+                  ? spiceGuide.insertSpiceHelp(editor, {
+                      ...rule,
+                      context: rule.context === "circuit" ? "deck" : "control",
+                    })
+                  : insertNativeHelp(editor, rule);
               else {
                 editor.dispatch({
                   changes: { from: line.to, insert: "\n" },
                   selection: { anchor: line.to + 1 },
                 });
-                insertNativeHelp(editor, rule);
+                props.mode === "ngspice"
+                  ? spiceGuide.insertSpiceHelp(editor, {
+                      ...rule,
+                      context: rule.context === "circuit" ? "deck" : "control",
+                    })
+                  : insertNativeHelp(editor, rule);
               }
             }}
           />
@@ -588,7 +631,9 @@ export default function SimulationCodeEditor(props: SimulationCodeEditorProps) {
             event.key === "Escape" &&
             props.mode !== "json" &&
             view.current &&
-            dismissNativeGuide(view.current)
+            (props.mode === "ngspice"
+              ? spiceGuide.dismissSpiceGuide
+              : dismissNativeGuide)(view.current)
           ) {
             event.preventDefault();
             event.stopPropagation();
@@ -617,7 +662,7 @@ export default function SimulationCodeEditor(props: SimulationCodeEditorProps) {
           const prefix = line.text.trim().toLowerCase();
           if (
             /^[.\p{L}\w]+$/u.test(prefix) &&
-            !nativeCompletion(
+            !(props.mode === "ngspice" ? spiceCompletion : nativeCompletion)(
               new CompletionContext(
                 editor.state,
                 editor.state.selection.main.head,
@@ -647,12 +692,16 @@ function sourceExtensions(
       : [
           nativeEntry.of(!!props.entry),
           nativeCompanions.of(props.relatedSources ?? []),
-          nativeCodeLanguage,
-          nativeParameterGuide,
+          props.mode === "ngspice" ? spiceCodeLanguage : nativeCodeLanguage,
+          props.mode === "ngspice"
+            ? spiceGuide.spiceParameterGuide
+            : nativeParameterGuide,
           autocompletion({
             override: [
               (context) =>
-                nativeCompletion(
+                (callbacks.current.mode === "ngspice"
+                  ? spiceCompletion
+                  : nativeCompletion)(
                   context,
                   callbacks.current.relatedSources,
                   callbacks.current.signalNames,
@@ -708,7 +757,7 @@ function sourceExtensions(
               },
             };
           }),
-          nativeHoverHelp,
+          props.mode === "ngspice" ? spiceHoverHelp : nativeHoverHelp,
         ];
   return [
     ...language,
@@ -721,8 +770,19 @@ function sourceExtensions(
         const local =
           current.mode === "json"
             ? []
-            : inspectNativeLanguage(current.path, text, current.entry)
-                .diagnostics;
+            : (current.mode === "ngspice"
+                ? inspectSimulationSource(
+                    {
+                      id: current.path,
+                      path: current.path,
+                      text,
+                      hash: "",
+                      encoding: "utf-8",
+                    },
+                    current.entry,
+                  )
+                : inspectNativeLanguage(current.path, text, current.entry)
+              ).diagnostics;
         const diagnostics: Diagnostic[] = (
           current.mode === "json" ? jsonParseLinter()(editor) : []
         ) as Diagnostic[];

@@ -5,7 +5,7 @@ import type {
 } from "@icm/model";
 import {
   compileNgspiceSourceSimulation,
-  simulationSignals,
+  ngspiceSignals as simulationSignals,
   inspectSimulationSourceGraph,
   insertSimulationText,
   type SimulationSourceDiagnostic,

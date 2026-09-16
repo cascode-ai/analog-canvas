@@ -9,8 +9,12 @@ import {
   createAgentNativeExecutor,
 } from "./native-simulation-executor.mjs";
 
-for (const profileId of [undefined, "native-service-profile"]) {
-  test(`GUI creates native experiments with ${profileId ?? "offline candidate"} identity`, async ({
+for (const [profileId, engine] of [
+  [undefined, "vacask"],
+  ["native-service-profile", "vacask"],
+  ["ngspice-service-profile", "ngspice"],
+] as const) {
+  test(`GUI creates ${engine} experiments with ${profileId ?? "offline candidate"} identity`, async ({
     page,
   }) => {
     const project = parseProject(
@@ -24,12 +28,15 @@ for (const profileId of [undefined, "native-service-profile"]) {
       route.fulfill({
         json: {
           configured: profileId !== undefined,
-          rawfileCollection: "native-multi-ascii",
+          rawfileCollection:
+            engine === "vacask"
+              ? "native-multi-ascii"
+              : "declared-single-ascii",
           inputs: ["source"],
           analyses: ["op"],
           parsedAnalyses: ["op"],
           profiles: profileId
-            ? [{ id: profileId, corners: [], dependencies: [] }]
+            ? [{ id: profileId, engine, corners: [], dependencies: [] }]
             : [],
           maxTimeoutMs: 15000,
           maxInputBytes: 1048576,
@@ -45,7 +52,9 @@ for (const profileId of [undefined, "native-service-profile"]) {
     });
     await page.getByTestId("open-analog-simulation").click();
     const panel = page.getByRole("region", { name: "Analog simulation" });
-    await panel.getByRole("button", { name: "Set up", exact: true }).click();
+    await panel
+      .getByRole("button", { name: "Set up manually", exact: true })
+      .click();
     const name = panel.getByRole("textbox", {
       name: "New simulation folder name",
     });
@@ -71,8 +80,13 @@ for (const profileId of [undefined, "native-service-profile"]) {
     const entry = folder.input.files.find(
       (f) => f.path === folder.input.entry,
     )!.text;
-    expect(entry).toContain("analysis");
-    expect(entry).not.toContain(".control");
+    if (engine === "vacask") {
+      expect(entry).toContain("analysis op op");
+      expect(entry).not.toContain(".control");
+    } else {
+      expect(entry).toContain(".control");
+      expect(entry).not.toContain("analysis op op");
+    }
   });
 }
 

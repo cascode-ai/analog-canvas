@@ -20,6 +20,7 @@ interface NameRequest {
   path?: string;
   label: string;
   initial: string;
+  profiles?: readonly { id: string; name: string }[];
   validate?(name: string): string | undefined;
   cellSelection?: {
     initial: string;
@@ -29,6 +30,7 @@ interface NameRequest {
 }
 interface NameResult {
   name: string;
+  profileId?: string;
   documentId?: string;
 }
 interface Confirmation {
@@ -278,6 +280,7 @@ function NameInput() {
   const interaction = useWorkspaceInteractions();
   const request = interaction.edit!;
   const [value, setValue] = useState(request.initial);
+  const [profileId, setProfileId] = useState(request.profiles?.[0]?.id ?? "");
   const [documentId, setDocumentId] = useState(
     request.cellSelection?.initial ?? "",
   );
@@ -307,6 +310,7 @@ function NameInput() {
         : {
             name,
             ...(request.cellSelection ? { documentId } : {}),
+            ...(request.profiles ? { profileId } : {}),
           },
       restoreFocus,
     );
@@ -343,6 +347,22 @@ function NameInput() {
           }
         }}
       />
+      {request.profiles && request.profiles.length > 1 ? (
+        <label>
+          Environment{" "}
+          <select
+            aria-label="Simulation environment"
+            value={profileId}
+            onChange={(event) => setProfileId(event.currentTarget.value)}
+          >
+            {request.profiles.map((profile) => (
+              <option key={profile.id} value={profile.id}>
+                {profile.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
       {request.cellSelection ? (
         <div className="workspace-cell-selection">
           <label htmlFor={`simulation-cell-${request.requestId}`}>Cell</label>

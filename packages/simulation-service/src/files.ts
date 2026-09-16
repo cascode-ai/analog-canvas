@@ -40,6 +40,9 @@ export class SimulationFiles {
   constructor(
     private now: () => number = Date.now,
     private projectHost?: ProjectSimulationFileHost,
+    private selectEngine?: (
+      folder: import("@icm/model").ProjectSimulationFolder,
+    ) => Promise<"ngspice" | "vacask">,
   ) {}
   clear() {
     this.epoch++;
@@ -83,6 +86,7 @@ export class SimulationFiles {
         this.projectHost,
         op,
         () => this.epoch === epoch,
+        this.selectEngine,
       );
     }
     if (op.action === "list" && !op.owner)

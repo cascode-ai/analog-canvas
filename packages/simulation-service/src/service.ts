@@ -3,6 +3,8 @@ import type { CircuitProject } from "@icm/model";
 import { readSimulationExperimentConfig } from "@icm/model";
 import { simulationAnalysisToCsv } from "@icm/spice-run";
 import { nativeAuthoringHelp } from "@icm/netlist";
+import { simulationLanguageHelp, NGSPICE_LANGUAGE_REFERENCE } from "@icm/spice";
+import { profileEngine } from "./profile-engine.js";
 import {
   SimulationOperationSchema,
   problem,
@@ -100,7 +102,43 @@ export class SimulationService {
     const op = parsed.data;
     try {
       if (op.operation === "authoring-help") {
-        const helpers = nativeAuthoringHelp(op);
+        let engine: "ngspice" | "vacask" = "vacask";
+        if (op.profileId) {
+          const caps = await this.executor.capabilities(op.profileId);
+          const profile = caps.profiles.find((p) => p.id === op.profileId);
+          const selected =
+            profile && profileEngine(profile, caps.rawfileCollection);
+          if (!selected)
+            return problem(
+              "SIMULATION_PROFILE_UNKNOWN",
+              "Select an advertised Profile for authoring help",
+              "input",
+            );
+          engine = selected;
+        }
+        const helpers =
+          engine === "vacask"
+            ? nativeAuthoringHelp(op)
+            : simulationLanguageHelp
+                .filter((h) => h.context === "deck" || h.context === "control")
+                .filter(
+                  (h) =>
+                    (!op.name || h.name === op.name) &&
+                    (!op.context ||
+                      h.context ===
+                        (op.context === "circuit" ? "deck" : "control")),
+                )
+                .map((h) => ({
+                  name: h.name,
+                  context:
+                    h.context === "deck"
+                      ? ("circuit" as const)
+                      : ("control" as const),
+                  signature: h.signature,
+                  summary: h.summary,
+                  reference: `${NGSPICE_LANGUAGE_REFERENCE}#${h.section}`,
+                  source: h.signature,
+                }));
         return op.name && !helpers.length
           ? problem(
               "SIMULATION_HELPER_NOT_FOUND",

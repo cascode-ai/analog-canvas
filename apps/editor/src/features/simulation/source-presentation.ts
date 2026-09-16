@@ -17,14 +17,17 @@ export interface SimulationPresentationOutput {
   label: string;
   expression: SimulationPresentationExpression;
 }
-export function sourcePresentation(folder: ProjectSimulationFolder) {
+export function sourcePresentation(
+  folder: ProjectSimulationFolder,
+  engine?: "ngspice" | "vacask",
+) {
   const parsed = readSimulationExperimentConfig(folder);
   const root = folder.input.circuitBindings.find(
     (binding) => binding.emission === "top-level",
   );
   let swept = false;
   const kinds = new Set(
-    parsed.ok && parsed.authority === "code"
+    (engine ? engine === "vacask" : parsed.ok && parsed.authority === "code")
       ? inspectVacaskSourceGraph(folder.input).statements.flatMap(
           ({ statement }) => {
             const tokens = statement.tokens;

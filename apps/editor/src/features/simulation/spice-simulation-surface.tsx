@@ -881,6 +881,14 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
       kind: "folder",
       ...(action === "rename" && current ? { folderId: current.id } : {}),
       label: action === "rename" ? "Folder name" : "New simulation folder name",
+      ...(action === "new" && capabilities?.profiles.length
+        ? {
+            profiles: capabilities.profiles.map((profile) => ({
+              id: profile.id,
+              name: profile.label ?? profile.id,
+            })),
+          }
+        : {}),
       ...(action === "new"
         ? {
             cellSelection: {
@@ -950,7 +958,9 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
         );
         return;
       }
-      const profile = capabilities?.profiles[0];
+      const profile =
+        capabilities?.profiles.find((p) => p.id === selection.profileId) ??
+        capabilities?.profiles[0];
       const engine = profile
         ? profileEngine(profile, capabilities?.rawfileCollection)
         : "vacask";
@@ -969,7 +979,7 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
         documentId: selection.documentId,
         // Offline authoring uses the same candidate as the native starters.
         // Prepare still requires that the connected service advertises it.
-        profileId: capabilities?.profiles[0]?.id ?? "vacask-sky130-candidate",
+        profileId: profile?.id ?? "vacask-sky130-candidate",
         engine,
         template: "op",
       });

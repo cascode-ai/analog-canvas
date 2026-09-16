@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { nativeLanguageHelp, type NativeLanguageHelp } from "@icm/netlist";
+import { simulationLanguageHelp } from "@icm/spice";
 
 export interface CodeHelperAction {
   id: string;
@@ -15,7 +16,7 @@ export function CodeHelperList({
   onClose,
 }: {
   control: boolean;
-  language?: "native" | "json";
+  language?: "native" | "ngspice" | "json";
   actions?: readonly CodeHelperAction[] | undefined;
   onChoose(rule: NativeLanguageHelp): void;
   onClose(restoreFocus?: boolean): void;
@@ -26,8 +27,23 @@ export function CodeHelperList({
   const terms = query.trim().toLowerCase().split(/\s+/u);
   const matches = (text: string) =>
     terms.every((term) => text.toLowerCase().includes(term));
-  const rules = nativeLanguageHelp
-    .filter(() => language === "native")
+  const catalogue: readonly NativeLanguageHelp[] =
+    language === "ngspice"
+      ? simulationLanguageHelp
+          .filter(
+            (rule) => rule.context === "deck" || rule.context === "control",
+          )
+          .map((rule) => ({
+            ...rule,
+            context:
+              rule.context === "deck"
+                ? ("circuit" as const)
+                : ("control" as const),
+            group: rule.group ?? "ngspice",
+          }))
+      : nativeLanguageHelp;
+  const rules = catalogue
+    .filter(() => language !== "json")
     .filter((rule) => rule.context === (control ? "control" : "circuit"))
     .filter((rule) => matches(`${rule.name} ${rule.summary} ${rule.keywords}`));
   const entries = [

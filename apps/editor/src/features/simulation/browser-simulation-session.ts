@@ -1,4 +1,7 @@
-import type { CircuitProject } from "@icm/model";
+import {
+  readSimulationExperimentConfig,
+  type CircuitProject,
+} from "@icm/model";
 import { SimulationFiles } from "@icm/simulation-service/files";
 import type { ProjectSimulationFileHost } from "@icm/simulation-service/files";
 import type {
@@ -51,7 +54,29 @@ export class BrowserSimulationSession {
   constructor(private options: BrowserSimulationSessionOptions) {
     this.projectSessionId = options.getProjectSessionId();
     this.files =
-      options.files ?? new SimulationFiles(Date.now, options.projectFiles);
+      options.files ??
+      new SimulationFiles(Date.now, options.projectFiles, async (folder) => {
+        const config = readSimulationExperimentConfig(folder);
+        if (!config.ok) throw new Error(config.message);
+        const {
+          createHostedExecutor,
+          createManagedHostedExecutor,
+          resolveSimulationEngine,
+        } = await import("@icm/simulation-service");
+        const fetcher =
+          this.options.fetch ??
+          ((...args: Parameters<typeof fetch>) => globalThis.fetch(...args));
+        const executor =
+          this.options.transport === "managed"
+            ? createManagedHostedExecutor({ fetch: fetcher })
+            : createHostedExecutor(fetcher);
+        const selected = resolveSimulationEngine(
+          folder,
+          await executor.capabilities(config.config.environment.profileId),
+        );
+        if (!selected.ok) throw new Error(selected.error.message);
+        return selected.engine;
+      });
   }
   async clear() {
     this.generation++;

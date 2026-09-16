@@ -5,6 +5,7 @@ import type {
 } from "@icm/model";
 import { resolveDocumentLogicalNets } from "@icm/derived";
 import { simulationSignals } from "./simulation-signal-names.js";
+import { ngspiceSignals } from "./simulation-ngspice-signal-names.js";
 import { vacaskIdentifier } from "./vacask-printer.js";
 
 /** Resolve the existing durable anchor; no new persisted acquisition identity. */
@@ -38,6 +39,7 @@ export function nativeVoltageAcquisition(
   project: CircuitProject,
   input: SimulationSourceInput,
   target: Extract<SimulationSourceExpression, { kind: "voltage" }>,
+  engine: "ngspice" | "vacask" = "vacask",
 ) {
   const document = project.documents.find((d) => d.id === target.documentId);
   const netId = resolveSimulationVoltageProbeNetId(project, target);
@@ -49,7 +51,11 @@ export function nativeVoltageAcquisition(
   const logical = resolveDocumentLogicalNets(document).byBaseNetId;
   const net = logical.get(netId)?.id;
   const candidates = Object.entries(
-    simulationSignals(project, input, target.circuit),
+    (engine === "ngspice" ? ngspiceSignals : simulationSignals)(
+      project,
+      input,
+      target.circuit,
+    ),
   ).filter(([, signal]) =>
     signal.targets.some(
       (t) =>
@@ -67,5 +73,9 @@ export function nativeVoltageAcquisition(
         "The selected Net has no unique reachable native occurrence; choose its exact DUT call path",
     };
   const vector = candidates[0]![0];
-  return { ok: true as const, vector, save: `v(${vacaskIdentifier(vector)})` };
+  return {
+    ok: true as const,
+    vector,
+    save: engine === "ngspice" ? vector : `v(${vacaskIdentifier(vector)})`,
+  };
 }

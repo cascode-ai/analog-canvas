@@ -42,6 +42,34 @@ function replace(
   return text;
 }
 describe("Circuit parameter source projection", () => {
+  it("prints and edits ngspice source parameters without passing through the native grammar", () => {
+    const { project, source } = fixture();
+    const generated = generateCircuitSource(
+      project,
+      source.binding,
+      undefined,
+      "ngspice",
+    );
+    expect(generated.ok).toBe(true);
+    if (!generated.ok) return;
+    const body = generated.source.sourceBodies!.find(
+      (p) => p.instanceId === "VDD",
+    )!;
+    const plan = planCircuitSourceEdit(
+      generated.source,
+      generated.source.text.slice(0, body.startOffset) +
+        " DC 1.8 AC 1 90" +
+        generated.source.text.slice(body.endOffset),
+    );
+    expect(plan.ok, JSON.stringify(plan)).toBe(true);
+    expect(plan.ok && plan.changes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ parameter: "acMagnitude", value: "1" }),
+        expect.objectContaining({ parameter: "acPhase", value: "90" }),
+      ]),
+    );
+    expect(generated.source.text).not.toContain('type="dc"');
+  });
   it("adds, changes and removes AC/phase and waveforms while keeping source nodes locked", () => {
     const { project, source } = fixture();
     const body = source.sourceBodies!.find(

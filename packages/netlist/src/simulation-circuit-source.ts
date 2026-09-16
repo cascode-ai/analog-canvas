@@ -13,6 +13,8 @@ import {
 import { parseSpiceNumber } from "@icm/spice";
 import { analyzeDesignNetlistForAuthoring } from "./extract.js";
 import { printVacaskWithLocations } from "./vacask-printer.js";
+import { printSpiceWithLocations } from "./printers.js";
+import { parseNgspiceSourceParameters } from "./simulation-ngspice-source-parameters.js";
 import { inspectVacaskSource } from "./vacask-source.js";
 import { vacaskValueToProject } from "./vacask-values.js";
 import { compileSourceSimulation } from "./simulation-source-compile.js";
@@ -41,6 +43,7 @@ export interface EditableCircuitParameter extends PrintedNetlistParameter {
   documentRevision: number;
 }
 export interface GeneratedCircuitSource {
+  engine?: "ngspice" | "vacask";
   binding: SimulationCircuitBinding;
   text: string;
   parameters: EditableCircuitParameter[];
@@ -54,6 +57,7 @@ export function generateCircuitSource(
   project: CircuitProject,
   binding: SimulationCircuitBinding,
   input?: SimulationSourceInput,
+  engine: "ngspice" | "vacask" = "vacask",
 ):
   | { ok: true; source: GeneratedCircuitSource; warnings: NetlistDiagnostic[] }
   | { ok: false; diagnostics: NetlistDiagnostic[] } {
@@ -117,10 +121,16 @@ export function generateCircuitSource(
       }
     }
   }
-  let printed = printVacaskWithLocations(ir, binding.emission === "top-level", {
-    authoring: true,
-  });
-  if (input) {
+  let printed =
+    engine === "ngspice"
+      ? {
+          ok: true as const,
+          ...printSpiceWithLocations(ir, binding.emission === "top-level"),
+        }
+      : printVacaskWithLocations(ir, binding.emission === "top-level", {
+          authoring: true,
+        });
+  if (input && engine === "vacask") {
     // A runnable experiment uses the EXACT compiled file, including primitive
     // name allocation and ownership across bindings. Incomplete experiments
     // retain the non-executable authoring projection so their values stay editable.
@@ -193,6 +203,7 @@ export function generateCircuitSource(
   return {
     ok: true,
     source: {
+      engine,
       binding: { ...binding },
       text: printed.text,
       parameters,
@@ -211,7 +222,12 @@ export function generateCircuitSource(
         const close =
           tokens?.findIndex((t) => t.kind === "symbol" && t.value === ")") ??
           -1;
-        const master = close < 0 ? undefined : tokens?.[close + 1];
+        const master =
+          engine === "ngspice"
+            ? { end: /^\S+[ \t]+\S+[ \t]+\S+/u.exec(text)?.[0].length ?? 0 }
+            : close < 0
+              ? undefined
+              : tokens?.[close + 1];
         if (!master) return [];
         const document = project.documents.find(
           (d) => d.id === span.documentId,
@@ -259,6 +275,10 @@ export function planCircuitSourceEdit(
       message: string;
       range?: { from: number; to: number };
     } {
+  const parseParameters =
+    source.engine === "ngspice"
+      ? parseNgspiceSourceParameters
+      : parseEditableSourceParameters;
   let parameterRange: { from: number; to: number } | undefined;
   const fail = (code: string, message: string) => ({
     ok: false as const,
@@ -323,11 +343,11 @@ export function planCircuitSourceEdit(
         );
       sourceAppearances.set(identity, raw);
       if (raw !== span.rawValue) {
-        const parsed = parseEditableSourceParameters(raw);
+        const parsed = parseParameters(raw);
         if (!parsed.ok)
           invalid ??= fail("SIMULATION_PARAMETER_INVALID", parsed.message);
         else {
-          const previous = parseEditableSourceParameters(span.rawValue);
+          const previous = parseParameters(span.rawValue);
           const names = new Set([
             ...Object.keys(
               previous.ok ? previous.parameters : span.sourceParameters,
@@ -397,7 +417,8 @@ export function planCircuitSourceEdit(
     }
     let projectValue: string;
     try {
-      projectValue = vacaskValueToProject(raw);
+      projectValue =
+        source.engine === "ngspice" ? raw : vacaskValueToProject(raw);
     } catch (error) {
       invalid ??= fail(
         "SIMULATION_PARAMETER_INVALID",

@@ -412,6 +412,7 @@ export const SimulationSweepAxisSchema = SimulationRunPlanAxisSchema;
 export const SimulationOperationSchema = z.discriminatedUnion("operation", [
   z.strictObject({
     operation: z.literal("authoring-help"),
+    profileId: Id.optional(),
     name: z.string().min(1).max(128).optional(),
     context: z.enum(["circuit", "control"]).optional(),
   }),

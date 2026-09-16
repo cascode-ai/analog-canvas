@@ -5,6 +5,42 @@ import { SimulationService } from "./service.js";
 import { SimulationFiles } from "./files.js";
 import { SimulationReplySchema } from "./contract.js";
 
+it("selects ngspice help by Profile instead of emitting VACASK syntax", async () => {
+  const capabilities = vi.fn(async () => ({
+    profiles: [{ id: "ng", engine: "ngspice", corners: [] }],
+  }));
+  const service = new SimulationService(
+    new SimulationFiles(),
+    {
+      capabilities,
+      execute: vi.fn(),
+      cancel: vi.fn(),
+    } as unknown as ConstructorParameters<typeof SimulationService>[1],
+    () => createEmptyProject("p", "Help", "main"),
+  );
+  const reply = await service.handle(
+    {
+      operation: "authoring-help",
+      profileId: "ng",
+      name: "ac",
+      context: "control",
+    },
+    "help",
+  );
+  expect(capabilities).toHaveBeenCalledWith("ng");
+  expect(reply).toMatchObject({
+    ok: true,
+    helpers: [
+      expect.objectContaining({
+        name: "ac",
+        context: "control",
+        source: expect.stringMatching(/^ac /),
+      }),
+    ],
+  });
+  expect(SimulationReplySchema.safeParse(reply).success).toBe(true);
+});
+
 it("exposes the GUI catalogue without contacting the executor or changing authored state, and recovers a missing helper", async () => {
   const capabilities = vi.fn(() => {
     throw Error("offline");

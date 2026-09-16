@@ -83,6 +83,9 @@ export async function handleProjectSourceFiles(
   host: ProjectSimulationFileHost,
   op: OwnedOperation,
   active: () => boolean,
+  selectEngine?: (
+    folder: ProjectSimulationFolder,
+  ) => Promise<"ngspice" | "vacask">,
 ): Promise<FileReply> {
   if (!op.owner || op.owner.kind !== "project-folder")
     return problem(
@@ -120,6 +123,24 @@ export async function handleProjectSourceFiles(
     );
   };
   if (op.action === "list") return listProjectSource(before);
+  let engine: "ngspice" | "vacask" = "vacask";
+  const needsGenerated =
+    op.action === "read"
+      ? before.folder.input.circuitBindings.some((b) => b.path === op.path)
+      : op.circuitEdits.length > 0;
+  if (selectEngine && needsGenerated) {
+    try {
+      engine = await selectEngine(before.folder);
+    } catch (error) {
+      return problem(
+        "SIMULATION_ENGINE_UNAVAILABLE",
+        error instanceof Error ? error.message : String(error),
+        "input",
+        "retry-after",
+      );
+    }
+    if (!unchanged()) return conflict();
+  }
   if (op.action === "read") {
     let file = before.folder.input.files.find((f) => f.path === op.path);
     let editableParameters;
@@ -132,6 +153,7 @@ export async function handleProjectSourceFiles(
         before.project,
         binding,
         before.folder.input,
+        engine,
       );
       if (!result.ok)
         return problem(
@@ -211,7 +233,12 @@ export async function handleProjectSourceFiles(
         "This host cannot resolve the requested Circuit binding",
         "input",
       );
-    const generated = generateCircuitSource(before.project, binding, input);
+    const generated = generateCircuitSource(
+      before.project,
+      binding,
+      input,
+      engine,
+    );
     if (!generated.ok)
       return problem(
         "SIMULATION_CIRCUIT_UNAVAILABLE",
