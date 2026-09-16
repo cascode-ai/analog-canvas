@@ -99,69 +99,32 @@ Checking that a _requested_ vector is present belongs to the caller, because
 only the compiled setup knows what was asked for. This layer reports what the
 file holds.
 
-### The shape it takes
+### Result identity and schema
 
-```ts
-interface SimulationResultData {
-  schemaVersion: 1;
-  analyses: readonly SimulationAnalysisResult[]; // never empty
-}
+The executable contracts live in
+[`result-data.ts`](../../packages/spice-run/src/result-data.ts) and
+[`result-schema.ts`](../../packages/spice-run/src/result-schema.ts), rather than
+an independently maintained TypeScript copy here. `SimulationResultData`
+version 1 contains a non-empty `analyses` array. Each analysis keeps its native
+plot name, probes and analysis-specific axis/value fields.
 
-interface SimulationProbe {
-  name: string; // ngspice's own vector name: `v(out)`, `i(v1)`
-  quantity: string; // ngspice's own word: `voltage`, `current`
-  unit: string | null; // the SI symbol, or null when unrecognised
-}
+Records retain rawfile order. Repeated analyses with identical values are not
+deduplicated. `rawPlotOrdinals` maps a parsed analysis to its source records;
+`rawPlots` inventories headers, variables, point counts and optional parsed
+analysis indices, including records not projected into a supported analysis.
+These fields are optional for historical results. Ordinals are scoped to one
+captured rawfile, not stable cross-run identities.
 
-type SimulationAnalysisResult =
-  | {
-      analysis: "op";
-      plotName: string;
-      probes: (SimulationProbe & { value: number })[];
-    }
-  | {
-      analysis: "dc";
-      plotName: string;
-      sweep: SimulationProbe & { values: readonly number[] };
-      probes: (SimulationProbe & { value: readonly number[] })[];
-    }
-  | {
-      analysis: "ac";
-      plotName: string;
-      frequencyHz: readonly number[];
-      probes: (SimulationProbe & {
-        real: readonly number[];
-        imag: readonly number[];
-      })[];
-    }
-  | {
-      analysis: "tran";
-      plotName: string;
-      timeSeconds: readonly number[];
-      probes: (SimulationProbe & { value: readonly number[] })[];
-    }
-  | {
-      analysis: "noise";
-      plotName: "Noise Analysis";
-      frequencyHz: readonly number[];
-      outputNoiseDensity: readonly number[];
-      inputNoiseDensity: readonly number[];
-      integratedOutputNoise: number;
-      integratedInputNoise: number;
-      units: {
-        outputDensity: "V/sqrt(Hz)";
-        inputDensity: "V/sqrt(Hz)" | "A/sqrt(Hz)";
-        integratedOutput: "V";
-        integratedInput: "V" | "A";
-      };
-    };
-```
+Noise is projected only when the file has exactly one density record and one
+integrated record. Repeated Noise records retain raw evidence and produce a
+diagnostic; the reader does not guess pairs from names, values or position.
+If no supported analysis remains, the reading is unusable.
 
-`quantity` is ngspice's own word, kept unedited for the same reason a
-diagnostic keeps ngspice's own text. `unit` is the SI symbol when the quantity
-is one we recognise and `null` when it is not, because a wrong unit on an axis
-is worse than no unit. `SimulationResult` gains an optional `data` field
-carrying this; it is absent when the runner had no rawfile to read.
+`quantity` is ngspice's own word, kept unedited. `unit` is the SI symbol when
+recognised and `null` otherwise. `SimulationResult.data` is absent when the
+runner had no rawfile to read. This numeric payload is distinct from the
+service's `outputData` Spec-report envelope: new runs do not repopulate its
+legacy evaluated-waveform `analyses` array.
 
 ### A run with no vectors is not a success
 

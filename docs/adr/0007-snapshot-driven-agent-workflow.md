@@ -1,4 +1,4 @@
-# ADR 0007: Snapshot-driven Agent workflow
+# ADR 0007: Transport-independent, Snapshot-driven Agent API
 
 Status: `accepted`
 
@@ -14,6 +14,11 @@ second electrical model would make revisions, validation, and undo semantics
 depend on the transport that initiated the edit.
 
 ## Decision
+
+The circuit domain service is a transport-independent TypeScript boundary.
+Hosted relay, optional local transport, MCP and the shared HTTP client use the
+same parser, service, Edit Engine, Snapshot builder and renderer. OpenAPI and
+JSON Schema derive from that contract; no domain package depends on MCP.
 
 The domain-facing Agent contract has four operations:
 
@@ -31,8 +36,11 @@ mutation requires a fresh Snapshot before further identity-sensitive edits.
 The generated Agent API owns exact request/response shapes and its independently
 versioned protocol number. HTTP, browser-session, MCP, and future transports are
 adapters over this domain contract; they do not add alternate edit semantics.
-File open/save and Project replacement remain persistence operations, not a
-fifth Agent mutation model.
+Session authorization, bearer secrecy, allowlists and request idempotency wrap
+the domain service. File, Simulation, Session observations and Project resources
+have their own advertised scopes and lifecycle; they are not extra Circuit
+operations. Their adapters cannot create alternate electrical mutation semantics.
+File open/save and Project replacement remain persistence operations.
 
 ## Consequences
 
@@ -45,7 +53,6 @@ fifth Agent mutation model.
 
 ## Related documents
 
-- [`0005-transport-independent-agent-api.md`](0005-transport-independent-agent-api.md)
 - [`0016-browser-authoritative-agent-session.md`](0016-browser-authoritative-agent-session.md)
 - [`0020-agent-side-mcp-adapter.md`](0020-agent-side-mcp-adapter.md)
 - [`../specs/agent-api.md`](../specs/agent-api.md)

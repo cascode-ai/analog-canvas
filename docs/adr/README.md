@@ -23,8 +23,7 @@ major boundaries exist.
 
 ### Agent boundary
 
-- [`0005-transport-independent-agent-api.md`](0005-transport-independent-agent-api.md) — domain API independent of transport
-- [`0007-snapshot-driven-agent-workflow.md`](0007-snapshot-driven-agent-workflow.md) — complete Snapshot and typed transaction workflow
+- [`0007-snapshot-driven-agent-workflow.md`](0007-snapshot-driven-agent-workflow.md) — transport-independent Circuit API, Snapshot and typed transactions
 - [`0008-agent-local-route-tree-expander.md`](0008-agent-local-route-tree-expander.md) — transient Agent-local RouteGraph expansion
 - [`0016-browser-authoritative-agent-session.md`](0016-browser-authoritative-agent-session.md) — browser-authoritative authorization
 - [`0020-agent-side-mcp-adapter.md`](0020-agent-side-mcp-adapter.md) — MCP adapter over the domain API

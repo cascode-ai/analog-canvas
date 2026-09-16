@@ -78,8 +78,10 @@ write out.raw
 An existing entry already has its own control/end block: edit that block rather
 than pasting a second complete program. Native `write` captures the current
 plot only. Noise templates capture density and integrated plots explicitly.
-The collected rawfile defaults to `out.raw`; the selected executor must support
-the declared capture contract.
+New templates use `out.raw`. Current source-native experiments collect the
+single literal path declared by native `write` commands; dynamic or multiple
+paths need repair. Legacy configurations retain their explicit collection path.
+The selected executor must support the declared capture contract.
 
 Code has local Undo while typing. Save commits through the Project edit path;
 Project Undo/Redo owns committed changes. Switching files retains local text
@@ -105,8 +107,10 @@ PULSE/SIN/PWL and AC can coexist because they apply to different analyses.
 VDD/GND markers are not voltage sources. Current output direction is positive
 entering the selected terminal; **Pick current** uses the actual pin endpoint.
 **Pick Net** adds a voltage output with its concrete hierarchy occurrence.
-Ambiguous occurrences are reported instead of guessed. Advanced output bindings
-and native collected vector expressions remain available in configuration.
+Ambiguous occurrences are reported instead of guessed. New experiments save
+acquisitions in native source (`save`/`.probe`); model-specific current and
+operating-point vectors require a supported mapping. Older experiments may
+retain advanced output bindings in their legacy configuration.
 
 Authorized Cloud Project Cell reuse still uses **Import Cell** and the common
 Cell-closure planner; Agents use `project_cells`. Imports are independent
@@ -138,16 +142,17 @@ qualification before making that claim.
 **Preview input netlist…**, in More code actions or the active experiment's
 context menu, compiles without executing and opens the prepared input read-only.
 **Run** captures source and starts the
-ordinary run, or the sequential batch for a saved Run Plan. **Stop / Cancel
+ordinary run. A legacy configuration's saved Run Plan can instead start its
+sequential sweep batch. **Stop / Cancel
 run** requests cancellation; closing/minimizing a presentation is not cancel.
 Input errors affect that operation, not the Project or Agent session. Correct
 the code and run again. A missing local executor is a configuration issue;
 it does not block editing or saving.
 
-Managed sweeps live in configuration `runPlan`: corner, temperature, named
-variable or exact Instance parameter axes. Nominal values are native `.param`
-and `.temp` source; config variable bindings do not duplicate those values.
-Input preview shows combinations before execution. Multi-experiment batch selection,
+Legacy version-1 configurations retain `runPlan` sweeps over corner,
+temperature, named variable or exact Instance parameter axes; preview shows
+combinations before execution. New version-2 experiments own parameter and
+temperature sweeps in native SPICE. Multi-experiment batch selection,
 cancel/retry and ordinary per-item results reuse the same Run service.
 
 The current qualified analysis/corner set comes from capabilities/Profile.
@@ -187,8 +192,10 @@ marks the previous report stale; it is never reevaluated against live edits.
 
 Explorer contains source files and a run directory. Ctrl/Cmd-select or Shift
 select files, right-click Download, or download a directory with its descendants.
-Raw, full CSV, specs.json and specs.csv are available for external plotting and
-analysis. The Agent reads the same report and artifacts without opening a panel.
+Raw, full analysis CSV and specs.csv are visible for external plotting and
+analysis. The machine report specs.json remains available through File Resource
+and diagnostic exports, not as an everyday tree item. The Agent reads the same
+report and artifacts without opening a panel.
 The legacy simulation-plot export returns SIMULATION_PLOT_RETIRED.
 
 Run history is in Explorer. Completed runs are retained in this browser, not

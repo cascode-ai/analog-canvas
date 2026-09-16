@@ -49,7 +49,7 @@ durability. Lost responses never trigger an automatic second execution.
 - Stimulus sources and loads are ordinary Instances in the author's Testbench
   Cell. Their connectivity and source parameters remain authoritative on those
   Instances. Native analysis/control text and the one experiment configuration
-  belong to the source `SimulationSetup`; purely textual experiments own their
+  belong to the source folder; purely textual experiments own their
   stimuli in source instead. Neither form duplicates a drawn source's values.
 - The deck builder appends `.end` only when the author's testbench did not
   already close the deck.
@@ -381,7 +381,8 @@ continue. Cancellation terminates the active member and marks queued members
 cancelled. Batch start follows the same request-ID idempotency rule as a normal
 start.
 
-`prepare-sweep` is the shared execution primitive used by a saved Run Plan
+For legacy version-1 experiment configurations, `prepare-sweep` is the shared
+execution primitive used by a saved Run Plan
 over corner, temperature, Design Variable, or one or more exact
 instance-parameter axes. It
 expands the Cartesian product into the same bounded 1–16 member batch before
@@ -391,7 +392,9 @@ Instance, and netlist parameter. Variable axes address a stable Setup-local
 variable ID; preparation fans each point value out to all of that variable's
 exact bindings. Sweep members keep their ordinary prepared
 identity, result, and artifact interfaces, so no second executor or result
-protocol is introduced.
+protocol is introduced. Source-native version-2 folders reject these run-only
+variants: their control flow belongs in native SPICE. Saved-folder batches
+remain available independently of the configuration version.
 
 ## Resources and presentation
 

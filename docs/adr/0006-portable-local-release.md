@@ -7,19 +7,21 @@ Date: 2026-08-07
 ## Context
 
 The editor is already a browser application and its core, Edit Engine,
-rendering, and Agent API are transport-independent packages. Phase 7 needs a
-versioned, installable, local-first product without making a native desktop
-shell a prerequisite for export and recovery correctness.
+rendering, and Agent API are transport-independent packages. A versioned local
+release can reuse that UI without making a native desktop shell a prerequisite
+for export and recovery.
 
 ## Decision
 
-Version 0.1 is distributed as a static editor bundle plus a Node 24 local host.
+The portable release contains a static editor bundle plus a Node 24 local host.
 The host binds only to loopback. The editor is an installable PWA on Chromium
 and continues to work through the local origin after its shell is cached.
 
-Formal browser saves are canonical Project downloads. Origin-local recovery is
-separate application data. The Node adapter is the reference implementation
-for root-bounded atomic filesystem saves and AppData recovery.
+Cloud Project Save, portable Project-file export and origin-local recovery
+have separate ownership under the [persistence contract](../specs/persistence-and-recovery.md).
+The local host does not provide the hosted account/Cloud Save service. A Project
+file is the portable backup/interchange artifact; browser recovery stays tied
+to its origin. Core Node persistence adapters retain root-bounded atomic saves.
 
 The Agent HTTP adapter remains separately opt-in and token protected. The
 static host neither enables nor proxies Agent access.
@@ -34,9 +36,14 @@ static host neither enables nor proxies Agent access.
 
 ## Rejected alternatives
 
-- Electron or Tauri in Phase 7: adds a second runtime, packaging toolchain, and
+- A mandatory native shell adds a second runtime, packaging toolchain, and
   security surface before the product workflows are stable.
 - Serving on a LAN interface: violates the local-only default and expands the
   threat model without a collaboration requirement.
 - Treating a Vite development server as a release artifact: it is not a
   versioned production host and has no release smoke contract.
+
+## Related contracts
+
+- [Deployment and portable release](../deployment.md)
+- [Persistence and recovery](../specs/persistence-and-recovery.md)

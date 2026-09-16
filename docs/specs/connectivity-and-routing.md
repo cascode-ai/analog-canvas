@@ -63,8 +63,8 @@ kernel, stable leg identity, and Route transaction.
   newly placed Instance, an explicit Junction, a drawn power rail, a typed
   attach, or edited Route geometry reaches a visible pin endpoint, the Edit
   Engine deterministically creates or merges the participating Base Net;
-  incompatible power domains or Net-name contracts reject the whole
-  transaction. For an edited Route, only pin points newly covered by the
+  incompatible power domains or remaining name-contract conflicts reject the
+  whole transaction. Ordinary Label retirement follows the naming rule below. For an edited Route, only pin points newly covered by the
   gesture are eligible: a pin that already rested on an unchanged part of the
   Route is not retroactively connected. Route-interior crossings remain
   electrically separate because neither conductor supplies an endpoint. An
@@ -81,8 +81,9 @@ kernel, stable leg identity, and Route transaction.
   released on — a pin, another conductor's bare end, or a point part-way along
   a span, which splits that conductor at an explicit Junction. Only the
   released END is considered: a conductor whose middle comes to lie across
-  another is still a Crossing and still bonds nothing. Two differently named
-  Nets do join, and both names are retired rather than the join being refused.
+  another is still a Crossing and still bonds nothing. When differently named Nets join, the planner may retire ordinary Net
+  Labels as described below; supply and formal-interface names are not
+  silently discarded.
   An end released over empty page is simply loose, which is a legitimate state
   and not a finding.
 - A wire end anchored to a terminal is re-pointable. Dragging it detaches the
@@ -255,6 +256,20 @@ coordinates.
 Base Nets remain physical connectivity; Logical Nets are derived from
 owner-addressed `name-claim` evidence. Reusing a spelling never merges Route
 geometry.
+
+The strict `connect_endpoints` primitive does not implicitly merge two Base
+Nets. The authoring planner explicitly emits `merge_nets` first. If their
+resolved names differ, it removes `net-label`-owned claims and their
+Annotations on the two participating Base Nets before the merge. This is not
+a blanket deletion of every owner in either Logical Net: supply markers,
+formal Cell interfaces, and labels on other Base Nets remain. Incompatible
+power domains are rejected, and any unresolved contract conflict still rejects
+the atomic transaction.
+
+This describes the implemented boundary, not a settled policy that joining
+should always discard names. In particular, retiring a label can change remote
+name-based connectivity; the [Net-join naming decision](../roadmap/README.md#net-join-naming-decision)
+remains open.
 
 Name claims resolve by scope and folded name inside the containing Document.
 Flattened Document composition copies those owner-addressed claims into the
