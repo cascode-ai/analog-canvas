@@ -18,18 +18,20 @@ ngspice runtime is added. RC and RLC copies are checked against one report sourc
   100 ns rise/fall, 2 ms width and 4 ms period.
 - AC 100 Hz–1 MHz, 100 points/decade; transient 0–1 ms with 500 ns initial and
   maximum step. Native `tran_fbr=.025` resolves the short source ramp, as in RC.
-- The complex `Gain=V(out)/V(in)` trace is used by common dB/phase views. With
-  the preserved unit AC input, it equals the old V(out) gain. CSV retains its
-  real/imaginary values rather than the legacy precomputed dB vector.
+- The complex `Gain=V(out)/V(in)` trace serves external dB/phase views; the GUI
+  no longer plots results. With the preserved unit AC input, it equals the old
+  V(out) gain. CSV retains its real/imaginary values rather than the legacy
+  precomputed dB vector.
 - `peak_gain_db`, `peak_output` and `final_value` remain measurements. Peaks
   are maxima of returned samples, not fitted continuous-time peak estimates;
   final voltage is sampled at 1 ms. Original arrays remain available.
 
-`vacask-sky130-candidate` is an observed local candidate Profile request requiring
-native resistor/capacitor/inductor modules, voltage sources and declared Python3.
-It is not an already deployed/qualified hosted environment. Python uses only
-its standard library plus the copied reporting helpers. See the
-[native runtime instructions](../../containers/vacask/README.md).
+`vacask-sky130-candidate` is a candidate Profile request requiring native
+resistor/capacitor/inductor modules, voltage sources and declared Python3.
+It is not a qualified hosted environment; among the committed Worker
+configurations, only Preview routes it to the isolated VACASK executor.
+Python uses only its standard library plus the copied reporting helpers. See
+the [native runtime instructions](../../containers/vacask/README.md).
 
 ## Acceptance
 

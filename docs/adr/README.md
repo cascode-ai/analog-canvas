@@ -20,6 +20,8 @@ major boundaries exist.
 - [`0024-built-in-device-and-project-boundaries.md`](0024-built-in-device-and-project-boundaries.md) — built-in device and Project boundaries
 - [`0049-cloud-project-save-boundary.md`](0049-cloud-project-save-boundary.md) — stable Cloud Project Save
 - [`0053-chain-carried-project-compatibility.md`](0053-chain-carried-project-compatibility.md) — chain-carried Project compatibility with a floored upgrade chain
+- [`0055-simulation-is-part-of-the-product.md`](0055-simulation-is-part-of-the-product.md) — simulation joins the product; what is simulatable, whose testbench, and where ngspice runs
+- [`0057-release-channels-preview-and-production.md`](0057-release-channels-preview-and-production.md) — a preview Worker every merge deploys, and production that deploys only from a release
 
 ### Agent boundary
 
@@ -35,7 +37,6 @@ major boundaries exist.
 - [`0029-external-subcircuit-definition-protocol.md`](0029-external-subcircuit-definition-protocol.md) — external subcircuit definitions
 - [`0038-document-style-overrides.md`](0038-document-style-overrides.md) — Document style overrides
 - [`0054-single-instance-reference-authority.md`](0054-single-instance-reference-authority.md) — one electrical Netlist Reference; in-place following or custom visual annotation
-- [`0055-simulation-is-part-of-the-product.md`](0055-simulation-is-part-of-the-product.md) — simulation joins the product; what is simulatable, whose testbench, and where ngspice runs
 
 ### Connectivity and routing
 
@@ -46,7 +47,6 @@ major boundaries exist.
 - [`0048-routing-operation-plan.md`](0048-routing-operation-plan.md) — evaluated routing-operation plan and connection-preserving movement
 - [`0052-owner-explainable-net-authority.md`](0052-owner-explainable-net-authority.md) — owner-explainable Net authority, named power, bulk policy, and provenance
 - [`0056-derived-net-scope-and-dialect-spelling.md`](0056-derived-net-scope-and-dialect-spelling.md) — derived effective scope and operation-scoped dialect spelling
-- [`0057-release-channels-preview-and-production.md`](0057-release-channels-preview-and-production.md) — a preview Worker every merge deploys, and production that deploys only from a release
 
 ## Lifecycle and deletion policy
 

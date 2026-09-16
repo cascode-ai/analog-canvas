@@ -20,7 +20,8 @@ same circuit without changing geometry, wire connections or device parameters.
 - DC: VIN=0.3–1.2 V in 5 mV steps. Native VIN explicitly switches from sine to DC
   before sweeping its `dc` parameter; otherwise its sine offset governs bias.
 - AC: 10 Hz–1 GHz, 80 points/decade, complex `V(out)/V(in)` and `gain_db_1khz`.
-  The common chart offers dB/phase without losing real/imaginary data in CSV.
+  The GUI no longer charts results; CSV keeps real/imaginary data for external
+  dB/phase views.
 - TRAN: 10 kHz at both 10 mV and 200 mV amplitudes; 0–400 us, initial/max step
   0.2 us. A native sweep preserves the editable loop. The authored Python report
   splits the returned amplitude column into two explicit time records and
@@ -41,7 +42,9 @@ here retain their unsectioned conversion-input include. Its Profile must
 declare wrapper `defaultScale=1e-6`; Canvas dimensions and source do not inject a
 second scale. It needs native BSIM4 4.8.3 with the reviewed chain-rule correction,
 the native R/C/source modules, and a declared Python 3 standard library.
-This Profile is **not a deployed or fully qualified hosted environment**.
+This Profile is **not a fully qualified hosted environment**; among the
+committed Worker configurations, only Preview routes it to the isolated VACASK
+executor.
 
 `containers/vacask/starter-journey.test.mjs` verifies source/helper identity and,
 with explicit local binary/module/model/Python paths, executes all four folders

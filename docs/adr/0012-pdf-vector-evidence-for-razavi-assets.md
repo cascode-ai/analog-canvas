@@ -39,8 +39,8 @@ The tool boundaries remain separate:
 1. `tools/pdf-vector-extract/` parses source PDFs and creates pinned evidence.
 2. Family generators normalize that evidence into canonical component
    definitions and explicitly supply product pin anchors and catalog metadata.
-3. `tools/calibration/razavi/fidelity-diff.mjs` compares rendered candidates
-   with reference witnesses; comparison never edits either source.
+3. `tools/calibration/razavi/symbol-fidelity-diff.mjs` compares rendered
+   candidates with reference witnesses; comparison never edits either source.
 
 Adoption is reviewed component by component. This is not permission to replace
 existing raster references wholesale. The manifest owns evidence scope;

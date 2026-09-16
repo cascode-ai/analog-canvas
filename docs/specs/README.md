@@ -20,7 +20,7 @@ against. They describe required behavior and invariants, not task history.
 | [`visual-language.md`](visual-language.md)                   | accepted | Razavi visual tokens, annotations, overlays, golden output                                  |
 | [`razavi-visual-contract.md`](razavi-visual-contract.md)     | accepted | Razavi authority, construction, interface-symbol semantics, exposure, and pixel fidelity    |
 | [`agent-api.md`](agent-api.md)                               | accepted | API 3.0 Snapshot, typed edits, render, permissions, and sibling resources                   |
-| [`persistence-and-recovery.md`](persistence-and-recovery.md) | accepted | Atomic save, AppData cache/session/recovery, migrations                                     |
+| [`persistence-and-recovery.md`](persistence-and-recovery.md) | accepted | Cloud Project save, browser recovery records, unsaved state, recovery migration             |
 | [`export.md`](export.md)                                     | accepted | Formal SVG source and derived PNG/PDF contracts                                             |
 | [`netlist-export.md`](netlist-export.md)                     | accepted | Deterministic structural SPICE/Spectre export and diagnostics                               |
 | [`netlist-conversion.md`](netlist-conversion.md)             | accepted | SPICE/SCS structural conversion, HTTP protocol and import rejection boundaries              |

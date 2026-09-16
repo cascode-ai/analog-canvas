@@ -142,8 +142,9 @@ outputs or charts; current and historical result behavior is defined in
 
 ## Canvas compilation
 
-`compileSourceSimulation` and `prepareSourceExecutionInput` consume one
+`compileNgspiceSourceSimulation` and `prepareSourceExecutionInput` consume one
 Project/folder snapshot and reuse electrical extraction and the ordinary printer.
+The native `compileSourceSimulation` uses the VACASK printer instead.
 
 - `subcircuit` emits the bound Cell and its dependency closure as definitions;
   authored text owns DUT calls, stimuli and loads.

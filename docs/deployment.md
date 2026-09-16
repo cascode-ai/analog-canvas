@@ -48,7 +48,7 @@ The existing deployment triggers below implement this cadence. See
 | Channel    | Trigger and configuration                                                         | Data boundary                                                                                                                                              |
 | ---------- | --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Preview    | main push; `.github/workflows/deploy-preview.yml`; `wrangler.preview.jsonc`       | Own accounts and Projects; anonymous HTTP read-through to public Gallery; Gallery writes refused; private CI acceptance uses the same isolated Project API |
-| Production | `v*` tag or commit dispatch; `.github/workflows/cloudflare.yml`; `wrangler.jsonc` | Public product and its private storage                                                                                                                     |
+| Production | `v*` tag or manual dispatch; `.github/workflows/cloudflare.yml`; `wrangler.jsonc` | Public product and its private storage                                                                                                                     |
 
 Preview is served at `analog-canvas-preview.tokenzhang.com`, labelled and
 unindexed. Production is `analog-canvas.tokenzhang.com`. The separate
@@ -70,7 +70,8 @@ into the candidate.
 
 The release build keeps the accepted behavior at the promoted `main` commit.
 Version 0.4.0 opens the previously Preview-only Simulation and Agent workflows
-on Production. Both workflows declare their browser capabilities explicitly:
+on Production. The Preview build declares these browser capabilities
+explicitly, and Production serves the same promoted bytes:
 
 | Browser capability                                               | Preview  | Production |
 | ---------------------------------------------------------------- | -------- | ---------- |
@@ -81,7 +82,7 @@ on Production. Both workflows declare their browser capabilities explicitly:
 
 These are browser presentation choices. Persisted Simulation data remains
 round-trippable on both channels, and the Agent and Simulation HTTP APIs keep
-their independently deployed contracts. The workflows also set
+their independently deployed contracts. The Preview build also sets
 `VITE_ICM_SIMULATION_TRANSPORT=managed`; local and portable builds retain direct
 execution unless explicitly configured otherwise.
 
@@ -121,8 +122,8 @@ rebuilds the selected source.
 Use either a version tag (choose the intended unused release version):
 
 ```bash
-git tag v0.4.0 <sha>
-git push origin v0.4.0
+git tag v<version> <sha>
+git push origin v<version>
 ```
 
 or the one-click manual promotion:
@@ -155,11 +156,11 @@ version, verifies that result,
 and still fails the deployment run. Without a rollback target, it reports that
 human intervention is required.
 
-The complete numerical, public Agent/MCP, source-workspace GUI and private
-cross-Project journeys run once against Preview. Production verifies that the
-served entry bytes match the accepted candidate, checks its public routes and
-MCP manifest, creates and removes one lightweight Agent session, and runs the
-numerical hosted simulation acceptance against the Production bindings.
+The complete numerical, dual-engine, public Agent/MCP, source-workspace GUI and
+private cross-Project journeys run once against Preview. Production verifies
+that the served entry bytes match the accepted candidate, checks its public
+routes and MCP manifest, creates and removes one lightweight Agent session, and
+runs a baseline OP/TRAN/DC/Noise simulation smoke with Production bindings.
 Preview's private cross-Project acceptance identity is never installed or
 accepted on Production. The simulator token is required before deployment, and
 each channel's managed queues and artifact bucket are reconciled independently.
@@ -182,7 +183,7 @@ human evidence.
 
 ## Where the simulator runs
 
-The Worker forwards to the configured operator gateway using
+The Worker forwards ngspice runs to the configured operator gateway using
 `SIMULATION_UPSTREAM_URL` and its secret `SIMULATION_UPSTREAM_TOKEN`.
 The gateway validates its matching `SIMULATION_ACCESS_TOKEN`; that token never
 enters the executor that runs authored SPICE. The container image is defined by
@@ -206,6 +207,16 @@ because it cannot prove a timed-out process is gone.
 `execution.target` identifies transport. A request naming an unconfigured
 executor is refused, not redirected.
 
+Preview also routes the native VACASK Profile named by `VACASK_PROFILE_ID` to a
+separate gateway at `VACASK_UPSTREAM_URL`, using the Preview secret
+`VACASK_UPSTREAM_TOKEN`. The Simulator host workflow's `vacask-preview` action
+builds that isolated candidate on the operator host from
+[`containers/vacask/host/compose.yaml`](../containers/vacask/host/compose.yaml)
+with its own Compose project, Tunnel and hostname, installs the secret, and
+leaves the shared ngspice stack unchanged; it does not deploy Worker code.
+Production configures no VACASK engine. The requested Profile selects the
+engine, ngspice remains the default, and neither engine falls back to the other.
+
 ### Managed and direct transport
 
 Both hosted channels use `/api/simulation/runs`. Each channel's durable control
@@ -218,8 +229,8 @@ for both.
 `/api/simulate` remains the direct/internal contract and the local transport.
 A managed failure never triggers fallback to it. Production and Preview use
 separate queues, control namespaces, and R2 buckets; both share the existing
-operator gateway, which enforces its single execution slot. The local host has
-no automatic simulator or PDK discovery.
+ngspice operator gateway, which enforces its single execution slot. The local
+host has no automatic simulator or PDK discovery.
 
 [Simulation execution](specs/simulation-execution.md) owns queue, deadline,
 retention, result, and error contracts. Neither managed retention nor browser

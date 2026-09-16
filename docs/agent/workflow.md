@@ -8,18 +8,14 @@ This page defines the shortest reliable path from circuit facts to a reviewed
 editable schematic. It coordinates existing tools; it does not introduce a
 planning schema, router, or second mutation path.
 
-## Choose the execution path
+## Execution path
 
-Use one path for a target and do not mix their state implicitly.
-
-| Path                  | Use                                                  | Source of truth                    | Mutation path                                                    |
-| --------------------- | ---------------------------------------------------- | ---------------------------------- | ---------------------------------------------------------------- |
-| Live product          | An editor/host session already owns the Project      | Current complete Snapshot          | Current typed `transact`                                         |
-| Repository generation | Reproducible fixture, experiment, or formal artifact | imported SPICE plus checked recipe | `tools/agent-layout/generate.mjs` through the shared Edit Engine |
+Agent layout work uses the live product: an editor or host session owns the
+Project, the current complete Snapshot is the source of truth, and every
+mutation is a current typed `transact`.
 
 The GUI is for human direct manipulation and visual handoff. An Agent should
-not place or wire many objects by mouse when the typed API or deterministic
-repository generator is available.
+not place or wire many objects by mouse when the typed API is available.
 
 ## Preflight without command churn
 
@@ -34,28 +30,20 @@ Get-NetTCPConnection -LocalPort 5173 -State Listen -ErrorAction SilentlyContinue
 - Reuse a healthy existing editor at `http://localhost:5173/`; do not start a
   second dev server just to refresh the page.
 - Use `pnpm dev` only when no editor server is listening.
-- Build once after checkout or source changes. Do not rebuild between recipe
-  iterations that change only recipe data.
+- Build once after checkout or source changes.
 - Prefer the focused package build/test named by the changed package. Run the
   workspace suite only when the change crosses shared contracts.
-- Give generation and builds a realistic timeout and read their final output;
+- Give builds and test runs a realistic timeout and read their final output;
   do not treat silence during a build as proof of a hang.
 
 Common repository commands:
 
 ```powershell
 pnpm build
-node tools/agent-layout/generate.mjs netlists/<case>/<recipe>.mjs
-pnpm --filter @icm/agent-routing test
+pnpm test:local packages/agent-routing/test
 pnpm --filter @icm/agent-routing build
 pnpm typecheck
 ```
-
-`generate.mjs` imports SPICE, applies ordered typed-edit phases, dry-runs every
-transaction, commits through the Edit Engine, evaluates visual quality, and
-writes the recipe's Project/SVG/PNG/PDF outputs. Its optional
-`requireComplete`, `blockingVisualDiagnosticCodes`, and `maxCrossings` settings
-are fixture gates, not a general definition of schematic quality.
 
 ## Run the layout loop
 
@@ -67,17 +55,12 @@ Snapshot version, permissions, edit kinds, and limits. Record
 `maxTransactionEdits`, `maxSnapshotBytes`, `maxRenderBytes`, selected
 `documentId`, and current `revision`.
 
-For repository generation, identify the SPICE entry, target Document, output
-base, symbol normalization, flattening decision, and existing recipe-owned
-artifacts before editing.
-
 ### 2. Read electrical facts before drawing
 
 Read one complete selected Document Snapshot. Build an internal graph from all
 instances, resolved pins, Nets, terminal membership, formal cell-terminal
 mappings, hierarchy references, Routes, Junctions, annotations, placements,
-locks, and diagnostics. For a repository
-recipe, inspect the imported Document with the same completeness.
+locks, and diagnostics.
 
 Separate:
 
@@ -136,7 +119,7 @@ meaning of each field or code.
 
 ### 7. Render and inspect visually
 
-Request or generate a formal render after structural checks. Inspect the whole
+Request a formal render after structural checks. Inspect the whole
 page and then dense local regions. Compare the visible result with the intended
 functional grouping and RouteGraph, not only with counters.
 
@@ -155,15 +138,14 @@ implemented diagnostics pass.
 
 ### 8. Close deterministically
 
-Refresh the Snapshot or re-open the generated Project and verify:
+Refresh the Snapshot and verify:
 
 - connected pins and Net terminals still agree;
 - all intended visible endpoints are represented;
 - no unintended flightline, ambiguous Junction, or unresolved symbol remains;
 - every visual observation was checked against the formal render rather than
   mechanically cleared;
-- formal artifacts came from the final committed revision;
-- a second generation produces the same artifacts when determinism matters.
+- formal artifacts came from the final committed revision.
 
 State intentional warnings and remaining uncertainty with object IDs. Do not
 claim electrical correctness without the required simulator, models, analyses,

@@ -1,8 +1,8 @@
 # PDF vector extraction
 
 This directory contains source-PDF extraction tools. It is deliberately
-separate from `tools/calibration/razavi/fidelity-diff.mjs` and `scripts/lib/`, which own
-the raster comparison workflow.
+separate from `tools/calibration/razavi/symbol-fidelity-diff.mjs` and
+`scripts/lib/`, which own the raster comparison workflow.
 
 The family extractors currently cover:
 
@@ -17,7 +17,7 @@ The family extractors currently cover:
 - `extract-razavi-differential-opamp.py`: direct four-terminal amplifier body,
   dual-output edge joins, and polarity marks from Figure 13.48;
 - `extract-razavi-common-assets.py`: NPN/PNP BJT, diode, voltage amplifier,
-  and ideal switch.
+  ideal switch, and closed switch.
 - `extract-razavi-zener.py`: direct Zener diode geometry from Figure 3.44(a)
   of _Fundamentals of Microelectronics_;
 - `extract-razavi-logic-gates.py`: inverter, AND, NAND, NOR, and XOR native

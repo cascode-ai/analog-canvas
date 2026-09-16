@@ -13,13 +13,14 @@ Cancelling either prompt must leave the original Project installed. Never infer
 that a Project is empty from its currently visible Cell.
 
 The starter programs cover 4 RC, 3 RLC, 4 common-source and 8 OTA experiments.
-On the VACASK migration branch, all 19 starter experiments are native VACASK; see
+All 19 starter experiments are native VACASK; see
 [RC acceptance](../../../../netlists/native-rc-filters/README.md),
 [RLC acceptance](../../../../netlists/native-rlc-filter/README.md) and
 [common-source acceptance](../../../../netlists/native-common-source/README.md) and
 [OTA acceptance](../../../../netlists/native-ota/README.md).
 Their Canvas data is preserved; only executable source, report files and requested
-Profile change. AC exposes a complex Gain trace with common dB/phase views.
+Profile change. AC exposes a complex Gain trace; the workspace shows Specs and
+Console, and CSV keeps real/imaginary data for external dB/phase views.
 Historical numerical acceptance remains separate from these source migrations:
 compiling a native program does not establish equivalence to the old simulator.
 The saved local `output/native-simulation-examples` evidence is not a golden
@@ -61,7 +62,9 @@ Existing evidence is never overwritten. `manifest.json` is written last with
 `compiled-not-executed`; Profile identity belongs to each folder. Compilation
 does not run or qualify an environment, and no cloud endpoint is contacted.
 
-Omitting `--project` selects all four Projects and all 19 folders. Every selected
+Omitting `--project` selects all five Projects and all 31 folders: the four
+starters plus the twelve-folder Library OTA lab (`--project ota-library`,
+exported from `five-transistor-ota-sky130.icproj.json`). Every selected
 folder must compile before any output is written; failures are not silently
 skipped. The full starter-library test remains an acceptance obligation alongside
 focused export tests. The former optional external OTA input is retired; the reviewed

@@ -20,12 +20,13 @@ IDs follow the same rule.
 
 ## What a definition owns
 
-| Field           | Responsibility                                                                                                                 |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `schemaVersion` | Component authoring envelope version, independent of Project schema                                                            |
-| `symbol`        | Complete Symbol DSL: primitives, arrows, pins, anchors and variants                                                            |
-| `electrical`    | Complete DeviceDescriptor: parameters/defaults, pin semantics, model/netlist policy; explicit `null` when no descriptor exists |
-| `catalog`       | Library, review/visual authority, category, palette eligibility and generation provenance                                      |
+| Field           | Responsibility                                                                                                                  |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `schemaVersion` | Component authoring envelope version, independent of Project schema                                                             |
+| `symbol`        | Complete Symbol DSL: primitives, arrows, pins, anchors and variants                                                             |
+| `electrical`    | Complete DeviceDescriptor: parameters/defaults, pin semantics, model/netlist policy; explicit `null` when no descriptor exists  |
+| `subcircuit`    | Optional black-box subcircuit master for netlist export: target plus VDD/VSS and pin-mapped ports; only with `electrical: null` |
+| `catalog`       | Library, review/visual authority, category, palette eligibility and generation provenance                                       |
 
 `electrical: null` does not claim simulation support. Conversely, a non-null
 descriptor with `targetPolicy: "none"` may provide naming/authoring semantics

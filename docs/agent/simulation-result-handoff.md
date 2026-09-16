@@ -22,9 +22,10 @@ that browser copy. Old results are saved input snapshots, not a fresh validation
 of the current source files.
 
 Normal `.icproj.json` exports remain source-only. A restored run with a captured
-Project offers **Project + results ZIP**, containing `project.icproj.json` from
-prepare time and the run artifacts under `results/`. Extract the Project for
-normal import; the ZIP is an evidence bundle, not a new Project file format.
+Project offers **Download project + results…**, a ZIP containing
+`project.icproj.json` from prepare time and the run artifacts under `results/`.
+Extract the Project for normal import; the ZIP is an evidence bundle, not a new
+Project file format.
 For unusually large Projects the snapshot is omitted rather than exceeding the
 archive limit; result-only export remains available.
 If the Project changes while preparation is awaiting compilation or executor

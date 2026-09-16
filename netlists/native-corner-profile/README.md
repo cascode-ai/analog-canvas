@@ -45,6 +45,7 @@ the same measured runtime identity. Unknown corners are rejected without changin
 the original folder. This does not assert foundry accuracy, a device's full legal
 geometry domain, Canvas mapping for every wrapper, GUI/MCP completion or hosted isolation.
 
-The existing per-corner candidate IDs in bundled Projects are a separate integration
-step: this proof alone does not rebind saved sources, rewrite historical results,
-register a hosted Profile or deploy the library.
+Bundled Projects were rebound separately to one `vacask-sky130-candidate`
+Profile and the `sky130-native-sections` dependency; this proof alone does not
+rebind saved sources, rewrite historical results, register a hosted Profile or
+deploy the library.

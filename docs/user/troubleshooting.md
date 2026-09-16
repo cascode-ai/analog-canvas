@@ -1,10 +1,10 @@
-# Troubleshooting v0.1
+# Troubleshooting
 
 ## Import says the entry is ambiguous
 
-Choose exactly one `.cir`, `.sp`, or `.spi` entry. If a directory contains one
-`circuit.spi`, it is preferred. Include every local `.inc` or `.lib` file used
-by the entry.
+Choose exactly one `.cir`, `.sp`, `.spi`, or `.scs` entry. If the selected
+files include one `circuit.spi` or `circuit.scs`, it is preferred. Include every
+local `.inc` or `.lib` file used by the entry.
 
 ## A crossing is not connected
 
@@ -31,8 +31,8 @@ latest committed state.
 
 ## PNG or PDF export fails
 
-Confirm that Canvas 2D and Blob downloads are permitted by the browser. SVG is
-the canonical fallback and contains the same formal scene.
+Confirm that Blob downloads are permitted by the browser; PNG also needs Canvas
+2D. SVG is the canonical fallback and contains the same formal scene.
 
 ## The portable host does not start
 

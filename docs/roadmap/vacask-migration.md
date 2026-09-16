@@ -1,6 +1,8 @@
 # VACASK migration
 
-Status: active migration target; not delivered or qualified for Production.
+Status: active. The product decision changed from VACASK-only to dual engines;
+VACASK is a second, Profile-selected Preview engine beside ngspice (7305dbe6).
+It is not delivered or qualified for Production.
 
 Integration owner: the implementer on `codex/vacask-migration`, accountable for
 closing every work package below; the product owner accepts UI and publication.
@@ -16,15 +18,15 @@ engine selector, automatic fallback or a permanent two-engine product.
 The starting main revision is `154f07d993cf8867e4714b19f814c710688886b8`.
 Its hosted environment is `sky130-core-continuous-ngspice46-v1`; its contract is
 the [existing Profile](../../containers/ngspice/hosted-sky130-profile.json).
-Main, ordinary Preview and Production keep their accepted environment while
-the migration branch is developed and qualified separately. These are separate
-deployed revisions, not dual runtime support in the target product.
+Production keeps that accepted environment; `wrangler.jsonc` registers no
+VACASK endpoint. Since 7305dbe6, main and ordinary Preview also route the
+isolated `vacask-sky130-candidate` Profile beside it (`wrangler.preview.jsonc`).
 
 Current ownership comes from [source authoring](../specs/simulation.md),
 [compilation](../specs/simulation.md), [execution](../specs/simulation-execution.md)
-and [numeric results](../specs/simulation-results.md). Their ngspice-specific
-clauses are to be replaced as implementation lands; this roadmap does not claim
-they have already changed. Carry forward the unresolved integrated journeys in
+and [numeric results](../specs/simulation-results.md). Since 7305dbe6 they
+scope their SPICE clauses to ngspice and add native VACASK clauses. Carry
+forward the unresolved integrated journeys in
 [simulation remaining work](simulation-remaining-work.md).
 
 ## Boundaries
@@ -33,11 +35,11 @@ they have already changed. Carry forward the unresolved integrated journeys in
 | --- | --- | --- |
 | Circuit | Net identity, ERC, pin order, hierarchy, DUT/TB, symbols | Simulation model and parameter mapping |
 | Projects | Cloud ownership, Import Cell closure, save/reload, undo/redo | Simulation input migration only where needed |
-| Workspace | Explorer, code dock, Console/Plot/OP/Compare, folder batch, Run/Cancel | Native templates, syntax, helpers and diagnostic navigation |
+| Workspace | Explorer, code dock, Console/Specs, folder batch, Run/Cancel | Native templates, syntax, helpers and diagnostic navigation |
 | Compilation | Shared electrical IR, object/occurrence/source mapping | VACASK printer, model loading, analyses, acquisitions and expressions |
 | Service | One GUI/MCP service and File Resource, revision/freshness | Native execution and result adaptation |
 | Hosting | Admission, idempotency, queues, cancellation, bounded artifacts | Isolated VACASK image, gateway and Profile |
-| Results | Numeric arrays, units, native evidence, CSV, comparisons | VACASK file/plot parsing, measurements and device OP semantics |
+| Results | Numeric arrays, units, native evidence, CSV, Spec reports | VACASK file/plot parsing, measurements and device OP semantics |
 
 Structural SPICE import and SPICE/Spectre design export remain interchange
 features. They do not authorize a second executable simulator. The VACASK
@@ -184,6 +186,9 @@ runtime in place. Use a dedicated, manually dispatched branch deployment with a
 recorded candidate SHA and isolated resources. No named test URL is claimed live
 until provisioned and verified. Check host capacity before sharing a machine;
 use an independent host where resource isolation cannot protect Production.
+Since 7305dbe6 the Simulator host workflow's manual `vacask-preview` action
+provisions `vacask-preview-sim.tokenzhang.com` on the shared operator host after
+a capacity check, and verifies its pinned fingerprint and anonymous refusal.
 
 Branch acceptance must bind app SHA, image digest, Profile and actual runtime
 identity. After accepted branch integration, run the repository's full mainline

@@ -7,7 +7,7 @@ Agent adapter tests. The retained guidance-structure report lives in
 
 ## 1. Read once, edit, render, refresh
 
-1. Call v2 `capabilities` and select a Document from the Project Index.
+1. Call `capabilities` and select a Document from the Project Index.
 2. Send [`snapshot.request.json`](../../fixtures/agent-api/snapshot.request.json)
    and retain its revision and hash.
 3. Infer only from the complete Snapshot facts; load relevant knowledge pages.

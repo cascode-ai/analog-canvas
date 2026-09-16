@@ -1,6 +1,6 @@
 # Circuit-layout guidance manifest
 
-Compatibility: Agent API `2.0`; Snapshot `1.0`.
+Compatibility: Agent API `3.0`; Snapshot `3.0`.
 
 Canonical product guidance lives in `docs/agent/`. Resolve the paths below from
 this repository and load only the layers required by the current stage.
@@ -10,7 +10,7 @@ this repository and load only the layers required by the current stage.
 | Stage or signal | Read | Strength |
 | --- | --- | --- |
 | Starting or resuming any layout/generation target | [`workflow.md`](../../../docs/agent/workflow.md) | Required process |
-| Constructing API/edit/RouteGraph/generator input or moving objects | [`tool-behavior.md`](../../../docs/agent/tool-behavior.md) | Runtime fact |
+| Constructing API/edit/RouteGraph input or moving objects | [`tool-behavior.md`](../../../docs/agent/tool-behavior.md) | Runtime fact |
 | Reading helper conflicts, transaction output, diagnostics, routes, or artifacts | [`response-semantics.md`](../../../docs/agent/response-semantics.md) | Runtime interpretation |
 | Placing, routing, refining, or visually accepting a schematic | [`circuit-style-knowledge.md`](../../../docs/agent/circuit-style-knowledge.md) | Electrical hard boundary plus visual guidance |
 

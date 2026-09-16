@@ -4,7 +4,11 @@ Snapshots of real published Gallery documents, used by
 `packages/edit-engine/src/conductor-topology-redline.test.ts` to assert one
 invariant: **same-Net conductor canonicalization never changes terminal
 connectivity**. A failure there means canonicalization altered real users'
-circuits.
+circuits. The same snapshots are also read by
+`packages/edit-engine/src/route-move-merge.test.ts`,
+`packages/edit-engine/src/angled-wire-repair.test.ts` (`3tfmrzevfe`), and
+`packages/project-protocol/src/bound-format-override-migration.test.ts`
+(`2rmm2vb45f`).
 
 These are fixtures, not live data: the test never touches the network. The
 snapshot was taken 2026-08-31 from `https://analog-canvas.tokenzhang.com`.

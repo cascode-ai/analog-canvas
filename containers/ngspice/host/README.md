@@ -19,7 +19,8 @@ boundary after deployment.
 ## Repository-owned deployment
 
 The **Simulator host** GitHub workflow copies the exact
-`containers/ngspice/` tree into a commit-addressed directory on the host,
+`containers/ngspice/` and `containers/simulation/` trees into a
+commit-addressed directory on the host,
 writes the access token from the protected `cloudflare-preview` environment,
 builds the pinned image, starts the services, and verifies the result. Its
 `bootstrap-tunnel` action creates or reuses the named Cloudflare Tunnel and
@@ -35,8 +36,10 @@ The host account needs:
 - the SSH key and host identity represented by the repository's
   `SIM_HOST_*` environment secrets.
 
-No lifecycle script is installed by hand. The workflow invokes only the files
-in this directory.
+No lifecycle script is installed by hand. The workflow's ngspice actions invoke
+only the files in this directory and `../verify-host-runtime.sh`. Its
+`vacask-*` actions are separate; see
+[the VACASK host README](../../vacask/host/README.md).
 
 ## Recover onto a clean host
 

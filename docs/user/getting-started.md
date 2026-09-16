@@ -1,4 +1,4 @@
-# Getting Started with v0.1
+# Getting Started
 
 ## Run from source
 
@@ -7,11 +7,13 @@ pnpm install --frozen-lockfile
 pnpm dev
 ```
 
-Open the displayed loopback URL. Open **File** and use **Import SPICE / SCS** to
-select one `.cir`, `.sp`, or `.spi` entry plus its local include files.
-Imported instances begin unplaced so that the user can decide the presentation.
-A normal launch starts with a genuinely empty `New Circuit` Document for
-palette-first manual authoring; no Project file needs to be opened first.
+Open the displayed loopback URL. Open **File** and use **Import SPICE / SCS…**
+to select one `.cir`, `.sp`, `.spi`, or `.scs` entry plus its local include
+files. **Import Cadence SPICE (`!` globals)…** also treats net names ending in
+`!` as global Nets. Imported instances begin unplaced so that the user can
+decide the presentation. A normal launch starts with a genuinely empty
+`New Circuit` Project whose one Cell is `dut`, for palette-first manual
+authoring; no Project file needs to be opened first.
 
 New Resistor, Capacitor, and Inductor instances—including their adjustable
 variants—start with `1k`, `1p`, and `1n` respectively. T-coil starts with
@@ -22,8 +24,9 @@ is defined.
 
 ## Edit and connect
 
-- Use **+ Component** to search the categorized built-in library, choose a
-  symbol by its inline preview, and click the canvas to place it. The
+- Open **Library** to choose a categorized built-in symbol by its inline
+  preview, or press `I` (**Edit / Insert component…**) to search the full
+  library, then click the canvas to place it. The
   **Placement Tray** keeps imported or returned Instances without deleting
   their netlist facts: drag one to the canvas, select **Place…** for a cursor
   placement, or use **Place all** for a deterministic starter grid. **Return
@@ -32,8 +35,8 @@ is defined.
   canvas to box-select. Dragging one selected instance moves the whole
   selection atomically.
 - Internal wires and Junctions move with a selected component group; only
-  wires leaving the group stretch. Press `Ctrl+C` and `Ctrl+V`, or use the
-  **Edit** menu, to duplicate the selected group and its internal wiring.
+  wires leaving the group stretch. Press `C` to pick up a copy of the selected
+  group and its internal wiring, then click to place it.
 - Use **Wire** or press `W`, then choose two pins, Junctions, or route segments.
   Passing across a conductor remains a Crossing; ending on one creates a
   Junction automatically. An exact multi-route intersection is rejected as
@@ -45,9 +48,8 @@ is defined.
   perpendicular to that segment to stretch adjacent geometry without rerouting
   the rest of the wire. If the moved segment lands exactly on a component pin,
   the pin connects and a junction dot appears; crossing another wire's
-  interior remains unconnected. Use the contextual
-  **Remove route geometry** action to keep logical membership while deleting
-  only the drawn route.
+  interior remains unconnected. The contextual **Delete wire** action removes
+  that electrical branch, not only its drawing, and can split its Net.
 - Select a component and press `Q` to open **Properties**. Its editable
   JSON keeps raw parameters (W/L/NF/M and additional
   netlist overrides), the independent visual `displayName`, `netlistName`, and
@@ -145,11 +147,10 @@ keep the last accepted drawing. Changing selection discards its pending draft.
 
 ## Arrow styles
 
-Choose a style from the arrow tool's dropdown **before** drawing. Its main
-button and `A` reuse the last creation style. For a line arrow, click each bend
-in sequence and double-click or press `Enter` at the endpoint; it can later be
-curved. Outline arrows are complete straight hollow shapes: move to preview,
-click to stamp a compact default, or drag a bounding box to set width and length.
+Choose **Arrow** in the Library's **Annotations** group. A new arrow is a line
+arrow with a filled end head: click each bend in sequence and double-click or
+press `Enter` at the endpoint; it can later be curved. Change its endpoint
+styles, or turn a straight arrow into a hollow outline, in Properties.
 
 Arrow and construction-line points snap quietly to nearby pins, wires and
 drawing geometry, including any point along a rectangle, circle, line or curve.
@@ -215,7 +216,7 @@ shown contextually if browser recovery itself cannot protect current work.
 New, Open, Revert, and the same-tab trip to Gallery ask whether to **Save to
 Cloud and continue**, **Continue without saving**, or **Stay** when the current
 Project is dirty. The prompt also identifies where each explicit save goes:
-Cloud Save updates one of at most three private Cloud Projects, while **Export
+Cloud Save updates one of at most 20 private Cloud Projects, while **Export
 Project File…** downloads a local `.icproj.json` file. Continue without saving
 means discard: that working copy is removed before the action
 continues. If a newer
@@ -258,7 +259,7 @@ require HTTPS or localhost and browser permission. Failures are reported without
 silently downloading a file or substituting a different format. These commands
 do not change the existing **C** copy-placement workflow.
 
-Use the toolbar's **Check and Save** to check the whole Project for ERC and
+Use **Netlist / Check and Save** to check the whole Project for ERC and
 visual issues and save it through the existing private Cloud Project service.
 Findings appear in **Issues**, the bottom status summary, and existing canvas
 markers. Observations stay behind their explicit toggle. Neither producer
@@ -272,11 +273,11 @@ Cell** replaces only those segments with local right-angle corners in one
 undoable edit; intentional 45° segments stay unchanged. Locked and trunk Routes
 remain listed for manual repair. **File / Save** and **Ctrl+S** remain save-only.
 
-Click the top **Netlist · SPICE** copy button to put the netlist on the clipboard
-and open its live code in the right sidebar. The adjacent arrow offers
-**Copy Spectre netlist** (SCS) and **Copy SPICE netlist**; either copies immediately
-and remembers that format for the editor session. Editing the circuit refreshes
-the visible code. Clipboard failures leave the code selectable for manual copy.
+Click the top **Netlist** copy button to put the netlist on the clipboard and
+open its live code in the right sidebar. That panel's **Format** (SPICE or SCS)
+and **Process** selectors choose what is copied and are remembered in this
+browser; **Default** restores every preset. Editing the circuit refreshes the
+visible code. Clipboard failures leave the code selectable for manual copy.
 
 **Netlist / Instances…** opens the Project's netlist instances as one editable
 JSON document in the right sidebar. Paste whole blocks to change references,
@@ -288,11 +289,11 @@ parameter set, so deleting a parameter clears it. Valid edits apply together;
 invalid JSON or conflicting references leave the circuit unchanged. **Edit / Undo**
 and **Redo** undo or restore the complete batch.
 
-**Netlist / Configuration…** opens one raw JSON document in the right Properties
-panel. Copy, paste, or replace the whole configuration. Set `selected` to
-`abstract`, `sky130`, or `custom`; edit the corresponding entry under `profiles`.
-Valid edits apply immediately and are remembered in this browser. Invalid JSON
-pauses copying until corrected. The circuit itself is unchanged.
+**Netlist / Configuration…** opens one raw JSON document in the right sidebar.
+Copy, paste, or replace the whole configuration. Set `selected` to `abstract`,
+`sky130`, `tsmc28`, `tsmc180`, or `custom`; edit the corresponding entry under
+`profiles`. Valid edits apply immediately and are remembered in this browser.
+Invalid JSON pauses copying until corrected. The circuit itself is unchanged.
 
 - `abstract`: ideal R/C/L and generic NMOS/PMOS model names, with editable
   fallback values and dimensions. No transistor model cards are invented.
@@ -303,6 +304,9 @@ pauses copying until corrected. The circuit itself is unchanged.
   are not converted into geometry. Set `library.path` and `library.section`
   for your installed PDK. SCS exports stay in Spectre syntax and reference that
   configured path with a native `include` declaration.
+- `tsmc28` / `tsmc180`: TSMC reference MOS names (`nch_ulvt_mac`/`pch_ulvt_mac`
+  with `multi`, or `nch`/`pch` with `m`) and ideal R/C/L. Point `library.path`
+  at your installed PDK.
 - `custom`: keep authored component targets, and fill missing fields from your
   editable defaults. Existing component values always take priority.
 
@@ -358,10 +362,12 @@ install action. The server accepts only loopback connections.
 
 ## Deployment
 
-The editor is served by the Cloudflare Worker in `worker/`, which
-`.github/workflows/cloudflare.yml` deploys on every push to `main`. That
-Worker is the only public deployment: it hosts the built editor and the
-gallery, account, and Agent-session endpoints behind it.
+The editor is served by the Cloudflare Worker in `worker/`. Merges to `main`
+deploy the Preview channel through `.github/workflows/deploy-preview.yml`;
+Production deploys only a Preview-accepted candidate from a `v*` release tag or
+an explicit dispatch of `.github/workflows/cloudflare.yml`. Each channel's
+Worker hosts the built editor and the gallery, account, Agent-session, and
+simulation endpoints behind it; see [deployment](../deployment.md).
 
 The private Cloud Project is the formal saved copy. Exported `.icproj.json`
 and downloaded backups remain portable user-owned copies. Browser recovery is

@@ -2,8 +2,8 @@
 
 Status: `accepted`
 
-Primary owners: `worker/gallery.ts`, `worker/auth.ts`, `apps/editor`
-landing feed
+Primary owners: `worker/gallery.ts`, `worker/gallery-do.ts`, `worker/auth.ts`,
+`worker/auth-do.ts`, `apps/editor` landing feed
 
 ## Trust boundary
 
@@ -242,7 +242,7 @@ header buys nothing. Without such a session every admin route answers
 - `GET /api/gallery/recycled` — the bin.
 - `GET /api/gallery/rejected` — rejected entries and their reasons.
 - `GET /api/gallery/maintenance/schema-backup` — download a full-fidelity
-  administrator backup of entries, saved versions, and workspace slots.
+  administrator backup of entries, saved versions, and private Cloud Projects.
 - `POST /api/gallery/maintenance/schema-current` — validate or transactionally
   converge every stored Project to `CURRENT_PROJECT_SCHEMA_VERSION`. The
   request body is `{ "apply": false }` for a dry run and `{ "apply": true }`

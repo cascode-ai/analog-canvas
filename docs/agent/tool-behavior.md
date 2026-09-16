@@ -1,8 +1,7 @@
 # Agent tool behavior
 
 Owner: runtime implementation and normative specs. Strength: factual. Trigger:
-before constructing API requests, RouteGraph data, typed edits, or repository
-generation recipes.
+before constructing API requests, RouteGraph data, or typed edits.
 
 This page describes behavior an Agent must account for. It is not a substitute
 for the normative schemas in [`../specs/`](../specs/); schema and runtime
@@ -158,17 +157,3 @@ electrical connectivity from pixels:
 
 Diagnostics are derived observations. They never move objects or rewrite
 Routes. Diagnostic mode may overlay findings; formal mode is the export truth.
-
-## Repository generator
-
-`tools/agent-layout/generate.mjs` is a deterministic fixture/experiment runner,
-not the public Agent API and not an automatic layout engine. A recipe owns
-topology recognition and edit construction. The runner owns SPICE import,
-batching, dry-run/commit, validation, reporting, and export.
-
-`requireComplete` blocks publication on gate-eligible structural errors and
-flightlines, plus explicitly configured gate-eligible warning codes and
-crossing limits. Visual observations with `gateEligible: false` remain
-non-blocking even when an older recipe lists their code. It cannot judge whether a valid
-CMOS gate, differential stage, or bus is visually expressed in the clearest
-way. The Agent must inspect the render.

@@ -77,6 +77,7 @@ PUT  /api/projects/:id             update the bound Project
 If-Match: revision-N               reject stale writers
 GET  /api/projects                 list distinct Projects
 GET  /api/projects/:id             open one Project
+DELETE /api/projects/:id           explicitly delete one Project
 ```
 
 Repeated Save updates the same id and does not consume another account slot.

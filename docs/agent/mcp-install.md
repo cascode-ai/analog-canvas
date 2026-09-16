@@ -5,7 +5,7 @@ server instructions, quickstart, authoring contracts, built-in catalog, and
 recovery references are compiled into the package; an Agent does not need a
 source checkout.
 
-The editor's **Copy to Agent** handoff prefers a compatible MCP and asks the
+The editor's **Copy message** handoff prefers a compatible MCP and asks the
 Agent to install or update it when missing or incompatible. It includes a
 one-time Claim and the public bootstrap manifest:
 

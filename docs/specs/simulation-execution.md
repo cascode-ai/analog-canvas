@@ -3,7 +3,8 @@
 Status: accepted
 
 Owners: `packages/simulation-service`, `packages/spice-run`, `worker`,
-`containers/vacask`, `apps/local-host`, `apps/editor/src/features/simulation`
+`containers/ngspice`, `containers/vacask`, `apps/local-host`,
+`apps/editor/src/features/simulation`
 
 [Setup and compilation](simulation.md) owns authored inputs;
 [numeric results](simulation-results.md) owns their interpretation.
@@ -56,18 +57,22 @@ durability. Lost responses never trigger an automatic second execution.
 
 ## Native Worker execution boundary
 
-The migration branch's `worker/simulation.ts` accepts VACASK source only.
-`SIMULATION_PROFILE_ID` selects the accepted deployment Profile; the selected
+`worker/simulation.ts` routes each request by its selected Profile; its native
+route, `worker/simulation-vacask.ts`, accepts VACASK source only.
+`VACASK_PROFILE_ID` selects the accepted deployment Profile (an isolated
+native-only Worker may set `SIMULATION_PROFILE_ID` instead); the selected
 executor's `/health` supplies its measured environment and capabilities. The
 Worker requires a verified pinned VACASK identity and matching Profile, with
 `inputs: ["source"]` and `rawfileCollection: "native-multi-ascii"`. It maintains
 no independent model-library path, corner list or analysis interpretation.
 
-The existing operator-host target uses an explicit HTTPS origin and private
-gateway credentials. An explicitly provisioned `VACASK` container binding uses
+The native operator-host target uses its own explicit HTTPS origin and private
+gateway credentials (`VACASK_UPSTREAM_URL` and `VACASK_UPSTREAM_TOKEN` when
+routed beside ngspice). An explicitly provisioned `VACASK` container binding uses
 the same native contract. These are execution locations, not alternative
 engines; missing targets never cause fallback. Without a configured Profile
-and native executor, capabilities remain unconfigured and editing remains usable.
+and native executor, native capabilities remain unconfigured and editing
+remains usable.
 Existing ngspice deployment configuration is not a native registration. The
 [migration roadmap](../roadmap/vacask-migration.md) owns isolated cloud delivery;
 this route change does not qualify or modify existing hosted environments.
@@ -566,10 +571,10 @@ failure.
 
 ## Validation
 
-- Rawfile and result-data tests use ngspice-generated divider, RC AC/step, and
-  resistor Noise fixtures with closed-form expectations. They protect sample
-  axes, complex values, units, truncation, and typed refusal rather than comparing
-  the parser to its own output.
+- Rawfile and result-data tests use ngspice- and VACASK-generated divider, RC
+  AC/step, and resistor Noise fixtures with closed-form expectations. They
+  protect sample axes, complex values, units, truncation, and typed refusal
+  rather than comparing the parser to its own output.
 - Structured compiler tests protect deterministic extraction, Testbench roots,
   occurrence mapping, terminal-current instrumentation, named outputs, and
   unchanged Project facts.

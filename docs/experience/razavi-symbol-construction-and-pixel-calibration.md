@@ -71,16 +71,16 @@ history of `packages/symbols/assets/razavi-v1/` and
 
 ## 2. Code and Paths
 
-| Layer                      | Path                                                                                                                                          | Responsibility                                                                       |
-| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| Visual evidence            | `fixtures/visual-reference/razavi-reference-v1/*.png`                                                                                         | Preserve original reference images; never rewrite them during calibration            |
-| Authority and measurements | `fixtures/visual-reference/razavi-reference-v1/manifest.json`, `*-geometry.json`                                                              | Pin hashes, scope, origins, scale, windows, rotation, and measurements               |
-| Symbol sources             | `packages/components/definitions/*.json — symbol section`                                                                                             | Store electrical pins, visual primitives, and variants                               |
-| Catalog                    | `packages/components/definitions/*.json — catalog section`                                                                                              | Store review status, visual authority and palette eligibility; hashes are generated     |
-| Generators                 | `scripts/generate-razavi-mos-assets.mjs`, `scripts/generate-razavi-peripheral-assets.mjs`, `scripts/generate-razavi-symbol-catalog.mjs`       | Generate reviewed assets from measurements and shared family rules                   |
-| Style and rendering        | `packages/derived/src/style-profile.ts`, `packages/render-svg/src/render.ts`                                                                  | Resolve shared visual tokens, formal render order, and render-only bridges           |
-| Pixel comparison           | `tools/calibration/razavi/fidelity-diff.mjs`, `scripts/lib/razavi-fidelity.mjs`, `scripts/lib/symbol-rasterize.mjs`, `scripts/lib/png-io.mjs` | Crop, rasterize through the real renderer, calculate diagnostics, and emit diff PNGs |
-| Normative entry points     | `docs/specs/razavi-visual-contract.md`, `docs/specs/symbol-dsl.md`                                                                            | Define Razavi authority/construction/fidelity and generic pin/primitive contracts    |
+| Layer                      | Path                                                                                                                                                 | Responsibility                                                                       |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| Visual evidence            | `fixtures/visual-reference/razavi-reference-v1/*.png`                                                                                                | Preserve original reference images; never rewrite them during calibration            |
+| Authority and measurements | `fixtures/visual-reference/razavi-reference-v1/manifest.json`, `*-geometry.json`                                                                     | Pin hashes, scope, origins, scale, windows, rotation, and measurements               |
+| Symbol sources             | `packages/components/definitions/*.json — symbol section`                                                                                            | Store electrical pins, visual primitives, and variants                               |
+| Catalog                    | `packages/components/definitions/*.json — catalog section`                                                                                           | Store review status, visual authority and palette eligibility; hashes are generated  |
+| Generators                 | `scripts/generate-razavi-mos-assets.mjs`, `scripts/generate-razavi-peripheral-assets.mjs`, `scripts/generate-razavi-symbol-catalog.mjs`              | Generate reviewed assets from measurements and shared family rules                   |
+| Style and rendering        | `packages/derived/src/style-profile.ts`, `packages/render-svg/src/render.ts`                                                                         | Resolve shared visual tokens, formal render order, and render-only bridges           |
+| Pixel comparison           | `tools/calibration/razavi/symbol-fidelity-diff.mjs`, `scripts/lib/razavi-fidelity.mjs`, `scripts/lib/symbol-rasterize.mjs`, `scripts/lib/png-io.mjs` | Crop, rasterize through the real renderer, calculate diagnostics, and emit diff PNGs |
+| Normative entry points     | `docs/specs/razavi-visual-contract.md`, `docs/specs/symbol-dsl.md`                                                                                   | Define Razavi authority/construction/fidelity and generic pin/primitive contracts    |
 
 Use this fixed execution order:
 
@@ -104,7 +104,7 @@ pnpm symbols:razavi:check
 pnpm --filter @icm/symbols build
 pnpm --filter @icm/derived build
 pnpm --filter @icm/render-svg build
-node tools/calibration/razavi/fidelity-diff.mjs <target>
+node tools/calibration/razavi/symbol-fidelity-diff.mjs <target>
 ```
 
 The fidelity tool currently imports implementation from `packages/*/dist`, so

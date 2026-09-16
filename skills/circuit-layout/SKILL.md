@@ -1,6 +1,6 @@
 ---
 name: circuit-layout
-description: Reason about, lay out, route, generate, inspect, and refine transistor-level or passive circuit schematics through Interactive Circuit Maker. Use for complete-Snapshot circuit reading, typed Agent API edits, RouteGraph expansion, repository layout recipes, hierarchy or flat views, visual diagnostics, textbook/Razavi-style cleanup, or human/Agent handoff while preserving electrical topology.
+description: Reason about, lay out, route, generate, inspect, and refine transistor-level or passive circuit schematics through Interactive Circuit Maker. Use for complete-Snapshot circuit reading, typed Agent API edits, RouteGraph expansion, hierarchy or flat views, visual diagnostics, textbook/Razavi-style cleanup, or human/Agent handoff while preserving electrical topology.
 ---
 
 # Circuit layout
@@ -16,8 +16,8 @@ order:
 
 1. Always read the workflow before executing a layout target.
 2. Read tool behavior before constructing an unfamiliar API request, typed
-   edit, RouteGraph, movement, render, or repository recipe.
-3. Read response semantics whenever interpreting a helper/API/generator result.
+   edit, RouteGraph, movement, or render.
+3. Read response semantics whenever interpreting a helper or API result.
 4. Read circuit/style knowledge before placement, routing, visual refinement,
    or accepting a formal render.
 
@@ -38,7 +38,7 @@ Snapshot evidence makes them relevant. A card name is not circuit evidence.
    constraints, bounds, presentation, hierarchy context, and diagnostics.
 4. Treat Snapshot as read-only evidence. Never return it as a replacement
    Document or Project.
-5. Use only the published `2.0` capabilities/snapshot/transact/render contract;
+5. Use only the published `3.0` capabilities/snapshot/transact/render contract;
    no query or compatibility operation exists.
 
 Stop when pin mapping, bulk connection, model semantics, hierarchy binding, or

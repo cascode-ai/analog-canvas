@@ -5,7 +5,8 @@ They are fetched into the ignored `.reference-src/` directory and must never
 be imported, bundled, or required by CI or a product build.
 
 `manifest.json` records repository identity, immutable commit, declared
-license, allowed study scope, and explicitly excluded scope.
+license, usage classification, default-fetch selection, allowed study scope,
+and explicitly excluded scope.
 
 The previous `net-painting-converter` repository has a deliberately narrow
 role. Only its SPICE source handling, parsing, diagnostics, and fixtures may be

@@ -121,8 +121,9 @@ Nightly and manual workflows run the complete browser suite in four shards.
 A PR based on current `main` merges after its two required checks without
 repeating them in a merge queue. CI does not repeat on the subsequent `main`
 push; the Preview workflow builds, deploys, and verifies the merged candidate.
-Production is a separate release-tag or explicit-commit promotion after Preview
-acceptance. [Deployment](../deployment.md) owns that sequence and recovery.
+Production is a separate release-tag or explicit-dispatch promotion after
+Preview acceptance. [Deployment](../deployment.md) owns that sequence and
+recovery.
 
 ## Change discipline
 

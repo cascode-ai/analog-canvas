@@ -53,9 +53,10 @@ interface EditTransaction {
 }
 ```
 
-`packages/edit-engine/src/transaction.ts` exports `SchematicEditSchema`, the
-sole executable list of typed edit kinds. The current union is grouped below
-for readability; these groups do not create separate mutation endpoints:
+`packages/edit-engine/src/edit-schema.ts` defines `SchematicEditSchema`
+(re-exported by `transaction.ts`), the sole executable list of typed edit
+kinds. The current union is grouped below for readability; these groups do not
+create separate mutation endpoints:
 
 <!-- schematic-edit-kinds:start -->
 
@@ -142,8 +143,8 @@ Additional Parameters table.
 narrowed SchematicAnnotation set (`instance-label | instance-value |
 net-label | power-label | route-marker`). `upsert_drafting_object` / `remove_drafting_object` accept the
 `DraftingObject` union (text, arrow, leader, callout, construction-line,
-floating-symbol) with the shared `VisualAnchor`. None of these edits creates or
-modifies a Net, Route,
+rectangle, circle, floating-symbol) with the shared `VisualAnchor`. None of
+these edits creates or modifies a Net, Route,
 Junction, flightline, Pin, or SPICE instance. A `transact` dry run returns:
 resolved anchors, invalid/unresolved attachments, possible overlaps with
 electrical objects, and the actual changed IDs.

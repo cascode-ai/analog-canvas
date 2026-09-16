@@ -13,7 +13,7 @@ no compatibility shape.
 ADR 0021 separates persisted grid coordinates from transient and derived
 geometry. Every persisted page Point in a Document is a finite integer multiple
 of that Document's `presentation.grid`: Instance placements, Junctions, Route
-Route bends, persisted VisualAnchor point fields, and drafting points/controls/
+bends, persisted VisualAnchor point fields, and drafting points/controls/
 centers. This is a complete-Document invariant, not merely an editor snap
 preference.
 
@@ -238,6 +238,8 @@ to concrete Terminal, Junction, or Route anchors. When no attached object is
 available it retains an unresolved Base-Net fallback rather than discarding the
 authored probe. A removed anchor or Testbench Cell is diagnosed during prepare;
 it does not invalidate the Project or block the ordinary deletion transaction.
+The 40→41 step admits structured DC-sweep intent and changes only the version
+stamp.
 The 41→42 step replaces the optional singleton setup with a named collection.
 The 42→43 step replaces primitive probes with named expression outputs while
 preserving every acquisition target. Output labels are presentation and result
@@ -249,4 +251,9 @@ variables, 48→49 converts simulation intent to source files, and 49→50 renam
 the source collection to simulation folders. Schema 51 adds optional fill and
 front/background plane fields to rectangles and circles; its adapter changes
 only the version stamp. These additive steps invent no authored intent for an
-existing Project.
+existing Project. The 51→52 step rewrites the legacy local-X `mirror` token as
+the equivalent independent `horizontal` or `vertical` screen-space reflection
+and leaves the authored rotation unchanged. Schemas 53 through 56 admit
+45-degree rotation steps, a named parameter on a live `instance-value` binding,
+independent arrow endpoint styles, and optional Route line styling; their
+adapters likewise change only the version stamp.

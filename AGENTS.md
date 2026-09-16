@@ -198,8 +198,8 @@ protection for the implementation batch while the browser layer is selected by
 impact.
 
 Merging to `main` deploys the **preview** channel, not the public site.
-Production deploys only from a `v*` release tag, or a dispatch naming a
-commit, whose commit already has a green preview deploy; see ADR 0057 and
+Production deploys only from a `v*` release tag, or a manual dispatch of an
+accepted ref, whose commit already has a green preview deploy; see ADR 0057 and
 `docs/deployment.md`.
 
 Before a non-document change is merged or pushed to `main`:

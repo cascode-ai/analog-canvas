@@ -63,7 +63,7 @@ fallback.
 
 ## Agent File Resource
 
-An authorized API-2.0 Agent downloads canonical Project JSON or formal
+An authorized API-3.0 Agent downloads canonical Project JSON or formal
 SVG/PNG/PDF only through the separate File Resource advertised by
 capabilities. Project download uses `serializeProject()` byte-for-byte; visual
 formats derive from the same formal SVG. Selection, diagnostics, flightlines,

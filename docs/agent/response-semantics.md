@@ -2,7 +2,7 @@
 
 Owner: Agent API, Edit Engine, RouteGraph helper, and derived diagnostics.
 Strength: factual interpretation. Trigger: whenever an Agent reads a helper,
-transaction, Snapshot, render, or repository-generation result.
+transaction, Snapshot, or render result.
 
 Read structured fields before messages. Messages help humans; codes, paths,
 object IDs, revisions, bounds, points, and parameters support reliable repair.
@@ -83,7 +83,8 @@ Every derived finding carries three policy fields:
   completion gate.
 
 An Agent must not infer gate eligibility from `severity` or from the word
-"warning". A recipe cannot promote `gateEligible: false` into a blocker.
+"warning". A quality policy cannot promote `gateEligible: false` into a
+blocker.
 
 | Code                          | Severity/meaning                                                                           | Normal response                                                                     |
 | ----------------------------- | ------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------- |
@@ -93,7 +94,7 @@ An Agent must not infer gate eligibility from `severity` or from the word
 | `VISUAL_LABEL_OVERLAP`        | Low-confidence observation: measured annotation bounds overlap.                            | Inspect actual text; move it only when readability is affected.                     |
 | `VISUAL_SHORT_SEGMENT`        | Warning: a Route contains a suspiciously short segment.                                    | Remove redundant bend or redesign the local graph.                                  |
 | `VISUAL_AMBIGUOUS_JUNCTION`   | Error: a Junction lies on an unrelated-Net Route and visually suggests a false connection. | Inspect exact Nets and point; move the graph so the real branch dot is unambiguous. |
-| `VISUAL_CONSTRAINT_VIOLATION` | Warning/error evidence against a stored constraint.                                        | Respect locks/constraints and change surrounding layout.                            |
+| `VISUAL_CONSTRAINT_VIOLATION` | Warning: evidence against a stored constraint.                                             | Respect locks/constraints and change surrounding layout.                            |
 | `VISUAL_OUTSIDE_PAGE`         | Warning: object is outside Document bounds.                                                | Move or intentionally resize bounds.                                                |
 | `VISUAL_WIRE_THROUGH_SYMBOL`  | Low-confidence observation: Route crosses a visible-symbol bounding region.                | Confirm against visible strokes before changing graph/placement.                    |
 | `VISUAL_ROUTE_OVERLAP`        | Medium-confidence observation: same-Net Routes share a collinear span.                     | Shared trunks may be intentional; collapse only redundant ownership.                |
@@ -104,22 +105,6 @@ Net does not produce a quadratic list of pair warnings. Diagnostics do not
 currently identify every confusing small box, duplicated
 nearby branch, semantically poor shared-gate drawing, bad functional grouping,
 or excessive label repetition. Absence of those codes is not approval.
-
-## Generator output
-
-Read generator output as a sequence:
-
-1. dry-run transaction diagnostics;
-2. `resolvedRoutes` summary;
-3. committed transaction diagnostics;
-4. final per-Document visual-quality summary;
-5. individual flightlines;
-6. completeness-gate result;
-7. artifact paths.
-
-If generation throws before artifacts are written, do not inspect an older PNG
-as if it were the new result. Confirm modification time or deterministic hash
-and ensure the image corresponds to the final Project revision.
 
 ## Completion decision
 

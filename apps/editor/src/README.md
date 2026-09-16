@@ -10,6 +10,9 @@ and Durable Object storage. `src/` and the top-level Worker only mount it.
 ## Directory Responsibilities
 
 - `app/`: top-level editor composition and orchestration.
+- `agent/`: the browser Agent session: connection panel, session state,
+  recovery and transport liveness, and the host adapters that serve Agent
+  operations from the live document.
 - `canvas/`: reusable canvas geometry, hit resolution, and drag-session
   infrastructure. It must not own document transactions. Who owns one pointer
   press is decided only in `pointer-down-router.ts`, a pure function over
@@ -22,21 +25,47 @@ and Durable Object storage. `src/` and the top-level Worker only mount it.
   state.
 - `document/`: document navigation, transaction, and project recovery
   lifecycle boundaries.
-- `interaction/`: application-wide interaction state, shortcut intent mapping,
-  and orientation commands shared by feature adapters.
+- `interaction/`: application-wide interaction state, shortcut intent mapping
+  and reference, deferred focus handoff, and orientation commands shared by
+  feature adapters.
+- `commands/`: the typed editor command requests, enablement state, and
+  command router.
 - `features/`: user-facing editing domains. Each feature owns its pure
   proposals, local view adapters, and tests.
   - `clipboard/`: copy and paste proposals.
+  - `component-insert/`: the insert dialog, placement tray, placement preview
+    and snapping, symbol catalog and artwork, and VDD rail placement.
   - `drafting/`: drafting creation and manipulation.
+  - `editor-shell/`: file, export, Cloud Project, and Gallery commands;
+    toolbars, status bar, library panels, document settings, and symbol
+    sibling swaps.
+  - `hierarchy/`: Cell management and interface dialogs, Cell symbol review,
+    hierarchy navigation, and Project structure commands.
+  - `instance-display/`: default Instance labels and live parameter display.
+  - `netlist-export/`: netlist authoring, export preferences, preflight and
+    code panels, and Spectre import-source conversion.
+  - `project-code/`: the complete Project JSON code panel.
+  - `properties/`: the Properties editors, their code views, and the property
+    edit planner.
+  - `search/`: the Project search dialog.
   - `selection/`: visual selection, deletion, geometry, and inspector details.
+  - `simulation/`: the analog Simulation workspace, run history and results,
+    and the local-development digital timing panel.
   - `text-editing/`: annotation and drafting-text editing.
   - `wiring/`: wire proposals, manual paths, and route interaction geometry.
-- `demos/`: bundled project fixtures used by the editor.
+  - `logical-net-choices.ts`, at the `features/` root: the Logical Net choice
+    list read by `app/`, `editor-shell/`, and `simulation/`.
+- `demos/`: demo project fixtures used by editor unit and Playwright tests.
+- `deployment/`: fail-closed resolution of the public UI build flags.
+- `examples/`: browser-bundled Library and Simulation starter Projects.
 - `presentation/`: the accepted Razavi presentation policy adapter.
 - `snap/`: shared snapping candidates and engine.
+- `styles/`: route-level style entries and their owner stylesheets.
 
 `main.tsx`, `styles.css`, and `vite-env.d.ts` remain at the source root because
-they are build/runtime entry infrastructure rather than product domains.
+they are build/runtime entry infrastructure rather than product domains. The
+root also holds `gallery-client.ts`, `gallery.css`, and the static service
+worker test `service-worker-cache.test.ts`.
 
 ## Editor Composition Boundaries
 
@@ -101,7 +130,10 @@ to these owners:
 - `editor-properties.css`: editable properties and their derived context.
 - `editor-dialogs.css`: editor-owned modal workflows.
 - `editor-agent.css`: agent session presentation.
+- `editor-simulation.css`: the Simulation workspace and the local-development
+  timing tool window.
 - `editor-accessibility.css`: the cross-cutting reduced-motion policy.
+- `editor-context-menu.css`: the canvas context menu.
 
 Responsive rules stay with the owner whose layout they change. A selector
 should begin with, or be structurally contained by, that owner's root family;

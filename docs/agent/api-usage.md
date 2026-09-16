@@ -93,8 +93,8 @@ Then request the selected Document:
 ```
 
 Do not place tokens in Project files, prompts, source netlists, or committed
-configuration. Stop the listener when the Agent session ends. The request path
-and body API version must match.
+configuration. Stop the listener when the Agent session ends. `/circuit`
+rejects a body `apiVersion` other than `3.0`.
 
 ## Web session example (published editor)
 
@@ -105,9 +105,9 @@ the Agent a short-lived claim code. The Agent never needs
 repository source — only this document and the claim code.
 
 The deployed machine-readable contract is available at
-`GET /api/agent/openapi.json`. The editor's **Copy Agent connection
-instructions** action first includes `GET /api/agent/kit`, then the claim
-endpoint and claim code. The Kit is a small JSON payload whose listed files are
+`GET /api/agent/openapi.json`. The editor's **Copy message** action includes
+the claim code, the MCP bootstrap manifest, and `GET /api/agent/kit` for a
+user-chosen HTTP path. The Kit is a small JSON payload whose listed files are
 written into an Agent-private scratch folder. It provides operating rules plus a
 static, reviewed built-in Razavi authoring catalog; the published OpenAPI
 remains the request-contract authority. The catalog is used only before first
@@ -153,8 +153,8 @@ placement; the next Snapshot is authoritative for the live Document.
    ```
 
    Then `snapshot`, `transact` (with the Snapshot revision as `expectedRevision`,
-   dry-run first when useful), and `render` exactly as in the recommended v2
-   lifecycle. Every request carries a unique `requestId`; bounded in-memory
+   dry-run first when useful), and `render` exactly as in the lifecycle
+   above. Every request carries a unique `requestId`; bounded in-memory
    caches in the relay and authoritative browser return the same terminal
    result for a retry without persisting Snapshot/render payloads or reapplying
    the edit.
@@ -172,8 +172,9 @@ placement; the next Snapshot is authoritative for the live Document.
    Do not treat staging as an import. It only returns a candidate summary;
    replacement requires the browser-human confirmation and ends this session.
 
-The browser must be online while an operation runs. Closing and reopening the
-same browser restores its session record; revoking access ends the session.
+The browser must be online while an operation runs. Refreshing the same tab or
+returning from Gallery restores its session record; revoking access ends the
+session.
 Open/Import/Restore replaces the Project and emits
 `document.replaced`; the old token cannot read or edit the new Project — request
 a new authorized session.

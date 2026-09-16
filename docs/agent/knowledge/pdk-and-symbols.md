@@ -15,8 +15,8 @@ existing Net membership. Prefer mappings in this order:
 3. primitive mapping supported by the parsed model type;
 4. unresolved generic symbol.
 
-Eight exact SKY130 interfaces are mapped structurally: the core and LVT
-1.8 V NFET/PFET pairs, `res_high_po`, `cap_mim_m3_1`, and the fixed
+Nineteen exact SKY130 interfaces are mapped structurally, including the core
+and LVT 1.8 V NFET/PFET pairs, `res_high_po`, `cap_mim_m3_1`, and the fixed
 `pnp_05v5_W0p68L0p68` and `npn_05v5_W1p00L1p00`. Both exact master name and
 ordered public interface must match. No SKY130 family regular expression is an
 electrical authority.
@@ -31,7 +31,8 @@ to its visible symbol and exposes its fourth S terminal only as a Substrate Net
 property. Their ordinary model-bound Q cards remain three-node. An explicit
 external block presentation overrides automatic artwork choice.
 
-The hosted Profile qualifies seven of those interfaces and excludes the exact
+The hosted ngspice Profile qualifies only seven of those interfaces: the four
+1.8 V MOS, `res_high_po`, `cap_mim_m3_1`, and the PNP. It excludes the exact
 NPN. The continuous library does not expose
 `sky130_fd_pr__diode_pw2nd_05v5`, while the available four-terminal NPN makes
 ngspice 46 discard model parameters. Structural mapping is therefore not a

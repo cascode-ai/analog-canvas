@@ -20,10 +20,11 @@ engine.
    `GET /api/agent/kit` JSON, write its listed files to a private scratch
    directory, redeem the claim, and call the four operations directly. The
    handoff first recommends installing/updating MCP from the current manifest.
-   If declined, blocked or unavailable in the current conversation, use HTTP
-   immediately; restarting the Agent host is not a prerequisite. Configuration
-   success alone is not tool availability. Notify the user once if a restart or
-   new conversation is needed, but do not perform it automatically.
+   If declined, blocked or unavailable in the current conversation, report the
+   failed stage; use HTTP only when the user explicitly chooses it. That path
+   needs no Agent host restart. Configuration success alone is not tool
+   availability. Notify the user once if a restart or new conversation is
+   needed, but do not perform it automatically.
 3. **Advanced: direct OpenAPI.** `GET /api/agent/openapi.json` is the
    wire-contract authority for direct API integrations. An MCP-based Agent
    does not need it; `advanced_transact` reuses existing transaction forms.
@@ -86,7 +87,7 @@ wire-contract authority.
 4. [`tool-behavior.md`](tool-behavior.md) — runtime behavior and transaction
    boundaries.
 5. [`response-semantics.md`](response-semantics.md) — conflicts, diagnostics,
-   generated artifacts, and completion decisions.
+   and completion decisions.
 6. [`api-usage.md`](api-usage.md) — loopback and browser-session requests.
 7. [`circuit-style-knowledge.md`](circuit-style-knowledge.md) and
    [`knowledge/`](knowledge/README.md) — evidence-first circuit reading and
