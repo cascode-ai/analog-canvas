@@ -83,6 +83,34 @@ export interface NetLabelPlacementTarget {
   labelPosition: Point;
 }
 
+/** Nearest visible conductor point on one physical Net. */
+export function closestNetConductorPoint(
+  routeGeometryRecords: readonly RouteGeometryRecord[],
+  netId: string,
+  candidate: Point,
+): Point | null {
+  return (
+    routeGeometryRecords
+      .filter(({ route }) => route.netId === netId)
+      .flatMap(({ geometry }) =>
+        geometry.centerline.slice(0, -1).map((from, index) => {
+          const point = closestPointOnSegment(
+            candidate,
+            from,
+            geometry.centerline[index + 1]!,
+          );
+          return {
+            point,
+            distanceSquared:
+              (point.x - candidate.x) ** 2 + (point.y - candidate.y) ** 2,
+          };
+        }),
+      )
+      .sort((left, right) => left.distanceSquared - right.distanceSquared)[0]
+      ?.point ?? null
+  );
+}
+
 export const ROUTED_MARKER_MIN_NORMAL_OFFSET = 12;
 export const ROUTED_MARKER_MAX_NORMAL_OFFSET = 40;
 // Net labels keep their electrical binding to the route but may be placed in

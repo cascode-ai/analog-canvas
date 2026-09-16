@@ -3687,7 +3687,7 @@ test("canvas text editor cancels explicitly and commits on Escape or outside cli
   await expect(page.getByTestId("revision")).toHaveText("3");
 });
 
-test("a dragged Net label re-anchors along its route and stays released", async ({
+test("a dragged Net label moves freely while retaining its Net tether", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -3711,12 +3711,38 @@ test("a dragged Net label re-anchors along its route and stays released", async 
   if (!before) throw new Error("Net label is not measurable");
   const revisionBefore = await page.getByTestId("revision").textContent();
 
-  // Well past the old +/-30 clamp: the label must stay below the wire.
-  await dragBy(label, { x: 0, y: 80 });
+  // Well past the left end of the short Route: the label must follow the
+  // pointer rather than clamping its horizontal position to that Route. Start
+  // on the overlap between the text's lower hit area and the wire hit stroke:
+  // this press used to move the Route instead of the visible label.
+  const start = await page.evaluate(({ x, y, width, height }) => {
+    for (let py = y; py <= y + height; py += 2) {
+      for (let px = x; px <= x + width; px += 2) {
+        const ids = document
+          .elementsFromPoint(px, py)
+          .map((element) => element.getAttribute("data-testid"));
+        if (
+          ids.includes("annotation-hit-net-label-route-ui-1") &&
+          ids.includes("route-hit-route-ui-1")
+        ) {
+          return { x: px, y: py };
+        }
+      }
+    }
+    return null;
+  }, before);
+  if (!start) throw new Error("Net label and Route do not overlap");
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+  await page.mouse.move(start.x - 240, start.y + 80, { steps: 8 });
+  await page.mouse.up();
   await expect(page.getByTestId("revision")).not.toHaveText(revisionBefore!);
   const after = await renderedLabel.boundingBox();
   if (!after) throw new Error("Net label vanished after the drag");
+  expect(after.x - before.x).toBeLessThan(-200);
   expect(after.y - before.y).toBeGreaterThan(60);
+  await expect(renderedLabel).toHaveAttribute("data-anchor-kind", "free");
+  await expect(page.getByTestId("net-label-tether")).toBeVisible();
 });
 
 test("selects and moves multiple instances while viewport gestures stay transient", async ({
