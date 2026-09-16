@@ -1,0 +1,21 @@
+import { expect } from "@playwright/test";
+import type { Page } from "@playwright/test";
+import { chooseComponent } from "./editor-fixtures.js";
+
+export async function placeComponent(
+  page: Page,
+  symbolId: string,
+  position: { x: number; y: number },
+): Promise<void> {
+  await chooseComponent(page, symbolId);
+  await page.getByTestId("schematic-canvas").click({ position });
+  await page.keyboard.press("Escape");
+}
+
+export async function openSelectionShelf(page: Page): Promise<void> {
+  const shelf = page.getByTestId("selection-shelf");
+  await expect(shelf).toBeVisible();
+  if ((await shelf.getAttribute("aria-expanded")) !== "true") {
+    await shelf.click();
+  }
+}

@@ -5,9 +5,6 @@ import { DocumentSettingsSection } from "../features/editor-shell/document-setti
 import { PlacementTrayPanel } from "../features/component-insert/placement-tray-panel";
 import { CellSymbolLayoutProperties } from "../features/properties/component-structure-properties";
 import { ComponentIdentityProperties } from "../features/properties/component-identity-properties";
-import type { ComponentElectricalProperties } from "../features/properties/component-electrical-properties";
-import type { ComponentSignalFlowProperties } from "../features/properties/component-signal-flow-properties";
-import type { ComponentPlacementProperties } from "../features/properties/component-placement-properties";
 import { ComponentPropertyCodeEditor } from "../features/properties/component-property-code-editor";
 import { AnnotationColorProperties } from "../features/properties/annotation-color-properties";
 import { NetNameProperties } from "../features/properties/net-name-properties";
@@ -31,9 +28,10 @@ interface ComponentPropertiesModel {
   code: ComponentProps<typeof ComponentPropertyCodeEditor>;
   cellSymbolLayout: ComponentProps<typeof CellSymbolLayoutProperties> | null;
   identity: ComponentProps<typeof ComponentIdentityProperties>;
-  signalFlow: ComponentProps<typeof ComponentSignalFlowProperties> | null;
-  electrical: ComponentProps<typeof ComponentElectricalProperties>;
-  placement: ComponentProps<typeof ComponentPlacementProperties>;
+  signalFlow: boolean;
+  parameters: NonNullable<
+    ComponentProps<typeof ComponentPropertyCodeEditor>["details"]
+  >["parameters"];
 }
 
 export interface EditorPropertiesDockProps {
@@ -142,11 +140,11 @@ export function EditorPropertiesDock({
                   key={component.code.instance.id}
                   {...component.code}
                   details={{
-                    parameters: component.electrical.parameters,
+                    parameters: component.parameters,
                     ...(component.identity.modelTarget
                       ? { modelTarget: component.identity.modelTarget }
                       : {}),
-                    signalFlow: component.signalFlow !== null,
+                    signalFlow: component.signalFlow,
                   }}
                 />
                 {component.cellSymbolLayout ? (
