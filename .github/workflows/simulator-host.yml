@@ -20,7 +20,15 @@ on:
         required: true
         default: probe
         type: choice
-        options: [probe, bootstrap-tunnel, deploy, vacask-preview, vacask-diagnostics, vacask-compat-build]
+        options:
+          [
+            probe,
+            bootstrap-tunnel,
+            deploy,
+            vacask-preview,
+            vacask-diagnostics,
+            vacask-compat-build,
+          ]
       candidate_assets:
         description: Draft release tag containing the pinned native build context
         type: string
@@ -54,6 +62,9 @@ env:
 jobs:
   vacask-compat-build:
     if: github.event_name == 'workflow_dispatch' && inputs.action == 'vacask-compat-build'
+    # GitHub requires write permission to read unpublished draft assets.
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
