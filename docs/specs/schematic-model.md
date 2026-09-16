@@ -105,9 +105,11 @@ exception so Ground keeps its existing placement and routing behavior.
 Canonical MOS Instances use `nmos`/`pmos` with D/G/S/B electrical pins. The
 default `textbook-3terminal` variant is presentation-only. B membership is
 explicit first, then materialized from a configured cell-default Net. Without
-either, it remains unresolved in persisted connectivity. Export reports
-`MISSING_PIN_NET` unless an explicit NoConnect supplies the separate floating-node
-contract; it never guesses a supply from polarity. Existing `supply-default` bindings
+either, it remains unresolved in persisted connectivity. Strict extraction
+reports `MISSING_PIN_NET` unless an explicit NoConnect supplies the separate
+floating-node contract; it never guesses a supply from polarity. A profiled copy
+export may apply its explicitly configured PMOS substrate to a manually authored
+PMOS while leaving the persisted graph unresolved. Existing `supply-default` bindings
 remain readable for compatibility, but current manual authoring does not create
 them.
 Cross-Document composition converts an effective source `cell-default` to an
