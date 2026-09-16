@@ -8,6 +8,9 @@ import { once } from "node:events";
 import assert from "node:assert/strict";
 
 const { version } = JSON.parse(await readFile(resolve("package.json"), "utf8"));
+const { version: mcpVersion } = JSON.parse(
+  await readFile(resolve("config/agent-mcp-distribution.json"), "utf8"),
+);
 const releaseRoot = resolve(
   `output/release/interactive-circuit-maker-v${version}`,
 );
@@ -549,7 +552,16 @@ function startMcp() {
 
 try {
   const first = startMcp();
-  await first.request("initialize", { protocolVersion: "2025-03-26" });
+  const initialized = await first.request("initialize", {
+    protocolVersion: "2025-03-26",
+  });
+  assert.equal(
+    initialized.serverInfo.version,
+    mcpVersion,
+    "MCP runtime must match the declared distribution version",
+  );
+  const localStatus = await first.tool("connection_status", { refresh: false });
+  assert.deepEqual(localStatus.runtime, { version: mcpVersion, apiBaseUrl });
   const listed = await first.request("tools/list");
   if (
     !JSON.stringify(

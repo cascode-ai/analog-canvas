@@ -15,6 +15,13 @@ examples below are MCP-specific mappings, not a separate operating policy.
 Production and Preview both expose the Agent UI. Their accounts, Projects and
 connector bindings remain separate.
 
+Before pairing, `connection_status({"refresh":false})` identifies the loaded
+MCP version and exact API origin without a network request. Installation and
+host loading are separate stages: an installed binary is not proof that this
+conversation can call it. Prefer the verified local launch described in
+[installation](mcp-install.md). Do not silently replace a failed MCP connection
+with HTTP; that path requires the user's explicit choice and is not MCP acceptance.
+
 MCP 0.13.0 adds lightweight Session observations and a direct HTTP executable
 entry through the same client. Use `analog-canvas-mcp --http list-tools` to
 discover commands; pass JSON tool arguments on stdin, not on a command line.

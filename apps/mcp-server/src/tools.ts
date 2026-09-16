@@ -4,6 +4,7 @@ import { SimulationOperationSchema } from "@icm/simulation-service/contract";
 import { SimulationFileOperationSchema } from "@icm/simulation-service/files";
 import {
   AGENT_API_VERSION,
+  AGENT_MCP_VERSION,
   AgentFileDownloadOptionsSchema,
 } from "@icm/agent-adapter";
 import {
@@ -282,10 +283,23 @@ const TOOLS: readonly ToolEntry[] = [
     definition: {
       name: "connection_status",
       description:
-        "Read lightweight Session observations without waiting for the editor. attached means a browser socket exists, not verified execution readiness; unknown means the relay could not be checked. Reports pause, observation time and token validity without exposing credentials or renewing the session.",
-      inputSchema: jsonSchemaOf(z.strictObject({})),
+        "Report actual MCP runtime version and API origin. Set refresh:false for local readiness without network access. By default read lightweight Session observations without waiting for the editor: attached means a browser socket exists, not verified execution readiness; unknown means the relay could not be checked. No credentials are exposed.",
+      inputSchema: jsonSchemaOf(
+        z.strictObject({ refresh: z.boolean().optional() }),
+      ),
     },
-    handle: async (_args, session) => session.client.status({ refresh: true }),
+    handle: async (args, session) => {
+      const { refresh = true } = z
+        .strictObject({ refresh: z.boolean().optional() })
+        .parse(args);
+      return {
+        ...(await session.client.status({ refresh })),
+        runtime: {
+          version: AGENT_MCP_VERSION,
+          apiBaseUrl: session.client.apiBaseUrl,
+        },
+      };
+    },
   },
   {
     definition: {

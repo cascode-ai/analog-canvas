@@ -543,7 +543,13 @@ describe("public Agent session routes", () => {
     expect(manifest.launch.args.join(" ")).toContain(
       mcpDistribution.release.asset,
     );
-    expect(manifest.hosts.codex.command).toContain("codex mcp add");
+    expect(manifest.installation.command).toContain(
+      '--install --origin "https://editor.example" --host codex',
+    );
+    expect(manifest.hosts.codex.command).toContain("https://editor.example");
+    expect(manifest.launch.env.ANALOG_CANVAS_API_URL).toBe(
+      "https://editor.example",
+    );
     expect(manifest.hosts.cursor.config.mcpServers["analog-canvas"]).toEqual(
       manifest.launch,
     );

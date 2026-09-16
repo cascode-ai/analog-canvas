@@ -268,6 +268,10 @@ because the run started or a source Project was exported.
 
 ## HTTP client responsibilities
 
+This path is an explicit user choice, not an automatic recovery from failed
+MCP host loading. Report the failed MCP stage before offering HTTP; successful
+HTTP execution is not MCP acceptance.
+
 HTTP uses the same server validation and permissions. The version-pinned package
 in the MCP bootstrap manifest also runs without an MCP host: execute its binary
 with --http followed by a published tool name (connect, connection_status,

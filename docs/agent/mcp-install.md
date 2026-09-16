@@ -13,24 +13,40 @@ one-time Claim and the public bootstrap manifest:
 
 The manifest is the machine-readable distribution authority. It declares the
 current version, Node requirement, immutable GitHub Release asset, SHA-256,
-version-pinned launch command, host setup snippets, and Agent Kit fallback.
-Node.js 24 or newer is the only runtime requirement.
+version-pinned package, host setup snippets, and an explicitly selected HTTP path.
+Node.js 24 or newer is required; the one-time installer also uses `tar` to read
+the verified bundle from its archive (available on current Windows/macOS/Linux).
 
 The declared SHA-256 belongs to the canonical Linux-built GitHub Release
 tarball. Local development tarballs built on another operating system may have
 different archive metadata without changing the bundled MCP program.
 
-For Codex, the equivalent first-time command is:
+## Install once, launch offline
 
-    codex mcp add analog-canvas -- <the manifest launch command>
+Use the manifest from the **exact editor origin**, including Preview when that
+is where the circuit is open. When `installation.available` is true, download
+its immutable release archive, verify SHA-256, extract the bundle, then run:
 
-For Claude Code:
+    node <verified-bundle.mjs> --install --origin <exact-editor-origin> --host codex
 
-    claude mcp add analog-canvas --scope user -- <the manifest launch command>
+The installer downloads and verifies the declared package, installs it under
+`~/.analog-canvas/mcp/`, and runs actual stdio `initialize` / `tools/list` with
+an unreachable relay origin. Runtime version must match the manifest and the
+connection/context/simulation tools must exist. Only then does it back up and
+update the named Codex MCP configuration, preserving unrelated host settings.
+The saved command is an absolute Node path plus a local bundle path, with an
+explicit `ANALOG_CANVAS_API_URL`. Ordinary startup does not use `npx`, GitHub,
+or npm. Updating is an explicit re-run of installation, not a startup download.
 
-On native Windows, Claude Code wraps an `npx` launch with `cmd /c`; the
-manifest supplies that exact command. Cursor consumes the manifest's
-`hosts.cursor.config` object as its user-level MCP configuration.
+For Claude Code, Cursor or another host, use `--host config`; copy the returned
+`launch` object into that host's named MCP entry. This mode does not change host
+configuration. The manifest's legacy `launch` / Cursor snippet remains a
+compatibility option, not the recommended steady-state installation route.
+
+Immutable releases through 0.15.1 lack the installer; the manifest marks it
+unavailable for them. Source changes are not a new published distribution.
+Do not invoke `--install` against those old packages. Publish and verify a new
+release before enabling this route for hosted users.
 
 The GitHub Release is always usable. When the same version is also published
 to npm, a later distribution declaration may switch the launch source without
@@ -38,7 +54,7 @@ changing MCP tools or the Agent session protocol.
 
 The first `connect` call takes the Claim Code copied from the editor. Later
 MCP processes call `connect` without a code: the Helper reads the revocable
-connector from the user's `.analog-canvas/connector.json` and obtains a new
+connector from the user's `.analog-canvas/connectors/<origin-hash>.json` and obtains a new
 short-lived bearer. Set `ANALOG_CANVAS_MCP_CONNECTOR` only when the host needs
 a different private credential location.
 
@@ -54,12 +70,21 @@ verify tools are callable and compatible in the current conversation.
 
 If a host cannot load a newly configured MCP process in the current
 conversation, tell the user once that a host restart or new conversation may
-be needed; do not restart it automatically. Continue the current task through
-`GET /api/agent/kit` when installation is declined, blocked or cannot load now.
+be needed; do not restart it automatically. Report the failed stage: download,
+integrity, local stdio readiness, host loading, pairing or editor readiness.
+Use `GET /api/agent/kit` only when the user explicitly chooses HTTP;
+never count this as MCP acceptance or silently mask a broken host installation.
 If the Claim expires during setup, request a fresh code. The Kit is a
 same-source fallback, not a second product protocol: it teaches the Agent to
 use the existing four-capability
 HTTP API without guessing raw requests.
+
+`connection_status({"refresh":false})` reports runtime version and exact API
+origin without contacting the relay. The normal refreshed status additionally
+reports session observations. Neither a local probe nor installed configuration
+proves the tools are callable in the current Agent conversation. Final host
+acceptance must call actual MCP tools: status, claim/resume, context and one
+requested operation; a simulation acceptance must retrieve the completed result.
 
 For a deployment check, `pnpm release:verify` builds the browser release,
 bundles and packs MCP, and runs a local golden path covering initial claim,

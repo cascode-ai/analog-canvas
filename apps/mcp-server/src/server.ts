@@ -1,4 +1,5 @@
 import { homedir } from "node:os";
+import { AGENT_MCP_VERSION } from "@icm/agent-adapter";
 import {
   AgentHttpClient,
   AgentSessionClient,
@@ -18,7 +19,7 @@ import {
 import type { McpServerHandler, McpServerInfo } from "./protocol.js";
 
 export const MCP_SERVER_NAME = "analog-canvas";
-export const MCP_SERVER_VERSION = "0.13.0";
+export const MCP_SERVER_VERSION = AGENT_MCP_VERSION;
 
 export interface McpServerConfig {
   apiBaseUrl: string;

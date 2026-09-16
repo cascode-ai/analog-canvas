@@ -53,7 +53,8 @@ describe("ConnectAgentPanel", () => {
     expect(instructions).toContain("analog-canvas://reference/quickstart");
     expect(instructions).toContain("connector resumes automatically");
     expect(instructions).toContain("https://editor.example/api/agent/kit");
-    expect(instructions).toContain("continue immediately");
+    expect(instructions).toContain("do not silently switch to HTTP");
+    expect(instructions).toContain("it is not MCP acceptance");
     expect(instructions).toContain("install or update it");
     expect(instructions).toContain("version-pinned package");
     expect(instructions).toContain("tools are actually callable");

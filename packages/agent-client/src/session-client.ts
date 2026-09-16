@@ -148,6 +148,10 @@ export class AgentSessionClient {
   private capabilitiesCache: AgentCapabilitiesResponse | null = null;
   private resumePromise: Promise<ActiveSession | null> | null = null;
 
+  get apiBaseUrl(): string {
+    return this.http.baseUrl;
+  }
+
   constructor(options: AgentSessionClientOptions) {
     this.http = options.http;
     this.now = options.now ?? (() => Date.now());
