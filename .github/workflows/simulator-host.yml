@@ -262,6 +262,10 @@ jobs:
         if: inputs.action == 'vacask-diagnostics'
         run: |
           ssh sim 'docker ps -a --filter label=com.docker.compose.project=icm-vacask-preview --format "{{.Names}} {{.Status}}"; for id in $(docker ps -aq --filter label=com.docker.compose.project=icm-vacask-preview); do docker inspect --format "{{.Name}} restarts={{.RestartCount}} oom={{.State.OOMKilled}} exit={{.State.ExitCode}} started={{.State.StartedAt}}" "$id"; done; id=$(docker ps -q --filter label=com.docker.compose.project=icm-vacask-preview --filter label=com.docker.compose.service=executor); test -n "$id" && docker logs --since 30m --tail 40 "$id"'
+      - name: Probe native child-process kernel support
+        if: inputs.action == 'vacask-diagnostics'
+        run: |
+          ssh sim 'uname -sr; id=$(docker ps -q --filter label=com.docker.compose.project=icm-vacask-preview --filter label=com.docker.compose.service=executor); test -n "$id" && docker exec "$id" python3 -c "import os; print(os.pidfd_open(os.getpid()))"'
       - name: Preserve runtime identity (no credentials)
         if: always()
         uses: actions/upload-artifact@v4
