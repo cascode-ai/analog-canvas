@@ -1,5 +1,8 @@
 import { directObjectLocator } from "@icm/derived";
-import { parameterExpressionBody } from "@icm/devices";
+import {
+  parameterExpressionBody,
+  reviewedExternalBindingForMaster,
+} from "@icm/devices";
 import { expressionIsStructurallyValid, parseSpiceNumber } from "@icm/spice";
 import type {
   DesignNetlistIR,
@@ -265,6 +268,26 @@ export function printVacaskWithLocations(
     const assigned = new Set<string>();
     const scope = cellsById.get(cellId)!;
     const inheritedMultiplicity = multipliedCells.has(cellId);
+    const externalSubcircuit =
+      card.invocationKind === "subcircuit" &&
+      !!card.target &&
+      !cellsByName.has(card.target);
+    const reviewed = card.target
+      ? reviewedExternalBindingForMaster(card.target)
+      : undefined;
+    const reviewedMultiplier =
+      reviewed?.id === card.reviewedExternalBindingId &&
+      reviewed?.parameters.some(
+        (p) => p.name === "m" && p.displayRole === "multiplier",
+      );
+    // An external formal called m is not necessarily parallel multiplicity.
+    // Only a reviewed device binding can override that declared meaning.
+    const ordinaryExternalM =
+      externalSubcircuit &&
+      !reviewedMultiplier &&
+      mastersByName
+        .get(card.target!)
+        ?.formalParameters?.some((p) => p.name.toLowerCase() === "m");
     const parameterNames = new Map(
       (scope.formalParameters ?? []).map((p) => [p.name.toLowerCase(), p.name]),
     );
@@ -303,7 +326,7 @@ export function printVacaskWithLocations(
       const targetParameters =
         mastersByName.get(card.target)?.formalParameters ?? [];
       for (const p of card.parameters) {
-        if (p.name.toLowerCase() === "m") continue;
+        if (p.name.toLowerCase() === "m" && !ordinaryExternalM) continue;
         assignment(
           targetParameters.find(
             (f) => f.name.toLowerCase() === p.name.toLowerCase(),
@@ -395,7 +418,9 @@ export function printVacaskWithLocations(
             assignment(p.name, p.rawValue, p.name);
       }
     }
-    const factors = card.parameters.filter((p) => p.name.toLowerCase() === "m");
+    const factors = card.parameters.filter(
+      (p) => p.name.toLowerCase() === "m" && !ordinaryExternalM,
+    );
     if (
       factors.length > 1 ||
       (assigned.has("$mfactor") && (factors.length || inheritedMultiplicity))
@@ -413,7 +438,14 @@ export function printVacaskWithLocations(
         card.invocationKind === "primitive" &&
         card.deviceClass === "voltage-source"
       );
-    if (factor || inherit) {
+    // Exact numeric unity has no electrical effect. Do not demand an external
+    // forwarding contract for it, or erase inherited/nonliteral multiplicity.
+    const neutralExternalFactor =
+      externalSubcircuit &&
+      !inherit &&
+      factor &&
+      parseSpiceNumber(factor.rawValue)?.value === 1;
+    if ((factor || inherit) && !neutralExternalFactor) {
       if (
         card.invocationKind === "subcircuit" &&
         !cellsByName.has(card.target!) &&

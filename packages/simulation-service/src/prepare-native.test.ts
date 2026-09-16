@@ -4,6 +4,7 @@ import { currentFiveTransistorOtaCircuitSource } from "../../../apps/editor/src/
 import { CapabilitiesSchema } from "./contract.js";
 import { prepareSourceExecutionInput } from "./prepare-source.js";
 import { locateSimulationText } from "@icm/netlist";
+import { nativeSky130OtaFixture } from "../test-support/sky130-ota.js";
 
 function fixture() {
   const project = CircuitProjectSchema.parse(
@@ -59,6 +60,30 @@ function fixture() {
   return { project, folder, caps };
 }
 describe("native model preparation", () => {
+  it("prepares Canvas SKY130 unity multiplicity without mutating the circuit or requiring manual source surgery", async () => {
+    const { project, folder, profile } = nativeSky130OtaFixture();
+    const mos = project.documents
+      .find((d) => d.id === "document-ota-5t")!
+      .instances.find((i) => i.id === "M1")!;
+    mos.netlist!.parameters.m = "1";
+    const before = structuredClone({ project, folder });
+    const caps = { ...fixture().caps, profiles: [profile] };
+    const prepared = await prepareSourceExecutionInput(project, folder, caps);
+    expect(prepared.ok, JSON.stringify(prepared)).toBe(true);
+    if (!prepared.ok) return;
+    const circuit = prepared.input.files.find(
+      (f) => f.path === "circuit.spice",
+    )!.text;
+    expect(circuit).toContain("sky130_fd_pr__nfet_01v8");
+    expect(circuit).not.toContain("$mfactor");
+    expect({ project, folder }).toEqual(before);
+    mos.netlist!.parameters.m = "2";
+    const refused = await prepareSourceExecutionInput(project, folder, caps);
+    expect(refused.ok).toBe(false);
+    expect(JSON.stringify(refused)).toContain(
+      "VACASK_UNMAPPED_SUBCIRCUIT_MULTIPLICITY",
+    );
+  });
   it("applies the same Profile section contract to code-only programs without requiring a Canvas binding", async () => {
     const { project, folder, caps } = fixture();
     folder.input.circuitBindings = [];
