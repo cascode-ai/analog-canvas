@@ -13,6 +13,11 @@ import {
   setComponentParameter,
 } from "./editor-fixtures.js";
 
+// The live-host cases open relay sockets and one test starts a sibling Vite
+// server. Keep this file in one worker while unrelated browser specs stay
+// fully parallel.
+test.describe.configure({ mode: "default" });
+
 type SessionMessage = {
   kind: string;
   requestId: string;
