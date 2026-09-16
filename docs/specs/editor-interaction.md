@@ -672,9 +672,11 @@ ordinary in-app navigation, selection, zoom, and panel changes do not affect
 it. New, Open, Revert, recovery restore, and approved staged replacement use
 one concise application dialog with Stay, Save to Cloud and continue, and
 Continue without saving. The dialog states the destination and distinguishes
-Cloud Save (at most 20 private Cloud Projects) from local Project-file
-export without exposing browser-recovery internals. A startup recovery offer is
-a non-modal overlay and never silently
+Cloud Save (private Cloud Projects, up to a per-account limit) from local
+Project-file export without exposing browser-recovery internals. The limit it
+shows is the editor's shared Cloud Project limit, the same value the File menu
+counts against, not a figure written into the dialog text. A startup recovery
+offer is a non-modal overlay and never silently
 replaces the active Project.
 
 Same-site destinations owned by the product, including Gallery and Analytics,

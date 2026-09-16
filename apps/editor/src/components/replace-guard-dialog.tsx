@@ -3,6 +3,11 @@ import { useEffect, useRef } from "react";
 export interface ReplaceGuardDialogProps {
   /** What is about to replace the dirty work, e.g. "Open amp.icproj.json". */
   intent: string;
+  /**
+   * How many Cloud Projects one account may keep. The composition root hands
+   * in the shared limit so this copy can never fall behind it.
+   */
+  cloudProjectLimit: number;
   saving: boolean;
   onCancel(): void;
   onSaveAndContinue(): void;
@@ -17,6 +22,7 @@ export interface ReplaceGuardDialogProps {
  */
 export function ReplaceGuardDialog({
   intent,
+  cloudProjectLimit,
   saving,
   onCancel,
   onSaveAndContinue,
@@ -75,8 +81,9 @@ export function ReplaceGuardDialog({
               edits.
             </p>
             <p className="replace-guard-hint">
-              Save keeps this Project in Cloud Projects (up to 3). Prefer a
-              file? <strong>File → Export Project File…</strong> downloads
+              Save keeps this Project in Cloud Projects (up to{" "}
+              {cloudProjectLimit}). Prefer a file?{" "}
+              <strong>File → Export Project File…</strong> downloads{" "}
               <code>.icproj.json</code>.
             </p>
           </div>

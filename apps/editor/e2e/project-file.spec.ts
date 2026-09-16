@@ -564,6 +564,9 @@ test("replacement guard offers cancel, discard, and Cloud Save", async ({
   const dialog = page.getByRole("dialog", {
     name: "Unsaved changes",
   });
+  await expect(dialog).toContainText(
+    `Cloud Projects (up to ${CLOUD_PROJECT_LIMIT})`,
+  );
   await dialog.getByRole("button", { name: "Stay" }).click();
   await expect(page.getByTestId("revision")).toHaveText("3");
 

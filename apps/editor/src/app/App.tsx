@@ -272,6 +272,7 @@ import { resolveTextEditingTarget } from "../features/text-editing/text-editing"
 import { planMosBulkDefaultUpdate } from "../features/component-insert/mos-bulk-defaults";
 import { logicalNetChoices } from "../features/logical-net-choices";
 import {
+  CLOUD_PROJECT_LIMIT,
   deleteCloudProject,
   listCloudProjects,
   type CloudProjectSummary,
@@ -4934,6 +4935,7 @@ export function App({
           replaceGuard !== null
             ? {
                 intent: replaceGuard.intent,
+                cloudProjectLimit: CLOUD_PROJECT_LIMIT,
                 saving: replaceGuardSaving,
                 onCancel: cancelReplaceGuard,
                 onSaveAndContinue: saveAndContinueReplaceGuard,

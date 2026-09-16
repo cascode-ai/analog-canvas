@@ -8,6 +8,7 @@ describe("ReplaceGuardDialog", () => {
     const html = renderToStaticMarkup(
       <ReplaceGuardDialog
         intent="Open OTA.icproj.json"
+        cloudProjectLimit={7}
         saving={false}
         onCancel={vi.fn()}
         onSaveAndContinue={vi.fn()}
@@ -16,9 +17,10 @@ describe("ReplaceGuardDialog", () => {
     );
     expect(html).toContain("Unsaved changes");
     expect(html).toContain("will drop your latest");
-    expect(html).toContain("Cloud Projects (up to 3)");
+    // The copy states whatever limit it is handed, never a number of its own.
+    expect(html).toContain("Cloud Projects (up to 7).");
     expect(html).toContain("Export Project File");
-    expect(html).toContain(".icproj.json");
+    expect(html).toContain("downloads <code>.icproj.json</code>");
     expect(html).toContain("Save to Cloud and continue");
     expect(html).toContain("Continue without saving");
     expect(html).toContain("Stay");
@@ -29,6 +31,7 @@ describe("ReplaceGuardDialog", () => {
     const html = renderToStaticMarkup(
       <ReplaceGuardDialog
         intent="Create a new Project"
+        cloudProjectLimit={7}
         saving={true}
         onCancel={vi.fn()}
         onSaveAndContinue={vi.fn()}
