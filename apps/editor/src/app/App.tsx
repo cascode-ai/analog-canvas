@@ -145,7 +145,6 @@ import {
 import { TimingSimulationPanel } from "../features/simulation/timing-simulation-panel";
 import { TIMING_UI_ENABLED } from "../features/simulation/timing-ui";
 import { PUBLIC_SIMULATION_UI_ENABLED } from "../features/simulation/public-simulation-ui";
-import { updateComponentParameterValues } from "../features/component-insert/component-parameters";
 import {
   waveformDraftingObjects,
   type TimingWaveformLayout,
@@ -169,7 +168,6 @@ import {
   endpointTestId,
   instanceLabelAnnotationFor,
   maxRoutingCounter,
-  previewInstanceValueSource,
 } from "./editor-document-helpers";
 import {
   compactLayoutMatches,
@@ -204,19 +202,6 @@ import {
   quickPlaceRequest,
   ShapesPanel,
 } from "../features/editor-shell/shapes-panel";
-import {
-  drawsContactCircles,
-  planSwitchContactStyleSwap,
-  switchContactStyleSibling,
-} from "../features/editor-shell/switch-contact-style";
-import {
-  differentialOutputSibling,
-  planDifferentialOutputSwap,
-} from "../features/editor-shell/differential-output-swap";
-import {
-  differentialInputSibling,
-  planDifferentialInputSwap,
-} from "../features/editor-shell/differential-input-swap";
 import { ExamplesPanel } from "../features/editor-shell/examples-panel";
 import { createGalleryExampleCommands } from "../features/editor-shell/gallery-example-commands";
 import { createEditorNavigationController } from "../features/hierarchy/editor-navigation-controller";
@@ -1376,7 +1361,6 @@ export function App({
   const suppressInstanceClick = useRef(false);
   const projectInputRef = useRef<HTMLInputElement>(null);
   const selectionShelfRef = useRef<HTMLButtonElement>(null);
-  const instanceValueInputRef = useRef<HTMLInputElement>(null);
   const [propertyCodeFocusRequest, setPropertyCodeFocusRequest] = useState(0);
   const netLabelEditorInputRef = useRef<HTMLInputElement>(null);
   const documentViewBoxes = useRef(new Map<string, GridRect>());
@@ -1567,7 +1551,6 @@ export function App({
     selectedAnnotationId,
     selectedDraftingId,
     selectedInstance,
-    selectedInstanceHasDifferentialInputs,
     selectedHierarchyCell,
     selectedDevice,
     selectedCapacitorPlateRows,
@@ -2079,11 +2062,7 @@ export function App({
   });
   const {
     restoreTextReference,
-    addAdditionalParameter,
     applyRouteProperties,
-    additionalParameterDraft,
-    additionalParameterDraftChanges,
-    applyAdditionalParameters,
     beginAnnotationTextEditing,
     beginDraftingTextEditing,
     beginInstanceFormulaEditing,
@@ -2095,20 +2074,10 @@ export function App({
     commitPendingNetLabelDraft,
     commitTextEditing,
     clearTextEditing,
-    cancelAdditionalParameters,
     deleteTextEditing,
-    discardInstancePropertyDraft,
-    hasInstancePropertyDraftChanges,
-    instancePropertyDraft,
     netLabelPlacement,
     placeNetLabel,
-    removeAdditionalParameter,
-    setReferenceLabelsVisible,
-    setValueLabelsVisible,
-    showSelectedInstanceValue,
     textEditing,
-    updateInstancePropertyDraft,
-    updateAdditionalParameter,
     updateTextEditing,
     updateNetLabelPlacementDraft,
     updateNetLabelPlacementPosition,
@@ -2212,14 +2181,6 @@ export function App({
   const selectedInstanceValue = selectedInstance
     ? instanceValueAnnotation(document, selectedInstance.id)
     : null;
-  // Availability follows the live property draft, not only committed state:
-  // typing a value must enable the Value toggle immediately. Geometry edits
-  // in the draft are irrelevant to the projection.
-  const selectedInstanceValueAvailable = selectedInstance
-    ? displayableInstanceValue(
-        previewInstanceValueSource(selectedInstance, instancePropertyDraft),
-      ).kind === "displayable"
-    : false;
   const selectedGroupInstances = selectedIds.flatMap((id) => {
     const instance = document.instances.find((item) => item.id === id);
     return instance ? [instance] : [];
@@ -6297,150 +6258,9 @@ export function App({
                           : {}),
                         onModelTargetChange: updateSelectedModelTarget,
                       },
-                      signalFlow: selectedSignalFlowPresentation
-                        ? {
-                            instance: selectedInstance,
-                            presentation: selectedSignalFlowPresentation,
-                            revision: document.revision,
-                            onChange: (parameters) => {
-                              const result = transact([
-                                {
-                                  kind: "set_instance_signal_flow_parameters",
-                                  instanceId: selectedInstance.id,
-                                  parameters,
-                                },
-                              ]);
-                              if (result.ok) {
-                                setStatus(
-                                  parameters
-                                    ? `Updated Signal Flow presentation for ${selectedInstance.id}`
-                                    : `Reset Signal Flow presentation for ${selectedInstance.id}`,
-                                );
-                              }
-                              return result.ok;
-                            },
-                          }
-                        : null,
-                      electrical: {
-                        instance: selectedInstance,
-                        parameters:
-                          propertyParametersForInstance(selectedInstance),
-                        parameterValues: instancePropertyDraft.parameters,
-                        firstInputRef: instanceValueInputRef,
-                        referenceVisible:
-                          selectedInstanceLabel !== undefined &&
-                          selectedInstanceLabel.visible !== false,
-                        valueVisible:
-                          selectedInstanceValue !== null &&
-                          selectedInstanceValue.visible !== false,
-                        valueAvailable: selectedInstanceValueAvailable,
-                        valueSupported: selectedInstance
-                          ? symbolSupportsValueAnnotation(
-                              selectedInstance.symbolId,
-                            )
-                          : false,
-                        referenceAvailable: selectedInstance
-                          ? symbolCarriesReference(selectedInstance.symbolId)
-                          : false,
-                        referenceLabelRenderable: selectedLabelRenderable,
-                        additionalParameters: additionalParameterDraft,
-                        additionalParametersChanged:
-                          additionalParameterDraftChanges,
-                        onParameterChange: (key, value) =>
-                          updateInstancePropertyDraft((current) => ({
-                            ...current,
-                            parameters: updateComponentParameterValues(
-                              selectedInstance.symbolId,
-                              current.parameters,
-                              key,
-                              value,
-                            ),
-                          })),
-                        onReferenceVisibilityChange: (checked) =>
-                          setReferenceLabelsVisible(
-                            [selectedInstance.id],
-                            checked,
-                          ),
-                        onValueVisibilityChange: (checked) => {
-                          if (checked) showSelectedInstanceValue();
-                          else
-                            setValueLabelsVisible([selectedInstance.id], false);
-                        },
-                        onAdditionalParameterChange: updateAdditionalParameter,
-                        onAdditionalParameterRemove: removeAdditionalParameter,
-                        onAdditionalParameterAdd: addAdditionalParameter,
-                        onAdditionalParametersApply: applyAdditionalParameters,
-                        onAdditionalParametersCancel:
-                          cancelAdditionalParameters,
-                      },
-                      placement: {
-                        instance: selectedInstance,
-                        x: instancePropertyDraft.x,
-                        y: instancePropertyDraft.y,
-                        rotation: instancePropertyDraft.rotation,
-                        draftChanged: hasInstancePropertyDraftChanges,
-                        onXChange: (x) =>
-                          updateInstancePropertyDraft((current) => ({
-                            ...current,
-                            x,
-                          })),
-                        onYChange: (y) =>
-                          updateInstancePropertyDraft((current) => ({
-                            ...current,
-                            y,
-                          })),
-                        onRotate: () =>
-                          editorCommands.execute({ id: "transform.rotate" }),
-                        onMirror: (direction) =>
-                          editorCommands.execute({
-                            id: "transform.mirror",
-                            direction,
-                          }),
-                        onReturnToTray: () =>
-                          returnInstancesToTray([selectedInstance.id]),
-                        ...(switchContactStyleSibling(selectedInstance.symbolId)
-                          ? {
-                              onSwapContactStyle: {
-                                label: drawsContactCircles(
-                                  selectedInstance.symbolId,
-                                )
-                                  ? "Draw without contact circles"
-                                  : "Draw with contact circles",
-                                run: () =>
-                                  transact(
-                                    planSwitchContactStyleSwap(
-                                      selectedInstance.id,
-                                      selectedInstance.symbolId,
-                                    ),
-                                  ),
-                              },
-                            }
-                          : {}),
-                        ...(differentialOutputSibling(selectedInstance.symbolId)
-                          ? {
-                              onSwapOutputs: () =>
-                                transact(
-                                  planDifferentialOutputSwap(
-                                    selectedInstance.id,
-                                    selectedInstance.symbolId,
-                                  ),
-                                ),
-                            }
-                          : {}),
-                        ...(selectedInstanceHasDifferentialInputs &&
-                        differentialInputSibling(selectedInstance.symbolId)
-                          ? {
-                              onSwapInputs: () =>
-                                transact(
-                                  planDifferentialInputSwap(
-                                    selectedInstance.id,
-                                    selectedInstance.symbolId,
-                                  ),
-                                ),
-                            }
-                          : {}),
-                        onDiscard: discardInstancePropertyDraft,
-                      },
+                      signalFlow: Boolean(selectedSignalFlowPresentation),
+                      parameters:
+                        propertyParametersForInstance(selectedInstance),
                     }
                   : null
               }
