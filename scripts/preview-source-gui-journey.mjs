@@ -48,7 +48,12 @@ const binding = folder.input.circuitBindings.find(
   (item) => item.emission === "top-level",
 );
 assert(binding);
-const generated = generateCircuitSource(project, binding);
+const generated = generateCircuitSource(
+  project,
+  binding,
+  folder.input,
+  "ngspice",
+);
 assert(generated.ok);
 const parameter = generated.source.parameters.find(
   (item) => item.descriptor.displayRole === "width",
@@ -106,6 +111,10 @@ async function edit(path, text) {
   const editor = panel.getByRole("textbox", {
     name: "Simulation source editor",
   });
+  if (path === binding.path) {
+    // Profile discovery is asynchronous; do not edit an unresolved first frame.
+    await expect(editor).toContainText(".subckt", { timeout: 30000 });
+  }
   await editor.click();
   await editor.press("ControlOrMeta+A");
   await page.keyboard.insertText(text);
@@ -192,6 +201,13 @@ try {
     String(Number(parameter.rawValue) * 1.1) +
     source.slice(parameter.endOffset);
   await edit(binding.path, changed);
+  await panel.getByRole("button", { name: "Save source", exact: true }).click();
+  await expect(
+    panel.getByRole("button", { name: "Save source", exact: true }),
+  ).toHaveAttribute(
+    "aria-description",
+    "Source applied to current project; not a cloud save",
+  );
   const changedProject = await exportProject("resized.icproj.json");
   const changedValue = changedProject.documents
     .find((d) => d.id === parameter.documentId)
@@ -204,13 +220,25 @@ try {
     "Generated parameter text did not reach Canvas",
   );
   await edit(binding.path, source);
+  await panel.getByRole("button", { name: "Save source", exact: true }).click();
+  await expect(
+    panel.getByRole("button", { name: "Save source", exact: true }),
+  ).toHaveAttribute(
+    "aria-description",
+    "Source applied to current project; not a cloud save",
+  );
   const restoredProject = await exportProject("restored.icproj.json");
   const restoredValue = restoredProject.documents
     .find((d) => d.id === parameter.documentId)
     .instances.find((i) => i.id === parameter.instanceId).netlist.parameters[
     parameter.parameter
   ];
-  const restoredSource = generateCircuitSource(restoredProject, binding);
+  const restoredSource = generateCircuitSource(
+    restoredProject,
+    binding,
+    folder.input,
+    "ngspice",
+  );
   assert(restoredSource.ok);
   assert.equal(restoredSource.source.text, source);
   report.mappedEdit = {
