@@ -554,8 +554,19 @@ describe("a noise analysis written by ngspice 46", () => {
     );
     for (const density of noise.outputNoiseDensity)
       expect(relative(density, expectedOutputDensity)).toBeLessThan(2e-5);
-    for (const density of noise.inputNoiseDensity)
+    for (const density of noise.inputNoiseDensity) {
+      if (density === null)
+        throw new Error("Reference input density must be available");
       expect(relative(density, expectedOutputDensity * 2)).toBeLessThan(2e-5);
+    }
+
+    if (
+      noise.integratedOutputNoise === undefined ||
+      noise.integratedInputNoise === undefined
+    )
+      throw new Error(
+        "Reference simulator-reported integrals must remain available",
+      );
 
     const bandwidthHz = 1000 - 10;
     expect(

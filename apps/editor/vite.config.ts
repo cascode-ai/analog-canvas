@@ -6,6 +6,7 @@ import { defineConfig, type Plugin } from "vite";
 
 import { localNetlistConversion } from "./dev/netlist-conversion";
 import { localAgentRelay } from "./dev/agent-relay";
+import { localSimulation } from "./dev/local-simulation.js";
 import { editorPreload } from "./build/editor-preload";
 
 function isolateDevDependencyCache(): Plugin {
@@ -54,6 +55,7 @@ export default defineConfig({
     isolateDevDependencyCache(),
     react(),
     localAgentRelay(),
+    localSimulation(process.env.ICM_SIMULATION_URL),
     localNetlistConversion(),
     editorPreload(),
     versionStaticServiceWorker(),

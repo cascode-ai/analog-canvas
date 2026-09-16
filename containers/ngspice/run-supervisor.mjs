@@ -66,6 +66,7 @@ export class SimulationRunSupervisor {
   #clearTimer;
   #terminate;
   #failStop;
+  #stopping = false;
 
   constructor({
     defaultTimeoutMs = 30_000,
@@ -122,6 +123,11 @@ export class SimulationRunSupervisor {
   cancel(token) {
     const active = this.#active;
     if (!active || !token || active.token !== token) return false;
+    this.#cancelActive(active);
+    return true;
+  }
+
+  #cancelActive(active) {
     if (active.phase === "preparing" || active.phase === "running") {
       active.terminationReason = "cancelled";
       if (active.child) {
@@ -129,14 +135,24 @@ export class SimulationRunSupervisor {
         this.#terminate(active.child, "SIGKILL");
       }
     }
-    return true;
+  }
+
+  /** Operator shutdown is not a token-addressed user cancellation. Stop new
+   * admission and wait for the existing lease's cleanup, even after its HTTP
+   * client disconnected or when the run had no public cancellation token. */
+  shutdown() {
+    this.#stopping = true;
+    const active = this.#active;
+    if (!active) return Promise.resolve();
+    this.#cancelActive(active);
+    return active.settled;
   }
 
   async tryExecute({ timeoutMs, token } = {}, operation) {
     if (typeof operation !== "function") {
       throw new TypeError("A supervised run needs an operation.");
     }
-    if (this.#active) {
+    if (this.#active || this.#stopping) {
       return {
         kind: "busy",
         retryAfterSeconds: this.#retryAfterSeconds,
@@ -148,7 +164,12 @@ export class SimulationRunSupervisor {
       maxTimeoutMs: this.#maxTimeoutMs,
     });
     const acquiredAt = this.#now();
+    let settle;
+    const settled = new Promise((resolve) => {
+      settle = resolve;
+    });
     const active = {
+      settled,
       leaseId: ++this.#sequence,
       token,
       phase: "preparing",
@@ -180,6 +201,7 @@ export class SimulationRunSupervisor {
       if (this.#active === active && active.phase !== "fatal") {
         this.#clearActive(active);
       }
+      settle();
     }
   }
 
@@ -241,6 +263,10 @@ export class SimulationRunSupervisor {
         active.processTimer = null;
         active.child = null;
       },
+      failCleanup: () => {
+        ensureOwner();
+        this.#expireLease(active, "run-cleanup-failed");
+      },
       get timedOut() {
         return active.terminationReason === "timeout";
       },
@@ -250,17 +276,21 @@ export class SimulationRunSupervisor {
     });
   }
 
-  #expireLease(active) {
+  #expireLease(active, reason = "run-lease-expired") {
     if (this.#active !== active || active.phase === "fatal") return;
     const previousPhase = active.phase;
     active.phase = "fatal";
-    active.terminationReason = "watchdog";
+    active.terminationReason =
+      reason === "run-lease-expired" ? "watchdog" : "cleanup-failed";
     if (active.processTimer) this.#clearTimer(active.processTimer);
     active.processTimer = null;
     this.#terminate(active.child, "SIGKILL");
     this.#failStop({
-      event: "simulation-run-watchdog",
-      reason: "run-lease-expired",
+      event:
+        reason === "run-lease-expired"
+          ? "simulation-run-watchdog"
+          : "simulation-run-cleanup-failed",
+      reason,
       phase: previousPhase,
       heldMs: Math.max(0, this.#now() - active.acquiredAt),
       timeoutMs: active.timeoutMs,

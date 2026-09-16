@@ -329,7 +329,7 @@ const TOOLS: readonly ToolEntry[] = [
     definition: {
       name: "simulation",
       description:
-        "Prepare a saved Project folder or raw File Resource workspace; start, read, cancel and export runs or sequential batches through the shared Simulation Resource. Source code owns analyses and native meas; @spec comments declare acceptance rules. Read outputData.specs or specs.json for verdicts, result.data/result.json for raw numbers and one analysis CSV per record. No automatic measurements or built-in plots. Large receipts use resultPreview and paged artifact access. Supply the SAME requestId for a start retry. Use simulation_files for source and ordinary Cell edits for the DUT/testbench.",
+        "Prepare a saved Project folder or raw File Resource workspace; start, read, cancel and export runs or sequential batches through the shared Simulation Resource. authoring-help exposes native VACASK helpers including Python reporting. Source code owns analyses and native measurements; @spec comments declare acceptance rules. Read outputData.specs or specs.json for verdicts, result.data/result.json for raw numbers and one analysis CSV per record. No automatic measurements or built-in plots. Large receipts use resultPreview and paged artifact access. Supply the SAME requestId for a start retry. Use simulation_files for source and ordinary Cell edits for the DUT/testbench.",
       inputSchema: jsonSchemaOf(SimulationArgs),
     },
     handle: async (args, session) => {

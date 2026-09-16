@@ -1,8 +1,51 @@
 import { describe, expect, it } from "vitest";
-import { nativeMeasurementResults } from "./native-measurements.js";
+import {
+  nativeMeasurementResults,
+  nativeMeasurementsToCsv,
+} from "./native-measurements.js";
 import { SimulationOutputDataSchema } from "./contract.js";
 
 describe("native measurement reports", () => {
+  it("exports explicit units and unavailable values without inventing zero", () => {
+    const csv = nativeMeasurementsToCsv([
+      {
+        name: 'peak,"quoted"',
+        occurrence: 1,
+        status: "available",
+        value: 2.5,
+        logLine: 4,
+        detail: "source\nreport",
+        unit: "V",
+        origin: "postprocessor",
+      },
+      {
+        name: "missing",
+        occurrence: 0,
+        status: "unavailable",
+        detail: "no crossing",
+        unit: "s",
+      },
+    ]);
+    expect(csv).toContain(
+      '"peak,""quoted""","1","available","2.5","V","postprocessor","4","source\nreport"',
+    );
+    expect(csv).toContain(
+      '"missing","0","unavailable","","s","simulator","","no crossing"',
+    );
+  });
+  it("exports formula-shaped text as literal text while retaining negative numbers", () => {
+    const csv = nativeMeasurementsToCsv([
+      {
+        name: "=2+2",
+        status: "available",
+        value: -2.5,
+        logLine: 1,
+        occurrence: 1,
+        detail: "report",
+      },
+    ]);
+    expect(csv).toContain('"\'=2+2","1","available","-2.5"');
+  });
   it("ignores unreachable measurement declarations and follows included source", () => {
     const result = nativeMeasurementResults(
       [

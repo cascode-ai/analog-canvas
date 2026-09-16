@@ -1,5 +1,5 @@
 /** Insert before analyses, or extend the save statement under the cursor. */
-export function nativeSaveEdit(
+export function ngspiceSaveEdit(
   text: string,
   cursor: number,
   vectors: readonly string[],
@@ -36,7 +36,7 @@ export function nativeSaveEdit(
 }
 
 /** One undoable native edit, including deck-level .probe cards when required. */
-export function nativeAcquisitionEdit(
+export function ngspiceAcquisitionEdit(
   text: string,
   cursor: number,
   vectors: readonly string[],
@@ -69,10 +69,10 @@ export function nativeAcquisitionEdit(
     if (!vectors.length) anchor = from + insert.length;
   }
   if (vectors.length) {
-    const edit = nativeSaveEdit(next, anchor, vectors, entry);
+    const edit = ngspiceSaveEdit(next, anchor, vectors, entry);
     if (edit.insert) changes.push(edit);
     next = next.slice(0, edit.from) + edit.insert + next.slice(edit.from);
     anchor = edit.from + edit.insert.replace(/[\r\n]+$/u, "").length;
   }
-  return { text: next, anchor, changes };
+  return { ok: true as const, text: next, anchor, changes };
 }

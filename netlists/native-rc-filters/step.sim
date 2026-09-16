@@ -1,0 +1,14 @@
+RC filter step response
+// 1. Change R or C on Canvas. Use a native VACASK Profile with Python.
+// 2. Click Run.
+// 3. Plot the step; Measurements samples at 200.05 us and 1 ms.
+ground 0
+include "circuit.spice"
+control
+abort always
+// Resolve the short source ramp after its breakpoint, not just the RC decay.
+options rawfile="ascii" strictsave=2 temp=27 reltol=1e-8 vntol=1e-10 tran_fbr=0.025
+save v(in) v(out) i(V1)
+analysis step tran stop=1m step=1u maxstep=1u
+postprocess(PYTHON, "report.py", "step")
+endc

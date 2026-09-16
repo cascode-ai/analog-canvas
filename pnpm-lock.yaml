@@ -163,7 +163,11 @@ importers:
         specifier: 4.131.1
         version: 4.131.1(@types/node@24.13.3)
 
-  apps/local-host: {}
+  apps/local-host:
+    dependencies:
+      "@icm/spice-run":
+        specifier: workspace:*
+        version: link:../../packages/spice-run
 
   apps/mcp-server:
     dependencies:

@@ -1,0 +1,15 @@
+Title: Analog Canvas VACASK analytical divider qualification
+Date: Mon Sep 14 09:12:35 2026
+Plotname: Operating Point
+Flags: real
+No. Variables: 3
+No. Points: 1               
+Variables:
+	0	V1:flow(br)	notype
+	1	input	notype
+	2	output	notype
+Values:
+ 0	-1.000000000000000e-03
+	3.000000000000000e+00
+	2.000000000000000e+00
+

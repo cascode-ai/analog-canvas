@@ -3,15 +3,28 @@ import type {
   SimulationCircuitScope,
   SimulationSourceInput,
 } from "@icm/model";
-import { reviewedExternalDeviceBindings } from "@icm/devices";
-import { mosBulkKind } from "@icm/derived";
+import { mosBulkKind, sha256Hex } from "@icm/derived";
+import type {
+  CompiledSimulationDeviceOperatingPoint,
+  CompiledSimulationVector,
+} from "./simulation-compile.js";
 import { analyzeDesignNetlist } from "./extract.js";
 import type { DesignNetlistCell, DesignNetlistInstance } from "./ir.js";
-import { inspectSimulationSourceGraph } from "./simulation-source-graph.js";
+import { inspectVacaskSourceGraph } from "./vacask-source.js";
 import {
-  listAuthoredCircuitScopes,
-  resolveAuthoredCircuitScope,
-} from "./simulation-source-scopes.js";
+  vacaskCircuitScopes,
+  vacaskAuthoredCircuitEvents,
+} from "./vacask-source-scopes.js";
+import {
+  nativeCurrentSenses,
+  type NativeCurrentSense,
+} from "./simulation-native-current.js";
+import { vacaskIdentifier } from "./vacask-printer.js";
+export { nativeTerminalCurrent } from "./simulation-native-current.js";
+import {
+  resolveNativeModelLibraries,
+  type NativeModelLibrarySymbols,
+} from "./vacask-model-symbols.js";
 
 export interface NativeSimulationDevice {
   documentId: string;
@@ -20,8 +33,10 @@ export interface NativeSimulationDevice {
   circuit: SimulationCircuitScope;
   reference: string;
   card: DesignNetlistInstance;
-  /** ngspice's flattened primitive identity, not the display reference. */
+  /** Exact native primitive path, never a guessed primitive inside a wrapper. */
   nativeDevice?: string;
+  modelPrimitives: { reference: string; module: string }[];
+  currentSenses: NativeCurrentSense[];
   polarity?: "nmos" | "pmos";
 }
 
@@ -29,9 +44,27 @@ export interface NativeSimulationDevice {
 export function nativeSimulationDevices(
   project: CircuitProject,
   input: SimulationSourceInput,
+  libraries: readonly NativeModelLibrarySymbols[] = [],
 ): NativeSimulationDevice[] {
-  const graph = inspectSimulationSourceGraph(input);
+  const graph = inspectVacaskSourceGraph(input);
   const result: NativeSimulationDevice[] = [];
+  const generatedPaths = new Set(input.circuitBindings.map((b) => b.path));
+  const authoredRootNames = new Set<string>();
+  const authoredGlobals = new Set<string>();
+  let depth = 0;
+  for (const event of vacaskAuthoredCircuitEvents({
+    ...graph,
+    statements: graph.statements.filter((s) => !generatedPaths.has(s.path)),
+  })) {
+    if (event.kind === "definition") depth++;
+    else if (event.kind === "end") depth--;
+    else if (event.kind === "globals") {
+      for (const name of event.names) authoredGlobals.add(name);
+    } else if (event.kind === "call" && depth === 0) {
+      authoredRootNames.add(event.name);
+      for (const node of event.nodes) authoredRootNames.add(node);
+    }
+  }
   for (const binding of input.circuitBindings) {
     if (!graph.paths.includes(binding.path)) continue;
     const ir = analyzeDesignNetlist(project, {
@@ -41,8 +74,14 @@ export function nativeSimulationDevices(
     if (!ir) continue;
     const root = ir.cells.find((cell) => cell.id === ir.topCellId);
     if (!root) continue;
-    for (const circuit of listAuthoredCircuitScopes(graph, binding, ir)) {
-      const resolved = resolveAuthoredCircuitScope(graph, binding, ir, circuit);
+    const scopes = vacaskCircuitScopes(
+      graph,
+      binding,
+      ir,
+      resolveNativeModelLibraries(input, libraries),
+    );
+    for (const circuit of scopes.list()) {
+      const resolved = scopes.resolve(circuit);
       if (!resolved.ok) continue;
       let visits = 0;
       function visit(
@@ -53,23 +92,34 @@ export function nativeSimulationDevices(
       ) {
         if (++visits > 4096 || ancestors.has(cell.id)) return;
         const document = project.documents.find((d) => d.id === cell.id)!;
+        // One name inventory per visited Cell, not a full scan for every pin.
+        const occupied = new Set([
+          ...cell.instances.map((i) => i.reference),
+          ...cell.ports.flatMap((p) => [p.name, p.netName]),
+          ...cell.nets.map((n) => n.name),
+          ...cell.instances.flatMap((i) => i.nodes.map((n) => n.netName)),
+          ...ir!.globals,
+          ...authoredGlobals,
+          ...(binding.emission === "top-level" && cell.id === ir!.topCellId
+            ? authoredRootNames
+            : []),
+        ]);
         for (const card of cell.instances) {
-          const reference = [...path, card.reference.toLowerCase()].join(".");
+          const reference = [...path, card.reference].join(":");
           const authored = document.instances.find((i) => i.id === card.id);
           const polarity = authored ? mosBulkKind(authored) : undefined;
-          const reviewed = reviewedExternalDeviceBindings.find(
-            (item) => item.id === card.reviewedExternalBindingId,
-          );
-          // The reviewed SKY130 MOS wrappers have one m<masterName> primitive.
-          // This mapping is deliberately not applied to arbitrary external subcircuits.
           const nativeDevice =
-            card.invocationKind === "primitive"
-              ? path.length
-                ? `${card.reference[0]!.toLowerCase()}.${reference}`
-                : reference
-              : reviewed?.deviceClass === "mos"
-                ? `m.${reference}.m${reviewed.masterName}`
-                : undefined;
+            card.invocationKind === "primitive" ? reference : undefined;
+          const child =
+            card.deviceClass === "hierarchical"
+              ? ir!.cells.find((c) => c.name === card.target)
+              : undefined;
+          const modelPrimitives = (
+            card.target && !child ? scopes.primitiveModels(card.target) : []
+          ).map((primitive) => ({
+            reference: [reference, ...primitive.path].join(":"),
+            module: primitive.module,
+          }));
           result.push({
             documentId: cell.id,
             instanceId: card.id,
@@ -77,17 +127,15 @@ export function nativeSimulationDevices(
             circuit,
             reference,
             card,
+            modelPrimitives,
+            currentSenses: nativeCurrentSenses(cell, card, path, occupied),
             ...(nativeDevice ? { nativeDevice } : {}),
             ...(polarity ? { polarity } : {}),
           });
-          const child =
-            card.deviceClass === "hierarchical"
-              ? ir!.cells.find((c) => c.name === card.target)
-              : undefined;
           if (child)
             visit(
               child,
-              [...path, card.reference.toLowerCase()],
+              [...path, card.reference],
               [...occurrence, card.id],
               new Set([...ancestors, cell.id]),
             );
@@ -111,60 +159,88 @@ export const NATIVE_MOS_OP_PARAMETERS = [
   "vdsat",
 ] as const;
 
+/** Raw model output selectors. No sign, multiplicity, or terminal-gm aliasing.
+ * sp_bsim4v8 output names are declared by the pinned spice/bsim4v8 OSDI model;
+ * similarly named modules and opaque PDK dependencies are not interchangeable. */
+export function nativeDeviceOpAcquisitions(device: NativeSimulationDevice) {
+  if (!device.polarity) return [];
+  return device.modelPrimitives.flatMap((primitive) =>
+    primitive.module === "sp_bsim4v8" && !/\s/u.test(primitive.reference)
+      ? NATIVE_MOS_OP_PARAMETERS.map((parameter) => ({
+          parameter,
+          reference: primitive.reference,
+          vector: `${primitive.reference}.${parameter}`,
+          save: `p(${vacaskIdentifier(primitive.reference)},${parameter})`,
+          semantics: "model-native" as const,
+        }))
+      : [],
+  );
+}
+
+/** Native save selectors for source generators; raw result keys are available
+ * separately from nativeDeviceOpAcquisitions, never reconstructed from text. */
 export function nativeDeviceOpVectors(
   device: NativeSimulationDevice,
 ): string[] {
-  if (!device.polarity || !device.nativeDevice) return [];
-  // Threshold spellings vary across primitive model families; only the reviewed
-  // BSIM SKY130 wrappers advertise vth/vdsat in Helper. Exact vectors stay editable.
-  return NATIVE_MOS_OP_PARAMETERS.filter(
-    (p) =>
-      device.card.reviewedExternalBindingId || !["vth", "vdsat"].includes(p),
-  ).map((parameter) => `@${device.nativeDevice}[${parameter}]`);
+  return nativeDeviceOpAcquisitions(device).map(
+    (acquisition) => acquisition.save,
+  );
 }
 
-export function nativeTerminalCurrent(
-  device: NativeSimulationDevice,
-  pinName: string,
-):
-  | { ok: true; vectors: string[]; directives: string[] }
-  | { ok: false; message: string } {
-  const reviewed = reviewedExternalDeviceBindings.find(
-    (item) => item.id === device.card.reviewedExternalBindingId,
-  );
-  const pin =
-    reviewed?.terminals.find((t) => t.pinName === pinName)?.targetName ??
-    pinName;
-  const index = device.card.nodes.findIndex((node) => node.pinName === pin);
-  if (index < 0)
-    return {
-      ok: false,
-      message: `No mapped terminal ${device.reference}.${pinName}`,
-    };
-  if (!device.reference.includes(".")) {
-    if (device.card.deviceClass === "voltage-source" && index === 0)
-      return { ok: true, vectors: [`i(${device.reference})`], directives: [] };
-    // Native .probe owns its sense source and collection. No JSON instrumentation.
-    return {
-      ok: true,
-      vectors: [],
-      directives: [`.probe i(${device.reference},${index + 1})`],
-    };
+/** Potential mappings only: Code owns saves, and the result reader displays
+ * only quantities actually returned by an OP record. Each wrapper primitive
+ * keeps its own model values; never sum gm/id or infer terminal semantics. */
+export function compileNativeDeviceOperatingPoints(
+  devices: readonly NativeSimulationDevice[],
+): {
+  vectors: CompiledSimulationVector[];
+  deviceOperatingPoints: CompiledSimulationDeviceOperatingPoint[];
+} {
+  const vectors: CompiledSimulationVector[] = [];
+  const deviceOperatingPoints: CompiledSimulationDeviceOperatingPoint[] = [];
+  for (const device of devices) {
+    if (!device.polarity) continue;
+    const acquisitions = nativeDeviceOpAcquisitions(device);
+    for (const reference of new Set(acquisitions.map((a) => a.reference))) {
+      const id = `native-op:${sha256Hex(
+        JSON.stringify([
+          device.circuit,
+          device.documentId,
+          device.occurrence,
+          device.instanceId,
+          reference,
+        ]),
+      )}`;
+      const values = acquisitions
+        .filter((a) => a.reference === reference)
+        .map((a) => {
+          const probeId = `${id}:${a.parameter}`;
+          vectors.push({ probeId, vector: a.vector, quantity: "native" });
+          return {
+            parameter: a.parameter,
+            label: `${a.parameter} (model)`,
+            unit: (a.parameter === "id"
+              ? "A"
+              : ["gm", "gds", "gmbs"].includes(a.parameter)
+                ? "S"
+                : "V") as "A" | "S" | "V",
+            expression: {
+              kind: "acquisition" as const,
+              acquisitionId: probeId,
+              quantity: "native" as const,
+            },
+          };
+        });
+      deviceOperatingPoints.push({
+        id,
+        documentId: device.documentId,
+        instanceId: device.instanceId,
+        occurrence: [...device.occurrence],
+        reference,
+        polarity: device.polarity,
+        values,
+      });
+    }
   }
-  if (device.polarity && device.nativeDevice && pinName.toLowerCase() === "d")
-    return {
-      ok: true,
-      vectors: [`@${device.nativeDevice}[id]`],
-      directives: [],
-    };
-  if (
-    device.card.deviceClass === "voltage-source" &&
-    device.nativeDevice &&
-    index === 0
-  )
-    return { ok: true, vectors: [`i(${device.nativeDevice})`], directives: [] };
-  return {
-    ok: false,
-    message: `Native current acquisition is unavailable for ${device.reference}.${pinName}. Hierarchical terminals currently support model-native drain current and voltage-source branch current only; no hidden sense circuit is inserted.`,
-  };
+  return { vectors, deviceOperatingPoints };
 }

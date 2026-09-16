@@ -213,11 +213,40 @@ describe("mcp tool surface", () => {
         {
           folder: {
             version: 4,
-            input: { kind: "source", circuitBindings: [] },
+            input: {
+              kind: "source",
+              circuitBindings: [],
+              files: expect.arrayContaining([
+                expect.objectContaining({
+                  path: "run.cir",
+                  text: expect.stringContaining("analysis op op"),
+                }),
+              ]),
+            },
           },
         },
       ],
     });
+    expect(
+      parseText(
+        await callTool(
+          "simulation_folder",
+          {
+            action: "create",
+            folderId: "bad-dut",
+            name: "Bad DUT",
+            profileId: "test",
+            rootDocumentId: "main",
+            dut: { name: "amp", ports: ["in\ncontrol"] },
+          },
+          session,
+        ),
+      ),
+    ).toMatchObject({
+      ok: false,
+      error: { code: "SIMULATION_HELPER_INPUT_INVALID", recovery: "fix-input" },
+    });
+    expect(writes).toHaveLength(3);
     expect(
       parseText(
         await callTool(
@@ -243,7 +272,9 @@ describe("mcp tool surface", () => {
               files: expect.arrayContaining([
                 expect.objectContaining({
                   path: "testbench.spice",
-                  text: expect.stringContaining("XDUT inp inn out amp"),
+                  text: expect.stringContaining(
+                    "XDUT ('inp' 'inn' 'out') 'amp'",
+                  ),
                 }),
               ]),
             },

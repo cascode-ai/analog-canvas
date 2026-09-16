@@ -96,7 +96,7 @@ export function isSimulationEnvironmentMetadata(
     typeof candidate.fingerprint === "string" &&
     SHA256_PATTERN.test(candidate.fingerprint) &&
     !!simulator &&
-    simulator.name === "ngspice" &&
+    (simulator.name === "vacask" || simulator.name === "ngspice") &&
     typeof simulator.version === "string" &&
     simulator.version.length > 0 &&
     (simulator.binarySha256 === null ||

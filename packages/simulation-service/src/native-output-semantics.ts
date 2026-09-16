@@ -8,7 +8,10 @@ type Meaning = {
   unit: string;
   constant?: number;
 };
-export type NativeDeclarations = ReadonlyMap<string, string | null>;
+export type NativeDeclarations = ReadonlyMap<string, string | null> & {
+  /** Source-adapter policy only; raw vector identities always remain exact. */
+  referenceName?: (name: string) => string;
+};
 const unknown = (): Meaning => ({ valueKind: "unknown", unit: "" });
 
 /** Only reached source is evidence. Conflicting assignments are deliberately ambiguous:
@@ -72,7 +75,12 @@ export function nativeOutputDeclarations(
       );
     if (dynamic || forwardReference) declarations.set(name, null);
   }
-  return declarations;
+  // The existing ngspice source reader owns its case-insensitive references.
+  // Keep original expression text for display, without imposing this policy on
+  // native VACASK records or declarations supplied by its future source reader.
+  return Object.assign(declarations, {
+    referenceName: (name: string) => name.toLowerCase(),
+  });
 }
 
 /** A bounded semantic reader, never a second numeric evaluator. Unsupported syntax
@@ -180,7 +188,7 @@ export function inferNativeExpression(
   if (call) {
     const name = call[1]!.toLowerCase(),
       operandText = call[2]!;
-    if (name === "v" || name === "i") return resolve(expression.toLowerCase());
+    if (name === "v" || name === "i") return resolve(expression);
     const operand = recurse(operandText);
     if (name === "db") return { valueKind: "real", unit: "dB" };
     if (name === "ph" || name === "cph")
@@ -190,7 +198,7 @@ export function inferNativeExpression(
     return unknown();
   }
   return /^[a-z_][a-z0-9_]*$/iu.test(expression)
-    ? resolve(expression.toLowerCase())
+    ? resolve(expression)
     : unknown();
 }
 
@@ -202,7 +210,7 @@ export function nativeProbeMeaning(
 ): { unit: string; semantics: OutputSemantics } {
   const visited = new Set<string>();
   const meanings = new Map<string, Meaning>();
-  const byName = new Map(probes.map((p) => [p.name.toLowerCase(), p]));
+  const byName = new Map(probes.map((p) => [p.name, p]));
   function resolve(name: string): Meaning {
     const cached = meanings.get(name);
     if (cached) return cached;
@@ -211,7 +219,9 @@ export function nativeProbeMeaning(
       const expression = declarations.get(name);
       if (!expression) return unknown();
       visited.add(name);
-      const value = inferNativeExpression(expression, resolve);
+      const value = inferNativeExpression(expression, (reference) =>
+        resolve(declarations.referenceName?.(reference) ?? reference),
+      );
       visited.delete(name);
       meanings.set(name, value);
       return value;
@@ -223,18 +233,23 @@ export function nativeProbeMeaning(
     if (quantity === "phase") return { valueKind: "real", unit: "rad" };
     if (!ac) return { valueKind: "real", unit: raw.unit ?? "" };
     // Physical acquisitions remain complex even with an entirely zero imaginary array.
-    if (/^(?:v|i)\(.+\)$/iu.test(name) || name.startsWith("@"))
+    if (
+      quantity === "voltage" ||
+      quantity === "current" ||
+      /^(?:v|i)\(.+\)$/iu.test(name) ||
+      name.startsWith("@")
+    )
       return { valueKind: "complex", unit: raw.unit ?? "" };
-    return unknown();
+    return { valueKind: "unknown", unit: raw.unit ?? "" };
   }
-  const expression = declarations.get(probe.name.toLowerCase());
-  const meaning = resolve(probe.name.toLowerCase());
+  const expression = declarations.get(probe.name);
+  const meaning = resolve(probe.name);
   return {
     unit: meaning.unit,
     semantics: {
       valueKind: meaning.valueKind,
       quantity: probe.quantity,
-      origin: declarations.has(probe.name.toLowerCase()) ? "expression" : "raw",
+      origin: declarations.has(probe.name) ? "expression" : "raw",
       ...(expression ? { expression } : {}),
     },
   };

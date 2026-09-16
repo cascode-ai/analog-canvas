@@ -70,6 +70,7 @@ WORKDIR ${RUN_ROOT}
 # image_build_context to "."), so every COPY is repo-root relative.
 ARG HARNESS_DIR=containers/ngspice
 COPY ${HARNESS_DIR}/entrypoint.mjs ${HARNESS_DIR}/gateway.mjs ${HARNESS_DIR}/run-supervisor.mjs ${HARNESS_DIR}/rawfile-collector.mjs /opt/harness/
+COPY containers/simulation/run-local-files.mjs /opt/simulation/run-local-files.mjs
 COPY ${HARNESS_DIR}/hosted-sky130-profile.json /opt/harness/hosted-sky130-profile.json
 COPY ${HARNESS_DIR}/hosted.spiceinit /opt/harness/hosted.spiceinit
 
@@ -84,7 +85,7 @@ COPY ${HARNESS_DIR}/hosted.spiceinit /opt/harness/hosted.spiceinit
 # the property really holds is not assumed — the container workflow asserts
 # it by trying to write, as the run account, and requiring failure.
 RUN set -eu; \
-    chmod -R a-w /opt/harness; \
+    chmod -R a-w /opt/harness /opt/simulation; \
     find /opt/sky130 /opt/ngspice -perm /022 -exec chmod go-w {} + || true; \
     mkdir -p "${RUN_ROOT}"; \
     chown "${RUN_UID}:${RUN_GID}" "${RUN_ROOT}"; \

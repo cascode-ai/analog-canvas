@@ -6,13 +6,15 @@ export function SourceCircuitContext({
   input,
   onSelectFile,
   activeDocumentId,
+  engine,
 }: {
   project: CircuitProject;
   input: SimulationSourceInput;
   onSelectFile(path: string): void;
   activeDocumentId?: string | undefined;
+  engine?: "ngspice" | "vacask";
 }) {
-  const context = sourceCircuitContext(project, input);
+  const context = sourceCircuitContext(project, input, engine);
   return (
     <details className="simulation-source-context">
       <summary>

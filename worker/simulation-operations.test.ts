@@ -1,139 +1,21 @@
-import { DatabaseSync } from "node:sqlite";
-import { describe, expect, it } from "vitest";
+import { createSimulationOperationsHarness as harness } from "./simulation-operations.test-fixture";
+import { describe, expect, it, vi } from "vitest";
+import { createManagedHostedExecutor } from "@icm/simulation-service";
 
 import {
-  buildSimulationDeck,
-  createSimulationEnvironmentMetadata,
-} from "@icm/spice-run";
-import hostedSky130Profile from "../containers/ngspice/hosted-sky130-profile.json";
+  nativeWorkerEnv,
+  nativeInput,
+  nativeHealth,
+} from "./simulation.test-fixture";
 
-import { SimulationControlDO } from "./simulation-control-do";
 import {
   consumeSimulationJobs,
   routeManagedSimulationRequest,
-  type SimulationArtifactBucket,
   type SimulationJobMessage,
-  type SimulationOperationsEnv,
   type SimulationQueueMessage,
 } from "./simulation-operations";
 
-function sqliteState() {
-  const db = new DatabaseSync(":memory:");
-  return {
-    storage: {
-      sql: {
-        exec<T>(query: string, ...bindings: unknown[]) {
-          const statement = db.prepare(query);
-          if (/^\s*(select|with|pragma)/iu.test(query)) {
-            const rows = statement.all(
-              ...(bindings as (string | number | null)[]),
-            ) as T[];
-            return {
-              toArray: () => rows,
-              one: () => {
-                if (rows.length !== 1) throw new Error("expected one row");
-                return rows[0]!;
-              },
-            };
-          }
-          statement.run(...(bindings as (string | number | null)[]));
-          return {
-            toArray: () => [] as T[],
-            one: () => {
-              throw new Error("no rows");
-            },
-          };
-        },
-      },
-      transactionSync<T>(callback: () => T): T {
-        return callback();
-      },
-    },
-  };
-}
-
-class MemoryBucket implements SimulationArtifactBucket {
-  readonly objects = new Map<string, string>();
-  async get(key: string) {
-    const value = this.objects.get(key);
-    return value === undefined ? null : { text: async () => value };
-  }
-  async put(key: string, value: string) {
-    this.objects.set(key, value);
-    return {};
-  }
-  async delete(key: string) {
-    this.objects.delete(key);
-  }
-}
-
-const environment = await createSimulationEnvironmentMetadata({
-  executor: "hosted-container",
-  reproducibility: "observed",
-  profileId: null,
-  platform: "linux/x64",
-  simulator: {
-    name: "ngspice",
-    version: "ngspice-47",
-    binarySha256:
-      "22d5cae2bd32b2e39157a8d27bf457122f68285b72a9ebefdf41551b628233ab",
-  },
-  models: {
-    id: "sky130A",
-    contentSha256:
-      "17c208a699228f5acb87bf59c09c22a4c4d3937b6766b4957737d34e8e075f64",
-  },
-  startupSha256: null,
-});
-
-function harness() {
-  const control = new SimulationControlDO(sqliteState(), undefined, () => 100);
-  const bucket = new MemoryBucket();
-  const jobs: SimulationJobMessage[] = [];
-  const env: SimulationOperationsEnv = {
-    SIMULATION_CONTROL: {
-      getByName: () => ({
-        fetch: (input, init) => control.fetch(new Request(input, init)),
-      }),
-    },
-    SIMULATION_ARTIFACTS: bucket,
-    SIMULATION_JOBS: {
-      async send(message) {
-        jobs.push(message);
-      },
-    },
-    NGSPICE: {
-      getByName: () => ({
-        fetch: async () =>
-          Response.json({
-            environment,
-            log: "Circuit: * divider\nv(in) = 1\n",
-            exitCode: 0,
-            timedOut: false,
-            durationMs: 5,
-          }),
-      }),
-    },
-  };
-  const principal = {
-    id: "user-a",
-    displayName: "User A",
-    email: "a@example.test",
-    provider: "test",
-    role: "user",
-    isAdmin: false,
-  };
-  const runtime = {
-    principalOf: async () => principal,
-    now: () => 100,
-    uuid: () => "lease-a",
-  };
-  return { bucket, control, env, jobs, runtime };
-}
-
 function startRequest() {
-  const netlist = "R1 in 0 1k";
-  const testbench = "V1 in 0 1\n.op";
   return new Request("https://canvas.test/api/simulation/runs", {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -141,24 +23,262 @@ function startRequest() {
       requestId: "request-a",
       preparedId: "prepared-a",
       preparedDigest: "a".repeat(64),
-      input: {
-        mode: "structured",
-        environment: {
-          profileId: hostedSky130Profile.id,
-          corner: "tt",
-        },
-        files: [],
-        dependencies: [],
-        netlist,
-        testbench,
-        preparedDeck: buildSimulationDeck({ netlist, testbench }, null),
-        inputRevision: "revision-a",
-      },
+      input: nativeInput(),
     }),
   });
 }
 
 describe("managed simulation operations", () => {
+  it("reports queued cancellation as terminal, not result-not-ready, without dispatching", async () => {
+    const { env, jobs, runtime, close } = harness();
+    const execute = vi.fn();
+    env.VACASK = nativeWorkerEnv(execute).VACASK;
+    try {
+      const accepted = await routeManagedSimulationRequest(
+        startRequest(),
+        env,
+        runtime,
+      );
+      const id = (await accepted!.json()).run.id;
+      const url = `https://canvas.test/api/simulation/runs/${id}`;
+      const pending = await routeManagedSimulationRequest(
+        new Request(`${url}/result`),
+        env,
+        runtime,
+      );
+      expect(await pending!.json()).toMatchObject({
+        error: "RESULT_NOT_READY",
+      });
+      await routeManagedSimulationRequest(
+        new Request(`${url}/cancel`, { method: "POST" }),
+        env,
+        runtime,
+      );
+      const message = { body: jobs[0]!, ack: vi.fn(), retry: vi.fn() };
+      await consumeSimulationJobs({ messages: [message] }, env, runtime);
+      expect(execute).not.toHaveBeenCalled();
+      expect(message.ack).toHaveBeenCalledOnce();
+      const cancelled = await routeManagedSimulationRequest(
+        new Request(`${url}/result`),
+        env,
+        runtime,
+      );
+      expect(await cancelled!.json()).toMatchObject({
+        error: "run-cancelled",
+        state: "cancelled",
+        recovery: "not-retryable",
+      });
+      expect(cancelled!.headers.has("retry-after")).toBe(false);
+    } finally {
+      close();
+    }
+  });
+  it("carries native admission Problems through queued storage and permits a repaired run in the same client", async () => {
+    const { env, jobs, runtime, close } = harness();
+    const deliveries: SimulationQueueMessage<(typeof jobs)[number]>[] = [];
+    const executor = createManagedHostedExecutor({
+      fetch: async (path, init) =>
+        (await routeManagedSimulationRequest(
+          new Request(new URL(String(path), "https://canvas.test"), init),
+          env,
+          runtime,
+        ))!,
+      sleep: async () => {
+        const body = jobs.shift()!;
+        const message = { body, ack: vi.fn(), retry: vi.fn() };
+        deliveries.push(message);
+        await consumeSimulationJobs({ messages: [message] }, env, runtime);
+      },
+    });
+    const identity = {
+      preparedId: "prepared-a",
+      preparedDigest: "a".repeat(64),
+    };
+    try {
+      await expect(
+        executor.execute(
+          { ...nativeInput(), preparedDeck: "changed" },
+          "bad-request",
+          undefined,
+          identity,
+        ),
+      ).rejects.toMatchObject({
+        problem: {
+          code: "prepared-input-changed",
+          recovery: "reprepare",
+          message: "Prepared entry and submitted source bytes differ.",
+        },
+      });
+      await expect(
+        executor.execute(nativeInput(), "fixed-request", undefined, identity),
+      ).resolves.toMatchObject({
+        result: { outcome: { status: "completed" } },
+      });
+      expect(deliveries).toHaveLength(2);
+      for (const message of deliveries) {
+        expect(message.ack).toHaveBeenCalledOnce();
+        expect(message.retry).not.toHaveBeenCalled();
+      }
+    } finally {
+      close();
+    }
+  });
+  it("a consumer that failed before acquiring a lease cannot requeue another active attempt", async () => {
+    const { env, jobs, runtime, control } = harness();
+    const started = await routeManagedSimulationRequest(
+      startRequest(),
+      env,
+      runtime,
+    );
+    const runId = (await started!.json()).run.id as string;
+    await control.fetch(
+      new Request(`https://simulation-control/runs/${runId}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          kind: "lease-acquired",
+          lease: { id: "other-consumer", acquiredAt: 100, expiresAt: 1000 },
+        }),
+      }),
+    );
+    const original = env.SIMULATION_CONTROL!.getByName("simulation");
+    const fetchControl = vi
+      .fn(original.fetch)
+      .mockRejectedValueOnce(new Error("read interrupted"));
+    env.SIMULATION_CONTROL = { getByName: () => ({ fetch: fetchControl }) };
+    const execute = vi.fn();
+    env.VACASK = nativeWorkerEnv(execute).VACASK;
+    const delivery = { body: jobs[0]!, ack: vi.fn(), retry: vi.fn() };
+    await consumeSimulationJobs({ messages: [delivery] }, env, runtime);
+    expect(execute).not.toHaveBeenCalled();
+    expect(delivery.retry).toHaveBeenCalledOnce();
+    const response = await routeManagedSimulationRequest(
+      new Request(`https://canvas.test/api/simulation/runs/${runId}`),
+      env,
+      runtime,
+    );
+    expect(await response!.json()).toMatchObject({
+      run: { state: "running", attempt: 1, lease: { id: "other-consumer" } },
+    });
+  });
+  it("can retry a storage failure before any executor dispatch", async () => {
+    const { env, jobs, runtime, bucket } = harness();
+    const original = env.VACASK!.getByName("test");
+    const execute = vi.fn(original.fetch);
+    env.VACASK = nativeWorkerEnv(execute).VACASK;
+    const started = await routeManagedSimulationRequest(
+      startRequest(),
+      env,
+      runtime,
+    );
+    const runId = (await started!.json()).run.id as string;
+    vi.spyOn(bucket, "get").mockRejectedValueOnce(
+      new Error("temporary read failure"),
+    );
+    const delivery = { body: jobs[0]!, ack: vi.fn(), retry: vi.fn() };
+    await consumeSimulationJobs({ messages: [delivery] }, env, runtime);
+    expect(execute).not.toHaveBeenCalled();
+    expect(delivery.retry).toHaveBeenCalledOnce();
+    await consumeSimulationJobs({ messages: [delivery] }, env, runtime);
+    expect(execute).toHaveBeenCalledOnce();
+    const response = await routeManagedSimulationRequest(
+      new Request(`https://canvas.test/api/simulation/runs/${runId}`),
+      env,
+      runtime,
+    );
+    expect(await response!.json()).toMatchObject({
+      run: { state: "succeeded", attempt: 2 },
+    });
+  });
+  it.each(["lost-response", "invalid-response", "storage-failed"])(
+    "does not execute again after %s, including duplicate Queue delivery",
+    async (failure) => {
+      const { env, jobs, runtime, bucket } = harness();
+      const original = env.VACASK!.getByName("test");
+      const execute = vi.fn(async (url: string, init?: RequestInit) => {
+        if (failure === "lost-response")
+          throw new Error("response lost after admission");
+        if (failure === "invalid-response") return new Response("broken JSON");
+        return original.fetch(url, init);
+      });
+      env.VACASK = nativeWorkerEnv(execute).VACASK;
+      const started = await routeManagedSimulationRequest(
+        startRequest(),
+        env,
+        runtime,
+      );
+      const runId = (await started!.json()).run.id as string;
+      if (failure === "storage-failed")
+        vi.spyOn(bucket, "put").mockRejectedValueOnce(
+          new Error("storage down"),
+        );
+      const delivery = { body: jobs[0]!, ack: vi.fn(), retry: vi.fn() };
+      await consumeSimulationJobs({ messages: [delivery] }, env, runtime);
+      await consumeSimulationJobs({ messages: [delivery] }, env, runtime);
+      expect(execute).toHaveBeenCalledTimes(1);
+      expect(delivery.retry).not.toHaveBeenCalled();
+      expect(delivery.ack).toHaveBeenCalledTimes(2);
+      const response = await routeManagedSimulationRequest(
+        new Request(`https://canvas.test/api/simulation/runs/${runId}`),
+        env,
+        runtime,
+      );
+      expect(await response!.json()).toMatchObject({
+        run: {
+          state: "infrastructure-failed",
+          attempt: 1,
+          error: { recovery: "not-retryable" },
+        },
+      });
+    },
+  );
+
+  it.each([false, true])(
+    "retires expired execution without another dispatch or false cancellation (cancelling=%s)",
+    async (cancelling) => {
+      const { env, jobs, runtime, control } = harness();
+      const execute = vi.fn();
+      env.VACASK = nativeWorkerEnv(execute).VACASK;
+      const started = await routeManagedSimulationRequest(
+        startRequest(),
+        env,
+        runtime,
+      );
+      const runId = (await started!.json()).run.id as string;
+      const transition = async (event: unknown) => {
+        const reply = await control.fetch(
+          new Request(`https://simulation-control/runs/${runId}`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify(event),
+          }),
+        );
+        expect(reply.status).toBe(200);
+      };
+      await transition({
+        kind: "lease-acquired",
+        lease: { id: "expired", acquiredAt: 90, expiresAt: 99 },
+      });
+      if (cancelling) await transition({ kind: "cancel-requested", at: 95 });
+      const delivery = { body: jobs[0]!, ack: vi.fn(), retry: vi.fn() };
+      await consumeSimulationJobs({ messages: [delivery] }, env, runtime);
+      expect(execute).not.toHaveBeenCalled();
+      expect(delivery.retry).not.toHaveBeenCalled();
+      expect(delivery.ack).toHaveBeenCalledOnce();
+      const response = await routeManagedSimulationRequest(
+        new Request(`https://canvas.test/api/simulation/runs/${runId}`),
+        env,
+        runtime,
+      );
+      expect(await response!.json()).toMatchObject({
+        run: {
+          state: "infrastructure-failed",
+          error: { code: "RUN_LEASE_EXPIRED", recovery: "not-retryable" },
+        },
+      });
+    },
+  );
+
   it("keeps anonymous preview runs usable with an opaque session cookie", async () => {
     const { env } = harness();
     const started = await routeManagedSimulationRequest(startRequest(), env);
@@ -276,13 +396,15 @@ describe("managed simulation operations", () => {
 
   it("requeues infrastructure refusal under the same run", async () => {
     const { env, jobs, runtime } = harness();
-    env.NGSPICE = {
+    env.VACASK = {
       getByName: () => ({
-        fetch: async () =>
-          Response.json(
-            { error: "simulator-busy", message: "one circuit at a time" },
-            { status: 503 },
-          ),
+        fetch: async (url) =>
+          new URL(url).pathname === "/health"
+            ? Response.json(nativeHealth)
+            : Response.json(
+                { error: "simulator-busy", message: "one circuit at a time" },
+                { status: 503 },
+              ),
       }),
     };
     const started = await routeManagedSimulationRequest(

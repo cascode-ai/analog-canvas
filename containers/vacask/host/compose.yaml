@@ -1,0 +1,70 @@
+# Separate candidate topology. Never reuse the shared operator project name.
+services:
+  executor:
+    image: ${VACASK_IMAGE:?set an accepted native image digest}
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 128
+    cpus: 1.0
+    mem_limit: 1g
+    volumes:
+      - type: bind
+        source: ${VACASK_RUNTIME_CONFIG:?set absolute hosted runtime config path}
+        target: /etc/vacask/runtime-config.json
+        read_only: true
+        bind:
+          create_host_path: false
+    tmpfs:
+      - /var/lib/vacask:rw,exec,nosuid,nodev,size=268435456,uid=10001,gid=10001,mode=0700
+      - /tmp:rw,noexec,nosuid,nodev,size=67108864
+    networks: [simulation]
+
+  gateway:
+    image: node:24.14.0-bookworm-slim@sha256:d8e448a56fc63242f70026718378bd4b00f8c82e78d20eefb199224a4d8e33d8
+    user: "10001:10001"
+    entrypoint: [node, /opt/gateway.mjs]
+    environment:
+      SIMULATION_ACCESS_TOKEN: ${SIMULATION_ACCESS_TOKEN:?set a candidate-only credential}
+      SIMULATION_EXECUTOR_URL: http://executor:8080
+      # Match the shared native transport ceiling, not the gateway's 4 MiB default.
+      SIMULATION_GATEWAY_MAX_RESPONSE_BYTES: "8388608"
+    volumes:
+      - type: bind
+        source: ../../ngspice/gateway.mjs
+        target: /opt/gateway.mjs
+        read_only: true
+        bind:
+          create_host_path: false
+    ports:
+      - "127.0.0.1:${VACASK_GATEWAY_PORT:-19090}:8080"
+    depends_on: [executor]
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 64
+    cpus: 0.5
+    mem_limit: 128m
+    networks: [simulation, ingress]
+
+  tunnel:
+    image: cloudflare/cloudflared:2025.8.1@sha256:b77d84e8704db38db22c22661cf7e56468c526e3a6a5fe9c8b7c151452fa1472
+    profiles: [tunnel]
+    command: [tunnel, --no-autoupdate, run]
+    environment:
+      TUNNEL_TOKEN: ${VACASK_TUNNEL_TOKEN:-}
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 128m
+    cpus: 0.5
+    pids_limit: 64
+    networks: [ingress]
+
+networks:
+  simulation:
+    internal: true
+  ingress: {}

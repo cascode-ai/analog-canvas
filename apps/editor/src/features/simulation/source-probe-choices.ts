@@ -2,14 +2,22 @@ import type {
   CircuitProject,
   SimulationSourceInput,
   SimulationSourceExpression,
+  ProjectSimulationFolder,
 } from "@icm/model";
 import {
+  resolveSourceSimulationContext,
+  type Capabilities,
+} from "@icm/simulation-service";
+import {
   analyzeDesignNetlist,
-  inspectSimulationSourceGraph,
-  listAuthoredCircuitScopes,
+  inspectVacaskSourceGraph,
+  vacaskCircuitScopes,
+  nativeSourceAcquisitions,
   simulationSignalNames,
   nativeSimulationDevices,
-  nativeDeviceOpVectors,
+  nativeDeviceOpAcquisitions,
+  vacaskIdentifier,
+  type NativeModelLibrarySymbols,
 } from "@icm/netlist";
 import { deriveSimulationProbeOptions } from "./simulation-probe-options";
 
@@ -18,18 +26,52 @@ export interface SourceProbeChoice {
   kind: "voltage" | "current" | "device-op";
   expression: SimulationSourceExpression;
 }
+
+/** Offline authoring stays available. Invalid Profile context must not lend its
+ * model evidence to a picker; explain the omission without blocking text edits. */
+export function sourceProbeEnvironment(
+  project: CircuitProject,
+  folder: ProjectSimulationFolder,
+  profiles?: Capabilities["profiles"],
+): {
+  input: SimulationSourceInput;
+  libraries: readonly NativeModelLibrarySymbols[];
+  notice?: string;
+} {
+  if (!profiles) return { input: folder.input, libraries: [] };
+  const context = resolveSourceSimulationContext(project, folder, profiles);
+  if (!context.ok)
+    return {
+      input: folder.input,
+      libraries: [],
+      notice:
+        "Profile model choices unavailable: " +
+        ("diagnostics" in context
+          ? context.diagnostics.map((d) => d.message).join("; ")
+          : context.error.message),
+    };
+  return {
+    input: {
+      ...folder.input,
+      files: context.files,
+      dependencies: context.dependencies,
+    },
+    libraries: context.profile.modelSymbols ?? [],
+  };
+}
 export function sourceProbeChoices(
   project: CircuitProject,
   input: SimulationSourceInput,
+  libraries: readonly NativeModelLibrarySymbols[] = [],
 ): SourceProbeChoice[] {
-  const graph = inspectSimulationSourceGraph(input);
+  const graph = inspectVacaskSourceGraph(input);
   const choices: SourceProbeChoice[] = [];
-  for (const device of nativeSimulationDevices(project, input))
-    for (const vector of nativeDeviceOpVectors(device))
+  for (const device of nativeSimulationDevices(project, input, libraries))
+    for (const acquisition of nativeDeviceOpAcquisitions(device))
       choices.push({
         kind: "device-op",
-        label: `${device.reference} · ${vector.slice(vector.lastIndexOf("[") + 1, -1).toUpperCase()} — ${vector}`,
-        expression: { kind: "vector", vector },
+        label: `${acquisition.reference} · ${acquisition.parameter} (model-native) — ${acquisition.save}`,
+        expression: { kind: "vector", vector: acquisition.save },
       });
   for (const binding of input.circuitBindings) {
     if (!graph.paths.includes(binding.path)) continue;
@@ -38,7 +80,7 @@ export function sourceProbeChoices(
       rootDocumentId: binding.documentId,
     });
     if (!analysis.ir) continue;
-    const scopes = listAuthoredCircuitScopes(graph, binding, analysis.ir);
+    const scopes = vacaskCircuitScopes(graph, binding, analysis.ir).list();
     const options = deriveSimulationProbeOptions(project, binding.documentId);
     for (const scope of scopes) {
       const prefix = scope.callPath.length
@@ -53,35 +95,23 @@ export function sourceProbeChoices(
     }
   }
   // Native top-level nodes and independent voltage-source currents need no Canvas mapping.
-  const vectors = new Map<string, string>();
-  const addVector = (vector: string) => {
-    const key = vector.toLowerCase();
-    if (!vectors.has(key)) vectors.set(key, vector);
-  };
   const names = simulationSignalNames(project, input);
+  const mappedSelectors = new Set<string>();
   for (const [vector, name] of Object.entries(names)) {
+    const selector = `v(${vacaskIdentifier(vector)})`;
     choices.push({
       kind: "voltage",
       label: `${name.replaceAll("/", " · ")} — ${vector}`,
-      expression: { kind: "vector", vector },
+      expression: { kind: "vector", vector: selector },
     });
-    addVector(vector);
+    mappedSelectors.add(selector);
   }
-  let depth = 0;
-  for (const { statement } of graph.statements) {
-    if (statement.kind === "subckt_start") depth++;
-    else if (statement.kind === "subckt_end") depth = Math.max(0, depth - 1);
-    if (depth || statement.kind !== "instance") continue;
-    for (const node of statement.nodes) addVector(`v(${node})`);
-    if (statement.family === "voltage-source")
-      addVector(`i(${statement.name})`);
-  }
-  for (const vector of vectors.values())
-    if (!names[vector.toLowerCase()])
+  for (const acquisition of nativeSourceAcquisitions(input))
+    if (!mappedSelectors.has(acquisition.save))
       choices.push({
-        kind: vector.startsWith("v(") ? "voltage" : "current",
-        label: vector,
-        expression: { kind: "vector", vector },
+        kind: acquisition.quantity,
+        label: acquisition.save,
+        expression: { kind: "vector", vector: acquisition.save },
       });
   return choices;
 }

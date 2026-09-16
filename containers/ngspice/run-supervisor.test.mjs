@@ -16,6 +16,72 @@ function deferred() {
 }
 
 describe("SimulationRunSupervisor", () => {
+  it("shutdown cancels a tokenless active process, waits for cleanup and refuses new admission", async () => {
+    const held = deferred(),
+      terminate = vi.fn(),
+      done = vi.fn();
+    const supervisor = new SimulationRunSupervisor({ terminate });
+    const job = supervisor.tryExecute({}, async (run) => {
+      run.attachProcess({ pid: 77 });
+      await held.promise;
+      expect(run.cancelled).toBe(true);
+      run.phase("collecting");
+      run.phase("cleaning");
+    });
+    const stopped = supervisor.shutdown().then(done);
+    expect(terminate).toHaveBeenCalledWith({ pid: 77 }, "SIGKILL");
+    await Promise.resolve();
+    expect(done).not.toHaveBeenCalled();
+    expect(await supervisor.tryExecute({}, () => "new job")).toMatchObject({
+      kind: "busy",
+    });
+    held.resolve();
+    await job;
+    await stopped;
+    expect(done).toHaveBeenCalledTimes(1);
+    expect(
+      await supervisor.tryExecute({}, () => "still refused"),
+    ).toMatchObject({ kind: "busy" });
+    await supervisor.shutdown();
+  });
+  it("shutdown during preparation preserves the cancelled-on-attach rule", async () => {
+    const held = deferred(),
+      terminate = vi.fn();
+    const supervisor = new SimulationRunSupervisor({ terminate });
+    const job = supervisor.tryExecute({}, async (run) => {
+      await held.promise;
+      expect(run.cancelled).toBe(true);
+      run.attachProcess({ pid: 99 });
+      run.phase("collecting");
+      run.phase("cleaning");
+    });
+    const stopped = supervisor.shutdown();
+    held.resolve();
+    await job;
+    await stopped;
+    expect(terminate).toHaveBeenCalledWith({ pid: 99 }, "SIGKILL");
+  });
+  it("retires the existing lease on failed cleanup even if an injected fail-stop returns", async () => {
+    const failStop = vi.fn();
+    const supervisor = new SimulationRunSupervisor({ failStop });
+    await supervisor.tryExecute({}, async (run) => {
+      run.phase("cleaning");
+      run.failCleanup();
+    });
+    expect(failStop).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reason: "run-cleanup-failed",
+        phase: "cleaning",
+      }),
+    );
+    expect(supervisor.snapshot()).toMatchObject({
+      state: "fatal",
+      terminationReason: "cleanup-failed",
+    });
+    expect(
+      await supervisor.tryExecute({}, async () => "unsafe reuse"),
+    ).toMatchObject({ kind: "busy" });
+  });
   it("only the owning token can cancel; cancellation during preparation kills on attach and releases normally", async () => {
     const held = deferred(),
       killed = vi.fn(),

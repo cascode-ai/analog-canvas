@@ -23,7 +23,7 @@ export const profile = JSON.parse(
 export const ota = JSON.parse(
   readFileSync(
     new URL(
-      "../src/examples/five-transistor-ota-sky130.icproj.json",
+      "../../../netlists/native-ota-library/legacy-source.icproj.json",
       import.meta.url,
     ),
     "utf8",

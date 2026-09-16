@@ -28,16 +28,24 @@ export function migrateSimulationConfigToNative(
   if (config.runPlan.mode !== "nominal")
     pending.push("move the saved sweep into native control Code");
   if (config.outputs.length)
-    pending.push("move named outputs/expressions into native save/let Code");
+    pending.push(
+      "translate named outputs/expressions into native VACASK acquisition and control Code",
+    );
   if (config.deviceOperatingPoints.length)
     pending.push(
       "use Helper to save native Device OP vectors, then remove legacy Device OP selections",
     );
   if (config.measurements.length)
-    pending.push("move saved measurement rules into native meas Code");
+    pending.push(
+      "translate saved measurement rules into native VACASK control/postprocessing Code",
+    );
+  if (config.collection.rawfile !== null)
+    pending.push(
+      "translate the legacy write/collection contract to native analysis artifacts, then remove collection.rawfile; VACASK does not use a single declared write path",
+    );
   if (config.environment.corner)
     pending.push(
-      "declare the model dependency and .lib corner in Code, then remove environment.corner",
+      "declare the model dependency and native include section in Code, then remove environment.corner",
     );
   if (pending.length)
     return {
@@ -59,12 +67,6 @@ export function migrateSimulationConfigToNative(
     return {
       ok: false,
       message: compiled.diagnostics.map((d) => d.message).join("; "),
-    };
-  if (compiled.config.collection.rawfile !== config.collection.rawfile)
-    return {
-      ok: false,
-      message:
-        "The native write path differs from the legacy collector. Reconcile write and collection.rawfile before converting; no files were changed.",
     };
   return { ok: true, folder: next };
 }

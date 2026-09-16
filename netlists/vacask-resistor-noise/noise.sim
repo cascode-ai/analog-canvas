@@ -1,0 +1,16 @@
+Analog Canvas VACASK analytical resistor noise qualification
+
+ground 0
+load "resistor.osdi"
+model resistance resistor noisy=1
+model voltage vsource
+
+V1 (input 0) voltage dc=0
+R1 (input output) resistance r=1k
+
+control
+  abort always
+  options rawfile="ascii" strictsave=2 temp=26.85
+  save default
+  analysis resistor_noise noise out="output" in="V1" from=10 to=10k mode="dec" points=4
+endc

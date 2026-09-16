@@ -1,0 +1,15 @@
+Native Agent browser divider
+ground 0
+load "resistor.osdi"
+model r resistor
+model v vsource
+V1 (input 0) v dc=1 mag=1
+R1 (input mid) r r=1k
+R2 (mid 0) r r=1k
+control
+  abort always
+  options rawfile="ascii" strictsave=2
+  save v(mid) v(input) i(V1)
+  analysis agent_op op
+  analysis agent_ac ac from=10 to=1000 mode="dec" points=3
+endc

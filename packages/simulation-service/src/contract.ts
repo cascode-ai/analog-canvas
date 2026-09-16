@@ -1,5 +1,8 @@
 import { z } from "zod";
-import { SimulationRawPlotOrdinalsSchema } from "@icm/spice-run";
+import {
+  SimulationRawPlotOrdinalsSchema,
+  SimulationPostprocessorOriginSchema,
+} from "@icm/spice-run";
 import { SimulationRunVariantSchema } from "@icm/model";
 import { SimulationResultSchema } from "@icm/spice-run";
 import {
@@ -13,6 +16,7 @@ import type {
   CompiledSimulationDeviceOperatingPoint,
   CompiledSimulationExpression,
   CompiledSimulationOutput,
+  NativeModelLibrarySymbols,
 } from "@icm/netlist";
 
 export const Id = z.string().min(1).max(256);
@@ -173,6 +177,12 @@ export const PreparedSchema = z.strictObject({
           documentId: Id,
           netId: Id,
           occurrence: z.array(Id),
+          terminal: z
+            .strictObject({
+              instanceId: Id,
+              pinName: z.string().min(1).max(128),
+            })
+            .optional(),
         }),
       ),
     )
@@ -210,6 +220,7 @@ export const EvaluatedScalarSchema = z.strictObject({
   semantics: OutputSemanticsSchema.optional(),
 });
 export const EvaluatedAnalysisSchema = z.strictObject({
+  postprocessor: SimulationPostprocessorOriginSchema.optional(),
   rawPlotOrdinals: SimulationRawPlotOrdinalsSchema.optional(),
   analysis: z.enum(["op", "dc", "ac", "tran", "noise"]),
   plotName: z.string(),
@@ -320,12 +331,16 @@ export const SimulationOutputDataSchema = z.strictObject({
           value: z.number().finite(),
           logLine: z.number().int().positive(),
           detail: z.string(),
+          unit: z.string().optional(),
+          origin: z.literal("postprocessor").optional(),
         }),
         z.strictObject({
           name: z.string(),
           occurrence: z.literal(0),
           status: z.literal("unavailable"),
           detail: z.string(),
+          unit: z.string().optional(),
+          origin: z.literal("postprocessor").optional(),
         }),
       ]),
     )
@@ -395,6 +410,12 @@ export const SimulationBatchItemRequestSchema = z.strictObject({
 /** The transient service consumes the same sweep-axis contract persisted by a Setup. */
 export const SimulationSweepAxisSchema = SimulationRunPlanAxisSchema;
 export const SimulationOperationSchema = z.discriminatedUnion("operation", [
+  z.strictObject({
+    operation: z.literal("authoring-help"),
+    profileId: Id.optional(),
+    name: z.string().min(1).max(128).optional(),
+    context: z.enum(["circuit", "control"]).optional(),
+  }),
   z.strictObject({ operation: z.literal("capabilities") }),
   z.strictObject({
     operation: z.literal("prepare"),
@@ -476,27 +497,95 @@ export const SimulationOperationSchema = z.discriminatedUnion("operation", [
   }),
 ]);
 export type SimulationOperation = z.infer<typeof SimulationOperationSchema>;
+export const NativeModelLibrarySymbolsSchema: z.ZodType<NativeModelLibrarySymbols> =
+  z.strictObject({
+    dependencyId: Id,
+    sha256: Digest,
+    section: z.string().min(1).max(128).optional(),
+    masters: z
+      .array(
+        z.strictObject({
+          name: Id,
+          primitives: z
+            .array(
+              z.strictObject({
+                path: z.array(Id).max(64),
+                module: Id,
+              }),
+            )
+            .max(256),
+        }),
+      )
+      .max(256),
+  });
 export const CapabilitiesSchema = z.strictObject({
   configured: z.boolean(),
   /** Explicit collection protocol; absent on pre-source deployments. */
-  rawfileCollection: z.literal("declared-single-ascii").optional(),
+  rawfileCollection: z
+    .enum(["native-multi-ascii", "declared-single-ascii"])
+    .optional(),
   maxInputFiles: z.number().int().positive().optional(),
   inputs: z.array(z.enum(["source", "structured", "raw"])),
   analyses: z.array(z.enum(["op", "dc", "ac", "tran", "noise"])),
   parsedAnalyses: z.array(z.enum(["op", "dc", "ac", "tran", "noise"])),
   profiles: z.array(
-    z.strictObject({
-      id: Id,
-      /** Human-facing name. Automation continues to select the stable id. */
-      label: z.string().min(1).max(128).optional(),
-      corners: z.array(z.string()),
-      /** Exact model or wrapper names qualified on this hosted environment. */
-      devices: z.array(z.string().min(1).max(256)).optional(),
-      /** Environment-owned files addressable by raw Project dependencies. */
-      dependencies: z
-        .array(z.strictObject({ id: Id, sha256: Digest }))
-        .optional(),
-    }),
+    z
+      .strictObject({
+        id: Id,
+        /** Human-facing name. Automation continues to select the stable id. */
+        label: z.string().min(1).max(128).optional(),
+        /** Execution dialect owned by this Profile, never inferred from filenames. */
+        engine: z.enum(["ngspice", "vacask"]).optional(),
+        corners: z.array(z.string()),
+        /** Exact model or wrapper names qualified on this hosted environment. */
+        devices: z.array(z.string().min(1).max(256)).optional(),
+        /** Environment-owned files addressable by raw Project dependencies. */
+        dependencies: z
+          .array(z.strictObject({ id: Id, sha256: Digest }))
+          .optional(),
+        /** Read-only names derived from exact dependency bytes, not model definitions. */
+        modelSymbols: z
+          .array(NativeModelLibrarySymbolsSchema)
+          .max(32)
+          .optional(),
+        /** Native loading policy references an advertised dependency, not a host path. */
+        modelLibrary: z
+          .strictObject({
+            dependencyId: Id,
+            defaultSection: z.string().min(1).optional(),
+            /** Native initial option for this library, not a Canvas length conversion.
+             * Authored options/clear keep their normal subsequent semantics. */
+            defaultScale: z.number().positive().optional(),
+          })
+          .optional(),
+      })
+      .superRefine((profile, context) => {
+        const seen = new Set<string>();
+        for (const [index, library] of (profile.modelSymbols ?? []).entries()) {
+          const key = JSON.stringify([library.dependencyId, library.section]);
+          if (
+            seen.has(key) ||
+            !profile.dependencies?.some(
+              (d) =>
+                d.id === library.dependencyId && d.sha256 === library.sha256,
+            ) ||
+            new Set(library.masters.map((m) => m.name)).size !==
+              library.masters.length ||
+            library.masters.some(
+              (m) =>
+                new Set(m.primitives.map((p) => JSON.stringify(p.path)))
+                  .size !== m.primitives.length,
+            )
+          )
+            context.addIssue({
+              code: "custom",
+              path: ["modelSymbols", index],
+              message:
+                "Model symbols require one matching dependency digest and unambiguous master/primitive identities",
+            });
+          seen.add(key);
+        }
+      }),
   ),
   modelLibrary: z
     .strictObject({ path: z.string(), section: z.string() })
@@ -566,6 +655,19 @@ export const SimulationBatchSchema = z.strictObject({
 });
 export type SimulationBatch = z.infer<typeof SimulationBatchSchema>;
 export const SimulationReplySchema = z.union([
+  z.strictObject({
+    ok: z.literal(true),
+    helpers: z.array(
+      z.strictObject({
+        name: z.string(),
+        context: z.enum(["circuit", "control"]),
+        signature: z.string(),
+        summary: z.string(),
+        reference: z.string(),
+        source: z.string(),
+      }),
+    ),
+  }),
   z.strictObject({ ok: z.literal(false), error: ProblemSchema }),
   z.strictObject({ ok: z.literal(true), capabilities: CapabilitiesSchema }),
   z.strictObject({ ok: z.literal(true), prepared: PreparedSchema }),

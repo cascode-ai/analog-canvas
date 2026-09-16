@@ -6,7 +6,7 @@ import { join, resolve } from "node:path";
 import { createInterface } from "node:readline";
 
 import { chromium } from "@playwright/test";
-import { compileSourceSimulation } from "../packages/netlist/dist/index.js";
+import { compileNgspiceSourceSimulation as compileSourceSimulation } from "../packages/netlist/dist/index.js";
 import {
   readSimulationExperimentConfig,
   replaceSimulationExperimentConfig,
@@ -31,7 +31,7 @@ const outputDirectory = resolve(
 );
 const projectText = await readFile(
   new URL(
-    "../apps/editor/src/examples/five-transistor-ota-sky130.icproj.json",
+    "../netlists/ngspice-ota-qualification/source.icproj.json",
     import.meta.url,
   ),
   "utf8",

@@ -1,0 +1,21 @@
+OTA operating point
+// 1. Adjust sources or device parameters on Canvas.
+// 2. Click Run.
+// 3. Open Operating Point for native model outputs; Measurements reports supply current.
+ground 0
+include "models/library.inc"
+include "circuit.spice"
+control
+abort always
+options rawfile="ascii" strictsave=2 temp=27 reltol=1e-8 abstol=1e-12 vntol=1e-10
+// N0001 is the current IR name of the Canvas IBIAS/XDUT.ibias connection.
+save v(vout) v(N0001) v('XDUT:tail') v('XDUT:nleft') i(VDD)
+save p('XDUT:XM1:msky130_fd_pr__nfet_01v8',id) p('XDUT:XM1:msky130_fd_pr__nfet_01v8',vgs) p('XDUT:XM1:msky130_fd_pr__nfet_01v8',vds) p('XDUT:XM1:msky130_fd_pr__nfet_01v8',vbs) p('XDUT:XM1:msky130_fd_pr__nfet_01v8',gm) p('XDUT:XM1:msky130_fd_pr__nfet_01v8',gds) p('XDUT:XM1:msky130_fd_pr__nfet_01v8',gmbs) p('XDUT:XM1:msky130_fd_pr__nfet_01v8',vth) p('XDUT:XM1:msky130_fd_pr__nfet_01v8',vdsat)
+save p('XDUT:XM2:msky130_fd_pr__nfet_01v8',id) p('XDUT:XM2:msky130_fd_pr__nfet_01v8',vgs) p('XDUT:XM2:msky130_fd_pr__nfet_01v8',vds) p('XDUT:XM2:msky130_fd_pr__nfet_01v8',vbs) p('XDUT:XM2:msky130_fd_pr__nfet_01v8',gm) p('XDUT:XM2:msky130_fd_pr__nfet_01v8',gds) p('XDUT:XM2:msky130_fd_pr__nfet_01v8',gmbs) p('XDUT:XM2:msky130_fd_pr__nfet_01v8',vth) p('XDUT:XM2:msky130_fd_pr__nfet_01v8',vdsat)
+save p('XDUT:XM3:msky130_fd_pr__pfet_01v8',id) p('XDUT:XM3:msky130_fd_pr__pfet_01v8',vgs) p('XDUT:XM3:msky130_fd_pr__pfet_01v8',vds) p('XDUT:XM3:msky130_fd_pr__pfet_01v8',vbs) p('XDUT:XM3:msky130_fd_pr__pfet_01v8',gm) p('XDUT:XM3:msky130_fd_pr__pfet_01v8',gds) p('XDUT:XM3:msky130_fd_pr__pfet_01v8',gmbs) p('XDUT:XM3:msky130_fd_pr__pfet_01v8',vth) p('XDUT:XM3:msky130_fd_pr__pfet_01v8',vdsat)
+save p('XDUT:XM4:msky130_fd_pr__pfet_01v8',id) p('XDUT:XM4:msky130_fd_pr__pfet_01v8',vgs) p('XDUT:XM4:msky130_fd_pr__pfet_01v8',vds) p('XDUT:XM4:msky130_fd_pr__pfet_01v8',vbs) p('XDUT:XM4:msky130_fd_pr__pfet_01v8',gm) p('XDUT:XM4:msky130_fd_pr__pfet_01v8',gds) p('XDUT:XM4:msky130_fd_pr__pfet_01v8',gmbs) p('XDUT:XM4:msky130_fd_pr__pfet_01v8',vth) p('XDUT:XM4:msky130_fd_pr__pfet_01v8',vdsat)
+save p('XDUT:XM5:msky130_fd_pr__nfet_01v8',id) p('XDUT:XM5:msky130_fd_pr__nfet_01v8',vgs) p('XDUT:XM5:msky130_fd_pr__nfet_01v8',vds) p('XDUT:XM5:msky130_fd_pr__nfet_01v8',vbs) p('XDUT:XM5:msky130_fd_pr__nfet_01v8',gm) p('XDUT:XM5:msky130_fd_pr__nfet_01v8',gds) p('XDUT:XM5:msky130_fd_pr__nfet_01v8',gmbs) p('XDUT:XM5:msky130_fd_pr__nfet_01v8',vth) p('XDUT:XM5:msky130_fd_pr__nfet_01v8',vdsat)
+save p('XDUT:XM6:msky130_fd_pr__nfet_01v8',id) p('XDUT:XM6:msky130_fd_pr__nfet_01v8',vgs) p('XDUT:XM6:msky130_fd_pr__nfet_01v8',vds) p('XDUT:XM6:msky130_fd_pr__nfet_01v8',vbs) p('XDUT:XM6:msky130_fd_pr__nfet_01v8',gm) p('XDUT:XM6:msky130_fd_pr__nfet_01v8',gds) p('XDUT:XM6:msky130_fd_pr__nfet_01v8',gmbs) p('XDUT:XM6:msky130_fd_pr__nfet_01v8',vth) p('XDUT:XM6:msky130_fd_pr__nfet_01v8',vdsat)
+analysis bias op
+postprocess(PYTHON,"report.py","ota-op")
+endc

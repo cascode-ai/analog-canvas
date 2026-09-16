@@ -1,0 +1,18 @@
+Analog Canvas native result adapter transient reference
+
+ground 0
+load "resistor.osdi"
+load "capacitor.osdi"
+model resistance resistor
+model capacitance capacitor
+model voltage vsource
+V1 (input 0) voltage type="pulse" val0=0 val1=1 delay=1u rise=100n fall=100n width=20u period=40u
+R1 (input output) resistance r=1k
+C1 (output 0) capacitance c=1n
+
+control
+  abort always
+  options rawfile="ascii" strictsave=2
+  save default
+  analysis result_tran tran stop=4u step=1u maxstep=1u
+endc

@@ -10,7 +10,7 @@ import type {
   CompletionResult,
 } from "@codemirror/autocomplete";
 import { hoverTooltip } from "@codemirror/view";
-import { parameterGuide, insertSpiceHelp } from "./code-parameter-guide";
+import { parameterGuide, insertSpiceHelp } from "./code-spice-parameter-guide";
 
 interface State {
   control: boolean;

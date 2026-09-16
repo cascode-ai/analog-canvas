@@ -5,11 +5,13 @@ import type { SourceProbeChoice } from "./source-probe-choices";
 export function SourceProbePicker({
   choices,
   kind,
+  notice,
   onAdd,
   onClose,
 }: {
   choices: readonly SourceProbeChoice[];
   kind: "voltage" | "current" | "device-op";
+  notice?: string | undefined;
   onAdd(label: string, expression: SimulationSourceExpression): boolean;
   onClose(): void;
 }) {
@@ -62,6 +64,7 @@ export function SourceProbePicker({
         <strong>Save {kind}</strong>
         <button onClick={finish}>Done</button>
       </header>
+      {notice && <p role="status">{notice}</p>}
       <input
         autoFocus
         value={query}

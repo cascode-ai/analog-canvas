@@ -65,6 +65,104 @@ const result = {
 };
 
 describe("managed hosted executor", () => {
+  it("keeps a failed analysis result instead of replacing its evidence with the run error", async () => {
+    const failed = {
+      ...result,
+      outcome: { status: "failed" },
+      log: "analysis did not converge",
+    };
+    const fetch = vi.fn<typeof globalThis.fetch>(async (path) =>
+      String(path).endsWith("/result")
+        ? Response.json(failed)
+        : Response.json({
+            run: {
+              ...baseRun,
+              state: "failed",
+              finishedAt: 3,
+              error: {
+                code: "SIMULATION_FAILED",
+                message: "Analysis failed",
+                stage: "start",
+                recovery: "fix-input",
+              },
+              artifacts: [
+                {
+                  id: "reply",
+                  name: "response.json",
+                  mediaType: "application/json",
+                  byteLength: 1,
+                  sha256: "a".repeat(64),
+                },
+              ],
+            },
+          }),
+    );
+    const executor = createManagedHostedExecutor({ fetch });
+    await expect(
+      executor.execute(input, "request-a", undefined, {
+        preparedId: "prepared-a",
+        preparedDigest: "b".repeat(64),
+      }),
+    ).resolves.toMatchObject({
+      result: { outcome: { status: "failed" }, log: failed.log },
+    });
+  });
+  it.each(["refused", "missing-input", "cancelled"])(
+    "preserves a terminal %s without pretending it has numeric output",
+    async (kind) => {
+      const problem = {
+        code: "prepared-input-changed",
+        message: "Prepare the changed input again.",
+        stage: "start",
+        recovery: "reprepare",
+      };
+      const fetch = vi.fn<typeof globalThis.fetch>(async (path) => {
+        if (String(path).endsWith("/result"))
+          return Response.json({
+            error: problem.code,
+            message: problem.message,
+          });
+        return Response.json({
+          run: {
+            ...baseRun,
+            state: kind === "cancelled" ? "cancelled" : "failed",
+            finishedAt: 3,
+            ...(kind === "cancelled" ? {} : { error: problem }),
+            artifacts:
+              kind === "refused"
+                ? [
+                    {
+                      id: "reply",
+                      name: "response.json",
+                      mediaType: "application/json",
+                      byteLength: 1,
+                      sha256: "a".repeat(64),
+                    },
+                  ]
+                : [],
+          },
+        });
+      });
+      const executor = createManagedHostedExecutor({ fetch });
+      await expect(
+        executor.execute(input, "request-a", undefined, {
+          preparedId: "prepared-a",
+          preparedDigest: "b".repeat(64),
+        }),
+      ).rejects.toMatchObject({
+        problem:
+          kind === "cancelled"
+            ? { code: "run-cancelled", stage: "cancel" }
+            : problem,
+      });
+      expect(
+        fetch.mock.calls.filter(([path]) => String(path).endsWith("/result")),
+      ).toHaveLength(kind === "refused" ? 1 : 0);
+      expect(
+        fetch.mock.calls.filter(([, init]) => init?.method === "POST"),
+      ).toHaveLength(1);
+    },
+  );
   it("submits immutable identity, polls the server run, and reads its result", async () => {
     let reads = 0;
     const fetch = vi.fn<typeof globalThis.fetch>(async (request, init) => {

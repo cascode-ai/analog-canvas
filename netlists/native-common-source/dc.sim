@@ -1,0 +1,16 @@
+Common-source DC transfer
+// 1. Edit the VIN sweep below; Canvas still owns the circuit.
+// 2. Click Run.
+// 3. Plot out against the input sweep.
+ground 0
+include "models/library.inc"
+include "circuit.spice"
+control
+abort always
+options rawfile="ascii" strictsave=2 temp=27 reltol=1e-8 abstol=1e-12 vntol=1e-10
+save v(in) v(out) i(VDD)
+// A native sine source must explicitly enter DC mode for this parameter sweep.
+alter instance("VIN") type="dc"
+sweep input instance="VIN" parameter="dc" from=0.3 to=1.2 step=0.005
+analysis transfer op
+endc

@@ -1,0 +1,16 @@
+RLC filter damping experiment
+// 1. Change r in the alter command below; Canvas R1 remains the nominal value.
+// 2. Click Run.
+// 3. Plot Gain or the step; Measurements contains sampled peaks and final value.
+ground 0
+include "circuit.spice"
+control
+abort always
+options rawfile="ascii" strictsave=2 temp=27 reltol=1e-8 vntol=1e-10 tran_fbr=0.025
+alter instance("R1") r=200
+save v(in) v(out) i(L1)
+// AC is small-signal response, not an output-swing test.
+analysis frequency ac from=100 to=1M mode="dec" points=100
+analysis step tran stop=1m step=500n maxstep=500n
+postprocess(PYTHON, "report.py", "rlc")
+endc

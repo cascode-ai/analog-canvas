@@ -3,7 +3,7 @@
 Status: accepted
 
 Owners: `packages/simulation-service`, `packages/spice-run`, `worker`,
-`containers/ngspice`, `apps/local-host`, `apps/editor/src/features/simulation`
+`containers/vacask`, `apps/local-host`, `apps/editor/src/features/simulation`
 
 [Setup and compilation](simulation.md) owns authored inputs;
 [numeric results](simulation-results.md) owns their interpretation.
@@ -51,10 +51,41 @@ durability. Lost responses never trigger an automatic second execution.
   Instances. Native analysis/control text and the one experiment configuration
   belong to the source folder; purely textual experiments own their
   stimuli in source instead. Neither form duplicates a drawn source's values.
-- The deck builder appends `.end` only when the author's testbench did not
-  already close the deck.
+- Native preparation preserves the entry and generated/include file closure.
+  The Worker does not insert model directives or a terminator.
 
-## Model-library selection
+## Native Worker execution boundary
+
+The migration branch's `worker/simulation.ts` accepts VACASK source only.
+`SIMULATION_PROFILE_ID` selects the accepted deployment Profile; the selected
+executor's `/health` supplies its measured environment and capabilities. The
+Worker requires a verified pinned VACASK identity and matching Profile, with
+`inputs: ["source"]` and `rawfileCollection: "native-multi-ascii"`. It maintains
+no independent model-library path, corner list or analysis interpretation.
+
+The existing operator-host target uses an explicit HTTPS origin and private
+gateway credentials. An explicitly provisioned `VACASK` container binding uses
+the same native contract. These are execution locations, not alternative
+engines; missing targets never cause fallback. Without a configured Profile
+and native executor, capabilities remain unconfigured and editing remains usable.
+Existing ngspice deployment configuration is not a native registration. The
+[migration roadmap](../roadmap/vacask-migration.md) owns isolated cloud delivery;
+this route change does not qualify or modify existing hosted environments.
+
+Worker and harness share `validateNativeExecutionInput`: revision, entry bytes,
+portable disjoint file/dependency paths, registry digests and byte/count bounds.
+The harness additionally enforces host-filesystem and process limits. Worker
+forwards the exact files, not a recomposed deck. Native numeric interpretation
+belongs to the shared harness assembler. Worker checks result/input hashes,
+executed file bytes and the runtime fingerprint against admission, withholding
+mismatched evidence rather than retrying the process. Cancellation bypasses
+readiness checks; bounded refusal details and Retry-After remain available.
+
+The model-library and legacy container sections below describe the retained
+ngspice baseline, not this native route. Their replacement Profile/image remains
+a separate migration obligation; they must not be used to register VACASK.
+
+## Ngspice baseline model-library selection
 
 A model library is never represented by a bare path. The orchestration layer
 uses one of two explicit forms:
@@ -405,16 +436,16 @@ the canonical operation/result codecs. Its `SimulationFiles` is exposed through
 the existing File Resource. Project folder and source parameters retain the
 existing Project edit authority. Browser and MCP adapters do not compile their
 own decks or own a second simulation model. The browser lazily creates a service
-for its live Project session; opening the editor does not start ngspice.
+for its live Project session; opening the editor does not launch a simulator.
 
 `prepare` accepts the Project's saved folder or an isolated raw workspace. The
 Project source requires `expectedStructureRevision`; there is no inline folder
 that bypasses Project edit ownership. It snapshots input and publishes immutable
 SHA-256-addressed artifact metadata; raw input retains its entry text and include
-files. `prepared.cir` is available before execution. Structured composition uses
-the executor's advertised library and the shared deck builder. The Worker rejects
-a prepared deck that no longer matches its composition instead of silently using
-changed deployment settings.
+files. Prepared input artifacts are available before execution. Native compilation
+uses the shared circuit generator and source files; Worker neither recompiles
+them nor adds a model library. Input/runtime disagreement returns a repairable
+failure instead of silently executing changed deployment settings.
 
 `start` returns a short session-local run receipt. Reusing its request ID and
 payload returns the same run; a changed payload is rejected without invalidating
@@ -425,6 +456,21 @@ through the existing supervisor, whose process-tree cleanup still owns slot
 release. A private random run token authorizes cancellation; health responses
 and Agent artifacts do not expose that token. Cancel-before-admission is remembered
 for the maximum run window. Network uncertainty is never an automatic rerun.
+A terminal executor refusal retains its specific Problem and recovery guidance;
+it is not decoded as a numeric result. A genuine failed analysis may still have
+partial results, which remain readable. Cancellation while queued has no numeric
+artifact and is reported as cancelled, not as a perpetually pending result.
+The same service session can repair the input, prepare and start a new run.
+
+Managed attempts retry only a proven pre-dispatch infrastructure failure or an
+explicit executor refusal (for example busy or not-ready), within the existing
+attempt limit. A lost
+execution reply, post-dispatch consumer/storage failure, or expired execution
+lease ends as `infrastructure-failed` with an unknown-outcome diagnostic, not
+another dispatch. A pending cancellation is not confirmed by lease expiry.
+The same Run record remains readable; duplicate queue delivery cannot restart
+it. This is not proof that an unreachable process was terminated: process
+cleanup and its hard deadline remain the executor supervisor's responsibility.
 MCP transport failures return the effective request ID, including when the tool
 generated it, so an Agent can retry the identical start rather than duplicate it.
 File Resource `list` recovers session draft IDs after a lost create response;

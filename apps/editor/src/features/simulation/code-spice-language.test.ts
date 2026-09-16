@@ -2,7 +2,7 @@ import { EditorState } from "@codemirror/state";
 import { CompletionContext } from "@codemirror/autocomplete";
 import { describe, expect, it } from "vitest";
 import { spiceCodeLanguage, spiceCompletion } from "./code-spice-language";
-import { parameterGuide } from "./code-parameter-guide";
+import { parameterGuide } from "./code-spice-parameter-guide";
 
 describe("SPICE editor assistance", () => {
   it.each(["V1 in 0 DC 1.8 AC ", "I1 in 0 DC 0 SIN(0 1 1k) AC "])(

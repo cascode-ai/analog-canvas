@@ -18,20 +18,20 @@ function fixture(program: string) {
     profileId: "test",
   });
   folder.input.files.find((f) => f.path === folder.input.entry)!.text =
-    `* native\n.param RVAL=1k\nV1 in 0 1\nR1 in 0 {RVAL}\n.control\nset filetype=ascii\n${program}\n.endc\n.end\n`;
+    `Native\nparameters RVAL=1k\nmodel voltage vsource\nmodel resistance resistor\nV1 (In 0) voltage dc=1\nR1 (In 0) resistance r=RVAL\ncontrol\noptions rawfile="ascii"\n${program}\nendc\n`;
   return { project, folder };
 }
 
 describe("native Code is the experiment authority", () => {
   it("explicitly converts safe legacy metadata and retains unsupported intent without data loss", () => {
-    const { project, folder } = fixture("op\nwrite result.raw");
+    const { project, folder } = fixture("analysis result op");
     const file = folder.input.files.find(
       (f) => f.path === folder.input.configPath,
     )!;
     file.text = JSON.stringify({
       version: 1,
       environment: { profileId: "test" },
-      collection: { rawfile: "result.raw" },
+      collection: { rawfile: null },
     });
     const original = JSON.stringify(folder);
     const converted = migrateSimulationConfigToNative(project, folder);
@@ -39,6 +39,17 @@ describe("native Code is the experiment authority", () => {
       converted.ok && readSimulationExperimentConfig(converted.folder),
     ).toMatchObject({ ok: true, authority: "code" });
     expect(JSON.stringify(folder)).toBe(original);
+    file.text = JSON.stringify({
+      version: 1,
+      environment: { profileId: "test" },
+      collection: { rawfile: "result.raw" },
+    });
+    const collectionBefore = structuredClone(folder);
+    expect(migrateSimulationConfigToNative(project, folder)).toMatchObject({
+      ok: false,
+      message: expect.stringContaining("single declared write path"),
+    });
+    expect(folder).toEqual(collectionBefore);
     file.text = JSON.stringify({
       version: 1,
       environment: { profileId: "test" },
@@ -54,7 +65,7 @@ describe("native Code is the experiment authority", () => {
     expect(JSON.stringify(folder)).toBe(blocked);
   });
   it("creates no electrical sidecar fields and rejects adding a second authority", () => {
-    const { folder } = fixture("op\nwrite result.raw");
+    const { folder } = fixture("analysis result op");
     const config = JSON.parse(
       folder.input.files.find((f) => f.path === folder.input.configPath)!.text,
     );
@@ -78,8 +89,8 @@ describe("native Code is the experiment authority", () => {
       authority: "code",
     });
   });
-  it("reads the collection path and native save/parameter changes from source, never JSON", () => {
-    const { project, folder } = fixture("save v(in)\nop\nwrite result.raw");
+  it("retains native analysis/save/parameter changes in source without a single-file collection setting", () => {
+    const { project, folder } = fixture("save v(In)\nanalysis result op");
     const before = folder.input.files.find(
       (f) => f.path === folder.input.configPath,
     )!.text;
@@ -88,7 +99,7 @@ describe("native Code is the experiment authority", () => {
       ok: true,
       authority: "code",
       config: {
-        collection: { rawfile: "result.raw" },
+        collection: { rawfile: null },
         outputs: [],
         variables: [],
       },
@@ -98,12 +109,12 @@ describe("native Code is the experiment authority", () => {
     )!;
     entry.text = entry.text
       .replace("RVAL=1k", "RVAL=2k")
-      .replace("result.raw", "changed.raw")
-      .replace("save v(in)", "save i(v1)");
+      .replace("analysis result op", "analysis changed op")
+      .replace("save v(In)", "save i(V1)");
     const changed = compileSourceSimulation(project, folder);
     expect(changed).toMatchObject({
       ok: true,
-      config: { collection: { rawfile: "changed.raw" } },
+      config: { collection: { rawfile: null } },
     });
     if (changed.ok)
       expect(changed.files.find((f) => f.path === entry.path)!.text).toBe(
@@ -113,9 +124,9 @@ describe("native Code is the experiment authority", () => {
       folder.input.files.find((f) => f.path === folder.input.configPath)!.text,
     ).toBe(before);
   });
-  it("does not split native loops or persist a sweep plan", () => {
+  it("does not split nested native sweeps or persist a parallel JSON sweep plan", () => {
     const { project, folder } = fixture(
-      "foreach point 1k 2k\nalterparam RVAL=$point\nreset\nop\nwrite result.raw\nend",
+      'sweep resistance instance="R1" parameter="r" values=[1k, 2k]\nsweep voltage instance="V1" parameter="dc" values=[1, 2]\nanalysis result op',
     );
     expect(compileSourceSimulation(project, folder)).toMatchObject({
       ok: true,
@@ -127,9 +138,11 @@ describe("native Code is the experiment authority", () => {
     ).toMatchObject({ ok: false });
   });
   it.each(["write $target", "write one.raw\nwrite two.raw"])(
-    "diagnoses unsupported collector contracts without guessing: %s",
+    "retains the old collector's rejection boundary until its remaining callers retire: %s",
     (program) => {
       const { folder } = fixture(program);
+      folder.input.files.find((f) => f.path === folder.input.entry)!.text =
+        `Legacy collector\n.control\n${program}\n.endc\n.end\n`;
       expect(
         nativeSourceCollection(inspectSimulationSourceGraph(folder.input))
           .diagnostics.length,
@@ -137,7 +150,7 @@ describe("native Code is the experiment authority", () => {
     },
   );
   it("permits console-only native programs without inventing out.raw", () => {
-    const { project, folder } = fixture("op\nprint v(in)");
+    const { project, folder } = fixture("analysis bias op write=0");
     expect(compileSourceSimulation(project, folder)).toMatchObject({
       ok: true,
       config: { collection: { rawfile: null } },

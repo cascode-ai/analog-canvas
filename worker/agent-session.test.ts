@@ -3,8 +3,12 @@ import mcpDistribution from "../config/agent-mcp-distribution.json";
 import {
   SESSION_STATE_KEY,
   fileOperationScopes,
+  simulationOperationScopes,
 } from "./agent-session-runtime";
-import { AgentFileResourceRequestSchema } from "@icm/agent-adapter";
+import {
+  AgentFileResourceRequestSchema,
+  AgentSimulationResourceRequestSchema,
+} from "@icm/agent-adapter";
 
 import {
   AGENT_SSE_KEEPALIVE_INTERVAL_MS,
@@ -36,6 +40,23 @@ const limits: Partial<AgentSessionLimits> = {
   maxRequestBytes: 128,
   rateLimit: { windowMs: 60_000, maxRequests: 10 },
 };
+
+it("requires no spending grant for static authoring help without relaxing run access", () => {
+  const scopes = (op: object) =>
+    simulationOperationScopes(
+      AgentSimulationResourceRequestSchema.parse({
+        apiVersion: "3.0",
+        requestId: "scope",
+        ...op,
+      }),
+    );
+  expect(scopes({ operation: "authoring-help", name: "embed" })).toEqual([]);
+  expect(scopes({ operation: "capabilities" })).toEqual([]);
+  expect(
+    scopes({ operation: "start", preparedId: "p", digest: "a".repeat(64) }),
+  ).toEqual(["simulation.run"]);
+  expect(scopes({ operation: "read", runId: "r" })).toEqual(["simulation.run"]);
+});
 
 it("uses existing Project write authorization for Project-owned simulation source only", () => {
   const scopes = (input: unknown) =>

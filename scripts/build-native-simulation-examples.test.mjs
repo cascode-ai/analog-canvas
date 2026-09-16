@@ -1,12 +1,19 @@
 import { test, expect, beforeAll } from "vitest";
 import { execFileSync, execSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import {
+  mkdtempSync,
+  readFileSync,
+  writeFileSync,
+  readdirSync,
+  rmSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { parseProject } from "../packages/project-protocol/src/index.js";
+import { compileSourceSimulation } from "../packages/netlist/src/simulation-source-compile.js";
 
 beforeAll(() => {
-  // Exercise the actual standalone CLI, including on a clean CI checkout.
-  // Unit CI intentionally does not prebuild workspace dist artifacts.
+  // Exercise the standalone CLI, including on a clean CI checkout without dist.
   execSync(
     "pnpm --filter @icm/agent-adapter... --filter @icm/exporters... build",
     {
@@ -16,83 +23,130 @@ beforeAll(() => {
   );
 }, 190000);
 
-test("complete example Projects preserve their circuits and use native source-only experiments", () => {
-  const directory = mkdtempSync(join(tmpdir(), "icm-native-projects-test-"));
+const run = (directory, args = []) =>
+  execFileSync(
+    process.execPath,
+    ["scripts/build-native-simulation-examples.mjs", directory, ...args],
+    { stdio: "pipe", timeout: 60000 },
+  );
+
+// The full-library case stays an acceptance obligation during migration. Do not
+// filter unfinished model-backed folders out of it to obtain a green result.
+test.each([
+  {
+    scope: "passive selection",
+    args: ["--project", "rc", "--project", "rlc"],
+    counts: [4, 3],
+  },
+  {
+    scope: "common-source selection",
+    args: ["--project", "common-source"],
+    counts: [4],
+  },
+  {
+    scope: "Library OTA selection",
+    args: ["--project", "ota-library"],
+    counts: [12],
+  },
+  { scope: "complete library", args: [], counts: [4, 3, 4, 8, 12] },
+])(
+  "exports the $scope without reconstructing any reviewed Project",
+  ({ args, counts }) => {
+    const directory = mkdtempSync(join(tmpdir(), "icm-native-projects-test-"));
+    try {
+      run(directory, args);
+      const manifest = JSON.parse(
+        readFileSync(join(directory, "manifest.json"), "utf8"),
+      );
+      expect(manifest.status).toBe("compiled-not-executed");
+      expect(manifest.projects.map((p) => p.folders.length)).toEqual(counts);
+      for (const item of manifest.projects) {
+        const project = parseProject(readFileSync(item.file, "utf8"));
+        const reviewed = parseProject(readFileSync(item.sourcePath, "utf8"));
+        // Includes every instance parameter/pin order, route, label, DUT/TB binding,
+        // top Cell, folder and authored byte. Rendering does not rewrite the input.
+        expect(project).toEqual(reviewed);
+        for (const doc of project.documents) {
+          const inspection = JSON.parse(
+            readFileSync(
+              join(directory, `${item.slug}-${doc.id}-inspection.json`),
+              "utf8",
+            ),
+          );
+          expect(inspection.document.id).toBe(doc.id);
+          if (item.id !== "ota-library") {
+            expect(inspection.document.diagnostics).toEqual([]);
+          } else {
+            // The reviewed Library drawing already has advisory label overlaps.
+            // Preserve these diagnostics and the drawing, rather than treating
+            // a low-confidence non-gating visual warning as electrical failure.
+            for (const diagnostic of inspection.document.diagnostics)
+              expect(diagnostic).toMatchObject({
+                code: "VISUAL_LABEL_OVERLAP",
+                domain: "visual",
+                severity: "warning",
+                confidence: "low",
+                gateEligible: false,
+              });
+          }
+          expect(
+            readFileSync(join(directory, `${item.slug}-${doc.id}.svg`), "utf8"),
+          ).toContain("<svg");
+          expect([
+            ...readFileSync(
+              join(directory, `${item.slug}-${doc.id}.png`),
+            ).subarray(0, 8),
+          ]).toEqual([137, 80, 78, 71, 13, 10, 26, 10]);
+        }
+        for (const folder of project.simulationFolders) {
+          const compiled = compileSourceSimulation(project, folder);
+          expect(compiled.ok, JSON.stringify(compiled)).toBe(true);
+          expect(item.folders.find((f) => f.id === folder.id).profileId).toBe(
+            compiled.config.environment.profileId,
+          );
+          for (const source of folder.input.files) {
+            expect(
+              readFileSync(
+                join(directory, "source", item.slug, folder.id, source.path),
+                "utf8",
+              ),
+            ).toBe(source.text);
+          }
+          for (const source of compiled.files) {
+            expect(
+              readFileSync(
+                join(directory, "prepared", item.slug, folder.id, source.path),
+                "utf8",
+              ),
+            ).toBe(source.text);
+          }
+        }
+      }
+      const before = readFileSync(join(directory, "manifest.json"));
+      expect(() => run(directory, args)).toThrow(
+        /Output directory must be empty/,
+      );
+      expect(readFileSync(join(directory, "manifest.json"))).toEqual(before);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  },
+  90000,
+);
+
+test("rejects unknown selections before writing output", () => {
+  const directory = mkdtempSync(join(tmpdir(), "icm-native-selection-"));
   try {
-    execFileSync(
-      process.execPath,
-      ["scripts/build-native-simulation-examples.mjs", directory],
-      { stdio: "pipe", timeout: 60000 },
+    expect(() => run(directory, ["--project", "unknown"])).toThrow(/Usage:/);
+    expect(readdirSync(directory)).toEqual([]);
+    writeFileSync(join(directory, "evidence.txt"), "existing evidence");
+    expect(() => run(directory, ["--project", "rc"])).toThrow(
+      /Output directory must be empty/,
     );
-    const manifest = JSON.parse(
-      readFileSync(join(directory, "manifest.json"), "utf8"),
+    expect(readdirSync(directory)).toEqual(["evidence.txt"]);
+    expect(readFileSync(join(directory, "evidence.txt"), "utf8")).toBe(
+      "existing evidence",
     );
-    expect(manifest.projects.map((p) => p.folders.length)).toEqual([
-      4, 3, 4, 8,
-    ]);
-    for (const item of manifest.projects) {
-      const project = JSON.parse(readFileSync(item.file, "utf8"));
-      for (const document of project.documents) {
-        if (item.slug !== "04-sky130-ota")
-          for (const name of ["in", "out"])
-            expect(document.connectivityEvidence).toContainEqual(
-              expect.objectContaining({ kind: "name-claim", name }),
-            );
-        expect(document.instances.every((i) => i.placement !== null)).toBe(
-          true,
-        );
-        const inspection = JSON.parse(
-          readFileSync(
-            join(directory, `${item.slug}-${document.id}-inspection.json`),
-            "utf8",
-          ),
-        );
-        expect(inspection.document.diagnostics).toEqual([]);
-      }
-      for (const folder of project.simulationFolders) {
-        const config = JSON.parse(
-          folder.input.files.find((f) => f.path === folder.input.configPath)
-            .text,
-        );
-        expect(config).toEqual({
-          version: 2,
-          environment: { profileId: manifest.profileId },
-        });
-        const source = folder.input.files.find(
-          (f) => f.path === folder.input.entry,
-        ).text;
-        expect(source).toContain("write out.raw");
-        expect(source).not.toContain("/opt/");
-        expect(folder.input.circuitBindings).toHaveLength(1);
-      }
-    }
-    const original = JSON.parse(
-      readFileSync("netlists/native-ota/source.icproj.json", "utf8"),
-    );
-    const ota = JSON.parse(readFileSync(manifest.projects[3].file, "utf8"));
-    const before = original.documents.find((d) => d.id === "document-ota-5t");
-    const after = ota.documents.find((d) => d.id === "document-ota-5t");
-    expect(after.netlist.terminals.map((t) => t.name)).toEqual(
-      before.netlist.terminals.map((t) => t.name),
-    );
-    expect(
-      after.instances.map((i) => ({ id: i.id, netlist: i.netlist })),
-    ).toEqual(before.instances.map((i) => ({ id: i.id, netlist: i.netlist })));
-    const closed = ota.simulationFolders.find((f) => f.id === "ota-closed");
-    const testbench = ota.documents.find(
-      (d) => d.id === "document-ota-5t-testbench",
-    );
-    for (const name of ["vinp", "vinn", "vdd", "ibias"]) {
-      const net = testbench.nets.find((n) =>
-        n.terminals.some((t) => t.instanceId === "XDUT" && t.pinName === name),
-      );
-      expect(testbench.connectivityEvidence).toContainEqual(
-        expect.objectContaining({ kind: "name-claim", netId: net.id, name }),
-      );
-    }
-    expect(
-      closed.input.files.find((f) => f.path === "testbench.spice").text,
-    ).toContain("XDUT vdd 0 ibias vout vinp vout ota_5t");
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }

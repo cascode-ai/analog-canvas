@@ -1,6 +1,48 @@
 import { inspectSimulationSourceGraph } from "@icm/netlist";
 import type { SimulationOutputData } from "./contract.js";
 
+/** Export the same reports shown to humans/Agents; unavailable is an empty cell,
+ * never zero. No inference of units, analysis identity or repeated-name merging. */
+export function nativeMeasurementsToCsv(
+  reports: NonNullable<SimulationOutputData["nativeMeasurements"]>,
+): string {
+  const quote = (value: string | number) => {
+    // Text is authored code output, not a spreadsheet formula. Numbers retain
+    // their numeric sign; only potentially executable text is made literal.
+    const literal =
+      typeof value === "string" && /^[\s]*[=+@-]/u.test(value)
+        ? `'${value}`
+        : value;
+    return `"${String(literal).replaceAll('"', '""')}"`;
+  };
+  return (
+    [
+      [
+        "Name",
+        "Report",
+        "Status",
+        "Value",
+        "Unit",
+        "Origin",
+        "Console line",
+        "Detail",
+      ],
+      ...reports.map((r) => [
+        r.name,
+        r.occurrence,
+        r.status,
+        r.status === "available" ? r.value : "",
+        r.unit ?? "",
+        r.origin ?? "simulator",
+        r.status === "available" ? r.logLine : "",
+        r.detail,
+      ]),
+    ]
+      .map((row) => row.map(quote).join(","))
+      .join("\n") + "\n"
+  );
+}
+
 /**
  * ngspice owns measurement evaluation. Read its scalar reports without guessing
  * which raw plot a loop iteration belongs to. Log line/occurrence are evidence.

@@ -1,0 +1,32 @@
+Illustrative BSIM4 output semantics, not foundry qualification
+ground 0
+load "spice/bsim4v8.osdi"
+model voltage vsource
+model n sp_bsim4v8 type=1
+model p sp_bsim4v8 type=-1
+VGN (gn 0) voltage dc=1 mag=1
+VGP (gp 0) voltage dc=-1 mag=1
+VDN1 (dn1 0) voltage dc=1.8
+VDN3 (dn3 0) voltage dc=1.8
+VDP1 (dp1 0) voltage dc=-1.8
+VDP3 (dp3 0) voltage dc=-1.8
+N1 (dn1 gn 0 0) n w=5u l=1u
+N3 (dn3 gn 0 0) n w=5u l=1u $mfactor=3
+P1 (dp1 gp 0 0) p w=5u l=1u
+P3 (dp3 gp 0 0) p w=5u l=1u $mfactor=3
+control
+abort always
+options rawfile="ascii" strictsave=2
+save default p(N1,id) p(N3,id) p(P1,id) p(P3,id) p(N1,gm) p(N3,gm) p(P1,gm) p(P3,gm)
+save p(N1,vgs) p(P1,vgs) p(N1,vds) p(P1,vds) p(N1,vbs) p(P1,vbs)
+save p(N1,gds) p(P1,gds) p(N1,gmbs) p(P1,gmbs) p(N1,vth) p(P1,vth) p(N1,vdsat) p(P1,vdsat)
+analysis bias op
+clear saves
+save default
+analysis small ac values=[1]
+sweep ngate instance="VGN" parameter="dc" values=[0.99999,1,1.00001]
+analysis nderivative op
+alter instance("VGN") dc=1
+sweep pgate instance="VGP" parameter="dc" values=[-1.00001,-1,-0.99999]
+analysis pderivative op
+endc

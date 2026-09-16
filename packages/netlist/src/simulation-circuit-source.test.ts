@@ -42,6 +42,34 @@ function replace(
   return text;
 }
 describe("Circuit parameter source projection", () => {
+  it("prints and edits ngspice source parameters without passing through the native grammar", () => {
+    const { project, source } = fixture();
+    const generated = generateCircuitSource(
+      project,
+      source.binding,
+      undefined,
+      "ngspice",
+    );
+    expect(generated.ok).toBe(true);
+    if (!generated.ok) return;
+    const body = generated.source.sourceBodies!.find(
+      (p) => p.instanceId === "VDD",
+    )!;
+    const plan = planCircuitSourceEdit(
+      generated.source,
+      generated.source.text.slice(0, body.startOffset) +
+        " DC 1.8 AC 1 90" +
+        generated.source.text.slice(body.endOffset),
+    );
+    expect(plan.ok, JSON.stringify(plan)).toBe(true);
+    expect(plan.ok && plan.changes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ parameter: "acMagnitude", value: "1" }),
+        expect.objectContaining({ parameter: "acPhase", value: "90" }),
+      ]),
+    );
+    expect(generated.source.text).not.toContain('type="dc"');
+  });
   it("adds, changes and removes AC/phase and waveforms while keeping source nodes locked", () => {
     const { project, source } = fixture();
     const body = source.sourceBodies!.find(
@@ -54,7 +82,9 @@ describe("Circuit parameter source projection", () => {
           suffix +
           source.text.slice(body.endOffset),
       );
-    const plan = edit(" DC {BIAS} AC 1 -90 SIN(0 1 1k)");
+    const plan = edit(
+      ' dc=(BIAS) mag=1 phase=-90 type="sine" sinedc=0 ampl=1 freq=1k',
+    );
     expect(plan.ok).toBe(true);
     if (!plan.ok) return;
     expect(plan.changes).toEqual(
@@ -74,7 +104,7 @@ describe("Circuit parameter source projection", () => {
     expect(regenerated.ok).toBe(true);
     if (!regenerated.ok) return;
     expect(regenerated.source.text).toContain(
-      "DC {BIAS} AC 1 -90 SIN(0 1 1k 0 0 0)",
+      'type="sine" dc=(BIAS) mag=1 phase=-90 sinedc=0 ampl=1 freq=1000 delay=0 theta=0 tdphase=0',
     );
     const nextBody = regenerated.source.sourceBodies!.find(
       (b) => b.instanceId === "VDD",
@@ -82,7 +112,7 @@ describe("Circuit parameter source projection", () => {
     const removed = planCircuitSourceEdit(
       regenerated.source,
       regenerated.source.text.slice(0, nextBody.startOffset) +
-        " DC 1.8" +
+        ' type="dc" dc=1.8' +
         regenerated.source.text.slice(nextBody.endOffset),
     );
     expect(removed).toMatchObject({
@@ -96,10 +126,10 @@ describe("Circuit parameter source projection", () => {
     expect(
       planCircuitSourceEdit(
         source,
-        source.text.replace("VDD vdd 0", "VDD changed 0"),
+        source.text.replace("VDD (vdd 0)", "VDD (changed 0)"),
       ),
     ).toMatchObject({ ok: false, code: "SIMULATION_CIRCUIT_STRUCTURE_LOCKED" });
-    expect(edit(" DC 1.8 AC")).toMatchObject({
+    expect(edit(" dc=1.8 mag=")).toMatchObject({
       ok: false,
       code: "SIMULATION_PARAMETER_INVALID",
     });
@@ -231,8 +261,8 @@ describe("Circuit parameter source projection", () => {
     const { source } = fixture();
     const index = source.parameters.findIndex((p) => p.parameter === "w");
     const changed = replace(source, [{ index, text: "25" }]).replace(
-      ".subckt",
-      ".subckt changed",
+      "subckt",
+      "subckt changed",
     );
     expect(planCircuitSourceEdit(source, changed)).toMatchObject({
       ok: false,
@@ -267,7 +297,7 @@ describe("Circuit parameter source projection", () => {
   it("round-trips native parameter references through Canvas and reviewed PDK units", () => {
     const { project, source } = fixture();
     const index = source.parameters.findIndex((p) => p.parameter === "w");
-    const edited = replace(source, [{ index, text: "{WIDTH * 2}" }]);
+    const edited = replace(source, [{ index, text: "(WIDTH * 2)" }]);
     const plan = planCircuitSourceEdit(source, edited);
     expect(plan.ok).toBe(true);
     if (!plan.ok) return;

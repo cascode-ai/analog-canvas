@@ -1,4 +1,5 @@
 import type { CircuitProject, ProjectSimulationFolder } from "@icm/model";
+import { readSimulationExperimentConfig } from "@icm/model";
 import {
   problem,
   type SimulationOperation,
@@ -13,8 +14,20 @@ export async function prepareExecutionInput(
   caps: Capabilities,
   getProject: () => CircuitProject,
   files: SimulationFiles,
+  selectCapabilities?: (profileId: string) => Promise<Capabilities>,
 ) {
   const project = getProject();
+  async function prepare(
+    folder: ProjectSimulationFolder,
+    variant?: Parameters<typeof prepareSourceExecutionInput>[3],
+  ) {
+    const config = readSimulationExperimentConfig(folder);
+    const selected =
+      config.ok && selectCapabilities
+        ? await selectCapabilities(config.config.environment.profileId)
+        : caps;
+    return prepareSourceExecutionInput(project, folder, selected, variant);
+  }
   const source = op.source;
   if (source.kind === "project-folder") {
     if (project.structureRevision !== source.expectedStructureRevision)
@@ -33,7 +46,7 @@ export async function prepareExecutionInput(
         "The requested experiment no longer exists",
         "prepare",
       );
-    return prepareSourceExecutionInput(project, folder, caps, source.variant);
+    return prepare(folder, source.variant);
   }
   const read = files.snapshot(source.workspaceId, source.expectedRevision);
   if (!read.ok) return read;
@@ -51,5 +64,5 @@ export async function prepareExecutionInput(
       circuitBindings: [],
     },
   };
-  return prepareSourceExecutionInput(project, folder, caps);
+  return prepare(folder);
 }

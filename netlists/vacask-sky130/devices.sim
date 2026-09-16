@@ -1,0 +1,44 @@
+SKY130 native candidate, not qualified
+ground 0
+load "resistor.osdi"
+load "spice/resistor.osdi"
+load "spice/capacitor.osdi"
+load "spice/diode.osdi"
+load "spice/bsim4v8.osdi"
+load "spice/bjt.osdi"
+model voltage vsource
+model resistance resistor
+include "models.sim"
+VGN (gn 0) voltage dc=0.9
+VDN (dn 0) voltage dc=1.8
+VGP (gp 0) voltage dc=0.9
+VSP (sp 0) voltage dc=1.8
+VDP (dp 0) voltage dc=0
+XMN (dn gn 0 0) sky130_fd_pr__nfet_01v8 l=0.5 w=10
+XMP (dp gp sp sp) sky130_fd_pr__pfet_01v8 l=0.5 w=10
+VGNL (gnl 0) voltage dc=0.9
+VDNL (dnl 0) voltage dc=1.8
+VGPL (gpl 0) voltage dc=0.9
+VSPL (spl 0) voltage dc=1.8
+VDPL (dpl 0) voltage dc=0
+XMNL (dnl gnl 0 0) sky130_fd_pr__nfet_01v8_lvt l=0.5 w=3 nf=2
+XMPL (dpl gpl spl spl) sky130_fd_pr__pfet_01v8_lvt l=0.5 w=3 nf=2
+VRIN (rin 0) voltage dc=1
+XR1 (rin rout 0) sky130_fd_pr__res_high_po w=1 l=5.5 mult=1
+RLOAD (rout 0) resistance r=1k
+VAC (capin 0) voltage dc=0 mag=1
+RCAP (capin capout) resistance r=1e9
+XC1 (capout 0) sky130_fd_pr__cap_mim_m3_1 w=5 l=5 mult=1
+VPE (pe 0) voltage dc=1.8
+VPB (pb 0) voltage dc=1.1
+VPC (pc 0) voltage dc=0
+XQP (pc pb pe) sky130_fd_pr__pnp_05v5_w0p68l0p68
+control
+ abort always
+ // Explicit numerical accuracy for the frozen per-probe acceptance thresholds.
+ // This fixture does not change the product's default solver configuration.
+ options reltol=1e-8 abstol=1e-15 vntol=1e-10 scale=1e-6 rawfile="ascii" strictsave=2
+ save default
+ analysis devices_op op
+ analysis devices_ac ac values=[1e9]
+endc

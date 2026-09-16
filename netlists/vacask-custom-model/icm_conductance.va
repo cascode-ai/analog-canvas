@@ -1,0 +1,15 @@
+`include "constants.vams"
+`include "disciplines.vams"
+
+// Illustrative user model for compiler/OSDI qualification; not foundry data.
+module icm_conductance (
+    inout electrical p,
+    inout electrical n
+);
+    (* type="instance", units="S" *)
+    parameter real g = 1e-3 from (0:inf);
+
+    analog begin
+        I(p, n) <+ g * V(p, n);
+    end
+endmodule

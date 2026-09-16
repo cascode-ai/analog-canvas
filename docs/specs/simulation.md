@@ -18,6 +18,42 @@ owns step-by-step operation; [deployment](../deployment.md) owns candidate accep
 
 ## Authored authority
 
+### Engine selection
+
+The selected executor Profile determines the engine (`ngspice` or `vacask`);
+there is no second persisted engine selector. Both use the same folder, mapped
+edit, preparation, Run and artifact APIs. The SPICE clauses described below
+apply to ngspice. VACASK uses its native language and the corresponding adapters,
+not SPICE text passed unchanged into another executable.
+
+VACASK source owns `parameters`, `include ... section=...`, native analyses,
+adjacent sweeps, options, saves and Python postprocessing. Helpers and generated
+Circuit text use the selected dialect. Native hierarchy is case-sensitive and
+colon-qualified; ngspice vectors retain their own spelling and wrapper rules.
+Synthetic export supply ports are not selectable Canvas Nets.
+
+VACASK `prepare-sweep` applies exact execution-only points to a Project/source
+copy: emitted Canvas parameters, a reachable unconditional root parameter,
+the Profile-declared model section, or ambient Celsius. It never changes saved
+Instances or authored bytes. Duplicate/missing targets, ambiguous declarations,
+unsupported corners and conflicting temperature sweeps are repairable errors.
+Prepared source maps and input identity describe the actual point; native loops
+remain intact. Temperature insertion occurs before authored analyses/sweep groups
+so earlier options cannot silently override the requested point.
+
+Native device OP saves use Profile-reviewed model outputs. Terminal-current
+requests use the shared derived-IR series-source transformation with deterministic
+branch allocation, not guesses from MOS model drain current. Explicit save lists
+are not silently widened to all vectors. Unsupported acquisitions return a
+specific diagnostic; no reconstructed threshold, gm or region classifier is added.
+
+VACASK source `dc` is mode-specific: OP evaluates the chosen waveform at time
+zero unless `type="dc"`. A generated waveform that also carries `dc` produces
+the informational `SIMULATION_NATIVE_SOURCE_DC_MODE` finding. Authors can switch
+source mode explicitly with `alter instance("V1") type="dc"`, run bias/AC, then
+restore `type="pulse"` (or the actual waveform) before TRAN. The compiler does
+not emulate ngspice's independent DC/transient source semantics.
+
 The current Project stores `simulationFolders`. Each is a version-4 source
 container with stable `id`, unique editable `name`, and one `input`:
 

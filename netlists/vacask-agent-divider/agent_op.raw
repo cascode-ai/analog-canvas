@@ -1,0 +1,15 @@
+Title: Native Agent browser divider
+Date: Tue Sep 15 08:11:42 2026
+Plotname: Operating Point
+Flags: real
+No. Variables: 3
+No. Points: 1               
+Variables:
+	0	mid	notype
+	1	input	notype
+	2	V1:flow(br)	notype
+Values:
+ 0	5.000000000000000e-01
+	1.000000000000000e+00
+	-5.000000000000000e-04
+

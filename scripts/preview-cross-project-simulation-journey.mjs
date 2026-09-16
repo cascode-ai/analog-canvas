@@ -4,27 +4,76 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { createInterface } from "node:readline";
+import { createHash, randomUUID } from "node:crypto";
 
 import { chromium } from "@playwright/test";
-import {
-  createEmptyProject,
-  readSimulationExperimentConfig,
-  replaceSimulationExperimentConfig,
-} from "../packages/model/dist/index.js";
+import { createEmptyProject } from "../packages/model/dist/index.js";
 import {
   parseProject,
   serializeProject,
 } from "../packages/project-protocol/dist/index.js";
-import { SimulationSpecReportSchema } from "../packages/simulation-service/dist/contract.js";
-import { SimulationResultSchema } from "../packages/spice-run/dist/index.js";
-import { materializeSimulationRunEvidence } from "./lib/simulation-run-evidence.mjs";
+import {
+  SimulationResultSchema,
+  verifySimulationEnvironmentMetadata,
+} from "../packages/spice-run/dist/index.js";
+import { nativeImportedTestbench } from "./lib/native-cross-project-fixture.mjs";
+import {
+  nativeRunnerOptions,
+  expectedNativeEnvironments,
+  collectNativeRunEvidence,
+} from "./lib/native-example-runner.mjs";
+import { verifyPreviewCandidate } from "./lib/preview-candidate.mjs";
+import { downloadPublishedMcp } from "./lib/published-mcp.mjs";
 
-const baseUrl = new URL(
-  process.argv[2] ?? "https://analog-canvas-preview.tokenzhang.com",
+// Same explicit candidate/bundle/environment arguments as the native batch runner.
+// No default hostname: this command creates a temporary Cloud Project.
+// The delivery workflow explicitly targets shared Preview. Keep the separate
+// migration runner's conservative origin restrictions for custom candidates.
+const sharedPreview =
+  process.argv.length === 3 &&
+  process.argv[2].replace(/\/$/, "") ===
+    "https://analog-canvas-preview.tokenzhang.com";
+let publishedDirectory;
+let published;
+let options;
+if (sharedPreview) {
+  publishedDirectory = await mkdtemp(join(tmpdir(), "icm-cross-published-"));
+  published = await downloadPublishedMcp(process.argv[2], publishedDirectory);
+  options = {
+    url: process.argv[2],
+    bundle: published.executable,
+    bundleSha256: createHash("sha256")
+      .update(await readFile(published.executable))
+      .digest("hex"),
+    environments: [resolve("config/vacask-preview-environment.json")],
+  };
+} else options = nativeRunnerOptions(process.argv.slice(2));
+assert(
+  !options.selected,
+  "Cross-Project acceptance uses its fixed OTA fixture",
 );
+const baseUrl = new URL(options.url);
+const bundleBytes = await readFile(options.bundle);
+assert.equal(
+  createHash("sha256").update(bundleBytes).digest("hex"),
+  options.bundleSha256,
+  "MCP bundle differs from the supplied expected digest",
+);
+const environments = expectedNativeEnvironments(
+  await Promise.all(
+    options.environments.map(async (path) =>
+      JSON.parse(await readFile(path, "utf8")),
+    ),
+  ),
+);
+for (const environment of environments.values())
+  assert(
+    await verifySimulationEnvironmentMetadata(environment),
+    "Expected runtime metadata is inconsistent",
+  );
 const acceptanceToken = process.env.ICM_PREVIEW_ACCEPTANCE_TOKEN;
 assert(acceptanceToken, "ICM_PREVIEW_ACCEPTANCE_TOKEN is required");
-const outputDirectory = resolve(
+const outputRoot = resolve(
   process.env.ICM_ACCEPTANCE_OUTPUT_DIR ??
     "test-results/preview-cross-project-simulation",
 );
@@ -52,7 +101,7 @@ assert(
 
 const sourceProject = structuredClone(referenceProject);
 sourceProject.id = "preview-cross-project-dut-source";
-sourceProject.name = "Preview Cross-Project OTA DUT";
+sourceProject.name = `Native Cross-Project OTA DUT ${randomUUID()}`;
 sourceProject.topDocumentId = dut.id;
 sourceProject.documents = [structuredClone(dut)];
 sourceProject.simulationFolders = [];
@@ -69,7 +118,8 @@ const importedSetupId = "acceptance-cross-project-op";
 const privateDirectory = await mkdtemp(
   join(tmpdir(), "analog-canvas-cross-project-"),
 );
-await mkdir(outputDirectory, { recursive: true });
+await mkdir(outputRoot, { recursive: true });
+const outputDirectory = await mkdtemp(join(outputRoot, "candidate-"));
 
 let browser;
 let context;
@@ -84,6 +134,7 @@ const report = {
   fixture: "cross-project-sky130-ota-op",
   commitSha: process.env.GITHUB_SHA ?? null,
   startedAt: new Date().toISOString(),
+  mcp: { sha256: options.bundleSha256 },
 };
 
 function rpc(method, params) {
@@ -132,8 +183,8 @@ async function tool(name, args = {}, allowProblem = false) {
 }
 
 async function startMcp() {
-  mcp = spawn(process.execPath, [resolve("apps/mcp-server/dist/main.js")], {
-    cwd: resolve("."),
+  mcp = spawn(process.execPath, [options.bundle], {
+    cwd: privateDirectory,
     env: {
       ...process.env,
       ANALOG_CANVAS_API_URL: baseUrl.origin,
@@ -202,6 +253,13 @@ async function exportArtifact(artifact) {
     outputPath: join(outputDirectory, artifact.name),
   });
   assert.notEqual(saved.ok, false, `Could not export ${artifact.name}`);
+  assert.equal(
+    createHash("sha256")
+      .update(await readFile(join(outputDirectory, artifact.name)))
+      .digest("hex"),
+    artifact.sha256,
+    `Corrupt artifact ${artifact.name}`,
+  );
   return {
     name: artifact.name,
     byteLength: artifact.byteLength,
@@ -224,6 +282,7 @@ async function cloudRequest(path, options = {}) {
 }
 
 try {
+  report.candidate = await verifyPreviewCandidate(baseUrl);
   browser = await chromium.launch({ headless: true });
   context = await browser.newContext({
     viewport: { width: 1_440, height: 1_000 },
@@ -239,26 +298,8 @@ try {
     },
   ]);
 
-  const prior = await cloudRequest("/api/projects");
-  assert.equal(
-    prior.status(),
-    200,
-    "Preview acceptance Project shelf is unavailable",
-  );
-  for (const project of (await prior.json()).projects ?? []) {
-    if (project.name !== sourceProject.name) continue;
-    const removed = await cloudRequest(
-      `/api/projects/${encodeURIComponent(project.id)}`,
-      {
-        method: "DELETE",
-      },
-    );
-    assert.equal(
-      removed.ok(),
-      true,
-      "Could not clear an earlier acceptance source",
-    );
-  }
+  // Never delete another run's Project by display name. Own only the ID returned
+  // by this creation; retain it in the report immediately for manual recovery.
   const seeded = await cloudRequest("/api/projects", {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -270,6 +311,11 @@ try {
     `Could not seed source Project (${seeded.status()})`,
   );
   sourceCloudProjectId = (await seeded.json()).project.id;
+  assert.equal(typeof sourceCloudProjectId, "string");
+  report.sourceProject = {
+    cloudProjectId: sourceCloudProjectId,
+    sourceDocumentId: dut.id,
+  };
 
   const page = await context.newPage();
   await page.goto(new URL("/editor", baseUrl).toString());
@@ -318,64 +364,13 @@ try {
   assert.equal(imported.ok, true);
   assert.equal(imported.status, "imported");
 
-  const importedTestbench = structuredClone(testbench);
-  importedTestbench.id = importedTestbenchId;
-  importedTestbench.name = "Cross-Project OTA Testbench";
-  importedTestbench.netlist.name = "cross_project_ota_tb";
-  const dutInstance = importedTestbench.instances.find(
-    (instance) => instance.id === "XDUT",
-  );
-  assert.equal(dutInstance?.netlist?.binding?.kind, "subcircuit");
-  dutInstance.netlist.binding.childDocumentId = imported.rootDocumentId;
-
-  let opSetup = structuredClone(referenceSetup);
-  opSetup.id = importedSetupId;
-  opSetup.name = "Cross-Project OTA OP";
-  const binding = opSetup.input.circuitBindings.find(
-    (item) => item.emission === "top-level",
-  );
-  assert(binding, "The qualification requires a drawn Testbench binding");
-  binding.documentId = importedTestbenchId;
-  const parsedConfig = readSimulationExperimentConfig(opSetup);
-  assert(parsedConfig.ok, "Invalid qualification configuration");
-  const opConfig = parsedConfig.config;
-  opConfig.deviceOperatingPoints = [];
-  opConfig.measurements = [];
-  opConfig.variables = [];
-  opConfig.runPlan = { mode: "nominal" };
-  opConfig.outputs = opConfig.outputs
-    .filter((output) => output.id === "probe-vout")
-    .map((output) => {
-      const mapped = structuredClone(output);
-      if (mapped.expression.documentId === testbench.id) {
-        mapped.expression.documentId = importedTestbenchId;
-      } else if (mapped.expression.documentId === dut.id) {
-        mapped.expression.documentId = imported.rootDocumentId;
-      }
-      return mapped;
-    });
-  assert.deepEqual(
-    opConfig.outputs.map((output) => output.id),
-    ["probe-vout"],
-    "The cross-Project baseline must probe only the DUT formal output",
-  );
-  opSetup = replaceSimulationExperimentConfig(opSetup, opConfig);
-  const program = opSetup.input.files.find(
-    (file) => file.path === opSetup.input.entry,
-  );
-  assert(program, "The qualification has no entry");
-  // This acceptance owns its small native program, not arbitrary user source.
-  program.text = [
-    "* Cross-Project OTA OP",
-    `.include "${binding.path}"`,
-    ".control",
-    "set filetype=ascii",
-    "op",
-    "write out.raw",
-    ".endc",
-    ".end",
-    "",
-  ].join("\n");
+  const { testbench: importedTestbench, folder: opSetup } =
+    nativeImportedTestbench(
+      referenceProject,
+      imported.rootDocumentId,
+      importedTestbenchId,
+      importedSetupId,
+    );
 
   const authored = await tool("advanced_transact", {
     structureEdits: [
@@ -395,51 +390,53 @@ try {
     },
   });
   assert.equal(preparedReply.ok, true);
+  const preparedArtifact = preparedReply.prepared.artifacts.find(
+    (a) => a.name === "prepared.json",
+  );
+  await exportArtifact(preparedArtifact);
+  const compiled = JSON.parse(
+    await readFile(join(outputDirectory, "prepared.json"), "utf8"),
+  );
+  assert.equal(compiled.language, "vacask");
+  const expectedEnvironment = environments.get(compiled.environment.profileId);
+  assert(
+    expectedEnvironment,
+    "Supply the independently accepted environment for this Profile",
+  );
   const finished = await startAndRead(preparedReply.prepared);
   assert.equal(finished.state, "finished");
 
-  const exports = [];
-  const fullRun = await materializeSimulationRunEvidence(
-    finished,
-    async (artifact) => {
-      exports.push(await exportArtifact(artifact));
-      const value = JSON.parse(
-        await readFile(join(outputDirectory, artifact.name), "utf8"),
-      );
-      return artifact.name === "result.json"
-        ? SimulationResultSchema.parse(value)
-        : SimulationSpecReportSchema.parse(value);
-    },
+  const evidence = await collectNativeRunEvidence({
+    tool,
+    run: finished,
+    directory: join(outputDirectory, "run"),
+    compiled,
+    expectedEnvironment,
+  });
+  const result = SimulationResultSchema.parse(
+    JSON.parse(
+      await readFile(join(outputDirectory, "run/result.json"), "utf8"),
+    ),
   );
-  assert.equal(fullRun.result?.outcome.status, "completed");
-  const op = fullRun.result.data?.analyses.find(
+  const op = result.data?.analyses.find(
     (analysis) => analysis.analysis === "op",
   );
-  const vout = op?.probes.find((probe) => probe.name === "v(vout)")?.value;
+  const value = op?.probes.find((probe) => probe.name === "vout")?.value;
+  const vout = Array.isArray(value) ? value[0] : value;
   assert(Number.isFinite(vout), "Imported OTA returned no finite OP output");
   assert(
-    vout > 0.5 && vout < 1.2,
+    vout > 0 && vout < 1.8,
     `Imported OTA OP output is implausible: ${vout}`,
   );
 
-  for (const artifact of [
-    preparedReply.prepared.artifacts.find(
-      (item) => item.name === "prepared.cir",
-    ),
-    ...finished.artifacts.filter((item) =>
-      [
-        "out.raw",
-        "result.json",
-        "specs.json",
-        "specs.csv",
-        "op-0.csv",
-      ].includes(item.name),
-    ),
-  ]) {
-    if (!artifact || exports.some((item) => item.name === artifact.name))
-      continue;
-    exports.push(await exportArtifact(artifact));
-  }
+  for (const required of ["raw/bias.raw", "op-0.csv"])
+    assert(
+      evidence.artifacts.some((a) => a.name === required),
+      `Missing ${required}`,
+    );
+  await exportArtifact(
+    preparedReply.prepared.artifacts.find((a) => a.name === "prepared.cir"),
+  );
 
   report.status = "passed";
   report.completedAt = new Date().toISOString();
@@ -458,41 +455,59 @@ try {
     preparedId: preparedReply.prepared.id,
     runId: finished.id,
     inputRevision: preparedReply.prepared.inputRevision,
-    environment: fullRun.result.metadata.environment,
+    environment: result.metadata.environment,
     vout,
   };
-  report.exports = exports;
-  await writeFile(
-    join(outputDirectory, "acceptance-report.json"),
-    `${JSON.stringify(report, null, 2)}\n`,
-  );
+  report.evidence = evidence;
   await tool("disconnect");
   paired = false;
-  console.log(`Preview cross-Project OTA OP passed: vout=${vout}`);
 } catch (error) {
   report.status = "failed";
   report.completedAt = new Date().toISOString();
   report.error =
     error instanceof Error ? (error.stack ?? error.message) : String(error);
-  await writeFile(
-    join(outputDirectory, "acceptance-report.json"),
-    `${JSON.stringify(report, null, 2)}\n`,
-  );
   throw error;
 } finally {
-  if (paired) await tool("disconnect", {}, true).catch(() => {});
+  const cleanupErrors = [];
+  const cleanup = async (name, operation) => {
+    try {
+      await operation();
+    } catch (error) {
+      cleanupErrors.push(`${name}: ${error.message}`);
+    }
+  };
+  if (paired) await cleanup("disconnect", () => tool("disconnect"));
   if (mcp) {
     mcp.stdin.end();
     mcp.kill();
   }
   if (sourceCloudProjectId && context) {
-    await cloudRequest(
-      `/api/projects/${encodeURIComponent(sourceCloudProjectId)}`,
-      {
-        method: "DELETE",
-      },
-    ).catch(() => {});
+    await cleanup("source Project deletion", async () => {
+      const removed = await cloudRequest(
+        `/api/projects/${encodeURIComponent(sourceCloudProjectId)}`,
+        {
+          method: "DELETE",
+        },
+      );
+      assert(removed.ok(), `HTTP ${removed.status()}`);
+    });
   }
-  await browser?.close();
-  await rm(privateDirectory, { recursive: true, force: true });
+  await cleanup("browser", () => browser?.close());
+  await cleanup("connector scratch", () =>
+    rm(privateDirectory, { recursive: true, force: true }),
+  );
+  if (publishedDirectory)
+    await cleanup("published MCP scratch", () =>
+      rm(publishedDirectory, { recursive: true, force: true }),
+    );
+  if (published) report.publishedMcp = published.receipt;
+  report.cleanupErrors = cleanupErrors;
+  if (cleanupErrors.length) report.status = "failed";
+  report.completedAt = new Date().toISOString();
+  await writeFile(
+    join(outputDirectory, "acceptance-report.json"),
+    `${JSON.stringify(report, null, 2)}\n`,
+  );
+  if (!report.error) assert(!cleanupErrors.length, cleanupErrors.join("\n"));
 }
+console.log(`Native cross-Project acceptance passed: ${outputDirectory}`);

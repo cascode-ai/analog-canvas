@@ -1,4 +1,7 @@
 import { z } from "zod";
+export const SimulationPostprocessorOriginSchema = z.strictObject({
+  logLine: z.number().int().positive(),
+});
 export const SimulationRawPlotOrdinalsSchema = z
   .array(z.number().int().nonnegative())
   .min(1);
@@ -40,6 +43,7 @@ const SimulationAnalysisResultSchema = z.discriminatedUnion("analysis", [
   z.strictObject({
     rawPlotOrdinals: SimulationRawPlotOrdinalsSchema.optional(),
     analysis: z.literal("op"),
+    postprocessor: SimulationPostprocessorOriginSchema.optional(),
     scalars: CapturedScalarsSchema,
     plotName: z.string(),
     probes: z.array(
@@ -48,6 +52,7 @@ const SimulationAnalysisResultSchema = z.discriminatedUnion("analysis", [
   }),
   z.strictObject({
     analysis: z.literal("ac"),
+    postprocessor: SimulationPostprocessorOriginSchema.optional(),
     scalars: CapturedScalarsSchema,
     rawPlotOrdinals: SimulationRawPlotOrdinalsSchema.optional(),
     plotName: z.string(),
@@ -65,6 +70,7 @@ const SimulationAnalysisResultSchema = z.discriminatedUnion("analysis", [
   }),
   z.strictObject({
     analysis: z.literal("dc"),
+    postprocessor: SimulationPostprocessorOriginSchema.optional(),
     scalars: CapturedScalarsSchema,
     rawPlotOrdinals: SimulationRawPlotOrdinalsSchema.optional(),
     plotName: z.string(),
@@ -78,6 +84,7 @@ const SimulationAnalysisResultSchema = z.discriminatedUnion("analysis", [
   }),
   z.strictObject({
     analysis: z.literal("tran"),
+    postprocessor: SimulationPostprocessorOriginSchema.optional(),
     scalars: CapturedScalarsSchema,
     rawPlotOrdinals: SimulationRawPlotOrdinalsSchema.optional(),
     plotName: z.string(),
@@ -88,14 +95,24 @@ const SimulationAnalysisResultSchema = z.discriminatedUnion("analysis", [
   }),
   z.strictObject({
     analysis: z.literal("noise"),
+    postprocessor: SimulationPostprocessorOriginSchema.optional(),
     scalars: CapturedScalarsSchema,
     rawPlotOrdinals: SimulationRawPlotOrdinalsSchema.optional(),
     plotName: z.literal("Noise Analysis"),
     frequencyHz: z.array(z.number()),
     outputNoiseDensity: z.array(z.number()),
-    inputNoiseDensity: z.array(z.number()),
-    integratedOutputNoise: z.number(),
-    integratedInputNoise: z.number(),
+    inputNoiseDensity: z.array(z.number().finite().nullable()),
+    integratedOutputNoise: z.number().finite().optional(),
+    integratedInputNoise: z.number().finite().optional(),
+    integrationMethod: z.literal("trapezoidal-psd").optional(),
+    probes: z
+      .array(
+        z.strictObject({
+          ...SimulationProbeShape,
+          value: z.array(z.number().finite()),
+        }),
+      )
+      .optional(),
     units: z.strictObject({
       outputDensity: z.literal("V/sqrt(Hz)"),
       inputDensity: z.enum(["V/sqrt(Hz)", "A/sqrt(Hz)"]),
@@ -105,19 +122,28 @@ const SimulationAnalysisResultSchema = z.discriminatedUnion("analysis", [
   }),
 ]);
 
-const SimulationResultDataSchema = z.strictObject({
+export const SimulationResultDataSchema = z.strictObject({
   schemaVersion: z.literal(1),
   /** Never empty: a run that produced no vectors is a diagnostic, not a result. */
   analyses: z.array(SimulationAnalysisResultSchema),
   rawPlots: z
     .array(
-      z.strictObject({
-        ordinal: z.number().int().nonnegative(),
-        plotName: z.string(),
-        pointCount: z.number().int().nonnegative(),
-        variables: z.array(z.string()),
-        analysisIndex: z.number().int().nonnegative().optional(),
-      }),
+      z
+        .strictObject({
+          ordinal: z.number().int().nonnegative(),
+          artifactPath: z.string().min(1).optional(),
+          artifactPlotOrdinal: z.number().int().nonnegative().optional(),
+          plotName: z.string(),
+          pointCount: z.number().int().nonnegative(),
+          variables: z.array(z.string()),
+          analysisIndex: z.number().int().nonnegative().optional(),
+        })
+        .refine(
+          (record) =>
+            (record.artifactPath === undefined) ===
+            (record.artifactPlotOrdinal === undefined),
+          "Native plot provenance requires both its artifact path and artifact-local ordinal",
+        ),
     )
     .optional(),
 });
@@ -150,7 +176,7 @@ const SimulationRunMetadataSchema = z.strictObject({
     profileId: z.string().nullable(),
     platform: z.string(),
     simulator: z.strictObject({
-      name: z.literal("ngspice"),
+      name: z.enum(["vacask", "ngspice"]),
       version: z.string(),
       binarySha256: z.string().nullable(),
     }),

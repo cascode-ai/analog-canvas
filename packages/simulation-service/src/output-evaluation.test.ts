@@ -1,12 +1,300 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import {
+  readVacaskSimulationData,
+  type SimulationResultData,
+} from "@icm/spice-run";
 
 import {
   evaluateSimulationOutputs,
+  simulationOutputAnalysisToCsv,
   simulationDeviceOperatingPointsToCsv,
 } from "./output-evaluation.js";
 import { SimulationOutputDataSchema } from "./contract.js";
 
 describe("simulation output evaluation", () => {
+  it("types native sense values from captured evidence, not spelling, without overriding authored expressions", () => {
+    const name = "X1:sense:flow(br)";
+    const data: SimulationResultData = {
+      schemaVersion: 1,
+      analyses: [
+        {
+          analysis: "ac",
+          plotName: "AC",
+          frequencyHz: [1],
+          probes: [
+            { name, quantity: "notype", unit: null, real: [0.001], imag: [0] },
+          ],
+        },
+      ],
+    };
+    const vectors = [
+      { probeId: `native:${name}`, vector: name, quantity: "current" as const },
+    ];
+    const read = (
+      evidence = vectors,
+      declarations = new Map<string, string | null>(),
+    ) =>
+      evaluateSimulationOutputs(
+        data,
+        evidence,
+        [],
+        [],
+        [],
+        true,
+        { [name]: "I(X1/M1.D)" },
+        declarations,
+      );
+    const result = read();
+    expect(result.analyses[0]!.outputs[0]).toMatchObject({
+      unit: "A",
+      label: `I(X1/M1.D) — ${name}`,
+      values: [0.001],
+      imaginary: [0],
+      semantics: { valueKind: "complex", quantity: "current", origin: "raw" },
+    });
+    expect(read([]).analyses[0]!.outputs[0]!.unit).toBe("");
+    const shadow = read(vectors, new Map([[name, "2"]])).analyses[0]!
+      .outputs[0]!;
+    expect(shadow.unit).not.toBe("A");
+    expect(shadow.semantics?.origin).toBe("expression");
+    expect(
+      data.analyses[0]!.analysis === "ac" && data.analyses[0]!.probes[0]!.unit,
+    ).toBeNull();
+    expect(simulationOutputAnalysisToCsv(result.analyses[0]!)).toContain(
+      "I(X1/M1.D)",
+    );
+  });
+  it.each(["op", "dc", "ac", "tran"] as const)(
+    "preserves case-distinct %s acquisitions, output IDs, labels and CSV values",
+    (kind) => {
+      const probes = [
+        { name: "Out", quantity: "voltage", unit: "V", number: 1 },
+        { name: "out", quantity: "current", unit: "A", number: 2 },
+      ];
+      const shared = { plotName: "Case-sensitive signals" };
+      const series = probes.map(({ number, ...p }) => ({
+        ...p,
+        value: [number],
+      }));
+      const analysis: SimulationResultData["analyses"][number] =
+        kind === "op"
+          ? {
+              ...shared,
+              analysis: kind,
+              probes: probes.map(({ number, ...p }) => ({
+                ...p,
+                value: number,
+              })),
+            }
+          : kind === "ac"
+            ? {
+                ...shared,
+                analysis: kind,
+                frequencyHz: [1e3],
+                probes: probes.map(({ number, ...p }) => ({
+                  ...p,
+                  real: [number],
+                  imag: [0],
+                })),
+              }
+            : kind === "dc"
+              ? {
+                  ...shared,
+                  analysis: kind,
+                  sweep: {
+                    name: "sweep",
+                    quantity: "voltage",
+                    unit: "V",
+                    values: [0],
+                  },
+                  probes: series,
+                }
+              : { ...shared, analysis: kind, timeSeconds: [0], probes: series };
+      const data: SimulationResultData = {
+        schemaVersion: 1,
+        analyses: [analysis],
+      };
+      const result = evaluateSimulationOutputs(data, [], [], [], [], true, {
+        Out: "Upper",
+        out: "Lower",
+      });
+      expect(result.diagnostics).toEqual([]);
+      expect(result.analyses[0]!.outputs).toMatchObject([
+        { id: "native:Out", label: "Upper — Out", unit: "V", values: [1] },
+        { id: "native:out", label: "Lower — out", unit: "A", values: [2] },
+      ]);
+      if (kind === "ac")
+        expect(
+          result.analyses[0]!.outputs.every(
+            (o) =>
+              o.semantics?.valueKind === "complex" && o.imaginary?.[0] === 0,
+          ),
+        ).toBe(true);
+      const csv = simulationOutputAnalysisToCsv(result.analyses[0]!);
+      expect(csv).toContain("Upper — Out");
+      expect(csv).toContain("Lower — out");
+      expect(csv).toContain(kind === "ac" ? '"1","0","2","0"' : '"1","2"');
+
+      // Mapping Out must neither consume out nor resolve the missing OUT alias.
+      const selected = evaluateSimulationOutputs(
+        data,
+        [
+          { probeId: "selected", vector: "Out", quantity: "native" },
+          { probeId: "missing", vector: "OUT", quantity: "native" },
+        ],
+        [
+          {
+            id: "selected",
+            label: "Selected",
+            expression: {
+              kind: "acquisition",
+              acquisitionId: "selected",
+              quantity: "native",
+            },
+          },
+          {
+            id: "missing",
+            label: "Missing",
+            expression: {
+              kind: "acquisition",
+              acquisitionId: "missing",
+              quantity: "native",
+            },
+          },
+        ],
+        [],
+        [],
+        true,
+      );
+      expect(selected.analyses[0]!.outputs).toMatchObject([
+        { id: "selected", values: [1] },
+        { id: "native:out", values: [2] },
+      ]);
+      expect(selected.diagnostics).toMatchObject([
+        { outputId: "missing", code: "SIMULATION_OUTPUT_EVALUATION_FAILED" },
+      ]);
+      expect(SimulationOutputDataSchema.safeParse(selected).success).toBe(true);
+    },
+  );
+  it("preserves case-distinct captured scalar identities and units", () => {
+    const result = evaluateSimulationOutputs(
+      {
+        schemaVersion: 1,
+        analyses: [
+          {
+            analysis: "ac",
+            plotName: "scalar",
+            frequencyHz: [1e3],
+            probes: [],
+            scalars: [
+              { name: "Gain", quantity: "decibel", unit: "dB", value: 20 },
+              { name: "gain", quantity: "phase", unit: "rad", value: 1 },
+            ],
+          },
+        ],
+      },
+      [],
+      [],
+      [],
+      [],
+      true,
+    );
+    expect(result.analyses[0]!.scalars).toMatchObject([
+      { id: "native:Gain", value: 20, unit: "dB" },
+      { id: "native:gain", value: 1, unit: "rad" },
+    ]);
+  });
+  it("exposes native noise vectors and labels sampled integrals through the shared output contract", () => {
+    const text = readFileSync(
+      new URL(
+        "../../../netlists/vacask-resistor-noise/current_noise.raw",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+    const reading = readVacaskSimulationData(
+      [{ path: "current.raw", text }],
+      [
+        {
+          artifactPath: "current.raw",
+          plotOrdinal: 0,
+          analysis: "noise",
+          axis: "frequency",
+          outputPsd: "onoise",
+          powerGain: "gain",
+          inputQuantity: "current",
+        },
+      ],
+    );
+    if (reading.status !== "read") throw Error(JSON.stringify(reading));
+    const noise = reading.data.analyses[0]!;
+    if (noise.analysis !== "noise") throw Error("Expected Noise");
+    const data = {
+      ...reading.data,
+      analyses: [
+        {
+          ...noise,
+          probes: [
+            ...noise.probes!,
+            {
+              name: "n(r1)",
+              quantity: "notype",
+              unit: null,
+              value: Array(13).fill(0),
+            },
+          ],
+        },
+      ],
+    };
+    const result = evaluateSimulationOutputs(data, [], [], [], [], true);
+    expect(SimulationOutputDataSchema.safeParse(result).success).toBe(true);
+    const a = result.analyses[0]!;
+    expect(a.outputs.find((p) => p.id === "noise-input-density")?.unit).toBe(
+      "A/sqrt(Hz)",
+    );
+    expect(a.outputs.find((p) => p.id === "native:gain")).toMatchObject({
+      label: "gain",
+      unit: "V²/A²",
+      values: Array(13).fill(1e6),
+      semantics: { origin: "raw" },
+    });
+    expect(
+      a.outputs.filter((p) => ["native:n(R1)", "native:n(r1)"].includes(p.id)),
+    ).toHaveLength(2);
+    expect(
+      a.integrated?.every(
+        (v) =>
+          v.label.includes("sampled PSD") &&
+          v.semantics?.origin === "expression",
+      ),
+    ).toBe(true);
+    const gap = evaluateSimulationOutputs(
+      {
+        ...data,
+        analyses: [
+          {
+            ...data.analyses[0]!,
+            integratedInputNoise: undefined,
+            inputNoiseDensity: [null, ...noise.inputNoiseDensity.slice(1)],
+          },
+        ],
+      },
+      [],
+      [],
+      [],
+      [],
+      true,
+    );
+    expect(SimulationOutputDataSchema.safeParse(gap).success).toBe(true);
+    expect(gap.analyses[0]?.integrated?.map((v) => v.id)).toEqual([
+      "noise-integrated-output",
+    ]);
+    expect(
+      gap.analyses[0]?.outputs.find((v) => v.id === "noise-input-density")
+        ?.values[0],
+    ).toBeNull();
+  });
   it("resolves ngspice46 typed raw names for hierarchical device parameters", () => {
     const result = evaluateSimulationOutputs(
       {

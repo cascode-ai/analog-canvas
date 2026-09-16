@@ -20,7 +20,24 @@ on:
         required: true
         default: probe
         type: choice
-        options: [probe, bootstrap-tunnel, deploy]
+        options:
+          [
+            probe,
+            bootstrap-tunnel,
+            deploy,
+            vacask-preview,
+            vacask-diagnostics,
+            vacask-compat-build,
+          ]
+      candidate_assets:
+        description: Draft release tag containing the pinned native build context
+        type: string
+      candidate_sha256:
+        description: SHA256 of vacask-candidate-source.tgz
+        type: string
+      config_sha256:
+        description: SHA256 of native-compose-config.json
+        type: string
   push:
     branches: [main]
     paths:
@@ -43,7 +60,44 @@ env:
   SIM_SERVICE: http://analog-canvas-ngspice:8080
 
 jobs:
+  vacask-compat-build:
+    if: github.event_name == 'workflow_dispatch' && inputs.action == 'vacask-compat-build'
+    # GitHub requires write permission to read unpublished draft assets.
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Fetch pinned simulator source and existing candidate inputs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir compat-build
+          gh release download vacask-preview-assets-20260916 --dir compat-build --pattern vacask-candidate-source.tgz
+          echo 'e848a12c364af0a6d954f6f4da60250c9110b5d95dc533de05a464cbbacd4352  compat-build/vacask-candidate-source.tgz' | sha256sum -c -
+          mkdir compat-build/context
+          tar -xzf compat-build/vacask-candidate-source.tgz -C compat-build/context
+          git clone --depth 1 --branch _0.3.4 https://codeberg.org/arpadbuermen/VACASK.git compat-build/source
+          test "$(git -C compat-build/source rev-parse HEAD)" = c1a1c84f1b2b9aa71c0cddf06e555441434db7b7
+      - name: Build simulator without pidfd dependency (no deployment)
+        uses: docker/build-push-action@v6
+        with:
+          context: compat-build
+          file: containers/vacask/Dockerfile.compat-build
+          target: artifact
+          outputs: type=local,dest=compat-artifact
+          cache-from: type=gha,scope=vacask-compat
+          cache-to: type=gha,mode=max,scope=vacask-compat
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vacask-compat-${{ github.sha }}
+          path: compat-artifact/
+          if-no-files-found: error
+          retention-days: 14
   host:
+    if: github.event_name != 'workflow_dispatch' || (inputs.action != 'vacask-preview' && inputs.action != 'vacask-diagnostics' && inputs.action != 'vacask-compat-build')
     name: ${{ github.event_name == 'push' && 'deploy' || inputs.action }}
     runs-on: ubuntu-latest
     # The account id and the deploy token live in this environment's secrets,
@@ -74,6 +128,9 @@ jobs:
             ConnectTimeout 20
           CFG
           ssh sim 'echo "host reachable: $(hostname)"; docker ps --format "{{.Names}} {{.Status}}" | sed "s/^/  /"'
+          # Read-only capacity evidence before considering a second executor.
+          # Never stop the shared ngspice service to make a candidate fit.
+          ssh sim 'free -m; df -h /; printf "logical CPUs: "; nproc'
 
       - name: Probe what the Cloudflare token may do
         if: github.event_name == 'workflow_dispatch' && inputs.action == 'probe'
@@ -209,3 +266,55 @@ jobs:
           status="$(curl --silent --output /dev/null --write-out '%{http_code}' --max-time 10 -X POST -H 'content-type: application/json' --data '{"deck":"x\n.end\n"}' "https://$SIM_HOSTNAME/run")"
           [ "$status" = "401" ] || { echo "::error::/run answered $status to a caller without the token; it must answer 401"; exit 1; }
           echo "/run without the token: 401, as required"
+
+  vacask-preview:
+    if: github.event_name == 'workflow_dispatch' && (inputs.action == 'vacask-preview' || inputs.action == 'vacask-diagnostics')
+    # GitHub restricts draft-release visibility to write-capable repository tokens.
+    # The script only downloads the explicitly named draft; it never publishes it.
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    environment: cloudflare-preview
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure existing authenticated SSH access
+        env:
+          SIM_HOST_SSH_KEY: ${{ secrets.SIM_HOST_SSH_KEY }}
+          SIM_HOST_KNOWN_HOSTS: ${{ secrets.SIM_HOST_KNOWN_HOSTS }}
+          SIM_HOST_ADDR: ${{ secrets.SIM_HOST_ADDR }}
+          SIM_HOST_USER: ${{ secrets.SIM_HOST_USER }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$SIM_HOST_SSH_KEY" > ~/.ssh/sim_host
+          chmod 600 ~/.ssh/sim_host
+          printf '%s\n' "$SIM_HOST_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          printf 'Host sim\n HostName %s\n User %s\n IdentityFile ~/.ssh/sim_host\n IdentitiesOnly yes\n BatchMode yes\n ConnectTimeout 20\n' "$SIM_HOST_ADDR" "$SIM_HOST_USER" > ~/.ssh/config
+      - name: Build isolated VACASK executor and verify native identity
+        if: inputs.action == 'vacask-preview'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_ASSETS: ${{ inputs.candidate_assets }}
+          CANDIDATE_SHA256: ${{ inputs.candidate_sha256 }}
+          CONFIG_SHA256: ${{ inputs.config_sha256 }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_TUNNEL_API_TOKEN: ${{ secrets.CLOUDFLARE_TUNNEL_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: bash containers/vacask/host/deploy-preview.sh
+      - name: Read isolated candidate state without changing services
+        if: inputs.action == 'vacask-diagnostics'
+        run: |
+          ssh sim 'docker ps -a --filter label=com.docker.compose.project=icm-vacask-preview --format "{{.Names}} {{.Status}}"; for id in $(docker ps -aq --filter label=com.docker.compose.project=icm-vacask-preview); do docker inspect --format "{{.Name}} restarts={{.RestartCount}} oom={{.State.OOMKilled}} exit={{.State.ExitCode}} started={{.State.StartedAt}}" "$id"; done; id=$(docker ps -q --filter label=com.docker.compose.project=icm-vacask-preview --filter label=com.docker.compose.service=executor); test -n "$id" && docker logs --since 30m --tail 40 "$id"'
+      - name: Probe native child-process kernel support
+        if: inputs.action == 'vacask-diagnostics'
+        run: |
+          ssh sim 'uname -sr; id=$(docker ps -q --filter label=com.docker.compose.project=icm-vacask-preview --filter label=com.docker.compose.service=executor); test -n "$id" && docker exec "$id" python3 -c "import os; print(os.pidfd_open(os.getpid()))"'
+      - name: Preserve runtime identity (no credentials)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vacask-preview-health-${{ github.sha }}
+          path: candidate-download/health.json
+          if-no-files-found: ignore
+          retention-days: 14

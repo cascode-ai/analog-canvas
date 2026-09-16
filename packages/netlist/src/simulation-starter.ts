@@ -8,6 +8,7 @@ export function createSimulationStarter(
     id: string;
     name: string;
     profileId: string;
+    engine?: "ngspice" | "vacask";
     documentId?: string;
     mode: "circuit" | "dut" | "text";
     template?: "op" | "ac" | "tran";
@@ -20,6 +21,7 @@ export function createSimulationStarter(
         id: options.id,
         name: options.name,
         profileId: options.profileId,
+        ...(options.engine ? { engine: options.engine } : {}),
         ...(options.template ? { template: options.template } : {}),
       }),
     };

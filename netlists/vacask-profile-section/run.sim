@@ -1,0 +1,12 @@
+Illustrative Profile section selection, not PDK qualification
+load "resistor.osdi"
+include "models/sections.inc" section=tt
+model supply vsource
+V1 (Input 0) supply dc=1
+R1 (Input 0) resistance
+control
+abort always
+options rawfile="ascii" strictsave=2
+save default
+analysis bias op
+endc

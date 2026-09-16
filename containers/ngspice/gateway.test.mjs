@@ -1,6 +1,8 @@
 import { spawn } from "node:child_process";
 import { createServer } from "node:http";
 import { once } from "node:events";
+import { readFile } from "node:fs/promises";
+import { SIMULATION_EXECUTOR_RESPONSE_MAX_BYTES } from "@icm/spice-run";
 
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -25,13 +27,14 @@ async function listen(server) {
   return server.address().port;
 }
 
-async function startGateway(executorPort) {
+async function startGateway(executorPort, environment = {}) {
   const child = spawn(process.execPath, ["containers/ngspice/gateway.mjs"], {
     env: {
       PATH: process.env.PATH,
       PORT: "0",
       SIMULATION_ACCESS_TOKEN: "gateway-secret",
       SIMULATION_EXECUTOR_URL: `http://127.0.0.1:${executorPort}`,
+      ...environment,
     },
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -46,6 +49,32 @@ async function startGateway(executorPort) {
 }
 
 describe("operator-host simulation gateway", () => {
+  it("preserves native replies above 4 MiB while enforcing the shared ceiling", async () => {
+    const compose = await readFile(
+      "containers/vacask/host/compose.yaml",
+      "utf8",
+    );
+    const limit = Number(
+      /SIMULATION_GATEWAY_MAX_RESPONSE_BYTES: "(\d+)"/u.exec(compose)?.[1],
+    );
+    expect(limit).toBe(SIMULATION_EXECUTOR_RESPONSE_MAX_BYTES);
+    let bytes = 4 * 1024 * 1024 + 512;
+    const executor = createServer((_request, response) =>
+      response.end("x".repeat(bytes)),
+    );
+    const gatewayPort = await startGateway(await listen(executor), {
+      SIMULATION_GATEWAY_MAX_RESPONSE_BYTES: String(limit),
+    });
+    const response = await fetch(`http://127.0.0.1:${gatewayPort}/health`);
+    expect(response.status).toBe(200);
+    expect((await response.text()).length).toBe(bytes);
+    bytes = limit + 1;
+    const oversized = await fetch(`http://127.0.0.1:${gatewayPort}/health`);
+    expect(oversized.status).toBe(502);
+    expect(await oversized.json()).toEqual({
+      error: "executor-response-too-large",
+    });
+  });
   it("authenticates outside the executor and never forwards the credential", async () => {
     const seen = [];
     const executor = createServer((request, response) => {

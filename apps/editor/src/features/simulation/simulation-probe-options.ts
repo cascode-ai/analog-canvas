@@ -12,6 +12,8 @@ import {
   type HierarchyFrame,
 } from "@icm/derived";
 import { deviceDescriptor } from "@icm/devices";
+import { resolveSimulationVoltageProbeNetId } from "@icm/netlist";
+export { resolveSimulationVoltageProbeNetId } from "@icm/netlist";
 
 import { logicalNetChoices } from "../logical-net-choices";
 
@@ -102,33 +104,6 @@ export function simulationProbeSelectionKey(
   return logicalNetId
     ? `voltage:${occurrence}:${target.documentId}:logical:${logicalNetId}`
     : simulationProbeTargetKey(target);
-}
-
-/** Resolve a saved voltage anchor to the Base Net it currently belongs to. */
-export function resolveSimulationVoltageProbeNetId(
-  project: CircuitProject,
-  target: VoltageProbeTarget,
-): string | undefined {
-  const document = project.documents.find(
-    (candidate) => candidate.id === target.documentId,
-  );
-  if (!document) return undefined;
-  const anchor = target.anchor;
-  if (anchor.kind === "terminal")
-    return document.nets.find((net) =>
-      net.terminals.some(
-        (terminal) =>
-          terminal.instanceId === anchor.instanceId &&
-          terminal.pinName === anchor.pinName,
-      ),
-    )?.id;
-  if (anchor.kind === "junction")
-    return document.junctions.find(
-      (junction) => junction.id === anchor.junctionId,
-    )?.netId;
-  if (anchor.kind === "route")
-    return document.routes.find((route) => route.id === anchor.routeId)?.netId;
-  return document.nets.find((net) => net.id === anchor.netId)?.id;
 }
 
 /** Match a canvas Base Net against the Logical Net selected by one probe. */

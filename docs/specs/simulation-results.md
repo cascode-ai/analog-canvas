@@ -41,6 +41,15 @@ plus the hierarchy occurrence; the mapping from probe to simulator vector
 name is produced at compile time and never inferred from result text. Raw
 input carries no Canvas mapping unless one is proven valid.
 
+Simulator vector spellings are exact result identities. Acquisition lookup,
+native output/scalar IDs, friendly labels and CSV must not case-fold them:
+VACASK can return `Out` and `out` with different values. Name normalization,
+when required by a source language, belongs to its source/compiler adapter,
+not the shared numerical consumer. Physical AC acquisitions retain their proven
+units and complex semantics even when their names lack SPICE `v(...)` syntax
+and all imaginary samples are zero. This does not claim native execution-service
+cutover; source inspection and execution registration remain migration work.
+
 ### Reading the rawfile
 
 Three properties of the ASCII rawfile are load-bearing, and all three were
@@ -75,6 +84,19 @@ square-root hertz, not squared densities. Any other plot this release does not
 read is reported by name as a `warning` beside the analyses that were read,
 and as an `error` when it was the only plot in the file. It is never dropped
 in silence.
+
+The native VACASK migration adapter projects its single noise PSD record into
+this same numerical contract; execution-service cutover remains separate. It
+keeps the native vectors and records ASD as `sqrt(output PSD)` and
+`sqrt(output PSD / squared transfer)`, with input units supplied by the prepared
+source identity. Undefined input referral is a null sample, not zero.
+VACASK does not supply the two ngspice-style integral records. The adapter's
+`integrationMethod: "trapezoidal-psd"` explicitly identifies an RMS estimate
+from trapezoidal integration of recorded PSD samples over the recorded band.
+It neither extrapolates nor sorts frequencies nor bridges unavailable samples.
+Missing integrals are absent; CSV leaves their values blank, and shared GUI/MCP
+outputs omit those scalars. Available estimates are labelled `sampled PSD`.
+Native PSD and device-contribution vectors remain available alongside ASD.
 
 ### No number is invented
 

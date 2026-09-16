@@ -20,9 +20,10 @@ describe("simulation starter projects", () => {
         const code = folder.input.files.find(
           (file) => file.path === folder.input.entry,
         )!.text;
-        expect(code).toContain("* 1.");
-        expect(code).toContain("* 2. Click Run.");
-        expect(code).toContain("* 3.");
+        const comment = "//";
+        expect(code).toContain(`${comment} 1.`);
+        expect(code).toContain(`${comment} 2. Click Run.`);
+        expect(code).toContain(`${comment} 3.`);
         expect(code).not.toContain("Native Code owns");
         const compiled = await compileSourceSimulation(project, folder);
         expect(compiled.ok, JSON.stringify(compiled)).toBe(true);

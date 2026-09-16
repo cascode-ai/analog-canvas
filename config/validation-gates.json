@@ -154,6 +154,7 @@
       "apps/editor/src/agent/**",
       "apps/editor/e2e/web-agent-session.spec.ts",
       "apps/editor/e2e/agent-simulation.spec.ts",
+      "apps/editor/e2e/mcp-native-simulation.spec.ts",
       "apps/mcp-server/**",
       "packages/agent-adapter/**",
       "packages/agent-client/**",
@@ -161,8 +162,10 @@
     ],
     "analogSimulation": [
       "apps/editor/src/features/simulation/**",
+      "apps/editor/e2e/gui-native-simulation.spec.ts",
       "apps/editor/e2e/simulation-batch.spec.ts",
       "apps/editor/e2e/simulation-code-editor.spec.ts",
+      "apps/editor/e2e/simulation-profile-probes.spec.ts",
       "apps/editor/e2e/simulation-spec-results.spec.ts",
       "apps/editor/e2e/simulation-setup.spec.ts",
       "apps/editor/e2e/simulation-workspace.spec.ts",
@@ -350,12 +353,14 @@
         "pnpm",
         "test:e2e:local",
         "apps/editor/e2e/web-agent-session.spec.ts",
-        "apps/editor/e2e/agent-simulation.spec.ts"
+        "apps/editor/e2e/agent-simulation.spec.ts",
+        "apps/editor/e2e/mcp-native-simulation.spec.ts"
       ],
       "ci": {
         "e2eArgs": [
           "apps/editor/e2e/web-agent-session.spec.ts",
-          "apps/editor/e2e/agent-simulation.spec.ts"
+          "apps/editor/e2e/agent-simulation.spec.ts",
+          "apps/editor/e2e/mcp-native-simulation.spec.ts"
         ]
       }
     },
@@ -368,8 +373,11 @@
         "pnpm",
         "test:e2e:local",
         "apps/editor/e2e/agent-simulation.spec.ts",
+        "apps/editor/e2e/gui-native-simulation.spec.ts",
+        "apps/editor/e2e/mcp-native-simulation.spec.ts",
         "apps/editor/e2e/simulation-batch.spec.ts",
         "apps/editor/e2e/simulation-code-editor.spec.ts",
+        "apps/editor/e2e/simulation-profile-probes.spec.ts",
         "apps/editor/e2e/simulation-spec-results.spec.ts",
         "apps/editor/e2e/simulation-setup.spec.ts",
         "apps/editor/e2e/simulation-workspace.spec.ts"
@@ -377,8 +385,11 @@
       "ci": {
         "e2eArgs": [
           "apps/editor/e2e/agent-simulation.spec.ts",
+          "apps/editor/e2e/gui-native-simulation.spec.ts",
+          "apps/editor/e2e/mcp-native-simulation.spec.ts",
           "apps/editor/e2e/simulation-batch.spec.ts",
           "apps/editor/e2e/simulation-code-editor.spec.ts",
+          "apps/editor/e2e/simulation-profile-probes.spec.ts",
           "apps/editor/e2e/simulation-spec-results.spec.ts",
           "apps/editor/e2e/simulation-setup.spec.ts",
           "apps/editor/e2e/simulation-workspace.spec.ts"

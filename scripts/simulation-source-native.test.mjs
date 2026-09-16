@@ -4,8 +4,8 @@ import { describe, expect, it } from "vitest";
 import { createEmptyProject, createSimulationFolder } from "@icm/model";
 import { parseProject } from "@icm/project-protocol";
 import {
-  nativeSimulationDevices,
-  nativeDeviceOpVectors,
+  ngspiceSimulationDevices as nativeSimulationDevices,
+  ngspiceDeviceOpVectors as nativeDeviceOpVectors,
   generateCircuitSource,
   planCircuitSourceEdit,
 } from "@icm/netlist";
@@ -67,7 +67,7 @@ describe.skipIf(!endpoint)("candidate ngspice46 source qualification", () => {
     const project = parseProject(
       readFileSync(
         new URL(
-          "../apps/editor/src/examples/five-transistor-ota-sky130.icproj.json",
+          "../netlists/native-ota-library/legacy-source.icproj.json",
           import.meta.url,
         ),
         "utf8",
@@ -79,6 +79,7 @@ describe.skipIf(!endpoint)("candidate ngspice46 source qualification", () => {
     root.netlist.formalParameters.push({ name: "VBIAS", defaultValue: "1.8" });
     const folder = createSimulationFolder({
       id: "source-edits",
+      engine: "ngspice",
       name: "Source edits",
       documentId: root.id,
       profileId: profile.id,
@@ -86,6 +87,8 @@ describe.skipIf(!endpoint)("candidate ngspice46 source qualification", () => {
     const generated = generateCircuitSource(
       project,
       folder.input.circuitBindings[0],
+      folder.input,
+      "ngspice",
     );
     expect(generated.ok).toBe(true);
     const body = generated.source.sourceBodies.find(
@@ -136,7 +139,7 @@ describe.skipIf(!endpoint)("candidate ngspice46 source qualification", () => {
     const circuit = parseProject(
       readFileSync(
         new URL(
-          "../apps/editor/src/examples/five-transistor-ota-sky130.icproj.json",
+          "../netlists/native-ota-library/legacy-source.icproj.json",
           import.meta.url,
         ),
         "utf8",
@@ -144,6 +147,7 @@ describe.skipIf(!endpoint)("candidate ngspice46 source qualification", () => {
     );
     const folder = createSimulationFolder({
       id: "native-sky130",
+      engine: "ngspice",
       name: "Native SKY130",
       profileId: profile.id,
       documentId: "document-ota-5t-testbench",
@@ -194,6 +198,7 @@ describe.skipIf(!endpoint)("candidate ngspice46 source qualification", () => {
     const caps = CapabilitiesSchema.parse(await response.json());
     const folder = createSimulationFolder({
       id: "native-device",
+      engine: "ngspice",
       name: "Native device",
       profileId: profile.id,
     });

@@ -1,0 +1,424 @@
+{
+  "status": "derived-not-qualified",
+  "source": {
+    "recipe": "scripts/package-vacask-model-library.mjs",
+    "conversionSha256": "d6b5d58ce44ac465c9486ed90fff5d0d2b774ba7b7fa4a2b1f6ebee4e2518200"
+  },
+  "dependency": {
+    "id": "sky130-native-sections",
+    "sha256": "64234ef53dfecb8dd6ea0094c05d65c071c0220563917b3113b78be146bc021c"
+  },
+  "sections": ["tt", "ff", "ss", "fs", "sf"],
+  "modelSymbols": [
+    {
+      "dependencyId": "sky130-native-sections",
+      "section": "tt",
+      "sha256": "64234ef53dfecb8dd6ea0094c05d65c071c0220563917b3113b78be146bc021c",
+      "masters": [
+        {
+          "name": "sky130_fd_pr__nfet_01v8",
+          "primitives": [
+            {
+              "path": ["msky130_fd_pr__nfet_01v8"],
+              "module": "sp_bsim4v8"
+            }
+          ]
+        },
+        {
+          "name": "sky130_fd_pr__pfet_01v8",
+          "primitives": [
+            {
+              "path": ["msky130_fd_pr__pfet_01v8"],
+              "module": "sp_bsim4v8"
+            }
+          ]
+        },
+        {
+          "name": "sky130_fd_pr__nfet_01v8_lvt",
+          "primitives": [
+            {
+              "path": ["msky130_fd_pr__nfet_01v8_lvt"],
+              "module": "sp_bsim4v8"
+            }
+          ]
+        },
+        {
+          "name": "sky130_fd_pr__pfet_01v8_lvt",
+          "primitives": [
+            {
+              "path": ["msky130_fd_pr__pfet_01v8_lvt"],
+              "module": "sp_bsim4v8"
+            }
+          ]
+        },
+        {
+          "name": "sky130_fd_pr__res_high_po",
+          "primitives": [
+            {
+              "path": ["rhead"],
+              "module": "sp_resistor"
+            },
+            {
+              "path": ["rbody"],
+              "module": "sp_resistor"
+            },
+            {
+              "path": ["xc0", "c0"],
+              "module": "sp_capacitor"
+            },
+            {
+              "path": ["xc1", "c0"],
+              "module": "sp_capacitor"
+            }
+          ]
+        },
+        {
+          "name": "sky130_fd_pr__cap_mim_m3_1",
+          "primitives": [
+            {
+              "path": ["c1"],
+              "module": "sp_capacitor"
+            }
+          ]
+        },
+        {
+          "name": "sky130_fd_pr__pnp_05v5_w0p68l0p68",
+          "primitives": [
+            {
+              "path": ["qsky130_fd_pr__pnp_05v5_w0p68l0p68"],
+              "module": "sp_bjt"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "dependencyId": "sky130-native-sections",
+      "section": "ff",
+      "sha256": "64234ef53dfecb8dd6ea0094c05d65c071c0220563917b3113b78be146bc021c",
+      "masters": [
+        {
+          "name": "sky130_fd_pr__nfet_01v8",
+          "primitives": [
+            {
+              "path": ["msky130_fd_pr__nfet_01v8"],
+              "module": "sp_bsim4v8"
+            }
+          ]
+        },
+        {
+          "name": "sky130_fd_pr__pfet_01v8",
+          "primitives": [
+            {
+              "path": ["msky130_fd_pr__pfet_01v8"],
+              "module": "sp_bsim4v8"
+            }
+          ]
+        },
+        {
+          "name": "sky130_fd_pr__nfet_01v8_lvt",
+          "primitives": [
+            {
+              "path": ["msky130_fd_pr__nfet_01v8_lvt"],
+              "module": "sp_bsim4v8"
+            }
+          ]
+        },
+        {
+          "name": "sky130_fd_pr__pfet_01v8_lvt",
+          "primitives": [
+            {
+              "path": ["msky130_fd_pr__pfet_01v8_lvt"],
+              "module": "sp_bsim4v8"
+            }
+          ]
+        },
+        {
+          "name": "sky130_fd_pr__res_high_po",
+          "primitives": [
+            {
+              "path": ["rhead"],
+              "module": "sp_resistor"
+            },
+            {
+              "path": ["rbody"],
+              "module": "sp_resistor"
+            },
+            {
+              "path": ["xc0", "c0"],
+              "module": "sp_capacitor"
+            },
+            {
+              "path": ["xc1", "c0"],
+              "module": "sp_capacitor"
+            }
+          ]
+        },
+        {
+          "name": "sky130_fd_pr__cap_mim_m3_1",
+          "primitives": [
+            {
+              "path": ["c1"],
+              "module": "sp_capacitor"
+            }
+          ]
+        },
+        {
+          "name": "sky130_fd_pr__pnp_05v5_w0p68l0p68",
+          "primitives": [
+            {
+              "path": ["qsky130_fd_pr__pnp_05v5_w0p68l0p68"],
+              "module": "sp_bjt"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "dependencyId": "sky130-native-sections",
+      "section": "ss",
+      "sha256": "64234ef53dfecb8dd6ea0094c05d65c071c0220563917b3113b78be146bc021c",
+      "masters": [
+        {
+          "name": "sky130_fd_pr__nfet_01v8",
+          "primitives": [
+            {
+              "path": ["msky130_fd_pr__nfet_01v8"],
+              "module": "sp_bsim4v8"
+            }
+          ]
+        },
+        {
+          "name": "sky130_fd_pr__pfet_01v8",
+          "primitives": [
+            {
+              "path": ["msky130_fd_pr__pfet_01v8"],
+              "module": "sp_bsim4v8"
+            }
+          ]
+        },
+        {
+          "name": "sky130_fd_pr__nfet_01v8_lvt",
+          "primitives": [
+            {
+              "path": ["msky130_fd_pr__nfet_01v8_lvt"],
+              "module": "sp_bsim4v8"
+            }
+          ]
+        },
+        {
+          "name": "sky130_fd_pr__pfet_01v8_lvt",
+          "primitives": [
+            {
+              "path": ["msky130_fd_pr__pfet_01v8_lvt"],
+              "module": "sp_bsim4v8"
+            }
+          ]
+        },
+        {
+          "name": "sky130_fd_pr__res_high_po",
+          "primitives": [
+            {
+              "path": ["rhead"],
+              "module": "sp_resistor"
+            },
+            {
+              "path": ["rbody"],
+              "module": "sp_resistor"
+            },
+            {
+              "path": ["xc0", "c0"],
+              "module": "sp_capacitor"
+            },
+            {
+              "path": ["xc1", "c0"],
+              "module": "sp_capacitor"
+            }
+          ]
+        },
+        {
+          "name": "sky130_fd_pr__cap_mim_m3_1",
+          "primitives": [
+            {
+              "path": ["c1"],
+              "module": "sp_capacitor"
+            }
+          ]
+        },
+        {
+          "name": "sky130_fd_pr__pnp_05v5_w0p68l0p68",
+          "primitives": [
+            {
+              "path": ["qsky130_fd_pr__pnp_05v5_w0p68l0p68"],
+              "module": "sp_bjt"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "dependencyId": "sky130-native-sections",
+      "section": "fs",
+      "sha256": "64234ef53dfecb8dd6ea0094c05d65c071c0220563917b3113b78be146bc021c",
+      "masters": [
+        {
+          "name": "sky130_fd_pr__nfet_01v8",
+          "primitives": [
+            {
+              "path": ["msky130_fd_pr__nfet_01v8"],
+              "module": "sp_bsim4v8"
+            }
+          ]
+        },
+        {
+          "name": "sky130_fd_pr__pfet_01v8",
+          "primitives": [
+            {
+              "path": ["msky130_fd_pr__pfet_01v8"],
+              "module": "sp_bsim4v8"
+            }
+          ]
+        },
+        {
+          "name": "sky130_fd_pr__nfet_01v8_lvt",
+          "primitives": [
+            {
+              "path": ["msky130_fd_pr__nfet_01v8_lvt"],
+              "module": "sp_bsim4v8"
+            }
+          ]
+        },
+        {
+          "name": "sky130_fd_pr__pfet_01v8_lvt",
+          "primitives": [
+            {
+              "path": ["msky130_fd_pr__pfet_01v8_lvt"],
+              "module": "sp_bsim4v8"
+            }
+          ]
+        },
+        {
+          "name": "sky130_fd_pr__res_high_po",
+          "primitives": [
+            {
+              "path": ["rhead"],
+              "module": "sp_resistor"
+            },
+            {
+              "path": ["rbody"],
+              "module": "sp_resistor"
+            },
+            {
+              "path": ["xc0", "c0"],
+              "module": "sp_capacitor"
+            },
+            {
+              "path": ["xc1", "c0"],
+              "module": "sp_capacitor"
+            }
+          ]
+        },
+        {
+          "name": "sky130_fd_pr__cap_mim_m3_1",
+          "primitives": [
+            {
+              "path": ["c1"],
+              "module": "sp_capacitor"
+            }
+          ]
+        },
+        {
+          "name": "sky130_fd_pr__pnp_05v5_w0p68l0p68",
+          "primitives": [
+            {
+              "path": ["qsky130_fd_pr__pnp_05v5_w0p68l0p68"],
+              "module": "sp_bjt"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "dependencyId": "sky130-native-sections",
+      "section": "sf",
+      "sha256": "64234ef53dfecb8dd6ea0094c05d65c071c0220563917b3113b78be146bc021c",
+      "masters": [
+        {
+          "name": "sky130_fd_pr__nfet_01v8",
+          "primitives": [
+            {
+              "path": ["msky130_fd_pr__nfet_01v8"],
+              "module": "sp_bsim4v8"
+            }
+          ]
+        },
+        {
+          "name": "sky130_fd_pr__pfet_01v8",
+          "primitives": [
+            {
+              "path": ["msky130_fd_pr__pfet_01v8"],
+              "module": "sp_bsim4v8"
+            }
+          ]
+        },
+        {
+          "name": "sky130_fd_pr__nfet_01v8_lvt",
+          "primitives": [
+            {
+              "path": ["msky130_fd_pr__nfet_01v8_lvt"],
+              "module": "sp_bsim4v8"
+            }
+          ]
+        },
+        {
+          "name": "sky130_fd_pr__pfet_01v8_lvt",
+          "primitives": [
+            {
+              "path": ["msky130_fd_pr__pfet_01v8_lvt"],
+              "module": "sp_bsim4v8"
+            }
+          ]
+        },
+        {
+          "name": "sky130_fd_pr__res_high_po",
+          "primitives": [
+            {
+              "path": ["rhead"],
+              "module": "sp_resistor"
+            },
+            {
+              "path": ["rbody"],
+              "module": "sp_resistor"
+            },
+            {
+              "path": ["xc0", "c0"],
+              "module": "sp_capacitor"
+            },
+            {
+              "path": ["xc1", "c0"],
+              "module": "sp_capacitor"
+            }
+          ]
+        },
+        {
+          "name": "sky130_fd_pr__cap_mim_m3_1",
+          "primitives": [
+            {
+              "path": ["c1"],
+              "module": "sp_capacitor"
+            }
+          ]
+        },
+        {
+          "name": "sky130_fd_pr__pnp_05v5_w0p68l0p68",
+          "primitives": [
+            {
+              "path": ["qsky130_fd_pr__pnp_05v5_w0p68l0p68"],
+              "module": "sp_bjt"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,4 +1,7 @@
-import type { CircuitProject } from "@icm/model";
+import {
+  readSimulationExperimentConfig,
+  type CircuitProject,
+} from "@icm/model";
 import { SimulationFiles } from "@icm/simulation-service/files";
 import type { ProjectSimulationFileHost } from "@icm/simulation-service/files";
 import type {
@@ -10,6 +13,7 @@ import type { Prepared } from "@icm/simulation-service/contract";
 import type { ProjectRunHistory } from "./project-run-history";
 import { sourcePresentation } from "./source-presentation";
 import { serializeProject } from "@icm/project-protocol";
+import { authoringEngine } from "./authoring-engine";
 
 /** Do not export a pre-prepare Project when editing raced with compilation. */
 export function unchangedProjectSnapshot(
@@ -51,7 +55,36 @@ export class BrowserSimulationSession {
   constructor(private options: BrowserSimulationSessionOptions) {
     this.projectSessionId = options.getProjectSessionId();
     this.files =
-      options.files ?? new SimulationFiles(Date.now, options.projectFiles);
+      options.files ??
+      new SimulationFiles(Date.now, options.projectFiles, async (folder) => {
+        const config = readSimulationExperimentConfig(folder);
+        if (!config.ok) throw new Error(config.message);
+        const {
+          createHostedExecutor,
+          createManagedHostedExecutor,
+          resolveSimulationEngine,
+        } = await import("@icm/simulation-service");
+        const fetcher =
+          this.options.fetch ??
+          ((...args: Parameters<typeof fetch>) => globalThis.fetch(...args));
+        const executor =
+          this.options.transport === "managed"
+            ? createManagedHostedExecutor({ fetch: fetcher })
+            : createHostedExecutor(fetcher);
+        let capabilities;
+        try {
+          capabilities = await executor.capabilities(
+            config.config.environment.profileId,
+          );
+        } catch (error) {
+          const local = authoringEngine(folder);
+          if (local) return local;
+          throw error;
+        }
+        const selected = resolveSimulationEngine(folder, capabilities);
+        if (!selected.ok) throw new Error(selected.error.message);
+        return selected.engine;
+      });
   }
   async clear() {
     this.generation++;

@@ -1,0 +1,35 @@
+Native single-Profile corner and analysis proof
+ground 0
+include "models.inc" section=tt
+load "resistor.osdi"
+model supply vsource
+model load_resistor resistor
+VDD (vdd 0) supply dc=1.8
+VIN (gate 0) supply dc=0.7 mag=1 type="pulse" val0=0.7 val1=0.71 delay=100n rise=10n fall=10n width=400n period=1u
+RLOAD (vdd out) load_resistor r=10k
+MN (out gate 0 0) sky130_fd_pr__nfet_01v8 w=10 l=0.5 nf=2
+VGP (gp 0) supply dc=0.9
+VDP (dp 0) supply dc=0.9
+MP (dp gp vdd vdd) sky130_fd_pr__pfet_01v8 w=10 l=0.5 nf=2
+MNL (dp gp 0 0) sky130_fd_pr__nfet_01v8_lvt w=3 l=0.5 nf=2
+MPL (dp gp vdd vdd) sky130_fd_pr__pfet_01v8_lvt w=3 l=0.5 nf=2
+RPO (vdd poly 0) sky130_fd_pr__res_high_po w=1 l=5.5 mult=1
+RTERM (poly 0) load_resistor r=1k
+CMIM (out 0) sky130_fd_pr__cap_mim_m3_1 w=5 l=5 mult=1
+VPB (pb 0) supply dc=1.1
+QP (0 pb vdd) sky130_fd_pr__pnp_05v5_w0p68l0p68
+control
+abort always
+options rawfile="ascii" strictsave=2 temp=27
+save v(out) v(gate) v(poly) i(VDD) i(VDP) i(VPB)
+analysis bias op
+alter instance("VIN") type="dc"
+sweep input instance="VIN" parameter="dc" from=0.5 to=0.9 step=0.1
+analysis transfer op
+alter instance("VIN") dc=0.7
+analysis frequency ac from=10 to=1M mode="dec" points=4
+alter instance("VIN") type="pulse"
+analysis step tran stop=1u step=10n maxstep=10n
+alter instance("VIN") type="dc" dc=0.7
+analysis spectrum noise out="out" in="VIN" from=10 to=1M mode="dec" points=4
+endc

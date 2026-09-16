@@ -13,6 +13,7 @@ import {
   type SimulationRunPlanAxis,
 } from "@icm/model";
 import { createSimulationStarter } from "@icm/netlist";
+import { profileEngine } from "@icm/simulation-service";
 import type { SimulationCodeWorkspaceProps } from "./code-workspace";
 import type {
   ArtifactRef,
@@ -30,7 +31,6 @@ export type {
   SpiceSimulationSurfaceProps,
   SimulationFolderSaveResult,
 } from "./simulation-surface-types";
-import authoringProfile from "../../../../../containers/ngspice/hosted-sky130-profile.json";
 import {
   SourceCodePane,
   type SourceCodeHandle,
@@ -881,6 +881,14 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
       kind: "folder",
       ...(action === "rename" && current ? { folderId: current.id } : {}),
       label: action === "rename" ? "Folder name" : "New simulation folder name",
+      ...(action === "new" && capabilities?.profiles.length
+        ? {
+            profiles: capabilities.profiles.map((profile) => ({
+              id: profile.id,
+              name: profile.label ?? profile.id,
+            })),
+          }
+        : {}),
       ...(action === "new"
         ? {
             cellSelection: {
@@ -950,11 +958,29 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
         );
         return;
       }
+      const profile =
+        capabilities?.profiles.find((p) => p.id === selection.profileId) ??
+        capabilities?.profiles[0];
+      const engine = profile
+        ? profileEngine(profile, capabilities?.rawfileCollection)
+        : "vacask";
+      if (!engine) {
+        setProblem(
+          uiProblem(
+            "SIMULATION_ENGINE_UNAVAILABLE",
+            "The selected Profile does not declare an execution dialect.",
+          ),
+        );
+        return;
+      }
       const result = createSimulationStarter(namingProject, {
         ...identity,
         mode: "circuit",
         documentId: selection.documentId,
-        profileId: capabilities?.profiles[0]?.id ?? authoringProfile.id,
+        // Offline authoring uses the same candidate as the native starters.
+        // Prepare still requires that the connected service advertises it.
+        profileId: profile?.id ?? "vacask-sky130-candidate",
+        engine,
         template: "op",
       });
       if (!result.ok) {
@@ -1324,6 +1350,7 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
       {selectedFolder ? (
         <SourceCodePane
           ref={codeRef}
+          capabilities={capabilities}
           diagnostics={activeProblem?.diagnostics}
           project={project}
           activeDocumentId={props.activeDocumentId}

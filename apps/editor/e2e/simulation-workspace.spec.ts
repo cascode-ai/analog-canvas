@@ -12,7 +12,12 @@ import {
   replaceSimulationExperimentConfig,
 } from "@icm/model";
 import { parseProject } from "@icm/project-protocol";
-import { generateCircuitSource, simulationSignals } from "@icm/netlist";
+import {
+  generateCircuitSource,
+  simulationSignals,
+  nativeSimulationDevices,
+  vacaskIdentifier,
+} from "@icm/netlist";
 
 import {
   clickNetlistWorkflowCommand,
@@ -292,7 +297,79 @@ test("native metadata is hidden per folder while damaged configuration stays rep
     ).toBe(original);
 });
 
-test("Code adds and removes source AC clauses and routes parameter declarations to authored Code", async ({
+test("native Circuit source edits persist source fields and distinguish mega from milli", async ({
+  page,
+}) => {
+  const project = parseProject(JSON.stringify(ota));
+  const folder = createSimulationFolder({
+    id: "native-values",
+    name: "Native values",
+    documentId: project.topDocumentId,
+    profileId: "candidate",
+  });
+  project.simulationFolders = [folder];
+  await page.route("**/api/simulate", (route) =>
+    route.fulfill({
+      status: 503,
+      json: { error: "Offline authoring fixture" },
+    }),
+  );
+  await page.goto("/editor");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "native-values.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  await page.getByTestId("open-analog-simulation").click();
+  await page.getByRole("tab", { name: /circuit\.spice/ }).click();
+  const editor = page.getByRole("textbox", {
+    name: "Simulation source editor",
+  });
+  const generated = generateCircuitSource(
+    project,
+    folder.input.circuitBindings[0]!,
+    folder.input,
+  );
+  if (!generated.ok) throw Error(JSON.stringify(generated.diagnostics));
+  const body = generated.source.sourceBodies!.find(
+    (b) => b.instanceId === "VDD",
+  )!;
+  const text =
+    generated.source.text.slice(0, body.startOffset) +
+    ' type="sine" dc=1m mag=1 phase=-90 sinedc=0 ampl=1 freq=1M' +
+    generated.source.text.slice(body.endOffset);
+  await expect(editor).toContainText('type="dc"');
+  await editor.fill(text);
+  await page.getByRole("button", { name: "Save source", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Save source", exact: true }),
+  ).toHaveAttribute("data-save-state", "saved");
+  const saved = parseProject(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(),
+  );
+  const params = saved.documents
+    .find((d) => d.id === body.documentId)!
+    .instances.find((i) => i.id === body.instanceId)!.netlist!.parameters;
+  expect(params).toMatchObject({
+    dc: "0.001",
+    frequency: "1000000",
+    waveform: "sin",
+    acMagnitude: "1",
+    acPhase: "-90",
+  });
+  const projected = generateCircuitSource(
+    saved,
+    folder.input.circuitBindings[0]!,
+    saved.simulationFolders[0]!.input,
+  );
+  if (!projected.ok) throw Error("Expected native projection after save");
+  expect(projected.source.text).toContain(
+    'type="sine" dc=0.001 mag=1 phase=-90',
+  );
+  expect(projected.source.text).toContain("freq=1000000");
+});
+
+test("Code edits native AC fields and routes parameter declarations to authored Code", async ({
   page,
 }) => {
   const project = parseProject(JSON.stringify(ota));
@@ -323,14 +400,19 @@ test("Code adds and removes source AC clauses and routes parameter declarations 
   const generated = generateCircuitSource(
     project,
     folder.input.circuitBindings[0]!,
+    folder.input,
   );
   if (!generated.ok) throw Error("Expected generated source");
   // DOM innerText can omit the final newline and includes display-only ghosts.
   const source = generated.source.text;
-  const edited = source.replace(
-    "VDD vdd 0 DC 1.8",
-    "VDD vdd 0 DC 1.8 AC 1 -90",
-  );
+  const body = generated.source.sourceBodies!.find(
+    (p) => p.instanceId === "VDD",
+  )!;
+  expect(body).toBeDefined();
+  const edited =
+    source.slice(0, body.startOffset) +
+    ' type="dc" dc=1.8 mag=1 phase=-90' +
+    source.slice(body.endOffset);
   expect(edited).not.toBe(source);
   await editor.fill(edited);
   await page.getByRole("button", { name: "Save source", exact: true }).click();
@@ -351,38 +433,43 @@ test("Code adds and removes source AC clauses and routes parameter declarations 
   const applied = generateCircuitSource(
     saved,
     folder.input.circuitBindings[0]!,
+    folder.input,
   );
   if (!applied.ok) throw Error("Expected applied source");
+  const appliedBody = applied.source.sourceBodies!.find(
+    (p) => p.instanceId === "VDD",
+  )!;
   await editor.fill(
-    applied.source.text.replace(
-      "VDD vdd 0 DC 1.8 AC 1 -90",
-      "VDD vdd 0 DC {VBIAS}",
-    ),
+    applied.source.text.slice(0, appliedBody.startOffset) +
+      ' type="dc" dc=(VBIAS)' +
+      applied.source.text.slice(appliedBody.endOffset),
   );
   await page.getByRole("button", { name: "Helper", exact: true }).click();
   await page
-    .getByRole("option", { name: "Design variable (.param)…", exact: true })
+    .getByRole("option", { name: "Design variable (parameters)…", exact: true })
     .click();
   await expect(page.getByRole("tab", { name: /run\.cir/ })).toHaveAttribute(
     "aria-selected",
     "true",
   );
-  await expect(editor).toContainText(".param");
+  const declarationLine = editor
+    .locator(".cm-line")
+    .filter({ hasText: /^parameters(?:\s|$)/ });
+  await expect(declarationLine).toHaveCount(1);
   await expect(page.locator(".simulation-parameter-ghost")).toContainText(
     "name=expression",
   );
   await editor.press("ControlOrMeta+z");
-  await expect(editor).not.toContainText(".param");
+  await expect(declarationLine).toHaveCount(0);
   const redoShortcut = await page.evaluate(() =>
     /Mac|iPhone|iPad/.test(navigator.platform) ? "Meta+Shift+z" : "Control+y",
   );
   await editor.press(redoShortcut);
-  await expect(editor).toContainText(".param");
-  await editor.fill(
-    folder.input.files
-      .find((file) => file.path === "run.cir")!
-      .text.replace(".control", ".param VBIAS=1.8\n.control"),
+  await expect(declarationLine).toHaveCount(1);
+  await expect(page.locator(".simulation-parameter-ghost")).toContainText(
+    "name=expression",
   );
+  await page.keyboard.type("VBIAS=1.8");
   await page.getByRole("button", { name: "Save source", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "Save source", exact: true }),
@@ -394,9 +481,10 @@ test("Code adds and removes source AC clauses and routes parameter declarations 
   expect(sourceParameters(final)).not.toHaveProperty("acMagnitude");
   expect(sourceParameters(final)).not.toHaveProperty("acPhase");
   expect(
-    final.simulationFolders[0]!.input.files.find((f) => f.path === "run.cir")!
-      .text,
-  ).toContain(".param VBIAS=1.8");
+    final.simulationFolders[0]!.input.files.find(
+      (f) => f.path === folder.input.entry,
+    )!.text,
+  ).toContain("parameters VBIAS=1.8");
   expect(
     JSON.parse(
       final.simulationFolders[0]!.input.files.find(
@@ -487,7 +575,7 @@ test("new experiments explicitly bind the selected Cell without requiring a Test
   const editor = page.getByRole("textbox", {
     name: "Simulation source editor",
   });
-  await expect(editor).toContainText('.include "circuit.spice"');
+  await expect(editor).toContainText('include "circuit.spice"');
   await expect(editor).toContainText("op");
   await expect(
     page.getByRole("treeitem", { name: "experiment.json", exact: true }),
@@ -762,11 +850,11 @@ test("Helper keeps signal selection continuous and shares the file row without s
   const pickerBox = (await picker.boundingBox())!;
   expect(Math.abs(pickerBox.x - popupBox.x)).toBeLessThan(2);
   expect(Math.abs(pickerBox.height - popupBox.height)).toBeLessThan(2);
-  const output = picker.getByRole("button", { name: /— v\(vout\)/ });
+  const output = picker.getByRole("button", { name: /— vout(?:\s|$)/ });
   await output.click();
   await expect(search).toBeFocused();
   await expect(output).toContainText("Added");
-  await picker.getByRole("button", { name: /— v\(vinp\)/ }).click();
+  await picker.getByRole("button", { name: /— vinp(?:\s|$)/ }).click();
   await expect(search).toBeFocused();
   await expect(editor).toContainText("save v(vout) v(vinp)");
   await expect(output).toBeDisabled();
@@ -796,6 +884,140 @@ test("Helper keeps signal selection continuous and shares the file row without s
   await expect(editor).not.toBeFocused();
   await page.getByRole("button", { name: "Done", exact: true }).click();
   await expect(canvas).not.toHaveClass(/simulation-net-pick-active/);
+  // An incomplete source must remain repairable, not falsely acknowledge an
+  // acquisition that the editor refused to insert.
+  const validSource = folder.input.files.find(
+    (file) => file.path === folder.input.entry,
+  )!.text;
+  await editor.fill(`${validSource}\nsave v(`);
+  await helper.click();
+  await page
+    .getByRole("option", { name: "Save voltage…", exact: true })
+    .click();
+  await output.click();
+  await expect(output).not.toContainText("Added");
+  await expect(output).toBeEnabled();
+  await expect(editor).not.toContainText("v(vout)");
+  await search.press("Escape");
+  await editor.fill(validSource);
+  await helper.click();
+  await page
+    .getByRole("option", { name: "Save voltage…", exact: true })
+    .click();
+  await output.click();
+  await expect(output).toContainText("Added");
+  await expect(editor).toContainText("v(vout)");
+});
+
+test("native text-only Helper discovers exact-case nodes and declared voltage-source branches", async ({
+  page,
+}) => {
+  const project = parseProject(JSON.stringify(ota));
+  const folder = createSimulationFolder({
+    id: "native-text-discovery",
+    name: "Native discovery",
+    profileId: profile.id,
+  });
+  folder.input.files.find((file) => file.path === folder.input.entry)!.text =
+    `Native discovery
+model supply vsource
+model load resistor
+feed (Out 0) supply dc=1
+Feed (out 0) supply dc=2
+VnotVoltage (Out out) load r=1k
+control
+analysis bias op
+endc
+`;
+  project.simulationFolders = [folder];
+  await page.route("**/api/simulate", (route) =>
+    route.fulfill({
+      status: 503,
+      json: { error: "Offline authoring fixture" },
+    }),
+  );
+  await page.goto("/editor");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "native-text.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  await page.getByTestId("open-analog-simulation").click();
+  const editor = page.getByRole("textbox", {
+    name: "Simulation source editor",
+  });
+  const helper = page.getByRole("button", { name: "Helper", exact: true });
+  const picker = page.getByRole("dialog", { name: "Save signal" });
+  await helper.click();
+  await page
+    .getByRole("option", { name: "Save terminal current…", exact: true })
+    .click();
+  await expect(
+    picker.getByRole("button", { name: "i(VnotVoltage)", exact: true }),
+  ).toHaveCount(0);
+  await picker.getByRole("button", { name: "i(feed)", exact: true }).click();
+  await picker.getByRole("button", { name: "i(Feed)", exact: true }).click();
+  await expect(editor).toContainText("save i(feed) i(Feed)");
+  await picker.getByRole("button", { name: "Done", exact: true }).click();
+  await helper.click();
+  await page
+    .getByRole("option", { name: "Save voltage…", exact: true })
+    .click();
+  await picker.getByRole("button", { name: "v(Out)", exact: true }).click();
+  await picker.getByRole("button", { name: "v(out)", exact: true }).click();
+  await expect(editor).toContainText("save i(feed) i(Feed) v(Out) v(out)");
+});
+
+test("native device OP Helper inserts inspectable model-native saves without SPICE aliases", async ({
+  page,
+}) => {
+  const project = parseProject(JSON.stringify(ota));
+  const folder = createSimulationFolder({
+    id: "native-op-helper",
+    name: "Native OP",
+    documentId: project.topDocumentId,
+    profileId: "candidate",
+  });
+  // Offline authoring proof only: no claim that these default model values
+  // replace the foundry wrapper. Numeric compiler/helper proof runs separately.
+  const device = nativeSimulationDevices(project, folder.input).find(
+    (d) => d.polarity,
+  )!;
+  folder.input.files.find((f) => f.path === folder.input.entry)!.text +=
+    `\nsubckt ${device.card.target} (D G S B)\nmodel core sp_bsim4v8 type=1\nInner (D G S B) core\nends\n`;
+  project.simulationFolders = [folder];
+  await page.route("**/api/simulate", (route) =>
+    route.fulfill({
+      status: 503,
+      json: { error: "Offline authoring fixture" },
+    }),
+  );
+  await page.goto("/editor");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "native-op.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  await page.getByTestId("open-analog-simulation").click();
+  const editor = page.getByRole("textbox", {
+    name: "Simulation source editor",
+  });
+  await page.getByRole("button", { name: "Helper", exact: true }).click();
+  await page
+    .getByRole("option", { name: "Save device operating point…", exact: true })
+    .click();
+  const picker = page.getByRole("dialog", { name: "Save signal" });
+  const save = `p('${device.reference}:Inner',gm)`;
+  const choice = picker.getByRole("button", {
+    name: `${device.reference}:Inner · gm (model-native) — ${save}`,
+  });
+  await choice.click();
+  await expect(choice).toContainText("Added");
+  await expect(editor).toContainText(`save ${save}`);
+  await expect(editor).not.toContainText("[gm]");
+  await expect(
+    picker.getByRole("textbox", { name: "Search signal" }),
+  ).toBeFocused();
 });
 
 test("native save completion previews its mapped Net on the real Canvas", async ({
@@ -844,14 +1066,21 @@ test("native save completion previews its mapped Net on the real Canvas", async 
   const source = folder.input.files.find(
     (file) => file.path === folder.input.entry,
   )!.text;
-  await editor.fill(`${source.slice(0, source.indexOf(".endc"))}save`);
+  await editor.fill(`${source.slice(0, source.indexOf("endc"))}save`);
   await expect(page.locator(".simulation-code-status")).toHaveCount(0);
   await expect(
     page.getByRole("button", { name: "Save source", exact: true }),
   ).toBeEnabled();
   await expect(page.getByRole("tab", { name: /run\.cir/ })).toContainText("●");
   await page.keyboard.type(" ");
-  const option = page.getByRole("option").filter({ hasText: vector });
+  const selector = `v(${vacaskIdentifier(vector)})`;
+  const option = page.getByRole("option").filter({
+    has: page.locator(".cm-completionLabel").filter({
+      hasText: new RegExp(
+        `^${selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`,
+      ),
+    }),
+  });
   await expect(option).toBeVisible();
   await option.hover();
   await expect(page.getByTestId("net-highlight-overlay")).toHaveAttribute(
@@ -912,19 +1141,21 @@ test("incomplete circuit opens Code and saves invalid parameter drafts across re
   if (!source.ok) throw Error("Expected incomplete authoring projection");
   const original = source.source.text;
   await editor.press("ControlOrMeta+A");
-  await page.keyboard.insertText(original.replace("<value>", "bad-value"));
-  await expect(editor).toContainText("bad-value");
+  // `bad-value` is valid native subtraction, not an invalid numeric draft.
+  // A trailing operator is incomplete in either dialect and cannot be applied.
+  await page.keyboard.insertText(original.replace("<value>", "bad-value+"));
+  await expect(editor).toContainText("bad-value+");
   const saveSource = panel.getByRole("button", {
     name: "Save source",
     exact: true,
   });
   await saveSource.click();
   await expect(saveSource).toHaveAttribute("data-save-state", "failed");
-  await expect(editor).toContainText("bad-value");
+  await expect(editor).toContainText("bad-value+");
   const bytes = await downloadBytes(page, "File", "Export Project File…");
   const saved = parseProject(bytes.toString());
   expect(saved.simulationFolders[0]!.input.drafts?.[0]?.text).toContain(
-    "bad-value",
+    "bad-value+",
   );
   expect(
     saved.documents
@@ -939,7 +1170,7 @@ test("incomplete circuit opens Code and saves invalid parameter drafts across re
   });
   await page.getByTestId("open-analog-simulation").click();
   await panel.getByRole("tab", { name: "circuit.spice", exact: false }).click();
-  await expect(editor).toContainText("bad-value");
+  await expect(editor).toContainText("bad-value+");
   await panel
     .getByRole("treeitem", { name: "Folder Draft", exact: true })
     .click({ button: "right" });
@@ -959,6 +1190,7 @@ test("human simulation uses saved folder, survives minimizing, recovers a bad in
   let folder = createSimulationFolder({
     id: "folder-e2e",
     name: "E2E folder",
+    engine: "ngspice",
     profileId: profile.id,
     documentId: project.topDocumentId,
   });
@@ -1617,12 +1849,16 @@ test("Simulation creates an ordinary testbench and defaults a new experiment to 
   await expect(page.getByTestId("library-toggle")).toBeEnabled();
 });
 
-async function openWorkspace(page: Page) {
+async function openWorkspace(
+  page: Page,
+  engine: "vacask" | "ngspice" = "vacask",
+) {
   const project = parseProject(JSON.stringify(ota));
   project.simulationFolders = ["Alpha", "Beta"].map((name) =>
     createSimulationFolder({
       id: name,
       name,
+      engine,
       documentId: project.topDocumentId,
       profileId: profile.id,
     }),
@@ -1757,7 +1993,7 @@ test("folder activation exposes the run target independently of expansion and se
       json: { error: "Captured run target" },
     });
   });
-  const workspace = await openWorkspace(page);
+  const workspace = await openWorkspace(page, "ngspice");
   const run = page.getByRole("button", { name: "Run", exact: true });
   const alpha = workspace.getByRole("treeitem", {
     name: "Folder Alpha",
@@ -1790,8 +2026,7 @@ test("folder activation exposes the run target independently of expansion and se
   await expect(run).toHaveText("Beta");
   await expect(run.locator("svg")).toBeVisible();
   await run.click();
-  await expect.poll(() => executedDeck).toContain("* Beta");
-  expect(executedDeck).not.toContain("* Alpha");
+  await expect.poll(() => executedDeck.split(/\r?\n/)[0]).toBe("Beta");
   await beta.focus();
   await beta.press("F2");
   const longName = "Beta with a deliberately long simulation folder name";
