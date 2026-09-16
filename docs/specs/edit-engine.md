@@ -92,8 +92,9 @@ create separate mutation endpoints:
 
 <!-- schematic-edit-kinds:end -->
 
-The Agent Document transaction schema is derived from this union, applies its
-scope restrictions, and excludes unsupported history kinds. Formal-interface
+The Agent Document transaction schema is derived from this union and applies
+its scope restrictions; Agent `undo`/`redo` use the live editor's shared
+Document/Project history and require all edit permissions. Formal-interface
 edits are submitted inside `structureEdits`, which composes the same union with
 add/remove Document operations under one Project `structureRevision`. The
 Project-level `upsert_simulation_folder` and `remove_simulation_folder` edits are
@@ -168,7 +169,8 @@ atomic, browser-editor lifecycle edits planned by `cell-reset-planner.ts`:
 geometry/intent, and `reset_cell_body` removes non-interface content while
 retaining formal terminals and their marker/Net projection. Each advances the
 Document revision once and is restored by one Undo. The public Agent surface
-categorizes these guarded UI lifecycle edits as unsupported.
+accepts these lifecycle edits, directly or through its `reset-cell` command,
+under the connectivity edit permission.
 
 `upsert_connectivity_evidence` and `remove_connectivity_evidence` are the only
 atomic writers for the current connectivity-evidence list. Upsert replaces
@@ -189,7 +191,7 @@ ordered edits can still remove or replace their evidence atomically; evidence
 explicitly upserted by that transaction remains subject to final validation.
 Reset Cell Body previews and removes non-interface evidence while retaining
 assertions whose complete Net and owner closure survives. The public Agent
-surface classifies both evidence edits as unsupported.
+surface accepts both evidence edits under the connectivity edit permission.
 
 `hierarchy-planner.ts` is the shared pure orchestration boundary above these
 edits. It constructs canonical subcircuit Instances and plans Cell

@@ -160,8 +160,14 @@ session with its existing scopes. Pause and Disconnect remain available.
 Circuit permissions independently cover Snapshot, render, source spans,
 geometry, connectivity, presentation, and temporary semantic editor control.
 File permissions independently cover Project download, visual download, and
-candidate staging. The relay checks bearer token, session/document binding,
-scope, expiry, body size, and rate limits before forwarding.
+candidate staging (`project.import`), which also gates the Project resource.
+The separate `simulation.run` scope covers Simulation operations and File
+Resource simulation workspaces, independent of every edit scope; Simulation
+capability and authoring-help requests need no scope. A saved Project-folder
+source update needs both `simulation.run` and `project.import`, plus the
+connectivity edit scope when it carries circuit edits. The relay checks bearer
+token, session/document binding, scope, expiry, body size, and rate limits
+before forwarding.
 
 Semantic editor control may select a canonical locator, highlight a Net,
 activate/fit an existing Cell, or clear focus. It never advances revision,

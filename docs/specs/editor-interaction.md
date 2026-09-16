@@ -50,8 +50,9 @@ drafting object.
 
 There is no separate Cell Interface authoring surface. A child Cell Pin shows
 only its object-anchored terminal-name annotation in the normal Reference slot;
-its stable Instance ID is not drawn and it has no Instance Reference. Normal
-Properties own direction. Annotation rename changes only that declaration.
+its stable Instance ID is not drawn and it has no Instance Reference. Its
+interface direction is managed in Cell Manager. Annotation rename changes only
+that declaration.
 Caller reconciliation compares the formal name projection before and after:
 it does nothing while the old-name group survives and never merges caller
 Nets when a declaration joins an existing name.
@@ -267,19 +268,16 @@ an otherwise-unused local Net follows the ordinary orphan lifecycle.
 
 ## Project sessions
 
-New, Open, SPICE import, Gallery/My Example open, and recovery restore are
+New, Open, SPICE import, Gallery/built-in example open, and recovery restore are
 Project-session transitions rather than Document edits. A dirty current Project
 always requires an explicit discard or cancel decision before one of these
 transitions commits; a successful browser-recovery write is safety evidence,
 not authorization to replace the foreground Project. Candidate files and
 gallery/recovery payloads are parsed and validated before that decision.
 
-The editor retains one in-memory Previous Project snapshot when a live session
-is replaced. **Previous Project** swaps it with the current session through the
-same dirty-work guard. This bounded session rollback is deliberately separate
-from Document Undo/Redo. Boot-time deep links and an explicit Refresh restore do
-not create a Previous Project entry because no live foreground session is being
-replaced.
+The editor has no Previous Project stack: replacing a live session does not
+retain the outgoing Project in memory for a later swap, and the File menu
+offers no **Previous Project** command.
 
 Project dirty detection covers `structureRevision` and every Document revision,
 not only the active Cell, and compares the content with the last acknowledged
@@ -288,15 +286,13 @@ one empty Main Cell, no SPICE source manifest entries, and no external
 subcircuit definitions; it does not mutate the previous Project into an empty
 shell. Opening a Cloud Project binds its stable id and revision to the runtime
 session; importing a file does not. After a Cloud Save, **Revert to Last Saved**
-restores that acknowledged content through the same guard and makes the
-outgoing working copy the Previous Project. Export and backup never establish
-or advance this baseline.
+restores that acknowledged content through the same guard. Export and backup
+never establish or advance this baseline.
 
 ## Cell reset lifecycle
 
-Cell reset commands are Document transactions and therefore use Document Undo,
-not Previous Project. Each command previews an exact affected-object count
-before commit:
+Cell reset commands are Document transactions and therefore use Document Undo.
+Each command previews an exact affected-object count before commit:
 
 - **Clear Drawing** removes authored Route geometry and drafting objects while
   retaining Instances, Nets, Junction topology, ports, and semantic
@@ -322,6 +318,7 @@ Idle
   -> SymbolPlacement(preview, rotation)
   -> VddRailPlacement(preview, optional first point)
   -> CopyPlacement(clipboard, anchor, preview)
+  -> SelectionMove(M/Shift+M command move)
   -> Wire(source, authoredSteps, routingMode, cornerOrder, preview)
   -> Drawing(tool, source, waypoints, preview, snap)
 ```
@@ -334,11 +331,12 @@ Before that click, neither the document nor undo history changes; Escape or
 choosing another tool discards the preview. Fixed catalog text presets keep their
 existing placement behavior.
 
-Box selection, selection move, pan, and text-edit sessions remain bounded
-gesture owners, but every reset boundary cancels them together with the
-canonical interaction. No component preview, rail endpoint, clipboard, authored
-Wire step, routing mode, drawing point, or snap guide is stored in a parallel
-React mode flag.
+`M` and `Shift+M` enter SelectionMove, which previews at the pointer and
+commits on one click. Box selection, pointer-drag selection move, pan, and
+text-edit sessions remain bounded gesture owners, but every reset boundary
+cancels them together with the canonical interaction. No component preview,
+rail endpoint, clipboard, authored Wire step, routing mode, drawing point, or
+snap guide is stored in a parallel React mode flag.
 Command arbitration reads the reducer's synchronously advanced state, not the
 last rendered React closure, so consecutive native events such as `Escape -> C`
 observe the first transition even when React batches the next render.
@@ -355,11 +353,11 @@ that does not cross a component. A visible pin on the original path remains an
 intentional electrical contact. Any fixed point, explicit corner order,
 45-degree mode, or free-angle mode bypasses this assistance.
 
-Activating the same tool is idempotent: repeated C, W, A, or selection of the
+Activating the same tool is idempotent: repeated C, W, or selection of the
 same Library item preserves the active session. Activating a different creation
 tool replaces the current interaction atomically after drag and snap cleanup.
 During component or Copy Placement, `R` turns the transient preview by 90 degrees;
-`Shift+R` mirrors it left/right and `Shift+V` mirrors it top/bottom. Every
+`Shift+R` mirrors it left/right and `Ctrl/Cmd+R` mirrors it top/bottom. Every
 subsequent committed copy receives the same transient orientation, while the
 source selection remains unchanged. The background grid-dot button changes
 only the editor-local canvas paint. Instance reference labels use the first active Document grid line one interval beyond
@@ -674,7 +672,7 @@ ordinary in-app navigation, selection, zoom, and panel changes do not affect
 it. New, Open, Revert, recovery restore, and approved staged replacement use
 one concise application dialog with Stay, Save to Cloud and continue, and
 Continue without saving. The dialog states the destination and distinguishes
-Cloud Save (at most three private Cloud Projects) from local Project-file
+Cloud Save (at most 20 private Cloud Projects) from local Project-file
 export without exposing browser-recovery internals. A startup recovery offer is
 a non-modal overlay and never silently
 replaces the active Project.
@@ -695,8 +693,8 @@ topology hash, history, recovery, or formal export.
 ## Deterministic validation
 
 - state-transition, shortcut focus-guard, and command-by-interaction matrix
-  tests, including repeated C/W/A, unbound K, I/Escape/re-entry, and render-free
-  `Escape -> C` bursts after NMOS, PMOS, and passive placement;
+  tests, including repeated C/W, unbound A and K, I/Escape/re-entry, and
+  render-free `Escape -> C` bursts after NMOS, PMOS, and passive placement;
 - component placement and ordinary terminal connectivity for both
   interface-marker assets;
 - VDD rail picker/Library preview, cancellation at both phases, creation with no

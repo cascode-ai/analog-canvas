@@ -102,24 +102,29 @@ resolved, so continuation text cannot shift the anchor or escape export
 bounds.
 
 Derived visual diagnostics cover unplaced or unresolved symbols, symbol and
-label overlap, short route segments, ambiguous Junction dots, unsatisfied
-layout constraints, and optional export-page bounds. Diagnostics never mutate
-geometry. Unresolved symbols and ambiguous Junction dots are blocking errors;
-spacing and layout-quality findings are observations.
+label overlap, Routes through symbols, collinear same-Net Route overlap, Route
+departure against a pin's outward direction, terminals resting on another
+Net's Route, non-standard wire angles, short route segments, ambiguous
+Junction dots, unsatisfied layout constraints, and optional export-page
+bounds. Diagnostics never mutate geometry. Unresolved symbols and ambiguous
+Junction dots are blocking errors. Non-standard wire angles are gate-eligible
+structural warnings; a terminal resting on another Net's Route is a
+structural warning outside the gate. Spacing and other layout-quality findings
+are observations.
 
 Every finding declares `category`, `confidence`, and `gateEligible`.
 Structural findings describe high-confidence model, topology, or explicit
 constraint conditions. Visual observations describe heuristic geometry and
 require inspection of the formal render. A gate-ineligible observation must
-never become an automatic layout objective merely because a recipe lists its
-code. Where deterministic primitive bounds exist, overlap analysis uses the
+never become an automatic layout objective merely because a quality policy
+lists its code. Where deterministic primitive bounds exist, overlap analysis uses the
 active symbol variant's visible geometry and clusters repeated overlaps.
 
 ## Invariants
 
 - Formal output is black on white with no gradients, shadows, or decorative
   frames.
-- Symbol geometry uses square line caps and miter joins unless a reviewed
+- Symbol geometry uses butt line caps and miter joins unless a reviewed
   symbol explicitly requires another choice.
 - Instance transforms apply rotation, then independent screen-space horizontal
   and/or vertical reflection, then translation. Mirror actions do not rewrite

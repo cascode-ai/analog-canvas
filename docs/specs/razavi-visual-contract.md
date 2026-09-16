@@ -157,10 +157,10 @@ strokes:
   emphasis: 2.4
   ground: 2.906977
   supply: 1.8
+  powerRail: 3.24
   annotation: 1.6
 nodes:
   junctionRadius: 3.77907
-  portOriginRadius: 2.47907
 annotations:
   supplyBarWidth: 20
   currentArrowLength: 53.488372

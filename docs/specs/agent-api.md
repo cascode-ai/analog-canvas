@@ -100,9 +100,12 @@ inference algorithm.
 - Reuse a `requestId` only for an exact-payload retry. A different payload with
   the same ID is rejected.
 - A Snapshot or whole Project is never accepted as a mutation payload;
-  structural transactions contain only typed add/remove/transact operations
-  and the Project-level `upsert_simulation_folder` / `remove_simulation_folder`
-  edits.
+  structural transactions contain only the Edit Engine's typed Project
+  structure edits: `add_document` / `remove_document` / `rename_document`,
+  `rename_project`, `add_source_file`,
+  `upsert_external_subcircuit_definition` /
+  `remove_external_subcircuit_definition`, `upsert_simulation_folder` /
+  `remove_simulation_folder`, and nested `transact_document`.
 - GUI and Agent writes cross the same Edit Engine and permission checks.
 
 After commit, render and then request a fresh Snapshot for final verification.
@@ -144,6 +147,18 @@ replacement requires explicit human approval.
 operations through the shared SimulationService. Saved setup changes use normal
 Project structure edits; artifacts use File Resource, not Circuit render.
 See [execution and resources](simulation-execution.md).
+
+`POST /api/agent/sessions/{sessionId}/projects` is the Project Resource
+sibling, advertised in `capabilities` as `resources.project` with operations
+`list-projects`, `list-cells`, and `import-cell` and
+`importMode: "project-local-copy"`. The live browser lists the signed-in
+account's Cloud Projects and their Cells. `import-cell` requires
+`expectedStructureRevision` and commits the shared cross-Project import plan
+through the ordinary Project transaction controller as an independent
+project-local copy; a repeated import reports `already-imported`. Failures
+carry a `recovery` hint (`sign-in`, `refresh`, `fix-input`, or `retry`). The
+resource requires the `project.import` scope and owns no second Cloud store,
+imported-Cell format, or write path; see [Edit Engine](edit-engine.md).
 
 These resources do not expose arbitrary host files or a general-purpose
 code-execution API. Authored raw SPICE is simulator input within the configured

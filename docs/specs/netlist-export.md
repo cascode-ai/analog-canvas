@@ -75,14 +75,16 @@ interface CellNetlistInterface {
     netId: StableId;
     interfaceInstanceIds: [StableId];
   }>;
+  formalParameters: Array<{ name: string; defaultValue?: string }>;
 }
 
 interface InstanceNetlistData {
-  binding:
+  binding?:
     | { kind: "primitive"; deviceClass: DeviceClass }
     | { kind: "model"; deviceClass: DeviceClass; name: string }
-    | { kind: "subcircuit"; childDocumentId: StableId; name: string }
-    | { kind: "external-subcircuit"; name: string };
+    | { kind: "subcircuit"; childDocumentId: StableId }
+    | { kind: "external-subcircuit"; definitionId: StableId }
+    | { kind: "unresolved-subcircuit"; name: string };
   parameters: Record<string, string>;
 }
 ```
@@ -108,7 +110,8 @@ Its bound Annotation may retain same-text RichText formatting, which never
 changes emitted names. At extraction, names are grouped case-insensitively;
 first occurrence fixes order and spelling, and every member Net maps to that
 one emitted formal node. This projection does not merge Base Nets or mutate the
-Project. Repeated internal Net naming still uses Net Labels.
+Project. Repeated internal Net naming still uses Net Labels. The copy/export
+projection below may then change only the letter case of formal names.
 
 Every manually inserted device receives an explicit reference. References are
 unique per cell and have the prefix required by their device definition. Model-
@@ -122,10 +125,13 @@ a default. SPICE import restores `.subckt` parameter defaults into the Cell
 interface.
 
 An external-subcircuit binding is a project-local external master declaration,
-not a simulator model lookup. Its definition's ordered terminals select the
-emitted `X` nodes and its `name` is the emitted master token. The instance owns
-raw overrides. A PDK may provide artwork later, but artwork cannot change
-external invocation into a primitive or model binding.
+not a simulator model lookup. Its `definitionId` selects one project-level
+external definition, whose ordered terminals select the emitted `X` nodes and
+whose `name` is the emitted master token. The instance owns raw overrides. An
+`unresolved-subcircuit` binding retains only a master name; export emits it
+only as a built-in Analog Block's black-box master call. A PDK may provide
+artwork later, but artwork cannot change external invocation into a primitive
+or model binding.
 
 Reviewed native-device mappings may source those ordered target terminals from
 stable local pins with different names. The released SKY130 resistor maps
@@ -138,7 +144,8 @@ external target atomically changes `M1/R1/C1` to `XM1/XR1/XC1`; clearing that
 target restores the native prefix. Imported X calls are retained unchanged,
 and all References remain case-insensitively unique before output. Reviewed
 SKY130 `l/w` values are stored canonically as metre-valued SPICE strings and
-projected to plain micrometre numbers only for SPICE/ngspice export.
+projected to plain micrometre numbers by extraction for both SPICE and Spectre
+output.
 
 External-master parameters are deliberately open: declared formal parameters
 provide authoring metadata, requiredness, and defaults, while additional raw
@@ -148,24 +155,35 @@ library model or PDK.
 
 ## Device definition
 
-Each exportable electrical Symbol has one reviewed definition:
+Each exportable electrical device Symbol has one reviewed `DeviceDescriptor`
+in `packages/devices`. Built-in Analog Blocks instead have a black-box
+subcircuit descriptor: a master name and ordered ports, including fixed supply
+ports.
 
 ```typescript
-interface DeviceNetlistDefinition {
+interface DeviceDescriptor {
+  id: string;
   symbolId: StableId;
   deviceClass:
     | "resistor"
     | "capacitor"
     | "inductor"
     | "mos"
+    | "diode"
+    | "bjt"
     | "voltage-source"
     | "current-source"
-    | "net-marker"
-    | "hierarchical";
+    | "switch"
+    | "net-marker";
+  mosBulkClass?: "nmos" | "pmos";
   referencePrefix: string | null;
   pinOrder: string[];
   targetPolicy: "builtin" | "required-model" | "child-cell" | "none";
+  sourceWaveformDefault?: "dc" | "pulse" | "sin" | "pwl";
   parameters: DeviceParameterDefinition[];
+  dialects: ["spice", "spectre"];
+  capabilities: DeviceCapabilities;
+  // plus optional authoring-only pin metadata
 }
 ```
 
@@ -221,6 +239,7 @@ The export IR is distinct from the import-oriented `CircuitIR`:
 interface DesignNetlistIR {
   topCellId: StableId;
   cells: DesignNetlistCell[];
+  externalMasters?: DesignNetlistExternalMaster[];
   globals: string[];
 }
 
@@ -230,12 +249,23 @@ interface DesignNetlistCell {
   ports: Array<{ id: StableId; name: string; netName: string }>;
   nets: Array<{ id: StableId; name: string; scope: "local" | "global" }>;
   instances: DesignNetlistInstance[];
+  formalParameters?: Array<{ name: string; defaultValue?: string }>;
+}
+
+// A referenced external or built-in Analog Block interface; never a body.
+interface DesignNetlistExternalMaster {
+  id: StableId;
+  name: string;
+  terminals: Array<{ id: StableId; name: string; direction: PortDirection }>;
+  formalParameters: Array<{ name: string; defaultValue?: string }>;
 }
 
 interface DesignNetlistInstance {
   id: StableId;
   reference: string;
-  deviceClass: string;
+  invocationKind: "primitive" | "subcircuit";
+  reviewedExternalBindingId?: ReviewedExternalBindingId;
+  deviceClass: DeviceClass | "hierarchical";
   target: string | null;
   nodes: Array<{ pinName: string; netName: string }>;
   parameters: Array<{ name: string; rawValue: string }>;
@@ -298,15 +328,27 @@ electrical fact required for meaningful output.
 ### Explicit export presets
 
 The export boundary accepts an optional `NetlistExportProfile`. The editor
-ships Abstract, SKY130, and Custom defaults in a single raw JSON configuration
-in the right Properties panel; `selected` chooses the active preset. Valid code
-edits apply immediately, invalid drafts block copying, and browser preferences
-are separate from the Project schema. There are no per-field configuration forms.
+ships Abstract, SKY130, TSMC 28, TSMC 180, and Custom defaults in a single raw
+JSON configuration. The Netlist menu's Configuration… entry opens it in the
+right-side Project tools dock, which is separate from Properties. `selected`
+chooses the active preset; `format` and `portCase` hold the output choices.
+Valid code edits apply immediately, invalid drafts block copying, and browser
+preferences are separate from the Project schema. The live Netlist panel edits
+the same configuration through compact controls: Format and Process selects;
+NMOS, PMOS, R, C, and L target selects for the selected preset, where choosing
+a target reloads that family's parameter defaults; a Port-name case toggle; and
+a Default action that restores the whole default configuration.
 
 Projection copies the Project and visits only the reachable hierarchy. Abstract
 uses ideal R/C/L and generic model names without model cards; SKY130 uses reviewed
-external transistor interfaces and ideal R/C by default; Custom preserves authored
-targets. Defaults fill only missing parameters, case-insensitively. Existing source
+external transistor interfaces and ideal R/C by default; TSMC 28 binds MOS
+models `nch_ulvt_mac`/`pch_ulvt_mac` with default `l=30n` and renames the
+portable MOS `m` to the wrapper's `multi`; TSMC 180 binds `nch`/`pch` with
+default `l=180n`, keeps `m`, and binds PNP to `pnp10_5_rpo`; both TSMC presets
+keep R/C/L ideal; Custom preserves authored targets. Editable library defaults
+are `sky130.lib.spice` section `tt`, `toplevel.scs` section `TOP_TT`, and
+`cmn018_gp2a_5v_v1d4_usage.scs` section `tt_lib`; Abstract and Custom have none.
+Defaults fill only missing parameters, case-insensitively. Existing source
 waveforms and AC intent do not acquire a new DC bias from a fallback.
 
 Strict extraction, simulation, and profiled copy export use actual MOS B
@@ -326,9 +368,10 @@ Explicit physical R/C targets use reviewed W/L parameters, never infer geometry
 from an ideal value, and warn when replacing that value. A resistor's existing
 substrate connection wins; an absent substrate may use an explicitly configured
 existing net or exporter-only ground `0`. Reference or target-interface collisions
-block output. Reviewed geometry stays in canonical metres until strict SPICE
-extraction emits the PDK wrapper's micrometre values. Unknown custom subcircuits
-and unresolved hierarchy retain their original interfaces and validation.
+block output. Reviewed geometry stays in canonical metres until strict
+extraction emits the PDK wrapper's micrometre values in either dialect. Unknown
+custom subcircuits and unresolved hierarchy retain their original interfaces and
+validation.
 
 Configured library paths and sections are printed as includes outside the pure
 IR printer. SCS output remains entirely in `simulator lang=spectre`, including
@@ -356,16 +399,22 @@ never exports the permissive authoring IR. It cannot omit an invalid device or i
 and the explicit substrate rule belong only to the selected preset above.
 
 The editor's primary Netlist button copies immediately in its current format
-(SPICE by default) and opens the live right sidebar. Its adjacent menu copies
-the other format and remembers that choice for the session. Clipboard rejection
-leaves selectable code and a status message, without a download fallback.
+(SPICE by default) and opens the live right sidebar. That panel's Format select
+chooses the format, which is remembered with the browser-local configuration.
+The adjacent menu offers Configuration…, Instances…, Check Report…, and Check
+and Save; it has no format choice. Clipboard rejection leaves selectable code
+and a status message, without a download fallback.
 
 The copy/export projection removes the strict printer's generated title and
-adds no diagnostic, preset, TODO-summary or library comments. SPICE preserves
-an empty first title line so an entry-file reader does not consume the first
-directive. Native SCS begins with its language declaration before an include.
-Structured diagnostics remain available in the optional Check Report; its
-preview and copy action use the same projection. Strict simulation printers
+adds no diagnostic, preset, TODO-summary or library comments. It also accepts
+an optional `portCase` (`upper` or `lower`), which the editor always supplies
+from its remembered choice, uppercase by default. Every formal Port name and
+the Cell-local node it owns, subcircuit-call pin names, and external-master
+terminal names then take that case; all other Nets keep their spelling. SPICE
+preserves an empty first title line so an entry-file reader does not consume
+the first directive. Native SCS begins with its language declaration before an
+include. Structured diagnostics remain available in the optional Check Report;
+its preview and copy action use the same projection. Strict simulation printers
 and their source locations remain unchanged.
 
 ## Operations and state transitions
