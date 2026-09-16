@@ -1,0 +1,17 @@
+{
+  "executor": "hosted-container",
+  "reproducibility": "pinned",
+  "profileId": "vacask-sky130-candidate",
+  "platform": "linux/x64",
+  "simulator": {
+    "name": "vacask",
+    "version": "0.3.4",
+    "binarySha256": "4d8e3909e27ae4bf5b2990529f0e378309d01c8c34460cdb77d9ff1ab8d7ddb4"
+  },
+  "models": {
+    "id": "vacask-runtime-assets",
+    "contentSha256": "66595d7f30c34d9175b3d1b6146a1123ade737c62c0090bbe19ef9594ada4d64"
+  },
+  "startupSha256": "c1d2c35e9b9c7c0496c4083ba14a0ad4712af28e1467f94d6b194dd7f313fd91",
+  "fingerprint": "71c0dde89f8d2be95992fb1428baf442a7534f5649d60b5a74a735d7a4701b5e"
+}

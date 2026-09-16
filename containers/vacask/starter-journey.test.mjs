@@ -654,6 +654,23 @@ const library = cornerLibraries.tt;
 it("preserves all twelve Library OTA experiments, their circuits and native report source", async () => {
   const { project } = projects.find((p) => p.kind === "ota-library");
   const before = parseProject(JSON.stringify(legacyLibraryOta));
+  // Main #827 repaired copied route-marker anchors without changing the circuit.
+  // Keep the historical electrical baseline, with those explicit drawing fixes.
+  const repairedAnchors = {
+    "route-ui-3": [530, 150, "route-leg-950eb45aec291af5"],
+    "tb-ibias-route": [536, 240, "route-leg-9c7f13cc644db106"],
+    "tb-vinp-route": [450, 290, "route-leg-db9df07a18d56c80"],
+    "tb-vinn-route": [450, 340, "route-leg-42de77b6b7306ba2"],
+  };
+  for (const document of before.documents)
+    for (const annotation of document.annotations) {
+      const anchor = annotation.anchor;
+      const repair = anchor.kind === "route" && repairedAnchors[anchor.routeId];
+      if (repair) {
+        anchor.fallbackPosition = { x: repair[0], y: repair[1] };
+        anchor.legId = repair[2];
+      }
+    }
   expect({ ...project, simulationFolders: [] }).toEqual({
     ...before,
     simulationFolders: [],

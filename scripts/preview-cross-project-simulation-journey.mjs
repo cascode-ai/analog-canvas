@@ -23,10 +23,31 @@ import {
   collectNativeRunEvidence,
 } from "./lib/native-example-runner.mjs";
 import { verifyPreviewCandidate } from "./lib/preview-candidate.mjs";
+import { downloadPublishedMcp } from "./lib/published-mcp.mjs";
 
 // Same explicit candidate/bundle/environment arguments as the native batch runner.
 // No default hostname: this command creates a temporary Cloud Project.
-const options = nativeRunnerOptions(process.argv.slice(2));
+// The delivery workflow explicitly targets shared Preview. Keep the separate
+// migration runner's conservative origin restrictions for custom candidates.
+const sharedPreview =
+  process.argv.length === 3 &&
+  process.argv[2].replace(/\/$/, "") ===
+    "https://analog-canvas-preview.tokenzhang.com";
+let publishedDirectory;
+let published;
+let options;
+if (sharedPreview) {
+  publishedDirectory = await mkdtemp(join(tmpdir(), "icm-cross-published-"));
+  published = await downloadPublishedMcp(process.argv[2], publishedDirectory);
+  options = {
+    url: process.argv[2],
+    bundle: published.executable,
+    bundleSha256: createHash("sha256")
+      .update(await readFile(published.executable))
+      .digest("hex"),
+    environments: [resolve("config/vacask-preview-environment.json")],
+  };
+} else options = nativeRunnerOptions(process.argv.slice(2));
 assert(
   !options.selected,
   "Cross-Project acceptance uses its fixed OTA fixture",
@@ -475,6 +496,11 @@ try {
   await cleanup("connector scratch", () =>
     rm(privateDirectory, { recursive: true, force: true }),
   );
+  if (publishedDirectory)
+    await cleanup("published MCP scratch", () =>
+      rm(publishedDirectory, { recursive: true, force: true }),
+    );
+  if (published) report.publishedMcp = published.receipt;
   report.cleanupErrors = cleanupErrors;
   if (cleanupErrors.length) report.status = "failed";
   report.completedAt = new Date().toISOString();
