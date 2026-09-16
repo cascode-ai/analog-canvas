@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
@@ -8,6 +8,26 @@ const bootstrap = readFileSync("containers/ngspice/host/bootstrap.sh", "utf8");
 const deploy = readFileSync("containers/ngspice/host/deploy.sh", "utf8");
 
 describe("the operator simulator host", () => {
+  it("ships every local Docker COPY dependency in the remote build context", () => {
+    const roots = workflow
+      .match(/tar -cf - ([^|\n]+)\| ssh sim/u)[1]
+      .trim()
+      .split(/\s+/u);
+    const dockerfile = readFileSync("containers/ngspice/Dockerfile", "utf8");
+    const sources = [...dockerfile.matchAll(/^COPY (.+)$/gmu)].flatMap(
+      (match) => match[1].trim().split(/\s+/u).slice(0, -1),
+    );
+    expect(sources.length).toBeGreaterThan(0);
+    for (const source of sources) {
+      const path = source.replaceAll("${HARNESS_DIR}", "containers/ngspice");
+      expect(existsSync(path), path).toBe(true);
+      expect(
+        roots.some((root) => path === root || path.startsWith(`${root}/`)),
+        path,
+      ).toBe(true);
+    }
+  });
+
   it("installs and invokes only repository-owned lifecycle scripts", () => {
     expect(workflow).toContain("tar -cf - containers/ngspice");
     expect(workflow).toContain("containers/ngspice/host/bootstrap.sh");

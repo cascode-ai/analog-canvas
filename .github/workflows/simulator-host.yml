@@ -5,7 +5,7 @@
 #   probe             what the Cloudflare token may do, as HTTP statuses only
 #   bootstrap-tunnel  create the named tunnel, its ingress, and the DNS name;
 #                     hand the connector token to the host over SSH; verify
-#   deploy            copy containers/ngspice to the host, rebuild, restart,
+#   deploy            copy the harness and shared runtime to the host, rebuild, restart,
 #                     and verify /health through the tunnel
 #
 # Nothing here prints a secret: the tunnel token goes straight from the
@@ -42,6 +42,7 @@ on:
     branches: [main]
     paths:
       - containers/ngspice/**
+      - containers/simulation/**
       - .github/workflows/simulator-host.yml
 
 concurrency:
@@ -169,7 +170,7 @@ jobs:
           [ -n "$SIMULATION_ACCESS_TOKEN" ] || { echo "::error::SIMULATION_UPSTREAM_TOKEN is empty"; exit 1; }
           release="analog-canvas-sim/releases/$GITHUB_SHA"
           ssh sim "rm -rf ~/$release && mkdir -p ~/$release"
-          tar -cf - containers/ngspice | ssh sim "tar -xf - -C ~/$release"
+          tar -cf - containers/ngspice containers/simulation | ssh sim "tar -xf - -C ~/$release"
           printf '%s\n' "$GITHUB_SHA" | ssh sim "cat > ~/$release/SOURCE_COMMIT"
           ssh sim "chmod 755 ~/$release/containers/ngspice/host/*.sh ~/$release/containers/ngspice/verify-host-runtime.sh"
           ssh sim "~/$release/containers/ngspice/host/bootstrap.sh"
