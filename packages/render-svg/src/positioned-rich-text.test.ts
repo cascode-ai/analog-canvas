@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { razaviTextbookProfile } from "@icm/derived";
+import { razaviTextbookProfile, schematicTextAdvanceEm } from "@icm/derived";
 import type { RichTextDocument, RichTextRun } from "@icm/model";
 
 import { renderPositionedOverbarScriptDocument } from "./positioned-rich-text.js";
@@ -122,12 +122,12 @@ describe("renderPositionedOverbarScriptDocument", () => {
     const lineX1 = numericAttribute(overbar, "x1");
     const lineX2 = numericAttribute(overbar, "x2");
     const contentRight = Math.max(
-      subscriptX + numericAttribute(subscript, "textLength"),
-      superscriptX + numericAttribute(superscript, "textLength"),
+      subscriptX + numericAttribute(subscript, "data-text-advance"),
+      superscriptX + numericAttribute(superscript, "data-text-advance"),
     );
     expect(lineX1).toBe(numericAttribute(base, "x"));
     expect(lineX2).toBeCloseTo(lineX1 + rendered.width, 6);
-    expect(lineX2).toBeCloseTo(contentRight, 6);
+    expect(lineX2).toBeCloseTo(contentRight, 5);
     expect(numericAttribute(overbar, "y1")).toBe(
       numericAttribute(overbar, "y2"),
     );
@@ -197,15 +197,59 @@ describe("renderPositionedOverbarScriptDocument", () => {
       "line",
       'data-text-decoration="overbar"',
     );
-    expect(numericAttribute(subscript, "textLength")).toBeGreaterThan(
-      numericAttribute(superscript, "textLength"),
+    expect(numericAttribute(subscript, "data-text-advance")).toBeGreaterThan(
+      numericAttribute(superscript, "data-text-advance"),
     );
     expect(numericAttribute(overbar, "x2")).toBeCloseTo(
       numericAttribute(subscript, "x") +
-        numericAttribute(subscript, "textLength"),
-      6,
+        numericAttribute(subscript, "data-text-advance"),
+      5,
     );
   });
+
+  it.each([
+    ["regular", false, false, "plain"],
+    ["italic", false, true, "plain"],
+    ["bold", true, false, "bold"],
+  ] as const)(
+    "keeps a narrow %s glyph at its native width",
+    (_style, defaultBold, defaultItalic, metricWeight) => {
+      const positioned = renderPositionedOverbarScriptDocument(
+        {
+          runs: [
+            {
+              kind: "span",
+              style: "overbar",
+              children: [{ kind: "text", value: "f" }],
+            },
+          ],
+        },
+        razaviTextbookProfile,
+        {
+          x: 0,
+          y: 0,
+          fontSize: 20,
+          alignment: "start",
+          defaultBold,
+          defaultItalic,
+        },
+      );
+      expect(positioned).not.toBeNull();
+      const base = tagAttributes(
+        positioned!.tspans,
+        "tspan",
+        'data-text-run="base"',
+      );
+
+      expect(base).not.toHaveProperty("textLength");
+      expect(base).not.toHaveProperty("lengthAdjust");
+      expect(numericAttribute(base, "data-text-advance")).toBeCloseTo(
+        schematicTextAdvanceEm("f", metricWeight) * 20,
+        6,
+      );
+      expect(positioned!.tspans).not.toContain("spacingAndGlyphs");
+    },
+  );
 
   it("draws a plain overbar as one line over the glyphs", () => {
     // This used to fall through to CSS text-decoration, which puts the line
@@ -381,7 +425,7 @@ describe("an overbar followed by more of the line", () => {
     expect(numericAttribute(overbar, "x1")).toBe(numericAttribute(base, "x"));
     const nameRight =
       numericAttribute(subscript, "x") +
-      numericAttribute(subscript, "textLength");
+      numericAttribute(subscript, "data-text-advance");
     expect(numericAttribute(overbar, "x2")).toBeCloseTo(nameRight, 6);
     // The reported width covers the whole line, so the bar ends short of it.
     expect(numericAttribute(overbar, "x2")).toBeLessThan(

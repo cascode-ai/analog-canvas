@@ -382,10 +382,10 @@ describe("drafting layer rendering", () => {
 
     const svg = renderDocumentSvg(document, resolver);
     const subscript = svg.match(
-      /<tspan data-text-run="subscript" x="([^"]+)" y="([^"]+)"/u,
+      /<tspan data-text-run="subscript"[^>]* x="([^"]+)" y="([^"]+)"/u,
     );
     const superscript = svg.match(
-      /<tspan data-text-run="superscript" x="([^"]+)" y="([^"]+)"/u,
+      /<tspan data-text-run="superscript"[^>]* x="([^"]+)" y="([^"]+)"/u,
     );
 
     expect(subscript).not.toBeNull();
@@ -393,6 +393,7 @@ describe("drafting layer rendering", () => {
     expect(subscript?.[1]).toBe(superscript?.[1]);
     expect(Number(superscript?.[2])).toBeLessThan(Number(subscript?.[2]));
     expect(svg.match(/data-text-decoration="overbar"/gu)).toHaveLength(1);
+    expect(svg).not.toContain("spacingAndGlyphs");
     expect(svg).not.toContain("&#160;");
   });
 

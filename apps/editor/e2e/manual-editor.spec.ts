@@ -3243,6 +3243,42 @@ test("keeps literal text line breaks and overbars visible while editing", async 
   await expect(page.locator('[data-layer="drafting"]')).toContainText("Vxbias");
 });
 
+test("keeps an overbar from widening a narrow glyph", async ({ page }) => {
+  await page.goto("/editor");
+
+  await placeText(page, { x: 360, y: 300 });
+  let editor = page.getByRole("textbox", { name: "Canvas text editor" });
+  await editor.fill("f");
+  await page.getByRole("button", { name: "Apply text changes" }).click();
+
+  await placeText(page, { x: 560, y: 300 });
+  editor = page.getByRole("textbox", { name: "Canvas text editor" });
+  await editor.fill("f");
+  await editor.press("ControlOrMeta+A");
+  await page.getByRole("button", { name: "Overbar" }).click();
+  await page.getByRole("button", { name: "Apply text changes" }).click();
+
+  const textObjects = page.locator(
+    '[data-layer="drafting"] text[data-kind="draft-text"]',
+  );
+  await expect(textObjects).toHaveCount(2);
+  const widths = await textObjects.evaluateAll((elements) =>
+    elements.map((element) => {
+      const glyph =
+        element.querySelector<SVGTSpanElement>('[data-text-run="base"]') ??
+        (element as SVGTextElement);
+      return glyph.getComputedTextLength();
+    }),
+  );
+  expect(widths[0]).toBeGreaterThan(0);
+  expect(widths[1]).toBeCloseTo(widths[0]!, 1);
+
+  const overbarGlyph = textObjects.nth(1).locator('[data-text-run="base"]');
+  await expect(overbarGlyph).not.toHaveAttribute("textLength", /.+/u);
+  await expect(overbarGlyph).not.toHaveAttribute("lengthAdjust", /.+/u);
+  await expect(page.locator('[data-text-decoration="overbar"]')).toHaveCount(1);
+});
+
 test("stacks complementary scripts under one uninterrupted overbar", async ({
   page,
 }) => {
@@ -3323,7 +3359,8 @@ test("stacks complementary scripts under one uninterrupted overbar", async ({
     );
     const contentRight = Math.max(
       ...content.map(
-        (run) => numberAttribute(run, "x") + numberAttribute(run, "textLength"),
+        (run) =>
+          numberAttribute(run, "x") + numberAttribute(run, "data-text-advance"),
       ),
     );
     const viewBox = (svg.documentElement.getAttribute("viewBox") ?? "")

@@ -107,12 +107,12 @@ export function renderFractionText(
               defaultItalic: at.italic ?? false,
             });
           const markup = `<text x="${number(x)}" y="${number(baseline)}" text-anchor="start"${!positioned && width > 0 ? ` textLength="${number(width)}" lengthAdjust="spacingAndGlyphs"` : ""} font-size="${number(at.fontSize)}" font-weight="${at.bold ? "bold" : "normal"}" font-style="${at.italic ? "italic" : "normal"}" fill="${at.color}" color="${at.color}" xml:space="preserve">${text}</text>${positioned?.decorations ?? ""}`;
-          // Explicit overbar decorations scale with their text as one group.
-          output +=
-            positioned && positioned.width > 0
-              ? `<g transform="translate(${number(x)} 0) scale(${number(width / positioned.width)} 1) translate(${number(-x)} 0)">${markup}</g>`
-              : markup;
-          x += width;
+          // A deterministic advance may position the independent bar and
+          // scripts, but it must not scale the glyph outlines. In particular,
+          // narrow letters such as `f` were visibly widened when this group
+          // was forced back to the generic fraction measurement.
+          output += markup;
+          x += positioned?.width ?? width;
           ordinary = [];
         };
         for (const run of lineRuns) {

@@ -1,4 +1,4 @@
-import { measureRichTextDocument, richTextAdvanceEm } from "@icm/derived";
+import { measureRichTextDocument, schematicTextAdvanceEm } from "@icm/derived";
 import type { SchematicStyleProfile } from "@icm/derived";
 import type { RichTextDocument, RichTextRun } from "@icm/model";
 
@@ -104,7 +104,11 @@ function segmentWidth(
   fontSize: number,
   scale: number,
 ): number {
-  return richTextAdvanceEm(segment.text) * fontSize * scale;
+  return (
+    schematicTextAdvanceEm(segment.text, segment.bold ? "bold" : "plain") *
+    fontSize *
+    scale
+  );
 }
 
 function segmentsWidth(
@@ -140,7 +144,7 @@ function renderSegments(
   let output = "";
   for (const segment of segments) {
     const width = segmentWidth(segment, options.fontSize, options.scale);
-    output += `<tspan data-text-run="${options.run}" x="${number(x)}" y="${number(options.y)}" text-anchor="start" font-size="${number(options.fontSize * options.scale)}" textLength="${number(width)}" lengthAdjust="spacingAndGlyphs" style="${styleAttribute(segment, options.profile)}">${escapeXml(segment.text)}</tspan>`;
+    output += `<tspan data-text-run="${options.run}" data-text-advance="${number(width)}" x="${number(x)}" y="${number(options.y)}" text-anchor="start" font-size="${number(options.fontSize * options.scale)}" style="${styleAttribute(segment, options.profile)}">${escapeXml(segment.text)}</tspan>`;
     x += width;
   }
   return output;

@@ -14,6 +14,7 @@ export * from "./drafting-geometry.js";
 export * from "./endpoint.js";
 export * from "./endpoint-connectivity.js";
 export * from "./electrical-topology-projection.js";
+export { schematicTextAdvanceEm } from "./fraction-text-metrics.js";
 export * from "./hierarchy-navigation.js";
 export * from "./instance-label-placement.js";
 export * from "./instance-value.js";
