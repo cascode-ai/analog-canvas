@@ -461,7 +461,15 @@ try {
       JSON.stringify(finished.result),
     );
     assert.equal(finished.result.metadata.environment.simulator.name, "vacask");
-    const analyses = finished.result.data.analyses;
+    const resultArtifact = finished.artifacts.find((a) => a.name === "result.json");
+    assert(resultArtifact, "Native OTA must expose its complete result artifact");
+    const resultPath = join(output, "native-ota-result.json");
+    await tool("simulation_files", {
+      request: { action: "artifact", artifactId: resultArtifact.id },
+      outputPath: resultPath,
+    });
+    const completeResult = JSON.parse(await readFile(resultPath, "utf8"));
+    const analyses = completeResult.data.analyses;
     for (const kind of ["op", "dc", "ac", "tran", "noise"])
       assert(
         analyses.some((a) => a.analysis === kind),
@@ -527,7 +535,7 @@ try {
     );
     assert.deepEqual(
       guiResult.data,
-      finished.result.data,
+      completeResult.data,
       "GUI and MCP must preserve the same native result arrays",
     );
     await panel
