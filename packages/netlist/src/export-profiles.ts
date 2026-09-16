@@ -387,6 +387,22 @@ export function projectNetlistExportProfile(
     );
     return { project, diagnostics };
   }
+  // VDD Power is a Cell interface primitive. Older Projects may still carry
+  // its marker claim as global; normalize only the export copy so the default
+  // VDD port owns that existing Net instead of producing a duplicate global.
+  for (const document of project.documents) {
+    const instancesById = new Map(
+      document.instances.map((instance) => [instance.id, instance]),
+    );
+    for (const evidence of document.connectivityEvidence) {
+      if (
+        evidence.kind === "name-claim" &&
+        evidence.owner.kind === "power-marker" &&
+        instancesById.get(evidence.owner.objectId)?.symbolId === "vdd-port"
+      )
+        evidence.scope = "local";
+    }
+  }
   const projections = deriveProjectNetNameProjection({
     ...project,
     topDocumentId: rootDocumentId,
@@ -524,7 +540,7 @@ export function projectNetlistExportProfile(
         netId: id,
         name: substrate,
         owner: { kind: "net-label", annotationId: labelId },
-        scope: "global",
+        scope: "local",
         ...(key === "vdd"
           ? { powerDomain: "vdd" as const }
           : key === "0"

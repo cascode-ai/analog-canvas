@@ -1,10 +1,10 @@
 import { deviceDescriptor, requiredParameterNames } from "@icm/devices";
-import type { CircuitProject } from "@icm/model";
+import { deriveStableId, foldNetName, type CircuitProject } from "@icm/model";
 import {
   analyzeDesignNetlist,
   type DesignNetlistAnalysisOptions,
 } from "./extract.js";
-import type { NetlistDiagnostic } from "./ir.js";
+import type { DesignNetlistIR, NetlistDiagnostic } from "./ir.js";
 import {
   projectNetlistExportProfile,
   type NetlistExportProfile,
@@ -30,6 +30,78 @@ export type DesignNetlistExportResult = {
       externalMasterCount: number;
     }
 );
+
+const DEFAULT_MODULE_SUPPLY_PORTS = ["VDD", "VSS"] as const;
+
+function moduleSupplyRank(name: string): number {
+  const rank = DEFAULT_MODULE_SUPPLY_PORTS.findIndex(
+    (supply) => foldNetName(supply) === foldNetName(name),
+  );
+  return rank < 0 ? DEFAULT_MODULE_SUPPLY_PORTS.length : rank;
+}
+
+/** Add Canvas export defaults to the transient IR, never to the Project. */
+function applyDefaultModuleSupplyPorts(
+  ir: DesignNetlistIR,
+  project: CircuitProject,
+): void {
+  const documentsById = new Map(
+    project.documents.map((document) => [document.id, document]),
+  );
+  const globalKeys = new Set(ir.globals.map((name) => foldNetName(name)));
+
+  for (const cell of ir.cells) {
+    const document = documentsById.get(cell.id);
+    if (!document || document.sourceBinding) continue;
+    const existingPortKeys = new Set(
+      cell.ports.map((port) => foldNetName(port.name)),
+    );
+    for (const supply of DEFAULT_MODULE_SUPPLY_PORTS) {
+      const key = foldNetName(supply);
+      if (existingPortKeys.has(key) || globalKeys.has(key)) continue;
+      const existingNet = cell.nets.find(
+        (net) => foldNetName(net.name) === key,
+      );
+      const id =
+        existingNet?.id ??
+        deriveStableId("default-cell-supply", document.id, supply);
+      const netName = existingNet?.name ?? supply;
+      if (!existingNet) cell.nets.push({ id, name: netName, scope: "local" });
+      cell.ports.push({ id, name: supply, netName });
+      existingPortKeys.add(key);
+    }
+    cell.ports.sort(
+      (left, right) =>
+        moduleSupplyRank(left.name) - moduleSupplyRank(right.name),
+    );
+  }
+
+  const cellsByName = new Map(
+    ir.cells.map((cell) => [foldNetName(cell.name), cell]),
+  );
+  for (const parent of ir.cells) {
+    const parentSupplyNets = new Map(
+      parent.ports
+        .filter((port) => moduleSupplyRank(port.name) < 2)
+        .map((port) => [foldNetName(port.name), port.netName]),
+    );
+    for (const instance of parent.instances) {
+      if (instance.deviceClass !== "hierarchical" || !instance.target) continue;
+      const child = cellsByName.get(foldNetName(instance.target));
+      if (!child) continue;
+      const existingNodes = new Map(
+        instance.nodes.map((node) => [foldNetName(node.pinName), node]),
+      );
+      instance.nodes = child.ports.flatMap((port) => {
+        const key = foldNetName(port.name);
+        const existing = existingNodes.get(key);
+        if (existing) return [existing];
+        const netName = parentSupplyNets.get(key);
+        return netName ? [{ pinName: port.name, netName }] : [];
+      });
+    }
+  }
+}
 
 /**
  * Copy/export projection. Missing device values/models become undefined
@@ -143,6 +215,7 @@ export function createDesignNetlistExport(
     ir = analyzeDesignNetlist(draft, analysisOptions).ir;
     if (!ir) return blocked;
   }
+  if (options.profile) applyDefaultModuleSupplyPorts(ir, project);
   const file = printDesignNetlist(format, ir);
   // Presentation export omits the strict printer's title. Keep that printer
   // unchanged for simulation/source offsets; a blank SPICE title below keeps

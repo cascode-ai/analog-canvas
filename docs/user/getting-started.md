@@ -100,10 +100,12 @@ is defined.
   preset additionally connects a manually authored PMOS with no B connection
   to its configured substrate (`VDD` by default), on the export copy only.
   Explicit Bulk and No Connect choices take priority, and imported PMOS devices
-  remain strict. Cell interfaces contain only authored formal
-  Pins, in their declared order: no extra `VDD` or `VSS` Pins are added.
-  Separate supplies such as `AVDD` and `DVDD` retain their actual connections;
-  explicit Global supplies do not create formal Pins. Ground remains node `0`.
+  remain strict. Profiled netlist export places `VDD` and `VSS` first on every
+  Canvas-authored module interface and on matching hierarchy calls, ahead of
+  the authored signal Pins. Source-imported modules retain their declared
+  interface. An explicitly Global supply remains global and suppresses only the
+  matching implicit port. Separate supplies such as `AVDD` and `DVDD` retain
+  their actual connections; Ground remains node `0`.
 - Right-click an endpoint for the distinct **Disconnect endpoint** and
   **Delete connection** actions.
 - `Delete` on a connected component now removes the component while preserving

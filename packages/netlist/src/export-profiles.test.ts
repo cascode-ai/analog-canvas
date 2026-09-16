@@ -1,4 +1,8 @@
-import { CircuitProjectSchema, createEmptyProject } from "@icm/model";
+import {
+  CircuitProjectSchema,
+  createEmptyDocument,
+  createEmptyProject,
+} from "@icm/model";
 import { deviceDescriptor } from "@icm/devices";
 import { describe, it, expect } from "vitest";
 import {
@@ -199,6 +203,70 @@ describe("netlist export presets", () => {
     },
   );
 
+  it.each(["spice", "spectre"] as const)(
+    "places VDD and VSS first on every Canvas module and hierarchy call in %s",
+    (format) => {
+      const project = createEmptyProject("hierarchy", "Hierarchy", "top");
+      const top = project.documents[0]!;
+      top.netlist!.name = "top";
+      const child = createEmptyDocument("child", "child");
+      project.documents.push(child);
+      child.instances.push({
+        id: "P1",
+        symbolId: "port",
+        placement: null,
+      });
+      child.nets.push({
+        id: "signal",
+        terminals: [{ instanceId: "P1", pinName: "P" }],
+      });
+      child.netlist!.terminals.push({
+        id: "terminal-signal",
+        name: "SIG",
+        netId: "signal",
+        direction: "inout",
+        interfaceInstanceIds: ["P1"],
+      });
+      top.instances.push({
+        id: "X1",
+        symbolId: "child-symbol",
+        reference: "X1",
+        placement: null,
+        netlist: {
+          binding: { kind: "subcircuit", childDocumentId: child.id },
+          parameters: {},
+        },
+      });
+      top.nets.push({
+        id: "parent-signal",
+        terminals: [{ instanceId: "X1", pinName: "SIG" }],
+      });
+      expect(CircuitProjectSchema.safeParse(project).success).toBe(true);
+      const before = structuredClone(project);
+
+      const strict = analyzeDesignNetlist(project, { format }).ir!;
+      expect(strict.cells.find((cell) => cell.id === child.id)?.ports).toEqual([
+        expect.objectContaining({ name: "SIG" }),
+      ]);
+      const result = exported(
+        project,
+        createNetlistExportProfile("abstract"),
+        format,
+      );
+
+      if (format === "spice") {
+        expect(result.file.text).toContain(".subckt child VDD VSS SIG");
+        expect(result.file.text).toMatch(/X1 VDD VSS net\d+ child/u);
+        expect(result.file.text).toContain(".subckt top VDD VSS");
+      } else {
+        expect(result.file.text).toContain("subckt child (VDD VSS SIG)");
+        expect(result.file.text).toMatch(/X1 \(VDD VSS net\d+\) child/u);
+        expect(result.file.text).toContain("subckt top (VDD VSS)");
+      }
+      expect(project).toEqual(before);
+    },
+  );
+
   it("maps SKY130 MOS pin order and metre geometry, retaining ideal passive values by default", () => {
     const project = circuit();
     const before = structuredClone(project);
@@ -234,7 +302,7 @@ describe("netlist export presets", () => {
       /^simulator lang=spectre\ninclude "sky130\.lib\.spice" section=tt\n/u,
     );
     expect(scs.file.text).not.toContain("simulator lang=spice");
-    expect(scs.file.text).toContain("subckt dut\n");
+    expect(scs.file.text).toContain("subckt dut (VDD VSS)\n");
     expect(scs.file.text).toMatch(
       /XM1 \([^\n]+\) sky130_fd_pr__nfet_01v8 l=0.3 w=2 nf=3 m=2/u,
     );
@@ -252,22 +320,20 @@ describe("netlist export presets", () => {
           (terminal) =>
             terminal.instanceId !== "M2" || terminal.pinName !== "B",
         );
-      document.annotations.push({
-        id: "vdd-label",
-        kind: "net-label",
-        netId: "M2-S",
-        binding: { kind: "net-name", netId: "M2-S" },
-        anchor: { kind: "free", position: { x: 0, y: 0 } },
-        alignment: "start",
-        rotation: 0,
-        locked: false,
+      document.instances.push({
+        id: "VDD1",
+        symbolId: "vdd-port",
+        placement: null,
       });
+      document.nets
+        .find((net) => net.id === "M2-S")!
+        .terminals.push({ instanceId: "VDD1", pinName: "P" });
       document.connectivityEvidence.push({
         id: "vdd-claim",
         kind: "name-claim",
         netId: "M2-S",
         name: "VDD",
-        owner: { kind: "net-label", annotationId: "vdd-label" },
+        owner: { kind: "power-marker", objectId: "VDD1" },
         scope: "global",
         powerDomain: "vdd",
       });
@@ -288,10 +354,18 @@ describe("netlist export presets", () => {
           (item) => item.code === "EXPORT_SUBSTRATE_DEFAULT",
         ),
       ).toHaveLength(1);
+      expect(
+        projected.project.documents[0]!.connectivityEvidence.find(
+          (item) => item.id === "vdd-claim",
+        ),
+      ).toMatchObject({ scope: "local" });
       expect(project).toEqual(before);
 
       const result = createDesignNetlistExport(project, { profile });
       expect(result.status, JSON.stringify(result.diagnostics)).toBe("ready");
+      if (result.status === "ready") {
+        expect(result.file.text).toMatch(/\.subckt dut VDD VSS/u);
+      }
       expect(
         result.diagnostics.filter((item) => item.code === "MISSING_PIN_NET"),
       ).toEqual([]);
@@ -321,7 +395,7 @@ describe("netlist export presets", () => {
         kind: "name-claim",
         netId: defaultNet.id,
         name: "VDD",
-        scope: "global",
+        scope: "local",
       }),
     );
     expect(CircuitProjectSchema.safeParse(projected.project).success).toBe(
