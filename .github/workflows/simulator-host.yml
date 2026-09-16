@@ -20,7 +20,7 @@ on:
         required: true
         default: probe
         type: choice
-        options: [probe, bootstrap-tunnel, deploy, vacask-preview, vacask-diagnostics]
+        options: [probe, bootstrap-tunnel, deploy, vacask-preview, vacask-diagnostics, vacask-compat-build]
       candidate_assets:
         description: Draft release tag containing the pinned native build context
         type: string
@@ -52,8 +52,41 @@ env:
   SIM_SERVICE: http://analog-canvas-ngspice:8080
 
 jobs:
+  vacask-compat-build:
+    if: github.event_name == 'workflow_dispatch' && inputs.action == 'vacask-compat-build'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Fetch pinned simulator source and existing candidate inputs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir compat-build
+          gh release download vacask-preview-assets-20260916 --dir compat-build --pattern vacask-candidate-source.tgz
+          echo 'e848a12c364af0a6d954f6f4da60250c9110b5d95dc533de05a464cbbacd4352  compat-build/vacask-candidate-source.tgz' | sha256sum -c -
+          mkdir compat-build/context
+          tar -xzf compat-build/vacask-candidate-source.tgz -C compat-build/context
+          git clone --depth 1 --branch _0.3.4 https://codeberg.org/arpadbuermen/VACASK.git compat-build/source
+          test "$(git -C compat-build/source rev-parse HEAD)" = c1a1c84f1b2b9aa71c0cddf06e555441434db7b7
+      - name: Build simulator without pidfd dependency (no deployment)
+        uses: docker/build-push-action@v6
+        with:
+          context: compat-build
+          file: containers/vacask/Dockerfile.compat-build
+          target: artifact
+          outputs: type=local,dest=compat-artifact
+          cache-from: type=gha,scope=vacask-compat
+          cache-to: type=gha,mode=max,scope=vacask-compat
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vacask-compat-${{ github.sha }}
+          path: compat-artifact/
+          if-no-files-found: error
+          retention-days: 14
   host:
-    if: github.event_name != 'workflow_dispatch' || (inputs.action != 'vacask-preview' && inputs.action != 'vacask-diagnostics')
+    if: github.event_name != 'workflow_dispatch' || (inputs.action != 'vacask-preview' && inputs.action != 'vacask-diagnostics' && inputs.action != 'vacask-compat-build')
     name: ${{ github.event_name == 'push' && 'deploy' || inputs.action }}
     runs-on: ubuntu-latest
     # The account id and the deploy token live in this environment's secrets,

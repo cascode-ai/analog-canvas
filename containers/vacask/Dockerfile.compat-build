@@ -1,0 +1,34 @@
+# Rebuild only the 0.3.4 simulator for kernels without pidfd_open. Boost's
+# supported SIGCHLD implementation is selected in BOTH Boost and VACASK.
+# OpenVAF, model sources and compiled models stay unchanged.
+FROM node:24.14.0-bookworm-slim@sha256:d8e448a56fc63242f70026718378bd4b00f8c82e78d20eefb199224a4d8e33d8 AS node-runtime
+FROM ubuntu:24.04@sha256:224a1869083a311ef3f13648a154ba79832fbef6364d31493642ca03082da254 AS build
+COPY --from=node-runtime /usr/local/bin/node /usr/local/bin/node
+RUN mkdir -p /etc/ssl/certs && node -e "require('fs').writeFileSync('/etc/ssl/certs/ca-certificates.crt', require('tls').rootCertificates.join('\n') + '\n')"
+COPY context/ubuntu.sources /etc/apt/sources.list.d/ubuntu.sources
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    ca-certificates curl git build-essential cmake ninja-build bison flex libfl-dev \
+    libsuitesparse-dev libopenblas-dev libfftw3-dev libtomlplusplus-dev python3 \
+    && dpkg-query -W > /os-packages.txt
+WORKDIR /build
+RUN curl -fsSLo boost.tar.bz2 https://archives.boost.io/release/1.88.0/source/boost_1_88_0.tar.bz2 \
+    && echo '46d9d2c06637b219270877c9e16155cbd015b6dc84349af064c088e9b5b12f7b  boost.tar.bz2' | sha256sum -c - \
+    && tar -xjf boost.tar.bz2 \
+    && cd boost_1_88_0 && ./bootstrap.sh --with-libraries=filesystem,process --prefix=/opt/boost \
+    && ./b2 -j2 link=static threading=multi cxxflags=-DBOOST_PROCESS_V2_DISABLE_PIDFD_OPEN install
+COPY source/ /build/source/
+COPY context/vacask/bin/openvaf-r /opt/compiler/openvaf-r
+RUN chmod 755 /opt/compiler/openvaf-r \
+    && test "$(git -C source rev-parse HEAD)" = c1a1c84f1b2b9aa71c0cddf06e555441434db7b7 \
+    && test -z "$(git -C source status --porcelain)" \
+    && cmake -S source -B out -G Ninja -DCMAKE_BUILD_TYPE=Release \
+       -DBoost_ROOT=/opt/boost -DTOMLPP_DIR=/usr -DSuiteSparse_DIR=/usr \
+       -DOPENVAF_DIR=/opt/compiler -DCADNIP_PARSERS=OFF \
+       '-DCMAKE_CXX_FLAGS=-DBOOST_PROCESS_V2_DISABLE_PIDFD_OPEN -I/usr/include/suitesparse' \
+    && cmake --build out --target sim -j2 \
+    && mkdir /artifact && cp out/simulator/vacask /artifact/vacask \
+    && cp /os-packages.txt /artifact/os-packages.txt \
+    && sha256sum /artifact/vacask > /artifact/SHA256SUMS \
+    && ldd /artifact/vacask > /artifact/ldd.txt
+FROM scratch AS artifact
+COPY --from=build /artifact/ /
