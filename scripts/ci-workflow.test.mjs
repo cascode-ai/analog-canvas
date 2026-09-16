@@ -10,23 +10,24 @@ describe("CI workflow", () => {
     expect(workflow).not.toContain("merge_group");
   });
 
-  it("retains all seven required check names", () => {
-    for (const name of [
-      "Static contracts",
-      "Unit and integration tests",
-      "Release contracts",
-      "Browser tests (${{ matrix.shard }})",
-    ])
+  it("uses one core runner and one affected-browser runner for pull requests", () => {
+    for (const name of ["Core contracts", "Browser tests"])
       expect(workflow).toContain(`name: ${name}`);
-    expect(workflow).toContain("1/4");
-    expect(workflow).toContain("2/4");
-    expect(workflow).toContain("3/4");
-    expect(workflow).toContain("4/4");
+    expect(workflow).toContain(
+      "if: github.event_name == 'pull_request' && needs.changes.outputs.browser == 'true'",
+    );
+    expect(workflow).toContain(
+      'git config --global --add safe.directory "$GITHUB_WORKSPACE"',
+    );
+    expect(workflow).not.toContain("playwright install --with-deps chromium");
   });
 
   it("keeps scheduled and manual audits on complete validation", () => {
     expect(workflow).toContain("workflow_dispatch:");
     expect(workflow).toContain("schedule:");
     expect(workflow).toContain("force_args+=(--force-full)");
+    expect(workflow).toContain("Full browser audit (${{ matrix.shard }})");
+    for (const shard of ["1/4", "2/4", "3/4", "4/4"])
+      expect(workflow).toContain(shard);
   });
 });

@@ -150,6 +150,7 @@ export function planValidation(paths, catalog) {
     unknownPaths,
     requiresFull: fullReasons.length > 0,
     fullReasons,
+    selectedGates: selected,
     gates,
   };
 }

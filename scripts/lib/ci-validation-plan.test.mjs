@@ -18,6 +18,7 @@ describe("CI validation planning", () => {
   it("skips implementation jobs for documentation-only work", () => {
     expect(ciPlan(["docs/user/getting-started.md"])).toMatchObject({
       heavy: false,
+      browser: false,
       mode: "documentation",
       e2eArgs: [],
     });
@@ -26,6 +27,7 @@ describe("CI validation planning", () => {
   it("selects the Gallery browser contract without unrelated editor specs", () => {
     expect(ciPlan(["worker/gallery.ts"])).toMatchObject({
       heavy: true,
+      browser: true,
       mode: "focused",
       e2eArgs: ["apps/editor/e2e/gallery.spec.ts"],
     });
@@ -145,18 +147,29 @@ describe("CI validation planning", () => {
     }
   });
 
-  it("keeps shared model changes on the complete browser suite", () => {
-    expect(ciPlan(["packages/model/src/schema/document.ts"])).toMatchObject({
+  it("keeps shared model changes on their mapped browser contracts", () => {
+    const plan = ciPlan(["packages/model/src/schema/document.ts"]);
+    expect(plan).toMatchObject({
       heavy: true,
-      mode: "full",
-      e2eArgs: [],
+      browser: true,
+      mode: "focused",
     });
+    expect(plan.e2eArgs).toEqual(
+      expect.arrayContaining([
+        "apps/editor/e2e/hierarchy.spec.ts",
+        "apps/editor/e2e/project-file.spec.ts",
+      ]),
+    );
   });
 
-  it("falls back to complete browser coverage for an unmapped code path", () => {
+  it("uses the small browser fallback for an unmapped product path", () => {
     const plan = ciPlan(["apps/editor/src/lib/new-helper.ts"]);
-    expect(plan.mode).toBe("full");
-    expect(plan.reasons[0]).toContain("no focused browser contract");
+    expect(plan.mode).toBe("fallback");
+    expect(plan.e2eArgs).toEqual([
+      "apps/editor/e2e/manual-editor.spec.ts",
+      "apps/editor/e2e/runtime-crash-safety.spec.ts",
+      "apps/editor/e2e/web-agent-session.spec.ts",
+    ]);
   });
 
   it("does not hide an unmapped path behind another focused selection", () => {
@@ -164,7 +177,7 @@ describe("CI validation planning", () => {
       "worker/gallery.ts",
       "apps/editor/src/lib/new-helper.ts",
     ]);
-    expect(plan.mode).toBe("full");
+    expect(plan.mode).toBe("fallback");
     expect(plan.reasons).toContain(
       "uncovered browser impact: apps/editor/src/lib/new-helper.ts",
     );
@@ -184,10 +197,20 @@ describe("CI validation planning", () => {
     }
   });
 
-  it("treats validation-policy documentation as a full fallback", () => {
+  it("does not turn validation-policy documentation into implementation CI", () => {
     expect(ciPlan(["docs/testing/README.md"])).toMatchObject({
+      heavy: false,
+      browser: false,
+      mode: "documentation",
+      e2eArgs: [],
+    });
+  });
+
+  it("keeps workflow-only changes out of the browser runner", () => {
+    expect(ciPlan([".github/workflows/ci.yml"])).toMatchObject({
       heavy: true,
-      mode: "full",
+      browser: false,
+      mode: "non-browser",
       e2eArgs: [],
     });
   });
@@ -195,7 +218,12 @@ describe("CI validation planning", () => {
   it("forces complete validation for scheduled and manual events", () => {
     expect(
       ciPlan(["docs/user/getting-started.md"], { forceFull: true }),
-    ).toMatchObject({ heavy: true, mode: "full", e2eArgs: [] });
+    ).toMatchObject({
+      heavy: true,
+      browser: true,
+      mode: "full",
+      e2eArgs: [],
+    });
   });
 
   it("renders the browser choice for job logs", () => {

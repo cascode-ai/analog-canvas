@@ -19,6 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       heavy: ${{ steps.plan.outputs.heavy }}
+      browser: ${{ steps.plan.outputs.browser }}
       mode: ${{ steps.plan.outputs.mode }}
       e2e_args: ${{ steps.plan.outputs.e2e_args }}
     steps:
@@ -61,94 +62,75 @@ jobs:
       - name: Check local Markdown links
         run: node scripts/check-markdown-links.mjs
 
-  static:
-    name: Static contracts
+  core:
+    name: Core contracts
     needs: changes
+    if: needs.changes.outputs.heavy == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - if: needs.changes.outputs.heavy != 'true'
-        run: echo "Documentation-only change; static contracts are unchanged."
-      - if: needs.changes.outputs.heavy == 'true'
-        uses: actions/checkout@v4
-      - if: needs.changes.outputs.heavy == 'true'
-        uses: pnpm/action-setup@v4
-        with:
-          version: 11.16.0
-      - if: needs.changes.outputs.heavy == 'true'
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: pnpm
-      - if: needs.changes.outputs.heavy == 'true'
-        run: pnpm install --frozen-lockfile
-      - if: needs.changes.outputs.heavy == 'true'
-        run: pnpm ci:static
-
-  unit:
-    name: Unit and integration tests
-    needs: changes
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - if: needs.changes.outputs.heavy != 'true'
-        run: echo "Documentation-only change; unit contracts are unchanged."
-      - if: needs.changes.outputs.heavy == 'true'
-        uses: actions/checkout@v4
-      - if: needs.changes.outputs.heavy == 'true'
-        uses: pnpm/action-setup@v4
-        with:
-          version: 11.16.0
-      - if: needs.changes.outputs.heavy == 'true'
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: pnpm
-      - if: needs.changes.outputs.heavy == 'true'
-        run: pnpm install --frozen-lockfile
-      - if: needs.changes.outputs.heavy == 'true'
-        run: pnpm ci:unit
-
-  release:
-    name: Release contracts
-    needs: changes
-    runs-on: ubuntu-latest
-    # This job contains the performance baseline and remains mandatory for
-    # every implementation change, even when browser coverage is focused.
     container:
-      image: ${{ needs.changes.outputs.heavy == 'true' && 'mcr.microsoft.com/playwright:v1.62.1-noble@sha256:dcc5531e97840b9b5e794f2814476b21571c5124a3fca2267d73041f56e7580e' || 'node:24-bookworm' }}
+      image: mcr.microsoft.com/playwright:v1.62.1-noble@sha256:dcc5531e97840b9b5e794f2814476b21571c5124a3fca2267d73041f56e7580e
       options: --ipc=host
     defaults:
       run:
         shell: bash
     timeout-minutes: 25
     steps:
-      - if: needs.changes.outputs.heavy != 'true'
-        run: echo "Documentation-only change; release contracts are unchanged."
-      - if: needs.changes.outputs.heavy == 'true'
-        uses: actions/checkout@v4
-      - if: needs.changes.outputs.heavy == 'true'
-        uses: pnpm/action-setup@v4
+      - uses: actions/checkout@v4
+      - name: Trust checked-out workspace inside the container
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - uses: pnpm/action-setup@v4
         with:
           version: 11.16.0
-      - if: needs.changes.outputs.heavy == 'true'
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: pnpm
-      - if: needs.changes.outputs.heavy == 'true'
-        run: pnpm install --frozen-lockfile
-      - if: needs.changes.outputs.heavy == 'true'
+      - run: pnpm install --frozen-lockfile
+      - name: Static contracts
+        run: pnpm ci:static
+      - name: Unit and integration tests
+        run: pnpm ci:unit
+      - name: Release contracts
         # The version-matched image already provides Chromium and its Linux
         # dependencies. Keep setup:e2e as an explicit one-time local command.
         run: pnpm release:verify
 
-  e2e:
-    name: Browser tests (${{ matrix.shard }})
+  browser:
+    name: Browser tests
     needs: changes
+    if: github.event_name == 'pull_request' && needs.changes.outputs.browser == 'true'
     runs-on: ubuntu-latest
     container:
-      image: ${{ needs.changes.outputs.heavy == 'true' && 'mcr.microsoft.com/playwright:v1.62.1-noble@sha256:dcc5531e97840b9b5e794f2814476b21571c5124a3fca2267d73041f56e7580e' || 'node:24-bookworm' }}
+      image: mcr.microsoft.com/playwright:v1.62.1-noble@sha256:dcc5531e97840b9b5e794f2814476b21571c5124a3fca2267d73041f56e7580e
+      options: --ipc=host
+    defaults:
+      run:
+        shell: bash
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.16.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - env:
+          E2E_ARGS: ${{ needs.changes.outputs.e2e_args }}
+        run: |
+          read -r -a specs <<< "$E2E_ARGS"
+          test "${#specs[@]}" -gt 0
+          pnpm ci:e2e --workers=4 "${specs[@]}"
+
+  full_browser_audit:
+    name: Full browser audit (${{ matrix.shard }})
+    needs: changes
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.62.1-noble@sha256:dcc5531e97840b9b5e794f2814476b21571c5124a3fca2267d73041f56e7580e
       options: --ipc=host
     defaults:
       run:
@@ -157,32 +139,24 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Four shards, two Playwright workers each: eight browser workers.
-        # The required-check names migrated with this split (ruleset updated
-        # in the same change window).
+        # Full coverage is an audit, not a per-PR tax. Four shards retain its
+        # wall-clock speed without charging every candidate for all 489 tests.
         shard:
           - 1/4
           - 2/4
           - 3/4
           - 4/4
     steps:
-      - if: needs.changes.outputs.heavy != 'true'
-        run: echo "Documentation-only change; browser contracts are unchanged."
-      - if: needs.changes.outputs.heavy == 'true'
-        uses: actions/checkout@v4
-      - if: needs.changes.outputs.heavy == 'true'
-        uses: pnpm/action-setup@v4
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
         with:
           version: 11.16.0
-      - if: needs.changes.outputs.heavy == 'true'
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: pnpm
-      - if: needs.changes.outputs.heavy == 'true'
-        run: pnpm install --frozen-lockfile
-      - if: needs.changes.outputs.heavy == 'true'
-        env:
+      - run: pnpm install --frozen-lockfile
+      - env:
           E2E_ARGS: ${{ needs.changes.outputs.e2e_args }}
         run: |
           read -r -a specs <<< "$E2E_ARGS"

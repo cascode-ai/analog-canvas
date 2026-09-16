@@ -210,16 +210,19 @@ Before a non-document change is merged or pushed to `main`:
 2. Run `pnpm gate:preflight -- --base <base-ref>`.
 3. Run `pnpm gate:affected -- --base <base-ref>` when the plan selects bounded
    affected gates. When it selects `full-delivery`, run the target's focused
-   checks locally and let the required PR checks own the single complete
-   delivery run. Do not run the same full suite both locally and remotely just
-   because publication is next. Run `pnpm gate:full` locally when actual risk
-   calls for pre-push full evidence or remote CI is unavailable.
-4. Push a review branch and wait for all seven GitHub required checks. Static,
-   full unit, and release/performance checks run for every implementation PR;
-   the four browser checks run focused specs or automatically fall back to the
-   complete suite. The branch must still be based on current `main`; if `main`
-   changes while checks run, update once and revalidate. Current branches merge
-   directly after this one CI pass. Nightly and manual CI runs are always full.
+   checks locally and let the required PR checks own the single broad core run
+   plus the mapped browser contracts. Do not run the same full suite both
+   locally and remotely just because publication is next. Run `pnpm gate:full`
+   locally when actual risk cannot be represented by the browser map, when it
+   calls for pre-push full evidence, or when remote CI is unavailable.
+4. Push a review branch and wait for both GitHub required checks.
+   `Core contracts` runs static contracts, the complete unit/module suite, and
+   the release/performance checks on one shared runner. `Browser tests` runs
+   only the mapped affected specs, or a small editor/runtime/Agent fallback for
+   an unmapped product path. The branch must still be based on current `main`;
+   if `main` changes while checks run, update once and revalidate. Current
+   branches merge directly after this one CI pass. Nightly and manual CI runs
+   retain the complete four-shard browser audit.
 5. If a remote check fails, keep the target active: inspect its log, repair the
    reported cause, and repeat verification. A successful `git push` is not a
    completed delivery.

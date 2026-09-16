@@ -42,6 +42,7 @@ if (githubOutput) {
     process.env.GITHUB_OUTPUT,
     [
       `heavy=${String(ciPlan.heavy)}`,
+      `browser=${String(ciPlan.browser)}`,
       `mode=${ciPlan.mode}`,
       `e2e_args=${ciPlan.e2eArgs.join(" ")}`,
       "",

@@ -42,9 +42,11 @@ delivery, as described below.
 The versioned catalog at `config/validation-gates.json` maps repository paths
 to preflight, affected, and final gates. Shared-core, production-boundary,
 unknown non-documentation, and gate-policy changes select the conservative
-branch/full fallback. Bounded changes select focused browser contracts; this
-does not skip any required GitHub check because all four browser check names
-remain present and run the selected specs.
+branch/full fallback for local planning. The PR planner separately translates
+product paths into focused browser contracts. An unmapped product path gets a
+small editor/runtime/Agent fallback; non-browser implementation paths do not
+start a browser runner. The complete browser suite remains a nightly and manual
+audit.
 
 `gate:preflight` runs cheap static contracts and cross-checks the commit's test
 impact declaration. `gate:affected` runs the catalog's bounded unit, focused
@@ -58,8 +60,8 @@ browser installation on every full check.
 
 Every `apps/editor/e2e/*.spec.ts` file must belong to a focused path group and
 select itself. The gate-planner tests enumerate the directory so adding a spec
-without routing ownership fails deterministically instead of silently making
-that path fall back to the complete browser suite.
+without routing ownership fails deterministically instead of silently relying
+on the generic browser fallback.
 
 The editor's browser workflows have separate owners: `manual-editor.spec.ts`
 retains connected editing and general integration, `component-property-workflows.spec.ts`
@@ -104,21 +106,21 @@ owns the local, Preview, and Production handoffs.
 
 ## Batch pull-request checks
 
-Every implementation pull request keeps the inexpensive broad protection:
+Every implementation pull request keeps two required checks:
 
-- `Static contracts` runs all static and generated checks.
-- `Unit and integration tests` runs the complete unit/module suite.
-- `Release contracts` runs the build, release goldens, production smoke, and
+- `Core contracts` shares one checkout and dependency install while running
+  all static and generated checks, the complete unit/module suite, the build,
+  release goldens, production smoke, packaging, and
   `performance-baseline.mjs` budgets.
-- `Browser tests (1/4)` through `Browser tests (4/4)` run the fixed affected
-  specs with two workers per shard. If the path map is missing, high risk, or
-  itself changed, all four checks automatically run the complete browser
-  suite.
+- `Browser tests` runs the specs mapped to the changed product paths with four
+  workers. An unmapped browser-product path runs the small manual-editor,
+  runtime-crash, and Agent-session fallback. A non-browser implementation
+  change skips this required job successfully without allocating a runner.
 
-Nightly and manual workflows always force complete browser coverage. A PR based
-on current `main` merges after its required checks without repeating them in a
-merge queue. CI does not repeat on the subsequent `main` push; the Preview
-workflow builds, deploys, and verifies the merged candidate.
+Nightly and manual workflows run the complete browser suite in four shards.
+A PR based on current `main` merges after its two required checks without
+repeating them in a merge queue. CI does not repeat on the subsequent `main`
+push; the Preview workflow builds, deploys, and verifies the merged candidate.
 Production is a separate release-tag or explicit-commit promotion after Preview
 acceptance. [Deployment](../deployment.md) owns that sequence and recovery.
 
