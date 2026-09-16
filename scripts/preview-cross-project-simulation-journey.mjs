@@ -133,7 +133,7 @@ const report = {
   schemaVersion: 1,
   target: baseUrl.origin,
   fixture: "cross-project-sky130-ota-op",
-  commitSha: process.env.GITHUB_SHA ?? null,
+  commitSha: process.env.RELEASE_SHA || process.env.GITHUB_SHA || null,
   startedAt: new Date().toISOString(),
   mcp: { sha256: options.bundleSha256 },
 };

@@ -66,7 +66,10 @@ export async function verifyPreviewCandidate(baseUrl) {
   const commitSha = execFileSync("git", ["rev-parse", "HEAD"], {
     encoding: "utf8",
   }).trim();
-  if (process.env.GITHUB_SHA) assert.equal(commitSha, process.env.GITHUB_SHA);
+  // A labeled pull request deploys its head while GITHUB_SHA names GitHub's
+  // merge preview, so the workflow's RELEASE_SHA is the deployed commit.
+  const expectedSha = process.env.RELEASE_SHA || process.env.GITHUB_SHA;
+  if (expectedSha) assert.equal(commitSha, expectedSha);
   // commitSha names the checkout used for acceptance, not independent proof
   // that an ignored dist directory was built from that revision.
   return { commitSha, entry, entrySha256, assets };
