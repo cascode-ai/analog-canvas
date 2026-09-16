@@ -229,13 +229,27 @@ export function useAgentSession(
     ),
   );
   const agentRevisionRef = useRef(new Map<string, number>());
-  const [view, setView] = useState<AgentSessionViewModel>({
-    status: "idle",
-    claimCode: null,
-    claimExpiresAt: null,
-    scopes: [],
-    expiresAt: null,
-    error: null,
+  const [view, setView] = useState<AgentSessionViewModel>(() => {
+    const recovery =
+      options.recover === false || typeof window === "undefined"
+        ? null
+        : readAgentSessionRecovery(window.sessionStorage, {
+            projectId: options.project.id,
+            projectSessionId: options.projectSessionId,
+            now: Date.now(),
+          });
+    return {
+      // Recovery itself starts in an effect, but the toolbar can be clicked
+      // before that effect runs. Publish the pending state synchronously so
+      // an immediate click opens the existing session instead of creating a
+      // duplicate one.
+      status: recovery ? "reconnecting" : "idle",
+      claimCode: null,
+      claimExpiresAt: null,
+      scopes: recovery?.scopes ?? [],
+      expiresAt: recovery?.expiresAt ?? null,
+      error: null,
+    };
   });
 
   const update = useCallback((next: Partial<AgentSessionViewModel>) => {
