@@ -206,9 +206,11 @@ new interfaces use deterministic direction-aware automatic layout.
 Canonical `nmos`/`pmos` use the asset's `textbook-3terminal` visual variant by
 default while retaining D/G/S/B electrically. A manual MOS uses explicit B
 membership first, then an explicitly configured cell default; otherwise bulk
-remains unresolved in the authored connectivity graph. Structural netlist and
+remains unresolved in the authored connectivity graph. Strict netlist and
 simulation extraction use actual B membership or explicit NoConnect; otherwise
-they report `MISSING_PIN_NET`, without a polarity-based supply default.
+they report `MISSING_PIN_NET`, without a polarity-based supply default. The
+editable netlist preset may apply its configured PMOS substrate only to the
+temporary copy used for user-facing export.
 Drawing the visible `bulk-dashed` connection
 clears any configured default binding and connects B to the selected Net in the
 same transaction. Imported MOS instances retain their authored fourth node;

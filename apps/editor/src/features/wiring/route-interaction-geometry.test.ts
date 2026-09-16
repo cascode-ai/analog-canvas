@@ -16,6 +16,7 @@ import {
   routeTapPoint,
   defaultInstanceLabel,
   dragNetLabelAttachmentAtPoint,
+  closestNetConductorPoint,
   netLabelPlacementTargetAtPoint,
   dragRouteAttachmentAtPoint,
   effectiveRouteAttachment,
@@ -268,6 +269,17 @@ describe("route interaction geometry", () => {
     ).toMatchObject({ segmentIndex: 1, t: 0.4, normalOffset: -8 });
     expect(
       dragNetLabelAttachmentAtPoint([record], { x: 0, y: 0 }, "route-2"),
+    ).toBeNull();
+  });
+
+  it("finds the nearest conductor for a freely placed Net label tether", () => {
+    const document = looseRouteDocument();
+    const record = routeRecord(document);
+    expect(
+      closestNetConductorPoint([record], "net-1", { x: -40, y: 70 }),
+    ).toEqual({ x: 0, y: 0 });
+    expect(
+      closestNetConductorPoint([record], "other-net", { x: 20, y: 70 }),
     ).toBeNull();
   });
 

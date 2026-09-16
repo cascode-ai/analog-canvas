@@ -326,6 +326,7 @@ import { planSelectionMove } from "../features/selection/selection-move-plan";
 import {
   annotationAnchor,
   annotationHitBox,
+  closestNetConductorPoint,
   instanceValueAnnotation,
   isRoutedMarker,
   netLabelPlacementTargetAtPoint,
@@ -2242,24 +2243,37 @@ export function App({
     );
     if (!annotation || annotation.kind !== "net-label") return null;
     const anchor = annotation.anchor;
-    if (anchor.kind !== "route") return null;
-    const record = routeGeometryRecords.find(
-      (candidate) => candidate.route.id === anchor.routeId,
+    const record =
+      anchor.kind === "route"
+        ? routeGeometryRecords.find(
+            (candidate) => candidate.route.id === anchor.routeId,
+          )
+        : undefined;
+    const attachment =
+      record && anchor.kind === "route"
+        ? resolveRouteAttachment(record.geometry, anchor)
+        : null;
+    const label = annotationAnchor(
+      document,
+      resolver,
+      annotation,
+      routeGeometryRecords,
+      styleProfile,
     );
-    const attachment = record
-      ? resolveRouteAttachment(record.geometry, anchor)
-      : null;
-    if (!attachment) return null;
+    const conductor =
+      attachment?.conductorPoint ??
+      (annotation.netId
+        ? closestNetConductorPoint(
+            routeGeometryRecords,
+            annotation.netId,
+            label,
+          )
+        : null);
+    if (!conductor) return null;
     return {
-      label: annotationAnchor(
-        document,
-        resolver,
-        annotation,
-        routeGeometryRecords,
-        styleProfile,
-      ),
-      conductor: attachment.conductorPoint,
-      netName: record?.route.netId ?? null,
+      label,
+      conductor,
+      netName: annotation.netId ?? record?.route.netId ?? null,
     };
   }, [
     document,

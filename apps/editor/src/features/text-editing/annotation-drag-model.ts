@@ -14,13 +14,11 @@ import type {
 import { snapGridPoint } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
-import { clamp, closestPointOnSegment } from "../../canvas/canvas-geometry";
+import { clamp } from "../../canvas/canvas-geometry";
 import {
-  dragNetLabelAttachmentAtPoint,
   dragRouteAttachmentAtPoint,
   effectiveRouteAttachment,
   isRoutedMarker,
-  NET_LABEL_MAX_NORMAL_OFFSET,
 } from "../wiring/route-interaction-geometry";
 
 export interface AnnotationDragGeometryContext {
@@ -60,12 +58,7 @@ export function annotationDragPosition(
 }
 
 function constrainAnnotationPosition(
-  {
-    document,
-    annotationGrid,
-    resolver,
-    routeGeometryRecords,
-  }: AnnotationDragGeometryContext,
+  { document, annotationGrid, resolver }: AnnotationDragGeometryContext,
   annotation: Annotation,
   candidate: DerivedPoint,
 ): Point {
@@ -109,45 +102,6 @@ function constrainAnnotationPosition(
       );
     }
   }
-  if (annotation.kind === "net-label" && annotation.netId) {
-    const candidates = routeGeometryRecords
-      .filter(({ route }) => route.netId === annotation.netId)
-      .flatMap(({ geometry }) =>
-        geometry.centerline
-          .slice(0, -1)
-          .map((from, index) =>
-            closestPointOnSegment(
-              candidate,
-              from,
-              geometry.centerline[index + 1]!,
-            ),
-          ),
-      );
-    const closest = candidates.sort((left, right) => {
-      const leftDistance =
-        (left.x - candidate.x) ** 2 + (left.y - candidate.y) ** 2;
-      const rightDistance =
-        (right.x - candidate.x) ** 2 + (right.y - candidate.y) ** 2;
-      return leftDistance - rightDistance;
-    })[0];
-    if (closest) {
-      return snapGridPoint(
-        {
-          x: clamp(
-            candidate.x,
-            closest.x - NET_LABEL_MAX_NORMAL_OFFSET,
-            closest.x + NET_LABEL_MAX_NORMAL_OFFSET,
-          ),
-          y: clamp(
-            candidate.y,
-            closest.y - NET_LABEL_MAX_NORMAL_OFFSET,
-            closest.y + NET_LABEL_MAX_NORMAL_OFFSET,
-          ),
-        },
-        annotationGrid,
-      );
-    }
-  }
   return snapGridPoint(candidate, annotationGrid);
 }
 
@@ -180,20 +134,17 @@ export function draggedAnnotationAtPosition(
     return { ...annotation, anchor };
   }
   if (annotation.kind === "net-label" && annotation.anchor.kind === "route") {
-    const attached = dragNetLabelAttachmentAtPoint(
-      routeGeometryRecords,
-      candidate,
-      annotation.anchor.routeId,
-    );
-    if (!attached) return annotation;
+    // The Route anchor identifies the electrical owner at creation time, but
+    // it cannot represent an arbitrary text position: it only stores distance
+    // along one segment and an offset normal to it. Dragging beyond either end
+    // of a short wire therefore snapped the label back. The Net binding is the
+    // electrical truth, so after direct placement the label can use a free
+    // visual anchor without changing which Net it names.
     return {
       ...annotation,
       anchor: {
-        ...annotation.anchor,
-        legId: attached.legId,
-        t: attached.t,
-        normalOffset: attached.normalOffset,
-        fallbackPosition: attached.labelPosition,
+        kind: "free",
+        position: snapGridPoint(candidate, context.annotationGrid),
       },
     };
   }

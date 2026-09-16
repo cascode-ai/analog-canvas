@@ -2,6 +2,10 @@ import { expect, test } from "@playwright/test";
 
 import { chooseComponent, clickCommand } from "./editor-fixtures.js";
 
+// These cases deliberately break and reload the shared editor origin. Keep
+// them in one worker so cache cleanup and failed chunk requests cannot race.
+test.describe.configure({ mode: "default" });
+
 test("a render crash shows the recovery screen instead of a blank page", async ({
   page,
 }) => {

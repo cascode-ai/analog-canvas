@@ -309,12 +309,20 @@ external transistor interfaces and ideal R/C by default; Custom preserves author
 targets. Defaults fill only missing parameters, case-insensitively. Existing source
 waveforms and AC intent do not acquire a new DC bias from a fallback.
 
-Across all three profiles and strict simulation extraction, MOS B uses actual
-connectivity, including placement-materialized defaults. Without membership or
-an explicit NoConnect it reports `MISSING_PIN_NET`; polarity does not invent
-a supply. Definitions and callers share authored `projectCellInterface` order,
-without synthetic VDD/VSS ports or supply-first reordering. Explicit global
-supplies do not create formal Pins; actual ground remains node `0`.
+Strict extraction and simulation use actual MOS B connectivity, including
+placement-materialized defaults. Without membership or an explicit NoConnect
+they report `MISSING_PIN_NET`; polarity does not invent a supply. Profiled copy
+export is the bounded exception: for a manually authored PMOS with neither an
+explicit B connection nor NoConnect, projection connects B to the profile's
+PMOS `substrate` (`VDD` by default). It reuses an existing named Net or creates
+an exporter-only global Net, never mutates the Project, and never repairs an
+imported/source-bound MOS or an inconsistent persisted binding. After strict
+extraction, profiled user export adds `VDD` and `VSS` as the first two ports of
+every Canvas-authored module and adds the same ordered nodes to hierarchy calls.
+Source-bound imported modules retain their declared interfaces. An explicitly
+global VDD or VSS remains global and suppresses only the matching implicit port;
+actual ground remains node `0`. These supply ports exist only in the transient
+export IR and do not change the Project or strict simulation interface.
 
 Explicit physical R/C targets use reviewed W/L parameters, never infer geometry
 from an ideal value, and warn when replacing that value. A resistor's existing

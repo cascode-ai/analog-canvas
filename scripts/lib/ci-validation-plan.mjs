@@ -7,13 +7,40 @@ function implementationPaths(plan) {
   return plan.paths.filter((path) => !documentation.has(path));
 }
 
+const fallbackBrowserArgs = [
+  "apps/editor/e2e/manual-editor.spec.ts",
+  "apps/editor/e2e/runtime-crash-safety.spec.ts",
+  "apps/editor/e2e/web-agent-session.spec.ts",
+];
+
+function canAffectBrowser(path) {
+  return (
+    /^(?:apps\/editor|apps\/local-host|apps\/mcp-server|packages|worker)\//u.test(
+      path,
+    ) ||
+    /^(?:package\.json|pnpm-lock\.yaml|vite\.config\.[^/]+|wrangler(?:\.[^/]+)?\.jsonc)$/u.test(
+      path,
+    )
+  );
+}
+
+function browserImplementationPaths(plan) {
+  return implementationPaths(plan).filter(canAffectBrowser);
+}
+
+function browserSelectionGates(plan) {
+  return plan.selectedGates ?? plan.gates;
+}
+
 function e2eArgs(plan) {
-  return unique(plan.gates.flatMap((gate) => gate.ci?.e2eArgs ?? [])).sort();
+  return unique(
+    browserSelectionGates(plan).flatMap((gate) => gate.ci?.e2eArgs ?? []),
+  ).sort();
 }
 
 function e2eCoveredPaths(plan) {
   return new Set(
-    plan.gates
+    browserSelectionGates(plan)
       .filter((gate) => (gate.ci?.e2eArgs?.length ?? 0) > 0)
       .flatMap((gate) =>
         (gate.groups ?? []).flatMap((group) => plan.groupPaths[group] ?? []),
@@ -22,30 +49,19 @@ function e2eCoveredPaths(plan) {
 }
 
 /**
- * Convert the repository gate plan into the intentionally smaller CI choice.
- * Static, unit, and release jobs still run for every implementation change;
- * this plan controls only whether browser coverage is focused or complete.
+ * Convert the repository gate plan into the intentionally smaller PR choice.
+ * Core contracts still run for every implementation change. Pull requests run
+ * affected browser contracts, with a small product fallback for unmapped
+ * browser paths; scheduled and manual audits alone force the complete suite.
  */
 export function planCiValidation(plan, { forceFull = false } = {}) {
   if (forceFull) {
     return {
       heavy: true,
+      browser: true,
       mode: "full",
       e2eArgs: [],
       reasons: ["full validation was requested by the workflow event"],
-    };
-  }
-
-  const finalGates = plan.gates.filter((gate) => gate.stage === "final");
-  if (plan.requiresFull || finalGates.length > 0) {
-    return {
-      heavy: true,
-      mode: "full",
-      e2eArgs: [],
-      reasons:
-        plan.fullReasons.length > 0
-          ? plan.fullReasons
-          : finalGates.map((gate) => `full gate selected: ${gate.id}`),
     };
   }
 
@@ -53,24 +69,37 @@ export function planCiValidation(plan, { forceFull = false } = {}) {
   if (changedImplementationPaths.length === 0) {
     return {
       heavy: false,
+      browser: false,
       mode: "documentation",
       e2eArgs: [],
       reasons: ["the change contains no implementation paths"],
     };
   }
 
+  const changedBrowserPaths = browserImplementationPaths(plan);
+  if (changedBrowserPaths.length === 0) {
+    return {
+      heavy: true,
+      browser: false,
+      mode: "non-browser",
+      e2eArgs: [],
+      reasons: ["the implementation change cannot affect the browser product"],
+    };
+  }
+
   const focusedArgs = e2eArgs(plan);
   const coveredPaths = e2eCoveredPaths(plan);
-  const uncoveredPaths = changedImplementationPaths.filter(
+  const uncoveredPaths = changedBrowserPaths.filter(
     (path) => !coveredPaths.has(path),
   );
   if (focusedArgs.length === 0 || uncoveredPaths.length > 0) {
     return {
       heavy: true,
-      mode: "full",
-      e2eArgs: [],
+      browser: true,
+      mode: "fallback",
+      e2eArgs: fallbackBrowserArgs,
       reasons: [
-        "no focused browser contract covers every changed implementation path",
+        "the small browser fallback covers unmapped product impact",
         ...uncoveredPaths.map((path) => `uncovered browser impact: ${path}`),
       ],
     };
@@ -78,6 +107,7 @@ export function planCiValidation(plan, { forceFull = false } = {}) {
 
   return {
     heavy: true,
+    browser: true,
     mode: "focused",
     e2eArgs: focusedArgs,
     reasons: focusedArgs.map((arg) => `focused browser contract: ${arg}`),
@@ -89,6 +119,7 @@ export function formatCiValidationPlan(plan) {
     "CI validation plan",
     `Mode: ${plan.mode}`,
     `Implementation jobs: ${plan.heavy ? "enabled" : "skipped"}`,
+    `Browser job: ${plan.browser ? "enabled" : "skipped"}`,
     `Browser selection: ${plan.e2eArgs.length > 0 ? plan.e2eArgs.join(" ") : plan.mode === "full" ? "all specs" : "none"}`,
     ...plan.reasons.map((reason) => `  - ${reason}`),
   ];
@@ -107,6 +138,7 @@ export function formatCiValidationPlanMarkdown(plan) {
     "",
     `- Mode: **${plan.mode}**`,
     `- Implementation jobs: ${plan.heavy ? "enabled" : "skipped"}`,
+    `- Browser job: ${plan.browser ? "enabled" : "skipped"}`,
     `- Browser selection: ${browserSelection}`,
     "",
     ...plan.reasons.map((reason) => `- ${reason}`),

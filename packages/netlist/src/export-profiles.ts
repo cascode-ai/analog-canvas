@@ -387,6 +387,22 @@ export function projectNetlistExportProfile(
     );
     return { project, diagnostics };
   }
+  // VDD Power is a Cell interface primitive. Older Projects may still carry
+  // its marker claim as global; normalize only the export copy so the default
+  // VDD port owns that existing Net instead of producing a duplicate global.
+  for (const document of project.documents) {
+    const instancesById = new Map(
+      document.instances.map((instance) => [instance.id, instance]),
+    );
+    for (const evidence of document.connectivityEvidence) {
+      if (
+        evidence.kind === "name-claim" &&
+        evidence.owner.kind === "power-marker" &&
+        instancesById.get(evidence.owner.objectId)?.symbolId === "vdd-port"
+      )
+        evidence.scope = "local";
+    }
+  }
   const projections = deriveProjectNetNameProjection({
     ...project,
     topDocumentId: rootDocumentId,
@@ -487,6 +503,53 @@ export function projectNetlistExportProfile(
           : [],
       ),
     );
+    const substrateNet = (name: string, create: boolean) => {
+      const substrate = name.trim();
+      const key = substrate.toLowerCase();
+      const matched = substrateNets.get(key);
+      let net = document.nets.find((candidate) => candidate.id === matched);
+      if (net || !create || !substrate) return net;
+
+      let id = "export-substrate";
+      while (
+        document.nets.some((candidate) => candidate.id === id) ||
+        document.annotations.some(
+          (candidate) => candidate.id === `${id}-label`,
+        ) ||
+        document.connectivityEvidence.some(
+          (candidate) => candidate.id === `${id}-claim`,
+        )
+      )
+        id += "-new";
+      net = { id, terminals: [] };
+      document.nets.push(net);
+      const labelId = `${id}-label`;
+      document.annotations.push({
+        id: labelId,
+        kind: "net-label",
+        netId: id,
+        binding: { kind: "net-name", netId: id },
+        anchor: { kind: "free", position: { x: 0, y: 0 } },
+        alignment: "start",
+        rotation: 0,
+        locked: false,
+      });
+      document.connectivityEvidence.push({
+        id: `${id}-claim`,
+        kind: "name-claim",
+        netId: id,
+        name: substrate,
+        owner: { kind: "net-label", annotationId: labelId },
+        scope: "local",
+        ...(key === "vdd"
+          ? { powerDomain: "vdd" as const }
+          : key === "0"
+            ? { powerDomain: "ground" as const }
+            : {}),
+      });
+      substrateNets.set(key, id);
+      return net;
+    };
     for (const instance of document.instances) {
       const family = netlistDeviceFamily(instance.symbolId);
       const descriptor = deviceDescriptor(instance.symbolId);
@@ -524,6 +587,44 @@ export function projectNetlistExportProfile(
         continue;
       }
       const rule = profile.devices[family];
+      const bulkPin = descriptor.pinOrder.find(
+        (pinName) => pinName.toUpperCase() === "B",
+      );
+      const bulkIsConnected = bulkPin
+        ? document.nets.some((net) =>
+            net.terminals.some(
+              (terminal) =>
+                terminal.instanceId === instance.id &&
+                terminal.pinName === bulkPin,
+            ),
+          )
+        : false;
+      const bulkIsNoConnect = bulkPin
+        ? document.noConnects.some(
+            (noConnect) =>
+              noConnect.endpoint.instanceId === instance.id &&
+              noConnect.endpoint.pinName === bulkPin,
+          )
+        : false;
+      if (
+        family === "pmos" &&
+        bulkPin &&
+        !bulkIsConnected &&
+        !bulkIsNoConnect &&
+        !instance.mosBulkBinding &&
+        !instance.sourceRef &&
+        !instance.importProvenance &&
+        rule.substrate.trim()
+      ) {
+        const net = substrateNet(rule.substrate, true)!;
+        net.terminals.push({ instanceId: instance.id, pinName: bulkPin });
+        add(
+          document,
+          instance,
+          "EXPORT_SUBSTRATE_DEFAULT",
+          `${instance.reference}.${bulkPin} uses substrate ${rule.substrate} (preset default).`,
+        );
+      }
       const preserveTarget =
         (profile.id === "custom" &&
           !!data.binding &&
@@ -690,8 +791,7 @@ export function projectNetlistExportProfile(
             );
             continue;
           }
-          const matched = substrateNets.get(rule.substrate.toLowerCase());
-          let net = document.nets.find((n) => n.id === matched);
+          let net = substrateNet(rule.substrate, false);
           if (!net && rule.substrate === "0") {
             let id = "export-ground";
             while (document.nets.some((n) => n.id === id)) id += "-new";

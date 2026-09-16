@@ -90,7 +90,7 @@ export async function startLocalHost(
     }
     if (request.url === "/healthz") {
       response.writeHead(200, { "content-type": "application/json" });
-      response.end('{"status":"ok","version":"0.9.0"}\n');
+      response.end('{"status":"ok","version":"0.9.1"}\n');
       return;
     }
     try {

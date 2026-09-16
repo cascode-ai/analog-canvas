@@ -95,12 +95,17 @@ is defined.
   **Draw** lets you make an explicit route. The dashed route follows the MOS
   line color; selecting it shows a Bulk-specific action instead of ordinary
   wire styling controls. Place an unplaced device first.
-- Export uses actual Bulk connections, including connections established by
-  placement defaults. A missing Bulk blocks export; the exporter never guesses
-  a supply from MOS polarity. Cell interfaces contain only authored formal
-  Pins, in their declared order: no extra `VDD` or `VSS` Pins are added.
-  Separate supplies such as `AVDD` and `DVDD` retain their actual connections;
-  explicit Global supplies do not create formal Pins. Ground remains node `0`.
+- Strict extraction and simulation use actual Bulk connections, including
+  connections established by placement defaults. The editable netlist export
+  preset additionally connects a manually authored PMOS with no B connection
+  to its configured substrate (`VDD` by default), on the export copy only.
+  Explicit Bulk and No Connect choices take priority, and imported PMOS devices
+  remain strict. Profiled netlist export places `VDD` and `VSS` first on every
+  Canvas-authored module interface and on matching hierarchy calls, ahead of
+  the authored signal Pins. Source-imported modules retain their declared
+  interface. An explicitly Global supply remains global and suppresses only the
+  matching implicit port. Separate supplies such as `AVDD` and `DVDD` retain
+  their actual connections; Ground remains node `0`.
 - Right-click an endpoint for the distinct **Disconnect endpoint** and
   **Delete connection** actions.
 - `Delete` on a connected component now removes the component while preserving
@@ -306,9 +311,12 @@ pauses copying until corrected. The circuit itself is unchanged.
 - `custom`: keep authored component targets, and fill missing fields from your
   editable defaults. Existing component values always take priority.
 
-Every preset uses the actual Bulk connection, including connections established
-by placement defaults. A missing Bulk needs repair or an explicit NoConnect;
-the exporter does not choose a supply from MOS polarity.
+Every preset keeps an explicit Bulk connection or NoConnect. For a manually
+authored PMOS with neither, the export copy uses the PMOS `substrate` setting,
+which defaults to `VDD`; an exporter-only VDD Net is created when the drawing
+does not contain one. This does not modify the Project or change strict
+simulation extraction. Imported/source-bound PMOS devices still require their
+authored fourth terminal or an explicit NoConnect.
 
 Fields still missing after these defaults use undefined `TODO_…` placeholders;
 the sidebar and Check Report identify incomplete output. The Project stays
@@ -348,7 +356,7 @@ Build the versioned bundle and start it with Node 24:
 
 ```powershell
 pnpm release:package
-node output/release/interactive-circuit-maker-v0.9.0/start.mjs
+node output/release/interactive-circuit-maker-v0.9.1/start.mjs
 ```
 
 Open `http://127.0.0.1:4173`. Chromium can install the app from its browser

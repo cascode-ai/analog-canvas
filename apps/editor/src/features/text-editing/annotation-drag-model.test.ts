@@ -223,7 +223,7 @@ describe("annotation drag model", () => {
     expect(dragged.anchor.localOffset).toEqual({ x: 30, y: -30 });
   });
 
-  it("reanchors an imported Net Label along its routed Net", () => {
+  it("freely places a routed Net Label while retaining its Net binding", () => {
     const document = createEmptyDocument("document", "Document");
     document.nets.push({ id: "net", terminals: [] });
     document.junctions.push(
@@ -270,17 +270,14 @@ describe("annotation drag model", () => {
     };
 
     const dragged = draggedAnnotationAtPosition(context(document), annotation, {
-      x: 75,
+      x: -150,
       y: 20,
     });
 
-    expect(dragged.anchor).toMatchObject({
-      kind: "route",
-      routeId: "route",
-      legId: document.routes[0]!.legs[0]!.id,
-      t: 0.75,
-      normalOffset: 20,
-      fallbackPosition: { x: 75, y: 20 },
+    expect(dragged.anchor).toEqual({
+      kind: "free",
+      position: { x: -150, y: 20 },
     });
+    expect(dragged.netId).toBe("net");
   });
 });

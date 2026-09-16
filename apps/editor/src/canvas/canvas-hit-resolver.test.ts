@@ -29,16 +29,16 @@ function childOf(parent: Element): Element {
 }
 
 describe("resolveCanvasHit", () => {
-  it("prefers electrical geometry over incidental text in ordinary selection", () => {
+  it("prefers visible annotation text over an overlapping conductor", () => {
     const route = element("route", "wire-1");
     const annotation = element("annotation", "label-1");
     expect(resolveCanvasHit([route, annotation])).toMatchObject({
-      kind: "route",
-      id: "wire-1",
-    });
-    expect(resolveCanvasHit([route, annotation], 1)).toMatchObject({
       kind: "annotation",
       id: "label-1",
+    });
+    expect(resolveCanvasHit([route, annotation], 1)).toMatchObject({
+      kind: "route",
+      id: "wire-1",
     });
   });
 
@@ -50,16 +50,25 @@ describe("resolveCanvasHit", () => {
       id: "M1",
     });
     expect(
-      resolveCanvasHit([element("annotation", "label-2"), instance], 1),
+      resolveCanvasHit([element("annotation", "label-2"), instance]),
     ).toMatchObject({ kind: "annotation", id: "label-2" });
+    expect(
+      resolveCanvasHit([element("annotation", "label-2"), instance], 1),
+    ).toMatchObject({ kind: "instance", id: "M1" });
 
     const route = element("route", "route-1", true);
     expect(
       resolveCanvasHit([element("annotation", "net-label"), route]),
-    ).toMatchObject({ kind: "route", id: "route-1" });
+    ).toMatchObject({ kind: "annotation", id: "net-label" });
     expect(
       resolveCanvasHit([element("annotation", "net-label"), route], 1),
-    ).toMatchObject({ kind: "annotation", id: "net-label" });
+    ).toMatchObject({ kind: "route", id: "route-1" });
+
+    const selectedLabel = element("annotation", "net-label", true);
+    expect(resolveCanvasHit([selectedLabel, route])).toMatchObject({
+      kind: "annotation",
+      id: "net-label",
+    });
   });
 
   it("deduplicates multiple painted parts of one object", () => {

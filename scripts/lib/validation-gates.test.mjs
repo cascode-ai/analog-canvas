@@ -74,8 +74,17 @@ describe("validation gate planning", () => {
   });
 
   it("expands shared protocol changes to hierarchy and persistence", () => {
-    const selected = ids(["packages/project-protocol/src/persistence.ts"]);
-    expect(selected).toEqual(["test-impact", "full-delivery"]);
+    const plan = planValidation(
+      ["packages/project-protocol/src/persistence.ts"],
+      catalog,
+    );
+    expect(plan.gates.map((gate) => gate.id)).toEqual([
+      "test-impact",
+      "full-delivery",
+    ]);
+    expect(plan.selectedGates.map((gate) => gate.id)).toEqual(
+      expect.arrayContaining(["hierarchy-browser", "project-file-browser"]),
+    );
   });
 
   it("keeps canonical component definitions on the shared-core delivery gate", () => {
