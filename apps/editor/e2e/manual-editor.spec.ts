@@ -2524,6 +2524,30 @@ test("reuses a free wire endpoint as a later wire source", async ({ page }) => {
   await expect(freeEnd).toHaveCount(1);
   await clickDrawTool(page, "wire");
   await freeEnd.click();
+  const continuation = await freeEnd.evaluate((element) => {
+    const circle = element as SVGCircleElement;
+    const matrix = circle.getScreenCTM();
+    if (!matrix) return null;
+    const source = { x: circle.cx.baseVal.value, y: circle.cy.baseVal.value };
+    const target = new DOMPoint(source.x + 120, source.y).matrixTransform(
+      matrix,
+    );
+    return { source, target: { x: target.x, y: target.y } };
+  });
+  if (!continuation) throw new Error("Loose wire endpoint is not measurable");
+  await page.mouse.move(continuation.target.x, continuation.target.y);
+  const continuationPreview = await page
+    .getByTestId("wire-preview")
+    .evaluate((element) =>
+      Array.from((element as SVGPolylineElement).points).map(({ x, y }) => ({
+        x,
+        y,
+      })),
+    );
+  expect(continuationPreview).toEqual([
+    continuation.source,
+    { x: continuation.source.x + 120, y: continuation.source.y },
+  ]);
   await page.getByTestId("terminal-R2-1").click();
 
   // Continuing from a loose end extends the conductor: the two pieces

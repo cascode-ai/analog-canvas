@@ -170,10 +170,9 @@ describe("automatic orthogonal wire routing", () => {
     ).toBeGreaterThan(0);
   });
 
-  it("continues away from the incoming leg of an existing loose end", () => {
+  it("lets an existing loose end extend directly toward the pointer", () => {
     const document = createEmptyDocument("main", "Main");
     instance(document, "R1", "resistor", { x: 270, y: 200 });
-    instance(document, "R2", "resistor", { x: 590, y: 330 });
     document.nets.push({
       id: "net-existing",
       terminals: [{ instanceId: "R1", pinName: "2" }],
@@ -198,7 +197,7 @@ describe("automatic orthogonal wire routing", () => {
       ...junctionSource({ x: 430, y: 340 }, "source"),
       netId: "net-existing",
     };
-    const to = source(document, "R2", "1");
+    const to = junctionSource({ x: 650, y: 340 }, "target");
     const steps = automaticWireDraftSteps(
       document,
       resolver,
@@ -208,16 +207,14 @@ describe("automatic orthogonal wire routing", () => {
       "orthogonal",
       "auto",
     );
-    const points = compileWireDraft(
-      from,
-      to,
-      steps,
-      "orthogonal",
-      "auto",
-    ).points;
 
-    expect(points[1]!.x).toBe(points[0]!.x);
-    expect(points[1]!.y).toBeGreaterThan(points[0]!.y);
+    expect(steps).toEqual([]);
+    expect(
+      compileWireDraft(from, to, steps, "orthogonal", "auto").points,
+    ).toEqual([
+      { x: 430, y: 340 },
+      { x: 650, y: 340 },
+    ]);
   });
 
   it("never changes a point or corner mode the user chose", () => {

@@ -255,7 +255,7 @@ export function uniquePhysicalContactId(
  * The license is deliberately tiered: introduced endpoints bond at direct
  * contact, introduced conductors bond explicit Junction incidence, and a
  * typed attach names one endpoint and one exact conductor point. A moved
- * existing Route separately licenses only the pin points its new geometry
+ * existing Route separately licenses only the endpoint points its new geometry
  * covers.
  */
 export type PhysicalContactLicense = {
@@ -265,7 +265,7 @@ export type PhysicalContactLicense = {
   readonly endpointKeys: Set<string>;
   /** Exact conductor points a typed attach names, keyed by Route ID. */
   readonly routePoints: Map<string, Set<string>>;
-  /** Exact pin points newly covered by edited Route geometry. */
+  /** Exact endpoint points newly covered by edited Route geometry. */
   readonly routeGeometryPoints: Map<string, Set<string>>;
 };
 

@@ -48,7 +48,7 @@ import type { SchematicEdit } from "./transaction.js";
 import { endpointOwnerNetId } from "./transaction-routing.js";
 import { createContactPlanningDraft } from "./contact-planning-draft.js";
 import { projectRoutingEditGeometry } from "./routing-geometry-projection.js";
-import { newlyTouchedRouteTerminals } from "./transaction-connectivity-normalizer.js";
+import { newlyTouchedRouteEndpoints } from "./transaction-connectivity-normalizer.js";
 import { routeHasExternalOwner } from "./direct-contact-route-normalization.js";
 import { rebuildRoutePath } from "./route-leg-mutation.js";
 import { planPowerRailPinContacts } from "./power-rail-contact-planner.js";
@@ -546,11 +546,18 @@ export function proposeWireSegmentMove(
     ...routeEdits(document, proposal.routes),
   ];
   const projected = projectRoutingEditGeometry(document, edits);
-  const contacts = newlyTouchedRouteTerminals(
+  const movedJunctionIds = new Set(
+    proposal.junctions.map((junction) => junction.junctionId),
+  );
+  const contacts = newlyTouchedRouteEndpoints(
     document,
     projected,
     resolver,
     new Set(proposal.routes.map((route) => route.routeId)),
+  ).filter(
+    ({ endpoint }) =>
+      endpoint.kind !== "junction" ||
+      !movedJunctionIds.has(endpoint.junctionId),
   );
   const expectedElectricalEffect: ExpectedElectricalEffect | undefined =
     contacts.length > 0

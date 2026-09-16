@@ -606,7 +606,7 @@ export function useWireInteraction(capabilities: UseWireInteractionOptions) {
         if (result.ok) {
           options.setStatus(
             proposal.expectedElectricalEffect?.kind === "merge"
-              ? `Moved route segment ${record.route.id} and connected it where it touched a pin`
+              ? `Moved route segment ${record.route.id} and connected it where it landed`
               : `Moved route segment ${record.route.id}`,
           );
         }

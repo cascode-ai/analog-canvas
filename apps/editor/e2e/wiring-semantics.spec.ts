@@ -422,9 +422,101 @@ test("dragging a wire segment onto a capacitor pin connects and dots it", async 
   await page.mouse.up();
 
   await expect(page.getByTestId("status")).toContainText(
-    "connected it where it touched a pin",
+    "connected it where it landed",
   );
   await expect(page.locator('[data-canvas-hit-kind="route"]')).toHaveCount(2);
+  await expect(page.locator('g[data-layer="junctions"] circle')).toHaveCount(1);
+});
+
+test("dragging a wire segment onto another wire endpoint connects there", async ({
+  page,
+}) => {
+  const project = createEmptyProject("segment-wire", "Segment wire contact");
+  const document = project.documents[0]!;
+  document.presentation.grid = 10;
+  document.instances.push(
+    {
+      id: "R1",
+      symbolId: "resistor",
+      placement: {
+        position: { x: 200, y: 180 },
+        rotation: 0,
+        mirror: "none",
+      },
+    },
+    {
+      id: "R2",
+      symbolId: "resistor",
+      placement: {
+        position: { x: 400, y: 180 },
+        rotation: 0,
+        mirror: "none",
+      },
+    },
+  );
+  document.nets.push(
+    {
+      id: "upper-net",
+      terminals: [
+        { instanceId: "R1", pinName: "2" },
+        { instanceId: "R2", pinName: "2" },
+      ],
+    },
+    { id: "lower-net", terminals: [] },
+  );
+  document.junctions.push(
+    {
+      id: "lower-left",
+      netId: "lower-net",
+      position: { x: 100, y: 300 },
+      role: "route-anchor",
+    },
+    {
+      id: "lower-touch",
+      netId: "lower-net",
+      position: { x: 200, y: 300 },
+      role: "route-anchor",
+    },
+  );
+  document.routes.push(
+    createRoutePath({
+      id: "dragged-wire",
+      netId: "upper-net",
+      start: { kind: "terminal", instanceId: "R1", pinName: "2" },
+      end: { kind: "terminal", instanceId: "R2", pinName: "2" },
+      bends: [],
+      modes: ["manual"],
+    }),
+    createRoutePath({
+      id: "lower-wire",
+      netId: "lower-net",
+      start: { kind: "junction", junctionId: "lower-left" },
+      end: { kind: "junction", junctionId: "lower-touch" },
+      bends: [],
+      modes: ["manual"],
+    }),
+  );
+
+  await page.goto("/editor");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "segment-wire.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  const canvas = page.getByTestId("schematic-canvas");
+  await awaitCanvasSettled(canvas);
+  const [start, finish] = await onScreen(canvas, [
+    { x: 300, y: 200 },
+    { x: 300, y: 300 },
+  ]);
+  await page.mouse.move(start!.x, start!.y);
+  await page.mouse.down();
+  await page.mouse.move(finish!.x, finish!.y, { steps: 8 });
+  await page.mouse.up();
+
+  await expect(page.getByTestId("status")).toContainText(
+    "connected it where it landed",
+  );
   await expect(page.locator('g[data-layer="junctions"] circle')).toHaveCount(1);
 });
 
