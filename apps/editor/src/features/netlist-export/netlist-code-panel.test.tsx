@@ -16,9 +16,11 @@ describe("live netlist controls", () => {
         project={createEmptyProject("project", "Project")}
         format="spectre"
         namingProfile="native"
+        portCase="upper"
         profile={createNetlistExportProfile("tsmc28")}
         onProfileChange={vi.fn()}
         onFormatChange={vi.fn()}
+        onPortCaseChange={vi.fn()}
         onDeviceTargetChange={vi.fn()}
         onCopy={vi.fn()}
         onReset={vi.fn()}
@@ -39,6 +41,8 @@ describe("live netlist controls", () => {
     expect(markup).toContain(">Custom<");
     expect(markup).toContain('value="spectre" selected=""');
     expect(markup).toContain('data-testid="copy-netlist-panel"');
+    expect(markup).toContain('aria-label="Port names: uppercase"');
+    expect(markup).toContain(">ABC</code>");
     expect(markup).toContain('aria-label="Copy netlist"');
     expect(markup).toContain("<svg");
     expect(markup).not.toContain(">Copy</button>");

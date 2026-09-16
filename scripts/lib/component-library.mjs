@@ -22,17 +22,19 @@ export function validateComponentDefinition(component, id) {
   if (component?.schemaVersion !== 1 || component.symbol?.id !== id) {
     fail(`${id}: schema or filename/Symbol identity mismatch`);
   }
-  if (
-    !same(Object.keys(component).sort(), [
-      "catalog",
-      "electrical",
-      "schemaVersion",
-      "symbol",
-    ])
-  ) {
-    fail(`${id}: expected exactly schemaVersion, symbol, electrical, catalog`);
+  const expectedKeys = [
+    "catalog",
+    "electrical",
+    "schemaVersion",
+    ...(component.subcircuit === undefined ? [] : ["subcircuit"]),
+    "symbol",
+  ].sort();
+  if (!same(Object.keys(component).sort(), expectedKeys)) {
+    fail(
+      `${id}: expected schemaVersion, symbol, electrical, catalog, and optional subcircuit`,
+    );
   }
-  const { symbol, electrical, catalog } = component;
+  const { symbol, electrical, subcircuit, catalog } = component;
   if (symbol.schemaVersion !== 1 || !Array.isArray(symbol.pins))
     fail(`${id}: invalid Symbol`);
   const pins = symbol.pins.map((pin) => pin.name);
@@ -66,6 +68,57 @@ export function validateComponentDefinition(component, id) {
     const names = electrical.parameters.map((parameter) => parameter.name);
     if (new Set(names).size !== names.length)
       fail(`${id}: duplicate electrical parameters`);
+  }
+  if (electrical !== null && subcircuit !== undefined)
+    fail(`${id}: a component cannot be both a primitive and a subcircuit`);
+  if (subcircuit !== undefined) {
+    if (
+      subcircuit?.id !== id ||
+      subcircuit.symbolId !== id ||
+      !/^[A-Za-z_][A-Za-z0-9_]*$/.test(subcircuit.target) ||
+      !Array.isArray(subcircuit.ports) ||
+      subcircuit.ports.length === 0
+    ) {
+      fail(`${id}: invalid subcircuit identity, target, or ports`);
+    }
+    const portNames = new Set();
+    const mappedPins = new Set();
+    for (const port of subcircuit.ports) {
+      const portKey = port?.name?.toLowerCase();
+      if (
+        !/^[A-Za-z_][A-Za-z0-9_]*$/.test(port?.name ?? "") ||
+        !["input", "output", "inout", "passive"].includes(port?.direction) ||
+        portNames.has(portKey)
+      ) {
+        fail(`${id}: invalid or duplicate subcircuit port ${port?.name}`);
+      }
+      portNames.add(portKey);
+      const hasPin = typeof port.pinName === "string";
+      const hasSupply = port.supply === "VDD" || port.supply === "VSS";
+      if (hasPin === hasSupply) {
+        fail(`${id}: port ${port.name} must map one Symbol pin or one supply`);
+      }
+      if (hasSupply && port.name !== port.supply) {
+        fail(`${id}: supply port ${port.name} must retain its canonical name`);
+      }
+      if (hasPin) {
+        if (!pins.includes(port.pinName) || mappedPins.has(port.pinName)) {
+          fail(
+            `${id}: port ${port.name} maps an unknown or duplicate pin ${port.pinName}`,
+          );
+        }
+        mappedPins.add(port.pinName);
+      }
+    }
+    if (!same([...mappedPins].sort(), [...pins].sort())) {
+      fail(`${id}: subcircuit ports must map every Symbol pin exactly once`);
+    }
+    if (
+      subcircuit.ports[0]?.supply !== "VDD" ||
+      subcircuit.ports[1]?.supply !== "VSS"
+    ) {
+      fail(`${id}: subcircuit supplies must be ordered VDD, VSS first`);
+    }
   }
   return component;
 }

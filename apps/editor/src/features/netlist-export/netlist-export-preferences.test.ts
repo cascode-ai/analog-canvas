@@ -4,6 +4,7 @@ import {
   readNetlistExportPreferences,
   selectNetlistExportFormat,
   selectNetlistExportProfile,
+  selectNetlistPortCase,
   setNetlistExportDeviceTarget,
 } from "./netlist-export-preferences.js";
 
@@ -12,6 +13,7 @@ describe("netlist export preferences", () => {
     const preferences = readNetlistExportPreferences(null);
     preferences.selected = "custom";
     preferences.format = "spectre";
+    preferences.portCase = "lower";
     preferences.profiles.custom.devices.resistor.parameters.value = "3k";
     expect(readNetlistExportPreferences(JSON.stringify(preferences))).toEqual(
       preferences,
@@ -45,6 +47,7 @@ describe("netlist export preferences", () => {
 
     expect(restored.selected).toBe("custom");
     expect(restored.format).toBe("spice");
+    expect(restored.portCase).toBe("upper");
     expect(restored.profiles.custom.devices.resistor.parameters.value).toBe(
       "7k",
     );
@@ -71,6 +74,17 @@ describe("netlist export preferences", () => {
     expect(selected.format).toBe("spectre");
     expect(selected.selected).toBe("abstract");
     expect(selected.profiles).toBe(preferences.profiles);
+  });
+  it("selects and persists one port spelling convention", () => {
+    const preferences = selectNetlistPortCase(
+      readNetlistExportPreferences(null),
+      "lower",
+    );
+
+    expect(preferences.portCase).toBe("lower");
+    expect(
+      readNetlistExportPreferences(JSON.stringify(preferences)).portCase,
+    ).toBe("lower");
   });
   it("edits device targets only in the selected process and loads target defaults", () => {
     const preferences = readNetlistExportPreferences(null);
@@ -106,6 +120,7 @@ describe("netlist export preferences", () => {
     const preferences = readNetlistExportPreferences(null);
     preferences.selected = "tsmc28";
     preferences.format = "spectre";
+    preferences.portCase = "lower";
     preferences.profiles.tsmc28.devices.nmos.target = "custom_nch";
 
     const restored = createDefaultNetlistExportPreferences();
@@ -113,6 +128,7 @@ describe("netlist export preferences", () => {
     expect(restored).toEqual(readNetlistExportPreferences(null));
     expect(restored.selected).toBe("abstract");
     expect(restored.format).toBe("spice");
+    expect(restored.portCase).toBe("upper");
     expect(restored.profiles.tsmc28.devices.nmos.target).toBe("nch_ulvt_mac");
   });
   it.each(["{", "null", "[]", '{"selected":"custom","profiles":{}}'])(

@@ -1,6 +1,6 @@
 import type { Instance, SchematicDocument } from "@icm/model";
 
-import { deviceDescriptor } from "./registry.js";
+import { deviceDescriptor, subcircuitDescriptor } from "./registry.js";
 
 export type ReferencePolicy =
   | { readonly kind: "none" }
@@ -40,7 +40,8 @@ export function referencePolicyForInstance(
   if (
     binding?.kind === "subcircuit" ||
     binding?.kind === "unresolved-subcircuit" ||
-    binding?.kind === "external-subcircuit"
+    binding?.kind === "external-subcircuit" ||
+    subcircuitDescriptor(instance.symbolId)
   ) {
     return hierarchyReferencePolicy;
   }
@@ -49,6 +50,7 @@ export function referencePolicyForInstance(
 }
 
 export function referencePolicyForSymbol(symbolId: string): ReferencePolicy {
+  if (subcircuitDescriptor(symbolId)) return hierarchyReferencePolicy;
   const prefix = deviceDescriptor(symbolId)?.referencePrefix;
   return prefix ? { kind: "required", prefix } : { kind: "none" };
 }

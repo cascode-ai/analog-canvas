@@ -215,7 +215,7 @@
 }
 .netlist-code-controls {
   display: grid;
-  grid-template-columns: minmax(0, 0.7fr) minmax(0, 1fr) auto;
+  grid-template-columns: minmax(112px, 0.8fr) minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
 }
@@ -241,6 +241,13 @@
   color: var(--icm-text);
   font: inherit;
 }
+.netlist-code-controls select {
+  padding-right: 14px;
+  padding-left: 5px;
+}
+.netlist-code-controls label {
+  gap: 3px;
+}
 .netlist-code-controls button {
   min-height: 30px;
 }
@@ -249,6 +256,31 @@
   width: 30px;
   padding: 5px;
   place-items: center;
+}
+.netlist-port-case {
+  display: inline-grid;
+  align-items: center;
+  justify-items: center;
+  width: 36px;
+  padding: 4px;
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.netlist-port-case code {
+  color: var(--icm-text);
+  font: inherit;
+  text-transform: none;
+}
+.netlist-mapping-actions {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+.netlist-mapping-actions .netlist-default-action {
+  min-width: 0;
 }
 .netlist-code-copy svg {
   width: 18px;

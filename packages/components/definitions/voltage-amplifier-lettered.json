@@ -100,6 +100,33 @@
     }
   },
   "electrical": null,
+  "subcircuit": {
+    "id": "voltage-amplifier-lettered",
+    "symbolId": "voltage-amplifier-lettered",
+    "target": "voltage_amplifier",
+    "ports": [
+      {
+        "name": "VDD",
+        "direction": "inout",
+        "supply": "VDD"
+      },
+      {
+        "name": "VSS",
+        "direction": "inout",
+        "supply": "VSS"
+      },
+      {
+        "name": "VIN",
+        "direction": "input",
+        "pinName": "IN"
+      },
+      {
+        "name": "VOUT",
+        "direction": "output",
+        "pinName": "OUT"
+      }
+    ]
+  },
   "catalog": {
     "library": "razavi",
     "symbolId": "voltage-amplifier-lettered",

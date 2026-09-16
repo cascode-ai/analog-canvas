@@ -3,6 +3,7 @@ import type {
   NetlistFormat,
   NetlistNamingProfile,
   NetlistExportProfile,
+  NetlistPortCase,
 } from "@icm/netlist";
 import type { CircuitProject, GridRect, SchematicDocument } from "@icm/model";
 import { importSpiceSources } from "@icm/spice";
@@ -29,6 +30,7 @@ export interface EditorFileCommandDependencies {
   defaultViewBox: GridRect;
   electricalWarningsPresent: () => boolean;
   netlistProfile?: NetlistExportProfile;
+  netlistPortCase?: NetlistPortCase;
   netlistConfigurationError?: string | null;
   guardDirtyReplacement: (
     label: string,
@@ -59,6 +61,7 @@ export function createEditorFileCommands({
   defaultViewBox,
   electricalWarningsPresent,
   netlistProfile,
+  netlistPortCase,
   netlistConfigurationError,
   guardDirtyReplacement,
   replaceActiveProject,
@@ -95,6 +98,7 @@ export function createEditorFileCommands({
       project,
       namingProfile,
       ...(netlistProfile ? { profile: netlistProfile } : {}),
+      ...(netlistPortCase ? { portCase: netlistPortCase } : {}),
       electricalWarningsPresent: electricalWarningsPresent(),
     });
     if (plan.status === "blocked") {

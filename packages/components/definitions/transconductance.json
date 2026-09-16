@@ -106,6 +106,33 @@
     "labelVisibility": "hidden"
   },
   "electrical": null,
+  "subcircuit": {
+    "id": "transconductance",
+    "symbolId": "transconductance",
+    "target": "transconductance",
+    "ports": [
+      {
+        "name": "VDD",
+        "direction": "inout",
+        "supply": "VDD"
+      },
+      {
+        "name": "VSS",
+        "direction": "inout",
+        "supply": "VSS"
+      },
+      {
+        "name": "VIN",
+        "direction": "input",
+        "pinName": "A"
+      },
+      {
+        "name": "VOUT",
+        "direction": "output",
+        "pinName": "Y"
+      }
+    ]
+  },
   "catalog": {
     "library": "razavi",
     "symbolId": "transconductance",

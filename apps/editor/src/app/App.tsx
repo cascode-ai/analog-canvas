@@ -3974,6 +3974,7 @@ export function App({
       electricalWarningsPresent: () =>
         requestElectricalDiagnostics().length > 0,
       netlistProfile: netlistPreferences.profile,
+      netlistPortCase: netlistPreferences.portCase,
       netlistConfigurationError: netlistPreferences.error,
       guardDirtyReplacement,
       replaceActiveProject,
@@ -5090,6 +5091,7 @@ export function App({
                 project,
                 profile: netlistPreferences.profile,
                 format: netlistPreferences.format,
+                portCase: netlistPreferences.portCase,
                 // The dialog only renders while open, so this IS the
                 // explicit check the author asked for.
                 electricalDiagnostics: requestElectricalDiagnostics(),
@@ -5589,9 +5591,11 @@ export function App({
                     project={project}
                     format={netlistPreferences.format}
                     namingProfile={netlistNamingProfile}
+                    portCase={netlistPreferences.portCase}
                     profile={netlistPreferences.profile}
                     onProfileChange={netlistPreferences.selectProfile}
                     onFormatChange={netlistPreferences.selectFormat}
+                    onPortCaseChange={netlistPreferences.selectPortCase}
                     onDeviceTargetChange={netlistPreferences.setDeviceTarget}
                     onReset={netlistPreferences.reset}
                     onCopy={() =>

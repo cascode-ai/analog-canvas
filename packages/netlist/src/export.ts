@@ -1,4 +1,8 @@
-import { deviceDescriptor, requiredParameterNames } from "@icm/devices";
+import {
+  deviceDescriptor,
+  requiredParameterNames,
+  subcircuitDescriptor,
+} from "@icm/devices";
 import { deriveStableId, foldNetName, type CircuitProject } from "@icm/model";
 import {
   analyzeDesignNetlist,
@@ -10,6 +14,7 @@ import {
   type NetlistExportProfile,
 } from "./export-profiles.js";
 import { printDesignNetlist, type NetlistFileDescriptor } from "./printers.js";
+import type { NetlistPortCase } from "./net-name-codec.js";
 
 export interface NetlistExportPlaceholder {
   cellName: string;
@@ -103,6 +108,38 @@ function applyDefaultModuleSupplyPorts(
   }
 }
 
+/** Change only formal interface spelling and the internal nodes they own. */
+function applyPortCase(ir: DesignNetlistIR, portCase: NetlistPortCase): void {
+  const spell = (name: string) =>
+    portCase === "upper" ? name.toUpperCase() : name.toLowerCase();
+  for (const cell of ir.cells) {
+    const netRenames = new Map<string, string>();
+    for (const port of cell.ports) {
+      const nextName = spell(port.name);
+      netRenames.set(port.netName, nextName);
+      port.name = nextName;
+      port.netName = nextName;
+    }
+    for (const net of cell.nets) {
+      const nextName = netRenames.get(net.name);
+      if (nextName) net.name = nextName;
+    }
+    for (const instance of cell.instances) {
+      for (const node of instance.nodes) {
+        const nextNetName = netRenames.get(node.netName);
+        if (nextNetName) node.netName = nextNetName;
+        if (instance.deviceClass === "hierarchical") {
+          node.pinName = spell(node.pinName);
+        }
+      }
+    }
+  }
+  for (const master of ir.externalMasters ?? []) {
+    for (const terminal of master.terminals)
+      terminal.name = spell(terminal.name);
+  }
+}
+
 /**
  * Copy/export projection. Missing device values/models become undefined
  * tokens on a copy, which must then pass strict extraction. Never expose the
@@ -112,6 +149,7 @@ export function createDesignNetlistExport(
   source: CircuitProject,
   options: DesignNetlistAnalysisOptions & {
     profile?: NetlistExportProfile;
+    portCase?: NetlistPortCase;
   } = {},
 ): DesignNetlistExportResult {
   const requestedFormat = options.format ?? "spice";
@@ -215,7 +253,14 @@ export function createDesignNetlistExport(
     ir = analyzeDesignNetlist(draft, analysisOptions).ir;
     if (!ir) return blocked;
   }
-  if (options.profile) applyDefaultModuleSupplyPorts(ir, project);
+  const containsBuiltInSubcircuit = project.documents.some((document) =>
+    document.instances.some((instance) =>
+      Boolean(subcircuitDescriptor(instance.symbolId)),
+    ),
+  );
+  if (options.profile || containsBuiltInSubcircuit)
+    applyDefaultModuleSupplyPorts(ir, project);
+  if (options.portCase) applyPortCase(ir, options.portCase);
   const file = printDesignNetlist(format, ir);
   // Presentation export omits the strict printer's title. Keep that printer
   // unchanged for simulation/source offsets; a blank SPICE title below keeps

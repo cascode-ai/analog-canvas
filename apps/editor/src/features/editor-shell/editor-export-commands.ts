@@ -4,6 +4,7 @@ import type {
   NetlistFormat,
   NetlistNamingProfile,
   NetlistExportProfile,
+  NetlistPortCase,
 } from "@icm/netlist";
 import type { CircuitProject, SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
@@ -63,18 +64,21 @@ export function planDesignNetlistExport({
   project,
   namingProfile = "native",
   profile,
+  portCase,
   electricalWarningsPresent = false,
 }: {
   format: NetlistFormat;
   project: CircuitProject;
   namingProfile?: NetlistNamingProfile;
   profile?: NetlistExportProfile;
+  portCase?: NetlistPortCase;
   electricalWarningsPresent?: boolean;
 }): DesignNetlistExportPlan {
   const result = createDesignNetlistExport(project, {
     format,
     namingProfile,
     ...(profile ? { profile } : {}),
+    ...(portCase ? { portCase } : {}),
   });
   if (result.status === "blocked") {
     return {

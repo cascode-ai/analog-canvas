@@ -6,6 +6,7 @@ import {
   setNetlistDefaultTarget,
   type NetlistExportProfile,
   type NetlistFormat,
+  type NetlistPortCase,
   type NetlistProfileId,
   type NetlistQuickTargetFamily,
 } from "@icm/netlist";
@@ -14,6 +15,7 @@ export const NETLIST_EXPORT_PREFERENCES_KEY = "icm.netlist-export.v1";
 export interface NetlistExportPreferences {
   selected: NetlistProfileId;
   format: NetlistFormat;
+  portCase: NetlistPortCase;
   profiles: Record<NetlistProfileId, NetlistExportProfile>;
 }
 
@@ -21,6 +23,7 @@ export function createDefaultNetlistExportPreferences(): NetlistExportPreference
   return {
     selected: "abstract",
     format: "spice",
+    portCase: "upper",
     profiles: Object.fromEntries(
       NETLIST_PROFILE_IDS.map((id) => [id, createNetlistExportProfile(id)]),
     ) as NetlistExportPreferences["profiles"],
@@ -38,7 +41,12 @@ function migrateStoredNetlistExportPreferences(raw: string): string {
   for (const id of ["tsmc28", "tsmc180"] as const) {
     profiles[id] ??= createNetlistExportProfile(id);
   }
-  return JSON.stringify({ format: "spice", ...parsed, profiles });
+  return JSON.stringify({
+    format: "spice",
+    portCase: "upper",
+    ...parsed,
+    profiles,
+  });
 }
 
 export function parseNetlistExportPreferences(
@@ -51,6 +59,8 @@ export function parseNetlistExportPreferences(
     );
   if (parsed.format !== "spice" && parsed.format !== "spectre")
     throw new Error("format must be spice or spectre.");
+  if (parsed.portCase !== "upper" && parsed.portCase !== "lower")
+    throw new Error("portCase must be upper or lower.");
   if (
     !NETLIST_PROFILE_IDS.every(
       (id) =>
@@ -87,6 +97,13 @@ export function selectNetlistExportFormat(
   format: NetlistFormat,
 ): NetlistExportPreferences {
   return { ...preferences, format };
+}
+
+export function selectNetlistPortCase(
+  preferences: NetlistExportPreferences,
+  portCase: NetlistPortCase,
+): NetlistExportPreferences {
+  return { ...preferences, portCase };
 }
 
 export function setNetlistExportDeviceTarget(
@@ -150,6 +167,13 @@ export function useNetlistExportPreferences() {
     setText(source);
     setError(null);
   };
+  const selectPortCase = (portCase: NetlistPortCase) => {
+    const next = selectNetlistPortCase(preferences, portCase);
+    const source = JSON.stringify(next, null, 2);
+    setPreferences(next);
+    setText(source);
+    setError(null);
+  };
   const setDeviceTarget = (
     family: NetlistQuickTargetFamily,
     target: string,
@@ -170,12 +194,14 @@ export function useNetlistExportPreferences() {
   return {
     selected: preferences.selected,
     format: preferences.format,
+    portCase: preferences.portCase,
     profile: preferences.profiles[preferences.selected],
     text,
     error,
     changeText,
     selectProfile,
     selectFormat,
+    selectPortCase,
     setDeviceTarget,
     reset,
   };

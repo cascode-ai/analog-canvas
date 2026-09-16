@@ -1,5 +1,12 @@
-import type { DeviceDescriptor, DeviceRegistry } from "./contract.js";
-import { componentDeviceDescriptors } from "./components.generated.js";
+import type {
+  BuiltInSubcircuitDescriptor,
+  DeviceDescriptor,
+  DeviceRegistry,
+} from "./contract.js";
+import {
+  componentDeviceDescriptors,
+  componentSubcircuitDescriptors,
+} from "./components.generated.js";
 import { validateDeviceDescriptors } from "./validation.js";
 
 export function defineDeviceRegistry(
@@ -37,4 +44,32 @@ export function deviceDescriptor(
 
 export function deviceDescriptorById(id: string): DeviceDescriptor | undefined {
   return deviceRegistry.byId(id);
+}
+
+function defineSubcircuitRegistry(
+  descriptors: readonly BuiltInSubcircuitDescriptor[],
+): ReadonlyMap<string, BuiltInSubcircuitDescriptor> {
+  const bySymbolId = new Map<string, BuiltInSubcircuitDescriptor>();
+  for (const descriptor of descriptors) {
+    if (bySymbolId.has(descriptor.symbolId)) {
+      throw new Error(
+        `Invalid subcircuit registry: duplicate Symbol ${descriptor.symbolId}`,
+      );
+    }
+    bySymbolId.set(descriptor.symbolId, descriptor);
+  }
+  return bySymbolId;
+}
+
+const subcircuitsBySymbolId = defineSubcircuitRegistry(
+  componentSubcircuitDescriptors,
+);
+
+export const builtInSubcircuitDescriptors: readonly BuiltInSubcircuitDescriptor[] =
+  componentSubcircuitDescriptors;
+
+export function subcircuitDescriptor(
+  symbolId: string,
+): BuiltInSubcircuitDescriptor | undefined {
+  return subcircuitsBySymbolId.get(symbolId);
 }

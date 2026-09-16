@@ -264,6 +264,43 @@
     }
   },
   "electrical": null,
+  "subcircuit": {
+    "id": "opamp-differential-crossed-lettered",
+    "symbolId": "opamp-differential-crossed-lettered",
+    "target": "opamp_differential",
+    "ports": [
+      {
+        "name": "VDD",
+        "direction": "inout",
+        "supply": "VDD"
+      },
+      {
+        "name": "VSS",
+        "direction": "inout",
+        "supply": "VSS"
+      },
+      {
+        "name": "VIP",
+        "direction": "input",
+        "pinName": "IN+"
+      },
+      {
+        "name": "VIN",
+        "direction": "input",
+        "pinName": "IN-"
+      },
+      {
+        "name": "VOP",
+        "direction": "output",
+        "pinName": "OUT+"
+      },
+      {
+        "name": "VON",
+        "direction": "output",
+        "pinName": "OUT-"
+      }
+    ]
+  },
   "catalog": {
     "library": "razavi",
     "symbolId": "opamp-differential-crossed-lettered",

@@ -1,5 +1,6 @@
 export type NetlistFormat = "spice" | "spectre";
 export type NetlistNamingProfile = "native" | "cadence-bang";
+export type NetlistPortCase = "upper" | "lower";
 
 export type EncodedNetName =
   | { ok: true; token: string; collisionKey: string }

@@ -136,6 +136,38 @@
     "variants": []
   },
   "electrical": null,
+  "subcircuit": {
+    "id": "comparator-unmarked",
+    "symbolId": "comparator-unmarked",
+    "target": "comparator",
+    "ports": [
+      {
+        "name": "VDD",
+        "direction": "inout",
+        "supply": "VDD"
+      },
+      {
+        "name": "VSS",
+        "direction": "inout",
+        "supply": "VSS"
+      },
+      {
+        "name": "VIP",
+        "direction": "input",
+        "pinName": "IN+"
+      },
+      {
+        "name": "VIN",
+        "direction": "input",
+        "pinName": "IN-"
+      },
+      {
+        "name": "VOUT",
+        "direction": "output",
+        "pinName": "OUT"
+      }
+    ]
+  },
   "catalog": {
     "library": "razavi",
     "symbolId": "comparator-unmarked",

@@ -22,14 +22,18 @@ import type {
 import {
   createReferenceIndex,
   deviceDescriptor,
+  nextReference,
   projectLengthToSky130Micrometres,
   requiredParameterNames,
   resolveReviewedExternalBinding,
+  subcircuitDescriptor,
+  type BuiltInSubcircuitDescriptor,
 } from "@icm/devices";
 
 import type {
   DesignNetlistCell,
   DesignNetlistAnalysisResult,
+  DesignNetlistExternalMaster,
   DesignNetlistInstance,
   NetlistDiagnostic,
 } from "./ir.js";
@@ -969,6 +973,76 @@ function extractExternalSubcircuitInstance(
   };
 }
 
+function extractBuiltInSubcircuitInstance(
+  document: SchematicDocument,
+  instance: Instance,
+  definition: BuiltInSubcircuitDescriptor,
+  reference: string,
+  context: CellNetContext,
+  diagnostics: NetlistDiagnostic[],
+): DesignNetlistInstance | null {
+  const netlist = instance.netlist;
+  const binding = netlist?.binding;
+  if (binding && binding.kind !== "unresolved-subcircuit") {
+    diagnostic(
+      diagnostics,
+      document.id,
+      "BUILTIN_SUBCIRCUIT_BINDING_MISMATCH",
+      `Analog Block ${reference} requires a black-box subcircuit target`,
+      [instance.id],
+    );
+    return null;
+  }
+  const target =
+    binding?.kind === "unresolved-subcircuit"
+      ? binding.name
+      : definition.target;
+  if (!isIdentifier(reference) || !isIdentifier(target)) {
+    diagnostic(
+      diagnostics,
+      document.id,
+      "INVALID_SUBCIRCUIT_IDENTIFIER",
+      `Analog Block ${reference} or target ${target} is outside the portable identifier subset`,
+      [instance.id],
+    );
+  }
+  const parameters = Object.entries(netlist?.parameters ?? {});
+  for (const [name] of parameters) {
+    if (isIdentifier(name)) continue;
+    diagnostic(
+      diagnostics,
+      document.id,
+      "INVALID_PARAMETER_NAME",
+      `Parameter name is outside the portable identifier subset: ${name}`,
+      [instance.id],
+    );
+  }
+  const nodes = definition.ports.flatMap((port) => {
+    if (port.supply) {
+      return [{ pinName: port.name, netName: port.supply }];
+    }
+    const netName = terminalNetName(
+      document,
+      instance,
+      port.pinName,
+      context,
+      diagnostics,
+    );
+    return netName ? [{ pinName: port.name, netName }] : [];
+  });
+  return {
+    id: instance.id,
+    reference,
+    invocationKind: "subcircuit",
+    deviceClass: "hierarchical",
+    target,
+    nodes,
+    parameters: parameters
+      .sort(([a], [b]) => compareText(a, b))
+      .map(([name, rawValue]) => ({ name, rawValue })),
+  };
+}
+
 function extractDeviceInstance(
   document: SchematicDocument,
   instance: Instance,
@@ -1280,6 +1354,22 @@ function extractCell(
     },
   );
   const referenceIndex = createReferenceIndex(document);
+  const syntheticReferences = new Map<string, string>();
+  const reservedReferences = new Set(referenceIndex.byReference.keys());
+  for (const instance of [...document.instances].sort((left, right) =>
+    left.id.localeCompare(right.id),
+  )) {
+    if (instance.reference || !subcircuitDescriptor(instance.symbolId))
+      continue;
+    const policy = referenceIndex.policyByInstanceId.get(instance.id);
+    if (!policy) continue;
+    const reference = nextReference(referenceIndex, policy, {
+      reservedReferences,
+    });
+    if (!reference) continue;
+    syntheticReferences.set(instance.id, reference);
+    reservedReferences.add(reference.toLowerCase());
+  }
   const reportedDuplicateReferences = new Set<string>();
   for (const issue of referenceIndex.issues) {
     if (issue.code === "MISSING_REFERENCE") continue;
@@ -1319,14 +1409,23 @@ function extractCell(
     interfaceProjection.ports.flatMap((port) => port.interfaceInstanceIds),
   );
   for (const instance of [...document.instances].sort((a, b) => {
-    const left = a.reference ?? a.id;
-    const right = b.reference ?? b.id;
+    const left = a.reference ?? syntheticReferences.get(a.id) ?? a.id;
+    const right = b.reference ?? syntheticReferences.get(b.id) ?? b.id;
     return compareText(left, right) || a.id.localeCompare(b.id);
   })) {
     if (cellPinInstanceIds.has(instance.id)) continue;
     const binding = instance.netlist?.binding;
-    const extracted =
-      binding?.kind === "subcircuit"
+    const builtInSubcircuit = subcircuitDescriptor(instance.symbolId);
+    const extracted = builtInSubcircuit
+      ? extractBuiltInSubcircuitInstance(
+          document,
+          instance,
+          builtInSubcircuit,
+          instance.reference ?? syntheticReferences.get(instance.id)!,
+          context,
+          diagnostics,
+        )
+      : binding?.kind === "subcircuit"
         ? extractHierarchyInstance(
             document,
             instance,
@@ -1451,27 +1550,15 @@ function analyzeDesign(
       ),
     ),
   ].sort(compareText);
-  return {
-    ir: {
-      topCellId: resolvedOptions.rootDocumentId,
-      cells,
-      globals,
-      externalMasters: [
-        ...new Map(
-          documents
-            .flatMap((document) => document.instances)
-            .flatMap((instance) => {
-              const binding = instance.netlist?.binding;
-              if (binding?.kind !== "external-subcircuit") return [];
-              const definition = project.externalSubcircuitDefinitions.find(
-                (item) => item.id === binding.definitionId,
-              );
-              return definition ? [[definition.id, definition] as const] : [];
-            }),
-        ).values(),
-      ]
-        .sort((left, right) => compareText(left.name, right.name))
-        .map((definition) => ({
+  const externalMasters = new Map<string, DesignNetlistExternalMaster>();
+  for (const instance of documents.flatMap((document) => document.instances)) {
+    const binding = instance.netlist?.binding;
+    if (binding?.kind === "external-subcircuit") {
+      const definition = project.externalSubcircuitDefinitions.find(
+        (item) => item.id === binding.definitionId,
+      );
+      if (definition) {
+        externalMasters.set(`external:${definition.id}`, {
           id: definition.id,
           name: definition.name,
           terminals: definition.terminals.map((terminal) => ({
@@ -1485,7 +1572,38 @@ function analyzeDesign(
               ? {}
               : { defaultValue: parameter.defaultValue }),
           })),
-        })),
+        });
+      }
+    }
+    const descriptor = subcircuitDescriptor(instance.symbolId);
+    if (!descriptor) continue;
+    const target =
+      binding?.kind === "unresolved-subcircuit"
+        ? binding.name
+        : descriptor.target;
+    externalMasters.set(`builtin:${target.toLowerCase()}`, {
+      id: descriptor.id,
+      name: target,
+      terminals: descriptor.ports.map((port, index) => ({
+        id: deriveStableId(
+          "built-in-subcircuit-port",
+          descriptor.id,
+          String(index),
+        ),
+        name: port.name,
+        direction: port.direction,
+      })),
+      formalParameters: [],
+    });
+  }
+  return {
+    ir: {
+      topCellId: resolvedOptions.rootDocumentId,
+      cells,
+      globals,
+      externalMasters: [...externalMasters.values()].sort((left, right) =>
+        compareText(left.name, right.name),
+      ),
     },
     diagnostics,
   };

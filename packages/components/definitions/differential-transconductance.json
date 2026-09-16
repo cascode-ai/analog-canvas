@@ -185,6 +185,38 @@
     "labelVisibility": "hidden"
   },
   "electrical": null,
+  "subcircuit": {
+    "id": "differential-transconductance",
+    "symbolId": "differential-transconductance",
+    "target": "differential_transconductance",
+    "ports": [
+      {
+        "name": "VDD",
+        "direction": "inout",
+        "supply": "VDD"
+      },
+      {
+        "name": "VSS",
+        "direction": "inout",
+        "supply": "VSS"
+      },
+      {
+        "name": "VIP",
+        "direction": "input",
+        "pinName": "IN+"
+      },
+      {
+        "name": "VIN",
+        "direction": "input",
+        "pinName": "IN-"
+      },
+      {
+        "name": "VOUT",
+        "direction": "output",
+        "pinName": "OUT"
+      }
+    ]
+  },
   "catalog": {
     "library": "razavi",
     "symbolId": "differential-transconductance",

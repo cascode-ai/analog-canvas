@@ -180,6 +180,38 @@
     }
   },
   "electrical": null,
+  "subcircuit": {
+    "id": "opamp-lettered-inputs-swapped",
+    "symbolId": "opamp-lettered-inputs-swapped",
+    "target": "opamp",
+    "ports": [
+      {
+        "name": "VDD",
+        "direction": "inout",
+        "supply": "VDD"
+      },
+      {
+        "name": "VSS",
+        "direction": "inout",
+        "supply": "VSS"
+      },
+      {
+        "name": "VIP",
+        "direction": "input",
+        "pinName": "IN+"
+      },
+      {
+        "name": "VIN",
+        "direction": "input",
+        "pinName": "IN-"
+      },
+      {
+        "name": "VOUT",
+        "direction": "output",
+        "pinName": "OUT"
+      }
+    ]
+  },
   "catalog": {
     "library": "razavi",
     "symbolId": "opamp-lettered-inputs-swapped",

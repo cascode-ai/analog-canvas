@@ -73,6 +73,16 @@ describe("netlist authoring", () => {
       parameters: { dc: "0", acMagnitude: "1u" },
     });
     expect(initialInstanceNetlist("ground", {})).toBeUndefined();
+    expect(initialInstanceNetlist("opamp-differential", {})).toEqual({
+      binding: {
+        kind: "unresolved-subcircuit",
+        name: "opamp_differential",
+      },
+      parameters: {},
+    });
+    expect(
+      nextInstanceReference(createEmptyDocument("main", "Main"), "opamp"),
+    ).toBe("X1");
   });
 
   it("creates a model binding only from explicit edited text", () => {

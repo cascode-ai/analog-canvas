@@ -9,6 +9,7 @@ import {
   type NetlistExportProfile,
   type NetlistFormat,
   type NetlistNamingProfile,
+  type NetlistPortCase,
   type NetlistProfileId,
   type NetlistQuickTargetFamily,
 } from "@icm/netlist";
@@ -22,9 +23,11 @@ export function NetlistCodePanel({
   project,
   format,
   namingProfile,
+  portCase,
   profile,
   onProfileChange,
   onFormatChange,
+  onPortCaseChange,
   onDeviceTargetChange,
   onCopy,
   onReset,
@@ -33,9 +36,11 @@ export function NetlistCodePanel({
   project: CircuitProject;
   format: NetlistFormat;
   namingProfile: NetlistNamingProfile;
+  portCase: NetlistPortCase;
   profile: NetlistExportProfile;
   onProfileChange(profile: NetlistProfileId): void;
   onFormatChange(format: NetlistFormat): void;
+  onPortCaseChange(portCase: NetlistPortCase): void;
   onDeviceTargetChange(family: NetlistQuickTargetFamily, target: string): void;
   onCopy(): void;
   onReset(): void;
@@ -48,9 +53,10 @@ export function NetlistCodePanel({
         : createDesignNetlistExport(project, {
             format,
             namingProfile,
+            portCase,
             profile,
           }),
-    [project, format, namingProfile, profile, configurationError],
+    [project, format, namingProfile, portCase, profile, configurationError],
   );
   const error = configurationError
     ? `Fix Netlist configuration: ${configurationError}`
@@ -170,13 +176,26 @@ export function NetlistCodePanel({
             </select>
           </label>
         ))}
-        <button
-          type="button"
-          className="netlist-default-action"
-          onClick={onReset}
-        >
-          Default
-        </button>
+        <div className="netlist-mapping-actions">
+          <button
+            type="button"
+            className="netlist-port-case"
+            aria-label={`Port names: ${portCase === "upper" ? "uppercase" : "lowercase"}`}
+            title={`Use ${portCase === "upper" ? "lowercase" : "uppercase"} port names`}
+            onClick={() =>
+              onPortCaseChange(portCase === "upper" ? "lower" : "upper")
+            }
+          >
+            <code>{portCase === "upper" ? "ABC" : "abc"}</code>
+          </button>
+          <button
+            type="button"
+            className="netlist-default-action"
+            onClick={onReset}
+          >
+            Default
+          </button>
+        </div>
       </div>
       {error ? (
         <p role="alert">{error}</p>

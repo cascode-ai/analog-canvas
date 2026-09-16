@@ -83,6 +83,30 @@ export interface DeviceDescriptor {
   readonly capabilities: DeviceCapabilities;
 }
 
+export type BuiltInSubcircuitPortDirection =
+  "input" | "output" | "inout" | "passive";
+
+/**
+ * One formal port on a Canvas-owned black-box master. Signal ports recover
+ * their connectivity from a stable Symbol pin; supply ports exist implicitly
+ * on every exported module and therefore need no visible Symbol pin.
+ */
+export type BuiltInSubcircuitPort = {
+  readonly name: string;
+  readonly direction: BuiltInSubcircuitPortDirection;
+} & (
+  | { readonly pinName: string; readonly supply?: never }
+  | { readonly supply: "VDD" | "VSS"; readonly pinName?: never }
+);
+
+/** Structural netlist contract for a built-in Analog Block. */
+export interface BuiltInSubcircuitDescriptor {
+  readonly id: string;
+  readonly symbolId: StableId;
+  readonly target: string;
+  readonly ports: readonly BuiltInSubcircuitPort[];
+}
+
 export function requiredParameterNames(
   descriptor: DeviceDescriptor,
 ): readonly string[] {

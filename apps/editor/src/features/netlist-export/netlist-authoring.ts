@@ -8,6 +8,7 @@ import {
   deviceDescriptor,
   nextReference,
   referencePolicyForSymbol,
+  subcircuitDescriptor,
 } from "@icm/devices";
 
 function referencePrefix(symbolId: string): string {
@@ -66,6 +67,10 @@ function rawParameters(
 }
 
 function defaultBinding(symbolId: string): InstanceNetlistBinding | undefined {
+  const subcircuit = subcircuitDescriptor(symbolId);
+  if (subcircuit) {
+    return { kind: "unresolved-subcircuit", name: subcircuit.target };
+  }
   const definition = deviceDescriptor(symbolId);
   if (!definition || definition.targetPolicy === "required-model") {
     return undefined;

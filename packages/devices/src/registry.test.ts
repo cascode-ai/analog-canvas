@@ -2,10 +2,12 @@ import { describe, expect, it } from "vitest";
 
 import {
   builtInDeviceDescriptors,
+  builtInSubcircuitDescriptors,
   deviceDescriptor,
   deviceDescriptorById,
   devicePinSemanticRole,
   referencePolicyForSymbol,
+  subcircuitDescriptor,
   validateDeviceDescriptors,
 } from "./index.js";
 
@@ -155,6 +157,27 @@ describe("built-in device registry", () => {
         supportsModel: true,
         supportsBulkBinding: false,
       },
+    });
+  });
+
+  it("registers Analog Blocks as semantic black-box subcircuits", () => {
+    expect(builtInSubcircuitDescriptors).toHaveLength(23);
+    expect(
+      subcircuitDescriptor("opamp-differential-crossed-inputs-swapped"),
+    ).toMatchObject({
+      target: "opamp_differential",
+      ports: [
+        { name: "VDD", supply: "VDD" },
+        { name: "VSS", supply: "VSS" },
+        { name: "VIP", pinName: "IN+" },
+        { name: "VIN", pinName: "IN-" },
+        { name: "VOP", pinName: "OUT+" },
+        { name: "VON", pinName: "OUT-" },
+      ],
+    });
+    expect(referencePolicyForSymbol("opamp-differential")).toEqual({
+      kind: "required",
+      prefix: "X",
     });
   });
 

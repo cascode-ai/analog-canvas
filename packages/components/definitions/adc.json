@@ -116,6 +116,33 @@
     }
   },
   "electrical": null,
+  "subcircuit": {
+    "id": "adc",
+    "symbolId": "adc",
+    "target": "adc",
+    "ports": [
+      {
+        "name": "VDD",
+        "direction": "inout",
+        "supply": "VDD"
+      },
+      {
+        "name": "VSS",
+        "direction": "inout",
+        "supply": "VSS"
+      },
+      {
+        "name": "VIN",
+        "direction": "input",
+        "pinName": "IN"
+      },
+      {
+        "name": "VOUT",
+        "direction": "output",
+        "pinName": "OUT"
+      }
+    ]
+  },
   "catalog": {
     "library": "razavi",
     "symbolId": "adc",
