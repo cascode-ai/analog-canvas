@@ -76,8 +76,7 @@ tests protect limits and authorization across the actual relay boundary.
 
 ## Related documents
 
-- [Transport-independent domain API](0005-transport-independent-agent-api.md)
-- [Snapshot-driven workflow](0007-snapshot-driven-agent-workflow.md)
+- [Transport-independent Snapshot API](0007-snapshot-driven-agent-workflow.md)
 - [Agent API](../specs/agent-api.md)
 - [Web sessions](../specs/web-agent-session.md)
 - [Deployment](../deployment.md)

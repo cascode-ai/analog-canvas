@@ -20,7 +20,7 @@ Main, ordinary Preview and Production keep their accepted environment while
 the migration branch is developed and qualified separately. These are separate
 deployed revisions, not dual runtime support in the target product.
 
-Current ownership comes from [source authoring](../specs/simulation-code-workspace.md),
+Current ownership comes from [source authoring](../specs/simulation.md),
 [compilation](../specs/simulation.md), [execution](../specs/simulation-execution.md)
 and [numeric results](../specs/simulation-results.md). Their ngspice-specific
 clauses are to be replaced as implementation lands; this roadmap does not claim

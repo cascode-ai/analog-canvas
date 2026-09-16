@@ -11,33 +11,33 @@ execution service.
 The editor supports hierarchical circuit authoring, structural SPICE import,
 private Cloud Projects, portable `.icproj.json`, vector/raster publication, and
 deterministic SPICE/Spectre design-netlist export. The simulation workspace
-prepares authored structured or raw input, runs it in a configured environment,
-and presents numeric results and bounded execution evidence.
+prepares authored source files with optional generated Canvas bindings, runs
+them in a configured environment, and presents captured Specs, Console and
+raw/CSV evidence.
 
-A Project persists circuit facts and named simulation setups, including raw
-authored files when selected. It does not persist simulator processes, prepared
+A Project persists circuit facts and named simulation source folders. It does not persist simulator processes, prepared
 decks, run receipts, or numeric results. Browser recovery and managed execution
 retention serve different lifecycles; neither is another source of circuit facts.
 Preview and Production availability follow [deployment](deployment.md).
 
 ## Sources of truth
 
-| Concern                                          | Authority                                                                        |
-| ------------------------------------------------ | -------------------------------------------------------------------------------- |
-| Circuit facts and authored simulation setups     | Current Project schema in `@icm/model`                                           |
-| Formal save                                      | Stable private Cloud Project ID and optimistic revision                          |
-| Portable file compatibility                      | Parse/upgrade/serialize boundary in `@icm/project-protocol`                      |
-| Device semantics and parameters                  | Component definition `electrical` section, projected into `@icm/devices`         |
-| Human and Agent Project mutations                | `@icm/edit-engine` transactions                                                  |
-| Symbol geometry and pin anchors                  | Component definition `symbol` section, projected into `@icm/symbols`             |
-| Visual construction and acceptance               | Razavi reference manifest and [visual contract](specs/razavi-visual-contract.md) |
-| Electrical read model                            | `@icm/derived` Base-Net/Logical-Net projections and connectivity index           |
-| Structural SPICE import                          | `@icm/spice` transient Circuit IR                                                |
-| Design-netlist export and structured compilation | `@icm/netlist`                                                                   |
-| Preparation and session-facing execution         | `@icm/simulation-service`                                                        |
-| Simulator evidence and result parsing            | `@icm/spice-run` and the configured executor                                     |
-| Hosted admission and bounded retention           | Worker managed control plane and artifact store                                  |
-| Browser authorization and transport              | [Web-session contract](specs/web-agent-session.md)                               |
+| Concern                                       | Authority                                                                        |
+| --------------------------------------------- | -------------------------------------------------------------------------------- |
+| Circuit facts and authored simulation folders | Current Project schema in `@icm/model`                                           |
+| Formal save                                   | Stable private Cloud Project ID and optimistic revision                          |
+| Portable file compatibility                   | Parse/upgrade/serialize boundary in `@icm/project-protocol`                      |
+| Device semantics and parameters               | Component definition `electrical` section, projected into `@icm/devices`         |
+| Human and Agent Project mutations             | `@icm/edit-engine` transactions                                                  |
+| Symbol geometry and pin anchors               | Component definition `symbol` section, projected into `@icm/symbols`             |
+| Visual construction and acceptance            | Razavi reference manifest and [visual contract](specs/razavi-visual-contract.md) |
+| Electrical read model                         | `@icm/derived` Base-Net/Logical-Net projections and connectivity index           |
+| Structural SPICE import                       | `@icm/spice` transient Circuit IR                                                |
+| Design-netlist export and source compilation  | `@icm/netlist`                                                                   |
+| Preparation and session-facing execution      | `@icm/simulation-service`                                                        |
+| Simulator evidence and result parsing         | `@icm/spice-run` and the configured executor                                     |
+| Hosted admission and bounded retention        | Worker managed control plane and artifact store                                  |
+| Browser authorization and transport           | [Web-session contract](specs/web-agent-session.md)                               |
 
 ## System shape
 
@@ -51,7 +51,7 @@ generated views of that definition, not competing sources of truth.
 
 ```text
 human UI / authorized Agent
-  ├─ typed Project edits → Edit Engine → Project / Documents / setups
+  ├─ typed Project edits → Edit Engine → Project / Documents / source folders
   │                                      ├─ connectivity / checks / navigation
   │                                      ├─ rendering / formal image export
   │                                      ├─ structural netlist export
@@ -64,8 +64,10 @@ human UI / authorized Agent
 
 The simulation path reads circuit facts; it does not rewrite a Net or source
 Instance from a result. Testbench bias and waveform parameters remain on ordinary
-Instances. Analyses and outputs belong to the selected setup, not a second
-source-value override.
+Instances. Native analyses, acquisition, parameters and measurements belong
+to authored SPICE; the new experiment sidecar selects only its Profile. Legacy
+configuration is read through the bounded compatibility path in the
+[simulation contract](specs/simulation.md#compatibility).
 
 ## Core invariants
 

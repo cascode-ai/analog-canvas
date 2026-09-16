@@ -10,15 +10,17 @@ ID; symbol aliases and compatibility libraries do not exist.
 
 ## Current product assets
 
-The product library is exactly the reviewed Razavi catalog: `nmos`, `pmos`,
-`npn`, `pnp`, resistor, capacitor, inductor, diode, ground, voltage/current
-sources, op-amp, switches, voltage amplifier, `port`, and `port-filled`.
-VDD is not an asset; the editor constructs an explicit Net/Route rail.
+The canonical [component definitions](../../packages/components/README.md)
+own artwork, electrical facts and catalog eligibility. Runtime `@icm/symbols`
+and `@icm/devices` are generated projections. The ordered catalog, rather than
+a duplicated list here, declares reviewed Razavi and Extended Devices entries.
 
-Both interface-marker assets are ordinary single-pin components with pin `P`.
-Their future selection policy is intentionally unspecified; both remain
-manually reachable through the same insertion, placement, snapping, wiring,
-transform, and delete mechanisms as every other component.
+`port`, `port-filled` and `vdd-port` are single-pin assets with pin `P`.
+Port and Filled Port author formal Cell Pins. VDD Power does so by default,
+with an explicit Global mode using an owned naming claim instead. A drawn
+Power Rail remains ordinary Net/Route geometry and is a separate authoring
+gesture. Naming and interface behavior follow
+[the schematic model](schematic-model.md); geometry supplies no Net authority.
 
 Canonical `nmos` and `pmos` retain D/G/S/B electrical pins. Their
 `textbook-3terminal` visual variant is the deterministic default and may hide
@@ -59,10 +61,10 @@ Runtime resolves the exact contact and the landing as one
 - Geometry contains no placement, Net, model, or reference-label authority.
 - PDK mappings name an exact canonical symbol, terminal count, and full ordered
   pin list; no mapping is inferred from model spelling alone.
-- `@icm/devices` separately owns class, reference prefix, canonical pin order,
-  target policy, required parameters, dialects, and capabilities. Symbols own
-  artwork and anchors only; registry/Symbol pin parity is a cross-package
-  contract.
+- The component's `electrical` section owns class, reference prefix, pin order,
+  target policy, parameters, dialects and capabilities; `@icm/devices` projects
+  these facts. The symbol projection owns artwork and anchors. Pin parity is
+  enforced across those generated consumers.
 
 The application ships the compiled catalog and a Project persists only exact
 symbol and optional variant IDs plus its library lock. Generated catalog tests

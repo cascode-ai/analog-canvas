@@ -207,13 +207,12 @@ Canonical `nmos`/`pmos` use the asset's `textbook-3terminal` visual variant by
 default while retaining D/G/S/B electrically. A manual MOS uses explicit B
 membership first, then an explicitly configured cell default; otherwise bulk
 remains unresolved in the authored connectivity graph. Structural netlist and
-simulation extraction give an omitted B a deterministic polarity default:
-NMOS uses global `0` and PMOS uses global `VDD`. An explicit B membership or
-NoConnect remains authoritative. Drawing the visible `bulk-dashed` connection
+simulation extraction use actual B membership or explicit NoConnect; otherwise
+they report `MISSING_PIN_NET`, without a polarity-based supply default.
+Drawing the visible `bulk-dashed` connection
 clears any configured default binding and connects B to the selected Net in the
 same transaction. Imported MOS instances retain their authored fourth node;
-when it is absent, the same export-only polarity default applies without
-rewriting the Project.
+when it is absent, the same missing-terminal rule applies.
 Properties shows Bulk as one compact row: its current Net or an explicit
 Unconnected/No Connect state sits beside the draw action. Hovering the status
 reveals the terminal and binding source; a drawn route's dashed presentation

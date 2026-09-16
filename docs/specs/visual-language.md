@@ -41,8 +41,8 @@ For Razavi formal output, the reviewed `port` and `port-filled` Symbol assets
 provide explicit hollow and filled interface presentations. Each is an
 ordinary single-pin Instance whose pin `P` uses normal terminal connectivity;
 the renderer does not replace either symbol with a separate model-level Port
-shape. Power labels belong to explicit Nets and Route/Junction rail geometry,
-not to a Port-specific presentation. Explicit Junctions render independently;
+shape. Placed `vdd-port` artwork and drawn Net/Route power rails retain their
+own reviewed presentations; electrical ownership follows the schematic model. Explicit Junctions render independently;
 device-pin anchors, ordinary corners, and geometric crossings never acquire a
 dot from appearance or degree alone.
 An explicit branch Junction on a valid VDD Net that contains a `power-rail`
@@ -60,8 +60,9 @@ The editor creates its grid and interaction overlay outside the formal group.
 Annotations are semantic `instance-label`, `instance-value`, `net-label`,
 `power-label`, and `route-marker` objects. Current
 annotations rotate the arrow independently so their text stays upright.
-Explicit instance labels suppress only the renderer's default instance ID.
-Their text and position are editable without changing stable instance IDs.
+Instance text comes from authored annotations and their typed bindings;
+the renderer does not synthesize default labels from internal Instance IDs.
+Text and position can change without changing stable Instance IDs.
 Instance labels and values inherit their owning Instance's effective
 foreground by default; an optional per-Annotation `textColor` override changes
 only that annotation's text. Net, power, and route-marker annotations use the

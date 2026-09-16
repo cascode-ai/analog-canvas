@@ -8,77 +8,19 @@ Primary owners: `packages/model` (current shape) and
 `packages/project-protocol` (file boundary)
 
 An `.icproj.json` file is canonical JSON for one complete `CircuitProject`.
-`@icm/project-protocol` exposes `parseProject`. The file boundary accepts every
-schema covered by its explicit 24→51 upgrade chain. Schema 32 added optional
-presentation-only `Annotation.textColor`; schema 33 removes ownerless
-`explicit-equivalence` connectivity. The 32→33 adapter advances the version
-stamp only when that retired record is absent. If one exists, it rejects at the
-exact evidence path rather than silently dropping connectivity, merging Base
-Nets, or inventing a name. Schema 34 retires hidden
-`explicit-net-property` claims: the 33→34 adapter preserves imported ordinary
-spellings as non-electrical `net-name-hint` provenance, retains explicit SPICE
-globals as owned global declarations, and materializes an existing visible
-power owner when possible. Schema 35 unifies canvas and emitted Instance
-References: the 34→35 adapter moves one selected value to
-`Instance.reference`, materializes distinct descriptive RichText as an
-attached literal Annotation, converts ordinary default labels to
-`instance-reference`, and removes fabricated marker references. Schema 36
-repairs reference-shaped labels that schema 35 accidentally materialized as
-literal text and preserves their RichText as a mapped same-text presentation.
-Schema 37 adds the optional Project `simulation` field: one persisted
-`SimulationSetup` (ADR 0055) naming the Testbench root Cell, the analyses, the
-probes, and the environment Profile selection. Results and run data never
-enter the file. An absent field means no authored setup, which is every
-existing Project, so the 36→37 adapter rewrites nothing. Schema 38 adds
-structured TRAN with explicit seconds-valued step, stop, optional start, and
-optional maximum-step fields. Existing setups remain valid, so the 37→38
-adapter also rewrites nothing. Schema 39 adds the raw `SimulationSetup` branch:
-a safe relative entry, small authored text files, external dependency identity,
-and environment selection. The 38→39 adapter invents no setup. Schema 40
-replaces derived voltage-probe Net representatives with concrete Terminal,
-Junction, or Route anchors. The 39→40 adapter chooses an existing attached
-object deterministically and retains a Base-Net fallback only when no attached
-object exists, so migration never silently drops an authored probe. A deleted
-anchor or Testbench Cell may leave a saved setup unresolved; preparation owns
-the located, recoverable diagnostic. Schema 41 adds a structured, single-source
-linear DC sweep analysis; existing setups remain valid, so the 40→41 adapter
-rewrites no authored content. Schema 42 replaces the optional singleton with a
-named `simulationSetups` collection; the 41→42 adapter preserves one authored
-setup with a deterministic ID/name and maps absence to an empty collection.
-Schema 43 replaces primitive probes with named outputs and bounded expression
-trees; the 42→43 adapter preserves each target as a leaf output and derives an
-initial human-readable label. Schema 44 makes terminal identity explicit for
-current expressions; the 43→44 adapter preserves the previously supported
-independent-source sign by selecting its `+` terminal. Schema 45 adds optional
-saved scalar measurement rules to structured setups;
-the 44→45 adapter invents no measurement intent. Schema 46 adds structured
-Noise analysis intent with hierarchy-aware output anchors and a Testbench-root
-independent input source; the 45→46 adapter invents no analysis. Schema 47
-adds optional hierarchy-aware MOS operating-point selections; the 46→47
-adapter selects no device implicitly. Schema 48 adds design variables. Schema
-49 converts legacy simulation intent to source files. Schema 50 renames the
-source collection to `simulationFolders`, preserving IDs, files and Cell
-bindings. Optional unapplied drafts preserve unfinished numeric editing without
-changing the circuit or becoming executable overrides. Schema 51 adds optional
-opaque fill and front/background drafting planes to rectangles and circles;
-the 50→51 adapter changes only the version stamp. Schema 52 replaces the
-rotation-coupled local-X mirror bit with independent screen-space
-`horizontal`, `vertical`, and `both` directions. The 51→52 adapter preserves
-the rendered orientation while leaving every rotation unchanged. The public
-file boundary supplies only schema 56 in memory and writes only schema 56.
-Schema 53 expands persisted rotation to 45-degree steps; the 52→53 adapter
-preserves every existing quarter-turn value. Schema 54 adds an optional
-`parameter` selector to live `instance-value` annotation bindings; 53→54 only
-advances the version stamp. Existing labels and visibility remain unchanged.
-Schema 55 adds optional `styleOverride.arrowStart` and `arrowEnd` to arrows.
-Each accepts `small-arrow`, `medium-arrow`, `large-arrow`, `dot`, `none`, or
-`open-arrow`. An unset end retains legacy `arrowHead`, `arrowHeadAt`, and
-`arrowHeadScale` behavior. The 54→55 adapter only advances the version stamp.
-Schema 56 adds optional `Route.styleOverride.lineStyle`: `solid`, `dashed`, or
-`dotted`. The 55→56 adapter only advances the version stamp; existing Routes
-keep their geometry, electrical membership, colors and arrows. An absent
-style retains a solid ordinary Wire and the existing MOS bulk presentation.
-Versions older than 24 or newer than 56 are rejected.
+The current-only model validates schema 56. The public `parseProject` boundary
+accepts schemas 24 through 56, runs the explicit contiguous upgrade chain, and
+returns only the current shape. Serialization writes only schema 56.
+Versions outside that range are rejected.
+
+[The loader](../../packages/project-protocol/src/load.ts) and its adjacent
+transforms/tests own individual migration steps. Adapters preserve authored
+intent or produce a located incompatibility; they cannot guess replacement
+electrical meaning. In particular, ownerless Net-equivalence records are
+rejected, imported spelling becomes non-electrical provenance, and old simulation
+setups become source folders. A failed import leaves the live Project unchanged.
+Compatibility does not create legacy runtime writers or authorize bulk rewriting
+of stored Gallery or Cloud data.
 
 ## Current authorities
 
@@ -151,31 +93,13 @@ Versions older than 24 or newer than 56 are rejected.
   Symbol geometry remains derived and caller Instances never persist a copy.
 - MOS assets are canonical `nmos`/`pmos`; visual variant selection does not
   change persisted terminal connectivity.
-- `Project.simulationFolders` is the named source-folder collection defined in the
-  [simulation spec](simulation.md#persistence-and-compatibility). Each record
-  has stable `id`, editable unique `name`, and a `version: 3` envelope around
-  exactly one structured or raw input. A
-  structured root must name a Document of the Project, analyses hold at most
-  one entry per kind, and output ids and labels are unique. Each output owns
-  one bounded expression over voltage/current acquisitions and constants;
-  `output.label` is the sole authored name used by OP/DC/AC/TRAN results,
-  plots, CSV, and MCP. Optional measurement rules reference one enabled
-  analysis and one Output and persist a scalar reduction, never a Run result.
-  Structured inputs also own a Setup-local Design Variable table and a saved
-  nominal-or-sweep Run Plan. Bindings use exact Document, Instance, and
-  parameter addresses; execution projects them without mutating the Project.
-  Selected MOS operating-point details name concrete hierarchy occurrences;
-  the compiler derives VGS/VDS/VBS and drain-entering ID from terminal and Bulk
-  connectivity without persisting simulator vectors. Noise owns a differential voltage target and root independent input source;
-  its two density curves use stable protocol output ids instead of duplicating
-  ordinary Output expressions.
-  A raw input owns bounded author
-  files in the shared virtual relative namespace and declares external bytes
-  by logical identity, mount path, and digest; it never stores a host path. Both
-  forms store only a Profile ID plus the author's corner and temperature
-  selections. Source stimulus values
-  (`dc`, `acMagnitude`, `acPhase`) are typed netlist parameters of the source
-  Instances, never a copy inside the setup.
+- `Project.simulationFolders` is the named version-4 source collection defined
+  in [simulation](simulation.md#authored-authority). A folder owns source files,
+  entry/config paths, optional generated Cell bindings, declared dependencies
+  and unapplied drafts. Generated circuit bytes and results are not persisted.
+  New experiments use minimal version-2 configuration; version-1 sidecars remain
+  an explicit compatibility path. Project schema, folder envelope version and
+  configuration version are distinct contracts.
 
 ## Read and write
 

@@ -19,32 +19,30 @@ solver, duplicating electrical extraction, or guessing the author's Testbench.
 Simulation is a product capability with distinct authoring, compilation,
 execution, and result boundaries.
 
-- A named Project setup owns one experiment input, independently of the Project
-  top. The accepted authoring target is a source-file workspace with optional
-  generated Canvas Cell bindings. The current v3 structured/raw representation
-  remains operative until the staged migration and cutover described in the
-  [Code Workspace contract](../specs/simulation-code-workspace.md); acceptance
-  of that target does not assert that its schema or interface has shipped.
+- A named Project source folder owns authored files, an entry and optional
+  generated Canvas bindings, independently of Project top. Current writers use
+  the source-only format defined in [simulation](../specs/simulation.md).
 - Canvas circuit structure and instance parameters remain Project facts.
   Generated code may expose reversible parameter edits through the same typed
   transactions as Properties, but not a second writable topology. A drawn TB
   remains an ordinary Cell; a text-authored TB owns its own sources and loads.
   Neither is copied into a competing writable representation.
-- Authored SPICE/control owns analyses and native expressions. A single authored
-  configuration owns Profile selection, managed Run Plan and result bindings,
-  not duplicate analysis or stimulus values. Templates and human/Agent helpers
-  edit those same sources. No permanent form/text synchronization is introduced.
-- Preparation reuses deterministic design extraction and acquisition mapping,
-  including terminal-current instrumentation. Composition preserves authored
+- Authored SPICE/control owns analyses, parameters, acquisition and native
+  measurements. New configuration selects only the Profile. Legacy configuration
+  retains an explicit compatibility reader. Templates and human/Agent helpers
+  edit the same source; they do not maintain a parallel analysis form.
+- Preparation reuses deterministic design extraction and acquisition mapping.
+  Native helpers author acquisition commands; legacy instrumentation remains
+  confined to its compatibility path. Composition preserves authored
   intent; it does not invent analyses, sources, or a root call. Unbound text
   and Canvas-bound text feed the same prepared/execution boundary, without
   pretending arbitrary text has proven Canvas mappings.
 - Simulatability means supported native primitives or models supplied by the
   selected environment, recursively through hierarchy. It does not require a
   PDK model for an ideal resistor. Unsupported blocks are diagnosed by identity.
-- Saved setup intent is Project data; prepared input, receipts, artifacts, and
+- Saved source intent is Project data; prepared input, receipts, artifacts, and
   results are execution data. A result cannot mutate circuit facts. Bounded
-  server retention and session result comparison do not create Project history.
+  server retention and browser archives do not create Cloud Project result history.
 - GUI and Agent use the same SimulationService, executor contract, and File
   artifacts. Preparation freezes inputs; a changed input makes a result stale,
   never silently rebinds it.
@@ -56,10 +54,12 @@ execution, and result boundaries.
   not the entire PDK. Matching binaries/models remove environmental differences;
   they do not prove every numerical disagreement is an export defect.
 - Execution is bounded and isolated. Cancellation terminates the process tree;
-  unknown completion never causes an automatic duplicate run. Raw control
-  language requires the same isolation as structured input.
-- Numbers and units come from validated simulator evidence. Missing data is
-  diagnosed rather than fabricated; display decimation does not alter export.
+  unknown completion never causes an automatic duplicate run. Authored control
+  language remains subject to the same executor isolation.
+- Raw numbers and units come from validated simulator evidence. Captured native
+  measurements and source Spec annotations produce reproducible judgments.
+  Missing data is diagnosed rather than fabricated; plotting belongs to external
+  consumers of raw/CSV. The service does not create a second waveform set.
 - Preview qualifies a candidate before Production promotion under
   [ADR 0057](0057-release-channels-preview-and-production.md).
 
@@ -81,13 +81,10 @@ Neither is introduced. Saved authored intent improves reproducibility; it does
 not claim that a run with a matching image is electrically correct without
 model-backed acceptance.
 
-Code-first authoring avoids maintaining an expanding settings form and a second
-text authority. It does require source-preserving edits, explicit generated
-parameter mappings, and migration evidence; replacing forms with today's raw
-adapter alone would lose circuit/result identity. The accepted presentation is
-a lazy right-hand Code/Properties dock with Console/Results beneath the code.
-Width and maximize behavior still require prototype/user acceptance. This
-decision does not authorize deleting working interfaces before parity exists.
+Code-first authoring uses source-preserving edits and digest-guarded parameter
+mappings to keep circuit facts authoritative. Simulation is an independent lazy
+workspace beside Properties, with Specs and Console. Saved legacy inputs and
+archives retain bounded readers, not a second current authoring interface.
 
 ## Validation
 

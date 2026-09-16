@@ -45,8 +45,11 @@ retained. Runtime editing and derivation consume only the current contract.
 
 ### Named power and MOS bulk
 
-VDD, Ground, free ports, Net Labels, and power-rail labels use the same
-owner-addressed name-claim mechanism. Multiple disconnected markers are valid;
+Ground, Global VDD, Net Labels and power-rail labels use owner-addressed name
+claims. Port, Filled Port and local VDD Power instead own formal Cell-Pin
+declarations; equal folded formal names provide the existing interface grouping.
+A VDD Power Instance uses one of these authorities at a time. Multiple
+disconnected markers are valid;
 their Base Nets stay physical while their names and scopes determine Logical
 Net equivalence. VDD, AVDD, and DVDD are distinct names. Power-domain metadata
 classifies a claim; it is not Net identity and never collapses differently named

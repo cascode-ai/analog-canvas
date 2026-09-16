@@ -123,19 +123,21 @@ points first, then cap/join, then miter limit, and only then outline amplitude.
 
 The following are distinct reviewed presentations and must not be conflated:
 
-| Object                                    | Presentation           | Meaning                                     |
-| ----------------------------------------- | ---------------------- | ------------------------------------------- |
-| `port` symbol                             | Hollow circle and lead | Explicit hollow interface symbol            |
-| `port-filled` symbol (`solid-port` alias) | Filled circle and lead | Explicit manual solid-endpoint symbol       |
-| Explicit `Junction`                       | Filled solid dot       | Route-graph branch/join object              |
-| Unconnected device pin, bend, or crossing | No automatic dot       | Unconfirmed geometry has no node semantics  |
-| Route dragged onto a visible device pin   | Derived filled dot     | Committed endpoint contact creates a node   |
+| Object                                    | Presentation           | Meaning                                    |
+| ----------------------------------------- | ---------------------- | ------------------------------------------ |
+| `port` symbol                             | Hollow circle and lead | Explicit hollow interface symbol           |
+| `port-filled` symbol                      | Filled circle and lead | Explicit manual solid-endpoint symbol      |
+| Explicit `Junction`                       | Filled solid dot       | Route-graph branch/join object             |
+| Unconnected device pin, bend, or crossing | No automatic dot       | Unconfirmed geometry has no node semantics |
+| Route dragged onto a visible device pin   | Derived filled dot     | Committed endpoint contact creates a node  |
 
 Both `port` and `port-filled` are reviewed palette symbols and ordinary
 single-pin Instances. `port-filled` is manual-only and has no automatic SPICE
 mapping. Hollow versus filled is explicit product intent, not a style-profile
-fallback. A power label belongs to an explicit Net and rail Route/Junction
-geometry; it does not replace either symbol presentation.
+fallback. A placed `vdd-port` is the reviewed supply marker; its local/formal
+or Global meaning follows the schematic model. A drawn power rail uses explicit
+Net and Route/Junction geometry. These authoring forms do not replace the
+hollow or filled Port presentation.
 
 ## Style, text, and rendering
 

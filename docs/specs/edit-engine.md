@@ -96,13 +96,12 @@ scope restrictions, and excludes unsupported history kinds. Formal-interface
 edits are submitted inside `structureEdits`, which composes the same union with
 add/remove Document operations under one Project `structureRevision`. The
 Project-level `upsert_simulation_folder` and `remove_simulation_folder` edits are
-structure edits too. They address one named setup by stable ID, refuse a new
-structured root that is not a Document of the Project, treat an identical
-upsert or absent removal as no change, and preserve authored intent when a later
-ordinary edit removes its root Cell or probe anchor. Such references become
-prepare-time diagnostics instead of blocking deletion or making the Project
-unsaveable. A raw setup owns files instead of a Canvas root and therefore does
-not interact with Cell deletion. Agent
+structure edits too. They address one version-4 source folder by stable ID,
+treat an identical upsert or absent removal as no change, and preserve authored
+text and repairable references. Removing a bound Cell or source file may leave
+preparation diagnostics; it does not make the Project unsaveable. The current
+source schema and legacy configuration boundary are defined in
+[simulation](simulation.md). Agent
 capability `wire`
 advertises the mutually exclusive high-level `wireIntent` transaction form; it
 is not another `SchematicEdit` member.

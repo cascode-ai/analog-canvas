@@ -1,137 +1,365 @@
-# Simulation Folders and Compilation
+# Simulation Source and Compilation
 
 Status: accepted
 
-Owners: `packages/model`, `packages/netlist`, `packages/simulation-service`,
-`apps/editor/src/features/simulation`
+Owners: `packages/model`, `packages/edit-engine`, `packages/spice`,
+`packages/netlist`, `packages/simulation-service`, `apps/editor`
 
 Related decision: [ADR 0055](../adr/0055-simulation-is-part-of-the-product.md).
 
 ## Contract map
 
-- [Code Workspace](simulation-code-workspace.md) owns source authoring,
-  generated circuit boundaries, the version-4 source input, configuration, language
-  assistance, migration and the Code/Properties dock.
-- [Execution and resources](simulation-execution.md) owns Profiles, preparation,
-  isolation, admission, lifecycle, retention, artifacts and qualification.
-- [Numeric results](simulation-results.md) owns rawfile records, units, validity,
-  measurements and CSV.
-- [User workflow](../user/analog-simulation.md) describes the interaction.
+This specification owns saved source folders, source/configuration authority,
+compilation, mapped edits, drafts, language assistance and Code interaction.
+[Execution](simulation-execution.md) owns Profiles, admission, Run/Batch,
+retention and artifact access. [Results](simulation-results.md) owns numeric
+records, native measurements and Spec reports. [The user guide](../user/analog-simulation.md)
+owns step-by-step operation; [deployment](../deployment.md) owns candidate acceptance.
 
-Project schema 50 writes **source-only** simulation folders. A folder has a stable id/name,
-an authored entry and configuration path, authored virtual files, generated
-Canvas circuit bindings and declared dependencies. There is no persistent
-structured/raw choice or parallel analyses/form state. The schema-48 reader
-converts older inputs to source; the schema-49 reader renames the collection
-to `simulationFolders`, retaining IDs and source bytes. Historical
-schemas and the old structured compiler remain internal migration/qualification
-oracles, not current Project writers or separate public execution paths.
+## Authored authority
 
-All folders share Project save/load, structure revision, Undo/Redo and cloud
-ownership. Invalid source syntax and unresolved references remain saveable.
-Unsafe paths, duplicate ownership and invalid outer Project structure do not.
-Model bytes, generated text, prepared decks, runs, receipts and results are
-not persisted as another folder authority.
+### Engine selection
 
-## Compilation and circuit ownership
+The selected executor Profile determines the engine (`ngspice` or `vacask`);
+there is no second persisted engine selector. Both use the same folder, mapped
+edit, preparation, Run and artifact APIs. The SPICE clauses described below
+apply to ngspice. VACASK uses its native language and the corresponding adapters,
+not SPICE text passed unchanged into another executable.
 
-`compileSourceSimulation` and the shared service's
-`prepareSourceExecutionInput` consume one Project/folder snapshot.
-They reuse electrical extraction, ordinary SPICE printing, terminal-current
-instrumentation, expression evaluation and managed Run Plan projection.
+VACASK source owns `parameters`, `include ... section=...`, native analyses,
+adjacent sweeps, options, saves and Python postprocessing. Helpers and generated
+Circuit text use the selected dialect. Native hierarchy is case-sensitive and
+colon-qualified; ngspice vectors retain their own spelling and wrapper rules.
+Synthetic export supply ports are not selectable Canvas Nets.
 
-A `top-level` binding prints an already drawn Testbench's root cards and
-reached definitions; it does not invent another DUT call. A `subcircuit`
-binding prints definitions; authored text owns the calls, stimuli and loads.
-A purely textual experiment needs no Canvas binding. None of these operations
-changes `project.topDocumentId`.
+VACASK `prepare-sweep` applies exact execution-only points to a Project/source
+copy: emitted Canvas parameters, a reachable unconditional root parameter,
+the Profile-declared model section, or ambient Celsius. It never changes saved
+Instances or authored bytes. Duplicate/missing targets, ambiguous declarations,
+unsupported corners and conflicting temperature sweeps are repairable errors.
+Prepared source maps and input identity describe the actual point; native loops
+remain intact. Temperature insertion occurs before authored analyses/sweep groups
+so earlier options cannot silently override the requested point.
 
-Generated circuit topology, model/device identity and interfaces remain
-Canvas-owned. Editable numeric spans are derived from printer locations.
-Edits to those spans use the existing Instance-parameter transaction; a paste
-that also changes connectivity is refused atomically. Authored files remain
-native ngspice, including commands outside the local checker's understanding.
-The compiler never round-trips free control through a structured analysis form.
+Native device OP saves use Profile-reviewed model outputs. Terminal-current
+requests use the shared derived-IR series-source transformation with deterministic
+branch allocation, not guesses from MOS model drain current. Explicit save lists
+are not silently widened to all vectors. Unsupported acquisitions return a
+specific diagnostic; no reconstructed threshold, gm or region classifier is added.
 
-GUI and Agent use the same File Resource. One update can atomically apply
-authored text and digest-guarded generated parameter edits. Old source or
-Project revisions return a repairable conflict rather than overwriting another
-writer. Prepare and Run capture committed source; File Save/Export and Check
-and Save first save the human code buffer into that same Project snapshot.
-Valid generated-parameter edits update Instances atomically; unfinished edits
-remain explicit, unapplied drafts. These drafts are saveable but prevent
-preparation until applied or discarded, so Run never silently uses stale values.
+VACASK source `dc` is mode-specific: OP evaluates the chosen waveform at time
+zero unless `type="dc"`. A generated waveform that also carries `dc` produces
+the informational `SIMULATION_NATIVE_SOURCE_DC_MODE` finding. Authors can switch
+source mode explicitly with `alter instance("V1") type="dc"`, run bias/AC, then
+restore `type="pulse"` (or the actual waveform) before TRAN. The compiler does
+not emulate ngspice's independent DC/transient source semantics.
 
-Profile selection, output expressions, saved measurements, value-free variable
-bindings and managed Run Plan are authored in the configuration file. Nominal
-variable values are native `.param` text, nominal temperature is `.temp`.
-Point values project only into the immutable execution snapshot. An exact
-parameter axis applies after a variable axis; it is not a new stored override.
+The current Project stores `simulationFolders`. Each is a version-4 source
+container with stable `id`, unique editable `name`, and one `input`:
 
-## Acquisition and identity
+| Field             | Authority                                                                             |
+| ----------------- | ------------------------------------------------------------------------------------- |
+| `kind: "source"`  | Only current persisted simulation input form                                          |
+| `entry`           | Authored SPICE path executed by Run                                                   |
+| `configPath`      | Authored experiment JSON path                                                         |
+| `files`           | Authored relative paths and exact text                                                |
+| `circuitBindings` | Stable binding IDs, virtual paths, Document IDs and `subcircuit`/`top-level` emission |
+| `dependencies`    | Declared dependency IDs, mount paths and SHA-256 identities                           |
+| Optional `drafts` | Unapplied path/base/text buffers, optionally retaining a Circuit binding              |
 
-Output ids and labels are durable authored presentation. Object acquisition
-uses an explicit binding/call scope plus the existing Cell occurrence and
-terminal/Route/Junction/Base-Net anchor. Native vector expressions remain
-available without pretending they can be painted back onto Canvas.
+The authoritative schema is
+[simulation-source.ts](../../packages/model/src/schema/simulation-source.ts).
+Folder edits share Project structure revision, undo/redo, Cloud Save and recovery.
+Generated text, model bytes, prepared decks, run receipts and numeric results
+are not additional saved folder authorities.
 
-Terminal-current acquisition inserts deterministic 0 V sense sources into
-prepared IR only. Positive current enters the selected terminal. This supports
-passive, MOS/BJT, independent-source and Cell-instance terminals without guessing
-model-specific `i(m1)` names. Hierarchy references follow actual occurrences,
-not a global spelling match.
+Paths use the safe virtual relative namespace. Authored files, generated
+bindings and dependency mounts cannot share a path. Entry and configuration
+are distinct author-owned paths. No host paths, traversal or startup-file
+takeover are permitted. Missing Cells/files and invalid SPICE or JSON remain
+saveable and produce preparation diagnostics; unsafe paths, duplicate
+ownership and invalid outer Project structure are rejected.
 
-| Acquisition | Example ngspice vector |
-| --- | --- |
-| Root Net | `v(mid)` |
-| Nested Net | `v(x1.xi1.mid)` |
-| Root terminal sense source | `i(vicmprb001)` |
-| Nested terminal sense source | `i(v.x1.xi1.vicmprb001)` |
+### Native experiment configuration
 
-Canvas acquisition declarations are inspectable generated `.save` text.
-Native vector leaves refer to what the authored program actually captures.
-Default templates issue `write out.raw` after each analysis with ASCII and
-appendwrite enabled in a fresh execution directory. Noise captures both its
-density and integrated records. Missing captures are diagnosed, never repaired
-by an invisible final write. Exact collection and repeated-record limitations
-are defined in the Code Workspace and results contracts.
+New experiments use this strict minimal configuration:
 
-Input identity covers authored bytes, configuration, generated electrical
-content, bindings, dependencies and effective conditions. Results retain their
-own captured mappings and labels; later edits mark them stale instead of
-remapping historical numbers. Repeated records are not identified by Plotname
-or analysis kind. Canvas OP and cross-run comparisons require a record choice
-when more than one candidate exists.
+```json
+{
+  "version": 2,
+  "environment": { "profileId": "sky130-core-continuous-ngspice46-v1" }
+}
+```
 
-## Device values and simulation syntax
+Use the Profile advertised by the executor. SPICE owns `.param`, `.temp`,
+`.lib`, analyses, `save`/`.probe`, `let`, `meas` and control loops.
+They have no duplicate editable JSON fields. The valid version-2 sidecar is
+hidden in the normal Explorer and file tabs but retained in complete backups.
+Legacy, malformed and pending-draft configuration remains visible for repair.
+Ordinary authored JSON files are not hidden.
 
-Ordinary drawn voltage/current sources own DC, AC and transient parameters.
-The device descriptor/printer is still the common authority for Properties,
-mapped source edits and Agent parameter edits. A transient PULSE/SIN/PWL does
-not disable AC: they describe different analyses on the same source.
+Native loops are one program and one Run. Running selected folders creates a
+bounded sequential Batch; all selected drafts are applied before preparation.
+Version-2 inputs reject managed execution variants. The current analysis and
+corner qualification comes from the Profile, not a GUI analysis enumeration.
 
-- DC uses `dc`.
-- AC uses `acMagnitude` and optional `acPhase` in degrees (default zero).
-- `waveform` explicitly selects the transient representation; the presence
-  of a period or timing field does not implicitly change the mode.
-- PULSE, SIN and PWL use the existing formal source parameters. Text-authored
-  sources may use native ngspice syntax directly.
+### Compatibility
 
-SPICE prints `DC <dc> AC <magnitude> <phase>` plus the selected waveform.
-Spectre structural export prints the same device facts in its own syntax.
-A phase without a magnitude is not emitted. VDD, GND and Net labels remain
-connectivity markers, not energy sources.
+Project-file compatibility is owned by
+[the file-format contract](project-file-format.md). Its one-way adapters convert
+older structured/raw setups into source folders while preserving IDs, authored
+text, effective intent and repairable references. They do not create a second
+current writer or authorize server-wide rewriting.
 
-The current qualified analysis set is supplied by the selected Profile, not
-by a GUI enumeration. OP/DC/AC/TRAN/Noise use the existing numeric adapters.
-Literal point/output estimates are advisory; symbolic native programs remain
-native. Missing vectors, unit errors and unavailable measurements affect their
-own outputs, not the entire Agent session. Actual executor safety and capacity
-limits still apply.
+Version-1 experiment JSON remains a supported compatibility reader. It owns
+`environment`, `runPlan`, `variables`, `outputs`, `deviceOperatingPoints`,
+`measurements` and `collection`. Arrays default empty, the plan defaults
+nominal, and collection defaults to `out.raw`; null collection requests
+log/artifact-only execution. Dependencies remain in the folder input.
+The exact accepted shape stays in `SimulationExperimentConfigSchema`.
 
-## Delivery evidence
+Legacy variables reference unambiguous reachable `.param` declarations and
+exact parameter targets; nominal values remain native text. Prepared projection
+uses descriptor units/scaling with nominal, variable-point, then exact-parameter
+axis precedence. A temperature axis replaces the nominal declaration for that
+prepared member. No projection rewrites saved Instance values.
 
-Focused source, migration, File Resource, service and browser tests demonstrate
-protocol/UI behavior. Mocked browser success does not certify model numbers.
-The same-candidate GUI and real MCP/ngspice numerical journeys, and full
-delivery gates, remain explicit Code Workspace acceptance requirements.
+Legacy acquisitions carry `circuit: { bindingId, callPath }` plus the existing
+Document/object/occurrence address. `callPath` contains authored X-instance
+names, resolved case-insensitively against captured input; it is empty for a
+top-level binding. Two DUT calls cannot silently share a probe. Stale or
+ambiguous calls receive diagnostics. Native vector leaves carry no invented
+Canvas mapping. Legacy terminal-current sense sources remain prepared-only
+instrumentation; new native helpers do not author that configuration.
+
+Helper can explicitly convert a simple legacy sidecar when its collector
+matches and no advanced intent needs translation. Remaining bindings, sweep
+plans, outputs, OP selections, measurements or corners block conversion with
+an explanation. Arbitrary advanced legacy translation is not implemented.
+Preserving these inputs does not promise regeneration of retired evaluated
+outputs or charts; current and historical result behavior is defined in
+[results](simulation-results.md#historical-output-compatibility).
+
+## Canvas compilation
+
+`compileSourceSimulation` and `prepareSourceExecutionInput` consume one
+Project/folder snapshot and reuse electrical extraction and the ordinary printer.
+
+- `subcircuit` emits the bound Cell and its dependency closure as definitions;
+  authored text owns DUT calls, stimuli and loads.
+- `top-level` emits the selected Cell's root cards and reached definitions.
+  There is at most one such binding. Root formal defaults become `.param`.
+- A text-only experiment needs no Canvas binding.
+- Neither form changes `project.topDocumentId`, invents sources, or inserts
+  another root call. Overlapping closures must not duplicate definitions.
+
+Generated topology, interfaces, model identity and Instance parameters remain
+Canvas-owned. Generated text and editable spans are derived. A fully textual
+experiment owns its own topology. Known shadow definitions of generated Cells
+and deliberate replacement of their topology are preparation errors.
+Parameter `alter` remains authored control, not an alternate Canvas edit.
+
+Composition resolves safe dependencies and includes while retaining authored
+bytes and source maps. Opaque control and repeated includes retain native
+meaning; the structural importer's projection is not an execution rewriter.
+Unknown static syntax alone cannot block native execution, though Profile,
+authorization, path and actual capacity constraints still apply.
+
+### Mapped parameter edits
+
+The printer exposes exact object/parameter targets, original values, descriptors,
+unit conversions and a generation digest. Editable spans are never persisted.
+
+- Supported spans include reversibly printed dimensions/multiplicity and R/C/L
+  values. V/I bodies support DC, AC magnitude/phase and complete PULSE/SIN/PWL
+  clauses, including clause removal through ordinary unset edits.
+- Numeric literals and braced or single-quoted parameter expressions use the
+  same mappings. Reviewed SKY130 Code dimensions use micrometres and Canvas
+  dimensions use metres; conversion survives expression round trips.
+- Nodes, pin order, references, device class, model identity and unsupported
+  fields remain locked. Descriptor membership alone does not prove reversibility.
+- One paste applies all valid mapped edits atomically or none. Changes to locked
+  structure refuse the whole paste. Stale generated digests/revisions require
+  rereading; old spans never target a changed circuit.
+- Definition edits affect every occurrence/experiment sharing that Cell.
+  Experiment-only changes belong in source; legacy variants use prepared copies.
+- Missing optional source clauses are display guidance, never saved defaults.
+
+Drawn V/I sources own their typed `dc`, `acMagnitude`, `acPhase` and explicit
+`waveform` parameters. AC and transient intent coexist. Phase alone is not
+emitted without magnitude. VDD/GND and labels are connectivity markers, not
+energy sources. Model/dialect rules remain in [netlist export](netlist-export.md).
+
+## Files, drafts and concurrency
+
+The common File Resource supports both Project-folder and private
+session-workspace ownership. They share codecs, not lifetime; session expiry
+cannot delete Project source. Session text has no implicit live Canvas binding.
+
+A Project file batch has an expected structure revision and one history entry.
+Range patches use expected text digests and half-open UTF-16 offsets. Reject
+stale, overlapping or invalid ranges atomically; preserve comments and line
+endings. Rename composes remove/write/reference edits in one transaction.
+
+GUI typing uses local drafts and editor undo. Committed updates use Project
+undo. Flush/reload establishes their boundary, including Agent writes.
+A revision-valid Agent update can commit while a dirty GUI draft remains;
+that older draft becomes conflicted and cannot silently overwrite the update.
+
+Save source applies the current folder's pending files locally without a cloud
+request. Run applies drafts before capture; File Save/Export and Check and Save
+capture the same source state. Invalid authored syntax can be committed as text.
+Unapplied generated-parameter edits are saved as explicit `input.drafts` when
+necessary, without changing Instance values. Preparation refuses unresolved
+buffers instead of executing old values. Successful application or explicit
+discard clears the buffer. Recovery/save/reload retain unfinished work.
+
+## Capture and result identity
+
+Native helpers author visible `save`, `.probe`, model-vector and measurement
+commands. Top-level terminal selection uses native `.probe`; hierarchical
+selection supports model-native readable drain and voltage-source branch
+currents. Unsupported internal terminals produce a limitation without modifying
+the Project. Helpers do not infer currents from arbitrary `i(m1)` spellings,
+add hidden sense sources for native inputs, or widen explicit saves to `all`.
+
+One Run collects at most one ASCII rawfile. Version 2 derives its path from
+reachable literal `write` commands; repeated writes to one path can use
+`appendwrite`. Dynamic or multiple distinct paths are diagnosed. No write
+means log/artifact-only execution. Version 1 retains its explicit collector.
+Compiler, Worker and harness must agree on capture intent.
+
+Templates use a fresh run directory, ASCII and appendwrite, and capture after
+each analysis. Noise templates capture both density and integrated records.
+There is no hidden final write that recovers all previous analyses. Ambiguous
+helper insertion is refused with a repair location; missing captures are not
+silently repaired.
+
+Input identity covers authored/config bytes, generated electrical content,
+bindings, dependencies, Profile and effective legacy projections. Results keep
+their captured input and mappings. Editing live source makes evidence stale;
+it never recomputes an old verdict or rebinds old numbers.
+
+[Results](simulation-results.md) owns raw record ordinals, units, bounded Noise
+pairing, native scalar reports and `* @spec` evaluation. New runs expose raw
+numeric data and Specs rather than a second waveform evaluator. The GUI offers
+Specs and Console; external consumers plot raw/CSV. Existing archive fields
+remain readable. Artifact export grants no live writeback and does not bundle
+restricted model libraries.
+
+## Language assistance
+
+One `packages/spice` catalog supplies completion, signatures, hover, templates
+and local checks to GUI and Agent. Rules retain language context and cited
+evidence. Circuit dot-cards, control commands, `.param` and B-source expressions
+are distinct contexts; the bounded structural evaluator is not a universal
+ngspice grammar.
+
+Coverage includes comments/continuation/numbers, includes and hierarchy,
+parameters/functions, RLC and source cards, OP/DC/AC/TRAN/Noise, and common
+control/acquisition commands. Valid opaque native syntax remains executable
+subject to environment policy. Path-policy refusal is not a syntax error.
+
+Located diagnostics retain `scope` (`authored`, `generated`, `prepared`),
+path, text digest, UTF-16 offsets and one-based line/column, alongside an
+ObjectLocator where applicable. Navigation must not apply old ranges to new
+text. Input errors affect preparation, not saving or the Agent session.
+
+### Language references
+
+The baseline follows the declared
+[hosted Profile](../../containers/ngspice/hosted-sky130-profile.json).
+For its ngspice 46 language evidence, use the
+[fixed manual](https://ngspice.sourceforge.io/docs/ngspice-46-manual.pdf),
+[official source](https://sourceforge.net/projects/ngspice/files/ng-spice-rework/old-releases/46/ngspice-46.tar.gz/download)
+and [document source](https://sourceforge.net/projects/ngspice/files/ng-spice-rework/old-releases/46/ngspice-doc-46.tar.gz/download).
+Manual sections 2, 3–5, 11–13 distinguish syntax, device, analysis and control
+contexts. Frontend `inpcom.c`, `subckt.c`, `numparam/`, control/command parsers
+and `src/spicelib/parser/` are implementation references, not one grammar.
+
+Recorded local SHA-256 identities, not upstream signatures:
+
+```text
+ngspice-46-manual.pdf
+b5bc7c4f3aac00e670b01b1d1ab64ec87055a491014af1de828764bf98faf766
+ngspice-46.tar.gz
+a0d1699af1940b06649276dcd6ff5a566c8c0cad01b2f7b5e99dedbb4d64c19b
+ngspice-doc-46.tar.gz
+6179b56c48bbe08a7e60775b629492df6b4182acafbf1b25c2c8cd78bea13e47
+```
+
+Reference archives are optional research inputs, not product build dependencies.
+Preserve notices; do not ship full manuals/model data inside the editor.
+Language examples are not automatically qualified electrical fixtures.
+
+## Workspace interaction
+
+Simulation is a lazy, independent right workspace beside Properties. Opening
+the editor does not load Code or start ngspice. Resize/minimize retains drafts,
+run ownership and editor state; maximize/restore retains the previous split.
+Closing presentation does not cancel execution.
+
+Explorer shows source paths directly under each experiment. Only the initial
+active folder expands; temporary Run groups start collapsed. Results/raw/CSV
+and Logs are normal output entries; preparation/evidence remain accessible via
+diagnostic export. File Resource retains full artifact access.
+
+Folder activation, expansion, batch selection, open editors and keyboard focus
+are separate state. Clicking a folder name or opening its source file activates
+it for Run; its chevron only expands. Context-menu and modifier selection do not
+retarget execution. The Run control names its active folder; viewing another
+file inside it never changes the explicit entry. Closing tabs deletes no source
+and does not change entry. Folder switches preserve tabs, drafts and caret state.
+
+Set up manually and New experiment create a named current-Cell OP starter.
+They do not create a Testbench or infer stimuli. Helper insertion changes text
+only through explicit action. Helper and Ctrl+Space share the catalog; picking
+can add successive signals until Done/Escape without forcing focus changes.
+
+File/folder commands use one portalled context menu with keyboard navigation,
+outside-click dismissal and explicit targets. Inline new/rename accepts once
+on Enter/valid blur and cancels on Escape/empty blur. Delete uses a small
+confirmation with Cancel initially focused. Multi-file download preserves paths.
+Explorer and pane widths are local preferences, not Project fields.
+
+Keyboard, IME, paste and undo follow code focus; Canvas shortcuts cannot delete
+schematic objects while typing. Source Save and Cloud Save remain distinct.
+Specs/Console, archives and exports use the existing service and input snapshots;
+updates do not open panels or steal focus from humans when an Agent runs.
+
+## Valid and rejected examples
+
+A minimal unbound input uses the version-2 configuration above, no bindings or
+dependencies, and this authored entry (syntax example, not qualification):
+
+```spice
+* Divider
+V1 in 0 DC 1
+R1 in out 1k
+R2 out 0 1k
+.control
+set filetype=ascii
+set appendwrite
+op
+write out.raw
+.endc
+.end
+```
+
+An atomic paste changing two exposed MOS dimensions is valid. A paste also
+changing a drain node is refused without partial mutation. An incomplete
+authored `ac dec` can be saved and repaired; it is not replaced with the last
+executable program. Missing source references remain located preparation errors.
+
+## Deterministic validation
+
+Schema/migration and File Resource tests protect ownership, revisions, drafts
+and compatibility. Compiler tests protect reversible parameters, scaling,
+hierarchy, exact bytes and capture. Browser tests protect interaction, keyboard
+isolation and retained state. Rawfile/service tests protect evidence and Specs.
+
+The Preview workflow runs the real source GUI, public Agent/MCP and cross-Project
+journeys, retaining candidate-specific receipts. It separately qualifies the
+declared simulator, models, corner and numeric tolerances. Test existence or
+mocked success is not a claim that another candidate passed.
+See [deployment](../deployment.md) for these recurring acceptance obligations.

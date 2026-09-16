@@ -10,31 +10,10 @@ formal saved resource; `.icproj.json` is portable import/export and backup.
 The current-only model in `packages/model` validates the normalized shape;
 `packages/project-protocol` owns parsing, compatibility diagnostics,
 and canonical serialization. Persistence validates the complete current schema
-before import or Cloud Save. The explicit schema 24→56 chain upgrades supported
-historical files; serialization always writes schema 56. The 32→33 adapter
-rejects ownerless Net equivalence instead of guessing replacement electrical
-semantics, and the 33→34 adapter removes hidden electrical name authority while
-preserving source spelling as provenance. The 34→35 adapter unifies parallel
-Instance naming fields into one authored Reference. The 35→36 adapter repairs
-styled Instance designators that schema 35 materialized as literal labels,
-while retaining descriptive attached text. The 36→37 adapter only advances
-the version stamp for the new optional Project `simulation` setup; no
-existing Project has authored one, and none is inferred. The 37→38 adapter
-adds no data: it only admits explicitly authored structured TRAN analyses. The
-38→39 adapter adds no data either: it admits raw authored files and external
-dependency declarations as the setup's mutually exclusive second input form.
-Later adapters add anchored probes, DC sweep, named setup collections, output
-expressions, terminal-current identity, scalar measurements, Noise, and
-selected MOS operating-point details. They preserve older intent and never
-select a device or analysis implicitly. Schema 51 adds optional rectangle and
-circle fill and front/background drafting planes; schema-50 content requires
-only a version-stamp advance.
-Schema 54 adds optional named parameter bindings on instance-value annotations;
-the 53→54 adapter changes only the version stamp.
-Schema 55 adds optional independent `arrowStart` and `arrowEnd` overrides.
-The 54→55 adapter changes only the version stamp; unset endpoints retain
-legacy style, placement, and scale without rewriting authored geometry.
-Versions outside the implemented chain are rejected.
+before import or Cloud Save. Compatibility and migration failure rules belong to the
+[file-format contract](project-file-format.md). The protocol reader upgrades
+supported historical content before current-schema validation; all writers emit
+the current schema. Persistence does not maintain a separate migration policy.
 
 Recovery state is a non-authoritative browser safety copy. It may restore a
 complete schema-56 Project or a supported historical record that validates
