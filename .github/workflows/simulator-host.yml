@@ -20,7 +20,7 @@ on:
         required: true
         default: probe
         type: choice
-        options: [probe, bootstrap-tunnel, deploy, vacask-preview]
+        options: [probe, bootstrap-tunnel, deploy, vacask-preview, vacask-diagnostics]
       candidate_assets:
         description: Draft release tag containing the pinned native build context
         type: string
@@ -53,7 +53,7 @@ env:
 
 jobs:
   host:
-    if: github.event_name != 'workflow_dispatch' || inputs.action != 'vacask-preview'
+    if: github.event_name != 'workflow_dispatch' || (inputs.action != 'vacask-preview' && inputs.action != 'vacask-diagnostics')
     name: ${{ github.event_name == 'push' && 'deploy' || inputs.action }}
     runs-on: ubuntu-latest
     # The account id and the deploy token live in this environment's secrets,
@@ -224,7 +224,7 @@ jobs:
           echo "/run without the token: 401, as required"
 
   vacask-preview:
-    if: github.event_name == 'workflow_dispatch' && inputs.action == 'vacask-preview'
+    if: github.event_name == 'workflow_dispatch' && (inputs.action == 'vacask-preview' || inputs.action == 'vacask-diagnostics')
     # GitHub restricts draft-release visibility to write-capable repository tokens.
     # The script only downloads the explicitly named draft; it never publishes it.
     permissions:
@@ -248,6 +248,7 @@ jobs:
           printf '%s\n' "$SIM_HOST_KNOWN_HOSTS" > ~/.ssh/known_hosts
           printf 'Host sim\n HostName %s\n User %s\n IdentityFile ~/.ssh/sim_host\n IdentitiesOnly yes\n BatchMode yes\n ConnectTimeout 20\n' "$SIM_HOST_ADDR" "$SIM_HOST_USER" > ~/.ssh/config
       - name: Build isolated VACASK executor and verify native identity
+        if: inputs.action == 'vacask-preview'
         env:
           GH_TOKEN: ${{ github.token }}
           CANDIDATE_ASSETS: ${{ inputs.candidate_assets }}
@@ -257,6 +258,10 @@ jobs:
           CLOUDFLARE_TUNNEL_API_TOKEN: ${{ secrets.CLOUDFLARE_TUNNEL_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: bash containers/vacask/host/deploy-preview.sh
+      - name: Read isolated candidate state without changing services
+        if: inputs.action == 'vacask-diagnostics'
+        run: |
+          ssh sim 'docker ps -a --filter label=com.docker.compose.project=icm-vacask-preview --format "{{.Names}} {{.Status}}"; for id in $(docker ps -aq --filter label=com.docker.compose.project=icm-vacask-preview); do docker inspect --format "{{.Name}} restarts={{.RestartCount}} oom={{.State.OOMKilled}} exit={{.State.ExitCode}} started={{.State.StartedAt}}" "$id"; done; id=$(docker ps -q --filter label=com.docker.compose.project=icm-vacask-preview --filter label=com.docker.compose.service=executor); test -n "$id" && docker logs --since 30m --tail 40 "$id"'
       - name: Preserve runtime identity (no credentials)
         if: always()
         uses: actions/upload-artifact@v4
