@@ -2,56 +2,54 @@
 
 ## Development and publication cadence
 
-Use three stages so deployment work is paid per accepted batch rather than per
-small edit:
+Local work stays local until someone delivers it. Delivery is one pull request,
+and its `preview` label chooses the channel
+([ADR 0058](adr/0058-label-routed-releases.md)):
 
-| Stage      | Unit of work                                                               | Completion                                                                                                                 |
-| ---------- | -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| Local      | One bounded feature, fix, or improvement on the current local batch branch | Local feedback through `pnpm dev`, focused validation, and an explanatory local commit                                     |
-| Preview    | At least 10 completed changes in one batch PR                              | Whole-batch delivery checks, both required PR checks against current `main`, one main merge, and hosted Preview acceptance |
-| Production | A Preview-accepted candidate with release authorization                    | Version-tag or explicit-dispatch deployment and Production verification                                                    |
+| Route      | Trigger                                          | What happens                                                                                                               |
+| ---------- | ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| Local      | Commits on a local branch                        | `pnpm dev`, focused validation and an explanatory commit; nothing deploys                                                  |
+| Production | Merge a pull request without the `preview` label | The merge commit is built once, deployed to Production, verified, and rolled back on failure; Preview is unchanged         |
+| Preview    | Add the `preview` label to a same-repository PR  | Every push deploys the pull request's head to Preview; merging it deploys the merge commit to Preview only                 |
+| Promotion  | `v*` tag or a Deploy Cloudflare dispatch         | A commit on `main` whose Preview deploy succeeded is deployed to Production from Preview's accepted candidate, not rebuilt |
 
-Ten changes means ten independently useful outcomes, not ten commits or files.
-Supporting tests and follow-up repairs belong to their original change. Keep
-the current working list and count in `plan/local-batch.md`, with the durable
-intent and evidence in each commit and the batch PR. Continue the batch across
-local tasks instead of opening a separate PR for each task. An explicit user
-request may publish Preview earlier or hold the batch longer.
+Label a pull request `preview` when the change is large or risky, when a
+collaborator needs to debug it on a hosted site, or when someone should click
+through it before the public sees it. The label can be added or removed at any
+time before merging; the route is read when the merge reaches `main`. An
+unlabeled merge is the normal release for a small fix. Batching is optional:
+several changes may share one pull request, but a small fix does not have to
+wait for others. Keep the current working list in `plan/local-batch.md` when a
+batch is in progress, with the durable intent and evidence in each commit and
+pull request.
 
 Local commits do not publish either site. A requested remote branch backup
-also remains local-stage work. When the batch is ready, validate its combined
-diff once for delivery and merge one PR; merging ten separate PRs would still
-trigger repeated Preview deployments. Review the combined risk, including
-interactions between otherwise small changes. Documentation-only work retains
-the workflow's existing deployment exclusions.
+also remains local-stage work. Review the combined risk of everything a pull
+request carries. Documentation-only merges deploy nothing.
 
-The same immutable candidate receives one complete required CI pass. A current
-branch merges directly after that pass; it does not enter a second merge-queue
-run. If another change reaches `main` first, update the branch and rerun because
-the candidate has changed. Preview selects hosted acceptance from the merged
+Each pull request receives one complete required CI pass. A current branch
+merges directly after that pass; it does not enter a second merge-queue run. If
+another change reaches `main` first, update the branch and rerun because the
+candidate has changed. Preview selects hosted acceptance from the changed
 paths. Ordinary editor work runs one published-MCP managed-engine smoke and one
 GUI source journey in parallel. Agent, Simulation, simulator/netlist execution,
 and deployment-boundary changes retain the complete qualification and product
-journeys. Manual Preview runs are deep by default. Production promotes the
-accepted bytes without rebuilding in either case.
+journeys. Manual Preview runs are deep by default. An unlabeled merge skips
+this hosted acceptance; only the required checks and Production's own
+verification and rollback protect it.
 
-Choose any release version while preparing the candidate for Preview. After
-acceptance, Production publication is a separate release decision, covered by
-the user's current or earlier authorization for that release. Neither the
-change count nor Preview success automatically publishes Production. New local
-work may accumulate in the next batch while the accepted Preview waits for a
-Production release.
-
-The existing deployment triggers below implement this cadence. See
+Prepare any release version before merging, or before promoting a
+Preview-accepted commit, so the deployed candidate needs no further code
+change. See
 [working rules](../AGENTS.md#three-stage-development-and-delivery) and
 [validation timing](testing/README.md#local-iteration-and-batch-validation).
 
 ## Channels and data isolation
 
-| Channel    | Trigger and configuration                                                         | Data boundary                                                                                                                                              |
-| ---------- | --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Preview    | main push; `.github/workflows/deploy-preview.yml`; `wrangler.preview.jsonc`       | Own accounts and Projects; anonymous HTTP read-through to public Gallery; Gallery writes refused; private CI acceptance uses the same isolated Project API |
-| Production | `v*` tag or manual dispatch; `.github/workflows/cloudflare.yml`; `wrangler.jsonc` | Public product and its private storage                                                                                                                     |
+| Channel    | Trigger and configuration                                                                                               | Data boundary                                                                                                                                              |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Preview    | `preview`-labeled PR or its merge, or manual dispatch; `.github/workflows/deploy-preview.yml`; `wrangler.preview.jsonc` | Own accounts and Projects; anonymous HTTP read-through to public Gallery; Gallery writes refused; private CI acceptance uses the same isolated Project API |
+| Production | Unlabeled merge, `v*` tag, or manual dispatch; `.github/workflows/cloudflare.yml`; `wrangler.jsonc`                     | Public product and its private storage                                                                                                                     |
 
 Preview is served at `analog-canvas-preview.tokenzhang.com`, labelled and
 unindexed. Production is `analog-canvas.tokenzhang.com`. The separate
@@ -61,20 +59,23 @@ Preview-only Google OAuth client; its consent-screen test-user roster controls
 who can sign in. Its simulation capability can be issued without OAuth; public
 site access is not unrestricted compute authority.
 
-The channels share one immutable deployment candidate. Preview builds the
-browser assets and Worker bundle once, deploys those exact bytes, and stores the
-candidate only after hosted acceptance succeeds. Production downloads that
+Both channels build deployment candidates with the same action,
+`.github/actions/build-deployment-candidate`. A deploy builds the browser
+assets and Worker bundle once and deploys those exact bytes. Preview stores its
+candidate only after hosted acceptance succeeds; a promotion downloads that
 candidate from the successful Preview run, verifies its commit and single
-payload identity, and deploys it without rebuilding. Runtime bindings, routes,
+payload identity, and deploys it without rebuilding. A direct release builds
+its own candidate from the merge commit and verifies it the same way. Runtime
+bindings, routes,
 secrets, queues, buckets and Durable Object namespaces remain channel-specific;
 they are applied by the destination Wrangler configuration rather than baked
 into the candidate.
 [ADR 0057](adr/0057-release-channels-preview-and-production.md) explains the choice.
 
-The release build keeps the accepted behavior at the promoted `main` commit.
+The release build keeps the behavior of the deployed `main` commit.
 Version 0.4.0 opens the previously Preview-only Simulation and Agent workflows
-on Production. The Preview build declares these browser capabilities
-explicitly, and Production serves the same promoted bytes:
+on Production. The shared build action declares these browser capabilities
+explicitly, so both channels serve the same capabilities:
 
 | Browser capability                                               | Preview  | Production |
 | ---------------------------------------------------------------- | -------- | ---------- |
@@ -85,7 +86,7 @@ explicitly, and Production serves the same promoted bytes:
 
 These are browser presentation choices. Persisted Simulation data remains
 round-trippable on both channels, and the Agent and Simulation HTTP APIs keep
-their independently deployed contracts. The Preview build also sets
+their independently deployed contracts. The shared build also sets
 `VITE_ICM_SIMULATION_TRANSPORT=managed`; local and portable builds retain direct
 execution unless explicitly configured otherwise.
 
@@ -115,12 +116,19 @@ disposable test data and never synchronize or promote to Production.
 
 ## Releasing to Production
 
-Select a candidate commit that Preview has successfully deployed and verified.
-The Production workflow selects the newest successful `deploy-preview.yml` run
-for that exact commit and downloads its `preview-candidate-<commit>` artifact.
-The artifact is the same Worker bundle and browser asset tree served during
-Preview acceptance. Production never substitutes the latest branch build or
-rebuilds the selected source.
+The normal release is an unlabeled merge. The Production workflow reads the
+merged pull request's labels, builds that merge commit once, and deploys it.
+A merge labeled `preview` is skipped there and deployed to Preview instead. A
+push to `main` without a pull request, as in the incident exception below,
+also deploys directly. Runtime configuration, including the simulator gateway,
+ships only when the deployed commit contains it.
+
+To release a commit that Preview accepted, promote it. The Production workflow
+first requires the commit to be on `main`, then selects the newest successful
+`deploy-preview.yml` run for that exact commit and downloads its
+`preview-candidate-<commit>` artifact: the same Worker bundle and browser asset
+tree served during Preview acceptance. A promotion never substitutes the
+latest branch build or rebuilds the selected source.
 
 Use either a version tag (choose the intended unused release version):
 
@@ -135,20 +143,17 @@ or the one-click manual promotion:
 gh workflow run "Deploy Cloudflare"
 ```
 
-The manual action defaults to the current `main` ref, so the normal promotion
-requires no commit copy/paste. Its checkout resolves that ref once and then
-requires the exact commit's accepted Preview artifact. Supply `-f ref=<ref>`
-only when deliberately promoting another accepted tag or branch.
+The manual action defaults to the current `main` ref, so promoting the merge of
+a labeled pull request requires no commit copy/paste. Its checkout resolves
+that ref once and then requires the exact commit's accepted Preview artifact.
+Supply `-f ref=<ref>` only when deliberately promoting another accepted tag or
+merged commit. A labeled pull request's unmerged head can be debugged on
+Preview but never promoted.
 
-Ordinary merges do not trigger Production. Normal hotfixes use the same route;
-the incident exception below is separate. Runtime configuration, including the
-simulator gateway, ships only when the selected release contains it.
-
-Promotion is deliberately small: select the accepted commit once, then let the
-workflow download, verify, deploy and check it. Before treating a release as
-validated, inspect the candidate's actual Preview evidence and the relevant
-required checks. Local unit tests, build success, and recorded rawfiles cannot
-certify deployed bindings, secrets, model identity, or the hosted request path.
+Before treating a release as validated, inspect the relevant required checks
+and, for a promotion, the candidate's actual Preview evidence. Local unit
+tests, build success, and recorded rawfiles cannot certify deployed bindings,
+secrets, model identity, or the hosted request path.
 
 ## Deploy, verify, recover
 
@@ -162,7 +167,7 @@ human intervention is required.
 Deep Preview acceptance runs the complete numerical, dual-engine, public
 Agent/MCP, source-workspace GUI and private cross-Project journeys once; the
 fast path runs only its two smoke journeys. Production verifies
-that the served entry bytes match the accepted candidate, checks its public
+that the served entry bytes match the deployed candidate, checks its public
 routes and MCP manifest, creates and removes one lightweight Agent session, and
 runs a baseline OP/TRAN/DC/Noise simulation smoke with Production bindings.
 Preview's private cross-Project acceptance identity is never installed or

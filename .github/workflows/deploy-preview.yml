@@ -1,8 +1,11 @@
 name: Deploy Preview
 
-# The preview channel (ADR 0057): every merge to main deploys the preview
-# Worker at analog-canvas-preview.tokenzhang.com and verifies it. Production
-# is a different workflow with a different trigger; nothing here can reach it.
+# The preview channel (ADR 0057, routed by ADR 0058) at
+# analog-canvas-preview.tokenzhang.com. A pull request labeled `preview` is
+# deployed here on every push for debugging; merging it deploys the merge
+# commit here and nowhere else. Unlabeled merges go straight to Production in
+# cloudflare.yml. A manual run deploys any selected branch. Nothing in this
+# workflow can reach Production.
 on:
   push:
     branches:
@@ -10,10 +13,17 @@ on:
     paths-ignore:
       - "**/*.md"
       - "docs/**"
+  pull_request:
+    types: [opened, labeled, synchronize, reopened]
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
   workflow_dispatch:
 
 permissions:
   contents: read
+  # To read the merged pull request's labels.
+  pull-requests: read
 
 concurrency:
   group: cloudflare-preview
@@ -24,27 +34,69 @@ env:
   PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH: /usr/bin/google-chrome
 
 jobs:
+  # A merge reaches Preview only when its pull request carries the `preview`
+  # label; cloudflare.yml makes the same decision for Production.
+  route:
+    name: Release route
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    outputs:
+      target: ${{ steps.route.outputs.target }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - id: route
+        name: Choose Preview or Production
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/release-route.mjs --sha "$GITHUB_SHA" --github-output
+
   preview:
     name: Deploy preview
+    needs: route
+    # A same-repository pull request deploys only while it carries the
+    # `preview` label, and adding any other label redeploys nothing.
+    if: >-
+      ${{ !cancelled() && (
+        github.event_name == 'workflow_dispatch' ||
+        (github.event_name == 'push' &&
+          needs.route.result == 'success' &&
+          needs.route.outputs.target == 'preview') ||
+        (github.event_name == 'pull_request' &&
+          github.event.pull_request.head.repo.full_name == github.repository &&
+          contains(github.event.pull_request.labels.*.name, 'preview') &&
+          (github.event.action != 'labeled' || github.event.label.name == 'preview'))
+      ) }}
     runs-on: ubuntu-latest
     environment:
       name: cloudflare-preview
       url: https://analog-canvas-preview.tokenzhang.com
+    env:
+      # A pull request deploys its head commit, not GitHub's merge preview.
+      RELEASE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 2
+          ref: ${{ env.RELEASE_SHA }}
+          # A pull request's acceptance depth needs its base commit.
+          fetch-depth: ${{ github.event_name == 'pull_request' && '0' || '2' }}
       - id: acceptance_plan
         name: Plan hosted acceptance depth
         env:
           EVENT_NAME: ${{ github.event_name }}
           BEFORE_SHA: ${{ github.event.before }}
+          PULL_REQUEST_BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
-          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
-            node scripts/preview-acceptance-plan.mjs --force-deep --github-output
-          else
-            node scripts/preview-acceptance-plan.mjs --base "$BEFORE_SHA" --github-output
-          fi
+          case "$EVENT_NAME" in
+            workflow_dispatch)
+              node scripts/preview-acceptance-plan.mjs --force-deep --github-output ;;
+            pull_request)
+              node scripts/preview-acceptance-plan.mjs --base "$PULL_REQUEST_BASE_SHA" --github-output ;;
+            *)
+              node scripts/preview-acceptance-plan.mjs --base "$BEFORE_SHA" --github-output ;;
+          esac
       - uses: pnpm/action-setup@v4
         with:
           version: 11.16.0
@@ -52,31 +104,14 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @icm/spice-run... --filter @icm/editor... --filter @icm/mcp-server... build
-        env:
-          VITE_ICM_TIMING_UI: disabled
-          # Both hosted channels expose the accepted Simulation/Agent surfaces;
-          # Preview still receives changes before a deliberate public release.
-          VITE_ICM_SIMULATION_UI: enabled
-          VITE_ICM_AGENT_UI: enabled
-          VITE_ICM_SIMULATION_TRANSPORT: managed
-      # Build the Worker bundle once. Preview deploys these exact bytes, and a
-      # successful run preserves them for Production promotion.
+      # Preview deploys these exact bytes, and a successful run preserves them
+      # for Production promotion.
       - name: Build immutable deployment candidate
-        env:
-          CANDIDATE_DIR: ${{ runner.temp }}/analog-canvas-candidate
-          WORKER_BUNDLE_DIR: ${{ runner.temp }}/analog-canvas-worker-bundle
-        run: |
-          set -euo pipefail
-          pnpm dlx wrangler@4.120.1 deploy \
-            --config wrangler.preview.jsonc \
-            --dry-run \
-            --outdir "$WORKER_BUNDLE_DIR"
-          node scripts/deployment-candidate.mjs create \
-            "$CANDIDATE_DIR" "$GITHUB_SHA" "$WORKER_BUNDLE_DIR"
-          node scripts/deployment-candidate.mjs verify \
-            "$CANDIDATE_DIR" "$GITHUB_SHA"
+        uses: ./.github/actions/build-deployment-candidate
+        with:
+          wrangler-config: wrangler.preview.jsonc
+          release-sha: ${{ env.RELEASE_SHA }}
+          candidate-dir: ${{ runner.temp }}/analog-canvas-candidate
       - name: Reconcile managed simulation resources
         if: steps.acceptance_plan.outputs.mode == 'deep'
         env:
@@ -263,16 +298,17 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: preview-acceptance-${{ github.sha }}
+          name: preview-acceptance-${{ env.RELEASE_SHA }}
           path: test-results/preview-*/
           if-no-files-found: error
           retention-days: 14
-      # This is the only Production input. It is published only after every
-      # deployed Preview acceptance above has passed and its evidence exists.
+      # A promotion to Production deploys this candidate. It is published only
+      # after every deployed Preview acceptance above has passed and its
+      # evidence exists; Production still refuses commits that are not on main.
       - name: Preserve accepted deployment candidate
         uses: actions/upload-artifact@v4
         with:
-          name: preview-candidate-${{ github.sha }}
+          name: preview-candidate-${{ env.RELEASE_SHA }}
           path: ${{ runner.temp }}/analog-canvas-candidate
           if-no-files-found: error
           retention-days: 90

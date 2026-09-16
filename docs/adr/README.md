@@ -21,7 +21,8 @@ major boundaries exist.
 - [`0049-cloud-project-save-boundary.md`](0049-cloud-project-save-boundary.md) — stable Cloud Project Save
 - [`0053-chain-carried-project-compatibility.md`](0053-chain-carried-project-compatibility.md) — chain-carried Project compatibility with a floored upgrade chain
 - [`0055-simulation-is-part-of-the-product.md`](0055-simulation-is-part-of-the-product.md) — simulation joins the product; what is simulatable, whose testbench, and where ngspice runs
-- [`0057-release-channels-preview-and-production.md`](0057-release-channels-preview-and-production.md) — a preview Worker every merge deploys, and production that deploys only from a release
+- [`0057-release-channels-preview-and-production.md`](0057-release-channels-preview-and-production.md) — separate Preview and Production Workers sharing one accepted candidate
+- [`0058-label-routed-releases.md`](0058-label-routed-releases.md) — the `preview` label routes a merge to Preview; every other merge deploys directly to Production
 
 ### Agent boundary
 

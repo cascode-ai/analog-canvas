@@ -6,6 +6,9 @@ Date: 2026-09-04
 
 Owners: `worker`, `.github/workflows`, `apps/editor`
 
+Amended by [ADR 0058](0058-label-routed-releases.md): the `preview` label now
+decides whether a merge deploys to Preview or directly to Production.
+
 ## Context
 
 Deploying every merge directly to the public site gives unreleased features no

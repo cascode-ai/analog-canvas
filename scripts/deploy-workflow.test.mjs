@@ -14,40 +14,94 @@ import { describe, expect, it } from "vitest";
  */
 const workflow = readFileSync(".github/workflows/cloudflare.yml", "utf8");
 
-describe("production deploys only from a release (ADR 0057)", () => {
-  it("is triggered by a version tag or selected ref, never by a merge", () => {
+function step(name) {
+  const start = workflow.indexOf(`- name: ${name}`);
+  expect(start).toBeGreaterThan(-1);
+  const next = workflow.indexOf("\n      - ", start + 1);
+  return workflow.slice(start, next === -1 ? undefined : next);
+}
+
+describe("production entrances (ADR 0057, ADR 0058)", () => {
+  it("deploys unlabeled merges directly and promotes tags or selected refs", () => {
+    expect(workflow).toMatch(/branches:\s*\n\s*- main/u);
     expect(workflow).toMatch(/tags:\s*\n\s*- "v\*"/u);
-    expect(workflow).not.toMatch(/branches:\s*\n\s*- main/u);
     expect(workflow).toMatch(/workflow_dispatch:\s*\n\s*inputs:\s*\n\s*ref:/u);
     expect(workflow).toContain('default: "main"');
+    // The route is the pull request's `preview` label, read from GitHub;
+    // a labeled merge stays on Preview until it is promoted.
+    expect(workflow).toContain("pull-requests: read");
+    expect(workflow).toContain(
+      'node scripts/release-route.mjs --sha "$GITHUB_SHA" --github-output',
+    );
+    expect(workflow).toContain("needs.route.outputs.target == 'production'");
+    expect(workflow).toContain("needs.route.result == 'success'");
+    expect(workflow).toContain("startsWith(github.ref, 'refs/tags/')");
   });
 
-  it("resolves the selected ref once and promotes that exact commit", () => {
+  it("resolves the selected ref once and deploys that exact commit", () => {
     expect(workflow).toContain("ref: ${{ inputs.ref || github.ref }}");
     expect(workflow).toContain("git rev-parse 'HEAD^{commit}'");
+    expect(workflow).toContain(
+      "DIRECT_RELEASE: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}",
+    );
   });
 
-  it("refuses a commit the preview never proved", () => {
-    // The preview is the one place a commit is looked at before the public
-    // sees it. A release of a commit with no green preview deploy is the
-    // 2026-09-01 outage waiting to happen again.
-    expect(workflow).toContain("The release must have a green preview deploy");
-    expect(workflow).toContain("--workflow deploy-preview.yml");
-    expect(workflow).toContain("--status success");
-    expect(workflow).toContain("No successful preview deploy exists");
+  it("releases only commits that are already on main", () => {
+    // A labeled pull request deploys its unmerged head to Preview; that
+    // candidate must never become a way to ship unmerged code.
+    const resolve = step("Resolve the release commit");
+    expect(workflow).toContain("fetch-depth: 0");
+    expect(resolve).toContain(
+      'git merge-base --is-ancestor "$release_sha" origin/main',
+    );
+    expect(resolve).toContain("is not on main");
+  });
+
+  it("refuses to promote a commit the preview never proved", () => {
+    // A promotion is only as good as the Preview run behind it. Releasing a
+    // commit with no green preview deploy is the 2026-09-01 outage waiting to
+    // happen again.
+    const gate = step("The release must have a green preview deploy");
+    expect(gate).toContain("if: env.DIRECT_RELEASE != 'true'");
+    expect(gate).toContain("--workflow deploy-preview.yml");
+    expect(gate).toContain("--status success");
+    expect(gate).toContain("No successful preview deploy exists");
   });
 
   it("promotes the exact candidate preserved by that successful Preview run", () => {
-    expect(workflow).toContain("actions/download-artifact@v4");
-    expect(workflow).toContain(
-      "preview-candidate-${{ steps.preview.outputs.release_sha }}",
+    const download = step("Download the accepted Preview candidate");
+    expect(download).toContain("if: env.DIRECT_RELEASE != 'true'");
+    expect(download).toContain("actions/download-artifact@v4");
+    expect(download).toContain(
+      "preview-candidate-${{ steps.release.outputs.release_sha }}",
     );
-    expect(workflow).toContain("run-id: ${{ steps.preview.outputs.run_id }}");
+    expect(download).toContain("run-id: ${{ steps.preview.outputs.run_id }}");
     expect(workflow).toContain("deployment-candidate.mjs verify");
     expect(workflow).toContain("--no-bundle");
     expect(workflow).toContain('--assets "$CANDIDATE_DIR/editor"');
-    expect(workflow).not.toContain("pnpm install --frozen-lockfile");
     expect(workflow).not.toContain("playwright install");
+  });
+
+  it("builds a direct release once, with the action Preview uses", () => {
+    // The only build in this workflow is the shared action, and only for a
+    // direct release; a promotion deploys Preview's bytes unchanged.
+    const build = step("Build the merged commit's deployment candidate");
+    expect(build).toContain("if: env.DIRECT_RELEASE == 'true'");
+    expect(build).toContain(
+      "uses: ./.github/actions/build-deployment-candidate",
+    );
+    expect(build).toContain("wrangler-config: wrangler.jsonc");
+    expect(build).toContain(
+      "release-sha: ${{ steps.release.outputs.release_sha }}",
+    );
+    expect(workflow).not.toContain("pnpm install --frozen-lockfile");
+    expect(workflow).not.toContain("wrangler.preview.jsonc");
+    expect(
+      workflow.indexOf("Build the merged commit's deployment candidate"),
+    ).toBeLessThan(workflow.indexOf("Verify the deployment candidate"));
+    expect(workflow.indexOf("Verify the deployment candidate")).toBeLessThan(
+      workflow.indexOf("id: deploy_worker"),
+    );
   });
 
   it("keeps production verification independent of an installed workspace", () => {

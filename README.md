@@ -90,11 +90,11 @@ also ends local sessions;
 after restarting it, create a new connection. Cloud account, Gallery, and
 hosted simulation services are not started by this local relay.
 
-Development follows three stages: iterate locally on a batch branch with
-focused checks and local commits; accumulate at least 10 completed features,
-fixes, or improvements into one Preview delivery; then promote an accepted
-candidate to Production when that release is authorized. Each local edit ends
-at the local stage by default. See the
+Development follows three stages: iterate locally with focused checks and
+local commits; deliver a pull request, which deploys directly to Production
+unless it carries the `preview` label, in which case it goes to Preview; then
+promote Preview-accepted work to Production when that release is authorized.
+Each local edit ends at the local stage by default. See the
 [working rules](AGENTS.md#three-stage-development-and-delivery)
 and [delivery cadence](docs/deployment.md#development-and-publication-cadence).
 
@@ -148,8 +148,9 @@ and [delivery cadence](docs/deployment.md#development-and-publication-cadence).
   delivery plans.
 
 The [Razavi reference manifest](fixtures/visual-reference/razavi-reference-v1/)
-is the sole visual authority. Merges to `main` deploy Preview; Production is
-promoted from a release tag or explicit dispatch after Preview acceptance.
+is the sole visual authority. A merge to `main` deploys to Production, or to
+Preview when its pull request is labeled `preview`; Preview-accepted work is
+promoted with a release tag or explicit dispatch.
 See [deployment](docs/deployment.md) for the release and recovery contract.
 
 ## Netlist conversion

@@ -368,10 +368,12 @@ install action. The server accepts only loopback connections.
 
 ## Deployment
 
-The editor is served by the Cloudflare Worker in `worker/`. Merges to `main`
-deploy the Preview channel through `.github/workflows/deploy-preview.yml`;
-Production deploys only a Preview-accepted candidate from a `v*` release tag or
-an explicit dispatch of `.github/workflows/cloudflare.yml`. Each channel's
+The editor is served by the Cloudflare Worker in `worker/`. A merged pull
+request deploys directly to Production through
+`.github/workflows/cloudflare.yml` unless it carries the `preview` label; a
+labeled pull request, before and after merging, deploys to the Preview channel
+through `.github/workflows/deploy-preview.yml`. Preview-accepted work reaches
+Production with a `v*` release tag or an explicit dispatch. Each channel's
 Worker hosts the built editor and the gallery, account, Agent-session, and
 simulation endpoints behind it; see [deployment](../deployment.md).
 

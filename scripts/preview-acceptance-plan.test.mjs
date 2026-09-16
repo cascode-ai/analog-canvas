@@ -21,6 +21,10 @@ describe("Preview acceptance planning", () => {
       "worker/simulation.ts",
       "scripts/preview-source-gui-journey.mjs",
       ".github/workflows/deploy-preview.yml",
+      ".github/actions/build-deployment-candidate/action.yml",
+      "scripts/deployment-candidate.mjs",
+      "scripts/release-route.mjs",
+      "scripts/lib/release-route.mjs",
     ]) {
       expect(planPreviewAcceptance([path]), path).toMatchObject({
         mode: "deep",

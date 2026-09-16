@@ -1,0 +1,52 @@
+name: Build deployment candidate
+description: >-
+  Install the workspace, build the editor, Worker and MCP server once, and
+  package the exact bytes both release channels deploy (ADR 0058). The caller
+  sets up pnpm and Node first.
+
+inputs:
+  wrangler-config:
+    description: Wrangler configuration used only to bundle the Worker.
+    required: true
+  release-sha:
+    description: Full commit SHA the candidate is built from.
+    required: true
+  candidate-dir:
+    description: Empty directory that receives the candidate.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Install dependencies
+      shell: bash
+      run: pnpm install --frozen-lockfile
+    - name: Build the editor, Worker dependencies and MCP server
+      shell: bash
+      run: pnpm --filter @icm/spice-run... --filter @icm/editor... --filter @icm/mcp-server... build
+      env:
+        VITE_ICM_TIMING_UI: disabled
+        # Both hosted channels expose the accepted Simulation/Agent surfaces,
+        # and Production may deploy the bytes Preview accepted.
+        VITE_ICM_SIMULATION_UI: enabled
+        VITE_ICM_AGENT_UI: enabled
+        VITE_ICM_SIMULATION_TRANSPORT: managed
+    # Bundle the Worker once. The channel deploys these exact bytes with
+    # --no-bundle, and a successful Preview run preserves them for promotion.
+    - name: Package and verify the candidate
+      shell: bash
+      env:
+        WRANGLER_CONFIG: ${{ inputs.wrangler-config }}
+        RELEASE_SHA: ${{ inputs.release-sha }}
+        CANDIDATE_DIR: ${{ inputs.candidate-dir }}
+        WORKER_BUNDLE_DIR: ${{ runner.temp }}/analog-canvas-worker-bundle
+      run: |
+        set -euo pipefail
+        pnpm dlx wrangler@4.120.1 deploy \
+          --config "$WRANGLER_CONFIG" \
+          --dry-run \
+          --outdir "$WORKER_BUNDLE_DIR"
+        node scripts/deployment-candidate.mjs create \
+          "$CANDIDATE_DIR" "$RELEASE_SHA" "$WORKER_BUNDLE_DIR"
+        node scripts/deployment-candidate.mjs verify \
+          "$CANDIDATE_DIR" "$RELEASE_SHA"

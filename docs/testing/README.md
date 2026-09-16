@@ -100,12 +100,11 @@ affected, build, or release gates. A target needing broad validation should get
 it, but a `full-delivery` entry records a batch delivery
 obligation rather than requiring full delivery after each local edit.
 
-At least 10 independently useful completed changes form the default Preview
-batch. Tests, repair commits, and file counts do not inflate that number. Before
-publishing it, refresh the mainline base, regenerate the gate plan for the
-combined diff against `origin/main`, and follow the
+A delivered pull request may carry one change or a batch. Before publishing it,
+refresh the mainline base, regenerate the gate plan for the combined diff
+against `origin/main`, and follow the
 [mainline delivery gate](../../AGENTS.md#mainline-delivery-gate). This checks
-interactions and shared contracts across the batch. An unchanged candidate
+interactions and shared contracts across everything the pull request carries. An unchanged candidate
 does not need its already-passing local checks repeated while remote CI runs;
 new edits or unresolved failures can require fresh verification.
 
@@ -133,10 +132,10 @@ Every implementation pull request keeps two required checks:
 Nightly and manual workflows run the complete browser suite in four shards.
 A PR based on current `main` merges after its two required checks without
 repeating them in a merge queue. CI does not repeat on the subsequent `main`
-push; the Preview workflow builds, deploys, and verifies the merged candidate.
-Production is a separate release-tag or explicit-dispatch promotion after
-Preview acceptance. [Deployment](../deployment.md) owns that sequence and
-recovery.
+push; the deploy workflow chosen by the pull request's `preview` label builds,
+deploys, and verifies the merged commit. A promotion of Preview-accepted work
+is a separate release-tag or explicit-dispatch step.
+[Deployment](../deployment.md) owns that sequence and recovery.
 
 ## Change discipline
 

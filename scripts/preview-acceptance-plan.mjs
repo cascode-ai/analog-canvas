@@ -4,6 +4,9 @@ import { pathToFileURL } from "node:url";
 
 const deepAcceptancePatterns = [
   /^\.github\/workflows\/(?:cloudflare|deploy-preview)\.yml$/u,
+  /^\.github\/actions\/build-deployment-candidate\//u,
+  /^scripts\/(?:deployment-candidate|release-route)\.mjs$/u,
+  /^scripts\/lib\/release-route\.mjs$/u,
   /^apps\/editor\/src\/agent\//u,
   /^apps\/editor\/src\/features\/simulation\//u,
   /^apps\/mcp-server\//u,
