@@ -239,6 +239,43 @@ describe("native HTTP transport", () => {
       error: "executor-response-too-large",
     });
   });
+  it.each(["completed", "timed-out"])(
+    "retains a terminal %s receipt when numerical serialization exceeds the budget",
+    async (status) => {
+      const { post } = await start({ maxResponseBytes: 4096 });
+      const outcome =
+        status === "timed-out" ? { status, timeoutMs: 100 } : { status };
+      const files = [{ path: "run.sim", text: "original input" }];
+      vi.mocked(executeVacask).mockResolvedValueOnce({
+        ok: true,
+        output: {
+          result: {
+            outcome,
+            durationMs: 100,
+            metadata: { input: { inputRevision: "same" } },
+            log: "x".repeat(5000),
+            data: { large: "x".repeat(5000) },
+          },
+          rawfiles: [{ path: "run.raw", text: "x".repeat(5000) }],
+          executedFiles: files,
+          cancelled: false,
+        },
+      });
+      const reply = await post({});
+      expect(reply.status).toBe(200);
+      const text = await reply.text();
+      expect(Buffer.byteLength(text)).toBeLessThanOrEqual(4096);
+      const payload = JSON.parse(text);
+      expect(payload.outcome).toEqual(
+        status === "timed-out" ? outcome : { status: "failed" },
+      );
+      expect(payload.rawfiles).toEqual([]);
+      expect(payload.data).toBeUndefined();
+      expect(payload.executedFiles).toEqual(files);
+      expect(payload.metadata.input.inputRevision).toBe("same");
+      expect(payload.diagnostics[0].text).toContain("withheld");
+    },
+  );
   it("allows multi-analysis replies beyond the retired 4 MiB hop but caps configured envelopes", async () => {
     const { post } = await start();
     const text = "x".repeat(4 * 1024 * 1024 + 1);

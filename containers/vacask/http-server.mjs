@@ -234,7 +234,32 @@ export function createVacaskHttpServer({
           (reply) => {
             if (reply.ok) {
               const { result, ...artifacts } = reply.output;
-              send(200, { ...result, ...artifacts });
+              let payload = { ...result, ...artifacts };
+              if (
+                Buffer.byteLength(JSON.stringify(payload)) > maxResponseBytes
+              ) {
+                // The process has terminated: preserve that fact instead of a
+                // proxy error that loses timeout/cancel status. Never advertise
+                // successful numerical data after dropping its evidence.
+                const { data: _data, ...boundedResult } = result;
+                payload = {
+                  ...boundedResult,
+                  outcome:
+                    result.outcome?.status === "timed-out"
+                      ? result.outcome
+                      : { status: "failed" },
+                  log: (result.log ?? "").slice(0, 2048),
+                  diagnostics: [
+                    {
+                      severity: "error",
+                      text: "Native reply exceeded the transport byte limit. Numeric data and raw files were withheld; reduce recorded output before running again.",
+                    },
+                  ],
+                  ...artifacts,
+                  rawfiles: [],
+                };
+              }
+              send(200, payload);
             } else {
               const status =
                 reply.error.code === "simulator-busy"

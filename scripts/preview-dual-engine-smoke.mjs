@@ -353,7 +353,9 @@ try {
       );
       const long = sample.text.replace(
         "analysis divider_op op",
-        "analysis long tran stop=1 step=1p maxstep=1p",
+        // Isolate the process deadline from the independent output-size ceiling.
+        // The solver still runs tiny steps; recording starts far beyond timeout.
+        "analysis long tran stop=1 start=0.9 step=1p maxstep=1p",
       );
       await update(3, long);
       const timed = await prepare(4);
