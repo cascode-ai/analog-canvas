@@ -10,6 +10,7 @@ import {
 import { parseProject, serializeProject } from "@icm/project-protocol";
 import { hierarchicalSymbolId } from "@icm/symbols";
 
+import { CLOUD_PROJECT_LIMIT as EDITOR_CLOUD_PROJECT_LIMIT } from "../apps/editor/src/features/editor-shell/cloud-projects";
 import { CLOUD_PROJECT_LIMIT } from "./gallery-do";
 import {
   GALLERY_DAILY_SUBMISSION_LIMIT,
@@ -848,6 +849,15 @@ describe("private Cloud Projects", () => {
     );
     expect((await route(env, saveRequest(cookie, "Room again"))).status).toBe(
       201,
+    );
+  });
+
+  it("enforces the same limit the editor displays", () => {
+    // No Cloud Project response carries the limit, so the editor keeps its own
+    // copy for the File menu, the My shelf counter, and the limit-reached
+    // status. Changing one without the other shows members the wrong number.
+    expect(EDITOR_CLOUD_PROJECT_LIMIT, "the editor's copy of the limit").toBe(
+      CLOUD_PROJECT_LIMIT,
     );
   });
 
