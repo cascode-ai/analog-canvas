@@ -154,9 +154,9 @@ export function planValidation(paths, catalog) {
   };
 }
 
-function gitPaths(args) {
+function gitPaths(args, cwd = root) {
   try {
-    return execFileSync("git", args, { cwd: root, encoding: "utf8" })
+    return execFileSync("git", args, { cwd, encoding: "utf8" })
       .split(/\r?\n/u)
       .filter(Boolean);
   } catch (error) {
@@ -166,11 +166,11 @@ function gitPaths(args) {
   }
 }
 
-function untrackedPaths(ignoredPaths) {
+function untrackedPaths(ignoredPaths, cwd) {
   const entries = execFileSync(
     "git",
     ["status", "--porcelain=v1", "-z", "--untracked-files=normal"],
-    { cwd: root, encoding: "utf8" },
+    { cwd, encoding: "utf8" },
   )
     .split("\0")
     .filter((entry) => entry.startsWith("?? "))
@@ -179,22 +179,29 @@ function untrackedPaths(ignoredPaths) {
   return entries.flatMap((path) => {
     if (matchesAny(path, ignoredPaths)) return [];
     if (!path.endsWith("/")) return [path];
-    return gitPaths(["ls-files", "--others", "--exclude-standard", "--", path]);
+    return gitPaths(
+      ["ls-files", "--others", "--exclude-standard", "--", path],
+      cwd,
+    );
   });
 }
 
-export function collectChangedPaths(base, { ignoredPaths = [] } = {}) {
+export function collectChangedPaths(
+  base,
+  { ignoredPaths = [], cwd = root } = {},
+) {
   return [
     ...new Set([
-      ...gitPaths([
-        "diff",
-        "--name-only",
-        "--diff-filter=ACMR",
-        `${base}...HEAD`,
-      ]),
-      ...gitPaths(["diff", "--name-only", "--diff-filter=ACMR"]),
-      ...gitPaths(["diff", "--cached", "--name-only", "--diff-filter=ACMR"]),
-      ...untrackedPaths(ignoredPaths),
+      ...gitPaths(
+        ["diff", "--name-only", "--diff-filter=ACMRD", `${base}...HEAD`],
+        cwd,
+      ),
+      ...gitPaths(["diff", "--name-only", "--diff-filter=ACMRD"], cwd),
+      ...gitPaths(
+        ["diff", "--cached", "--name-only", "--diff-filter=ACMRD"],
+        cwd,
+      ),
+      ...untrackedPaths(ignoredPaths, cwd),
     ]),
   ];
 }
