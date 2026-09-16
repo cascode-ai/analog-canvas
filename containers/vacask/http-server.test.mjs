@@ -73,6 +73,10 @@ async function start(options = {}) {
   servers.push(server);
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   const base = `http://127.0.0.1:${server.address().port}`;
+  // A listening socket does not imply asynchronous identity verification is done.
+  // Startup-failure tests supply their own readiness inputs and must stay pending.
+  if (!options.runtimeReady && !options.capabilities && !options.limits)
+    await server.initialized;
   return {
     base,
     post: (body, path = "/api/simulate", headers = {}) =>

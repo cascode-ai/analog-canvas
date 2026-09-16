@@ -206,7 +206,9 @@ describe("the preview deploy", () => {
     expect(crossProjectJourney).toContain("collectNativeRunEvidence({");
     expect(crossProjectJourney).toContain('"op-0.csv"');
     expect(crossProjectJourney).toContain("downloadPublishedMcp");
-    expect(crossProjectJourney).toContain("config/vacask-preview-environment.json");
+    expect(crossProjectJourney).toContain(
+      "config/vacask-preview-environment.json",
+    );
     expect(crossProjectJourney).toContain("expectedEnvironment");
     expect(crossProjectJourney).toContain('probe.name === "vout"');
     expect(crossProjectJourney).toContain('operation: "prepare"');
