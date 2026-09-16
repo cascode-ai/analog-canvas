@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { execFileSync } from "node:child_process";
+import { execFileSync, execSync } from "node:child_process";
 
 import { describe, expect, it } from "vitest";
 
@@ -204,6 +204,9 @@ describe("the preview deploy", () => {
     expect(crossProjectJourney).toContain('kind: "upsert_simulation_folder"');
     expect(crossProjectJourney).toContain("nativeImportedTestbench(");
     expect(crossProjectJourney).toContain("collectNativeRunEvidence({");
+    expect(crossProjectJourney).toContain('"op-0.csv"');
+    expect(crossProjectJourney).toContain("downloadPublishedMcp");
+    expect(crossProjectJourney).toContain("config/vacask-preview-environment.json");
     expect(crossProjectJourney).toContain("expectedEnvironment");
     expect(crossProjectJourney).toContain('probe.name === "vout"');
     expect(crossProjectJourney).toContain('operation: "prepare"');
@@ -213,6 +216,10 @@ describe("the preview deploy", () => {
   });
 
   it("refuses missing or shared migration targets before starting cross-Project acceptance", () => {
+    execSync(
+      "pnpm --filter @icm/project-protocol... --filter @icm/spice-run build",
+      { stdio: "pipe", timeout: 180000 },
+    );
     for (const url of [
       undefined,
       "https://analog-canvas-preview.tokenzhang.com",
@@ -252,6 +259,7 @@ describe("the preview deploy", () => {
           : "Supply --url",
       );
       expect(failure?.stderr).not.toContain("ENOENT");
+      expect(failure?.stderr).not.toContain("ERR_MODULE_NOT_FOUND");
     }
-  });
+  }, 190000);
 });

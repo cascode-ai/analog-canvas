@@ -429,7 +429,7 @@ try {
     `Imported OTA OP output is implausible: ${vout}`,
   );
 
-  for (const required of ["raw/bias.raw", "op.csv"])
+  for (const required of ["raw/bias.raw", "op-0.csv"])
     assert(
       evidence.artifacts.some((a) => a.name === required),
       `Missing ${required}`,

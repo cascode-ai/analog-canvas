@@ -1,20 +1,37 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { execSync } from "node:child_process";
 import { mkdtemp, mkdir, writeFile, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { createHash } from "node:crypto";
-import {
-  nativeRunnerOptions,
+let nativeRunnerOptions,
   expectedNativeEnvironments,
   assertNativeCapabilities,
   collectNativeRunEvidence,
-} from "./lib/native-example-runner.mjs";
-import {
   runNativeExamples,
   prepareNativeExampleEvidence,
-} from "./run-native-simulation-examples.mjs";
-import { parseProject } from "../packages/project-protocol/dist/index.js";
-import { createSimulationEnvironmentMetadata } from "../packages/spice-run/dist/index.js";
+  parseProject,
+  createSimulationEnvironmentMetadata;
+beforeAll(async () => {
+  // These tests exercise standalone Node scripts, whose imports intentionally
+  // consume built packages. A clean checkout must not depend on another test's build.
+  execSync(
+    "pnpm --filter @icm/simulation-service... --filter @icm/project-protocol... build",
+    { stdio: "pipe", timeout: 180000 },
+  );
+  ({
+    nativeRunnerOptions,
+    expectedNativeEnvironments,
+    assertNativeCapabilities,
+    collectNativeRunEvidence,
+  } = await import("./lib/native-example-runner.mjs"));
+  ({ runNativeExamples, prepareNativeExampleEvidence } =
+    await import("./run-native-simulation-examples.mjs"));
+  ({ parseProject } =
+    await import("../packages/project-protocol/dist/index.js"));
+  ({ createSimulationEnvironmentMetadata } =
+    await import("../packages/spice-run/dist/index.js"));
+}, 190000);
 
 const sha = (text) => createHash("sha256").update(text).digest("hex");
 
@@ -88,14 +105,21 @@ it("compares executed examples with Profile-projected Prepare input, not bare co
   expect(count).toBe(31);
 });
 
-const environment = await createSimulationEnvironmentMetadata({
-  executor: "local-host",
-  reproducibility: "observed",
-  platform: "fixture/x64",
-  models: null,
-  startupSha256: null,
-  profileId: "test-native",
-  simulator: { name: "vacask", version: "0.3.4", binarySha256: "b".repeat(64) },
+let environment;
+beforeAll(async () => {
+  environment = await createSimulationEnvironmentMetadata({
+    executor: "local-host",
+    reproducibility: "observed",
+    platform: "fixture/x64",
+    models: null,
+    startupSha256: null,
+    profileId: "test-native",
+    simulator: {
+      name: "vacask",
+      version: "0.3.4",
+      binarySha256: "b".repeat(64),
+    },
+  });
 });
 const roots = [];
 afterEach(async () => {
