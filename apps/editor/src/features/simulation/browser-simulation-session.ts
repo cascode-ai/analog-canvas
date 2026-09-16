@@ -13,6 +13,7 @@ import type { Prepared } from "@icm/simulation-service/contract";
 import type { ProjectRunHistory } from "./project-run-history";
 import { sourcePresentation } from "./source-presentation";
 import { serializeProject } from "@icm/project-protocol";
+import { authoringEngine } from "./authoring-engine";
 
 /** Do not export a pre-prepare Project when editing raced with compilation. */
 export function unchangedProjectSnapshot(
@@ -70,10 +71,17 @@ export class BrowserSimulationSession {
           this.options.transport === "managed"
             ? createManagedHostedExecutor({ fetch: fetcher })
             : createHostedExecutor(fetcher);
-        const selected = resolveSimulationEngine(
-          folder,
-          await executor.capabilities(config.config.environment.profileId),
-        );
+        let capabilities;
+        try {
+          capabilities = await executor.capabilities(
+            config.config.environment.profileId,
+          );
+        } catch (error) {
+          const local = authoringEngine(folder);
+          if (local) return local;
+          throw error;
+        }
+        const selected = resolveSimulationEngine(folder, capabilities);
         if (!selected.ok) throw new Error(selected.error.message);
         return selected.engine;
       });

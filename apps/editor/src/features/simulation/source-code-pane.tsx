@@ -40,6 +40,7 @@ import {
 import { ngspiceProbeChoices } from "./source-ngspice-probe-choices";
 import type { SimulationFiles } from "@icm/simulation-service/files";
 import { resolveSimulationEngine } from "@icm/simulation-service";
+import { authoringEngine } from "./authoring-engine";
 import { sha256 } from "@icm/simulation-service/files";
 import type {
   Problem,
@@ -136,7 +137,9 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
       const selected = props.capabilities
         ? resolveSimulationEngine(folder, props.capabilities)
         : undefined;
-      return selected?.ok ? selected.engine : ("vacask" as const);
+      return selected?.ok
+        ? selected.engine
+        : (authoringEngine(folder) ?? "vacask");
     };
     const engine = folderEngine(props.folder);
     const ui = useWorkspaceInteractions();

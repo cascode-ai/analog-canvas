@@ -575,7 +575,7 @@ test("new experiments explicitly bind the selected Cell without requiring a Test
   const editor = page.getByRole("textbox", {
     name: "Simulation source editor",
   });
-  await expect(editor).toContainText('.include "circuit.spice"');
+  await expect(editor).toContainText('include "circuit.spice"');
   await expect(editor).toContainText("op");
   await expect(
     page.getByRole("treeitem", { name: "experiment.json", exact: true }),
@@ -1188,6 +1188,7 @@ test("human simulation uses saved folder, survives minimizing, recovers a bad in
   let folder = createSimulationFolder({
     id: "folder-e2e",
     name: "E2E folder",
+    engine: "ngspice",
     profileId: profile.id,
     documentId: project.topDocumentId,
   });
@@ -1846,12 +1847,16 @@ test("Simulation creates an ordinary testbench and defaults a new experiment to 
   await expect(page.getByTestId("library-toggle")).toBeEnabled();
 });
 
-async function openWorkspace(page: Page) {
+async function openWorkspace(
+  page: Page,
+  engine: "vacask" | "ngspice" = "vacask",
+) {
   const project = parseProject(JSON.stringify(ota));
   project.simulationFolders = ["Alpha", "Beta"].map((name) =>
     createSimulationFolder({
       id: name,
       name,
+      engine,
       documentId: project.topDocumentId,
       profileId: profile.id,
     }),
@@ -1986,7 +1991,7 @@ test("folder activation exposes the run target independently of expansion and se
       json: { error: "Captured run target" },
     });
   });
-  const workspace = await openWorkspace(page);
+  const workspace = await openWorkspace(page, "ngspice");
   const run = page.getByRole("button", { name: "Run", exact: true });
   const alpha = workspace.getByRole("treeitem", {
     name: "Folder Alpha",
@@ -2019,8 +2024,7 @@ test("folder activation exposes the run target independently of expansion and se
   await expect(run).toHaveText("Beta");
   await expect(run.locator("svg")).toBeVisible();
   await run.click();
-  await expect.poll(() => executedDeck).toContain("* Beta");
-  expect(executedDeck).not.toContain("* Alpha");
+  await expect.poll(() => executedDeck.split(/\r?\n/)[0]).toBe("Beta");
   await beta.focus();
   await beta.press("F2");
   const longName = "Beta with a deliberately long simulation folder name";
