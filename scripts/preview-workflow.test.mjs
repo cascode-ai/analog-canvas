@@ -167,7 +167,7 @@ describe("the preview deploy", () => {
     const verify = production.indexOf("id: verify");
     const rollback = production.indexOf("name: Roll back a failed deployment");
     for (const commandText of [
-      "preview-simulation-smoke.mjs https://analog-canvas.tokenzhang.com",
+      "preview-simulation-smoke.mjs",
       "deployment-candidate.mjs verify-live",
     ]) {
       const command = production.indexOf(commandText);

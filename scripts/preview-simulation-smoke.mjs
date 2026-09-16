@@ -58,10 +58,14 @@ export {
 } from "./lib/preview-simulation-runs.mjs";
 async function main() {
   const baseUrl = process.argv[2];
+  const scope = process.argv[3] ?? "--full";
   if (!baseUrl) {
     throw new Error(
-      "usage: node scripts/preview-simulation-smoke.mjs https://preview.example",
+      "usage: node scripts/preview-simulation-smoke.mjs https://preview.example [--full|--production-smoke]",
     );
+  }
+  if (scope !== "--full" && scope !== "--production-smoke") {
+    throw new Error(`Unknown simulation smoke scope: ${scope}`);
   }
   const results = [];
   for (const target of EXECUTORS) {
@@ -91,6 +95,16 @@ async function main() {
     console.log(
       `${result.target}: resistor Noise ${result.pointCount} points passed`,
     );
+  }
+
+  // Preview owns the complete hosted-model qualification. Production serves
+  // the exact candidate Preview accepted, so promotion only needs to prove
+  // that its independently configured simulation route still executes each
+  // baseline analysis. Keeping this path dependency-free is deliberate: the
+  // promotion job does not reinstall or rebuild the workspace.
+  if (scope === "--production-smoke") {
+    console.log("Production numerical smoke: passed");
+    return;
   }
 
   const qualifications = [];

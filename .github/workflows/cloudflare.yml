@@ -280,7 +280,11 @@ jobs:
 
           node scripts/deployment-candidate.mjs verify-live \
             "$CANDIDATE_DIR" https://analog-canvas.tokenzhang.com
-          node scripts/preview-simulation-smoke.mjs https://analog-canvas.tokenzhang.com
+          # Preview already ran the complete hosted-model qualification against
+          # these exact bytes. Production only proves that its own route can
+          # execute OP, TRAN, DC and Noise without reinstalling the workspace.
+          node scripts/preview-simulation-smoke.mjs \
+            https://analog-canvas.tokenzhang.com --production-smoke
 
       # Detection without recovery is what turned a bad deploy into twenty
       # minutes of 500s: the pipeline saw them, went red, and left production

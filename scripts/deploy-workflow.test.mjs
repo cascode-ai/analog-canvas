@@ -50,6 +50,15 @@ describe("production deploys only from a release (ADR 0057)", () => {
     expect(workflow).not.toContain("playwright install");
   });
 
+  it("keeps production verification independent of an installed workspace", () => {
+    expect(workflow).toContain(
+      "https://analog-canvas.tokenzhang.com --production-smoke",
+    );
+    expect(workflow).not.toContain(
+      "preview-simulation-smoke.mjs https://analog-canvas.tokenzhang.com\n",
+    );
+  });
+
   it("has no staging job and deploys no environment", () => {
     // env.staging inherited the production custom domain on 2026-09-03 and
     // took the public site down; the preview replaced it (ADR 0057).
