@@ -306,8 +306,9 @@ pauses copying until corrected. The circuit itself is unchanged.
 - `custom`: keep authored component targets, and fill missing fields from your
   editable defaults. Existing component values always take priority.
 
-For every preset, an omitted MOS bulk uses `0` for NMOS and global `VDD` for
-PMOS. An explicit Bulk connection or NoConnect takes precedence.
+Every preset uses the actual Bulk connection, including connections established
+by placement defaults. A missing Bulk needs repair or an explicit NoConnect;
+the exporter does not choose a supply from MOS polarity.
 
 Fields still missing after these defaults use undefined `TODO_…` placeholders;
 the sidebar and Check Report identify incomplete output. The Project stays

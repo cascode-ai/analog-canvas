@@ -173,13 +173,13 @@ Routes may present as `wire`, `bulk-dashed`, or `power-rail`; presentation does
 not alter Net identity. `bulk-dashed` is used for explicit MOS B routing.
 Manual MOS instances without explicit B membership first use a configured
 cell-default Net; without one, bulk remains unresolved in the editable graph.
-Netlist extraction supplies global `0` for an omitted NMOS B and global `VDD`
-for an omitted PMOS B without changing routing or persisted membership.
+Netlist extraction uses actual membership, including materialized defaults;
+an omitted B without explicit NoConnect reports `MISSING_PIN_NET`.
 Starting a `bulk-dashed` route from B treats a configured default membership as
 unowned; committing clears the binding before connecting the explicit Net.
 Deleting the explicit route may reconcile only an explicitly configured cell
 default. Source-bound/imported MOS instances keep their fourth-node evidence;
-the same extraction fallback applies only when it is absent. Legacy persisted
+when absent, the same missing-terminal rule applies. Legacy persisted
 `supply-default` bindings are readable compatibility data, not a current
 authoring policy. Cross-Document composition materializes an effective source
 `cell-default` as an `instance-override`: the copied B membership remains fixed

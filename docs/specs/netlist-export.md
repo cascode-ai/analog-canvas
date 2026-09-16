@@ -282,7 +282,7 @@ invocation and output. Required error coverage includes:
 
 - invalid cell-terminal, Net, or instance identifiers;
 - missing or mismatched formal terminal mappings;
-- unconnected required terminal without `NoConnect`, except an omitted MOS B;
+- unconnected required terminal without `NoConnect`, including an omitted MOS B;
 - unnamed global Net or duplicate explicit Net name;
 - unknown or multiply assigned terminal;
 - missing device definition, required pin, reference, target, or parameter;
@@ -309,10 +309,12 @@ external transistor interfaces and ideal R/C by default; Custom preserves author
 targets. Defaults fill only missing parameters, case-insensitively. Existing source
 waveforms and AC intent do not acquire a new DC bias from a fallback.
 
-Across all three profiles and strict simulation extraction, an explicit MOS B
-connection wins. If B has neither a Net nor an explicit NoConnect, NMOS emits on
-global `0` and PMOS emits on global `VDD`. The fallback is part of the extracted
-IR only; it does not add a Net, binding, label, or route to the saved Project.
+Across all three profiles and strict simulation extraction, MOS B uses actual
+connectivity, including placement-materialized defaults. Without membership or
+an explicit NoConnect it reports `MISSING_PIN_NET`; polarity does not invent
+a supply. Definitions and callers share authored `projectCellInterface` order,
+without synthetic VDD/VSS ports or supply-first reordering. Explicit global
+supplies do not create formal Pins; actual ground remains node `0`.
 
 Explicit physical R/C targets use reviewed W/L parameters, never infer geometry
 from an ideal value, and warn when replacing that value. A resistor's existing
