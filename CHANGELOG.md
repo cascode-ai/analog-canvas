@@ -3,6 +3,25 @@
 Notable changes to Analog Canvas. Entries describe what changed for the person
 using the product, not the commits that got there.
 
+## 0.9.1 (Preview candidate)
+
+### Netlist export
+
+- Put `VDD` and `VSS` first on every Canvas-authored module and matching
+  hierarchy call. Legacy VDD Power drawings acquire the same interface during
+  export without rewriting the saved Project.
+- Connect a manually authored PMOS with no explicit Bulk or No Connect to the
+  selected profile's PMOS substrate, `VDD` by default. Explicit and imported
+  connections remain authoritative.
+
+### Editor interaction
+
+- Let attached Net Labels move freely while retaining their electrical Net.
+- Preserve the automatic route shown in the wire preview when finishing with a
+  double-click, without reversing the elbow direction.
+
+Project schema 56 is unchanged. Existing Projects are not rewritten when opened.
+
 ## 0.9.0 (Preview candidate)
 
 ### Netlist and device controls
