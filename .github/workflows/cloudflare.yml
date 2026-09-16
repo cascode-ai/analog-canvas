@@ -1,7 +1,7 @@
 name: Deploy Cloudflare
 
 # Production deploys only from a release (ADR 0057): a v* tag, or a manual
-# dispatch naming a commit. Merging to main deploys the preview instead
+# dispatch selecting an accepted ref (main by default). Merging to main deploys the preview instead
 # (deploy-preview.yml); this workflow promotes a commit the preview has
 # already proved. Nothing here can be triggered by an ordinary merge.
 on:
@@ -10,9 +10,10 @@ on:
       - "v*"
   workflow_dispatch:
     inputs:
-      sha:
-        description: "Full commit SHA to release; it must have a successful Deploy Preview run"
-        required: true
+      ref:
+        description: "Accepted Git ref to release"
+        required: false
+        default: "main"
         type: string
 
 permissions:
@@ -32,28 +33,40 @@ jobs:
       name: cloudflare-production
       url: https://analog-canvas.tokenzhang.com
     steps:
-      # A tag names its commit; a dispatch names one explicitly. Everything
-      # below deploys exactly that commit, never a branch head.
+      # A tag names its commit; a dispatch resolves its selected ref once.
+      # Everything below deploys exactly that commit, never a moving branch head.
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.sha || github.ref }}
+          ref: ${{ inputs.ref || github.ref }}
       # The preview is where a commit is looked at before the public sees it
       # (ADR 0057). A commit that never deployed there, or deployed and
       # failed, cannot be released: this is the one gate between main and
       # the live site, and it asks a question CI cannot answer.
       - name: The release must have a green preview deploy
+        id: preview
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           release_sha="$(git rev-parse 'HEAD^{commit}')"
-          count="$(gh run list --repo "$GITHUB_REPOSITORY" \
+          run_id="$(gh run list --repo "$GITHUB_REPOSITORY" \
             --workflow deploy-preview.yml --commit "$release_sha" \
-            --status success --json databaseId --jq 'length')"
-          if [ "$count" = "0" ]; then
+            --status success --limit 100 --json databaseId,createdAt \
+            --jq 'sort_by(.createdAt) | last | .databaseId // empty')"
+          if [ -z "$run_id" ]; then
             echo "::error::No successful preview deploy exists for $release_sha. Merge it to main, let the preview deploy and verify it, then release that commit."
             exit 1
           fi
-          echo "Preview deploy verified for $release_sha ($count successful run(s))."
+          echo "release_sha=$release_sha" >> "$GITHUB_OUTPUT"
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+          echo "Preview deploy $run_id accepted $release_sha."
+      - name: Download the accepted Preview candidate
+        uses: actions/download-artifact@v4
+        with:
+          name: preview-candidate-${{ steps.preview.outputs.release_sha }}
+          path: ${{ runner.temp }}/analog-canvas-candidate
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ steps.preview.outputs.run_id }}
       - uses: pnpm/action-setup@v4
         with:
           version: 11.16.0
@@ -61,23 +74,16 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      - name: Verify the accepted Preview candidate
+        run: |
+          node scripts/deployment-candidate.mjs verify \
+            "$CANDIDATE_DIR" "${{ steps.preview.outputs.release_sha }}"
+        env:
+          CANDIDATE_DIR: ${{ runner.temp }}/analog-canvas-candidate
       - name: Require the released simulator credentials
         run: test -n "$SIMULATION_UPSTREAM_TOKEN"
         env:
           SIMULATION_UPSTREAM_TOKEN: ${{ secrets.SIMULATION_UPSTREAM_TOKEN }}
-      - run: pnpm --filter @icm/spice-run build
-      - run: pnpm --filter @icm/editor... build
-        env:
-          # Timing simulation remains a localhost development surface until
-          # its interaction and presentation contracts are ready to publish.
-          VITE_ICM_TIMING_UI: disabled
-          # 0.4.0 promotes the accepted Simulation and Agent workflows.
-          VITE_ICM_SIMULATION_UI: enabled
-          VITE_ICM_AGENT_UI: enabled
-          VITE_ICM_SIMULATION_TRANSPORT: managed
-      - run: pnpm --filter @icm/mcp-server... build
-      - run: pnpm exec playwright install --with-deps chromium
       - name: Reconcile production simulation resources
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -122,9 +128,16 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-      - run: pnpm dlx wrangler@4.120.1 deploy
+      - name: Promote the accepted Preview candidate
         id: deploy_worker
+        run: |
+          pnpm dlx wrangler@4.120.1 deploy \
+            "$CANDIDATE_DIR/worker/index.js" \
+            --config wrangler.jsonc \
+            --no-bundle \
+            --assets "$CANDIDATE_DIR/editor"
         env:
+          CANDIDATE_DIR: ${{ runner.temp }}/analog-canvas-candidate
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       # Gallery/auth secrets live in GitHub secrets and are synced to the
@@ -159,8 +172,7 @@ jobs:
       - name: Verify production deployment
         id: verify
         env:
-          ICM_ACCEPTANCE_OUTPUT_DIR: test-results/production-agent-simulation
-          ICM_GUI_ACCEPTANCE_OUTPUT_DIR: test-results/production-source-gui
+          CANDIDATE_DIR: ${{ runner.temp }}/analog-canvas-candidate
         run: |
           curl --fail --silent --show-error \
             --retry 5 --retry-delay 2 --retry-all-errors \
@@ -178,6 +190,22 @@ jobs:
             --retry 5 --retry-delay 2 --retry-all-errors \
             --max-time 20 \
             https://analog-canvas.tokenzhang.com/api/agent/mcp-manifest.json >/dev/null
+          agent_session="$(curl --fail --silent --show-error \
+            --retry 5 --retry-delay 2 --retry-all-errors \
+            --max-time 20 \
+            -H 'content-type: application/json' \
+            --data '{"projectSessionId":"production-smoke","projectId":"production-smoke","documentIds":["main"],"scopes":["circuit.snapshot"]}' \
+            https://analog-canvas.tokenzhang.com/api/agent/sessions)"
+          agent_session_id="$(printf '%s' "$agent_session" | jq -er '.session.sessionId')"
+          agent_editor_secret="$(printf '%s' "$agent_session" | jq -er '.session.editorSecret')"
+          agent_delete="$(curl --silent --show-error --max-time 20 \
+            --output /dev/null --write-out '%{http_code}' \
+            -X DELETE -H "x-editor-secret: $agent_editor_secret" \
+            "https://analog-canvas.tokenzhang.com/api/agent/sessions/$agent_session_id")"
+          if [ "$agent_delete" != "204" ]; then
+            echo "Production Agent session cleanup answered $agent_delete"
+            exit 1
+          fi
           # The shell loading proves nothing about the page rendering. On
           # 2026-09-04 a staging deploy took this hostname, and because the
           # asset layer answered `/editor` before the Worker, every path check
@@ -250,14 +278,9 @@ jobs:
               ;;
           esac
 
+          node scripts/deployment-candidate.mjs verify-live \
+            "$CANDIDATE_DIR" https://analog-canvas.tokenzhang.com
           node scripts/preview-simulation-smoke.mjs https://analog-canvas.tokenzhang.com
-          # Reuse the public hosted journeys against Production. They create
-          # only browser-local fixture Projects and anonymous simulation runs;
-          # Preview's private Cloud Project acceptance identity is not used.
-          # A manual dispatch can check out an older release than the event
-          # commit. The helpers record the checkout and verify its served bytes.
-          env -u GITHUB_SHA node scripts/preview-agent-simulation-journey.mjs https://analog-canvas.tokenzhang.com
-          env -u GITHUB_SHA node scripts/preview-source-gui-journey.mjs https://analog-canvas.tokenzhang.com
 
       # Detection without recovery is what turned a bad deploy into twenty
       # minutes of 500s: the pipeline saw them, went red, and left production

@@ -24,7 +24,7 @@ const sourceGuiJourney = readFileSync(
 
 describe("the preview deploy", () => {
   it("deploys the preview configuration file and nothing else", () => {
-    expect(preview).toContain("deploy --config wrangler.preview.jsonc");
+    expect(preview).toContain("--config wrangler.preview.jsonc");
     // Never an environment of the production file, never the production
     // file itself, and never the production hostname.
     expect(preview).not.toContain("--env");
@@ -107,12 +107,32 @@ describe("the preview deploy", () => {
     expect(preview).toMatch(/for _ in \$\(seq 1 \d+\); do\s*\n\s*if curl/u);
   });
 
+  it("preserves only a fully accepted candidate for Production", () => {
+    const build = preview.indexOf("Build immutable deployment candidate");
+    const deploy = preview.indexOf("Deploy to preview");
+    const lastAcceptance = preview.indexOf(
+      "Run the cross-Project Agent/MCP simulation journey",
+    );
+    const preserve = preview.indexOf("Preserve accepted deployment candidate");
+    expect(build).toBeGreaterThan(-1);
+    expect(deploy).toBeGreaterThan(build);
+    expect(lastAcceptance).toBeGreaterThan(deploy);
+    expect(preserve).toBeGreaterThan(lastAcceptance);
+    expect(preview).toContain("deployment-candidate.mjs create");
+    expect(preview).toContain("deployment-candidate.mjs verify");
+    expect(preview).toContain("preview-candidate-${{ github.sha }}");
+    expect(preview).toContain("--no-bundle");
+  });
+
   it("promotes released capabilities while preserving the channel data boundary", () => {
     expect(production).not.toContain("wrangler.preview.jsonc");
-    expect(production).toContain("VITE_ICM_SIMULATION_UI: enabled");
-    expect(production).toContain("VITE_ICM_AGENT_UI: enabled");
-    expect(production).toContain("VITE_ICM_SIMULATION_TRANSPORT: managed");
-    expect(production).toContain("VITE_ICM_TIMING_UI: disabled");
+    expect(preview).toContain("VITE_ICM_SIMULATION_UI: enabled");
+    expect(preview).toContain("VITE_ICM_AGENT_UI: enabled");
+    expect(preview).toContain("VITE_ICM_SIMULATION_TRANSPORT: managed");
+    expect(preview).toContain("VITE_ICM_TIMING_UI: disabled");
+    expect(production).toContain("Download the accepted Preview candidate");
+    expect(production).toContain("Promote the accepted Preview candidate");
+    expect(production).not.toContain("pnpm --filter @icm/editor... build");
     expect(production).not.toContain("PREVIEW_ACCEPTANCE_TOKEN");
     expect(production).not.toContain(
       "preview-cross-project-simulation-journey.mjs",
@@ -142,20 +162,21 @@ describe("the preview deploy", () => {
     );
   });
 
-  it("verifies public simulation and Agent paths within production rollback protection", () => {
+  it("verifies the accepted bytes and public simulation within rollback protection", () => {
     const verify = production.indexOf("id: verify");
     const rollback = production.indexOf("name: Roll back a failed deployment");
-    for (const script of [
-      "preview-simulation-smoke.mjs",
-      "preview-agent-simulation-journey.mjs",
-      "preview-source-gui-journey.mjs",
+    for (const commandText of [
+      "preview-simulation-smoke.mjs https://analog-canvas.tokenzhang.com",
+      "deployment-candidate.mjs verify-live",
     ]) {
-      const command = production.indexOf(
-        `${script} https://analog-canvas.tokenzhang.com`,
-      );
+      const command = production.indexOf(commandText);
       expect(command).toBeGreaterThan(verify);
       expect(command).toBeLessThan(rollback);
     }
+    expect(production).not.toContain("preview-agent-simulation-journey.mjs");
+    expect(production).not.toContain("preview-source-gui-journey.mjs");
+    expect(production).toContain("Production Agent session cleanup answered");
+    expect(production).toContain("circuit.snapshot");
     expect(production).toContain(
       "failure() && steps.deploy_worker.outcome == 'success'",
     );

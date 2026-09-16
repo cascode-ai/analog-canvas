@@ -15,14 +15,15 @@ import { describe, expect, it } from "vitest";
 const workflow = readFileSync(".github/workflows/cloudflare.yml", "utf8");
 
 describe("production deploys only from a release (ADR 0057)", () => {
-  it("is triggered by a version tag or a named commit, never by a merge", () => {
+  it("is triggered by a version tag or selected ref, never by a merge", () => {
     expect(workflow).toMatch(/tags:\s*\n\s*- "v\*"/u);
     expect(workflow).not.toMatch(/branches:\s*\n\s*- main/u);
-    expect(workflow).toMatch(/workflow_dispatch:\s*\n\s*inputs:\s*\n\s*sha:/u);
+    expect(workflow).toMatch(/workflow_dispatch:\s*\n\s*inputs:\s*\n\s*ref:/u);
+    expect(workflow).toContain('default: "main"');
   });
 
-  it("deploys the named commit, not a branch head", () => {
-    expect(workflow).toContain("ref: ${{ inputs.sha || github.ref }}");
+  it("resolves the selected ref once and promotes that exact commit", () => {
+    expect(workflow).toContain("ref: ${{ inputs.ref || github.ref }}");
     expect(workflow).toContain("git rev-parse 'HEAD^{commit}'");
   });
 
@@ -34,6 +35,19 @@ describe("production deploys only from a release (ADR 0057)", () => {
     expect(workflow).toContain("--workflow deploy-preview.yml");
     expect(workflow).toContain("--status success");
     expect(workflow).toContain("No successful preview deploy exists");
+  });
+
+  it("promotes the exact candidate preserved by that successful Preview run", () => {
+    expect(workflow).toContain("actions/download-artifact@v4");
+    expect(workflow).toContain(
+      "preview-candidate-${{ steps.preview.outputs.release_sha }}",
+    );
+    expect(workflow).toContain("run-id: ${{ steps.preview.outputs.run_id }}");
+    expect(workflow).toContain("deployment-candidate.mjs verify");
+    expect(workflow).toContain("--no-bundle");
+    expect(workflow).toContain('--assets "$CANDIDATE_DIR/editor"');
+    expect(workflow).not.toContain("pnpm install --frozen-lockfile");
+    expect(workflow).not.toContain("playwright install");
   });
 
   it("has no staging job and deploys no environment", () => {

@@ -51,9 +51,14 @@ Preview-only Google OAuth client; its consent-screen test-user roster controls
 who can sign in. Its simulation capability can be issued without OAuth; public
 site access is not unrestricted compute authority.
 
-The channels share source and contracts, not a guarantee of a single promoted
-build artifact: the workflows build their selected checkout. Channel-controlled
-features and runtime bindings may differ.
+The channels share one immutable deployment candidate. Preview builds the
+browser assets and Worker bundle once, deploys those exact bytes, and stores the
+candidate only after hosted acceptance succeeds. Production downloads that
+candidate from the successful Preview run, verifies its commit and single
+payload identity, and deploys it without rebuilding. Runtime bindings, routes,
+secrets, queues, buckets and Durable Object namespaces remain channel-specific;
+they are applied by the destination Wrangler configuration rather than baked
+into the candidate.
 [ADR 0057](adr/0057-release-channels-preview-and-production.md) explains the choice.
 
 The release build keeps the accepted behavior at the promoted `main` commit.
@@ -100,11 +105,11 @@ disposable test data and never synchronize or promote to Production.
 ## Releasing to Production
 
 Select a candidate commit that Preview has successfully deployed and verified.
-The current Production workflow accepts **at least one successful
-`deploy-preview.yml` run for that exact commit**. It does not select the latest
-completed run, require the currently serving Preview to have that SHA, or
-compare a separate Profile-qualified promotion receipt. Do not report those
-stronger guarantees from this check.
+The Production workflow selects the newest successful `deploy-preview.yml` run
+for that exact commit and downloads its `preview-candidate-<commit>` artifact.
+The artifact is the same Worker bundle and browser asset tree served during
+Preview acceptance. Production never substitutes the latest branch build or
+rebuilds the selected source.
 
 Use either a version tag (choose the intended unused release version):
 
@@ -113,20 +118,26 @@ git tag v0.4.0 <sha>
 git push origin v0.4.0
 ```
 
-or an explicit commit dispatch:
+or the one-click manual promotion:
 
 ```bash
-gh workflow run "Deploy Cloudflare" -f sha=<sha>
+gh workflow run "Deploy Cloudflare"
 ```
+
+The manual action defaults to the current `main` ref, so the normal promotion
+requires no commit copy/paste. Its checkout resolves that ref once and then
+requires the exact commit's accepted Preview artifact. Supply `-f ref=<ref>`
+only when deliberately promoting another accepted tag or branch.
 
 Ordinary merges do not trigger Production. Normal hotfixes use the same route;
 the incident exception below is separate. Runtime configuration, including the
 simulator gateway, ships only when the selected release contains it.
 
-Before treating a release as validated, inspect the candidate's actual Preview
-evidence and the relevant required checks. Local unit tests, build success, and
-recorded rawfiles cannot certify deployed bindings, secrets, model identity, or
-the hosted request path.
+Promotion is deliberately small: select the accepted commit once, then let the
+workflow download, verify, deploy and check it. Before treating a release as
+validated, inspect the candidate's actual Preview evidence and the relevant
+required checks. Local unit tests, build success, and recorded rawfiles cannot
+certify deployed bindings, secrets, model identity, or the hosted request path.
 
 ## Deploy, verify, recover
 
@@ -137,12 +148,14 @@ version, verifies that result,
 and still fails the deployment run. Without a rollback target, it reports that
 human intervention is required.
 
-The Production workflow also runs the numerical, public Agent/MCP, and source
-workspace GUI acceptance against the Production origin. These journeys use
-browser-local fixture Projects and anonymous owned simulation runs. Preview's
-private cross-Project acceptance identity is never installed or accepted on
-Production. The simulator token is required before deployment, and each
-channel's managed queues and artifact bucket are reconciled independently.
+The complete numerical, public Agent/MCP, source-workspace GUI and private
+cross-Project journeys run once against Preview. Production verifies that the
+served entry bytes match the accepted candidate, checks its public routes and
+MCP manifest, creates and removes one lightweight Agent session, and runs the
+numerical hosted simulation acceptance against the Production bindings.
+Preview's private cross-Project acceptance identity is never installed or
+accepted on Production. The simulator token is required before deployment, and
+each channel's managed queues and artifact bucket are reconciled independently.
 
 Recovery limitations:
 

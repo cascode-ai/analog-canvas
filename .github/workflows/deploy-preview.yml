@@ -49,6 +49,22 @@ jobs:
           VITE_ICM_AGENT_UI: enabled
           VITE_ICM_SIMULATION_TRANSPORT: managed
       - run: pnpm --filter @icm/mcp-server... build
+      # Build the Worker bundle once. Preview deploys these exact bytes, and a
+      # successful run preserves them for Production promotion.
+      - name: Build immutable deployment candidate
+        env:
+          CANDIDATE_DIR: ${{ runner.temp }}/analog-canvas-candidate
+          WORKER_BUNDLE_DIR: ${{ runner.temp }}/analog-canvas-worker-bundle
+        run: |
+          set -euo pipefail
+          pnpm dlx wrangler@4.120.1 deploy \
+            --config wrangler.preview.jsonc \
+            --dry-run \
+            --outdir "$WORKER_BUNDLE_DIR"
+          node scripts/deployment-candidate.mjs create \
+            "$CANDIDATE_DIR" "$GITHUB_SHA" "$WORKER_BUNDLE_DIR"
+          node scripts/deployment-candidate.mjs verify \
+            "$CANDIDATE_DIR" "$GITHUB_SHA"
       - run: pnpm exec playwright install --with-deps chromium
       - name: Reconcile managed simulation resources
         env:
@@ -79,8 +95,14 @@ jobs:
             $wrangler r2 bucket lifecycle add "$bucket" simulation-artifact-retention --expire-days 1 --force
           fi
       - name: Deploy to preview
-        run: pnpm dlx wrangler@4.120.1 deploy --config wrangler.preview.jsonc
+        run: |
+          pnpm dlx wrangler@4.120.1 deploy \
+            "$CANDIDATE_DIR/worker/index.js" \
+            --config wrangler.preview.jsonc \
+            --no-bundle \
+            --assets "$CANDIDATE_DIR/editor"
         env:
+          CANDIDATE_DIR: ${{ runner.temp }}/analog-canvas-candidate
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       # Preview accounts and Projects are isolated Durable Object namespaces.
@@ -233,6 +255,15 @@ jobs:
         run: node scripts/preview-cross-project-simulation-journey.mjs "$PREVIEW_URL"
         env:
           ICM_PREVIEW_ACCEPTANCE_TOKEN: ${{ secrets.PREVIEW_ACCEPTANCE_TOKEN }}
+      # This is the only Production input. It is published only after every
+      # deployed Preview acceptance above has passed.
+      - name: Preserve accepted deployment candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: preview-candidate-${{ github.sha }}
+          path: ${{ runner.temp }}/analog-canvas-candidate
+          if-no-files-found: error
+          retention-days: 90
       - name: Preserve the Agent/MCP simulation receipt
         if: always()
         uses: actions/upload-artifact@v4
