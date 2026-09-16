@@ -221,7 +221,7 @@ describe("native candidate runner boundaries", () => {
       await writeFile(
         join(root, "package.json"),
         JSON.stringify({
-          version: "0.9.1",
+          version: "0.9.2",
           bin: { "analog-canvas-mcp": "bin/analog-canvas-mcp.mjs" },
         }),
       );
