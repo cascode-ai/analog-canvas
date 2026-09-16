@@ -159,8 +159,9 @@ version, verifies that result,
 and still fails the deployment run. Without a rollback target, it reports that
 human intervention is required.
 
-The complete numerical, dual-engine, public Agent/MCP, source-workspace GUI and
-private cross-Project journeys run once against Preview. Production verifies
+Deep Preview acceptance runs the complete numerical, dual-engine, public
+Agent/MCP, source-workspace GUI and private cross-Project journeys once; the
+fast path runs only its two smoke journeys. Production verifies
 that the served entry bytes match the accepted candidate, checks its public
 routes and MCP manifest, creates and removes one lightweight Agent session, and
 runs a baseline OP/TRAN/DC/Noise simulation smoke with Production bindings.
