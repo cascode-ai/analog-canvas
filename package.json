@@ -50,7 +50,7 @@
     "ci:static": "pnpm format:check && pnpm docs:check && pnpm references:check && pnpm components:check && pnpm agent-kit:catalog:check && pnpm mcp:distribution:check && pnpm typecheck",
     "ci:unit": "pnpm test",
     "ci:release": "pnpm release:verify",
-    "ci:e2e": "playwright test",
+    "ci:e2e": "pnpm -r --filter \"!@icm/editor\" --filter \"!interactive-circuit-maker\" build && playwright test",
     "ci:check": "pnpm ci:static && pnpm test:local && pnpm build && pnpm release:verify:built && pnpm test:e2e:local",
     "verify:branch": "pnpm ci:static && pnpm test:local && pnpm build && node scripts/editor-production-smoke.mjs --check",
     "format": "prettier --write \"apps/**/*.{ts,tsx,json,css,html}\" \"packages/**/*.{ts,tsx,json}\" \"references/**/*.json\" \"scripts/**/*.mjs\" \"*.{json,yaml}\"",

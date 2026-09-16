@@ -118,8 +118,10 @@ Every implementation pull request keeps two required checks:
   with four workers. An unmapped browser-product path runs the small component
   insertion and runtime-crash fallback. A non-browser implementation change
   skips this required job successfully without allocating a runner. GitHub's
-  runner Chrome avoids downloading a separate browser image, and Vite serves
-  the sources directly because the Core job already owns the production build.
+  runner Chrome avoids downloading a separate browser image. `ci:e2e` first
+  compiles only the non-editor workspace projects, whose `dist/` the Vite
+  configuration and the Node-side specs load; Vite serves the editor sources
+  directly because the Core job already owns the production build.
 
 Nightly and manual workflows run the complete browser suite in four shards.
 A PR based on current `main` merges after its two required checks without
