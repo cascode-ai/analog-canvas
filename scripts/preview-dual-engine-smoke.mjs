@@ -1,12 +1,17 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
+import { createRequire } from "node:module";
 import { mkdir, mkdtemp, readFile, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { createInterface } from "node:readline";
 import { chromium, expect } from "@playwright/test";
 import { downloadPublishedMcp } from "./lib/published-mcp.mjs";
+
+const { unzipSync } = createRequire(
+  new URL("../apps/editor/package.json", import.meta.url),
+)("fflate");
 
 // Real browser relay + published or source-built MCP + managed Preview transport.
 // No page routing, fake executor, direct gateway run or numerical comparison
@@ -461,8 +466,13 @@ try {
       JSON.stringify(finished.result),
     );
     assert.equal(finished.result.metadata.environment.simulator.name, "vacask");
-    const resultArtifact = finished.artifacts.find((a) => a.name === "result.json");
-    assert(resultArtifact, "Native OTA must expose its complete result artifact");
+    const resultArtifact = finished.artifacts.find(
+      (a) => a.name === "result.json",
+    );
+    assert(
+      resultArtifact,
+      "Native OTA must expose its complete result artifact",
+    );
     const resultPath = join(output, "native-ota-result.json");
     await tool("simulation_files", {
       request: { action: "artifact", artifactId: resultArtifact.id },
@@ -508,6 +518,10 @@ try {
     };
     // Human execution has its own owner but uses the same prepared input and
     // managed result route. Observe real responses; never intercept execution.
+    await page
+      .getByRole("button", { name: "Close Agent dialog", exact: true })
+      .click();
+    await page.locator('summary[aria-label="Netlist"]').click();
     await page.getByTestId("open-analog-simulation").click();
     const panel = page.getByRole("region", { name: "Analog simulation" });
     const runGui = async () => {
@@ -538,22 +552,39 @@ try {
       completeResult.data,
       "GUI and MCP must preserve the same native result arrays",
     );
+    // Current main presents result files and Specs/Console, not the retired
+    // Operating Point tab or canvas overlay. Exercise the actual export UI.
     await panel
-      .getByRole("tab", { name: "Operating Point", exact: true })
+      .getByRole("treeitem", { name: "Run", exact: true })
+      .click({ button: "right" });
+    const downloaded = page.waitForEvent("download");
+    await page
+      .getByRole("menuitem", { name: "Export diagnostic bundle…" })
       .click();
-    await expect(
-      panel.getByRole("button", { name: "Show on canvas", exact: true }),
-    ).toBeEnabled();
-    await panel
-      .getByRole("button", { name: "Show on canvas", exact: true })
-      .click();
-    await expect(page.getByTestId("operating-point-badges")).toContainText("V");
+    await (
+      await downloaded
+    ).saveAs(join(output, "native-ota-gui-diagnostics.zip"));
+    const diagnosticEntries = unzipSync(
+      await readFile(join(output, "native-ota-gui-diagnostics.zip")),
+    );
+    const exportedResult = Object.entries(diagnosticEntries).find(
+      ([path]) => path === "result.json" || path.endsWith("/result.json"),
+    );
+    assert(
+      exportedResult,
+      "GUI diagnostic export must contain the complete result",
+    );
+    assert.deepEqual(
+      JSON.parse(Buffer.from(exportedResult[1]).toString("utf8")).data,
+      guiResult.data,
+    );
     await tool("disconnect", {});
     page.on("dialog", (dialog) => void dialog.accept());
     await page.reload();
     await page
       .getByTestId("project-file")
       .setInputFiles(join(output, "native-ota.icproj.json"));
+    await page.locator('summary[aria-label="Netlist"]').click();
     await page.getByTestId("open-analog-simulation").click();
     const reloadedResult = await runGui();
     assert.deepEqual(
@@ -564,7 +595,7 @@ try {
     receipt.ota.gui = {
       passed: true,
       reload: true,
-      canvasOperatingPoint: true,
+      diagnosticExport: true,
     };
   }
   receipt.managedStarts = managedRequests.length;
