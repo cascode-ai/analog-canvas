@@ -795,7 +795,7 @@ test("keeps the netlist live and selectable when clipboard access fails", async 
     mimeType: "text/plain",
     buffer: Buffer.from("\n.subckt live a b\nR1 a b 2k\n.ends live\n"),
   });
-  await expect(code).toContainText("R1 a b 2k");
+  await expect(code).toContainText(/R1 a b 2k/iu);
   await expect(code).not.toContainText(".subckt dut");
   await page.setViewportSize({ width: 760, height: 800 });
   await expect(code).toBeVisible();

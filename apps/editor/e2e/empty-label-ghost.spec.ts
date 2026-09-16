@@ -7,13 +7,12 @@ import { chooseComponent } from "./editor-fixtures.js";
 // box, a marquee target, and an SVG text element with a lone line break. The
 // person saw blank canvas and clicked something.
 //
-// Most of the Library is in this state — analog blocks, logic gates,
-// signal-flow blocks, and the interface Ports all lack a descriptor, some of
-// them deliberately (#386 dropped signal-flow designators on purpose). So this
-// sweeps one Symbol per family: the fix belongs to the empty text, not to any
-// one family, and designating any of these is a separate product decision.
+// Logic gates, signal-flow blocks, and the interface Ports lack a descriptor,
+// some of them deliberately (#386 dropped signal-flow designators on purpose).
+// Analog Blocks now carry X references because they export as unresolved
+// subcircuits. This sweep retains the families that are still intentionally
+// undesignated: the fix belongs to the empty text, not to any one family.
 for (const [family, symbolId] of [
-  ["analog block", "opamp"],
   ["logic gate", "nand-gate"],
   ["signal flow", "adder"],
 ] as const) {

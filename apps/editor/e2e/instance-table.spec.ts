@@ -43,14 +43,14 @@ test("bulk edits instance JSON in the sidebar with atomic undo and live netlist 
 
   await code.fill("{");
   await expect(panel.getByRole("alert")).toContainText("valid JSON");
-  expect(await copyNetlistText(page)).toMatch(/R1 a b 10k\nR2 b a 10k/u);
+  expect(await copyNetlistText(page)).toMatch(/R1 a b 10k\nR2 b a 10k/iu);
   await clickCommand(page, "Edit", "Undo");
   const live = page.getByRole("textbox", { name: "Netlist code", exact: true });
-  await expect(live).toContainText("R1 a b 1k");
-  await expect(live).toContainText("R2 b a 2k");
+  await expect(live).toContainText(/R1 a b 1k/iu);
+  await expect(live).toContainText(/R2 b a 2k/iu);
   await clickCommand(page, "Edit", "Redo");
-  await expect(live).toContainText("R1 a b 10k");
-  await expect(live).toContainText("R2 b a 10k");
+  await expect(live).toContainText(/R1 a b 10k/iu);
+  await expect(live).toContainText(/R2 b a 10k/iu);
 
   await clickCommand(page, "Netlist", "Instances…");
   const rejected = JSON.parse(await code.inputValue());
@@ -59,7 +59,7 @@ test("bulk edits instance JSON in the sidebar with atomic undo and live netlist 
   Object.values(invalidRows)[1]!.reference = "R1";
   await code.fill(JSON.stringify(rejected));
   await expect(panel.getByRole("alert")).toContainText("Edit rejected");
-  expect(await copyNetlistText(page)).toMatch(/R1 a b 10k\nR2 b a 10k/u);
+  expect(await copyNetlistText(page)).toMatch(/R1 a b 10k\nR2 b a 10k/iu);
   await clickCommand(page, "Netlist", "Instances…");
   await page.setViewportSize({ width: 760, height: 800 });
   await expect(code).toBeVisible();

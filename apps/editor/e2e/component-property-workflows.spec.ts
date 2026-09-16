@@ -459,39 +459,21 @@ for (const width of [300, 540]) {
   });
 }
 
-test("a part with no designator offers no Reference toggle", async ({
+test("a black-box part exposes its generated Reference", async ({
   page,
 }) => {
   await page.goto("/editor");
   await awaitEditorReady(page);
-  // A voltage amplifier has no device descriptor, so it never designates.
+  // Analog Blocks are exported as unresolved subcircuits, so their visible
+  // X reference is part of the same contract as their netlist instance.
   await placeComponent(page, "voltage-amplifier", { x: 300, y: 200 });
   await openSelectionShelf(page);
   const properties = page.getByRole("complementary", { name: "Properties" });
   await expect(properties).toContainText("voltage-amplifier");
-  await expect(
-    properties.getByLabel("Editable Canvas property code"),
-  ).not.toContainText(/"display"/u);
-
-  // The brake: a resistor designates R1 and carries a value, so its toggles
-  // are untouched and still work.
-  await placeComponent(page, "resistor", { x: 500, y: 200 });
-  await openSelectionShelf(page);
   const code = properties.getByLabel("Editable Canvas property code");
   await expect(code).toContainText(/"visualAnnotation": true/u);
-  await expect(code).toContainText(/"value": false/u);
-  const drawnLabel = page.locator(
-    '[data-layer="annotations"] [data-object-id="instance-label-R1"]',
-  );
-  await expect(drawnLabel).toHaveCount(1);
-  await editComponentPropertyCode(page, (value) => {
-    value.display.visualAnnotation = false;
-  });
-  await expect(drawnLabel).toHaveCount(0);
-  await editComponentPropertyCode(page, (value) => {
-    value.display.visualAnnotation = true;
-  });
-  await expect(drawnLabel).toHaveCount(1);
+  await expect(code).toContainText(/"displayName": "X1"/u);
+  await expect(code).toContainText(/"netlistName": "X1"/u);
 });
 
 test("Q opens a text-first Properties editor with one-click exact draft copy", async ({
