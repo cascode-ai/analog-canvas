@@ -327,7 +327,7 @@ describe("terminal-aware shortening", () => {
   );
 });
 
-describe("segment landing on a component pin", () => {
+describe("segment landing on an endpoint", () => {
   it("connects and dots a capacitor pin touched by the moved segment", () => {
     const d = createEmptyDocument("segment-pin", "Segment pin contact");
     d.presentation.grid = 10;
@@ -408,13 +408,40 @@ describe("segment landing on a component pin", () => {
     expect(contactRequiresJunctionDot(contact!)).toBe(true);
   });
 
-  it("keeps two moved wire interiors as an unconnected crossing", () => {
+  it("connects when a moved segment lands on another wire endpoint", () => {
     const d = looseWires();
+    d.junctions.find((junction) => junction.id === "X")!.position = {
+      x: 0,
+      y: 50,
+    };
+    d.junctions.find((junction) => junction.id === "Y")!.position = {
+      x: -100,
+      y: 50,
+    };
     const proposal = proposeWireSegmentMove(d, resolver, "r", 0, {
       x: 50,
       y: 50,
     });
-    const final = commit(d, proposal.edits);
+    const final = commit(d, proposal.edits, proposal.expectedElectricalEffect);
+
+    expect(conductorNets(final).size).toBe(1);
+  });
+
+  it("keeps a true wire-interior crossing unconnected", () => {
+    const d = looseWires();
+    d.junctions.find((junction) => junction.id === "X")!.position = {
+      x: 50,
+      y: 20,
+    };
+    d.junctions.find((junction) => junction.id === "Y")!.position = {
+      x: 50,
+      y: 80,
+    };
+    const proposal = proposeWireSegmentMove(d, resolver, "r", 0, {
+      x: 50,
+      y: 50,
+    });
+    const final = commit(d, proposal.edits, proposal.expectedElectricalEffect);
 
     expect(conductorNets(final).size).toBe(2);
   });

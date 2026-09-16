@@ -97,32 +97,31 @@ function routeContainsAuthoredPoint(
   });
 }
 
-export interface NewlyTouchedRouteTerminal {
-  readonly endpoint: Extract<RouteEndpoint, { kind: "terminal" }>;
+export interface NewlyTouchedRouteEndpoint {
+  readonly endpoint: RouteEndpoint;
   readonly routeId: string;
   readonly point: Point;
 }
 
 /**
- * Exact terminal contacts introduced by authored Route geometry.
+ * Exact endpoint contacts introduced by authored Route geometry.
  *
  * Comparing the projected result with the source avoids bonding a pin that
- * was already parked on an untouched part of the same Route. Route-to-Route
- * crossings never enter this detector because only visible terminals are
- * considered.
+ * was already parked on an untouched part of the same Route. A Junction is a
+ * real wire endpoint, so moving a segment onto it connects; two Route
+ * interiors crossing still never enter this detector.
  */
-export function newlyTouchedRouteTerminals(
+export function newlyTouchedRouteEndpoints(
   before: SchematicDocument,
   after: SchematicDocument,
   resolver: SymbolResolver,
   routeIds: ReadonlySet<string>,
-): NewlyTouchedRouteTerminal[] {
+): NewlyTouchedRouteEndpoint[] {
   if (routeIds.size === 0) return [];
   const beforeGeometry = resolveDocumentRoutingGeometry(before, resolver);
   const afterGeometry = resolveDocumentRoutingGeometry(after, resolver);
-  const result: NewlyTouchedRouteTerminal[] = [];
+  const result: NewlyTouchedRouteEndpoint[] = [];
   for (const endpoint of visibleEndpoints(after, resolver)) {
-    if (endpoint.kind !== "terminal") continue;
     const point = resolveEndpointConnection(
       after,
       resolver,
@@ -167,7 +166,7 @@ export function newlyTouchedRouteTerminals(
  *
  * Only contacts the transaction licensed are normalized. Route-interior
  * crossings are deliberately absent. This module handles direct endpoint
- * contacts, explicit Junction-on-route contacts, and exact terminal points
+ * contacts, explicit Junction-on-route contacts, and exact endpoint points
  * newly touched by edited Route geometry. A Route crossing another Route is
  * never a contact here because neither interior supplies an endpoint.
  */

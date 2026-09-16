@@ -61,16 +61,17 @@ kernel, stable leg identity, and Route transaction.
   `bulk-dashed` changes only presentation.
 - Exact visible endpoint coincidence is a zero-length physical contact. When a
   newly placed Instance, an explicit Junction, a drawn power rail, a typed
-  attach, or edited Route geometry reaches a visible pin endpoint, the Edit
+  attach, or edited Route geometry reaches a visible endpoint, the Edit
   Engine deterministically creates or merges the participating Base Net;
   incompatible power domains or remaining name-contract conflicts reject the
-  whole transaction. Ordinary Label retirement follows the naming rule below. For an edited Route, only pin points newly covered by the
-  gesture are eligible: a pin that already rested on an unchanged part of the
-  Route is not retroactively connected. Route-interior crossings remain
-  electrically separate because neither conductor supplies an endpoint. An
-  explicit `disconnect_endpoint` in the same transaction suppresses
-  normalization so deletion cannot immediately reconnect itself, and it is
-  read the same way by the expected-effect derivation, which never declares an
+  whole transaction. Ordinary Label retirement follows the naming rule below.
+  For an edited Route, only visible endpoint points newly covered by the
+  gesture are eligible: a pin or Junction that already rested on an unchanged
+  part of the Route is not retroactively connected. Route-interior crossings
+  remain electrically separate because neither conductor supplies an endpoint.
+  An explicit `disconnect_endpoint` in the same transaction suppresses
+  normalization so deletion cannot immediately reconnect itself, and it is read
+  the same way by the expected-effect derivation, which never declares an
   endpoint the edits explicitly released as preserved.
 - Releasing a wire END on a conductor bonds, whether the end arrived there by
   dragging the whole loose wire or by dragging that one endpoint handle. It is
@@ -79,10 +80,11 @@ kernel, stable leg identity, and Route transaction.
   is identical: which handle the author happened to grab is not visible in the
   drawing and must not decide what is connected. The end joins whatever it is
   released on — a pin, another conductor's bare end, or a point part-way along
-  a span, which splits that conductor at an explicit Junction. Only the
-  released END is considered: a conductor whose middle comes to lie across
-  another is still a Crossing and still bonds nothing. When differently named Nets join, the planner may retire ordinary Net
-  Labels as described below; supply and formal-interface names are not
+  a span, which splits that conductor at an explicit Junction. Dragging a
+  segment onto a static pin or Junction likewise connects at that endpoint.
+  Two conductor interiors crossing still bond nothing. When differently named
+  Nets join, the planner may retire ordinary Net Labels as described below;
+  supply and formal-interface names are not
   silently discarded.
   An end released over empty page is simply loose, which is a legitimate state
   and not a finding.
@@ -102,8 +104,9 @@ kernel, stable leg identity, and Route transaction.
 - A Route-segment tap splits geometry at an explicit Junction. A newly
   authored Junction that lands on another ordinary Route joins and splits
   that conductor as well. Dragging an existing Route segment onto a visible
-  device pin joins the pin at the exact contact point, splits the Route, and
-  derives the junction dot from the resulting branches. A mere
+  endpoint joins it at the exact contact point, whether the endpoint is a
+  device pin or the Junction at another wire's end. The Route is split when
+  needed, and the junction dot is derived from the resulting branches. A mere
   route-interior crossing remains disconnected. Pin-to-route attachment from
   the wire tool remains a snapped typed intent because it changes the selected
   Route's identity and geometry.

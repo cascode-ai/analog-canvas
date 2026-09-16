@@ -9,7 +9,11 @@ import {
 import { serializeProject } from "@icm/project-protocol";
 import { hierarchicalSymbolId } from "@icm/symbols";
 
-import { chooseComponent, openMenu } from "./editor-fixtures.js";
+import {
+  awaitEditorReady,
+  chooseComponent,
+  openMenu,
+} from "./editor-fixtures.js";
 import { CLOUD_PROJECT_LIMIT } from "../src/features/editor-shell/cloud-projects";
 
 const ENTRY = {
@@ -2329,6 +2333,7 @@ test("bundled VDD rails keep their current presentation in the Gallery and edito
   await expect(page).toHaveURL(
     /\/editor\?example=current-mirror-loaded-differential-pair$/,
   );
+  await awaitEditorReady(page);
   const canvasRails = page.locator(
     '[data-testid="schematic-canvas"] [data-route-presentation="power-rail"]',
   );

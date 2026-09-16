@@ -30,7 +30,7 @@ import {
   transformMaySeparateDirectContact,
 } from "./transaction-direct-contact.js";
 import {
-  newlyTouchedRouteTerminals,
+  newlyTouchedRouteEndpoints,
   nextPhysicalContactOperation,
 } from "./transaction-connectivity-normalizer.js";
 import { applyCellResetEdit } from "./transaction-cell-reset.js";
@@ -161,6 +161,11 @@ export function executeTransaction(
               edit.kind === "set_instance_symbol"
             ? [edit.instanceId]
             : [],
+    ),
+  );
+  const movedJunctionIds = new Set(
+    transaction.edits.flatMap((edit) =>
+      edit.kind === "move_junction" ? [edit.junctionId] : [],
     ),
   );
   const routeValidationIds = transaction.edits.every((edit) =>
@@ -662,11 +667,6 @@ export function executeTransaction(
         edit.kind === "set_instance_symbol",
     )
   ) {
-    const movedJunctionIds = new Set(
-      transaction.edits.flatMap((edit) =>
-        edit.kind === "move_junction" ? [edit.junctionId] : [],
-      ),
-    );
     if (
       transformMaySeparateDirectContact(
         document,
@@ -695,19 +695,25 @@ export function executeTransaction(
     // an otherwise local edit into a whole-document geometry repair.
     const physicalContactLicense =
       physicalContactLicenseForTransaction(transaction);
-    for (const contact of newlyTouchedRouteTerminals(
+    for (const contact of newlyTouchedRouteEndpoints(
       document,
       draft,
       resolver,
       explicitlyAuthoredRouteIds,
     )) {
-      // A Route and terminal translated in the same transform preserve their
-      // previous relative geometry. Comparing the terminal's new absolute
+      // An endpoint and Route moved by the same transform preserve their
+      // previous relative geometry. Comparing the endpoint's new absolute
       // point against the old Route can otherwise misclassify an existing
-      // corner overlap as a new contact and short two pins on the moved part.
-      // Explicit instance-drop planners own intentional contacts for moved
-      // terminals; this detector repairs Routes moved onto static terminals.
-      if (transformedInstanceIds.has(contact.endpoint.instanceId)) continue;
+      // overlap as a new contact. Explicit move planners own intentional
+      // contacts for moved endpoints; this detector repairs Routes moved onto
+      // static terminals and Junctions.
+      if (
+        contact.endpoint.kind === "terminal"
+          ? transformedInstanceIds.has(contact.endpoint.instanceId)
+          : movedJunctionIds.has(contact.endpoint.junctionId)
+      ) {
+        continue;
+      }
       const points =
         physicalContactLicense.routeGeometryPoints.get(contact.routeId) ??
         new Set<string>();

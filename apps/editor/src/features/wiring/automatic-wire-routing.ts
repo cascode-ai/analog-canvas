@@ -7,7 +7,6 @@ import {
   type WireSource,
 } from "@icm/edit-engine";
 import {
-  routeEnd,
   transformPoint,
   type Point,
   type Rect,
@@ -107,47 +106,6 @@ function declaredCardinalOutward(source: WireSource): Point | null {
     return outward;
   }
   return null;
-}
-
-function existingJunctionOutward(
-  document: SchematicDocument,
-  resolver: SymbolResolver,
-  source: WireSource,
-): Point | null {
-  if (source.endpoint.kind !== "junction") return null;
-  const junctionId = source.endpoint.junctionId;
-  const directions = document.routes.flatMap((route): Point[] => {
-    const end = routeEnd(route);
-    const atStart =
-      route.start.kind === "junction" && route.start.junctionId === junctionId;
-    const atEnd = end.kind === "junction" && end.junctionId === junctionId;
-    if (!atStart && !atEnd) return [];
-    const centerline = resolveRouteGeometry(
-      document,
-      resolver,
-      route,
-    )?.centerline;
-    if (!centerline || centerline.length < 2) return [];
-    const point = atStart ? centerline[0]! : centerline.at(-1)!;
-    const neighbor = atStart ? centerline[1]! : centerline.at(-2)!;
-    const dx = point.x - neighbor.x;
-    const dy = point.y - neighbor.y;
-    if (dx !== 0 && dy === 0) return [{ x: Math.sign(dx), y: 0 }];
-    if (dy !== 0 && dx === 0) return [{ x: 0, y: Math.sign(dy) }];
-    return [];
-  });
-  return directions.length === 1 ? directions[0]! : null;
-}
-
-function routingOutward(
-  document: SchematicDocument,
-  resolver: SymbolResolver,
-  source: WireSource,
-): Point | null {
-  return (
-    declaredCardinalOutward(source) ??
-    existingJunctionOutward(document, resolver, source)
-  );
 }
 
 function splitRouteAxis(
@@ -398,10 +356,10 @@ function joinPathParts(...parts: readonly (readonly Point[])[]): Point[] {
 }
 
 /**
- * Add a small automatic dogleg only for a fresh, automatic orthogonal wire.
- * Explicit corner order, 45-degree/free modes, and every user-fixed point are
- * left untouched. Candidate corridors sit one grid outside symbol ink and the
- * shortest collision-free candidate wins.
+ * Add a small automatic dogleg only between two component terminals on a
+ * fresh, automatic orthogonal wire. Extending an existing wire, landing on an
+ * existing conductor, and every user-fixed point are direct manipulation and
+ * must remain exactly where the pointer puts them.
  */
 export function automaticWireDraftSteps(
   document: SchematicDocument,
@@ -412,10 +370,18 @@ export function automaticWireDraftSteps(
   routingMode: WireRoutingMode,
   cornerOrder: WireCornerOrder,
 ): readonly WireDraftStep[] {
+  const touchesPersistedJunction = [from, to].some((source) => {
+    const endpoint = source.endpoint;
+    return (
+      endpoint.kind === "junction" &&
+      document.junctions.some((junction) => junction.id === endpoint.junctionId)
+    );
+  });
   if (
     steps.length > 0 ||
     routingMode !== "orthogonal" ||
-    cornerOrder !== "auto"
+    cornerOrder !== "auto" ||
+    touchesPersistedJunction
   ) {
     return steps;
   }
@@ -428,8 +394,8 @@ export function automaticWireDraftSteps(
     routingMode,
     cornerOrder,
   ).points;
-  const fromOutward = routingOutward(document, resolver, from);
-  const toOutward = routingOutward(document, resolver, to);
+  const fromOutward = declaredCardinalOutward(from);
+  const toOutward = declaredCardinalOutward(to);
   const obstacles = obstacleBounds(document, resolver, from, to, baseline);
   const baselineIsClear =
     score(baseline, obstacles, from, to, fromOutward, toOutward).collisions ===

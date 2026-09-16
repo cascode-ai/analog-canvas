@@ -3,6 +3,19 @@
 Notable changes to Analog Canvas. Entries describe what changed for the person
 using the product, not the commits that got there.
 
+## 0.9.2 (Preview candidate)
+
+### Wiring
+
+- Keep an existing loose wire endpoint under direct mouse control when it is
+  extended. Automatic routing no longer inserts an extra turn or changes the
+  direction chosen by the user.
+- Join Nets when a dragged wire segment reaches an existing wire endpoint,
+  while leaving an ordinary crossing through the middle of another wire
+  electrically separate.
+
+Project schema 56 is unchanged. Existing Projects are not rewritten when opened.
+
 ## 0.9.1 (Preview candidate)
 
 ### Netlist export

@@ -541,7 +541,17 @@ test("authors one validated formula through the canonical text editor", async ({
   await expect(source).toHaveValue(/\\sqrt/u);
 
   const normalizedDifferential = String.raw`\int_0^1\frac{1}{\sqrt{1+\cos^2x}}\differentialD x`;
+  // MathLive publishes palette edits through its input event. Let that event
+  // and the controlled-value render settle before the source textarea becomes
+  // authoritative, otherwise an old palette edit can overwrite a fast fill.
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      ),
+  );
   await source.fill(normalizedDifferential);
+  await expect(source).toHaveValue(normalizedDifferential);
   await page.getByRole("button", { name: "Display" }).click();
   await page
     .getByRole("dialog", { name: "Formula" })
