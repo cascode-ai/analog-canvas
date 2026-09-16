@@ -1,6 +1,10 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import { createEmptyProject, type SchematicDocument } from "@icm/model";
+import {
+  createEmptyProject,
+  createRoutePath,
+  type SchematicDocument,
+} from "@icm/model";
 import { builtInSymbols } from "@icm/symbols";
 
 import {
@@ -12,9 +16,11 @@ import {
 async function importInstances(
   page: Page,
   instances: SchematicDocument["instances"],
+  configureDocument?: (document: SchematicDocument) => void,
 ) {
   const project = createEmptyProject("analog-hit-bounds", "Analog hit bounds");
   project.documents[0]!.instances = instances;
+  configureDocument?.(project.documents[0]!);
   await page.goto("/editor");
   await awaitEditorReady(page);
   await page.getByTestId("project-file").setInputFiles({
@@ -265,21 +271,47 @@ test("enlarged Analog Block triangles leave clear space around internal letters 
 test("clicking wire beside a symbol body selects the wire, not the box", async ({
   page,
 }) => {
-  await importInstances(page, [
-    {
-      id: "R1",
-      symbolId: "resistor",
-      placement: { position: { x: 300, y: 200 }, rotation: 0, mirror: "none" },
+  await importInstances(
+    page,
+    [
+      {
+        id: "R1",
+        symbolId: "resistor",
+        placement: {
+          position: { x: 300, y: 200 },
+          rotation: 0,
+          mirror: "none",
+        },
+      },
+    ],
+    (document) => {
+      document.nets.push({ id: "crossing-net", terminals: [] });
+      document.junctions.push(
+        {
+          id: "crossing-start",
+          netId: "crossing-net",
+          position: { x: 260, y: 210 },
+        },
+        {
+          id: "crossing-end",
+          netId: "crossing-net",
+          position: { x: 340, y: 210 },
+        },
+      );
+      document.routes.push(
+        createRoutePath({
+          id: "crossing-route",
+          netId: "crossing-net",
+          start: { kind: "junction", junctionId: "crossing-start" },
+          end: { kind: "junction", junctionId: "crossing-end" },
+          bends: [],
+          modes: ["manual"],
+        }),
+      );
     },
-  ]);
-  // Cross the lower stem, away from endpoint hit circles. The previous fixture
-  // picked at the bottom edge of the old viewBox, which also hit the pin.
-  await clickDrawTool(page, "wire");
-  const start = await screenPoint(page, 260, 210);
-  const end = await screenPoint(page, 340, 210);
-  await page.mouse.click(start.x, start.y);
-  await page.mouse.dblclick(end.x, end.y);
-  await page.keyboard.press("Escape");
+  );
+  // Import a deliberate crossing so this hit-priority test remains independent
+  // from the interactive router's symbol-avoidance behavior.
 
   const overlap = await screenPoint(page, 307, 210);
   const candidates = await page.evaluate(
