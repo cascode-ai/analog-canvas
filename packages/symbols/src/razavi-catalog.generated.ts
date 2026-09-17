@@ -683,7 +683,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Three-terminal single-ended control is visually explicit in the textbook but has no exact primitive SPICE S contract.",
     assetPath: "externally-controlled-switch.json",
     assetHash:
-      "e4fbefba1859d5fd25fae669810aa0cf6ba60758f00ecb7cd4ed8a2c8032435a",
+      "d8dbcb4c635b367ee8906bd1410505cc8ef5bef9ba15d667223b5c47f6050a6c",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -5276,10 +5276,10 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
     id: "externally-controlled-switch",
     name: "Externally Controlled Switch",
     viewBox: {
-      x: -34,
-      y: -34,
-      width: 68,
-      height: 68,
+      x: -24,
+      y: -24,
+      width: 48,
+      height: 48,
     },
     pins: [
       {
@@ -5287,7 +5287,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         role: "passive",
         at: {
           x: 0,
-          y: -30,
+          y: -20,
         },
         direction: "north",
         presentation: {
@@ -5300,7 +5300,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         role: "passive",
         at: {
           x: 0,
-          y: 30,
+          y: 20,
         },
         direction: "south",
         presentation: {
@@ -5312,7 +5312,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         name: "CTRL",
         role: "input",
         at: {
-          x: -30,
+          x: -20,
           y: 0,
         },
         direction: "west",
@@ -5327,7 +5327,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "line",
         from: {
           x: 0,
-          y: -30,
+          y: -20,
         },
         to: {
           x: 0,
@@ -5373,7 +5373,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -30,
+          x: -20,
           y: 0,
         },
         to: {
@@ -5409,7 +5409,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         },
         to: {
           x: 0,
-          y: 30,
+          y: 20,
         },
         style: {
           strokeRole: "normal",

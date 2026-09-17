@@ -384,7 +384,7 @@ SPECS: dict[str, dict[str, Any]] = {
         # Compare only the device's normalized pin span. Figure 16.38 places
         # the S1 designator immediately to the right and surrounding charge-
         # pump wiring continues left; neither belongs to the Symbol geometry.
-        "witnessWindow": {"width": 88, "height": 164, "minX": -30, "minY": -34},
+        "witnessWindow": {"width": 64, "height": 116, "minX": -20, "minY": -24},
         "derivation": {
             "geometry": "uniformly normalized from Figure 16.38 S1 native main leads, hollow contacts, blade, and Q_A control line",
             "scale": "native 0.717 pt stroke mapped to the Razavi normal 1.6 logical-unit stroke",
@@ -828,19 +828,19 @@ def externally_controlled_switch_definition(
     return symbol(
         "externally-controlled-switch",
         "Externally Controlled Switch",
-        (-34, -34, 68, 68),
+        (-24, -24, 48, 48),
         [
-            pin("P", "passive", 0, -30, "north"),
-            pin("N", "passive", 0, 30, "south"),
-            pin("CTRL", "input", -30, 0, "west"),
+            pin("P", "passive", 0, -20, "north"),
+            pin("N", "passive", 0, 20, "south"),
+            pin("CTRL", "input", -20, 0, "west"),
         ],
         [
-            line(0, -30, 0, rounded(top_contact["center"]["y"] - top_contact["radius"])),
+            line(0, -20, 0, rounded(top_contact["center"]["y"] - top_contact["radius"])),
             top_contact,
             line(*clipped_start, *blade_end),
-            line(-30, 0, control_end_x, 0),
+            line(-20, 0, control_end_x, 0),
             bottom_contact,
-            line(0, rounded(bottom_contact["center"]["y"] + bottom_contact["radius"]), 0, 30),
+            line(0, rounded(bottom_contact["center"]["y"] + bottom_contact["radius"]), 0, 20),
         ],
         ["pin-controlled-switch", "logic-controlled-switch"],
     )

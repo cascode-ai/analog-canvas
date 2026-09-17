@@ -90,14 +90,14 @@
       "assetPath": "externally-controlled-switch-reference.png",
       "pixelsPerLogical": 2.4,
       "originPx": {
-        "x": 72.322912,
-        "y": 82.222795
+        "x": 48.322912,
+        "y": 58.222795
       },
       "window": {
-        "width": 88,
-        "height": 164,
-        "minX": -30,
-        "minY": -34
+        "width": 64,
+        "height": 116,
+        "minX": -20,
+        "minY": -24
       }
     }
   }

@@ -286,9 +286,9 @@
         "figure": "16.38 (S1)"
       },
       "extractPath": "externally-controlled-switch-vector-source.json",
-      "extractSha256": "7e3330e2297123865a889f8c97a9f848f85f05737c7ceec365f65509dbd47a26",
+      "extractSha256": "c382f9ea162a92bd3ad5c73c8bb4625212dffa84ca798faaa44080a1c1b2a03e",
       "rasterPath": "externally-controlled-switch-reference.png",
-      "rasterSha256": "7009f8fa0adf16cc327e292a6cc84ee5872ba361afa77db56f653245c928e348",
+      "rasterSha256": "af7741d0d0ec17b66b092cf11fac74ec621828a335829d62009371d864cc869a",
       "scope": [
         "three-terminal externally controlled switch geometry",
         "single-ended control lead, hollow contacts, and open blade"
@@ -514,7 +514,7 @@
   "differentialOpampGeometryPath": "differential-opamp-geometry.json",
   "differentialOpampGeometrySha256": "a3f16365d6a7f87d91459c1708c58152ac81aad7f8832c73144b74d13b148612",
   "commonSymbolGeometryPath": "common-symbol-geometry.json",
-  "commonSymbolGeometrySha256": "20b51dfe5b90ff43e5417b2536490a99726483c7ccd373cb293bef9ef4e588d9",
+  "commonSymbolGeometrySha256": "1972b4584a02c9845c5a20d24005746f2ae258c5c250c740e67a644ae4d68d37",
   "zenerDiodeGeometryPath": "zener-diode-geometry.json",
   "zenerDiodeGeometrySha256": "0ceb7d8e0512e933dc36fff854a851491baf8e270748d6793b40a2fdc1bf1a15",
   "logicGateGeometryPath": "logic-gate-geometry.json",

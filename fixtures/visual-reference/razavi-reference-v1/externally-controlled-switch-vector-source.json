@@ -87,16 +87,16 @@
       {
         "name": "P",
         "x": 0,
-        "y": -30
+        "y": -20
       },
       {
         "name": "N",
         "x": 0,
-        "y": 30
+        "y": 20
       },
       {
         "name": "CTRL",
-        "x": -30,
+        "x": -20,
         "y": 0
       }
     ],
@@ -113,10 +113,10 @@
       "id": "externally-controlled-switch",
       "name": "Externally Controlled Switch",
       "viewBox": {
-        "x": -34,
-        "y": -34,
-        "width": 68,
-        "height": 68
+        "x": -24,
+        "y": -24,
+        "width": 48,
+        "height": 48
       },
       "pins": [
         {
@@ -124,7 +124,7 @@
           "role": "passive",
           "at": {
             "x": 0,
-            "y": -30
+            "y": -20
           },
           "direction": "north",
           "presentation": {
@@ -137,7 +137,7 @@
           "role": "passive",
           "at": {
             "x": 0,
-            "y": 30
+            "y": 20
           },
           "direction": "south",
           "presentation": {
@@ -149,7 +149,7 @@
           "name": "CTRL",
           "role": "input",
           "at": {
-            "x": -30,
+            "x": -20,
             "y": 0
           },
           "direction": "west",
@@ -164,7 +164,7 @@
           "kind": "line",
           "from": {
             "x": 0,
-            "y": -30
+            "y": -20
           },
           "to": {
             "x": 0,
@@ -210,7 +210,7 @@
         {
           "kind": "line",
           "from": {
-            "x": -30,
+            "x": -20,
             "y": 0
           },
           "to": {
@@ -246,7 +246,7 @@
           },
           "to": {
             "x": 0,
-            "y": 30
+            "y": 20
           },
           "style": {
             "strokeRole": "normal",
@@ -267,23 +267,23 @@
     "sourcePdfPage": 696,
     "dpi": 385.606695,
     "pixels": {
-      "width": 88,
-      "height": 164
+      "width": 64,
+      "height": 116
     },
     "pixelsPerLogical": 2.4,
     "originPx": {
-      "x": 72.322912,
-      "y": 82.222795
+      "x": 48.322912,
+      "y": 58.222795
     },
     "window": {
-      "width": 88,
-      "height": 164,
-      "minX": -30,
-      "minY": -34
+      "width": 64,
+      "height": 116,
+      "minX": -20,
+      "minY": -24
     },
     "sourceCropPx": {
-      "x": 1363,
-      "y": 1182
+      "x": 1387,
+      "y": 1206
     },
     "assetPath": "externally-controlled-switch-reference.png",
     "threshold": 160
