@@ -17,6 +17,14 @@ import {
   type GalleryFeedState,
   type GalleryTagOption,
 } from "../gallery-client";
+import {
+  GALLERY_FILTERS_KEY,
+  createDefaultGalleryFilters,
+  galleryFilterSearch,
+  galleryFiltersNarrowQuery,
+  resolveGalleryFilters,
+  type GalleryFilterState,
+} from "../gallery-filters";
 import type { BundledGalleryTile } from "./gallery-bundled-fallback";
 
 // The wall and the canvas-side panel share one data layer, so a search that
@@ -447,34 +455,39 @@ export function GalleryFeed({
 }: {
   visitStats?: { pv: number; uv: number } | null | undefined;
 }) {
-  // The two walls the site has: everyone's circuits, and your own. The choice
-  // rides in the URL so a reload, a bookmark, and the Back button all keep it.
-  const [view, setView] = useState<"gallery" | "shelf">(() =>
-    typeof window !== "undefined" &&
-    new URLSearchParams(window.location.search).get("view") === "shelf"
-      ? "shelf"
-      : "gallery",
-  );
-  // One box, two levels: the query narrows the tag row to reachable chips,
-  // and filters the wall itself by name, author, description, and tags.
-  const [searchQuery, setSearchQuery] = useState("");
+  // Which wall, whose circuits, which tags, which words, which marks: one
+  // state, because a reader changes them for one reason. It rides in the URL
+  // so a link and the Back button carry the same slice, and in browser
+  // storage so opening a circuit and coming back does not widen the wall.
+  const [filters, setFilters] = useState<GalleryFilterState>(() => {
+    if (typeof window === "undefined") return createDefaultGalleryFilters();
+    try {
+      return resolveGalleryFilters(
+        window.location.search,
+        window.localStorage.getItem(GALLERY_FILTERS_KEY),
+      );
+    } catch {
+      // Private-mode storage throws on read; the link still decides.
+      return resolveGalleryFilters(window.location.search, null);
+    }
+  });
+  const {
+    view,
+    author,
+    tags: selectedTags,
+    search: searchQuery,
+    netlistable: netlistableOnly,
+    liked: likedOnly,
+  } = filters;
+  function updateFilters(patch: Partial<GalleryFilterState>): void {
+    setFilters((previous) => ({ ...previous, ...patch }));
+  }
   const [showAllTags, setShowAllTags] = useState(false);
+  const [signedIn, setSignedIn] = useState(false);
   const [isOwner, setIsOwner] = useState(false);
   const [ownerBusy, setOwnerBusy] = useState<string | null>(null);
   const [ownerNotice, setOwnerNotice] = useState<string | null>(null);
   const [rejecting, setRejecting] = useState<GalleryFeedEntry | null>(null);
-  const [author, setAuthor] = useState<string | null>(() =>
-    typeof window === "undefined"
-      ? null
-      : new URLSearchParams(window.location.search).get("author"),
-  );
-  const [selectedTags, setSelectedTags] = useState<string[]>(() =>
-    typeof window === "undefined"
-      ? []
-      : (new URLSearchParams(window.location.search).get("tags") ?? "")
-          .split(",")
-          .filter((tag) => tag.length > 0),
-  );
   const [tagOptions, setTagOptions] = useState<
     { tag: string; count: number }[]
   >([]);
@@ -484,10 +497,37 @@ export function GalleryFeed({
     tiles: BundledGalleryTile[];
   }>({ status: "idle", tiles: [] });
 
+  // Remembered at once: a reader who narrows the wall and immediately opens a
+  // circuit must come back to the same slice, so this write cannot wait.
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(GALLERY_FILTERS_KEY, JSON.stringify(filters));
+    } catch {
+      // The wall works without storage; only the memory of it is lost.
+    }
+  }, [filters]);
+
+  // The address follows a beat later, so typing in the search box does not
+  // push a history entry per keystroke. Losing the last one to a navigation
+  // costs nothing, because the store above already has it.
+  useEffect(() => {
+    const handle = window.setTimeout(() => {
+      window.history.replaceState(
+        null,
+        "",
+        window.location.pathname +
+          galleryFilterSearch(window.location.search, filters),
+      );
+    }, 150);
+    return () => window.clearTimeout(handle);
+  }, [filters]);
+
   useEffect(() => {
     let cancelled = false;
     void fetchSessionUser().then((user) => {
-      if (!cancelled) setIsOwner(user?.isAdmin === true);
+      if (cancelled) return;
+      setSignedIn(user !== null);
+      setIsOwner(user?.isAdmin === true);
     });
     return () => {
       cancelled = true;
@@ -595,7 +635,12 @@ export function GalleryFeed({
     const generation = ++feedGenerationRef.current;
     firstPageLoadingRef.current = true;
     loadingMoreRef.current = false;
-    const queryKey = `${author ?? ""}\u0000${selectedTags.join(",")}`;
+    const queryKey = [
+      author ?? "",
+      selectedTags.join(","),
+      netlistableOnly ? "netlist" : "",
+      likedOnly ? "liked" : "",
+    ].join("\u0000");
     const changingQuery = loadedQueryRef.current !== queryKey;
     if (changingQuery) {
       setState({
@@ -605,7 +650,12 @@ export function GalleryFeed({
         total: null,
       });
     }
-    void loadGalleryFeed(fetch, { author, tags: selectedTags }).then((page) => {
+    void loadGalleryFeed(fetch, {
+      author,
+      tags: selectedTags,
+      netlistable: netlistableOnly,
+      liked: likedOnly,
+    }).then((page) => {
       if (cancelled || generation !== feedGenerationRef.current) return;
       firstPageLoadingRef.current = false;
       if (page) {
@@ -624,7 +674,7 @@ export function GalleryFeed({
     return () => {
       cancelled = true;
     };
-  }, [author, selectedTags, refreshSignal]);
+  }, [author, selectedTags, netlistableOnly, likedOnly, refreshSignal]);
 
   // The sentinel appends the next newest-first page as it comes into view.
   // Once the server returns no cursor, the wall is complete and stops.
@@ -643,6 +693,8 @@ export function GalleryFeed({
       void loadGalleryFeed(fetch, {
         author,
         tags: selectedTags,
+        netlistable: netlistableOnly,
+        liked: likedOnly,
         cursor: nextCursor,
       }).then((page) => {
         if (generation !== feedGenerationRef.current) return;
@@ -662,37 +714,23 @@ export function GalleryFeed({
     });
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [nextCursor, author, selectedTags]);
-
-  function syncQuery(nextAuthor: string | null, nextTags: string[]): void {
-    const url = new URL(window.location.href);
-    if (nextAuthor) url.searchParams.set("author", nextAuthor);
-    else url.searchParams.delete("author");
-    if (nextTags.length > 0) url.searchParams.set("tags", nextTags.join(","));
-    else url.searchParams.delete("tags");
-    window.history.replaceState(null, "", url.pathname + url.search);
-  }
+  }, [nextCursor, author, selectedTags, netlistableOnly, likedOnly]);
 
   function selectAuthor(next: string | null): void {
-    setAuthor(next);
-    syncQuery(next, selectedTags);
+    updateFilters({ author: next });
   }
 
   function selectContributor(nextAuthor: string): void {
-    setSearchQuery("");
-    setSelectedTags([]);
-    setAuthor(nextAuthor);
-    syncQuery(nextAuthor, []);
+    updateFilters({ author: nextAuthor, tags: [], search: "" });
   }
 
   function toggleTag(tag: string): void {
-    setSelectedTags((previous) => {
-      const next = previous.includes(tag)
-        ? previous.filter((candidate) => candidate !== tag)
-        : [...previous, tag];
-      syncQuery(author, next);
-      return next;
-    });
+    setFilters((previous) => ({
+      ...previous,
+      tags: previous.tags.includes(tag)
+        ? previous.tags.filter((candidate) => candidate !== tag)
+        : [...previous.tags, tag],
+    }));
   }
 
   function removeManagedEntry(entry: GalleryFeedEntry): void {
@@ -836,13 +874,7 @@ export function GalleryFeed({
               className="gallery-view-tab"
               data-testid={`gallery-view-${id}`}
               aria-selected={view === id}
-              onClick={() => {
-                setView(id);
-                const next = new URL(window.location.href);
-                if (id === "shelf") next.searchParams.set("view", "shelf");
-                else next.searchParams.delete("view");
-                window.history.replaceState(null, "", next);
-              }}
+              onClick={() => updateFilters({ view: id })}
             >
               {label}
             </button>
@@ -853,7 +885,7 @@ export function GalleryFeed({
         {view === "gallery" ? (
           <GalleryCountPanel
             total={state.total}
-            filtered={author !== null || selectedTags.length > 0}
+            filtered={galleryFiltersNarrowQuery(filters)}
             refreshSignal={refreshSignal}
             onSelectAuthor={selectContributor}
             search={
@@ -872,7 +904,10 @@ export function GalleryFeed({
 
       {view === "gallery" ? (
         <>
-          {tagOptions.length > 0 || entries.length > 0 ? (
+          {tagOptions.length > 0 ||
+          entries.length > 0 ||
+          netlistableOnly ||
+          likedOnly ? (
             <div className="gallery-tag-bar" data-testid="gallery-tag-bar">
               <input
                 className="gallery-tag-search"
@@ -881,8 +916,51 @@ export function GalleryFeed({
                 value={searchQuery}
                 placeholder="Name, author, tag…"
                 aria-label="Search circuits"
-                onChange={(event) => setSearchQuery(event.currentTarget.value)}
+                onChange={(event) =>
+                  updateFilters({ search: event.currentTarget.value })
+                }
               />
+              {/* The wall's two marks, narrowing by the same glyphs the tiles
+                  carry. The heart is asked of the session, so it is offered
+                  to a reader who has one — or who left it on. */}
+              <button
+                type="button"
+                className={
+                  netlistableOnly
+                    ? "gallery-tag-option gallery-tag-mark gallery-tag-selected"
+                    : "gallery-tag-option gallery-tag-mark"
+                }
+                data-testid="gallery-filter-netlistable"
+                aria-pressed={netlistableOnly}
+                title={
+                  netlistableOnly
+                    ? "Stop filtering by netlist"
+                    : "Show only circuits that extract to a netlist"
+                }
+                onClick={() => updateFilters({ netlistable: !netlistableOnly })}
+              >
+                <NetlistIcon /> With netlist
+              </button>
+              {signedIn || likedOnly ? (
+                <button
+                  type="button"
+                  className={
+                    likedOnly
+                      ? "gallery-tag-option gallery-tag-mark gallery-tag-selected"
+                      : "gallery-tag-option gallery-tag-mark"
+                  }
+                  data-testid="gallery-filter-liked"
+                  aria-pressed={likedOnly}
+                  title={
+                    likedOnly
+                      ? "Stop filtering by your likes"
+                      : "Show only circuits you have liked"
+                  }
+                  onClick={() => updateFilters({ liked: !likedOnly })}
+                >
+                  <HeartIcon filled={true} /> Liked
+                </button>
+              ) : null}
               {/* Tags select as a union, so turning every one on is not "no
                   filter" — it is "carrying at least one tag", which drops the
                   untagged circuits. The control is named for what it does, and
@@ -899,13 +977,13 @@ export function GalleryFeed({
                       ? "Stop filtering by tag"
                       : "Show only circuits that carry at least one tag"
                   }
-                  onClick={() => {
-                    const next = everyTagSelected
-                      ? []
-                      : tagOptions.map((option) => option.tag);
-                    setSelectedTags(next);
-                    syncQuery(author, next);
-                  }}
+                  onClick={() =>
+                    updateFilters({
+                      tags: everyTagSelected
+                        ? []
+                        : tagOptions.map((option) => option.tag),
+                    })
+                  }
                 >
                   Any tag
                 </button>
@@ -951,10 +1029,7 @@ export function GalleryFeed({
                   type="button"
                   className="gallery-tag-option gallery-tag-clear"
                   data-testid="gallery-tags-clear"
-                  onClick={() => {
-                    setSelectedTags([]);
-                    syncQuery(author, []);
-                  }}
+                  onClick={() => updateFilters({ tags: [] })}
                 >
                   Clear {selectedTags.length} selected
                 </button>
@@ -1165,6 +1240,19 @@ export function GalleryFeed({
                   data-testid="gallery-filter-empty"
                 >
                   No public circuits by {author} yet.
+                </p>
+              ) : null}
+              {entries.length === 0 &&
+              author === null &&
+              (netlistableOnly || likedOnly) ? (
+                <p className="gallery-status" data-testid="gallery-mark-empty">
+                  {likedOnly && !signedIn
+                    ? "Sign in to collect the circuits you like."
+                    : likedOnly && netlistableOnly
+                      ? "None of the circuits you liked extracts to a netlist yet."
+                      : likedOnly
+                        ? "You have not liked any circuits yet."
+                        : "No circuits here extract to a netlist yet."}
                 </p>
               ) : null}
               {/* Two empty states, because only one of them is a verdict:

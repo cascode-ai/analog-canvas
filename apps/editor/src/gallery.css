@@ -999,6 +999,12 @@
    completeness and gates nothing, so it stays a quiet accent beside the name
    rather than a badge competing with it, and it never competes with the like
    heart for the same meaning. */
+.gallery-tag-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .gallery-tile-netlist {
   display: inline-flex;
   margin-left: 5px;

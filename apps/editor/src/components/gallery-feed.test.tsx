@@ -49,11 +49,17 @@ describe("loadGalleryFeed", () => {
     await loadGalleryFeed(capturing, { author: "alice" });
     await loadGalleryFeed(capturing, { author: "alice", cursor: "c|1" });
     await loadGalleryFeed(capturing, { author: "alice", limit: 4 });
+    await loadGalleryFeed(capturing, { netlistable: true, liked: true });
+    // An unasked mark leaves the query alone, so the wall's own cache key and
+    // the worker's fast path stay what they were.
+    await loadGalleryFeed(capturing, { netlistable: false, liked: false });
     expect(urls).toEqual([
       "/api/gallery",
       "/api/gallery?author=alice",
       "/api/gallery?author=alice&cursor=c%7C1",
       "/api/gallery?author=alice&limit=4",
+      "/api/gallery?netlistable=1&liked=1",
+      "/api/gallery",
     ]);
   });
 

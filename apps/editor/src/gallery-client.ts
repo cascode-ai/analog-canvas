@@ -228,6 +228,10 @@ export async function loadGalleryFeed(
     cursor?: string | null;
     author?: string | null;
     tags?: readonly string[];
+    /** Only circuits whose drawing extracts to a netlist. */
+    netlistable?: boolean;
+    /** Only circuits the signed-in viewer has liked. */
+    liked?: boolean;
     limit?: number;
   } = {},
 ): Promise<GalleryFeedPage | null> {
@@ -236,6 +240,8 @@ export async function loadGalleryFeed(
   if (options.tags && options.tags.length > 0) {
     params.set("tags", options.tags.join(","));
   }
+  if (options.netlistable) params.set("netlistable", "1");
+  if (options.liked) params.set("liked", "1");
   if (options.cursor) params.set("cursor", options.cursor);
   if (options.limit !== undefined) params.set("limit", String(options.limit));
   const query = params.toString();

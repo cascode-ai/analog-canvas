@@ -21,12 +21,25 @@ restrictive content-security-policy.
   (`{entries, nextCursor, total}`; keyset cursor; limit clamps at 60; optional
   `author` filters to that exact byline and optional `tags=a,b` to
   entries carrying ANY listed tag, both ahead of pagination; `total` counts
-  the whole filtered set and repeats on every page). Rejected and
+  the whole filtered set and repeats on every page). `netlistable=1` keeps
+  only the entries whose stored mark says the drawing extracts, and `liked=1`
+  only the ones this session has liked — a signed-out request for the
+  session's likes therefore selects none of them, never all of them. Every
+  narrowing composes and every one of them precedes the cursor, so `total`
+  and the page agree. Rejected and
   recycled entries never appear. Every entry includes the content-derived
   `previewRevision` used by its thumbnail URL plus `previewWidth` and
   `previewHeight` from the stored SVG viewBox. Older or invalid previews may
   omit the dimensions; clients must then retain their existing natural-size
   fallback.
+  Each entry also carries `netlistable`: whether that stored drawing extracts
+  to a netlist, answered by `designExtractsNetlist` through the same tolerant
+  export the editor's Netlist panel uses. The mark is about the drawing, not
+  about a process library — a missing device model or an unbound width exports
+  as a TODO placeholder and leaves the mark standing, while a missing MOS body
+  or an unresolved required pin clears it. It is re-answered whenever an entry
+  is written, so repairing a published circuit lights its mark without an
+  administrator pass.
 - `GET /api/gallery/tags` — distinct public tags with counts, most
   frequent first (feeds the multi-select menu).
 - `GET /api/gallery/authors` — non-empty public bylines with their currently
@@ -39,6 +52,17 @@ restrictive content-security-policy.
 - `GET /api/gallery/<id>/preview.svg?v=<previewRevision>` — the
   server-rendered preview. A revision matching the stored SVG is immutable;
   unversioned, stale-revision, hidden, and missing responses are `no-store`.
+- Which circuits a reader is looking at — the wall (`view`), the byline
+  (`author`), the tags (`tags`), the text (`q`), and the two marks
+  (`netlist`, `liked`) — is one preference and persists as one: it rides in
+  the address so a link and the Back button carry the same slice, and in the
+  browser's own store (`icm.gallery-filters.v1`) so opening a circuit and
+  returning to the bare address restores it, including an emptiness the reader
+  chose. A link that names any narrowing parameter is somebody's request for
+  exactly that slice and replaces the stored preference outright rather than
+  intersecting with it. The text query is answered in the browser over what
+  has loaded, so it never speaks for the wall's `total`. The store is a
+  convenience: a browser that refuses it loses only the memory, never the wall.
 - `/` serves the full-screen feed; each tile links to `/g/<id>`, which the
   editor opens through the ordinary protocol boundary. `/editor` is the
   plain editor; `/editor?example=<id>` opens a bundled example. The
@@ -266,6 +290,12 @@ header buys nothing. Without such a session every admin route answers
   to commit only when every record is valid. The response reports
   source-version counts, validation failures, and the current target version;
   it does not embed a second Gallery-specific migration policy.
+- `POST /api/gallery/maintenance/netlist-badges` — re-answer the stored
+  netlistable marks of existing entries, in resumable batches
+  (`{ "after"?: id, "limit"?: 1..200 }` → `{scanned, changed, unreadable,
+  cursor, remaining}`). Submission, owner editing, and schema restore already
+  answer it per entry, so this pass exists only for entries stored before an
+  answer changed. An unreadable stored Project is counted and left alone.
 - `POST /api/gallery/maintenance/schema-restore` — atomically restore the three
   Project-bearing tables from a `schema-backup` payload supplied as
   `{ "backup": ... }`. Current retention is reapplied, so a legacy backup with

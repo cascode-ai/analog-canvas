@@ -839,32 +839,42 @@ export class GalleryDO {
       typeof body.author === "string" && body.author.length > 0
         ? body.author
         : null;
-    const conditions = ["status = 'public'"];
+    // The viewer id leads the bindings because its sub-select comes first.
+    const viewerId = typeof body.viewerId === "string" ? body.viewerId : "";
+    const conditions = ["e.status = 'public'"];
     const bindings: (string | number)[] = [];
     if (author) {
-      conditions.push("author = ?");
+      conditions.push("e.author = ?");
       bindings.push(author);
     }
     const tags = sanitizeGalleryTags(body.tags);
     if (tags.length > 0) {
-      conditions.push(`(${tags.map(() => "tags LIKE ?").join(" OR ")})`);
+      conditions.push(`(${tags.map(() => "e.tags LIKE ?").join(" OR ")})`);
       for (const tag of tags) bindings.push(`%,${tag},%`);
+    }
+    if (body.netlistable === true) conditions.push("e.netlistable = 1");
+    // Whose likes: the session's, so a signed-out reader asking for their
+    // liked circuits is answered with none instead of with everybody's.
+    if (body.liked === true) {
+      conditions.push(
+        `EXISTS (SELECT 1 FROM gallery_likes
+           WHERE entry_id = e.id AND user_id = ?)`,
+      );
+      bindings.push(viewerId);
     }
     // The whole filtered wall's size, not the page's: counted before the
     // cursor narrows the query, so every page carries the same total.
     const total = Number(
       this.sql
         .exec<{ total: number }>(
-          `SELECT COUNT(*) AS total FROM gallery_entries
+          `SELECT COUNT(*) AS total FROM gallery_entries e
            WHERE ${conditions.join(" AND ")}`,
           ...bindings,
         )
         .toArray()[0]!.total,
     );
-    // The viewer id leads the bindings because its sub-select comes first.
-    const viewerId = typeof body.viewerId === "string" ? body.viewerId : "";
     if (cursor) {
-      conditions.push("(created_at || '|' || id) < ?");
+      conditions.push("(e.created_at || '|' || e.id) < ?");
       bindings.push(cursor);
     }
     const rows = this.sql

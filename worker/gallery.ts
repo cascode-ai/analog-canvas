@@ -597,6 +597,10 @@ export async function routeGalleryRequest(
       tags: (url.searchParams.get("tags") ?? "")
         .split(",")
         .filter((tag) => tag.length > 0),
+      // Two marks the reader can narrow by. "Liked" is answered against the
+      // session, so signed out it selects nothing rather than everything.
+      netlistable: url.searchParams.get("netlistable") === "1",
+      liked: url.searchParams.get("liked") === "1",
     });
     return Response.json(payload, {
       headers: { "cache-control": "no-store" },

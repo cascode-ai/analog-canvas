@@ -689,6 +689,62 @@ describe("netlist marks and thumbs", () => {
     expect(listed.entries).toHaveLength(2);
   });
 
+  it("narrows the wall by mark, by like, and by the session behind it", async () => {
+    // Same two marks the tiles wear, asked of the list instead: a reader who
+    // wants the finished circuits, or their own shortlist, should not have to
+    // scroll the whole wall looking for glyphs.
+    const env = environment();
+    const cookie = await adminOf(env);
+    const sketch = createEmptyProject("sketch", "Sketch");
+    sketch.documents[0]!.instances.push({
+      id: "S1",
+      symbolId: "ideal-switch",
+      reference: "S1",
+      placement: { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
+    });
+    const sketchId = await submitOne(env, "Sketch", {
+      cookie,
+      text: serializeProject(sketch),
+    });
+    const extractableId = await submitOne(env, "Extractable", { cookie });
+    expect((await route(env, likeRequest(sketchId, cookie))).status).toBe(200);
+
+    const list = async (query: string, viewer?: string) => {
+      const response = await route(
+        env,
+        new Request(
+          `${ORIGIN}/api/gallery?${query}`,
+          viewer ? { headers: cookieHeaders(viewer) } : undefined,
+        ),
+      );
+      return (await response.json()) as {
+        entries: { id: string }[];
+        total: number;
+      };
+    };
+
+    const marked = await list("netlistable=1", cookie);
+    expect(marked.entries.map((entry) => entry.id)).toEqual([extractableId]);
+    // The total describes the narrowed wall, so paging stays honest.
+    expect(marked.total).toBe(1);
+
+    const liked = await list("liked=1", cookie);
+    expect(liked.entries.map((entry) => entry.id)).toEqual([sketchId]);
+    expect(liked.total).toBe(1);
+
+    // The marks compose, and here nothing satisfies both.
+    const both = await list("netlistable=1&liked=1", cookie);
+    expect(both.entries).toHaveLength(0);
+    expect(both.total).toBe(0);
+
+    // A like belongs to an account: signed out, "the ones I liked" is none of
+    // them rather than all of them.
+    const anonymous = await list("liked=1");
+    expect(anonymous.entries).toHaveLength(0);
+    expect(anonymous.total).toBe(0);
+    expect((await list("", cookie)).entries).toHaveLength(2);
+  });
+
   it("does not hold a missing process library against a circuit", async () => {
     // Which PDK a MOS is bound to is chosen at export, and the export writes
     // an unbound model or width as a TODO placeholder. A drawing whose only

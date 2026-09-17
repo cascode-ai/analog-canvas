@@ -543,6 +543,138 @@ test("clicking a byline filters the wall to that author, clearable", async ({
   await expect(page).not.toHaveURL(/author=/);
 });
 
+test("narrows the wall by netlist mark and by the reader's own likes", async ({
+  page,
+}) => {
+  await page.route("**/api/auth/me", (route) =>
+    route.fulfill({
+      json: {
+        user: {
+          id: "u-reader",
+          displayName: "Reader",
+          email: "reader@example.com",
+          provider: "github",
+          role: "user",
+        },
+      },
+    }),
+  );
+  await page.route("**/api/gallery**", (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname !== "/api/gallery") return route.fallback();
+    const tile = (
+      id: string,
+      name: string,
+      netlistable: boolean,
+      liked: boolean,
+    ) => ({
+      id,
+      name,
+      author: "reader",
+      description: "",
+      createdAt: "2026-08-22T10:00:00.000Z",
+      schemaVersion: 23,
+      netlistable,
+      likes: liked ? 1 : 0,
+      likedByViewer: liked,
+    });
+    const all = [
+      tile("f-ready", "Extractable", true, false),
+      tile("f-sketch", "Sketch", false, true),
+    ];
+    const entries = all.filter(
+      (entry) =>
+        (url.searchParams.get("netlistable") !== "1" || entry.netlistable) &&
+        (url.searchParams.get("liked") !== "1" || entry.likedByViewer),
+    );
+    return route.fulfill({ json: { entries, nextCursor: null } });
+  });
+  await page.route("**/api/gallery/*/preview.svg", (route) =>
+    route.fulfill({
+      contentType: "image/svg+xml",
+      body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 6"><rect width="10" height="6" fill="#fff"/></svg>',
+    }),
+  );
+
+  await page.goto("/");
+  await expect(page.getByTestId("gallery-tile-f-sketch")).toBeVisible();
+
+  await page.getByTestId("gallery-filter-netlistable").click();
+  await expect(page.getByTestId("gallery-tile-f-ready")).toBeVisible();
+  await expect(page.getByTestId("gallery-tile-f-sketch")).toHaveCount(0);
+  await expect(page).toHaveURL(/netlist=1/u);
+
+  // The two marks compose, and here nothing carries both: the wall says which
+  // choice emptied it rather than reading as an empty Gallery.
+  await page.getByTestId("gallery-filter-liked").click();
+  await expect(page.getByTestId("gallery-mark-empty")).toBeVisible();
+
+  await page.getByTestId("gallery-filter-netlistable").click();
+  await expect(page.getByTestId("gallery-tile-f-sketch")).toBeVisible();
+  await expect(page.getByTestId("gallery-tile-f-ready")).toHaveCount(0);
+});
+
+test("keeps the reader's filter when they leave the wall and come back", async ({
+  page,
+}) => {
+  await page.route("**/api/gallery**", (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname !== "/api/gallery") return route.fallback();
+    const alice = url.searchParams.get("author") === "alice";
+    const entries = [
+      {
+        id: "p-alice",
+        name: "Alice's OTA",
+        author: "alice",
+        description: "",
+        createdAt: "2026-08-22T10:00:00.000Z",
+        schemaVersion: 23,
+      },
+      ...(alice
+        ? []
+        : [
+            {
+              id: "p-bob",
+              name: "Bob's Mixer",
+              author: "bob",
+              description: "",
+              createdAt: "2026-08-22T09:00:00.000Z",
+              schemaVersion: 23,
+            },
+          ]),
+    ];
+    return route.fulfill({ json: { entries, nextCursor: null } });
+  });
+  await page.route("**/api/gallery/*/preview.svg", (route) =>
+    route.fulfill({
+      contentType: "image/svg+xml",
+      body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 6"><rect width="10" height="6" fill="#fff"/></svg>',
+    }),
+  );
+
+  await page.goto("/");
+  await page.getByTestId("gallery-author-p-alice").click();
+  await expect(page.getByTestId("gallery-tile-p-bob")).toHaveCount(0);
+  await expect(page).toHaveURL(/author=alice/u);
+
+  // Opening a circuit and returning to the bare address is the common way
+  // back; the wall must still be the slice the reader chose.
+  await page.goto("/");
+  await expect(page.getByTestId("gallery-filter")).toContainText(
+    "Circuits by alice",
+  );
+  await expect(page.getByTestId("gallery-tile-p-bob")).toHaveCount(0);
+  await expect(page).toHaveURL(/author=alice/u);
+
+  // And clearing it is remembered just as well, so the wall cannot creep back
+  // to a filter the reader switched off.
+  await page.getByTestId("gallery-filter-clear").click();
+  await expect(page.getByTestId("gallery-tile-p-bob")).toBeVisible();
+  await page.goto("/");
+  await expect(page.getByTestId("gallery-tile-p-bob")).toBeVisible();
+  await expect(page).not.toHaveURL(/author=/u);
+});
+
 test("the account chip sits on the header line and ellipsizes a long name", async ({
   page,
 }) => {
