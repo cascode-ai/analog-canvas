@@ -42,7 +42,7 @@ resource provides prepare/start/read/cancel/export; saved folder changes remain
 typed Project structure edits. These resources grant neither arbitrary host-file
 access nor a general-purpose shell. See the
 [execution contract](../specs/simulation-execution.md) and
-[MCP simulation workflow](mcp-quickstart.md#simulation).
+[MCP simulation workflow](mcp/simulation.md).
 
 A successful `transact` returns `resolvedRoutes`: the post-edit resolved
 polyline for each Route in `diff.changedObjectIds`. Read it to learn the actual

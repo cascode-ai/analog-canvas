@@ -1,3 +1,4 @@
+import { renderAgentConnectionInstructions } from "./connection-guidance.generated.js";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import type { AgentSessionScope } from "@icm/agent-adapter";
@@ -46,18 +47,7 @@ export function agentConnectionInstructions(
   origin: string,
   claimCode: string,
 ): string {
-  const kitUrl = `${origin}/api/agent/kit`;
-  const manifestUrl = `${origin}/api/agent/mcp-manifest.json`;
-  return `Connect to Analog Canvas at ${origin}.
-Claim: ${JSON.stringify({ claimCode })}
-
-1. Prefer an existing Analog Canvas MCP only if it targets this exact server and supports this editor's schema. Check the current bootstrap manifest: ${manifestUrl}
-2. If MCP is missing or incompatible, install or update it using that manifest's version-pinned package and host instructions. Check runtime requirements and package integrity; preserve unrelated host configuration and target this exact server. Prefer verified local installation when installation.available is true, then use the returned absolute local launch command; do not download with npx on every host startup. Respect the user's refusal or host permission limits; do not retry installation indefinitely.
-3. Verify that MCP tools are actually callable in this conversation; successful configuration alone is not successful loading. If the host cannot load the new configuration now, tell the user once that restarting the Agent host or opening a new conversation may be required. Do not restart it yourself or claim the new version is active without verification.
-4. When compatible MCP is callable, call connect with the Claim, read analog-canvas://reference/quickstart and analog-canvas://reference/authoring, then call get_context. If installation is declined, blocked, or MCP cannot load now, report the precise failed stage; do not silently switch to HTTP. Only with the user's explicit choice use the HTTP Agent Kit: ${kitUrl}
-For that explicitly selected HTTP path, fetch the Kit and follow its instructions and published OpenAPI. No plugin installation or restart is needed for the HTTP path, but it is not MCP acceptance. For a loopback address, run on the same computer as the editor. If the Claim expires during setup, ask for a new connection code; do not reuse or invent credentials.
-
-Keep credentials private. Do not invent symbol IDs, pin names, revisions, or raw API requests. Keep the browser open; the connector resumes automatically until the user disconnects it.`;
+  return renderAgentConnectionInstructions(origin, claimCode);
 }
 
 const STATUS_LABEL: Record<AgentConnectionStatus, string> = {

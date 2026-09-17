@@ -17,34 +17,6 @@ mutation is a current typed `transact`.
 The GUI is for human direct manipulation and visual handoff. An Agent should
 not place or wire many objects by mouse when the typed API is available.
 
-## Preflight without command churn
-
-For repository work, run commands from the repository root. Inspect state once
-before building or starting another process:
-
-```powershell
-git status --short --branch
-Get-NetTCPConnection -LocalPort 5173 -State Listen -ErrorAction SilentlyContinue
-```
-
-- Reuse a healthy existing editor at `http://localhost:5173/`; do not start a
-  second dev server just to refresh the page.
-- Use `pnpm dev` only when no editor server is listening.
-- Build once after checkout or source changes.
-- Prefer the focused package build/test named by the changed package. Run the
-  workspace suite only when the change crosses shared contracts.
-- Give builds and test runs a realistic timeout and read their final output;
-  do not treat silence during a build as proof of a hang.
-
-Common repository commands:
-
-```powershell
-pnpm build
-pnpm test:local packages/agent-routing/test
-pnpm --filter @icm/agent-routing build
-pnpm typecheck
-```
-
 ## Run the layout loop
 
 ### 1. Establish the contract

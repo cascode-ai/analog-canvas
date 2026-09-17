@@ -1,0 +1,637 @@
+{
+  "format": "analog-canvas-agent-distribution-v1",
+  "version": 1,
+  "kitVersion": "6",
+  "consumers": [
+    "bootstrap",
+    "mcp",
+    "http-kit",
+    "http-cli",
+    "repo-skill",
+    "maintainer"
+  ],
+  "documents": [
+    {
+      "id": "reference/simulation-specs",
+      "source": "docs/agent/simulation-specs.md",
+      "name": "Simulation Spec rules and raw handoff",
+      "description": "Native measurements, captured acceptance rules, verdicts and canonical result files.",
+      "mimeType": "text/markdown",
+      "consumers": [
+        "mcp",
+        "http-cli",
+        "http-kit",
+        "repo-skill"
+      ],
+      "task": "Simulation Spec rules and raw handoff",
+      "load": "on-demand",
+      "requires": [],
+      "uri": "analog-canvas://reference/simulation-specs",
+      "kitPath": "references/simulation-specs.md"
+    },
+    {
+      "id": "reference/quickstart",
+      "source": "docs/agent/mcp-quickstart.md",
+      "name": "MCP live-session quickstart",
+      "description": "MCP-native connect, inspect, atomic edit, verify, and recovery loop.",
+      "mimeType": "text/markdown",
+      "consumers": [
+        "mcp",
+        "http-cli",
+        "repo-skill"
+      ],
+      "task": "MCP live-session quickstart",
+      "load": "entry",
+      "requires": [
+        "reference/authoring"
+      ],
+      "uri": "analog-canvas://reference/quickstart"
+    },
+    {
+      "id": "fallback/http-session-workflow",
+      "source": "docs/agent/http-kit/skills/icm-circuit-session/SKILL.md",
+      "name": "Raw HTTP live-session workflow",
+      "description": "Claim, OpenAPI, Snapshot, and transact workflow for hosts without MCP.",
+      "mimeType": "text/markdown",
+      "consumers": [
+        "http-kit",
+        "repo-skill"
+      ],
+      "task": "Raw HTTP live-session workflow",
+      "load": "required",
+      "requires": [
+        "reference/session",
+        "reference/authoring"
+      ],
+      "kitPath": "skills/icm-circuit-session/SKILL.md"
+    },
+    {
+      "id": "reference/session",
+      "source": "docs/agent/shared/session.md",
+      "name": "Session contract",
+      "description": "The four operations, idempotency, scopes, and limits of one session.",
+      "mimeType": "text/markdown",
+      "consumers": [
+        "mcp",
+        "http-cli",
+        "http-kit",
+        "repo-skill"
+      ],
+      "task": "Session contract",
+      "load": "on-demand",
+      "requires": [],
+      "uri": "analog-canvas://reference/session",
+      "kitPath": "references/session-contract.md"
+    },
+    {
+      "id": "reference/authoring",
+      "source": "docs/agent/shared/authoring.md",
+      "name": "Built-in authoring contract",
+      "description": "Authority split between the catalog, the snapshot, and capabilities; product primitives.",
+      "mimeType": "text/markdown",
+      "consumers": [
+        "mcp",
+        "http-cli",
+        "http-kit",
+        "repo-skill"
+      ],
+      "task": "Built-in authoring contract",
+      "load": "on-demand",
+      "requires": [],
+      "uri": "analog-canvas://reference/authoring",
+      "kitPath": "references/authoring-contract.md"
+    },
+    {
+      "id": "reference/workflow",
+      "source": "docs/agent/workflow.md",
+      "name": "Schematic workflow",
+      "description": "Required read, edit, refresh, render, and review loop with stop-instead-of-guess rules.",
+      "mimeType": "text/markdown",
+      "consumers": [
+        "mcp",
+        "http-cli",
+        "http-kit",
+        "repo-skill"
+      ],
+      "task": "Schematic workflow",
+      "load": "on-demand",
+      "requires": [],
+      "uri": "analog-canvas://reference/workflow",
+      "kitPath": "references/workflow.md"
+    },
+    {
+      "id": "reference/tool-behavior",
+      "source": "docs/agent/tool-behavior.md",
+      "name": "Tool behavior",
+      "description": "Runtime behavior of typed transactions, route geometry, movement, and rendering.",
+      "mimeType": "text/markdown",
+      "consumers": [
+        "mcp",
+        "http-cli",
+        "http-kit",
+        "repo-skill"
+      ],
+      "task": "Tool behavior",
+      "load": "on-demand",
+      "requires": [],
+      "uri": "analog-canvas://reference/tool-behavior",
+      "kitPath": "references/tool-behavior.md"
+    },
+    {
+      "id": "reference/recovery",
+      "source": "docs/agent/response-semantics.md",
+      "name": "Response semantics and recovery",
+      "description": "Interpreting results by layer, failures, conflicts, and completion decisions.",
+      "mimeType": "text/markdown",
+      "consumers": [
+        "mcp",
+        "http-cli",
+        "http-kit",
+        "repo-skill"
+      ],
+      "task": "Response semantics and recovery",
+      "load": "on-demand",
+      "requires": [],
+      "uri": "analog-canvas://reference/recovery",
+      "kitPath": "references/response-semantics.md"
+    },
+    {
+      "id": "reference/routing",
+      "source": "docs/agent/knowledge/route-tree-shapes.md",
+      "name": "Route tree shapes",
+      "description": "Canonical route-tree topologies the routing expander produces.",
+      "mimeType": "text/markdown",
+      "consumers": [
+        "mcp",
+        "http-cli",
+        "http-kit",
+        "repo-skill"
+      ],
+      "task": "Route tree shapes",
+      "load": "on-demand",
+      "requires": [],
+      "uri": "analog-canvas://reference/routing",
+      "kitPath": "references/route-tree-shapes.md"
+    },
+    {
+      "id": "reference/diagnostics",
+      "source": "docs/agent/knowledge/routing-and-diagnostics.md",
+      "name": "Routing and diagnostics",
+      "description": "Reading routing facts and visual diagnostics before editing.",
+      "mimeType": "text/markdown",
+      "consumers": [
+        "mcp",
+        "http-cli",
+        "http-kit",
+        "repo-skill"
+      ],
+      "task": "Routing and diagnostics",
+      "load": "on-demand",
+      "requires": [],
+      "uri": "analog-canvas://reference/diagnostics",
+      "kitPath": "references/routing-and-diagnostics.md"
+    },
+    {
+      "id": "reference/razavi-style",
+      "source": "docs/agent/circuit-style-knowledge.md",
+      "name": "Circuit style knowledge",
+      "description": "Razavi-style placement, labeling, and drawing conventions.",
+      "mimeType": "text/markdown",
+      "consumers": [
+        "mcp",
+        "http-cli",
+        "http-kit",
+        "repo-skill"
+      ],
+      "task": "Circuit style knowledge",
+      "load": "on-demand",
+      "requires": [],
+      "uri": "analog-canvas://reference/razavi-style",
+      "kitPath": "references/circuit-style-knowledge.md"
+    },
+    {
+      "id": "contract/advanced-edits",
+      "source": "fixtures/agent-api/agent-circuit-request.schema.json",
+      "name": "Advanced transaction contract",
+      "description": "Full HTTP request schema for offline tooling. For interactive use, prefer the compact analog-canvas://contract/edits/{kind} resource template. Reading is advisory, never a permission gate.",
+      "mimeType": "application/schema+json",
+      "consumers": [
+        "mcp",
+        "http-cli",
+        "http-kit",
+        "repo-skill"
+      ],
+      "task": "Advanced transaction contract",
+      "load": "on-demand",
+      "requires": [],
+      "uri": "analog-canvas://contract/advanced-edits",
+      "kitPath": "references/agent-circuit-request.schema.json"
+    },
+    {
+      "id": "http-kit/README.md",
+      "source": "docs/agent/http-kit/README.md",
+      "consumers": [
+        "http-kit",
+        "repo-skill"
+      ],
+      "task": "Bootstrap raw HTTP",
+      "load": "entry",
+      "requires": [
+        "http-kit/AGENTS.md",
+        "fallback/http-session-workflow"
+      ],
+      "kitPath": "README.md"
+    },
+    {
+      "id": "http-kit/AGENTS.md",
+      "source": "docs/agent/http-kit/AGENTS.md",
+      "consumers": [
+        "http-kit",
+        "repo-skill"
+      ],
+      "task": "Bootstrap raw HTTP",
+      "load": "entry",
+      "requires": [],
+      "kitPath": "AGENTS.md"
+    },
+    {
+      "id": "reference/http-cli",
+      "source": "docs/agent/http-cli.md",
+      "consumers": [
+        "http-cli",
+        "repo-skill"
+      ],
+      "task": "Operate shared-client CLI",
+      "load": "entry",
+      "requires": [
+        "reference/authoring"
+      ],
+      "uri": "analog-canvas://reference/http-cli",
+      "name": "Shared-client CLI",
+      "description": "CLI lifecycle and exact retry responsibilities.",
+      "mimeType": "text/markdown"
+    },
+    {
+      "id": "catalog/builtins",
+      "source": "packages/agent-adapter/src/agent-authoring-catalog.generated.ts",
+      "kind": "catalog",
+      "consumers": [
+        "mcp",
+        "http-cli",
+        "http-kit",
+        "repo-skill"
+      ],
+      "task": "Discover built-in symbols",
+      "load": "on-demand",
+      "requires": [],
+      "uri": "analog-canvas://catalog/builtins",
+      "kitPath": "references/razavi-authoring-catalog.json",
+      "name": "Reviewed built-in Razavi catalog",
+      "description": "Canonical built-in symbols and pins.",
+      "mimeType": "application/json"
+    },
+    {
+      "id": "reference/knowledge/circuit-reading",
+      "source": "docs/agent/knowledge/circuit-reading.md",
+      "consumers": [
+        "mcp",
+        "http-cli",
+        "http-kit",
+        "repo-skill"
+      ],
+      "task": "Evidence-first circuit reading",
+      "load": "on-demand",
+      "requires": [],
+      "uri": "analog-canvas://reference/knowledge/circuit-reading",
+      "kitPath": "references/knowledge/circuit-reading.md",
+      "name": "knowledge/circuit-reading.md",
+      "description": "On-demand task guidance.",
+      "mimeType": "text/markdown"
+    },
+    {
+      "id": "reference/knowledge/hierarchy-and-large-circuits",
+      "source": "docs/agent/knowledge/hierarchy-and-large-circuits.md",
+      "consumers": [
+        "mcp",
+        "http-cli",
+        "http-kit",
+        "repo-skill"
+      ],
+      "task": "Hierarchy and large circuits",
+      "load": "on-demand",
+      "requires": [],
+      "uri": "analog-canvas://reference/knowledge/hierarchy-and-large-circuits",
+      "kitPath": "references/knowledge/hierarchy-and-large-circuits.md",
+      "name": "knowledge/hierarchy-and-large-circuits.md",
+      "description": "On-demand task guidance.",
+      "mimeType": "text/markdown"
+    },
+    {
+      "id": "reference/knowledge/human-collaboration",
+      "source": "docs/agent/knowledge/human-collaboration.md",
+      "consumers": [
+        "mcp",
+        "http-cli",
+        "http-kit",
+        "repo-skill"
+      ],
+      "task": "Human and Agent collaboration",
+      "load": "on-demand",
+      "requires": [],
+      "uri": "analog-canvas://reference/knowledge/human-collaboration",
+      "kitPath": "references/knowledge/human-collaboration.md",
+      "name": "knowledge/human-collaboration.md",
+      "description": "On-demand task guidance.",
+      "mimeType": "text/markdown"
+    },
+    {
+      "id": "reference/knowledge/pdk-and-symbols",
+      "source": "docs/agent/knowledge/pdk-and-symbols.md",
+      "consumers": [
+        "mcp",
+        "http-cli",
+        "http-kit",
+        "repo-skill"
+      ],
+      "task": "PDK models and symbols",
+      "load": "on-demand",
+      "requires": [],
+      "uri": "analog-canvas://reference/knowledge/pdk-and-symbols",
+      "kitPath": "references/knowledge/pdk-and-symbols.md",
+      "name": "knowledge/pdk-and-symbols.md",
+      "description": "On-demand task guidance.",
+      "mimeType": "text/markdown"
+    },
+    {
+      "id": "reference/knowledge/README",
+      "source": "docs/agent/knowledge/README.md",
+      "consumers": [
+        "mcp",
+        "http-cli",
+        "http-kit",
+        "repo-skill"
+      ],
+      "task": "Circuit-layout knowledge",
+      "load": "on-demand",
+      "requires": [],
+      "uri": "analog-canvas://reference/knowledge/README",
+      "kitPath": "references/knowledge/README.md",
+      "name": "knowledge/README.md",
+      "description": "On-demand task guidance.",
+      "mimeType": "text/markdown"
+    },
+    {
+      "id": "reference/knowledge/schematic-expression",
+      "source": "docs/agent/knowledge/schematic-expression.md",
+      "consumers": [
+        "mcp",
+        "http-cli",
+        "http-kit",
+        "repo-skill"
+      ],
+      "task": "Schematic expression",
+      "load": "on-demand",
+      "requires": [],
+      "uri": "analog-canvas://reference/knowledge/schematic-expression",
+      "kitPath": "references/knowledge/schematic-expression.md",
+      "name": "knowledge/schematic-expression.md",
+      "description": "On-demand task guidance.",
+      "mimeType": "text/markdown"
+    },
+    {
+      "id": "reference/knowledge/patterns/arrays-and-ladders",
+      "source": "docs/agent/knowledge/patterns/arrays-and-ladders.md",
+      "consumers": [
+        "mcp",
+        "http-cli",
+        "http-kit",
+        "repo-skill"
+      ],
+      "task": "Arrays and ladders",
+      "load": "on-demand",
+      "requires": [],
+      "uri": "analog-canvas://reference/knowledge/patterns/arrays-and-ladders",
+      "kitPath": "references/knowledge/patterns/arrays-and-ladders.md",
+      "name": "knowledge/patterns/arrays-and-ladders.md",
+      "description": "On-demand task guidance.",
+      "mimeType": "text/markdown"
+    },
+    {
+      "id": "reference/knowledge/patterns/current-mirror",
+      "source": "docs/agent/knowledge/patterns/current-mirror.md",
+      "consumers": [
+        "mcp",
+        "http-cli",
+        "http-kit",
+        "repo-skill"
+      ],
+      "task": "Current mirror",
+      "load": "on-demand",
+      "requires": [],
+      "uri": "analog-canvas://reference/knowledge/patterns/current-mirror",
+      "kitPath": "references/knowledge/patterns/current-mirror.md",
+      "name": "knowledge/patterns/current-mirror.md",
+      "description": "On-demand task guidance.",
+      "mimeType": "text/markdown"
+    },
+    {
+      "id": "reference/knowledge/patterns/differential-pair",
+      "source": "docs/agent/knowledge/patterns/differential-pair.md",
+      "consumers": [
+        "mcp",
+        "http-cli",
+        "http-kit",
+        "repo-skill"
+      ],
+      "task": "Differential pair",
+      "load": "on-demand",
+      "requires": [],
+      "uri": "analog-canvas://reference/knowledge/patterns/differential-pair",
+      "kitPath": "references/knowledge/patterns/differential-pair.md",
+      "name": "knowledge/patterns/differential-pair.md",
+      "description": "On-demand task guidance.",
+      "mimeType": "text/markdown"
+    },
+    {
+      "id": "reference/knowledge/patterns/switching-and-sampling",
+      "source": "docs/agent/knowledge/patterns/switching-and-sampling.md",
+      "consumers": [
+        "mcp",
+        "http-cli",
+        "http-kit",
+        "repo-skill"
+      ],
+      "task": "Switching and sampling networks",
+      "load": "on-demand",
+      "requires": [],
+      "uri": "analog-canvas://reference/knowledge/patterns/switching-and-sampling",
+      "kitPath": "references/knowledge/patterns/switching-and-sampling.md",
+      "name": "knowledge/patterns/switching-and-sampling.md",
+      "description": "On-demand task guidance.",
+      "mimeType": "text/markdown"
+    },
+    {
+      "id": "reference/mcp-install",
+      "source": "docs/agent/mcp-install.md",
+      "consumers": [
+        "mcp",
+        "http-cli",
+        "repo-skill"
+      ],
+      "task": "Install the Analog Canvas MCP adapter",
+      "load": "on-demand",
+      "requires": [],
+      "uri": "analog-canvas://reference/mcp-install",
+      "name": "mcp-install.md",
+      "description": "On-demand task guidance.",
+      "mimeType": "text/markdown"
+    },
+    {
+      "id": "reference/api-usage",
+      "source": "docs/agent/api-usage.md",
+      "consumers": [
+        "mcp",
+        "http-cli",
+        "http-kit",
+        "repo-skill"
+      ],
+      "task": "Agent API Usage",
+      "load": "on-demand",
+      "requires": [],
+      "uri": "analog-canvas://reference/api-usage",
+      "kitPath": "references/api-usage.md",
+      "name": "api-usage.md",
+      "description": "On-demand task guidance.",
+      "mimeType": "text/markdown"
+    },
+    {
+      "id": "reference/examples",
+      "source": "docs/agent/examples.md",
+      "consumers": [
+        "mcp",
+        "http-cli",
+        "http-kit",
+        "repo-skill"
+      ],
+      "task": "Reproducible Agent Workflows",
+      "load": "on-demand",
+      "requires": [],
+      "uri": "analog-canvas://reference/examples",
+      "kitPath": "references/examples.md",
+      "name": "examples.md",
+      "description": "On-demand task guidance.",
+      "mimeType": "text/markdown"
+    },
+    {
+      "id": "reference/simulation-result-handoff",
+      "source": "docs/agent/simulation-result-handoff.md",
+      "consumers": [
+        "mcp",
+        "http-cli",
+        "http-kit",
+        "repo-skill"
+      ],
+      "task": "Agent simulation result handoff",
+      "load": "on-demand",
+      "requires": [],
+      "uri": "analog-canvas://reference/simulation-result-handoff",
+      "kitPath": "references/simulation-result-handoff.md",
+      "name": "simulation-result-handoff.md",
+      "description": "On-demand task guidance.",
+      "mimeType": "text/markdown"
+    },
+    {
+      "id": "reference/mcp-tools",
+      "source": "docs/agent/mcp/tools.md",
+      "consumers": [
+        "mcp",
+        "http-cli",
+        "repo-skill"
+      ],
+      "task": "MCP editing and recovery",
+      "load": "on-demand",
+      "requires": [],
+      "uri": "analog-canvas://reference/mcp-tools",
+      "name": "MCP editing and recovery",
+      "description": "MCP editing and recovery",
+      "mimeType": "text/markdown"
+    },
+    {
+      "id": "reference/mcp-simulation",
+      "source": "docs/agent/mcp/simulation.md",
+      "consumers": [
+        "mcp",
+        "http-cli",
+        "repo-skill"
+      ],
+      "task": "MCP simulation calls and file ownership",
+      "load": "on-demand",
+      "requires": [],
+      "uri": "analog-canvas://reference/mcp-simulation",
+      "name": "MCP simulation calls and file ownership",
+      "description": "MCP simulation calls and file ownership",
+      "mimeType": "text/markdown"
+    },
+    {
+      "id": "reference/simulation-workflow",
+      "source": "docs/agent/shared/simulation.md",
+      "consumers": [
+        "mcp",
+        "http-cli",
+        "http-kit",
+        "repo-skill"
+      ],
+      "task": "Shared simulation lifecycle",
+      "load": "on-demand",
+      "requires": [
+        "reference/simulation-specs",
+        "reference/simulation-result-handoff"
+      ],
+      "uri": "analog-canvas://reference/simulation-workflow",
+      "kitPath": "references/simulation-workflow.md",
+      "name": "Shared simulation lifecycle",
+      "description": "Shared simulation lifecycle",
+      "mimeType": "text/markdown"
+    }
+  ],
+  "templates": {
+    "connect": "docs/agent/entrypoints/connect.md",
+    "instructions": "docs/agent/mcp/instructions.md",
+    "toolHelp": "docs/agent/mcp/tool-help.json",
+    "skill": "docs/agent/repo-skill/SKILL.md",
+    "skillMetadata": "docs/agent/repo-skill/openai.yaml"
+  },
+  "templateConsumers": {
+    "connect": {
+      "consumers": [
+        "bootstrap"
+      ],
+      "task": "Install, verify loading, then connect"
+    },
+    "instructions": {
+      "consumers": [
+        "mcp"
+      ],
+      "task": "Initialize MCP reading route"
+    },
+    "toolHelp": {
+      "consumers": [
+        "mcp",
+        "http-cli"
+      ],
+      "task": "Discover tool operation and limitations"
+    },
+    "skill": {
+      "consumers": [
+        "repo-skill"
+      ],
+      "task": "Select circuit task reading"
+    },
+    "skillMetadata": {
+      "consumers": [
+        "repo-skill"
+      ],
+      "task": "Host Skill discovery"
+    }
+  }
+}

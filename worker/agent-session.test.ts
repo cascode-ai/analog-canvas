@@ -20,6 +20,7 @@ import {
 import {
   AGENT_OPERATING_KIT_FORMAT,
   AGENT_OPERATING_KIT_VERSION,
+  agentOperatingKit,
   type AgentOperatingKit,
 } from "@icm/agent-adapter/kit";
 
@@ -510,14 +511,7 @@ describe("public Agent session routes", () => {
       format: AGENT_OPERATING_KIT_FORMAT,
       version: AGENT_OPERATING_KIT_VERSION,
     });
-    expect(kit.files.map((file) => file.path)).toEqual([
-      "README.md",
-      "AGENTS.md",
-      "skills/icm-circuit-session/SKILL.md",
-      "references/session-contract.md",
-      "references/authoring-contract.md",
-      "references/razavi-authoring-catalog.json",
-    ]);
+    expect(kit).toEqual(agentOperatingKit);
   });
 
   it("publishes a compact versioned MCP bootstrap manifest", async () => {

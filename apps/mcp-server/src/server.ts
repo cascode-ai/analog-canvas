@@ -1,3 +1,4 @@
+import { agentServerInstructions } from "./guidance.generated.js";
 import { homedir } from "node:os";
 import { AGENT_MCP_VERSION } from "@icm/agent-adapter";
 import {
@@ -40,8 +41,7 @@ export function resolveConfig(
 export const MCP_SERVER_INFO: McpServerInfo = {
   name: MCP_SERVER_NAME,
   version: MCP_SERVER_VERSION,
-  instructions:
-    "Analog Canvas MCP adapter over the four-operation Agent API. Start with connect, read analog-canvas://reference/quickstart, then get_context. Read reference resources on demand; do not guess symbol IDs, pin names, or revisions.",
+  instructions: agentServerInstructions,
 };
 
 /**

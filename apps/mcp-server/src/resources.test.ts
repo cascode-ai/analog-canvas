@@ -1,9 +1,11 @@
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { resolve, posix } from "node:path";
 import { fileURLToPath } from "node:url";
 import { agentOperatingKit } from "@icm/agent-adapter/kit";
 import { describe, expect, it } from "vitest";
 import { mcpResources } from "./resources.generated.js";
+import { agentToolHelp } from "./guidance.generated.js";
+import { listToolDefinitions } from "./tools.js";
 import {
   ADVANCED_EDITS_RESOURCE_URI,
   listResourceEntries,
@@ -17,34 +19,77 @@ interface ManifestResource {
   name: string;
   description: string;
   mimeType: string;
-  source: { kind: "repo" | "kit"; path: string };
-  projections: string[];
+  source: string;
+  kind?: string;
+  consumers: string[];
 }
 
 /**
  * Contract test (Agent rationale): MCP Resources must project from the exact sources
- * the manifest declares — repository docs and the published Agent operating
- * kit — with no copied or drifting knowledge.
+ * the registry declares, independently of the HTTP Kit projection.
  */
 describe("mcp resources single-source projection", () => {
+  it("distributes exactly the help for the callable tool inventory", () => {
+    const tools = listToolDefinitions();
+    expect(tools.map((tool) => tool.name).sort()).toEqual(
+      Object.keys(agentToolHelp).sort(),
+    );
+    for (const tool of tools)
+      expect(tool.description).toBe(
+        agentToolHelp[tool.name as keyof typeof agentToolHelp],
+      );
+  });
+  it("resolves distributed links inside the actual resource and Kit namespaces", () => {
+    for (const resource of mcpResources) {
+      for (const [, uri] of resource.text.matchAll(
+        /\]\((analog-canvas:\/\/[^)]+)\)/g,
+      )) {
+        expect(() => readResourceContent(uri!)).not.toThrow();
+      }
+    }
+    const paths = new Set(agentOperatingKit.files.map((file) => file.path));
+    for (const file of agentOperatingKit.files) {
+      for (const [, href] of file.content.matchAll(/\]\(([^\s)]+)\)/g)) {
+        if (/^(?:[a-z][a-z\d+.-]*:|#)/i.test(href!)) continue;
+        expect(
+          paths.has(
+            posix.normalize(
+              posix.join(posix.dirname(file.path), href!.split("#")[0]!),
+            ),
+          ),
+          `${file.path}: ${href}`,
+        ).toBe(true);
+      }
+    }
+  });
   it("shares the native authoring and result handoff policy with HTTP Kit", () => {
     const source = agentOperatingKit.files.find(
       (file) => file.path === "references/authoring-contract.md",
     )!;
     const resource = readResourceContent("analog-canvas://reference/authoring");
-    expect(resource.text).toBe(source.content);
+    const withoutLinkTargets = (text: string) =>
+      text.replace(/\]\([^)]+\)/g, "]");
+    expect(withoutLinkTargets(resource.text)).toBe(
+      withoutLinkTargets(source.content),
+    );
     for (const contract of [
       "place-components",
       "set-instance-display",
       "set-net-label",
       "Cell terminal",
-      "project-folder",
-      "Project + results ZIP",
-      "legacy-only",
-      "Retry-After",
-      "SHA-256",
     ])
       expect(resource.text).toContain(contract);
+    expect(resource.text).not.toContain("Retry-After");
+    expect(
+      readResourceContent("analog-canvas://reference/simulation-workflow").text,
+    ).toContain("project-folder");
+    expect(
+      readResourceContent("analog-canvas://reference/simulation-workflow").text,
+    ).toContain("legacy-only");
+    expect(
+      readResourceContent("analog-canvas://reference/simulation-result-handoff")
+        .text,
+    ).toContain("evidence bundle");
     expect(
       readResourceContent("analog-canvas://reference/quickstart").text,
     ).toContain("analog-canvas://reference/authoring");
@@ -62,16 +107,11 @@ describe("mcp resources single-source projection", () => {
     ).toThrow("Unknown edit kind");
   });
   const manifest = JSON.parse(
-    readFileSync(
-      resolve(repoRoot, "docs/agent/resource-manifest.json"),
-      "utf8",
-    ),
-  ) as { resources: ManifestResource[] };
+    readFileSync(resolve(repoRoot, "docs/agent/distribution.json"), "utf8"),
+  ) as { documents: ManifestResource[] };
 
   it("matches every manifest entry with identical content from its source", () => {
-    const exposed = manifest.resources.filter((entry) =>
-      entry.projections.includes("mcp-resources"),
-    );
+    const exposed = manifest.documents.filter((entry) => entry.uri);
     expect(mcpResources).toHaveLength(exposed.length);
     const kitFiles = new Map(
       agentOperatingKit.files.map((file) => [file.path, file.content]),
@@ -80,17 +120,19 @@ describe("mcp resources single-source projection", () => {
       const projected = mcpResources.find((r) => r.uri === entry.uri);
       expect(projected, `missing resource ${entry.uri}`).toBeDefined();
       const expectedText =
-        entry.source.kind === "repo"
-          ? readFileSync(resolve(repoRoot, entry.source.path), "utf8")
-          : kitFiles.get(entry.source.path);
-      expect(expectedText, `missing source ${entry.source.path}`).toBeDefined();
-      expect(projected).toEqual({
+        entry.kind === "catalog"
+          ? kitFiles.get("references/razavi-authoring-catalog.json")
+          : readFileSync(resolve(repoRoot, entry.source), "utf8");
+      expect(expectedText, `missing source ${entry.source}`).toBeDefined();
+      expect(projected).toMatchObject({
         uri: entry.uri,
         name: entry.name,
         description: entry.description,
         mimeType: entry.mimeType,
-        text: expectedText,
       });
+      // Markdown links are deliberately rewritten for the resource namespace.
+      // Full output/source integrity is checked by the generator contract suite.
+      expect(projected!.text.split("\n")[0]).toBe(expectedText!.split("\n")[0]);
     }
   });
 

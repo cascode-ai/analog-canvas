@@ -1,3 +1,4 @@
+import { agentToolHelp } from "./guidance.generated.js";
 import { z } from "zod";
 import {
   createSimulationFolder,
@@ -220,7 +221,7 @@ function upsert<T extends { id: string }>(items: T[], item: T) {
 export const simulationAuthoringTools: readonly Entry[] = [
   tool(
     "simulation_folder",
-    "Manage saved source experiments: list/get/create/clone/rename/remove. create writes the same native VACASK OP/AC/TRAN source template used by Code. Omit rootDocumentId for text only; rootDocumentId alone runs the drawn Cell directly. Add dut {name, ports} using the exported subcircuit name and ordered ports to start a text TB around that Cell without creating another Cell. Native parameters, analysis settings (including temperature), save and control programs are edited with simulation_files; input replacement can change bindings/dependencies. There is no parallel structured analyses authority. Updates are revision-guarded; malformed code can still be saved.",
+    agentToolHelp["simulation_folder"],
     FolderArgs,
     async (parsed, session) => {
       const snapshot = await session.client.snapshot(parsed.documentId, {
@@ -309,7 +310,7 @@ export const simulationAuthoringTools: readonly Entry[] = [
   ),
   tool(
     "simulation_output",
-    "Legacy version-1 experiments only: manage output ASTs in their configuration file. Native Code experiments use simulation_files to edit save selectors and postprocess Python, not .probe/let. Read simulation authoring-help for shared examples. This helper cannot downgrade native source or create parallel JSON rules.",
+    agentToolHelp["simulation_output"],
     OutputArgs,
     async (parsed, session) => {
       const result = await read(session, parsed.folderId, parsed.documentId);
@@ -343,7 +344,7 @@ export const simulationAuthoringTools: readonly Entry[] = [
   ),
   tool(
     "simulation_measurement",
-    "Legacy version-1 experiments only: manage saved per-record scalar measurements. Native VACASK experiments compute measurements in authored postprocess Python, not ngspice meas. simulation authoring-help with name embed supplies editable scalar/curve report helpers; apply source with simulation_files. This helper cannot add JSON measurement rules to native experiments.",
+    agentToolHelp["simulation_measurement"],
     MeasurementArgs,
     async (parsed, session) => {
       const result = await read(session, parsed.folderId, parsed.documentId);
@@ -378,7 +379,7 @@ export const simulationAuthoringTools: readonly Entry[] = [
   ),
   tool(
     "simulation_device_operating_point",
-    "Legacy version-1 experiments only: select MOS occurrences for terminal-derived VGS/VDS/VBS/ID. Native VACASK experiments use simulation_files for save p(instance,parameter) and analysis name op; available quantities depend on the native device module. Arbitrary terminal currents require the supported acquisition helper, not a guessed i(pin). This helper cannot add JSON selections to native experiments.",
+    agentToolHelp["simulation_device_operating_point"],
     DeviceArgs,
     async (parsed, session) => {
       const result = await read(session, parsed.folderId, parsed.documentId);

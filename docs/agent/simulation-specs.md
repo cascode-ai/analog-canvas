@@ -1,5 +1,21 @@
 # Simulation Spec annotations (version 1)
 
+## Engine boundary
+
+Scalar generation and acceptance evaluation are different operations. VACASK
+measurements come from authored Python `report_measurement` output; obtain the
+current helper from `simulation` / `authoring-help` with name `embed`, then
+execute it through native `postprocess`. ngspice instead uses native `meas` or
+`.meas`. Never translate those commands literally between engines.
+
+The annotation grammar below is the existing SPICE-comment extraction contract.
+It is not a promise that VACASK accepts SPICE comments or that every native
+include is traversed by that extractor. Inspect the captured `specs.json` and
+diagnostics: a scalar report alone is not an evaluated acceptance rule. Do not
+claim a native rule was applied unless the captured report contains it.
+
+## SPICE annotations
+
 Spec annotations are ordinary SPICE comments, not simulator commands. Author
 them in reachable source files alongside uniquely named native `meas`/`.meas`
 declarations. The simulator computes measurements; the shared simulation service

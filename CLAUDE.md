@@ -60,7 +60,7 @@ Component data flows one way. `packages/components/definitions/<symbol-id>.json`
 
 Never hand-edit these; each generator has a paired `:check` drift gate:
 
-- `packages/devices/src/components.generated.ts` and `packages/symbols/src/{expanded-components,razavi-catalog}.generated.ts` (`components:generate`, also part of `symbols:razavi`), `packages/derived/src/razavi-peripheral-geometry.generated.ts` (`symbols:razavi-peripherals`), `packages/agent-adapter/src/agent-authoring-catalog.generated.ts` (`agent-kit:catalog`), `apps/mcp-server/src/resources.generated.ts` (`mcp:resources`).
+- `packages/devices/src/components.generated.ts` and `packages/symbols/src/{expanded-components,razavi-catalog}.generated.ts` (`components:generate`, also part of `symbols:razavi`), `packages/derived/src/razavi-peripheral-geometry.generated.ts` (`symbols:razavi-peripherals`), `packages/agent-adapter/src/agent-authoring-catalog.generated.ts` (`agent-kit:catalog`), `apps/mcp-server/src/resources.generated.ts` (`agent-docs:generate`).
 - `fixtures/agent-api/*` (`agent-api:artifacts`), `fixtures/visual-golden/*` (`visual:golden`), `fixtures/exports/*` (`export:golden`), `fixtures/editor-production-smoke/report.json` (`test:production-smoke`), and the PWA icons in `apps/editor/public/` (`pwa:icons`).
 
 Regeneration order when symbol data changes:
@@ -154,4 +154,4 @@ Specifications own accepted contracts; topic ADRs explain reasons and link to sp
 - Test layers and contract ownership: [docs/testing/README.md](docs/testing/README.md) and its contract matrix.
 - Agent schematic-layout workflow: [docs/agent/workflow.md](docs/agent/workflow.md) and the repo-local [skills/circuit-layout/SKILL.md](skills/circuit-layout/SKILL.md).
 - `pnpm docs:check` validates links in `README.md` and `docs/`, and requires every ADR and spec to be indexed with a `Status:` line (specs also need an owner line). `format:check` skips Markdown, though most docs are Prettier-formatted.
-- Some docs are test-pinned: `packages/{model,edit-engine,agent-adapter}/src/protocol-documentation.test.ts` read spec and plan text (for example the current Project schema version), and `apps/mcp-server/src/resources.test.ts` requires `resources.generated.ts` to match the docs listed in `docs/agent/resource-manifest.json` — after editing one of those docs, run `pnpm mcp:resources`.
+- Some docs are test-pinned: `packages/{model,edit-engine,agent-adapter}/src/protocol-documentation.test.ts` read spec and plan text (for example the current Project schema version), and `apps/mcp-server/src/resources.test.ts` requires `resources.generated.ts` to match the docs listed in `docs/agent/distribution.json` — after editing one of those docs, run `pnpm agent-docs:generate`.

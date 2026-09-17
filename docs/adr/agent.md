@@ -25,8 +25,11 @@ safe retry from repeating an uncertain mutation.
 
 Keeping MCP outside the domain prevents an Agent-host protocol from defining
 product semantics. The adapter centralizes credentials and retry handling;
-HTTP remains usable independently. Knowledge comes from the shared resource
-manifest rather than a second instruction corpus maintained by the adapter.
+HTTP remains usable independently. The shared
+[distribution registry](../agent/distribution.json) declares consumers, tasks
+and destinations; one generator distributes canonical sources into MCP, HTTP
+Kit, repository Skill and connection guidance. The adapter does not maintain
+a second instruction corpus.
 
 Browser authority preserves explicit approval and the actual open Project.
 The cost is that the browser must be reachable; saved Cloud Projects do not
