@@ -89,14 +89,20 @@ jobs:
         # explicit one-time local command instead of pulling a CI container.
         run: pnpm release:verify
 
-  browser:
-    name: Browser tests
+  browser_shard:
+    name: Browser tests (${{ matrix.shard }})
     needs: changes
     if: github.event_name == 'pull_request' && needs.changes.outputs.browser == 'true'
     runs-on: ubuntu-latest
     env:
       PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH: /usr/bin/google-chrome
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        shard:
+          - 1/2
+          - 2/2
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -112,7 +118,20 @@ jobs:
         run: |
           read -r -a specs <<< "$E2E_ARGS"
           test "${#specs[@]}" -gt 0
-          pnpm ci:e2e --workers=4 "${specs[@]}"
+          pnpm ci:e2e --workers=3 --shard=${{ matrix.shard }} "${specs[@]}"
+
+  browser:
+    name: Browser tests
+    needs:
+      - changes
+      - browser_shard
+    if: always() && github.event_name == 'pull_request' && needs.changes.outputs.browser == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Confirm every selected browser shard passed
+        env:
+          SHARD_RESULT: ${{ needs.browser_shard.result }}
+        run: test "$SHARD_RESULT" = "success"
 
   full_browser_audit:
     name: Full browser audit (${{ matrix.shard }})

@@ -76,6 +76,13 @@ still selects every consumer. The full component catalog is checked by
 capabilities and the VDD exception rather than repeating the same UI for every
 symbol. Keep specialized history, rejection, hierarchy and terminal tests.
 
+PR browser contracts run as two balanced Playwright shards with three workers
+per runner. A lightweight `Browser tests` aggregation job preserves the required
+check name and succeeds only after both shards pass. This keeps broad but
+legitimate focused selections within the PR wall-clock budget without raising
+per-runner Chromium contention; nightly and manual audits retain their separate
+four-shard full-suite route.
+
 ## Local iteration and batch validation
 
 Day-to-day changes accumulate on a local batch branch. Use the development
