@@ -66,6 +66,62 @@ function blockedDocument(blockerY: number): SchematicDocument {
 }
 
 describe("automatic orthogonal wire routing", () => {
+  it.each([0, 90, 180, 270] as const)(
+    "joins aligned MOS/source pins without escape bends at rotation %s",
+    (rotation) => {
+      const document = createEmptyDocument("main", "Main");
+      instance(document, "M1", "nmos", { x: 220, y: 300 });
+      instance(document, "I1", "current-source", { x: 300, y: 340 });
+      const turn = ({ x, y }: Point): Point => {
+        if (rotation === 90) return { x: -y, y: x };
+        if (rotation === 180) return { x: -x, y: -y };
+        if (rotation === 270) return { x: y, y: -x };
+        return { x, y };
+      };
+      for (const item of document.instances) {
+        item.placement!.position = turn(item.placement!.position);
+        item.placement!.rotation = rotation;
+      }
+      const a = source(document, "M1", "S");
+      const b = source(document, "I1", "+");
+      for (const [from, to] of [
+        [a, b],
+        [b, a],
+      ] as const) {
+        const steps = automaticWireDraftSteps(
+          document,
+          resolver,
+          from,
+          to,
+          [],
+          "orthogonal",
+          "auto",
+        );
+        expect(steps).toEqual([]);
+        expect(
+          compileWireDraft(from, to, steps, "orthogonal", "auto").points,
+        ).toEqual([from.connection.gridLanding, to.connection.gridLanding]);
+      }
+    },
+  );
+
+  it("still detours when an aligned connection crosses actual symbol ink", () => {
+    const document = createEmptyDocument("main", "Main");
+    instance(document, "R1", "resistor", { x: 0, y: 100 });
+    instance(document, "R2", "resistor", { x: 200, y: 100 });
+    instance(document, "R3", "resistor", { x: 100, y: 80 });
+    const steps = automaticWireDraftSteps(
+      document,
+      resolver,
+      source(document, "R1", "1"),
+      source(document, "R2", "1"),
+      [],
+      "orthogonal",
+      "auto",
+    );
+    expect(steps.length).toBeGreaterThan(0);
+  });
+
   it("chooses the other simple corner when the default crosses a symbol", () => {
     const document = blockedDocument(200);
     const steps = automaticWireDraftSteps(

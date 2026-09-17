@@ -138,13 +138,13 @@ function obstacleBounds(
   from: WireSource,
   to: WireSource,
   baseline: readonly Point[],
+  clearance = document.presentation.grid,
 ): Obstacle[] {
   const endpointOwners = new Set(
     [endpointOwner(from), endpointOwner(to)].filter(
       (id): id is string => id !== null,
     ),
   );
-  const clearance = document.presentation.grid;
   return document.instances.flatMap((instance) => {
     if (!instance.placement) return [];
     const resolved = resolver.resolve(
@@ -396,6 +396,21 @@ export function automaticWireDraftSteps(
   ).points;
   const fromOutward = declaredCardinalOutward(from);
   const toOutward = declaredCardinalOutward(to);
+  // Explicit aligned terminals may be joined sideways at the end of a lead.
+  // Their outward directions guide automatic bends, but are not a mandatory
+  // escape. Check real ink bounds here: the routing clearance halo must not
+  // turn a clear straight connection into a detour.
+  if (
+    from.endpoint.kind === "terminal" &&
+    to.endpoint.kind === "terminal" &&
+    baseline.length === 2 &&
+    segmentAxis(start, end) &&
+    obstacleBounds(document, resolver, from, to, baseline, 0).every(
+      ({ box }) => !segmentCrossesInterior(start, end, box),
+    )
+  ) {
+    return steps;
+  }
   const obstacles = obstacleBounds(document, resolver, from, to, baseline);
   const baselineIsClear =
     score(baseline, obstacles, from, to, fromOutward, toOutward).collisions ===
