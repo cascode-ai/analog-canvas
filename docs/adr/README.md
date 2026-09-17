@@ -1,9 +1,8 @@
 # Architecture Decision Records
 
-ADRs explain architectural choices that remain relevant across modules, file
-formats, public APIs, deployment, or long-term maintenance. Normative
-specifications describe the complete current contract; ADRs explain why its
-major boundaries exist.
+ADRs are optional rationale, not a second specification. Complete current
+contracts belong in specs; this directory retains only consequential choices
+that need a separate explanation. See [documentation policy](../README.md).
 
 ## Current decisions
 
@@ -49,39 +48,31 @@ major boundaries exist.
 - [`0052-owner-explainable-net-authority.md`](0052-owner-explainable-net-authority.md) — owner-explainable Net authority, named power, bulk policy, and provenance
 - [`0056-derived-net-scope-and-dialect-spelling.md`](0056-derived-net-scope-and-dialect-spelling.md) — derived effective scope and operation-scoped dialect spelling
 
-## Lifecycle and deletion policy
+## Retention test
 
-```text
-proposed -> accepted
-proposed -> deleted when rejected or abandoned
-accepted -> deleted when completely superseded
-```
+Would deleting this ADR lose an important, still-relevant trade-off that neither
+the code nor the spec explains?
 
-Git is the historical archive. `docs/adr/` contains only proposed decisions
-still under review and accepted decisions that retain an active architectural
-effect. A superseding change must first move every surviving current invariant
-into its successor ADR or normative specification, update incoming links, and
-then delete the obsolete ADR in the same target. The repository keeps no
-superseded ADR directory and no long-lived `partially superseded` state.
+- No: delete it after checking references.
+- Yes, but a short explanation fits the spec: move that explanation there and delete it.
+- Yes, and the cross-module choice needs separate treatment: keep a short ADR.
 
-ADRs state current decisions and rationale, not rolling schema references or
-implementation progress. Complete current behavior belongs to
-[`../specs/`](../specs/README.md); executable contracts provide the evidence.
-Replace changed decisions in place or merge and retire them rather than retaining
-contradictory bodies with appended amendments.
+A major change is a reason to examine this test, not an automatic requirement
+to create a record. Do not split one choice across several ADRs.
 
-## Naming and scope
+## Shape and lifecycle
 
-Use the next unique four-digit number and a short decision title:
+Use [the template](adr.template.md): Decision first, with a direct link to the
+owning spec section; then brief Context and Rationale. Explain the strongest
+alternative only when it clarifies the actual trade-off. Do not repeat field
+definitions, behavior rules, migration steps, validation lists or implementation
+progress. Put proposed behavior in the proposed spec/roadmap, not a rival contract.
 
-```text
-NNNN-short-decision-title.md
-```
+Keep a title, status (`proposed` or `accepted`) and accountable owner.
+Use the next unique four-digit number and a descriptive filename; numbering is
+identity, not evidence of value. Git owns dates and the decision history.
 
-Create an ADR only when adding or removing a persistent model layer, changing
-compatibility or connectivity semantics, introducing a public automation API,
-selecting an external baseline, constraining deployment/licensing, or reversing
-another active architectural decision. Routine module implementation belongs
-in code, tests, and the commit that carries it.
-
-Use [`adr.template.md`](adr.template.md) for a proposal.
+Rejected, abandoned, redundant or superseded records leave the current tree
+after surviving content and incoming links are reconciled. No archive directory,
+tombstone or permanent partially-superseded body is retained. Unresolved choices
+must remain visible in the appropriate roadmap rather than disappearing in cleanup.

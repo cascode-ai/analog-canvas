@@ -35,15 +35,24 @@ create empty files only to mirror this table. Start from
 
 ## Specification Rules
 
-- State status and ownership. State a version only for an independently
-  versioned contract, and link related ADRs when architectural rationale is
-  required.
-- Define invariants and failure behavior, not only successful examples.
-- Include at least one valid example and one rejected example.
-- Distinguish persisted data, transient data, and derived data.
-- Name deterministic validation that demonstrates the contract.
-- Changes after acceptance require compatibility analysis and, when
-  architectural, an ADR.
-- A package-internal experiment does not become a normative product
-  specification merely because code remains in the repository. Its local
-  README and tests own that implementation until the product adopts it.
+Follow the [documentation policy](../README.md). A topic owns its contract once;
+other specs, guides and ADRs link to that owner instead of redefining it.
+
+- State status, accountable module and scope. Use a version only when the
+  contract has an independent version.
+- Describe invariants, ownership, meaningful transitions and failure behavior.
+  Distinguish persisted, transient and derived facts where relevant.
+- Link canonical schemas and focused tests instead of copying full interfaces
+  or validation commands. Add small examples only when they clarify a boundary.
+- Include short design reasons beside the rule. A separate ADR is optional
+  and must pass its [retention test](../adr/README.md#retention-test).
+- Review compatibility when changing an accepted contract; describe the current
+  supported boundary, not the history of every migration.
+- Omit irrelevant template sections. Keep unresolved product decisions in the
+  roadmap rather than calling them accepted behavior.
+- Package-internal experiments stay with their local README and tests until
+  adopted as product contracts.
+
+When code disagrees, inspect behavior and consequences before choosing which
+side to correct. Neither existing code nor an accepted status proves a rule
+is reasonable.

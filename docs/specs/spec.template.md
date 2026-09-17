@@ -1,55 +1,26 @@
-# Specification Title
+# Contract Title
 
 Status: `proposed`
 
 Primary owner: `<module>`
 
-## Purpose
+## Scope
 
-Describe the contract and why it exists.
+Identify the contract, its consumers and what remains outside it.
 
-## Consumers
+## Contract
 
-- List modules, tools, files, and APIs that depend on this contract.
+State ownership, invariants and relevant transitions, including failure behavior.
+Distinguish persisted and derived facts where needed. Link canonical schemas
+for exact shapes; use a small example only to clarify a meaningful boundary.
 
-## Terminology
+## Design rationale
 
-| Term    | Meaning                             |
-| ------- | ----------------------------------- |
-| Example | Precise project-specific definition |
+Explain a non-obvious choice briefly, or link an optional ADR if it needs a
+separate treatment. Omit this section when it adds no useful information.
 
-## Data model or interface
+## Evidence
 
-Provide typed definitions or an equivalent normative format.
-
-## Invariants
-
-- State rules that must always hold.
-
-## Operations and state transitions
-
-Describe valid transitions, atomicity, revisions, and failure behavior.
-
-## Persistence boundary
-
-State what is persisted, transient, derived, cached, or external.
-
-## Valid example
-
-Provide a minimal accepted example.
-
-## Rejected example
-
-Provide a minimal rejected example and required diagnostic.
-
-## Compatibility and migration
-
-Describe versioning and behavior for older or unknown fields.
-
-## Deterministic validation
-
-- List tests, schemas, fixtures, golden outputs, or measurable limits.
-
-## Open decisions
-
-- Link decisions that must be resolved before acceptance.
+Link focused executable contracts that demonstrate the behavior. Describe any
+current compatibility limitation where relevant, not a migration chronology.
+Link unresolved decisions to their roadmap owner.

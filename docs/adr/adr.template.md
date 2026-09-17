@@ -2,44 +2,18 @@
 
 Status: `proposed`
 
-Date: `YYYY-MM-DD`
-
-Owners: `<people or modules>`
-
-## Context
-
-Describe the forces, constraints, and existing contracts behind the decision.
+Owners: `<accountable module or person>`
 
 ## Decision
 
-State the chosen direction precisely.
+Summarize the choice in one sentence and link the owning spec section.
+The spec holds the complete contract; do not redefine it here.
 
-## Alternatives considered
+## Context
 
-### Alternative A
+State only the constraints that make this a consequential choice.
 
-- Benefits:
-- Costs:
-- Reason not selected:
+## Rationale
 
-## Consequences
-
-### Positive
-
-- List expected benefits.
-
-### Negative or limiting
-
-- List accepted costs and constraints.
-
-## Compatibility and migration
-
-Describe impact on files, APIs, tests, fixtures, and existing projects.
-
-## Validation
-
-State what evidence will demonstrate that the decision works as intended.
-
-## Related documents
-
-- Link roadmap phases, specs, and prior ADRs.
+Explain why this choice fits those constraints and its accepted cost.
+Mention an alternative only if rejecting it explains an important trade-off.
