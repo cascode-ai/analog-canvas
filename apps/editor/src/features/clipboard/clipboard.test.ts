@@ -1,5 +1,5 @@
 import { createRoutePath, routeBends, routeEnd } from "@icm/model";
-import { executeTransaction } from "@icm/edit-engine";
+import { executeTransaction, powerConnectionForSymbol } from "@icm/edit-engine";
 import {
   resolveAnnotationText,
   resolveDocumentLogicalNets,
@@ -1586,16 +1586,46 @@ describe("captureDocumentComposition", () => {
     );
     if (!result.ok) throw new Error(JSON.stringify(result, null, 2));
 
-    expect(result.document.mosBulkDefaults).toBeUndefined();
+    // A pasted supply marker settles the body policy this Cell had none of,
+    // exactly as placing that marker by hand does. Without it every pasted
+    // body stays unresolved and the netlist cannot export the fourth node.
+    const supplyNetId = (domain: "ground" | "vdd") => {
+      const marker = fragment.instances.find(
+        (instance) =>
+          powerConnectionForSymbol(instance.symbolId)?.domain === domain,
+      )!;
+      const pinName = powerConnectionForSymbol(marker.symbolId)!.pinName;
+      const net = fragment.nets.find((candidate) =>
+        candidate.terminals.some(
+          (terminal) =>
+            terminal.instanceId === marker.id && terminal.pinName === pinName,
+        ),
+      )!;
+      return proposal.idRemap.nets[net.id]!;
+    };
+    // This example carries Ground markers but names VDD through a label, so
+    // only the NMOS policy follows from its markers.
+    expect(result.document.mosBulkDefaults).toEqual({
+      nmosNetId: supplyNetId("ground"),
+    });
     for (const sourceInstance of sourceBindings) {
       const copiedInstanceId = proposal.idRemap.instances[sourceInstance.id]!;
       const copiedNetId =
         proposal.idRemap.nets[sourceInstance.mosBulkBinding!.netId]!;
+      // A body whose Net became this Cell's default follows that policy, as
+      // a freshly inserted MOS does; the rest stay instance-owned.
       expect(
         result.document.instances.find(
           (instance) => instance.id === copiedInstanceId,
         )?.mosBulkBinding,
-      ).toEqual({ origin: "instance-override", netId: copiedNetId });
+      ).toEqual({
+        origin:
+          result.document.mosBulkDefaults?.nmosNetId === copiedNetId ||
+          result.document.mosBulkDefaults?.pmosNetId === copiedNetId
+            ? "cell-default"
+            : "instance-override",
+        netId: copiedNetId,
+      });
       expect(
         result.document.nets
           .find((net) => net.id === copiedNetId)
@@ -1606,6 +1636,35 @@ describe("captureDocumentComposition", () => {
           ),
       ).toBe(true);
     }
+  });
+
+  it("keeps a target Cell's own body policy when a composition is pasted", () => {
+    const source = createLibraryExampleProject(
+      "fully-differential-two-stage-op-amp",
+    )!.documents[0]!;
+    const target = createEmptyDocument("target-document", "Target");
+    target.nets.push({ id: "net-own-ground", terminals: [] });
+    target.mosBulkDefaults = { nmosNetId: "net-own-ground" };
+    const fragment = captureDocumentComposition(source)!;
+    const proposal = proposePaste(target, fragment, { x: 0, y: 0 }, 1);
+    expect(proposal.errors).toEqual([]);
+    const result = executeTransaction(
+      target,
+      {
+        transactionId: "compose-into-policy",
+        documentId: target.id,
+        expectedRevision: target.revision,
+        actor: { kind: "human", id: "test" },
+        edits: proposal.edits,
+      },
+      { symbolResolver: resolver },
+    );
+    if (!result.ok) throw new Error(JSON.stringify(result.error));
+    // A paste settles policy the Cell lacks; it never overrules policy the
+    // Cell already has.
+    expect(result.document.mosBulkDefaults).toEqual({
+      nmosNetId: "net-own-ground",
+    });
   });
 
   it("closes a still-derived source Cell bulk default before composition", () => {

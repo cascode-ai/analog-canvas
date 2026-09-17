@@ -7,6 +7,7 @@ import {
 import {
   deriveProjectNetNameProjection,
   directObjectLocator,
+  mosBulkKind,
   resolveDocumentLogicalNets,
   type ProjectedNetName,
   type ResolvedLogicalNet,
@@ -696,11 +697,16 @@ function terminalNetName(
   // Missing connectivity is an error, not permission to infer a supply from
   // device polarity or a matching Net name elsewhere in the Cell.
   if (!name) {
+    const body = pinName === "B" && mosBulkKind(instance);
     diagnostic(
       diagnostics,
       document.id,
       "MISSING_PIN_NET",
-      `Required pin ${instance.reference ?? instance.id}.${pinName} is not connected to an exportable Net`,
+      body
+        ? // The fourth node has two authored answers; name both so the
+          // report is actionable instead of only true.
+          `Required pin ${instance.reference ?? instance.id}.B has no body Net: connect B, or set this Cell's MOS body default`
+        : `Required pin ${instance.reference ?? instance.id}.${pinName} is not connected to an exportable Net`,
       [instance.id],
     );
     return null;

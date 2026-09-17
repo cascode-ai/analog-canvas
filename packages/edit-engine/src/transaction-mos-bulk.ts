@@ -6,6 +6,7 @@ import {
   mosBulkKind,
   resolveDetachedMosBulkDefault,
   resolveMosBulkConnection,
+  strandedMosBulkNet,
 } from "@icm/derived";
 import type { SymbolResolver } from "@icm/symbols";
 
@@ -74,6 +75,14 @@ export function applyMosBulkEdit(
     }
     case "reconcile_mos_bulk": {
       const selected = edit.instanceIds ? new Set(edit.instanceIds) : null;
+      // Residue is judged once, before this pass moves anything: a Net this
+      // pass empties down to one body is not residue, it is the body bias
+      // Net the previous default left behind.
+      const strandedNetIds = new Map<string, string>();
+      for (const instance of draft.instances) {
+        const stranded = strandedMosBulkNet(draft, instance);
+        if (stranded) strandedNetIds.set(instance.id, stranded.id);
+      }
       for (const instance of draft.instances) {
         if (selected && !selected.has(instance.id)) continue;
         const kind = mosBulkKind(instance);
@@ -131,13 +140,20 @@ export function applyMosBulkEdit(
         // invariant prevents: a hidden B-only split Net and the configured
         // default retain the same SPICE source provenance. Provenance is not
         // electrical union, but here it is unambiguous repair evidence.
+        //
+        // A body left alone on a Net that owns no geometry, claims no name
+        // and carries no other terminal is the same failure without that
+        // provenance: copy/paste wrote Cell policy into its own Net, or the
+        // supply marker that named it was deleted. Such a Net is residue,
+        // never authored wiring, so the configured default reclaims the body.
         if (
           configuredNet &&
           connectedNet &&
           connectedNet.id !== configuredNet.id &&
           implicitBulkPresentation(instance, resolver) &&
-          resolveDetachedMosBulkDefault(draft, instance)?.id ===
-            configuredNet.id
+          (resolveDetachedMosBulkDefault(draft, instance)?.id ===
+            configuredNet.id ||
+            strandedNetIds.get(instance.id) === connectedNet.id)
         ) {
           connectedNet.terminals = connectedNet.terminals.filter(
             (terminal) =>

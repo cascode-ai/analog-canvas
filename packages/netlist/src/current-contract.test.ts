@@ -1668,7 +1668,14 @@ describe("current formal cell interface", () => {
       expect(
         result.diagnostics.filter((item) => item.severity === "error"),
       ).toEqual([
-        expect.objectContaining({ code: "MISSING_PIN_NET", objectIds: ["M1"] }),
+        expect.objectContaining({
+          code: "MISSING_PIN_NET",
+          objectIds: ["M1"],
+          // A body has two authored answers; the report names both.
+          message: expect.stringContaining(
+            "connect B, or set this Cell's MOS body default",
+          ),
+        }),
         expect.objectContaining({ code: "MISSING_PIN_NET", objectIds: ["M2"] }),
       ]);
       // Once the author connects the two missing bodies to their actual domains,

@@ -10,6 +10,7 @@ import {
   createRoutingOperationPlan,
   executeTransaction,
   gridAlignmentDiagnostics,
+  powerConnectionForSymbol,
   type OperationIdRemap,
   type RoutingOperationPlan,
 } from "@icm/edit-engine";
@@ -1362,6 +1363,41 @@ export function proposePaste(
         pinName: sourceBulk.pinName,
       },
     });
+  }
+  // A pasted supply marker settles Cell body policy exactly as placing that
+  // marker by hand does. Without this, a Cell assembled by pasting has no
+  // body default at all, every MOS body stays unresolved, and the netlist
+  // refuses to export the fourth node.
+  for (const domain of ["ground", "vdd"] as const) {
+    const configured =
+      domain === "ground"
+        ? document.mosBulkDefaults?.nmosNetId
+        : document.mosBulkDefaults?.pmosNetId;
+    if (configured) continue;
+    const marker = clipboard.instances.find(
+      (instance) =>
+        powerConnectionForSymbol(instance.symbolId)?.domain === domain,
+    );
+    const connection = marker
+      ? powerConnectionForSymbol(marker.symbolId)
+      : undefined;
+    const markerNet = connection
+      ? clipboard.nets.find((net) =>
+          net.terminals.some(
+            (terminal) =>
+              terminal.instanceId === marker!.id &&
+              terminal.pinName === connection.pinName,
+          ),
+        )
+      : undefined;
+    const netId = markerNet ? netIds.get(markerNet.id) : undefined;
+    if (!netId) continue;
+    edits.push(
+      domain === "ground"
+        ? { kind: "set_mos_bulk_defaults", nmosNetId: netId }
+        : { kind: "set_mos_bulk_defaults", pmosNetId: netId },
+      { kind: "reconcile_mos_bulk" },
+    );
   }
   edits.push(
     ...clipboard.noConnects.map((noConnect): SchematicEdit => {

@@ -257,6 +257,8 @@
       "apps/editor/src/features/text-editing/**",
       "apps/editor/src/document/**",
       "packages/spice/src/syntax.ts",
+      "packages/netlist/src/extract.ts",
+      "packages/derived/src/mos-bulk.ts",
       "apps/editor/e2e/netlist-workflows.spec.ts",
       "apps/editor/e2e/netlist-conversion.spec.ts",
       "apps/editor/e2e/manual-editor-fixtures.ts"

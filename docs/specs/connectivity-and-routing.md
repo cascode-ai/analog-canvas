@@ -176,6 +176,11 @@ Routes may present as `wire`, `bulk-dashed`, or `power-rail`; presentation does
 not alter Net identity. `bulk-dashed` is used for explicit MOS B routing.
 Manual MOS instances without explicit B membership first use a configured
 cell-default Net; without one, bulk remains unresolved in the editable graph.
+Pasting a supply marker settles a body default the target Cell does not have
+yet, exactly as placing that marker does, and never overrules one it has. A
+body left alone on a Net that its own policy binding named, with no geometry,
+no name claim and no Cell terminal, is policy residue from a paste or from a
+deleted marker: reconciliation returns it to the configured default.
 Netlist extraction uses actual membership, including materialized defaults;
 an omitted B without explicit NoConnect reports `MISSING_PIN_NET`.
 Starting a `bulk-dashed` route from B treats a configured default membership as

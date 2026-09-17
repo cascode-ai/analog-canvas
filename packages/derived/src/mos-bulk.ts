@@ -224,6 +224,49 @@ export function resolveMosBulkConnection(
 }
 
 /**
+ * The Net a MOS body sits on when that membership is only policy residue: a
+ * binding points at it, this one body is its only terminal, and it owns no
+ * geometry, claims no name and carries no Cell terminal, so it is not a
+ * conductor anybody authored. Copy/paste materialized Cell policy into such
+ * a Net, and deleting the supply marker that named it leaves the body
+ * stranded there, out of reach of the Cell default it should follow.
+ * Authored membership (no binding) and a body bias Net shared by several
+ * bodies are connections, never residue.
+ */
+export function strandedMosBulkNet(
+  document: SchematicDocument,
+  instanceOrId: Instance | string,
+): Net | undefined {
+  const instance =
+    typeof instanceOrId === "string"
+      ? document.instances.find((candidate) => candidate.id === instanceOrId)
+      : instanceOrId;
+  if (!instance?.mosBulkBinding || !mosBulkKind(instance)) return undefined;
+  const net = document.nets.find((candidate) =>
+    candidate.terminals.some(
+      (terminal) =>
+        terminal.instanceId === instance.id && terminal.pinName === "B",
+    ),
+  );
+  if (!net || instance.mosBulkBinding.netId !== net.id) return undefined;
+  const sole =
+    net.terminals.length === 1 &&
+    net.terminals[0]!.instanceId === instance.id &&
+    net.terminals[0]!.pinName === "B";
+  return sole &&
+    !document.routes.some((route) => route.netId === net.id) &&
+    !document.junctions.some((junction) => junction.netId === net.id) &&
+    !document.connectivityEvidence.some(
+      (evidence) => evidence.netId === net.id,
+    ) &&
+    !(document.netlist?.terminals ?? []).some(
+      (terminal) => terminal.netId === net.id,
+    )
+    ? net
+    : undefined;
+}
+
+/**
  * Recognize the narrow legacy failure produced when an imported source Net was
  * physically split around hidden body terminals. SPICE source Evidence is
  * provenance, never electrical union; it is used here only as repair evidence
