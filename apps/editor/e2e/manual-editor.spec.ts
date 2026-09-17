@@ -1710,7 +1710,7 @@ test("connects one MOS Gate to Drain without false contact ambiguity", async ({
   ).toHaveCount(0);
 });
 
-test("commits two endpoint presses even before React publishes the first one", async ({
+test("commits two endpoint clicks even before React publishes the first one", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -1718,7 +1718,7 @@ test("commits two endpoint presses even before React publishes the first one", a
   await placeComponent(page, "resistor", { x: 660, y: 220 });
   await clickDrawTool(page, "wire");
 
-  // Both presses run in one browser task. The interaction reducer has already
+  // Both complete clicks run in one browser task. The interaction reducer has already
   // accepted the first endpoint, but React has no chance to render that source
   // into the second handler's closure. The handler must read the synchronous
   // interaction state or this silently replaces the source with R2.
@@ -1726,12 +1726,24 @@ test("commits two endpoint presses even before React publishes the first one", a
     for (const id of ["terminal-R1-2", "terminal-R2-1"]) {
       const endpoint = document.querySelector(`[data-testid="${id}"]`);
       if (!endpoint) throw new Error(`Missing ${id}`);
+      const bounds = endpoint.getBoundingClientRect();
+      const coordinates = {
+        bubbles: true,
+        button: 0,
+        clientX: bounds.x + bounds.width / 2,
+        clientY: bounds.y + bounds.height / 2,
+      };
       endpoint.dispatchEvent(
         new PointerEvent("pointerdown", {
-          bubbles: true,
-          button: 0,
+          ...coordinates,
           pointerId: 1,
         }),
+      );
+      endpoint.dispatchEvent(
+        new PointerEvent("pointerup", { ...coordinates, pointerId: 1 }),
+      );
+      endpoint.dispatchEvent(
+        new MouseEvent("click", { ...coordinates, detail: 1 }),
       );
     }
   });
