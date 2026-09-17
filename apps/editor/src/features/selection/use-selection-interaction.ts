@@ -7,10 +7,13 @@ import {
 import {
   clipboardPlacementAnchor,
   orientClipboard,
-  copySelection,
-  proposePaste,
 } from "../clipboard/clipboard";
 import type { SchematicClipboard } from "../clipboard/clipboard";
+import {
+  captureProjectCopy,
+  prepareProjectCopy,
+  planProjectCopyPlacement,
+} from "../clipboard/project-copy";
 import { endpointKey, resolveDocumentRoutingGeometry } from "@icm/derived";
 import {
   createRoutingOperationPlan,
@@ -20,9 +23,15 @@ import {
   planRoutingTransform,
   type RoutingOperationIntent,
   type SchematicEdit,
+  type ProjectStructureEdit,
   type WireSource,
 } from "@icm/edit-engine";
-import { routeEndpoints, type Point, type SchematicDocument } from "@icm/model";
+import {
+  routeEndpoints,
+  type CircuitProject,
+  type Point,
+  type SchematicDocument,
+} from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 import type { SnapGuideLine, SnapResult } from "../../snap/engine";
 
@@ -116,6 +125,7 @@ const isSameMoveProjectionInput = <T extends MoveProjectionInput>(
   cached.sourceRevision === sourceRevision;
 
 export interface UseSelectionInteractionOptions {
+  project: CircuitProject;
   document: SchematicDocument;
   resolver: SymbolResolver;
   visualSelection: VisualSelection;
@@ -131,10 +141,7 @@ export interface UseSelectionInteractionOptions {
     edits: SchematicEdit[],
     options?: { preserveInteraction?: boolean },
   ) => TransactionResult;
-  transactProjectDocument: (
-    transactionId: string,
-    edits: readonly SchematicEdit[],
-  ) => TransactionResult;
+  transactCopy: (edits: readonly ProjectStructureEdit[]) => TransactionResult;
   commitCellTerminalSelection: (
     terminalIds: readonly string[],
     documentEdits: readonly SchematicEdit[],
@@ -1523,22 +1530,26 @@ export function useSelectionInteraction(
     }
     // Explicit ids serve the armed Copy verb: the pointed-at part is copied
     // directly, independent of the (possibly stale) live selection state.
-    const copied = explicitInstanceIds
-      ? copySelection(options.document, explicitInstanceIds, [], {
-          routeIds: [],
-          junctionIds: [],
-          annotationIds: [],
-        })
-      : copySelection(
-          options.document,
-          options.selectedIds,
-          options.visualSelection.draftingIds,
-          {
-            routeIds: options.visualSelection.routeIds,
-            junctionIds: options.visualSelection.junctionIds,
-            annotationIds: options.visualSelection.annotationIds,
-          },
-        );
+    let copied: SchematicClipboard | null;
+    try {
+      copied = captureProjectCopy(options.project, options.document, {
+        instanceIds: explicitInstanceIds ?? options.selectedIds,
+        draftingIds: explicitInstanceIds
+          ? []
+          : options.visualSelection.draftingIds,
+        routeIds: explicitInstanceIds ? [] : options.visualSelection.routeIds,
+        junctionIds: explicitInstanceIds
+          ? []
+          : options.visualSelection.junctionIds,
+        annotationIds: explicitInstanceIds
+          ? []
+          : options.visualSelection.annotationIds,
+      });
+      if (copied) prepareProjectCopy(options.project, options.document, copied);
+    } catch (error) {
+      options.setStatus(error instanceof Error ? error.message : String(error));
+      return;
+    }
     if (!copied) {
       options.setStatus("Select something to copy");
       return;
@@ -1568,48 +1579,23 @@ export function useSelectionInteraction(
       copyPlacement.orientationOperations,
       copyPlacement.anchor,
     );
-    const proposal = proposePaste(
-      options.document,
-      oriented,
-      {
-        x: point.x - copyPlacement.anchor.x,
-        y: point.y - copyPlacement.anchor.y,
-      },
-      copyPlacement.sequence,
-    );
-    if (proposal.errors.length > 0) {
-      options.setStatus(proposal.errors[0]!);
-      options.cancelAllTransientInteraction();
-      return;
-    }
-    const edits = [...proposal.edits];
-    const copyPlan = createRoutingOperationPlan(options.document, {
-      intent: "clone",
-      affected: proposal.operationPlan.affected,
-      expectedElectricalEffect: proposal.operationPlan.expectedElectricalEffect,
-      idRemap: proposal.idRemap,
-      diagnostics: proposal.operationPlan.diagnostics,
-      edits,
-    });
-    const gate = gateRoutingOperationPlan(options.document, copyPlan, {
-      symbolResolver: options.resolver,
-    });
-    if (!gate.ok) {
-      options.setStatus(gate.message);
-      return;
-    }
-    const editsCellInterface = edits.some(
-      (edit) =>
-        edit.kind === "add_cell_terminal" ||
-        edit.kind === "update_cell_terminal",
-    );
+    let proposal: ReturnType<typeof planProjectCopyPlacement>;
     let result: TransactionResult;
-    if (editsCellInterface) {
-      result = options.transactProjectDocument("copy-cell-pin", gate.edits);
-    } else {
-      result = options.transact([...gate.edits], {
-        preserveInteraction: true,
-      });
+    try {
+      proposal = planProjectCopyPlacement(
+        options.project,
+        options.document,
+        oriented,
+        {
+          x: point.x - copyPlacement.anchor.x,
+          y: point.y - copyPlacement.anchor.y,
+        },
+        copyPlacement.sequence,
+      );
+      result = options.transactCopy(proposal.edits);
+    } catch (error) {
+      options.setStatus(error instanceof Error ? error.message : String(error));
+      return;
     }
     if (result.ok) {
       options.advanceCopyPlacement();

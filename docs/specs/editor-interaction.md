@@ -1,5 +1,49 @@
 # Editor Interaction
 
+## Project-aware copy
+
+Internal `C`, Gallery canvas insertion, and the existing Agent copy command
+use the same Project-aware copy planner. C retains its pointer-following ghost,
+rotation/reflection shortcuts, repeated click placement, and Escape cancellation.
+Gallery selects the source top Cell body; referenced child Cells remain hierarchy
+and are imported as dependencies. Inserting a nonempty hierarchical Gallery entry
+does not replace the current Project.
+
+A transient copy capsule carries the selected objects, Cell parameter context,
+referenced external interfaces, child-Cell closure, symbol-library identity, and
+referenced source-file records. It is not persisted or added to the Agent API.
+Source-file records are provenance, not bundled PDK model contents. Simulation
+folders, simulator configuration, run results and unrelated Cells are not copied.
+
+Every placement allocates new canvas object IDs and collision-free References.
+Compatible external definitions are reused by validated interface and presentation,
+not by coincident source IDs. Incompatible same-name definitions or Cell parameter
+defaults reject before placement. Child imports share one immutable source snapshot;
+a changed source receives a new snapshot identity. A previously imported child that
+was edited in the destination cannot silently substitute for the captured source.
+
+Internal wires of a selected component group travel with the group. A single
+component does not automatically carry its unselected dangling wires. Explicitly
+selected wires can travel alone: unselected terminal endpoints become local free
+wire ends, without bringing the external devices. Route markers remap both Route
+and Leg identity. External visual anchors on copied drafting resolve to free
+positions; bound component labels require their component. Bulk connections are
+materialized as instance-owned connections rather than adopting target defaults.
+Necessary Net names whose original owners were outside the selection receive
+copy-owned labels. Name equality in the target Cell retains its ordinary electrical
+meaning; copying does not introduce an invisible Net namespace.
+
+Source and target must have compatible grid geometry and matching document style
+defaults. The current model cannot represent all symbol-stroke and junction-radius
+defaults per object, so incompatible defaults produce an explicit refusal instead
+of silently changing the drawing or overwriting target presentation.
+
+Dependency planning and preview do not write to the Project. Preview resolves
+symbols using the planned definitions, and placement rechecks the current target.
+Dependencies, instances, wires and interface updates commit as one existing Project
+transaction and one undo unit. Cancelled or rejected copies leave no definitions
+behind. Repeated placements share definitions but own separate canvas objects.
+
 Status: `accepted`
 
 Primary owner: `apps/editor`

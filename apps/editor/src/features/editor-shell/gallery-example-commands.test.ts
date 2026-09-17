@@ -7,6 +7,7 @@ import { serializeProject } from "@icm/project-protocol";
 import { describe, expect, it, vi } from "vitest";
 
 import { createGalleryExampleCommands } from "./gallery-example-commands";
+import { hierarchicalSymbolId } from "@icm/symbols";
 
 const defaultViewBox = { x: 0, y: 0, width: 960, height: 640 };
 
@@ -121,16 +122,34 @@ describe("Gallery and example commands", () => {
     expect(document.routes).toHaveLength(1);
   });
 
-  it("leaves hierarchical Projects for guarded replacement", () => {
+  it("places hierarchical Gallery content without replacing the active Project", () => {
     const input = dependencies();
     const imported = createEmptyProject("imported", "Imported");
     imported.documents.push(createEmptyDocument("child", "Child"));
+    imported.documents[0]!.instances.push({
+      id: "X1",
+      reference: "X1",
+      symbolId: hierarchicalSymbolId("Child"),
+      placement: { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
+      netlist: {
+        binding: { kind: "subcircuit", childDocumentId: "child" },
+        parameters: {},
+      },
+    });
     const commands = createGalleryExampleCommands(input);
 
     expect(commands.beginProjectImportPlacement(imported, "Hierarchy")).toBe(
-      false,
+      true,
     );
-    expect(input.beginCopyPlacement).not.toHaveBeenCalled();
+    expect(input.beginCopyPlacement).toHaveBeenCalledWith(
+      expect.objectContaining({
+        context: expect.objectContaining({
+          documents: [imported.documents[1]],
+        }),
+      }),
+      expect.anything(),
+    );
+    expect(input.replaceActiveProject).not.toHaveBeenCalled();
   });
 
   it("starts placement for a drawing-only Gallery Project", () => {

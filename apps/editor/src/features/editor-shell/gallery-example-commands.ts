@@ -10,9 +10,9 @@ import {
 } from "../../examples/library-examples";
 import {
   clipboardPlacementAnchor,
-  captureDocumentComposition,
   type SchematicClipboard,
 } from "../clipboard/clipboard";
+import { captureProjectCopy } from "../clipboard/project-copy";
 
 export interface GalleryEntryContext {
   id: string;
@@ -85,12 +85,19 @@ export function createGalleryExampleCommands({
     const importedDocument = normalized.documents.find(
       (candidate) => candidate.id === normalized.topDocumentId,
     );
-    if (!importedDocument || normalized.documents.length > 1) return false;
-    const clipboard = captureDocumentComposition(importedDocument);
+    if (!importedDocument) return false;
+    const clipboard = captureProjectCopy(normalized, importedDocument);
     const anchor = clipboard ? clipboardPlacementAnchor(clipboard) : null;
     if (!clipboard || !anchor) return false;
-    cancelAllTransientInteraction();
-    beginCopyPlacement(clipboard, anchor);
+    try {
+      cancelAllTransientInteraction();
+      beginCopyPlacement(clipboard, anchor);
+    } catch (error) {
+      setStatus(
+        `Cannot copy ${label}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return true;
+    }
     setStatus(
       `Place ${label} on the canvas · R rotates · Shift+R / Ctrl+R mirrors · Esc cancels`,
     );
@@ -169,7 +176,7 @@ export function createGalleryExampleCommands({
       const imported = parseProject(payload.projectText);
       const label = payload.entry?.name ?? imported.name;
       if (beginProjectImportPlacement(imported, label)) return;
-      // Hierarchical scenes cannot be flattened into one clipboard fragment.
+      // An empty scene has no placeable fragment; it can still be opened.
       await openGalleryEntryById(entryId);
     } catch {
       setStatus("This gallery entry is unavailable");

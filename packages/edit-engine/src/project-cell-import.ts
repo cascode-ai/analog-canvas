@@ -2,7 +2,6 @@ import {
   CircuitProjectSchema,
   deriveStableId,
   type CircuitProject,
-  type ExternalSubcircuitDefinition,
   type SchematicDocument,
 } from "@icm/model";
 import {
@@ -12,6 +11,7 @@ import {
 } from "@icm/symbols";
 
 import type { ProjectStructureEdit } from "./project-transaction.js";
+import { planExternalCopyDependencies } from "./project-copy-dependencies.js";
 
 export type ProjectCellImportFailureCode =
   | "SOURCE_CELL_NOT_FOUND"
@@ -84,23 +84,12 @@ function collectIdentifierValues(value: unknown, output: Set<string>): void {
   }
   if (!value || typeof value !== "object") return;
   for (const [key, item] of Object.entries(value)) {
+    if (key === "parameters" || key === "properties") continue;
     if (ID_VALUE_KEYS.has(key) && typeof item === "string") output.add(item);
     if (ID_ARRAY_KEYS.has(key) && Array.isArray(item)) {
       for (const id of item) if (typeof id === "string") output.add(id);
     }
     collectIdentifierValues(item, output);
-  }
-}
-
-function collectFileIds(value: unknown, output: Set<string>): void {
-  if (Array.isArray(value)) {
-    for (const item of value) collectFileIds(item, output);
-    return;
-  }
-  if (!value || typeof value !== "object") return;
-  for (const [key, item] of Object.entries(value)) {
-    if (key === "fileId" && typeof item === "string") output.add(item);
-    collectFileIds(item, output);
   }
 }
 
@@ -114,6 +103,10 @@ function remapIdentifierValues(
   if (!value || typeof value !== "object") return value;
   const output: Record<string, unknown> = {};
   for (const [key, item] of Object.entries(value)) {
+    if (key === "parameters" || key === "properties") {
+      output[key] = structuredClone(item);
+      continue;
+    }
     if (ID_VALUE_KEYS.has(key) && typeof item === "string") {
       output[key] = identifiers.get(item) ?? item;
     } else if (ID_ARRAY_KEYS.has(key) && Array.isArray(item)) {
@@ -152,44 +145,6 @@ function cellClosure(
     return true;
   };
   return visit(rootDocumentId) ? ordered : null;
-}
-
-function externalDefinitionShape(
-  definition: ExternalSubcircuitDefinition,
-): unknown {
-  const terminalName = new Map(
-    definition.terminals.map((terminal) => [terminal.id, terminal.name]),
-  );
-  return {
-    name: definition.name.toLocaleLowerCase("en-US"),
-    terminals: definition.terminals.map(({ name, direction }) => ({
-      name,
-      direction,
-    })),
-    formalParameters: definition.formalParameters,
-    interfaceStatus: definition.interfaceStatus,
-    presentation: definition.presentation
-      ? {
-          ...definition.presentation,
-          pinPlacements: definition.presentation.pinPlacements?.map(
-            ({ terminalId, ...placement }) => ({
-              ...placement,
-              terminalName: terminalName.get(terminalId),
-            }),
-          ),
-        }
-      : undefined,
-  };
-}
-
-function compatibleExternalDefinition(
-  left: ExternalSubcircuitDefinition,
-  right: ExternalSubcircuitDefinition,
-): boolean {
-  return (
-    JSON.stringify(externalDefinitionShape(left)) ===
-    JSON.stringify(externalDefinitionShape(right))
-  );
 }
 
 function importedCellNames(
@@ -233,9 +188,13 @@ export function planProjectCellImport(
   destinationInput: CircuitProject,
   sourceInput: CircuitProject,
   sourceDocumentId: string,
+  options: { sharedSnapshot?: boolean } = {},
 ): ProjectCellImportPlan {
   const destination = CircuitProjectSchema.parse(destinationInput);
   const source = CircuitProjectSchema.parse(sourceInput);
+  const identityRoot = options.sharedSnapshot
+    ? "copy-snapshot"
+    : sourceDocumentId;
   const sourceRoot = source.documents.find(
     (document) => document.id === sourceDocumentId,
   );
@@ -266,7 +225,7 @@ export function planProjectCellImport(
   }
 
   const expectedDocumentIds = closure.map((document) =>
-    importId(destination.id, source.id, sourceDocumentId, document.id),
+    importId(destination.id, source.id, identityRoot, document.id),
   );
   const existingDocumentIds = new Set(
     destination.documents.map((document) => document.id),
@@ -274,7 +233,7 @@ export function planProjectCellImport(
   const existingCount = expectedDocumentIds.filter((id) =>
     existingDocumentIds.has(id),
   ).length;
-  if (existingCount === expectedDocumentIds.length) {
+  if (existingCount === expectedDocumentIds.length && !options.sharedSnapshot) {
     return {
       ok: true,
       status: "already-imported",
@@ -288,7 +247,7 @@ export function planProjectCellImport(
       edits: [],
     };
   }
-  if (existingCount > 0) {
+  if (existingCount > 0 && !options.sharedSnapshot) {
     return {
       ok: false,
       code: "PARTIAL_IMPORT_CONFLICT",
@@ -296,91 +255,41 @@ export function planProjectCellImport(
     };
   }
 
-  const referencedExternalIds = new Set<string>();
-  for (const document of closure) {
-    for (const instance of document.instances) {
-      const binding = instance.netlist?.binding;
-      if (binding?.kind === "external-subcircuit") {
-        referencedExternalIds.add(binding.definitionId);
-      }
-    }
+  let dependencies: ReturnType<typeof planExternalCopyDependencies>;
+  try {
+    dependencies = planExternalCopyDependencies(
+      destination,
+      source,
+      closure.flatMap((document) => document.instances),
+      closure,
+      (id) => importId(destination.id, source.id, identityRoot, id),
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return {
+      ok: false,
+      code: message.includes("incompatible")
+        ? "EXTERNAL_DEFINITION_CONFLICT"
+        : "SOURCE_DEPENDENCY_MISSING",
+      message,
+    };
   }
-  const sourceExternalById = new Map(
-    source.externalSubcircuitDefinitions.map((definition) => [
-      definition.id,
-      definition,
-    ]),
+  const externalIdMap = dependencies.externalIds;
+  const fileIdMap = dependencies.fileIds;
+  const newExternalDefinitions = dependencies.edits.flatMap((edit) =>
+    edit.kind === "upsert_external_subcircuit_definition"
+      ? [edit.definition]
+      : [],
   );
-  const externalIdMap = new Map<string, string>();
-  const newExternalDefinitions: ExternalSubcircuitDefinition[] = [];
-  for (const definitionId of referencedExternalIds) {
-    const definition = sourceExternalById.get(definitionId);
-    if (!definition) {
-      return {
-        ok: false,
-        code: "SOURCE_DEPENDENCY_MISSING",
-        message: `Source Cell references missing external subcircuit ${definitionId}`,
-      };
-    }
-    const existing = destination.externalSubcircuitDefinitions.find(
-      (candidate) =>
-        candidate.name.toLocaleLowerCase("en-US") ===
-        definition.name.toLocaleLowerCase("en-US"),
-    );
-    if (existing && !compatibleExternalDefinition(existing, definition)) {
-      return {
-        ok: false,
-        code: "EXTERNAL_DEFINITION_CONFLICT",
-        message: `External subcircuit ${definition.name} has a different interface in the destination`,
-      };
-    }
-    externalIdMap.set(
-      definition.id,
-      existing?.id ??
-        importId(destination.id, source.id, sourceDocumentId, definition.id),
-    );
-  }
-
-  const referencedFileIds = new Set<string>();
-  for (const document of closure) collectFileIds(document, referencedFileIds);
-  const sourceFileById = new Map(
-    source.source.files.map((file) => [file.id, file]),
-  );
-  const fileIdMap = new Map<string, string>();
-  const newSourceFiles: CircuitProject["source"]["files"] = [];
-  for (const sourceFileId of referencedFileIds) {
-    const sourceFile = sourceFileById.get(sourceFileId);
-    if (!sourceFile) {
-      return {
-        ok: false,
-        code: "SOURCE_DEPENDENCY_MISSING",
-        message: `Source metadata is missing file ${sourceFileId}`,
-      };
-    }
-    const identical = destination.source.files.find(
-      (candidate) =>
-        candidate.path === sourceFile.path &&
-        candidate.hash === sourceFile.hash,
-    );
-    const mappedId =
-      identical?.id ??
-      importId(destination.id, source.id, sourceDocumentId, sourceFile.id);
-    fileIdMap.set(sourceFile.id, mappedId);
-    if (!identical) newSourceFiles.push({ ...sourceFile, id: mappedId });
-  }
-
   const identifiers = new Set<string>();
   for (const document of closure)
     collectIdentifierValues(document, identifiers);
-  for (const definitionId of referencedExternalIds) {
-    const definition = sourceExternalById.get(definitionId)!;
-    collectIdentifierValues(definition, identifiers);
-  }
+
   const identifierMap = new Map<string, string>();
   for (const identifier of identifiers) {
     identifierMap.set(
       identifier,
-      importId(destination.id, source.id, sourceDocumentId, identifier),
+      importId(destination.id, source.id, identityRoot, identifier),
     );
   }
   for (const [sourceId, targetId] of externalIdMap) {
@@ -389,21 +298,15 @@ export function planProjectCellImport(
   for (const [sourceId, targetId] of fileIdMap)
     identifierMap.set(sourceId, targetId);
 
-  for (const definitionId of referencedExternalIds) {
-    if (
-      destination.externalSubcircuitDefinitions.some(
-        (candidate) => candidate.id === externalIdMap.get(definitionId),
-      )
-    )
-      continue;
-    const remapped = remapIdentifierValues(
-      sourceExternalById.get(definitionId)!,
-      identifierMap,
-    ) as ExternalSubcircuitDefinition;
-    newExternalDefinitions.push(remapped);
-  }
-
   const names = importedCellNames(destination, source, closure);
+  if (options.sharedSnapshot)
+    for (const document of closure) {
+      const existing = destination.documents.find(
+        (d) => d.id === identifierMap.get(document.id),
+      );
+      if (existing)
+        names.set(document.id, existing.netlist?.name ?? existing.name);
+    }
   const importedDocuments = closure.map((document) => {
     const remapped = remapIdentifierValues(
       document,
@@ -446,19 +349,28 @@ export function planProjectCellImport(
     return remapped;
   });
   const rootDocumentId = identifierMap.get(sourceDocumentId)!;
+  if (options.sharedSnapshot)
+    for (const document of importedDocuments) {
+      const existing = destination.documents.find((d) => d.id === document.id);
+      if (existing && JSON.stringify(existing) !== JSON.stringify(document)) {
+        return {
+          ok: false,
+          code: "PARTIAL_IMPORT_CONFLICT",
+          message: `Previously copied Cell ${existing.name} was changed in the destination; cannot silently reuse it for this source snapshot`,
+        };
+      }
+    }
   const edits: ProjectStructureEdit[] = [
-    ...newSourceFiles.map((sourceFile): ProjectStructureEdit => ({
-      kind: "add_source_file",
-      sourceFile,
-    })),
-    ...newExternalDefinitions.map((definition): ProjectStructureEdit => ({
-      kind: "upsert_external_subcircuit_definition",
-      definition,
-    })),
-    ...importedDocuments.map((document): ProjectStructureEdit => ({
-      kind: "add_document",
-      document,
-    })),
+    ...dependencies.edits,
+    ...importedDocuments
+      .filter(
+        (document) =>
+          !options.sharedSnapshot || !existingDocumentIds.has(document.id),
+      )
+      .map((document): ProjectStructureEdit => ({
+        kind: "add_document",
+        document,
+      })),
   ];
   if (edits.length > 256) {
     return {

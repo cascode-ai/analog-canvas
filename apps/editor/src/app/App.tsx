@@ -72,6 +72,7 @@ import { renderCrashRequested, sceneCrashRequested } from "./crash-test-hooks";
 import { buildSceneSafely } from "./scene-safety";
 import { externalSubcircuitSymbolId, hierarchicalSymbolId } from "@icm/symbols";
 import { clipboardPreviewDocument } from "../features/clipboard/clipboard";
+import { prepareProjectCopy } from "../features/clipboard/project-copy";
 import {
   copyPlacementAnchors,
   snapPendingCopyPlacement,
@@ -1205,7 +1206,10 @@ export function App({
       defaultViewBox: DEFAULT_VIEWBOX,
       replaceActiveProject,
       guardDirtyReplacement,
-      beginCopyPlacement: beginCopyPlacementInteraction,
+      beginCopyPlacement: (clipboard, anchor) => {
+        prepareProjectCopy(project, document, clipboard);
+        beginCopyPlacementInteraction(clipboard, anchor);
+      },
       cancelAllTransientInteraction,
       setGalleryEntryContext,
       setStatus,
@@ -1463,17 +1467,22 @@ export function App({
       return { scene: null, anchors: [], error: null };
     }
     try {
-      const previewDocument = clipboardPreviewDocument(
+      const prepared = prepareProjectCopy(
+        project,
         document,
         copyPlacement.clipboard,
+      );
+      const previewDocument = clipboardPreviewDocument(
+        document,
+        prepared.clipboard,
         { x: 0, y: 0 },
         copyPlacement.orientationOperations,
-        resolver,
+        prepared.resolver,
         copyPlacement.sequence,
       );
       return {
-        scene: buildSvgScene(previewDocument, resolver),
-        anchors: copyPlacementAnchors(previewDocument, resolver),
+        scene: buildSvgScene(previewDocument, prepared.resolver),
+        anchors: copyPlacementAnchors(previewDocument, prepared.resolver),
         error: null,
       };
     } catch (error) {
@@ -1490,6 +1499,7 @@ export function App({
     copyPlacement?.clipboard,
     copyPlacement?.orientationOperations,
     copyPlacement?.sequence,
+    project,
     document,
     resolver,
   ]);
@@ -2561,6 +2571,7 @@ export function App({
     toggleSelectedNoConnect: toggleSelectedNoConnectFromSelection,
     updateCommandMovePreview: updateCommandMovePreviewFromSelection,
   } = useSelectionInteraction({
+    project,
     document,
     resolver,
     visualSelection,
@@ -2573,15 +2584,8 @@ export function App({
     selectedEndpointNetId,
     getInteractionState: getCurrentInteractionState,
     transact,
-    transactProjectDocument: (transactionId, edits) => {
-      const committed = commitStructure(transactionId, [
-        {
-          kind: "transact_document",
-          documentId: document.id,
-          expectedRevision: document.revision,
-          edits: [...edits],
-        },
-      ]);
+    transactCopy: (edits) => {
+      const committed = commitStructure("copy-placement", [...edits]);
       return {
         ok: committed,
         revision: committed ? document.revision + 1 : document.revision,

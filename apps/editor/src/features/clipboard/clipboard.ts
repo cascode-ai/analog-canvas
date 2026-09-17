@@ -47,6 +47,7 @@ import {
 } from "../../interaction/shortcut-orientation";
 
 export interface SchematicClipboard {
+  context?: import("./project-copy").CopyContext;
   intent: "clone-selection" | "compose-document";
   sourceDocumentId: string;
   sourceGrid: number;
@@ -1190,7 +1191,7 @@ export function proposePaste(
   const sourceNeedsCellInterface =
     clipboard.cellTerminals.length > 0 || clipboard.formalParameters.length > 0;
   if (sourceNeedsCellInterface && !document.netlist) {
-    if (clipboard.intent === "compose-document") {
+    if (clipboard.intent === "compose-document" || clipboard.context) {
       interfaceEdits.push({
         kind: "create_cell_interface",
         name: document.name,
@@ -1200,7 +1201,7 @@ export function proposePaste(
     }
   }
   if (
-    clipboard.intent === "compose-document" &&
+    (clipboard.intent === "compose-document" || clipboard.context) &&
     clipboard.formalParameters.length > 0
   ) {
     const merged = structuredClone(document.netlist?.formalParameters ?? []);
@@ -1594,7 +1595,7 @@ export function proposePaste(
       },
     });
   }
-  if (clipboard.intent === "compose-document") {
+  if (clipboard.intent === "compose-document" || clipboard.context) {
     const gridErrors = edits.flatMap((edit) =>
       gridAlignmentDiagnostics(edit, document.presentation.grid),
     );
