@@ -364,10 +364,16 @@ export function lookupSimulationHelp(
 export function inspectSimulationSource(file: SpiceSourceFile, entry = false) {
   const syntax = parseSpiceSource(file, { titleLine: entry });
   const diagnostics: SpiceDiagnostic[] = syntax.diagnostics.map((item) =>
-    item.code === "SPICE_SYNTAX_UNMATCHED_ENDC" ||
-    item.code === "SPICE_SYNTAX_UNTERMINATED_CONTROL"
-      ? item
-      : { ...item, severity: "warning" as const },
+    item.code === "SPICE_SYNTAX_OPAQUE"
+      ? {
+          ...item,
+          severity: "info" as const,
+          message: `${item.message.replace("Statement preserved as opaque:", "Editor analysis limitation:")}. Preserved unchanged for ngspice; execution support is checked when run.`,
+        }
+      : item.code === "SPICE_SYNTAX_UNMATCHED_ENDC" ||
+          item.code === "SPICE_SYNTAX_UNTERMINATED_CONTROL"
+        ? item
+        : { ...item, severity: "warning" as const },
   );
   const commands: Array<{
     name: string;
