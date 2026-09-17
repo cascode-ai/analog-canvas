@@ -104,9 +104,10 @@ A delivered pull request may carry one change or a batch. Before publishing it,
 refresh the mainline base, regenerate the gate plan for the combined diff
 against `origin/main`, and follow the
 [mainline delivery gate](../../AGENTS.md#mainline-delivery-gate). This checks
-interactions and shared contracts across everything the pull request carries. An unchanged candidate
-does not need its already-passing local checks repeated while remote CI runs;
-new edits or unresolved failures can require fresh verification.
+interactions and shared contracts across everything the pull request carries.
+An unchanged candidate does not need its already-passing local checks repeated
+while remote CI runs; new edits or unresolved failures can require fresh
+verification.
 
 This changes when delivery validation runs, not the required GitHub checks.
 The [deployment guide](../deployment.md#development-and-publication-cadence)
