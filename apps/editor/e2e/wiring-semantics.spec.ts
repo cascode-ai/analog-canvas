@@ -675,6 +675,101 @@ test("dragging a wire segment onto another wire endpoint connects there", async 
   await expect(page.locator('g[data-layer="junctions"] circle')).toHaveCount(1);
 });
 
+test("dragging a diagonal between two horizontal legs moves it sideways", async ({
+  page,
+}) => {
+  const project = createEmptyProject("diagonal-drag", "Diagonal drag");
+  const document = project.documents[0]!;
+  document.presentation.grid = 10;
+  document.nets.push({ id: "net", terminals: [] });
+  document.junctions.push(
+    { id: "left", netId: "net", position: { x: 100, y: 200 } },
+    { id: "right", netId: "net", position: { x: 250, y: 250 } },
+    ...(
+      [
+        ["left-up", { x: 100, y: 150 }],
+        ["left-down", { x: 100, y: 250 }],
+        ["right-up", { x: 250, y: 200 }],
+        ["right-down", { x: 250, y: 300 }],
+      ] as const
+    ).map(([id, position]) => ({
+      id,
+      netId: "net",
+      position,
+      role: "route-anchor" as const,
+    })),
+  );
+  document.routes.push(
+    // The cross-coupled shape: leg, 45-degree diagonal, leg. Two stubs make
+    // each end a three-way Junction, so both ends stay fixed.
+    createRoutePath({
+      id: "zig",
+      netId: "net",
+      start: { kind: "junction", junctionId: "left" },
+      end: { kind: "junction", junctionId: "right" },
+      bends: [
+        { x: 150, y: 200 },
+        { x: 200, y: 250 },
+      ],
+      modes: ["manual", "manual", "manual"],
+    }),
+    ...(
+      [
+        ["left", "left-up"],
+        ["left", "left-down"],
+        ["right", "right-up"],
+        ["right", "right-down"],
+      ] as const
+    ).map(([from, to]) =>
+      createRoutePath({
+        id: `${to}-stub`,
+        netId: "net",
+        start: { kind: "junction", junctionId: from },
+        end: { kind: "junction", junctionId: to },
+        bends: [],
+        modes: ["manual"],
+      }),
+    ),
+  );
+
+  await page.goto("/editor");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "diagonal-drag.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  const canvas = page.getByTestId("schematic-canvas");
+  await awaitCanvasSettled(canvas);
+  // Grab the diagonal's middle and pull it two grid cells to the left.
+  const revision = Number(await page.getByTestId("revision").textContent());
+  const [start, finish] = await onScreen(canvas, [
+    { x: 175, y: 225 },
+    { x: 157, y: 227 },
+  ]);
+  await page.mouse.move(start!.x, start!.y);
+  await page.mouse.down();
+  await page.mouse.move(finish!.x, finish!.y, { steps: 8 });
+  await page.mouse.up();
+
+  await expect(page.getByTestId("revision")).toHaveText(String(revision + 1));
+  const committed = await page
+    .getByTestId("route-hit-zig")
+    .evaluate((element) =>
+      Array.from((element as SVGPolylineElement).points).map(({ x, y }) => ({
+        x,
+        y,
+      })),
+    );
+  // The legs stretch and shrink; the diagonal keeps its length and angle and
+  // gains no vertical jog.
+  expect(committed).toEqual([
+    { x: 100, y: 200 },
+    { x: 130, y: 200 },
+    { x: 180, y: 250 },
+    { x: 250, y: 250 },
+  ]);
+});
+
 test("a power rail drawn across the tops of wires connects to them", async ({
   page,
 }) => {

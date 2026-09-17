@@ -238,17 +238,50 @@ export function moveRouteSegment(
   const lastSegmentIndex = points.length - 2;
 
   // A diagonal segment has one perpendicular degree of freedom.  Express its
-  // translated centreline as y - slope*x = constant, then use vertical jogs
-  // at its existing endpoints.  This keeps both the original endpoints and
-  // their adjacent topology intact, including for a two-point Route.
+  // translated centreline as y - slope*x = constant.  An interior bend slides
+  // along its orthogonal leg to reach that line, so a diagonal between two
+  // horizontal legs moves sideways and the legs stretch with it.  A Route end,
+  // or a bend whose other leg is slanted, stays put and gets a vertical jog,
+  // which keeps a two-point Route's endpoints intact.
   if (diagonal) {
     const slope = Math.sign((to.y - from.y) / (to.x - from.x));
     const offset = target.y - slope * target.x - (from.y - slope * from.x);
-    const shiftedFrom = { x: from.x, y: from.y + offset };
-    const shiftedTo = { x: to.x, y: to.y + offset };
+    const slide = (bendIndex: number, legIndex: number): Point | null => {
+      if (bendIndex === 0 || bendIndex === points.length - 1) return null;
+      const bend = points[bendIndex]!;
+      const leg = points[legIndex]!;
+      const axis = leg.y === bend.y ? "x" : leg.x === bend.x ? "y" : null;
+      if (!axis) return null;
+      const slid =
+        axis === "x"
+          ? { x: bend.x - slope * offset, y: bend.y }
+          : { x: bend.x, y: bend.y + offset };
+      // The leg may shrink away, but never fold back past its far end.
+      if (
+        Math.sign(slid[axis] - leg[axis]) === -Math.sign(bend[axis] - leg[axis])
+      ) {
+        throw new Error("Diagonal segment move would fold back its leg");
+      }
+      return slid;
+    };
+    const slidFrom = slide(segmentIndex, segmentIndex - 1);
+    const slidTo = slide(segmentIndex + 1, segmentIndex + 2);
+    const movedFrom = slidFrom ?? { x: from.x, y: from.y + offset };
+    const movedTo = slidTo ?? { x: to.x, y: to.y + offset };
+    if (Math.sign(movedTo.x - movedFrom.x) === -Math.sign(to.x - from.x)) {
+      throw new Error("Diagonal segment move would reverse the segment");
+    }
     const mode = modes[segmentIndex] ?? "manual";
-    points.splice(segmentIndex + 1, 0, shiftedFrom, shiftedTo);
-    modes.splice(segmentIndex, 1, mode, mode, mode);
+    if (slidTo) points[segmentIndex + 1] = slidTo;
+    else {
+      points.splice(segmentIndex + 1, 0, movedTo);
+      modes.splice(segmentIndex, 0, mode);
+    }
+    if (slidFrom) points[segmentIndex] = slidFrom;
+    else {
+      points.splice(segmentIndex + 1, 0, movedFrom);
+      modes.splice(segmentIndex, 0, mode);
+    }
     const normalized = normalizeRouteGeometry(points, modes);
     if (!isOctilinear(normalized.points)) {
       throw new Error(
