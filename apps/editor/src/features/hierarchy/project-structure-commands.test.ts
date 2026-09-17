@@ -175,4 +175,45 @@ describe("Project structure commands", () => {
     );
     expect(input.setStatus).toHaveBeenCalledWith("Deleted Cell Pin IN");
   });
+
+  it("renames an annotation-owned Power Rail Cell Pin", () => {
+    const input = dependencies();
+    input.activeDocument.nets.push({ id: "net-vdd", terminals: [] });
+    input.activeDocument.netlist!.terminals.push({
+      id: "terminal-vdd",
+      name: "VDD",
+      netId: "net-vdd",
+      direction: "inout",
+      interfaceInstanceIds: [],
+      interfaceAnnotationId: "label-vdd",
+    });
+    const annotation = {
+      id: "label-vdd",
+      kind: "power-label" as const,
+      binding: {
+        kind: "cell-terminal-name" as const,
+        terminalId: "terminal-vdd",
+      },
+      netId: "net-vdd",
+      anchor: {
+        kind: "object" as const,
+        objectId: "junction-vdd",
+        localOffset: { x: 10, y: 10 },
+        fallbackPosition: { x: 10, y: 10 },
+      },
+      alignment: "start" as const,
+      rotation: 0 as const,
+      locked: false,
+    };
+    input.activeDocument.annotations.push(annotation);
+    const commands = createProjectStructureCommands(input);
+
+    expect(commands.editCellTerminalAnnotation(annotation, "AVDD")).toBe(true);
+    expect(input.commitStructure).toHaveBeenCalledWith(
+      "edit-cell-pin-label",
+      expect.arrayContaining([
+        expect.objectContaining({ kind: "transact_document" }),
+      ]),
+    );
+  });
 });

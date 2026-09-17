@@ -188,10 +188,16 @@ export function createProjectStructureCommands({
     annotation: Annotation,
     inputName: string,
   ): boolean => {
-    if (annotation.anchor.kind !== "object") return false;
-    const interfaceInstanceId = annotation.anchor.objectId;
-    const terminal = activeDocument.netlist?.terminals.find((candidate) =>
-      candidate.interfaceInstanceIds.includes(interfaceInstanceId),
+    const interfaceInstanceId =
+      annotation.anchor.kind === "object"
+        ? annotation.anchor.objectId
+        : undefined;
+    const terminal = activeDocument.netlist?.terminals.find(
+      (candidate) =>
+        (annotation.binding?.kind === "cell-terminal-name" &&
+          annotation.binding.terminalId === candidate.id) ||
+        (interfaceInstanceId !== undefined &&
+          candidate.interfaceInstanceIds.includes(interfaceInstanceId)),
     );
     if (!terminal) return false;
     try {

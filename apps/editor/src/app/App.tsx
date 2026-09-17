@@ -2086,11 +2086,13 @@ export function App({
     valueVisibilityEdits,
     isCellPinAnnotation: (annotation) => {
       const anchor = annotation.anchor;
-      if (anchor.kind !== "object") return false;
-      const interfaceInstanceId = anchor.objectId;
       return (
-        document.netlist?.terminals.some((terminal) =>
-          terminal.interfaceInstanceIds.includes(interfaceInstanceId),
+        document.netlist?.terminals.some(
+          (terminal) =>
+            (annotation.binding?.kind === "cell-terminal-name" &&
+              annotation.binding.terminalId === terminal.id) ||
+            (anchor.kind === "object" &&
+              terminal.interfaceInstanceIds.includes(anchor.objectId)),
         ) === true
       );
     },
