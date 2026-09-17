@@ -342,6 +342,7 @@ test("refresh restores the circuit when the session started from a boot-target U
   // on the refreshed page. It must yield to the pending restore instead of
   // forking a fresh working copy that orphans the flushed snapshot.
   await page.goto("/editor?new=1");
+  await awaitEditorReady(page);
   await expect(page.getByTestId("status")).toHaveText("Created a new Project");
   await chooseComponent(page, "resistor");
   await page
@@ -355,6 +356,7 @@ test("refresh restores the circuit when the session started from a boot-target U
   await clickCommand(page, "File", "Refresh app");
   await navigated;
 
+  await awaitEditorReady(page);
   await expect(page.getByTestId("hit-R1")).toBeVisible();
   await expect(page.getByTestId("revision")).toHaveText("1");
   await expect(page.getByTestId("status")).toHaveText(
