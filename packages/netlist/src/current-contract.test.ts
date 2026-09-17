@@ -85,6 +85,99 @@ function resistorProject(parameters: Record<string, string>) {
 }
 
 describe("current formal cell interface", () => {
+  it("derives a portable netlist identifier from a readable Cell name", () => {
+    const project = resistorProject({ value: "10k" });
+    const document = project.documents[0]!;
+    document.name = "cascode current mirror";
+    document.netlist!.name = "cascode current mirror";
+    const before = structuredClone(project);
+
+    const result = analyzeDesignNetlist(project);
+
+    expect(
+      result.diagnostics.filter((item) => item.severity === "error"),
+    ).toEqual([]);
+    expect(result.ir?.cells[0]?.name).toBe("cascode_current_mirror");
+    expect(result.diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: "CELL_NAME_NORMALIZED",
+        severity: "warning",
+        message:
+          "Cell name cascode current mirror exports as cascode_current_mirror",
+      }),
+    );
+    expect(printSpiceNetlist(result.ir!)).toContain(
+      ".subckt cascode_current_mirror",
+    );
+    expect(project).toEqual(before);
+  });
+
+  it("uses the same derived Cell identifier in hierarchy definitions and calls", () => {
+    const project = createEmptyProject("project", "Project", "top");
+    const top = project.documents[0]!;
+    top.name = "top level";
+    top.netlist!.name = "top level";
+    const child = createEmptyDocument("child", "cascode current mirror");
+    project.documents.push(child);
+    top.instances.push({
+      id: "X1",
+      symbolId: "cascode-current-mirror-symbol",
+      reference: "X1",
+      placement: null,
+      netlist: {
+        binding: { kind: "subcircuit", childDocumentId: child.id },
+        parameters: {},
+      },
+    });
+
+    const result = analyzeDesignNetlist(project);
+
+    expect(
+      result.diagnostics.filter((item) => item.severity === "error"),
+    ).toEqual([]);
+    expect(result.ir?.cells.map((cell) => cell.name)).toEqual([
+      "cascode_current_mirror",
+      "top_level",
+    ]);
+    expect(
+      result.ir?.cells.find((cell) => cell.id === "top")?.instances[0],
+    ).toMatchObject({ target: "cascode_current_mirror" });
+    expect(printSpiceNetlist(result.ir!)).toContain(
+      "X1 cascode_current_mirror",
+    );
+  });
+
+  it("blocks ambiguous Cell identifiers after portable normalization", () => {
+    const project = createEmptyProject("project", "Project", "top");
+    const top = project.documents[0]!;
+    top.name = "gain stage";
+    top.netlist!.name = "gain stage";
+    const child = createEmptyDocument("child", "gain-stage");
+    child.netlist!.name = "gain-stage";
+    project.documents.push(child);
+    top.instances.push({
+      id: "X1",
+      symbolId: "gain-stage-symbol",
+      reference: "X1",
+      placement: null,
+      netlist: {
+        binding: { kind: "subcircuit", childDocumentId: child.id },
+        parameters: {},
+      },
+    });
+
+    const result = analyzeDesignNetlist(project);
+
+    expect(result.ir).toBeNull();
+    expect(result.diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: "DUPLICATE_CELL_NAME",
+        message:
+          "Cell names gain-stage and gain stage both export as gain_stage under case folding",
+      }),
+    );
+  });
+
   it("names an unlabeled internal Net from a connected reference and pin", () => {
     const project = createEmptyProject("project", "Project");
     const document = project.documents[0]!;

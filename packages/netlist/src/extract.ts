@@ -55,6 +55,19 @@ function isIdentifier(value: string, allowGround = false): boolean {
   return (allowGround && value === "0") || IDENTIFIER.test(value);
 }
 
+function portableCellIdentifier(name: string, documentId: StableId): string {
+  if (isIdentifier(name)) return name;
+  const ascii = name.normalize("NFKD").replace(/[\u0300-\u036f]/gu, "");
+  const body = ascii
+    .replace(/[^A-Za-z0-9_]+/gu, "_")
+    .replace(/_+/gu, "_")
+    .replace(/^_+|_+$/gu, "");
+  if (!body) {
+    return `Cell_${deriveStableId("cell", documentId).slice("cell-".length)}`;
+  }
+  return /^[A-Za-z_]/u.test(body) ? body : `Cell_${body}`;
+}
+
 function compareText(left: string, right: string): number {
   return left.localeCompare(right, "en", { sensitivity: "base" });
 }
@@ -699,6 +712,7 @@ function extractHierarchyInstance(
   document: SchematicDocument,
   instance: Instance,
   documentsById: Map<string, SchematicDocument>,
+  cellNameByDocumentId: ReadonlyMap<string, string>,
   context: CellNetContext,
   diagnostics: NetlistDiagnostic[],
 ): DesignNetlistInstance | null {
@@ -758,7 +772,7 @@ function extractHierarchyInstance(
     reference: instance.reference!,
     invocationKind: "subcircuit",
     deviceClass: "hierarchical",
-    target: child.netlist.name,
+    target: cellNameByDocumentId.get(child.id) ?? child.netlist.name,
     nodes,
     parameters: Object.entries(netlist.parameters)
       .sort(([a], [b]) => compareText(a, b))
@@ -1281,6 +1295,7 @@ function extractCell(
   project: CircuitProject,
   document: SchematicDocument,
   documentsById: Map<string, SchematicDocument>,
+  cellNameByDocumentId: ReadonlyMap<string, string>,
   projectedNames: ReadonlyMap<string, ProjectedNetName>,
   options: ResolvedDesignNetlistAnalysisOptions,
   diagnostics: NetlistDiagnostic[],
@@ -1293,14 +1308,6 @@ function extractCell(
       `Document ${document.id} has no netlist interface`,
     );
     return null;
-  }
-  if (!isIdentifier(document.netlist.name)) {
-    diagnostic(
-      diagnostics,
-      document.id,
-      "INVALID_CELL_NAME",
-      `Cell name is outside the portable identifier subset: ${document.netlist.name}`,
-    );
   }
   for (const formal of document.netlist.formalParameters) {
     if (formal.defaultValue !== undefined) continue;
@@ -1448,6 +1455,7 @@ function extractCell(
             document,
             instance,
             documentsById,
+            cellNameByDocumentId,
             context,
             diagnostics,
           )
@@ -1466,7 +1474,9 @@ function extractCell(
   }
   return {
     id: document.id,
-    name: document.netlist.name,
+    name:
+      cellNameByDocumentId.get(document.id) ??
+      portableCellIdentifier(document.netlist.name, document.id),
     ports,
     nets: context.nets,
     instances,
@@ -1518,29 +1528,47 @@ function analyzeDesign(
   const documentsById = new Map(
     project.documents.map((document) => [document.id, document]),
   );
-  const cellNames = new Map<string, string>();
+  const cellNameByDocumentId = new Map<string, string>();
+  const cellNames = new Map<
+    string,
+    { documentId: string; authoredName: string }
+  >();
+  for (const document of documents) {
+    const authoredName = document.netlist?.name;
+    if (!authoredName) continue;
+    const exportName = portableCellIdentifier(authoredName, document.id);
+    cellNameByDocumentId.set(document.id, exportName);
+    if (exportName !== authoredName) {
+      diagnostic(
+        diagnostics,
+        document.id,
+        "CELL_NAME_NORMALIZED",
+        `Cell name ${authoredName} exports as ${exportName}`,
+        [document.id],
+        "warning",
+      );
+    }
+    const folded = exportName.toLowerCase();
+    const prior = cellNames.get(folded);
+    if (prior) {
+      diagnostic(
+        diagnostics,
+        document.id,
+        "DUPLICATE_CELL_NAME",
+        `Cell names ${prior.authoredName} and ${authoredName} both export as ${exportName} under case folding`,
+        [prior.documentId, document.id],
+      );
+    } else {
+      cellNames.set(folded, { documentId: document.id, authoredName });
+    }
+  }
   const cells: DesignNetlistCell[] = [];
   for (const document of documents) {
-    const name = document.netlist?.name;
-    if (name) {
-      const folded = name.toLowerCase();
-      const prior = cellNames.get(folded);
-      if (prior) {
-        diagnostic(
-          diagnostics,
-          document.id,
-          "DUPLICATE_CELL_NAME",
-          `Cell name ${name} duplicates Document ${prior} under case folding`,
-          [prior, document.id],
-        );
-      } else {
-        cellNames.set(folded, document.id);
-      }
-    }
     const cell = extractCell(
       project,
       document,
       documentsById,
+      cellNameByDocumentId,
       nameProjection.byDocumentId.get(document.id) ?? new Map(),
       resolvedOptions,
       diagnostics,
