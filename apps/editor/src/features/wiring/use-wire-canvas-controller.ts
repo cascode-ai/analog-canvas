@@ -38,6 +38,7 @@ import {
 } from "./wire-canvas-snap";
 import { wireDraftTargetFromSnap } from "./wire-draft-preview";
 import { nextWireCornerShape } from "./wire-corner-shape";
+import { wireCaptureRadius } from "../../canvas/canvas-viewport";
 
 const SNAP_CAPTURE_RADIUS_PX = 7;
 
@@ -199,7 +200,7 @@ export function useWireCanvasController({
         contactComponents,
         wireSource: wire.source,
         wireWaypoints: wire.steps.map((step) => step.point),
-        captureTolerance: logicalRadiusForPixels(svg, SNAP_CAPTURE_RADIUS_PX),
+        captureTolerance: wireCaptureRadius(svg),
         snapIndex: wireCanvasSnapIndex,
       },
       point,
@@ -246,6 +247,17 @@ export function useWireCanvasController({
     // click acts on.
     const target = wireDraftTargetFromSnap(resolved);
     if (target.kind === "free") {
+      // The active endpoint is excluded from capture. Clicking it again
+      // must not turn that exclusion into a zero-length authored step.
+      const wire = readCurrentWireSession();
+      if (
+        !finish &&
+        wire.source &&
+        wire.steps.length === 0 &&
+        target.point.x === wire.source.connection.gridLanding.x &&
+        target.point.y === wire.source.connection.gridLanding.y
+      )
+        return;
       if (finish) {
         // A browser double-click dispatches one ordinary click before its
         // dblclick event. The ordinary click fixes this exact point as a wire
@@ -276,6 +288,11 @@ export function useWireCanvasController({
       setWireSource(candidate, document.revision);
       setWirePreview(freeWireDraftTarget(candidate.connection.contactPoint));
       setWireDraftSteps([]);
+      setStatus(
+        target.kind === "route"
+          ? `Wire source: route ${target.routeId}`
+          : `Wire source: ${endpointKey(candidate.endpoint)}`,
+      );
       return;
     }
     if (endpointKey(liveSource.endpoint) === endpointKey(candidate.endpoint)) {
@@ -309,7 +326,13 @@ export function useWireCanvasController({
       // buttons leave the conductor untouched so right-click keeps cancelling
       // through the context-menu path.
       if (event.button !== 0) return;
-      handleWireRoutePointerDown(event, routeId, hitTarget);
+      if (tool === "wire") {
+        event.stopPropagation();
+        // The canvas click capture resolves every wire target, including this
+        // hit band, through the same resolver as the hover preview.
+      } else {
+        handleWireRoutePointerDown(event, routeId, hitTarget);
+      }
       return;
     }
     event.stopPropagation();

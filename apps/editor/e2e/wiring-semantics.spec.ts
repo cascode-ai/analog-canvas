@@ -84,6 +84,108 @@ async function awaitCanvasSettled(canvas: Locator): Promise<void> {
   );
 }
 
+for (const scale of [0.5, 1, 2, 4]) {
+  for (const targetKind of ["pin", "route"] as const) {
+    test(`single click captures ${targetKind} at canvas scale ${scale}`, async ({
+      page,
+    }) => {
+      const project = createEmptyProject("wire-capture", "Wire capture");
+      const document = project.documents[0]!;
+      document.instances.push({
+        id: "C1",
+        symbolId: "capacitor",
+        placement: {
+          position: { x: 300, y: 300 },
+          rotation: 0,
+          mirror: "none",
+        },
+      });
+      document.nets.push({ id: "bus", terminals: [] });
+      document.junctions.push(
+        { id: "left", netId: "bus", position: { x: 240, y: 400 } },
+        { id: "right", netId: "bus", position: { x: 400, y: 400 } },
+      );
+      document.routes.push(
+        createRoutePath({
+          id: "bus-route",
+          netId: "bus",
+          start: { kind: "junction", junctionId: "left" },
+          end: { kind: "junction", junctionId: "right" },
+          bends: [],
+          modes: ["manual"],
+        }),
+      );
+      await page.goto("/editor");
+      await page.getByTestId("project-file").setInputFiles({
+        name: "wire-capture.icproj.json",
+        mimeType: "application/json",
+        buffer: Buffer.from(JSON.stringify(project)),
+      });
+      const canvas = page.getByTestId("schematic-canvas");
+      await expect(page.getByTestId("terminal-C1-1")).toBeAttached();
+      await awaitCanvasSettled(canvas);
+      const target =
+        targetKind === "pin"
+          ? await page.getByTestId("terminal-C1-1").evaluate((element) => ({
+              x: (element as SVGCircleElement).cx.baseVal.value,
+              y: (element as SVGCircleElement).cy.baseVal.value,
+            }))
+          : { x: 305, y: 400 };
+      // Use the real wheel camera path, anchored at the destination. This
+      // exercises its live CTM rather than faking the React viewBox state.
+      await canvas.evaluate(
+        (element, { target, scale }) => {
+          const svg = element as SVGSVGElement;
+          const matrix = svg.getScreenCTM()!;
+          const anchor = new DOMPoint(target.x, target.y).matrixTransform(
+            matrix,
+          );
+          svg.dispatchEvent(
+            new WheelEvent("wheel", {
+              clientX: anchor.x,
+              clientY: anchor.y,
+              ctrlKey: true,
+              deltaY: Math.log(matrix.a / scale) / 0.01,
+              bubbles: true,
+              cancelable: true,
+            }),
+          );
+        },
+        { target, scale },
+      );
+      await expect
+        .poll(() =>
+          canvas.evaluate(
+            (element) => (element as SVGSVGElement).getScreenCTM()!.a,
+          ),
+        )
+        .toBeCloseTo(scale, 1);
+      await awaitCanvasSettled(canvas);
+      await clickDrawTool(page, "wire");
+      const [start, destination] = await onScreen(canvas, [
+        { x: target.x - 30, y: target.y + (targetKind === "pin" ? 20 : -20) },
+        target,
+      ]);
+      await page.mouse.click(start!.x, start!.y);
+      await expect(page.getByTestId("status")).toContainText(
+        "Wire source: free grid point",
+      );
+      // At high zoom this is beyond the old 7px circle AND the DOM hit band.
+      // At low zoom it checks the minimum capture size on the same path.
+      const offset = Math.min(24, Math.max(6, 7 * scale)) * 0.8;
+      await page.mouse.move(destination!.x, destination!.y - offset);
+      await expect(page.getByTestId("wire-snap-target")).toBeVisible();
+      await page.mouse.click(destination!.x, destination!.y - offset);
+      await expect(page.getByTestId("status")).toContainText("Committed route");
+      await expect(page.getByTestId("wire-preview")).toHaveCount(0);
+      await expect(page.getByTestId("wire-snap-target")).toHaveCount(0);
+      await expect(page.locator('[data-canvas-hit-kind="route"]')).toHaveCount(
+        targetKind === "pin" ? 2 : 3,
+      );
+    });
+  }
+}
+
 test("wire can start from any interior point of an existing net", async ({
   page,
 }) => {
@@ -111,6 +213,23 @@ test("wire can start from any interior point of an existing net", async ({
   // junction dot at the tee.
   await expect(page.locator('[data-canvas-hit-kind="route"]')).toHaveCount(3);
   await expect(page.locator('g[data-layer="junctions"] circle')).toHaveCount(1);
+});
+
+test("clicking the active pin does not fix a zero-length wire step", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await placeComponent(page, "resistor", { x: 260, y: 200 });
+  await placeComponent(page, "resistor", { x: 460, y: 340 });
+  const ids = await instanceIds(page);
+  await clickDrawTool(page, "wire");
+  await page.getByTestId(`terminal-${ids[0]}-2`).click();
+  await page.getByTestId(`terminal-${ids[0]}-2`).click();
+  await expect(page.getByTestId("status")).toContainText("Wire source:");
+  await expect(page.getByTestId("status")).not.toContainText("step fixed");
+  await page.getByTestId(`terminal-${ids[1]}-1`).click();
+  await expect(page.getByTestId("status")).toContainText("Committed route");
+  await expect(page.locator('[data-canvas-hit-kind="route"]')).toHaveCount(1);
 });
 
 test("clicking a junction dot selects it and Delete disconnects the tap", async ({

@@ -4266,7 +4266,7 @@ test("derives crossings and creates junctions only when a wire ends on a route",
   await page.getByTestId("terminal-E-P").click();
   await clickRoute(page, "route-ui-1", 0.5);
   await expect(page.getByTestId("status")).toContainText(
-    "Ambiguous intersection",
+    "Ambiguous connection",
   );
   await expect(page.getByTestId("revision")).toHaveText("2");
   await page.keyboard.press("Escape");

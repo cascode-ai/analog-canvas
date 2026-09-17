@@ -310,6 +310,17 @@ that does not cross a component. A visible pin on the original path remains an
 intentional electrical contact. Any fixed point, explicit corner order,
 45-degree mode, or free-angle mode bypasses this assistance.
 
+Wire hover and primary clicks on Pins, Routes, and the canvas use one electrical
+target resolver. Capture follows the drawing at seven document units, bounded
+to a radius of 6–24 screen pixels through the live SVG transform. The smaller
+visible endpoint circles are indicators, not a separate electrical hit policy.
+Route capture and ranking use the closest point on the actual conductor;
+grid/arrival quantization happens only after selecting it. A captured target
+has a distinct preview marker and one click completes the connection. A free
+canvas click fixes a step; double-click or Enter finishes a free end. Alt
+suppresses electrical capture, and ambiguous coincident Nets require a clearer
+target instead of an arbitrary connection.
+
 Activating the same tool is idempotent: repeated C, W, or selection of the
 same Library item preserves the active session. Activating a different creation
 tool replaces the current interaction atomically after drag and snap cleanup.

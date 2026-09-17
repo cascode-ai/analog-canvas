@@ -21,6 +21,7 @@ export function EditorWiringOverlay({
   flightlines,
   onFlightlineClick,
   wireDraftPreview,
+  wireSnapTarget,
   bulkRoutePreview,
   snapGuideLayerRef,
   viewBox,
@@ -40,6 +41,7 @@ export function EditorWiringOverlay({
     flightline: Flightline,
   ) => void;
   wireDraftPreview: WireDraftPreview;
+  wireSnapTarget?: Point | undefined;
   bulkRoutePreview: boolean;
   snapGuideLayerRef: Ref<SVGGElement>;
   viewBox: GridRect;
@@ -189,6 +191,16 @@ export function EditorWiringOverlay({
             />
           ))
         : null}
+      {wireSnapTarget ? (
+        <circle
+          data-testid="wire-snap-target"
+          className="wire-snap-target"
+          cx={wireSnapTarget.x}
+          cy={wireSnapTarget.y}
+          r={5}
+          pointerEvents="none"
+        />
+      ) : null}
       <g ref={snapGuideLayerRef} data-layer="snap-guides" />
     </>
   );

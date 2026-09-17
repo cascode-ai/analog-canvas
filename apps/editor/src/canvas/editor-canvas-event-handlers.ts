@@ -213,6 +213,33 @@ export function createEditorCanvasEventHandlers({
         );
         return;
       }
+      // One electrical picker owns Pin, Route and background clicks. Resolve
+      // before child hit elements can stop propagation; commit only once,
+      // after pointerup, so replacing a hit element cannot create a second
+      // background click from the same gesture.
+      if (
+        tool === "wire" &&
+        event.button === 0 &&
+        !(event.target as Element).closest(
+          'foreignObject, [data-testid="flightline-hit"]',
+        )
+      ) {
+        event.stopPropagation();
+        if (event.detail === 1) {
+          applyWireCanvasPoint(
+            pointFromClient(
+              event.clientX,
+              event.clientY,
+              event.currentTarget,
+              false,
+            ),
+            event.currentTarget,
+            event.altKey,
+            false,
+          );
+        }
+        return;
+      }
       // The pointerdown that just picked something up (an armed Copy/Move
       // verb consuming its target) must not also place it: its click would
       // otherwise commit at the pickup point with zero displacement.
@@ -376,18 +403,6 @@ export function createEditorCanvasEventHandlers({
         );
         return;
       }
-      if (tool !== "wire" || event.detail !== 1) return;
-      applyWireCanvasPoint(
-        pointFromClient(
-          event.clientX,
-          event.clientY,
-          event.currentTarget,
-          false,
-        ),
-        event.currentTarget,
-        event.altKey,
-        false,
-      );
     },
     onDoubleClick(event: CanvasMouseEvent) {
       const target = event.target as Element;
@@ -459,6 +474,12 @@ export function createEditorCanvasEventHandlers({
         return;
       }
       if (tool !== "wire") return;
+      if (!wireSource) {
+        // The first click already committed a captured endpoint/route. The
+        // second click must finish quietly rather than opening another run.
+        setStatus("Wire finished · Esc exits");
+        return;
+      }
       if (wireSource && wireDraftStepCount === 0) {
         completeWire();
         setStatus("Wire finished · Esc exits");

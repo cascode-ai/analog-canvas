@@ -8,6 +8,7 @@ import type { Point, RouteBranch, SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
 import { endpointSnapAnchor } from "../../snap/candidates";
+import { closestPointOnSegment } from "../../canvas/canvas-geometry";
 import {
   resolvePointSnap,
   SNAP_PROFILES,
@@ -185,13 +186,9 @@ export function resolveWireCanvasSnap(
     index.cellSize,
   ).flatMap((routeSegmentIndex) => {
     const segment = index.routeSegments[routeSegmentIndex]!;
-    const tapPoint = routeTapPoint(
-      point,
-      segment.from,
-      segment.to,
-      document.presentation.grid,
-      arrival,
-    );
+    // Hit and rank the actual conductor before choosing its grid landing.
+    // Quantizing here makes even a click ON a wire miss at higher zoom.
+    const tapPoint = closestPointOnSegment(point, segment.from, segment.to);
     return Math.hypot(tapPoint.x - point.x, tapPoint.y - point.y) <=
       captureTolerance
       ? [
@@ -204,6 +201,8 @@ export function resolveWireCanvasSnap(
             routeId: segment.routeId,
             netId: segment.netId,
             segmentIndex: segment.segmentIndex,
+            from: segment.from,
+            to: segment.to,
           },
         ]
       : [];
@@ -240,10 +239,22 @@ export function resolveWireCanvasSnap(
         : {}),
     },
   );
-  const snappedPoint = {
+  const capturedPoint = {
     x: point.x + resolved.delta.x,
     y: point.y + resolved.delta.y,
   };
+  const capturedRoute = routeTargets.find(
+    (candidate) => candidate.anchor.id === resolved.pointMatch?.id,
+  );
+  const snappedPoint = capturedRoute
+    ? routeTapPoint(
+        capturedPoint,
+        capturedRoute.from,
+        capturedRoute.to,
+        document.presentation.grid,
+        arrival,
+      )
+    : capturedPoint;
   const atPoint = (candidate: { anchor: { id: string; point: Point } }) =>
     candidate.anchor.id !== activeSourceAnchorId &&
     Math.abs(candidate.anchor.point.x - snappedPoint.x) < 1e-6 &&
@@ -259,14 +270,30 @@ export function resolveWireCanvasSnap(
         netId: candidate.source.netId,
         endpoint: candidate.source.endpoint,
       })),
-      ...routeTargets.filter(atPoint).map((candidate) => ({
-        kind: "route" as const,
-        id: candidate.anchor.id,
-        point: candidate.anchor.point,
-        netId: candidate.netId,
-        routeId: candidate.routeId,
-        segmentIndex: candidate.segmentIndex,
-      })),
+      // Check electrical ambiguity at the chosen landing as well. A tap
+      // quantized onto a crossing must not silently choose one of its Nets.
+      ...routeTargets
+        .filter((candidate) => {
+          const projection = closestPointOnSegment(
+            snappedPoint,
+            candidate.from,
+            candidate.to,
+          );
+          return (
+            Math.hypot(
+              projection.x - snappedPoint.x,
+              projection.y - snappedPoint.y,
+            ) < 1e-6
+          );
+        })
+        .map((candidate) => ({
+          kind: "route" as const,
+          id: candidate.anchor.id,
+          point: snappedPoint,
+          netId: candidate.netId,
+          routeId: candidate.routeId,
+          segmentIndex: candidate.segmentIndex,
+        })),
     ],
     contactComponents,
   );

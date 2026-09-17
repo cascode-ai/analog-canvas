@@ -5,7 +5,10 @@ import { createEmptyDocument } from "@icm/model";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
 
-import { resolveWireCanvasSnap } from "./wire-canvas-snap";
+import {
+  resolveWireCanvasSnap,
+  type WireCanvasSnapContext,
+} from "./wire-canvas-snap";
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);
 
@@ -33,6 +36,112 @@ function source(
 }
 
 describe("wire canvas snap", () => {
+  function conductorContext(diagonal = false): WireCanvasSnapContext {
+    const document = createEmptyDocument("snap", "Snap");
+    document.presentation.grid = 10;
+    document.nets.push({ id: "net", terminals: [] });
+    document.junctions.push(
+      { id: "a", netId: "net", position: { x: 0, y: 0 } },
+      { id: "b", netId: "net", position: { x: 100, y: diagonal ? 100 : 0 } },
+    );
+    const route = createRoutePath({
+      id: "route",
+      netId: "net",
+      start: { kind: "junction", junctionId: "a" },
+      end: { kind: "junction", junctionId: "b" },
+      bends: [],
+      modes: ["manual"],
+    });
+    document.routes.push(route);
+    return {
+      document,
+      resolver,
+      wiringEndpoints: [],
+      contactComponents: [],
+      routeGeometryRecords: [
+        {
+          route,
+          geometry: resolveDocumentRoutingGeometry(
+            document,
+            resolver,
+          ).routes.get(route.id)!,
+        },
+      ],
+      wireSource: null,
+      wireWaypoints: [],
+      captureTolerance: 1,
+    };
+  }
+
+  it.each([false, true])(
+    "captures between grid points before quantizing (diagonal=%s)",
+    (diagonal) => {
+      const result = resolveWireCanvasSnap(
+        conductorContext(diagonal),
+        { x: 45, y: diagonal ? 45 : 0 },
+        false,
+      );
+      expect(result.route?.point).toEqual({ x: 50, y: diagonal ? 50 : 0 });
+    },
+  );
+
+  it("preserves a straight arrival without using that offset as the capture distance", () => {
+    const context = conductorContext();
+    context.wireSource = source({ x: 40, y: -100 });
+    const result = resolveWireCanvasSnap(context, { x: 45, y: 0.5 }, false);
+    expect(result.route?.point).toEqual({ x: 40, y: 0 });
+  });
+
+  it("does not capture a wire outside the radius even if its grid landing is nearby", () => {
+    expect(
+      resolveWireCanvasSnap(conductorContext(), { x: 45, y: 2 }, false).route,
+    ).toBeUndefined();
+  });
+
+  it.each([false, true])(
+    "keeps different nets ambiguous at the landing (crossing=%s)",
+    (crossing) => {
+      const context = conductorContext();
+      const second = conductorContext();
+      second.document.nets[0]!.id = "other";
+      for (const junction of second.document.junctions) {
+        junction.id += "-other";
+        junction.netId = "other";
+      }
+      if (crossing) {
+        second.document.junctions[0]!.position = { x: 50, y: -100 };
+        second.document.junctions[1]!.position = { x: 50, y: 100 };
+      }
+      const route = createRoutePath({
+        id: "other-route",
+        netId: "other",
+        start: { kind: "junction", junctionId: "a-other" },
+        end: { kind: "junction", junctionId: "b-other" },
+        bends: [],
+        modes: ["manual"],
+      });
+      context.document.nets.push(...second.document.nets);
+      context.document.junctions.push(...second.document.junctions);
+      context.document.routes.push(route);
+      context.routeGeometryRecords = [
+        ...context.routeGeometryRecords,
+        {
+          route,
+          geometry: resolveDocumentRoutingGeometry(
+            context.document,
+            resolver,
+          ).routes.get(route.id)!,
+        },
+      ];
+      expect(
+        resolveWireCanvasSnap(
+          context,
+          { x: crossing ? 49.8 : 45, y: 0.1 },
+          false,
+        ).ambiguous,
+      ).toBe(true);
+    },
+  );
   it("uses only the grid while snap suppression is active", () => {
     const document = createEmptyDocument("document", "Document");
     document.presentation.grid = 10;

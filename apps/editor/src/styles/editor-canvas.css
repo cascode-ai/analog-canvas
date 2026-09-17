@@ -482,6 +482,15 @@
   stroke-width: 1.5;
 }
 
+.wire-snap-target {
+  fill: var(--icm-accent);
+  fill-opacity: 0.3;
+  stroke: var(--icm-accent);
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
 .selection-box {
   fill: var(--icm-accent-soft);
   stroke: var(--icm-accent);

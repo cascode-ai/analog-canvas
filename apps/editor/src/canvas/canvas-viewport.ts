@@ -46,6 +46,12 @@ export function logicalRadiusForCanvasPixels(
   return logicalToleranceForScale(pixels, (xScale + yScale) / 2);
 }
 
+/** Electrical capture grows with the drawing, bounded for very far zooms. */
+export function wireCaptureRadius(svg: SVGSVGElement): number {
+  const unitsPerPixel = logicalRadiusForCanvasPixels(svg, 1);
+  return Math.min(24 * unitsPerPixel, Math.max(6 * unitsPerPixel, 7));
+}
+
 /** Replace the imperative Smart Snap overlay without involving the scene render. */
 export function replaceCanvasSnapGuides(
   layer: SVGGElement | null,
