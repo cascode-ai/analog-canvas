@@ -1,7 +1,7 @@
 # Native VACASK execution harness
 
-This is the migration branch's native harness, not an already qualified hosted
-SKY130 environment. It uses the existing simulation service, result protocol and
+This is the native VACASK harness, not an already qualified hosted SKY130
+environment. It uses the existing simulation service, result protocol and
 process supervisor. It never falls back to ngspice.
 
 ## Run locally
@@ -219,11 +219,12 @@ bad arrays or missing vectors produce diagnostics without discarding other
 valid records. No filesystem access is made using a reported path. Truncation
 and dropped electrical inputs still withhold numerical results.
 
-Each mapped analysis carries `postprocessor.logLine` through the shared result
-and evaluated-output contracts. The GUI identifies the report's Console line;
-it does not bind a computed same-name vector to a Canvas node. Raw artifacts,
-the original console declaration and source remain available through File APIs.
-This is output provenance, not a new Project schema or saved input protocol.
+Each mapped analysis carries `postprocessor.logLine` in the shared result
+(`result.data`/`result.json`); new runs publish no evaluated-output copy. The
+GUI offers only Specs and Console, and nothing binds a computed same-name vector
+to a Canvas node. Raw artifacts, the original console declaration and source
+remain available through File APIs. This is output provenance, not a new
+Project schema or saved input protocol.
 
 The helper deliberately supplies neither a numeric evaluator nor a rawfile
 writer: authors use their program/library. The real local journey test below
@@ -269,15 +270,15 @@ produce output diagnostics without discarding valid neighboring reports.
 Reports from a run with dropped electrical input have their values withheld.
 
 These are **output evidence**, not persisted input declarations or an assertion
-that the editor verified the author's computation. The existing shared
-`nativeMeasurements` result contains the postprocessor origin and available
-values' console line evidence. GUI and API readers consume that same result;
-the File Resource exposes `native-measurements.json` and
-`native-measurements.csv`. Unavailable CSV values are empty, never zero.
-The GUI labels these unbound reports **Run measurements**, including in OP
-view; no raw plot/analysis association is guessed. Original console/source
-artifacts remain available. A program that fails before reporting cannot be
-used to infer an expected name, value or successful measurement.
+that the editor verified the author's computation. The shared service parses
+them, keeping occurrence and console line evidence, and passes them to the
+run's Spec evaluation (`outputData.specs`, `specs.json`, `specs.csv`). New runs
+publish no `native-measurements.json`/`.csv` artifacts, and the GUI shows Specs
+and Console rather than a separate measurement view. Unavailable CSV values are
+empty, never zero. No raw plot/analysis association is guessed. Original
+console/source artifacts remain available. A program that fails before
+reporting cannot be used to infer an expected name, value or successful
+measurement.
 
 The real local service/process test also uses the shared helper and reads an
 actual OP artifact before reporting; it verifies failure recovery, repeated
@@ -343,12 +344,16 @@ accuracy, all analyses/corners, GUI/public MCP transport or hosted isolation.
 
 ## Transport and shutdown
 
-The native Worker route requires `SIMULATION_PROFILE_ID` plus the explicitly
-selected executor (`SIMULATION_UPSTREAM_URL`/token for the private HTTPS gateway,
-or a provisioned `VACASK` binding). `/health` must report that Profile, verified
-pinned VACASK environment metadata and the native capabilities above. Worker
-forwards exact input files and validates result evidence through the shared
-service; it does not add `.lib`, `.include`, or parse numbers independently.
+The native Worker route requires `VACASK_PROFILE_ID` plus the explicitly
+selected executor (`VACASK_UPSTREAM_URL`/`VACASK_UPSTREAM_TOKEN` for the private
+HTTPS gateway, or a provisioned `VACASK` binding); there,
+`SIMULATION_UPSTREAM_URL` and its token stay with the ngspice route. A Worker
+with `SIMULATION_PROFILE_ID` but no `VACASK_PROFILE_ID` keeps the older
+native-only route, which uses those `SIMULATION_*` settings. `/health` must
+report that Profile, verified pinned VACASK environment metadata and the native
+capabilities above. Worker forwards exact input files and validates result
+evidence through the shared service; it does not add `.lib`, `.include`, or
+parse numbers independently.
 Do not point this migration at the current production/shared operator endpoint.
 No deployment configuration or qualified model registration is supplied by this
 harness. Use the isolated migration delivery described in the roadmap.

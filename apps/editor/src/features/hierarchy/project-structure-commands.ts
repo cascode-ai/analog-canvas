@@ -6,10 +6,12 @@ import {
   planRemoveCellTerminals,
   planRenameCell,
   planRenameCellTerminal,
+  planReorderCellPort,
   planReorderCellTerminal,
   planSetCellSymbolPresentation,
   planSetCellTerminalPlacement,
   planUpdateCellTerminalDirection,
+  planUpdateCellPortDirection,
   proposeSetCellFormalParameters,
   proposeUpsertExternalSubcircuitDefinition,
 } from "@icm/edit-engine";
@@ -119,6 +121,26 @@ export function createProjectStructureCommands({
           project,
           targetDocumentId,
           terminalId,
+          direction,
+        ),
+      )
+    ) {
+      setStatus("Updated Cell port direction");
+    }
+  };
+
+  const updateCellPortDirection = (
+    portId: string,
+    direction: CellDirection,
+    targetDocumentId = activeDocument.id,
+  ): void => {
+    if (
+      commitStructure(
+        "update-cell-port-direction",
+        planUpdateCellPortDirection(
+          project,
+          targetDocumentId,
+          portId,
           direction,
         ),
       )
@@ -280,6 +302,18 @@ export function createProjectStructureCommands({
     }
   };
 
+  const moveCellPort = (
+    portId: string,
+    delta: -1 | 1,
+    targetDocumentId = activeDocument.id,
+  ): void => {
+    const edits = planReorderCellPort(project, targetDocumentId, portId, delta);
+    if (edits.length === 0) return;
+    if (commitStructure("reorder-cell-interface-port", edits)) {
+      setStatus("Reordered formal port interface");
+    }
+  };
+
   const setCellFormalParameters = (
     formalParameters: FormalParameters,
     targetDocumentId = activeDocument.id,
@@ -412,11 +446,13 @@ export function createProjectStructureCommands({
     renameCell,
     deleteCell,
     updateCellPinDirection,
+    updateCellPortDirection,
     renameCellTerminal,
     editCellTerminalAnnotation,
     removeCellTerminalSelection,
     deleteCellTerminal,
     moveCellTerminal,
+    moveCellPort,
     setCellFormalParameters,
     setExternalSubcircuitDefinition,
     setCellSymbolBodySize,

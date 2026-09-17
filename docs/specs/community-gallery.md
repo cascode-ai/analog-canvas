@@ -2,8 +2,8 @@
 
 Status: `accepted`
 
-Primary owners: `worker/gallery.ts`, `worker/auth.ts`, `apps/editor`
-landing feed
+Primary owners: `worker/gallery.ts`, `worker/gallery-do.ts`, `worker/auth.ts`,
+`worker/auth-do.ts`, `apps/editor` landing feed
 
 ## Trust boundary
 
@@ -18,9 +18,10 @@ restrictive content-security-policy.
 ## Public surface
 
 - `GET /api/gallery` — newest-first `public` entries
-  (`{entries, nextCursor}`; keyset cursor; limit clamps at 60; optional
+  (`{entries, nextCursor, total}`; keyset cursor; limit clamps at 60; optional
   `author` filters to that exact byline and optional `tags=a,b` to
-  entries carrying ANY listed tag, both ahead of pagination). Rejected and
+  entries carrying ANY listed tag, both ahead of pagination; `total` counts
+  the whole filtered set and repeats on every page). Rejected and
   recycled entries never appear. Every entry includes the content-derived
   `previewRevision` used by its thumbnail URL plus `previewWidth` and
   `previewHeight` from the stored SVG viewBox. Older or invalid previews may
@@ -52,14 +53,17 @@ restrictive content-security-policy.
 ## Publishing
 
 `POST /api/gallery/submissions` (same-origin) publishes immediately with:
-trimmed `name` (required, ≤120), optional `author` (≤40), `description`
+trimmed `name` (required, ≤120), `description`
 (≤300), and `tags` (array; normalized lowercase `[a-z0-9 +/-]`, ≤24
 chars each, at most 5, deduplicated — `sanitizeGalleryTags` is the one
 normalization for writes and filters), `projectText` ≤2 MiB. The Worker validates, stamps the canonical
 serialization, renders the preview, and stores the entry as `public`.
-Ordinary submissions count against a per-submitter (hashed IP) limit of
-10 per UTC day; admin and moderator sessions are exempt — the quota is
-anti-garbage protection, and curators are the ones cleaning up.
+Ordinary submissions count against a per-account limit of 100 per UTC day,
+counted from that account's entries created that day that are not in the
+recycle bin: deleting or withdrawing an entry returns its slot, restoring it
+spends the slot again, and a rejected entry keeps it. Admin and moderator
+sessions are exempt — the quota is anti-garbage protection, and curators are
+the ones cleaning up.
 
 Publishing authority: a signed-in session is the whole gate. Every
 signed-in account publishes directly as `public`; an ordinary member
@@ -119,16 +123,20 @@ to `public` rather than stranding it. `rejected` is now the Owner's explicit
 post-publication decision: its required reason remains visible to the
 submitter until the Owner restores the entry.
 
-- `GET /api/gallery/mine` — the calling session's entries with `status`
-  and `rejectReason`.
+- `GET /api/gallery/mine` — the calling session's entries with `status`,
+  `rejectReason`, and the withdrawal time `recycledAt`.
 - Moderators: `users.role` (`user`/`moderator`); the super-admin
   appoints by email via `POST /api/auth/users/role` `{email, role}`,
   which applies to every account carrying that verified email. A
   moderator curates; quality advice is non-blocking for every role. The recycle bin and
   maintenance stay admin-only.
 
-The Gallery feed gives the super-admin direct Like and Reject (`×`) controls
-on every community tile, plus an Owner menu for Edit and replace and Withdraw.
+Every community tile carries a Like toggle backed by
+`POST /api/gallery/<id>/like` (same-origin): a signed-in account holds at most
+one like per public entry, pressing again removes it, and the feed reports each
+entry's `likes` count and the viewer's `likedByViewer`. The Gallery feed gives
+the super-admin a direct Reject (`×`) control on every community tile, plus an
+Owner menu for Edit and replace and Withdraw.
 Reject opens a multi-select form with common reasons (`too ugly`,
 `circuit incorrect`, `too simple`, `duplicate`) and an independent optional
 note/other-reason field. The editor surfaces the full administration lifecycle
@@ -157,9 +165,17 @@ accepts the owning session — the entry moves to `recycled` and leaves
 every public surface, exactly like an admin recycle. The owner brings a
 voluntary withdrawal back with `POST /api/gallery/<id>/restore`, which
 republishes it. An ordinary owner cannot restore or recycle an Owner-rejected
-entry; it remains editable but hidden until the Owner restores it. `/mine`
-surfaces the available actions: a two-step Withdraw and a Restore on
-voluntarily withdrawn entries.
+entry; it remains editable but hidden until the Owner restores it. The recycle
+bin keeps each account's 25 most recently recycled entries: an older one is
+removed permanently when that account next publishes or has an entry recycled,
+and nothing expires by age. Legacy entries without an owning account are
+exempt.
+
+Owner deletion: `DELETE /api/gallery/<id>` (same-origin) also accepts the
+owning session, which removes the entry with its saved versions and likes
+permanently in one step, without withdrawing it first. `/mine` surfaces the
+available actions: a two-step Withdraw, a Restore on voluntarily withdrawn
+entries, and a confirmed Delete.
 
 ## Version history
 
@@ -205,7 +221,7 @@ database stores only SHA-256 hashes of session and login tokens.
   links are single-use, expire in 15 minutes, and are limited to 5 per
   address per UTC day.
 - `GET /api/auth/me` — `{user}` with `id`, `displayName`, `email`,
-  `provider`, and the per-request `isAdmin` flag.
+  `provider`, `role` (`user`/`moderator`), and the per-request `isAdmin` flag.
 - `POST /api/auth/profile` — rename the caller's display name (trimmed,
   1–40 chars). `POST /api/auth/logout` ends the session. Both are
   same-origin gated like submissions.
@@ -237,12 +253,13 @@ header buys nothing. Without such a session every admin route answers
   `{reason}` (trimmed, at most 500 characters), the reviewing account, and the
   review time. The submitter sees the reason on `/mine`.
 - `POST /api/gallery/<id>/restore` — back to `public`.
-- `DELETE /api/gallery/<id>` — permanent, and only for entries already in
-  the bin (`409` otherwise).
+- `DELETE /api/gallery/<id>` — permanent; a super-admin session deletes only
+  entries already in the bin (`409` otherwise). (Also open to the owning
+  session as one-step deletion — see Owner editing.)
 - `GET /api/gallery/recycled` — the bin.
 - `GET /api/gallery/rejected` — rejected entries and their reasons.
 - `GET /api/gallery/maintenance/schema-backup` — download a full-fidelity
-  administrator backup of entries, saved versions, and workspace slots.
+  administrator backup of entries, saved versions, and private Cloud Projects.
 - `POST /api/gallery/maintenance/schema-current` — validate or transactionally
   converge every stored Project to `CURRENT_PROJECT_SCHEMA_VERSION`. The
   request body is `{ "apply": false }` for a dry run and `{ "apply": true }`
@@ -261,10 +278,11 @@ Entries are public content. Publishing is publish-then-moderate: a
 signed-in account puts a circuit straight on the wall, and the recycle
 bin is the takedown mechanism if it should not have gone up.
 
-Two separate notions of "who submitted" coexist, and neither is public:
+The submitting account is the only notion of "who submitted", and its
+identity is not public:
 
-- the daily quota keys on a salted hash of the connecting IP, which
-  identifies nobody and is never stored against an entry;
+- the daily quota counts that account's own entries; the Gallery keeps no
+  connecting-IP hash or separate submission counter;
 - an entry stores the submitting account's id, email, and provider, and
   the API discloses the email and provider only to a moderator or admin.
 

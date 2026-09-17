@@ -276,6 +276,25 @@
       "scope": ["two-terminal ideal switch geometry"]
     },
     {
+      "id": "razavi-textbook-externally-controlled-switch",
+      "kind": "pdf-vector-extract",
+      "source": {
+        "title": "Design of Analog CMOS Integrated Circuits, Second Edition",
+        "sha256": "a6031d1149c2c6191a1f0e541065165b72dafc4bc4ab4b0ea37af41b7cb0f739",
+        "pdfPage": 696,
+        "printedPage": 677,
+        "figure": "16.38 (S1)"
+      },
+      "extractPath": "externally-controlled-switch-vector-source.json",
+      "extractSha256": "c382f9ea162a92bd3ad5c73c8bb4625212dffa84ca798faaa44080a1c1b2a03e",
+      "rasterPath": "externally-controlled-switch-reference.png",
+      "rasterSha256": "af7741d0d0ec17b66b092cf11fac74ec621828a335829d62009371d864cc869a",
+      "scope": [
+        "three-terminal externally controlled switch geometry",
+        "single-ended control lead, hollow contacts, and open blade"
+      ]
+    },
+    {
       "id": "razavi-textbook-npn",
       "kind": "pdf-vector-extract",
       "source": {
@@ -495,7 +514,7 @@
   "differentialOpampGeometryPath": "differential-opamp-geometry.json",
   "differentialOpampGeometrySha256": "a3f16365d6a7f87d91459c1708c58152ac81aad7f8832c73144b74d13b148612",
   "commonSymbolGeometryPath": "common-symbol-geometry.json",
-  "commonSymbolGeometrySha256": "de9531139628f23ecdadf7dbc51d64ad176d790cb17f6929ef7fbaae597c398a",
+  "commonSymbolGeometrySha256": "1972b4584a02c9845c5a20d24005746f2ae258c5c250c740e67a644ae4d68d37",
   "zenerDiodeGeometryPath": "zener-diode-geometry.json",
   "zenerDiodeGeometrySha256": "0ceb7d8e0512e933dc36fff854a851491baf8e270748d6793b40a2fdc1bf1a15",
   "logicGateGeometryPath": "logic-gate-geometry.json",
@@ -505,7 +524,7 @@
   "delayCellGeometryPath": "delay-cell-geometry.json",
   "delayCellGeometrySha256": "b64afe75141020b265bc7826a1c21fa5f13cb9f898e9e6bc013f1e0ef3f84985",
   "fidelityTargetsPath": "fidelity-targets.json",
-  "fidelityTargetsSha256": "d4664d4ae969238cdd0b9c878499a364c63de10f8ebc76290f53ec36b317b2a1",
+  "fidelityTargetsSha256": "42d94a268d87c0899afe13df6d89f88b4365c3ee930f8f29b5638cae5abdd5b4",
   "pixels": {
     "width": 1204,
     "height": 794

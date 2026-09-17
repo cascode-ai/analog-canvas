@@ -58,15 +58,17 @@ human UI / authorized Agent
   │                                      └─ Cloud Save / portable interchange
   └─ prepare / run / read / cancel
        → SimulationService ← immutable snapshot of selected authored input
-       → configured executor / managed admission → ngspice + qualified models
+       → configured executor / managed admission
+       → ngspice + qualified models, or Preview's native VACASK candidate
        → parsed results / artifacts → UI and Agent
 ```
 
 The simulation path reads circuit facts; it does not rewrite a Net or source
 Instance from a result. Testbench bias and waveform parameters remain on ordinary
 Instances. Native analyses, acquisition, parameters and measurements belong
-to authored SPICE; the new experiment sidecar selects only its Profile. Legacy
-configuration is read through the bounded compatibility path in the
+to authored native source; the new experiment sidecar selects only its Profile,
+which determines the engine without fallback. Legacy configuration is read
+through the bounded compatibility path in the
 [simulation contract](specs/simulation.md#compatibility).
 
 ## Core invariants

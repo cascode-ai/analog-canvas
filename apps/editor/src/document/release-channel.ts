@@ -1,5 +1,5 @@
 /**
- * Which release channel this editor is being served from (ADR 0057).
+ * Which release channel this editor is being served from (Deployment rationale).
  *
  * The same build serves the public site and the preview; only the Worker
  * knows which, and it says so at /api/channel. Anything short of a clear

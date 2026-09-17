@@ -295,6 +295,70 @@ describe("native VACASK circuit projection", () => {
     );
   });
 
+  it.each(["1", "1.0", "1e0"])(
+    "omits reviewed external unity %s in execution and authoring",
+    (m) => {
+      const ir = design([
+        {
+          ...card("X1", "mos", { w: "1", l: "0.15", m }, ["d", "g", "s", "b"]),
+          invocationKind: "subcircuit",
+          target: "sky130_fd_pr__nfet_01v8",
+          reviewedExternalBindingId: "sky130-nfet-01v8",
+        },
+      ]);
+      ir.externalMasters = [
+        {
+          id: "nfet",
+          name: "sky130_fd_pr__nfet_01v8",
+          terminals: [],
+          formalParameters: [{ name: "m", defaultValue: "1" }],
+        },
+      ];
+      for (const authoring of [false, true]) {
+        const result = printVacaskWithLocations(ir, true, { authoring });
+        expect(result.ok).toBe(true);
+        if (!result.ok) return;
+        expect(result.text).toContain(
+          "X1 (d g s b) sky130_fd_pr__nfet_01v8 w=1 l=0.15\n",
+        );
+        expect(result.text).not.toContain("$mfactor");
+        expect(result.parameters.some((p) => p.parameter === "m")).toBe(false);
+      }
+      for (const rawValue of ["2", "{factor}", "{1+0}", "1M"]) {
+        ir.cells[0]!.instances[0]!.parameters[2]!.rawValue = rawValue;
+        const result = printVacaskWithLocations(ir, true);
+        expect(!result.ok && result.diagnostics[0]?.code).toBe(
+          "VACASK_UNMAPPED_SUBCIRCUIT_MULTIPLICITY",
+        );
+      }
+    },
+  );
+
+  it.each(["1", "2"])(
+    "preserves ordinary external formal M=%s and its source span",
+    (m) => {
+      const ir = design([
+        {
+          ...card("X1", "hierarchical", { m }),
+          invocationKind: "subcircuit",
+          target: "custom",
+        },
+      ]);
+      ir.externalMasters = [
+        {
+          id: "custom",
+          name: "custom",
+          terminals: [],
+          formalParameters: [{ name: "M", defaultValue: "5" }],
+        },
+      ];
+      const result = printed(ir);
+      expect(result.text).toContain(`X1 (input 0) custom M=${m}\n`);
+      const span = result.parameters.find((p) => p.parameter === "m")!;
+      expect(result.text.slice(span.startOffset, span.endOffset)).toBe(m);
+    },
+  );
+
   it("forwards and multiplies owned nested Cell factors without duplicating source spans", () => {
     const result = printed(multipliedDesign());
     expect(result.text).toContain("subckt outer (p n)\nparameters $mfactor=1");
@@ -328,7 +392,7 @@ describe("native VACASK circuit projection", () => {
     ir.cells
       .find((c) => c.id === "leaf")!
       .instances.push({
-        ...card("XPDK", "mos", {}, ["p", "p", "n", "n"]),
+        ...card("XPDK", "mos", { m: "1" }, ["p", "p", "n", "n"]),
         invocationKind: "subcircuit",
         target: "unqualified_native_wrapper",
       });

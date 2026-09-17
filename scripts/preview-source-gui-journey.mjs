@@ -4,6 +4,7 @@ import { basename, join, resolve } from "node:path";
 import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 import { chromium, expect } from "@playwright/test";
+import { previewBrowserLaunchOptions } from "./lib/preview-browser.mjs";
 import { parseProject } from "../packages/project-protocol/dist/index.js";
 import {
   readSimulationExperimentConfig,
@@ -175,7 +176,7 @@ async function downloadArtifactGroup(label, name, action = "Download…") {
 }
 try {
   report.candidate = await verifyPreviewCandidate(baseUrl);
-  browser = await chromium.launch({ headless: true });
+  browser = await chromium.launch(previewBrowserLaunchOptions());
   const context = await browser.newContext({
     viewport: { width: 1600, height: 1050 },
     acceptDownloads: true,

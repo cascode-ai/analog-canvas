@@ -51,7 +51,7 @@ function nativeDiagnostics(log: string): SimulationDiagnostic[] {
     const warning = /^Warning\b/iu.test(line);
     if (
       warning ||
-      /^(?:Parser syntax error|Analysis type '.+' not found\.|Master '.+' not found\.|Command not found\.|Error\b|Fatal\b|Timestep too small\.|Operating point analysis failed\.|Initial OP analysis failed\.|Homotopy failed,)/iu.test(
+      /^(?:Parser syntax error|Analysis type '.+' not found\.|Master '.+' not found\.|Node '.+' not found\.|Failed to bind analysis outputs\.|Command not found\.|Error\b|Fatal\b|Timestep too small\.|Operating point analysis failed\.|Initial OP analysis failed\.|Homotopy failed,)/iu.test(
         line,
       )
     )
@@ -84,8 +84,10 @@ export async function assembleNativeExecutionOutput(
     (execution.stdout && execution.stderr ? "\n" : "") +
     execution.stderr;
   const diagnostics: SimulationDiagnostic[] = [
-    ...job.diagnostics,
+    // Native causes precede collector consequences (e.g. absent output files).
+    // Preserve both, including original source/caret location blocks.
     ...nativeDiagnostics(log),
+    ...job.diagnostics,
   ];
   const error = (text: string) => diagnostics.push({ severity: "error", text });
   if (execution.spawnError)

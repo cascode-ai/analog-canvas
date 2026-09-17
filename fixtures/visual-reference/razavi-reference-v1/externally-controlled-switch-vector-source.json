@@ -1,0 +1,297 @@
+{
+  "schemaVersion": 1,
+  "id": "razavi-textbook-externally-controlled-switch",
+  "kind": "pdf-vector-extract",
+  "source": {
+    "title": "Design of Analog CMOS Integrated Circuits, Second Edition",
+    "sha256": "a6031d1149c2c6191a1f0e541065165b72dafc4bc4ab4b0ea37af41b7cb0f739",
+    "pdfPage": 696,
+    "printedPage": 677,
+    "figure": "16.38 (S1)"
+  },
+  "selection": {
+    "method": "direct-device-vector-normalization",
+    "boundsPdf": {
+      "left": 260.0,
+      "top": 188.0,
+      "right": 304.0,
+      "bottom": 216.0
+    },
+    "nativeObjectCount": 6,
+    "nativeObjectSha256": "148cbad8ef24b095a35f1c3a85a0c29334817835d96624d38b359b878d5dda63",
+    "nativeObjectSample": [
+      {
+        "objectType": "line",
+        "linewidth": 0.717,
+        "x0": 302.094,
+        "top": 189.2692,
+        "x1": 302.094,
+        "bottom": 196.4372,
+        "pathCommandCount": 2,
+        "pathSha256": "976e7e4a4dc651480b114b5e4402880081a4cace22437ec841e159d48dbc4333"
+      },
+      {
+        "objectType": "line",
+        "linewidth": 0.717,
+        "x0": 302.094,
+        "top": 208.6232,
+        "x1": 302.094,
+        "bottom": 215.0742,
+        "pathCommandCount": 2,
+        "pathSha256": "ad937e3b0310ec3b9444bda086555b1bb55f9b0e82a719dd09748417a2918bbe"
+      },
+      {
+        "objectType": "line",
+        "linewidth": 0.717,
+        "x0": 261.951,
+        "top": 202.0383,
+        "x1": 298.689,
+        "bottom": 202.0383,
+        "pathCommandCount": 2,
+        "pathSha256": "253be66d2962c3efd67f80f8d6d440626afb97f1cbe5eadaac840d89eee1921d"
+      },
+      {
+        "objectType": "line",
+        "linewidth": 0.717,
+        "x0": 295.955,
+        "top": 198.5442,
+        "x1": 301.153,
+        "bottom": 205.1742,
+        "pathCommandCount": 2,
+        "pathSha256": "83ea57acd0bb7a4a33f392b588fda21a11323f932624e6a0d517e4cd80779ea9"
+      },
+      {
+        "objectType": "curve",
+        "linewidth": 0.717,
+        "x0": 300.584,
+        "top": 196.4752,
+        "x1": 303.451,
+        "bottom": 199.3422,
+        "pathCommandCount": 5,
+        "pathSha256": "d78b8391c74b56452ff6fba91a23d3b21e6bde6c0647ec13f05158b3907cf83a"
+      },
+      {
+        "objectType": "curve",
+        "linewidth": 0.717,
+        "x0": 300.584,
+        "top": 205.7632,
+        "x1": 303.451,
+        "bottom": 208.6302,
+        "pathCommandCount": 5,
+        "pathSha256": "33233b67e35c10d66f4eada298708d1afbb56a13cc31a69d4c8565a93a19e5c1"
+      }
+    ]
+  },
+  "normalization": {
+    "pinAnchorsLogical": [
+      {
+        "name": "P",
+        "x": 0,
+        "y": -20
+      },
+      {
+        "name": "N",
+        "x": 0,
+        "y": 20
+      },
+      {
+        "name": "CTRL",
+        "x": -20,
+        "y": 0
+      }
+    ],
+    "strokeMapping": {
+      "normal": {
+        "targetRole": "normal"
+      },
+      "emphasis": {
+        "targetRole": "emphasis"
+      }
+    },
+    "symbolDefinition": {
+      "schemaVersion": 1,
+      "id": "externally-controlled-switch",
+      "name": "Externally Controlled Switch",
+      "viewBox": {
+        "x": -24,
+        "y": -24,
+        "width": 48,
+        "height": 48
+      },
+      "pins": [
+        {
+          "name": "P",
+          "role": "passive",
+          "at": {
+            "x": 0,
+            "y": -20
+          },
+          "direction": "north",
+          "presentation": {
+            "visibility": "visible",
+            "leadLength": 10
+          }
+        },
+        {
+          "name": "N",
+          "role": "passive",
+          "at": {
+            "x": 0,
+            "y": 20
+          },
+          "direction": "south",
+          "presentation": {
+            "visibility": "visible",
+            "leadLength": 10
+          }
+        },
+        {
+          "name": "CTRL",
+          "role": "input",
+          "at": {
+            "x": -20,
+            "y": 0
+          },
+          "direction": "west",
+          "presentation": {
+            "visibility": "visible",
+            "leadLength": 10
+          }
+        }
+      ],
+      "primitives": [
+        {
+          "kind": "line",
+          "from": {
+            "x": 0,
+            "y": -20
+          },
+          "to": {
+            "x": 0,
+            "y": -12.41417
+          },
+          "style": {
+            "strokeRole": "normal",
+            "lineCap": "butt",
+            "lineJoin": "miter"
+          }
+        },
+        {
+          "kind": "circle",
+          "center": {
+            "x": 0.0,
+            "y": -9.215286
+          },
+          "radius": 3.198884,
+          "fill": "none",
+          "stroke": "foreground",
+          "style": {
+            "strokeRole": "normal",
+            "lineCap": "butt",
+            "lineJoin": "miter"
+          }
+        },
+        {
+          "kind": "line",
+          "from": {
+            "x": -2.635977,
+            "y": -6.895603
+          },
+          "to": {
+            "x": -13.528591,
+            "y": 6.997824
+          },
+          "style": {
+            "strokeRole": "normal",
+            "lineCap": "butt",
+            "lineJoin": "miter"
+          }
+        },
+        {
+          "kind": "line",
+          "from": {
+            "x": -20,
+            "y": 0
+          },
+          "to": {
+            "x": -7.427615,
+            "y": 0
+          },
+          "style": {
+            "strokeRole": "normal",
+            "lineCap": "butt",
+            "lineJoin": "miter"
+          }
+        },
+        {
+          "kind": "circle",
+          "center": {
+            "x": 0.0,
+            "y": 11.511074
+          },
+          "radius": 3.198884,
+          "fill": "none",
+          "stroke": "foreground",
+          "style": {
+            "strokeRole": "normal",
+            "lineCap": "butt",
+            "lineJoin": "miter"
+          }
+        },
+        {
+          "kind": "line",
+          "from": {
+            "x": 0,
+            "y": 14.709958
+          },
+          "to": {
+            "x": 0,
+            "y": 20
+          },
+          "style": {
+            "strokeRole": "normal",
+            "lineCap": "butt",
+            "lineJoin": "miter"
+          }
+        }
+      ],
+      "variants": [],
+      "aliases": [
+        "pin-controlled-switch",
+        "logic-controlled-switch"
+      ]
+    }
+  },
+  "rasterWitness": {
+    "kind": "source-pdf-crop",
+    "sourcePdfPage": 696,
+    "dpi": 385.606695,
+    "pixels": {
+      "width": 64,
+      "height": 116
+    },
+    "pixelsPerLogical": 2.4,
+    "originPx": {
+      "x": 48.322912,
+      "y": 58.222795
+    },
+    "window": {
+      "width": 64,
+      "height": 116,
+      "minX": -20,
+      "minY": -24
+    },
+    "sourceCropPx": {
+      "x": 1387,
+      "y": 1206
+    },
+    "assetPath": "externally-controlled-switch-reference.png",
+    "threshold": 160
+  },
+  "derivation": {
+    "geometry": "uniformly normalized from Figure 16.38 S1 native main leads, hollow contacts, blade, and Q_A control line",
+    "scale": "native 0.717 pt stroke mapped to the Razavi normal 1.6 logical-unit stroke",
+    "pinExtension": "surrounding charge-pump wiring is excluded; the switched path and single-ended control line terminate at the nearest 10-unit anchors",
+    "semantics": "the source establishes a single-ended logical control terminal, not the four-terminal differential control voltage required by a SPICE S primitive"
+  }
+}

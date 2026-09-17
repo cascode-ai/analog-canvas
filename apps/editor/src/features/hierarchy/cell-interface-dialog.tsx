@@ -4,6 +4,7 @@ import type {
   ExternalSubcircuitDefinition,
   SchematicDocument,
 } from "@icm/model";
+import { projectCellInterface } from "@icm/model";
 
 type FormalParameter = NonNullable<
   SchematicDocument["netlist"]
@@ -13,21 +14,19 @@ type FormalParameter = NonNullable<
 export function CellInterfaceEditor({
   cell,
   callerCount,
-  onRenameTerminal,
-  onSetTerminalDirection,
-  onMoveTerminal,
+  onSetPortDirection,
+  onMovePort,
   onSetFormalParameters,
   externalDefinitions,
   onSetExternalDefinition,
 }: {
   cell: SchematicDocument;
   callerCount: number;
-  onRenameTerminal(terminalId: string, name: string): void;
-  onSetTerminalDirection(
-    terminalId: string,
+  onSetPortDirection(
+    portId: string,
     direction: "input" | "output" | "inout" | "passive",
   ): void;
-  onMoveTerminal(terminalId: string, delta: -1 | 1): void;
+  onMovePort(portId: string, delta: -1 | 1): void;
   onSetFormalParameters(formalParameters: FormalParameter[]): void;
   externalDefinitions: readonly ExternalSubcircuitDefinition[];
   onSetExternalDefinition(definition: ExternalSubcircuitDefinition): void;
@@ -71,26 +70,27 @@ export function CellInterfaceEditor({
   }, [externalDefinitions, externalId]);
 
   if (!cell.netlist) return null;
-  const terminals = cell.netlist.terminals;
+  const projection = projectCellInterface(cell.netlist);
+  const ports = projection.ports;
+  const issueByPortKey = new Map(
+    projection.issues.map((issue) => [issue.portKey, issue]),
+  );
 
   return (
     <div className="cell-interface-editor" aria-label="Cell interface">
       <div className="cell-interface-grid">
-        <section
-          className="cell-interface-section"
-          aria-label="Formal terminals"
-        >
+        <section className="cell-interface-section" aria-label="Formal Ports">
           <header>
             <div>
-              <h3>Terminals</h3>
+              <h3>Ports</h3>
               <p>
-                Ordered interface shared by {callerCount} caller
-                {callerCount === 1 ? "" : "s"}.
+                Symbol interface shared by {callerCount} caller
+                {callerCount === 1 ? "" : "s"}. Equal names are one Port.
               </p>
             </div>
-            <span className="cell-count-badge">{terminals.length}</span>
+            <span className="cell-count-badge">{ports.length}</span>
           </header>
-          {terminals.length === 0 ? (
+          {ports.length === 0 ? (
             <p className="cell-interface-empty">
               Place a Port in this Cell to define its interface.
             </p>
@@ -98,65 +98,70 @@ export function CellInterfaceEditor({
             <div
               className="cell-interface-table"
               role="table"
-              aria-label="Formal terminal order"
+              aria-label="Formal port order"
             >
-              {terminals.map((terminal, index) => (
-                <div
-                  key={terminal.id}
-                  className="cell-interface-row"
-                  role="row"
-                >
-                  <span
-                    className="cell-interface-order"
-                    aria-label={`Terminal order ${index + 1}`}
-                  >
-                    {index + 1}
-                  </span>
-                  <input
-                    aria-label={`Formal terminal ${index + 1} name`}
-                    defaultValue={terminal.name}
-                    onBlur={(event) =>
-                      onRenameTerminal(
-                        terminal.id,
-                        event.currentTarget.value.trim(),
-                      )
-                    }
-                  />
-                  <select
-                    aria-label={`Formal terminal ${terminal.name} direction`}
-                    value={terminal.direction}
-                    onChange={(event) =>
-                      onSetTerminalDirection(
-                        terminal.id,
-                        event.currentTarget.value as typeof terminal.direction,
-                      )
-                    }
-                  >
-                    <option value="input">Input</option>
-                    <option value="output">Output</option>
-                    <option value="inout">Inout</option>
-                    <option value="passive">Passive</option>
-                  </select>
-                  <div className="cell-interface-order-actions">
-                    <button
-                      type="button"
-                      aria-label={`Move ${terminal.name} up`}
-                      disabled={index === 0}
-                      onClick={() => onMoveTerminal(terminal.id, -1)}
+              {ports.map((port, index) => {
+                const issue = issueByPortKey.get(port.key);
+                return (
+                  <div key={port.id} className="cell-interface-row" role="row">
+                    <span
+                      className="cell-interface-order"
+                      aria-label={`Port order ${index + 1}`}
                     >
-                      ↑
-                    </button>
-                    <button
-                      type="button"
-                      aria-label={`Move ${terminal.name} down`}
-                      disabled={index === terminals.length - 1}
-                      onClick={() => onMoveTerminal(terminal.id, 1)}
+                      {index + 1}
+                    </span>
+                    <span className="cell-interface-port-name">
+                      <strong>{port.name}</strong>
+                      {port.interfaceInstanceIds.length > 1 ? (
+                        <small>
+                          {port.interfaceInstanceIds.length} markers
+                        </small>
+                      ) : null}
+                      {issue ? (
+                        <small role="status">Direction conflict</small>
+                      ) : null}
+                    </span>
+                    <select
+                      aria-label={`Formal port ${port.name} direction`}
+                      value={issue ? "" : port.direction}
+                      onChange={(event) =>
+                        onSetPortDirection(
+                          port.id,
+                          event.currentTarget.value as typeof port.direction,
+                        )
+                      }
                     >
-                      ↓
-                    </button>
+                      {issue ? (
+                        <option value="" disabled>
+                          Mixed
+                        </option>
+                      ) : null}
+                      <option value="input">Input</option>
+                      <option value="output">Output</option>
+                      <option value="inout">Inout</option>
+                      <option value="passive">Passive</option>
+                    </select>
+                    <div className="cell-interface-order-actions">
+                      <button
+                        type="button"
+                        aria-label={`Move ${port.name} up`}
+                        disabled={index === 0}
+                        onClick={() => onMovePort(port.id, -1)}
+                      >
+                        ↑
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={`Move ${port.name} down`}
+                        disabled={index === ports.length - 1}
+                        onClick={() => onMovePort(port.id, 1)}
+                      >
+                        ↓
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </section>

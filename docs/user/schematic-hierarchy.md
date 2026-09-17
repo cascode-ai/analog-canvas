@@ -4,14 +4,17 @@ Analog Canvas treats every Project Document as one reusable schematic Cell.
 The top Cell is the export root; other Cells may be instantiated any number of
 times or kept unreferenced while they are being authored.
 
-Use **Manage Cells…** in the hierarchy row to manage the Project's definitions in one place. It shows each
-Cell's formal Pin and caller counts, opens or renames a definition, and lists
-each caller with **Jump to caller**. A referenced Cell's delete control is
+Use **Manage Cells…** in **Edit** or the hierarchy row to manage the Project's definitions in one place. It shows each
+Cell's projected Port and caller counts, opens or renames a definition, and lists
+each caller with **Jump to caller**. Equal Port names occupy one row, matching
+the generated Symbol; a marker count preserves visibility into repeated canvas
+declarations. A referenced Cell's delete control is
 disabled; delete its caller Instances normally before deleting the now
 unreferenced definition.
 
-Use **New Cell** in the Cell Manager to create a module. **Cell → Place Cell**
-opens the normal Insert dialog with a searchable **Cells** section. Select a
+Use **New Cell** in the Cell Manager to create a module. **Place Cell** in the
+hierarchy row, or **Edit → Place Cell from this Project…**, opens the Insert
+dialog as a searchable, Cells-only **Place Hierarchical Cell** picker. Select a
 definition, then place its ordinary hierarchical Instance on the canvas using
 the same grid preview, `R` rotation, mirror shortcuts, and `Esc` cancellation
 as a library component. The commit keeps the `Xn` reference as internal
@@ -40,7 +43,7 @@ Label instead when you only need to name an internal Net.
 
 To define a real Cell port:
 
-1. Press `P`, or place **Port** / **Filled Port** from the Library.
+1. Press `P`, or place **Cell Pin** / **Cell Pin (filled)** from the Library.
 2. Click an exact existing electrical contact to attach to its Net, or click
    empty grid space to create a new local Net.
 3. Double-click its default annotation to edit the interface name; use normal
@@ -88,29 +91,33 @@ symbol layout on canvas** reveals explicit drag grips for the body and pins;
 the Properties values remain the precise fallback. These are definition operations,
 not top-level drawing tools.
 
-Before the first Instance exists, **Manage Cells… → Review Symbol** previews
-the selected Cell definition using the same derived artwork. Size and pin
-changes stay local until **Apply Symbol**; **Use default Symbol** removes the
-explicit presentation. An unreferenced top Cell is reusable too: create another
-ordinary Cell, then use **Place Cell** to place the original top there. The
-Project top does not change. A valid zero-port interface is allowed; an absent
-formal interface must be authored first.
+The generated Symbol is ready for the first placement without a separate review
+or apply step. Customize it from a placed parent Instance when needed. An
+unreferenced top Cell is reusable too: create another ordinary Cell, then use
+**Place Cell** to place the original top there. The Project top does not change.
+A valid zero-port interface is allowed; an absent formal interface must be
+authored first.
+
+Cell Manager contains a collapsed **Reset Cell** section for the selected
+definition. Clear Drawing, Reset Cell Placement, and Reset Cell Body retain
+their distinct scopes, show an exact impact preview, and remain undoable.
 
 Agents use the existing `create-cell` action and `place-cell` with
 `childDocumentId`, `instanceId`, optional `reference`, and `placement`, targeting
 the parent Document. The same Project transaction owns validation and history;
-these actions do not create or modify a SimulationSetup.
+these actions do not create or modify a simulation folder.
 
 The import planner and its small Project edits are also public API contracts.
 An Agent that already holds an authorized source Project can plan the same
 independent closure and submit it through the standard structural transaction;
 the transaction remains revision-guarded and atomic. Reading a private Cloud
 Project is a separate account-authorized operation and is never implied by
-simulation permission.
+simulation permission: the Agent Project resource (`list-projects`,
+`list-cells`, `import-cell`) requires the `project.import` scope.
 
 Hierarchy presentation is saved as definition-level size and pin-placement
-intent in current Project schema 26. Schema-25 projects open through the
-bounded upgrade; schema-23 and older files remain unsupported. The block uses
-a closed polygon body and the shared Razavi rich-text renderer for pin and Cell
-names; it is compatible with that visual grammar rather than a pixel-for-pixel
-textbook symbol asset.
+intent in current Project schema 56. Schema-24 through schema-55 projects open
+through the chained upgrade; schema-23 and older files remain unsupported. The
+block uses a closed polygon body and the shared Razavi rich-text renderer for
+pin and Cell names; it is compatible with that visual grammar rather than a
+pixel-for-pixel textbook symbol asset.

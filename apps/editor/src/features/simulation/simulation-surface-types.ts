@@ -16,12 +16,6 @@ export interface SpiceSimulationSurfaceProps {
   activeDocumentId: string;
   selectedCircuitObject?:
     { documentId: string; instanceId: string } | undefined;
-  draftContext?: {
-    readonly folderId: string;
-    readonly folderName: string;
-    readonly dutDocumentId: string;
-    readonly rootDocumentId: string;
-  };
   selectedFolderId: string | null;
   onSelectFolderId(folderId: string): void;
   session: BrowserSimulationSession;

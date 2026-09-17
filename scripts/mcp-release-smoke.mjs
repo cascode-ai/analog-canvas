@@ -8,6 +8,9 @@ import { once } from "node:events";
 import assert from "node:assert/strict";
 
 const { version } = JSON.parse(await readFile(resolve("package.json"), "utf8"));
+const { version: mcpVersion } = JSON.parse(
+  await readFile(resolve("config/agent-mcp-distribution.json"), "utf8"),
+);
 const releaseRoot = resolve(
   `output/release/interactive-circuit-maker-v${version}`,
 );
@@ -245,49 +248,98 @@ const relay = createServer(async (request, response) => {
     });
   } else if (url.pathname.endsWith("/simulation")) {
     const body = await requestBody(request);
-    result = json({
-      apiVersion: "3.0",
-      requestId: body.requestId,
-      operation: "read",
-      ok: true,
-      run: {
-        id: "spec-run",
-        preparedId: "spec-prepared",
-        inputRevision: "spec-input",
-        state: "finished",
-        artifacts: [],
-        outputData: {
-          schemaVersion: 1,
-          analyses: [],
-          diagnostics: [],
-          specs: {
-            schemaVersion: 1,
-            runId: "spec-run",
-            preparedId: "spec-prepared",
-            inputDigest: "a".repeat(64),
-            results: [
-              {
-                id: "run.cir:2:1",
-                name: "peak",
-                occurrence: 1,
-                source: {
-                  path: "run.cir",
-                  line: 2,
-                  text: "* @spec peak <= 1.8 unit=V",
+    result =
+      body.operation === "capabilities"
+        ? json({
+            apiVersion: "3.0",
+            requestId: body.requestId,
+            operation: "capabilities",
+            ok: true,
+            capabilities: {
+              configured: true,
+              inputs: ["source"],
+              analyses: ["op", "ac"],
+              parsedAnalyses: ["op", "ac"],
+              rawfileCollection: "native-multi-ascii",
+              profiles: [
+                {
+                  id: "native-release-fixture",
+                  engine: "vacask",
+                  corners: ["tt"],
+                  dependencies: [
+                    { id: "fixture-models", sha256: "c".repeat(64) },
+                  ],
+                  modelSymbols: [
+                    {
+                      dependencyId: "fixture-models",
+                      sha256: "c".repeat(64),
+                      section: "tt",
+                      masters: [
+                        {
+                          name: "fixture_nfet",
+                          primitives: [
+                            { path: ["core"], module: "sp_bsim4v8" },
+                          ],
+                        },
+                      ],
+                    },
+                  ],
+                  modelLibrary: {
+                    dependencyId: "fixture-models",
+                    defaultSection: "tt",
+                    defaultScale: 1e-6,
+                  },
                 },
-                unit: "V",
-                expected: { kind: "limit", operator: "<=", value: 1.8 },
-                value: 1.7,
-                judgment: "pass",
-                reason: "satisfied",
-                detail: "Meets the authored specification.",
-                logLine: 5,
+              ],
+              maxInputBytes: 2097152,
+              maxTimeoutMs: 120000,
+              cancel: true,
+            },
+          })
+        : json({
+            apiVersion: "3.0",
+            requestId: body.requestId,
+            operation: "read",
+            ok: true,
+            run: {
+              id: "spec-run",
+              preparedId: "spec-prepared",
+              inputRevision: "spec-input",
+              state: "finished",
+              artifacts: [],
+              outputData: {
+                schemaVersion: 1,
+                analyses: [],
+                diagnostics: [],
+                specs: {
+                  schemaVersion: 1,
+                  runId: "spec-run",
+                  preparedId: "spec-prepared",
+                  inputDigest: "a".repeat(64),
+                  results: [
+                    {
+                      id: "run.cir:2:1",
+                      name: "peak",
+                      group: "Bias checks",
+                      occurrence: 1,
+                      source: {
+                        path: "run.cir",
+                        line: 2,
+                        text: "* @spec peak <= 1.8 unit=V",
+                      },
+                      unit: "V",
+                      expected: { kind: "limit", operator: "<=", value: 1.8 },
+                      value: 1.7,
+                      judgment: "pass",
+                      reason: "satisfied",
+                      detail: "Meets the authored specification.",
+                      logLine: 5,
+                    },
+                  ],
+                },
               },
-            ],
-          },
-        },
-      },
-    });
+            },
+          });
   } else if (url.pathname.endsWith("/circuit")) {
     const body = await requestBody(request);
     if (body.operation === "capabilities") {
@@ -501,7 +553,16 @@ function startMcp() {
 
 try {
   const first = startMcp();
-  await first.request("initialize", { protocolVersion: "2025-03-26" });
+  const initialized = await first.request("initialize", {
+    protocolVersion: "2025-03-26",
+  });
+  assert.equal(
+    initialized.serverInfo.version,
+    mcpVersion,
+    "MCP runtime must match the declared distribution version",
+  );
+  const localStatus = await first.tool("connection_status", { refresh: false });
+  assert.deepEqual(localStatus.runtime, { version: mcpVersion, apiBaseUrl });
   const listed = await first.request("tools/list");
   if (
     !JSON.stringify(
@@ -525,6 +586,23 @@ try {
   )
     throw new Error("Packaged MCP tool surface mismatch");
   await first.tool("connect", { claimCode: `${sessionId}.claim` });
+  const nativeCapabilities = await first.tool("simulation", {
+    request: { operation: "capabilities" },
+  });
+  assert.equal(
+    nativeCapabilities.ok,
+    true,
+    `Packaged MCP rejected native Profile capabilities: ${JSON.stringify(nativeCapabilities)}`,
+  );
+  assert.equal(
+    nativeCapabilities.capabilities.profiles[0].modelLibrary.defaultScale,
+    1e-6,
+  );
+  assert.equal(
+    nativeCapabilities.capabilities.profiles[0].modelSymbols[0].masters[0]
+      .primitives[0].module,
+    "sp_bsim4v8",
+  );
   const simulation = await first.tool("simulation", {
     request: { operation: "read", runId: "spec-run" },
   });
@@ -535,6 +613,7 @@ try {
   );
   assert.equal(simulation.run.outputData.specs.results[0].judgment, "pass");
   assert.equal(simulation.run.outputData.specs.results[0].value, 1.7);
+  assert.equal(simulation.run.outputData.specs.results[0].group, "Bias checks");
   assert.deepEqual(simulation.run.outputData.analyses, []);
   const resources = await first.request("resources/list");
   assert(
@@ -625,6 +704,14 @@ try {
   assert.equal(raw.requestId, "http-smoke-exact-id");
   assert.equal(raw.ok, true);
   assert.equal(resumeCount, 3, "HTTP invocations must reuse the MCP connector");
+  const context = await httpCommand("get_context");
+  assert.equal(context.isError, undefined, JSON.stringify(context));
+  assert.equal(JSON.parse(context.content[0].text).documentId, "main");
+  assert.equal(
+    resumeCount,
+    4,
+    "A fresh get_context must resume without another claim",
+  );
   await restarted.tool("disconnect");
   await restarted.close();
   if ((await readFile(connectorPath).catch(() => null)) !== null) {

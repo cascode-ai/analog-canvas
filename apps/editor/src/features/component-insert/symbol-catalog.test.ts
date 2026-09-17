@@ -93,6 +93,7 @@ describe("component insertion catalog", () => {
     expect(symbolCategory("zener-diode")).toBe("Extended Devices");
     expect(symbolCategory("ideal-switch")).toBe("Switches");
     expect(symbolCategory("closed-switch")).toBe("Switches");
+    expect(symbolCategory("externally-controlled-switch")).toBe("Switches");
     expect(symbolCategory("simple-switch")).toBe("Switches");
     expect(symbolCategory("spdt-switch")).toBe("Switches");
     expect(symbolCategory("discrete-time-integrator")).toBe("Signal Flow");
@@ -253,6 +254,12 @@ describe("component insertion catalog", () => {
       "D-PMOS",
     );
     expect(libraryDisplayName("zener-diode", "Zener Diode")).toBe("Zener");
+    expect(
+      libraryDisplayName(
+        "externally-controlled-switch",
+        "Externally Controlled Switch",
+      ),
+    ).toBe("Ctrl SW");
     expect(libraryDescription("port-filled")).toBe(
       "An independent Cell Pin with a solid appearance",
     );

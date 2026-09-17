@@ -46,9 +46,9 @@ explicit and must not block unrelated editing or saving.
 
 ## Recurring candidate acceptance
 
-The Preview workflow already executes source GUI, public Agent/MCP and
-cross-Project journeys. Their maintained scripts and retained receipts own the
-candidate evidence.
+The Preview workflow already executes the dual-engine (ngspice/VACASK) smoke
+and source GUI, public Agent/MCP and cross-Project journeys. Their maintained
+scripts and retained receipts own the candidate evidence.
 
 At promotion, inspect the candidate's actual receipts for source and mapped edits,
 error/repair, authorized Cell closure import, execution, Specs/raw/CSV retrieval,
@@ -67,9 +67,10 @@ tolerances. Broader lifecycle and security checks remain in the
   independent local copies.
 - Cloud-persistent result archives are distinct from the implemented browser
   archives and bounded server retention.
-- Monte Carlo, optimization, automatic circuit modification, another simulator,
-  uploaded Verilog-A compilation and general model marketplaces require their
-  own product decisions and qualification.
+- Monte Carlo, optimization, automatic circuit modification, a simulator beyond
+  ngspice and VACASK, uploaded Verilog-A compilation and general model
+  marketplaces require their own product decisions and qualification. VACASK's remaining qualification as a second Preview engine is
+  tracked in [VACASK migration](vacask-migration.md).
 - Arbitrary lossless two-way raw-SPICE/Canvas topology synchronization is not a
   promised capability.
 

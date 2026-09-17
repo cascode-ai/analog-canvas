@@ -34,6 +34,18 @@ function baseProps(
 // Secrets remain props-only and are never persisted here.
 
 describe("ConnectAgentPanel", () => {
+  it("serializes claims without evaluating replacement tokens", () => {
+    const claimCode = 'quote" newline\n {{origin}} $&';
+    const instructions = agentConnectionInstructions(
+      "https://editor.example",
+      claimCode,
+    );
+    const claimLine = instructions
+      .split("\n")
+      .find((line) => line.startsWith("Claim: "))!;
+    expect(JSON.parse(claimLine.slice(7))).toEqual({ claimCode });
+    expect(instructions).toContain("https://editor.example/api/agent/kit");
+  });
   it("provides one complete golden-path lifecycle without a bearer value", () => {
     const instructions = agentConnectionInstructions(
       "https://editor.example",
@@ -53,7 +65,8 @@ describe("ConnectAgentPanel", () => {
     expect(instructions).toContain("analog-canvas://reference/quickstart");
     expect(instructions).toContain("connector resumes automatically");
     expect(instructions).toContain("https://editor.example/api/agent/kit");
-    expect(instructions).toContain("continue immediately");
+    expect(instructions).toContain("do not silently switch to HTTP");
+    expect(instructions).toContain("it is not MCP acceptance");
     expect(instructions).toContain("install or update it");
     expect(instructions).toContain("version-pinned package");
     expect(instructions).toContain("tools are actually callable");

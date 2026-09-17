@@ -85,6 +85,20 @@
         "minX": -20,
         "minY": -8
       }
+    },
+    "externally-controlled-switch": {
+      "assetPath": "externally-controlled-switch-reference.png",
+      "pixelsPerLogical": 2.4,
+      "originPx": {
+        "x": 48.322912,
+        "y": 58.222795
+      },
+      "window": {
+        "width": 64,
+        "height": 116,
+        "minX": -20,
+        "minY": -24
+      }
     }
   }
 }

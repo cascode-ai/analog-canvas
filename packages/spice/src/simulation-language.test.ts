@@ -14,6 +14,41 @@ function inspect(text: string, entry = false) {
 }
 
 describe("simulation source assistance", () => {
+  it("accepts ngspice option aliases without rewriting their source", () => {
+    for (const name of [".option", ".options", ".OPTION"]) {
+      const text = `${name} scale=1u reltol=1e-6 abstol=1e-15 vntol=1e-9`;
+      const result = inspect(text);
+      expect(result.diagnostics).toEqual([]);
+      expect(result.statements[0]).toMatchObject({
+        kind: "directive",
+        category: "option",
+        rawText: text,
+      });
+    }
+  });
+
+  it("distinguishes editor coverage from proven execution-blocking errors", () => {
+    const text = ".future_native_option value=1\n.control\nop\n.endc\n";
+    const result = inspect(text);
+    expect(result.diagnostics).toEqual([
+      expect.objectContaining({
+        code: "SPICE_SYNTAX_OPAQUE",
+        severity: "info",
+        message: expect.stringContaining("Preserved unchanged for ngspice"),
+      }),
+    ]);
+    expect(result.statements[0]?.rawText).toBe(".future_native_option value=1");
+    expect(inspect(".endc\n").diagnostics).toContainEqual(
+      expect.objectContaining({ severity: "error" }),
+    );
+    expect(inspect(".ac dec 10\n").diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: "SIMULATION_COMMAND_ARGUMENTS",
+        severity: "error",
+      }),
+    );
+  });
+
   it("does not discard the first element in an included fragment", () => {
     const text = "R1 in out 1k\nC1 out 0 1n\n";
     expect(inspect(text).statements[0]!.kind).toBe("instance");

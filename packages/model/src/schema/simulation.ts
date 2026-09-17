@@ -8,7 +8,7 @@ export const SIMULATION_NOISE_OUTPUT_DENSITY_ID = "noise-output-density";
 export const SIMULATION_NOISE_INPUT_DENSITY_ID = "noise-input-density";
 
 /**
- * Authored simulation intent persisted with the Project (ADR 0055, amended
+ * Authored simulation intent persisted with the Project (Simulation rationale, amended
  * 2026-09-04; `docs/specs/simulation.md`, "Persistence and compatibility").
  * A folder names what to run and where to look; results, run ids, receipts,
  * prepared decks, simulator paths, and caches are transient and never appear

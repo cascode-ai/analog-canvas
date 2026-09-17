@@ -8,7 +8,7 @@ import {
 /**
  * Compact high-level actions accepted by `apply_actions`. They are a projection
  * layer only: every action compiles into existing typed edits or a
- * `wireIntent` (ADR 0020). Electrical semantics stay in the server-side Edit
+ * `wireIntent` (Agent rationale). Electrical semantics stay in the server-side Edit
  * Engine and routing capabilities.
  */
 

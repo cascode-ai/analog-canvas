@@ -1,10 +1,9 @@
 /**
- * Frozen web-session transport schemas (WP-WA1). These are browser-safe (zod
- * only) and are consumed by both the in-browser Agent Host (WP-WA3) and the
- * Cloudflare relay (WP-WA4). They never import Node builtins.
+ * Browser-safe web-session transport schemas shared by the Agent Host and
+ * Cloudflare relay. They never import Node builtins.
  *
  * Contract source: [`docs/specs/web-agent-session.md`](../../../docs/specs/web-agent-session.md)
- * and [`ADR 0016`](../../../docs/adr/0016-browser-authoritative-agent-session.md).
+ * and [`Agent rationale`](../../../docs/adr/agent.md).
  * The Circuit API payload carried by these messages is defined in `schema.ts`.
  */
 

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { deferFocus } from "../../interaction/deferred-focus";
 import type { MutableRefObject } from "react";
 
 export const LIBRARY_WIDTH_MIN = 180;
@@ -151,7 +152,7 @@ export function useEditorPanels(options: UseEditorPanelsOptions) {
 
   const closeHelp = (): void => {
     setHelpOpen(false);
-    requestAnimationFrame(() => options.helpButtonRef.current?.focus());
+    deferFocus(() => options.helpButtonRef.current);
   };
 
   const closeSearch = (): void => {

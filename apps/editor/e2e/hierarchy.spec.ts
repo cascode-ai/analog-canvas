@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 import { clickCommand, downloadBytes } from "./editor-fixtures.js";
+import { placeComponent } from "./manual-editor-fixtures.js";
 
 async function runCellCommand(
   page: import("@playwright/test").Page,
@@ -59,7 +60,7 @@ async function placeCellPin(
     await runCellCommand(page, "Manage Cells…");
     const manager = page.getByRole("dialog", { name: "Cell Manager" });
     await manager
-      .getByRole("table", { name: "Formal terminal order" })
+      .getByRole("table", { name: "Formal port order" })
       .getByRole("row")
       .last()
       .getByRole("combobox")
@@ -88,24 +89,15 @@ async function setCellTerminalDirection(
   await runCellCommand(page, "Manage Cells…");
   const manager = page.getByRole("dialog", { name: "Cell Manager" });
   await manager
-    .getByLabel(`Formal terminal ${name} direction`)
+    .getByLabel(`Formal port ${name} direction`)
     .selectOption(direction);
   await manager.getByLabel("Close Cell Manager").click();
 }
 
-test("reviews an unreferenced top Symbol and places that DUT in an ordinary new TB", async ({
+test("places an unreferenced top Cell in an ordinary new Cell", async ({
   page,
 }) => {
   await page.goto("/editor");
-  await runCellCommand(page, "Manage Cells…");
-  const manager = page.getByRole("dialog", { name: "Cell Manager" });
-  await manager.getByText("Review Symbol", { exact: true }).click();
-  await expect(manager).toContainText("valid zero-port interface");
-  await manager.getByLabel("Symbol width", { exact: true }).fill("160");
-  await manager
-    .getByRole("button", { name: "Apply Symbol", exact: true })
-    .click();
-  await manager.getByRole("button", { name: "Close Cell Manager" }).click();
   await createCell(page, "Testbench");
   await runCellCommand(page, "Place Cell");
   await page
@@ -122,10 +114,6 @@ test("reviews an unreferenced top Symbol and places that DUT in an ordinary new 
     ),
   );
   expect(project.topDocumentId).toBe("document-main");
-  expect(
-    project.documents.find((d: { id: string }) => d.id === "document-main")
-      .presentation.cellSymbol.minimumBodySize.width,
-  ).toBe(160);
   const tb = project.documents.find(
     (d: { name: string }) => d.name === "Testbench",
   );
@@ -137,45 +125,6 @@ test("reviews an unreferenced top Symbol and places that DUT in an ordinary new 
   await expect(page.getByTestId("active-instance-count")).toHaveText("0");
   await page.keyboard.press("Control+Shift+z");
   await expect(page.getByTestId("active-instance-count")).toHaveText("1");
-});
-
-test("creates a Testbench and places a same-Project Cell from Edit", async ({
-  page,
-}) => {
-  await page.goto("/editor");
-  const canvas = page.getByTestId("schematic-canvas");
-  await clickCommand(page, "Edit", "New Testbench Cell…");
-
-  const dialog = page.getByRole("dialog", { name: "New Testbench Cell" });
-  await dialog
-    .getByLabel("Place the DUT Symbol View after creating the testbench")
-    .uncheck();
-  await dialog.getByRole("button", { name: "Create Testbench" }).click();
-  await expect(page.getByTestId("active-document-name")).toHaveText("dut_tb");
-  await expect(page.getByTestId("active-instance-count")).toHaveText("0");
-
-  await clickCommand(page, "Edit", "Place Cell from this Project…");
-  await page
-    .getByRole("dialog", { name: "Place Hierarchical Cell" })
-    .getByRole("option", { name: /dut/u })
-    .click();
-  await canvas.click({ position: { x: 360, y: 220 } });
-  await page.keyboard.press("Escape");
-
-  const project = JSON.parse(
-    (await downloadBytes(page, "File", "Export Project File…")).toString(
-      "utf8",
-    ),
-  );
-  expect(project.topDocumentId).toBe("document-main");
-  const testbench = project.documents.find(
-    (candidate: { name: string }) => candidate.name === "dut_tb",
-  );
-  expect(testbench.instances).toHaveLength(1);
-  expect(testbench.instances[0].netlist.binding).toEqual({
-    kind: "subcircuit",
-    childDocumentId: "document-main",
-  });
 });
 
 test("shows the hierarchy row only once there is a hierarchy", async ({
@@ -234,6 +183,52 @@ test("creates and deletes an unreferenced reusable Cell", async ({ page }) => {
   await expect(page.getByTestId("document-count")).toHaveText("2");
   await page.keyboard.press("Control+Shift+z");
   await expect(page.getByTestId("document-count")).toHaveText("1");
+});
+
+test("resets the Cell selected in Manager without opening it", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await createCell(page, "Child");
+  await placeComponent(page, "resistor", { x: 320, y: 200 });
+  await page
+    .getByTestId("cell-navigation")
+    .getByRole("button", { name: "Top", exact: true })
+    .click();
+
+  await runCellCommand(page, "Manage Cells…");
+  const manager = page.getByRole("dialog", { name: "Cell Manager" });
+  await expect(manager).not.toContainText("Review Symbol");
+  await manager
+    .locator(".cell-manager-list-item")
+    .filter({ hasText: "Child" })
+    .click();
+  await manager.getByText("Reset Cell", { exact: true }).click();
+  await manager.getByRole("button", { name: "Reset Cell Body" }).click();
+  await manager
+    .getByRole("dialog", { name: "Reset Cell Body in Child?" })
+    .getByRole("button", { name: "Reset Cell Body" })
+    .click();
+  await manager.getByRole("button", { name: "Close Cell Manager" }).click();
+
+  const resetProject = JSON.parse(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(),
+  );
+  expect(
+    resetProject.documents.find(
+      (candidate: { name: string }) => candidate.name === "Child",
+    ).instances,
+  ).toHaveLength(0);
+
+  await page.keyboard.press("Control+z");
+  const restoredProject = JSON.parse(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(),
+  );
+  expect(
+    restoredProject.documents.find(
+      (candidate: { name: string }) => candidate.name === "Child",
+    ).instances,
+  ).toHaveLength(1);
 });
 
 test("manages Cell rename and lists callers", async ({ page }) => {
@@ -370,7 +365,11 @@ test("declares and places a Cell Pin on a new local Net", async ({ page }) => {
       bodyHandleBox.x + bodyHandleBox.width / 2 + 30,
       bodyHandleBox.y + bodyHandleBox.height / 2 + 30,
     );
+    await expect(page.getByTestId("cell-symbol-layout-preview")).toBeVisible();
+    const previewBodyBox = await bodyHandle.boundingBox();
+    expect(previewBodyBox!.x).toBeGreaterThan(bodyHandleBox.x);
     await page.mouse.up();
+    await expect(page.getByTestId("cell-symbol-layout-preview")).toHaveCount(0);
   }
   await expect(page.getByTestId("status")).toContainText(
     /Resized ReusableStage|Committed revision/u,
@@ -388,11 +387,39 @@ test("declares and places a Cell Pin on a new local Net", async ({ page }) => {
       pinHandleBox.x + pinHandleBox.width / 2 + 20,
       pinHandleBox.y + pinHandleBox.height / 2,
     );
+    await expect(page.getByTestId("cell-symbol-layout-preview")).toBeVisible();
+    await expect(page.getByTestId("cell-symbol-layout-preview")).toContainText(
+      "OUT",
+    );
     await page.mouse.up();
   }
   await expect(page.getByTestId("status")).toContainText(
     "Moved Cell symbol pin",
   );
+
+  // Pointer cancellation discards only the preview, with no persisted edit.
+  const committedPinBox = await pinHandle.boundingBox();
+  expect(committedPinBox).not.toBeNull();
+  await page.mouse.move(
+    committedPinBox!.x + committedPinBox!.width / 2,
+    committedPinBox!.y + committedPinBox!.height / 2,
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    committedPinBox!.x + committedPinBox!.width / 2 + 40,
+    committedPinBox!.y + committedPinBox!.height / 2,
+  );
+  await expect(page.getByTestId("cell-symbol-layout-preview")).toBeVisible();
+  await pinHandle.dispatchEvent("pointercancel", {
+    pointerId: 1,
+    bubbles: true,
+  });
+  await page.mouse.up();
+  await expect(page.getByTestId("cell-symbol-layout-preview")).toHaveCount(0);
+  expect((await pinHandle.boundingBox())!.x).toBeCloseTo(committedPinBox!.x, 1);
+  await page.screenshot({
+    path: test.info().outputPath("cell-symbol-properties.png"),
+  });
 
   // Closing Properties must leave the transient grip mode too; otherwise the
   // selected Cell keeps suppressing its ordinary hit target.
@@ -595,7 +622,9 @@ test("authors formal Cell parameters without entering Cell Symbol Layout", async
 
   await runCellCommand(page, "Manage Cells…");
   const dialog = page.getByRole("dialog", { name: "Cell Manager" });
-  await expect(dialog.getByLabel("Formal terminal 1 name")).toHaveValue("Vout");
+  await expect(dialog.getByLabel("Formal port Vout direction")).toHaveValue(
+    "passive",
+  );
   await expect(
     dialog.getByText("Cell symbol layout", { exact: false }),
   ).toHaveCount(0);
@@ -754,6 +783,14 @@ test("same-name Cell Pins stay independent while the final interface groups them
   await renameCellPinOnCanvas(page, "P2", "vin");
 
   await expect(page.getByTestId("status")).toContainText("Renamed Cell Pin");
+  await runCellCommand(page, "Manage Cells…");
+  const manager = page.getByRole("dialog", { name: "Cell Manager" });
+  await expect(
+    manager.getByRole("table", { name: "Formal port order" }).getByRole("row"),
+  ).toHaveCount(1);
+  await expect(manager).toContainText("2 markers");
+  await expect(manager).toContainText("Direction conflict");
+  await manager.getByRole("button", { name: "Close Cell Manager" }).click();
   const saved = JSON.parse(
     (await downloadBytes(page, "File", "Export Project File…")).toString(
       "utf8",

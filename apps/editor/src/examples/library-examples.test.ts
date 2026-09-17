@@ -442,7 +442,7 @@ describe("the bundled five-transistor Sky130 OTA", () => {
   });
 
   it("exports an ota_5t subcircuit connectivity-equivalent to the reference", () => {
-    // ADR 0055's acceptance fixture is the circuit this example draws. A
+    // Simulation rationale's acceptance fixture is the circuit this example draws. A
     // structural comparison — not a string compare — is what proves the
     // drawing did not quietly move a terminal or drop a finger count.
     const referenceText = readFileSync(

@@ -123,7 +123,7 @@ function baseRequest(requestId: string): {
 }
 
 /**
- * Unified Agent-side Helper (ADR 0020). Owns claim/resume, token and session
+ * Unified Agent-side Helper (Agent rationale). Owns claim/resume, token and session
  * state, capabilities/revision caches, exact-payload request-ID retry, the
  * Snapshot cache, and compilation-plus-execution of high-level actions.
  * Bearer tokens remain process-local and are sent only in Authorization
@@ -147,6 +147,10 @@ export class AgentSessionClient {
   private observation: AgentSessionStatusResponse | null = null;
   private capabilitiesCache: AgentCapabilitiesResponse | null = null;
   private resumePromise: Promise<ActiveSession | null> | null = null;
+
+  get apiBaseUrl(): string {
+    return this.http.baseUrl;
+  }
 
   constructor(options: AgentSessionClientOptions) {
     this.http = options.http;
@@ -365,14 +369,14 @@ export class AgentSessionClient {
     documentId?: string,
     options: { refresh?: boolean } = {},
   ): Promise<CachedSnapshot> {
-    const target = documentId ?? this.defaultDocumentId();
+    const target = await this.resolveDocumentId(documentId);
     const cached = this.cache.get(target);
     if (cached && !cached.dirty && !options.refresh) return cached;
     return this.refreshSnapshot(target);
   }
 
   async refreshSnapshot(documentId?: string): Promise<CachedSnapshot> {
-    const target = documentId ?? this.defaultDocumentId();
+    const target = await this.resolveDocumentId(documentId);
     const requestId = this.newRequestId();
     const response = await this.send({
       ...baseRequest(requestId),
@@ -420,7 +424,7 @@ export class AgentSessionClient {
     const response = await this.send({
       ...baseRequest(this.newRequestId()),
       operation: "snapshot",
-      documentId: documentId ?? this.defaultDocumentId(),
+      documentId: await this.resolveDocumentId(documentId),
       traceNet,
     });
     if (!response.ok || response.operation !== "snapshot")
@@ -443,7 +447,7 @@ export class AgentSessionClient {
       bounds?: { x: number; y: number; width: number; height: number };
     } = {},
   ): Promise<AgentRenderResponse> {
-    const documentId = options.documentId ?? this.defaultDocumentId();
+    const documentId = await this.resolveDocumentId(options.documentId);
     const response = await this.send({
       ...baseRequest(this.newRequestId()),
       operation: "render",
@@ -875,6 +879,23 @@ export class AgentSessionClient {
 
   private tokenValid(session: { tokenExpiresAt: number }): boolean {
     return this.now() < session.tokenExpiresAt - this.tokenExpiryGraceMs;
+  }
+
+  private async resolveDocumentId(documentId?: string): Promise<string> {
+    // A fresh HTTP command has a persisted connector but no in-memory roster.
+    // Restore authorization before choosing a default, just as send() does.
+    try {
+      await this.ensureSession();
+    } catch (error) {
+      if (
+        error instanceof AgentSessionError &&
+        error.category === "unrecoverable-credential"
+      ) {
+        await this.discardCredential(error.code);
+      }
+      throw error;
+    }
+    return documentId ?? this.defaultDocumentId();
   }
 
   private defaultDocumentId(): string {

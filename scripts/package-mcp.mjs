@@ -25,6 +25,7 @@ await build({
   root,
   configFile: false,
   logLevel: "warn",
+  define: { __ANALOG_CANVAS_MCP_VERSION__: JSON.stringify(version) },
   build: {
     ssr: resolve(root, "apps/mcp-server/src/main.ts"),
     outDir: binDirectory,
@@ -42,6 +43,9 @@ await build({
 
 const executable = resolve(binDirectory, "analog-canvas-mcp.mjs");
 const source = await readFile(executable, "utf8");
+if (source.includes(distribution.release.sha256)) {
+  throw new Error("MCP bundle must not embed its own release digest");
+}
 await writeFile(
   executable,
   source.startsWith("#!") ? source : `#!/usr/bin/env node\n${source}`,

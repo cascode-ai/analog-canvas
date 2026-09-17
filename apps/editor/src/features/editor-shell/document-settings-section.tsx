@@ -17,6 +17,10 @@ import {
   type CanvasPreferenceCodeValue,
   type DocumentSettingsCodeValue,
 } from "./document-settings-code";
+import {
+  documentSettingsCodeChanges,
+  documentSettingsCodeSpans,
+} from "./document-settings-code-assists";
 
 const PropertyJsonEditor = lazy(
   () => import("../properties/component-property-json-editor"),
@@ -49,8 +53,9 @@ export function DocumentSettingsSection({
   const adapter = useMemo<PropertyJsonEditorAdapter>(
     () => ({
       parse: (source) => parseDocumentSettingsCode(source, document),
-      spans: () => [],
-      changes: () => [],
+      spans: (source) => documentSettingsCodeSpans(source, document),
+      changes: (source, values) =>
+        documentSettingsCodeChanges(source, document, values),
     }),
     [document],
   );
@@ -168,7 +173,6 @@ export function DocumentSettingsSection({
           historyKey={historyKey}
           adapter={adapter}
           defaultForeground="#000000"
-          focusRequest={0}
           ariaLabel="Editable document Style code"
           onChange={change}
         />

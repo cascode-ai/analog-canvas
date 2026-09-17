@@ -68,8 +68,13 @@ Requires Node.js 24 or newer and pnpm 11.16.0 or newer.
 
 ```powershell
 pnpm install --frozen-lockfile
+pnpm build
 pnpm dev
 ```
+
+Run `pnpm build` once after installing, and again after pulling package
+changes: the development server's Vite configuration loads some workspace
+packages from their built `dist/` output.
 
 Open the displayed loopback URL and choose **New Circuit**, or open its
 `/editor` route directly. Create a circuit from the component palette, or
@@ -85,11 +90,11 @@ also ends local sessions;
 after restarting it, create a new connection. Cloud account, Gallery, and
 hosted simulation services are not started by this local relay.
 
-Development follows three stages: iterate locally on a batch branch with
-focused checks and local commits; accumulate at least 10 completed features,
-fixes, or improvements into one Preview delivery; then promote an accepted
-candidate to Production when that release is authorized. Each local edit ends
-at the local stage by default. See the
+Development follows three stages: iterate locally with focused checks and
+local commits; deliver a pull request, which deploys directly to Production
+unless it carries the `preview` label, in which case it goes to Preview; then
+promote Preview-accepted work to Production when that release is authorized.
+Each local edit ends at the local stage by default. See the
 [working rules](AGENTS.md#three-stage-development-and-delivery)
 and [delivery cadence](docs/deployment.md#development-and-publication-cadence).
 
@@ -104,6 +109,8 @@ and [delivery cadence](docs/deployment.md#development-and-publication-cadence).
 - `packages/model/`, `packages/project-protocol/`, and `packages/edit-engine/`:
   current persisted circuit model, bounded file compatibility, and atomic
   mutation boundary.
+- `packages/derived/`: read-only connectivity, diagnostic, and geometry
+  projections over the persisted model.
 - [`packages/components/`](packages/components/README.md): one canonical JSON
   file per built-in component, containing its symbol, electrical rules and
   catalog metadata; runtime packages consume generated projections.
@@ -112,16 +119,38 @@ and [delivery cadence](docs/deployment.md#development-and-publication-cadence).
   semantics, and deterministic design-netlist export.
 - `packages/exporters/` and `packages/render-svg/`: formal SVG, PNG, and PDF
   output.
+- `packages/math-typesetting/`: bounded LaTeX formula typesetting for rich-text
+  annotations.
+- `packages/simulation-service/` and `packages/spice-run/`: shared simulation
+  preparation, run lifecycle, and artifacts, plus simulator request and result
+  contracts.
+- `packages/timing-simulation/`: deterministic digital timing simulation; its
+  experimental editor UI is hidden in production builds.
+- `packages/platform-node/`: Node filesystem storage and recovery adapters with
+  no current in-repository consumer.
 - `packages/agent-adapter/`, `packages/agent-client/`, and
   `packages/agent-routing/`: shared Agent contract, client, and routing logic.
 - `worker/`: Cloudflare Worker host and Durable Objects for static hosting,
-  Gallery, accounts, simulation, and Agent relay sessions.
+  Gallery, accounts, Cloud Projects, simulation, and Agent relay sessions.
+- `containers/`: simulator images, gateways, and operator-host topologies for
+  ngspice and the Preview VACASK candidate.
+- `netlists/`: one circuit per directory for the SPICE import corpus,
+  simulation examples and qualification, and Agent layout evaluation.
+- `fixtures/`: Project, SPICE, rawfile, export, Agent API, and visual-reference
+  test inputs and goldens.
+- `scripts/` and `config/`: build, generation, validation-gate, release, and
+  deployment tooling, with the gate catalog and pinned MCP and VACASK Preview
+  declarations.
+- `tools/`, `skills/`, and `references/`: manual Razavi calibration and PDF
+  extraction tools, the repository-local `circuit-layout` Agent Skill, and the
+  pinned external research-source manifest.
 - `docs/`: current architecture, user guides, normative contracts, ADRs, and
   delivery plans.
 
 The [Razavi reference manifest](fixtures/visual-reference/razavi-reference-v1/)
-is the sole visual authority. Merges to `main` deploy Preview; Production is
-promoted from a release tag or explicit commit dispatch after Preview acceptance.
+is the sole visual authority. A merge to `main` deploys to Production, or to
+Preview when its pull request is labeled `preview`; Preview-accepted work is
+promoted with a release tag or explicit dispatch.
 See [deployment](docs/deployment.md) for the release and recovery contract.
 
 ## Netlist conversion

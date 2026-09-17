@@ -56,21 +56,20 @@ for (const file of files) {
 }
 
 const adrIndex = await readFile(resolve(adrRoot, "README.md"), "utf8");
-const adrFiles = (await collectMarkdown(adrRoot)).filter((file) =>
-  /^\d{4}-.+\.md$/u.test(basename(file)),
+const adrFiles = (await collectMarkdown(adrRoot)).filter(
+  (file) => !["README.md", "adr.template.md"].includes(basename(file)),
 );
-const adrByNumber = new Map();
 for (const file of adrFiles) {
   const name = basename(file);
-  const number = name.slice(0, 4);
-  const prior = adrByNumber.get(number);
-  if (prior) failures.push(`duplicate ADR ${number}: ${prior}, ${name}`);
-  else adrByNumber.set(number, name);
+  if (!/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*\.md$/u.test(name)) {
+    failures.push(
+      `${name} must use a descriptive kebab-case filename without a numeric prefix`,
+    );
+  }
 
   const text = await readFile(file, "utf8");
-  const titleNumber = /^#\s+(?:ADR\s+)?(\d{4})(?:\s|:|-)/mu.exec(text)?.[1];
-  if (titleNumber !== number) {
-    failures.push(`${name} title must identify ADR ${number}`);
+  if (!/^#\s+\S/mu.test(text) || /^#\s+(?:ADR\s+)?\d+(?:\s|:|-)/mu.test(text)) {
+    failures.push(`${name} must have an unnumbered topic title`);
   }
   const status = /^Status:\s*`?(accepted|proposed)`?\s*$/imu.exec(text)?.[1];
   if (!status) {

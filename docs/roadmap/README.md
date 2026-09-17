@@ -10,7 +10,7 @@ unit tests do not establish end-to-end completion.
 | Outcome                           | Remaining boundary                                                                                                                                  | Acceptance owner                                                                      |
 | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
 | Simulation capabilities           | Advanced legacy conversion, repeated Noise provenance, and promotion-predicate review                                                               | [Simulation remaining work](simulation-remaining-work.md)                             |
-| VACASK integration                | Dual-engine Preview qualification, preserved interaction and one-candidate human/Agent acceptance                                                    | [VACASK migration](vacask-migration.md)                                                |
+| VACASK integration                | Dual-engine Preview qualification, preserved interaction and one-candidate human/Agent acceptance                                                   | [VACASK qualification](vacask-migration.md)                                           |
 | Accessible manual editing         | Semantic canvas navigation and keyboard alternatives to pointer-only operations                                                                     | Editor interaction; [current limits](../user/troubleshooting.md#accessibility-limits) |
 | Connectivity consumer closure     | Verify all production consumers use canonical read/geometry/location contracts; remove any reachable duplicate paths only with parity evidence      | Derived/Edit Engine/editor owners                                                     |
 | Named-Net/export closure          | Verify the complete lifecycle and dialect matrix together, not just isolated resolver success                                                       | Derived/netlist/import/editor owners                                                  |
@@ -22,26 +22,11 @@ acceptance reviews, not missing feature implementations. Candidate receipts and
 commits carry their evidence. Investigate concrete gaps revealed by those reviews;
 do not recreate an already implemented subsystem.
 
-## Net-join naming decision
-
-The current direct-contact planner retires ordinary Net Label claims and their
-annotations on the participating Base Nets when their resolved names differ,
-then plans the merge. It does not remove formal Cell Pins or power-marker claims;
-incompatible domains and remaining conflicts still reject atomically.
-See [the current boundary](../specs/connectivity-and-routing.md#authoring-rules).
-
-This is implemented behavior, not a settled general conflict policy. Removing
-labels can also remove name-based connections to other physical components.
-Review whether the current gesture adequately communicates that effect, and
-cover local/global labels, repeated names elsewhere, formal terminals, power
-markers and undo before changing or endorsing the broader policy. This review
-does not authorize removing existing safety checks.
-
 ## Connectivity and naming acceptance
 
 Use the current [connectivity](../specs/connectivity-and-routing.md),
 [netlist](../specs/netlist-export.md), and
-[diagnostic](../adr/0015-object-locator-and-diagnostic-envelope.md) contracts.
+[diagnostic](../specs/connectivity-and-routing.md#shared-read-and-diagnostic-boundary) contracts.
 The acceptance review must cover:
 
 - One occurrence-aware location path for search, trace, highlight, and check
@@ -68,6 +53,17 @@ The acceptance review must cover:
 
 These are regression and closure obligations, not a new Net protocol, an
 automatic rerouter, or a requirement to restore retired APIs.
+
+## Deferred contract questions
+
+- Durable edit history: decide whether session-only Undo needs persistence,
+  compaction or recovery integration. Any accepted extension must preserve
+  revision/atomicity and the separate Save/recovery boundary; current
+  [session history](../specs/edit-engine.md#session-history) remains in memory.
+- Text portability: decide the required font-embedding and cross-format metric
+  guarantees using representative SVG/PDF renders. Current
+  [formal export](../specs/export.md) remains the accepted behavior; do not
+  infer portable font metrics from a passing browser screenshot alone.
 
 ## Execution discipline
 

@@ -519,6 +519,23 @@
   gap: 4px;
 }
 
+.cell-interface-port-name {
+  display: grid;
+  min-width: 0;
+  line-height: var(--icm-line);
+}
+
+.cell-interface-port-name strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cell-interface-port-name small {
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
+}
+
 .cell-interface-order {
   color: var(--icm-text-muted);
   font-size: var(--icm-font-xs);
@@ -569,7 +586,8 @@
 }
 
 .cell-external-interface summary,
-.cell-manager-callers summary {
+.cell-manager-callers summary,
+.cell-manager-danger-zone summary {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -582,7 +600,8 @@
 }
 
 .cell-external-interface summary::-webkit-details-marker,
-.cell-manager-callers summary::-webkit-details-marker {
+.cell-manager-callers summary::-webkit-details-marker,
+.cell-manager-danger-zone summary::-webkit-details-marker {
   display: none;
 }
 
@@ -615,6 +634,27 @@
 
 .cell-manager-callers {
   margin-top: var(--icm-space-3);
+}
+
+.cell-manager-danger-zone {
+  margin-top: var(--icm-space-3);
+  border: 1px solid var(--icm-danger);
+  border-radius: var(--icm-radius-md);
+  background: var(--icm-surface);
+}
+
+.cell-manager-danger-zone > p {
+  margin: 0;
+  padding: 0 var(--icm-space-3) var(--icm-space-2);
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
+}
+
+.cell-manager-reset-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--icm-space-2);
+  padding: 0 var(--icm-space-3) var(--icm-space-3);
 }
 
 .cell-manager-callers ul {

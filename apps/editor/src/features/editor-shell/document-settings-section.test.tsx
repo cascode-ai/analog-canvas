@@ -38,7 +38,7 @@ describe("style knobs", () => {
 });
 
 describe("DocumentSettingsSection", () => {
-  it("presents one plain JSON editor instead of settings forms", () => {
+  it("keeps one canonical JSON editor instead of a parallel settings form", () => {
     const markup = renderToStaticMarkup(
       <DocumentSettingsSection
         document={createEmptyDocument("document-main", "Main")}
@@ -61,7 +61,5 @@ describe("DocumentSettingsSection", () => {
     expect(markup).toContain("&quot;canvas&quot;");
     expect(markup).toContain("Copy Style JSON");
     expect(markup).toContain("Defaults");
-    expect(markup).not.toContain("<select");
-    expect(markup).not.toContain("Default NMOS bulk Net");
   });
 });

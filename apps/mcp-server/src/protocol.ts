@@ -2,7 +2,7 @@ import type { Readable, Writable } from "node:stream";
 import { createInterface } from "node:readline";
 
 /**
- * Minimal MCP stdio server protocol layer (ADR 0020).
+ * Minimal MCP stdio server protocol layer (Agent rationale).
  *
  * Implements the frozen subset an Analog Canvas host needs: the JSON-RPC 2.0
  * newline-delimited stdio transport, `initialize` negotiation, `ping`,

@@ -108,7 +108,13 @@ test("HTTP Kit alone authors native objects and hands off a Project-folder run",
     ]),
   );
   expect(files.get("references/authoring-contract.md")).toContain(
-    "Shared simulation and result handoff",
+    "](simulation-workflow.md)",
+  );
+  expect(files.get("references/simulation-workflow.md")).toContain(
+    "](simulation-result-handoff.md)",
+  );
+  expect(files.get("references/simulation-result-handoff.md")).toContain(
+    "evidence bundle",
   );
   const catalog = JSON.parse(
     files.get("references/razavi-authoring-catalog.json")!,

@@ -133,6 +133,7 @@ test("blocks destructive browser refresh shortcuts and uses the stronger grid", 
   page,
 }) => {
   await page.goto("/editor");
+  await awaitEditorReady(page);
   await expect(page.locator(".canvas-grid-dot").first()).toHaveCSS(
     "fill",
     "rgb(196, 199, 201)",
@@ -140,7 +141,6 @@ test("blocks destructive browser refresh shortcuts and uses the stronger grid", 
   // A blank circuit has nothing to protect: the editor does not intercept
   // the refresh shortcut (a real browser would reload here; synthetic keys
   // cannot drive the browser accelerator, so assert the guard stays silent).
-  await awaitEditorReady(page);
   await page.keyboard.press("Control+r");
   await expect(page.getByTestId("status")).not.toHaveText(
     "Refresh blocked to protect the current circuit",
@@ -320,6 +320,7 @@ test("refreshes explicitly only after flushing and automatically restoring recov
   await clickCommand(page, "File", "Refresh app");
   await navigated;
 
+  await awaitEditorReady(page);
   await expect(page.getByTestId("hit-R1")).toBeVisible();
   await expect(page.getByTestId("revision")).toHaveText("1");
   await expect(page.getByTestId("status")).toHaveText(
@@ -341,6 +342,7 @@ test("refresh restores the circuit when the session started from a boot-target U
   // on the refreshed page. It must yield to the pending restore instead of
   // forking a fresh working copy that orphans the flushed snapshot.
   await page.goto("/editor?new=1");
+  await awaitEditorReady(page);
   await expect(page.getByTestId("status")).toHaveText("Created a new Project");
   await chooseComponent(page, "resistor");
   await page
@@ -354,6 +356,7 @@ test("refresh restores the circuit when the session started from a boot-target U
   await clickCommand(page, "File", "Refresh app");
   await navigated;
 
+  await awaitEditorReady(page);
   await expect(page.getByTestId("hit-R1")).toBeVisible();
   await expect(page.getByTestId("revision")).toHaveText("1");
   await expect(page.getByTestId("status")).toHaveText(
@@ -372,6 +375,7 @@ test("keeps quick-start shortcuts in the upper-right corner until the first comp
   page,
 }) => {
   await page.goto("/editor");
+  await awaitEditorReady(page);
   const quickStart = page.getByTestId("canvas-empty-state");
   await expect(quickStart).toBeVisible();
   await expect(quickStart).toHaveAttribute(
@@ -1281,6 +1285,9 @@ test("copies a MOS whose bulk belongs to a shared supply Net", async ({
 test("seeds passive defaults into properties and the exported project", async ({
   page,
 }) => {
+  // Eight real placements, eight property inspections and an export share
+  // this scenario. Keep every assertion while allowing a cold shared runner.
+  test.slow();
   await page.goto("/editor");
   await awaitEditorReady(page);
   const canvas = page.getByTestId("schematic-canvas");
@@ -2200,6 +2207,7 @@ test("shows the complete foldable categorized Library, quick-places a device, an
     .toBe("false");
 
   await page.reload();
+  await awaitEditorReady(page);
   await expect(page.getByTestId("shapes-library-panel")).toHaveAttribute(
     "data-open",
     "false",
@@ -2393,7 +2401,7 @@ test("keeps a usable canvas while toggling Library at the narrow breakpoint", as
   ).toEqual({ horizontal: false, vertical: false });
 });
 
-test("double-clicking a placed device opens Properties for editing", async ({
+test("double-clicking a placed device reveals Properties without entering typing", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -2418,6 +2426,8 @@ test("double-clicking a placed device opens Properties for editing", async ({
   );
   const propertyValue = page.getByLabel("Editable Canvas property code");
   await expect(propertyValue).toBeVisible();
+  await expect(canvas).toBeFocused();
+  await propertyValue.click();
   await expect(propertyValue).toBeFocused();
 });
 
@@ -2425,6 +2435,7 @@ test("Library rail folds the sidebar; Insert opens the catalog", async ({
   page,
 }) => {
   await page.goto("/editor");
+  await awaitEditorReady(page);
   const panel = page.getByTestId("shapes-library-panel");
   await expect(panel).toHaveAttribute("data-open", "true");
 

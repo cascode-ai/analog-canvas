@@ -67,6 +67,7 @@ describe("component placement electrical contacts", () => {
     "simple-switch",
     "ideal-switch",
     "closed-switch",
+    "externally-controlled-switch",
     "spdt-switch",
     "simple-spdt-switch",
     "voltage-controlled-switch",

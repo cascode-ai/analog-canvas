@@ -53,7 +53,7 @@ type Env = SimulationEnv &
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
-    // Every preview response is stamped noindex on the way out (ADR 0057).
+    // Every preview response is stamped noindex on the way out (Deployment rationale).
     return markPreviewResponse(await route(request, env), env);
   },
   async queue(

@@ -38,10 +38,10 @@ An Instance may also carry optional schematic-only `signalFlowParameters`
 netlist/SPICE parameters. Width and height are optional 10-unit-grid minimums:
 the shared Transfer Function renderer expands beyond them when 12-unit formula
 text, a fraction, or a coefficient needs more room, and never clips or shrinks
-the formula to satisfy an undersized request. A canonical v55 file can be
+the formula to satisfy an undersized request. A canonical v56 file can be
 opened, saved, reopened, and saved again without byte drift.
 
-Schemas v24 through v54 are accepted through the explicit chained upgrades.
+Schemas v24 through v55 are accepted through the explicit chained upgrades.
 Schema v32 adds optional `Annotation.textColor`; schema v33 removes the
 ownerless `explicit-equivalence` record. A v32 file without that record changes
 only its version stamp. A file containing it is rejected at the exact evidence
@@ -69,7 +69,9 @@ and schema v47 adds selected hierarchy-aware MOS operating-point details.
 Schema v48 adds design variables, v49 converts saved simulation intent to
 source files, and v50 names those collections simulation folders. Schema v51
 adds rectangle/circle fill and front/background drafting planes; a v50 Project
-is advanced without changing any authored object.
+is advanced without changing any authored object. Schema v52 converts the
+legacy local-X mirror to independent horizontal or vertical mirroring, and v53
+allows 45-degree rotation steps; a v52 file changes only its stamp.
 Schema v55 adds independent arrow start/end styles: small, medium, or large
 arrowheads, dots, no head, and legacy open arrowheads. Unset ends preserve the
 previous head style, placement, and scale; v54 content changes only its stamp.
@@ -88,7 +90,7 @@ Retired fields such as first-class
 
 An incompatible Project is rejected before it can replace the current browser
 Project. Conversion, when needed, is an explicit external operation that must
-produce and validate a complete v55 candidate before a human chooses to load it.
+produce and validate a complete v56 candidate before a human chooses to load it.
 
 Equal visible Label, Port, power-marker, and explicit global-declaration names
 resolve to one Logical Net without erasing their separate Base Net identities.
@@ -110,7 +112,8 @@ Schema 56 adds optional electrical Wire `styleOverride.lineStyle` (`solid`,
 `dashed`, or `dotted`). Styling does not change electrical connectivity or
 netlist output. The schema 55 upgrade preserves all existing Route data and
 changes only the version stamp. MOS bulk connections retain their dedicated
-dash pattern. Select a Wire and use **Properties / Line style** to change it.
+dash pattern. Select a Wire and set `appearance.lineStyle` in its Properties
+code to change it.
 
 Schema 57 makes a locally authored VDD Power Rail an explicit formal Cell Pin.
 Opening a schema-56 Project attaches a stable Cell terminal to each local

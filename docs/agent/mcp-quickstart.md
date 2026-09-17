@@ -8,34 +8,22 @@ Closing the browser details panel does not revoke the connection.
 Call `get_context` and read the built-in catalog before placing devices.
 Use `inspect` and `search` for IDs and pins, not screenshot coordinates.
 Read `analog-canvas://reference/authoring` for the shared native placement,
-display, Port, Net Label and simulation-result workflow. It is generated from
-the exact `references/authoring-contract.md` served in the HTTP Kit; the tool
+display, Port, Net Label and simulation-result workflow. Both surfaces are generated directly from the same source; the tool
 examples below are MCP-specific mappings, not a separate operating policy.
 
 Production and Preview both expose the Agent UI. Their accounts, Projects and
 connector bindings remain separate.
 
-MCP 0.13.0 adds lightweight Session observations and a direct HTTP executable
-entry through the same client. Use `analog-canvas-mcp --http list-tools` to
-discover commands; pass JSON tool arguments on stdin, not on a command line.
-`--http resource` reads a resource URI from stdin. `--http circuit` accepts the
-canonical OpenAPI request with caller-owned IDs for exact retries. Set the same
-API origin for MCP and HTTP; their default credential files are isolated by
-origin. The connector override is a **file path**, never a credential value.
-The new origin-scoped defaults do not adopt the old shared `connector.json`;
-use one new claim, or explicitly point at a matching existing credential file.
+Before pairing, `connection_status({"refresh":false})` identifies the loaded
+MCP version and exact API origin without a network request. Installation and
+host loading are separate stages: an installed binary is not proof that this
+conversation can call it. Prefer the verified local launch described in
+[installation](mcp-install.md). Do not silently replace a failed MCP connection
+with HTTP; that path requires the user's explicit choice and is not MCP acceptance.
 
-MCP 0.13.0 supports API 3.0, Project schema 56, setup v4 source/config files
-and captured Spec reports. The published 0.11.0 binary supports Spec reports
-but predates schema 56 electrical Wire styles. Update that adapter to 0.13.0
-for schema 56 sites; rebuilding an old version does not replace its immutable
-release. See [distribution verification](mcp-install.md). Use it with Analog
-Canvas 0.6.0 or newer. It supports independent arrow ends, electrical Wire
-line styles, native component displays and attached Net Labels. The public
-distribution manifest identifies the pinned release artifact and its SHA-256.
-Updating the website does not update an already installed MCP process. Set
-`ANALOG_CANVAS_API_URL` only when connecting to Preview or another
-non-production endpoint.
+For the explicit shared-client CLI path, read
+[CLI lifecycle](http-cli.md). Compatibility is determined by the current
+bootstrap manifest and loaded runtime, not a remembered release version.
 
 Sessions have a renewable 30-minute idle deadline. Agent operations and manual
 edits renew it; passive heartbeats do not. A saved connector's deadline may be
@@ -43,237 +31,11 @@ stale after activity in the browser: MCP asks the server whether it can resume,
 rather than discarding the connector based on its local timestamp. Expired or
 revoked server sessions still require a new Claim Code.
 
-Schema 55 arrow objects support independent `styleOverride.arrowStart` and
-`arrowEnd`: `small-arrow`, `medium-arrow`, `large-arrow`, `dot`, `none`, or
-`open-arrow`. Read the `upsert_drafting_object` contract before editing them.
-These fields are arrow-only; legacy `arrowHead`/`arrowHeadAt` remain fallbacks.
-Older 0.9.0 adapters may reject Snapshots containing the new fields. Schema 56
-adds electrical Wire `styleOverride.lineStyle`: `solid`, `dashed`, or `dotted`.
-Route Snapshots expose the complete styleOverride (color, arrow and lineStyle),
-so preserve the other settings when editing one. Older 0.11.0 adapters target
-schema 55 and may reject a schema 56 Snapshot.
+## Choose task guidance
 
-## Create and edit
+- [Editing, verification and recovery](mcp/tools.md) for circuit work.
+- [Simulation tools](mcp/simulation.md) for source ownership, prepare/start/read and evidence.
+- [Native authoring](shared/authoring.md) for shared electrical and visual rules.
+- [CLI lifecycle](http-cli.md) only when explicitly using the command-line path.
 
-Use `apply_actions` for one atomic edit batch, wire, planned command or focus
-operation per call. Split create and wire phases so new pin geometry comes
-from Snapshot. The browser plans commands with the same planners as the GUI;
-all resulting edits use the existing controller, revision and permission checks.
-
-| Action                                        | Key arguments                                                                 |
-| --------------------------------------------- | ----------------------------------------------------------------------------- |
-| `set-model`                                   | `instanceId`, `model` (empty clears it)                                       |
-| `copy`                                        | `selection`, `offset:{x,y}`; internal wires and references follow GUI copy    |
-| `transform`                                   | `selection`, `transform:{kind:"rotate",degrees:90}`, mirror or translate      |
-| `align`                                       | `selection`, `mode:left/right/top/bottom/center-x/center-y`                   |
-| `detach-move`                                 | `instanceIds`, `delta`; wires stay behind                                     |
-| `unplace`                                     | `instanceIds`; retain electrical facts in Placement Tray                      |
-| `reset-cell`                                  | `mode:clear-drawing/reset-placement/reset-body`                               |
-| `create-cell` / `rename-cell` / `delete-cell` | Cell `id`, plus `name` for create/rename                                      |
-| `undo` / `redo`                               | Shared editor history, not a private Agent stack                              |
-| `focus`                                       | `intent`: select, highlight-net, activate-document, fit-document, clear-focus |
-
-`selection` accepts `instanceIds`, `routeIds`, `junctionIds`,
-`annotationIds` and `draftingIds`; omitted lists are empty.
-Drafting rotations in 45-degree steps match the GUI's in-place rotation; other drafting
-transforms use canonical `upsert_drafting_object` geometry rather than silently
-partially transforming a mixed selection.
-
-`connect` supports `via`, `routingMode:orthogonal/octilinear/free` and
-`cornerOrder`. A `route-segment` target uses the Route's stable `legId`
-and a `point`; the server owns splitting and Junction creation.
-Name Nets through labels/markers, never raw Base-Net fields.
-
-`advanced_transact` accepts exactly one of `edits`, `structureEdits`,
-`wireIntent`, `semanticIntent`, or `command`. The Helper supplies IDs and
-Document/Project revisions. Read `analog-canvas://contract/edits/{kind}`
-for one edit schema (for example `set_instance_style_override`), avoiding the
-large `analog-canvas://contract/advanced-edits` resource meant for offline tooling.
-Reading is advisory, not a permission gate.
-Nested `transact_document` entries use their target Document revisions.
-
-Use `project_cells` to list the signed-in user's Cloud Projects, inspect their
-Cell interfaces, and import one Cell into the open Project. Import copies the
-complete local dependency closure through the same atomic planner as the GUI;
-it does not create a live cross-Project link. The helper refreshes the Project
-structure revision when the caller omits it. Sign-in, stale-revision, and
-library-compatibility failures are recoverable and do not revoke the session.
-
-Colors use existing `set_instance_style_override`, `set_route_style_override`,
-`set_presentation_style` and annotation `textColor` edits. Full inspection
-returns these fields, `signalFlowParameters`, Cell interfaces, and external
-Model definitions. Netlist parameter values are strings, for example `"1u"`.
-
-`annotate` and `edit-text` accept plain text or canonical RichText:
-
-`connect`/`disconnect` pin targets accept an Instance Reference string or
-`instance:{kind:"instance",id:"…"}`; use the latter for imported formal Cell Pins.
-`place-component` requires a Reference for devices, but omit it for `ground`
-and `vdd-port`. For `port` and `port-filled`, `reference` supplies the new
-Cell terminal's name, with passive direction by default. Placement creates its
-owned Port, Net and bound terminal-name display atomically; use the returned
-Instance ID for subsequent wiring. To place an imported Instance, use `place-existing` with
-`instanceId` and `placement` (or `move` from the tray); default labels use the GUI planner.
-`place-component` batches use the browser's native display factory: references
-and displayable values are object-attached, and power markers own electrical
-power claims. Use `set-instance-display` with `instanceIds`, `showReference`
-and/or `showValue` to change visibility without creating duplicate annotations.
-For transformer (`xfmr`) parameters use `showParameters:{k:true,lp:true,ls:false}`;
-for T-Coil use `k`, `l1`, `l2`, `cb`. Keys are lowercase, omitted keys stay
-unchanged, and unsupported keys for any selected device reject the whole action.
-Set the electrical parameter values before showing them. Hide/show reuses the
-same attached labels and preserves their authored placement and style.
-`showValue` controls only aggregate Value, never these named parameter labels.
-The schema 54 `binding.parameter` field is supported by Snapshot reads and
-advanced annotation edits, including hidden labels. Older 0.8.0 adapters can
-fail to read a Document containing these bindings and must be updated.
-Do not substitute free drafting text for these projections. `add-label` attaches
-new labels to their Net's routed geometry when available.
-`add-label` and Net Label `edit-text` author the electrical name claim and bound
-text together. Deleting the label removes its owned claim, not the physical wires.
-
-`connection_status` probes the current session; closing a panel is not a disconnect.
-HTTP 429 retries are bounded and honor `Retry-After` using the identical request
-body and IDs. A longer server wait is returned to the caller instead of retried early.
-
-For example, a formula annotation:
-
-```json
-{
-  "kind": "annotate",
-  "position": { "x": 200, "y": 100 },
-  "text": {
-    "runs": [{ "kind": "math", "latex": "\\frac{g_m}{C}", "display": "inline" }]
-  }
-}
-```
-
-## Verify and recover
-
-Mutation receipts already include authoritative changed objects, edit kinds,
-diagnostics and diagnostic deltas. Do not reconstruct the change from a partial
-Snapshot or count the same diagnostics twice. Use `verify` for a fresh check
-when needed and `render` when visual review matters. On `STATE_CHANGED`,
-refresh and re-plan; never blindly replay a changed payload.
-
-`inspect` with `detail:"full"` returns complete Document facts.
-`target:{kind:"activity"}` returns recent successful receipts in the current
-MCP process, not persistent history or other people's edits.
-`search` with `scope:"project"` searches currently authorized Cells.
-`inspect` with `target:{kind:"trace",netId:"…"}` returns the GUI's canonical
-cross-Cell/global-Net trace. Supply `hierarchyPath` for a particular reused
-Cell occurrence; do not infer cross-Cell connectivity from names yourself.
-
-`disconnect` revokes the session. A Project replacement invalidates the old
-binding. Newly created/deleted Cells are synchronized by the trusted browser,
-without requiring another claim exchange.
-
-## Files and boundaries
-
-`export_file` writes Project/SVG/PNG/PDF to an explicit local path.
-`import_file` stages a Project or structural SPICE bundle; inspect it and
-request browser approval. Staging is not a completed import.
-For Cadence globals, use `action:"stage-spice", namingProfile:"cadence-bang"`.
-
-Exporting a Project file is not Cloud Save or Gallery publication. Account
-operations and PVT remain separate work.
-
-## Simulation
-
-Connecting from the editor includes `simulation.run`; there is no per-run
-approval or mandatory helper-reading gate. GUI and MCP use the same source,
-File and Run resources.
-
-1. `simulation` / `capabilities` discovers the Profile, qualified analyses,
-   parser support, declared rawfile collection and resource limits without
-   starting ngspice.
-2. `simulation_folder` lists, gets, creates, clones, renames and removes saved
-   source experiments. Omit the root Cell to create a graphless experiment.
-   A saved setup v4 owns authored files, its entry/config paths, generated
-   Circuit bindings and declared dependencies. It does not contain another
-   structured analyses list. Ordinary Project edits own DUTs, formal ports,
-   independent sources and wiring.
-3. Use `simulation_files` to read and edit source/config. For code-authoritative
-   experiment config version 2, native code owns analyses, `save`, `meas`,
-   `write`, `.param`, `.temp` and control. Config owns environment and collection.
-   JSON output/measurement/device-OP helpers are for legacy config version 1
-   only. Inspect the actual version before choosing a helper. Warnings and
-   invalid drafts remain repairable; they are not session revocations.
-4. `prepare` with
-   `source:{kind:"project-folder",folderId,expectedStructureRevision}` freezes the
-   input and returns `prepared.id`, `digest`, vectors and artifacts.
-   `prepared.json` contains the exact execution request, `prepared.cir` the
-   entry, and individual files/source maps the rest of the bundle.
-5. `start` uses `preparedId` and `digest`, returning `run.id` immediately.
-   Reuse the same outer request ID and payload for a transport retry.
-   `read` / `cancel` use `runId`; each new poll has a new request ID.
-   `inputStatus` reports later edits without rewriting that run's evidence.
-6. `export` lists artifact references. `simulation_files` with
-   `request:{action:"artifact",artifactId}` reads paged content; `outputPath`
-   saves complete bytes after length/SHA-256 verification. Deck, rawfile,
-   JSON, log and CSV share this File Resource. Large receipts set
-   `resultPreview`; full result/output artifacts remain available.
-   Read `outputData.specs` or `specs.json` for captured acceptance results, and
-   `specs.csv` for portable tabular results. Native `meas` computes metrics;
-   source comments such as `* @spec peak <= 1.8 unit=V` declare rules.
-   See [Spec annotations](simulation-specs.md). Missing/invalid results are
-   `not-evaluated`, not Failed; measurements without a rule are `unconstrained`.
-   Use raw/CSV to plot or compare externally. Built-in Plot/Compare/OP views
-   and `simulation-plot` image export are retired; native OP still executes.
-   Read waveform numbers from `result.data` or `result.json`, not the legacy
-   `outputData.analyses` array (empty for new runs). There is one complete CSV
-   per analysis record; no automatic measurements or duplicate outputs CSV.
-   If `resultPreview` is true, read `result.json` and `specs.json` by artifact ID.
-   The full Spec reference is bundled as `analog-canvas://reference/simulation-specs`.
-
-### File ownership and editing
-
-For saved experiments use `owner:{kind:"project-folder",folderId}`. Updates use
-the Project structure revision and ordinary undoable transactions. `read`
-returns exact text, a SHA-256 `textDigest`, and generated instance/parameter
-spans when applicable. `update` accepts writes/removes or UTF-16 range patches
-with that digest. `circuitEdits:[{path,textDigest,text}]` maps only reported
-editable numeric fields to normal parameter transactions; topology edits go
-through Canvas APIs. Project file writes require `project.import`; mapped
-circuit changes additionally require connectivity editing authority.
-
-For an expiring graphless session workspace, call File `create`, then
-`update` with `owner:{kind:"session-workspace",workspaceId}`,
-`expectedRevision`, `entry`, and authored files including a valid config.
-Prepare using `source:{kind:"workspace",workspaceId,expectedRevision}`.
-Environment belongs to the config, not a second prepare argument. Use
-`simulation_folder` instead when this work must survive Project save/reload.
-
-Files and dependencies are virtual-root-relative. Environment owners resolve
-declared dependency identities/digests; arbitrary host paths and startup
-configuration are not writable. Complete user code owns its analyses and
-capture statements; there is no hidden final write. Default snippets select
-ASCII/appendwrite and capture after each analysis. Native repeated plots stay
-separate records, never an implicit managed Batch.
-
-### Batch and evidence
-
-`prepare-batch` freezes 1–16 saved-setup items at one structure revision.
-`prepare-sweep` uses saved Run Plan axes or explicit corner, temperature,
-variable or exact-parameter axes. Nominal values come from source; point
-projections do not mutate the Project. Both become an ordinary sequential
-batch consumed by `start-batch`, `read-batch`, `cancel-batch` and per-run
-`read`/`export`. Reuse start request identity after an uncertain response.
-
-Project-folder runs, including batches and sweeps, appear in the GUI's Project
-runs list without opening the panel or stealing focus. Open result restores a
-completed run without executing it again. Verified artifacts are automatically
-archived in this browser; Saved results survives reload, but is not Cloud Save.
-Session-workspace runs remain private. Storage failures carry a session-only
-warning. Project + results ZIP bundles a captured Project and run evidence;
-ordinary Project exports remain source-only.
-
-Run history and rawfiles are not Project objects. Export artifacts and
-`evidence-manifest.json` for durable evidence. Browser Archive is a bounded
-convenience over those artifacts. No job durability across browser reload is
-promised.
-
-Read `error.code`, `stage`, `recovery` and located diagnostics, repair input,
-and continue. Missing models, busy executors, timeouts and failed simulations
-do not revoke the session. An uncertain accepted execution is `lost`, never
-automatically resubmitted.
+Read these on demand. Reading a resource never unlocks a tool.

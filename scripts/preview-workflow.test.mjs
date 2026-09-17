@@ -4,12 +4,17 @@ import { execFileSync, execSync } from "node:child_process";
 import { describe, expect, it } from "vitest";
 
 /**
- * The preview pipeline's own contract (ADR 0057). The preview is where every
- * merge lands and where the simulation feature is tried; these assertions
- * keep it from ever becoming a second way to reach production.
+ * The preview pipeline's own contract (Deployment rationale). The preview is
+ * where labeled pull requests and their merges land, where manual debugging
+ * happens, and where the simulation feature is tried; these assertions keep it
+ * from ever becoming a second way to reach production.
  */
 const preview = readFileSync(".github/workflows/deploy-preview.yml", "utf8");
 const production = readFileSync(".github/workflows/cloudflare.yml", "utf8");
+const buildAction = readFileSync(
+  ".github/actions/build-deployment-candidate/action.yml",
+  "utf8",
+);
 const agentJourney = readFileSync(
   "scripts/preview-agent-simulation-journey.mjs",
   "utf8",
@@ -82,13 +87,18 @@ describe("the preview deploy", () => {
       "Anonymous Preview Projects must require sign-in",
     );
     expect(preview).toContain(
-      'node scripts/run-preview-acceptance.mjs "$PREVIEW_URL"',
+      'node scripts/run-preview-acceptance.mjs "$PREVIEW_URL" --mode "$ACCEPTANCE_MODE"',
     );
-    expect(preview).toContain("VITE_ICM_SIMULATION_UI: enabled");
-    expect(preview).toContain("VITE_ICM_AGENT_UI: enabled");
-    expect(preview).toContain("VITE_ICM_SIMULATION_TRANSPORT: managed");
-    expect(preview).toContain("pnpm --filter @icm/mcp-server... build");
-    expect(preview).toContain("playwright install --with-deps chromium");
+    expect(buildAction).toContain("VITE_ICM_SIMULATION_UI: enabled");
+    expect(buildAction).toContain("VITE_ICM_AGENT_UI: enabled");
+    expect(buildAction).toContain("VITE_ICM_SIMULATION_TRANSPORT: managed");
+    expect(buildAction).toContain("--filter @icm/mcp-server... build");
+    expect(preview).toContain(
+      "PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH: /usr/bin/google-chrome",
+    );
+    expect(preview).not.toContain("playwright install --with-deps chromium");
+    expect(preview).toContain("Plan hosted acceptance depth");
+    expect(preview).toContain("preview-acceptance-plan.mjs");
     expect(acceptanceRunner).toContain(
       'script: "scripts/preview-simulation-smoke.mjs"',
     );
@@ -98,15 +108,11 @@ describe("the preview deploy", () => {
     expect(acceptanceRunner).toContain(
       'script: "scripts/preview-source-gui-journey.mjs"',
     );
-    expect(preview).toContain("preview-source-gui-${{ github.sha }}");
     expect(acceptanceRunner).toContain(
       'script: "scripts/preview-cross-project-simulation-journey.mjs"',
     );
     expect(preview).toContain("PREVIEW_ACCEPTANCE_TOKEN");
-    expect(preview).toContain("preview-agent-simulation-${{ github.sha }}");
-    expect(preview).toContain(
-      "preview-cross-project-simulation-${{ github.sha }}",
-    );
+    expect(preview).toContain("preview-acceptance-${{ env.RELEASE_SHA }}");
     // The reusable smoke is responsible for explicit transport selection,
     // numeric validation, and environment parity; the workflow must not
     // quietly restore an inline, default-executor-only probe.
@@ -119,27 +125,30 @@ describe("the preview deploy", () => {
     const build = preview.indexOf("Build immutable deployment candidate");
     const deploy = preview.indexOf("Deploy to preview");
     const lastAcceptance = preview.indexOf(
-      "Run Preview acceptance in two parallel lanes",
+      "Run risk-selected Preview acceptance",
     );
     const preserve = preview.indexOf("Preserve accepted deployment candidate");
     expect(build).toBeGreaterThan(-1);
     expect(deploy).toBeGreaterThan(build);
     expect(lastAcceptance).toBeGreaterThan(deploy);
     expect(preserve).toBeGreaterThan(lastAcceptance);
-    expect(preview).toContain("deployment-candidate.mjs create");
-    expect(preview).toContain("deployment-candidate.mjs verify");
-    expect(preview).toContain("preview-candidate-${{ github.sha }}");
+    expect(preview).toContain(
+      "uses: ./.github/actions/build-deployment-candidate",
+    );
+    expect(buildAction).toContain("deployment-candidate.mjs create");
+    expect(buildAction).toContain("deployment-candidate.mjs verify");
+    expect(preview).toContain("preview-candidate-${{ env.RELEASE_SHA }}");
     expect(preview).toContain("--no-bundle");
   });
 
   it("promotes released capabilities while preserving the channel data boundary", () => {
     expect(production).not.toContain("wrangler.preview.jsonc");
-    expect(preview).toContain("VITE_ICM_SIMULATION_UI: enabled");
-    expect(preview).toContain("VITE_ICM_AGENT_UI: enabled");
-    expect(preview).toContain("VITE_ICM_SIMULATION_TRANSPORT: managed");
-    expect(preview).toContain("VITE_ICM_TIMING_UI: disabled");
+    expect(buildAction).toContain("VITE_ICM_SIMULATION_UI: enabled");
+    expect(buildAction).toContain("VITE_ICM_AGENT_UI: enabled");
+    expect(buildAction).toContain("VITE_ICM_SIMULATION_TRANSPORT: managed");
+    expect(buildAction).toContain("VITE_ICM_TIMING_UI: disabled");
     expect(production).toContain("Download the accepted Preview candidate");
-    expect(production).toContain("Promote the accepted Preview candidate");
+    expect(production).toContain("Deploy the verified candidate");
     expect(production).not.toContain("pnpm --filter @icm/editor... build");
     expect(production).not.toContain("PREVIEW_ACCEPTANCE_TOKEN");
     expect(production).not.toContain(
@@ -292,4 +301,52 @@ describe("the preview deploy", () => {
       expect(failure?.stderr).not.toContain("ERR_MODULE_NOT_FOUND");
     }
   }, 190000);
+});
+
+describe("label-routed releases (Deployment rationale)", () => {
+  it("deploys a same-repository pull request while it carries the preview label", () => {
+    expect(preview).toMatch(
+      /pull_request:\s*\n\s*types: \[opened, labeled, synchronize, reopened\]/u,
+    );
+    expect(preview).toContain(
+      "contains(github.event.pull_request.labels.*.name, 'preview')",
+    );
+    expect(preview).toContain(
+      "github.event.pull_request.head.repo.full_name == github.repository",
+    );
+    // Adding some other label must not redeploy the pull request.
+    expect(preview).toContain(
+      "(github.event.action != 'labeled' || github.event.label.name == 'preview')",
+    );
+    // The pull request's own head is deployed, not GitHub's merge preview.
+    expect(preview).toContain(
+      "RELEASE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}",
+    );
+    expect(preview).toContain("ref: ${{ env.RELEASE_SHA }}");
+    expect(preview).toContain('--base "$PULL_REQUEST_BASE_SHA"');
+  });
+
+  it("deploys a merge to Preview only when its pull request was labeled", () => {
+    expect(preview).toContain("pull-requests: read");
+    expect(preview).toContain(
+      'node scripts/release-route.mjs --sha "$GITHUB_SHA" --github-output',
+    );
+    expect(preview).toContain("needs.route.outputs.target == 'preview'");
+    expect(preview).toContain("needs.route.result == 'success'");
+    // A manual run still deploys any selected branch.
+    expect(preview).toContain("github.event_name == 'workflow_dispatch'");
+  });
+
+  it("builds both channels' candidates through one action", () => {
+    expect(preview).toContain("wrangler-config: wrangler.preview.jsonc");
+    expect(production).toContain("wrangler-config: wrangler.jsonc");
+    expect(buildAction).toContain("using: composite");
+    expect(buildAction).toContain('--config "$WRANGLER_CONFIG"');
+    expect(buildAction).toContain("--dry-run");
+    expect(buildAction).toContain("pnpm install --frozen-lockfile");
+    expect(buildAction).toContain(
+      '"$CANDIDATE_DIR" "$RELEASE_SHA" "$WORKER_BUNDLE_DIR"',
+    );
+    expect(buildAction).not.toContain("GITHUB_SHA");
+  });
 });

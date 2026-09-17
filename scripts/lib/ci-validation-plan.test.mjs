@@ -96,19 +96,12 @@ describe("CI validation planning", () => {
     });
   });
 
-  it("keeps wire editing focused while retaining connected-edit integration checks", () => {
+  it("keeps wire editing on its dedicated browser contract", () => {
     const plan = ciPlan([
       "apps/editor/src/features/wiring/wire-edit-controller.ts",
     ]);
     expect(plan.mode).toBe("focused");
-    expect(plan.e2eArgs).toContain("apps/editor/e2e/manual-editor.spec.ts");
-    expect(plan.e2eArgs).toContain("apps/editor/e2e/wiring-semantics.spec.ts");
-    for (const name of [
-      "component-property-workflows",
-      "netlist-workflows",
-      "netlist-conversion",
-    ])
-      expect(plan.e2eArgs).not.toContain(`apps/editor/e2e/${name}.spec.ts`);
+    expect(plan.e2eArgs).toEqual(["apps/editor/e2e/wiring-semantics.spec.ts"]);
   });
 
   it("selects the extracted workflows from their production owners and shared dependencies", () => {
@@ -126,10 +119,21 @@ describe("CI validation planning", () => {
       expect.arrayContaining([netlist, conversion]),
     );
     for (const path of [
-      "apps/editor/src/app/App.tsx",
-      "apps/editor/src/canvas/editor-canvas-surface.tsx",
       "apps/editor/src/features/properties/component-property-code.ts",
       "apps/editor/src/features/netlist-export/netlist-authoring.ts",
+    ]) {
+      const plan = ciPlan([path]);
+      expect(plan.mode, path).toBe("focused");
+      expect(plan.e2eArgs, path).toEqual(
+        expect.arrayContaining([properties, netlist, conversion]),
+      );
+      expect(plan.e2eArgs, path).not.toContain(
+        "apps/editor/e2e/manual-editor.spec.ts",
+      );
+    }
+    for (const path of [
+      "apps/editor/src/app/App.tsx",
+      "apps/editor/src/canvas/editor-canvas-surface.tsx",
       "apps/editor/src/features/text-editing/canvas-text-editor.tsx",
       "apps/editor/src/features/drafting/drafting-properties-panel.tsx",
       "apps/editor/e2e/manual-editor-fixtures.ts",
@@ -162,14 +166,53 @@ describe("CI validation planning", () => {
     );
   });
 
+  it("routes shared dialog styles and SPICE language sources to their owning browser contracts", () => {
+    const dialogPlan = ciPlan(["apps/editor/src/styles/editor-dialogs.css"]);
+    expect(dialogPlan.mode).toBe("focused");
+    expect(dialogPlan.e2eArgs).toContain(
+      "apps/editor/e2e/manual-editor.spec.ts",
+    );
+
+    const languagePlan = ciPlan(["packages/spice/src/simulation-language.ts"]);
+    expect(languagePlan.mode).toBe("focused");
+    expect(languagePlan.e2eArgs).toContain(
+      "apps/editor/e2e/simulation-code-editor.spec.ts",
+    );
+
+    const syntaxPlan = ciPlan(["packages/spice/src/syntax.ts"]);
+    expect(syntaxPlan.mode).toBe("focused");
+    expect(syntaxPlan.e2eArgs).toEqual(
+      expect.arrayContaining([
+        "apps/editor/e2e/netlist-conversion.spec.ts",
+        "apps/editor/e2e/simulation-code-editor.spec.ts",
+      ]),
+    );
+  });
+
   it("uses the small browser fallback for an unmapped product path", () => {
     const plan = ciPlan(["apps/editor/src/lib/new-helper.ts"]);
     expect(plan.mode).toBe("fallback");
     expect(plan.e2eArgs).toEqual([
-      "apps/editor/e2e/manual-editor.spec.ts",
+      "apps/editor/e2e/component-insert.spec.ts",
       "apps/editor/e2e/runtime-crash-safety.spec.ts",
-      "apps/editor/e2e/web-agent-session.spec.ts",
     ]);
+  });
+
+  it("does not allocate a browser runner for non-shipping tests and manifests", () => {
+    expect(
+      ciPlan([
+        "apps/editor/src/components/editor-help-dialog.test.tsx",
+        "apps/local-host/src/local-host.test.ts",
+        "apps/editor/package.json",
+        "packages/platform-node/package.json",
+        "package.json",
+      ]),
+    ).toMatchObject({
+      heavy: true,
+      browser: false,
+      mode: "non-browser",
+      e2eArgs: [],
+    });
   });
 
   it("does not hide an unmapped path behind another focused selection", () => {

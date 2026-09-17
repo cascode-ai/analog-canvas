@@ -1027,6 +1027,7 @@ function parseLogicalLine(line: LogicalLine): {
     nodeset: "option",
     noise: "analysis",
     op: "analysis",
+    option: "option",
     options: "option",
     plot: "output",
     print: "output",

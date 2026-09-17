@@ -1,4 +1,4 @@
-// ADR 0055's acceptance evidence, made repeatable.
+// Simulation rationale's acceptance evidence, made repeatable.
 //
 // The ADR asks for one thing that no unit test can give: proof that a circuit
 // carried through import, the model, and the exporter still simulates as the
@@ -77,7 +77,7 @@ async function findNgspice() {
   }
 }
 
-// A testbench of our own, not the author's: ADR 0055 leaves the testbench to
+// A testbench of our own, not the author's: Simulation rationale leaves the testbench to
 // whoever owns the circuit, and this file owns the fixture. It biases the OTA
 // into its intended operating region and reports the four internal nodes plus
 // small-signal gain and bandwidth -- enough that a wrong connection anywhere

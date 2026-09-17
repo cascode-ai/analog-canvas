@@ -1,0 +1,4 @@
+interface:
+  display_name: "Circuit Layout"
+  short_description: "Reason about and refine circuit schematics"
+  default_prompt: "Use $circuit-layout to refine this schematic while preserving electrical topology and reviewing the rendered result."

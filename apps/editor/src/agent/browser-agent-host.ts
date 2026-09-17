@@ -21,7 +21,7 @@ import { planBrowserAgentCommand } from "./browser-agent-command";
 
 /**
  * Adapts a live {@link EditorDocumentController} to the
- * {@link AgentOperationHost} contract (ADR 0016 / WP-WA2). The Agent Circuit
+ * {@link AgentOperationHost} contract (Agent rationale). The Agent Circuit
  * service reads the current Project/resolver and dispatches Agent transactions
  * through the controller's single `dispatchTransaction` write path.
  *
@@ -29,7 +29,7 @@ import { planBrowserAgentCommand } from "./browser-agent-command";
  * owner (the React hook in `App.tsx`) can synchronize UI state and stage
  * recovery — exactly as a human commit does.
  *
- * WP-WA3: this lets the full capabilities/snapshot/transact/render feature run
+ * This lets the full capabilities/snapshot/transact/render feature run
  * against the live browser document inside one process, with no network, token,
  * or Worker. The session transport is layered on top in WP-WA4/WP-WA5.
  */

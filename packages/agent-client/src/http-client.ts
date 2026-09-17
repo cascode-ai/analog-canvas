@@ -21,6 +21,29 @@ import {
   transportFailure,
 } from "./errors.js";
 
+interface ResponseIssue {
+  code: string;
+  path: PropertyKey[];
+  errors?: ResponseIssue[][];
+}
+
+/** Describe schema locations/codes only, never response values or unknown keys. */
+function responseIssueSummary(issues: readonly ResponseIssue[]): string {
+  const leaves = (items: readonly ResponseIssue[]): ResponseIssue[] =>
+    items.flatMap((issue) => {
+      if (!issue.errors?.length) return [issue];
+      const branches = issue.errors.map(leaves);
+      return branches.sort((a, b) => a.length - b.length)[0] ?? [issue];
+    });
+  return leaves(issues)
+    .slice(0, 3)
+    .map(
+      (issue) =>
+        `${issue.path.map(String).join(".").slice(0, 160) || "response"} (${issue.code})`,
+    )
+    .join("; ");
+}
+
 /** Short receipt/read RPCs; the long executor HTTP request stays in the browser host. */
 export const SIMULATION_REQUEST_TIMEOUT_MS = 35_000;
 
@@ -204,7 +227,7 @@ export class AgentHttpClient {
     const parsed = AgentSimulationResourceResponseSchema.safeParse(body);
     if (!parsed.success) {
       throw invalidResponseFailure(
-        "Simulation response failed schema validation",
+        `Simulation response failed schema validation: ${responseIssueSummary(parsed.error.issues)}. Check the server MCP manifest and reload a compatible adapter; use the published HTTP Agent Kit if unavailable. The connector remains valid unless the server revokes it.`,
       );
     }
     return parsed.data;

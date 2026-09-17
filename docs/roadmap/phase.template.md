@@ -1,58 +1,21 @@
-# Phase N - Title
+# Remaining Outcome
 
 Status: `proposed`
 
-## Objective
+Owner: `<accountable module or person>`
 
-State the product or engineering capability this phase establishes.
+## Outcome and boundary
 
-## User-visible outcome
+Describe the missing user-visible capability, scope and important exclusions.
+Link current specs and real dependencies instead of restating their contracts.
 
-Describe what a user or reviewer can demonstrably do after completion.
+## Open work and decisions
 
-## In scope
+List only unresolved work, with an owner and observable acceptance condition.
+Use separate stages only when actual dependencies require them. Do not retain
+completed work-package logs; local progress belongs in ignored `plan/`.
 
-- List included behavior and contracts.
+## Acceptance
 
-## Out of scope
-
-- List intentionally deferred behavior.
-
-## Dependencies
-
-- Link required phases, accepted specs, ADRs, fixtures, and external tools.
-
-## Work packages
-
-### WP-N.1 - Name
-
-- Goal:
-- Main modules:
-- Required specs:
-- Validation surface:
-
-## Deliverables
-
-- List code, schemas, tools, fixtures, docs, and artifacts.
-
-## Acceptance scenarios
-
-```text
-Input or starting state
-→ user/system actions
-→ observable result
-```
-
-## Deterministic validation
-
-- List focused tests, golden comparisons, schema checks, or measured limits.
-
-## Risks and decisions
-
-| Risk or decision | Handling |
-|---|---|
-| Example | Link an ADR, experiment, or explicit deferral |
-
-## Exit gate
-
-- State the evidence required before dependent phases may rely on this phase.
+State the evidence needed to close the outcome and any unresolved constraint
+that prevents acceptance. Use existing test and delivery policies by reference.

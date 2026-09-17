@@ -26,7 +26,6 @@ import {
 import { resolveAnnotationPresentation } from "./annotation-presentation.js";
 import { resolveAnnotationText } from "./annotation-text.js";
 import { pointOnSegment } from "./segment-geometry.js";
-import { isNonStandardWireAngle } from "./route-angle.js";
 import type { ResolvedDocumentLogicalNets } from "./logical-net.js";
 import {
   buildBoundsSpatialIndex,
@@ -838,50 +837,6 @@ export function diagnoseVisualQuality(
   for (const route of document.routes) {
     const centerline = routingGeometry.routes.get(route.id)?.centerline;
     if (!centerline) continue;
-    const nonStandardSegmentIndexes = centerline
-      .slice(1)
-      .flatMap((to, index) =>
-        isNonStandardWireAngle(centerline[index]!, to) ? [index] : [],
-      );
-    if (nonStandardSegmentIndexes.length > 0) {
-      const affectedPoints = nonStandardSegmentIndexes.flatMap((index) => [
-        centerline[index]!,
-        centerline[index + 1]!,
-      ]);
-      const protectedRoute = route.legs.some(
-        (leg) => leg.mode === "locked" || leg.mode === "trunk",
-      );
-      diagnostics.push({
-        code: "VISUAL_NON_STANDARD_WIRE_ANGLE",
-        severity: "warning",
-        category: "structural",
-        confidence: "high",
-        gateEligible: true,
-        message: protectedRoute
-          ? `Protected route ${route.id} contains ${nonStandardSegmentIndexes.length} non-standard angled segment${nonStandardSegmentIndexes.length === 1 ? "" : "s"}`
-          : `Route ${route.id} contains ${nonStandardSegmentIndexes.length} non-standard angled segment${nonStandardSegmentIndexes.length === 1 ? "" : "s"}`,
-        objectIds: [route.id],
-        bounds: {
-          x: Math.min(...affectedPoints.map((point) => point.x)),
-          y: Math.min(...affectedPoints.map((point) => point.y)),
-          width: Math.max(
-            1,
-            Math.max(...affectedPoints.map((point) => point.x)) -
-              Math.min(...affectedPoints.map((point) => point.x)),
-          ),
-          height: Math.max(
-            1,
-            Math.max(...affectedPoints.map((point) => point.y)) -
-              Math.min(...affectedPoints.map((point) => point.y)),
-          ),
-        },
-        parameters: {
-          segmentIndexes: nonStandardSegmentIndexes.join(","),
-          segmentCount: nonStandardSegmentIndexes.length,
-          repairable: !protectedRoute,
-        },
-      });
-    }
     for (let index = 1; index < centerline.length; index += 1) {
       const from = centerline[index - 1]!;
       const to = centerline[index]!;

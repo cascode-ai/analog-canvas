@@ -14,7 +14,6 @@ import {
   clickNetlistWorkflowCommand,
   downloadBytes,
   editComponentPropertyCode,
-  editDocumentStyleCode,
   readComponentPropertyCode,
   readDocumentStyleCode,
   setComponentParameter,
@@ -4775,7 +4774,10 @@ test("separates drawing, placement, and Cell body resets with impact preview and
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("revision")).toHaveText("3");
 
-  await clickCommand(page, "Edit", "Clear Drawing");
+  await clickCommand(page, "Edit", "Manage Cells…");
+  let manager = page.getByRole("dialog", { name: "Cell Manager" });
+  await manager.getByText("Reset Cell", { exact: true }).click();
+  await manager.getByRole("button", { name: "Clear Drawing" }).click();
   const clearDialog = page.getByRole("dialog", {
     name: "Clear Drawing in dut?",
   });
@@ -4783,15 +4785,13 @@ test("separates drawing, placement, and Cell body resets with impact preview and
   await expect(clearDialog).toContainText("Affected objects: 1");
   await clearDialog.getByRole("button", { name: "Cancel" }).click();
   await expect(page.getByTestId("revision")).toHaveText("3");
-  await expect(page.getByTestId("status")).toHaveText(
-    "Clear Drawing cancelled",
-  );
 
-  await clickCommand(page, "Edit", "Clear Drawing");
-  await page
+  await manager.getByRole("button", { name: "Clear Drawing" }).click();
+  await manager
     .getByRole("dialog", { name: "Clear Drawing in dut?" })
     .getByRole("button", { name: "Clear Drawing" })
     .click();
+  await manager.getByRole("button", { name: "Close Cell Manager" }).click();
   await expect(page.getByTestId("instance-count")).toHaveText("2");
   await expect(page.getByTestId("net-count")).toHaveText("1");
   await expect(page.locator('[data-layer="routes"] polyline')).toHaveCount(0);
@@ -4806,7 +4806,10 @@ test("separates drawing, placement, and Cell body resets with impact preview and
   await expect(page.locator('[data-layer="routes"] polyline')).toHaveCount(1);
   await expect(page.getByTestId("revision")).toHaveText("5");
 
-  await clickCommand(page, "Edit", "Reset Cell Placement");
+  await clickCommand(page, "Edit", "Manage Cells…");
+  manager = page.getByRole("dialog", { name: "Cell Manager" });
+  await manager.getByText("Reset Cell", { exact: true }).click();
+  await manager.getByRole("button", { name: "Reset Cell Placement" }).click();
   const placementDialog = page.getByRole("dialog", {
     name: "Reset Cell Placement in dut?",
   });
@@ -4814,6 +4817,7 @@ test("separates drawing, placement, and Cell body resets with impact preview and
   await placementDialog
     .getByRole("button", { name: "Reset Cell Placement" })
     .click();
+  await manager.getByRole("button", { name: "Close Cell Manager" }).click();
   await expect(page.getByTestId("instance-count")).toHaveText("2");
   await expect(page.getByTestId("net-count")).toHaveText("1");
   await expect(page.locator('[data-layer="routes"] polyline')).toHaveCount(0);
@@ -4825,11 +4829,15 @@ test("separates drawing, placement, and Cell body resets with impact preview and
   await expect(page.locator('[data-layer="routes"] polyline')).toHaveCount(1);
   await expect(page.getByTestId("revision")).toHaveText("7");
 
-  await clickCommand(page, "Edit", "Reset Cell Body");
-  await page
+  await clickCommand(page, "Edit", "Manage Cells…");
+  manager = page.getByRole("dialog", { name: "Cell Manager" });
+  await manager.getByText("Reset Cell", { exact: true }).click();
+  await manager.getByRole("button", { name: "Reset Cell Body" }).click();
+  await manager
     .getByRole("dialog", { name: "Reset Cell Body in dut?" })
     .getByRole("button", { name: "Reset Cell Body" })
     .click();
+  await manager.getByRole("button", { name: "Close Cell Manager" }).click();
   await expect(page.getByTestId("instance-count")).toHaveText("0");
   await expect(page.getByTestId("net-count")).toHaveText("0");
   await expect(page.getByTestId("canvas-empty-state")).toBeVisible();
@@ -5434,7 +5442,7 @@ test("directional marquee: window needs full coverage, crossing selects on touch
   ).toBe("");
 });
 
-test("docked Style code scales fonts document-wide and resets appearance", async ({
+test("docked Style JSON offers bounded choices, scales fonts, and resets appearance", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -5442,7 +5450,7 @@ test("docked Style code scales fonts document-wide and resets appearance", async
   const label = page.locator('[data-kind="instance-label"]').first();
   await expect(label).toHaveAttribute("font-size", "15.116");
 
-  // Style stays beside the canvas as one copyable JSON surface.
+  // Style stays one copyable JSON surface; bounded values gain inline menus.
   await clickDrawTool(page, "document-style");
   const settings = page.getByLabel("Document settings");
   await expect(settings).toBeVisible();
@@ -5451,11 +5459,13 @@ test("docked Style code scales fonts document-wide and resets appearance", async
   await expect(
     settings.getByLabel("Editable document Style code"),
   ).toBeVisible();
-  await expect(settings.locator("select")).toHaveCount(0);
+  await expect(settings.locator(".cm-netlist-target-select")).toHaveCount(11);
+  await expect(settings.getByLabel("Font size options")).toBeVisible();
+  await expect(
+    settings.getByLabel("Default NMOS bulk Net options"),
+  ).toBeVisible();
 
-  await editDocumentStyleCode(page, (code) => {
-    code.appearance.fontScale = 1.5;
-  });
+  await settings.getByLabel("Font size options").selectOption("1.5");
   await expect(label).toHaveAttribute("font-size", "22.674");
   await expect(page.getByTestId("status")).toContainText("Updated Style code");
 

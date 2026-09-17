@@ -237,9 +237,6 @@ export function EditorCanvasSurface({
         <CanvasGridOverlay {...grid} />
         <EditorSelectionHalo {...selectionHalo} />
         <g dangerouslySetInnerHTML={sceneInnerHtml} />
-        {cellSymbolLayout ? (
-          <EditorCellSymbolLayoutOverlay {...cellSymbolLayout} />
-        ) : null}
         <NetHighlightOverlay {...netHighlight} />
         <NetLabelTetherOverlay tether={netLabelTether} />
         {copyPreviewInnerHtml ? (
@@ -263,6 +260,9 @@ export function EditorCanvasSurface({
               and below the handles so it never covers something grabbable. */}
           <EditorDraftingHandles {...draftingHandles} />
           <EditorInteractionPreviews {...interactionPreviews} />
+          {cellSymbolLayout ? (
+            <EditorCellSymbolLayoutOverlay {...cellSymbolLayout} />
+          ) : null}
         </g>
       </svg>
     </section>

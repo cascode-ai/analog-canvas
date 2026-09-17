@@ -17,12 +17,6 @@ interface CommandAction {
   execute: () => void;
 }
 
-interface ResetAction {
-  label: string;
-  enabled: boolean;
-  execute: () => void;
-}
-
 interface LabeledCommandAction extends CommandAction {
   label: string;
 }
@@ -46,7 +40,6 @@ export interface EditorAppChromeProps {
   searchOpen: boolean;
   onInsertComponent: () => void;
   onManageCells: () => void;
-  onNewTestbench?: () => void;
   placeProjectCell: CommandAction;
   selectionFilterOpen: boolean;
   onOpenSelectionFilter: () => void;
@@ -55,7 +48,6 @@ export interface EditorAppChromeProps {
   redo: CommandAction;
   deleteSelection: CommandAction;
   copySelectionImages: readonly LabeledCommandAction[];
-  resets: readonly ResetAction[];
   rotate: CommandAction;
   mirrorLeftRight: CommandAction;
   mirrorTopBottom: CommandAction;
@@ -111,7 +103,6 @@ export function EditorAppChrome({
   searchOpen,
   onInsertComponent,
   onManageCells,
-  onNewTestbench,
   placeProjectCell,
   selectionFilterOpen,
   onOpenSelectionFilter,
@@ -120,7 +111,6 @@ export function EditorAppChrome({
   redo,
   deleteSelection,
   copySelectionImages,
-  resets,
   rotate,
   mirrorLeftRight,
   mirrorTopBottom,
@@ -237,11 +227,6 @@ export function EditorAppChrome({
                 >
                   Manage Cells…
                 </button>
-                {onNewTestbench ? (
-                  <button type="button" onClick={onNewTestbench}>
-                    New Testbench Cell…
-                  </button>
-                ) : null}
                 <button
                   type="button"
                   onClick={placeProjectCell.execute}
@@ -290,16 +275,6 @@ export function EditorAppChrome({
                 </button>
                 <span className="command-group-label">Selection image</span>
                 {copySelectionImages.map((action) => (
-                  <button
-                    key={action.label}
-                    type="button"
-                    onClick={action.execute}
-                    disabled={!action.enabled}
-                  >
-                    {action.label}
-                  </button>
-                ))}
-                {resets.map((action) => (
                   <button
                     key={action.label}
                     type="button"

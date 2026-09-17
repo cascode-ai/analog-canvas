@@ -174,6 +174,71 @@ describe("agent session client", () => {
     }
   });
 
+  it.each(["snapshot", "refreshSnapshot", "render", "traceNet"] as const)(
+    "resumes before selecting the default document for %s in a fresh process",
+    async (operation) => {
+      const directory = await mkdtemp(
+        join(tmpdir(), "analog-default-document-"),
+      );
+      try {
+        const store = new ConnectorStore(join(directory, "connector.json"));
+        const http = new FakeAgentHttp();
+        await new AgentSessionClient({ http, connectorStore: store }).connect(
+          "session-1.code",
+        );
+        const restarted = new AgentSessionClient({
+          http,
+          connectorStore: store,
+        });
+        if (operation === "traceNet")
+          await restarted.traceNet({ netId: "net-1" });
+        else await restarted[operation]();
+        expect(http.resumes).toHaveLength(1);
+        expect(http.claims).toHaveLength(1);
+        expect(http.circuitCalls.at(-1)?.request).toMatchObject({
+          documentId: "main",
+        });
+        expect(
+          restarted.cachedSnapshot("main") === null || operation !== "render",
+        ).toBe(true);
+      } finally {
+        await rm(directory, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it("does not retry a revoked connector or fetch a document after failed recovery", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "analog-revoked-document-"));
+    try {
+      const store = new ConnectorStore(join(directory, "connector.json"));
+      const http = new FakeAgentHttp();
+      await new AgentSessionClient({ http, connectorStore: store }).connect(
+        "session-1.code",
+      );
+      const calls = http.circuitCalls.length;
+      const resume = vi
+        .spyOn(http, "resumeConnector")
+        .mockRejectedValue(
+          new AgentSessionError(
+            "SESSION_REVOKED",
+            "revoked",
+            "unrecoverable-credential",
+          ),
+        );
+      const restarted = new AgentSessionClient({ http, connectorStore: store });
+      expect(restarted.cachedSnapshot("main")).toBeNull();
+      expect(resume).not.toHaveBeenCalled();
+      await expect(restarted.snapshot()).rejects.toMatchObject({
+        code: "SESSION_REVOKED",
+      });
+      expect(resume).toHaveBeenCalledTimes(1);
+      expect(http.circuitCalls).toHaveLength(calls);
+      expect(await store.load()).toBeNull();
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
   it("does not delete another origin's connector from an explicit shared path", async () => {
     const directory = await mkdtemp(join(tmpdir(), "analog-origin-"));
     try {

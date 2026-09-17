@@ -65,7 +65,7 @@ export const ConnectivityEvidenceSchema = z.discriminatedUnion("kind", [
   }),
 ]);
 
-// ADR 0013 / WP-R7 NoConnect: explicit electrical declaration for an open Pin.
+// NoConnect (Net connectivity rationale): explicit electrical declaration for an open Pin.
 export const NoConnectEndpointSchema = z.strictObject({
   kind: z.literal("terminal"),
   instanceId: StableIdSchema,

@@ -5,7 +5,7 @@
  * The Worker cannot run ngspice — a V8 isolate executes JavaScript and
  * WebAssembly, never a native binary — so the run happens in a container and
  * this module is the boundary in front of it. It adds nothing to the circuit
- * and interprets nothing about it: ADR 0055 puts the testbench in the
+ * and interprets nothing about it: Simulation rationale puts the testbench in the
  * author's hands, and a diagnosis in ngspice's own words.
  *
  * The container binding is OPTIONAL on purpose. `wrangler.jsonc` is shared by

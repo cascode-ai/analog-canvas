@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { readFileSync } from "node:fs";
 import type { Page } from "@playwright/test";
 
 import {
@@ -6,7 +7,7 @@ import {
   createEmptyProject,
   CURRENT_PROJECT_SCHEMA_VERSION,
 } from "@icm/model";
-import { serializeProject } from "@icm/project-protocol";
+import { serializeProject, parseProject } from "@icm/project-protocol";
 import { hierarchicalSymbolId } from "@icm/symbols";
 
 import {
@@ -114,6 +115,53 @@ async function mockGallery(page: Page, entries: object[]): Promise<void> {
     }),
   );
 }
+
+test("Gallery copies SKY130 dependencies with preview, repeat placement and atomic undo", async ({
+  page,
+}) => {
+  const source = parseProject(
+    readFileSync(
+      "apps/editor/src/examples/simulation-common-source.icproj.json",
+      "utf8",
+    ),
+  );
+  const count = source.documents.find((d) => d.id === source.topDocumentId)!
+    .instances.length;
+  await mockGallery(page, [ENTRY]);
+  await page.route(`**/api/gallery/${ENTRY.id}`, (route) =>
+    route.fulfill({
+      json: { entry: ENTRY, projectText: serializeProject(source) },
+    }),
+  );
+  await page.goto("/editor");
+  await awaitEditorReady(page);
+  await page.getByTestId("examples-toggle").click();
+  await page.getByTestId(`gallery-example-${ENTRY.id}`).click();
+  const canvas = page.getByTestId("schematic-canvas");
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error("Canvas is not measurable");
+  await page.mouse.move(box.x + 260, box.y + 220);
+  await expect(page.getByTestId("copy-placement-preview")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("instance-count")).toHaveText("0");
+  await page.getByTestId(`gallery-example-${ENTRY.id}`).click();
+  await page.mouse.move(box.x + 260, box.y + 220);
+  await page.keyboard.press("r");
+  await canvas.click({ position: { x: 260, y: 220 } });
+  await expect(page.getByTestId("instance-count")).toHaveText(String(count));
+  await expect(page.getByTestId("copy-placement-preview")).toBeVisible();
+  await canvas.click({ position: { x: 600, y: 380 } });
+  await expect(page.getByTestId("instance-count")).toHaveText(
+    String(count * 2),
+  );
+  await page.keyboard.press("Escape");
+  await page.keyboard.press("Control+z");
+  await expect(page.getByTestId("instance-count")).toHaveText(String(count));
+  await page.keyboard.press("Control+z");
+  await expect(page.getByTestId("instance-count")).toHaveText("0");
+  await page.keyboard.press("Control+Shift+z");
+  await expect(page.getByTestId("instance-count")).toHaveText(String(count));
+});
 
 test("the site lands on the full-screen gallery feed", async ({ page }) => {
   await mockGallery(page, [ENTRY]);

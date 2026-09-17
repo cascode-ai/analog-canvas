@@ -9,9 +9,8 @@ import { findHierarchyPaths } from "./hierarchy-navigation.js";
 import type { HierarchyFrame } from "./object-locator.js";
 
 /**
- * Net highlight and cross-cell trace (ADR 0013 index / roadmap WP-R6 core).
- * Pure computation over the `ProjectConnectivityIndex`; the editor overlay that
- * paints the highlight is deferred to WP-R9.
+ * Net highlight and occurrence-aware cross-Cell trace (Net connectivity rationale).
+ * Pure computation over the Project connectivity index.
  */
 
 export interface NetHighlight {

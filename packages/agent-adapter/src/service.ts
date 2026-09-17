@@ -82,7 +82,7 @@ export interface AgentCircuitServiceOptions {
 /**
  * Editor/browser host mode: the service reads the live Project/resolver and
  * dispatches `transact` through the host's unified controller/history path
- * (ADR 0016 / WP-WA2) instead of invoking `executeTransaction` + a private
+ * (Agent rationale) instead of invoking `executeTransaction` + a private
  * commit. Use this in the browser; use {@link AgentCircuitServiceOptions} for
  * the in-process/loopback host.
  */

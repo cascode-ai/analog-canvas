@@ -33,6 +33,13 @@ function parseText(result: {
 }
 
 describe("mcp tool surface", () => {
+  it("reports the actual runtime origin without remote pairing for local readiness", async () => {
+    const { session, http } = await toolSession();
+    const result = parseText(
+      await callTool("connection_status", { refresh: false }, session),
+    );
+    expect(result).toMatchObject({ runtime: { apiBaseUrl: http.baseUrl } });
+  });
   it("advertises raw and captured Specs rather than a retired result renderer", () => {
     const tools = listToolDefinitions();
     expect(tools.find((t) => t.name === "simulation")?.description).toContain(

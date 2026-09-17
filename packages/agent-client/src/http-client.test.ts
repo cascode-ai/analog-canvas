@@ -90,6 +90,20 @@ describe("agent http client", () => {
     await expect(http.simulation("session", "token", request)).rejects.toThrow(
       "schema validation",
     );
+    const rejected = await http
+      .simulation("session", "token", request)
+      .catch((error: unknown) => error);
+    expect(rejected).toMatchObject({
+      code: "INVALID_RESPONSE",
+      category: "request-rejected",
+    });
+    expect(String(rejected)).toContain(
+      "run.outputData.specs (unrecognized_keys)",
+    );
+    expect(String(rejected)).toContain("MCP manifest");
+    expect(String(rejected)).not.toContain("unknown");
+    delete (outputData.specs as Record<string, unknown>).unknown;
+    expect(await http.simulation("session", "token", request)).toEqual(body);
   });
   it("reads hidden schema-54 parameter bindings without relaxing unknown-field checks", async () => {
     const body = snapshotResponse("req-54");

@@ -1,7 +1,6 @@
 import { Suspense, type ComponentProps } from "react";
 
 import type { AgentFileCandidateSummary } from "@icm/agent-adapter";
-import type { CellResetPlan } from "@icm/edit-engine";
 
 import { ChunkLoadBanner } from "../components/chunk-load-fallback";
 import {
@@ -10,7 +9,6 @@ import {
 } from "../components/recovery-banners";
 import {
   LazyCellManagerDialog,
-  LazyNewTestbenchDialog,
   LazyConnectAgentPanel,
   LazyEditorHelpDialog,
   LazyInsertComponentDialog,
@@ -31,14 +29,7 @@ export interface EditorDialogLayerProps {
   replaceGuard: ComponentProps<typeof LazyReplaceGuardDialog> | null;
   search: ComponentProps<typeof LazyProjectSearchDialog> | null;
   insertComponent: ComponentProps<typeof LazyInsertComponentDialog> | null;
-  cellReset: {
-    documentName: string;
-    pending: { plan: CellResetPlan; command: string };
-    onCancel: () => void;
-    onConfirm: () => void;
-  } | null;
   cellManager: ComponentProps<typeof LazyCellManagerDialog> | null;
-  newTestbench: ComponentProps<typeof LazyNewTestbenchDialog> | null;
   netlistPreflight: ComponentProps<typeof LazyNetlistPreflightDialog> | null;
   publishGallery: ComponentProps<typeof LazyPublishGalleryDialog> | null;
   versionHistory: ComponentProps<typeof LazyVersionHistoryDialog> | null;
@@ -60,9 +51,7 @@ export function EditorDialogLayer({
   replaceGuard,
   search,
   insertComponent,
-  cellReset,
   cellManager,
-  newTestbench,
   netlistPreflight,
   publishGallery,
   versionHistory,
@@ -88,52 +77,7 @@ export function EditorDialogLayer({
         {insertComponent ? (
           <LazyInsertComponentDialog {...insertComponent} />
         ) : null}
-        {cellReset ? (
-          <div
-            className="insert-dialog-backdrop"
-            onPointerDown={(event) =>
-              event.target === event.currentTarget && cellReset.onCancel()
-            }
-          >
-            <section
-              className="editor-action-dialog"
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="clear-canvas-dialog-title"
-              onKeyDown={(event) => {
-                if (event.key === "Escape") cellReset.onCancel();
-              }}
-            >
-              <header className="editor-action-dialog-header">
-                <p>Cell contents</p>
-                <h2 id="clear-canvas-dialog-title">
-                  {cellReset.pending.command} in {cellReset.documentName}?
-                </h2>
-              </header>
-              <div className="editor-action-dialog-body">
-                <p>
-                  {cellReset.pending.plan.summary}. Affected objects:{" "}
-                  {cellReset.pending.plan.affectedObjectIds.length}. You can
-                  restore them with Undo.
-                </p>
-              </div>
-              <footer className="editor-action-dialog-actions">
-                <button type="button" autoFocus onClick={cellReset.onCancel}>
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  className="danger"
-                  onClick={cellReset.onConfirm}
-                >
-                  {cellReset.pending.command}
-                </button>
-              </footer>
-            </section>
-          </div>
-        ) : null}
         {cellManager ? <LazyCellManagerDialog {...cellManager} /> : null}
-        {newTestbench ? <LazyNewTestbenchDialog {...newTestbench} /> : null}
         {netlistPreflight ? (
           <LazyNetlistPreflightDialog {...netlistPreflight} />
         ) : null}

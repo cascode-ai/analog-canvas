@@ -64,6 +64,50 @@ function fixture(control = "analysis bias op") {
   return { input, job };
 }
 describe("native result assembly", () => {
+  it.each([0, 1])(
+    "keeps an invalid current probe actionable with exit %s and earlier partial data",
+    async (exitCode) => {
+      const { input, job } = fixture(
+        'analysis bias op\nanalysis response ac from=1 to=1e6 mode="dec" points=10',
+      );
+      job.execution.exitCode = exitCode;
+      job.execution.stdout +=
+        "Node 'ILOAD:flow(br)' not found.\nFailed to bind analysis outputs.\n";
+      job.diagnostics = [
+        { severity: "error", text: "Missing VACASK output response.raw" },
+      ];
+      const output = await assembleNativeExecutionOutput(
+        input,
+        job,
+        await environment(),
+      );
+      expect(output.result.outcome.status).toBe("failed");
+      expect(output.result.diagnostics.slice(0, 3)).toEqual([
+        { severity: "error", text: "Node 'ILOAD:flow(br)' not found." },
+        { severity: "error", text: "Failed to bind analysis outputs." },
+        job.diagnostics[0],
+      ]);
+      expect(output.result.data?.analyses).toHaveLength(1);
+      expect(output.rawfiles).toEqual(job.rawfiles);
+      expect(output.executedFiles).toEqual(job.executedFiles);
+    },
+  );
+
+  it("recognizes unlocated output-binding failure even without any output file", async () => {
+    const { input, job } = fixture("analysis bias op write=0");
+    job.rawfiles = [];
+    job.execution.stdout += "Failed to bind analysis outputs.\n";
+    const output = await assembleNativeExecutionOutput(
+      input,
+      job,
+      await environment(),
+    );
+    expect(output.result.outcome.status).toBe("failed");
+    expect(output.result.diagnostics[0]?.text).toBe(
+      "Failed to bind analysis outputs.",
+    );
+    expect(output.result.data).toBeUndefined();
+  });
   it("maps explicitly reported curves into canonical outputs without losing raw or failed-record evidence", async () => {
     const { input, job } = fixture();
     job.rawfiles.push({

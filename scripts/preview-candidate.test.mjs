@@ -83,3 +83,32 @@ it("refuses mismatched served bytes under the same asset name", async () => {
     verifyPreviewCandidate("https://preview.example"),
   ).rejects.toThrow(/Served entry bytes differ/u);
 });
+function servesCandidate() {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(
+      async (url) =>
+        new Response(
+          url.pathname === "/editor"
+            ? '<script src="/assets/index-test.js"></script>'
+            : "candidate-entry",
+        ),
+    ),
+  );
+}
+it("checks the deployed RELEASE_SHA before GitHub's merge-preview SHA", async () => {
+  // A labeled pull request deploys its head; GITHUB_SHA names the merge
+  // preview GitHub created for the same run.
+  servesCandidate();
+  vi.stubEnv("GITHUB_SHA", "b".repeat(40));
+  vi.stubEnv("RELEASE_SHA", "a".repeat(40));
+  const evidence = await verifyPreviewCandidate("https://preview.example");
+  expect(evidence.commitSha).toBe("a".repeat(40));
+});
+it("refuses a checkout that is not the deployed release", async () => {
+  servesCandidate();
+  vi.stubEnv("RELEASE_SHA", "c".repeat(40));
+  await expect(
+    verifyPreviewCandidate("https://preview.example"),
+  ).rejects.toThrow(/Expected values to be strictly equal/u);
+});

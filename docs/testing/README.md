@@ -43,10 +43,11 @@ The versioned catalog at `config/validation-gates.json` maps repository paths
 to preflight, affected, and final gates. Shared-core, production-boundary,
 unknown non-documentation, and gate-policy changes select the conservative
 branch/full fallback for local planning. The PR planner separately translates
-product paths into focused browser contracts. An unmapped product path gets a
-small editor/runtime/Agent fallback; non-browser implementation paths do not
-start a browser runner. The complete browser suite remains a nightly and manual
-audit.
+shipped product paths into focused browser contracts. Unit tests, package
+manifests, the Node-only local host and Node platform package stay in Core
+contracts instead of allocating a browser. An unmapped browser path gets a
+small insertion/runtime-safety fallback. The complete browser suite remains a
+nightly and manual audit.
 
 `gate:preflight` runs cheap static contracts and cross-checks the commit's test
 impact declaration. `gate:affected` runs the catalog's bounded unit, focused
@@ -64,15 +65,23 @@ without routing ownership fails deterministically instead of silently relying
 on the generic browser fallback.
 
 The editor's browser workflows have separate owners: `manual-editor.spec.ts`
-retains connected editing and general integration, `component-property-workflows.spec.ts`
+retains general integration, `wiring-semantics.spec.ts` owns wire interaction,
+`component-property-workflows.spec.ts`
 owns live property/model/display edits, and `netlist-workflows.spec.ts` owns
 import, authoring and export. Shared app/canvas dependencies select all three;
-wire-tool changes retain connected-edit checks without selecting the unrelated
-property and netlist UI workflows. Their small shared fixture module also
-selects every consumer. The full component catalog is checked by
+wire-tool changes select their dedicated contract without selecting unrelated
+general, property and netlist UI workflows. Their small shared fixture module
+still selects every consumer. The full component catalog is checked by
 `component-property-catalog.test.ts`; browser catalog checks cover representative
 capabilities and the VDD exception rather than repeating the same UI for every
 symbol. Keep specialized history, rejection, hierarchy and terminal tests.
+
+PR browser contracts run as two balanced Playwright shards with three workers
+per runner. A lightweight `Browser tests` aggregation job preserves the required
+check name and succeeds only after both shards pass. This keeps broad but
+legitimate focused selections within the PR wall-clock budget without raising
+per-runner Chromium contention; nightly and manual audits retain their separate
+four-shard full-suite route.
 
 ## Local iteration and batch validation
 
@@ -91,14 +100,14 @@ affected, build, or release gates. A target needing broad validation should get
 it, but a `full-delivery` entry records a batch delivery
 obligation rather than requiring full delivery after each local edit.
 
-At least 10 independently useful completed changes form the default Preview
-batch. Tests, repair commits, and file counts do not inflate that number. Before
-publishing it, refresh the mainline base, regenerate the gate plan for the
-combined diff against `origin/main`, and follow the
+A delivered pull request may carry one change or a batch. Before publishing it,
+refresh the mainline base, regenerate the gate plan for the combined diff
+against `origin/main`, and follow the
 [mainline delivery gate](../../AGENTS.md#mainline-delivery-gate). This checks
-interactions and shared contracts across the batch. An unchanged candidate
-does not need its already-passing local checks repeated while remote CI runs;
-new edits or unresolved failures can require fresh verification.
+interactions and shared contracts across everything the pull request carries.
+An unchanged candidate does not need its already-passing local checks repeated
+while remote CI runs; new edits or unresolved failures can require fresh
+verification.
 
 This changes when delivery validation runs, not the required GitHub checks.
 The [deployment guide](../deployment.md#development-and-publication-cadence)
@@ -112,17 +121,22 @@ Every implementation pull request keeps two required checks:
   all static and generated checks, the complete unit/module suite, the build,
   release goldens, production smoke, packaging, and
   `performance-baseline.mjs` budgets.
-- `Browser tests` runs the specs mapped to the changed product paths with four
-  workers. An unmapped browser-product path runs the small manual-editor,
-  runtime-crash, and Agent-session fallback. A non-browser implementation
-  change skips this required job successfully without allocating a runner.
+- `Browser tests` runs the specs mapped to the changed shipped-product paths
+  with four workers. An unmapped browser-product path runs the small component
+  insertion and runtime-crash fallback. A non-browser implementation change
+  skips this required job successfully without allocating a runner. GitHub's
+  runner Chrome avoids downloading a separate browser image. `ci:e2e` first
+  compiles only the non-editor workspace projects, whose `dist/` the Vite
+  configuration and the Node-side specs load; Vite serves the editor sources
+  directly because the Core job already owns the production build.
 
 Nightly and manual workflows run the complete browser suite in four shards.
 A PR based on current `main` merges after its two required checks without
 repeating them in a merge queue. CI does not repeat on the subsequent `main`
-push; the Preview workflow builds, deploys, and verifies the merged candidate.
-Production is a separate release-tag or explicit-commit promotion after Preview
-acceptance. [Deployment](../deployment.md) owns that sequence and recovery.
+push; the deploy workflow chosen by the pull request's `preview` label builds,
+deploys, and verifies the merged commit. A promotion of Preview-accepted work
+is a separate release-tag or explicit-dispatch step.
+[Deployment](../deployment.md) owns that sequence and recovery.
 
 ## Change discipline
 

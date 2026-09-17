@@ -1,13 +1,22 @@
 name: Deploy Cloudflare
 
-# Production deploys only from a release (ADR 0057): a v* tag, or a manual
-# dispatch selecting an accepted ref (main by default). Merging to main deploys the preview instead
-# (deploy-preview.yml); this workflow promotes a commit the preview has
-# already proved. Nothing here can be triggered by an ordinary merge.
+# Production (Deployment rationale) has two entrances:
+# - a merge to main whose pull request does not carry the `preview` label
+#   builds that merge commit once and deploys it directly;
+# - a v* tag, or a manual dispatch selecting a ref on main, promotes a commit
+#   whose Preview deploy succeeded, using the exact candidate Preview accepted.
+# A merge labeled `preview` stays on Preview (deploy-preview.yml) until it is
+# promoted here. Either entrance ends in the same verification and rollback.
 on:
   push:
+    branches:
+      - main
     tags:
       - "v*"
+    # Path filters are not evaluated for tag pushes.
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
   workflow_dispatch:
     inputs:
       ref:
@@ -20,49 +29,93 @@ permissions:
   contents: read
   # To ask whether the preview deployed this commit.
   actions: read
+  # To read the merged pull request's labels.
+  pull-requests: read
 
 concurrency:
   group: cloudflare-production
   cancel-in-progress: false
 
 jobs:
+  # Deploy an unlabeled merge directly; a merge labeled `preview` waits on
+  # Preview. A lookup that keeps failing fails this job instead of guessing.
+  route:
+    name: Release route
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    outputs:
+      target: ${{ steps.route.outputs.target }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - id: route
+        name: Choose Preview or Production
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/release-route.mjs --sha "$GITHUB_SHA" --github-output
+
   deploy:
     name: Deploy Worker
+    needs: route
+    if: >-
+      ${{ !cancelled() && (
+        github.event_name == 'workflow_dispatch' ||
+        startsWith(github.ref, 'refs/tags/') ||
+        (needs.route.result == 'success' &&
+          needs.route.outputs.target == 'production')
+      ) }}
     runs-on: ubuntu-latest
     environment:
       name: cloudflare-production
       url: https://analog-canvas.tokenzhang.com
+    env:
+      DIRECT_RELEASE: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     steps:
-      # A tag names its commit; a dispatch resolves its selected ref once.
-      # Everything below deploys exactly that commit, never a moving branch head.
+      # A merge or tag names its commit; a dispatch resolves its selected ref
+      # once. Everything below deploys exactly that commit, never a moving
+      # branch head.
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref || github.ref }}
-      # The preview is where a commit is looked at before the public sees it
-      # (ADR 0057). A commit that never deployed there, or deployed and
-      # failed, cannot be released: this is the one gate between main and
-      # the live site, and it asks a question CI cannot answer.
-      - name: The release must have a green preview deploy
-        id: preview
-        env:
-          GH_TOKEN: ${{ github.token }}
+          # The main history proves a promoted commit was merged.
+          fetch-depth: 0
+      - name: Resolve the release commit
+        id: release
         run: |
           release_sha="$(git rev-parse 'HEAD^{commit}')"
-          run_id="$(gh run list --repo "$GITHUB_REPOSITORY" \
-            --workflow deploy-preview.yml --commit "$release_sha" \
-            --status success --limit 100 --json databaseId,createdAt \
-            --jq 'sort_by(.createdAt) | last | .databaseId // empty')"
-          if [ -z "$run_id" ]; then
-            echo "::error::No successful preview deploy exists for $release_sha. Merge it to main, let the preview deploy and verify it, then release that commit."
+          if [ "$DIRECT_RELEASE" != "true" ] &&
+            ! git merge-base --is-ancestor "$release_sha" origin/main; then
+            echo "::error::$release_sha is not on main. Merge it first; only merged commits are released."
             exit 1
           fi
           echo "release_sha=$release_sha" >> "$GITHUB_OUTPUT"
+      # A promoted commit was looked at on Preview before the public sees it
+      # (Deployment rationale). A commit that never deployed there, or deployed and
+      # failed, cannot be promoted.
+      - name: The release must have a green preview deploy
+        if: env.DIRECT_RELEASE != 'true'
+        id: preview
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ steps.release.outputs.release_sha }}
+        run: |
+          run_id="$(gh run list --repo "$GITHUB_REPOSITORY" \
+            --workflow deploy-preview.yml --commit "$RELEASE_SHA" \
+            --status success --limit 100 --json databaseId,createdAt \
+            --jq 'sort_by(.createdAt) | last | .databaseId // empty')"
+          if [ -z "$run_id" ]; then
+            echo "::error::No successful preview deploy exists for $RELEASE_SHA. Label its pull request preview, or run Deploy Preview on main, then release that commit."
+            exit 1
+          fi
           echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
-          echo "Preview deploy $run_id accepted $release_sha."
+          echo "Preview deploy $run_id accepted $RELEASE_SHA."
       - name: Download the accepted Preview candidate
+        if: env.DIRECT_RELEASE != 'true'
         uses: actions/download-artifact@v4
         with:
-          name: preview-candidate-${{ steps.preview.outputs.release_sha }}
+          name: preview-candidate-${{ steps.release.outputs.release_sha }}
           path: ${{ runner.temp }}/analog-canvas-candidate
           github-token: ${{ github.token }}
           repository: ${{ github.repository }}
@@ -74,10 +127,19 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
-      - name: Verify the accepted Preview candidate
+      # A direct release builds the merged commit once, with the same action
+      # Preview uses, and deploys exactly those bytes.
+      - name: Build the merged commit's deployment candidate
+        if: env.DIRECT_RELEASE == 'true'
+        uses: ./.github/actions/build-deployment-candidate
+        with:
+          wrangler-config: wrangler.jsonc
+          release-sha: ${{ steps.release.outputs.release_sha }}
+          candidate-dir: ${{ runner.temp }}/analog-canvas-candidate
+      - name: Verify the deployment candidate
         run: |
           node scripts/deployment-candidate.mjs verify \
-            "$CANDIDATE_DIR" "${{ steps.preview.outputs.release_sha }}"
+            "$CANDIDATE_DIR" "${{ steps.release.outputs.release_sha }}"
         env:
           CANDIDATE_DIR: ${{ runner.temp }}/analog-canvas-candidate
       - name: Require the released simulator credentials
@@ -128,7 +190,7 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-      - name: Promote the accepted Preview candidate
+      - name: Deploy the verified candidate
         id: deploy_worker
         run: |
           pnpm dlx wrangler@4.120.1 deploy \
@@ -280,9 +342,10 @@ jobs:
 
           node scripts/deployment-candidate.mjs verify-live \
             "$CANDIDATE_DIR" https://analog-canvas.tokenzhang.com
-          # Preview already ran the complete hosted-model qualification against
-          # these exact bytes. Production only proves that its own route can
-          # execute OP, TRAN, DC and Noise without reinstalling the workspace.
+          # A promoted candidate already passed Preview's hosted qualification;
+          # a direct release relies on the pull request's required checks.
+          # Either way Production proves that its own route can execute OP,
+          # TRAN, DC and Noise, using no installed workspace package.
           node scripts/preview-simulation-smoke.mjs \
             https://analog-canvas.tokenzhang.com --production-smoke
 

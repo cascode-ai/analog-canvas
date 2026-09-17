@@ -28,10 +28,24 @@ test("Specs retain captured judgments and source navigation at narrow and maximi
           (judgment, i) => ({
             id: String(i),
             name: ["peak", "delay", "missing", "bias"][i],
+            group: "Authored checks",
+            ...(i === 3
+              ? {
+                  label: {
+                    runs: [
+                      {
+                        kind: "math",
+                        latex: "Z_{\\mathrm{in}}",
+                        display: "inline",
+                      },
+                    ],
+                  },
+                }
+              : {}),
             occurrence: 1,
             source: { path: "run.cir", line: i + 2, text: "captured source" },
-            value: i === 2 ? null : i + 0.5,
-            unit: "V",
+            value: i === 2 ? null : i === 3 ? 36.2705e6 : i + 0.5,
+            unit: i === 3 ? "Ohm" : "V",
             expected:
               i === 3 ? null : { kind: "limit", operator: "<=", value: 1 },
             judgment,
@@ -48,7 +62,28 @@ test("Specs retain captured judgments and source navigation at narrow and maximi
       },
     });
   });
-  const table = page.getByRole("table");
+  const table = page
+    .getByRole("region", { name: "Acceptance and issues" })
+    .getByRole("table");
+  const other = page.locator(".simulation-spec-other");
+  await expect(other).not.toHaveAttribute("open", "");
+  await expect(
+    other.getByRole("img", { name: "Z_{\\mathrm{in}}" }),
+  ).not.toBeVisible();
+  await other.locator("summary").click();
+  await expect(
+    other.getByRole("img", { name: "Z_{\\mathrm{in}}" }),
+  ).toBeVisible();
+  await expect(other).toContainText("36.2705 MΩ");
+  await expect(other).toContainText("Measured only");
+  await expect(table.locator("tr[data-judgment]").first()).toHaveAttribute(
+    "data-judgment",
+    "failed",
+  );
+  await expect(table.locator(".simulation-spec-number").first()).toHaveCSS(
+    "text-align",
+    "right",
+  );
   await expect(table.getByRole("columnheader")).toHaveText([
     "Spec",
     "Sim result",
@@ -81,6 +116,18 @@ test("Specs retain captured judgments and source navigation at narrow and maximi
         .locator("#spec-regression")
         .evaluate((element) => element.scrollWidth <= element.clientWidth),
     ).toBe(true);
+    const layout = await table.evaluate((element) => {
+      const cells = [
+        ...element.querySelector("tbody tr[data-judgment]")!.children,
+      ].map((cell) => cell.getBoundingClientRect());
+      return cells.every(
+        (cell, index) => !index || cell.left >= cells[index - 1]!.right - 1,
+      );
+    });
+    expect(layout).toBe(true);
+    await page.screenshot({
+      path: test.info().outputPath(`spec-results-${width}.png`),
+    });
   }
   await page.screenshot({ path: test.info().outputPath("spec-results.png") });
 });

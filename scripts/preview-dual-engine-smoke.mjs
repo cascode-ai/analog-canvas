@@ -8,6 +8,7 @@ import { join, resolve } from "node:path";
 import { createInterface } from "node:readline";
 import { chromium, expect } from "@playwright/test";
 import { downloadPublishedMcp } from "./lib/published-mcp.mjs";
+import { previewBrowserLaunchOptions } from "./lib/preview-browser.mjs";
 
 const { unzipSync } = createRequire(
   new URL("../apps/editor/package.json", import.meta.url),
@@ -48,7 +49,7 @@ const receipt = {
   },
   runs: [],
 };
-const browser = await chromium.launch({ headless: true });
+const browser = await chromium.launch(previewBrowserLaunchOptions());
 let child;
 const pending = new Map();
 let sequence = 0;

@@ -16,9 +16,11 @@ unchanged. No Gallery data is modified.
 ## Environment and semantics
 
 The requested `vacask-sky130-candidate` Profile needs native resistor/capacitor OSDI,
-voltage sources and a declared Python 3 runtime. This is a local candidate name,
-not an available or qualified hosted Profile. Select/configure an actual matching
-native environment before Run; no ngspice fallback or automatic Profile swap.
+voltage sources and a declared Python 3 runtime. This candidate name is not a
+qualified hosted Profile; among the committed Worker configurations, only
+Preview routes it to the isolated VACASK executor. Select/configure an
+actual matching native environment before Run; no ngspice fallback or automatic
+Profile swap.
 The report uses only Python's standard library and the copied report helpers.
 
 - Temperature 27 C; R=10 kohm, C=10 nF; AC 10 Hz–1 MHz, 80 points/decade.
@@ -29,9 +31,10 @@ The report uses only Python's standard library and the copied report helpers.
   about 11.7 uV error; reducing only maxstep to 250 ns still gave 11.3 uV.
   This is a native solver-setting adjustment, not a relaxed acceptance tolerance.
 - Native complex `Gain=V(out)/V(in)` replaces old separately computed `gain_db`
-  and `phase_deg` raw columns. The common Plot UI supplies dB and phase views;
-  CSV retains real/imaginary transfer data. `gain_at_fc` remains a dB scalar,
-  linearly interpolated at 1591.549431 Hz from the sampled dB response.
+  and `phase_deg` raw columns. The GUI no longer plots results; CSV retains
+  real/imaginary transfer data for external dB and phase views. `gain_at_fc`
+  remains a dB scalar, linearly interpolated at 1591.549431 Hz from the sampled
+  dB response.
 - `at_one_tau` and `final_value` remain voltage scalars at 200.05 us and 1 ms.
   Measurements interpolate actual returned samples; no out-of-range clamping.
 

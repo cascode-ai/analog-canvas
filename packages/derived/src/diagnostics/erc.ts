@@ -13,15 +13,9 @@ import { directObjectLocator, type ObjectLocator } from "../object-locator.js";
 import type { Diagnostic, DiagnosticSeverity } from "./diagnostic.js";
 
 /**
- * ERC engine (roadmap §8 R8). Emits the unified ADR 0015 `Diagnostic` envelope
- * with `domain: "erc"`, driven by the `ProjectConnectivityIndex` (WP-R2) and the
- * persisted `NoConnect` records (WP-R7). Electrical rules are kept strictly
- * separate from visual/routing observations (ADR 0015): a visual observation
- * count is never proof of electrical correctness.
- *
- * This first batch covers the name-conflict, NoConnect-conflict, and unconnected-
- * pin rules. Role-specific (floating gate/bulk), model-binding, and hierarchy
- * rules extend the same framework in follow-on targets.
+ * Electrical checks share endpoint assessment and the Diagnostic envelope.
+ * Electrical findings remain distinct from visual observations; observation
+ * counts are not evidence of electrical correctness (Net connectivity rationale).
  */
 
 /** Compatibility aliases for ERC consumers; their protocol is Diagnostic. */

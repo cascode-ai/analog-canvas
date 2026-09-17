@@ -200,9 +200,7 @@ async function main() {
   if (command === "verify") {
     assert(outputDirectory && argument);
     const manifest = await verifyDeploymentCandidate(outputDirectory, argument);
-    console.log(
-      `Candidate ${manifest.version} matches its accepted Preview payload.`,
-    );
+    console.log(`Candidate ${manifest.version} matches its recorded payload.`);
     return;
   }
   if (command === "verify-live") {

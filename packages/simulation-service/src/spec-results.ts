@@ -1,8 +1,11 @@
 import { inspectSimulationSourceGraph } from "@icm/netlist";
 import { parseSpiceSource } from "@icm/spice";
+import { flattenRichText } from "@icm/model";
 import type { SimulationOutputData } from "./contract.js";
 import {
   formatSimulationSpec,
+  SimulationSpecLabelSchema,
+  SimulationSpecResultSchema,
   type SimulationSpecCondition,
   type SimulationSpecReport,
   type SimulationSpecResult,
@@ -21,11 +24,52 @@ type Declaration = {
   unit: string;
   expected: SimulationSpecCondition | null;
   invalid: boolean;
+  label?: SimulationSpecResult["label"];
+  group?: string;
 };
 
 /** v1 deliberately has no executable expressions or inferred unit conversions. */
 function declaration(source: Source): Declaration {
-  const tokens = source.text
+  // One optional JSON label at the end; reuse the canonical RichText contract,
+  // never interpret authored HTML or introduce another markup dialect.
+  const labelStart = [
+    ...source.text.matchAll(/"(?:\\.|[^"\\])*"|\s+label=/gu),
+  ].find((match) => /^\s+label=$/u.test(match[0]));
+  let label: SimulationSpecResult["label"];
+  let invalidLabel = false;
+  if (labelStart) {
+    try {
+      const value: unknown = JSON.parse(
+        source.text.slice(labelStart.index + labelStart[0].length),
+      );
+      const parsed = SimulationSpecLabelSchema.safeParse(
+        typeof value === "string" ? { runs: [{ kind: "text", value }] } : value,
+      );
+      if (parsed.success) label = parsed.data;
+      else invalidLabel = true;
+    } catch {
+      invalidLabel = true;
+    }
+  }
+  let group: string | undefined;
+  let invalidGroup = false;
+  let groupCount = 0;
+  const metadataText = (
+    labelStart ? source.text.slice(0, labelStart.index) : source.text
+  ).replace(/\s+group=("(?:\\.|[^"\\])*"|[^\s]+)/gu, (_match, text: string) => {
+    groupCount++;
+    try {
+      const parsed = SimulationSpecResultSchema.shape.group.safeParse(
+        text.startsWith('"') ? JSON.parse(text) : text,
+      );
+      if (parsed.success) group = parsed.data;
+      else invalidGroup = true;
+    } catch {
+      invalidGroup = true;
+    }
+    return "";
+  });
+  const tokens = metadataText
     .trim()
     .replace(/^\*\s*@spec\b/i, "")
     .trim()
@@ -70,8 +114,13 @@ function declaration(source: Source): Declaration {
     source,
     unit,
     expected,
+    ...(label ? { label } : {}),
+    ...(group ? { group } : {}),
     invalid:
-      !expected ||
+      invalidLabel ||
+      invalidGroup ||
+      groupCount > 1 ||
+      (!expected && !(tokens.length === 0 && (unit || label || group))) ||
       !/^[A-Za-z_][A-Za-z0-9_]*$/.test(name) ||
       !/^[A-Za-z0-9_/%°µΩ.-]*$/.test(unit),
   };
@@ -195,6 +244,8 @@ export function simulationSpecReport(
       const base = {
         id: `${d.source.path}:${d.source.line}:${m?.occurrence ?? 0}`,
         name: d.name || "Invalid spec",
+        ...(d.label ? { label: d.label } : {}),
+        ...(d.group ? { group: d.group } : {}),
         source: d.source,
         unit: d.unit,
         expected: d.expected,
@@ -214,7 +265,7 @@ export function simulationSpecReport(
       if (d.invalid)
         return unavailable(
           "invalid-spec",
-          "Use name <|<=|>|>= number, name range min max, or name target value tol absoluteTolerance; optional unit=label. Numbers use decimal/scientific notation.",
+          "Use name [condition] [unit=unit] [group=name or JSON string] [label=JSON string or RichText document]. A measurement-only annotation needs a unit, group or label. Conditions use decimal/scientific numbers.",
         );
       if (
         definitions.filter((other) => other.name.toLowerCase() === key).length >
@@ -278,6 +329,8 @@ export function simulationSpecsToCsv(report: SimulationSpecReport): string {
         "run id",
         "prepared id",
         "input digest",
+        "label",
+        "group",
       ],
       ...report.results.map((r) => [
         r.name,
@@ -292,9 +345,15 @@ export function simulationSpecsToCsv(report: SimulationSpecReport): string {
         report.runId,
         report.preparedId,
         report.inputDigest,
+        r.label ? csvLabel(flattenRichText(r.label)) : "",
+        r.group ? csvLabel(r.group) : "",
       ]),
     ]
       .map((row) => row.map(cell).join(","))
       .join("\n") + "\n"
   );
+}
+
+function csvLabel(label: string): string {
+  return /^[\s]*[=+@-]/u.test(label) ? `'${label}` : label;
 }

@@ -1,6 +1,6 @@
 // Agent-local route-graph types.
 //
-// Per ADR 0008, these types live ONLY in @icm/agent-routing. They MUST NOT
+// Per Agent rationale, these types live ONLY in @icm/agent-routing. They MUST NOT
 // appear in @icm/agent-adapter request/response schemas, MUST NOT appear in
 // @icm/model project schema, MUST NOT be persisted into project.icproj.json,
 // and MUST NOT survive across sessions. They carry no select/query/region

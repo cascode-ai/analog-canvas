@@ -10,10 +10,10 @@ no compatibility shape.
 
 ## Coordinate domains
 
-ADR 0021 separates persisted grid coordinates from transient and derived
+Presentation rationale separates persisted grid coordinates from transient and derived
 geometry. Every persisted page Point in a Document is a finite integer multiple
 of that Document's `presentation.grid`: Instance placements, Junctions, Route
-Route bends, persisted VisualAnchor point fields, and drafting points/controls/
+bends, persisted VisualAnchor point fields, and drafting points/controls/
 centers. This is a complete-Document invariant, not merely an editor snap
 preference.
 
@@ -40,14 +40,10 @@ migration. Invalid coordinates are rejected with their data path.
   `{instanceId, pinName}` and belongs to at most one Base Net.
 - `ConnectivityEvidence` records owner-addressed name claims, explicit SPICE
   globals, non-electrical source-name hints, and SPICE source identity for one
-  Base Net at a time. The pure Logical-Net resolver joins distinct Base Nets
-  through matching folded authoritative names in the same scope or matching
-  formal Cell-Pin names. A `net-name-hint` and `spice-source` record are
-  provenance only and never join Nets. Equal-folded local and global claims on
-  one already-connected group derive an effective global scope without
-  rewriting either owner. Disconnected claims remain separate; different-name
-  scope combinations and incompatible power claims remain explicit errors.
-  There is no generic persisted equivalence edge.
+  Base Net at a time. There is no generic persisted equivalence edge.
+  [Connectivity](connectivity-and-routing.md#net-naming-and-lifecycle) owns
+  derived name equivalence, effective scope and conflict behavior; source
+  evidence remains non-electrical provenance.
 - `Route` owns editable geometry for one Net and connects terminal or Junction
   endpoints only.
 - `Junction` owns explicit branch/anchor geometry.
@@ -217,39 +213,11 @@ ordinary Schematic edits inside one Project structural transaction. The
 Project's `structureRevision` protects this cross-Document boundary and the
 editor records it as one undoable structural commit.
 
-Persistence writes only schema 57. The reader carries every schema in its
-explicit 24→57 upgrade chain forward, then supplies the current model only; no
-compatibility shape enters runtime electrical derivation. The 32→33 step
-rejects ownerless equivalence rather than guessing replacement connectivity.
-The 33→34 step converts hidden imported names into non-electrical hints or
-explicit global declarations and materializes an existing power owner where
-one is available. The 34→35 step converges parallel Instance naming fields to
-one Reference and materializes distinct visible text as an Annotation. The
-35→36 step repairs reference-shaped labels that were materialized as literal
-text, maps them to the owning Reference, and retains their RichText styling.
-The 36→37 step adds the optional Project `simulation` field, the persisted
-`SimulationSetup` of ADR 0055 and the [simulation spec](simulation.md), and
-rewrites nothing: an absent field already means no authored setup. The setup
-is Project-level authored intent, not a Document fact; it names a Testbench
-root Cell and never creates, removes, or renames connectivity.
-The 37→38 step admits explicit-SI structured TRAN parameters and invents no
-transient intent for existing setups.
-The 38→39 step admits raw `SimulationSetup` author files and external
-dependency declarations and likewise invents no setup for existing Projects.
-The 39→40 step migrates saved voltage probes from derived Net representatives
-to concrete Terminal, Junction, or Route anchors. When no attached object is
-available it retains an unresolved Base-Net fallback rather than discarding the
-authored probe. A removed anchor or Testbench Cell is diagnosed during prepare;
-it does not invalidate the Project or block the ordinary deletion transaction.
-The 41→42 step replaces the optional singleton setup with a named collection.
-The 42→43 step replaces primitive probes with named expression outputs while
-preserving every acquisition target. Output labels are presentation and result
-identity only; they never name or join circuit Nets.
-The 43→44 step makes terminal-current identity explicit, the 44→45 step admits
-saved scalar measurements, and the 45→46 step admits structured Noise. The
-46→47 step admits selected MOS operating-point details, 47→48 adds design
-variables, 48→49 converts simulation intent to source files, and 49→50 renames
-the source collection to simulation folders. Schema 51 adds optional fill and
-front/background plane fields to rectangles and circles; its adapter changes
-only the version stamp. These additive steps invent no authored intent for an
-existing Project.
+The [Project file format](project-file-format.md) owns the current schema,
+supported compatibility floor and read/write boundary. Migration transforms
+preserve authored intent before handing current-only data to this model;
+their implementation and tests, not a second chronology here, own the steps.
+[Simulation](simulation.md) owns Project-level source folders and repairable
+references; removing a referenced Cell may diagnose preparation without
+invalidating the saved Project. Simulation output labels never name or join
+circuit Nets.

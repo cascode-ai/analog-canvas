@@ -66,7 +66,7 @@ PDF extraction, Symbol generation, and raster comparison are separate tools:
 ```text
 source PDF -> tools/pdf-vector-extract -> pinned vector evidence + PNG witness
 pinned vector evidence -> family generator -> Symbol DSL
-PNG witness + rendered Symbol -> tools/calibration/razavi/fidelity-diff.mjs -> report
+PNG witness + rendered Symbol -> tools/calibration/razavi/symbol-fidelity-diff.mjs -> report
 ```
 
 The PDF extractor must not import the fidelity implementation, and the
@@ -82,7 +82,7 @@ pixelsPerLogical
 fixed crop window
 rotation
 measurement coordinate system
-subject symbol/formal-scene identity
+subject symbol identity
 ```
 
 Reference windows and origins belong to evidence. A candidate-derived window
@@ -123,13 +123,13 @@ points first, then cap/join, then miter limit, and only then outline amplitude.
 
 The following are distinct reviewed presentations and must not be conflated:
 
-| Object                                    | Presentation           | Meaning                                    |
-| ----------------------------------------- | ---------------------- | ------------------------------------------ |
-| `port` symbol                             | Hollow circle and lead | Explicit hollow interface symbol           |
-| `port-filled` symbol                      | Filled circle and lead | Explicit manual solid-endpoint symbol      |
-| Explicit `Junction`                       | Filled solid dot       | Route-graph branch/join object             |
-| Unconnected device pin, bend, or crossing | No automatic dot       | Unconfirmed geometry has no node semantics |
-| Route dragged onto a visible device pin   | Derived filled dot     | Committed endpoint contact creates a node  |
+| Object                                    | Presentation                | Meaning                                    |
+| ----------------------------------------- | --------------------------- | ------------------------------------------ |
+| `port` symbol                             | Hollow circle and lead      | Explicit hollow interface symbol           |
+| `port-filled` symbol                      | Filled circle and lead      | Explicit manual solid-endpoint symbol      |
+| Confirmed branch contact                  | Filled solid dot            | Shared contact evidence requires a dot     |
+| Unconnected device pin, bend, or crossing | No automatic dot            | Unconfirmed geometry has no node semantics |
+| Route joined to a visible device pin      | Dot if branch rule requires | Committed contact, not visual overlap      |
 
 Both `port` and `port-filled` are reviewed palette symbols and ordinary
 single-pin Instances. `port-filled` is manual-only and has no automatic SPICE
@@ -139,68 +139,55 @@ or Global meaning follows the schematic model. A drawn power rail uses explicit
 Net and Route/Junction geometry. These authoring forms do not replace the
 hollow or filled Port presentation.
 
+Dot eligibility follows [confirmed branch topology](connectivity-and-routing.md#derived-read-models),
+not merely the presence of a Junction object. A confirmed contact incident to
+a valid `power-rail` renders without a dot while remaining electrically and
+interactively real; the rail uses its calibrated power-rail stroke. This is a
+supply-presentation exception, not a deletion of connectivity.
+
 ## Style, text, and rendering
 
-The profile ID is `razavi-textbook-v1`. Formal output is black on white, has no
+The profile ID is `razavi-textbook-v1`. Formal output defaults to black on white;
+explicit authored color overrides are preserved. It has no
 decorative effects or editor overlays, scales geometry and strokes together,
 and uses butt caps plus miter joins unless a reviewed primitive overrides them.
 
-The accepted profile tokens are:
+The executable [style profile](../../packages/derived/src/style-profile.ts)
+owns the exact token names, values and shared typography. Its
+[generated measurement adapter](../../packages/derived/src/razavi-peripheral-geometry.generated.ts)
+projects the hash-pinned peripheral measurements; it is generated output,
+not a second editable authority. Semantic stroke roles distinguish ordinary
+wires/symbol strokes, emphasis, Ground bars and power rails. Arrow proportions,
+node radius and script metrics remain calibrated values rather than page-grid
+coordinates.
 
-```yaml
-foreground: "#000"
-background: "#fff"
-strokes:
-  wire: 1.6
-  symbol: 1.6
-  normal: 1.6
-  emphasis: 2.4
-  ground: 2.906977
-  supply: 1.8
-  annotation: 1.6
-nodes:
-  junctionRadius: 3.77907
-  portOriginRadius: 2.47907
-annotations:
-  supplyBarWidth: 20
-  currentArrowLength: 53.488372
-  arrowHeadLength: 16.569767
-  arrowHeadWidth: 7.906977
-  currentLabelGap: 6.976744
-  polarityOffsetX: 12
-  polarityHalfGap: 8
-lineCap: butt
-lineJoin: miter
-miterLimit: 4
-formalStrokeScaling: "geometry-and-strokes"
-typography:
-  fontFamily: "'ICM Round Period', 'DejaVu Sans', Arial, 'Helvetica Neue', Helvetica, sans-serif"
-  mathWeight: 700
-  mathStyle: italic
-  plainWeight: 400
-  instanceFontSize: 15.116
-  netFontSize: 15.116
-  powerFontSize: 15.116
-  annotationFontSize: 15.116
-  polarityFontSize: 14
-  captionFontSize: 14
-  subscriptScale: 0.76
-  subscriptBaselineShiftEm: 0.28
-  subscriptHorizontalGapEm: 0.046
-  labelGap: 6
-  lineHeight: 1
-```
+A token change updates its owning source, generated projections, focused
+assertions and affected fidelity baselines together. Profile selection must
+not silently change global typography or math composition. Formal output
+scales geometry and strokes together and never emits
+`vector-effect="non-scaling-stroke"`.
 
-`packages/derived/src/style-profile.ts` and its generated measurement adapters
-are the executable representation of this table. A token change updates the
-contract, generator/source, focused assertions, and affected fidelity baselines
-together. Profile selection must not silently change the global typography or
-math-composition rules.
+[Visual language](visual-language.md) owns the common formal scene, annotation
+composition and overlay boundary; this contract does not redefine them.
 
-Formal rendering uses deterministic layer and stable-ID order. Selection, hit
-targets, grid, previews, diagnostics, and flightlines are absent from export.
-SVG and raster outputs are derived presentation, never persistence or
-connectivity truth.
+## Analog transconductance blocks
+
+A transconductance relation is drawn as a right-tapered trapezoid with
+renderer-owned formula text centered inside. The single-input form has one west
+input `A` and one east output `Y`. Its taller input edge and narrower output edge
+follow the pinned user-supplied small-signal reference. The differential form
+has west inputs `IN+` and `IN-`, explicit polarity marks, and one east output
+`OUT`. Both live in Analog Blocks and use the canonical default `g_m`; instance
+presentation may express indexed forms such as `g_m1`, `gₘL`, or another safe
+formula without changing electrical pin identity.
+
+The single-input trapezoid, leads, background, hit bounds, and route endpoints
+share the adaptive formula-block layout. Long formulae and explicit minimum
+dimensions grow that body on the 10-unit grid; they never clip or shrink 12-unit
+formula text. The differential form keeps fixed calibrated pin spacing so both
+inputs remain unambiguous. Both blocks are behavioral and manual-only: neither
+their formula nor coefficient implies a SPICE primitive or automatic device
+mapping.
 
 ## Catalog, runtime, and palette exposure
 
@@ -229,9 +216,11 @@ pin order.
 The declarative target registry is
 `fixtures/visual-reference/razavi-reference-v1/fidelity-targets.json`. It is
 hash-pinned by the authority manifest and is the single source for fidelity
-target identity, measurement selection, symbol/variant selection, and formal
-scene kind. Adding a reviewed comparison target must not require a second
-hard-coded device table in the CLI.
+target identity, measurement selection and symbol/variant selection. The
+current comparison CLI selects registered Symbol targets; it does not run
+circuit/formal-scene targets. Adding a supported comparison target must not
+require a second hard-coded device table in the CLI. Full-scene acceptance
+uses the shared renderer and export tests, not a claimed circuit-IoU runner.
 
 For each target, the fidelity runner must:
 
@@ -239,7 +228,7 @@ For each target, the fidelity runner must:
 2. load the target's reference-owned measurement and fixed window;
 3. crop the reference with the recorded origin and floor-based top-left rule,
    preserving the origin's subpixel position inside the crop;
-4. rasterize the actual Symbol or formal SVG path at the same
+4. rasterize the registered runtime Symbol at the same
    `pixelsPerLogical`, integer footprint, rotation, and subpixel origin;
 5. reject mismatched raster dimensions;
 6. emit reference, rendered, and red/green/gray diff PNGs;
@@ -279,28 +268,10 @@ although it writes derived reports and PNGs.
    consumed by the fidelity tool, compare every registered sample/variant, and
    inspect the diffs before acceptance.
 
-Typical commands are:
-
-```powershell
-pnpm symbols:razavi-mos
-pnpm symbols:razavi-peripherals
-pnpm symbols:razavi-inductor
-pnpm symbols:razavi-opamp
-pnpm symbols:razavi-common
-pnpm symbols:razavi-zener
-pnpm symbols:razavi
-pnpm symbols:razavi:check
-pnpm --filter @icm/symbols build
-pnpm --filter @icm/model build
-pnpm --filter @icm/derived build
-pnpm --filter @icm/render-svg build
-pnpm --filter @icm/exporters build
-node tools/calibration/razavi/fidelity-diff.mjs <target>
-```
-
-The PDF extraction command and dependencies are documented in
-`tools/pdf-vector-extract/README.md`; it is intentionally not part of the
-routine raster calibration command set.
+Commands and dependencies belong to the [component guide](../../packages/components/README.md),
+[calibration tools](../../tools/calibration/razavi/README.md) and
+[PDF extractor](../../tools/pdf-vector-extract/README.md), not a second command
+inventory here. PDF extraction remains separate from routine raster calibration.
 
 Run only the generators relevant to the changed family. Do not rewrite a
 reviewed asset merely to enlarge the palette or improve one metric at the cost
@@ -309,7 +280,7 @@ of another registered sample.
 ## Failure behavior
 
 - Missing or mismatched authority/registry hashes block reviewed validation.
-- Missing measurement, target, symbol, variant, or formal-scene adapter blocks
+- Missing measurement, target, symbol, or variant blocks
   that target; no fallback symbol or reference is substituted.
 - Off-grid pins, pin-order mismatch, stale generated catalog output, and
   ineligible palette exposure fail deterministic checks.
@@ -338,7 +309,7 @@ bounds or promotes the best translated IoU to the baseline score.
 - focused Symbol catalog and renderer tests
 - generator stale checks for affected families
 - package builds consumed by the fidelity runner
-- registered symbol and formal-scene pixel comparisons
+- registered Symbol pixel comparisons and formal-scene render/export tests
 - inspection of reference/rendered/diff PNGs
 - repeated render equality and transform coverage
 
@@ -353,13 +324,10 @@ Schema-version-1 manifests without `vectorEvidence` remain valid. PDF-derived
 symbols extend the palette without changing persisted Project schema; only an
 explicit reviewed mapping may extend SPICE import behavior. The hollow `port`,
 filled `port-filled`, Junction, and all existing symbol behavior remain
-distinct. This is the sole Razavi-specific visual contract. Historical style
-and component-extension documents were deleted after their surviving rules
-moved here; Git retains their history.
+distinct. This is the sole Razavi-specific visual contract.
 
 Related decisions and explanatory evidence:
 
-- [`../adr/0012-pdf-vector-evidence-for-razavi-assets.md`](../adr/0012-pdf-vector-evidence-for-razavi-assets.md)
+- [`../adr/resources.md`](../adr/resources.md)
 - [`symbol-dsl.md`](symbol-dsl.md)
 - [`visual-language.md`](visual-language.md)
-- [`../experience/razavi-symbol-construction-and-pixel-calibration.md`](../experience/razavi-symbol-construction-and-pixel-calibration.md)

@@ -19,11 +19,8 @@ Recovery state is a non-authoritative browser safety copy. It may restore a
 complete schema-57 Project or a supported historical record that validates
 after the chained upgrade, associated with a recorded working-copy session.
 Corrupt, incompatible, or partial recovery data is discarded or retained as raw
-data without changing the live Project. User-saved Library examples are the
-same class of origin-local, non-authoritative convenience data: canonical
-serialized Project snapshots in their own IndexedDB store, re-validated
-through the ordinary protocol boundary before they may replace a live
-Project, and never a substitute for Cloud Save or an exported backup. Credentials, Agent bearer tokens,
+data without changing the live Project. User-saved Library examples and their
+browser store are retired. Credentials, Agent bearer tokens,
 selection, viewport, overlays, and pending external approvals are never
 embedded in Project JSON or recovery records.
 
@@ -77,6 +74,7 @@ PUT  /api/projects/:id             update the bound Project
 If-Match: revision-N               reject stale writers
 GET  /api/projects                 list distinct Projects
 GET  /api/projects/:id             open one Project
+DELETE /api/projects/:id           explicitly delete one Project
 ```
 
 Repeated Save updates the same id and does not consume another account slot.
@@ -118,8 +116,11 @@ then offers **Save to Cloud and continue**, **Continue without saving**, or
 defaulting to Cancel. Cloud Save failure leaves the foreground
 Project and dialog in place. Recovery failure is shown in the same dialog as
 elevated risk but never grants permission to discard.
-A successful replacement retains the outgoing Project in recent recovery and
-seeds the incoming Project's own working-copy identity.
+A successful replacement seeds the incoming Project's own working-copy
+identity. **Continue without saving** is an explicit discard: it deletes the
+outgoing working copy's recovery records before the replacement proceeds.
+Every other successful replacement retains the outgoing Project in recent
+recovery.
 
 On startup, the current tab's latest valid recovery record is offered
 non-modally only when it explicitly says `unsavedAtSnapshot: true`, the

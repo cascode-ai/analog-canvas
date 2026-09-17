@@ -10,11 +10,8 @@ Define the dialect-neutral structural boundary between the lossless SPICE
 frontend and the Schematic importer without turning parser or renderer details
 into persistent project data.
 
-## Consumers
-
-- SPICE elaborator
-- Schematic importer
-- connectivity golden tests
+The [SPICE frontend](spice-frontend.md#compatibility-profile) owns the supported
+dialect subset; this IR does not imply full simulator-language compatibility.
 
 ## Terminology
 
@@ -67,9 +64,10 @@ Circuit IR is transient memory and test-fixture data only. It is not written to
 `project.icproj.json`. The importer persists stable `spice-source` evidence for
 each live projected Base Net; re-import reparses the source snapshot. Deleting
 the final structural owner retires that Base Net and its source evidence, while
-the Document source binding remains available as provenance. Document consumers
-resolve matching source identities together without mutating or serializing
-Circuit-IR-derived Logical Nets.
+the Document source binding remains available as provenance. Source identity
+never joins electrical Nets. Matching source identities may produce transient
+[routing guidance](connectivity-and-routing.md#imported-routing-guidance), not
+Logical-Net equivalence; a cut must remain electrically split.
 
 ## Valid example
 
@@ -81,20 +79,9 @@ no dedicated visual symbol exists.
 An instance terminal referencing a net absent from its cell is rejected. A cell
 with a `placement` property is rejected as renderer leakage.
 
-## Compatibility and migration
+## Evidence
 
-Parsing evidence expands the boundary while preserving these separation rules.
-Dialect-specific syntax remains in frontend projections, not in persistent
-Documents.
-
-## Deterministic validation
-
-- Zod and generated JSON Schema inspection
-- terminal ordering and net-reference tests
-- unknown statement preservation tests
-- tests rejecting visual fields
-
-## Open decisions
-
-- Full SPICE3/ngspice compatibility coverage remains outside the current
-  accepted profile.
+[The executable IR schema](../../packages/spice/src/ir.ts) owns exact shapes.
+[IR tests](../../packages/spice/src/ir.test.ts) protect ordered terminals,
+references and rejection of visual fields. Dialect-specific syntax stays in
+frontend projections rather than persistent Documents.

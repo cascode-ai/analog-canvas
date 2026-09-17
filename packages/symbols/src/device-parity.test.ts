@@ -78,6 +78,12 @@ describe("built-in device/Symbol parity", () => {
       pinOrder: ["COM", "A", "B"],
       targetPolicy: "none",
     });
+    expect(deviceDescriptor("externally-controlled-switch")).toMatchObject({
+      deviceClass: "switch",
+      referencePrefix: "S",
+      pinOrder: ["P", "N", "CTRL"],
+      targetPolicy: "none",
+    });
   });
 
   it("leaves unsupported catalog blocks explicit instead of guessing", () => {

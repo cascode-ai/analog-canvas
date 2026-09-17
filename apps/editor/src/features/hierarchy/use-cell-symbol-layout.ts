@@ -3,11 +3,17 @@ import type { PointerEvent as ReactPointerEvent } from "react";
 
 import {
   inverseTransformPoint,
+  projectCellInterface,
   type CellSymbolSide,
   type Point,
   type SchematicDocument,
 } from "@icm/model";
-import type { SymbolPin, SymbolResolver } from "@icm/symbols";
+import {
+  createHierarchicalBlockSymbol,
+  type SymbolDefinition,
+  type SymbolPin,
+  type SymbolResolver,
+} from "@icm/symbols";
 
 import { snapCoordinate } from "../../snap/engine";
 
@@ -18,7 +24,7 @@ export interface CellSymbolLayoutSession {
   instance: Instance;
   body: { left: number; right: number; top: number; bottom: number };
   pins: readonly {
-    terminal: NonNullable<SchematicDocument["netlist"]>["terminals"][number];
+    terminal: ReturnType<typeof projectCellInterface>["ports"][number];
     pin: SymbolPin;
   }[];
 }
@@ -27,6 +33,7 @@ type CellSymbolLayoutDrag = {
   kind: "body" | "pin";
   pointerId: number;
   terminalId?: string;
+  captureTarget?: SVGCircleElement;
 };
 
 export type CellSymbolLayoutEdit =
@@ -40,15 +47,16 @@ export type CellSymbolLayoutEdit =
   | null;
 
 export function cellSymbolLayoutEditAtLocalPoint(
-  layout: Pick<CellSymbolLayoutSession, "body">,
+  layout: Pick<CellSymbolLayoutSession, "body"> &
+    Partial<Pick<CellSymbolLayoutSession, "child">>,
   drag: Pick<CellSymbolLayoutDrag, "kind" | "terminalId">,
   local: Point,
 ): CellSymbolLayoutEdit {
   if (drag.kind === "body") {
     return {
       kind: "body",
-      width: Math.max(10, snapCoordinate(Math.abs(local.x) * 2, 10)),
-      height: Math.max(10, snapCoordinate(Math.abs(local.y) * 2, 10)),
+      width: Math.max(20, snapCoordinate(local.x * 2, 20)),
+      height: Math.max(20, snapCoordinate(local.y * 2, 20)),
     };
   }
   if (!drag.terminalId) return null;
@@ -61,14 +69,26 @@ export function cellSymbolLayoutEditAtLocalPoint(
   const side = distances.reduce((closest, candidate) =>
     candidate[1] < closest[1] ? candidate : closest,
   )[0];
+  const requestedOffset = snapCoordinate(
+    side === "west" || side === "east" ? local.y : local.x,
+    10,
+  );
+  const occupied = new Set(
+    (layout.child?.presentation.cellSymbol?.pinPlacements ?? [])
+      .filter((pin) => pin.terminalId !== drag.terminalId && pin.side === side)
+      .map((pin) => pin.offset),
+  );
+  let offset = requestedOffset;
+  for (let distance = 10; occupied.has(offset); distance += 10) {
+    offset = !occupied.has(requestedOffset + distance)
+      ? requestedOffset + distance
+      : requestedOffset - distance;
+  }
   return {
     kind: "pin",
     terminalId: drag.terminalId,
     side,
-    offset: snapCoordinate(
-      side === "west" || side === "east" ? local.y : local.x,
-      10,
-    ),
+    offset,
   };
 }
 
@@ -120,7 +140,7 @@ export function useCellSymbolLayout({
         top: Math.min(...ys),
         bottom: Math.max(...ys),
       },
-      pins: child.netlist.terminals.flatMap((terminal) => {
+      pins: projectCellInterface(child.netlist).ports.flatMap((terminal) => {
         const pin = definition.pins.find(
           (candidate) => candidate.name === terminal.name,
         );
@@ -129,8 +149,15 @@ export function useCellSymbolLayout({
     };
   }, [child, enabled, resolver, selectedInstance]);
 
-  const exit = (): void => {
+  const cancelDrag = (): void => {
+    if (drag?.captureTarget?.hasPointerCapture(drag.pointerId)) {
+      drag.captureTarget.releasePointerCapture(drag.pointerId);
+    }
     setDrag(null);
+  };
+
+  const exit = (): void => {
+    cancelDrag();
     setEnabled(false);
     setTargetInstanceId(null);
   };
@@ -159,14 +186,55 @@ export function useCellSymbolLayout({
     kind: "body" | "pin",
     terminalId?: string,
   ): void => {
-    if (!layout) return;
+    if (!layout || event.button !== 0) return;
     event.preventDefault();
     event.stopPropagation();
     event.currentTarget.setPointerCapture(event.pointerId);
     setDrag({
       kind,
       pointerId: event.pointerId,
+      captureTarget: event.currentTarget,
       ...(terminalId ? { terminalId } : {}),
+    });
+  };
+
+  const previewDrag = (
+    event: ReactPointerEvent<SVGGElement>,
+  ): SymbolDefinition | null => {
+    if (!drag || drag.pointerId !== event.pointerId || !layout) return null;
+    const svg = event.currentTarget.ownerSVGElement;
+    if (!svg) return null;
+    const point = canvasPointFromEvent({ ...event, currentTarget: svg });
+    const placement = layout.instance.placement!;
+    const edit = cellSymbolLayoutEditAtLocalPoint(
+      layout,
+      drag,
+      inverseTransformPoint(point, placement.position, placement),
+    );
+    if (!edit) return null;
+    const current = layout.child.presentation.cellSymbol;
+    return createHierarchicalBlockSymbol({
+      ...layout.child,
+      presentation: {
+        ...layout.child.presentation,
+        cellSymbol: {
+          ...current,
+          ...(edit.kind === "body"
+            ? { minimumBodySize: { width: edit.width, height: edit.height } }
+            : {
+                pinPlacements: [
+                  ...(current?.pinPlacements ?? []).filter(
+                    (pin) => pin.terminalId !== edit.terminalId,
+                  ),
+                  {
+                    terminalId: edit.terminalId,
+                    side: edit.side,
+                    offset: edit.offset,
+                  },
+                ],
+              }),
+        },
+      },
     });
   };
 
@@ -176,7 +244,7 @@ export function useCellSymbolLayout({
     const placement = layout.instance.placement!;
     const local = inverseTransformPoint(point, placement.position, placement);
     const edit = cellSymbolLayoutEditAtLocalPoint(layout, drag, local);
-    setDrag(null);
+    cancelDrag();
     if (edit?.kind === "body") {
       setBodySize(layout.child, edit.width, edit.height);
     } else if (edit?.kind === "pin") {
@@ -189,10 +257,11 @@ export function useCellSymbolLayout({
     enabled,
     layout,
     activeDragPointerId: drag?.pointerId ?? null,
-    cancelDrag: () => setDrag(null),
+    cancelDrag,
     exit,
     toggle,
     beginDrag,
+    previewDrag,
     completeDrag,
   };
 }

@@ -11,7 +11,7 @@ generated `circuit.spice` binding is native VACASK despite its stable filename.
 | --- | --- |
 | 01 Bias | Six model occurrences × nine native OP outputs; four node voltages and supply current |
 | 02 DC | VINP 0.86–0.94 V, 1 mV steps; explicitly switch pulse source to DC |
-| 03–05 AC | Distinct TT/FF/SS model dependencies, 1 Hz–1 GHz, 60 points/decade; DC gain and first falling unity crossing |
+| 03–05 AC | Distinct TT/FF/SS model sections, 1 Hz–1 GHz, 60 points/decade; DC gain and first falling unity crossing |
 | 06 pulse | Original Canvas 0.9→0.91 V pulse, delay 1 us, 1 ns edges, 1 us width, 3 us period; 6 us run at ≤2 ns step; output extrema |
 | 07 Noise | TT native noise, 1 Hz–1 GHz, 30 points/decade; input/output density and explicitly labelled sampled-PSD integral |
 | 08 feedback | Canvas emits only the `ota_5t` subcircuit; native text TB owns sources, unity feedback and load; AC plus ≤1 ns-step 6 us transient |
@@ -42,8 +42,10 @@ digest and section-specific primitive maps are in
 `netlists/vacask-sky130/model-symbols-sections.json`, derived by
 `inspectVacaskModelArtifact()` from the packaged converted files.
 The Profile owns `defaultSection=tt`, the `defaultScale=1e-6` wrapper policy, and requires
-the reviewed BSIM4 4.8.3 native module and declared Python runtime. These are local
-candidate identities, **not registered/qualified hosted Profiles**.
+the reviewed BSIM4 4.8.3 native module and declared Python runtime. These are
+candidate identities, **not qualified hosted Profiles**; among the committed
+Worker configurations, only Preview routes the Profile to the isolated
+VACASK executor.
 
 ## Acceptance boundary
 

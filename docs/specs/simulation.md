@@ -5,7 +5,7 @@ Status: accepted
 Owners: `packages/model`, `packages/edit-engine`, `packages/spice`,
 `packages/netlist`, `packages/simulation-service`, `apps/editor`
 
-Related decision: [ADR 0055](../adr/0055-simulation-is-part-of-the-product.md).
+Related decision: [Simulation rationale](../adr/simulation.md).
 
 ## Contract map
 
@@ -142,8 +142,9 @@ outputs or charts; current and historical result behavior is defined in
 
 ## Canvas compilation
 
-`compileSourceSimulation` and `prepareSourceExecutionInput` consume one
+`compileNgspiceSourceSimulation` and `prepareSourceExecutionInput` consume one
 Project/folder snapshot and reuse electrical extraction and the ordinary printer.
+The native `compileSourceSimulation` uses the VACASK printer instead.
 
 - `subcircuit` emits the bound Cell and its dependency closure as definitions;
   authored text owns DUT calls, stimuli and loads.

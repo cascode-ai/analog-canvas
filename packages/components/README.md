@@ -20,12 +20,13 @@ IDs follow the same rule.
 
 ## What a definition owns
 
-| Field           | Responsibility                                                                                                                 |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `schemaVersion` | Component authoring envelope version, independent of Project schema                                                            |
-| `symbol`        | Complete Symbol DSL: primitives, arrows, pins, anchors and variants                                                            |
-| `electrical`    | Complete DeviceDescriptor: parameters/defaults, pin semantics, model/netlist policy; explicit `null` when no descriptor exists |
-| `catalog`       | Library, review/visual authority, category, palette eligibility and generation provenance                                      |
+| Field           | Responsibility                                                                                                                  |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `schemaVersion` | Component authoring envelope version, independent of Project schema                                                             |
+| `symbol`        | Complete Symbol DSL: primitives, arrows, pins, anchors and variants                                                             |
+| `electrical`    | Complete DeviceDescriptor: parameters/defaults, pin semantics, model/netlist policy; explicit `null` when no descriptor exists  |
+| `subcircuit`    | Optional black-box subcircuit master for netlist export: target plus VDD/VSS and pin-mapped ports; only with `electrical: null` |
+| `catalog`       | Library, review/visual authority, category, palette eligibility and generation provenance                                       |
 
 `electrical: null` does not claim simulation support. Conversely, a non-null
 descriptor with `targetPolicy: "none"` may provide naming/authoring semantics
@@ -104,6 +105,12 @@ The product set is exactly the reviewed, Reference-calibrated entries:
   _Fundamentals of Microelectronics_, Figure 3.44(a). Both retain the SPICE D
   electrical contract, but Zener presentation is manual or PDK-mapped because
   ordinary D syntax does not identify breakdown use;
+- `ideal-switch`, `closed-switch`, and `externally-controlled-switch`. The
+  three-terminal external-control form is direct Figure 16.38 (S1) vector
+  evidence: `P`/`N` are the vertical switched path and `CTRL` is the single
+  left-side logic input. It remains manual-only because primitive SPICE `S`
+  requires a differential four-terminal control and cannot honestly encode
+  this single-ended textbook abstraction;
 - the behavioral block family `inverter`, `and-gate`, `or-gate`, `nand-gate`,
   `nor-gate`, `xor-gate`, `xnor-gate`, `buffer`, `delay-cell`,
   `d-flip-flop`, its active-high asynchronous-reset sibling

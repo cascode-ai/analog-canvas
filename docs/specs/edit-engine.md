@@ -4,9 +4,8 @@ Status: `accepted`
 
 Primary owner: `packages/edit-engine`
 
-Related ADRs: [`0013-project-connectivity-index.md`](../adr/0013-project-connectivity-index.md),
-[`0014-resolved-route-geometry.md`](../adr/0014-resolved-route-geometry.md),
-[`0041-physical-cut-and-endpoint-readiness.md`](../adr/0041-physical-cut-and-endpoint-readiness.md).
+Design rationale: [Net](../adr/net-connectivity.md) and
+[routing](../adr/routing.md).
 Routing planners read the unified connectivity index and resolved route
 geometry as read-only input; the Edit Engine remains the sole mutation path and
 validates every edit independently without trusting the planner.
@@ -15,13 +14,6 @@ validates every edit independently without trusting the planner.
 
 Define the only committed mutation path for both GUI and Agent operations,
 including revision checks, dry runs, atomicity, results, and diagnostics.
-
-## Consumers
-
-- editor GUI tools
-- Agent adapter
-- history and undo/redo
-- model validators and diagnostics
 
 ## Terminology
 
@@ -42,20 +34,15 @@ Document is the only valid full preview; the plan has no untyped preview
 payload and is not persisted. NoConnect and unrelated drafting/presentation
 edits continue to use the ordinary transaction directly.
 
-```typescript
-interface EditTransaction {
-  transactionId: string;
-  documentId: string;
-  expectedRevision: number;
-  actor: { kind: "human" | "agent"; id: string };
-  dryRun?: boolean;
-  edits: SchematicEdit[];
-}
-```
+[The edit schema](../../packages/edit-engine/src/edit-schema.ts) owns the
+transaction envelope and typed union. The envelope identifies the transaction,
+Document, expected revision, human/Agent actor, optional dry run and ordered
+edits.
 
-`packages/edit-engine/src/transaction.ts` exports `SchematicEditSchema`, the
-sole executable list of typed edit kinds. The current union is grouped below
-for readability; these groups do not create separate mutation endpoints:
+`packages/edit-engine/src/edit-schema.ts` defines `SchematicEditSchema`
+(re-exported by `transaction.ts`), the sole executable list of typed edit
+kinds. The current union is grouped below for readability; these groups do not
+create separate mutation endpoints:
 
 <!-- schematic-edit-kinds:start -->
 
@@ -91,8 +78,9 @@ for readability; these groups do not create separate mutation endpoints:
 
 <!-- schematic-edit-kinds:end -->
 
-The Agent Document transaction schema is derived from this union, applies its
-scope restrictions, and excludes unsupported history kinds. Formal-interface
+The Agent Document transaction schema is derived from this union and applies
+its scope restrictions; Agent `undo`/`redo` use the live editor's shared
+Document/Project history and require all edit permissions. Formal-interface
 edits are submitted inside `structureEdits`, which composes the same union with
 add/remove Document operations under one Project `structureRevision`. The
 Project-level `upsert_simulation_folder` and `remove_simulation_folder` edits are
@@ -142,8 +130,8 @@ Additional Parameters table.
 narrowed SchematicAnnotation set (`instance-label | instance-value |
 net-label | power-label | route-marker`). `upsert_drafting_object` / `remove_drafting_object` accept the
 `DraftingObject` union (text, arrow, leader, callout, construction-line,
-floating-symbol) with the shared `VisualAnchor`. None of these edits creates or
-modifies a Net, Route,
+rectangle, circle, floating-symbol) with the shared `VisualAnchor`. None of
+these edits creates or modifies a Net, Route,
 Junction, flightline, Pin, or SPICE instance. A `transact` dry run returns:
 resolved anchors, invalid/unresolved attachments, possible overlaps with
 electrical objects, and the actual changed IDs.
@@ -167,7 +155,8 @@ atomic, browser-editor lifecycle edits planned by `cell-reset-planner.ts`:
 geometry/intent, and `reset_cell_body` removes non-interface content while
 retaining formal terminals and their marker/Net projection. Each advances the
 Document revision once and is restored by one Undo. The public Agent surface
-categorizes these guarded UI lifecycle edits as unsupported.
+accepts these lifecycle edits, directly or through its `reset-cell` command,
+under the connectivity edit permission.
 
 `upsert_connectivity_evidence` and `remove_connectivity_evidence` are the only
 atomic writers for the current connectivity-evidence list. Upsert replaces
@@ -188,7 +177,7 @@ ordered edits can still remove or replace their evidence atomically; evidence
 explicitly upserted by that transaction remains subject to final validation.
 Reset Cell Body previews and removes non-interface evidence while retaining
 assertions whose complete Net and owner closure survives. The public Agent
-surface classifies both evidence edits as unsupported.
+surface accepts both evidence edits under the connectivity edit permission.
 
 `hierarchy-planner.ts` is the shared pure orchestration boundary above these
 edits. It constructs canonical subcircuit Instances and plans Cell
@@ -285,8 +274,7 @@ Topology operations have these preconditions:
   transaction. GUI movement planners always author those Route edits; Routes
   protected by locked geometry reject the move.
 - `move_instance` stretches unprotected connected Routes under their existing
-  geometry constraint (orthogonal, octilinear, or free; [ADR 0014](../adr/0014-resolved-route-geometry.md) and
-  [ADR 0048](../adr/0048-routing-operation-plan.md)). A
+  geometry constraint (orthogonal, octilinear, or free; [routing rationale](../adr/routing.md)). A
   Route with a locked/trunk adjacent segment is
   skipped; if the caller does not re-point it in the same transaction, the
   post-loop validation rejects with `INVALID_RESULT` naming the Route. The
@@ -307,14 +295,10 @@ Topology operations have these preconditions:
   before removing the source Net.
 - `disconnect_endpoint` requires all route geometry that uses the endpoint to
   be removed explicitly first.
-- `cut_connection` requires one existing unlocked Route. Removing a bridge
-  partitions the affected Base Net by remaining explicit Routes and confirmed
-  direct contacts; global, imported, and logical-name Evidence never suppress
-  that physical split. A redundant cycle keeps the original Base Net.
-  The component containing the deleted Route's `from` endpoint retains the
-  original Base-Net ID; detached components receive deterministic new IDs.
-  Newly orphaned Junction endpoints are removed. Route-anchored annotations
-  must be removed by a preceding typed edit in the same transaction.
+- `cut_connection` requires an existing unlocked Route and explicit prior
+  removal of its Route-anchored annotations. It applies the shared
+  [Wire cut lifecycle](connectivity-and-routing.md#wire-cut-lifecycle), including
+  physical partition and owner reconciliation, in the same atomic transaction.
 - `remove_route_geometry` is the explicit geometry-only operation: it removes
   a Route while preserving logical Net membership. It supports advanced
   rerouting without conflating a persisted mutation with derived guidance.
@@ -368,10 +352,11 @@ protocol exposes only `upsert_schematic_annotation` and
 - atomic no-op and dry-run tests
 - GUI/Agent parity tests for authoring operations
 
-## Open decisions
+## Session history
 
-- In-memory `DocumentHistory` retains at most 64 undo or redo snapshots per
-  opened Document. It is a session-memory budget, not persisted Project data;
-  callers may supply a smaller or larger positive limit for a constrained host.
-- Persistent history, history compaction, and recovery integration remain
-  deferred; history is validated in-memory session state.
+[DocumentHistory](../../packages/edit-engine/src/history.ts) retains at most
+64 undo or redo snapshots per opened Document by default; callers may supply a
+different positive limit. This is session memory, not persisted Project data.
+[History tests](../../packages/edit-engine/src/history.test.ts) protect that
+boundary. Persistent history and compaction are not implemented; their
+acceptance question belongs in the [roadmap](../roadmap/README.md#deferred-contract-questions).

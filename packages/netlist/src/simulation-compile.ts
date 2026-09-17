@@ -422,7 +422,7 @@ type SimulationOccurrenceTarget = {
  * hierarchy Instance and that the walk lands on the Document the probe claims.
  *
  * The returned `path` is what ngspice prefixes onto a name inside a
- * subcircuit; the `hierarchyPath` is the canonical locator address (ADR 0015)
+ * subcircuit; the `hierarchyPath` is the canonical locator address (Net connectivity rationale)
  * so a diagnostic points at the occurrence, not merely at a Document.
  */
 function resolveOccurrence(

@@ -11,9 +11,9 @@ published.
 
 ## Three-Stage Development and Delivery
 
-The default cadence is local iteration, a batched Preview delivery, then a
-deliberate Production release. A request to change the editor starts in the
-local stage unless the user explicitly requests a later stage.
+The cadence is local iteration, a delivered pull request, and, for work routed
+to Preview, a deliberate promotion. A request to change the editor starts in
+the local stage unless the user explicitly requests a later stage.
 
 1. **Local iteration.** Continue the current local batch branch, or create
    `codex/local-batch` from current `main` when starting a new batch. Use
@@ -21,29 +21,32 @@ local stage unless the user explicitly requests a later stage.
    separate, explanatory local commits for separate targets. A completed local
    target ends with its commit and validation; it does not automatically open a
    PR, push, merge, deploy, or bump the product version. Push a branch for backup
-   when requested without treating that backup as a Preview delivery.
-2. **Batched Preview delivery.** Accumulate at least **10 completed changes**
-   before preparing one batch PR and one merge to `main`. A change means one
-   independently useful feature, fix, or improvement; supporting tests, repair
-   commits, files, and formatting do not count as extra changes. The user may
-   request an earlier Preview delivery or hold a ready batch. Run the mainline
-   delivery gate against the whole batch, wait for the required PR checks,
-   then merge and verify the deployed Preview. Prepare any intended
-   release version before this acceptance so the accepted candidate can be
-   promoted without another code change.
-3. **Production release.** Promote a Preview-accepted candidate when the user
+   when requested without treating that backup as a delivery.
+2. **Delivery.** When the user asks to deliver, open one pull request for the
+   completed change or batch, run the mainline delivery gate, wait for the
+   required PR checks, merge, and verify the deployed channel. The pull
+   request's `preview` label chooses that channel (Deployment rationale): without it, the
+   merge deploys directly to Production; with it, every push deploys the pull
+   request to Preview and the merge deploys to Preview only. Label large or
+   risky changes, work a collaborator debugs on Preview, and anything someone
+   should click through first; ask when the choice is unclear. Batching is
+   optional. A change means one independently useful feature, fix, or
+   improvement; supporting tests, repair commits, files, and formatting do not
+   count as extra changes. Prepare any intended release version before merging.
+3. **Promotion.** Promote a Preview-accepted commit on `main` when the user
    requests Production publication or has already authorized that release.
-   Reaching the batch size or passing Preview is not itself a Production
-   trigger. Use the existing version-tag or explicit-dispatch route, and finish
-   deployed verification. Do not ask again for authorization already given.
+   Passing Preview is not itself a Production trigger. Use the existing
+   version-tag or explicit-dispatch route, and finish deployed verification.
+   Do not ask again for authorization already given.
 
-Keep a short working list in `plan/local-batch.md`: the branch, completed
-changes and count, validation still needed, and current stage. Read it when
-continuing the batch and reconcile it with local commit messages; commit count
-alone is not a change count. Start the next list after the batch reaches Preview.
-Decisions and validation that must survive delivery belong in the commits and
-batch PR. A squash merge's description must preserve the batch's target summary,
-test impact, validation, and unresolved limitations.
+Keep a short working list in `plan/local-batch.md` while a batch is in
+progress: the branch, completed changes and count, validation still needed,
+and current stage. Read it when continuing the batch and reconcile it with
+local commit messages; commit count alone is not a change count. Start the next
+list after the batch is delivered. Decisions and validation that must survive
+delivery belong in the commits and pull request. A squash merge's description
+must preserve the target summary, test impact, validation, and unresolved
+limitations.
 
 ## Operating Discipline
 
@@ -197,10 +200,11 @@ relative to its mainline base. Delivery keeps full unit, release, and performanc
 protection for the implementation batch while the browser layer is selected by
 impact.
 
-Merging to `main` deploys the **preview** channel, not the public site.
-Production deploys only from a `v*` release tag, or a dispatch naming a
-commit, whose commit already has a green preview deploy; see ADR 0057 and
-`docs/deployment.md`.
+Merging a pull request labeled `preview` deploys only the **preview** channel;
+merging any other pull request deploys directly to the public site. A
+promotion deploys only from a `v*` release tag, or a manual dispatch of an
+accepted ref, whose commit is on `main` and already has a green preview
+deploy; see Deployment rationale and `docs/deployment.md`.
 
 Before a non-document change is merged or pushed to `main`:
 
@@ -218,7 +222,7 @@ Before a non-document change is merged or pushed to `main`:
 4. Push a review branch and wait for both GitHub required checks.
    `Core contracts` runs static contracts, the complete unit/module suite, and
    the release/performance checks on one shared runner. `Browser tests` runs
-   only the mapped affected specs, or a small editor/runtime/Agent fallback for
+   only the mapped affected specs, or a small insertion/runtime fallback for
    an unmapped product path. The branch must still be based on current `main`;
    if `main` changes while checks run, update once and revalidate. Current
    branches merge directly after this one CI pass. Nightly and manual CI runs

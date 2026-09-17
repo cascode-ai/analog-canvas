@@ -1,9 +1,11 @@
+import { agentToolHelp } from "./guidance.generated.js";
 import { z } from "zod";
 import { simulationAuthoringTools } from "./simulation-authoring-tools.js";
 import { SimulationOperationSchema } from "@icm/simulation-service/contract";
 import { SimulationFileOperationSchema } from "@icm/simulation-service/files";
 import {
   AGENT_API_VERSION,
+  AGENT_MCP_VERSION,
   AgentFileDownloadOptionsSchema,
 } from "@icm/agent-adapter";
 import {
@@ -34,7 +36,7 @@ import {
 } from "./file-operations.js";
 
 /**
- * The default MCP tool surface (ADR 0020) stays compact. The full
+ * The default MCP tool surface (Agent rationale) stays compact. The full
  * typed edit union is deliberately NOT injected into tool descriptions; it is
  * available through `advanced_transact`; its full contract is an on-demand
  * resource, not a session permission gate.
@@ -248,8 +250,7 @@ const TOOLS: readonly ToolEntry[] = [
   {
     definition: {
       name: "connect",
-      description:
-        "Pair with the live browser editor. Pass its claim code once; later MCP processes can omit it and resume the saved, revocable connector. After connecting, read analog-canvas://reference/quickstart.",
+      description: agentToolHelp["connect"],
       inputSchema: jsonSchemaOf(ConnectArgs),
     },
     handle: async (args, session) => {
@@ -269,8 +270,7 @@ const TOOLS: readonly ToolEntry[] = [
   {
     definition: {
       name: "disconnect",
-      description:
-        "Revoke the current browser Agent session and erase this MCP host's saved connector. A fresh editor claim code is required afterwards.",
+      description: agentToolHelp["disconnect"],
       inputSchema: jsonSchemaOf(z.strictObject({})),
     },
     handle: async (_args, session) => {
@@ -281,17 +281,28 @@ const TOOLS: readonly ToolEntry[] = [
   {
     definition: {
       name: "connection_status",
-      description:
-        "Read lightweight Session observations without waiting for the editor. attached means a browser socket exists, not verified execution readiness; unknown means the relay could not be checked. Reports pause, observation time and token validity without exposing credentials or renewing the session.",
-      inputSchema: jsonSchemaOf(z.strictObject({})),
+      description: agentToolHelp["connection_status"],
+      inputSchema: jsonSchemaOf(
+        z.strictObject({ refresh: z.boolean().optional() }),
+      ),
     },
-    handle: async (_args, session) => session.client.status({ refresh: true }),
+    handle: async (args, session) => {
+      const { refresh = true } = z
+        .strictObject({ refresh: z.boolean().optional() })
+        .parse(args);
+      return {
+        ...(await session.client.status({ refresh })),
+        runtime: {
+          version: AGENT_MCP_VERSION,
+          apiBaseUrl: session.client.apiBaseUrl,
+        },
+      };
+    },
   },
   {
     definition: {
       name: "project_cells",
-      description:
-        "List the signed-in user's Cloud Projects, inspect their reusable Cells and formal ports, or copy one Cell with its dependency closure into the open Project. Import uses the canonical GUI planner and one atomic Project transaction; it creates no live cross-Project reference. Ordinary sign-in, stale-revision, or compatibility failures are recoverable and do not end the Agent session.",
+      description: agentToolHelp["project_cells"],
       inputSchema: { ...jsonSchemaOf(ProjectCellsArgs), type: "object" },
     },
     handle: async (args, session) => {
@@ -328,8 +339,7 @@ const TOOLS: readonly ToolEntry[] = [
   {
     definition: {
       name: "simulation",
-      description:
-        "Prepare a saved Project folder or raw File Resource workspace; start, read, cancel and export runs or sequential batches through the shared Simulation Resource. authoring-help exposes native VACASK helpers including Python reporting. Source code owns analyses and native measurements; @spec comments declare acceptance rules. Read outputData.specs or specs.json for verdicts, result.data/result.json for raw numbers and one analysis CSV per record. No automatic measurements or built-in plots. Large receipts use resultPreview and paged artifact access. Supply the SAME requestId for a start retry. Use simulation_files for source and ordinary Cell edits for the DUT/testbench.",
+      description: agentToolHelp["simulation"],
       inputSchema: jsonSchemaOf(SimulationArgs),
     },
     handle: async (args, session) => {
@@ -366,8 +376,7 @@ const TOOLS: readonly ToolEntry[] = [
   {
     definition: {
       name: "simulation_files",
-      description:
-        "Edit simulation source through the canonical File Resource. list without owner recovers session workspace IDs; list/read/update use owner {kind:'session-workspace',workspaceId} or {kind:'project-folder',folderId}. read pages one path with its exact text digest. update atomically applies writes/removes/UTF-16 patches at expectedRevision; Project edits use the Project structure revision and normal history, while session files expire. Generated circuit/dependency text cannot be overwritten. Invalid authored syntax remains saveable. Project writes require the existing project.import scope, not an import approval prompt. create/discard manage session workspaces only; saved folders use Project lifecycle. artifact fetches immutable evidence; outputPath saves only artifacts locally after digest verification.",
+      description: agentToolHelp["simulation_files"],
       inputSchema: jsonSchemaOf(SimulationFilesArgs),
     },
     handle: async (args, session) => {
@@ -431,8 +440,7 @@ const TOOLS: readonly ToolEntry[] = [
   {
     definition: {
       name: "export_file",
-      description:
-        "Export the browser Project or Canvas SVG/PNG/PDF to an explicit local path. Canvas exports require documentId. Simulation results use simulation export to list artifacts, then simulation_files artifact with outputPath to save raw/CSV/Spec files after digest verification. simulation-plot is retired and returns SIMULATION_PLOT_RETIRED; plot externally from raw/CSV.",
+      description: agentToolHelp["export_file"],
       inputSchema: jsonSchemaOf(ExportFileArgs),
     },
     handle: async (args, session) =>
@@ -449,8 +457,7 @@ const TOOLS: readonly ToolEntry[] = [
   {
     definition: {
       name: "import_file",
-      description:
-        "Stage a local Analog Canvas project or structural SPICE bundle, inspect/discard the candidate, or request browser approval. Staging never replaces the open project by itself.",
+      description: agentToolHelp["import_file"],
       inputSchema: jsonSchemaOf(ImportFileArgs),
     },
     handle: async (args, session) => {
@@ -478,8 +485,7 @@ const TOOLS: readonly ToolEntry[] = [
   {
     definition: {
       name: "get_context",
-      description:
-        "Compact context for one authorized document: identity, revision, instance/net counts, and error/warning totals. Refreshes by default so concurrent human edits are visible; set refresh:false only for a deliberate cached read.",
+      description: agentToolHelp["get_context"],
       inputSchema: jsonSchemaOf(DocumentArgs),
     },
     handle: async (args, session) => {
@@ -498,8 +504,7 @@ const TOOLS: readonly ToolEntry[] = [
   {
     definition: {
       name: "inspect",
-      description:
-        "Read a document, object, net connectivity, diagnostics, or recent MCP activity. Refreshes by default; detail:full returns the document Snapshot with appearance, formulas, interfaces, and project definitions.",
+      description: agentToolHelp["inspect"],
       inputSchema: jsonSchemaOf(InspectArgs),
     },
     handle: async (args, session) => {
@@ -539,8 +544,7 @@ const TOOLS: readonly ToolEntry[] = [
   {
     definition: {
       name: "search",
-      description:
-        "Case-insensitive search, including LaTeX, over one authorized document or scope:project. Results include documentId. Refreshes by default.",
+      description: agentToolHelp["search"],
       inputSchema: jsonSchemaOf(SearchArgs),
     },
     handle: async (args, session) => {
@@ -579,8 +583,7 @@ const TOOLS: readonly ToolEntry[] = [
   {
     definition: {
       name: "apply_actions",
-      description:
-        "Apply one atomic edit batch, wire, GUI-planned command, or focus operation. Includes set-model, copy, transform, align, detach-move, unplace, reset-cell, Cell creation/rename/deletion, undo/redo. Split create/wire phases. Helper handles revisions; receipts contain authoritative changes and diagnostics. Examples: analog-canvas://reference/quickstart.",
+      description: agentToolHelp["apply_actions"],
       inputSchema: jsonSchemaOf(ApplyActionsArgs),
     },
     handle: async (args, session) => {
@@ -594,8 +597,7 @@ const TOOLS: readonly ToolEntry[] = [
   {
     definition: {
       name: "advanced_transact",
-      description:
-        "Submit exactly one API transaction form: edits, structureEdits, wireIntent, semanticIntent, or command. Helper supplies revisions and IDs. Read analog-canvas://contract/advanced-edits when unfamiliar with an edit; reading is advisory, not a permission gate.",
+      description: agentToolHelp["advanced_transact"],
       inputSchema: jsonSchemaOf(AdvancedTransactArgs),
     },
     handle: async (args, session) => {
@@ -610,8 +612,7 @@ const TOOLS: readonly ToolEntry[] = [
   {
     definition: {
       name: "verify",
-      description:
-        "Refresh the snapshot and report revision, error/warning totals, and which object IDs changed since the cached snapshot. Use after edits or when a transaction reported STATE_CHANGED.",
+      description: agentToolHelp["verify"],
       inputSchema: jsonSchemaOf(DocumentArgs),
     },
     handle: async (args, session) => {
@@ -631,8 +632,7 @@ const TOOLS: readonly ToolEntry[] = [
   {
     definition: {
       name: "render",
-      description:
-        "Render the current document to SVG and return it as an image content block (image/svg+xml) plus a compact text summary (revision, sha256, byteLength).",
+      description: agentToolHelp["render"],
       inputSchema: jsonSchemaOf(RenderArgs),
     },
     handle: async (args, session) => {

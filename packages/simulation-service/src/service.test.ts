@@ -402,94 +402,135 @@ describe("shared simulation lifecycle", () => {
     expect(read.text).toContain("0.99,-0.01");
     await f.service.clear();
   });
-  it("prepares every saved folder before running a batch sequentially", async () => {
-    const files = new SimulationFiles();
-    const project = createEmptyProject("batch-project", "Batch", "doc");
-    project.simulationFolders = ["A", "B"].map((name) =>
-      sourceFolder(`folder-${name.toLowerCase()}`, name, {
-        entry: "tb.cir",
-        files: [{ path: "tb.cir", text: `${name} deck\ncontrol\nendc\n` }],
-        dependencies: [],
-      }),
-    );
-    const releases: Array<() => void> = [];
-    let active = 0;
-    let maxActive = 0;
-    const executor: Executor = {
-      capabilities: async () => caps,
-      execute: vi.fn(
-        (input) =>
-          new Promise<Awaited<ReturnType<Executor["execute"]>>>((resolve) => {
-            active++;
-            maxActive = Math.max(maxActive, active);
-            releases.push(() => {
-              active--;
-              void result(input).then(resolve);
-            });
-          }),
-      ),
-      cancel: vi.fn(async () => releases.at(-1)?.()),
-    };
-    const service = new SimulationService(files, executor, () => project);
-    const preparedReply = await service.handle(
-      {
-        operation: "prepare-batch",
-        expectedStructureRevision: project.structureRevision,
-        items: [
-          { id: "tt", folderId: "folder-a" },
-          { id: "ff", folderId: "folder-b" },
-        ],
-      },
-      "prepare-batch",
-    );
-    expect(preparedReply).toMatchObject({
-      ok: true,
-      batch: {
-        state: "prepared",
-        items: [
-          { id: "tt", state: "prepared" },
-          { id: "ff", state: "prepared" },
-        ],
-      },
-    });
-    if (!preparedReply.ok || !("batch" in preparedReply)) return;
-    expect(executor.execute).not.toHaveBeenCalled();
-
-    const startRequest = {
-      operation: "start-batch" as const,
-      batchId: preparedReply.batch.id,
-    };
-    const started = await service.handle(startRequest, "start-batch-once");
-    expect(started).toMatchObject({ ok: true, batch: { state: "running" } });
-    expect(
-      await service.handle(startRequest, "start-batch-once"),
-    ).toMatchObject({
-      ok: true,
-      batch: { id: preparedReply.batch.id, state: "running" },
-    });
-    await vi.waitFor(() => expect(executor.execute).toHaveBeenCalledTimes(1));
-    releases[0]!();
-    await vi.waitFor(() => expect(executor.execute).toHaveBeenCalledTimes(2));
-    releases[1]!();
-    await vi.waitFor(async () =>
-      expect(
-        await service.handle(
-          { operation: "read-batch", batchId: preparedReply.batch.id },
-          "read-batch",
+  it.each([false, true])(
+    "runs a recoverable sequential batch (first run fails: %s)",
+    async (firstRunFails) => {
+      const files = new SimulationFiles();
+      const project = createEmptyProject("batch-project", "Batch", "doc");
+      project.simulationFolders = ["A", "B"].map((name) =>
+        sourceFolder(`folder-${name.toLowerCase()}`, name, {
+          entry: "tb.cir",
+          files: [{ path: "tb.cir", text: `${deck}\n// Batch ${name}\n` }],
+          dependencies: [],
+        }),
+      );
+      const releases: Array<() => void> = [];
+      let active = 0;
+      let maxActive = 0;
+      const executor: Executor = {
+        capabilities: async () => caps,
+        execute: vi.fn(
+          (input) =>
+            new Promise<Awaited<ReturnType<Executor["execute"]>>>((resolve) => {
+              active++;
+              maxActive = Math.max(maxActive, active);
+              const index = releases.length;
+              releases.push(() => {
+                active--;
+                void result(input).then((output) => {
+                  if (firstRunFails && index === 0) {
+                    output.result.outcome = { status: "failed" };
+                    output.result.diagnostics.push({
+                      severity: "error",
+                      text: "Failed to bind analysis outputs.",
+                    });
+                  }
+                  resolve(output);
+                });
+              });
+            }),
         ),
-      ).toMatchObject({
-        ok: true,
-        batch: {
-          state: "finished",
+        cancel: vi.fn(async () => releases.at(-1)?.()),
+      };
+      const service = new SimulationService(files, executor, () => project);
+      const preparedReply = await service.handle(
+        {
+          operation: "prepare-batch",
+          expectedStructureRevision: project.structureRevision,
           items: [
-            { state: "finished", runId: expect.any(String) },
-            { state: "finished", runId: expect.any(String) },
+            { id: "tt", folderId: "folder-a" },
+            { id: "ff", folderId: "folder-b" },
           ],
         },
-      }),
-    );
-    expect(maxActive).toBe(1);
-  });
+        "prepare-batch",
+      );
+      expect(preparedReply).toMatchObject({
+        ok: true,
+        batch: {
+          state: "prepared",
+          items: [
+            { id: "tt", state: "prepared" },
+            { id: "ff", state: "prepared" },
+          ],
+        },
+      });
+      if (!preparedReply.ok || !("batch" in preparedReply)) return;
+      expect(executor.execute).not.toHaveBeenCalled();
+
+      const startRequest = {
+        operation: "start-batch" as const,
+        batchId: preparedReply.batch.id,
+      };
+      const started = await service.handle(startRequest, "start-batch-once");
+      expect(started).toMatchObject({ ok: true, batch: { state: "running" } });
+      expect(
+        await service.handle(startRequest, "start-batch-once"),
+      ).toMatchObject({
+        ok: true,
+        batch: { id: preparedReply.batch.id, state: "running" },
+      });
+      await vi.waitFor(() => expect(executor.execute).toHaveBeenCalledTimes(1));
+      releases[0]!();
+      await vi.waitFor(() => expect(executor.execute).toHaveBeenCalledTimes(2));
+      releases[1]!();
+      await vi.waitFor(async () =>
+        expect(
+          await service.handle(
+            { operation: "read-batch", batchId: preparedReply.batch.id },
+            "read-batch",
+          ),
+        ).toMatchObject({
+          ok: true,
+          batch: {
+            state: "finished",
+            items: [
+              { state: "finished", runId: expect.any(String) },
+              { state: "finished", runId: expect.any(String) },
+            ],
+          },
+        }),
+      );
+      expect(maxActive).toBe(1);
+      // Recover identifiers from the existing Batch resource rather than
+      // submitting another start after a caller loses its transient Run IDs.
+      const recovered = await service.handle(
+        { operation: "read-batch", batchId: preparedReply.batch.id },
+        "recover-batch",
+      );
+      if (!recovered.ok || !("batch" in recovered))
+        throw Error(JSON.stringify(recovered));
+      expect(
+        new Set(recovered.batch.items.map((item) => item.runId)).size,
+      ).toBe(2);
+      for (const [index, item] of recovered.batch.items.entries()) {
+        const run = unwrap(
+          await service.handle(
+            { operation: "read", runId: item.runId! },
+            `recover-${index}`,
+          ),
+          "run",
+        );
+        expect(run.state).toBe("finished");
+        expect(run.result?.outcome.status).toBe(
+          firstRunFails && index === 0 ? "failed" : "completed",
+        );
+        expect(
+          run.artifacts.some((artifact) => artifact.name === "log.txt"),
+        ).toBe(true);
+      }
+      expect(executor.execute).toHaveBeenCalledTimes(2);
+    },
+  );
 
   it("prepares native parameter/corner/temperature sweep members with separate identities through the shared service", async () => {
     const project = CircuitProjectSchema.parse(

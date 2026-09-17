@@ -1,0 +1,9 @@
+{
+  "agentSessionStatus": "Read authenticated relay observations without contacting the editor or renewing the idle deadline. Attachment is not execution readiness. Paused sessions remain readable.",
+  "agentClaimRedeem": "Exchange a human-provided claim for authorized Document IDs, a scoped bearer and a revocable connector. Repeating a valid claim rotates credentials and invalidates the earlier pairing.",
+  "agentConnectorResume": "Exchange a server-issued persistent connector credential for a fresh short-lived Circuit bearer. The connector remains revocable with its browser session.",
+  "agentSessionCircuit": "Send one Circuit API request over the session. The relay validates the strict payload and required token scopes, then forwards it to the live browser without applying or rewriting edits.",
+  "agentSessionFileResource": "Export Project/SVG/PNG/PDF; stage and inspect import candidates; read/update simulation source or retrieve immutable run artifacts. Staging alone never replaces the Project: browser-human confirmation is required. Source updates use their owner's revision; artifact access does not grant arbitrary host files.",
+  "agentSessionSimulationResource": "Discover Profiles and native authoring help; prepare saved Project-folder or session-workspace source, then start/read/cancel/export runs and batches. Exact start request-ID and payload retries do not execute twice. Read full artifacts when a receipt is a preview. Input/execution failures do not revoke the session; this is not a durable job queue.",
+  "agentSessionProjectResource": "Discover Cells in the signed-in user's Cloud Projects and import one dependency closure as an independent project-local copy through the live editor transaction boundary."
+}

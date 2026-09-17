@@ -205,6 +205,13 @@
       "useVariant": false
     },
     {
+      "id": "externally-controlled-switch",
+      "measurementPath": "common-symbol-geometry.json",
+      "measurementKey": "externally-controlled-switch",
+      "symbolId": "externally-controlled-switch",
+      "useVariant": false
+    },
+    {
       "id": "npn",
       "measurementPath": "common-symbol-geometry.json",
       "measurementKey": "npn",

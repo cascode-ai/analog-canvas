@@ -23,15 +23,9 @@ import { resolveDocumentLogicalNets } from "./logical-net.js";
 import type { DocumentDerivedContext } from "./document-derived-context.js";
 
 /**
- * Unified read-only connectivity index (ADR 0013). Single source of
- * connectivity truth for routing guidance, net highlight, cross-Cell trace,
- * project search, and ERC. Never persisted, exported, or mutated by GUI state.
- *
- * This first implementation is an additive facade over the existing tested
- * `derive*` primitives, plus the partition-invariant routing-guidance id
- * normalization (ADR 0013 / WP-R0 finding), typed virtual edges, hierarchy
- * edges, and a project object index. Production consumers keep using the old
- * helpers until the R10 migration proves parity and switches them.
+ * Shared derived connectivity read model; see docs/specs/connectivity-and-routing.md.
+ * Physical membership, logical equivalence, guidance and occurrence-aware lookup
+ * remain projections of Project facts, never another persisted authority.
  */
 
 export type EndpointRef = RouteEndpoint;
@@ -93,7 +87,7 @@ export interface GlobalNetGroup {
 }
 
 /**
- * Project-level object identity (ADR 0015). Direct-document locators carry an
+ * Project-level object identity (Net connectivity rationale). Direct-document locators carry an
  * empty hierarchy path; C6 later supplies non-empty paths for navigation.
  */
 export interface ProjectObjectIndex {
@@ -130,7 +124,7 @@ const documentIndexCache = new WeakMap<
  * Returns routing guidance whose `from`/`to` are ordered by `endpointKey` and
  * whose `id` is recomputed from the ordered keys, so the same logical guide
  * yields the same id regardless of how the visible wire is partitioned into
- * Routes (ADR 0013; resolves the WP-R0 partition-sensitivity finding).
+ * Routes (Net connectivity rationale).
  */
 function normalizeRoutingGuidance(line: RoutingGuide): RoutingGuide {
   const swap =

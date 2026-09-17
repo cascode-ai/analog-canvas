@@ -1,6 +1,7 @@
 import { createEmptyDocument } from "@icm/model";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
+import distribution from "../../../docs/agent/distribution.json";
 
 import {
   AGENT_OPERATING_KIT_FORMAT,
@@ -56,18 +57,28 @@ function symbol(
 
 describe("Agent operating Kit", () => {
   it("contains the small provider-neutral authoring working set", () => {
+    expect(agentOperatingKit.files.map((file) => file.path)).toEqual(
+      distribution.documents
+        .filter(
+          (document) =>
+            document.kitPath && document.consumers.includes("http-kit"),
+        )
+        .map((document) => document.kitPath),
+    );
     expect(agentOperatingKit).toMatchObject({
       format: AGENT_OPERATING_KIT_FORMAT,
       version: AGENT_OPERATING_KIT_VERSION,
     });
-    expect(agentOperatingKit.files.map((file) => file.path)).toEqual([
-      "README.md",
-      "AGENTS.md",
-      "skills/icm-circuit-session/SKILL.md",
-      "references/session-contract.md",
-      "references/authoring-contract.md",
-      "references/razavi-authoring-catalog.json",
-    ]);
+    expect(agentOperatingKit.files.map((file) => file.path)).toEqual(
+      expect.arrayContaining([
+        "README.md",
+        "AGENTS.md",
+        "skills/icm-circuit-session/SKILL.md",
+        "references/session-contract.md",
+        "references/authoring-contract.md",
+        "references/razavi-authoring-catalog.json",
+      ]),
+    );
   });
 
   it("contains operating guidance but never a credential or Project payload", () => {

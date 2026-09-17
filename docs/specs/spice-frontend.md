@@ -15,7 +15,7 @@ the parser or filesystem part of the persistent Project model.
 - browser and Node source adapters
 - SPICE elaborator
 - Schematic importer
-- current-corpus and later dialect-conformance tests
+- current-corpus and dialect-conformance tests
 
 ## SourceBundle contract
 
@@ -63,10 +63,12 @@ search paths are not used or guessed.
 
 ## Compatibility profile
 
-The accepted baseline is `ngspice-46-core`, defined by
-[`ADR 0004`](../adr/0004-ngspice-46-core-structural-baseline.md) and the
+The accepted baseline is `ngspice-46-core`, with coverage defined by the
 [machine-readable matrix](../../fixtures/spice-baseline/ngspice-46-core.json).
-The baseline is structural, not a promise of simulation equivalence.
+The baseline is structural, not a promise of simulation equivalence. A named
+grammar makes understood connectivity distinguishable from merely preserved
+syntax. The pure TypeScript frontend does not embed or execute a simulator
+to parse untrusted source.
 
 | Form                                            | Projection                                                      |
 | ----------------------------------------------- | --------------------------------------------------------------- |
@@ -85,6 +87,13 @@ XSPICE A devices, Verilog-A/OSDI N devices, XSPICE-specific U forms, CIDER,
 and vendor translations remain opaque with warnings. They are preserved
 exactly and do not block recognized surrounding circuit structure.
 
+Under the extension rule below, `ltspice-24-structural` and
+`xyce-7-structural` are versioned vendor profiles over this same grammar and
+its source, include, and opaque rules. Each has a lossless structural fixture
+in `fixtures/spice-vendors/`. Neither evaluates vendor expression or runtime
+semantics; vendor schematic directives and proprietary devices may remain
+opaque.
+
 ## Expressions and dialect evidence
 
 Official T/G/Meg/K/mil/m/u/n/p/f/a scale factors are recognized. Raw
@@ -94,10 +103,15 @@ deterministic condition selection. If a condition cannot be evaluated, all of
 its branches are excluded from Circuit IR and a warning is emitted; the source
 is not guessed or repaired.
 
-Callers may explicitly select `ngspice-46-core` or `spice3f5-core`. In auto
-mode, `.control`, `.func`, conditionals, or ngspice-specific dot commands are
+Callers may explicitly select `ngspice-46-core`, `spice3f5-core`,
+`ltspice-24-structural`, or `xyce-7-structural`. In auto mode, a statement
+beginning with `.backanno`, `.wave`, or `.netlist` selects
+`ltspice-24-structural`; otherwise an analysis-qualified `.print` or
+`.measure` (`tran`, `dc`, or `ac`) selects `xyce-7-structural`. Without either
+marker, `.control`, `.func`, conditionals, or ngspice-specific dot commands are
 recorded as evidence for `ngspice-46-core`; otherwise the shared core is
-classified as `spice3f5-core`.
+classified as `spice3f5-core`. The selected profile is reported with its
+evidence and in Circuit IR; it does not change parsing or elaboration.
 
 ## Elaboration rules
 
@@ -140,6 +154,7 @@ transient or test-fixture data.
 - exact parse/print and no-silent-loss accounting;
 - official scale-factor and conditional-expression tests;
 - `.lib` section and control-block tests;
+- vendor-profile detection and lossless-fixture tests;
 - deterministic fuzz termination/preservation tests;
 - opaque-preservation assertions;
 - hierarchy, terminal-order, parameter, and model tests;

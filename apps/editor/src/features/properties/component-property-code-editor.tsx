@@ -34,7 +34,6 @@ export interface ComponentPropertyCodeEditorProps {
   netName?: string | null;
   defaultForeground?: string;
   details?: ComponentPropertyCodeContext["details"];
-  focusRequest?: number;
   onApply: (
     value: ComponentPropertyCodeValue,
   ) => { ok: true } | { ok: false; message: string };
@@ -52,7 +51,6 @@ export function ComponentPropertyCodeEditor({
   netName,
   defaultForeground = "#000000",
   details,
-  focusRequest = 0,
   onApply,
 }: ComponentPropertyCodeEditorProps) {
   const context = useMemo<ComponentPropertyCodeContext>(
@@ -204,7 +202,6 @@ export function ComponentPropertyCodeEditor({
           historyKey={historyKey}
           context={context}
           defaultForeground={defaultForeground}
-          focusRequest={focusRequest}
           onChange={change}
         />
       </Suspense>

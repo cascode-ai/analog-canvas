@@ -32,7 +32,10 @@ import {
   magneticDisplayParameters,
 } from "@icm/derived";
 import type { SymbolResolver } from "@icm/symbols";
-import { copySelection, proposePaste } from "../features/clipboard/clipboard";
+import {
+  captureProjectCopy,
+  planProjectCopyPlacement,
+} from "../features/clipboard/project-copy";
 import { planDetachedMove } from "../features/selection/detached-move";
 import {
   planSelectionAlignment,
@@ -430,27 +433,20 @@ export function planBrowserAgentCommand(
       return { edits: plan.edits };
     }
     case "copy": {
-      const clipboard = copySelection(
+      const clipboard = captureProjectCopy(
+        project,
         document,
-        command.selection.instanceIds,
-        command.selection.draftingIds,
         command.selection,
       );
       if (!clipboard) throw new Error("The copy selection is empty");
-      const plan = proposePaste(document, clipboard, command.offset, sequence);
-      if (plan.errors.length) throw new Error(plan.errors.join("; "));
-      if (clipboard.cellTerminals.length || clipboard.formalParameters.length)
-        return {
-          structureEdits: [
-            {
-              kind: "transact_document",
-              documentId,
-              expectedRevision: document.revision,
-              edits: plan.edits,
-            },
-          ],
-        };
-      return { edits: plan.edits };
+      const plan = planProjectCopyPlacement(
+        project,
+        document,
+        clipboard,
+        command.offset,
+        sequence,
+      );
+      return { structureEdits: plan.edits };
     }
     case "detach-move": {
       const plan = planDetachedMove(

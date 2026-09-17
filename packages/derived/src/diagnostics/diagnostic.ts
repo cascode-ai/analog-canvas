@@ -8,8 +8,7 @@ import type { SymbolResolver } from "@icm/symbols";
 import { runErcChecks } from "./erc.js";
 
 /**
- * Unified diagnostic envelope and aggregation (ADR 0015 / roadmap §5.6, WP-R9
- * data layer). Distinct producer domains — schema, spice, erc, routing, visual —
+ * Unified diagnostic envelope and aggregation (Net connectivity rationale). Distinct producer domains — schema, spice, erc, routing, visual —
  * share one envelope so the diagnostic UI can group, filter, and navigate them
  * uniformly. Visual observations and electrical ERC never collapse into one
  * "error count": a visual observation is never proof of electrical correctness.
@@ -85,7 +84,6 @@ const ROUTING_VISUAL_CODES = new Set([
   "VISUAL_ROUTE_OVERLAP",
   "VISUAL_TERMINAL_DEPARTURE",
   "VISUAL_SHORT_SEGMENT",
-  "VISUAL_NON_STANDARD_WIRE_ANGLE",
   "VISUAL_AMBIGUOUS_JUNCTION",
 ]);
 

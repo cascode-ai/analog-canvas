@@ -227,6 +227,44 @@ the repaired Document revision once; parsing, Cloud opens and recovery remain
 exact. This is a bounded legacy import repair, not a runtime source-equivalence
 rule. Physical membership and authored geometry are never joined by it.
 
+## Wire cut lifecycle
+
+`cut_connection` requires one existing unlocked Route. Removing a bridge
+partitions the affected Base Net by remaining explicit Routes and confirmed
+direct contacts; global, imported, and logical-name Evidence never suppress
+that physical split. A redundant cycle keeps the original Base Net.
+The component containing the deleted Route's first surviving endpoint retains
+the original Base-Net ID (start before end); if neither endpoint survives,
+the first deterministic component is primary. Detached components receive
+deterministic new IDs. Newly orphaned Junction endpoints are removed unless
+still owned by annotations or layout references. Route-anchored annotations
+must be removed by a preceding typed edit in the same transaction.
+
+The [Edit Engine](edit-engine.md#operations-and-state-transitions) owns
+transaction atomicity, revision and Undo. GUI deletion supplies the annotation
+closure before cutting; geometry-only removal is a distinct explicit edit.
+
+## Shared read and diagnostic boundary
+
+[ProjectConnectivityIndex](../../packages/derived/src/connectivity-index.ts)
+is a derived read model, not persisted connectivity. Document contexts are
+reused by identity, revision and resolver; guidance is derived once per
+Document. Project aggregation does not promise constant-time rebuilding.
+Selection is not electrical input.
+
+Search, trace and diagnostic navigation share the model's ObjectLocator and
+HierarchyFrame contracts. Paths distinguish concrete callers of reused Cells;
+an unresolved path never selects a guessed occurrence. Logical-Net IDs are
+revision-scoped representatives and must be refreshed after edits.
+
+Endpoint readiness separates physical membership from accepted intent, so a
+singleton pin is not connected merely because it has a Base Net. ERC and
+downstream checks consume the shared assessment rather than another stored
+status. The [diagnostic envelope](../../packages/derived/src/diagnostics/diagnostic.ts)
+keeps domains, confidence, severity and gate eligibility distinct.
+[Editor interaction](editor-interaction.md) owns explicit checking and stale
+result/navigation behavior; checks do not veto Save.
+
 ## Imported routing guidance
 
 SPICE import creates electrical membership before drawing and persists one
@@ -256,9 +294,17 @@ coordinates.
 
 ## Net naming and lifecycle
 
-Base Nets remain physical connectivity; Logical Nets are derived from
-owner-addressed `name-claim` evidence. Reusing a spelling never merges Route
-geometry.
+Base Nets remain physical connectivity. The pure Logical-Net resolver joins
+distinct Base Nets through folded authoritative names in the same scope or
+matching formal Cell-Pin names. The [model](schematic-model.md#electrical-authority)
+owns those declarations and their marker identities. Reusing a spelling never
+merges Route geometry. `net-name-hint` and `spice-source` are provenance only
+and never join Nets.
+
+Equal-folded local and global claims on an already-connected group derive an
+effective global scope without rewriting either owner. Disconnected
+local/global claims remain separate; different-name scope combinations and
+incompatible power claims remain explicit errors.
 
 The strict `connect_endpoints` primitive does not implicitly merge two Base
 Nets. The authoring planner explicitly emits `merge_nets` first. If their
@@ -269,10 +315,11 @@ formal Cell interfaces, and labels on other Base Nets remain. Incompatible
 power domains are rejected, and any unresolved contract conflict still rejects
 the atomic transaction.
 
-This describes the implemented boundary, not a settled policy that joining
-should always discard names. In particular, retiring a label can change remote
-name-based connectivity; the [Net-join naming decision](../roadmap/README.md#net-join-naming-decision)
-remains open.
+This is the accepted explicit-join behavior: neither conflicting ordinary Label
+is chosen as the surviving name. Retiring these owners can remove name-based
+connections to remote Base Nets; those remote Labels are not themselves deleted.
+The resulting Logical Nets are derived from the remaining owners. Label removal
+and connection are one atomic, undoable operation.
 
 Name claims resolve by scope and folded name inside the containing Document.
 Flattened Document composition copies those owner-addressed claims into the

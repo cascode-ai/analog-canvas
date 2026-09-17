@@ -20,7 +20,7 @@ against. They describe required behavior and invariants, not task history.
 | [`visual-language.md`](visual-language.md)                   | accepted | Razavi visual tokens, annotations, overlays, golden output                                  |
 | [`razavi-visual-contract.md`](razavi-visual-contract.md)     | accepted | Razavi authority, construction, interface-symbol semantics, exposure, and pixel fidelity    |
 | [`agent-api.md`](agent-api.md)                               | accepted | API 3.0 Snapshot, typed edits, render, permissions, and sibling resources                   |
-| [`persistence-and-recovery.md`](persistence-and-recovery.md) | accepted | Atomic save, AppData cache/session/recovery, migrations                                     |
+| [`persistence-and-recovery.md`](persistence-and-recovery.md) | accepted | Cloud Project save, browser recovery records, unsaved state, recovery migration             |
 | [`export.md`](export.md)                                     | accepted | Formal SVG source and derived PNG/PDF contracts                                             |
 | [`netlist-export.md`](netlist-export.md)                     | accepted | Deterministic structural SPICE/Spectre export and diagnostics                               |
 | [`netlist-conversion.md`](netlist-conversion.md)             | accepted | SPICE/SCS structural conversion, HTTP protocol and import rejection boundaries              |
@@ -33,17 +33,42 @@ Create a specification when a stable cross-module contract is needed; do not
 create empty files only to mirror this table. Start from
 [`spec.template.md`](spec.template.md).
 
+## Contract ownership
+
+| Boundary                                               | Sole owner                                  | Other consumers                                                       |
+| ------------------------------------------------------ | ------------------------------------------- | --------------------------------------------------------------------- |
+| Persisted electrical objects and formal declarations   | [Schematic model](schematic-model.md)       | Connectivity, editing and export reference these facts                |
+| Logical equivalence, contacts, cut and owner lifecycle | [Connectivity](connectivity-and-routing.md) | Model, transactions and netlist extraction consume the same semantics |
+| Atomic mutation, revisions, failure and Undo           | [Edit Engine](edit-engine.md)               | GUI and Agent supply typed intent                                     |
+| Extraction, dialect printing and export refusal        | [Netlist export](netlist-export.md)         | Does not redefine saved objects or electrical equivalence             |
+| Formal scene, text/formulas and overlays               | [Visual language](visual-language.md)       | Canvas and exporters share composition                                |
+| Reviewed artwork, style and fidelity                   | [Razavi](razavi-visual-contract.md)         | Exact values live in linked executable configuration                  |
+| Gestures, selection, previews and controls             | [Editor interaction](editor-interaction.md) | References model/engine semantics rather than owning them             |
+
+Project file format and persistence/recovery remain separate protocol and
+lifecycle boundaries. Simulation source, execution and numeric results likewise
+remain separate contracts, including their currently supported compatibility.
+
 ## Specification Rules
 
-- State status and ownership. State a version only for an independently
-  versioned contract, and link related ADRs when architectural rationale is
-  required.
-- Define invariants and failure behavior, not only successful examples.
-- Include at least one valid example and one rejected example.
-- Distinguish persisted data, transient data, and derived data.
-- Name deterministic validation that demonstrates the contract.
-- Changes after acceptance require compatibility analysis and, when
-  architectural, an ADR.
-- A package-internal experiment does not become a normative product
-  specification merely because code remains in the repository. Its local
-  README and tests own that implementation until the product adopts it.
+Follow the [documentation policy](../README.md). A topic owns its contract once;
+other specs, guides and ADRs link to that owner instead of redefining it.
+
+- State status, accountable module and scope. Use a version only when the
+  contract has an independent version.
+- Describe invariants, ownership, meaningful transitions and failure behavior.
+  Distinguish persisted, transient and derived facts where relevant.
+- Link canonical schemas and focused tests instead of copying full interfaces
+  or validation commands. Add small examples only when they clarify a boundary.
+- Include short design reasons beside the rule. A separate ADR is optional
+  and must pass its [retention test](../adr/README.md#retention-test).
+- Review compatibility when changing an accepted contract; describe the current
+  supported boundary, not the history of every migration.
+- Omit irrelevant template sections. Keep unresolved product decisions in the
+  roadmap rather than calling them accepted behavior.
+- Package-internal experiments stay with their local README and tests until
+  adopted as product contracts.
+
+When code disagrees, inspect behavior and consequences before choosing which
+side to correct. Neither existing code nor an accepted status proves a rule
+is reasonable.

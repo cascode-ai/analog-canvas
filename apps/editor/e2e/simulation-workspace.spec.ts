@@ -1414,7 +1414,7 @@ test("human simulation uses saved folder, survives minimizing, recovers a bad in
     "write out.raw",
     "tran 1e-9 1e-6 0 5e-10",
     "meas tran at_one_tau FIND v(vout) AT=1e-9",
-    "* @spec at_one_tau <= 2 unit=V",
+    '* @spec at_one_tau <= 2 unit=V label={"runs":[{"kind":"text","value":"V"},{"kind":"span","style":"subscript","children":[{"kind":"text","value":"out"}]}]}',
     "write out.raw",
     "noise v(vout) VINP dec 10 1 1e6",
     "write out.raw",
@@ -1484,9 +1484,28 @@ test("human simulation uses saved folder, survives minimizing, recovers a bad in
   await expect(panel.locator(".simulation-console-view > pre")).toBeVisible();
   await panel.getByRole("tab", { name: "Specs", exact: true }).click();
   const specs = panel.getByRole("region", { name: "Specification results" });
+  const measurementRow = specs.getByRole("row").filter({ hasText: "Vout" });
+  await expect(measurementRow).toContainText("Pass");
+  await expect(measurementRow.locator("sub")).toHaveText("out");
   await expect(
-    specs.getByRole("row").filter({ hasText: "at_one_tau" }),
-  ).toContainText("Pass");
+    measurementRow.locator(".simulation-spec-unit").first(),
+  ).toHaveText("mV");
+  await expect(
+    measurementRow.locator(".simulation-spec-number").first(),
+  ).toHaveCSS("text-align", "right");
+  const cells = await measurementRow.locator("th, td").evaluateAll((elements) =>
+    elements.map((element) => {
+      const rect = element.getBoundingClientRect();
+      return { top: rect.top, height: rect.height };
+    }),
+  );
+  expect(
+    cells.every(
+      (cell) =>
+        Math.abs(cell.top - cells[0]!.top) < 1 &&
+        Math.abs(cell.height - cells[0]!.height) < 1,
+    ),
+  ).toBe(true);
   await expect(
     panel.getByRole("tab", { name: /^(Plot|Operating Point|Compare)$/ }),
   ).toHaveCount(0);
@@ -1694,7 +1713,7 @@ test("human simulation uses saved folder, survives minimizing, recovers a bad in
   expect(executions).toBe(3);
 });
 
-test("Simulation creates an ordinary testbench and defaults a new experiment to the current Cell", async ({
+test("Simulation defaults a new experiment to an ordinary authored Cell", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -1702,11 +1721,23 @@ test("Simulation creates an ordinary testbench and defaults a new experiment to 
     .locator(".command-menu > summary")
     .filter({ hasText: "Edit" })
     .click();
-  await page.getByRole("button", { name: "New Testbench Cell…" }).click();
-  const dialog = page.getByRole("dialog", { name: "New Testbench Cell" });
-  await expect(dialog.getByLabel("DUT Cell")).toHaveValue("document-main");
-  await expect(dialog.getByText("Auto-derived")).toBeVisible();
-  await dialog.getByRole("button", { name: "Create Testbench" }).click();
+  await page.getByRole("button", { name: "Manage Cells…" }).click();
+  const manager = page.getByRole("dialog", { name: "Cell Manager" });
+  await manager.getByRole("button", { name: "New Cell" }).click();
+  const newCell = page.getByRole("dialog", { name: "New Cell" });
+  await newCell.getByLabel("Cell name").fill("Testbench");
+  await newCell.getByRole("button", { name: "Create" }).click();
+  await page
+    .locator(".command-menu > summary")
+    .filter({ hasText: "Edit" })
+    .click();
+  await page
+    .getByRole("button", { name: "Place Cell from this Project…" })
+    .click();
+  await page
+    .getByRole("dialog", { name: "Place Hierarchical Cell" })
+    .getByRole("option", { name: /dut/u })
+    .click();
   await page
     .getByTestId("schematic-canvas")
     .click({ position: { x: 320, y: 180 } });
@@ -1714,7 +1745,9 @@ test("Simulation creates an ordinary testbench and defaults a new experiment to 
   const saved = JSON.parse(
     (await downloadBytes(page, "File", "Export Project File…")).toString(),
   );
-  const tb = saved.documents.find((d: { name: string }) => d.name === "dut_tb");
+  const tb = saved.documents.find(
+    (d: { name: string }) => d.name === "Testbench",
+  );
   expect(tb.instances[0].netlist.binding).toEqual({
     kind: "subcircuit",
     childDocumentId: "document-main",

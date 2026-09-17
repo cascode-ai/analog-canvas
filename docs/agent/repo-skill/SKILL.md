@@ -1,0 +1,21 @@
+---
+name: circuit-layout
+description: Read, generate, place, route, inspect and refine transistor-level or passive Analog Canvas schematics using current circuit facts and typed edits. Use for circuit layout, hierarchy, visual diagnostics, Razavi-style cleanup and human/Agent handoff; not editor development or deployment.
+---
+
+# Circuit layout
+
+Select the user's actual transport before operating. Read the generated task
+reading map at `references/manifest.md` in this Skill's installed directory:
+MCP uses its quickstart; the shared-client CLI uses its lifecycle guide; raw
+HTTP uses the Kit workflow and current published OpenAPI. Never silently switch.
+
+For construction or layout, read the schematic workflow and native authoring
+contract. Select tool behavior and response semantics for the operation. Read
+circuit style guidance before placement or visual acceptance. Load hierarchy,
+PDK, routing and pattern cards only when the task or Snapshot calls for them.
+Use returned facts, not a card title, as electrical evidence.
+
+Follow those canonical rules; this Skill is a task navigator, not a second copy
+of mutation, recovery or completion policy. Product development belongs to
+the repository working rules and documentation maintenance guide.
