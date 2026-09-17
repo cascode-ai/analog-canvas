@@ -14,7 +14,6 @@ import {
   clickNetlistWorkflowCommand,
   downloadBytes,
   editComponentPropertyCode,
-  editDocumentStyleCode,
   readComponentPropertyCode,
   readDocumentStyleCode,
   setComponentParameter,
@@ -5443,7 +5442,7 @@ test("directional marquee: window needs full coverage, crossing selects on touch
   ).toBe("");
 });
 
-test("docked Style code scales fonts document-wide and resets appearance", async ({
+test("docked Style JSON offers bounded choices, scales fonts, and resets appearance", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -5451,7 +5450,7 @@ test("docked Style code scales fonts document-wide and resets appearance", async
   const label = page.locator('[data-kind="instance-label"]').first();
   await expect(label).toHaveAttribute("font-size", "15.116");
 
-  // Style stays beside the canvas as one copyable JSON surface.
+  // Style stays one copyable JSON surface; bounded values gain inline menus.
   await clickDrawTool(page, "document-style");
   const settings = page.getByLabel("Document settings");
   await expect(settings).toBeVisible();
@@ -5460,11 +5459,13 @@ test("docked Style code scales fonts document-wide and resets appearance", async
   await expect(
     settings.getByLabel("Editable document Style code"),
   ).toBeVisible();
-  await expect(settings.locator("select")).toHaveCount(0);
+  await expect(settings.locator(".cm-netlist-target-select")).toHaveCount(11);
+  await expect(settings.getByLabel("Font size options")).toBeVisible();
+  await expect(
+    settings.getByLabel("Default NMOS bulk Net options"),
+  ).toBeVisible();
 
-  await editDocumentStyleCode(page, (code) => {
-    code.appearance.fontScale = 1.5;
-  });
+  await settings.getByLabel("Font size options").selectOption("1.5");
   await expect(label).toHaveAttribute("font-size", "22.674");
   await expect(page.getByTestId("status")).toContainText("Updated Style code");
 

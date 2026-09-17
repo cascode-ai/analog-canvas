@@ -10,6 +10,10 @@ import {
   type CanvasPreferenceCodeValue,
   type DocumentSettingsCodeValue,
 } from "./document-settings-code";
+import {
+  documentSettingsCodeChanges,
+  documentSettingsCodeSpans,
+} from "./document-settings-code-assists";
 
 const canvas: CanvasPreferenceCodeValue = {
   showGrid: true,
@@ -30,6 +34,19 @@ function editableValue(): DocumentSettingsCodeValue {
     bulkDefaults: { nmosNet: null, pmosNet: null },
     canvas: { ...canvas },
   };
+}
+
+function applyChanges(
+  source: string,
+  changes: readonly { from: number; to: number; insert: string }[],
+): string {
+  return [...changes]
+    .reverse()
+    .reduce(
+      (text, change) =>
+        text.slice(0, change.from) + change.insert + text.slice(change.to),
+      source,
+    );
 }
 
 describe("document Style code", () => {
@@ -119,5 +136,59 @@ describe("document Style code", () => {
       bulkDefaults: { nmosNet: "net-ground", pmosNet: null },
       canvas: changedCanvas,
     });
+  });
+
+  it("offers inline choices for every bounded value and current Logical Net", () => {
+    const document = createEmptyDocument("document-main", "Main");
+    document.nets.push({ id: "net-ground", terminals: [] });
+    const source = serializeDocumentSettingsCode(editableValue());
+    const spans = documentSettingsCodeSpans(source, document);
+
+    expect(spans).toHaveLength(11);
+    expect(
+      spans.find((span) => span.field.path === "appearance.fontScale")?.field
+        .options,
+    ).toContainEqual({ value: 1, label: "Default · 1×" });
+    expect(
+      spans.find((span) => span.field.path === "bulkDefaults.nmosNet")?.field
+        .options,
+    ).toEqual([
+      { value: null, label: "None" },
+      { value: "net-ground", label: "net-ground" },
+    ]);
+
+    const changed = applyChanges(
+      source,
+      documentSettingsCodeChanges(source, document, {
+        "appearance.fontScale": 1.5,
+        "bulkDefaults.nmosNet": "net-ground",
+        "canvas.showGrid": false,
+      }),
+    );
+    expect(JSON.parse(changed)).toMatchObject({
+      appearance: { fontScale: 1.5 },
+      bulkDefaults: { nmosNet: "net-ground" },
+      canvas: { showGrid: false },
+    });
+  });
+
+  it("does not offer a control edit that violates the canonical parser", () => {
+    const document = createEmptyDocument("document-main", "Main");
+    const source = serializeDocumentSettingsCode(editableValue());
+    expect(
+      documentSettingsCodeChanges(source, document, {
+        "appearance.fontScale": 3,
+      }),
+    ).toEqual([]);
+    expect(
+      documentSettingsCodeChanges(source, document, {
+        "bulkDefaults.nmosNet": "missing-net",
+      }),
+    ).toEqual([]);
+    expect(
+      documentSettingsCodeChanges(source.slice(0, -1), document, {
+        "canvas.showGrid": false,
+      }),
+    ).toEqual([]);
   });
 });
