@@ -58,7 +58,7 @@
   "externalSubcircuitDefinitions": [],
   "id": "project-phase-1-manual",
   "name": "Phase 1 Manual Editor",
-  "schemaVersion": 56,
+  "schemaVersion": 57,
   "simulationFolders": [],
   "source": {
     "dialect": "none",

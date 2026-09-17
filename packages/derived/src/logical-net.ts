@@ -118,6 +118,11 @@ export function resolveDocumentLogicalNets(
         return instance ? [instance] : [];
       },
     );
+    const interfaceAnnotation = terminal.interfaceAnnotationId
+      ? document.annotations.find(
+          (candidate) => candidate.id === terminal.interfaceAnnotationId,
+        )
+      : undefined;
     const matchingGlobalClaim = document.connectivityEvidence.some(
       (evidence) =>
         evidence.kind === "name-claim" &&
@@ -130,11 +135,11 @@ export function resolveDocumentLogicalNets(
       netId: terminal.netId,
       name: terminal.name,
       scope: matchingGlobalClaim ? ("global" as const) : ("local" as const),
-      powerDomain: interfaceInstances.some(
-        (instance) => instance.symbolId === "vdd-port",
-      )
-        ? ("vdd" as const)
-        : ("none" as const),
+      powerDomain:
+        interfaceAnnotation?.kind === "power-label" ||
+        interfaceInstances.some((instance) => instance.symbolId === "vdd-port")
+          ? ("vdd" as const)
+          : ("none" as const),
     };
   });
   for (const evidence of document.connectivityEvidence) {

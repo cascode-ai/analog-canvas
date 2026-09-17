@@ -223,9 +223,68 @@ describe("drawn VDD rail construction", () => {
     expect(result.document.annotations).toMatchObject([
       {
         kind: "power-label",
-        binding: { kind: "net-name", netId: "net-power-vdd1" },
+        binding: {
+          kind: "cell-terminal-name",
+          terminalId: expect.any(String),
+        },
       },
     ]);
+    expect(result.document.netlist?.terminals).toEqual([
+      expect.objectContaining({
+        name: "VDD",
+        netId: "net-power-vdd1",
+        direction: "inout",
+        interfaceInstanceIds: [],
+        interfaceAnnotationId: "label-VDD1",
+      }),
+    ]);
+  });
+
+  it("renames the local Rail terminal and its owned name claim atomically", () => {
+    const document = createEmptyDocument("main", "Main");
+    const created = executeTransaction(document, {
+      transactionId: "draw-vdd-rail",
+      documentId: document.id,
+      expectedRevision: document.revision,
+      actor: { kind: "human", id: "test" },
+      edits: constructVddRailEdits({
+        instanceId: "VDD1",
+        start: { x: 40, y: 20 },
+        end: { x: 180, y: 20 },
+      }),
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+    const terminal = created.document.netlist!.terminals[0]!;
+
+    const renamed = executeTransaction(created.document, {
+      transactionId: "rename-vdd-rail",
+      documentId: created.document.id,
+      expectedRevision: created.document.revision,
+      actor: { kind: "human", id: "test" },
+      edits: [
+        {
+          kind: "update_cell_terminal",
+          terminalId: terminal.id,
+          name: "AVDD",
+        },
+      ],
+    });
+    expect(renamed.ok).toBe(true);
+    if (!renamed.ok) return;
+    expect(renamed.document.netlist?.terminals[0]?.name).toBe("AVDD");
+    expect(renamed.document.connectivityEvidence).toContainEqual(
+      expect.objectContaining({
+        kind: "name-claim",
+        name: "AVDD",
+        owner: { kind: "power-marker", objectId: "label-VDD1" },
+      }),
+    );
+    expect(
+      resolveDocumentLogicalNets(renamed.document).byBaseNetId.get(
+        "net-power-vdd1",
+      ),
+    ).toMatchObject({ name: "AVDD", powerDomain: "vdd", scope: "local" });
   });
 
   it("commits a vertical Power Rail with its label at the visual top end", () => {
@@ -336,10 +395,15 @@ describe("drawn VDD rail construction", () => {
       ["route-vdd1-rail"],
       [],
     );
-    expect(proposal.edits[0]).toEqual({
-      kind: "remove_schematic_annotation",
-      annotationId: "label-VDD1",
-    });
+    expect(proposal.edits).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: "remove_cell_terminal" }),
+        {
+          kind: "remove_schematic_annotation",
+          annotationId: "label-VDD1",
+        },
+      ]),
+    );
     const deleted = executeTransaction(
       created.document,
       {
@@ -352,7 +416,7 @@ describe("drawn VDD rail construction", () => {
       { symbolResolver: resolver },
     );
 
-    expect(deleted.ok).toBe(true);
+    expect(deleted.ok, JSON.stringify(deleted)).toBe(true);
     if (!deleted.ok) return;
     expect(deleted.document.routes).toEqual([]);
     expect(deleted.document.junctions).toEqual([]);
@@ -502,7 +566,7 @@ describe("a drawn rail meeting an existing wire", () => {
       { x: 50, y: 200 },
       { x: 50, y: 300 },
     );
-    expect(gate.ok).toBe(true);
+    expect(gate.ok, JSON.stringify(gate)).toBe(true);
     if (!document) return;
     const railEnd = document.junctions.find(
       (junction) => junction.id === "junction-vdd1-end",

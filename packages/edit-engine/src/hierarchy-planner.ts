@@ -1596,6 +1596,11 @@ export function planRemoveCellTerminals(
   const terminalInstanceIds = new Set(
     terminals.flatMap((terminal) => terminal.interfaceInstanceIds),
   );
+  const terminalAnnotationIds = new Set(
+    terminals.flatMap((terminal) =>
+      terminal.interfaceAnnotationId ? [terminal.interfaceAnnotationId] : [],
+    ),
+  );
   const resolver = createProjectSymbolResolver(project, builtInSymbols);
   const lifecycleEdits =
     instanceDeletionEdits ??
@@ -1610,10 +1615,34 @@ export function planRemoveCellTerminals(
   );
   const edits: DocumentEdits = [
     ...lifecycleEdits.filter((edit) => edit.kind !== "remove_instance"),
-    ...terminals.map((terminal) => ({
-      kind: "remove_cell_terminal" as const,
-      terminalId: terminal.id,
-    })),
+    ...document.annotations
+      .filter(
+        (annotation) =>
+          terminalAnnotationIds.has(annotation.id) &&
+          !lifecycleEdits.some(
+            (edit) =>
+              edit.kind === "remove_schematic_annotation" &&
+              edit.annotationId === annotation.id,
+          ),
+      )
+      .map((annotation) => ({
+        kind: "remove_schematic_annotation" as const,
+        annotationId: annotation.id,
+      })),
+    ...terminals.flatMap((terminal) =>
+      lifecycleEdits.some(
+        (edit) =>
+          edit.kind === "remove_cell_terminal" &&
+          edit.terminalId === terminal.id,
+      )
+        ? []
+        : [
+            {
+              kind: "remove_cell_terminal" as const,
+              terminalId: terminal.id,
+            },
+          ],
+    ),
     ...instanceRemovalEdits,
   ];
   const callerChanges = planCallerInterfaceChanges(

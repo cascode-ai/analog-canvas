@@ -28,6 +28,71 @@ import {
 const resolver = new InMemorySymbolResolver(builtInSymbols);
 
 describe("schematic clipboard", () => {
+  it("copies a local Power Rail with its formal Cell Pin ownership", () => {
+    const source = createEmptyDocument("source", "Source");
+    const created = executeTransaction(
+      source,
+      {
+        transactionId: "create-local-rail",
+        documentId: source.id,
+        expectedRevision: source.revision,
+        actor: { kind: "human", id: "test" },
+        edits: [
+          {
+            kind: "add_power_rail",
+            netId: "rail-net",
+            routeId: "rail-route",
+            startJunctionId: "rail-start",
+            endJunctionId: "rail-end",
+            labelId: "rail-label",
+            netName: "AVDD",
+            scope: "local",
+            powerDomain: "vdd",
+            start: { x: 0, y: 0 },
+            end: { x: 100, y: 0 },
+          },
+        ],
+      },
+      { symbolResolver: resolver },
+    );
+    if (!created.ok) throw new Error(created.error.message);
+    const clipboard = copySelection(created.document, [], [], {
+      routeIds: ["rail-route"],
+      junctionIds: [],
+      annotationIds: [],
+    });
+    expect(clipboard?.cellTerminals).toEqual([
+      expect.objectContaining({
+        name: "AVDD",
+        interfaceAnnotationId: "rail-label",
+      }),
+    ]);
+
+    const target = createEmptyDocument("target", "Target");
+    const proposal = proposePaste(target, clipboard!, { x: 200, y: 0 }, 1);
+    expect(proposal.errors).toEqual([]);
+    const pasted = executeTransaction(
+      target,
+      {
+        transactionId: "paste-local-rail",
+        documentId: target.id,
+        expectedRevision: target.revision,
+        actor: { kind: "human", id: "test" },
+        edits: proposal.edits,
+      },
+      { symbolResolver: resolver },
+    );
+    expect(pasted.ok, JSON.stringify(pasted)).toBe(true);
+    if (!pasted.ok) return;
+    const terminal = pasted.document.netlist!.terminals[0]!;
+    expect(terminal.name).toBe("AVDD");
+    expect(
+      pasted.document.annotations.some(
+        (annotation) => annotation.id === terminal.interfaceAnnotationId,
+      ),
+    ).toBe(true);
+  });
+
   it("copies inherited Ground authority onto the selected marker's new Base Net", () => {
     const document = createEmptyDocument("legacy-gnd", "Ground");
     document.instances.push(

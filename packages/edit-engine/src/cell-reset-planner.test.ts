@@ -134,6 +134,59 @@ function applyPlan(
 }
 
 describe("Cell reset lifecycle planner", () => {
+  it("retains a Power Rail-owned formal Pin through body reset", () => {
+    const project = createEmptyProject("rail-reset", "Rail reset", "main");
+    const document = project.documents[0]!;
+    const history = new DocumentHistory(document);
+    expect(
+      history.transact({
+        transactionId: "add-rail",
+        documentId: document.id,
+        expectedRevision: document.revision,
+        actor: { kind: "human", id: "test" },
+        edits: [
+          {
+            kind: "add_power_rail",
+            netId: "rail-net",
+            routeId: "rail-route",
+            startJunctionId: "rail-start",
+            endJunctionId: "rail-end",
+            labelId: "rail-label",
+            netName: "VDD",
+            scope: "local",
+            powerDomain: "vdd",
+            start: { x: 0, y: 0 },
+            end: { x: 100, y: 0 },
+          },
+        ],
+      }).ok,
+    ).toBe(true);
+    project.documents[0] = history.document;
+    const reset = planCellReset(project, document.id, "reset-body");
+    expect(
+      history.transact({
+        transactionId: "reset-body",
+        documentId: document.id,
+        expectedRevision: history.document.revision,
+        actor: { kind: "human", id: "test" },
+        edits: [...reset.edits],
+      }).ok,
+    ).toBe(true);
+    expect(history.document.netlist?.terminals).toEqual([
+      expect.objectContaining({
+        name: "VDD",
+        interfaceAnnotationId: "rail-label",
+      }),
+    ]);
+    expect(history.document.annotations.map((item) => item.id)).toEqual([
+      "rail-label",
+    ]);
+    expect(history.document.junctions.map((item) => item.id)).toEqual([
+      "rail-end",
+    ]);
+    expect(history.document.routes).toEqual([]);
+  });
+
   it("clears drawing geometry without deleting logical objects", () => {
     const { project, child } = fixture();
     const plan = planCellReset(project, child.id, "clear-drawing");

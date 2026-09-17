@@ -179,9 +179,10 @@ Canonical MOS ordering is D/G/S/B. Ground is a Net marker that verifies the
 explicit global Logical Net `0` and emits no instance line. Newly authored VDD
 Power is a non-emitting formal Cell Pin with derived `powerDomain: vdd`; its
 Properties connection mode may instead replace that formal terminal with an
-explicit Global marker claim. A named Power Rail has no Instance and defaults
-to a local VDD claim. Only an explicitly global Net is emitted through the
-dialect's global declaration.
+explicit Global marker claim. A local Power Rail has no Instance but its visible
+power-label annotation owns a formal Cell terminal, so its authored name appears
+in the `.subckt` interface. An explicitly global Power Rail has no formal
+terminal and is emitted through the dialect's global declaration.
 Decorative symbols never have a device definition. An unsupported electrical
 Symbol blocks export.
 

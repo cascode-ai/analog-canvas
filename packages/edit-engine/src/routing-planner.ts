@@ -1312,6 +1312,13 @@ export function proposeVisualRouteDeletion(
   const removedAnnotationIds = [
     ...new Set([...removedRouteAnnotationIds, ...removedPowerLabelIds]),
   ].sort((a, b) => a.localeCompare(b, "en"));
+  const removedFormalTerminalIds = (document.netlist?.terminals ?? []).flatMap(
+    (terminal) =>
+      terminal.interfaceAnnotationId &&
+      removedAnnotationIds.includes(terminal.interfaceAnnotationId)
+        ? [terminal.id]
+        : [],
+  );
   // `cut_connection` removes a junction that becomes orphaned. Only a selected
   // junction already detached before this transaction needs an explicit edit;
   // otherwise a second remove would reject the transaction.
@@ -1360,6 +1367,10 @@ export function proposeVisualRouteDeletion(
     junctionIds: sortedJunctionIds,
     annotationIds: removedAnnotationIds,
     edits: [
+      ...removedFormalTerminalIds.map((terminalId): SchematicEdit => ({
+        kind: "remove_cell_terminal",
+        terminalId,
+      })),
       ...removedAnnotationIds.map((annotationId): SchematicEdit => ({
         kind: "remove_schematic_annotation",
         annotationId,

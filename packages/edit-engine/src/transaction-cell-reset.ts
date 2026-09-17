@@ -98,8 +98,11 @@ export function applyCellResetEdit(
         }));
       const retainedAnnotations = draft.annotations.filter(
         (annotation) =>
-          annotation.anchor.kind === "object" &&
-          cellPinInstanceIds.has(annotation.anchor.objectId),
+          (annotation.anchor.kind === "object" &&
+            cellPinInstanceIds.has(annotation.anchor.objectId)) ||
+          draft.netlist?.terminals.some(
+            (terminal) => terminal.interfaceAnnotationId === annotation.id,
+          ),
       );
       const retainedAnnotationIds = new Set(
         retainedAnnotations.map((annotation) => annotation.id),
@@ -119,10 +122,18 @@ export function applyCellResetEdit(
             );
         }
       });
+      const retainedJunctions = draft.junctions.filter((junction) =>
+        retainedAnnotations.some(
+          (annotation) =>
+            annotation.anchor.kind === "object" &&
+            annotation.anchor.objectId === junction.id,
+        ),
+      );
       const retainedIds = new Set([
         ...retainedInstances.map((instance) => instance.id),
         ...retainedNets.map((net) => net.id),
         ...retainedAnnotations.map((annotation) => annotation.id),
+        ...retainedJunctions.map((junction) => junction.id),
         ...retainedEvidence.map((evidence) => evidence.id),
       ]);
       for (const object of [
@@ -148,7 +159,7 @@ export function applyCellResetEdit(
       draft.instances = retainedInstances;
       draft.nets = retainedNets;
       draft.routes = [];
-      draft.junctions = [];
+      draft.junctions = retainedJunctions;
       draft.noConnects = [];
       draft.annotations = retainedAnnotations;
       draft.connectivityEvidence = retainedEvidence;

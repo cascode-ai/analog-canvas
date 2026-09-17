@@ -625,8 +625,11 @@ export function clipboardPreviewDocument(
           annotationIds.has(annotation.id),
         );
         const cellTerminals =
-          result.document.netlist?.terminals.filter((terminal) =>
-            terminal.interfaceInstanceIds.some((id) => instanceIds.has(id)),
+          result.document.netlist?.terminals.filter(
+            (terminal) =>
+              terminal.interfaceInstanceIds.some((id) => instanceIds.has(id)) ||
+              (terminal.interfaceAnnotationId !== undefined &&
+                annotationIds.has(terminal.interfaceAnnotationId)),
           ) ?? [];
         const netIds = new Set([
           ...Object.values(proposal.idRemap.nets),
@@ -864,8 +867,17 @@ export function copySelection(
         const interfaceInstanceIds = terminal.interfaceInstanceIds.filter(
           (instanceId) => selectedIds.has(instanceId),
         );
-        return interfaceInstanceIds.length > 0
-          ? [{ ...terminal, interfaceInstanceIds }]
+        const interfaceAnnotationId = terminal.interfaceAnnotationId;
+        return interfaceInstanceIds.length > 0 ||
+          (interfaceAnnotationId !== undefined &&
+            annotationIds.has(interfaceAnnotationId))
+          ? [
+              {
+                ...terminal,
+                interfaceInstanceIds,
+                ...(interfaceAnnotationId ? { interfaceAnnotationId } : {}),
+              },
+            ]
           : [];
       }) ?? [],
     formalParameters: [],
@@ -1274,7 +1286,10 @@ export function proposePaste(
         return copiedId ? [copiedId] : [];
       },
     );
-    if (copiedMarkerIds.length === 0) continue;
+    const copiedAnnotationId = terminal.interfaceAnnotationId
+      ? annotationIds.get(terminal.interfaceAnnotationId)
+      : undefined;
+    if (copiedMarkerIds.length === 0 && !copiedAnnotationId) continue;
     edits.push({
       kind: "add_cell_terminal",
       terminal: {
@@ -1282,6 +1297,9 @@ export function proposePaste(
         id: terminalIds.get(terminal.id)!,
         netId: netIds.get(terminal.netId) ?? terminal.netId,
         interfaceInstanceIds: copiedMarkerIds,
+        ...(copiedAnnotationId
+          ? { interfaceAnnotationId: copiedAnnotationId }
+          : {}),
       },
     });
   }

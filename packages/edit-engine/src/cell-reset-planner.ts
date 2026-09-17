@@ -99,8 +99,11 @@ export function planCellReset(
     );
     const retainedAnnotationIds = new Set(
       document.annotations.flatMap((annotation) =>
-        annotation.anchor.kind === "object" &&
-        cellPinInstanceIds.has(annotation.anchor.objectId)
+        (annotation.anchor.kind === "object" &&
+          cellPinInstanceIds.has(annotation.anchor.objectId)) ||
+        document.netlist?.terminals.some(
+          (terminal) => terminal.interfaceAnnotationId === annotation.id,
+        )
           ? [annotation.id]
           : [],
       ),

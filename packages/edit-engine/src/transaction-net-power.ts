@@ -89,12 +89,19 @@ export function applyNetPowerEdit(
           "A power rail must be one non-zero axis-aligned segment",
         );
       }
+      const terminalId = deriveStableId(
+        "cell-terminal",
+        draft.id,
+        "power-rail",
+        edit.labelId,
+      );
       const ids = [
         edit.netId,
         edit.routeId,
         edit.startJunctionId,
         edit.endJunctionId,
         edit.labelId,
+        ...(edit.scope === "local" ? [terminalId] : []),
       ];
       if (new Set(ids).size !== ids.length) {
         return rejectAt("EDIT_PRECONDITION", "Power rail IDs must be distinct");
@@ -108,6 +115,7 @@ export function applyNetPowerEdit(
         ...draft.routes.map((route) => route.id),
         ...draft.junctions.map((junction) => junction.id),
         ...draft.annotations.map((annotation) => annotation.id),
+        ...(draft.netlist?.terminals.map((terminal) => terminal.id) ?? []),
         ...(draft.drafting?.objects.map((object) => object.id) ?? []),
         ...draft.layoutGroups.map((group) => group.id),
         ...draft.constraints.map((constraint) => constraint.id),
@@ -131,6 +139,12 @@ export function applyNetPowerEdit(
           : edit.end;
       const labelJunctionId =
         labelEndpoint === edit.end ? edit.endJunctionId : edit.startJunctionId;
+      if (edit.scope === "local" && !draft.netlist) {
+        return rejectAt(
+          "EDIT_PRECONDITION",
+          "A local power rail requires a formal Cell interface",
+        );
+      }
       if (!existingSupplyNet) {
         draft.nets.push({
           id: edit.netId,
@@ -166,7 +180,10 @@ export function applyNetPowerEdit(
         AnnotationSchema.parse({
           id: edit.labelId,
           kind: "power-label",
-          binding: { kind: "net-name", netId: edit.netId },
+          binding:
+            edit.scope === "local"
+              ? { kind: "cell-terminal-name", terminalId }
+              : { kind: "net-name", netId: edit.netId },
           netId: edit.netId,
           anchor: {
             kind: "object",
@@ -182,6 +199,17 @@ export function applyNetPowerEdit(
           locked: false,
         }),
       );
+      if (edit.scope === "local") {
+        draft.netlist!.terminals.push({
+          id: terminalId,
+          name: edit.netName,
+          netId: edit.netId,
+          direction: "inout",
+          interfaceInstanceIds: [],
+          interfaceAnnotationId: edit.labelId,
+        });
+        changedObjectIds.add(terminalId);
+      }
       draft.connectivityEvidence.push(
         ConnectivityEvidenceSchema.parse({
           id: deriveStableId(

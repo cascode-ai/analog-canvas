@@ -638,6 +638,20 @@ export function applyRouteTopologyEdit(
         for (const cellTerminal of draft.netlist?.terminals ?? []) {
           if (cellTerminal.netId !== net.id) continue;
           const interfaceInstanceId = cellTerminal.interfaceInstanceIds[0];
+          const interfaceAnnotation = cellTerminal.interfaceAnnotationId
+            ? draft.annotations.find(
+                (candidate) =>
+                  candidate.id === cellTerminal.interfaceAnnotationId,
+              )
+            : undefined;
+          const interfaceAnchor = interfaceAnnotation?.anchor;
+          const ownerJunctionId =
+            interfaceAnchor?.kind === "object" &&
+            draft.junctions.some(
+              (candidate) => candidate.id === interfaceAnchor.objectId,
+            )
+              ? interfaceAnchor.objectId
+              : undefined;
           const groupNetId = interfaceInstanceId
             ? netIdByEndpoint.get(
                 endpointKey({
@@ -646,7 +660,14 @@ export function applyRouteTopologyEdit(
                   pinName: "P",
                 }),
               )
-            : undefined;
+            : ownerJunctionId
+              ? netIdByEndpoint.get(
+                  endpointKey({
+                    kind: "junction",
+                    junctionId: ownerJunctionId,
+                  }),
+                )
+              : undefined;
           if (groupNetId && groupNetId !== cellTerminal.netId) {
             cellTerminal.netId = groupNetId;
             changedObjectIds.add(cellTerminal.id);

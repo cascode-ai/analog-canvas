@@ -5,7 +5,7 @@ Status: `accepted`
 Primary owner: `packages/model`
 
 The Project contains Documents; each Document owns revisioned electrical,
-geometric, and presentation facts. The current model is strict schema 56 and has
+geometric, and presentation facts. The current model is strict schema 57 and has
 no compatibility shape.
 
 ## Coordinate domains
@@ -62,9 +62,11 @@ migration. Invalid coordinates are rejected with their data path.
 
 Canvas `port` and `port-filled` artwork has exactly one meaning: a Cell Pin.
 VDD Power also owns a Cell-Pin declaration by default and can be switched
-explicitly to a Global marker in Properties. Each formal owner is an ordinary
-single-pin Instance with pin `P`, owns exactly one ordered Cell-Pin declaration,
-and uses ordinary Net membership and Route endpoints. The model has no
+explicitly to a Global marker in Properties. A local Power Rail owns a formal
+terminal directly through its `power-label` annotation; it does not require a
+hidden Instance. Instance-owned formal terminals use an ordinary single-pin
+Instance with pin `P`. Each formal terminal has exactly one interface owner and
+uses ordinary Net membership and Route endpoints. The model has no
 free-Port branch or separate Port collection. Equal Port Names do not merge
 terminal identity, direction, Base Net, annotations, or lifecycle, but they
 resolve to one Logical Net in the current Document.
@@ -78,11 +80,12 @@ a multi-member Formal Port unless independent electrical facts already place
 every member on the same Logical Net.
 
 Ground, Global VDD, route Net Label, and Power Rail author the same
-`name-claim`. A local VDD Power Cell Pin instead gets its name from the formal
-terminal and derives the `vdd` role from its interface owner. Power Rail is
-editable Route/Junction presentation rather than a separate electrical object.
-A marker claim owns its scope and optional supply role. New VDD and Power Rail
-authoring defaults local; Ground remains global SPICE node `0`. `AVDD` and
+`name-claim`. A local VDD Power Cell Pin gets its name from the formal terminal
+and derives the `vdd` role from its interface owner. A local Power Rail combines
+editable Route/Junction presentation with an annotation-owned formal terminal;
+an explicitly global Power Rail has the claim but no terminal. A marker claim
+owns its scope and optional supply role. New VDD and Power Rail authoring
+defaults local; Ground remains global SPICE node `0`. `AVDD` and
 `DVDD` are separate Logical Nets because their names differ, even though both
 may carry the `vdd` role.
 
@@ -214,8 +217,8 @@ ordinary Schematic edits inside one Project structural transaction. The
 Project's `structureRevision` protects this cross-Document boundary and the
 editor records it as one undoable structural commit.
 
-Persistence writes only schema 56. The reader carries every schema in its
-explicit 24→56 upgrade chain forward, then supplies the current model only; no
+Persistence writes only schema 57. The reader carries every schema in its
+explicit 24→57 upgrade chain forward, then supplies the current model only; no
 compatibility shape enters runtime electrical derivation. The 32→33 step
 rejects ownerless equivalence rather than guessing replacement connectivity.
 The 33→34 step converts hidden imported names into non-electrical hints or

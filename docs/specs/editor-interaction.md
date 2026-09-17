@@ -250,14 +250,17 @@ Ground is the `ground` component connected through pin `0`; placement reuses an
 existing global ground supply Net. VDD Power is placed as a local formal Cell
 Pin by default; Properties can switch its unchanged artwork and physical Net to
 an explicit Global declaration. Power Rail is a virtual Library item presented
-through the same I-dialog, Library, and placement input plane as components.
+through the same I-dialog, Library, and placement input plane as components. A
+new local Power Rail authors a formal Cell Pin directly from its visible rail
+label; no hidden interface Instance or exporter-generated Pin is introduced.
 Its editor-local VDD artwork is preview-only and is not registered with the
 product Symbol Resolver. Before the first click the artwork follows the
 pointer; after the first click the preview becomes a straight horizontal or
 vertical rail, selected by the pointer's dominant axis. The second click
 creates a Base Net with the selected local supply claim, creates two route-anchor
-Junctions and one `power-rail` Route, and persists one net-name-bound RichText
-power-label annotation. Same-name supply claims resolve to one Logical Net
+Junctions and one `power-rail` Route, persists one net-name-bound RichText
+power-label annotation, and makes that annotation the formal terminal owner.
+Same-name supply claims resolve to one Logical Net
 without a physical merge. The Route is the only rail geometry: the annotation adds no
 supply bar or terminal stub, and the semantic name uses the shared Razavi
 schematic-math style. It creates no VDD Instance and exits placement after the
@@ -660,8 +663,8 @@ Open, demo load, restore, and human-approved staged import replace the entire
 Project through one replacement boundary; they are not Edit Engine
 transactions. Replacement cancels pending recovery for the outgoing Project
 and terminates its Agent session. A complete Project covered by the schema
-24→56 upgrade chain may be upgraded at the read boundary and then enters the
-editor only as schema-56; migrated files are marked as needing save.
+24→57 upgrade chain may be upgraded at the read boundary and then enters the
+editor only as schema-57; migrated files are marked as needing save.
 
 Selection, viewport, active tool, previews, Agent tokens, and approval UI are
 transient and never enter Project JSON. Recovery is scheduled only after a
