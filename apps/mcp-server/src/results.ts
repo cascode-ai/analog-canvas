@@ -3,7 +3,7 @@ import type { CachedSnapshot } from "@icm/agent-client";
 import { RichTextDocumentSchema, flattenRichText } from "@icm/model";
 
 /**
- * Compact result projections (ADR 0020): every tool answer is bounded to what
+ * Compact result projections (ADR 0007): every tool answer is bounded to what
  * the task needs. The full Snapshot stays in the Helper cache and is reachable
  * through `inspect` with `detail: "full"` on a document target.
  */

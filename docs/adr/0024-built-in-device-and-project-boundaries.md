@@ -1,47 +1,39 @@
-# ADR 0024: Built-in device and Project boundaries
+# 0024 - Component Resources and Evidence
 
 Status: `accepted`
 
-Date: `2026-08-18`
-
-Owners: `packages/model`, `packages/symbols`, `packages/project-protocol`,
-`packages/edit-engine`
-
-## Context
-
-Built-in devices need stable electrical meaning while their artwork and editor
-presentation continue to evolve. Saved Projects likewise need a durable file
-boundary without forcing every runtime package to understand historical shapes.
+Owners: `packages/components`, `packages/devices`, `packages/symbols`, `references`
 
 ## Decision
 
-The model owns the current electrical device protocol: device kind, terminals,
-parameters, bindings, and validation. The symbol catalog owns visual geometry,
-pins, variants, and style presentation. A symbol may hide a terminal visually,
-but cannot delete or rewire its electrical terminal.
+Author each built-in component once and generate runtime projections.
+[Symbol DSL](../specs/symbol-dsl.md) and the
+[component definition contract](../../packages/components/README.md) own the
+resource shape; the [Razavi visual contract](../specs/razavi-visual-contract.md)
+owns reviewed evidence. [Research sources](../../references/README.md) remain
+pinned inputs, not product dependencies.
 
-`CircuitProject` is the one persisted root and the runtime consumes only its
-current schema. Historical Project shapes are accepted only at the file
-boundary by the explicit upgrade chain defined in ADR 0053. Serialization emits
-only the current schema; authoring transactions never mutate a legacy shape.
+## Context
 
-A Project-schema change therefore requires a strict current schema, a
-deterministic compatibility step when the supported floor includes the prior
-version, and tests that demonstrate semantic preservation or deliberate
-rejection. Visual catalog changes do not require a Project migration unless a
-persisted electrical or authoring fact changes.
+Artwork, electrical behavior and evidence are related but not interchangeable.
+A visually accurate symbol may have no simulator lowering; a hidden pin still
+has electrical meaning. Research checkouts must not become accidental build
+dependencies.
 
-## Consequences
+## Rationale
 
-- Electrical semantics cannot drift when a symbol is refined or replaced.
-- Runtime code has one Project shape and no scattered legacy branches.
-- File durability is governed by a visible, contiguous compatibility chain.
-- New device families extend the shared protocol rather than introducing
-  device-specific persistence formats.
+One component definition prevents independently maintained device and symbol
+registries from drifting, while generated projections let electrical consumers
+avoid importing artwork. Project Instances own actual values and connectivity,
+not copies of the built-in library.
 
-## Related documents
+Scoped raster and PDF evidence preserve source fidelity without inventing
+electrical semantics. PDF paths retain precision where approved raster evidence
+is absent; a direct source crop remains the witness so candidates cannot grade
+themselves. Product adaptations and pin normalization must remain distinguishable
+from source artwork.
 
-- [`0053-chain-carried-project-compatibility.md`](0053-chain-carried-project-compatibility.md)
-- [`../specs/project-file-format.md`](../specs/project-file-format.md)
-- [`../specs/schematic-model.md`](../specs/schematic-model.md)
-- [`../specs/symbol-dsl.md`](../specs/symbol-dsl.md)
+Pinned, narrowly scoped research inputs make provenance and licensing reviewable.
+Vendoring complete repositories or depending on local reference checkouts would
+blur ownership and reproducibility. Extraction tools may differ in language;
+their accepted outputs cross the same product-owned resource boundary.

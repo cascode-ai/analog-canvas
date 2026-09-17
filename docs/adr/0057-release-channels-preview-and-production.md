@@ -1,83 +1,38 @@
-# ADR 0057: Release channels — Preview and Production
+# 0057 - Deployment Channels and Release Routing
 
-Status: accepted
+Status: `accepted`
 
-Date: 2026-09-04
-
-Owners: `worker`, `.github/workflows`, `apps/editor`
-
-Amended by [ADR 0058](0058-label-routed-releases.md): the `preview` label now
-decides whether a merge deploys to Preview or directly to Production.
-
-## Context
-
-Deploying every merge directly to the public site gives unreleased features no
-acceptance surface. A staging environment inheriting Production configuration
-also risks taking over its routes or gaining write authority over real data.
+Owners: `.github/workflows`, `scripts/release-route.mjs`, `worker`
 
 ## Decision
 
-Use two separately configured Workers with one Preview-accepted deployment
-candidate. The configurations are complete files rather than inherited
-Wrangler environments; the browser assets and bundled Worker are built once and
-promoted unchanged.
+Use separately configured Preview and Production channels, with the PR's
+`preview` label selecting the merge route. [Deployment](../deployment.md)
+owns exact entrances, candidate handling, verification and recovery; it is the
+single release-policy reference.
 
-- **Preview:** `wrangler.preview.jsonc`, its own hostname and namespaces.
-  Every merge to main deploys and verifies this channel. The public shell is
-  unindexed and visibly labelled. Public Gallery reads go through Production's
-  anonymous HTTP API and Gallery writes are refused. When a Preview-only Google
-  OAuth client is configured, human testers sign in and save private Projects
-  in Preview's own namespace; CI uses a separate acceptance identity against
-  that same Project API. Preview has no binding to Production's Durable Objects.
-- **Production:** `wrangler.jsonc`. A release tag or explicit ref dispatch
-  selects the candidate. The workflow locates the successful Preview deployment
-  of that exact commit, downloads its accepted candidate, applies the Production
-  bindings without rebuilding, then verifies and recovers on failure.
-- **Candidate:** Preview creates the Worker bundle and browser asset tree before
-  deployment, deploys those exact bytes, and preserves them only after all
-  hosted acceptance passes. One payload identity binds the artifact to the
-  selected commit. Environment routes, bindings, secrets and managed resources
-  remain outside the candidate.
-- **Runtime state:** `/api/channel` and `ICM_CHANNEL` identify the channel.
-  They do not authorize private data or simulator execution. Preview simulation
-  has its own owner/admission state and configured executor.
-- **Execution:** hosted simulation uses the operator-managed container behind
-  the configured gateway/Tunnel. It is not a Worker-native process or a spare
-  Cloudflare Container. An unavailable named executor does not silently fall back.
-- **Data and identity:** cookies and credentials remain host/session scoped.
-  Preview accounts, sessions, and Projects are independent from Production and
-  its test data is not promoted or synchronized. Preview's production-Gallery
-  view cannot validate private Production storage migrations; those require
-  their own tests and release care.
+## Context
 
-The exact deployment commands, evidence predicate, capabilities, and recovery
-limitations are owned by [deployment](../deployment.md). This ADR does not add a
-second release gate or promise that Production serves every Preview capability.
+Unreleased work needs an acceptance surface that cannot write Production data.
+Small changes also need a deliberate direct-release route without forcing a
+second manual promotion for every merge.
 
-## Alternatives and consequences
+## Rationale
 
-A Worker version sharing Production bindings cannot provide read-only isolation
-by construction. An inherited staging configuration depends on remembering every
-override. Both were rejected in favor of a separate public Preview.
+Separate complete configurations make storage and credential boundaries
+explicit; inherited overrides or shared Production bindings would rely on
+remembering every exception. Preview Gallery read-through provides realistic
+public examples without private storage authority. Public visibility and
+`noindex` are not authentication.
 
-The cost is another deployment with its own configuration and runtime resources,
-plus temporary artifact storage. Public Preview reveals unreleased work;
-`noindex` is not authentication. Production remains deliberate, while a
-previously qualified commit can be released independently of later development
-on main. Emergencies follow the explicit incident exception in
-[working rules](../../AGENTS.md).
+A visible label expresses the chosen route independently of the merger's
+identity or guessed risk from changed paths. The accepted cost is that an
+unlabeled merge skips Preview acceptance; required checks and Production
+verification/rollback protect that route. A failed route lookup must fail
+closed rather than guess.
 
-## Validation
-
-Channel/configuration tests protect namespace and route separation. Preview
-verification must exercise the deployed asset and simulation paths, not just
-unit-test configuration objects. Candidate tests protect creation, commit
-binding, transfer identity and served-entry equality. Production verification
-and rollback each measure the actual serving site. Data migrations are not
-undone by reverting a Worker version.
-
-## Related documents
-
-- [Simulation decision](0055-simulation-is-part-of-the-product.md)
-- [Deployment](../deployment.md)
-- [Simulation execution](../specs/simulation-execution.md)
+One candidate build prevents promotion from accepting one artifact and serving
+another. Requiring promoted commits on main prevents debug PR heads from
+becoming Production releases. Channel bindings stay outside the candidate;
+Preview data is not promoted with code, and reverting a Worker cannot roll
+back a storage migration.

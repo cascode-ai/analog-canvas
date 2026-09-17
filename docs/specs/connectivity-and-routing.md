@@ -227,6 +227,27 @@ the repaired Document revision once; parsing, Cloud opens and recovery remain
 exact. This is a bounded legacy import repair, not a runtime source-equivalence
 rule. Physical membership and authored geometry are never joined by it.
 
+## Shared read and diagnostic boundary
+
+[ProjectConnectivityIndex](../../packages/derived/src/connectivity-index.ts)
+is a derived read model, not persisted connectivity. Document contexts are
+reused by identity, revision and resolver; guidance is derived once per
+Document. Project aggregation does not promise constant-time rebuilding.
+Selection is not electrical input.
+
+Search, trace and diagnostic navigation share the model's ObjectLocator and
+HierarchyFrame contracts. Paths distinguish concrete callers of reused Cells;
+an unresolved path never selects a guessed occurrence. Logical-Net IDs are
+revision-scoped representatives and must be refreshed after edits.
+
+Endpoint readiness separates physical membership from accepted intent, so a
+singleton pin is not connected merely because it has a Base Net. ERC and
+downstream checks consume the shared assessment rather than another stored
+status. The [diagnostic envelope](../../packages/derived/src/diagnostics/diagnostic.ts)
+keeps domains, confidence, severity and gate eligibility distinct.
+[Editor interaction](editor-interaction.md) owns explicit checking and stale
+result/navigation behavior; checks do not veto Save.
+
 ## Imported routing guidance
 
 SPICE import creates electrical membership before drawing and persists one

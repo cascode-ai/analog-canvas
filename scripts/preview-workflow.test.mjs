@@ -4,7 +4,7 @@ import { execFileSync, execSync } from "node:child_process";
 import { describe, expect, it } from "vitest";
 
 /**
- * The preview pipeline's own contract (ADR 0057, ADR 0058). The preview is
+ * The preview pipeline's own contract (ADR 0057). The preview is
  * where labeled pull requests and their merges land, where manual debugging
  * happens, and where the simulation feature is tried; these assertions keep it
  * from ever becoming a second way to reach production.
@@ -303,7 +303,7 @@ describe("the preview deploy", () => {
   }, 190000);
 });
 
-describe("label-routed releases (ADR 0058)", () => {
+describe("label-routed releases (ADR 0057)", () => {
   it("deploys a same-repository pull request while it carries the preview label", () => {
     expect(preview).toMatch(
       /pull_request:\s*\n\s*types: \[opened, labeled, synchronize, reopened\]/u,

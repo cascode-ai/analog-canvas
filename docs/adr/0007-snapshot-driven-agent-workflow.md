@@ -1,59 +1,39 @@
-# ADR 0007: Transport-independent, Snapshot-driven Agent API
+# 0007 - Agent and Resource Boundaries
 
 Status: `accepted`
 
-Date: `2026-08-11`
-
-Owners: `packages/agent-adapter`, `packages/edit-engine`, Agent transports
-
-## Context
-
-Automation must operate on the same typed Project and transaction authority as
-the interactive editor. Giving an Agent pixels, a mutable Project clone, or a
-second electrical model would make revisions, validation, and undo semantics
-depend on the transport that initiated the edit.
+Owners: `packages/agent-adapter`, `packages/agent-client`, `apps/mcp-server`, `worker`
 
 ## Decision
 
-The circuit domain service is a transport-independent TypeScript boundary.
-Hosted relay, optional local transport, MCP and the shared HTTP client use the
-same parser, service, Edit Engine, Snapshot builder and renderer. OpenAPI and
-JSON Schema derive from that contract; no domain package depends on MCP.
+Expose revision-bound semantic edits through the
+[Agent API](../specs/agent-api.md), with the live browser authoritative under
+[web-session authorization](../specs/web-agent-session.md). MCP is an
+Agent-side adapter. File, Simulation and Project are scoped sibling resources,
+not alternative Circuit mutation paths.
 
-The domain-facing Agent contract has four operations:
+## Context
 
-1. `capabilities` reports the supported contract and operation surface;
-2. `snapshot` returns a revision-bound semantic view of the current Project;
-3. `transact` submits typed edits against exact expected revisions; and
-4. `render` produces deterministic presentation from committed state.
+Agents need convenient connection, retries and authoring without a detached
+Project copy, independent undo stack or host-specific electrical protocol.
 
-The Snapshot is read-only and intentionally smaller than the persisted Project.
-Opaque object IDs and Logical-Net representatives are valid only for the
-Snapshot revision that exposed them. A transaction is atomic, validated by the
-Edit Engine, and rejected when its revision precondition is stale. Successful
-mutation requires a fresh Snapshot before further identity-sensitive edits.
+## Rationale
 
-The generated Agent API owns exact request/response shapes and its independently
-versioned protocol number. HTTP, browser-session, MCP, and future transports are
-adapters over this domain contract; they do not add alternate edit semantics.
-Session authorization, bearer secrecy, allowlists and request idempotency wrap
-the domain service. File, Simulation, Session observations and Project resources
-have their own advertised scopes and lifecycle; they are not extra Circuit
-operations. Their adapters cannot create alternate electrical mutation semantics.
-File open/save and Project replacement remain persistence operations.
+Typed edits share human validation and history; snapshots avoid treating pixels
+as electrical truth. Revision guards and exact request identity distinguish a
+safe retry from repeating an uncertain mutation.
 
-## Consequences
+Keeping MCP outside the domain prevents an Agent-host protocol from defining
+product semantics. The adapter centralizes credentials and retry handling;
+HTTP remains usable independently. Knowledge comes from the shared resource
+manifest rather than a second instruction corpus maintained by the adapter.
 
-- Editor and Agent edits share validation, connectivity, and undoable Project
-  transitions.
-- Retries can be idempotent without accepting stale object references.
-- Transport authorization and deployment can evolve independently of circuit
-  semantics.
-- Pixel interpretation is optional evidence, never the electrical authority.
+Browser authority preserves explicit approval and the actual open Project.
+The cost is that the browser must be reachable; saved Cloud Projects do not
+imply an offline Agent editing service. Relay TLS is not end-to-end encryption,
+and a circuit grant does not imply arbitrary filesystem or shell access.
 
-## Related documents
-
-- [`0016-browser-authoritative-agent-session.md`](0016-browser-authoritative-agent-session.md)
-- [`0020-agent-side-mcp-adapter.md`](0020-agent-side-mcp-adapter.md)
-- [`../specs/agent-api.md`](../specs/agent-api.md)
-- [`../specs/web-agent-session.md`](../specs/web-agent-session.md)
+The optional Agent-local RouteGraph expander removes repetitive coordinate
+arithmetic, not topology decisions. Persisting its plan or letting it silently
+reroute would create another circuit model. Its stricter geometry is a helper
+input limit, not a restriction on the editor's free-angle Routes.

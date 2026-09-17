@@ -135,6 +135,15 @@ an optional
 exact 45-degree leg cannot reach the target. It never creates a diagonal-only
 edit or a second Route model.
 
+## Optional Agent-local planning
+
+`@icm/agent-routing` expands a complete Agent-authored RouteGraph into typed
+edits. Its graph is transient helper input, never Project data or an API
+operation. It does not choose topology, supply omitted branches, or reroute
+conflicts; a conflict yields no edits. Its octilinear input limit does not
+restrict ordinary free-angle Route edits. Exact helper types and behavior
+belong to [the package](../../packages/agent-routing/src/types.ts).
+
 ## File Resource boundary
 
 `POST /api/agent/sessions/{sessionId}/files` is separate from Circuit

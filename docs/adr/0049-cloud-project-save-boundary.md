@@ -1,46 +1,37 @@
-# ADR 0049: Stable Cloud Project Save Boundary
+# 0049 - Persistence and Compatibility
 
-Status: accepted
+Status: `accepted`
 
-Date: 2026-08-28
-
-## Context
-
-The editor previously called a local File System Access write or Blob download
-“Save Project”, while a separate signed-in action appended rolling cloud
-snapshots. The two authorities made dirty state ambiguous, and repeated saves
-of one circuit consumed the bounded cloud shelf.
+Owners: `packages/project-protocol`, `apps/editor`, `apps/local-host`, `worker`
 
 ## Decision
 
-- `Save` means one explicit private Cloud Project create/update operation.
-- A stable server `cloudProjectId` is separate from portable `Project.id`.
-- A bound update carries an acknowledged revision; stale different content is
-  rejected, while an identical retry returns the existing revision.
-- The account limit counts distinct Cloud Projects. Save never evicts another
-  Project and the server retains no implicit version history.
-- The editor Session is runtime state: Cloud binding, saved baseline, and one
-  recovery working-copy id. It is not a server table or Project JSON field.
-- IndexedDB recovery remains the local-first crash-safety layer. Its envelope
-  may carry the transient Cloud binding so reload continues the same resource.
-- `.icproj.json` is explicit Import/Export/Backup interchange. It never clears
-  Cloud dirty state and is never labeled Save.
-- Editing, Undo, rendering, and recovery do not depend on network availability.
-- **Check and Save** (2026-09-03) composes explicit ERC/visual checking with
-  this same Save operation. It creates no second storage authority. Checking
-  and saving refer to the same captured Project, their outcomes are reported
-  independently, and findings never block saving unfinished work. In-flight
-  saves cannot mark later edits clean or bind a replacement Project.
+Separate private Cloud Save, portable files and local recovery under
+[persistence and recovery](../specs/persistence-and-recovery.md). Use one
+current runtime shape and a contiguous reader upgrade chain under
+[Project file format](../specs/project-file-format.md).
+[Deployment](../deployment.md) owns the portable host boundary.
 
-## Necessary blocking boundaries
+## Context
 
-Only destructive replacement of dirty work, browser leave while dirty, Cloud
-revision conflict, capacity, and explicit Cloud deletion require a decision.
-Offline or failed Save remains a visible state but never disables editing.
+Saving, downloading a backup and recovering unsaved work have different
+durability and identity guarantees. Rapid schema evolution must not make an
+absent user's saved circuit unreadable.
 
-## Consequences
+## Rationale
 
-The rolling workspace-snapshot route, client, UI, and File System Access Save
-path are retired. Cloud storage keeps only current canonical Project text;
-cross-device product guarantees, automatic cloud save, server-side Sessions,
-version history, and automatic conflict merge remain out of scope.
+Updating a stable Cloud Project avoids consuming a new resource on every save.
+Acknowledged revisions protect against overwriting another writer; identical
+retries need not create another revision. Check findings are independent evidence,
+not a reason to withhold saving unfinished work.
+
+Portable Project identity is not account storage identity. Recovery belongs to
+the browser origin and cannot promise Cloud durability. A loopback PWA reuses the
+same editor without requiring a second desktop runtime, but cannot pretend to
+supply the hosted account service.
+
+A fixed-width version window ties file lifetime to development velocity.
+Keeping adapters at the file boundary preserves durability while runtime code
+still sees one shape. This costs maintained adapters and focused tests, rather
+than scattered legacy branches. Ambiguous electrical data must be refused with
+a located explanation, not silently converted into guessed connectivity.

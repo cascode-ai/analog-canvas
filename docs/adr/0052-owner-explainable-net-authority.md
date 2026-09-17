@@ -1,86 +1,42 @@
-# ADR 0052: Owner-explainable Net authority
+# 0052 - Net Identity and Connectivity Evidence
 
 Status: `accepted`
 
-Date: `2026-08-31`
-
-Owners: `packages/model`, `packages/derived`, `packages/edit-engine`,
-`packages/spice`, `packages/netlist`, `packages/project-protocol`
-
-## Context
-
-Physical connectivity, user-authored Net names, formal interfaces, global
-supplies, and imported source spelling are different facts. Earlier ownerless
-equivalence and source-name claims could reconnect cut topology or short two
-composed circuits without any selectable schematic object explaining why.
+Owners: `packages/model`, `packages/derived`, `packages/edit-engine`, `packages/netlist`
 
 ## Decision
 
-A Base Net records physical membership only. Routes, direct contacts, endpoints,
-and the common split/merge pipeline determine that membership.
+Persist physical membership and authored owners; derive logical equivalence,
+readiness and occurrence-aware lookup. [Schematic model](../specs/schematic-model.md#electrical-authority)
+and [connectivity](../specs/connectivity-and-routing.md) own these rules.
+[Editor interaction](../specs/editor-interaction.md) owns check/navigation
+lifecycle; [netlist export](../specs/netlist-export.md#net-rules) owns spelling.
 
-Cross-Base-Net Logical Nets are a derived view. They may be explained only by:
+## Context
 
-1. matching owner-addressed name claims from visible Net Labels or power
-   markers in the applicable scope;
-2. explicit global declarations, including SPICE node `0`; or
-3. the derived formal-interface grouping of equal folded Cell-Pin names.
+Physical connection, named equivalence, hierarchy occurrence and source
+provenance answer different questions. Conflating them can reconnect a cut,
+short two reused Cells or declare an isolated pin connected.
 
-There is no generic persisted Net-equivalence record and no ownerless editable
-name property. Deleting or renaming the last owner immediately removes that
-claim; cutting a Wire always partitions physical Base Nets before logical
-equivalence is reconsidered.
+## Rationale
 
-`spice-source` and `net-name-hint` are provenance only. They may preserve source
-identity and preferred export spelling, but never join, protect, conflict, or
-name a Logical Net. Export first uses an authoritative current name. An unnamed
-Net may reuse one unambiguous valid hint; collisions are deterministically
-disambiguated or replaced with generated names and a diagnostic.
+Owner-addressed claims explain why separated conductors share a Logical Net.
+Removing an owner removes its authority; imported provenance alone cannot
+resurrect a connection. Ground, supply markers and labels therefore need no
+parallel Net system. Supply role classifies intent, not identity, and a hidden
+MOS bulk cannot acquire a connection merely from device polarity.
 
-Compatibility adapters may translate older records into these current facts,
-but ambiguous ownerless electrical equivalence is rejected rather than silently
-retained. Runtime editing and derivation consume only the current contract.
+Physical split precedes logical resolution for every cut. Repairing only ERC
+would leave export describing a connection the user removed. Endpoint readiness
+is derived because membership alone does not prove an external peer, and a
+persisted readiness object would become another stale electrical protocol.
 
-## Consequences
+A shared connectivity index, locator and diagnostic envelope prevent consumers
+from inventing separate meanings or repeatedly scanning whole Documents.
+Occurrence paths distinguish callers of one child definition. Derived Net
+representatives are revision-scoped, so consumers refresh rather than pretending
+a split or merge preserved a permanent Logical-Net identity.
 
-### Named power and MOS bulk
-
-Ground, Global VDD, Net Labels and power-rail labels use owner-addressed name
-claims. Port, Filled Port and local VDD Power instead own formal Cell-Pin
-declarations; equal folded formal names provide the existing interface grouping.
-A VDD Power Instance uses one of these authorities at a time. Multiple
-disconnected markers are valid;
-their Base Nets stay physical while their names and scopes determine Logical
-Net equivalence. VDD, AVDD, and DVDD are distinct names. Power-domain metadata
-classifies a claim; it is not Net identity and never collapses differently named
-supplies. Ground's explicit reference is global node `0`.
-
-A power rail is a drawing form of a named conductor, not a second electrical
-system. Scope is authored explicitly; UI power defaults do not make arbitrary
-imported text global. Deleting the last owner removes its authority and permits
-ordinary orphan pruning. Scope and dialect spelling follow
-the [schematic model](../specs/schematic-model.md#electrical-authority) and
-[netlist export](../specs/netlist-export.md).
-
-MOS bulk resolves from explicit B membership or an explicitly configured Cell
-bulk default. Without either it remains unresolved. Device polarity and supply
-artwork alone cannot invent a Net, short B to S, or suppress a floating-bulk
-finding. The resolver must reevaluate defaults as their targets are removed;
-compatibility data is interpreted only through the current effective-bulk
-contract. Three-terminal presentation never deletes the electrical B terminal.
-
-### Shared authority
-
-- Every non-physical electrical union is explainable by a visible owner, a
-  formal Cell Pin, or an explicit global declaration.
-- Imported spelling survives round-trip without becoming hidden connectivity.
-- Split, copy, composition, and owner deletion cannot resurrect stale Nets.
-- ERC, highlight, trace, and export can share one Logical-Net resolver.
-
-## Related documents
-
-- [`0041-physical-cut-and-endpoint-readiness.md`](0041-physical-cut-and-endpoint-readiness.md)
-- [`0053-chain-carried-project-compatibility.md`](0053-chain-carried-project-compatibility.md)
-- [`../specs/schematic-model.md`](../specs/schematic-model.md)
-- [`../specs/connectivity-and-routing.md`](../specs/connectivity-and-routing.md)
-- [`../specs/netlist-export.md`](../specs/netlist-export.md)
+Electrical failures and visual observations remain distinct evidence. Check
+results belong to a revision; stale navigation must not target a different
+object, and findings must not block saving unfinished work.

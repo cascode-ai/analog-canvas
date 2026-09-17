@@ -6,11 +6,10 @@ import { directObjectLocator, type ObjectLocator } from "./object-locator.js";
 import { resolveDocumentLogicalNets } from "./logical-net.js";
 
 /**
- * Deterministic project-wide search index (ADR 0015 / roadmap WP-R5 core).
+ * Deterministic project-wide search index (ADR 0052).
  * Case-insensitive exact/prefix/substring matching over instances and nets,
  * returning `ObjectLocator`s ranked exact > prefix > substring with no
- * fuzzy ranking. Pure backend; the `Ctrl+F` UI and hierarchy navigation consume
- * it later (R9/R10).
+ * fuzzy ranking. Pure backend consumed by search and hierarchy navigation.
  */
 
 export type SearchObjectKind = "instance" | "net";

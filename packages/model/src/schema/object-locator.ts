@@ -24,7 +24,7 @@ export const HierarchyFrameSchema = z.strictObject({
 });
 
 /**
- * Canonical Project-scoped object address (ADR 0015).
+ * Canonical Project-scoped object address (ADR 0052).
  *
  * A direct object in a Document has `hierarchyPath: []`; an object reached
  * through hierarchy carries the explicit parent-instance chain rather than

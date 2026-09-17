@@ -4,7 +4,7 @@
 
 Local work stays local until someone delivers it. Delivery is one pull request,
 and its `preview` label chooses the channel
-([ADR 0058](adr/0058-label-routed-releases.md)):
+([ADR 0057](adr/0057-release-channels-preview-and-production.md)):
 
 | Route      | Trigger                                          | What happens                                                                                                               |
 | ---------- | ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |

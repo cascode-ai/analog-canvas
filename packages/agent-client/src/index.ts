@@ -1,5 +1,5 @@
 /**
- * Node-only Agent-side Helper over the four-operation Agent API (ADR 0020).
+ * Node-only Agent-side Helper over the four-operation Agent API (ADR 0007).
  * These modules import Node built-ins and are not part of any browser bundle.
  */
 export {

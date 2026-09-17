@@ -21,7 +21,7 @@ function step(name) {
   return workflow.slice(start, next === -1 ? undefined : next);
 }
 
-describe("production entrances (ADR 0057, ADR 0058)", () => {
+describe("production entrances (ADR 0057)", () => {
   it("deploys unlabeled merges directly and promotes tags or selected refs", () => {
     expect(workflow).toMatch(/branches:\s*\n\s*- main/u);
     expect(workflow).toMatch(/tags:\s*\n\s*- "v\*"/u);

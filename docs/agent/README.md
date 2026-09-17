@@ -8,7 +8,7 @@ engine.
 ## Choose the entry point
 
 1. **Default: packaged local stdio MCP.** Install or unpack the Agent-side MCP adapter
-   (`apps/mcp-server`, [ADR 0020](../adr/0020-agent-side-mcp-adapter.md)) and
+   (`apps/mcp-server`, [ADR 0007](../adr/0007-snapshot-driven-agent-workflow.md)) and
    connect a host such as Codex, Claude Code, or Cursor to it. The adapter
    owns claim redemption, persistent connector resume, process-local bearers,
    revisions, idempotent retries, and compact tools; the model never sees

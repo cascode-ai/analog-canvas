@@ -4,9 +4,8 @@ Status: `accepted`
 
 Primary owner: `packages/edit-engine`
 
-Related ADRs: [`0013-project-connectivity-index.md`](../adr/0013-project-connectivity-index.md),
-[`0014-resolved-route-geometry.md`](../adr/0014-resolved-route-geometry.md),
-[`0041-physical-cut-and-endpoint-readiness.md`](../adr/0041-physical-cut-and-endpoint-readiness.md).
+Design rationale: [Net](../adr/0052-owner-explainable-net-authority.md) and
+[routing](../adr/0014-resolved-route-geometry.md).
 Routing planners read the unified connectivity index and resolved route
 geometry as read-only input; the Edit Engine remains the sole mutation path and
 validates every edit independently without trusting the planner.
@@ -288,8 +287,7 @@ Topology operations have these preconditions:
   transaction. GUI movement planners always author those Route edits; Routes
   protected by locked geometry reject the move.
 - `move_instance` stretches unprotected connected Routes under their existing
-  geometry constraint (orthogonal, octilinear, or free; [ADR 0014](../adr/0014-resolved-route-geometry.md) and
-  [ADR 0048](../adr/0048-routing-operation-plan.md)). A
+  geometry constraint (orthogonal, octilinear, or free; [routing rationale](../adr/0014-resolved-route-geometry.md)). A
   Route with a locked/trunk adjacent segment is
   skipped; if the caller does not re-point it in the same transaction, the
   post-loop validation rejects with `INVALID_RESULT` naming the Route. The

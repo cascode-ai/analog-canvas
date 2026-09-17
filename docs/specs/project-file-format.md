@@ -22,6 +22,16 @@ setups become source folders. A failed import leaves the live Project unchanged.
 Compatibility does not create legacy runtime writers or authorize bulk rewriting
 of stored Gallery or Cloud data.
 
+## Compatibility floor
+
+The supported floor bounds maintained adapters; it is not a rolling expiry
+window. Raising it is a deliberate contract change requiring evidence that the
+retired versions were never distributed, or a verified store inventory plus an
+available conversion path and an adequate conversion period. Schema velocity
+and chain length alone do not justify refusing existing user files. Where the
+evidence is uncertain, retain the adapters. No load or ordinary save performs
+an unsolicited bulk conversion of Gallery, Cloud or recovery data.
+
 ## Current authorities
 
 - `Document.netlist.terminals` defines ordered authored Cell-Pin declarations

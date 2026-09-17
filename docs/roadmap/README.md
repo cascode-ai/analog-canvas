@@ -26,7 +26,7 @@ do not recreate an already implemented subsystem.
 
 Use the current [connectivity](../specs/connectivity-and-routing.md),
 [netlist](../specs/netlist-export.md), and
-[diagnostic](../adr/0015-object-locator-and-diagnostic-envelope.md) contracts.
+[diagnostic](../specs/connectivity-and-routing.md#shared-read-and-diagnostic-boundary) contracts.
 The acceptance review must cover:
 
 - One occurrence-aware location path for search, trace, highlight, and check

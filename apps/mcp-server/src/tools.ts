@@ -35,7 +35,7 @@ import {
 } from "./file-operations.js";
 
 /**
- * The default MCP tool surface (ADR 0020) stays compact. The full
+ * The default MCP tool surface (ADR 0007) stays compact. The full
  * typed edit union is deliberately NOT injected into tool descriptions; it is
  * available through `advanced_transact`; its full contract is an on-demand
  * resource, not a session permission gate.
