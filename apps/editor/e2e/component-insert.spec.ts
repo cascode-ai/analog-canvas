@@ -133,6 +133,7 @@ test("blocks destructive browser refresh shortcuts and uses the stronger grid", 
   page,
 }) => {
   await page.goto("/editor");
+  await awaitEditorReady(page);
   await expect(page.locator(".canvas-grid-dot").first()).toHaveCSS(
     "fill",
     "rgb(196, 199, 201)",
@@ -140,7 +141,6 @@ test("blocks destructive browser refresh shortcuts and uses the stronger grid", 
   // A blank circuit has nothing to protect: the editor does not intercept
   // the refresh shortcut (a real browser would reload here; synthetic keys
   // cannot drive the browser accelerator, so assert the guard stays silent).
-  await awaitEditorReady(page);
   await page.keyboard.press("Control+r");
   await expect(page.getByTestId("status")).not.toHaveText(
     "Refresh blocked to protect the current circuit",
@@ -320,6 +320,7 @@ test("refreshes explicitly only after flushing and automatically restoring recov
   await clickCommand(page, "File", "Refresh app");
   await navigated;
 
+  await awaitEditorReady(page);
   await expect(page.getByTestId("hit-R1")).toBeVisible();
   await expect(page.getByTestId("revision")).toHaveText("1");
   await expect(page.getByTestId("status")).toHaveText(
@@ -372,6 +373,7 @@ test("keeps quick-start shortcuts in the upper-right corner until the first comp
   page,
 }) => {
   await page.goto("/editor");
+  await awaitEditorReady(page);
   const quickStart = page.getByTestId("canvas-empty-state");
   await expect(quickStart).toBeVisible();
   await expect(quickStart).toHaveAttribute(
@@ -1281,6 +1283,9 @@ test("copies a MOS whose bulk belongs to a shared supply Net", async ({
 test("seeds passive defaults into properties and the exported project", async ({
   page,
 }) => {
+  // Eight real placements, eight property inspections and an export share
+  // this scenario. Keep every assertion while allowing a cold shared runner.
+  test.slow();
   await page.goto("/editor");
   await awaitEditorReady(page);
   const canvas = page.getByTestId("schematic-canvas");
@@ -2200,6 +2205,7 @@ test("shows the complete foldable categorized Library, quick-places a device, an
     .toBe("false");
 
   await page.reload();
+  await awaitEditorReady(page);
   await expect(page.getByTestId("shapes-library-panel")).toHaveAttribute(
     "data-open",
     "false",
@@ -2427,6 +2433,7 @@ test("Library rail folds the sidebar; Insert opens the catalog", async ({
   page,
 }) => {
   await page.goto("/editor");
+  await awaitEditorReady(page);
   const panel = page.getByTestId("shapes-library-panel");
   await expect(panel).toHaveAttribute("data-open", "true");
 
