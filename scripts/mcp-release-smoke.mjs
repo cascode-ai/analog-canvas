@@ -90,7 +90,22 @@ function snapshot() {
         grid: 20,
         compactness: "normal",
       },
-      cellInterface: null,
+      // Schema 57 permits a formal terminal owned by a Power Label rather
+      // than a placed Port instance. Keep this in the packaged smoke: 0.15.4
+      // passed older fixtures but rejected this live Snapshot shape.
+      cellInterface: {
+        name: "Main",
+        terminals: [
+          {
+            id: "release-vdd-terminal",
+            name: "VDD",
+            netId: "release-net",
+            direction: "passive",
+            interfaceInstanceIds: [],
+            interfaceAnnotationId: "release-vdd-label",
+          },
+        ],
+      },
       instances: [],
       nets: [
         {
@@ -150,6 +165,19 @@ function snapshot() {
       // Keep a schema-54 binding in every response, including connector resume.
       // Older packaged readers reject this field before ordinary tools can run.
       annotations: [
+        {
+          id: "release-vdd-label",
+          kind: "power-label",
+          binding: {
+            kind: "cell-terminal-name",
+            terminalId: "release-vdd-terminal",
+          },
+          netId: "release-net",
+          anchor: { kind: "free", position: { x: 0, y: 0 } },
+          rotation: 0,
+          alignment: "start",
+          locked: false,
+        },
         {
           id: "release-parameter-label",
           kind: "instance-value",
