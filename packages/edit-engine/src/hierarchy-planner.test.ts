@@ -10,11 +10,13 @@ import {
   planDeleteCell,
   planPlaceCellInstance,
   planRemoveCellTerminal,
+  planReorderCellPort,
   planReorderCellTerminal,
   planRenameCellTerminal,
   planSetDeviceModelTarget,
   planSetMosModelTarget,
   planSetVddConnectionMode,
+  planUpdateCellPortDirection,
 } from "./hierarchy-planner.js";
 import { executeProjectTransaction } from "./project-transaction.js";
 
@@ -433,6 +435,113 @@ describe("hierarchy domain planners", () => {
         -1,
       ),
     ).toEqual([]);
+  });
+
+  it("updates and reorders a projected Port as one group", () => {
+    const project = createEmptyProject("project", "Project");
+    const document = project.documents[0]!;
+    document.instances.push(
+      { id: "P1", symbolId: "port", placement: null },
+      { id: "P2", symbolId: "port", placement: null },
+      { id: "P3", symbolId: "port", placement: null },
+    );
+    document.nets.push(
+      {
+        id: "net-out",
+        terminals: [
+          { instanceId: "P1", pinName: "P" },
+          { instanceId: "P3", pinName: "P" },
+        ],
+      },
+      {
+        id: "net-in",
+        terminals: [{ instanceId: "P2", pinName: "P" }],
+      },
+    );
+    document.netlist!.terminals.push(
+      {
+        id: "terminal-out-a",
+        name: "OUT",
+        netId: "net-out",
+        direction: "passive",
+        interfaceInstanceIds: ["P1"],
+      },
+      {
+        id: "terminal-in",
+        name: "IN",
+        netId: "net-in",
+        direction: "input",
+        interfaceInstanceIds: ["P2"],
+      },
+      {
+        id: "terminal-out-b",
+        name: "out",
+        netId: "net-out",
+        direction: "passive",
+        interfaceInstanceIds: ["P3"],
+      },
+    );
+
+    const directionEdits = planUpdateCellPortDirection(
+      project,
+      document.id,
+      "terminal-out-a",
+      "output",
+    );
+    expect(directionEdits).toEqual([
+      expect.objectContaining({
+        kind: "transact_document",
+        edits: [
+          expect.objectContaining({ terminalId: "terminal-out-a" }),
+          expect.objectContaining({ terminalId: "terminal-out-b" }),
+        ],
+      }),
+    ]);
+    const directionResult = executeProjectTransaction(project, {
+      transactionId: "set-port-direction",
+      projectId: project.id,
+      expectedStructureRevision: project.structureRevision,
+      actor: { kind: "human", id: "test" },
+      edits: directionEdits,
+    });
+    expect(directionResult.ok).toBe(true);
+    expect(directionResult.project.documents[0]!.netlist!.terminals).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: "terminal-out-a", direction: "output" }),
+        expect.objectContaining({ id: "terminal-out-b", direction: "output" }),
+      ]),
+    );
+
+    const reorderEdits = planReorderCellPort(
+      project,
+      document.id,
+      "terminal-in",
+      -1,
+    );
+    expect(reorderEdits).toEqual([
+      expect.objectContaining({
+        kind: "transact_document",
+        edits: [
+          {
+            kind: "reorder_cell_terminals",
+            terminalIds: ["terminal-in", "terminal-out-a", "terminal-out-b"],
+          },
+        ],
+      }),
+    ]);
+    const reorderResult = executeProjectTransaction(project, {
+      transactionId: "reorder-port",
+      projectId: project.id,
+      expectedStructureRevision: project.structureRevision,
+      actor: { kind: "human", id: "test" },
+      edits: reorderEdits,
+    });
+    expect(reorderResult.ok).toBe(true);
+    expect(
+      reorderResult.project.documents[0]!.netlist!.terminals.map(
+        (terminal) => terminal.id,
+      ),
+    ).toEqual(["terminal-in", "terminal-out-a", "terminal-out-b"]);
   });
 
   it("renames a Cell Pin to an existing name without merging identity or Net", () => {

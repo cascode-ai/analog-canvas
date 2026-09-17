@@ -94,12 +94,10 @@ for repair; it is not silently overwritten.
 
 ## DUT and Testbench
 
-1. Define the DUT Cell's formal ports. Use **Edit → Manage Cells → Review
-   Symbol** before placing the first instance.
-2. Choose **Edit → New Testbench Cell…**; its DUT defaults to the current Cell.
-   **Create Testbench** creates an ordinary Cell and offers the DUT at the
-   cursor. Escape cancels placement, not the new Cell. The Project top remains
-   unchanged.
+1. Define the DUT Cell's formal ports on its canvas. Its generated Symbol is
+   ready for placement without a separate review step.
+2. Use **Manage Cells… → New Cell** to create an ordinary Testbench Cell, then
+   use **Place Cell** to place the DUT there. The Project top remains unchanged.
 3. Draw sources and loads, then create an experiment for that Testbench. Its
    generated binding prints the drawn topology; source text owns the analyses.
 4. Alternatively, use a generated subcircuit binding and write the DUT call,

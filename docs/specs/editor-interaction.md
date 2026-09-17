@@ -291,8 +291,11 @@ never establish or advance this baseline.
 
 ## Cell reset lifecycle
 
-Cell reset commands are Document transactions and therefore use Document Undo.
-Each command previews an exact affected-object count before commit:
+Cell reset commands live in the selected definition's **Cell Manager → Reset
+Cell** section. The Manager submits the existing Document edit through the
+Project `transact_document` boundary so an inactive Cell can be reset without
+opening it first; one Undo restores the atomic Project transaction. Each command
+previews an exact affected-object count before commit:
 
 - **Clear Drawing** removes authored Route geometry and drafting objects while
   retaining Instances, Nets, Junction topology, ports, and semantic

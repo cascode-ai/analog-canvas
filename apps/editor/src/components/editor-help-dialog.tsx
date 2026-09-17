@@ -138,7 +138,8 @@ export function EditorHelpDialog({
               wire bend while drawing.
             </p>
             <p>
-              The Edit menu separates three reversible Cell operations.{" "}
+              Cell Manager's <strong>Reset Cell</strong> section separates three
+              reversible operations. {" "}
               <strong>Clear Drawing</strong> removes Route and drafting geometry
               but retains logical objects. <strong>Reset Cell Placement</strong>{" "}
               returns Instances to the tray and removes Route geometry while

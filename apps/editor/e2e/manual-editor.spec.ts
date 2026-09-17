@@ -4775,7 +4775,10 @@ test("separates drawing, placement, and Cell body resets with impact preview and
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("revision")).toHaveText("3");
 
-  await clickCommand(page, "Edit", "Clear Drawing");
+  await clickCommand(page, "Edit", "Manage Cells…");
+  let manager = page.getByRole("dialog", { name: "Cell Manager" });
+  await manager.getByText("Reset Cell", { exact: true }).click();
+  await manager.getByRole("button", { name: "Clear Drawing" }).click();
   const clearDialog = page.getByRole("dialog", {
     name: "Clear Drawing in dut?",
   });
@@ -4783,15 +4786,13 @@ test("separates drawing, placement, and Cell body resets with impact preview and
   await expect(clearDialog).toContainText("Affected objects: 1");
   await clearDialog.getByRole("button", { name: "Cancel" }).click();
   await expect(page.getByTestId("revision")).toHaveText("3");
-  await expect(page.getByTestId("status")).toHaveText(
-    "Clear Drawing cancelled",
-  );
 
-  await clickCommand(page, "Edit", "Clear Drawing");
-  await page
+  await manager.getByRole("button", { name: "Clear Drawing" }).click();
+  await manager
     .getByRole("dialog", { name: "Clear Drawing in dut?" })
     .getByRole("button", { name: "Clear Drawing" })
     .click();
+  await manager.getByRole("button", { name: "Close Cell Manager" }).click();
   await expect(page.getByTestId("instance-count")).toHaveText("2");
   await expect(page.getByTestId("net-count")).toHaveText("1");
   await expect(page.locator('[data-layer="routes"] polyline')).toHaveCount(0);
@@ -4806,7 +4807,10 @@ test("separates drawing, placement, and Cell body resets with impact preview and
   await expect(page.locator('[data-layer="routes"] polyline')).toHaveCount(1);
   await expect(page.getByTestId("revision")).toHaveText("5");
 
-  await clickCommand(page, "Edit", "Reset Cell Placement");
+  await clickCommand(page, "Edit", "Manage Cells…");
+  manager = page.getByRole("dialog", { name: "Cell Manager" });
+  await manager.getByText("Reset Cell", { exact: true }).click();
+  await manager.getByRole("button", { name: "Reset Cell Placement" }).click();
   const placementDialog = page.getByRole("dialog", {
     name: "Reset Cell Placement in dut?",
   });
@@ -4814,6 +4818,7 @@ test("separates drawing, placement, and Cell body resets with impact preview and
   await placementDialog
     .getByRole("button", { name: "Reset Cell Placement" })
     .click();
+  await manager.getByRole("button", { name: "Close Cell Manager" }).click();
   await expect(page.getByTestId("instance-count")).toHaveText("2");
   await expect(page.getByTestId("net-count")).toHaveText("1");
   await expect(page.locator('[data-layer="routes"] polyline')).toHaveCount(0);
@@ -4825,11 +4830,15 @@ test("separates drawing, placement, and Cell body resets with impact preview and
   await expect(page.locator('[data-layer="routes"] polyline')).toHaveCount(1);
   await expect(page.getByTestId("revision")).toHaveText("7");
 
-  await clickCommand(page, "Edit", "Reset Cell Body");
-  await page
+  await clickCommand(page, "Edit", "Manage Cells…");
+  manager = page.getByRole("dialog", { name: "Cell Manager" });
+  await manager.getByText("Reset Cell", { exact: true }).click();
+  await manager.getByRole("button", { name: "Reset Cell Body" }).click();
+  await manager
     .getByRole("dialog", { name: "Reset Cell Body in dut?" })
     .getByRole("button", { name: "Reset Cell Body" })
     .click();
+  await manager.getByRole("button", { name: "Close Cell Manager" }).click();
   await expect(page.getByTestId("instance-count")).toHaveText("0");
   await expect(page.getByTestId("net-count")).toHaveText("0");
   await expect(page.getByTestId("canvas-empty-state")).toBeVisible();

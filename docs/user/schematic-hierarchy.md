@@ -5,8 +5,10 @@ The top Cell is the export root; other Cells may be instantiated any number of
 times or kept unreferenced while they are being authored.
 
 Use **Manage Cells…** in **Edit** or the hierarchy row to manage the Project's definitions in one place. It shows each
-Cell's formal Pin and caller counts, opens or renames a definition, and lists
-each caller with **Jump to caller**. A referenced Cell's delete control is
+Cell's projected Port and caller counts, opens or renames a definition, and lists
+each caller with **Jump to caller**. Equal Port names occupy one row, matching
+the generated Symbol; a marker count preserves visibility into repeated canvas
+declarations. A referenced Cell's delete control is
 disabled; delete its caller Instances normally before deleting the now
 unreferenced definition.
 
@@ -89,13 +91,16 @@ symbol layout on canvas** reveals explicit drag grips for the body and pins;
 the Properties values remain the precise fallback. These are definition operations,
 not top-level drawing tools.
 
-Before the first Instance exists, **Manage Cells… → Review Symbol** previews
-the selected Cell definition using the same derived artwork. Size and pin
-changes stay local until **Apply Symbol**; **Use default Symbol** removes the
-explicit presentation. An unreferenced top Cell is reusable too: create another
-ordinary Cell, then use **Place Cell** to place the original top there. The
-Project top does not change. A valid zero-port interface is allowed; an absent
-formal interface must be authored first.
+The generated Symbol is ready for the first placement without a separate review
+or apply step. Customize it from a placed parent Instance when needed. An
+unreferenced top Cell is reusable too: create another ordinary Cell, then use
+**Place Cell** to place the original top there. The Project top does not change.
+A valid zero-port interface is allowed; an absent formal interface must be
+authored first.
+
+Cell Manager contains a collapsed **Reset Cell** section for the selected
+definition. Clear Drawing, Reset Cell Placement, and Reset Cell Body retain
+their distinct scopes, show an exact impact preview, and remain undoable.
 
 Agents use the existing `create-cell` action and `place-cell` with
 `childDocumentId`, `instanceId`, optional `reference`, and `placement`, targeting

@@ -1067,6 +1067,36 @@ export function planUpdateCellTerminalDirection(
   ];
 }
 
+/** Update every authored declaration represented by one projected formal Port. */
+export function planUpdateCellPortDirection(
+  project: CircuitProject,
+  documentId: string,
+  portId: string,
+  direction: "input" | "output" | "inout" | "passive",
+): ProjectStructureEdit[] {
+  const document = requireDocument(project, documentId);
+  const port = projectCellInterface(document.netlist).ports.find(
+    (candidate) => candidate.id === portId,
+  );
+  if (!port)
+    throw new Error(`Cell port does not exist: ${documentId}.${portId}`);
+  const edits = port.terminalIds.flatMap((terminalId) => {
+    const terminal = document.netlist?.terminals.find(
+      (candidate) => candidate.id === terminalId,
+    );
+    return terminal?.direction === direction
+      ? []
+      : [
+          {
+            kind: "update_cell_terminal" as const,
+            terminalId,
+            direction,
+          },
+        ];
+  });
+  return edits.length > 0 ? [transactDocument(project, documentId, edits)] : [];
+}
+
 export function planReorderCellTerminal(
   project: CircuitProject,
   documentId: string,
@@ -1086,6 +1116,35 @@ export function planReorderCellTerminal(
   return [
     transactDocument(project, documentId, [
       { kind: "reorder_cell_terminals", terminalIds },
+    ]),
+  ];
+}
+
+/** Reorder projected formal Ports while keeping each Port's marker declarations together. */
+export function planReorderCellPort(
+  project: CircuitProject,
+  documentId: string,
+  portId: string,
+  delta: -1 | 1,
+): ProjectStructureEdit[] {
+  const document = requireDocument(project, documentId);
+  const ports = projectCellInterface(document.netlist).ports;
+  const index = ports.findIndex((port) => port.id === portId);
+  const next = index + delta;
+  if (index < 0)
+    throw new Error(`Cell port does not exist: ${documentId}.${portId}`);
+  if (next < 0 || next >= ports.length) return [];
+  const orderedGroups = ports.map((port) => [...port.terminalIds]);
+  [orderedGroups[index], orderedGroups[next]] = [
+    orderedGroups[next]!,
+    orderedGroups[index]!,
+  ];
+  return [
+    transactDocument(project, documentId, [
+      {
+        kind: "reorder_cell_terminals",
+        terminalIds: orderedGroups.flat(),
+      },
     ]),
   ];
 }

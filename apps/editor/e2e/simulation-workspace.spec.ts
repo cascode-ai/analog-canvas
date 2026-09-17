@@ -1694,7 +1694,7 @@ test("human simulation uses saved folder, survives minimizing, recovers a bad in
   expect(executions).toBe(3);
 });
 
-test("Simulation creates an ordinary testbench and defaults a new experiment to the current Cell", async ({
+test("Simulation defaults a new experiment to an ordinary authored Cell", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -1702,11 +1702,23 @@ test("Simulation creates an ordinary testbench and defaults a new experiment to 
     .locator(".command-menu > summary")
     .filter({ hasText: "Edit" })
     .click();
-  await page.getByRole("button", { name: "New Testbench Cell…" }).click();
-  const dialog = page.getByRole("dialog", { name: "New Testbench Cell" });
-  await expect(dialog.getByLabel("DUT Cell")).toHaveValue("document-main");
-  await expect(dialog.getByText("Auto-derived")).toBeVisible();
-  await dialog.getByRole("button", { name: "Create Testbench" }).click();
+  await page.getByRole("button", { name: "Manage Cells…" }).click();
+  const manager = page.getByRole("dialog", { name: "Cell Manager" });
+  await manager.getByRole("button", { name: "New Cell" }).click();
+  const newCell = page.getByRole("dialog", { name: "New Cell" });
+  await newCell.getByLabel("Cell name").fill("Testbench");
+  await newCell.getByRole("button", { name: "Create" }).click();
+  await page
+    .locator(".command-menu > summary")
+    .filter({ hasText: "Edit" })
+    .click();
+  await page
+    .getByRole("button", { name: "Place Cell from this Project…" })
+    .click();
+  await page
+    .getByRole("dialog", { name: "Place Hierarchical Cell" })
+    .getByRole("option", { name: /dut/u })
+    .click();
   await page
     .getByTestId("schematic-canvas")
     .click({ position: { x: 320, y: 180 } });
@@ -1714,7 +1726,9 @@ test("Simulation creates an ordinary testbench and defaults a new experiment to 
   const saved = JSON.parse(
     (await downloadBytes(page, "File", "Export Project File…")).toString(),
   );
-  const tb = saved.documents.find((d: { name: string }) => d.name === "dut_tb");
+  const tb = saved.documents.find(
+    (d: { name: string }) => d.name === "Testbench",
+  );
   expect(tb.instances[0].netlist.binding).toEqual({
     kind: "subcircuit",
     childDocumentId: "document-main",

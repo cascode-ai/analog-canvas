@@ -3,13 +3,25 @@ import { useEffect, useState } from "react";
 import type {
   CircuitProject,
   ExternalSubcircuitDefinition,
-  CellSymbolPresentation,
   SchematicDocument,
 } from "@icm/model";
+import {
+  planCellReset,
+  type CellResetIntent,
+  type CellResetPlan,
+} from "@icm/edit-engine";
 import type { CloudProjectSummary } from "../editor-shell/cloud-projects";
 
 import { CellInterfaceEditor } from "./cell-interface-dialog";
-import { CellSymbolReview } from "./cell-symbol-review";
+
+const RESET_ACTIONS: readonly {
+  intent: CellResetIntent;
+  command: string;
+}[] = [
+  { intent: "clear-drawing", command: "Clear Drawing" },
+  { intent: "reset-placement", command: "Reset Cell Placement" },
+  { intent: "reset-body", command: "Reset Cell Body" },
+];
 
 export interface CellManagerEntry {
   readonly id: string;
@@ -26,7 +38,7 @@ export interface CellManagerEntry {
 export function CellManagerDialog({
   open,
   cells,
-  documents,
+  project,
   activeDocumentId,
   onClose,
   onCreate,
@@ -34,13 +46,12 @@ export function CellManagerDialog({
   onRename,
   onDelete,
   onJumpToCaller,
-  onRenameTerminal,
-  onSetTerminalDirection,
-  onMoveTerminal,
+  onSetPortDirection,
+  onMovePort,
   onSetFormalParameters,
   externalDefinitions,
   onSetExternalDefinition,
-  onSetSymbolPresentation,
+  onReset,
   cloudProjects,
   activeCloudProjectId,
   onLoadCloudProject,
@@ -48,7 +59,7 @@ export function CellManagerDialog({
 }: {
   open: boolean;
   cells: readonly CellManagerEntry[];
-  documents: readonly SchematicDocument[];
+  project: CircuitProject;
   activeDocumentId: string;
   onClose(): void;
   onCreate(name: string): void;
@@ -56,13 +67,12 @@ export function CellManagerDialog({
   onRename(documentId: string, name: string): void;
   onDelete(documentId: string): void;
   onJumpToCaller(documentId: string, instanceId: string): void;
-  onRenameTerminal(documentId: string, terminalId: string, name: string): void;
-  onSetTerminalDirection(
+  onSetPortDirection(
     documentId: string,
-    terminalId: string,
+    portId: string,
     direction: "input" | "output" | "inout" | "passive",
   ): void;
-  onMoveTerminal(documentId: string, terminalId: string, delta: -1 | 1): void;
+  onMovePort(documentId: string, portId: string, delta: -1 | 1): void;
   onSetFormalParameters(
     documentId: string,
     formalParameters: NonNullable<
@@ -71,10 +81,7 @@ export function CellManagerDialog({
   ): void;
   externalDefinitions: readonly ExternalSubcircuitDefinition[];
   onSetExternalDefinition(definition: ExternalSubcircuitDefinition): void;
-  onSetSymbolPresentation(
-    documentId: string,
-    presentation: CellSymbolPresentation | null,
-  ): void;
+  onReset(plan: CellResetPlan, command: string): boolean;
   cloudProjects: readonly CloudProjectSummary[];
   activeCloudProjectId: string | null;
   onLoadCloudProject(
@@ -92,6 +99,7 @@ export function CellManagerDialog({
   const [creating, setCreating] = useState(false);
   const [renameId, setRenameId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [resetIntent, setResetIntent] = useState<CellResetIntent | null>(null);
   const [importing, setImporting] = useState(false);
   const [importProjectId, setImportProjectId] = useState("");
   const [importSource, setImportSource] = useState<CircuitProject | null>(null);
@@ -108,6 +116,7 @@ export function CellManagerDialog({
     setCreating(false);
     setRenameId(null);
     setDeleteId(null);
+    setResetIntent(null);
     setImporting(false);
     setImportProjectId("");
     setImportSource(null);
@@ -118,17 +127,25 @@ export function CellManagerDialog({
 
   const selectedEntry =
     cells.find((cell) => cell.id === selectedId) ?? cells[0];
-  const selectedDocument = documents.find(
+  const selectedDocument = project.documents.find(
     (document) => document.id === selectedEntry?.id,
   );
   const renameTarget = cells.find((cell) => cell.id === renameId);
   const deleteTarget = cells.find((cell) => cell.id === deleteId);
+  const resetAction = RESET_ACTIONS.find(
+    (action) => action.intent === resetIntent,
+  );
+  const resetPlan =
+    selectedDocument && resetAction
+      ? planCellReset(project, selectedDocument.id, resetAction.intent)
+      : null;
 
   function dismissActionDialog(): void {
     setDraftName("");
     setCreating(false);
     setRenameId(null);
     setDeleteId(null);
+    setResetIntent(null);
     setImporting(false);
   }
 
@@ -267,28 +284,14 @@ export function CellManagerDialog({
                   </div>
                 </header>
 
-                <CellSymbolReview
-                  key={`${selectedDocument.id}:${selectedDocument.revision}`}
-                  cell={selectedDocument}
-                  onApply={(presentation) =>
-                    onSetSymbolPresentation(selectedDocument.id, presentation)
-                  }
-                />
                 <CellInterfaceEditor
                   cell={selectedDocument}
                   callerCount={selectedEntry.callers.length}
-                  onRenameTerminal={(terminalId, name) =>
-                    onRenameTerminal(selectedEntry.id, terminalId, name)
+                  onSetPortDirection={(portId, direction) =>
+                    onSetPortDirection(selectedEntry.id, portId, direction)
                   }
-                  onSetTerminalDirection={(terminalId, direction) =>
-                    onSetTerminalDirection(
-                      selectedEntry.id,
-                      terminalId,
-                      direction,
-                    )
-                  }
-                  onMoveTerminal={(terminalId, delta) =>
-                    onMoveTerminal(selectedEntry.id, terminalId, delta)
+                  onMovePort={(portId, delta) =>
+                    onMovePort(selectedEntry.id, portId, delta)
                   }
                   onSetFormalParameters={(formalParameters) =>
                     onSetFormalParameters(selectedEntry.id, formalParameters)
@@ -296,6 +299,33 @@ export function CellManagerDialog({
                   externalDefinitions={externalDefinitions}
                   onSetExternalDefinition={onSetExternalDefinition}
                 />
+
+                <details className="cell-manager-danger-zone">
+                  <summary>Reset Cell</summary>
+                  <p>
+                    Destructive maintenance for {selectedEntry.name}. Every
+                    action is confirmed and can be restored with Undo.
+                  </p>
+                  <div className="cell-manager-reset-actions">
+                    {RESET_ACTIONS.map((action) => {
+                      const plan = planCellReset(
+                        project,
+                        selectedEntry.id,
+                        action.intent,
+                      );
+                      return (
+                        <button
+                          key={action.intent}
+                          type="button"
+                          disabled={plan.edits.length === 0}
+                          onClick={() => setResetIntent(action.intent)}
+                        >
+                          {action.command}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </details>
 
                 {selectedEntry.callers.length > 0 ? (
                   <details className="cell-manager-callers">
@@ -329,7 +359,7 @@ export function CellManagerDialog({
           </div>
         </div>
 
-        {deleteTarget || creating || renameTarget || importing ? (
+        {deleteTarget || resetPlan || creating || renameTarget || importing ? (
           <div
             className="cell-manager-dialog-layer"
             onPointerDown={(event) =>
@@ -425,6 +455,46 @@ export function CellManagerDialog({
                     }}
                   >
                     {importBusy ? "Importing…" : "Import"}
+                  </button>
+                </footer>
+              </section>
+            ) : resetPlan && resetAction && selectedDocument ? (
+              <section
+                className="editor-action-dialog"
+                role="dialog"
+                aria-modal="true"
+                aria-label={`${resetAction.command} in ${selectedDocument.name}?`}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") dismissActionDialog();
+                }}
+              >
+                <header className="editor-action-dialog-header">
+                  <p>Cell contents</p>
+                  <h2>
+                    {resetAction.command} in {selectedDocument.name}?
+                  </h2>
+                </header>
+                <div className="editor-action-dialog-body">
+                  <p>
+                    {resetPlan.summary}. Affected objects:{" "}
+                    {resetPlan.affectedObjectIds.length}. You can restore them
+                    with Undo.
+                  </p>
+                </div>
+                <footer className="editor-action-dialog-actions">
+                  <button type="button" autoFocus onClick={dismissActionDialog}>
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="danger"
+                    onClick={() => {
+                      if (onReset(resetPlan, resetAction.command)) {
+                        dismissActionDialog();
+                      }
+                    }}
+                  >
+                    {resetAction.command}
                   </button>
                 </footer>
               </section>

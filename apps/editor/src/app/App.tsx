@@ -21,10 +21,7 @@ import type {
   AgentHostSemanticIntentResult,
 } from "@icm/agent-adapter";
 import {
-  planCellReset,
-  planCreateCell,
   planProjectCellImport,
-  planSetCellSymbolPresentation,
   planSetDeviceModelTarget,
   planSetVddConnectionMode,
   planInstanceUnplacement,
@@ -54,12 +51,7 @@ import {
   resolveAnnotationText,
 } from "@icm/derived";
 import type { HierarchyFrame } from "@icm/derived";
-import {
-  createEmptyProject,
-  createEmptyDocument,
-  createId,
-  flattenRichText,
-} from "@icm/model";
+import { createEmptyProject, flattenRichText } from "@icm/model";
 import {
   resolveReviewedExternalBinding,
   reviewedExternalModelSuggestions,
@@ -190,7 +182,6 @@ import {
 } from "../features/project-code/project-code";
 import { LazySpiceSimulationSurface } from "./lazy-editor-dialogs";
 import { recoverSourceDrafts } from "../features/simulation/source-draft-cache";
-import type { NewTestbenchRequest } from "../features/simulation/new-testbench-dialog";
 import { useProjectCheck } from "./use-project-check";
 import { summarizeVisualDiagnostics } from "../features/selection/selection-inspector-details";
 import {
@@ -713,28 +704,14 @@ export function App({
   );
   const [importReviewOpen, setImportReviewOpen] = useState(false);
   const [cellManagerOpen, setCellManagerOpen] = useState(false);
-  const [newTestbenchDutId, setNewTestbenchDutId] = useState<string | null>(
-    null,
-  );
-  const [simulationDraftContext, setSimulationDraftContext] = useState<{
-    folderId: string;
-    folderName: string;
-    dutDocumentId: string;
-    rootDocumentId: string;
-  } | null>(null);
   const [activeSimulationFolderId, setActiveSimulationFolderId] = useState<
     string | null
   >(null);
   const activeSimulationFolder =
     project.simulationFolders.find(
       (folder) => folder.id === activeSimulationFolderId,
-    ) ??
-    (simulationDraftContext?.folderId === activeSimulationFolderId
-      ? undefined
-      : project.simulationFolders[0]);
+    ) ?? project.simulationFolders[0];
   useEffect(() => {
-    setNewTestbenchDutId(null);
-    setSimulationDraftContext(null);
     setActiveSimulationFolderId(null);
   }, [projectSessionId]);
   const [canvasContextMenu, setCanvasContextMenu] = useState<{
@@ -742,10 +719,6 @@ export function App({
     y: number;
   } | null>(null);
   const canvasContextMenuSuppressed = useRef(false);
-  const [pendingCellReset, setPendingCellReset] = useState<{
-    plan: CellResetPlan;
-    command: string;
-  } | null>(null);
   const [netlistPreflightOpen, setNetlistPreflightOpen] = useState(false);
   const [projectPanel, setProjectPanel] =
     useState<EditorProjectPanelMode | null>(null);
@@ -958,7 +931,6 @@ export function App({
     setSimulationPickModeState(null);
     void humanSimulationSession?.clear();
     setAnalogSimulationState("closed");
-    setSimulationDraftContext(null);
   };
   const captureAuthoredProject = async () => {
     if (
@@ -1207,9 +1179,8 @@ export function App({
     createCell,
     renameCell,
     deleteCell,
-    updateCellPinDirection,
-    renameCellTerminal,
-    moveCellTerminal,
+    updateCellPortDirection,
+    moveCellPort,
     setCellFormalParameters,
     setExternalSubcircuitDefinition,
     setCellSymbolBodySize,
@@ -1826,10 +1797,7 @@ export function App({
   const simulationPickRootDocumentId =
     activeSimulationFolder?.input.circuitBindings.find(
       (binding) => binding.emission === "top-level",
-    )?.documentId ??
-    (simulationDraftContext?.folderId === activeSimulationFolderId
-      ? simulationDraftContext.rootDocumentId
-      : undefined);
+    )?.documentId;
   const simulationPickOccurrence: readonly string[] | undefined =
     documentStack.length > 0
       ? documentStack.map((frame) => frame.instanceId)
@@ -3419,87 +3387,6 @@ export function App({
     setStatus("Choose a Cell, then place it on the canvas");
   }
 
-  function openNewTestbenchDialog(dutDocumentId = document.id): void {
-    if (!publicSimulationUiEnabled) return;
-    cancelAllTransientInteraction();
-    setCanvasContextMenu(null);
-    setNewTestbenchDutId(dutDocumentId);
-  }
-
-  function beginProjectCellPlacement(childDocumentId: string): void {
-    const child = project.documents.find(
-      (candidate) => candidate.id === childDocumentId,
-    );
-    if (!child?.netlist) {
-      setStatus("The selected DUT Cell no longer exists");
-      return;
-    }
-    const cellName = child.netlist.name;
-    beginComponentPlacement({
-      kind: "cell",
-      symbolId: hierarchicalSymbolId(cellName),
-      childDocumentId: child.id,
-      cellName,
-      parameters: {},
-      initialRotation: 0,
-      showReference: false,
-      referenceText: null,
-      showValue: true,
-    });
-  }
-
-  function createTestbenchCell(request: NewTestbenchRequest): void {
-    const dut = project.documents.find(
-      (candidate) => candidate.id === request.dutDocumentId,
-    );
-    if (!dut?.netlist) {
-      setStatus("Could not create Testbench: the selected DUT Cell is missing");
-      return;
-    }
-    if (
-      project.documents.some(
-        (candidate) =>
-          candidate.name.toLowerCase() === request.name.toLowerCase(),
-      )
-    ) {
-      setStatus(
-        `Could not create Testbench: Cell ${request.name} already exists`,
-      );
-      return;
-    }
-    const testbench = createEmptyDocument(createId("document"), request.name);
-    testbench.netlist!.name = request.name;
-    testbench.presentation = structuredClone(dut.presentation);
-    if (
-      !commitStructure(
-        "create-testbench-cell",
-        planCreateCell(testbench),
-        testbench.id,
-      )
-    ) {
-      return;
-    }
-    setDocumentStack([]);
-    setNewTestbenchDutId(null);
-    const folderId = createId("simulation-folder");
-    setSimulationDraftContext({
-      folderId,
-      folderName: `${testbench.name} folder`,
-      dutDocumentId: dut.id,
-      rootDocumentId: testbench.id,
-    });
-    setActiveSimulationFolderId(folderId);
-    if (analogSimulationOpen) minimizeAnalogSimulation();
-    if (request.placeDut) {
-      beginProjectCellPlacement(dut.id);
-      setStatus(
-        `Created Testbench ${testbench.name}. Click to place the ${dut.name} Symbol View; Esc exits.`,
-      );
-    } else {
-      setStatus(`Created Testbench Cell ${testbench.name}`);
-    }
-  }
-
   const selectedFormalTerminal = selectedInstance
     ? document.netlist?.terminals.find((terminal) =>
         terminal.interfaceInstanceIds.includes(selectedInstance.id),
@@ -3566,38 +3453,39 @@ export function App({
     setStatus("Rejected Agent file candidate");
   }
 
-  const clearDrawingPlan = planCellReset(project, document.id, "clear-drawing");
-  const resetPlacementPlan = planCellReset(
-    project,
-    document.id,
-    "reset-placement",
-  );
-  const resetBodyPlan = planCellReset(project, document.id, "reset-body");
-
-  function commitCellReset(plan: CellResetPlan, command: string): void {
-    if (plan.edits.length === 0) {
-      setStatus(command + " has nothing to change in Cell " + document.name);
-      return;
-    }
-    setPendingCellReset({ plan, command });
-  }
-
-  function confirmClearCanvas(): void {
-    if (!pendingCellReset) return;
-    const { plan, command } = pendingCellReset;
-    const result = transact([...plan.edits]);
-    if (!result.ok) return;
-    setPendingCellReset(null);
-    resetInteractionState();
-    setStatus(
-      command + " completed in Cell " + document.name + " · Undo restores it",
+  function commitManagedCellReset(
+    plan: CellResetPlan,
+    command: string,
+  ): boolean {
+    const target = project.documents.find(
+      (candidate) => candidate.id === plan.scope.documentId,
     );
-  }
-
-  function cancelClearCanvas(): void {
-    const command = pendingCellReset?.command ?? "Cell reset";
-    setPendingCellReset(null);
-    setStatus(command + " cancelled");
+    if (!target) {
+      setStatus(
+        `Could not reset Cell: ${plan.scope.documentId} no longer exists`,
+      );
+      return false;
+    }
+    if (plan.edits.length === 0) {
+      setStatus(command + " has nothing to change in Cell " + target.name);
+      return false;
+    }
+    const committed = commitStructure(
+      `reset-cell-${plan.intent}`,
+      [
+        {
+          kind: "transact_document",
+          documentId: target.id,
+          expectedRevision: target.revision,
+          edits: [...plan.edits],
+        },
+      ],
+      document.id,
+    );
+    if (!committed) return false;
+    if (target.id === document.id) resetInteractionState();
+    setStatus(`${command} completed in Cell ${target.name} · Undo restores it`);
+    return true;
   }
 
   function nextRoutingSuffix(): number {
@@ -4565,10 +4453,7 @@ export function App({
       {renderCrashRequested() ? <RenderCrashProbe /> : null}
       <EditorAppChrome
         {...(publicSimulationUiEnabled
-          ? {
-              simulationAction: openAnalogSimulation,
-              onNewTestbench: () => openNewTestbenchDialog(),
-            }
+          ? { simulationAction: openAnalogSimulation }
           : {})}
         simulationState={analogSimulationState}
         releaseChannel={releaseChannel}
@@ -4685,24 +4570,6 @@ export function App({
               format,
             }),
         }))}
-        resets={[
-          {
-            label: "Clear Drawing",
-            enabled: clearDrawingPlan.edits.length > 0,
-            execute: () => commitCellReset(clearDrawingPlan, "Clear Drawing"),
-          },
-          {
-            label: "Reset Cell Placement",
-            enabled: resetPlacementPlan.edits.length > 0,
-            execute: () =>
-              commitCellReset(resetPlacementPlan, "Reset Cell Placement"),
-          },
-          {
-            label: "Reset Cell Body",
-            enabled: resetBodyPlan.edits.length > 0,
-            execute: () => commitCellReset(resetBodyPlan, "Reset Cell Body"),
-          },
-        ]}
         rotate={{
           enabled: editorCommands.state({ id: "transform.rotate" }).enabled,
           execute: () => editorCommands.execute({ id: "transform.rotate" }),
@@ -4974,22 +4841,12 @@ export function App({
               }
             : null
         }
-        cellReset={
-          pendingCellReset
-            ? {
-                documentName: document.name,
-                pending: pendingCellReset,
-                onCancel: cancelClearCanvas,
-                onConfirm: confirmClearCanvas,
-              }
-            : null
-        }
         cellManager={
           cellManagerOpen
             ? {
                 open: cellManagerOpen,
                 cells: cellManagerEntries,
-                documents: project.documents,
+                project,
                 activeDocumentId: document.id,
                 onClose: () => setCellManagerOpen(false),
                 onCreate: (name) => {
@@ -5007,26 +4864,15 @@ export function App({
                   }
                 },
                 onJumpToCaller: jumpToCaller,
-                onRenameTerminal: (documentId, terminalId, name) =>
-                  renameCellTerminal(terminalId, name, documentId),
-                onSetTerminalDirection: (documentId, terminalId, direction) =>
-                  updateCellPinDirection(terminalId, direction, documentId),
-                onMoveTerminal: (documentId, terminalId, delta) =>
-                  moveCellTerminal(terminalId, delta, documentId),
+                onSetPortDirection: (documentId, portId, direction) =>
+                  updateCellPortDirection(portId, direction, documentId),
+                onMovePort: (documentId, portId, delta) =>
+                  moveCellPort(portId, delta, documentId),
                 onSetFormalParameters: (documentId, formalParameters) =>
                   setCellFormalParameters(formalParameters, documentId),
                 externalDefinitions: project.externalSubcircuitDefinitions,
                 onSetExternalDefinition: setExternalSubcircuitDefinition,
-                onSetSymbolPresentation: (documentId, presentation) => {
-                  commitStructure(
-                    "review-cell-symbol",
-                    planSetCellSymbolPresentation(
-                      project,
-                      documentId,
-                      presentation,
-                    ),
-                  );
-                },
+                onReset: commitManagedCellReset,
                 cloudProjects,
                 activeCloudProjectId: cloudBinding?.id ?? null,
                 onLoadCloudProject: loadCloudProjectForCellImport,
@@ -5070,16 +4916,6 @@ export function App({
                     documentId: plan.rootDocumentId,
                   };
                 },
-              }
-            : null
-        }
-        newTestbench={
-          publicSimulationUiEnabled && newTestbenchDutId
-            ? {
-                documents: project.documents,
-                initialDutDocumentId: newTestbenchDutId,
-                onCancel: () => setNewTestbenchDutId(null),
-                onCreate: createTestbenchCell,
               }
             : null
         }
@@ -5427,12 +5263,7 @@ export function App({
                         }
                       : undefined
                   }
-                  selectedFolderId={
-                    simulationDraftContext?.folderId ===
-                    activeSimulationFolderId
-                      ? simulationDraftContext.folderId
-                      : (activeSimulationFolder?.id ?? null)
-                  }
+                  selectedFolderId={activeSimulationFolder?.id ?? null}
                   onSelectFolderId={setActiveSimulationFolderId}
                   agentGuidance={
                     publicAgentUiEnabled
@@ -5447,7 +5278,6 @@ export function App({
                       `Open ${exampleProject.name} example`,
                       () => {
                         replaceActiveProject(exampleProject, DEFAULT_VIEWBOX);
-                        setSimulationDraftContext(null);
                         setActiveSimulationFolderId(
                           exampleProject.simulationFolders[0]?.id ?? null,
                         );
@@ -5458,9 +5288,6 @@ export function App({
                       },
                     );
                   }}
-                  {...(simulationDraftContext
-                    ? { draftContext: simulationDraftContext }
-                    : {})}
                   open={analogSimulationOpen}
                   maximized={analogSimulationMaximized}
                   onToggleMaximized={toggleAnalogSimulationMaximized}
@@ -5484,7 +5311,6 @@ export function App({
                       edits: [{ kind: "upsert_simulation_folder", folder }],
                     });
                     if (result.ok) {
-                      setSimulationDraftContext(null);
                       setActiveSimulationFolderId(folder.id);
                       setStatus(
                         result.applied
@@ -5541,7 +5367,6 @@ export function App({
                       );
                     if (committed && activeSimulationFolderId === folderId) {
                       setActiveSimulationFolderId(null);
-                      setSimulationDraftContext(null);
                     }
                     return committed;
                   }}
