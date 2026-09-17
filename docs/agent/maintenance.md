@@ -17,11 +17,14 @@ This is maintainer-only guidance, not a circuit operating resource. See the
 4. Run `pnpm agent-docs:check` (also in `ci:static`). This is read-only and fails
    on stale output. Commit source, registry and generated output together.
 
-Markdown links to distributed documents become resource URIs or relative Kit
-paths. Links to repository-only specifications remain explicit source links;
-they are not advertised as offline resources. Runtime schemas and symbol facts
-remain code-owned. Tool descriptions are in `mcp/tool-help.json`; argument
-schema descriptions stay with the schema. New tools must use registered help.
+Markdown links become resource URIs or relative Kit paths. Every local link
+in a runtime document must resolve inside that same distribution; missing
+destinations fail generation instead of linking to a floating GitHub branch.
+Repository-only helper internals stay in repository-only documents.
+Runtime schemas and symbol facts
+remain code-owned. Tool descriptions are in `mcp/tool-help.json`; HTTP operation
+descriptions are in `http-kit/api-help.json` and generated into OpenAPI.
+Argument schema descriptions stay with the schema. New tools must use registered help.
 
 The browser template accepts only origin, serialized claim, manifest URL and
 Kit URL placeholders. Replacement is a single callback pass, never evaluation.
@@ -39,6 +42,9 @@ Do not add tokens, private Project data, machine paths or example live claims.
 | Developer preflight in circuit workflow | This maintainer guide | Operating Agents should not build the editor |
 | Long MCP quickstart with CLI/version history | Short entry plus MCP tools/simulation and CLI guide | Load the right transport and task |
 | Shared authoring's copied Specs/handoff paragraphs | Topic links and shared simulation workflow | Prevent independently changing result rules |
+| Twelve knowledge files including an index and repeated policy | Five task cards, shared diagnostics and workflow | Keep evidence cues; remove repeated rituals and textbook introductions |
+| RouteGraph internals in operating tools/recovery | Repository-only RouteGraph reference | Optional library is not a MCP tool or raw request form |
+| Version history in MCP installation | Git/release record; current bootstrap manifest | Installed Agents need current setup, not old release chronology |
 
 Content review also exposed ngspice-specific commands presented as generic
 native-source instructions. Guides now distinguish Profile-selected VACASK

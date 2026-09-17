@@ -1,235 +1,102 @@
-# Agent API Usage
+# Raw HTTP session guide
 
-## One production lifecycle
+This guide is for a caller implementing HTTP lifecycle, not an MCP tool caller.
+Read `GET /api/agent/openapi.json` from the exact editor origin for request
+schemas, response envelopes and limits. The Kit does not replace that contract.
 
-1. Call `capabilities` once and obey the returned operations, permissions, edit
-   kinds, and byte/transaction limits.
-2. Read the returned Project Index and choose one Document. Request exactly one
-   complete `snapshot` for that Document; do not construct a query plan first.
-   For a blank Document, use only the downloaded Kit's static authoring catalog
-   to select reviewed built-in symbols and the VDD primitive; it is not a
-   Circuit query or Project state.
-3. Reason over the Snapshot's complete instance-pin/Net-terminal mapping,
-   explicit Net `powerDomain`, hierarchy references, placements, routes, locks,
-   and diagnostics. Never infer supply identity from a label, symbol, or Net
-   ID. Load only the circuit-knowledge pages relevant to the observed evidence.
-4. After creating new instances, request a fresh Snapshot before wiring so all
-   instance IDs, resolved pins, endpoint connections, and MOS bulk facts come from
-   the browser. For ordinary wiring, submit one high-level `wireIntent`; for other work,
-   prepare generic typed edits. In both cases use the Snapshot revision as
-   `expectedRevision` and dry-run any non-trivial transaction.
-5. Inspect the dry-run diff and diagnostics, then submit the same edits without
-   `dryRun` if the assumptions still hold.
-6. Request a `formal` or `diagnostics` render. Repair only evidenced problems.
-7. Request a fresh Snapshot before global review and handoff. On
-   `STALE_REVISION`, refresh and reconsider; never blindly retry the old edit.
+## Connect and select a Document
 
-When capabilities reports `semanticControl: true`, an Agent may submit one
-`transact.semanticIntent` to make review visible in the browser: select a
-canonical locator, highlight a Net, activate or fit an existing Cell, or clear
-focus. Use snapshot-returned IDs and hierarchy paths, never canvas coordinates.
-Semantic results always have `applied: false` and leave revision, undo, and
-Project data unchanged.
+1. Redeem the human's claim with `POST /api/agent/claims` and
+   `{"claimCode":"<claim-code>"}`.
+2. Retain returned `sessionId`, `projectId` and authorized `documentIds`.
+   Keep `agentToken` in memory; store `connectorToken` only in private
+   credential storage. Never log credentials or put them in circuit files.
+3. Call Circuit `capabilities` for permissions, operations and limits.
+   **Capabilities does not contain a Project Index.** Choose a Document from
+   claim/resume authorization; read its `snapshot` for Project context,
+   resolved pins, Nets, locks and revisions.
+4. Follow [task workflow](workflow.md) and [native authoring](shared/authoring.md).
+   Use the [catalog](../../packages/agent-adapter/src/agent-authoring-catalog.generated.ts)
+   for built-in placement; refresh Snapshot before wiring newly created pins.
 
-When capabilities advertises `resources.file`, use the separate File Resource
-instead of inventing a Circuit operation. `download` returns only canonical
-Project JSON or formal SVG/PNG/PDF. `stage` accepts a bounded `.icproj.json` or
-structural-SPICE virtual source bundle, but does not mutate the live Project;
-call `inspect`, then `request-approval`. The human must select **Replace
-Project** in the browser. Simulation raw workspaces and execution artifacts use the same advertised
-File Resource through its simulation operations. The sibling Simulation
-resource provides prepare/start/read/cancel/export; saved folder changes remain
-typed Project structure edits. These resources grant neither arbitrary host-file
-access nor a general-purpose shell. See the
-[execution contract](../specs/simulation-execution.md) and
-[MCP simulation workflow](mcp/simulation.md).
+Use `Authorization: Bearer <agentToken>` and `Content-Type: application/json`
+for session requests. Include `apiVersion` and `requestId` where required;
+current examples use API `3.0`.
 
-A successful `transact` returns `resolvedRoutes`: the post-edit resolved
-polyline for each Route in `diff.changedObjectIds`. Read it to learn the actual
-stored geometry — including any normalization (e.g. `set_route_path`
-collapsing collinear bends) — without an immediate `snapshot`. A rejected
-`transact` localizes the failure: each diagnostic `path` points at the failing
-edit position (`["edits", index]`) or, for a Route geometry failure, at the
-Route (`["routes", routeId]`), and `objectIds` names the offending object. Read
-`path`/`objectIds` to pinpoint the failing edit rather than parsing the message.
+| Route under `/api/agent/sessions/{sessionId}` | Purpose |
+| --- | --- |
+| `POST /circuit` | Four Circuit operations: capabilities, snapshot, transact, render |
+| `POST /files` | Project exports/import candidates, simulation source and artifacts |
+| `POST /simulation` | Capabilities, authoring help, prepare/start/read/cancel/export and batches |
+| `POST /projects` | Reusable Cloud Cells and import into the open Project |
+| `GET /status` | Session observations; attached is not execution readiness |
 
-The production operation surface is exactly `capabilities`, `snapshot`,
-`transact`, and `render`. Do not invent a validation, planning, compilation, or
-fallback mutation endpoint. The deployed OpenAPI examples identify the sole
-current request version. No query or compatibility operation exists.
+The four-operation restriction applies to **Circuit**, not sibling resources.
+These routes do not grant arbitrary host files or shell access.
 
-For a hosted session, treat the published OpenAPI as the only request contract.
-An HTTP `400` is an `INVALID_REQUEST` Circuit envelope: correct every returned
-diagnostic `path`, then retry with a fresh `requestId`. Never retry a changed
-payload under an old `requestId`; an invalid request was not forwarded or
-committed.
+## Transactions and request identity
 
-## Local development only: loopback example
+Use exactly one schema-defined form: `edits`, `structureEdits`, `wireIntent`,
+`semanticIntent` or `command`. Use current `expectedRevision` and, when
+required, `expectedStructureRevision`. Semantic focus is non-mutating.
 
-The desktop host may start the optional loopback adapter for repository-local
-development. It is not published in the browser OpenAPI and is never part of
-the hosted Agent authorization workflow. External Agents must use the hosted
-session flow below, not this endpoint.
+For a risky edit, send a dry run and inspect its diff/diagnostics. Commit the
+reviewed payload with `dryRun:false`, **new requestId and transactionId**, and
+the same expected revisions while still current. A dry-run receipt is not a
+committed edit. See [request examples](examples.md).
 
-```http
-POST /circuit HTTP/1.1
-Host: 127.0.0.1:PORT
-Authorization: Bearer HOST_GENERATED_TOKEN
-Content-Type: application/json
+After an uncertain response, retry the **identical envelope**, including IDs,
+revisions and payload. Never give an uncertain write a new identity.
+After a definite schema rejection, fix the payload and assign new IDs.
+After a stale revision, read fresh state and replan; changing only the revision
+is not recovery. `REQUEST_RESULT_UNAVAILABLE` means a request ran but its
+cached response is gone: reconcile current state, do not replay the mutation.
 
-{"apiVersion":"3.0","requestId":"cap-1","operation":"capabilities"}
-```
+## Simulation through HTTP
 
-Then request the selected Document:
+1. Discover Simulation `capabilities`; choose an advertised Profile and read
+   its engine. Request `authoring-help` for native syntax. Follow the
+   [shared simulation rules](shared/simulation.md), not a remembered dialect.
+2. Use File `operation:"simulation-input"` with its schema-defined `input`.
+   Source read/update uses `owner:{kind:"project-folder",folderId}` or
+   `owner:{kind:"session-workspace",workspaceId}`. Saved folders are Project
+   structure objects; File `create` creates an expiring workspace, not a folder.
+   Project-folder updates use the Project structure revision. Preserve
+   generated files; reported editable circuit fields have a separate mapping.
+3. Send Simulation `operation:"prepare"` with
+   `source:{kind:"project-folder",folderId,expectedStructureRevision}` or
+   `source:{kind:"workspace",workspaceId,expectedRevision}`.
+   Fields are at the HTTP body's root, not inside MCP's `request` wrapper.
+4. Inspect prepared input; `start` with returned `preparedId` and `digest`.
+   Retain the entire request before sending. Retry an uncertain start unchanged.
+   Each new `read` poll uses a new request ID and returned `runId`.
+5. `export` lists artifact references. File simulation-input
+   `input:{action:"artifact",artifactId,...}` retrieves content using the
+   advertised paging fields. Verify byte length and SHA-256 before saving.
+   Large receipts may be previews: retrieve complete raw/result/Spec artifacts.
+   Follow [result handoff](simulation-result-handoff.md) for browser visibility,
+   durable evidence and source export versus results ZIP.
 
-```json
-{
-  "apiVersion": "3.0",
-  "requestId": "snapshot-1",
-  "operation": "snapshot",
-  "documentId": "document-differential-stage",
-  "includeSourceSpans": false
-}
-```
+Check both the outer response and resource result for failure. A successful
+HTTP request or accepted start is not a successful simulation.
 
-Do not place tokens in Project files, prompts, source netlists, or committed
-configuration. Stop the listener when the Agent session ends. `/circuit`
-rejects a body `apiVersion` other than `3.0`.
+## Resume, failure and authorization
 
-## Web session example (published editor)
+Exchange the saved connector through `POST /api/agent/connectors/resume`
+using the published schema. Save returned refreshed credentials; bearers remain
+memory-only. Ask the server even if a saved connector deadline has passed:
+activity may have extended it. Reusing a valid claim rotates the pairing and
+invalidates earlier credentials.
 
-The published browser editor exposes the same Circuit API over a browser-
-authorized relay (Agent rationale). The human clicks **Agent** to create a
-connection with full circuit editing, file and simulation access, then gives
-the Agent a short-lived claim code. The Agent never needs
-repository source — only this document and the claim code.
+- Invalid/expired bearer: try connector resume once, then retry the exact request.
+- Invalid/expired connector, revoked/expired session or replaced Project: stop
+  and obtain new authorization. Do not retarget another Project.
+- Offline editor: wait for the browser, then reconcile or retry the exact request.
+- Rate limit: bounded backoff; honor `Retry-After` when present.
+- Missing scope: ask for authority; do not use a second edit path.
+- Circuit failures: follow [response semantics](response-semantics.md).
 
-The deployed machine-readable contract is available at
-`GET /api/agent/openapi.json`. The editor's **Copy message** action includes
-the claim code, the MCP bootstrap manifest, and `GET /api/agent/kit` for a
-user-chosen HTTP path. The Kit is a small JSON payload whose listed files are
-written into an Agent-private scratch folder. It provides operating rules plus a
-static, reviewed built-in Razavi authoring catalog; the published OpenAPI
-remains the request-contract authority. The catalog is used only before first
-placement; the next Snapshot is authoritative for the live Document.
-
-1. **Redeem the claim** (30-minute expiry):
-
-   ```http
-   POST /api/agent/claims HTTP/1.1
-   Content-Type: application/json
-
-   {"claimCode":"<claim-code>"}
-   ```
-
-   On success the response carries `sessionId`, `projectId`, authorized
-   `documentIds`, a scoped `agentToken` (bearer), a revocable
-   `connectorToken`, and their expiries. Select the
-   target from those returned IDs; do not guess `document-main` or infer an ID
-   from a visible Cell name.
-   Repeating a still-valid claim is safe for recovery: it rotates the connector,
-   returns a fresh bearer, and immediately invalidates the earlier credentials.
-   A non-MCP client may exchange the connector for a fresh bearer through
-   `POST /api/agent/connectors/resume`; persist the connector, never the bearer.
-   The bearer lasts at most 8 hours and can be refreshed with the connector.
-   The session expires after 30 minutes without Agent operations or manual edits;
-   activity renews it indefinitely. Heartbeats, automatic capabilities checks,
-   and credential refresh alone do not renew it. A saved `connectorExpiresAt`
-   is a deadline snapshot: ask the server to resume even if it has passed,
-   because activity may have extended the session. Revoke, idle expiry, or
-   Project replacement invalidates both credentials immediately.
-
-2. **Call the Circuit API** through the session. The body is the same Circuit
-   request schema as the loopback adapter; the relay forwards it to the live
-   browser editor after strict schema and scope validation, without applying or
-   rewriting edits:
-
-   ```http
-   POST /api/agent/sessions/{sessionId}/circuit HTTP/1.1
-   Authorization: Bearer AGENT_TOKEN
-   Content-Type: application/json
-
-   {"apiVersion":"3.0","requestId":"cap-1","operation":"capabilities"}
-   ```
-
-   Then `snapshot`, `transact` (with the Snapshot revision as `expectedRevision`,
-   dry-run first when useful), and `render` exactly as in the lifecycle
-   above. Every request carries a unique `requestId`; bounded in-memory
-   caches in the relay and authoritative browser return the same terminal
-   result for a retry without persisting Snapshot/render payloads or reapplying
-   the edit.
-
-3. **Use File Resource only when its scope is present**:
-
-   ```http
-   POST /api/agent/sessions/{sessionId}/files HTTP/1.1
-   Authorization: Bearer AGENT_TOKEN
-   Content-Type: application/json
-
-   {"apiVersion":"3.0","requestId":"download-project-1","operation":"download","artifact":"project"}
-   ```
-
-   Do not treat staging as an import. It only returns a candidate summary;
-   replacement requires the browser-human confirmation and ends this session.
-
-The browser must be online while an operation runs. Refreshing the same tab or
-returning from Gallery restores its session record; revoking access ends the
-session.
-Open/Import/Restore replaces the Project and emits
-`document.replaced`; the old token cannot read or edit the new Project — request
-a new authorized session.
-
-A transient relay failure is not a revocation. Do not replay an uncertain write
-under a new `requestId`; repeat the original request ID to recover its terminal
-result, or request a fresh Snapshot after the browser is available again.
-
-The browser detects a silent relay connection after 45 seconds and reconnects
-automatically; returning online or foregrounding the page prompts an immediate
-check. The event stream also receives idle SSE comments. Agent clients must
-ignore comment contents and reconnect SSE after transport failure; neither
-heartbeat nor event reconnection replays an operation.
-
-Hiding the Agent details does not pause, revoke, or disconnect the live session.
-If the Agent loses its bearer, it exchanges the connector for a fresh one; a
-still-valid claim may also rotate the pairing. The user may choose **New connection**
-to create a separate session with the same Project, authorized Documents, and
-scopes.
-
-## Failure handling
-
-- `INVALID_REQUEST`: repair every reported `SCHEMA_VIOLATION` at its machine-
-  readable `path`, then submit a new dry run. The response never echoes the
-  rejected value. Malformed JSON uses the same envelope without a fabricated
-  field path.
-- `PERMISSION_DENIED`: request narrower authority or ask the human/host for a
-  new authorized session; do not route around it.
-- `LIMIT_EXCEEDED`: split a transaction. Do not drop electrical edits silently.
-- `SNAPSHOT_TOO_LARGE`: select a smaller hierarchical Document. The API does
-  not fall back to a selector/query DSL.
-- `STALE_REVISION`: request a fresh Snapshot and reconsider the edit.
-- `EDIT_PRECONDITION`: preserve current state and explain the rejected
-  assumption, including lock or pin-map conflicts.
-- `RENDER_TOO_LARGE`: request smaller render bounds.
-
-Web-session transport errors (published editor only):
-
-- `CLAIM_INVALID` / `CLAIM_EXPIRED`: ask the human for a fresh claim code.
-- `TOKEN_INVALID` / `TOKEN_EXPIRED`: exchange a valid connector once and retry
-  the exact request; if connector resume fails, ask for a new connection.
-- `CONNECTOR_INVALID` / `CONNECTOR_EXPIRED`: discard it and ask the human for a
-  fresh claim code.
-- `TOKEN_SCOPE_INSUFFICIENT`: do not retry the same operation; request broader
-  scope from the human.
-- `SESSION_PAUSED`: wait for `session.ready`; the human paused the session.
-- `SESSION_REVOKED` / `SESSION_EXPIRED` / `PROJECT_REPLACED`: terminal; stop and
-  request a new authorized session.
-- `EDITOR_OFFLINE`: the browser tab is absent; wait for `editor.online` and do
-  not blind-retry an unknown write. After reconnect, a repeated `requestId`
-  resolves whether a transaction committed.
-- `RATE_LIMITED`: back off and retry, respecting `Retry-After` when present.
-- `REQUEST_TOO_LARGE`: shrink the payload; the relay enforces a hard ceiling.
-- `REQUEST_RESULT_UNAVAILABLE`: that `requestId` already ran but its response
-  cache was evicted; do not replay it. Read a fresh Snapshot to resolve state.
-
-No error authorizes filesystem access, raw Project replacement, or a fallback
-mutation mechanism.
+File staging never replaces the live Project. Inspect the candidate and request
+approval; only the browser human can confirm replacement, ending the old session.
+The browser must be online for operations. Closing connection details does not
+revoke it.

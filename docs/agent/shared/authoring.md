@@ -7,8 +7,8 @@
 - `snapshot`: every object that already exists in the browser Document,
   including real object IDs, page positions, current Net membership, locks,
   revision, and MOS bulk status.
-- OpenAPI plus `capabilities`: request shape, permitted edit kinds, scopes,
-  and limits.
+- Selected transport's tool/resource schemas (MCP) or published OpenAPI
+  (raw HTTP), plus `capabilities`: request shape, permitted edits, scopes and limits.
 
 No dynamic catalog operation exists. A built-in absent from this catalog, a
 custom/PDK asset, or a pin mapping not reported by Snapshot is a human-fact
@@ -38,8 +38,8 @@ boundary.
 
 MCP wraps these operations in tools; HTTP sends the published Circuit
 `transact` envelope with exactly one `command`, `wireIntent`, `edits`,
-`structureEdits`, or `semanticIntent`. Read OpenAPI for field shapes and
-current capabilities for authority. Never send an MCP tool envelope to HTTP.
+`structureEdits`, or `semanticIntent`. Read the selected transport's schemas
+and current capabilities. Never send an MCP tool envelope to HTTP.
 
 - Placement: use browser command `place-components` (MCP
   `apply_actions` / `place-component`). Native placement creates attached

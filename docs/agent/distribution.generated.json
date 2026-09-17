@@ -1,7 +1,7 @@
 {
   "format": "analog-canvas-agent-distribution-v1",
   "version": 1,
-  "registrySha256": "53dfaaabfaa15740c45ac1e50bc1c4e917b3263dc637bbf1e76305a92ab5b56f",
+  "registrySha256": "1817c6173afe2ed97fd12588be60ad38cd058e4a4557ab53af0c9e9fe969afc3",
   "sources": [
     {
       "source": "docs/agent/simulation-specs.md",
@@ -13,7 +13,7 @@
     },
     {
       "source": "docs/agent/http-kit/skills/icm-circuit-session/SKILL.md",
-      "sha256": "4c3532c79bf77065ef189952429ade31a65fc9ac8b238083c56ce5e27b88380f"
+      "sha256": "ec7283b86c0f4aefb0e4e53a2315bee39794de837b6c3df4b21acc5185f69a88"
     },
     {
       "source": "docs/agent/shared/session.md",
@@ -21,31 +21,31 @@
     },
     {
       "source": "docs/agent/shared/authoring.md",
-      "sha256": "97a39f8269d041ab05fa7b3079c248a25f39f586b23c7197c4e961ba45502958"
+      "sha256": "db4ce05a853830d1ba48717fe4d8c817395a437111d2a4d68bea936b6efc9726"
     },
     {
       "source": "docs/agent/workflow.md",
-      "sha256": "684789abd28557dcba884faf14ff89af0201d7fc0365597e6ccaf877207d3d99"
+      "sha256": "10895f8cf8ccf6d0def9ace43d289cbf25665202ddb91328a028850ea7372a65"
     },
     {
       "source": "docs/agent/tool-behavior.md",
-      "sha256": "02dae868c67e8f71f63fa322a4aa5b10e0f8359c79f588434d7f52f61f3cb1e9"
+      "sha256": "93674f3af2068332457089daffddc899ac1deeb9f6ca2e02b04ca4a54c14d8f8"
     },
     {
       "source": "docs/agent/response-semantics.md",
-      "sha256": "41f9afc41681f0af2d8a86649f7016e4c31bc588d32935293e22baecc26fbe2a"
+      "sha256": "c009b38a03afe575a857e87af2a710e404a0aa5c04baf6400521f52bbf035fc5"
     },
     {
       "source": "docs/agent/knowledge/route-tree-shapes.md",
-      "sha256": "848e58a08b4c1a9d64d1e2c57366da6f506aff0128c940a69eab8d7dc2193717"
+      "sha256": "0e2c45dcbbdcf76a86654164cce14097ecd1e6dd4c003f0d071738c76f390cf0"
     },
     {
-      "source": "docs/agent/knowledge/routing-and-diagnostics.md",
-      "sha256": "447e42a56c277b8ce43c313cd39afd2fe11ff7243a9579496258f4303b0472e6"
+      "source": "docs/agent/shared/diagnostics.md",
+      "sha256": "7f832fe62dd1ce8e78a681e4cfa413084137f46a49f6de3b8096b9988091cdf5"
     },
     {
       "source": "docs/agent/circuit-style-knowledge.md",
-      "sha256": "14264599f249c9075cb369b845b725b6c562f91dce9e798d33595af13e840716"
+      "sha256": "9c0650d029f0240583ceb91f2922e9034322ba5a8e5780931f55a7516f0c073c"
     },
     {
       "source": "fixtures/agent-api/agent-circuit-request.schema.json",
@@ -57,11 +57,11 @@
     },
     {
       "source": "docs/agent/http-kit/AGENTS.md",
-      "sha256": "a4e377dff6cd622f1ed345891ff683c062089b3708f0df004e010a5e8f8acbf2"
+      "sha256": "81d39150ce7ae227148a77d3a8b4f1b501cf66dbd50375c346a4d33014917e49"
     },
     {
       "source": "docs/agent/http-cli.md",
-      "sha256": "32e9165f623b9c700fa1186f9c9d9771a43dc0434524e0910043ecede399c080"
+      "sha256": "acdbcaf146e8dc601daf4e4a16ad96889f215c8c9b35c6afc4130e3aa837ae5e"
     },
     {
       "source": "packages/agent-adapter/src/agent-authoring-catalog.generated.ts",
@@ -69,55 +69,27 @@
     },
     {
       "source": "docs/agent/knowledge/circuit-reading.md",
-      "sha256": "a4159c8052444b7d83e7303d12bb9e2a39218c8d3e9925763ceca5141e66e358"
+      "sha256": "14f29e749a05a51ae74546fec782f89baea60c5dc4c667d5132b766734ad4797"
     },
     {
       "source": "docs/agent/knowledge/hierarchy-and-large-circuits.md",
-      "sha256": "a7fbf79bc63fb73734acd6cc24f7c9a2bf429956c36383864dbece711a42ad36"
-    },
-    {
-      "source": "docs/agent/knowledge/human-collaboration.md",
-      "sha256": "01ab066bd54695c47598c98598757d0b18ba77ff5b945582ea1420525184a452"
+      "sha256": "d048c38a8c15d26544299a9a9c804a736678cec75fa8a63d75e9fab8c74f95cb"
     },
     {
       "source": "docs/agent/knowledge/pdk-and-symbols.md",
-      "sha256": "c9795b8aceef585f2d029a8238e4a4f756d7f7809a3d29b8e4580daa97972910"
-    },
-    {
-      "source": "docs/agent/knowledge/README.md",
-      "sha256": "59c074ff917174fa5d3244618589c2d5319f55575fe887e6e615f05108a80c22"
-    },
-    {
-      "source": "docs/agent/knowledge/schematic-expression.md",
-      "sha256": "d670217c7af9f5824612554c67ed00616a185cb568dc430d194b9a1447fba391"
-    },
-    {
-      "source": "docs/agent/knowledge/patterns/arrays-and-ladders.md",
-      "sha256": "26d33a9d8f20910244206d7d92bd956ec3e3b8ddf95d61b28f05cacd89d853c2"
-    },
-    {
-      "source": "docs/agent/knowledge/patterns/current-mirror.md",
-      "sha256": "d6e4798883ce070621ab268de8b9c7fa5d61953129d1d4150e7227c8df9150d8"
-    },
-    {
-      "source": "docs/agent/knowledge/patterns/differential-pair.md",
-      "sha256": "66e1fab6b5e9c8608d234c82e42da859ebcde339bce0c0c34aa32bde7dfc0678"
-    },
-    {
-      "source": "docs/agent/knowledge/patterns/switching-and-sampling.md",
-      "sha256": "6c1df7fc8c0e4de45393a7fb84aec38bddc867d4b5732738348af7586f0a2993"
+      "sha256": "15aa4858ecb12c524f094e492b2389b0b16ab13b6b2314323c2cf387f1fa6dd6"
     },
     {
       "source": "docs/agent/mcp-install.md",
-      "sha256": "1cd63906d2133b74b1831e265dcdcb1b30a8cc8165cdca2b9a92bb89fd0de96b"
+      "sha256": "361e8b531cb1df26220eddce55a587ef79e3eba9d6d2e62909b3f7b6ca87384d"
     },
     {
       "source": "docs/agent/api-usage.md",
-      "sha256": "956e89b4723cd3a00945311de22330e613ed08a0efd58fd7eac249a9c8d28b8f"
+      "sha256": "5022b48d761a7a62c6109a80bc3e673bc3c3aadba4a47b36d34675cc395fb2c1"
     },
     {
       "source": "docs/agent/examples.md",
-      "sha256": "16fa7f7d0bee68b70cddf003da8f3201c64a0169b21990195b8feb23958839c6"
+      "sha256": "9c31c1ab69681bd94f7ca3ada8ad1ec165d2a622db149dcb95dda1b84da2d5c5"
     },
     {
       "source": "docs/agent/simulation-result-handoff.md",
@@ -125,19 +97,31 @@
     },
     {
       "source": "docs/agent/mcp/tools.md",
-      "sha256": "eafc66c989a0d058a46577b5f1ddf859555877f773a338f1bd0f4f8aee88d7da"
+      "sha256": "fede72b7c1c810cf02d23093390ab0a4a511be21aa8a731e0f010b30c93aaf43"
     },
     {
       "source": "docs/agent/mcp/simulation.md",
-      "sha256": "bea2749ae016638ee0e21ac85330ab9c5b7295bbeb5ae402ee8db9cf8d84e657"
+      "sha256": "6a1d160d5964db560e3909e8648e082e2352f45e6cbb25181d27ae81bdeab54c"
     },
     {
       "source": "docs/agent/shared/simulation.md",
       "sha256": "04fc16cf418ec71b2c6866c3ff24955f98714c849d7f08cedcd6dc2e66a39d0c"
     },
     {
+      "source": "docs/agent/knowledge/patterns.md",
+      "sha256": "da7c2766436f1bb9216a25681c4ae77d261234862cc005a9e66e015ccb060ba4"
+    },
+    {
+      "source": "docs/agent/repo-skill/routegraph.md",
+      "sha256": "e6a1f9a92b90a4d43577c9fe716a245fd95257ac89a33cc512b1cab3243aff48"
+    },
+    {
       "source": "docs/agent/mcp/tool-help.json",
-      "sha256": "ce8fec9a8d94007389e3895c62fe810f6acdb158d9ef2e184b29cbb516e9c128"
+      "sha256": "7d23df01f460c3620c178e7f59e4601dc0fd1ff63c24130b36b5aa01f8446a61"
+    },
+    {
+      "source": "docs/agent/http-kit/api-help.json",
+      "sha256": "ef59ae13bc0356e196351e282f028a5e49d618340213f137ea86d58262957d81"
     },
     {
       "source": "docs/agent/mcp/instructions.md",
@@ -149,7 +133,7 @@
     },
     {
       "source": "docs/agent/repo-skill/SKILL.md",
-      "sha256": "dcd5372ca1f05e4221a60c7da5b37726ba57628217ffb815dfec2c8c59b60612"
+      "sha256": "cf87a39b4534f77b9627f9cae3dba9a8ee9da18663e6e20e1ac66c8a5685841a"
     },
     {
       "source": "docs/agent/repo-skill/openai.yaml",
@@ -197,6 +181,7 @@
       "task": "Raw HTTP live-session workflow",
       "load": "required",
       "requires": [
+        "reference/api-usage",
         "reference/session",
         "reference/authoring"
       ],
@@ -294,7 +279,7 @@
     },
     {
       "id": "reference/diagnostics",
-      "source": "docs/agent/knowledge/routing-and-diagnostics.md",
+      "source": "docs/agent/shared/diagnostics.md",
       "consumers": [
         "mcp",
         "http-cli",
@@ -305,7 +290,7 @@
       "load": "on-demand",
       "requires": [],
       "uri": "analog-canvas://reference/diagnostics",
-      "kitPath": "references/routing-and-diagnostics.md"
+      "kitPath": "references/diagnostics.md"
     },
     {
       "id": "reference/razavi-style",
@@ -424,21 +409,6 @@
       "kitPath": "references/knowledge/hierarchy-and-large-circuits.md"
     },
     {
-      "id": "reference/knowledge/human-collaboration",
-      "source": "docs/agent/knowledge/human-collaboration.md",
-      "consumers": [
-        "mcp",
-        "http-cli",
-        "http-kit",
-        "repo-skill"
-      ],
-      "task": "Human and Agent collaboration",
-      "load": "on-demand",
-      "requires": [],
-      "uri": "analog-canvas://reference/knowledge/human-collaboration",
-      "kitPath": "references/knowledge/human-collaboration.md"
-    },
-    {
       "id": "reference/knowledge/pdk-and-symbols",
       "source": "docs/agent/knowledge/pdk-and-symbols.md",
       "consumers": [
@@ -452,96 +422,6 @@
       "requires": [],
       "uri": "analog-canvas://reference/knowledge/pdk-and-symbols",
       "kitPath": "references/knowledge/pdk-and-symbols.md"
-    },
-    {
-      "id": "reference/knowledge/README",
-      "source": "docs/agent/knowledge/README.md",
-      "consumers": [
-        "mcp",
-        "http-cli",
-        "http-kit",
-        "repo-skill"
-      ],
-      "task": "Circuit-layout knowledge",
-      "load": "on-demand",
-      "requires": [],
-      "uri": "analog-canvas://reference/knowledge/README",
-      "kitPath": "references/knowledge/README.md"
-    },
-    {
-      "id": "reference/knowledge/schematic-expression",
-      "source": "docs/agent/knowledge/schematic-expression.md",
-      "consumers": [
-        "mcp",
-        "http-cli",
-        "http-kit",
-        "repo-skill"
-      ],
-      "task": "Schematic expression",
-      "load": "on-demand",
-      "requires": [],
-      "uri": "analog-canvas://reference/knowledge/schematic-expression",
-      "kitPath": "references/knowledge/schematic-expression.md"
-    },
-    {
-      "id": "reference/knowledge/patterns/arrays-and-ladders",
-      "source": "docs/agent/knowledge/patterns/arrays-and-ladders.md",
-      "consumers": [
-        "mcp",
-        "http-cli",
-        "http-kit",
-        "repo-skill"
-      ],
-      "task": "Arrays and ladders",
-      "load": "on-demand",
-      "requires": [],
-      "uri": "analog-canvas://reference/knowledge/patterns/arrays-and-ladders",
-      "kitPath": "references/knowledge/patterns/arrays-and-ladders.md"
-    },
-    {
-      "id": "reference/knowledge/patterns/current-mirror",
-      "source": "docs/agent/knowledge/patterns/current-mirror.md",
-      "consumers": [
-        "mcp",
-        "http-cli",
-        "http-kit",
-        "repo-skill"
-      ],
-      "task": "Current mirror",
-      "load": "on-demand",
-      "requires": [],
-      "uri": "analog-canvas://reference/knowledge/patterns/current-mirror",
-      "kitPath": "references/knowledge/patterns/current-mirror.md"
-    },
-    {
-      "id": "reference/knowledge/patterns/differential-pair",
-      "source": "docs/agent/knowledge/patterns/differential-pair.md",
-      "consumers": [
-        "mcp",
-        "http-cli",
-        "http-kit",
-        "repo-skill"
-      ],
-      "task": "Differential pair",
-      "load": "on-demand",
-      "requires": [],
-      "uri": "analog-canvas://reference/knowledge/patterns/differential-pair",
-      "kitPath": "references/knowledge/patterns/differential-pair.md"
-    },
-    {
-      "id": "reference/knowledge/patterns/switching-and-sampling",
-      "source": "docs/agent/knowledge/patterns/switching-and-sampling.md",
-      "consumers": [
-        "mcp",
-        "http-cli",
-        "http-kit",
-        "repo-skill"
-      ],
-      "task": "Switching and sampling networks",
-      "load": "on-demand",
-      "requires": [],
-      "uri": "analog-canvas://reference/knowledge/patterns/switching-and-sampling",
-      "kitPath": "references/knowledge/patterns/switching-and-sampling.md"
     },
     {
       "id": "reference/mcp-install",
@@ -560,30 +440,24 @@
       "id": "reference/api-usage",
       "source": "docs/agent/api-usage.md",
       "consumers": [
-        "mcp",
-        "http-cli",
         "http-kit",
         "repo-skill"
       ],
       "task": "Agent API Usage",
       "load": "on-demand",
       "requires": [],
-      "uri": "analog-canvas://reference/api-usage",
       "kitPath": "references/api-usage.md"
     },
     {
       "id": "reference/examples",
       "source": "docs/agent/examples.md",
       "consumers": [
-        "mcp",
-        "http-cli",
         "http-kit",
         "repo-skill"
       ],
       "task": "Reproducible Agent Workflows",
       "load": "on-demand",
       "requires": [],
-      "uri": "analog-canvas://reference/examples",
       "kitPath": "references/examples.md"
     },
     {
@@ -644,9 +518,41 @@
       ],
       "uri": "analog-canvas://reference/simulation-workflow",
       "kitPath": "references/simulation-workflow.md"
+    },
+    {
+      "id": "reference/knowledge/patterns",
+      "source": "docs/agent/knowledge/patterns.md",
+      "consumers": [
+        "mcp",
+        "http-cli",
+        "http-kit",
+        "repo-skill"
+      ],
+      "task": "Place recognizable circuit groups",
+      "load": "on-demand",
+      "requires": [],
+      "uri": "analog-canvas://reference/knowledge/patterns",
+      "kitPath": "references/knowledge/patterns.md"
+    },
+    {
+      "id": "repo/routegraph",
+      "source": "docs/agent/repo-skill/routegraph.md",
+      "consumers": [
+        "repo-skill"
+      ],
+      "task": "Use optional repository RouteGraph helper",
+      "load": "on-demand",
+      "requires": []
     }
   ],
   "templates": {
+    "apiHelp": {
+      "consumers": [
+        "http-kit",
+        "maintainer"
+      ],
+      "task": "Describe published HTTP operations"
+    },
     "connect": {
       "consumers": [
         "bootstrap"
@@ -692,30 +598,22 @@
         "docs/agent/tool-behavior.md",
         "docs/agent/response-semantics.md",
         "docs/agent/knowledge/route-tree-shapes.md",
-        "docs/agent/knowledge/routing-and-diagnostics.md",
+        "docs/agent/shared/diagnostics.md",
         "docs/agent/circuit-style-knowledge.md",
         "fixtures/agent-api/agent-circuit-request.schema.json",
         "docs/agent/http-cli.md",
         "packages/agent-adapter/src/agent-authoring-catalog.generated.ts",
         "docs/agent/knowledge/circuit-reading.md",
         "docs/agent/knowledge/hierarchy-and-large-circuits.md",
-        "docs/agent/knowledge/human-collaboration.md",
         "docs/agent/knowledge/pdk-and-symbols.md",
-        "docs/agent/knowledge/README.md",
-        "docs/agent/knowledge/schematic-expression.md",
-        "docs/agent/knowledge/patterns/arrays-and-ladders.md",
-        "docs/agent/knowledge/patterns/current-mirror.md",
-        "docs/agent/knowledge/patterns/differential-pair.md",
-        "docs/agent/knowledge/patterns/switching-and-sampling.md",
         "docs/agent/mcp-install.md",
-        "docs/agent/api-usage.md",
-        "docs/agent/examples.md",
         "docs/agent/simulation-result-handoff.md",
         "docs/agent/mcp/tools.md",
         "docs/agent/mcp/simulation.md",
-        "docs/agent/shared/simulation.md"
+        "docs/agent/shared/simulation.md",
+        "docs/agent/knowledge/patterns.md"
       ],
-      "sha256": "27d3dedca8f8e8917cb7739131818bfa2e1e7ca19508eb9f43a01b78eddb1a71"
+      "sha256": "d2c09b4c0ec337aaeee9a9960df094ce38a8f75fd35a94394a6ad6d63a7a3015"
     },
     {
       "file": "packages/agent-adapter/src/agent-docs.generated.ts",
@@ -729,7 +627,7 @@
         "docs/agent/tool-behavior.md",
         "docs/agent/response-semantics.md",
         "docs/agent/knowledge/route-tree-shapes.md",
-        "docs/agent/knowledge/routing-and-diagnostics.md",
+        "docs/agent/shared/diagnostics.md",
         "docs/agent/circuit-style-knowledge.md",
         "fixtures/agent-api/agent-circuit-request.schema.json",
         "docs/agent/http-kit/README.md",
@@ -737,20 +635,22 @@
         "packages/agent-adapter/src/agent-authoring-catalog.generated.ts",
         "docs/agent/knowledge/circuit-reading.md",
         "docs/agent/knowledge/hierarchy-and-large-circuits.md",
-        "docs/agent/knowledge/human-collaboration.md",
         "docs/agent/knowledge/pdk-and-symbols.md",
-        "docs/agent/knowledge/README.md",
-        "docs/agent/knowledge/schematic-expression.md",
-        "docs/agent/knowledge/patterns/arrays-and-ladders.md",
-        "docs/agent/knowledge/patterns/current-mirror.md",
-        "docs/agent/knowledge/patterns/differential-pair.md",
-        "docs/agent/knowledge/patterns/switching-and-sampling.md",
         "docs/agent/api-usage.md",
         "docs/agent/examples.md",
         "docs/agent/simulation-result-handoff.md",
-        "docs/agent/shared/simulation.md"
+        "docs/agent/shared/simulation.md",
+        "docs/agent/knowledge/patterns.md"
       ],
-      "sha256": "52f723d50258cca27981a01039a4f41c7f3c8504102fff06c8b98eec23bf8257"
+      "sha256": "d838d3d9c66ae82b358fb2f153a25f78bd455edf63f31f43c01f413e6425b619"
+    },
+    {
+      "file": "packages/agent-adapter/src/agent-api-help.generated.ts",
+      "sources": [
+        "docs/agent/distribution.json",
+        "docs/agent/http-kit/api-help.json"
+      ],
+      "sha256": "79675387acef4dd8cabb0b7359a98679a5af9554da8694e2f79d35806fe88c0a"
     },
     {
       "file": "apps/mcp-server/src/guidance.generated.ts",
@@ -759,7 +659,7 @@
         "docs/agent/mcp/instructions.md",
         "docs/agent/mcp/tool-help.json"
       ],
-      "sha256": "0997a999ad0ac2c7361aaa97575007a25766368ff2e3357cf5dfcb0c198c99b9"
+      "sha256": "3d2953d43e967ef300fdd05d309619036523f7b07f169764dc4c88101f9d8982"
     },
     {
       "file": "apps/editor/src/agent/connection-guidance.generated.ts",
@@ -775,7 +675,7 @@
         "docs/agent/distribution.json",
         "docs/agent/repo-skill/SKILL.md"
       ],
-      "sha256": "45baea02677d49046901e5c160f85f35e6bc8fa0c5f07c0c0f1eecb931660da0"
+      "sha256": "a5858aa7c45ff2981e5833e25b0d7361a39eb6d5a06253153ee6893619df446c"
     },
     {
       "file": "skills/circuit-layout/agents/openai.yaml",
@@ -790,7 +690,7 @@
       "sources": [
         "docs/agent/distribution.json"
       ],
-      "sha256": "6734b3ed8ea6db628357dc3bd8b8242abe56f3c2cb78ab6033af4ab5cd2df2af"
+      "sha256": "0d5091476590904b499a8884062690bf6fde8739905e7ac5339501206b646a01"
     }
   ]
 }

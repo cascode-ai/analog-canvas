@@ -14,7 +14,7 @@ Select your transport first. Read only the task-relevant rows; reading is not a 
 | Tool behavior | on-demand | [reference/tool-behavior](../../../docs/agent/tool-behavior.md) |
 | Response semantics and recovery | on-demand | [reference/recovery](../../../docs/agent/response-semantics.md) |
 | Route tree shapes | on-demand | [reference/routing](../../../docs/agent/knowledge/route-tree-shapes.md) |
-| Routing and diagnostics | on-demand | [reference/diagnostics](../../../docs/agent/knowledge/routing-and-diagnostics.md) |
+| Routing and diagnostics | on-demand | [reference/diagnostics](../../../docs/agent/shared/diagnostics.md) |
 | Circuit style knowledge | on-demand | [reference/razavi-style](../../../docs/agent/circuit-style-knowledge.md) |
 | Advanced transaction contract | on-demand | [contract/advanced-edits](../../../fixtures/agent-api/agent-circuit-request.schema.json) |
 | Bootstrap raw HTTP | entry | [http-kit/README.md](../../../docs/agent/http-kit/README.md) |
@@ -22,14 +22,7 @@ Select your transport first. Read only the task-relevant rows; reading is not a 
 | Operate shared-client CLI | entry | [reference/http-cli](../../../docs/agent/http-cli.md) |
 | Evidence-first circuit reading | on-demand | [reference/knowledge/circuit-reading](../../../docs/agent/knowledge/circuit-reading.md) |
 | Hierarchy and large circuits | on-demand | [reference/knowledge/hierarchy-and-large-circuits](../../../docs/agent/knowledge/hierarchy-and-large-circuits.md) |
-| Human and Agent collaboration | on-demand | [reference/knowledge/human-collaboration](../../../docs/agent/knowledge/human-collaboration.md) |
 | PDK models and symbols | on-demand | [reference/knowledge/pdk-and-symbols](../../../docs/agent/knowledge/pdk-and-symbols.md) |
-| Circuit-layout knowledge | on-demand | [reference/knowledge/README](../../../docs/agent/knowledge/README.md) |
-| Schematic expression | on-demand | [reference/knowledge/schematic-expression](../../../docs/agent/knowledge/schematic-expression.md) |
-| Arrays and ladders | on-demand | [reference/knowledge/patterns/arrays-and-ladders](../../../docs/agent/knowledge/patterns/arrays-and-ladders.md) |
-| Current mirror | on-demand | [reference/knowledge/patterns/current-mirror](../../../docs/agent/knowledge/patterns/current-mirror.md) |
-| Differential pair | on-demand | [reference/knowledge/patterns/differential-pair](../../../docs/agent/knowledge/patterns/differential-pair.md) |
-| Switching and sampling networks | on-demand | [reference/knowledge/patterns/switching-and-sampling](../../../docs/agent/knowledge/patterns/switching-and-sampling.md) |
 | Install the Analog Canvas MCP adapter | on-demand | [reference/mcp-install](../../../docs/agent/mcp-install.md) |
 | Agent API Usage | on-demand | [reference/api-usage](../../../docs/agent/api-usage.md) |
 | Reproducible Agent Workflows | on-demand | [reference/examples](../../../docs/agent/examples.md) |
@@ -37,3 +30,5 @@ Select your transport first. Read only the task-relevant rows; reading is not a 
 | MCP editing and recovery | on-demand | [reference/mcp-tools](../../../docs/agent/mcp/tools.md) |
 | MCP simulation calls and file ownership | on-demand | [reference/mcp-simulation](../../../docs/agent/mcp/simulation.md) |
 | Shared simulation lifecycle | on-demand | [reference/simulation-workflow](../../../docs/agent/shared/simulation.md) |
+| Place recognizable circuit groups | on-demand | [reference/knowledge/patterns](../../../docs/agent/knowledge/patterns.md) |
+| Use optional repository RouteGraph helper | on-demand | [repo/routegraph](../../../docs/agent/repo-skill/routegraph.md) |

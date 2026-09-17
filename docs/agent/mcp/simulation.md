@@ -38,19 +38,10 @@ File and Run resources.
    saves complete bytes after length/SHA-256 verification. Deck, rawfile,
    JSON, log and CSV share this File Resource. Large receipts set
    `resultPreview`; full result/output artifacts remain available.
-   Read `outputData.specs` or `specs.json` for captured acceptance results, and
-   `specs.csv` for portable tabular results. Measurement generation is
-   engine-specific: VACASK uses authored Python reports, ngspice uses its
-   measurement commands. Never infer a Pass merely from a reported number.
-   See [Spec annotations](../simulation-specs.md). Missing/invalid results are
-   `not-evaluated`, not Failed; measurements without a rule are `unconstrained`.
-   Use raw/CSV to plot or compare externally. Built-in Plot/Compare/OP views
-   and `simulation-plot` image export are retired; native OP still executes.
-   Read waveform numbers from `result.data` or `result.json`, not the legacy
-   `outputData.analyses` array (empty for new runs). There is one complete CSV
-   per analysis record; no automatic measurements or duplicate outputs CSV.
-   If `resultPreview` is true, read `result.json` and `specs.json` by artifact ID.
-   The full Spec reference is bundled as `analog-canvas://reference/simulation-specs`.
+   For result fields, measurement verdicts and canonical output files, read
+   [Spec rules](../simulation-specs.md). Browser visibility, archival limits
+   and durable delivery follow [result handoff](../simulation-result-handoff.md).
+   A preview receipt is not the complete result.
 
 ### File ownership and editing
 
@@ -85,19 +76,6 @@ variable or exact-parameter axes. Nominal values come from source; point
 projections do not mutate the Project. Both become an ordinary sequential
 batch consumed by `start-batch`, `read-batch`, `cancel-batch` and per-run
 `read`/`export`. Reuse start request identity after an uncertain response.
-
-Project-folder runs, including batches and sweeps, appear in the GUI's Project
-runs list without opening the panel or stealing focus. Open result restores a
-completed run without executing it again. Verified artifacts are automatically
-archived in this browser; Saved results survives reload, but is not Cloud Save.
-Session-workspace runs remain private. Storage failures carry a session-only
-warning. Project + results ZIP bundles a captured Project and run evidence;
-ordinary Project exports remain source-only.
-
-Run history and rawfiles are not Project objects. Export artifacts and
-`evidence-manifest.json` for durable evidence. Browser Archive is a bounded
-convenience over those artifacts. No job durability across browser reload is
-promised.
 
 Read `error.code`, `stage`, `recovery` and located diagnostics, repair input,
 and continue. Missing models, busy executors, timeouts and failed simulations

@@ -10,7 +10,8 @@
 - Use only the published session API: HTTPS, or HTTP on loopback for local
   development. Do not use DOM, mouse, keyboard, visual
   automation, source repositories, or a second edit path to change a circuit.
-- `transact` is the sole mutation path. Preserve human edits, locks, and
+- Circuit edits use `transact`; authorized File, Simulation and Project
+  resources have their own side effects. Preserve human edits, locks and
   revision conflicts rather than trying to overwrite them.
 - Keep bearer tokens only in memory. Never place a claim code or token in a
   file, URL, log, rendered annotation, or user-visible response.

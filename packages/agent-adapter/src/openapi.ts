@@ -1,3 +1,4 @@
+import { agentApiHelp } from "./agent-api-help.generated.js";
 import {
   AGENT_API_VERSION,
   AgentCircuitRequestJsonSchema,
@@ -376,8 +377,7 @@ export const agentCircuitOpenApi = {
     "/api/agent/sessions/{sessionId}/status": {
       get: {
         operationId: "agentSessionStatus",
-        description:
-          "Read authenticated relay observations without contacting the editor or renewing the idle deadline. Attachment is not execution readiness. Paused sessions remain readable.",
+        description: agentApiHelp.agentSessionStatus,
         security: [{ bearerAuth: [] }],
         parameters: [
           {
@@ -405,8 +405,7 @@ export const agentCircuitOpenApi = {
     "/api/agent/claims": {
       post: {
         operationId: "agentClaimRedeem",
-        description:
-          "Exchange a short-lived claim code for a scoped, expiring bearer token. Repeating a valid claim replaces the prior token.",
+        description: agentApiHelp.agentClaimRedeem,
         requestBody: {
           required: true,
           content: {
@@ -422,8 +421,7 @@ export const agentCircuitOpenApi = {
     "/api/agent/connectors/resume": {
       post: {
         operationId: "agentConnectorResume",
-        description:
-          "Exchange a server-issued persistent connector credential for a fresh short-lived Circuit bearer. The connector remains revocable with its browser session.",
+        description: agentApiHelp.agentConnectorResume,
         requestBody: {
           required: true,
           content: {
@@ -440,8 +438,7 @@ export const agentCircuitOpenApi = {
     "/api/agent/sessions/{sessionId}/circuit": {
       post: {
         operationId: "agentSessionCircuit",
-        description:
-          "Send one Circuit API request over the session. The relay validates the strict payload and required token scopes, then forwards it to the live browser without applying or rewriting edits.",
+        description: agentApiHelp.agentSessionCircuit,
         security: [{ bearerAuth: [] }],
         parameters: [
           {
@@ -466,8 +463,7 @@ export const agentCircuitOpenApi = {
     "/api/agent/sessions/{sessionId}/files": {
       post: {
         operationId: "agentSessionFileResource",
-        description:
-          "Use formal Project/SVG/PNG/PDF download or stage a Project/structural-SPICE candidate in browser memory. Staging never changes the live Project; only a visible browser confirmation may accept it.",
+        description: agentApiHelp.agentSessionFileResource,
         security: [{ bearerAuth: [] }],
         parameters: [
           {
@@ -489,8 +485,7 @@ export const agentCircuitOpenApi = {
     "/api/agent/sessions/{sessionId}/simulation": {
       post: {
         operationId: "agentSessionSimulationResource",
-        description:
-          "Prepare immutable structured or raw input; start returns a short run receipt. Read/cancel by run ID, export artifact references through the File Resource. Exact start request-ID retries never execute twice. Ordinary input and execution failures leave the session usable. Prepared inputs and receipts are session-local, not a durable job queue.",
+        description: agentApiHelp.agentSessionSimulationResource,
         security: [{ bearerAuth: [] }],
         parameters: [
           {
@@ -512,8 +507,7 @@ export const agentCircuitOpenApi = {
     "/api/agent/sessions/{sessionId}/projects": {
       post: {
         operationId: "agentSessionProjectResource",
-        description:
-          "Discover Cells in the signed-in user's Cloud Projects and import one dependency closure as an independent project-local copy through the live editor transaction boundary.",
+        description: agentApiHelp.agentSessionProjectResource,
         security: [{ bearerAuth: [] }],
         parameters: [
           {

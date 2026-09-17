@@ -51,7 +51,7 @@ Colors use existing `set_instance_style_override`, `set_route_style_override`,
 returns these fields, `signalFlowParameters`, Cell interfaces, and external
 Model definitions. Netlist parameter values are strings, for example `"1u"`.
 
-`annotate` and `edit-text` accept plain text or canonical RichText:
+`annotate` and `edit-text` accept plain text or canonical RichText.
 
 `connect`/`disconnect` pin targets accept an Instance Reference string or
 `instance:{kind:"instance",id:"…"}`; use the latter for imported formal Cell Pins.
@@ -71,9 +71,8 @@ unchanged, and unsupported keys for any selected device reject the whole action.
 Set the electrical parameter values before showing them. Hide/show reuses the
 same attached labels and preserves their authored placement and style.
 `showValue` controls only aggregate Value, never these named parameter labels.
-The schema 54 `binding.parameter` field is supported by Snapshot reads and
-advanced annotation edits, including hidden labels. Older 0.8.0 adapters can
-fail to read a Document containing these bindings and must be updated.
+The `binding.parameter` field is supported by Snapshot reads and advanced
+annotation edits, including hidden labels.
 Do not substitute free drafting text for these projections. `add-label` attaches
 new labels to their Net's routed geometry when available.
 `add-label` and Net Label `edit-text` author the electrical name claim and bound
@@ -123,4 +122,4 @@ request browser approval. Staging is not a completed import.
 For Cadence globals, use `action:"stage-spice", namingProfile:"cadence-bang"`.
 
 Exporting a Project file is not Cloud Save or Gallery publication. Account
-operations and PVT remain separate work.
+operations remain separate work. Simulation sweeps use the Simulation resource.

@@ -1,131 +1,51 @@
-# Agent schematic workflow
+# Circuit changes and human handoff
 
-Owner: `circuit-layout` Skill. Strength: hard for process and handoff; no
-authority to change electrical topology. Trigger: every Agent layout, routing,
-repair, render, or review task.
+This is the shared task policy. Use your selected transport's entry guide for
+connection and request mechanics; MCP clients need not implement raw HTTP.
 
-This page defines the shortest reliable path from circuit facts to a reviewed
-editable schematic. It coordinates existing tools; it does not introduce a
-planning schema, router, or second mutation path.
+## Establish enough evidence for the task
 
-## Execution path
+Identify the authorized Document, current revision and affected objects before
+editing. Read the complete Snapshot for new construction, unfamiliar topology,
+hierarchy changes or broad rerouting. A current targeted inspection can suffice
+for a known object's local value/display change; counts alone are not pin or
+connectivity evidence. Refresh after placement before using newly resolved pins.
 
-Agent layout work uses the live product: an editor or host session owns the
-Project, the current complete Snapshot is the source of truth, and every
-mutation is a current typed `transact`.
+Preserve topology unless the user requests an electrical change. Preserve
+human-owned work outside the affected area, including locks and groups. A lock
+conflict is not permission to remove the lock. Unresolved pin order, bulk/model
+semantics or hierarchy binding requires an authoritative fact or a human answer.
 
-The GUI is for human direct manipulation and visual handoff. An Agent should
-not place or wire many objects by mouse when the typed API is available.
+## Make the bounded change
 
-## Run the layout loop
+Use [native authoring](shared/authoring.md) for placement, displays and Net names.
+Use the shared edit path and current Document/Project revisions. For risky
+connectivity, destructive or multi-object edits, validate a dry-run before
+commit. MCP `apply_actions` already performs its preview/commit sequence; do not
+add another preview ritual unless a separate review is actually needed.
 
-### 1. Establish the contract
+On a stale revision, refresh affected facts and reconsider intent. Do not replay
+an outdated edit against a newly substituted revision. An uncertain transport
+result is different: recover with the original request identity, following the
+selected transport's retry rules. Interpret structured results using
+[response semantics](response-semantics.md).
 
-For a live session, start from the capabilities example in the deployed
-OpenAPI, call `capabilities` once, and use only the returned operations,
-Snapshot version, permissions, edit kinds, and limits. Record
-`maxTransactionEdits`, `maxSnapshotBytes`, `maxRenderBytes`, selected
-`documentId`, and current `revision`.
+## Review proportional to the requested outcome
 
-### 2. Read electrical facts before drawing
+| Task | Completion evidence |
+| --- | --- |
+| Read/explain | Returned facts with remaining uncertainty; no mutation required |
+| Local parameter change | Accepted change and current value; simulation only if electrical validation was requested |
+| Placement, labels or routing | Changed geometry/connectivity plus a formal render of the affected area |
+| Whole schematic or hierarchy | Complete changed-Document review and affected parent contexts |
+| Simulation | Completed run, captured input identity and retrieved requested results; see the simulation guide |
 
-Read one complete selected Document Snapshot. Build an internal graph from all
-instances, resolved pins, Nets, terminal membership, formal cell-terminal
-mappings, hierarchy references, Routes, Junctions, annotations, placements,
-locks, and diagnostics.
+For visual changes, use [style guidance](circuit-style-knowledge.md) and
+[diagnostic policy](shared/diagnostics.md). Do not mechanically clear observations
+or polish unrelated areas. A render does not prove electrical performance.
 
-Separate:
-
-- confirmed connectivity and device semantics;
-- functional hypotheses such as differential pair or mirror;
-- visual choices such as grouping, orientation, trunk, and labels;
-- unresolved facts that block an honest drawing.
-
-Do not flatten merely to avoid reading hierarchy. Flatten only when the user
-asks for a transistor-level view or when the flat view is itself the target.
-
-### 3. Place before detailed routing
-
-Choose a coherent visual organization, place functional neighborhoods, and
-reserve wiring and label corridors. Preserve clear existing work and human
-locks. Establish the main signal path before secondary power, bias, clock, and
-control distribution.
-
-### 4. Decide visible Net topology
-
-For each Net in the active area, decide explicitly which endpoints connect by
-direct Route, local branch, shared trunk/rail, or attached local labels. The
-Agent decides this graph from the circuit; no helper may infer it.
-
-When using `@icm/agent-routing`, provide a complete transient RouteGraph:
-electrical endpoints, real branch nodes, dot-free bend nodes, label anchors,
-and octilinear edges. Keep terminal escape edges axis-aligned with their
-declared outward direction. Use the helper only to snap, validate, fold bends
-into waypoints, and produce typed edits.
-
-### 5. Expand, dry-run, and commit atomically
-
-Treat any RouteGraph expansion conflict as no output: revise placement or the
-graph. Do not submit a partial expansion. Keep each transaction within the
-advertised limit and use the exact current revision. Dry-run connectivity,
-destructive, multi-object, and non-trivial routing changes before commit.
-
-On `STALE_REVISION`, refresh and reason again. Do not replay the previous
-transaction blindly. On a lock conflict, preserve the human result and choose
-another expression or request a decision.
-
-### 6. Read the returned facts
-
-Read response fields in this order:
-
-1. operation success and error code;
-2. failing edit `path` and `objectIds`;
-3. returned revision and diff;
-4. `resolvedRoutes` actual polylines;
-5. structural diagnostics first, then visual observations with confidence and
-   gate eligibility;
-6. crossings and flightlines from the final committed Document.
-
-Use [response-semantics.md](response-semantics.md) instead of rediscovering the
-meaning of each field or code.
-
-### 7. Render and inspect visually
-
-Request a formal render after structural checks. Inspect the whole
-page and then dense local regions. Compare the visible result with the intended
-functional grouping and RouteGraph, not only with counters.
-
-At minimum inspect:
-
-- signal flow and functional grouping;
-- terminal departures and shared-node expression;
-- real Junction dots versus dot-free bends/crossings;
-- short bumps, hooks, boxes, duplicate nearby Junctions, and wire reversals;
-- instance and Net label placement;
-- repeated-unit rhythm, whitespace, and hierarchy boundaries.
-
-Zero structural issues, observations, crossings, or flightlines does not prove readability.
-If the image is confusing, revise the Agent's placement or graph even when all
-implemented diagnostics pass.
-
-### 8. Close deterministically
-
-Refresh the Snapshot and verify:
-
-- connected pins and Net terminals still agree;
-- all intended visible endpoints are represented;
-- no unintended flightline, ambiguous Junction, or unresolved symbol remains;
-- every visual observation was checked against the formal render rather than
-  mechanically cleared;
-- formal artifacts came from the final committed revision.
-
-State intentional warnings and remaining uncertainty with object IDs. Do not
-claim electrical correctness without the required simulator, models, analyses,
-corners, and acceptance criteria.
-
-## Stop instead of guessing
-
-Stop and report the missing fact when pin order, bulk mapping, model semantics,
-hierarchy binding, lock ownership, or the user's requested topology change is
-ambiguous. Visual uncertainty may be iterated; electrical uncertainty must not
-be resolved by drawing convention.
+Report changed Documents, requested results and material unresolved issues with
+object IDs when available. Explain intentional findings relevant to the task,
+not every unrelated warning. Leave a useful review Document selected without
+changing the Project's top Document merely to navigate. Never claim simulation
+correctness without naming the actual simulator/model/analysis evidence.

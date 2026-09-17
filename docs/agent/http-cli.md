@@ -25,4 +25,5 @@ and verified downloads. Do not rebuild lifecycle in a wrapper. An uncertain exit
 from a non-Circuit write needs reconciliation with resource state before retry;
 `--http circuit` is not a generic simulation retry command.
 Read [native authoring](shared/authoring.md) for circuit and result rules.
-Raw HTTP callers follow the [Kit workflow](http-kit/skills/icm-circuit-session/SKILL.md).
+For raw HTTP rather than this shared client, obtain the independent workflow
+from the exact origin's `/api/agent/kit`.

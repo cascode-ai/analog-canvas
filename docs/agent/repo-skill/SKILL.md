@@ -1,6 +1,6 @@
 ---
 name: circuit-layout
-description: Read, generate, place, route, inspect and refine transistor-level or passive Analog Canvas schematics using complete Snapshots and typed edits. Use for circuit layout, hierarchy, visual diagnostics, Razavi-style cleanup and human/Agent handoff; not editor development or deployment.
+description: Read, generate, place, route, inspect and refine transistor-level or passive Analog Canvas schematics using current circuit facts and typed edits. Use for circuit layout, hierarchy, visual diagnostics, Razavi-style cleanup and human/Agent handoff; not editor development or deployment.
 ---
 
 # Circuit layout

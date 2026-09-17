@@ -1,159 +1,50 @@
-# Agent tool behavior
+# Circuit transaction and geometry contract
 
-Owner: runtime implementation and normative specs. Strength: factual. Trigger:
-before constructing API requests, RouteGraph data, or typed edits.
+The Circuit resource has four operations: `capabilities`, `snapshot`, `transact`
+and `render`. File, Simulation and Project are separate advertised resources.
+Capabilities reports versions, permissions, limits, transaction forms and edit
+kinds; it does not return a Project Index. A Snapshot contains the selected
+Document and Project context. Use the current transport schema for exact fields.
 
-This page describes behavior an Agent must account for. It is not a substitute
-for the normative schemas in [`../specs/`](../specs/); schema and runtime
-validation win if this page drifts.
+## Transactions
 
-## Agent API 3.0
+- Ordinary edits use `expectedRevision`; structure edits additionally use
+  `expectedStructureRevision` and the target revisions of nested Document edits.
+- A transaction accepts exactly one payload form: edits, structureEdits,
+  wireIntent, semanticIntent or command. Edits commit atomically; dry-run does
+  not advance revision. Semantic focus changes do not mutate Project data.
+- Snapshot is read-only evidence, not a replacement Project payload. GUI and
+  Agent changes use the same edit validation and locks.
 
-The normal surface has four operations:
+For MCP calls the helper constructs the envelope. Raw HTTP callers construct it
+from published OpenAPI. A built-in catalog describes available assets, never
+live positions or Net membership.
 
-| Operation      | Behavior                                                                  |
-| -------------- | ------------------------------------------------------------------------- |
-| `capabilities` | Reports versions, permissions, edit kinds, and server-owned limits.       |
-| `snapshot`     | Returns one complete read-only Document plus a compact Project index.     |
-| `transact`     | Dry-runs or atomically commits typed Document or Project-structure edits. |
-| `render`       | Returns bounded base64 SVG in `formal` or `diagnostics` mode.             |
+## Geometry and electrical identity
 
-The API intentionally has no dynamic catalog query, region,
-topology-classifier, layout-intent, compatibility, or circuit-specific edit
-endpoint. A browser Agent may receive a static reviewed built-in catalog in its
-Kit; it is product material, not Project state or an API operation.
+`wireIntent.routingMode` supports `orthogonal`, `octilinear` and `free`.
+Orthogonal is the default planner constraint, not a universal persisted-route
+restriction. Free-angle wires are valid. Power rails remain a single nonzero
+horizontal or vertical segment.
 
-The complete Snapshot contains both directions of connectivity: every resolved
-instance pin has `netId`, and every Net has complete terminal membership. These
-views must agree. It also contains placements, route polylines, Junctions,
-annotations, groups, constraints, presentation, hierarchy references, and
-spatial diagnostics for a known revision.
+Persisted Routes contain a starting endpoint and stable-ID legs to bends or an
+endpoint. A route-segment attachment uses `{routeId, legId}` and the actual
+point; a derived segmentIndex is not a stable identifier across revisions.
+Segment modes such as manual, locked or trunk do not compute an autoroute.
 
-## Typed transaction behavior
+A crossing does not connect Nets by itself. Real branches use explicit
+Junctions; a bend is not a branch. For normal wiring, the shared wire planner
+creates the required splits and Junctions. Use returned endpoint/Net identities,
+not a pixel intersection, to decide whether a connection exists.
 
-- Ordinary edits target one Document and one `expectedRevision`.
-- Cell/interface edits use `structureEdits`, `expectedStructureRevision`, and
-  exact revisions on nested `transact_document` entries.
-- All edits apply or none apply.
-- A dry run performs the same validation but does not advance revision.
-- A successful commit advances revision once.
-- GUI and Agent operations use the same Edit Engine.
-- Geometry, connectivity, and presentation permissions are checked separately.
-- Locks and complete Document validation cannot be bypassed by edit ordering.
-- A Snapshot or whole Project is never accepted as a mutation payload.
+Moving an instance translates its attached annotations and can stretch connected
+Routes. Inspect returned `resolvedRoutes`; movement does not promise a finished
+global layout. Group movement must preserve the intended boundary connections.
 
-Use the edit kind advertised by `capabilities`; do not assume every host has the
-same additive edit set.
+Formal render shows persisted presentation, without selection, grid or diagnostic
+overlays. Diagnostic render is a separate inspection mode. Interpret findings
+using [diagnostic policy](shared/diagnostics.md).
 
-## Persisted Route geometry
-
-A persisted Route has:
-
-```typescript
-{
-  id,
-  netId,
-  start: RouteEndpoint,
-  legs: Array<{
-    id: LegId,
-    to: BendTarget | EndpointTarget,
-    mode: SegmentMode
-  }>
-}
-```
-
-The effective polyline is `resolved(start)`, every bend target, then the final
-resolved endpoint target. Endpoint coordinates come from Instance terminals or
-Junctions and are not duplicated in bend targets. Normal interactive route geometry must be
-octilinear (horizontal, vertical, or ±45°); orthogonal is the default
-authoring constraint. A `power-rail` is exactly one non-zero horizontal or
-vertical segment. The Agent may request the same
-`wireIntent.routingMode: "octilinear"` constraint as GUI. Persisted Route
-attachments and route-segment wire intents use `{ routeId, legId }`; a derived
-`segmentIndex` is valid only for the current Snapshot revision.
-
-Segment modes describe/edit segment handling; they do not generate geometry.
-In particular, setting `auto`, `escape`, `manual`, `locked`, or `trunk` does
-not choose elbows, avoid obstacles, merge routes, or create connectivity.
-Direct manipulation may refuse protected `locked`/`trunk` segments, so do not
-use those labels casually.
-
-A geometric crossing is disconnected unless explicit topology says otherwise.
-A two-segment corner is not a Junction. A real branch must end Routes on an
-explicit Junction belonging to the Net.
-
-## Transient RouteGraph helper
-
-`@icm/agent-routing` is Agent-side geometry scaffolding. RouteGraph is not in
-the API schema or Project model and is never persisted.
-
-The Agent supplies the complete local graph. The helper never decides Net
-topology, inserts a missing node, chooses a visual shape, adds an elbow, changes
-placement, or reroutes around a conflict.
-
-### Node roles
-
-| Role           | Persisted result      | Meaning                                                           |
-| -------------- | --------------------- | ----------------------------------------------------------------- |
-| `endpoint`     | none                  | Bind an Instance terminal or Junction at its resolved coordinate. |
-| `bend`         | Route bend leg target | Degree-two, dot-free change of direction.                         |
-| `tap`          | branch Junction       | Real electrical branch point.                                     |
-| `junction`     | branch Junction       | Real electrical branch point.                                     |
-| `label-anchor` | label-anchor Junction | Electrical anchor for an attached local Net label.                |
-
-Non-endpoint nodes use either explicit `at` or relative
-`alignWith + axis + offset` positioning. The helper snaps positioned nodes to
-the 10-unit grid. `axis: "x"` preserves the referenced x coordinate and applies
-the offset in y; `axis: "y"` preserves y and offsets x.
-
-### Edge roles
-
-| Role     | Behavior                                                                                             |
-| -------- | ---------------------------------------------------------------------------------------------------- |
-| `escape` | Must connect exactly one endpoint to a positioned node and honor a known terminal outward direction. |
-| `trunk`  | Produces a Route segment marked `trunk`; it does not decide where the trunk belongs.                 |
-| `link`   | Produces an ordinary Route segment.                                                                  |
-| `label`  | Produces an attached `net-label` annotation instead of a Route.                                      |
-
-Non-label `link` and `trunk` edges must already be octilinear (horizontal,
-vertical, or ±45°). An `escape` edge remains axis-aligned with its terminal's
-outward direction. To turn a corner, the Agent must add a degree-two `bend`.
-The helper folds consecutive bend nodes into one Route's bend legs and keeps
-them dot-free.
-
-### Atomic conflict behavior
-
-Any expansion conflict returns no edits and no resolved geometry. Typical
-conflicts include duplicate node/edge IDs, missing endpoint/position, unresolved
-edge node, misaligned edge, zero-length segment, malformed or reversed escape,
-wire through symbol, bend degree other than two, self-loop, and unanchored bend
-cycle. Change the graph or placement; never commit a subset.
-
-## Movement behavior
-
-Moving or aligning an instance also translates its attached annotations. The
-Edit Engine proposes a local stretch for connected Routes; it preserves
-connectivity but does not globally reroute or promise an aesthetically finished
-result. Inspect the returned `resolvedRoutes` and render after movement.
-
-Moving a group does not mean every nearby Route is automatically selected as a
-visual group. Preserve internal wiring deliberately and inspect external
-boundary connections.
-
-## Rendering and diagnostics
-
-The formal renderer consumes persisted model objects. It does not infer
-electrical connectivity from pixels:
-
-- explicit branch Junctions draw branch dots;
-- `port` and `port-filled` Instances render their own reviewed symbol artwork
-  and participate electrically only through pin `P`;
-- label-anchor Junctions provide attachment without adding a branch dot;
-- a normal bend or disconnected crossing draws no dot;
-- device pin anchors remain invisible;
-- a power label renders from its explicit Net and rail Route/Junction geometry;
-- formal render excludes selection, grid, flightline, preview, and diagnostic
-  overlay layers.
-
-Diagnostics are derived observations. They never move objects or rewrite
-Routes. Diagnostic mode may overlay findings; formal mode is the export truth.
+The optional repository RouteGraph library has narrower expansion constraints
+than `wireIntent`. It is not an MCP tool or HTTP request form; operating Agents
+do not need to install it to draw a circuit.

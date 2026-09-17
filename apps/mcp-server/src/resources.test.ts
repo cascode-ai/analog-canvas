@@ -38,6 +38,14 @@ describe("mcp resources single-source projection", () => {
       expect(tool.description).toBe(
         agentToolHelp[tool.name as keyof typeof agentToolHelp],
       );
+    for (const text of Object.values(agentToolHelp)) {
+      for (const [uri] of text.matchAll(/analog-canvas:\/\/[^\s;]+/g)) {
+        const concrete = uri
+          .replace("{kind}", "set_instance_reference")
+          .replace(/[.,]$/, "");
+        expect(() => readResourceContent(concrete)).not.toThrow();
+      }
+    }
   });
   it("resolves distributed links inside the actual resource and Kit namespaces", () => {
     for (const resource of mcpResources) {
@@ -136,7 +144,7 @@ describe("mcp resources single-source projection", () => {
     }
   });
 
-  it("exposes the reference set and the advanced-edits gate", () => {
+  it("exposes the stable reference set and the optional advanced-edits contract", () => {
     const uris = mcpResources.map((resource) => resource.uri);
     for (const uri of [
       "analog-canvas://reference/quickstart",

@@ -60,6 +60,7 @@
       "task": "Raw HTTP live-session workflow",
       "load": "required",
       "requires": [
+        "reference/api-usage",
         "reference/session",
         "reference/authoring"
       ],
@@ -105,7 +106,7 @@
       "id": "reference/workflow",
       "source": "docs/agent/workflow.md",
       "name": "Schematic workflow",
-      "description": "Required read, edit, refresh, render, and review loop with stop-instead-of-guess rules.",
+      "description": "Task-scoped evidence, safe editing and completion criteria.",
       "mimeType": "text/markdown",
       "consumers": [
         "mcp",
@@ -159,7 +160,7 @@
       "id": "reference/routing",
       "source": "docs/agent/knowledge/route-tree-shapes.md",
       "name": "Route tree shapes",
-      "description": "Canonical route-tree topologies the routing expander produces.",
+      "description": "Drawing choices for route trees; not electrical evidence or an autorouter.",
       "mimeType": "text/markdown",
       "consumers": [
         "mcp",
@@ -175,7 +176,7 @@
     },
     {
       "id": "reference/diagnostics",
-      "source": "docs/agent/knowledge/routing-and-diagnostics.md",
+      "source": "docs/agent/shared/diagnostics.md",
       "name": "Routing and diagnostics",
       "description": "Reading routing facts and visual diagnostics before editing.",
       "mimeType": "text/markdown",
@@ -189,7 +190,7 @@
       "load": "on-demand",
       "requires": [],
       "uri": "analog-canvas://reference/diagnostics",
-      "kitPath": "references/routing-and-diagnostics.md"
+      "kitPath": "references/diagnostics.md"
     },
     {
       "id": "reference/razavi-style",
@@ -327,24 +328,6 @@
       "mimeType": "text/markdown"
     },
     {
-      "id": "reference/knowledge/human-collaboration",
-      "source": "docs/agent/knowledge/human-collaboration.md",
-      "consumers": [
-        "mcp",
-        "http-cli",
-        "http-kit",
-        "repo-skill"
-      ],
-      "task": "Human and Agent collaboration",
-      "load": "on-demand",
-      "requires": [],
-      "uri": "analog-canvas://reference/knowledge/human-collaboration",
-      "kitPath": "references/knowledge/human-collaboration.md",
-      "name": "knowledge/human-collaboration.md",
-      "description": "On-demand task guidance.",
-      "mimeType": "text/markdown"
-    },
-    {
       "id": "reference/knowledge/pdk-and-symbols",
       "source": "docs/agent/knowledge/pdk-and-symbols.md",
       "consumers": [
@@ -359,114 +342,6 @@
       "uri": "analog-canvas://reference/knowledge/pdk-and-symbols",
       "kitPath": "references/knowledge/pdk-and-symbols.md",
       "name": "knowledge/pdk-and-symbols.md",
-      "description": "On-demand task guidance.",
-      "mimeType": "text/markdown"
-    },
-    {
-      "id": "reference/knowledge/README",
-      "source": "docs/agent/knowledge/README.md",
-      "consumers": [
-        "mcp",
-        "http-cli",
-        "http-kit",
-        "repo-skill"
-      ],
-      "task": "Circuit-layout knowledge",
-      "load": "on-demand",
-      "requires": [],
-      "uri": "analog-canvas://reference/knowledge/README",
-      "kitPath": "references/knowledge/README.md",
-      "name": "knowledge/README.md",
-      "description": "On-demand task guidance.",
-      "mimeType": "text/markdown"
-    },
-    {
-      "id": "reference/knowledge/schematic-expression",
-      "source": "docs/agent/knowledge/schematic-expression.md",
-      "consumers": [
-        "mcp",
-        "http-cli",
-        "http-kit",
-        "repo-skill"
-      ],
-      "task": "Schematic expression",
-      "load": "on-demand",
-      "requires": [],
-      "uri": "analog-canvas://reference/knowledge/schematic-expression",
-      "kitPath": "references/knowledge/schematic-expression.md",
-      "name": "knowledge/schematic-expression.md",
-      "description": "On-demand task guidance.",
-      "mimeType": "text/markdown"
-    },
-    {
-      "id": "reference/knowledge/patterns/arrays-and-ladders",
-      "source": "docs/agent/knowledge/patterns/arrays-and-ladders.md",
-      "consumers": [
-        "mcp",
-        "http-cli",
-        "http-kit",
-        "repo-skill"
-      ],
-      "task": "Arrays and ladders",
-      "load": "on-demand",
-      "requires": [],
-      "uri": "analog-canvas://reference/knowledge/patterns/arrays-and-ladders",
-      "kitPath": "references/knowledge/patterns/arrays-and-ladders.md",
-      "name": "knowledge/patterns/arrays-and-ladders.md",
-      "description": "On-demand task guidance.",
-      "mimeType": "text/markdown"
-    },
-    {
-      "id": "reference/knowledge/patterns/current-mirror",
-      "source": "docs/agent/knowledge/patterns/current-mirror.md",
-      "consumers": [
-        "mcp",
-        "http-cli",
-        "http-kit",
-        "repo-skill"
-      ],
-      "task": "Current mirror",
-      "load": "on-demand",
-      "requires": [],
-      "uri": "analog-canvas://reference/knowledge/patterns/current-mirror",
-      "kitPath": "references/knowledge/patterns/current-mirror.md",
-      "name": "knowledge/patterns/current-mirror.md",
-      "description": "On-demand task guidance.",
-      "mimeType": "text/markdown"
-    },
-    {
-      "id": "reference/knowledge/patterns/differential-pair",
-      "source": "docs/agent/knowledge/patterns/differential-pair.md",
-      "consumers": [
-        "mcp",
-        "http-cli",
-        "http-kit",
-        "repo-skill"
-      ],
-      "task": "Differential pair",
-      "load": "on-demand",
-      "requires": [],
-      "uri": "analog-canvas://reference/knowledge/patterns/differential-pair",
-      "kitPath": "references/knowledge/patterns/differential-pair.md",
-      "name": "knowledge/patterns/differential-pair.md",
-      "description": "On-demand task guidance.",
-      "mimeType": "text/markdown"
-    },
-    {
-      "id": "reference/knowledge/patterns/switching-and-sampling",
-      "source": "docs/agent/knowledge/patterns/switching-and-sampling.md",
-      "consumers": [
-        "mcp",
-        "http-cli",
-        "http-kit",
-        "repo-skill"
-      ],
-      "task": "Switching and sampling networks",
-      "load": "on-demand",
-      "requires": [],
-      "uri": "analog-canvas://reference/knowledge/patterns/switching-and-sampling",
-      "kitPath": "references/knowledge/patterns/switching-and-sampling.md",
-      "name": "knowledge/patterns/switching-and-sampling.md",
       "description": "On-demand task guidance.",
       "mimeType": "text/markdown"
     },
@@ -490,15 +365,12 @@
       "id": "reference/api-usage",
       "source": "docs/agent/api-usage.md",
       "consumers": [
-        "mcp",
-        "http-cli",
         "http-kit",
         "repo-skill"
       ],
       "task": "Agent API Usage",
       "load": "on-demand",
       "requires": [],
-      "uri": "analog-canvas://reference/api-usage",
       "kitPath": "references/api-usage.md",
       "name": "api-usage.md",
       "description": "On-demand task guidance.",
@@ -508,15 +380,12 @@
       "id": "reference/examples",
       "source": "docs/agent/examples.md",
       "consumers": [
-        "mcp",
-        "http-cli",
         "http-kit",
         "repo-skill"
       ],
       "task": "Reproducible Agent Workflows",
       "load": "on-demand",
       "requires": [],
-      "uri": "analog-canvas://reference/examples",
       "kitPath": "references/examples.md",
       "name": "examples.md",
       "description": "On-demand task guidance.",
@@ -592,9 +461,38 @@
       "name": "Shared simulation lifecycle",
       "description": "Shared simulation lifecycle",
       "mimeType": "text/markdown"
+    },
+    {
+      "id": "reference/knowledge/patterns",
+      "source": "docs/agent/knowledge/patterns.md",
+      "name": "Circuit patterns",
+      "description": "Evidence-based placement cues and exceptions.",
+      "mimeType": "text/markdown",
+      "consumers": [
+        "mcp",
+        "http-cli",
+        "http-kit",
+        "repo-skill"
+      ],
+      "task": "Place recognizable circuit groups",
+      "load": "on-demand",
+      "requires": [],
+      "uri": "analog-canvas://reference/knowledge/patterns",
+      "kitPath": "references/knowledge/patterns.md"
+    },
+    {
+      "id": "repo/routegraph",
+      "source": "docs/agent/repo-skill/routegraph.md",
+      "consumers": [
+        "repo-skill"
+      ],
+      "task": "Use optional repository RouteGraph helper",
+      "load": "on-demand",
+      "requires": []
     }
   ],
   "templates": {
+    "apiHelp": "docs/agent/http-kit/api-help.json",
     "connect": "docs/agent/entrypoints/connect.md",
     "instructions": "docs/agent/mcp/instructions.md",
     "toolHelp": "docs/agent/mcp/tool-help.json",
@@ -602,6 +500,10 @@
     "skillMetadata": "docs/agent/repo-skill/openai.yaml"
   },
   "templateConsumers": {
+    "apiHelp": {
+      "consumers": ["http-kit", "maintainer"],
+      "task": "Describe published HTTP operations"
+    },
     "connect": {
       "consumers": [
         "bootstrap"

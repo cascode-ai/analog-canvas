@@ -72,6 +72,25 @@ test("missing sources fail before emitting any files", async () => {
   copy.documents[0].source = "docs/agent/missing.md";
   await assert.rejects(compile(copy), /ENOENT/);
 });
+test("runtime links cannot escape to an undistributed repository document", async () => {
+  for (const surface of ["mcp", "kit"]) {
+    const copy = structuredClone(registry);
+    const target = copy.documents.find((d) => d.id === "reference/recovery");
+    if (surface === "mcp") {
+      delete target.uri;
+      target.consumers = target.consumers.filter(
+        (c) => !["mcp", "http-cli"].includes(c),
+      );
+    } else {
+      delete target.kitPath;
+      target.consumers = target.consumers.filter((c) => c !== "http-kit");
+    }
+    await assert.rejects(
+      compile(copy),
+      new RegExp(`Undistributed ${surface} link`),
+    );
+  }
+});
 test("connection template and report make runtime interpolation and ownership explicit", async () => {
   const output = await compile(registry);
   const connection = output.get(

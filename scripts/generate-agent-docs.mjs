@@ -132,8 +132,7 @@ export async function compile(registry, repoRoot = root) {
       });
     }
   }
-  // Rewrite Markdown destinations in each consumer's namespace. Links to code
-  // specifications remain explicit repository references, never phantom resources.
+  // Runtime guides must be self-contained in their versioned distribution.
   function project(d, surface) {
     return docs
       .get(d.id)
@@ -146,14 +145,19 @@ export async function compile(registry, repoRoot = root) {
         const target = registry.documents.find((x) => x.source === resolved);
         if (target && surface === "mcp" && target.uri)
           return `](${target.uri}${suffix})`;
-        if (target && surface === "kit" && target.kitPath) {
+        if (
+          target &&
+          surface === "kit" &&
+          target.kitPath &&
+          target.consumers.includes("http-kit")
+        ) {
           let relative = path.posix.relative(
             path.posix.dirname(d.kitPath),
             target.kitPath,
           );
           return `](${relative}${anchor ? "#" + anchor : ""}${suffix})`;
         }
-        return `](https://github.com/cascode-ai/analog-canvas/blob/main/${resolved}${anchor ? "#" + anchor : ""}${suffix})`;
+        throw Error(`Undistributed ${surface} link in ${d.source}: ${href}`);
       });
   }
   const resources = registry.documents
@@ -201,6 +205,10 @@ export async function compile(registry, repoRoot = root) {
   );
   const help = JSON.parse(await read(registry.templates.toolHelp));
   await ts(
+    "packages/agent-adapter/src/agent-api-help.generated.ts",
+    `export const agentApiHelp=${JSON.stringify(JSON.parse(await read(registry.templates.apiHelp)))};`,
+  );
+  await ts(
     "apps/mcp-server/src/guidance.generated.ts",
     `export const agentToolHelp=${JSON.stringify(help)};\nexport const agentServerInstructions=${JSON.stringify((await read(registry.templates.instructions)).trim())};`,
   );
@@ -243,6 +251,9 @@ export async function compile(registry, repoRoot = root) {
       "\n",
   );
   const inputs = {
+    "packages/agent-adapter/src/agent-api-help.generated.ts": [
+      registry.templates.apiHelp,
+    ],
     "apps/mcp-server/src/resources.generated.ts": registry.documents
       .filter((d) => d.uri)
       .map((d) => d.source),
