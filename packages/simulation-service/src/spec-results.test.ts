@@ -20,6 +20,44 @@ function evaluate(rule: string, log = "peak = 1.8", completed = true) {
   );
 }
 describe("source Spec v1", () => {
+  it("captures optional groups in the shared report and escaped CSV", () => {
+    const report = evaluate(
+      '* @spec peak <= 2 unit=V group="Bias checks" label="Output peak"',
+    );
+    expect(report.results[0]).toMatchObject({
+      group: "Bias checks",
+      judgment: "pass",
+      unit: "V",
+    });
+    expect(SimulationSpecReportSchema.safeParse(report).success).toBe(true);
+    expect(simulationSpecsToCsv(report)).toContain('"Bias checks"');
+    expect(evaluate("* @spec peak group=Bias").results[0]).toMatchObject({
+      group: "Bias",
+      judgment: "unconstrained",
+    });
+    expect(
+      simulationSpecsToCsv(evaluate('* @spec peak group="=unsafe"')),
+    ).toContain('"\'=unsafe"');
+    expect(
+      evaluate('* @spec peak group="Bias label=not-metadata"').results[0],
+    ).toMatchObject({
+      group: "Bias label=not-metadata",
+      judgment: "unconstrained",
+    });
+    expect(evaluate("").results[0]).not.toHaveProperty("group");
+  });
+  it.each([
+    'group=""',
+    'group="unterminated',
+    "group=a group=b",
+    'group="\\u000a"',
+    `group=${"a".repeat(81)}`,
+  ])("rejects invalid group metadata: %s", (group) => {
+    expect(evaluate(`* @spec peak <= 2 ${group}`).results[0]).toMatchObject({
+      judgment: "not-evaluated",
+      reason: "invalid-spec",
+    });
+  });
   it("captures unit-only and rich labels without inventing acceptance limits", () => {
     const label = {
       runs: [

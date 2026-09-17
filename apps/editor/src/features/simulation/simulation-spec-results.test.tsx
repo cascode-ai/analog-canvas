@@ -38,6 +38,33 @@ const report: SimulationSpecReport = {
   ],
 };
 describe("Specification results", () => {
+  it("groups authored names and prioritizes issues without mutating captured order", () => {
+    const results = [
+      { ...report.results[0]!, group: "Bias" },
+      { ...report.results[1]!, group: "Bias" },
+      {
+        ...report.results[0]!,
+        id: "bad",
+        name: "bad",
+        expected: null,
+        judgment: "not-evaluated" as const,
+        reason: "invalid-spec" as const,
+      },
+    ];
+    const html = renderToStaticMarkup(
+      <SimulationSpecResults
+        report={{ ...report, results }}
+        hasRun
+        stale={false}
+        onSource={() => {}}
+      />,
+    );
+    expect(html).toContain('scope="rowgroup">Bias');
+    expect(html.indexOf("delay ·")).toBeLessThan(html.indexOf("peak ·"));
+    expect(html).toContain("Ungrouped");
+    expect(html).not.toContain("<details");
+    expect(results.map((r) => r.name)).toEqual(["peak", "delay", "bad"]);
+  });
   it("shows the shared judgments, missing value and source provenance without reevaluating", () => {
     const html = renderToStaticMarkup(
       <SimulationSpecResults
@@ -106,7 +133,10 @@ describe("Specification results", () => {
     );
     expect(html).toContain("Z<sub>in</sub>&lt;script&gt;");
     expect(html).toContain("Measured only");
-    expect(html).toContain("Unit not declared in captured source");
+    expect(html).toContain("unit not declared");
+    expect(html).not.toContain('class="simulation-spec-unit"');
+    expect(html).toContain("Other measurements (1)");
+    expect(html).not.toContain("<details open");
     expect(html).toContain('class="simulation-spec-number"');
     expect(html).toContain("peak · run.cir:3");
     expect(html).toContain('scope="row"');

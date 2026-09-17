@@ -66,6 +66,13 @@ export const SimulationSpecResultSchema = z.strictObject({
   id: z.string(),
   name: z.string(),
   label: SimulationSpecLabelSchema.optional(),
+  group: z
+    .string()
+    .trim()
+    .min(1)
+    .max(80)
+    .regex(/^[^\u0000-\u001f\u007f]+$/u)
+    .optional(),
   occurrence: z.number().int().nonnegative(),
   source: z.strictObject({
     path: z.string(),

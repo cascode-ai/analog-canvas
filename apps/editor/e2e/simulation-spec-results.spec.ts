@@ -28,6 +28,7 @@ test("Specs retain captured judgments and source navigation at narrow and maximi
           (judgment, i) => ({
             id: String(i),
             name: ["peak", "delay", "missing", "bias"][i],
+            group: "Authored checks",
             ...(i === 3
               ? {
                   label: {
@@ -61,12 +62,24 @@ test("Specs retain captured judgments and source navigation at narrow and maximi
       },
     });
   });
-  const table = page.getByRole("table");
+  const table = page
+    .getByRole("region", { name: "Acceptance and issues" })
+    .getByRole("table");
+  const other = page.locator(".simulation-spec-other");
+  await expect(other).not.toHaveAttribute("open", "");
   await expect(
-    table.getByRole("img", { name: "Z_{\\mathrm{in}}" }),
+    other.getByRole("img", { name: "Z_{\\mathrm{in}}" }),
+  ).not.toBeVisible();
+  await other.locator("summary").click();
+  await expect(
+    other.getByRole("img", { name: "Z_{\\mathrm{in}}" }),
   ).toBeVisible();
-  await expect(table).toContainText("36.2705 MΩ");
-  await expect(table).toContainText("Measured only");
+  await expect(other).toContainText("36.2705 MΩ");
+  await expect(other).toContainText("Measured only");
+  await expect(table.locator("tr[data-judgment]").first()).toHaveAttribute(
+    "data-judgment",
+    "failed",
+  );
   await expect(table.locator(".simulation-spec-number").first()).toHaveCSS(
     "text-align",
     "right",
@@ -105,7 +118,7 @@ test("Specs retain captured judgments and source navigation at narrow and maximi
     ).toBe(true);
     const layout = await table.evaluate((element) => {
       const cells = [
-        ...element.querySelectorAll("tbody tr:first-child > *"),
+        ...element.querySelector("tbody tr[data-judgment]")!.children,
       ].map((cell) => cell.getBoundingClientRect());
       return cells.every(
         (cell, index) => !index || cell.left >= cells[index - 1]!.right - 1,

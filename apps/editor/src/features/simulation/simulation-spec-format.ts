@@ -62,7 +62,10 @@ export function formatSpecValues(
     )
   )
     exponent = 0;
-  const format = (n: number) => number(n / 10 ** exponent);
+  const format = (n: number) =>
+    !unit && n !== 0 && (Math.abs(n) >= 1e6 || Math.abs(n) < 1e-3)
+      ? Number(n.toPrecision(7)).toExponential()
+      : number(n / 10 ** exponent);
   const result = value === null ? "—" : format(value);
   const condition = !expected
     ? "—"
@@ -76,6 +79,6 @@ export function formatSpecValues(
     condition,
     unit: unit
       ? `${scalable.has(unit) ? prefixes[exponent / 3 + 6] : ""}${unit}`
-      : "?",
+      : "",
   };
 }

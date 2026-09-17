@@ -1883,6 +1883,22 @@
   margin: 0 0 10px;
   color: var(--icm-text-muted);
 }
+.simulation-spec-results h4 {
+  margin: 8px 0;
+  font-size: inherit;
+}
+.simulation-spec-other {
+  margin-top: 12px;
+}
+.simulation-spec-other > summary {
+  cursor: pointer;
+  padding: 6px 0;
+  color: var(--icm-text-muted);
+}
+.simulation-spec-results .simulation-spec-group th {
+  font-weight: 600;
+  color: var(--icm-text-muted);
+}
 .simulation-spec-results table {
   width: 100%;
   min-width: 540px;
