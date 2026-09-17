@@ -365,7 +365,11 @@ test("declares and places a Cell Pin on a new local Net", async ({ page }) => {
       bodyHandleBox.x + bodyHandleBox.width / 2 + 30,
       bodyHandleBox.y + bodyHandleBox.height / 2 + 30,
     );
+    await expect(page.getByTestId("cell-symbol-layout-preview")).toBeVisible();
+    const previewBodyBox = await bodyHandle.boundingBox();
+    expect(previewBodyBox!.x).toBeGreaterThan(bodyHandleBox.x);
     await page.mouse.up();
+    await expect(page.getByTestId("cell-symbol-layout-preview")).toHaveCount(0);
   }
   await expect(page.getByTestId("status")).toContainText(
     /Resized ReusableStage|Committed revision/u,
@@ -383,11 +387,39 @@ test("declares and places a Cell Pin on a new local Net", async ({ page }) => {
       pinHandleBox.x + pinHandleBox.width / 2 + 20,
       pinHandleBox.y + pinHandleBox.height / 2,
     );
+    await expect(page.getByTestId("cell-symbol-layout-preview")).toBeVisible();
+    await expect(page.getByTestId("cell-symbol-layout-preview")).toContainText(
+      "OUT",
+    );
     await page.mouse.up();
   }
   await expect(page.getByTestId("status")).toContainText(
     "Moved Cell symbol pin",
   );
+
+  // Pointer cancellation discards only the preview, with no persisted edit.
+  const committedPinBox = await pinHandle.boundingBox();
+  expect(committedPinBox).not.toBeNull();
+  await page.mouse.move(
+    committedPinBox!.x + committedPinBox!.width / 2,
+    committedPinBox!.y + committedPinBox!.height / 2,
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    committedPinBox!.x + committedPinBox!.width / 2 + 40,
+    committedPinBox!.y + committedPinBox!.height / 2,
+  );
+  await expect(page.getByTestId("cell-symbol-layout-preview")).toBeVisible();
+  await pinHandle.dispatchEvent("pointercancel", {
+    pointerId: 1,
+    bubbles: true,
+  });
+  await page.mouse.up();
+  await expect(page.getByTestId("cell-symbol-layout-preview")).toHaveCount(0);
+  expect((await pinHandle.boundingBox())!.x).toBeCloseTo(committedPinBox!.x, 1);
+  await page.screenshot({
+    path: test.info().outputPath("cell-symbol-properties.png"),
+  });
 
   // Closing Properties must leave the transient grip mode too; otherwise the
   // selected Cell keeps suppressing its ordinary hit target.

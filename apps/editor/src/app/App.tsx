@@ -1991,6 +1991,7 @@ export function App({
     exit: exitCellSymbolLayout,
     toggle: toggleCellSymbolLayout,
     beginDrag: beginCellSymbolLayoutDrag,
+    previewDrag: previewCellSymbolLayoutDrag,
     completeDrag: completeCellSymbolLayoutDrag,
   } = useCellSymbolLayout({
     selectedInstance,
@@ -6370,6 +6371,8 @@ export function App({
                     }),
                   ),
                   onDragStart: beginCellSymbolLayoutDrag,
+                  onDragPreview: previewCellSymbolLayoutDrag,
+                  onDragCancel: cancelCellSymbolLayoutDrag,
                 }
               : null
           }

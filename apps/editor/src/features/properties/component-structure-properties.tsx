@@ -1,4 +1,4 @@
-import type { SchematicDocument } from "@icm/model";
+import { projectCellInterface, type SchematicDocument } from "@icm/model";
 
 type PinSide = "north" | "east" | "south" | "west" | "auto";
 
@@ -26,10 +26,6 @@ export function CellSymbolLayoutProperties({
       aria-label="Cell symbol layout"
     >
       <div className="property-section-heading">Cell symbol layout</div>
-      <small>
-        Editing <strong>{cell.name}</strong>. These definition-level changes
-        apply to every parent instance; connected routes follow the moved pin.
-      </small>
       <button
         type="button"
         className="cell-symbol-layout-toggle"
@@ -77,53 +73,65 @@ export function CellSymbolLayoutProperties({
           />
         </label>
       </div>
-      {cell.netlist?.terminals.map((terminal) => {
-        const pinPlacement = cell.presentation.cellSymbol?.pinPlacements?.find(
-          (placement) => placement.terminalId === terminal.id,
-        );
-        return (
-          <div key={terminal.id} className="cell-symbol-pin-layout-row">
-            <strong>{terminal.name}</strong>
-            <label>
-              Side
-              <select
-                key={`${cell.revision}-${terminal.id}-side`}
-                aria-label={`Cell symbol ${terminal.name} pin side`}
-                defaultValue={pinPlacement?.side ?? "auto"}
-                onChange={(event) =>
-                  onPortPlacementChange(
-                    terminal.id,
-                    event.currentTarget.value as PinSide,
-                    pinPlacement?.offset ?? 0,
-                  )
-                }
-              >
-                <option value="auto">Auto</option>
-                <option value="west">Left</option>
-                <option value="east">Right</option>
-                <option value="north">Top</option>
-                <option value="south">Bottom</option>
-              </select>
-            </label>
-            <label>
-              Offset
-              <input
-                key={`${cell.revision}-${terminal.id}-offset`}
-                aria-label={`Cell symbol ${terminal.name} pin offset`}
-                defaultValue={String(pinPlacement?.offset ?? 0)}
-                inputMode="numeric"
-                onBlur={(event) =>
-                  onPortPlacementChange(
-                    terminal.id,
-                    pinPlacement?.side ?? "auto",
-                    Number(event.currentTarget.value),
-                  )
-                }
-              />
-            </label>
-          </div>
-        );
-      })}
+      <table className="cell-symbol-pin-layout-table">
+        <thead>
+          <tr>
+            <th scope="col">Pin</th>
+            <th scope="col">Side</th>
+            <th scope="col">Offset</th>
+          </tr>
+        </thead>
+        <tbody>
+          {projectCellInterface(cell.netlist).ports.map((terminal) => {
+            const pinPlacement =
+              cell.presentation.cellSymbol?.pinPlacements?.find(
+                (placement) => placement.terminalId === terminal.id,
+              );
+            return (
+              <tr key={terminal.id}>
+                <th scope="row" title={terminal.name}>
+                  {terminal.name}
+                </th>
+                <td>
+                  <select
+                    key={`${cell.revision}-${terminal.id}-side`}
+                    aria-label={`Cell symbol ${terminal.name} pin side`}
+                    defaultValue={pinPlacement?.side ?? "auto"}
+                    onChange={(event) =>
+                      onPortPlacementChange(
+                        terminal.id,
+                        event.currentTarget.value as PinSide,
+                        pinPlacement?.offset ?? 0,
+                      )
+                    }
+                  >
+                    <option value="auto">Auto</option>
+                    <option value="west">Left</option>
+                    <option value="east">Right</option>
+                    <option value="north">Top</option>
+                    <option value="south">Bottom</option>
+                  </select>
+                </td>
+                <td>
+                  <input
+                    key={`${cell.revision}-${terminal.id}-offset`}
+                    aria-label={`Cell symbol ${terminal.name} pin offset`}
+                    defaultValue={String(pinPlacement?.offset ?? 0)}
+                    inputMode="numeric"
+                    onBlur={(event) =>
+                      onPortPlacementChange(
+                        terminal.id,
+                        pinPlacement?.side ?? "auto",
+                        Number(event.currentTarget.value),
+                      )
+                    }
+                  />
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
     </div>
   );
 }
