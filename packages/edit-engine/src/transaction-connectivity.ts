@@ -409,11 +409,20 @@ export function retargetOwnerEvidenceAfterSplit(
       continue;
     }
     let targetNetId: string | undefined;
-    if (evidence.owner.kind === "net-label") {
-      const annotationId = evidence.owner.annotationId;
-      const annotation = draft.annotations.find(
-        (candidate) => candidate.id === annotationId,
-      );
+    const annotationId =
+      evidence.owner.kind === "net-label"
+        ? evidence.owner.annotationId
+        : evidence.owner.kind === "power-marker"
+          ? evidence.owner.objectId
+          : undefined;
+    const ownedAnnotation = draft.annotations.find(
+      (candidate) => candidate.id === annotationId,
+    );
+    // Both net labels and annotation-owned power markers follow their physical
+    // anchor, never their own pre-split netId. The formal terminal is owned by
+    // this same annotation and must migrate with it.
+    if (ownedAnnotation) {
+      const annotation = ownedAnnotation;
       if (annotation?.anchor.kind === "route") {
         const routeId = annotation.anchor.routeId;
         targetNetId = draft.routes.find((route) => route.id === routeId)?.netId;
@@ -426,6 +435,17 @@ export function retargetOwnerEvidenceAfterSplit(
           annotation.binding = { kind: "net-name", netId: targetNetId };
         }
         changedObjectIds.add(annotation.id);
+      }
+      if (targetNetId) {
+        for (const terminal of draft.netlist?.terminals ?? []) {
+          if (
+            terminal.interfaceAnnotationId === annotation.id &&
+            terminal.netId !== targetNetId
+          ) {
+            terminal.netId = targetNetId;
+            changedObjectIds.add(terminal.id);
+          }
+        }
       }
     } else if (evidence.owner.kind === "power-marker") {
       targetNetId = objectNetId(evidence.owner.objectId);
