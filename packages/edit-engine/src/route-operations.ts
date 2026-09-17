@@ -30,6 +30,7 @@ import {
   moveRouteSegment,
   normalizeRouteGeometry,
   planDiagonalSegmentDrag,
+  planOrthogonalSegmentDrag,
   usablePinAxis,
   type PinAxis,
   type RouteEditPath,
@@ -916,16 +917,27 @@ function proposeWireSegmentDragGeometry(
   const leftAnchorId = selectedEndpointJunction(segmentIndex);
   const rightAnchorId = selectedEndpointJunction(segmentIndex + 1);
 
-  if (diagonal) {
-    // The diagonal and any leg perpendicular to the pointer's axis translate
-    // as one run. A Junction at either end of that run travels with it, and
-    // its other branches stretch, exactly as for an orthogonal segment.
-    const drag = planDiagonalSegmentDrag(
-      selectedPolyline.points,
-      segmentIndex,
-      target,
-      origin,
-    );
+  // A 45-degree segment, or an orthogonal one beside a slanted neighbor,
+  // translates as one rigid run. A Junction at either end of that run travels
+  // with it, and its other branches stretch, as for an orthogonal segment.
+  const drag = diagonal
+    ? planDiagonalSegmentDrag(
+        selectedPolyline.points,
+        segmentIndex,
+        target,
+        origin,
+      )
+    : slanted
+      ? null
+      : planOrthogonalSegmentDrag(
+          selectedPolyline.points,
+          segmentIndex,
+          target,
+        );
+  if (
+    drag &&
+    (diagonal || drag.first < segmentIndex || drag.last > segmentIndex + 1)
+  ) {
     const firstAnchorId = selectedEndpointJunction(drag.first);
     const lastAnchorId = selectedEndpointJunction(drag.last);
     const doglegged = (): WireSegmentDragProposal => ({

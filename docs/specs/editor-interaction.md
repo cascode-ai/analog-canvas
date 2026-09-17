@@ -478,10 +478,13 @@ remain untouched. A dragged 45-degree segment never moves diagonally: it
 translates horizontally or vertically, whichever way the pointer mainly
 travels. A leg along that axis lengthens or shortens (it may shrink away but
 never folds back), and a leg across it travels with the segment. A Junction at
-the end of that run travels too; a pin or a slanted neighbor is reached by a
-jog along the axis. A move that would double the wire back on itself is
-refused. A protected adjacent `locked` or `trunk` segment rejects the gesture
-rather than being rerouted. Power rails use their explicit translate
+the end of that run travels too; a pin is reached by a jog along the axis.
+Slanted segments are never bent by a drag: a slanted neighbor of a dragged
+segment, orthogonal or 45-degree, travels with it in the same run. A move that
+would double the wire back on itself is refused. A drag that ends with nothing
+moved, including a refused one, records no edit and no undo step. A protected
+adjacent `locked` or `trunk` segment rejects the gesture rather than being
+rerouted. Power rails use their explicit translate
 and endpoint-resize intents, never an inferred route search. Endpoint resize is
 limited to the rail's current axis. Whole-rail translation includes its tap
 Junctions and incident geometry, so a connected rail does not fragment.

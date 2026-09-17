@@ -209,27 +209,49 @@ export function buildOrthogonalEscapeRoute(
   };
 }
 
-export interface DiagonalSegmentDrag {
+export interface SegmentRunDrag {
   /** Rigid translation of the dragged run, along exactly one axis. */
   move: Point;
-  /** First and last polyline point indices that travel with the diagonal. */
+  /** The axis of `move`, also when the move is zero. */
+  axis: "x" | "y";
+  /** First and last polyline point indices that travel with the segment. */
   first: number;
   last: number;
 }
 
 /**
+ * The points that travel with a segment dragged along `axis`: the segment
+ * plus every consecutive neighbor that cannot absorb the move by stretching
+ * because it does not lie along the axis. The run stops at a leg along the
+ * axis, which stretches, or at a Route end. A 45-degree segment therefore
+ * keeps its angle whether it or a leg beside it is dragged.
+ */
+function segmentRun(
+  points: readonly Point[],
+  segmentIndex: number,
+  axis: "x" | "y",
+): { first: number; last: number } {
+  const across = axis === "x" ? "y" : "x";
+  const alongAxis = (index: number) =>
+    points[index]![across] === points[index + 1]![across];
+  let first = segmentIndex;
+  let last = segmentIndex + 1;
+  while (first > 0 && !alongAxis(first - 1)) first -= 1;
+  while (last < points.length - 1 && !alongAxis(last)) last += 1;
+  return { first, last };
+}
+
+/**
  * Where a dragged 45-degree segment goes. It never moves diagonally: it
  * translates along the dominant axis of the pointer's travel from `origin`
- * (horizontally when no origin is known). An adjacent leg perpendicular to
- * that axis travels with it, just as an orthogonal segment carries nothing
- * but stretches its perpendicular neighbors.
+ * (horizontally when no origin is known), carrying its `segmentRun`.
  */
 export function planDiagonalSegmentDrag(
   points: readonly Point[],
   segmentIndex: number,
   target: Point,
   origin?: Point,
-): DiagonalSegmentDrag {
+): SegmentRunDrag {
   const from = points[segmentIndex]!;
   const to = points[segmentIndex + 1]!;
   let move: Point;
@@ -245,13 +267,26 @@ export function planDiagonalSegmentDrag(
     move = { x: -slope * offset || 0, y: 0 };
   }
   const axis = move.y === 0 ? "x" : "y";
-  let first = segmentIndex;
-  let last = segmentIndex + 1;
-  if (first > 0 && points[first - 1]![axis] === from[axis]) first -= 1;
-  if (last < points.length - 1 && points[last + 1]![axis] === to[axis]) {
-    last += 1;
-  }
-  return { move, first, last };
+  return { move, axis, ...segmentRun(points, segmentIndex, axis) };
+}
+
+/**
+ * Where a dragged orthogonal segment goes: perpendicular to itself, to the
+ * target's coordinate, carrying its `segmentRun`. The run is the segment
+ * alone unless a neighbor is slanted.
+ */
+export function planOrthogonalSegmentDrag(
+  points: readonly Point[],
+  segmentIndex: number,
+  target: Point,
+): SegmentRunDrag {
+  const from = points[segmentIndex]!;
+  const axis = from.y === points[segmentIndex + 1]!.y ? "y" : "x";
+  const move =
+    axis === "y"
+      ? { x: 0, y: target.y - from.y }
+      : { x: target.x - from.x, y: 0 };
+  return { move, axis, ...segmentRun(points, segmentIndex, axis) };
 }
 
 function acuteTurnCount(points: readonly Point[]): number {
@@ -269,26 +304,17 @@ function acuteTurnCount(points: readonly Point[]): number {
 }
 
 /**
- * Translate the run of `planDiagonalSegmentDrag` rigidly. Each end of the run
- * slides when its outside leg lies along the move, and otherwise stays behind
- * with a jog along the move: at a slanted leg, or at a fixed Route end. A
- * `carried` Route end moves with the run instead; the caller moves its
- * Junction by the same translation.
+ * Translate a planned run rigidly. Each end of the run slides along its
+ * outside leg, which lies along the move, or is a Route end: that end stays
+ * behind with a jog along the move, unless it is `carried` (the caller moves
+ * its Junction by the same translation).
  */
-function moveDiagonalSegment(
+function translateSegmentRun(
   points: readonly Point[],
   modes: readonly SegmentMode[],
-  segmentIndex: number,
-  target: Point,
-  origin: Point | undefined,
+  { move, first, last }: SegmentRunDrag,
   carried: { from?: boolean; to?: boolean },
 ): { waypoints: Point[]; segmentModes: SegmentMode[] } {
-  const { move, first, last } = planDiagonalSegmentDrag(
-    points,
-    segmentIndex,
-    target,
-    origin,
-  );
   if (
     modes
       .slice(Math.max(0, first - 1), last + 1)
@@ -296,16 +322,8 @@ function moveDiagonalSegment(
   ) {
     throw new Error("Route segment or its neighbor is protected");
   }
-  const across = move.y === 0 ? "y" : "x";
-  const lastIndex = points.length - 1;
-  const staysBehind = (index: number, outside: number | null): boolean =>
-    outside === null
-      ? index === 0
-        ? carried.from !== true
-        : carried.to !== true
-      : points[outside]![across] !== points[index]![across];
-  const firstStays = staysBehind(first, first > 0 ? first - 1 : null);
-  const lastStays = staysBehind(last, last < lastIndex ? last + 1 : null);
+  const firstStays = first === 0 && carried.from !== true;
+  const lastStays = last === points.length - 1 && carried.to !== true;
   // A lead that leaves its pin is authored wire, no longer a derived stub.
   const authored = (mode: SegmentMode): SegmentMode =>
     mode === "escape" ? "manual" : mode;
@@ -329,13 +347,14 @@ function moveDiagonalSegment(
   nextPoints.push(...points.slice(last + 1));
   nextModes.push(...modes.slice(last));
   const normalized = normalizeRouteGeometry(nextPoints, nextModes);
-  if (!isOctilinear(normalized.points)) {
-    throw new Error("Diagonal segment move would make geometry non-octilinear");
+  // Translation keeps every angle and adds only axis jogs.
+  if (isOctilinear(points) && !isOctilinear(normalized.points)) {
+    throw new Error("Segment move would make geometry non-octilinear");
   }
-  // A leg shrunk past its far end, or a jog that doubles back against the
-  // diagonal, would fold the wire over itself. The drag holds instead.
+  // A leg shrunk past its far end, or a jog that doubles back against a
+  // slanted segment, would fold the wire over itself. The drag holds instead.
   if (acuteTurnCount(normalized.points) > acuteTurnCount(points)) {
-    throw new Error("Diagonal segment move would fold the wire back");
+    throw new Error("Segment move would fold the wire back");
   }
   return {
     waypoints: normalized.points.slice(1, -1),
@@ -353,7 +372,7 @@ export function moveRouteSegment(
   }: {
     /** Where the drag began, which picks a diagonal's axis. */
     origin?: Point | undefined;
-    /** Route ends whose Junction the caller moves with a diagonal. */
+    /** Route ends whose Junction the caller moves with a translated run. */
     carried?: { from?: boolean; to?: boolean };
   } = {},
 ): { waypoints: Point[]; segmentModes: SegmentMode[] } {
@@ -381,12 +400,10 @@ export function moveRouteSegment(
   const lastSegmentIndex = points.length - 2;
 
   if (diagonal) {
-    return moveDiagonalSegment(
+    return translateSegmentRun(
       points,
       modes,
-      segmentIndex,
-      target,
-      origin,
+      planDiagonalSegmentDrag(points, segmentIndex, target, origin),
       carried,
     );
   }
@@ -416,6 +433,13 @@ export function moveRouteSegment(
       waypoints: normalized.points.slice(1, -1),
       segmentModes: normalized.segmentModes,
     };
+  }
+
+  // A slanted neighbor cannot stretch along the move, so it travels with the
+  // segment instead of being bent to a new angle.
+  const run = planOrthogonalSegmentDrag(points, segmentIndex, target);
+  if (run.first < segmentIndex || run.last > segmentIndex + 1) {
+    return translateSegmentRun(points, modes, run, carried);
   }
 
   if (points.length === 2) {

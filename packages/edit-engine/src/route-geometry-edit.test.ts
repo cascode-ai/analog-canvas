@@ -151,6 +151,47 @@ describe("45-degree segment drag", () => {
     );
   });
 
+  it("carries a diagonal with a dragged leg beside it", () => {
+    const leg = (segmentIndex: number, target: Point) =>
+      moveRouteSegment(
+        { points: zig, segmentModes: manual(3) },
+        segmentIndex,
+        target,
+      );
+    // Either horizontal leg moved down carries the whole run: the diagonal
+    // keeps its angle instead of being bent to reach the moved bend.
+    const down = {
+      waypoints: [
+        { x: 0, y: 10 },
+        { x: 30, y: 10 },
+        { x: 80, y: 60 },
+        { x: 110, y: 60 },
+      ],
+      segmentModes: manual(5),
+    };
+    expect(leg(0, { x: 10, y: 10 })).toEqual(down);
+    expect(leg(2, { x: 100, y: 60 })).toEqual(down);
+    // A leg between two vertical legs still moves on its own.
+    expect(
+      moveRouteSegment(
+        {
+          points: [
+            { x: 0, y: 0 },
+            { x: 0, y: 20 },
+            { x: 40, y: 20 },
+            { x: 40, y: 60 },
+          ],
+          segmentModes: manual(3),
+        },
+        1,
+        { x: 20, y: 30 },
+      ).waypoints,
+    ).toEqual([
+      { x: 0, y: 30 },
+      { x: 40, y: 30 },
+    ]);
+  });
+
   it("moves horizontally when the drag origin is unknown", () => {
     expect(
       moveRouteSegment({ points: zig, segmentModes: manual(3) }, 1, {

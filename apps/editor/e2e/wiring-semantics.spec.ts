@@ -675,9 +675,11 @@ test("dragging a wire segment onto another wire endpoint connects there", async 
   await expect(page.locator('g[data-layer="junctions"] circle')).toHaveCount(1);
 });
 
-test("a dragged diagonal moves along the pointer axis only", async ({
-  page,
-}) => {
+/**
+ * The cross-coupled shape: leg, 45-degree diagonal, leg, between two
+ * three-way Junctions (two stubs each), so both ends are fixed taps.
+ */
+async function openDiagonalZig(page: Page): Promise<Locator> {
   const project = createEmptyProject("diagonal-drag", "Diagonal drag");
   const document = project.documents[0]!;
   document.presentation.grid = 10;
@@ -700,8 +702,6 @@ test("a dragged diagonal moves along the pointer axis only", async ({
     })),
   );
   document.routes.push(
-    // The cross-coupled shape: leg, 45-degree diagonal, leg. Two stubs make
-    // each end a three-way Junction, so both ends stay fixed.
     createRoutePath({
       id: "zig",
       netId: "net",
@@ -740,29 +740,46 @@ test("a dragged diagonal moves along the pointer axis only", async ({
   });
   const canvas = page.getByTestId("schematic-canvas");
   await awaitCanvasSettled(canvas);
-  // Grab the diagonal's middle and pull it two grid cells to the left.
+  return canvas;
+}
+
+async function dragCanvas(
+  page: Page,
+  canvas: Locator,
+  path: readonly { x: number; y: number }[],
+): Promise<void> {
+  const [first, ...rest] = await onScreen(canvas, path);
+  await page.mouse.move(first!.x, first!.y);
+  await page.mouse.down();
+  for (const point of rest) {
+    await page.mouse.move(point.x, point.y, { steps: 8 });
+  }
+  await page.mouse.up();
+}
+
+async function zigCenterline(page: Page): Promise<{ x: number; y: number }[]> {
+  return page.getByTestId("route-hit-zig").evaluate((element) =>
+    Array.from((element as SVGPolylineElement).points).map(({ x, y }) => ({
+      x,
+      y,
+    })),
+  );
+}
+
+test("a dragged diagonal moves along the pointer axis only", async ({
+  page,
+}) => {
+  const canvas = await openDiagonalZig(page);
   const revision = Number(await page.getByTestId("revision").textContent());
-  const [start, finish] = await onScreen(canvas, [
+  // Grab the diagonal's middle and pull it two grid cells to the left.
+  await dragCanvas(page, canvas, [
     { x: 175, y: 225 },
     { x: 157, y: 227 },
   ]);
-  await page.mouse.move(start!.x, start!.y);
-  await page.mouse.down();
-  await page.mouse.move(finish!.x, finish!.y, { steps: 8 });
-  await page.mouse.up();
-
   await expect(page.getByTestId("revision")).toHaveText(String(revision + 1));
-  const committed = await page
-    .getByTestId("route-hit-zig")
-    .evaluate((element) =>
-      Array.from((element as SVGPolylineElement).points).map(({ x, y }) => ({
-        x,
-        y,
-      })),
-    );
   // The legs stretch and shrink; the diagonal keeps its length and angle and
   // gains no vertical jog.
-  expect(committed).toEqual([
+  expect(await zigCenterline(page)).toEqual([
     { x: 100, y: 200 },
     { x: 130, y: 200 },
     { x: 180, y: 250 },
@@ -771,26 +788,51 @@ test("a dragged diagonal moves along the pointer axis only", async ({
 
   // Now pull it mostly down: the horizontal legs travel with it, and both
   // three-way Junctions slide down their vertical stubs.
-  const [down, below] = await onScreen(canvas, [
+  await dragCanvas(page, canvas, [
     { x: 153, y: 222 },
     { x: 156, y: 241 },
   ]);
-  await page.mouse.move(down!.x, down!.y);
-  await page.mouse.down();
-  await page.mouse.move(below!.x, below!.y, { steps: 8 });
-  await page.mouse.up();
   await expect(page.getByTestId("revision")).toHaveText(String(revision + 2));
-  expect(
-    await page.getByTestId("route-hit-zig").evaluate((element) =>
-      Array.from((element as SVGPolylineElement).points).map(({ x, y }) => ({
-        x,
-        y,
-      })),
-    ),
-  ).toEqual([
+  expect(await zigCenterline(page)).toEqual([
     { x: 100, y: 220 },
     { x: 130, y: 220 },
     { x: 180, y: 270 },
+    { x: 250, y: 270 },
+  ]);
+});
+
+test("a leg dragged beside a diagonal carries it, and a no-op drag records nothing", async ({
+  page,
+}) => {
+  const canvas = await openDiagonalZig(page);
+  const revision = Number(await page.getByTestId("revision").textContent());
+  // Pull the right-hand leg down two cells. The diagonal travels with it
+  // at 45 degrees instead of being bent to reach the moved bend.
+  await dragCanvas(page, canvas, [
+    { x: 226, y: 250 },
+    { x: 227, y: 271 },
+  ]);
+  await expect(page.getByTestId("revision")).toHaveText(String(revision + 1));
+  expect(await zigCenterline(page)).toEqual([
+    { x: 100, y: 220 },
+    { x: 150, y: 220 },
+    { x: 200, y: 270 },
+    { x: 250, y: 270 },
+  ]);
+
+  // Pull the diagonal away and back, then let go where it started: nothing
+  // changed, so there is no new revision and no empty undo step.
+  await dragCanvas(page, canvas, [
+    { x: 176, y: 246 },
+    { x: 146, y: 247 },
+    { x: 176, y: 246 },
+  ]);
+  await expect(page.getByTestId("status")).toContainText("unchanged");
+  await expect(page.getByTestId("revision")).toHaveText(String(revision + 1));
+  expect(await zigCenterline(page)).toEqual([
+    { x: 100, y: 220 },
+    { x: 150, y: 220 },
+    { x: 200, y: 270 },
     { x: 250, y: 270 },
   ]);
 });

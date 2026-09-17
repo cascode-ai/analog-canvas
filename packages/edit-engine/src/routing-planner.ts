@@ -313,6 +313,8 @@ export interface RouteEditPlan {
   routeId: string;
   edits: SchematicEdit[];
   expectedElectricalEffect?: ExpectedElectricalEffect;
+  /** The edits leave every drawn wire and Junction where it already is. */
+  unchanged?: true;
   preview?: {
     routes: readonly RouteStretchProposal[];
     junctions: readonly JunctionMoveProposal[];
@@ -583,10 +585,39 @@ export function proposeWireSegmentMove(
           }),
         }
       : undefined;
+  // A drag released where it started, or held back from the first step,
+  // plans the current geometry again; committing it would only add an empty
+  // undo step.
+  const samePoint = (left: Point | undefined, right: Point | undefined) =>
+    left?.x === right?.x && left?.y === right?.y;
+  const drawn = (source: SchematicDocument, id: string) => {
+    const route = source.routes.find((candidate) => candidate.id === id);
+    return route
+      ? resolveRouteGeometry(source, resolver, route)?.centerline
+      : [];
+  };
+  const unchanged =
+    proposal.junctions.every((move) =>
+      samePoint(
+        document.junctions.find((junction) => junction.id === move.junctionId)
+          ?.position,
+        move.position,
+      ),
+    ) &&
+    proposal.routes.every((item) => {
+      if (item.collapsedToContact) return false;
+      const before = drawn(document, item.routeId) ?? [];
+      const after = drawn(projected, item.routeId) ?? [];
+      return (
+        before.length === after.length &&
+        before.every((point, index) => samePoint(point, after[index]))
+      );
+    });
   return {
     routeId,
     edits,
     ...(expectedElectricalEffect ? { expectedElectricalEffect } : {}),
+    ...(unchanged ? { unchanged: true as const } : {}),
     preview: proposal,
   };
 }

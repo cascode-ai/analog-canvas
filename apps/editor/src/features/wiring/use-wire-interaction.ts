@@ -603,6 +603,7 @@ export function useWireInteraction(capabilities: UseWireInteractionOptions) {
             target,
             origin,
           );
+        let refusal: string | null = null;
         const proposal = (() => {
           try {
             const snapped = {
@@ -618,9 +619,17 @@ export function useWireInteraction(capabilities: UseWireInteractionOptions) {
             // is the geometry the preview was showing when the pointer went
             // past what the wire could do.
             if (preview.point === preview.start) throw error;
+            refusal = error instanceof Error ? error.message : null;
             return planAt(preview.point, preview.origin);
           }
         })();
+        // Nothing moved: say why, and add no empty undo step.
+        if (proposal.unchanged) {
+          options.setStatus(
+            refusal ?? `Route segment ${record.route.id} unchanged`,
+          );
+          return;
+        }
         const result = transactProposal(
           proposalFor(
             "route-geometry",

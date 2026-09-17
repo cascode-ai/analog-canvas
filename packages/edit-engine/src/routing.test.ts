@@ -1087,6 +1087,58 @@ describe("routing Edit Engine", () => {
       { x: 100, y: 220 },
       { x: 100, y: 150 },
     ]);
+
+    // Dragging the left leg down carries the diagonal the same way.
+    const legPlan = proposeWireSegmentMove(document, resolver, "zig", 0, {
+      x: 120,
+      y: 220,
+    });
+    const legMoved = executeTransaction(
+      document,
+      transaction(document.id, 0, legPlan.edits),
+      context,
+    );
+    expect(legMoved.ok).toBe(true);
+    if (legMoved.ok) {
+      expect(centerline(legMoved.document, "zig")).toEqual(
+        centerline(down, "zig"),
+      );
+      expect(at(legMoved.document, "right")).toEqual({ x: 250, y: 270 });
+    }
+  });
+
+  it("marks a segment drag that moves nothing as unchanged", () => {
+    const document = documentFixture();
+    document.routes.push(
+      createRoutePath({
+        id: "route-h",
+        netId: "net-h",
+        start: terminal("A"),
+        end: terminal("B"),
+        bends: [],
+        modes: ["manual"],
+      }),
+    );
+    const centerline = resolveRouteGeometry(
+      document,
+      resolver,
+      document.routes[0]!,
+    )!.centerline;
+    const middle = {
+      x: (centerline[0]!.x + centerline[1]!.x) / 2,
+      y: centerline[0]!.y,
+    };
+    // Released where it began: nothing to commit, so no empty undo step.
+    expect(
+      proposeWireSegmentMove(document, resolver, "route-h", 0, middle, middle)
+        .unchanged,
+    ).toBe(true);
+    expect(
+      proposeWireSegmentMove(document, resolver, "route-h", 0, {
+        ...middle,
+        y: middle.y + 20,
+      }).unchanged,
+    ).toBeUndefined();
   });
 
   it("doglegs a slanted leg between two pins at the dragged coordinate", () => {
