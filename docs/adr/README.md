@@ -11,7 +11,6 @@ that need a separate explanation. See [documentation policy](../README.md).
 - [`0001-project-document-without-page.md`](0001-project-document-without-page.md) — Project/Document model without a Page layer
 - [`0002-typescript-core-and-tool-boundary.md`](0002-typescript-core-and-tool-boundary.md) — TypeScript product core and isolated tools
 - [`0003-isolate-reference-sources.md`](0003-isolate-reference-sources.md) — pinned reference-source boundary
-- [`0004-ngspice-46-core-structural-baseline.md`](0004-ngspice-46-core-structural-baseline.md) — ngspice structural baseline
 - [`0006-portable-local-release.md`](0006-portable-local-release.md) — portable local web release
 - [`0012-pdf-vector-evidence-for-razavi-assets.md`](0012-pdf-vector-evidence-for-razavi-assets.md) — scoped PDF vector evidence
 - [`0017-deterministic-design-netlist-boundary.md`](0017-deterministic-design-netlist-boundary.md) — deterministic design-netlist boundary
@@ -46,7 +45,6 @@ that need a separate explanation. See [documentation policy](../README.md).
 - [`0041-physical-cut-and-endpoint-readiness.md`](0041-physical-cut-and-endpoint-readiness.md) — physical cut and endpoint readiness
 - [`0048-routing-operation-plan.md`](0048-routing-operation-plan.md) — evaluated routing-operation plan and connection-preserving movement
 - [`0052-owner-explainable-net-authority.md`](0052-owner-explainable-net-authority.md) — owner-explainable Net authority, named power, bulk policy, and provenance
-- [`0056-derived-net-scope-and-dialect-spelling.md`](0056-derived-net-scope-and-dialect-spelling.md) — derived effective scope and operation-scoped dialect spelling
 
 ## Retention test
 

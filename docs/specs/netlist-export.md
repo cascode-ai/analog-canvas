@@ -208,8 +208,15 @@ represented structurally. A display string is not a source specification.
 
 ## Net rules
 
-- `Net.terminals` is the only connectivity truth.
-- Named Nets are unique within a cell under case folding.
+- Base-Net membership and the shared Logical-Net/interface resolver define
+  connectivity. Same-name scoped claims can join physically separate Base Nets;
+  the [schematic model](schematic-model.md#electrical-authority) owns that rule.
+- Semantic scope is independent of emitted spelling. Project-global spelling
+  is selected from current claims, formal names, declarations and source hints
+  in authority order, retaining variants for explanation. The dialect codec
+  blocks authored-token collisions between distinct identities; hints may be
+  disambiguated. Cadence bang spelling is an explicit operation profile, not
+  persisted scope or an inference in generic SPICE mode.
 - An unnamed local Net receives an ephemeral collision-free `net0`, `net1`,
   ... name in stable Logical-Net order. Existing authored names reserve their
   dialect spelling, so automatic allocation skips conflicts. This does not
@@ -228,8 +235,9 @@ represented structurally. A display string is not a source specification.
   is blocked. Each explicit `NoConnect` receives one deterministic,
   collision-free exporter-only local node (`NC0001`, `NC0002`, ...), preserving
   fixed device and subcircuit arity without adding a Project Net.
-- Routes, Junctions, flightlines, labels, placement, and drafting content do
-  not affect the Export IR.
+- Drawing coordinates, text styling and flightlines do not affect Export IR.
+  Committed physical connectivity and owned electrical name claims do;
+  a Net Label's electrical claim is not merely its drawn text.
 
 ## Transient Export IR
 
@@ -474,10 +482,9 @@ include; it never repairs a broken hierarchy or invents foundry model data.
 - focused editor clipboard/sidebar, bulk JSON, undo/redo and blocked-diagnostic flows
 - full mainline gate before non-document delivery
 
-## Deferred simulation-deck contract
+## Simulation boundary
 
-A later accepted contract may persist named simulation profiles containing
-explicit library references and path policy, corner/section, parameters,
-temperature, structured sources, analyses, options, and save selections. It
-composes with the DesignNetlistIR and does not add simulator commands to Net,
-Instance, Symbol, Route, or drawing contracts.
+[Simulation source authoring and compilation](simulation.md) compose explicit
+environment, source and analysis intent with the electrical projection.
+[Execution](simulation-execution.md) owns preparation and runs. Structural
+SPICE/Spectre export is not an executable deck and does not infer that setup.

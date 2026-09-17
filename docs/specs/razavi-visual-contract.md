@@ -141,7 +141,8 @@ hollow or filled Port presentation.
 
 ## Style, text, and rendering
 
-The profile ID is `razavi-textbook-v1`. Formal output is black on white, has no
+The profile ID is `razavi-textbook-v1`. Formal output defaults to black on white;
+explicit authored color overrides are preserved. It has no
 decorative effects or editor overlays, scales geometry and strokes together,
 and uses butt caps plus miter joins unless a reviewed primitive overrides them.
 
@@ -353,13 +354,10 @@ Schema-version-1 manifests without `vectorEvidence` remain valid. PDF-derived
 symbols extend the palette without changing persisted Project schema; only an
 explicit reviewed mapping may extend SPICE import behavior. The hollow `port`,
 filled `port-filled`, Junction, and all existing symbol behavior remain
-distinct. This is the sole Razavi-specific visual contract. Historical style
-and component-extension documents were deleted after their surviving rules
-moved here; Git retains their history.
+distinct. This is the sole Razavi-specific visual contract.
 
 Related decisions and explanatory evidence:
 
 - [`../adr/0012-pdf-vector-evidence-for-razavi-assets.md`](../adr/0012-pdf-vector-evidence-for-razavi-assets.md)
 - [`symbol-dsl.md`](symbol-dsl.md)
 - [`visual-language.md`](visual-language.md)
-- [`../experience/razavi-symbol-construction-and-pixel-calibration.md`](../experience/razavi-symbol-construction-and-pixel-calibration.md)

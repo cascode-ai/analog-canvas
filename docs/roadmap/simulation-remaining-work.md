@@ -69,8 +69,7 @@ tolerances. Broader lifecycle and security checks remain in the
   archives and bounded server retention.
 - Monte Carlo, optimization, automatic circuit modification, a simulator beyond
   ngspice and VACASK, uploaded Verilog-A compilation and general model
-  marketplaces require their own product decisions and qualification. VACASK
-  became a second Preview engine in 7305dbe6; its remaining qualification is
+  marketplaces require their own product decisions and qualification. VACASK's remaining qualification as a second Preview engine is
   tracked in [VACASK migration](vacask-migration.md).
 - Arbitrary lossless two-way raw-SPICE/Canvas topology synchronization is not a
   promised capability.

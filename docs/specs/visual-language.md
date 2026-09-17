@@ -122,8 +122,8 @@ active symbol variant's visible geometry and clusters repeated overlaps.
 
 ## Invariants
 
-- Formal output is black on white with no gradients, shadows, or decorative
-  frames.
+- Formal output defaults to black on white. Explicit authored color overrides
+  are preserved; there are no gradients, shadows, or decorative frames.
 - Symbol geometry uses butt line caps and miter joins unless a reviewed
   symbol explicitly requires another choice.
 - Instance transforms apply rotation, then independent screen-space horizontal

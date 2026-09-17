@@ -63,10 +63,12 @@ search paths are not used or guessed.
 
 ## Compatibility profile
 
-The accepted baseline is `ngspice-46-core`, defined by
-[`ADR 0004`](../adr/0004-ngspice-46-core-structural-baseline.md) and the
+The accepted baseline is `ngspice-46-core`, with coverage defined by the
 [machine-readable matrix](../../fixtures/spice-baseline/ngspice-46-core.json).
-The baseline is structural, not a promise of simulation equivalence.
+The baseline is structural, not a promise of simulation equivalence. A named
+grammar makes understood connectivity distinguishable from merely preserved
+syntax. The pure TypeScript frontend does not embed or execute a simulator
+to parse untrusted source.
 
 | Form                                            | Projection                                                      |
 | ----------------------------------------------- | --------------------------------------------------------------- |

@@ -59,7 +59,8 @@ A power rail is a drawing form of a named conductor, not a second electrical
 system. Scope is authored explicitly; UI power defaults do not make arbitrary
 imported text global. Deleting the last owner removes its authority and permits
 ordinary orphan pruning. Scope and dialect spelling follow
-[ADR 0056](0056-derived-net-scope-and-dialect-spelling.md).
+the [schematic model](../specs/schematic-model.md#electrical-authority) and
+[netlist export](../specs/netlist-export.md).
 
 MOS bulk resolves from explicit B membership or an explicitly configured Cell
 bulk default. Without either it remains unresolved. Device polarity and supply

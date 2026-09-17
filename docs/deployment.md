@@ -73,9 +73,8 @@ into the candidate.
 [ADR 0057](adr/0057-release-channels-preview-and-production.md) explains the choice.
 
 The release build keeps the behavior of the deployed `main` commit.
-Version 0.4.0 opens the previously Preview-only Simulation and Agent workflows
-on Production. The shared build action declares these browser capabilities
-explicitly, so both channels serve the same capabilities:
+The shared build action explicitly enables the Simulation and Agent workflows
+on both channels, which serve the same browser capabilities:
 
 | Browser capability                                               | Preview  | Production |
 | ---------------------------------------------------------------- | -------- | ---------- |

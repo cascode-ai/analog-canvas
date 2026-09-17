@@ -10,7 +10,7 @@ unit tests do not establish end-to-end completion.
 | Outcome                           | Remaining boundary                                                                                                                                  | Acceptance owner                                                                      |
 | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
 | Simulation capabilities           | Advanced legacy conversion, repeated Noise provenance, and promotion-predicate review                                                               | [Simulation remaining work](simulation-remaining-work.md)                             |
-| VACASK integration                | Dual-engine Preview qualification, preserved interaction and one-candidate human/Agent acceptance                                                    | [VACASK migration](vacask-migration.md)                                                |
+| VACASK integration                | Dual-engine Preview qualification, preserved interaction and one-candidate human/Agent acceptance                                                   | [VACASK qualification](vacask-migration.md)                                           |
 | Accessible manual editing         | Semantic canvas navigation and keyboard alternatives to pointer-only operations                                                                     | Editor interaction; [current limits](../user/troubleshooting.md#accessibility-limits) |
 | Connectivity consumer closure     | Verify all production consumers use canonical read/geometry/location contracts; remove any reachable duplicate paths only with parity evidence      | Derived/Edit Engine/editor owners                                                     |
 | Named-Net/export closure          | Verify the complete lifecycle and dialect matrix together, not just isolated resolver success                                                       | Derived/netlist/import/editor owners                                                  |
@@ -21,6 +21,15 @@ Connectivity/export, portable release and hosted Agent rows are recurring
 acceptance reviews, not missing feature implementations. Candidate receipts and
 commits carry their evidence. Investigate concrete gaps revealed by those reviews;
 do not recreate an already implemented subsystem.
+
+## Free-angle diagnostic decision
+
+Free-angle routing is supported, but the current visual diagnostic classifies
+`VISUAL_NON_STANDARD_WIRE_ANGLE` as structural, high-confidence and gate-eligible
+for segments that are neither orthogonal nor 45 degrees. This can turn a valid
+authoring choice into a gate objective. Decide whether it should be advisory or
+conditional on an explicit routing constraint; do not change the accepted
+drawing mode or silently suppress the check during documentation cleanup.
 
 ## Net-join naming decision
 
