@@ -8,6 +8,7 @@ import {
   deriveProjectNetNameProjection,
   directObjectLocator,
   mosBulkKind,
+  resolveMosBulkConnection,
   resolveDocumentLogicalNets,
   type ProjectedNetName,
   type ResolvedLogicalNet,
@@ -694,6 +695,18 @@ function terminalNetName(
   );
   if (noConnectName) return noConnectName;
   if (name) return name;
+  // A body nobody wired is the one pin with a stated policy behind it: the
+  // Cell's own default, or the supply marker the author drew. Both are facts
+  // the drawing already carries, so the fourth node is written from them
+  // rather than refused. `nameByNetId` is keyed by base Net, which is what
+  // the policy answers with.
+  if (pinName === "B" && mosBulkKind(instance)) {
+    const policyNet = resolveMosBulkConnection(document, instance)?.net;
+    const policyName = policyNet
+      ? context.nameByNetId.get(policyNet.id)
+      : undefined;
+    if (policyName) return policyName;
+  }
   // Missing connectivity is an error, not permission to infer a supply from
   // device polarity or a matching Net name elsewhere in the Cell.
   if (!name) {

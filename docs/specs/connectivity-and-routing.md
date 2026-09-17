@@ -174,22 +174,34 @@ kernel, stable leg identity, and Route transaction.
 
 Routes may present as `wire`, `bulk-dashed`, or `power-rail`; presentation does
 not alter Net identity. `bulk-dashed` is used for explicit MOS B routing.
-Manual MOS instances without explicit B membership first use a configured
-cell-default Net; without one, bulk remains unresolved in the editable graph.
+A manual MOS instance without explicit B membership resolves its body in a
+fixed order: a configured cell-default Net, and failing that the supply marker
+the author already drew — a `ground` marker for an NMOS body, a `vdd-port`
+marker for a PMOS body, reported as `supply-default`. That fallback needs no
+per-Cell configuration, which is what makes a pasted copy, an imported
+drawing, and a drawing made before the policy existed all behave like one
+drawn today. It reads a placed marker and nothing else: never a Net's
+spelling, never device polarity, never proximity. A Cell holding no wired
+marker of that domain, or more than one (AVDD beside VDD, AGND beside DGND),
+has no answer — the body stays unresolved and the Cell default must name one,
+because choosing between two authored supplies is the author's decision. An
+unwired marker names no Net, so it neither answers nor competes.
 Pasting a supply marker settles a body default the target Cell does not have
 yet, exactly as placing that marker does, and never overrules one it has. A
 body left alone on a Net that its own policy binding named, with no geometry,
 no name claim and no Cell terminal, is policy residue from a paste or from a
 deleted marker: reconciliation returns it to the configured default.
-Netlist extraction uses actual membership, including materialized defaults;
-an omitted B without explicit NoConnect reports `MISSING_PIN_NET`.
+Netlist extraction uses actual membership, including materialized defaults,
+and resolves a body that policy answers but never materialized through the
+same order above; `MISSING_PIN_NET` is reported for an omitted B without
+explicit NoConnect only when that order has no answer.
 Starting a `bulk-dashed` route from B treats a configured default membership as
 unowned; committing clears the binding before connecting the explicit Net.
 Deleting the explicit route may reconcile only an explicitly configured cell
 default. Source-bound/imported MOS instances keep their fourth-node evidence;
-when absent, the same missing-terminal rule applies. Legacy persisted
-`supply-default` bindings are readable compatibility data, not a current
-authoring policy. Cross-Document composition materializes an effective source
+when absent, the same missing-terminal rule applies. `supply-default` is a resolution status derived on
+read, not authored state: nothing writes a new `supply-default` binding, and
+persisted ones from an earlier release stay readable compatibility data. Cross-Document composition materializes an effective source
 `cell-default` as an `instance-override`: the copied B membership remains fixed
 to its copied Base Net and neither consumes nor changes the target Document's
 Cell default.

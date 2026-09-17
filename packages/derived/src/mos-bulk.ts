@@ -7,6 +7,7 @@ import type {
   SchematicDocument,
 } from "@icm/model";
 import { routeEnd } from "@icm/model";
+import { supplyMarkerForSymbol } from "./supply-marker.js";
 
 export type MosBulkKind = "nmos" | "pmos";
 export type MosBulkResolution =
@@ -138,10 +139,50 @@ export function isMosBulkRoute(
 }
 
 /**
+ * The Net a MOS body follows when nobody has said otherwise: the supply the
+ * author already drew. A ground marker is what an NMOS body sits on and a
+ * VDD marker is what a PMOS body sits on, because that is what those symbols
+ * mean — so the answer needs no per-Cell setting, survives copy/paste into
+ * any Cell that has the marker, and holds for drawings made before the
+ * policy existed.
+ *
+ * This reads an explicit placement. It never infers a supply from device
+ * polarity, from a Net's spelling, or from proximity, and several candidates
+ * (AVDD and DVDD, AGND and DGND) is an ambiguity rather than a vote: the
+ * answer is then nothing, and the Cell's own default has to name one.
+ */
+export function supplyDefaultMosBulkNet(
+  document: SchematicDocument,
+  kind: MosBulkKind,
+): Net | undefined {
+  const domain = kind === "nmos" ? "ground" : "vdd";
+  const netIds = new Set<string>();
+  for (const instance of document.instances) {
+    const marker = supplyMarkerForSymbol(instance.symbolId);
+    if (marker?.domain !== domain) continue;
+    const net = document.nets.find((candidate) =>
+      candidate.terminals.some(
+        (terminal) =>
+          terminal.instanceId === instance.id &&
+          terminal.pinName === marker.pinName,
+      ),
+    );
+    // A marker nobody wired yet names no supply; it is not an ambiguity
+    // either, so it simply does not vote.
+    if (net) netIds.add(net.id);
+  }
+  if (netIds.size !== 1) return undefined;
+  const [netId] = [...netIds];
+  return document.nets.find((net) => net.id === netId);
+}
+
+/**
  * Single authority for MOS body intent. Net membership remains the electrical
- * truth; this function only explains whether that truth was explicit or was
- * materialized from a configured cell default. MOS polarity never creates or
- * selects a named supply Net.
+ * truth; this function only explains where that truth came from: explicit B
+ * wiring, a configured Cell default, or — when the Cell configures nothing —
+ * the supply marker the author drew. MOS polarity never creates or selects a
+ * named supply Net; the supply fallback reads a placed marker, and stays
+ * silent when the drawing offers more than one.
  */
 export function resolveMosBulkConnection(
   document: SchematicDocument,
@@ -211,6 +252,16 @@ export function resolveMosBulkConnection(
       status: "cell-default",
       instance,
       net: configured,
+      materialized: false,
+    };
+  }
+
+  const supply = supplyDefaultMosBulkNet(document, kind);
+  if (supply) {
+    return {
+      status: "supply-default",
+      instance,
+      net: supply,
       materialized: false,
     };
   }

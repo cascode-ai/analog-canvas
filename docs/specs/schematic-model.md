@@ -103,13 +103,17 @@ exception so Ground keeps its existing placement and routing behavior.
 
 Canonical MOS Instances use `nmos`/`pmos` with D/G/S/B electrical pins. The
 default `textbook-3terminal` variant is presentation-only. B membership is
-explicit first, then materialized from a configured cell-default Net. Without
-either, it remains unresolved in persisted connectivity. Strict extraction
-reports `MISSING_PIN_NET` unless an explicit NoConnect supplies the separate
-floating-node contract; neither strict nor profiled copy export guesses a supply
-from polarity or repairs an unresolved MOS Bulk. Existing `supply-default` bindings
-remain readable for compatibility, but current manual authoring does not create
-them.
+explicit first, then materialized from a configured cell-default Net, and
+failing both it follows the one wired supply marker of its domain in that Cell
+— `ground` for an NMOS body, `vdd-port` for a PMOS body — resolved on read as
+`supply-default` and never written into persisted connectivity. A Cell with no
+such marker, or with more than one, leaves the body unresolved. Strict
+extraction reports `MISSING_PIN_NET` for an unresolved body unless an explicit
+NoConnect supplies the separate floating-node contract; no export guesses a
+supply from device polarity or from a Net's spelling, and a marker is an
+authored placement rather than a guess. Nothing writes a new `supply-default`
+binding; persisted ones from an earlier release remain readable for
+compatibility.
 Cross-Document composition converts an effective source `cell-default` to an
 instance-owned `instance-override` so target Cell policy cannot retarget the
 copied body.

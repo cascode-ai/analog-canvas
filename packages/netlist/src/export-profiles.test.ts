@@ -538,13 +538,54 @@ describe("netlist export presets", () => {
       expect(result.file.text).not.toContain("VSS");
       expect(project).toEqual(before);
 
-      // A named global supply elsewhere must not repair a missing Bulk.
+      // The marker the author placed is the body default. A PMOS whose B
+      // nobody wired follows the one VDD marker in the Cell, with no per-Cell
+      // setting to configure — which is what makes a pasted copy, an imported
+      // drawing, and a drawing made before the policy existed all behave the
+      // same.
       document.nets.find((net) => net.id === "M2-B")!.terminals = [
         { instanceId: "VDD1", pinName: "P" },
       ];
+      const defaulted = createDesignNetlistExport(project, { profile, format });
+      expect(defaulted.status).toBe("ready");
+      if (defaulted.status === "ready") {
+        // Drain, gate, source, then the fourth node the policy supplied.
+        expect(defaulted.file.text).toMatch(
+          format === "spice"
+            ? /M2 \S+ \S+ \S+ VDD PMOS/u
+            : /M2 \(\S+ \S+ \S+ VDD\) PMOS/u,
+        );
+      }
+
+      // Two supplies is a question, not a vote. With AVDD beside VDD the
+      // policy stays silent and the omitted Bulk is blocking again, exactly
+      // as it was before any marker was placed.
+      document.instances.push({
+        id: "VDD2",
+        symbolId: "vdd-port",
+        placement: null,
+      });
+      document.nets.push({
+        id: "avdd",
+        terminals: [{ instanceId: "VDD2", pinName: "P" }],
+      });
+      document.connectivityEvidence.push({
+        id: "avdd-claim",
+        kind: "name-claim",
+        netId: "avdd",
+        name: "AVDD",
+        scope: "global",
+        powerDomain: "vdd",
+        owner: { kind: "power-marker", objectId: "VDD2" },
+      });
+      const ambiguous = createDesignNetlistExport(project, { profile, format });
+      expect(ambiguous.status).toBe("blocked");
       expect(
-        createDesignNetlistExport(project, { profile, format }).status,
-      ).toBe("blocked");
+        ambiguous.diagnostics.some(
+          (item) =>
+            item.code === "MISSING_PIN_NET" && item.message.includes("M2.B"),
+        ),
+      ).toBe(true);
     },
   );
 

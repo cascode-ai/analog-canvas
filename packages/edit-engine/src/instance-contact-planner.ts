@@ -21,40 +21,25 @@ import {
   resolveEndpointConnection,
   resolveDocumentRoutingGeometry,
   resolveElectricalContactTargets,
+  supplyMarkerForSymbol,
 } from "@icm/derived";
 import type {
   ElectricalContactCandidate,
   ElectricalContactTarget,
+  SupplyMarker,
 } from "@icm/derived";
 import { deriveStableId, routeEndpoints } from "@icm/model";
 import type { Instance, RouteEndpoint, SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
-const POWER_CONNECTION_BY_SYMBOL = {
-  ground: {
-    name: "0",
-    pinName: "0",
-    domain: "ground",
-    scope: "global",
-  },
-  "vdd-port": {
-    name: "VDD",
-    pinName: "P",
-    domain: "vdd",
-    scope: "global",
-  },
-} as const;
+/**
+ * Which supply a marker symbol authors. The table moved down to @icm/derived
+ * when the MOS body policy started asking the same question; this name stays
+ * because placement is what most callers here are doing.
+ */
+export type SymbolPowerConnection = SupplyMarker;
 
-export type SymbolPowerConnection =
-  (typeof POWER_CONNECTION_BY_SYMBOL)[keyof typeof POWER_CONNECTION_BY_SYMBOL];
-
-export function powerConnectionForSymbol(
-  symbolId: string,
-): SymbolPowerConnection | undefined {
-  return POWER_CONNECTION_BY_SYMBOL[
-    symbolId as keyof typeof POWER_CONNECTION_BY_SYMBOL
-  ];
-}
+export const powerConnectionForSymbol = supplyMarkerForSymbol;
 
 export interface PlacementContactProposal {
   edits: readonly SchematicEdit[];
@@ -360,9 +345,7 @@ export function proposePlacementContact(
   const power =
     options.mode === "move" || options.powerMarker === false
       ? undefined
-      : POWER_CONNECTION_BY_SYMBOL[
-          instance.symbolId as keyof typeof POWER_CONNECTION_BY_SYMBOL
-        ];
+      : supplyMarkerForSymbol(instance.symbolId);
   const edits: SchematicEdit[] = [];
   // Fold all contact membership edits through the transaction's own mutations
   // before compiling any split. Later contacts must see prior Net merges, but
@@ -501,10 +484,7 @@ export function proposedStandalonePowerConnection(
   document: SchematicDocument,
   instance: Instance,
 ): PlacementContactProposal {
-  const power =
-    POWER_CONNECTION_BY_SYMBOL[
-      instance.symbolId as keyof typeof POWER_CONNECTION_BY_SYMBOL
-    ];
+  const power = supplyMarkerForSymbol(instance.symbolId);
   if (!power) return { edits: [], matched: false, ambiguous: false };
   const endpoint: RouteEndpoint = {
     kind: "terminal",
