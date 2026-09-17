@@ -320,6 +320,7 @@ const relay = createServer(async (request, response) => {
                     {
                       id: "run.cir:2:1",
                       name: "peak",
+                      group: "Bias checks",
                       occurrence: 1,
                       source: {
                         path: "run.cir",
@@ -612,6 +613,7 @@ try {
   );
   assert.equal(simulation.run.outputData.specs.results[0].judgment, "pass");
   assert.equal(simulation.run.outputData.specs.results[0].value, 1.7);
+  assert.equal(simulation.run.outputData.specs.results[0].group, "Bias checks");
   assert.deepEqual(simulation.run.outputData.analyses, []);
   const resources = await first.request("resources/list");
   assert(
