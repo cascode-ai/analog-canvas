@@ -65,6 +65,26 @@ function applyPortCase(ir: DesignNetlistIR, portCase: NetlistPortCase): void {
 }
 
 /**
+ * Whether this Cell extracts far enough to write a netlist file.
+ *
+ * Missing model targets and device parameters are a process-library choice,
+ * not an incomplete drawing: the export writes them as TODO placeholders, so
+ * they never decide this answer. Connectivity, references and interface
+ * contracts do. One definition serves the editor, the Gallery badge and any
+ * report, so a circuit is never called extractable in one place and not in
+ * another.
+ */
+export function designExtractsNetlist(
+  project: CircuitProject,
+  options: DesignNetlistAnalysisOptions = {},
+): boolean {
+  return (
+    createDesignNetlistExport(project, { format: "spice", ...options })
+      .status === "ready"
+  );
+}
+
+/**
  * Copy/export projection. Missing device values/models become undefined
  * tokens on a copy, which must then pass strict extraction. Never expose the
  * permissive authoring IR as an export or change simulation readiness.

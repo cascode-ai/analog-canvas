@@ -1,7 +1,7 @@
 // Public Gallery HTTP policy and rendering. Durable storage lives in
 // gallery-do.ts; this module only authenticates and maps API requests.
 
-import { analyzeDesignNetlist } from "@icm/netlist";
+import { designExtractsNetlist } from "@icm/netlist";
 import { parseProject, serializeProject } from "@icm/project-protocol";
 import { renderDocumentSvg } from "@icm/render-svg";
 import {
@@ -415,8 +415,8 @@ async function handleSubmission(
       // that can tell whether one is already taken.
       id: "",
       // Recorded, never enforced: a circuit that does not extract is
-      // published exactly the same way, it simply does not wear the star.
-      netlistable: analyzeDesignNetlist(project).ir ? 1 : 0,
+      // published exactly the same way, it simply does not wear the badge.
+      netlistable: designExtractsNetlist(project) ? 1 : 0,
       name,
       author,
       description,
@@ -514,7 +514,8 @@ async function handleEntryUpdate(
   const projectResolver = createProjectSymbolResolver(project, builtInSymbols);
   project.name = name;
   const nextStatus = existing.payload.status ?? "public";
-  const netlistable = analyzeDesignNetlist(project).ir ? 1 : 0;
+  // Every republication re-answers this; the badge follows the drawing.
+  const netlistable = designExtractsNetlist(project) ? 1 : 0;
   const { status, payload } = await callGallery(env, "replace-entry", {
     id,
     at: new Date().toISOString(),
@@ -666,6 +667,28 @@ export async function routeGalleryRequest(
     } | null;
     const { status, payload } = await callGallery(env, "schema-converge", {
       apply: body?.apply === true,
+    });
+    return Response.json(payload, {
+      status,
+      headers: { "cache-control": "no-store" },
+    });
+  }
+  if (
+    segments.length === 2 &&
+    segments[0] === "maintenance" &&
+    segments[1] === "netlist-badges" &&
+    request.method === "POST"
+  ) {
+    if (!(await isAdmin(request, env))) {
+      return Response.json({ error: "unauthorized" }, { status: 401 });
+    }
+    const body = (await request.json().catch(() => null)) as {
+      after?: unknown;
+      limit?: unknown;
+    } | null;
+    const { status, payload } = await callGallery(env, "netlistable-refresh", {
+      ...(typeof body?.after === "string" ? { after: body.after } : {}),
+      ...(Number.isFinite(Number(body?.limit)) ? { limit: body!.limit } : {}),
     });
     return Response.json(payload, {
       status,

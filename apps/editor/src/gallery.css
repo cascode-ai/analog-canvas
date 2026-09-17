@@ -995,13 +995,15 @@
   color: var(--icm-text-muted);
 }
 
-/* A star says this circuit extracts to a netlist. It marks extra
-   completeness and gates nothing, so it is a quiet accent beside the name
-   rather than a badge competing with it. */
-.gallery-tile-star {
-  margin-left: 4px;
-  color: #c98a12;
-  font-size: 12px;
+/* This mark says the circuit extracts to a netlist. It records extra
+   completeness and gates nothing, so it stays a quiet accent beside the name
+   rather than a badge competing with it, and it never competes with the like
+   heart for the same meaning. */
+.gallery-tile-netlist {
+  display: inline-flex;
+  margin-left: 5px;
+  color: #2f7d4f;
+  vertical-align: -1px;
 }
 
 .gallery-tile-like {

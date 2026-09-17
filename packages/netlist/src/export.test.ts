@@ -3,7 +3,7 @@ import { createEmptyProject } from "@icm/model";
 import { importSpiceSources } from "@icm/spice";
 import { analyzeDesignNetlist } from "./extract.js";
 import { printDesignNetlist } from "./printers.js";
-import { createDesignNetlistExport } from "./export.js";
+import { createDesignNetlistExport, designExtractsNetlist } from "./export.js";
 
 function fixture() {
   const project = createEmptyProject(
@@ -252,5 +252,69 @@ R1 A B 5k
       pwlPoints: "broken",
     };
     expect(createDesignNetlistExport(project).status).toBe("blocked");
+  });
+});
+
+describe("netlist extractability", () => {
+  function oneTransistor(connected: { body: boolean }) {
+    const project = createEmptyProject("extractable", "Extractable", "main");
+    const document = project.documents[0]!;
+    document.instances.push({
+      id: "M1",
+      symbolId: "nmos",
+      reference: "M1",
+      netlist: { parameters: {} },
+      placement: { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
+    });
+    document.nets.push(
+      {
+        id: "net-top",
+        terminals: [
+          { instanceId: "M1", pinName: "G" },
+          { instanceId: "M1", pinName: "D" },
+        ],
+      },
+      {
+        id: "net-bottom",
+        terminals: [
+          { instanceId: "M1", pinName: "S" },
+          ...(connected.body
+            ? [{ instanceId: "M1", pinName: "B" as const }]
+            : []),
+        ],
+      },
+    );
+    return project;
+  }
+
+  it("does not hold a missing process library against a drawing", () => {
+    // An unbound model and an unset w/l are a PDK choice made at export,
+    // where they become TODO placeholders. The drawing is complete.
+    const project = oneTransistor({ body: true });
+    const errors = analyzeDesignNetlist(project).diagnostics.filter(
+      (item) => item.severity === "error",
+    );
+    expect(errors.map((item) => item.code).sort()).toEqual([
+      "MISSING_MODEL_TARGET",
+      "MISSING_REQUIRED_PARAMETER",
+      "MISSING_REQUIRED_PARAMETER",
+    ]);
+    expect(designExtractsNetlist(project)).toBe(true);
+  });
+
+  it("answers no while connectivity is still missing", () => {
+    // A body on no Net is not a process choice: SPICE has no fourth node to
+    // write, and no export option supplies one.
+    expect(designExtractsNetlist(oneTransistor({ body: false }))).toBe(false);
+  });
+
+  it("gives the same answer as the export the editor performs", () => {
+    for (const body of [true, false]) {
+      const project = oneTransistor({ body });
+      expect(designExtractsNetlist(project)).toBe(
+        createDesignNetlistExport(project, { format: "spice" }).status ===
+          "ready",
+      );
+    }
   });
 });

@@ -1650,7 +1650,7 @@ test("keeps newest-first order and stops after the last circuit", async ({
   ).toBe(true);
 });
 
-test("stars the circuits that extract and counts thumbs on every card", async ({
+test("marks the circuits that extract and counts thumbs on every card", async ({
   page,
 }) => {
   const extractable = {
@@ -1685,12 +1685,14 @@ test("stars the circuits that extract and counts thumbs on every card", async ({
   });
 
   await page.goto("/");
-  // The star marks the one that extracts. The other is on the wall all the
-  // same — a schematic is allowed to be abbreviated.
-  await expect(
-    page.getByTestId(`gallery-star-${extractable.id}`),
-  ).toBeVisible();
-  await expect(page.getByTestId(`gallery-star-${sketch.id}`)).toHaveCount(0);
+  // The netlist mark, a drawn deck rather than a star, belongs to the one
+  // that extracts. The other is on the wall all the same — a schematic is
+  // allowed to be abbreviated.
+  const mark = page.getByTestId(`gallery-netlist-${extractable.id}`);
+  await expect(mark).toBeVisible();
+  await expect(mark.locator("svg")).toHaveCount(1);
+  await expect(mark).not.toContainText("★");
+  await expect(page.getByTestId(`gallery-netlist-${sketch.id}`)).toHaveCount(0);
   await expect(page.getByTestId(`gallery-tile-${sketch.id}`)).toBeVisible();
 
   const thumb = page.getByTestId(`gallery-like-${extractable.id}`);

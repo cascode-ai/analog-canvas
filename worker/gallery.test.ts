@@ -633,7 +633,7 @@ describe("newest-first gallery feed", () => {
   });
 });
 
-describe("stars and thumbs", () => {
+describe("netlist marks and thumbs", () => {
   function likeRequest(id: string, cookie?: string): Request {
     const headers = new Headers({ Origin: ORIGIN });
     if (cookie) headers.set("Cookie", cookie);
@@ -667,7 +667,7 @@ describe("stars and thumbs", () => {
 
     // An ideal switch has no reviewed netlist definition, so this circuit
     // does not extract. That is a legitimate schematic, not a mistake: it is
-    // published exactly like any other and simply wears no star.
+    // published exactly like any other and simply wears no mark.
     const sketch = createEmptyProject("sketch", "Sketch");
     sketch.documents[0]!.instances.push({
       id: "S1",
@@ -685,8 +685,106 @@ describe("stars and thumbs", () => {
     const byId = new Map(listed.entries.map((entry) => [entry.id, entry]));
     expect(byId.get(sketchId)!.netlistable).toBe(false);
     expect(byId.get(extractableId)!.netlistable).toBe(true);
-    // Both are on the wall; the star separates them, nothing else does.
+    // Both are on the wall; the mark separates them, nothing else does.
     expect(listed.entries).toHaveLength(2);
+  });
+
+  it("does not hold a missing process library against a circuit", async () => {
+    // Which PDK a MOS is bound to is chosen at export, and the export writes
+    // an unbound model or width as a TODO placeholder. A drawing whose only
+    // gaps are those is extractable, so the mark must not wait for a PDK.
+    const env = environment();
+    const cookie = await adminOf(env);
+    const unbound = createEmptyProject("unbound", "Unbound");
+    const document = unbound.documents[0]!;
+    document.instances.push({
+      id: "M1",
+      symbolId: "nmos",
+      reference: "M1",
+      netlist: { parameters: {} },
+      placement: { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
+    });
+    document.nets.push(
+      {
+        id: "net-top",
+        terminals: [
+          { instanceId: "M1", pinName: "G" },
+          { instanceId: "M1", pinName: "D" },
+        ],
+      },
+      {
+        id: "net-bottom",
+        terminals: [
+          { instanceId: "M1", pinName: "S" },
+          { instanceId: "M1", pinName: "B" },
+        ],
+      },
+    );
+    const id = await submitOne(env, "Unbound", {
+      cookie,
+      text: serializeProject(unbound),
+    });
+    const entry = (await feed(env)).entries.find((item) => item.id === id);
+    expect(entry?.netlistable).toBe(true);
+  });
+
+  it("re-answers stored marks in resumable batches", async () => {
+    // Entries published before this answer existed carry a stale mark, and
+    // only a pass over stored Projects can correct it. Simulate that by
+    // writing the wrong mark, then let the maintenance pass re-answer.
+    const env = environment();
+    const cookie = await adminOf(env);
+    const first = await submitOne(env, "Batch one", { cookie });
+    const second = await submitOne(env, "Batch two", { cookie });
+    env.gallerySql.exec("UPDATE gallery_entries SET netlistable = 0");
+    expect((await feed(env)).entries.every((entry) => !entry.netlistable)).toBe(
+      true,
+    );
+
+    const refresh = async (after?: string) => {
+      const response = await route(
+        env,
+        new Request(`${ORIGIN}/api/gallery/maintenance/netlist-badges`, {
+          method: "POST",
+          headers: {
+            ...cookieHeaders(cookie),
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({ limit: 1, ...(after ? { after } : {}) }),
+        }),
+      );
+      expect(response.status).toBe(200);
+      return (await response.json()) as {
+        scanned: number;
+        changed: number;
+        unreadable: number;
+        cursor: string;
+        remaining: number;
+      };
+    };
+    const firstBatch = await refresh();
+    expect(firstBatch).toMatchObject({ scanned: 1, changed: 1, remaining: 1 });
+    const secondBatch = await refresh(firstBatch.cursor);
+    expect(secondBatch).toMatchObject({ scanned: 1, changed: 1, remaining: 0 });
+
+    const marked = (await feed(env)).entries;
+    expect(marked.map((entry) => entry.netlistable)).toEqual([true, true]);
+    expect(new Set(marked.map((entry) => entry.id))).toEqual(
+      new Set([first, second]),
+    );
+  });
+
+  it("keeps the mark pass behind the admin check", async () => {
+    const env = environment();
+    const response = await route(
+      env,
+      new Request(`${ORIGIN}/api/gallery/maintenance/netlist-badges`, {
+        method: "POST",
+        headers: { Origin: ORIGIN, "content-type": "application/json" },
+        body: "{}",
+      }),
+    );
+    expect(response.status).toBe(401);
   });
 
   it("counts one thumb per account and takes it back on a second press", async () => {

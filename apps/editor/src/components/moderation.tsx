@@ -192,6 +192,100 @@ function SchemaMaintenance() {
   );
 }
 
+/**
+ * Re-answer the netlist mark for stored circuits.
+ *
+ * Publishing, republishing and restoring all answer it, so the wall stays
+ * current by itself. Circuits published before the current answer existed
+ * keep the old one, and only a pass over stored Projects corrects that. The
+ * pass is batched in the Durable Object; this button walks the batches.
+ */
+function NetlistMarkMaintenance() {
+  const [running, setRunning] = useState(false);
+  const [report, setReport] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function refresh(): Promise<void> {
+    setRunning(true);
+    setError(null);
+    setReport(null);
+    let after = "";
+    let scanned = 0;
+    let changed = 0;
+    let unreadable = 0;
+    try {
+      for (let batch = 0; batch < 500; batch += 1) {
+        const response = await fetch(
+          "/api/gallery/maintenance/netlist-badges",
+          {
+            method: "POST",
+            credentials: "same-origin",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ limit: 25, ...(after ? { after } : {}) }),
+          },
+        );
+        const payload = (await response.json()) as {
+          scanned?: number;
+          changed?: number;
+          unreadable?: number;
+          cursor?: string;
+          remaining?: number;
+          error?: string;
+        };
+        if (!response.ok || payload.remaining === undefined) {
+          throw new Error(payload.error);
+        }
+        scanned += payload.scanned ?? 0;
+        changed += payload.changed ?? 0;
+        unreadable += payload.unreadable ?? 0;
+        after = payload.cursor ?? "";
+        setReport(
+          `Scanned ${scanned}, updated ${changed}, ${payload.remaining} to go.`,
+        );
+        if (payload.remaining === 0) break;
+      }
+      setReport(
+        `Scanned ${scanned} circuits, updated ${changed} mark${changed === 1 ? "" : "s"}${unreadable > 0 ? `, ${unreadable} unreadable` : ""}.`,
+      );
+    } catch (cause) {
+      setError(
+        cause instanceof Error && cause.message
+          ? cause.message
+          : "Netlist mark maintenance failed.",
+      );
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  return (
+    <section className="review-bin" data-testid="netlist-mark-maintenance">
+      <h2>Netlist marks</h2>
+      <p className="review-card-meta">
+        Re-answer which stored circuits extract to a SPICE netlist. New and
+        edited circuits answer this on their own; this pass is for circuits
+        published before the current answer.
+      </p>
+      <div className="review-card-actions">
+        <button
+          type="button"
+          disabled={running}
+          data-testid="netlist-marks-refresh"
+          onClick={() => void refresh()}
+        >
+          {running ? "Re-answering…" : "Re-answer stored marks"}
+        </button>
+      </div>
+      {error ? <p className="account-notice">{error}</p> : null}
+      {report ? (
+        <div className="gallery-status" data-testid="netlist-marks-report">
+          <p>{report}</p>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 /** Owner decisions waiting for correction, restoration, or archival. */
 function RejectedList({
   refreshVersion,
@@ -499,6 +593,7 @@ export function Moderation() {
               {notice ? <span className="account-notice">{notice}</span> : null}
             </form>
             <SchemaMaintenance />
+            <NetlistMarkMaintenance />
           </details>
         ) : null}
         {state.user.isAdmin ? (

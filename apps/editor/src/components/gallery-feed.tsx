@@ -245,6 +245,35 @@ function HeartIcon({ filled }: { filled: boolean }) {
 }
 
 /**
+ * The netlist mark, drawn rather than typed.
+ *
+ * A star said "rating" on a wall of circuits and sat beside the like heart,
+ * where two accents competed for the same meaning. This says what it marks:
+ * the SPICE deck this circuit extracts to. Absence is not a verdict — a
+ * sketch publishes exactly the same way — so the mark is quiet and only ever
+ * appears, never crosses anything out.
+ */
+function NetlistIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="12"
+      height="12"
+      aria-hidden="true"
+      focusable="false"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2.2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect x="4.5" y="3" width="15" height="18" rx="2.5" />
+      <path d="M8 8.5h8M8 12.5h8M8 16.5h5" />
+    </svg>
+  );
+}
+
+/**
  * One search string against one circuit. The query arrives normalized
  * (trimmed, lowercased); fields answer case-insensitively. A tag counts as
  * content, so a query matching a tag matches the circuits that carry it.
@@ -990,12 +1019,12 @@ export function GalleryFeed({
                               {entry.name}
                               {entry.netlistable ? (
                                 <span
-                                  className="gallery-tile-star"
-                                  data-testid={`gallery-star-${entry.id}`}
+                                  className="gallery-tile-netlist"
+                                  data-testid={`gallery-netlist-${entry.id}`}
                                   title="Extracts to a SPICE netlist"
                                   aria-label="Extracts to a SPICE netlist"
                                 >
-                                  ★
+                                  <NetlistIcon />
                                 </span>
                               ) : null}
                             </span>

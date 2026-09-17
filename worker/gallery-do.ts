@@ -15,7 +15,7 @@
 // longer open.
 
 import { sha256Hex } from "@icm/derived";
-import { analyzeDesignNetlist } from "@icm/netlist";
+import { designExtractsNetlist } from "@icm/netlist";
 import {
   parseProject,
   serializeProject,
@@ -639,6 +639,8 @@ export class GalleryDO {
         return this.mine(String(body.ownerUserId));
       case "all-ids":
         return this.allIds();
+      case "netlistable-refresh":
+        return this.refreshNetlistable(body);
       case "tags":
         return this.tagCounts();
       case "authors":
@@ -1115,7 +1117,7 @@ export class GalleryDO {
       );
     }
     const restoredProjectText = serializeProject(restoredProject);
-    const netlistable = analyzeDesignNetlist(restoredProject).ir ? 1 : 0;
+    const netlistable = designExtractsNetlist(restoredProject) ? 1 : 0;
     const previewRevision = sha256Hex(version.svg_text);
     const previewDimensions = svgPreviewDimensions(version.svg_text);
     this.state.storage.transactionSync(() => {
@@ -1990,6 +1992,66 @@ export class GalleryDO {
         author: row.author,
         count: Number(row.count),
       })),
+    });
+  }
+
+  /**
+   * Re-answer the netlist badge for stored entries.
+   *
+   * The badge is written when a circuit is published, republished or
+   * restored, so it follows every edit from here on. Entries published before
+   * the current answer existed keep a stale one, and only a pass over stored
+   * Projects can correct that. The pass is batched and resumable: one call
+   * scans `limit` entries after `after`, reports what is left, and never
+   * holds the Object for the whole Gallery.
+   */
+  private refreshNetlistable(body: Record<string, unknown>): Response {
+    const limit = Math.min(Math.max(Number(body.limit) || 50, 1), 200);
+    const after = typeof body.after === "string" ? body.after : "";
+    const rows = this.sql
+      .exec<{ id: string; project_text: string; netlistable: number }>(
+        `SELECT id, project_text, netlistable FROM gallery_entries
+         WHERE id > ? ORDER BY id LIMIT ?`,
+        after,
+        limit,
+      )
+      .toArray();
+    let changed = 0;
+    let unreadable = 0;
+    let cursor = after;
+    for (const row of rows) {
+      cursor = row.id;
+      let answer: number;
+      try {
+        answer = designExtractsNetlist(parseProject(row.project_text)) ? 1 : 0;
+      } catch {
+        // A Project this build cannot parse keeps the answer it has; the
+        // schema maintenance pass owns that repair.
+        unreadable += 1;
+        continue;
+      }
+      if (answer === row.netlistable) continue;
+      this.sql.exec(
+        "UPDATE gallery_entries SET netlistable = ? WHERE id = ?",
+        answer,
+        row.id,
+      );
+      changed += 1;
+    }
+    const remaining = Number(
+      this.sql
+        .exec<{ count: number }>(
+          "SELECT COUNT(*) AS count FROM gallery_entries WHERE id > ?",
+          cursor,
+        )
+        .one().count,
+    );
+    return Response.json({
+      scanned: rows.length,
+      changed,
+      unreadable,
+      cursor,
+      remaining,
     });
   }
 
